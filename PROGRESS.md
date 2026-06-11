@@ -8,7 +8,7 @@
 
 | Phase | Name                          | Status | Build | Tests | QA | Human ✓ | Completed | Commit |
 | ----- | ----------------------------- | ------ | ----- | ----- | -- | ------- | --------- | ------ |
-| 0     | Scaffolding & Environment     | ✅ complete | ✅ | ✅ 5/5 | ✅ APPROVED | ✅ 2026-06-11 | 2026-06-11 | `effae88` |
+| 0     | Scaffolding & Environment     | ✅ complete | ✅ | ✅ 5/5 | ✅ APPROVED | ✅ 2026-06-11 | 2026-06-11 | `d64281e` |
 | 1     | Schema, Auth & RLS            | 🔜 not started | – | – | – | – | – | – |
 | 2     | Authentication & App Shell    | 🔜 not started | – | – | – | – | – | – |
 | 3     | Admin Area & User Management  | 🔜 not started | – | – | – | – | – | – |
