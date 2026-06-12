@@ -1,0 +1,153 @@
+{
+  "_comment": "Shared test vectors for the section-visibility condition evaluator. Consumed by BOTH the SQL evaluator test (supabase/tests/20_conditions.sql) and the TypeScript mirror test (src/lib/queries/conditions.test.ts). Keeping the two in agreement is enforced by these vectors; drift is a phase-blocking bug. `answers` maps question_key -> answer value (jsonb). `visible_when` follows ARCHITECTURE visible_when shape; null means always-visible.",
+  "vectors": [
+    {
+      "name": "null condition is always visible",
+      "visible_when": null,
+      "answers": { "q1": "Sim" },
+      "expected": true
+    },
+    {
+      "name": "equals match",
+      "visible_when": { "question_key": "q1", "op": "equals", "value": "Sim" },
+      "answers": { "q1": "Sim" },
+      "expected": true
+    },
+    {
+      "name": "equals mismatch",
+      "visible_when": { "question_key": "q1", "op": "equals", "value": "Sim" },
+      "answers": { "q1": "Não" },
+      "expected": false
+    },
+    {
+      "name": "equals missing answer is false",
+      "visible_when": { "question_key": "q1", "op": "equals", "value": "Sim" },
+      "answers": {},
+      "expected": false
+    },
+    {
+      "name": "equals null answer is false",
+      "visible_when": { "question_key": "q1", "op": "equals", "value": "Sim" },
+      "answers": { "q1": null },
+      "expected": false
+    },
+    {
+      "name": "not_equals mismatch is true",
+      "visible_when": {
+        "question_key": "q1",
+        "op": "not_equals",
+        "value": "Sim"
+      },
+      "answers": { "q1": "Não" },
+      "expected": true
+    },
+    {
+      "name": "not_equals match is false",
+      "visible_when": {
+        "question_key": "q1",
+        "op": "not_equals",
+        "value": "Sim"
+      },
+      "answers": { "q1": "Sim" },
+      "expected": false
+    },
+    {
+      "name": "not_equals missing answer is true",
+      "visible_when": {
+        "question_key": "q1",
+        "op": "not_equals",
+        "value": "Sim"
+      },
+      "answers": {},
+      "expected": true
+    },
+    {
+      "name": "in match scalar",
+      "visible_when": {
+        "question_key": "q1",
+        "op": "in",
+        "value": ["A", "B", "C"]
+      },
+      "answers": { "q1": "B" },
+      "expected": true
+    },
+    {
+      "name": "in mismatch scalar",
+      "visible_when": {
+        "question_key": "q1",
+        "op": "in",
+        "value": ["A", "B", "C"]
+      },
+      "answers": { "q1": "D" },
+      "expected": false
+    },
+    {
+      "name": "in missing answer is false",
+      "visible_when": { "question_key": "q1", "op": "in", "value": ["A", "B"] },
+      "answers": {},
+      "expected": false
+    },
+    {
+      "name": "equals against checkbox array (selected option present)",
+      "visible_when": {
+        "question_key": "q1",
+        "op": "equals",
+        "value": "luvas"
+      },
+      "answers": { "q1": ["luvas", "avental"] },
+      "expected": true
+    },
+    {
+      "name": "equals against checkbox array (option absent)",
+      "visible_when": {
+        "question_key": "q1",
+        "op": "equals",
+        "value": "mascara"
+      },
+      "answers": { "q1": ["luvas", "avental"] },
+      "expected": false
+    },
+    {
+      "name": "not_equals against checkbox array (option absent is true)",
+      "visible_when": {
+        "question_key": "q1",
+        "op": "not_equals",
+        "value": "mascara"
+      },
+      "answers": { "q1": ["luvas", "avental"] },
+      "expected": true
+    },
+    {
+      "name": "in against checkbox array (any selected option in list)",
+      "visible_when": {
+        "question_key": "q1",
+        "op": "in",
+        "value": ["mascara", "avental"]
+      },
+      "answers": { "q1": ["luvas", "avental"] },
+      "expected": true
+    },
+    {
+      "name": "in against checkbox array (no selected option in list)",
+      "visible_when": {
+        "question_key": "q1",
+        "op": "in",
+        "value": ["mascara", "touca"]
+      },
+      "answers": { "q1": ["luvas", "avental"] },
+      "expected": false
+    },
+    {
+      "name": "equals numeric value",
+      "visible_when": { "question_key": "q1", "op": "equals", "value": 3 },
+      "answers": { "q1": 3 },
+      "expected": true
+    },
+    {
+      "name": "equals boolean value",
+      "visible_when": { "question_key": "q1", "op": "equals", "value": true },
+      "answers": { "q1": true },
+      "expected": true
+    }
+  ]
+}

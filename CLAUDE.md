@@ -288,3 +288,10 @@ E2E seeded personas (defined in `supabase/seed.sql`, applied via `supabase db re
 `admin@test.local`, `chefe.ccih@test.local` (staff_admin, commission A),
 `staff1.ccih@test.local`, plus equivalents for commission B. Password for all:
 `Test1234!`.
+
+## Loop Safety Rules
+- Never exceed 5 fix iterations without reporting to the user
+- Each iteration must fix at least one new issue — if the same error recurs unchanged, stop and escalate
+- Track which files each agent modified to detect conflicts
+- If two agents need to modify the same file, serialize those tasks
+- Log every iteration: what was tested, what failed, what was fixed
