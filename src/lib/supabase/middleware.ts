@@ -1,27 +1,34 @@
 import { createServerClient } from '@supabase/ssr'
-import type { User } from '@supabase/supabase-js'
+import type { JwtPayload } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 
 import type { Database } from '@/lib/types/database'
 
 /**
- * Edge-middleware Supabase client + session refresh (`@supabase/ssr` pattern).
+ * Edge-middleware Supabase client + session refresh (`@supabase/ssr` pattern),
+ * with LOCAL JWT verification on the request hot path (ADR 0009).
  *
- * Runs on every matched request to keep the auth session fresh: it reads the
- * request cookies, calls `getUser()` (which transparently refreshes an expired
- * access token), and writes any rotated cookies onto BOTH the inbound request
- * (so downstream Server Components see them this same request) and the returned
- * `NextResponse` (so the browser receives them). Uses ONLY the public URL and
- * anon key (Architecture Rule 1) — never the service-role key.
+ * Per request it: (1) reads the request cookies; (2) calls `getSession()`, which
+ * — via `@supabase/ssr` — refreshes the access token ONLY when it is actually
+ * expired (rare; that is the one case that touches GoTrue `/token`, and rotated
+ * cookies are written onto BOTH the request and the response); (3) calls
+ * `getClaims()`, which verifies the JWT SIGNATURE locally against the cached
+ * JWKS (the stack signs with ES256) and validates `exp`. There is NO per-request
+ * GoTrue `/user` round trip — that round trip was the cause of the post-login
+ * bounce under load: a valid, cookie-present session was intermittently treated
+ * as unauthenticated when the `/user` call raced/failed, bouncing the user back
+ * to `/login`.
  *
- * Returns the refreshed `response` and the validated `user` (or `null`) so
- * `middleware.ts` can apply its coarse auth gate without a second round trip.
- * Callers that issue a redirect MUST copy this response's cookies onto the
- * redirect (see `middleware.ts`), or the refreshed session is dropped.
+ * Returns the refreshed `response` and the locally-verified `claims` (or `null`)
+ * so `middleware.ts` can gate without any auth-server call. Callers that redirect
+ * MUST copy this response's cookies onto the redirect (see `middleware.ts`).
+ *
+ * Uses ONLY the public URL and anon key (Architecture Rule 1) — never the
+ * service-role key.
  */
 export async function updateSession(
   request: NextRequest,
-): Promise<{ response: NextResponse; user: User | null }> {
+): Promise<{ response: NextResponse; claims: JwtPayload | null }> {
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient<Database>(
@@ -45,11 +52,15 @@ export async function updateSession(
     },
   )
 
-  // IMPORTANT: do not run code between createServerClient and getUser — an
-  // unrefreshed session here can log the user out at random (per @supabase/ssr).
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // getSession() drives the refresh-if-expired behaviour (the only path that may
+  // call GoTrue, and only when the token is genuinely expired). We never trust
+  // getSession()'s payload for identity — so the @supabase/ssr "insecure session"
+  // warning does not apply to how we use it; getClaims() below is the verified
+  // authority (local signature + exp check). IMPORTANT: keep getSession→getClaims
+  // back-to-back with no intervening code (an unrefreshed session here can log
+  // the user out at random, per @supabase/ssr).
+  await supabase.auth.getSession()
+  const { data } = await supabase.auth.getClaims()
 
-  return { response, user }
+  return { response, claims: data?.claims ?? null }
 }

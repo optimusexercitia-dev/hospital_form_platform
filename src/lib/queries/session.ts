@@ -9,11 +9,15 @@ import { createClient } from '@/lib/supabase/server'
  * commission layout gates access via `getCommissionAccess()`, and protected
  * Server Components call `requireUser()`.
  *
- * Identity is always established from the Auth server (`getUser()`), never from
- * the cookie-stored session alone — `@supabase/ssr` cannot vouch for unverified
- * cookies. `is_admin` and memberships are read from the database (the source of
- * truth per ADR 0002), not from the JWT, so correctness never depends on the
- * access-token hook being configured. RLS scopes every read to the caller.
+ * Identity is established by LOCAL JWT verification (`getClaims()` — signature
+ * vs cached JWKS + `exp`), not a per-request `getUser()` GoTrue round trip
+ * (ADR 0009): the round trip raced/failed under load and bounced authenticated
+ * users to `/login`. `userId`, `email`, and `is_admin` come from the verified
+ * claims (`is_admin` is injected by the custom access token hook, ADR 0002);
+ * deriving it from the claim means admin UI fails CLOSED if the hook is ever
+ * absent. `full_name` and memberships are RLS-scoped DB reads (PostgREST
+ * validates the JWT locally too — no GoTrue call). The SQL `app.is_admin()`
+ * helper keeps its DB fallback as defense-in-depth at the RLS layer.
  */
 
 export type CommissionRole = 'staff' | 'staff_admin'
@@ -39,28 +43,35 @@ export interface SessionContext {
 export async function getSessionContext(): Promise<SessionContext | null> {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser()
-
-  if (userError || !user) {
+  // getSession() drives refresh-if-expired (only path that may touch GoTrue, and
+  // only when the token is genuinely expired); getClaims() locally verifies the
+  // JWT signature + exp and is the identity authority. We never trust
+  // getSession()'s payload, so the @supabase/ssr "insecure" warning is moot here.
+  await supabase.auth.getSession()
+  const { data: claimsData } = await supabase.auth.getClaims()
+  const claims = claimsData?.claims
+  if (!claims?.sub) {
     return null
   }
 
-  // Profile (is_admin, full_name) + memberships with their commission, in two
-  // RLS-scoped reads. `profiles` is readable for self; `commission_members` is
-  // joined to `commissions` and filtered to the current user.
+  const userId = claims.sub
+  // `is_admin` strictly from the verified claim (ADR 0002 / 0009) — fails closed
+  // (treated as non-admin) if the access-token hook is ever absent.
+  const isAdmin = claims.is_admin === true
+
+  // full_name + memberships in two RLS-scoped DB reads (PostgREST verifies the
+  // JWT locally — no GoTrue call). `profiles` is readable for self;
+  // `commission_members` is joined to `commissions` and filtered to the caller.
   const [profileResult, membershipResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('full_name, is_admin')
-      .eq('id', user.id)
+      .select('full_name')
+      .eq('id', userId)
       .maybeSingle(),
     supabase
       .from('commission_members')
       .select('role, commission:commissions(id, name, slug)')
-      .eq('user_id', user.id),
+      .eq('user_id', userId),
   ])
 
   const memberships: Membership[] = (membershipResult.data ?? [])
@@ -80,10 +91,10 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     )
 
   return {
-    userId: user.id,
-    email: user.email ?? '',
+    userId,
+    email: typeof claims.email === 'string' ? claims.email : '',
     fullName: profileResult.data?.full_name ?? null,
-    isAdmin: profileResult.data?.is_admin ?? false,
+    isAdmin,
     memberships,
   }
 }

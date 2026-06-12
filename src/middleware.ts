@@ -37,13 +37,15 @@ function isPublicPath(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   // Always refresh the session first; `response` carries any rotated cookies and
   // MUST back every return path (including redirects) or the session is dropped.
-  const { response, user } = await updateSession(request)
+  // `claims` is the LOCALLY-verified JWT payload (ADR 0009) — null = no valid,
+  // unexpired, correctly-signed session; no GoTrue round trip on the hot path.
+  const { response, claims } = await updateSession(request)
 
   const { pathname, search } = request.nextUrl
 
   // Unauthenticated → only public paths are allowed; otherwise send to /login
   // preserving where they were headed so sign-in can return them there.
-  if (!user) {
+  if (!claims) {
     if (isPublicPath(pathname)) {
       return response
     }
