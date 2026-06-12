@@ -333,8 +333,22 @@ test.describe('Keyboard-only flow (Phase 2)', () => {
     await page.waitForURL(`${BASE}/c/ccih`, { timeout: 15_000 })
     await expect(page).toHaveURL(`${BASE}/c/ccih`)
 
-    // Open the user menu with keyboard.
+    // Shell-readiness gate: assert the authenticated shell has fully rendered
+    // before attempting keyboard interaction. URL match alone is insufficient —
+    // the RSC stream may still be in flight. Both of these must pass for the
+    // keyboard flow to be meaningful; if a post-login 404 occurs, the first
+    // assertion will time out and the test will correctly fail.
     const menuTrigger = page.getByRole('button', { name: /abrir menu da conta/i })
+    await expect(menuTrigger).toBeVisible({ timeout: 15_000 })
+    // Also assert the commission name text is visible in the page main content —
+    // the commission page renders the full name as a labelling paragraph above
+    // the h1 greeting. Scoped to <main> to avoid matching the nav bar copy.
+    // This confirms the RSC payload arrived, not just the URL.
+    await expect(
+      page.getByRole('main').getByText(/Controle de Infecção Hospitalar/i),
+    ).toBeVisible()
+
+    // Open the user menu with keyboard.
     await menuTrigger.focus()
     // Enter opens the Radix dropdown.
     await page.keyboard.press('Enter')
