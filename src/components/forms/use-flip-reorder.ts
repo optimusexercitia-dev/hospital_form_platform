@@ -52,12 +52,17 @@ export function useFlipReorder<T extends HTMLElement>() {
 
     const flip = flipRef.current;
     if (!flip) {
-      // Plugin not loaded yet — kick off the dynamic import for next time and
-      // skip animating this first reorder (it just re-renders). Keeps GSAP off
-      // the critical path; the very first swap is un-animated, which is fine.
-      void import("gsap/Flip")
-        .then((mod) => {
-          flipRef.current = mod.Flip ?? mod.default ?? null;
+      // Plugin not loaded yet — load gsap core + the Flip plugin, REGISTER it
+      // (Flip.getState needs the registered plugin), and skip animating this
+      // first reorder (it just re-renders). Keeps GSAP off the critical path.
+      void Promise.all([import("gsap"), import("gsap/Flip")])
+        .then(([gsapMod, flipMod]) => {
+          const gsap = gsapMod.gsap ?? gsapMod.default;
+          const flipPlugin = flipMod.Flip ?? flipMod.default;
+          if (gsap && flipPlugin) {
+            gsap.registerPlugin(flipPlugin);
+            flipRef.current = flipPlugin;
+          }
         })
         .catch(() => {
           /* no motion — list still reorders correctly */
@@ -67,7 +72,13 @@ export function useFlipReorder<T extends HTMLElement>() {
 
     const targets = container.querySelectorAll("[data-flip-id]");
     if (targets.length === 0) return;
-    pendingState.current = flip.getState(targets);
+    try {
+      pendingState.current = flip.getState(targets);
+    } catch {
+      // Motion is strictly best-effort (CLAUDE motion policy): a GSAP failure
+      // must NEVER block the reorder, which happens via the server action next.
+      pendingState.current = null;
+    }
   }, [prefersReducedMotion]);
 
   // After the DOM commits the new order, play the Flip from the snapshot.
@@ -77,11 +88,15 @@ export function useFlipReorder<T extends HTMLElement>() {
     if (!state || !flip) return;
     pendingState.current = null;
 
-    flip.from(state, {
-      duration: 0.32,
-      ease: "power2.out",
-      absolute: true,
-    });
+    try {
+      flip.from(state, {
+        duration: 0.32,
+        ease: "power2.out",
+        absolute: true,
+      });
+    } catch {
+      /* no-op: animation is best-effort and never affects correctness */
+    }
   });
 
   return { containerRef, captureBeforeReorder };
