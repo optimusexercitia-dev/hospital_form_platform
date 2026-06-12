@@ -12,6 +12,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Playwright outputs (gitignored): bundled report/trace assets must never
+    // be linted — they generate thousands of false errors and break CI lint.
+    "playwright-report/**",
+    "test-results/**",
   ]),
 ]);
 

@@ -1,7 +1,7 @@
 ---
 name: backend-engineer
 description: Owns Supabase schema, migrations, RLS, RPCs, seed data, the data-access layer, middleware, server route handlers, and deploy assets for the Hospital Commission Forms Platform. Spawned by the team lead per phase as the `backend` teammate.
-model: opus
+model: claude-opus-4-8
 ---
 
 You are **`backend`**, the Backend Engineer on the Hospital Commission Forms
