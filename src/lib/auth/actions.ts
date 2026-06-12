@@ -1,9 +1,11 @@
 'use server'
 
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
+import type { Database } from '@/lib/types/database'
 
 /**
  * Auth server actions (Architecture Rules 9 & 10). All supabase-js for auth
@@ -65,8 +67,49 @@ async function appOrigin(): Promise<string> {
 }
 
 /**
+ * Resolves the post-login landing path for the just-authenticated user, using
+ * the SAME authenticated client that `signInWithPassword` returned — no extra
+ * `getUser()`/GoTrue round trip. Mirrors the root `/` Server Component's
+ * landing logic (kept as the canonical landing for direct hits) so that signing
+ * in redirects STRAIGHT to the destination instead of bouncing through `/`.
+ * That removes one session-revalidating hop from the post-login critical path,
+ * which under load is where the cookie set by this action races the immediately
+ * following navigation (a missed cookie there bounces the user back to /login).
+ *
+ *   admin                    → /admin
+ *   exactly one membership   → /c/<slug>
+ *   more than one membership → /c   (picker)
+ *   none and not admin       → /    (root renders the "sem acesso" screen)
+ */
+async function resolveLanding(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<string> {
+  const [profileResult, membershipResult] = await Promise.all([
+    supabase.from('profiles').select('is_admin').eq('id', userId).maybeSingle(),
+    supabase
+      .from('commission_members')
+      .select('commission:commissions(slug)')
+      .eq('user_id', userId),
+  ])
+
+  if (profileResult.data?.is_admin) {
+    return '/admin'
+  }
+
+  const slugs = (membershipResult.data ?? [])
+    .map((row) => row.commission?.slug)
+    .filter((slug): slug is string => Boolean(slug))
+
+  if (slugs.length === 1) return `/c/${slugs[0]}`
+  if (slugs.length > 1) return '/c'
+  return '/'
+}
+
+/**
  * Sign in with email + password. On success, performs a server-side redirect to
- * the validated `redirect` path (or `/`). On failure, returns a pt-BR error.
+ * the validated `redirect` path when provided, otherwise straight to the user's
+ * resolved landing area. On failure, returns a pt-BR error.
  */
 export async function signIn(
   _prev: AuthState | undefined,
@@ -74,7 +117,13 @@ export async function signIn(
 ): Promise<AuthState> {
   const email = String(formData.get('email') ?? '').trim()
   const password = String(formData.get('password') ?? '')
-  const target = safeRedirectPath(formData.get('redirect'))
+  // Distinguish "explicit safe redirect supplied" from "none" — only an actual
+  // param overrides the resolved landing (safeRedirectPath maps absent → '/').
+  const redirectParam = formData.get('redirect')
+  const explicitTarget =
+    typeof redirectParam === 'string' && redirectParam.length > 0
+      ? safeRedirectPath(redirectParam)
+      : null
 
   const fieldErrors: Record<string, string> = {}
   if (!email) fieldErrors.email = MESSAGES.emailRequired
@@ -84,17 +133,24 @@ export async function signIn(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
 
-  if (error) {
+  if (error || !data.user) {
     // `invalid_credentials` (and the generic 400) must read the same so we
     // don't disclose whether the e-mail exists.
     const message =
-      error.code === 'invalid_credentials' || error.status === 400
+      error?.code === 'invalid_credentials' || error?.status === 400
         ? MESSAGES.invalidCredentials
         : MESSAGES.generic
     return { ok: false, error: message }
   }
+
+  // Resolve the landing on the authenticated client we already hold (no extra
+  // GoTrue round trip) UNLESS the caller passed an explicit safe redirect.
+  const target = explicitTarget ?? (await resolveLanding(supabase, data.user.id))
 
   // redirect() throws NEXT_REDIRECT — must be outside any try/catch.
   redirect(target)
