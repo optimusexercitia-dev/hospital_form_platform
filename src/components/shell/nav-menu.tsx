@@ -23,8 +23,11 @@ interface NavItem {
  */
 const NAV_ITEMS: NavItem[] = [
   { label: "Visão geral", href: "", roles: ["staff", "staff_admin"] },
+  // "Formulários" is the STAFF filling list (Phase 5) — kept "em breve" here.
+  // The coordinator-only "Construtor" below points at the Phase 4 builder.
   { label: "Formulários", href: null, roles: ["staff", "staff_admin"] },
   { label: "Minhas respostas", href: null, roles: ["staff", "staff_admin"] },
+  { label: "Construtor", href: "manage/forms", roles: ["staff_admin"] },
   { label: "Gerenciar", href: "manage/members", roles: ["staff_admin"] },
   { label: "Painel", href: null, roles: ["staff_admin"] },
 ];
@@ -65,7 +68,12 @@ export function NavMenu({
         }
 
         const href = `${base}${item.href ? `/${item.href}` : ""}`;
-        const isActive = pathname === href;
+        // Exact match for the overview (href ""), and a prefix match for areas
+        // with nested routes (e.g. the builder at manage/forms/[formId]) so the
+        // tab stays highlighted on detail pages.
+        const isActive =
+          pathname === href ||
+          (item.href !== "" && pathname.startsWith(`${href}/`));
         return (
           <Link
             key={item.label}

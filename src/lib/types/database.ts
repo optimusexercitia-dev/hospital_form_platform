@@ -481,7 +481,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      clone_form_version: {
+        Args: { p_source_version_id: string }
+        Returns: string
+      }
+      create_form: {
+        Args: {
+          p_commission_id: string
+          p_description?: string
+          p_title: string
+        }
+        Returns: {
+          form_id: string
+          version_id: string
+        }[]
+      }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      delete_section_moving_items: {
+        Args: { p_section_id: string; p_target_section_id: string }
+        Returns: undefined
+      }
       publish_form_version: {
         Args: { p_form_version_id: string }
         Returns: {
@@ -499,6 +518,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      reorder_item: {
+        Args: { p_direction: string; p_item_id: string }
+        Returns: undefined
+      }
+      reorder_section: {
+        Args: { p_direction: string; p_section_id: string }
+        Returns: undefined
       }
       submit_response: {
         Args: { p_response_id: string }

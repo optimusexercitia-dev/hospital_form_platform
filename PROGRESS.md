@@ -12,7 +12,7 @@
 | 1     | Schema, Auth & RLS            | ✅ complete | ✅ | ✅ 88/88 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | `691662f` |
 | 2     | Authentication & App Shell    | ✅ complete | ✅ | ✅ 49/49 + load | ✅ APPROVED + re-review | ✅ 2026-06-12 | 2026-06-12 | `5773b4a` |
 | 3     | Admin Area & User Management  | ✅ complete | ✅ | ✅ 43/43 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | `cb28ef3` |
-| 4     | Form Builder & Versioning     | 🔜 not started | – | – | – | – | – | – |
+| 4     | Form Builder & Versioning     | 🏗️ in progress | – | – | – | – | – | – |
 | 5     | Wizard Filling, Conditional Sections & Resume | 🔜 not started | – | – | – | – | – | – |
 | 6     | Section Sign-offs & Submission Lifecycle | 🔜 not started | – | – | – | – | – | – |
 | 7     | Dashboards & Submissions Browser | 🔜 not started | – | – | – | – | – | – |
@@ -24,7 +24,64 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 
 <!-- Lead recreates this table at the start of each phase -->
 
-**Phase 3 — Admin Area & User Management** (started 2026-06-12)
+**Phase 4 — Form Builder & Versioning** (started 2026-06-12)
+
+Scope (PHASES.md §Phase 4): per-commission form list + create (v1 draft with its
+default section); two-level builder (sections containing input/display blocks)
+with up/down reorder, condition + sign-off settings per section, Markdown
+`section_text` and image upload to `form-assets`; publish flow (condition
+validation + archive previous); "editar publicado" clones to a new draft
+preserving `question_key`s/conditions/sign-off/blocks; version history. Builder
+is coordinator-only (staff cannot reach it).
+
+Lead notes carried into this phase (from the Phase 1 schema review):
+- **RLS already authorizes the full builder mutation surface** — `forms`,
+  `form_versions`, `form_sections`, `form_items` all grant `ALL` to
+  `staff_admin` of the commission + admin (M6); published immutability
+  (versions + sections + items) is **trigger-enforced** (M4), not RLS. So
+  draft edits need NO new RLS. The DB gaps are the *mutation entry points*.
+- `publish_form_version(uuid)` (validates conditions via
+  `validate_visible_when`, archives the prior published, flips to published)
+  and the `form-assets` bucket + immutable-path policies (members read,
+  staff_admin upload; no UPDATE/DELETE) already exist (M5/M7).
+- New DB work expected: `create_form` RPC (form + v1 draft + default section,
+  atomic), `clone_form_version` RPC (copy sections+items, preserve
+  `question_key`s/conditions/sign-off, remap ids), and a **safe position-reorder
+  strategy** — `unique(section_id, position)` / `unique(form_version_id, position)`
+  are non-deferrable, so naive swaps collide; backend chooses deferrable
+  constraints (new migration) or an offset-based reorder RPC.
+- `question_key` is **auto-generated** on item add (hidden from the user),
+  preserved verbatim by the clone; the condition editor offers earlier-section
+  questions **by label** and stores their key. Not user-editable in v1.
+- Carried test-hardening: Phase 3 QA INFO-1 — assert the "Coordenação"
+  `RoleBadge` renders for an assigned coordinator (add to the Phase 4 E2E).
+- Markdown renderer (ARCHITECTURE Rule 7): the deferred ADR lands this phase
+  (frontend) — sanitized Markdown only, never raw HTML / `dangerouslySetInnerHTML`.
+
+| Task | Owner | Status | Depends on | Notes |
+| ---- | ----- | ------ | ---------- | ----- |
+| B1 · Plan + migrations: `create_form` RPC, `clone_form_version` RPC, position-reorder strategy; type regen; pgTAP (clone fidelity, v1 immutability after clone, create-default-section, reorder integrity) | backend | done | – | **Plan-gated (migrations/RLS).** Migration `20260612100010_form_builder_rpcs.sql`: deferrable position uniques; `create_form` (form + v1 draft + default section, 0-indexed) / `clone_form_version` (CTE remap, verbatim keys/visible_when/storage_path, returns existing draft if one exists) / `reorder_section` / `reorder_item` — all `security invoker`; plus `delete_section_moving_items` (atomic "move items to target then delete source" — the move branch of `deleteSection`, per lead, PHASES.md §Phase 4); **repaired latent Phase-1 RLS defect** `form_versions_staff_admin_write` (self-referential WITH CHECK → resolve commission via `form_id→forms`, Option B per lead, ADR 0013). New pgTAP `60_builder.sql` (33 tests incl. clone fidelity, source immutability post-clone, clone-when-draft-exists, reorder integrity, move-items-then-delete, authz: staff_admin succeeds end-to-end + direct draft insert now works, foreign staff_admin/plain staff rejected). **Full suite 103/103 green from clean `db reset`.** Types regenerated (5 new RPC types, no drift). ADRs 0011 (reorder), 0012 (clone), 0013 (RLS fix). |
+| B2 · Builder read queries (`src/lib/queries/forms.ts`): `listForms`, `getEditableDraftTree`, `getVersionTree` (read-only), `listVersions`, canonical answerable-questions + condition-target helpers; domain types | backend | done | B1 | `src/lib/queries/forms.ts`: `listForms`/`getEditableDraftTree`/`getVersionTree`/`listVersions`/`conditionTargets` + canonical `answerableItems(tree)` (Rule 9). Domain types exported for frontend (Item/Section/VersionTree/VersionSummary/FormListItem/ConditionTarget + ItemType/VersionStatus/SignoffRole unions + INPUT/CHOICE_ITEM_TYPES consts); `VisibleWhen`/`ConditionOp` re-exported. `conditionTargets` = choice-types-only (excl. free_text) per lead contract. Nested PostgREST embed shape verified vs seed. typecheck + lint clean. Signatures posted to lead for frontend. |
+| B3 · Section mutation actions (`src/lib/forms/actions.ts`): `updateFormMeta`, `addSection`, `updateSection` (title/desc/`visible_when`/sign-off), `deleteSection` (move-or-delete items), reorder up/down | backend | done | B1, B2 | `src/lib/forms/actions.ts` (new file, backend-owned). `ActionState` shape mirrors `admin/actions.ts`/`members/actions.ts`. `updateFormMeta` (always editable), `addSection` (appended, non-default), `updateSection` (default section → description-only; non-default → title/desc/visible_when/sign-off with CHECK-shape enforcement — `signoffRole` only set when `requiresSignoff`, forced null otherwise, so the both-or-neither CHECK can't bubble), `deleteSection` (optional `moveItemsToSectionId` → atomic move-then-delete via `delete_section_moving_items` RPC; absent → items cascade; default-only-section guard + immutability mapped to pt-BR), `moveSection` (via `reorder_section` RPC). Authz: `authorizeCommission(commissionId)` (admin OR staff_admin of that commission) re-checked server-side BEFORE write; RLS backstops. Non-draft writes (23514) → "publique um rascunho" pt-BR, never raw error. Commission resolvers verified vs PostgREST embed shapes. typecheck + lint clean. |
+| B4 · Item mutation actions: `addItem` (6 types, auto `question_key`), `updateItem`, `deleteItem`, reorder up/down, `moveItemToSection`; options/required/explanation validation | backend | done | B1, B2 | Appended to `src/lib/forms/actions.ts`. `addItem` (6 types; auto per-version `question_key` = `slugify(label)+suffix`, retry loop on `23505` against `form_items_question_key_per_version_idx` — verified the collision fires; display items carry `content`, never a key), `updateItem` (type + question_key immutable), `deleteItem`, `moveItem` (via `reorder_item` RPC), `moveItemToSection` (same-version guard, append at end). Server-side `parseItemFields`: choice → ≥1 option, free_text → null options, image → non-empty `alt`. Same authz (`contextOfItem`/`authorizeCommission`) + pt-BR + revalidate discipline as B3. typecheck + lint clean; `create_form`+item insert (trigger fills form_version_id) smoke-verified via REST. |
+| B5 · Publish + lifecycle actions: `publishVersion` (wraps `publish_form_version`, maps validation/P-errors → pt-BR), `startEditFromPublished` (wraps `clone_form_version`), image upload action + signed-URL helper (immutable path) | backend | done | B1, B2 | `actions.ts`: `createForm` (useActionState-shaped, wraps `create_form`, returns `{formId,versionId}` for nav), `publishVersion(versionId)` (wraps `publish_form_version`; `validate_visible_when` 23514 → surfaces the RPC's pt-BR message), `startEditFromPublished(sourceVersionId)` → `{draftVersionId}` (wraps `clone_form_version`), `uploadFormAsset(commissionId, file)` (RLS cookie client — staff_admin upload policy, NO service role; immutable path `{commissionId}/{ts}-{sha256[:16]}.{ext}`, never overwrite; 5 MiB + mime guard). `getSignedAssetUrl(storagePath, expiresIn?)` query helper in `queries/forms.ts`. **Storage smoke-verified:** staff_admin upload 200 + signed URL; foreign staff_admin + plain staff uploads rejected by RLS. typecheck + lint clean. |
+| B6 · Seed touch-ups (builder start-state if needed) + type regen + pgTAP regression + condition-vector parity | backend | done | B1–B5 | Seed left **pristine** (E2E creates via `create_form`; no builder start-state needed — confirmed with lead's brief). Types regenerated — diff is ONLY the 5 new RPCs, no other drift. Full pgTAP **103/103** from a clean `db reset` (70 prior + 33 new `60_builder.sql`). Vitest **20/20** incl. condition-vector SQL↔TS parity (evaluator untouched). lint + typecheck clean across all backend files. ADRs 0011 (reorder), 0012 (clone), 0013 (RLS fix). |
+| F1 · Form list + create (`/c/[slug]/manage/forms`), coordinator-gated; wire "Formulários"/"Construtor" nav + landing cards | frontend | done | B2, B5 | **DONE 2026-06-12** (lead-approved plan + 3 markdown deps). `manage/forms/page.tsx` (coordinator-gated `getCommissionAccess`→`notFound()`; `listForms` grid + empty state), `forms/form-card.tsx` (title/desc/published-badge/rascunho-indicator; primary action "Continuar edição" if draft else "Editar publicado"), `forms/create-form-dialog.tsx`+`create-form-form.tsx` (`createForm` via `useActionState`, navigates into builder on `{formId}`), new `ui/dialog.tsx` (Radix). `loading`/`error`. Nav `Construtor`→`manage/forms` (active prefix-match) + landing card wired. **Verified live (Playwright vs :3000):** coordinator 200 + render + create→builder nav; staff→404 UI; "Construtor" aria-current active. lint+typecheck green. Markdown renderer/ADR (0014) done earlier. |
+| F2 · Builder shell + section editor (`…/manage/forms/[formId]`): two-level editor; add/rename/describe/delete/reorder sections; default-section-no-chrome rule | frontend | not started | B2, B3 | **Refinement (lead):** ≥2 sections → default section renders with neutral non-editable placeholder ("Seção inicial") and its toolbar DISABLES rename/condition/sign-off (DB CHECK `form_sections_default_shape`). **No-editable-draft → render published read-only + "Editar publicado" CTA, never 404.** |
+| F3 · Item editors: add (type picker), input editor (label/options/required/"Texto de apoio"), display items, up/down/delete/move-to-section | frontend | not started | B2, B4 | |
+| F4 · Section settings: `visible_when` condition editor (offers only valid earlier-section targets, by label) + sign-off settings (`requires_signoff`, `signoff_role`) | frontend | not started | B3, F2 | **Refinement (lead):** condition targets = CHOICE-type questions only (`multiple_choice`/`dropdown`/`checkbox`), never `free_text` (discrete value picker UX). Value: single for `equals`/`not_equals`, multi-select array for `in`. |
+| F5 · Sanitizing Markdown renderer (+ ADR) and `section_text` editor/preview; image display item upload UI (alt required, caption, signed-URL preview) | frontend | in progress | B5 | **Renderer + ADR DONE** (no backend dep): deps `react-markdown@^10`/`rehype-sanitize@^6`/`remark-gfm@^4` installed (the 2 npm-audit moderates are a pre-existing `next`→`postcss` transitive, NOT my deps). `forms/markdown/markdown-renderer.tsx` (React tree, no `dangerouslySetInnerHTML`, hardened sanitize schema: href http/https/mailto, src http/https; ext links `rel=noopener noreferrer nofollow`); `forms/section-text-editor.tsx` (controlled, Editar/Pré-visualizar tabs, live sanitized preview) + `ui/textarea.tsx`. ADR `0013-markdown-renderer.md`. **Rule-7 proof:** rendered the shipped pipeline server-side against probes (`<img onerror>`/`javascript:`/`<script>`/`data:text/html`) → all inert; valid Markdown + https link render correctly. Remaining (blocked on B4/B5): persisting wrapper + image upload UI (`uploadFormAsset`/`getSignedAssetUrl`). |
+| F6 · Publish flow (confirm + pt-BR validation errors) + version history + "editar publicado" (clone) entry; loading/error/a11y/pt-BR polish | frontend | not started | B5, F2 | |
+
+Phase 4 frontend notes:
+- **Non-data-bound primitives built ahead of the backend contracts** (lint + typecheck + 20/20 unit green): `forms/status-badge.tsx` (Rascunho/Publicado/Arquivado), `forms/markdown/markdown-renderer.tsx` (the one sanitizing renderer, reused Phases 5/7), `forms/section-text-editor.tsx` (Markdown editor + live sanitized preview), `forms/options-editor.tsx` (choice option add/remove/reorder), `forms/use-flip-reorder.ts` (GSAP Flip reorder hook, reduced-motion-safe, dynamic import), `ui/textarea.tsx`.
+- Nav: added a coordinator-only **"Construtor"** item → `manage/forms` (active-state now prefix-matches nested routes); the shared "Formulários" item stays "em breve" because it becomes the *staff filling list* in Phase 5 (pointing it at the coordinator-only builder would 404 staff). Landing "Construtor de formulários" card wired to `/manage/forms`.
+- ADR `0013-markdown-renderer.md`: `react-markdown` + explicit `rehype-sanitize` + `remark-gfm`; renders to a React tree (no `dangerouslySetInnerHTML`); Rule-7 inert-XSS proof recorded.
+- **Blocked on backend** for all data-bound screens: `src/lib/queries/forms.ts` (B2) + `src/lib/forms/actions.ts` (B3–B5) absent (B1 working a latent Phase-1 RLS gap). Holding F1 page binding, F2/F3/F4 editors, and the F5 persisting/upload wrappers until the signatures land. Will not fabricate domain types (Rules 8/9).
+
+**Phase 3 — Admin Area & User Management** (completed 2026-06-12)
+
+<details><summary>Phase 3 tasks</summary>
 
 Scope (PHASES.md §Phase 3): `/admin` commission CRUD + assign/remove
 staff_admins; `/c/[slug]/manage/members` staff_admin invites staff by email
@@ -63,6 +120,8 @@ Phase 3 frontend notes:
 - Components added: `ui/alert-dialog.tsx`, `admin/{stat-count,commission-list,commission-create-form,commission-edit-form,staff-admin-manager,confirm-remove-button}.tsx`, `members/{role-badge,member-list,invite-staff-form}.tsx`.
 - Success convention: actions return `{ ok:true, error:<pt-BR success copy> }`; banners now prefer the action's returned message (fallback to a default). `ConfirmRemoveButton` shows its error banner only when `!ok` so the success-copy-in-`error` never flashes as an error during the dialog's success-close. Re-verified 2026-06-12 against final backend modules: lint+typecheck green; 11/11 manual checks (gating matrix all personas + create→assign→remove lifecycle; success banner renders backend copy "Coordenador(a) atribuído(a) com sucesso."); DB reset to leave seed pristine.
 - QA MINOR-2 resolved 2026-06-12: `ConfirmRemoveButton` now types its `action` prop against `ActionState` from `@/lib/admin/actions` (was incidentally `AuthState` from `@/lib/auth/actions`); structurally identical, so `removeStaff` stays assignable. lint+typecheck green, no behavior change.
+
+</details>
 
 <details><summary>Phase 2 tasks (completed 2026-06-12)</summary>
 
@@ -163,6 +222,9 @@ Phase 3 frontend notes:
 | 2026-06-12 | GSAP 3.15.0 pinned as the auth-hero animation dependency (dynamic import, aria-hidden, reduced-motion guard) over a CSS-only approach | [0008](docs/decisions/0008-gsap-animation-dependency.md) |
 | 2026-06-12 | Auth identity on the request hot path via LOCAL JWT verification (`getClaims()`, ES256 vs cached JWKS) instead of a per-request `getUser()` GoTrue round trip; `is_admin` strictly from the verified claim (fails closed), SQL `app.is_admin()` DB fallback kept as RLS defense-in-depth. Fixes P2-002. **Requires asymmetric signing keys in prod.** | [0009](docs/decisions/0009-jwt-local-verification-gate.md) |
 | 2026-06-12 | Phase 3: denormalize `email` (nullable citext) onto `public.profiles` — populated by the signup trigger, backfilled from `auth.users`, kept fresh by an `auth.users` email-change sync trigger, partial-unique-indexed. Member/admin lists resolve emails via the existing `profiles_select` RLS policy with no service-role read on the display path. Slug immutable after create (name-only edit). | [0010](docs/decisions/0010-denormalize-email-on-profiles.md) |
+| 2026-06-12 | Phase 4: position reorder via `DEFERRABLE INITIALLY IMMEDIATE` unique constraints + single-statement CASE swap in SQL RPCs (`reorder_section`/`reorder_item`); supabase-js can't express the swap, so it lives in SQL. | [0011](docs/decisions/0011-position-reorder-deferrable-swap.md) |
+| 2026-06-12 | Phase 4: `clone_form_version` returns the existing draft when one exists (one editable draft per form), so "editar publicado" is idempotent and never proliferates versions. | [0012](docs/decisions/0012-clone-returns-existing-draft.md) |
+| 2026-06-12 | Phase 4: fixed latent Phase-1 RLS defect — `form_versions_staff_admin_write` WITH CHECK was self-referential (`commission_of_version(id)` can't see the new row on INSERT), rejecting all direct version inserts; repaired to resolve commission via `form_id→forms`. RPCs stay `security invoker` (RLS is the authority); not a definer bypass. | [0013](docs/decisions/0013-form-versions-insert-rls-fix.md) |
 
 ## Follow-ups / Deferred Items
 

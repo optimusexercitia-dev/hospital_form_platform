@@ -134,7 +134,7 @@ const CARDS: AreaCard[] = [
     title: "Construtor de formulários",
     description: "Crie e publique novas versões de formulários da comissão.",
     coordinatorOnly: true,
-    path: null,
+    path: "/manage/forms",
   },
   {
     title: "Painel de estatísticas",
