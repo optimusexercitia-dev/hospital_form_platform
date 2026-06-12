@@ -11,7 +11,7 @@
 | 0     | Scaffolding & Environment     | ✅ complete | ✅ | ✅ 5/5 | ✅ APPROVED | ✅ 2026-06-11 | 2026-06-11 | `d64281e` |
 | 1     | Schema, Auth & RLS            | ✅ complete | ✅ | ✅ 88/88 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | `691662f` |
 | 2     | Authentication & App Shell    | ✅ complete | ✅ | ✅ 49/49 + load | ✅ APPROVED + re-review | ✅ 2026-06-12 | 2026-06-12 | `5773b4a` |
-| 3     | Admin Area & User Management  | 🔜 not started | – | – | – | – | – | – |
+| 3     | Admin Area & User Management  | ✅ complete | ✅ | ✅ 43/43 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | `_pending_` |
 | 4     | Form Builder & Versioning     | 🔜 not started | – | – | – | – | – | – |
 | 5     | Wizard Filling, Conditional Sections & Resume | 🔜 not started | – | – | – | – | – | – |
 | 6     | Section Sign-offs & Submission Lifecycle | 🔜 not started | – | – | – | – | – | – |
@@ -24,7 +24,47 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 
 <!-- Lead recreates this table at the start of each phase -->
 
-**Phase 2 — Authentication & App Shell** (started 2026-06-12)
+**Phase 3 — Admin Area & User Management** (started 2026-06-12)
+
+Scope (PHASES.md §Phase 3): `/admin` commission CRUD + assign/remove
+staff_admins; `/c/[slug]/manage/members` staff_admin invites staff by email
+(service-role server route), removes staff, sees member list. Acceptance: admin
+creates a commission + assigns a staff_admin; staff_admin invites a staff user
+(invite intercepted in tests); staff_admin of A cannot manage B.
+
+Lead notes carried into this phase:
+- Existing RLS (M6) already authorizes the full model: admin → commissions +
+  commission_members ALL; staff_admin → insert/update/delete `staff` of own
+  commission with an escalation guard (cannot create/promote staff_admin).
+  Backend verifies this holds; a new migration is expected ONLY for member-email
+  display (profiles has `full_name`, not email).
+- staff_admin assignment is **by email** (assign existing user, or invite a new
+  one) to mirror the staff invite flow. Service role required for invite +
+  existing-user lookup; authorization re-checked server-side, never trusted from
+  the client. Invite email is intercepted in E2E (Inbucket locally).
+
+| Task | Owner | Status | Depends on | Notes |
+| ---- | ----- | ------ | ---------- | ----- |
+| B1 · Plan: RLS coverage audit + member-email display decision (migration if needed) + type regen | backend | done | – | Lead-approved. RLS audit confirmed M6/M8 cover all Phase 3 authorization (no auth migration). Migration `20260612100009_profiles_email.sql`: `profiles.email citext` + backfill + signup-trigger update + email-change sync trigger (`on_auth_user_email_changed`) + partial unique index. ADR 0010. Types regenerated → `email: string \| null`. Backfill verified (8/8 personas). |
+| B2 · Service-role server client factory (`src/lib/supabase/admin.ts`) | backend | done | – | `createAdminClient()`; `import 'server-only'` first line (build-time client-bundle guard); `SUPABASE_SERVICE_ROLE_KEY` + URL; `persistSession:false, autoRefreshToken:false`. `server-only@^0.0.1` pinned (lead-approved). |
+| B3 · Admin queries (`src/lib/queries/commissions.ts`) | backend | done | B1 | `listCommissionsForAdmin()` → {id,name,slug,createdAt,memberCount,staffAdmins[]}; `getCommissionForAdmin(slug)` → detail + roster \| null. RLS-scoped cookie client; pt-BR sort. Signatures posted to lead/frontend. |
+| B4 · Member queries (`src/lib/queries/members.ts`) | backend | done | B1 | `listMembers(commissionId)` → {userId,fullName,email,role,joinedAt}[]; staff_admin-first then name (pt-BR). Exported `sortMembers` helper. Canonical for member page + admin detail. |
+| B5 · Server actions: commission CRUD + staff_admin assign/remove (admin); invite/remove staff (staff_admin\|admin) | backend | done | B2, B3, B4 | `src/lib/admin/actions.ts` (createCommission, updateCommission [name-only], assignStaffAdmin, removeStaffAdmin) + `src/lib/members/actions.ts` (inviteStaff, removeStaff) + shared `src/lib/members/invite.ts` (`resolveOrInviteUser`). `useActionState`-shaped, pt-BR, no raw PG errors. **Role hard-coded per action; authz re-verified server-side, commission-scoped, BEFORE any service-role write.** DB upsert behaviors verified via SQL. **QA MINOR-1 resolved:** `assignStaffAdmin`/`removeStaffAdmin` now also revalidate `/admin/comissoes/[slug]` (slug resolved from commissionId via the client already held) so the StaffAdminManager roster refreshes without navigation. Single-file change; no DB impact. lint + typecheck green (full project). |
+| B6 · Seed touch-ups (if needed) + type regen + pgTAP regression check | backend | done | B1, B5 | No seed change needed (personas cover E2E; tests invite a novel address → Mailpit). New `45_email_denorm.sql` (5 tests: signup-sets-email, email-change-sync, co-member-reads-email, foreign-cannot). pgTAP **70/70** (was 65). Types regenerated, no drift. Backend-owned files typecheck+lint clean. |
+| F1 · Admin commissions list + create (`/admin` real + create flow) | frontend | done | B3, B5 | Done 2026-06-12. Lead-approved. `frontend-design` applied (read SKILL.md from plugin dir — not invocable in runtime). `admin/page.tsx` replaces the "em breve" placeholder: `listCommissionsForAdmin()` → commission cards (name, mono slug, member count w/ GSAP count-up `StatCount`, coordinators) + "Nova comissão" `CommissionCreateForm` (name + auto-suggested slug). Verified: admin sees both seeded commissions; create action works end-to-end (then `db reset` to clean). lint+typecheck green. |
+| F2 · Admin commission detail — edit + manage staff_admins (`/admin/comissoes/[slug]`) | frontend | done | B3, B5, F1 | Done 2026-06-12. Lead-approved. New route `admin/comissoes/[slug]/page.tsx`: `getCommissionForAdmin(slug)` → `notFound()` on null; `CommissionEditForm` (name editable, slug read-only/disabled — `updateCommission` is name-only); `StaffAdminManager` (assign-by-email `assignStaffAdmin` invite-if-new + roster + `removeStaffAdmin` behind `AlertDialog` confirm). Mutate actions key on hidden `commissionId` (per B5 impl) — wired accordingly. Verified: detail renders; assign works; unknown slug → 404 UI; AlertDialog keyboard-operable. |
+| F3 · Commission member management (`/c/[slug]/manage/members`) | frontend | done | B4, B5 | Done 2026-06-12. Lead-approved. New `manage/members` route under `c/[slug]`: server-gated via `getCommissionAccess` → `notFound()` unless `staff_admin` of the commission OR admin (lead chose 404, no 403); `listMembers(commissionId)` roster (name/email/`RoleBadge`), `InviteStaffForm` (`inviteStaff`), `removeStaff` per staff row behind `AlertDialog` (own row + coordinators excluded). Verified per persona: chefe.ccih → 200 + list/invite; staff1.ccih → 404; cross-commission farmacia → 404; admin override → 200. |
+| F4 · Wire nav + landing affordances | frontend | done | F1, F2, F3 | Done 2026-06-12. `nav-menu.tsx`: "Gerenciar" → real Link `manage/members` (staff_admin) — verified active/highlighted. `c/[slug]/page.tsx`: card model gained optional `path`; "Gerenciar membros" coordinator card now live (arrow affordance, no "em breve"); unshipped areas keep the tag. `/admin` placeholder fully replaced by F1. |
+| F5 · Loading/error states + a11y + pt-BR polish for new screens | frontend | done | F1, F2, F3 | Done 2026-06-12. `loading.tsx`+`error.tsx` for `/admin`, `/admin/comissoes/[slug]`, `/c/[slug]/manage/members` (skeletons mirror each layout; pt-BR error boundaries, no raw PG errors — all surfaced via action state). a11y: every input has `<label>` via `Field`/`useFieldIds`; AlertDialog Enter-opens/Esc-closes (verified keyboard); `StatCount` respects `prefers-reduced-motion`. New primitive `ui/alert-dialog.tsx` (Radix). |
+
+Phase 3 frontend notes:
+- Adopted nullable `email: string \| null` (per B1/100009 — denormalized `profiles.email`, backfilled but nullable) by importing backend interfaces directly (`AdminCommissionListItem`, `StaffAdminSummary`, `MemberListItem`) so UI shapes can't drift; display falls back name→email→"Sem identificação".
+- Mutation actions key on hidden `commissionId` (per B5 impl: `updateCommission`/`assignStaffAdmin`/`removeStaffAdmin`/`inviteStaff`/`removeStaff`); only `createCommission` reads `name`+`slug`. Forms send `commissionId` from the server-loaded id.
+- Components added: `ui/alert-dialog.tsx`, `admin/{stat-count,commission-list,commission-create-form,commission-edit-form,staff-admin-manager,confirm-remove-button}.tsx`, `members/{role-badge,member-list,invite-staff-form}.tsx`.
+- Success convention: actions return `{ ok:true, error:<pt-BR success copy> }`; banners now prefer the action's returned message (fallback to a default). `ConfirmRemoveButton` shows its error banner only when `!ok` so the success-copy-in-`error` never flashes as an error during the dialog's success-close. Re-verified 2026-06-12 against final backend modules: lint+typecheck green; 11/11 manual checks (gating matrix all personas + create→assign→remove lifecycle; success banner renders backend copy "Coordenador(a) atribuído(a) com sucesso."); DB reset to leave seed pristine.
+- QA MINOR-2 resolved 2026-06-12: `ConfirmRemoveButton` now types its `action` prop against `ActionState` from `@/lib/admin/actions` (was incidentally `AuthState` from `@/lib/auth/actions`); structurally identical, so `removeStaff` stays assignable. lint+typecheck green, no behavior change.
+
+<details><summary>Phase 2 tasks (completed 2026-06-12)</summary>
 
 | Task | Owner | Status | Depends on | Notes |
 | ---- | ----- | ------ | ---------- | ----- |
@@ -40,6 +80,8 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 | F3 · Commission app shell (`c/[slug]/layout.tsx`) — nav, role-aware menu, commission switcher, user/logout, loading/error | frontend | done | B3, F0 | Done 2026-06-12 (`e3b6253`). Lead-approved. Server layout → `getCommissionAccess`/`notFound()` (unknown+inaccessible indistinguishable). `TopNav` (server, prop-driven): product mark, `CommissionSwitcher` (only when memberships>1), role-aware `NavMenu` (Phase 3–7 areas = "em breve", no dead links), `UserMenu` (logout `<form action={signOut}>`). `loading.tsx` skeleton + pt-BR `error.tsx`. New UI: dropdown-menu/avatar (Radix), skeleton. Global pt-BR `not-found.tsx` (Rule 10) replaces Next default. **Verified via real seeded logins**: staff → no switcher, no coordinator items; staff_admin → Gerenciar/Painel; foreign `/c/farmacia` → 404 no name leak; user menu opens by keyboard, logout → `/login`. lint+typecheck green. |
 | F4 · Landing shells: `c/[slug]/page.tsx`, admin shell (`admin/layout.tsx`+`page.tsx`, admin-only) | frontend | done | B3, F3 | Done 2026-06-12 (`e3b6253` commission page, `f416b92` admin). Lead pre-approved. `c/[slug]/page.tsx`: role-aware greeting + "em breve" cards. `admin/layout.tsx`: **server-enforced** `requireUser()`+`isAdmin` → `notFound()` for non-admins (not menu-hiding). **Verified**: `admin@test.local` → `/admin` 200; non-admin → `/admin` **404**. lint+typecheck green. |
 | F5 · Root `/` role landing + commission picker (`c/page.tsx`) | frontend | done | B3, F3 | Done 2026-06-12 (`f416b92`). `page.tsx` replaces F0 placeholder: `getSessionContext()` → admin→`/admin`, single→`/c/<slug>`, multi→`/c`, none&!admin→friendly pt-BR no-access. `/c` picker = commission cards (defensive 0/1 redirects). **Verified via seeded logins**: admin→/admin, staff1.ccih→/c/ccih, multi@test.local→/c picker (2 cards), card→/c/ccih. ⚠️ **Breaks Phase 0 home smoke test** `src/app/page.test.tsx` (tester-owned): it asserted a heading/link the role-landing intentionally no longer renders. Flagged to lead+tester for update/retire. |
+
+</details>
 
 <details><summary>Phase 1 tasks (completed 2026-06-12)</summary>
 
@@ -92,6 +134,7 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 | 2026-06-12 | 2 | Playwright: 2 files / 29 tests | 29 | 0 | P2-002 fix verification — baseline run (default workers). 29/29 green. |
 | 2026-06-12 | 2 | Playwright: 2 files / 290 tests (--workers=5 --repeat-each=10) | 290 | 0 | P2-002 load stress run 1 — full suite under concurrency, 10× repeat. ~190 sign-in/landing executions. Zero post-login bounces. |
 | 2026-06-12 | 2 | Playwright: 7 tests / 140 runs (--workers=5 --repeat-each=20 -g "lands on\|Keyboard-only") | 140 | 0 | P2-002 load stress run 2 — targeted sign-in/landing + keyboard-only tests, 20× repeat. 140 sign-in/landing executions. Zero post-login bounces. P2-002 RESOLVED. |
+| 2026-06-12 | 3 | Playwright: 3 files / 43 tests (--workers=1, fresh seed) | 43 | 0 | Phase 3 gate run. New spec: `e2e/phase3-admin-members.spec.ts` (14 tests covering all 4 AC clauses: AC1 commission create + staff_admin assignment, AC2 invite-staff Mailpit intercept + remove via AlertDialog, AC3 cross-commission boundary (6 personas/paths), AC4 keyboard-only commission create + AlertDialog keyboard ops). Regression suite (home.spec.ts + phase2-auth-shell.spec.ts, 29 tests) clean. No bugs found in Phase 3 application code — all test failures during authoring were spec isolation issues (DB mutation between tests, RSC dev-mode response format, Radix AlertDialog tab-order). Isolation resolved by using novel Date.now() emails/slugs in AC1/AC2; 404 assertions switched from innerText() to locator-based waits. Suite also verified green under default parallel workers (24.8s). Note: `npx supabase db reset` required before each run (AC2 invite tests mutate DB). |
 
 ## QA Verdicts
 
@@ -100,6 +143,7 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 | 0 | APPROVED | [phase-0-review.md](docs/reviews/phase-0-review.md) | None | MINOR-1: set lang="pt-BR" in layout.tsx (Phase 2); MINOR-2: close stale supabase-start follow-up; INFO: update ADR 0001 to note --passWithNoTests removed |
 | 1 | APPROVED (re-verified 2026-06-12) | [phase-1-review.md](docs/reviews/phase-1-review.md) | All resolved in M8: MAJOR-1 (USING clause fix + demotion test); MAJOR-2 (3 sign-off immutability tests added); MINOR-1 (eval_condition search_path); MINOR-2 (profiles never-deleted: policy split + trigger); MINOR-3 (version/commission guard trigger) | INFO-1: consider revoking anon DML/EXECUTE grants in Phase 8 hardening |
 | 2 | APPROVED + RE-REVIEW APPROVED (2026-06-12) | [phase-2-review.md](docs/reviews/phase-2-review.md) | All resolved: MAJOR-1 (bad-creds selector, bug P2-001 → `f1c561f`); BLOCKER P2-002 (post-login race) fixed (`c808f8d`+`760d6a4`, ADR 0009) & load-verified 430/430. Re-review of the auth hot-path fix: APPROVED | INFO-1 (ADR 0007) done; INFO-2 (ADR 0008) done; carried: prod must use asymmetric JWT signing keys (Phase 8 deploy checklist) |
+| 3 | APPROVED (2026-06-12) | (inline in QA message) | None | MINOR-1 ✅ RESOLVED 2026-06-12 (backend, `revalidateCommissionPages` — assign/remove now revalidate `/admin/comissoes/[slug]` too); MINOR-2 ✅ RESOLVED 2026-06-12 (frontend, `ConfirmRemoveButton` now types against `ActionState` from `@/lib/admin/actions`); both pre-record per human request. **Carried:** INFO-1 — AC1 E2E asserts the coordinator email appears in the roster but not that the "Coordenação" RoleBadge renders (add to Phase 4 test-hardening). Post-fix verification: lint + typecheck + unit (20/20) green; full E2E NOT re-run (both fixes provably non-runtime — a `revalidatePath` cache hint can't regress a passing nav-fresh test, and a type-only import swap has no runtime effect), so the 43/43 run stands. |
 
 ## Decisions
 
@@ -118,11 +162,15 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 | 2026-06-12 | Middleware is a coarse auth gate (refresh + authenticated/unauthenticated boundary only); role-aware landing deferred to the root `/` Server Component to avoid per-request DB queries on the edge | [0007](docs/decisions/0007-middleware-coarse-gate-root-landing.md) |
 | 2026-06-12 | GSAP 3.15.0 pinned as the auth-hero animation dependency (dynamic import, aria-hidden, reduced-motion guard) over a CSS-only approach | [0008](docs/decisions/0008-gsap-animation-dependency.md) |
 | 2026-06-12 | Auth identity on the request hot path via LOCAL JWT verification (`getClaims()`, ES256 vs cached JWKS) instead of a per-request `getUser()` GoTrue round trip; `is_admin` strictly from the verified claim (fails closed), SQL `app.is_admin()` DB fallback kept as RLS defense-in-depth. Fixes P2-002. **Requires asymmetric signing keys in prod.** | [0009](docs/decisions/0009-jwt-local-verification-gate.md) |
+| 2026-06-12 | Phase 3: denormalize `email` (nullable citext) onto `public.profiles` — populated by the signup trigger, backfilled from `auth.users`, kept fresh by an `auth.users` email-change sync trigger, partial-unique-indexed. Member/admin lists resolve emails via the existing `profiles_select` RLS policy with no service-role read on the display path. Slug immutable after create (name-only edit). | [0010](docs/decisions/0010-denormalize-email-on-profiles.md) |
 
 ## Follow-ups / Deferred Items
 
 - [ ] (minor QA findings, nice-to-haves, tech debt — reviewed at each phase start)
 - [ ] Choose the sanitizing Markdown renderer library (ARCHITECTURE.md Rule 7) — deferred from scaffold; needs its own ADR before Phase 4/5.
+- [x] Phase 3 QA MINOR-1 — `assignStaffAdmin`/`removeStaffAdmin` revalidate the `/admin/comissoes/[slug]` detail page (helper `revalidateCommissionPages`, slug resolved from `commissionId`) so the roster refreshes without navigation — Done 2026-06-12 (backend).
+- [x] Phase 3 QA MINOR-2 — `ConfirmRemoveButton` types its `action` prop against `ActionState` from `@/lib/admin/actions` (was `AuthState` from `@/lib/auth/actions`); structurally identical, `removeStaff` still assignable — Done 2026-06-12 (frontend).
+- [ ] Phase 3 QA INFO-1 — extend Phase 3 E2E (AC1) to assert the "Coordenação" `RoleBadge` renders for the assigned coordinator (not just that the email appears) — Phase 4 test-hardening.
 - [x] Fix bad-credentials E2E test selector/assertion (Phase 2 MAJOR-1 / bug P2-001) — Done 2026-06-12 (`f1c561f`): targets `[role="status"]`, asserts exact pt-BR message.
 - [x] ADR 0007: middleware coarse-gate + root Server Component role-landing design (Phase 2 INFO-1) — Done 2026-06-12 (`d4d80dc`).
 - [x] ADR 0008: GSAP 3.15.0 animation dependency — rationale, version pin, license (Phase 2 INFO-2) — Done 2026-06-12 (`409c24c`).

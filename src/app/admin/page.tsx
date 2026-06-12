@@ -1,71 +1,57 @@
 import type { Metadata } from "next";
 
-import { requireUser } from "@/lib/queries/session";
-import { Skeleton } from "@/components/ui/skeleton";
+import { listCommissionsForAdmin } from "@/lib/queries/commissions";
+import { CommissionList } from "@/components/admin/commission-list";
+import { CommissionCreateForm } from "@/components/admin/commission-create-form";
 
 export const metadata: Metadata = {
-  title: "Administração",
+  title: "Comissões",
 };
 
 /**
- * Admin landing (placeholder for Phase 2). The layout already enforces admin
- * access; this page welcomes the admin and sketches the areas that arrive in
- * Phase 3 (commission CRUD, staff_admin assignment) and later.
+ * Admin landing — the commission registry. Lists every commission (name, slug,
+ * member count, coordinators) and offers a "Nova comissão" create form. Admin
+ * access is enforced by `admin/layout.tsx` (server-side `notFound()` for
+ * non-admins); RLS scopes the data regardless.
  */
-export default async function AdminHomePage() {
-  const context = await requireUser();
-  const firstName = context.fullName?.trim().split(/\s+/)[0] ?? null;
+export default async function AdminCommissionsPage() {
+  const commissions = await listCommissionsForAdmin();
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       <header className="flex flex-col gap-2">
         <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
           Administração global
         </p>
-        <h1 className="text-3xl text-balance">
-          {firstName ? `Olá, ${firstName}.` : "Olá."}
-        </h1>
+        <h1 className="text-3xl text-balance">Comissões</h1>
         <p className="max-w-prose text-muted-foreground text-pretty">
-          Daqui você administrará as comissões e suas coordenações. As
-          ferramentas de gestão chegam na próxima etapa.
+          Crie e administre as comissões hospitalares. Abra uma comissão para
+          editar seus dados e gerenciar a coordenação.
         </p>
       </header>
 
       <section
-        aria-label="Próximas funcionalidades"
-        className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+        aria-labelledby="nova-comissao-heading"
+        className="animate-rise-in rounded-2xl border border-border bg-card p-6 sm:p-7"
       >
-        {ADMIN_CARDS.map((card) => (
-          <article
-            key={card.title}
-            className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold">{card.title}</h2>
-              <span className="rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-muted-foreground uppercase">
-                em breve
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground">{card.description}</p>
-            <Skeleton className="mt-1 h-2 w-2/3" />
-          </article>
-        ))}
+        <h2
+          id="nova-comissao-heading"
+          className="text-lg font-semibold"
+        >
+          Nova comissão
+        </h2>
+        <p className="mt-1 mb-5 max-w-prose text-sm text-muted-foreground">
+          Cada comissão tem um identificador único usado no seu endereço.
+        </p>
+        <CommissionCreateForm />
+      </section>
+
+      <section aria-labelledby="comissoes-heading" className="flex flex-col gap-4">
+        <h2 id="comissoes-heading" className="text-lg font-semibold">
+          Todas as comissões
+        </h2>
+        <CommissionList commissions={commissions} />
       </section>
     </div>
   );
 }
-
-const ADMIN_CARDS = [
-  {
-    title: "Comissões",
-    description: "Crie e edite as comissões hospitalares da instituição.",
-  },
-  {
-    title: "Coordenações",
-    description: "Atribua e remova coordenadores (staff_admin) das comissões.",
-  },
-  {
-    title: "Visão geral",
-    description: "Acompanhe a atividade das comissões em um só lugar.",
-  },
-] as const;

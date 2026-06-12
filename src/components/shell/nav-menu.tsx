@@ -25,7 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Visão geral", href: "", roles: ["staff", "staff_admin"] },
   { label: "Formulários", href: null, roles: ["staff", "staff_admin"] },
   { label: "Minhas respostas", href: null, roles: ["staff", "staff_admin"] },
-  { label: "Gerenciar", href: null, roles: ["staff_admin"] },
+  { label: "Gerenciar", href: "manage/members", roles: ["staff_admin"] },
   { label: "Painel", href: null, roles: ["staff_admin"] },
 ];
 
