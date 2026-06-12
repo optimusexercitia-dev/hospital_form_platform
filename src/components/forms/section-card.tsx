@@ -217,6 +217,7 @@ export function SectionCard({
             open={settingsOpen}
             onOpenChange={setSettingsOpen}
             section={section}
+            sections={sections}
           />
         </>
       )}

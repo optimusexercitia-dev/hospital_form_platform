@@ -94,7 +94,7 @@ function BlockTypeItem({
   const meta = ITEM_TYPE_META[type];
   return (
     <DropdownMenuItem onSelect={onSelect} className="items-start gap-2.5">
-      <meta.Icon aria-hidden="true" className="mt-0.5 size-4 text-muted-foreground" />
+      <meta.Icon aria-hidden className="mt-0.5 size-4 text-muted-foreground" />
       <span className="flex flex-col">
         <span className="font-medium">{meta.label}</span>
         <span className="text-xs text-muted-foreground">{meta.description}</span>
