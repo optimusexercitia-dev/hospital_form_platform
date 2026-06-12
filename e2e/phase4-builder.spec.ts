@@ -59,6 +59,21 @@ async function submitDialog(dialog: Locator) {
   await expect(dialog).toBeHidden({ timeout: 15_000 })
 }
 
+async function publishForm(page: Page) {
+  await page.getByRole('button', { name: 'Publicar' }).click()
+  const confirm = page.getByRole('alertdialog')
+  await confirm.getByRole('button', { name: 'Publicar' }).click()
+  await expect(
+    page.getByRole('button', { name: /Editar publicado/ }),
+  ).toBeVisible({ timeout: 20_000 })
+}
+
+/** The immutable storage path embedded in a form-assets signed URL. */
+function assetPath(src: string | null): string | null {
+  const m = (src ?? '').match(/form-assets\/([^?]+)/)
+  return m ? decodeURIComponent(m[1]) : null
+}
+
 test('staff cannot reach the builder (no builder UI on the list or a form URL)', async ({
   page,
 }) => {
@@ -71,13 +86,21 @@ test('staff cannot reach the builder (no builder UI on the list or a form URL)',
   await signInAs(page, 'staff1.ccih@test.local')
   const nav = page.getByRole('navigation', { name: 'Navegação da comissão' })
 
+  const notFound = page.getByRole('heading', {
+    name: /Não encontramos esta página/,
+  })
+
   await page.goto('/c/ccih/manage/forms')
   await expect(nav).toBeVisible()
+  // The shell stays, and the commission not-found boundary renders (no blank
+  // area) instead of the builder.
+  await expect(notFound).toBeVisible()
   await expect(page.getByRole('button', { name: 'Novo formulário' })).toHaveCount(0)
   await expect(page.getByRole('heading', { level: 1, name: 'Formulários' })).toHaveCount(0)
 
   await page.goto('/c/ccih/manage/forms/00000000-0000-0000-0000-000000000000')
   await expect(nav).toBeVisible()
+  await expect(notFound).toBeVisible()
   await expect(page.getByRole('button', { name: 'Adicionar seção' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /Editar publicado/ })).toHaveCount(0)
 })
@@ -217,4 +240,67 @@ test('publish is blocked when a reorder creates a forward-reference condition (A
   await expect(page.getByRole('button', { name: /Editar publicado/ })).toHaveCount(
     0,
   )
+})
+
+test('re-uploading an image in v2 yields a NEW storage path; v1 stays immutable (AC d)', async ({
+  page,
+}) => {
+  test.setTimeout(180_000)
+  const title = `AC-d ${Date.now()}`
+  await signInAs(page, 'chefe.ccih@test.local')
+  await createForm(page, title)
+
+  // v1: a single image block, then publish.
+  let d = await openAddBlock(page, page.locator('body'), /Imagem/)
+  await d
+    .locator('input[type="file"]')
+    .setInputFiles({ name: 'v1.png', mimeType: 'image/png', buffer: PNG_1PX })
+  await expect(d.locator('img')).toBeVisible({ timeout: 20_000 })
+  await d.getByLabel('Texto alternativo').fill('Imagem da versão 1')
+  await submitDialog(d)
+  await publishForm(page)
+
+  // Capture v1's published image path (a real signed form-assets URL).
+  const v1Img = page.locator('main img').first()
+  await expect(v1Img).toBeVisible({ timeout: 20_000 })
+  const v1Path = assetPath(await v1Img.getAttribute('src'))
+  expect(v1Path).toBeTruthy()
+
+  // Clone to a v2 draft and RE-UPLOAD the image (edit the block).
+  await page.getByRole('button', { name: /Editar publicado/ }).click()
+  await expect(
+    page.getByRole('button', { name: 'Adicionar seção' }),
+  ).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'Editar bloco' }).click()
+  d = page.getByRole('dialog')
+  await d
+    .locator('input[type="file"]')
+    .setInputFiles({ name: 'v2.png', mimeType: 'image/png', buffer: PNG_1PX })
+  // In EDIT mode the OLD preview is already shown, so wait for the new upload to
+  // actually resolve — the preview switches to a local blob: URL only after
+  // uploadFormAsset succeeds — before saving. The immutable path is
+  // timestamp-based so it differs from v1's even for identical bytes.
+  await expect(d.locator('img')).toHaveAttribute('src', /^blob:/, {
+    timeout: 20_000,
+  })
+  await d.getByRole('button', { name: 'Salvar' }).click()
+  await expect(d).toBeHidden({ timeout: 15_000 })
+  await publishForm(page)
+
+  const v2Img = page.locator('main img').first()
+  await expect(v2Img).toBeVisible({ timeout: 20_000 })
+  const v2Path = assetPath(await v2Img.getAttribute('src'))
+  expect(v2Path).toBeTruthy()
+
+  // The re-upload landed at a NEW immutable path (Architecture Rule 6).
+  expect(v2Path).not.toBe(v1Path)
+
+  // v1 is archived AND immutable: its history view still renders the ORIGINAL
+  // image path, untouched by the v2 re-upload.
+  await page.getByRole('link', { name: 'Versões' }).click()
+  await page.waitForURL(/\/versions$/, { timeout: 15_000 })
+  await page.getByRole('link', { name: /Versão 1/ }).click()
+  const v1HistImg = page.locator('main img').first()
+  await expect(v1HistImg).toBeVisible({ timeout: 20_000 })
+  expect(assetPath(await v1HistImg.getAttribute('src'))).toBe(v1Path)
 })

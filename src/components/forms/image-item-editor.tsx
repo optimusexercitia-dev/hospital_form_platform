@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { ImageUp } from "lucide-react";
 
 import { uploadFormAsset } from "@/lib/forms/actions";
@@ -27,15 +27,23 @@ export function ImageItemEditor({
   storagePath,
   previewUrl,
   onUploaded,
+  onUploadingChange,
 }: {
   commissionId: string;
   storagePath: string;
   previewUrl: string | null;
   onUploaded: (storagePath: string, previewUrl: string | null) => void;
+  /** Reports upload progress so the parent can block submit mid-upload (which
+   *  would otherwise persist the previous/stale path). */
+  onUploadingChange?: (uploading: boolean) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    onUploadingChange?.(isPending);
+  }, [isPending, onUploadingChange]);
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

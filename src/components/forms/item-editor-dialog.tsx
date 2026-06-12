@@ -80,6 +80,9 @@ export function ItemEditorDialog(props: Props) {
       ? (existing.content as SectionTextContent).markdown
       : "",
   );
+  // True while an image upload is in flight — blocks submit so we never persist
+  // a stale/previous storage path.
+  const [imageUploading, setImageUploading] = useState(false);
   const imageContent =
     existing?.content && itemType === "image"
       ? (existing.content as ImageContent)
@@ -237,6 +240,7 @@ export function ItemEditorDialog(props: Props) {
                 onUploaded={(storagePath, previewUrl) =>
                   setImageState((s) => ({ ...s, storagePath, previewUrl }))
                 }
+                onUploadingChange={setImageUploading}
               />
               <Field>
                 <FieldLabel htmlFor={altField.controlProps.id}>
@@ -286,12 +290,18 @@ export function ItemEditorDialog(props: Props) {
             >
               Cancelar
             </Button>
-            <Button type="submit" size="lg" disabled={isPending}>
+            <Button
+              type="submit"
+              size="lg"
+              disabled={isPending || imageUploading}
+            >
               {isPending
                 ? "Salvando…"
-                : props.mode === "edit"
-                  ? "Salvar"
-                  : "Adicionar"}
+                : imageUploading
+                  ? "Enviando imagem…"
+                  : props.mode === "edit"
+                    ? "Salvar"
+                    : "Adicionar"}
             </Button>
           </DialogFooter>
         </form>
