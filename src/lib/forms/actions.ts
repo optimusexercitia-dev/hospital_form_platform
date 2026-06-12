@@ -119,6 +119,9 @@ const BUILDER_FORM_PATH = '/c/[slug]/manage/forms/[formId]'
 const FORMS_LIST_PATH = '/c/[slug]/manage/forms'
 
 function revalidateBuilder(): void {
+  // Intentional: [slug] and [formId] are literal Next.js dynamic-segment syntax,
+  // not placeholders — revalidatePath with 'page' scope matches all concrete paths
+  // under this route pattern (https://nextjs.org/docs/app/api-reference/functions/revalidatePath).
   revalidatePath(BUILDER_FORM_PATH, 'page')
   revalidatePath(FORMS_LIST_PATH, 'page')
 }
@@ -198,6 +201,9 @@ async function contextOfItem(
   supabase: SupabaseClient<Database>,
   itemId: string,
 ): Promise<{ commissionId: string; sectionId: string } | null> {
+  // PostgREST FK embedding hops: form_items.form_version_id → form_versions.id,
+  // then form_versions.form_id → forms.id (to reach forms.commission_id).
+  // Any migration that renames or drops either FK must update this embed path.
   const { data } = await supabase
     .from('form_items')
     .select(

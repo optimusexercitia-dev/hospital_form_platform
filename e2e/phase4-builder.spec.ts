@@ -8,10 +8,19 @@ import { test, expect, type Page, type Locator } from '@playwright/test'
  * the PHASES.md §Phase 4 acceptance clauses it doesn't exercise:
  *   - (a) an unsectioned form using EVERY input type (≥1 with explanation) plus
  *         a text block and an image, then publish.
+ *   - (b) a 3-SECTION form with one CONDITIONAL section and one SIGN-OFF section
+ *         — publish succeeds and the page flips to the published read-only view.
  *   - (c) an INVALID condition (forward reference, reached via reorder) →
  *         publish blocked with a clear pt-BR error (publish-time validation is
  *         the authority, not the editor's offered targets).
  *   - access control: a staff member cannot reach the builder.
+ *   - keyboard-only flow (CLAUDE.md §8 mandate, ≥1 per phase): create a form
+ *     and publish it entirely by keyboard — Tab/Enter through the "Novo
+ *     formulário" dialog, then Tab/Enter through the Publish AlertDialog.
+ *
+ * Also covers Phase 3 QA INFO-1 test-hardening (carried into Phase 4):
+ *   - assert the "Coordenação" RoleBadge actually renders for a seeded
+ *     staff_admin in the member roster at /c/ccih/manage/members.
  *
  * Runs against whatever Supabase the dev server points at (here: the remote test
  * project). Form titles embed Date.now() so reruns never collide.
@@ -242,6 +251,124 @@ test('publish is blocked when a reorder creates a forward-reference condition (A
   )
 })
 
+test('build a 3-section form with conditional + sign-off sections, then publish (AC b)', async ({
+  page,
+}) => {
+  /**
+   * PHASES.md §Phase 4 Acceptance (b): build a 3-section form with one
+   * conditional section and one sign-off section — publish.
+   *
+   * Structure:
+   *   Section 1 (default / "Seção inicial") — one multiple_choice question "Houve
+   *             incidente?" with options "Sim" / "Não".  This is the default
+   *             section; it carries no condition/sign-off (DB CHECK).
+   *   Section 2 "Detalhes do Incidente" — conditional: visible only when
+   *             "Houve incidente?" = "Sim".  Has a free_text question.
+   *   Section 3 "Revisão" — sign-off required (role = respondent).
+   *
+   * The test asserts:
+   *  - All three sections exist in the builder (by heading text).
+   *  - The conditional section's section card shows the "assinatura" badge
+   *    on the sign-off section.
+   *  - Publish succeeds — the page transitions to the published read-only view
+   *    (the "Editar publicado" button appears and the draft builder is gone).
+   */
+  test.setTimeout(180_000)
+  const title = `AC-b ${Date.now()}`
+  await signInAs(page, 'chefe.ccih@test.local')
+  await createForm(page, title)
+
+  // The freshly-created form is flat (default section only).
+  // Add a multiple_choice question to the default (flat) section.
+  let d = await openAddBlock(page, page.locator('body'), /Múltipla escolha/)
+  await d.getByLabel('Enunciado da pergunta').fill('Houve incidente?')
+  await d.getByLabel('Opção 1', { exact: true }).fill('Sim')
+  await d.getByRole('button', { name: 'Adicionar opção' }).click()
+  await d.getByLabel('Opção 2', { exact: true }).fill('Não')
+  await submitDialog(d)
+  await expect(page.getByText('Houve incidente?')).toBeVisible()
+
+  // Add second section → builder enters sectioned view.
+  await page.getByRole('button', { name: 'Adicionar seção' }).click()
+  await expect(page.getByRole('heading', { name: 'Seção inicial' })).toBeVisible()
+
+  // Rename the new section (index 0 of the rename buttons, since only the
+  // non-default section has a "Renomear seção" button at this point).
+  await page.getByRole('button', { name: 'Renomear seção' }).nth(0).click()
+  let rd = page.getByRole('dialog')
+  await rd.getByLabel('Título da seção').fill('Detalhes do Incidente')
+  await rd.getByRole('button', { name: 'Salvar' }).click()
+  await expect(rd).toBeHidden({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: 'Detalhes do Incidente' })).toBeVisible()
+
+  // Add a free_text question to "Detalhes do Incidente".
+  const detalhes = page.getByRole('region', { name: 'Detalhes do Incidente' })
+  d = await openAddBlock(page, detalhes, /Texto livre/)
+  await d.getByLabel('Enunciado da pergunta').fill('Descreva o incidente')
+  await submitDialog(d)
+
+  // Configure the condition on "Detalhes do Incidente": visible when
+  // "Houve incidente?" = "Sim".
+  await detalhes
+    .getByRole('button', { name: 'Configurações da seção (condição e assinatura)' })
+    .click()
+  const settings = page.getByRole('dialog')
+  await settings.getByLabel('Mostrar a seção quando').selectOption({ label: 'Houve incidente?' })
+  await settings.getByLabel('Valor').selectOption({ label: 'Sim' })
+  await settings.getByRole('button', { name: 'Salvar' }).click()
+  await expect(settings).toBeHidden({ timeout: 10_000 })
+
+  // Add a third section.
+  await page.getByRole('button', { name: 'Adicionar seção' }).click()
+
+  // The new section is the second "rename" button (first is "Detalhes do Incidente").
+  await page.getByRole('button', { name: 'Renomear seção' }).nth(1).click()
+  rd = page.getByRole('dialog')
+  await rd.getByLabel('Título da seção').fill('Revisão')
+  await rd.getByRole('button', { name: 'Salvar' }).click()
+  await expect(rd).toBeHidden({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: 'Revisão' })).toBeVisible()
+
+  // Configure sign-off on "Revisão" (requires_signoff = true, role = respondent).
+  const revisao = page.getByRole('region', { name: 'Revisão' })
+  await revisao
+    .getByRole('button', { name: 'Configurações da seção (condição e assinatura)' })
+    .click()
+  const signoffSettings = page.getByRole('dialog')
+  await signoffSettings.getByRole('checkbox', { name: /Exigir assinatura/ }).click()
+  // Role defaults to "respondent" — no change needed.
+  await signoffSettings.getByRole('button', { name: 'Salvar' }).click()
+  await expect(signoffSettings).toBeHidden({ timeout: 10_000 })
+
+  // Assert all three sections are visible in the builder.
+  await expect(page.getByRole('heading', { name: 'Seção inicial' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Detalhes do Incidente' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Revisão' })).toBeVisible()
+
+  // The sign-off section card must show the "assinatura" badge — this is the
+  // visible indicator that requires_signoff was persisted (not just toggled in
+  // client state).
+  await expect(
+    revisao.getByText('assinatura', { exact: false }),
+  ).toBeVisible({ timeout: 10_000 })
+
+  // Publish — this is a VALID form (condition references an EARLIER section).
+  // The confirmation dialog must appear, and after confirming the page must
+  // transition to the published read-only view (the draft builder is gone).
+  await page.getByRole('button', { name: 'Publicar' }).click()
+  const confirm = page.getByRole('alertdialog')
+  await confirm.getByRole('button', { name: 'Publicar' }).click()
+
+  // Published read-only view: the "Editar publicado" CTA is the definitive
+  // signal that the version flipped from draft → published.
+  await expect(
+    page.getByRole('button', { name: /Editar publicado/ }),
+  ).toBeVisible({ timeout: 20_000 })
+
+  // The draft builder affordances must be gone (no "Adicionar seção" button).
+  await expect(page.getByRole('button', { name: 'Adicionar seção' })).toHaveCount(0)
+})
+
 test('re-uploading an image in v2 yields a NEW storage path; v1 stays immutable (AC d)', async ({
   page,
 }) => {
@@ -303,4 +430,177 @@ test('re-uploading an image in v2 yields a NEW storage path; v1 stays immutable 
   const v1HistImg = page.locator('main img').first()
   await expect(v1HistImg).toBeVisible({ timeout: 20_000 })
   expect(assetPath(await v1HistImg.getAttribute('src'))).toBe(v1Path)
+})
+
+// ---------------------------------------------------------------------------
+// Keyboard-only flow (CLAUDE.md §8 mandate — ≥1 per phase)
+// ---------------------------------------------------------------------------
+
+test('keyboard-only: create a form via dialog and publish via AlertDialog (keyboard flow)', async ({
+  page,
+}) => {
+  /**
+   * CLAUDE.md §8: every phase must include at least one keyboard-only flow.
+   *
+   * Flow (all interaction via keyboard.press — no mouse after sign-in):
+   *
+   *  PART 1 — "Novo formulário" dialog:
+   *   1. Focus the "Novo formulário" button with .focus() to anchor the keyboard
+   *      sequence at the right starting point (Tab from the page top would cross
+   *      the nav — anchoring is standard Playwright keyboard-only practice).
+   *   2. Press Enter → dialog opens; the title input has `autoFocus` so focus
+   *      lands there immediately (no Tab needed).
+   *   3. Type the form title.
+   *   4. Tab  → moves to the "Descrição" textarea.
+   *   5. Tab  → moves to the "Criar formulário" submit button.
+   *   6. Enter → submits; server action creates the form + default section and
+   *      navigates to the builder URL. Assert the builder is visible.
+   *
+   *  PART 2 — Publish AlertDialog:
+   *   1. Focus the "Publicar" trigger button; press Enter → AlertDialog opens.
+   *      Radix AlertDialog traps focus on open and focuses the first interactive
+   *      element in the content — the "Cancelar" button (first in DOM order).
+   *   2. Tab  → moves focus to the "Publicar" confirm button (second in footer).
+   *   3. Enter → calls handleConfirm(), publishes, dialog closes, router refreshes.
+   *   4. Assert the published read-only view ("Editar publicado" button visible)
+   *      and the draft builder affordances are gone.
+   *
+   * Escape behaviour is also exercised (cancel path is tested to confirm Radix
+   * Escape-to-close works, then the flow is retried for the positive path).
+   */
+  test.setTimeout(90_000)
+  const title = `KB ${Date.now()}`
+
+  // Sign in by mouse (keyboard sign-in was the Phase 2 keyboard flow).
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto('/c/ccih/manage/forms')
+  await page.waitForURL('**/c/ccih/manage/forms', { timeout: 15_000 })
+
+  // ── PART 1: create form by keyboard ────────────────────────────────────────
+
+  // Anchor focus on "Novo formulário" and open the dialog with Enter.
+  const newFormBtn = page.getByRole('button', { name: 'Novo formulário' })
+  await newFormBtn.focus()
+  await expect(newFormBtn).toBeFocused()
+  await page.keyboard.press('Enter')
+
+  // The dialog should open; autoFocus lands on the title input.
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+  const titleInput = dialog.getByLabel('Título do formulário')
+  await expect(titleInput).toBeFocused({ timeout: 5_000 })
+
+  // Type the form title (keyboard only — no .fill()).
+  await page.keyboard.type(title)
+  await expect(titleInput).toHaveValue(title)
+
+  // Escape — verify the dialog closes (keyboard cancel path).
+  await page.keyboard.press('Escape')
+  await expect(dialog).toBeHidden({ timeout: 5_000 })
+
+  // Re-open the dialog — anchor focus on the button again.
+  await newFormBtn.focus()
+  await page.keyboard.press('Enter')
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+  // autoFocus restores to the title input; type the title again.
+  await expect(titleInput).toBeFocused({ timeout: 5_000 })
+  await page.keyboard.type(title)
+
+  // Tab past "Descrição" textarea → Tab to the submit button → Enter to submit.
+  await page.keyboard.press('Tab') // title → description textarea
+  await page.keyboard.press('Tab') // description → "Criar formulário" button
+  const submitBtn = dialog.getByRole('button', { name: 'Criar formulário' })
+  await expect(submitBtn).toBeFocused({ timeout: 3_000 })
+  await page.keyboard.press('Enter')
+
+  // Server action creates the form; page navigates to the builder.
+  await page.waitForURL(/\/manage\/forms\/[0-9a-f-]+$/, { timeout: 20_000 })
+  await expect(
+    page.getByRole('heading', { level: 1, name: title }),
+  ).toBeVisible({ timeout: 10_000 })
+
+  // ── PART 2: publish via AlertDialog by keyboard ────────────────────────────
+
+  // Anchor focus on the "Publicar" trigger and open the AlertDialog with Enter.
+  const publishTrigger = page.getByRole('button', { name: 'Publicar' })
+  await publishTrigger.focus()
+  await expect(publishTrigger).toBeFocused()
+  await page.keyboard.press('Enter')
+
+  // AlertDialog opens; Radix traps focus on the first interactive element —
+  // "Cancelar" (first in DOM order in the footer).
+  const alertDialog = page.getByRole('alertdialog')
+  await expect(alertDialog).toBeVisible({ timeout: 10_000 })
+  const cancelBtn = alertDialog.getByRole('button', { name: 'Cancelar' })
+  await expect(cancelBtn).toBeFocused({ timeout: 5_000 })
+
+  // Escape to cancel — dialog must close (keyboard cancel, Radix built-in).
+  await page.keyboard.press('Escape')
+  await expect(alertDialog).toBeHidden({ timeout: 5_000 })
+  // Still in the draft builder (no read-only transition).
+  await expect(publishTrigger).toBeVisible()
+
+  // Re-open and confirm by keyboard: Enter → Tab → Enter.
+  await publishTrigger.focus()
+  await page.keyboard.press('Enter')
+  await expect(alertDialog).toBeVisible({ timeout: 10_000 })
+  // Radix focuses "Cancelar" first; Tab moves to the "Publicar" confirm button.
+  await page.keyboard.press('Tab')
+  const confirmBtn = alertDialog.getByRole('button', { name: 'Publicar' })
+  await expect(confirmBtn).toBeFocused({ timeout: 3_000 })
+  await page.keyboard.press('Enter')
+
+  // Server publishes the form; page transitions to the published read-only view.
+  await expect(
+    page.getByRole('button', { name: /Editar publicado/ }),
+  ).toBeVisible({ timeout: 20_000 })
+  // The draft builder affordances must be gone.
+  await expect(page.getByRole('button', { name: 'Publicar' })).toHaveCount(0)
+})
+
+// ---------------------------------------------------------------------------
+// Phase 3 QA INFO-1 test-hardening (carried into Phase 4)
+// ---------------------------------------------------------------------------
+
+test('RoleBadge renders "Coordenação" for a seeded staff_admin in the member roster (INFO-1)', async ({
+  page,
+}) => {
+  /**
+   * Phase 3 QA INFO-1: the AC1 test asserted the coordinator's email appears in
+   * the roster but did not assert the "Coordenação" RoleBadge rendered.
+   *
+   * The RoleBadge is rendered by MemberList at /c/[slug]/manage/members.
+   * chefe.ccih@test.local is seeded as staff_admin of commission "ccih" — their
+   * row must carry the "Coordenação" badge (text inside a <span> with
+   * bg-accent styling) and staff1.ccih@test.local must carry "Membro".
+   *
+   * This test runs against remote because the seeded personas are present there.
+   * It does NOT depend on Mailpit / email capture.
+   */
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto('/c/ccih/manage/members')
+  await page.waitForURL('**/c/ccih/manage/members', { timeout: 15_000 })
+
+  // The roster must be visible (non-empty — seeded members exist).
+  const memberList = page.locator('ul').filter({ has: page.locator('li') }).last()
+  await expect(memberList).toBeVisible({ timeout: 10_000 })
+
+  // chefe.ccih@test.local is the logged-in staff_admin; their row shows "(você)"
+  // and must carry the "Coordenação" badge.
+  const coordRow = memberList.locator('li').filter({ hasText: /você/ })
+  await expect(coordRow).toBeVisible()
+  // The RoleBadge renders inside a <span> whose text content is exactly
+  // "COORDENAÇÃO" (uppercased by CSS `uppercase` class). We match
+  // case-insensitively to be robust to CSS rendering differences.
+  const coordBadge = coordRow.locator('span').filter({ hasText: /coordena[çc]ão/i })
+  await expect(coordBadge).toBeVisible()
+  // Verify it is NOT the "Membro" badge text.
+  await expect(coordBadge).not.toHaveText(/membro/i)
+
+  // staff1.ccih@test.local must be in the list with the "Membro" badge.
+  const staffRow = memberList.locator('li').filter({ hasText: /staff1\.ccih/i })
+  await expect(staffRow).toBeVisible()
+  const memberBadge = staffRow.locator('span').filter({ hasText: /membro/i })
+  await expect(memberBadge).toBeVisible()
+  await expect(memberBadge).not.toHaveText(/coordena[çc]ão/i)
 })
