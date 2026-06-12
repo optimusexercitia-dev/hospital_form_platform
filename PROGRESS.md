@@ -9,7 +9,7 @@
 | Phase | Name                          | Status | Build | Tests | QA | Human ✓ | Completed | Commit |
 | ----- | ----------------------------- | ------ | ----- | ----- | -- | ------- | --------- | ------ |
 | 0     | Scaffolding & Environment     | ✅ complete | ✅ | ✅ 5/5 | ✅ APPROVED | ✅ 2026-06-11 | 2026-06-11 | `d64281e` |
-| 1     | Schema, Auth & RLS            | ✅ complete | ✅ | ✅ 88/88 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | (see next commit) |
+| 1     | Schema, Auth & RLS            | ✅ complete | ✅ | ✅ 88/88 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | `691662f` |
 | 2     | Authentication & App Shell    | 🔜 not started | – | – | – | – | – | – |
 | 3     | Admin Area & User Management  | 🔜 not started | – | – | – | – | – | – |
 | 4     | Form Builder & Versioning     | 🔜 not started | – | – | – | – | – | – |
