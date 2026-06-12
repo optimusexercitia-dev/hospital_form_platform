@@ -298,8 +298,6 @@ test.describe('Auth pages UI behaviours', () => {
 
   test('/redefinir-senha shows live "as senhas não coincidem" hint', async ({ page }) => {
     await page.goto('/redefinir-senha')
-    // Fill in mismatching passwords.
-    const inputs = page.getByRole('textbox')
     // The page has two password inputs; use type="password" fields.
     const passwordInputs = await page.locator('input[type="password"]').all()
     expect(passwordInputs.length).toBeGreaterThanOrEqual(2)
