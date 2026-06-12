@@ -13,6 +13,7 @@
 --   chefe.farm@test.local     staff_admin of commission B (Farmácia e Terapêutica)
 --   staff1.farm@test.local     staff of B
 --   staff2.farm@test.local     staff of B
+--   multi@test.local          staff of BOTH A and B (exercises the commission picker)
 
 set search_path = public, extensions;
 
@@ -30,7 +31,8 @@ declare
     jsonb_build_object('id', '00000000-0000-0000-0000-000000000004', 'email', 'staff2.ccih@test.local', 'name', 'Enfermeira CCIH Dois'),
     jsonb_build_object('id', '00000000-0000-0000-0000-000000000005', 'email', 'chefe.farm@test.local',  'name', 'Chefe Farmácia'),
     jsonb_build_object('id', '00000000-0000-0000-0000-000000000006', 'email', 'staff1.farm@test.local', 'name', 'Farmacêutico Um'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-000000000007', 'email', 'staff2.farm@test.local', 'name', 'Farmacêutica Dois')
+    jsonb_build_object('id', '00000000-0000-0000-0000-000000000007', 'email', 'staff2.farm@test.local', 'name', 'Farmacêutica Dois'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-000000000008', 'email', 'multi@test.local',       'name', 'Coordenadora Multi')
   );
   u jsonb;
 begin
@@ -90,7 +92,12 @@ insert into public.commission_members (commission_id, user_id, role) values
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000004', 'staff'),
   ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000005', 'staff_admin'),
   ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000006', 'staff'),
-  ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000007', 'staff');
+  ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000007', 'staff'),
+  -- multi@test.local: plain staff of BOTH commissions, so the commission picker
+  -- is E2E-testable (a single user with >1 membership). Kept as staff in both to
+  -- avoid introducing a second staff_admin into either commission.
+  ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000008', 'staff'),
+  ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000008', 'staff');
 
 -- ===========================================================================
 -- FORM A (commission CCIH): UNSECTIONED — default section only.
