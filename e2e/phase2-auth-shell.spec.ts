@@ -263,12 +263,19 @@ test.describe('Auth pages UI behaviours', () => {
     await page.getByLabel('E-mail').fill('notauser@test.local')
     await page.getByLabel('Senha').fill('WrongPassword!')
     await page.getByRole('button', { name: /entrar/i }).click()
-    // Wait for the error banner to appear — look for a generic pt-BR error.
-    const banner = page.locator('[role="alert"]')
+    // FormBanner renders role="status" (aria-live), not role="alert".
+    // Wait for the generic enumeration-safe error to appear.
+    const banner = page.locator('[role="status"]')
     await expect(banner).toBeVisible({ timeout: 10_000 })
     const bannerText = await banner.innerText()
-    // Must NOT reveal which field was wrong.
-    expect(bannerText).not.toMatch(/e-?mail|senha|password|email/i)
+    // POSITIVE assertion: the exact pt-BR message that names BOTH fields
+    // together — this is what makes it enumeration-safe. The message is
+    // intentionally "E-mail ou senha incorretos." (never "senha incorreta"
+    // or "e-mail não encontrado") so neither field is singled out.
+    expect(bannerText.trim()).toBe('E-mail ou senha incorretos.')
+    // The positive assertion above is sufficient proof of non-enumeration:
+    // the message cannot simultaneously be the exact joint-field copy AND
+    // a single-field leak. No additional negative assertion needed.
     // Should still be on /login.
     await expect(page).toHaveURL(/\/login/)
   })
