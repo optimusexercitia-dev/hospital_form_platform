@@ -169,12 +169,29 @@ does NOT write feature code itself.
 
 ### Lead protocol
 
-- Spawn `frontend` and `backend` at the start of a phase with a task-specific
-  prompt (teammates do NOT inherit your conversation — include all relevant
-  context, file paths, and acceptance criteria in the spawn prompt).
-- **Require plan approval** for `backend` on any task touching migrations or
-  RLS, and for `frontend` on any task introducing a new page/route group.
-  Reject plans that lack a testing note or that violate file ownership.
+- **Keep `frontend` and `backend` warm across phases.** Spawn each ONCE (their first
+  phase) and REUSE the same teammate for later phases with a new task-specific prompt —
+  they retain the architecture + codebase context they built up, which removes the
+  per-phase re-read and shrinks the "lead notes" you have to write. Teammates still do
+  NOT share your conversation, so each phase's prompt must include that phase's
+  context, file paths, and acceptance criteria — but they already hold ARCHITECTURE.md
+  and the code they wrote. Spawn a FRESH teammate only if one is genuinely stuck or
+  context-poisoned.
+- **Contract-first sequencing.** At phase start, have `backend` post the typed
+  query/action *signatures* `frontend` depends on (typed stubs in `src/lib/queries/**`
+  and the relevant `actions.ts`) BEFORE implementing them, so `frontend` builds against
+  real types in parallel instead of inventing a provisional shape that later mismatches
+  (this caused rework in Phase 6). Backend then fills in the implementations.
+- **Require plan approval** for `backend` on any task touching migrations or RLS, and
+  for `frontend` on any task introducing a new page/route group — but **right-size the
+  review**. Work that follows an already-approved pattern (a routine additive
+  migration, a new RPC mirroring an existing one, a flag flip; a standard
+  coordinator-gated route group) gets a **one-line plan + your ack**. Reserve a full
+  plan review for **novel or security-sensitive** work: a new RLS *shape*, a
+  `SECURITY DEFINER` read path, a service-role route handler, anything touching the
+  condition evaluator or the immutability triggers, or a genuinely new UI pattern.
+  Reject any plan (fast-tracked or full) that lacks a testing note or violates file
+  ownership.
 - Spawn `tester` only when the phase's features are implemented and the dev
   server runs. Spawn `qa` only after the tester reports green.
 - Break each phase into 5–6 tasks per teammate on the shared task list; mark
@@ -182,8 +199,10 @@ does NOT write feature code itself.
   versioning-API task).
 - Enforce file ownership (section above). Two teammates must never edit the
   same file in the same phase. Shared types change only via `backend`.
-- Shut down idle teammates and clean up the team at phase end (lead runs
-  cleanup, never a teammate).
+- **Keep the team warm between phases; do the full team cleanup at PROJECT end**
+  (or when a teammate is genuinely done for the project) — the lead runs cleanup,
+  never a teammate. Spinning the team down each phase only to rebuild it next phase
+  throws away context you then pay to re-inject; don't.
 
 ## 5. Phased Development Plan
 
@@ -214,20 +233,24 @@ See PHASES.md for the authoritative detail of each phase.
 
 1. **Build complete** — frontend & backend mark all phase tasks done; lint,
    typecheck, and unit tests pass locally.
-2. **Test pass** — lead spawns `tester`. Tester writes/updates Playwright specs
-   for the phase's acceptance criteria, runs the FULL E2E suite (regression
-   included), and files a bug report in `PROGRESS.md` for every failure.
-   Engineers fix; tester re-runs. Repeat until green. Tester never edits app
-   code; engineers never edit specs to make them pass without tester sign-off.
+2. **Test pass** — lead spawns `tester`. Tester writes/updates Playwright specs for
+   the phase's acceptance criteria and files a bug report in `PROGRESS.md` for every
+   failure. During the fix loop the tester re-runs only the **failing + current-phase
+   specs** (chromium) for fast feedback; the **FULL E2E suite (regression included)
+   runs once to declare green** — green still requires the full suite to pass.
+   Engineers fix; tester re-runs. Repeat until green. Tester never edits app code;
+   engineers never edit specs to make them pass without tester sign-off.
 3. **QA review** — lead spawns `qa`. QA audits the phase against this file's
    requirements, reviews code quality and RLS coverage, and writes
    `docs/reviews/phase-N-review.md` with verdict `APPROVED` or
    `CHANGES REQUESTED` (with an itemized list). Changes loop back to step 1.
 4. **Human approval** — lead presents a summary (what was built, test results,
    QA verdict, open risks) and WAITS for explicit human approval.
-5. **Record** — lead updates `PROGRESS.md` (phase → ✅, date, commit hash,
-   links to review), commits with `phase(N): complete — <summary>`, cleans up
-   the team.
+5. **Record** — lead updates `PROGRESS.md` (phase → ✅, date, commit hash, links to
+   review), archives the completed phase's task detail to `docs/progress/phase-N.md`
+   (§7), updates `docs/backend-state.md` if the backend surface changed, and commits
+   with `phase(N): complete — <summary>`. The team stays warm for the next phase;
+   full cleanup is at project end (§4).
 
 A `TaskCompleted` hook may be configured to reject completion of any task whose
 description includes `[gate]` unless `npx playwright test` exits 0 — prefer
@@ -240,6 +263,15 @@ updates ONLY their own rows/sections; the lead owns the phase status table.
 Update it when: a task starts/finishes, a bug is filed/fixed, a gate step
 passes, a decision is made. Never report status verbally without writing it
 to `PROGRESS.md` first. Format is defined in the file itself.
+
+**Keep `PROGRESS.md` small — every spawn reads it.** The live file holds only the
+Phase Status table, the **current** phase's task table + lead notes, and the
+cross-phase logs (Bug Log, Test Run Summary, QA Verdicts, Decisions, Follow-ups). At
+the §6 Record step the lead moves the just-completed phase's task detail + per-phase
+notes into `docs/progress/phase-N.md`, leaving a one-line pointer behind; the
+cross-phase logs stay here. The durable map of what the backend already provides lives
+in **`docs/backend-state.md`** (the lead keeps it current) so per-phase "lead notes"
+reference it instead of re-deriving it each phase.
 
 ## 8. Conventions & Quality Bar
 

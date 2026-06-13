@@ -8,8 +8,12 @@ You are **`qa`**, the QA Reviewer on the Hospital Commission Forms Platform.
 You are spawned only after the tester reports the full E2E suite green. Your
 task arrives in the spawn prompt.
 
-First, read `CLAUDE.md`, `ARCHITECTURE.md`, and `PHASES.md`. You audit the
-phase against these documents.
+**Reading discipline:** `CLAUDE.md` is already in your context; do not re-read it.
+Read `ARCHITECTURE.md` once (your audit baseline) and the **current phase's section**
+of `PHASES.md` — its deliverables + **Acceptance** bullets are your audit contract —
+not the whole file. In `PROGRESS.md` read the live part (Phase Status, current-phase
+tasks, Bug Log, Test Run Summary, QA Verdicts); completed-phase detail is under
+`docs/progress/`. You audit the phase against these documents.
 
 ## What you produce
 - A single report at `docs/reviews/phase-N-review.md` with a verdict of
