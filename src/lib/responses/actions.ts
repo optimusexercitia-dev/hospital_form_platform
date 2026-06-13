@@ -1,0 +1,273 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+
+import { getSessionContext } from '@/lib/queries/session'
+import { createClient } from '@/lib/supabase/server'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import type { Database, Json } from '@/lib/types/database'
+
+/**
+ * Response-fill server actions (Architecture Rules 9 & 10): start/resume a
+ * draft, save a section's answers (incl. the warn-and-clear orphan delete),
+ * save-and-exit, and submit. These wrap the M11 fill RPCs
+ * (`start_or_resume_response`, `save_section_answers`) and the M5 submission
+ * authority (`submit_response`) — the wizard never inlines supabase-js.
+ *
+ * All user-facing strings are pt-BR; raw Supabase/Postgres errors NEVER reach
+ * the UI (CLAUDE.md §8). submit_response raises discriminated SQLSTATEs which
+ * map to clear copy: P0010 (already submitted), P0011 (missing required), P0012
+ * (missing sign-off — Phase 6), no_data_found (not found / not visible).
+ *
+ * SECURITY: RLS is the authority — every call uses the cookie (RLS-scoped)
+ * client, and the M6 policies confine fills to the response's creator while
+ * in_progress. On top of that, each action re-verifies server-side that the
+ * caller is a MEMBER of the response's commission before writing (staff AND
+ * staff_admin fill forms), so an unauthorized attempt returns a clean pt-BR
+ * "forbidden" rather than leaning only on an RLS row-count of zero.
+ */
+
+export interface ActionState {
+  ok: boolean
+  error?: string
+}
+
+const MESSAGES = {
+  forbidden: 'Você não tem permissão para esta ação.',
+  generic: 'Não foi possível concluir. Tente novamente.',
+  missingForm: 'Formulário não encontrado.',
+  missingVersion: 'Versão não encontrada.',
+  missingResponse: 'Resposta não encontrada.',
+  notPublished: 'Este formulário não está disponível para preenchimento.',
+  // submit_response discriminated failures
+  alreadySubmitted: 'Esta resposta já foi enviada.',
+  missingRequired: 'Há perguntas obrigatórias sem resposta. Revise o formulário.',
+  missingSignoff: 'Há seções pendentes de assinatura.',
+  // success copy
+  saved: 'Respostas salvas.',
+  savedAndExited: 'Respostas salvas. Você pode continuar mais tarde.',
+  submitted: 'Resposta enviada com sucesso.',
+} as const
+
+/** Postgres / submit_response SQLSTATEs we translate to friendly pt-BR copy. */
+const PG_CHECK_VIOLATION = '23514'
+const PG_NO_DATA_FOUND = 'P0002'
+const SUBMIT_ALREADY_SUBMITTED = 'P0010'
+const SUBMIT_MISSING_REQUIRED = 'P0011'
+const SUBMIT_MISSING_SIGNOFF = 'P0012'
+
+/** The staff filling area — revalidated as dynamic-segment pages. */
+const FORMS_LIST_PATH = '/c/[slug]/forms'
+const RESPONDER_PATH = '/c/[slug]/forms/[formId]/responder/[responseId]'
+
+function revalidateFill(): void {
+  // [slug]/[formId]/[responseId] are literal Next.js dynamic-segment syntax,
+  // not placeholders — 'page' scope matches every concrete path under each
+  // route pattern.
+  revalidatePath(FORMS_LIST_PATH, 'page')
+  revalidatePath(RESPONDER_PATH, 'page')
+}
+
+/**
+ * Authorize a fill action for a commission: admin, or ANY member (staff or
+ * staff_admin) of that commission — both roles fill forms. RLS still backstops
+ * every write; this yields the friendly pt-BR forbidden.
+ */
+async function authorizeMember(commissionId: string): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context) return false
+  if (context.isAdmin) return true
+  return context.memberships.some((m) => m.commission.id === commissionId)
+}
+
+/** Resolve the commission behind a published form version (RLS-scoped read). */
+async function commissionOfVersion(
+  supabase: SupabaseClient<Database>,
+  versionId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('form_versions')
+    .select('forms(commission_id)')
+    .eq('id', versionId)
+    .maybeSingle<{ forms: { commission_id: string } | null }>()
+  return data?.forms?.commission_id ?? null
+}
+
+/** Resolve {commissionId, formVersionId} behind a response (RLS-scoped read). */
+async function contextOfResponse(
+  supabase: SupabaseClient<Database>,
+  responseId: string,
+): Promise<{ commissionId: string; formVersionId: string } | null> {
+  const { data } = await supabase
+    .from('responses')
+    .select('commission_id, form_version_id')
+    .eq('id', responseId)
+    .maybeSingle<{ commission_id: string; form_version_id: string }>()
+  if (!data) return null
+  return { commissionId: data.commission_id, formVersionId: data.form_version_id }
+}
+
+// ---------------------------------------------------------------------------
+// start / resume
+// ---------------------------------------------------------------------------
+
+/** Result of start/resume — carries the response id to navigate the wizard to. */
+export interface StartResponseState extends ActionState {
+  responseId?: string
+}
+
+/**
+ * Begin filling a published form, or resume the caller's existing in_progress
+ * draft on that version (wraps `start_or_resume_response`; the RPC tolerates the
+ * one-draft unique index under a double-click race and rejects non-published
+ * versions). Returns the response id for navigation to the wizard.
+ */
+export async function startOrResumeResponse(
+  formVersionId: string,
+): Promise<StartResponseState> {
+  if (!formVersionId) return { ok: false, error: MESSAGES.missingVersion }
+
+  const supabase = await createClient()
+  const commissionId = await commissionOfVersion(supabase, formVersionId)
+  // A non-member cannot see the version (RLS) → null → forbidden, leaking
+  // nothing about whether the version exists.
+  if (!commissionId) return { ok: false, error: MESSAGES.forbidden }
+  if (!(await authorizeMember(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  // start_or_resume_response returns a single responses row (not a set), so the
+  // rpc data is the object directly — no .single().
+  const { data, error } = await supabase.rpc('start_or_resume_response', {
+    p_form_version_id: formVersionId,
+  })
+
+  if (error || !data) {
+    // The RPC raises check_violation for a non-published version.
+    if (error?.code === PG_CHECK_VIOLATION) {
+      return { ok: false, error: MESSAGES.notPublished }
+    }
+    return { ok: false, error: MESSAGES.generic }
+  }
+
+  revalidateFill()
+  return { ok: true, responseId: data.id }
+}
+
+// ---------------------------------------------------------------------------
+// save section (+ orphan-clear)
+// ---------------------------------------------------------------------------
+
+/**
+ * Persist a section's answers and the wizard position in one atomic call (wraps
+ * `save_section_answers`). `answersByItemId` maps each answered input item's id
+ * to its jsonb value; `clearItemIds` (optional) is the warn-and-clear path — the
+ * answered item ids of section(s) a controlling answer just hid, deleted in the
+ * SAME call. `sectionId` is stored as `last_section_id` so resume lands here.
+ *
+ * Called on every section navigation, so it stays lean: authorize, then one RPC.
+ */
+export async function saveSection(input: {
+  responseId: string
+  sectionId: string
+  answersByItemId: Record<string, Json>
+  clearItemIds?: string[]
+}): Promise<ActionState> {
+  const { responseId, sectionId, answersByItemId, clearItemIds } = input
+  if (!responseId || !sectionId) {
+    return { ok: false, error: MESSAGES.missingResponse }
+  }
+
+  const supabase = await createClient()
+  const ctx = await contextOfResponse(supabase, responseId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingResponse }
+  if (!(await authorizeMember(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('save_section_answers', {
+    p_response_id: responseId,
+    p_section_id: sectionId,
+    p_answers: answersByItemId as Json,
+    // generated Args types p_clear_item_ids as optional string[]; omit when empty.
+    p_clear_item_ids:
+      clearItemIds && clearItemIds.length > 0 ? clearItemIds : undefined,
+  })
+
+  if (error) {
+    // check_violation = submitted-already / cross-version item guard; either way
+    // a clean message, never the raw error.
+    if (error.code === PG_CHECK_VIOLATION) {
+      return { ok: false, error: MESSAGES.alreadySubmitted }
+    }
+    if (error.code === PG_NO_DATA_FOUND) {
+      return { ok: false, error: MESSAGES.missingResponse }
+    }
+    return { ok: false, error: MESSAGES.generic }
+  }
+
+  revalidateFill()
+  return { ok: true, error: MESSAGES.saved }
+}
+
+/**
+ * "Salvar e sair": save the current section, then signal the UI to leave the
+ * wizard (the redirect/navigation is the caller's job). Identical persistence to
+ * `saveSection`; the distinct success copy lets the UI confirm the exit.
+ */
+export async function saveAndExit(input: {
+  responseId: string
+  sectionId: string
+  answersByItemId: Record<string, Json>
+  clearItemIds?: string[]
+}): Promise<ActionState> {
+  const result = await saveSection(input)
+  if (!result.ok) return result
+  return { ok: true, error: MESSAGES.savedAndExited }
+}
+
+// ---------------------------------------------------------------------------
+// submit
+// ---------------------------------------------------------------------------
+
+/**
+ * Submit a response through the single submission authority
+ * (`submit_response`): server-side visibility eval, required-answer check,
+ * stray-answer cleanup, atomic status flip (sign-off check is feature-flagged
+ * OFF until Phase 6). Maps the RPC's discriminated SQLSTATEs to pt-BR; a raw PG
+ * error never reaches the UI. Client-side wizard validation is UX only — this is
+ * the authority (e.g. a required answer removed in a second tab is rejected
+ * HERE).
+ */
+export async function submitResponse(responseId: string): Promise<ActionState> {
+  if (!responseId) return { ok: false, error: MESSAGES.missingResponse }
+
+  const supabase = await createClient()
+  const ctx = await contextOfResponse(supabase, responseId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingResponse }
+  if (!(await authorizeMember(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('submit_response', {
+    p_response_id: responseId,
+  })
+
+  if (error) {
+    switch (error.code) {
+      case SUBMIT_ALREADY_SUBMITTED:
+        return { ok: false, error: MESSAGES.alreadySubmitted }
+      case SUBMIT_MISSING_REQUIRED:
+        return { ok: false, error: MESSAGES.missingRequired }
+      case SUBMIT_MISSING_SIGNOFF:
+        return { ok: false, error: MESSAGES.missingSignoff }
+      case PG_NO_DATA_FOUND:
+        return { ok: false, error: MESSAGES.missingResponse }
+      default:
+        return { ok: false, error: MESSAGES.generic }
+    }
+  }
+
+  revalidateFill()
+  return { ok: true, error: MESSAGES.submitted }
+}

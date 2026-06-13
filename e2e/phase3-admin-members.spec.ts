@@ -53,9 +53,19 @@ async function signInAs(
  * Poll Mailpit for a message to `toAddress` that arrived after `afterMs`.
  * Returns the first matching message object or null after `timeoutMs`.
  */
+/**
+ * Poll Mailpit for a message to `toAddress`.
+ * Returns the first matching message object or null after `timeoutMs`.
+ *
+ * NOTE: the `afterMs` time-guard was removed (spec defect fix 2026-06-12).
+ * On the local Docker stack GoTrue delivers the invite email so quickly that
+ * it arrives in Mailpit BEFORE `Date.now()` is captured in the test, making
+ * the time-filter exclude the very message we're looking for. Since every test
+ * uses a unique `Date.now()`-suffixed address, matching by address alone is
+ * safe — no stale email from a prior run can share the same address.
+ */
 async function waitForMailpitMessage(
   toAddress: string,
-  afterMs: number,
   timeoutMs = 20_000,
 ): Promise<{ Subject: string; To: { Address: string }[] } | null> {
   const deadline = Date.now() + timeoutMs
@@ -65,11 +75,8 @@ async function waitForMailpitMessage(
     const body = (await res.json()) as {
       messages: { Subject: string; To: { Address: string }[]; Created: string }[]
     }
-    const match = body.messages.find(
-      (m) =>
-        m.To.some(
-          (t) => t.Address.toLowerCase() === toAddress.toLowerCase(),
-        ) && new Date(m.Created).getTime() > afterMs,
+    const match = body.messages.find((m) =>
+      m.To.some((t) => t.Address.toLowerCase() === toAddress.toLowerCase()),
     )
     if (match) return match
     await new Promise((r) => setTimeout(r, 800))
@@ -188,7 +195,6 @@ test.describe('AC2 — staff_admin invites a novel staff user and removes a memb
     await page.waitForURL('**/c/ccih/manage/members', { timeout: 10_000 })
 
     const inviteEmail = `novo.staff.${Date.now()}@test.local`
-    const sentAt = Date.now()
 
     const emailInput = page.locator('input[type="email"]')
     await emailInput.fill(inviteEmail)
@@ -201,7 +207,8 @@ test.describe('AC2 — staff_admin invites a novel staff user and removes a memb
     expect(bannerText).toMatch(/convite|usuário/i)
 
     // Verify via Mailpit REST API that an invite email landed for this address.
-    const msg = await waitForMailpitMessage(inviteEmail, sentAt)
+    // Address-only match is safe because the email is unique (Date.now() suffix).
+    const msg = await waitForMailpitMessage(inviteEmail)
     expect(msg).not.toBeNull()
     // The Supabase invite email is sent to the invited address.
     expect(msg!.To.some((t) => t.Address.toLowerCase() === inviteEmail.toLowerCase())).toBe(true)

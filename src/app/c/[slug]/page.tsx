@@ -116,13 +116,13 @@ const CARDS: AreaCard[] = [
     title: "Formulários",
     description: "Preencha os checklists e formulários publicados da comissão.",
     coordinatorOnly: false,
-    path: null,
+    path: "/forms",
   },
   {
     title: "Minhas respostas",
     description: "Acompanhe o que você já enviou e o que está em andamento.",
     coordinatorOnly: false,
-    path: null,
+    path: "/respostas",
   },
   {
     title: "Gerenciar membros",

@@ -1,0 +1,55 @@
+import type { Json } from "@/lib/types/database";
+import type { Item, Section, VersionTree } from "@/lib/queries/forms";
+import type { AnswerMap } from "@/lib/queries/conditions";
+
+/**
+ * Local, thin interface the wizard is built against so the non-data-bound
+ * engine (F2/F3/F5 scaffold) compiles and runs ahead of backend's B2/B3
+ * data-access landing. When B2 (`getResponseForFill`) / B3 (`saveSection`,
+ * `submitResponse`, `saveAndExit`) land, this is bound to those exports — the
+ * shapes here are intentionally aligned with the existing `VersionTree`/`Item`
+ * domain types (`src/lib/queries/forms.ts`) and `AnswerMap`
+ * (`src/lib/queries/conditions.ts`) so the wiring is a pass-through, not a
+ * rewrite. The wizard NEVER touches supabase-js (Rule 9) nor `src/lib/**`.
+ */
+
+/**
+ * One saved/in-flight answer, carrying BOTH identifiers.
+ *
+ * Per the lead's F2/F4 steer:
+ *  - `evalCondition` reads an `AnswerMap` keyed by `question_key`, but backend's
+ *    `saveSection` takes answers keyed by `item_id` (`answers` rows are
+ *    per-item). Carrying both means saving sends `{ itemId: value }` with no
+ *    lossy reverse-lookup, and a duplicate `question_key` across items can't
+ *    bite the navigation engine.
+ */
+export interface AnswerRecord {
+  itemId: string;
+  questionKey: string;
+  value: Json;
+}
+
+/** The wizard's answer state: per-item answer records keyed by item id. */
+export type AnswerState = Record<string, AnswerRecord>;
+
+/**
+ * Everything the wizard client needs to render + drive navigation for one
+ * in_progress response. Resolved server-side by the route page (from B2's
+ * `getResponseForFill`) and passed to `<WizardClient>`.
+ */
+export interface WizardData {
+  /** Route identifiers — used by F4 save calls and F5 submit. */
+  slug: string;
+  formId: string;
+  responseId: string;
+  /** Display metadata for the wizard header. */
+  formTitle: string;
+  /** The version-faithful section/item tree (immutable for this response). */
+  tree: VersionTree;
+  /** Saved answers, already mapped to per-item records (B2 returns these). */
+  initialAnswers: AnswerState;
+  /** Where the user left off — the wizard opens on this section if resumable. */
+  lastSectionId: string | null;
+}
+
+export type { Item, Section, VersionTree, AnswerMap };

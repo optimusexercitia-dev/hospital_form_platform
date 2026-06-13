@@ -527,6 +527,51 @@ export type Database = {
         Args: { p_direction: string; p_section_id: string }
         Returns: undefined
       }
+      save_section_answers: {
+        Args: {
+          p_answers?: Json
+          p_clear_item_ids?: string[]
+          p_response_id: string
+          p_section_id: string
+        }
+        Returns: {
+          commission_id: string
+          created_by: string
+          form_version_id: string
+          id: string
+          last_section_id: string | null
+          started_at: string
+          status: string
+          submitted_at: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "responses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      start_or_resume_response: {
+        Args: { p_form_version_id: string }
+        Returns: {
+          commission_id: string
+          created_by: string
+          form_version_id: string
+          id: string
+          last_section_id: string | null
+          started_at: string
+          status: string
+          submitted_at: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "responses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       submit_response: {
         Args: { p_response_id: string }
         Returns: {
