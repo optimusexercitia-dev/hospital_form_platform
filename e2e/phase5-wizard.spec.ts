@@ -45,8 +45,14 @@ test.beforeEach(async ({ page }) => {
 // ---------------------------------------------------------------------------
 
 const SUPABASE_URL = 'http://127.0.0.1:54321'
-// New-style secret key for local Supabase — bypasses RLS (AC6 only).
+// Local Supabase service-role key, read from .env.local (loaded by the Playwright
+// config via @next/env) — never hardcoded. Bypasses RLS (AC6 DB-state assertions).
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+if (!SUPABASE_SERVICE_KEY) {
+  throw new Error(
+    'SUPABASE_SERVICE_ROLE_KEY ausente — defina-o em .env.local (a config do Playwright o carrega via @next/env).',
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Helpers

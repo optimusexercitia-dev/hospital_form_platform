@@ -13,8 +13,8 @@
 | 2     | Authentication & App Shell    | ✅ complete | ✅ | ✅ 49/49 + load | ✅ APPROVED + re-review | ✅ 2026-06-12 | 2026-06-12 | `5773b4a` |
 | 3     | Admin Area & User Management  | ✅ complete | ✅ | ✅ 43/43 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | `cb28ef3` |
 | 4     | Form Builder & Versioning     | ✅ complete | ✅ | ✅ 8/8 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | `d32e7e9` |
-| 5     | Wizard Filling, Conditional Sections & Resume | ✅ complete | ✅ | ✅ 63/63 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `ad5df98` |
-| 6     | Section Sign-offs & Submission Lifecycle | ✅ complete | ✅ | ✅ 70/70 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `c6b7545` |
+| 5     | Wizard Filling, Conditional Sections & Resume | ✅ complete | ✅ | ✅ 63/63 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `8418991` |
+| 6     | Section Sign-offs & Submission Lifecycle | ✅ complete | ✅ | ✅ 70/70 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `94566f2` |
 | 7     | Dashboards & Submissions Browser | 🔜 not started | – | – | – | – | – | – |
 | 8     | Deployment                    | 🔜 not started | – | – | – | – | – | – |
 
@@ -24,7 +24,7 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 
 <!-- Lead recreates this table at the start of each phase -->
 
-> **No phase is currently in progress.** Phase 6 completed 2026-06-13 (commit `c6b7545`);
+> **No phase is currently in progress.** Phase 6 completed 2026-06-13 (commit `94566f2`);
 > Phase 7 — Dashboards & Submissions Browser — is not yet started. The lead recreates the
 > task table here when Phase 7 begins.
 

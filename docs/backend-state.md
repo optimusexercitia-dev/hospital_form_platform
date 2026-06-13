@@ -5,7 +5,7 @@
 > phase. The **lead keeps this current** at the §6 Record step (CLAUDE.md §7): when a
 > phase adds an RPC, flips a flag, or changes an RLS surface, update the relevant table
 > here. This is a map, not the authority — `ARCHITECTURE.md` is the spec and the
-> migrations are the truth. Last updated: **2026-06-13 (Phase 6 complete; commit `c6b7545`).**
+> migrations are the truth. Last updated: **2026-06-13 (Phase 6 complete; commit `94566f2`).**
 
 ## Migrations (forward-only, additive)
 
