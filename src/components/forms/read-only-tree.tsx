@@ -1,13 +1,9 @@
-import type {
-  ImageContent,
-  Item,
-  Section,
-  SectionTextContent,
-  VersionTree,
-} from "@/lib/queries/forms";
+import type { Item, Section, VersionTree } from "@/lib/queries/forms";
 import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
-import { ImagePreview } from "@/components/forms/image-preview";
-import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
+import {
+  ImageContentRenderer,
+  SectionTextRenderer,
+} from "@/components/forms/read-only-blocks";
 
 /**
  * Read-only, version-faithful render of a form version's structure — sections
@@ -130,24 +126,11 @@ function ReadOnlyBlock({
   const meta = ITEM_TYPE_META[item.itemType];
 
   if (item.itemType === "section_text" && item.content) {
-    return (
-      <div className="rounded-xl border border-border bg-background/60 p-4">
-        <MarkdownRenderer content={(item.content as SectionTextContent).markdown} />
-      </div>
-    );
+    return <SectionTextRenderer content={item.content} />;
   }
 
   if (item.itemType === "image" && item.content) {
-    const content = item.content as ImageContent;
-    return (
-      <div className="rounded-xl border border-border bg-background/60 p-4">
-        <ImagePreview
-          url={imageUrls[content.storage_path] ?? null}
-          alt={content.alt}
-          caption={content.caption ?? null}
-        />
-      </div>
-    );
+    return <ImageContentRenderer content={item.content} imageUrls={imageUrls} />;
   }
 
   // Input item.

@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { getCommissionAccess } from "@/lib/queries/session";
 import { getResponseForFill } from "@/lib/queries/responses";
+import { getResponseSignoffs } from "@/lib/queries/signoffs";
 import { WizardRunner } from "@/components/responses/wizard/wizard-runner";
 import { ConfirmationScreen } from "@/components/responses/wizard/confirmation-screen";
 import {
@@ -60,7 +61,17 @@ export default async function ResponderPage({
     );
   }
 
-  const data = toWizardData(response, slug);
+  // Existing sign-off rows for this response (F3) — loaded separately since the
+  // backend did NOT extend `getResponseForFill`. RLS-scoped: the creator always
+  // sees their own respondent sign-off plus any staff_admin counter-signs.
+  const signoffs = await getResponseSignoffs(responseId);
+
+  const data = toWizardData(
+    response,
+    slug,
+    access.context.fullName ?? "Você",
+    signoffs,
+  );
   const imageUrls = await resolveImageUrls(response);
 
   return (

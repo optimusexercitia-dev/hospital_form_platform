@@ -1,6 +1,6 @@
 "use client";
 
-import { Send } from "lucide-react";
+import { Clock, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -15,11 +15,19 @@ export function SubmitPanel({
   saving,
   banner,
   onSubmit,
+  blockReason,
 }: {
   saving: boolean;
   banner: string | null;
   onSubmit: () => void;
+  /**
+   * When set, submission is gated client-side (e.g. pending sign-offs, F3): the
+   * button is disabled and this pt-BR reason is shown. The server stays the
+   * authority — this is UX only.
+   */
+  blockReason?: string | null;
 }) {
+  const blocked = Boolean(blockReason);
   return (
     <div className="flex flex-col gap-3 border-t border-border pt-5">
       {banner && (
@@ -30,6 +38,12 @@ export function SubmitPanel({
           {banner}
         </p>
       )}
+      {blockReason && (
+        <p className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm font-medium text-amber-700 dark:text-amber-400">
+          <Clock aria-hidden="true" className="size-4 shrink-0" />
+          {blockReason}
+        </p>
+      )}
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           Ao enviar, suas respostas não poderão mais ser alteradas.
@@ -38,8 +52,9 @@ export function SubmitPanel({
           type="button"
           size="lg"
           onClick={onSubmit}
-          disabled={saving}
+          disabled={saving || blocked}
           aria-busy={saving || undefined}
+          title={blockReason ?? undefined}
         >
           <Send aria-hidden="true" />
           {saving ? "Enviando…" : "Enviar respostas"}

@@ -2,6 +2,8 @@ import "server-only";
 
 import { getSignedAssetUrl } from "@/lib/queries/forms";
 import type { ResponseForFill } from "@/lib/queries/responses";
+import type { SignoffRecord } from "@/lib/queries/signoffs";
+import { signoffRecordsToMap } from "@/components/signoffs/adapt";
 
 import type { AnswerState, WizardData } from "./types";
 
@@ -34,19 +36,28 @@ export function toAnswerState(response: ResponseForFill): AnswerState {
   return state;
 }
 
-/** Map a `ResponseForFill` to the client `WizardData` shape. */
+/**
+ * Map a `ResponseForFill` (+ the response's existing sign-off rows from B2's
+ * standalone `getResponseSignoffs`) to the client `WizardData` shape. Backend
+ * did NOT extend `getResponseForFill`; the wizard route page loads the sign-off
+ * rows separately and threads them here (F3 wiring correction).
+ */
 export function toWizardData(
   response: ResponseForFill,
   slug: string,
+  respondentName: string,
+  signoffs: SignoffRecord[],
 ): WizardData {
   return {
     slug,
     formId: response.formId,
     responseId: response.id,
     formTitle: response.formTitle,
+    respondentName,
     tree: response.tree,
     initialAnswers: toAnswerState(response),
     lastSectionId: response.lastSectionId,
+    signoffsBySectionId: signoffRecordsToMap(signoffs),
   };
 }
 

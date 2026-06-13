@@ -1,6 +1,7 @@
 import type { Json } from "@/lib/types/database";
 import type { Item, Section, VersionTree } from "@/lib/queries/forms";
 import type { AnswerMap } from "@/lib/queries/conditions";
+import type { SectionSignoff } from "@/components/signoffs/types";
 
 /**
  * Local, thin interface the wizard is built against so the non-data-bound
@@ -44,12 +45,25 @@ export interface WizardData {
   responseId: string;
   /** Display metadata for the wizard header. */
   formTitle: string;
+  /**
+   * The respondent's display name (the current user). Used to render the
+   * optimistic "Assinado por você em DATA" badge after a respondent sign-off
+   * (F3) without a round-trip.
+   */
+  respondentName: string;
   /** The version-faithful section/item tree (immutable for this response). */
   tree: VersionTree;
   /** Saved answers, already mapped to per-item records (B2 returns these). */
   initialAnswers: AnswerState;
   /** Where the user left off — the wizard opens on this section if resumable. */
   lastSectionId: string | null;
+  /**
+   * Existing sign-off rows for this response, keyed by `section_id` (F3). B2
+   * extends `getResponseForFill` to surface these so the review screen can show
+   * each visible sign-off section's status and gate submission. Empty for a
+   * response with no signed sections (or no sign-off sections at all).
+   */
+  signoffsBySectionId: Record<string, SectionSignoff>;
 }
 
 export type { Item, Section, VersionTree, AnswerMap };

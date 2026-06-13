@@ -60,9 +60,11 @@ function data(t: VersionTree, initialAnswers: AnswerState = {}): WizardData {
     formId: "f1",
     responseId: "r1",
     formTitle: "Formulário",
+    respondentName: "Responsável",
     tree: t,
     initialAnswers,
     lastSectionId: null,
+    signoffsBySectionId: {},
   };
 }
 

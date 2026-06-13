@@ -38,3 +38,14 @@ not exposed through the data API.
   `P0012`).
 - The Phase 6 migration is `update app.feature_flags set enabled = true where
   key = 'signoff_enforcement';`.
+
+## Update — flag flipped (Phase 6, 2026-06-13)
+
+The flip shipped in migration `20260613090001_signoff_phase6_amendments.sql`
+(alongside the Phase-5 QA fold-ins). `submit_response` is unchanged — only the
+flag row moved to `true`, so every visible `requires_signoff` section now
+requires a sign-off row at submission (SQLSTATE `P0012` otherwise). pgTAP
+`80_signoffs.sql` asserts the now-ON behaviour end-to-end (reject unsigned →
+succeed once signed); `30_submit_response.sql` continues to assert both flag
+states by toggling the row within its own transaction. The sign-off RPCs and the
+definer read path are covered by ADR 0016.

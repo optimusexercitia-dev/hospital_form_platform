@@ -333,11 +333,44 @@ begin
 
   perform set_config('app.in_submit_rpc', 'off', true);
 
-  -- ----- 1 in_progress response (Form A, staff1) with partial answers
+  -- ----- 1 in_progress response (Form A, staff1) with partial answers. The
+  -- Phase-5 wizard resume fixture — kept intact.
   v_resp := gen_random_uuid();
   insert into public.responses (id, form_version_id, commission_id, created_by, status, last_section_id, started_at)
   values (v_resp, v_form_a, v_comm_a, v_staff_a1, 'in_progress',
           'c0000000-0000-0000-0000-00000000a001', now());
   insert into public.answers (response_id, item_id, question_key, value) values
     (v_resp, ia_disp, 'dispensador_disponivel', to_jsonb('Sim'::text));
+
+  -- ----- Phase 6: 1 in_progress response on Form B (Farmácia) by staff1.farm,
+  -- SUBMIT-READY and AWAITING the staff_admin sign-off, so the E2E exercises BOTH
+  -- sign-off flows end-to-end:
+  --   * the respondent section ("Conformidade e validades", respondent role) is
+  --     already SIGNED by the respondent (staff1.farm);
+  --   * the staff_admin section ("Revisão da chefia", staff_admin role) is
+  --     UNSIGNED, so this response surfaces in chefe.farm's "pendentes de
+  --     assinatura" queue and can be counter-signed then submitted.
+  -- Deterministic id so specs can target it directly. Takes the 'Não' branch
+  -- (possui_termolabeis='Não'), so the conditional temperature section is hidden
+  -- and requires nothing — the response is fully submit-ready bar the staff_admin
+  -- sign-off. last_section_id points at the staff_admin section (resume there).
+  v_resp := 'e0000000-0000-0000-0000-0000000000e1';
+  insert into public.responses (id, form_version_id, commission_id, created_by, status, last_section_id, started_at, updated_at)
+  values (v_resp, v_form_b, v_comm_b, v_staff_b1, 'in_progress',
+          (select id from public.form_sections
+             where form_version_id = v_form_b and signoff_role = 'staff_admin'),
+          now(), now());
+
+  insert into public.answers (response_id, item_id, question_key, value) values
+    (v_resp, ib_org,   'organizacao_estoque', to_jsonb('Sim'::text)),
+    (v_resp, ib_termo, 'possui_termolabeis',  to_jsonb('Não'::text)),
+    (v_resp, ib_venc,  'sem_vencidos',        to_jsonb('Sim'::text));
+
+  -- Respondent sign-off already recorded (signed_by the respondent themselves).
+  insert into public.response_section_signoffs (response_id, section_id, signed_by)
+  select v_resp, s.id, v_staff_b1
+  from public.form_sections s
+  where s.form_version_id = v_form_b
+    and s.requires_signoff
+    and s.signoff_role = 'respondent';
 end $$;

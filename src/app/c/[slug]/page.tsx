@@ -137,6 +137,12 @@ const CARDS: AreaCard[] = [
     path: "/manage/forms",
   },
   {
+    title: "Assinaturas pendentes",
+    description: "Revise e assine as seções que aguardam a sua confirmação.",
+    coordinatorOnly: true,
+    path: "/manage/assinaturas",
+  },
+  {
     title: "Painel de estatísticas",
     description: "Visualize gráficos e exporte as respostas enviadas.",
     coordinatorOnly: true,

@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import type { Json } from "@/lib/types/database";
 import type { Section } from "@/lib/queries/forms";
 
+import type { SectionSignoff } from "@/components/signoffs/types";
+
 import type { AnswerState, WizardData } from "./types";
 import {
   useWizard,
@@ -55,6 +57,15 @@ export interface WizardActions {
   }) => Promise<{ ok: boolean; error?: string }>;
   /** Submit through the server authority (`submit_response`); F5. */
   submit: () => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Record a respondent sign-off for a `requires_signoff(respondent)` section
+   * (F3) via B3's `signSection`. The server (RLS + the RPC's visibility check)
+   * is the authority; a rejection is surfaced in pt-BR.
+   */
+  signSection: (input: {
+    sectionId: string;
+    note: string | null;
+  }) => Promise<{ ok: boolean; error?: string }>;
 }
 
 /** A pending controlling-answer change awaiting the user's warn-and-clear. */
@@ -81,6 +92,12 @@ export function WizardClient({
   const [submitted, setSubmitted] = useState(false);
   const [pendingOrphan, setPendingOrphan] =
     useState<PendingOrphanChange | null>(null);
+  // Sign-off rows by section_id (F3), seeded from the server and updated
+  // optimistically when the respondent signs a section on the review screen. The
+  // submit gate reads this; the server (`submit_response` P0012) is the authority.
+  const [signoffs, setSignoffs] = useState<Record<string, SectionSignoff>>(
+    data.signoffsBySectionId,
+  );
 
   const {
     isFlat,
@@ -259,6 +276,52 @@ export function WizardClient({
     setSubmitted(true);
   }, [actions]);
 
+  /**
+   * Record a respondent sign-off for a visible `requires_signoff(respondent)`
+   * section (F3). Optimistically stamps the local sign-off state on success so
+   * the review badge flips to "Assinado por você em DATA" and the submit gate
+   * clears — the server (RLS + the RPC) remains the authority. A rejection is
+   * surfaced as a pt-BR banner.
+   */
+  const handleSignSection = useCallback(
+    async (sectionId: string, note: string | null) => {
+      setSaving(true);
+      setBanner(null);
+      const result = await actions.signSection({ sectionId, note });
+      setSaving(false);
+      if (!result.ok) {
+        setBanner(
+          result.error ??
+            "Não foi possível registrar a assinatura. Tente novamente.",
+        );
+        return;
+      }
+      setSignoffs((prev) => ({
+        ...prev,
+        [sectionId]: {
+          sectionId,
+          signedByName: data.respondentName,
+          signedAt: new Date().toISOString(),
+          note: note ?? undefined,
+        },
+      }));
+    },
+    [actions, data.respondentName],
+  );
+
+  /**
+   * Visible sign-off sections still missing a sign-off row. While non-empty the
+   * submit affordance is disabled with a clear pt-BR reason; the server's P0012
+   * check stays the authority.
+   */
+  const pendingSignoffSections = visibleSections.filter(
+    (s) => s.requiresSignoff && !signoffs[s.id],
+  );
+  const signoffBlockReason =
+    pendingSignoffSections.length > 0
+      ? "Há seções pendentes de assinatura. Assine todas as seções marcadas antes de enviar."
+      : null;
+
   // ----- Confirmation (post-submit) -----
   if (submitted) {
     return <ConfirmationScreen slug={data.slug} formTitle={data.formTitle} />;
@@ -274,7 +337,12 @@ export function WizardClient({
   );
 
   const submitPanel = (
-    <SubmitPanel saving={saving} banner={banner} onSubmit={handleSubmit} />
+    <SubmitPanel
+      saving={saving}
+      banner={banner}
+      onSubmit={handleSubmit}
+      blockReason={signoffBlockReason}
+    />
   );
 
   // ----- FLAT (default-section-only) -----
@@ -288,6 +356,9 @@ export function WizardClient({
           <ReviewScreen
             visibleSections={visibleSections}
             answers={answers}
+            signoffs={signoffs}
+            saving={saving}
+            onSignSection={handleSignSection}
             onEditSection={(id) => goToSection(id)}
             submitSlot={submitPanel}
           />
@@ -340,6 +411,9 @@ export function WizardClient({
         <ReviewScreen
           visibleSections={visibleSections}
           answers={answers}
+          signoffs={signoffs}
+          saving={saving}
+          onSignSection={handleSignSection}
           onEditSection={(id) => {
             setBanner(null);
             goToSection(id);

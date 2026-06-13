@@ -76,6 +76,40 @@ async function signOut(page: Page) {
 }
 
 /**
+ * Form B (farmacia) v1 version id, used to clear a user's leftover in_progress
+ * draft so a Form B test always starts fresh at S0. This keeps the sectioned-
+ * wizard tests order-independent now that the Phase-6 seed adds a Form B draft
+ * for staff1.farm (e1) and these tests no longer submit (so drafts persist).
+ */
+const FORM_B_VERSION = '50000000-0000-0000-0000-00000000b001'
+
+/**
+ * Delete any in_progress Form B draft owned by `userId` (service-role, bypasses
+ * RLS) so the next fill starts fresh. Pure test setup — removes a prior test's
+ * leftover draft for the SAME user; never touches submitted data or the seeded
+ * Phase-6 fixture (e1 is owned by staff1.farm, which these tests don't clear).
+ */
+async function clearFormBDraft(page: Page, userId: string) {
+  await page.request.delete(
+    `${SUPABASE_URL}/rest/v1/responses` +
+      `?form_version_id=eq.${FORM_B_VERSION}` +
+      `&created_by=eq.${userId}` +
+      `&status=eq.in_progress`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        Prefer: 'return=minimal',
+      },
+    },
+  )
+}
+
+// Seeded user ids (supabase/seed.sql).
+const USER_STAFF2_FARM = '00000000-0000-0000-0000-000000000007'
+const USER_MULTI = '00000000-0000-0000-0000-000000000008'
+
+/**
  * Navigate to a commission's forms list and click to enter the wizard.
  * Waits for the page to fully render, then clicks "Continuar preenchimento"
  * (if an in_progress exists) or "Preencher" (to start fresh).
@@ -231,7 +265,11 @@ test.describe('AC2 — Sectioned form: both branches of the conditional section'
     page,
   }) => {
     test.setTimeout(120_000)
-    await signInAs(page, 'staff1.farm@test.local')
+    // multi@test.local is staff of farmacia (unlike staff1.farm, who owns the
+    // seeded Phase-6 e1 draft). Clear any leftover draft so this starts FRESH at
+    // S0 rather than resuming mid-wizard.
+    await clearFormBDraft(page, USER_MULTI)
+    await signInAs(page, 'multi@test.local')
     await enterWizard(page, 'farmacia')
 
     // Sectioned wizard shows a progress bar.
@@ -276,7 +314,8 @@ test.describe('AC2 — Sectioned form: both branches of the conditional section'
     ).toBeVisible({ timeout: 10_000 })
     await page.getByRole('button', { name: /revisar/i }).click()
 
-    // Review: S2 must appear (conditional branch was taken).
+    // Review: S2 must appear (conditional branch was taken) — this is the
+    // Phase-5 conditional-visibility contract this test owns.
     await expect(
       page.getByRole('heading', { name: /Revise suas respostas/i }),
     ).toBeVisible({ timeout: 15_000 })
@@ -284,24 +323,25 @@ test.describe('AC2 — Sectioned form: both branches of the conditional section'
       page.getByRole('heading', { name: /Controle de temperatura/i }),
     ).toBeVisible()
 
-    await page.getByRole('button', { name: /Enviar respostas/i }).click()
+    // Phase 6 note: Form B has sign-off sections, so submission is now gated
+    // until they are signed — the submit button is disabled with a pt-BR reason.
+    // The respondent-/staff_admin-signed submission lifecycle is covered by
+    // e2e/phase6-signoffs.spec.ts; here we only assert the gate is in effect so
+    // this Phase-5 test stays valid under Phase-6 enforcement.
     await expect(
-      page.getByRole('heading', { name: /Resposta enviada/i }),
-    ).toBeVisible({ timeout: 20_000 })
-
-    // Submitted response appears in "minhas respostas".
-    await page.getByRole('link', { name: /Ver minhas respostas/i }).click()
-    await page.waitForURL('**/c/farmacia/respostas', { timeout: 15_000 })
-    await expect(
-      page.getByText('Inspeção de Armazenamento de Medicamentos').first(),
+      page.getByText(/Há seções pendentes de assinatura/i).first(),
     ).toBeVisible()
-    await expect(page.getByText(/enviada/i).first()).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: /Enviar respostas/i }),
+    ).toBeDisabled()
   })
 
   test('branch Não: conditional section S2 is hidden and absent from review (no answers for it)', async ({
     page,
   }) => {
     test.setTimeout(120_000)
+    // Clear any leftover draft so this starts FRESH at S0 (order-independent).
+    await clearFormBDraft(page, USER_STAFF2_FARM)
     await signInAs(page, 'staff2.farm@test.local')
     await enterWizard(page, 'farmacia')
 
@@ -331,7 +371,8 @@ test.describe('AC2 — Sectioned form: both branches of the conditional section'
     ).toBeVisible({ timeout: 10_000 })
     await page.getByRole('button', { name: /revisar/i }).click()
 
-    // Review: S2 must NOT be present (hidden branch → no answers for it).
+    // Review: S2 must NOT be present (hidden branch → no answers for it) — the
+    // Phase-5 conditional-visibility contract this test owns.
     await expect(
       page.getByRole('heading', { name: /Revise suas respostas/i }),
     ).toBeVisible({ timeout: 15_000 })
@@ -339,11 +380,15 @@ test.describe('AC2 — Sectioned form: both branches of the conditional section'
       page.getByRole('heading', { name: /Controle de temperatura/i }),
     ).toHaveCount(0)
 
-    // Submit.
-    await page.getByRole('button', { name: /Enviar respostas/i }).click()
+    // Phase 6 note: Form B submission is now gated behind its sign-off sections
+    // (the submit button is disabled with a pt-BR reason). The signed submission
+    // lifecycle is covered by e2e/phase6-signoffs.spec.ts.
     await expect(
-      page.getByRole('heading', { name: /Resposta enviada/i }),
-    ).toBeVisible({ timeout: 20_000 })
+      page.getByText(/Há seções pendentes de assinatura/i).first(),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: /Enviar respostas/i }),
+    ).toBeDisabled()
   })
 })
 
@@ -410,6 +455,9 @@ test('AC4 — Controlling-answer change: warns dialog appears and orphaned answe
    *  6. Progress bar aria-valuemax drops to 5 (4 visible + review).
    *  7. Review: S2 "Controle de temperatura" absent.
    */
+  // Clear any leftover draft (e.g. from AC2 Sim, which also uses multi) so this
+  // starts FRESH at S0 — order-independent.
+  await clearFormBDraft(page, USER_MULTI)
   await signInAs(page, 'multi@test.local')
   await enterWizard(page, 'farmacia')
 

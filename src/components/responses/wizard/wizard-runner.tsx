@@ -7,6 +7,7 @@ import {
   saveSection,
   saveAndExit,
   submitResponse,
+  signSection,
 } from "@/lib/responses/actions";
 
 import type { WizardData } from "./types";
@@ -54,6 +55,12 @@ export function WizardRunner({
         });
       },
       submit: () => submitResponse(data.responseId),
+      signSection: (input: { sectionId: string; note: string | null }) =>
+        signSection({
+          responseId: data.responseId,
+          sectionId: input.sectionId,
+          note: input.note,
+        }),
     }),
     [data.responseId],
   );

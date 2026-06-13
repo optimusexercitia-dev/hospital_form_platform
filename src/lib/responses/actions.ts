@@ -43,18 +43,30 @@ const MESSAGES = {
   alreadySubmitted: 'Esta resposta já foi enviada.',
   missingRequired: 'Há perguntas obrigatórias sem resposta. Revise o formulário.',
   missingSignoff: 'Há seções pendentes de assinatura.',
+  // save_section_answers cross-version guard (P0013)
+  invalidData: 'Dados inválidos para este formulário.',
+  // sign_section discriminated failures
+  signoffNotVisible: 'Esta seção não está disponível para assinatura.',
+  signoffAlreadySigned: 'Esta seção já foi assinada.',
   // success copy
   saved: 'Respostas salvas.',
   savedAndExited: 'Respostas salvas. Você pode continuar mais tarde.',
   submitted: 'Resposta enviada com sucesso.',
+  signed: 'Seção assinada.',
 } as const
 
-/** Postgres / submit_response SQLSTATEs we translate to friendly pt-BR copy. */
+/** Postgres / RPC SQLSTATEs we translate to friendly pt-BR copy. */
 const PG_CHECK_VIOLATION = '23514'
 const PG_NO_DATA_FOUND = 'P0002'
+const PG_RLS_VIOLATION = '42501'
 const SUBMIT_ALREADY_SUBMITTED = 'P0010'
 const SUBMIT_MISSING_REQUIRED = 'P0011'
 const SUBMIT_MISSING_SIGNOFF = 'P0012'
+/** save_section_answers cross-version guard (Phase-5 QA MINOR-2). */
+const SAVE_CROSS_VERSION = 'P0013'
+/** sign_section discriminated failures. */
+const SIGN_NOT_VISIBLE = 'P0014'
+const SIGN_ALREADY_SIGNED = 'P0015'
 
 /** The staff filling area — revalidated as dynamic-segment pages. */
 const FORMS_LIST_PATH = '/c/[slug]/forms'
@@ -195,8 +207,13 @@ export async function saveSection(input: {
   })
 
   if (error) {
-    // check_violation = submitted-already / cross-version item guard; either way
-    // a clean message, never the raw error.
+    // P0013 = cross-version item/section guard (a malformed client, not a legit
+    // user); check_violation = the response is already submitted. Distinct codes
+    // since Phase 6 (Phase-5 QA MINOR-2) so the cross-version case is no longer
+    // mislabelled "Esta resposta já foi enviada."
+    if (error.code === SAVE_CROSS_VERSION) {
+      return { ok: false, error: MESSAGES.invalidData }
+    }
     if (error.code === PG_CHECK_VIOLATION) {
       return { ok: false, error: MESSAGES.alreadySubmitted }
     }
@@ -270,4 +287,76 @@ export async function submitResponse(responseId: string): Promise<ActionState> {
 
   revalidateFill()
   return { ok: true, error: MESSAGES.submitted }
+}
+
+// ---------------------------------------------------------------------------
+// sign section
+// ---------------------------------------------------------------------------
+
+/** The sign-off queue + review-and-sign screens revalidate alongside the fill. */
+const SIGNOFF_QUEUE_PATH = '/c/[slug]/manage/assinaturas'
+const SIGNOFF_REVIEW_PATH = '/c/[slug]/manage/assinaturas/[responseId]'
+
+/**
+ * Record a sign-off on a `requires_signoff` section of an in_progress response
+ * (wraps the `sign_section` RPC). Backs BOTH ends:
+ *   - the respondent confirms their own `respondent`-role section (wizard);
+ *   - a staff_admin counter-signs a `staff_admin`-role section (queue).
+ *
+ * NO server-side pre-check here (deliberate — fixes P6-001). `sign_section` +
+ * the `signoffs_insert` RLS policy are the COMPLETE authority for WHO may sign
+ * (respondent → creator; staff_admin → is_staff_admin_of; signed_by =
+ * auth.uid(); in_progress; requires_signoff; visible). A pre-resolve of the
+ * commission via the RLS-scoped `responses` read would WRONGLY fail the
+ * legitimate staff_admin counter-signer: `responses_select` hides another
+ * member's in_progress response from a staff_admin (the Phase-7 invariant we
+ * preserve), so that read returns null and the action would 404 before ever
+ * calling the RPC. Instead we call the RPC directly and map its discriminated
+ * failures: 42501 (the signer-role rule rejected the insert) → forbidden; P0014
+ * (section hidden under the response's answers) → not-available; P0015 (unique
+ * race) → already-signed; no_data_found → not found. A raw PG error never reaches
+ * the UI.
+ */
+export async function signSection(input: {
+  responseId: string
+  sectionId: string
+  note?: string | null
+}): Promise<ActionState> {
+  const { responseId, sectionId, note } = input
+  if (!responseId || !sectionId) {
+    return { ok: false, error: MESSAGES.missingResponse }
+  }
+
+  const supabase = await createClient()
+
+  const { error } = await supabase.rpc('sign_section', {
+    p_response_id: responseId,
+    p_section_id: sectionId,
+    // generated Args types p_note as optional; omit when empty.
+    p_note: note && note.trim().length > 0 ? note : undefined,
+  })
+
+  if (error) {
+    switch (error.code) {
+      case PG_RLS_VIOLATION:
+        // The signer-role rule rejected the insert (wrong role for this section).
+        return { ok: false, error: MESSAGES.forbidden }
+      case SIGN_NOT_VISIBLE:
+        return { ok: false, error: MESSAGES.signoffNotVisible }
+      case SIGN_ALREADY_SIGNED:
+        return { ok: false, error: MESSAGES.signoffAlreadySigned }
+      case PG_NO_DATA_FOUND:
+        return { ok: false, error: MESSAGES.missingResponse }
+      case PG_CHECK_VIOLATION:
+        // Already submitted / section doesn't require a sign-off / wrong version.
+        return { ok: false, error: MESSAGES.generic }
+      default:
+        return { ok: false, error: MESSAGES.generic }
+    }
+  }
+
+  revalidateFill()
+  revalidatePath(SIGNOFF_QUEUE_PATH, 'page')
+  revalidatePath(SIGNOFF_REVIEW_PATH, 'page')
+  return { ok: true, error: MESSAGES.signed }
 }

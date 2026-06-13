@@ -4,9 +4,11 @@ import { Pencil } from "lucide-react";
 
 import type { Section } from "@/lib/queries/forms";
 import { Button } from "@/components/ui/button";
+import type { SectionSignoff } from "@/components/signoffs/types";
 
 import type { AnswerState } from "./types";
 import { AnswerSummary } from "./answer-summary";
+import { RespondentSignoff } from "./respondent-signoff";
 import { isInputItem } from "./use-wizard";
 
 /**
@@ -23,11 +25,20 @@ import { isInputItem } from "./use-wizard";
 export function ReviewScreen({
   visibleSections,
   answers,
+  signoffs,
+  saving,
+  onSignSection,
   onEditSection,
   submitSlot,
 }: {
   visibleSections: Section[];
   answers: AnswerState;
+  /** Existing sign-off rows by section_id (F3). */
+  signoffs: Record<string, SectionSignoff>;
+  /** Whether an action (sign/submit) is in flight — disables the sign button. */
+  saving: boolean;
+  /** Record a respondent sign-off for a section (F3). */
+  onSignSection: (sectionId: string, note: string | null) => void;
   onEditSection: (sectionId: string) => void;
   /** Submit button + server-rejection banner, owned by the parent (F5). */
   submitSlot?: React.ReactNode;
@@ -52,6 +63,9 @@ export function ReviewScreen({
             section={section}
             index={index}
             answers={answers}
+            signoff={signoffs[section.id] ?? null}
+            saving={saving}
+            onSign={(note) => onSignSection(section.id, note)}
             onEdit={() => onEditSection(section.id)}
           />
         ))}
@@ -66,11 +80,17 @@ function ReviewSection({
   section,
   index,
   answers,
+  signoff,
+  saving,
+  onSign,
   onEdit,
 }: {
   section: Section;
   index: number;
   answers: AnswerState;
+  signoff: SectionSignoff | null;
+  saving: boolean;
+  onSign: (note: string | null) => void;
   onEdit: () => void;
 }) {
   const headingId = `review-section-${section.id}`;
@@ -86,11 +106,18 @@ function ReviewSection({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-0.5">
-          {!section.isDefault && (
-            <span className="text-xs font-medium text-muted-foreground">
-              Seção {index + 1}
-            </span>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {!section.isDefault && (
+              <span className="text-xs font-medium text-muted-foreground">
+                Seção {index + 1}
+              </span>
+            )}
+            {section.requiresSignoff && (
+              <span className="rounded-full bg-accent px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-accent-foreground uppercase">
+                assinatura
+              </span>
+            )}
+          </div>
           <h2 id={headingId} className="text-lg font-semibold">
             {heading}
           </h2>
@@ -123,6 +150,15 @@ function ReviewSection({
             ))}
           </dl>
         </fieldset>
+      )}
+
+      {section.requiresSignoff && (
+        <RespondentSignoff
+          role={section.signoffRole}
+          signoff={signoff}
+          saving={saving}
+          onSign={onSign}
+        />
       )}
     </section>
   );

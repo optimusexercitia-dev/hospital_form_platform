@@ -31,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Formulários", href: "forms", roles: ["staff", "staff_admin"] },
   { label: "Minhas respostas", href: "respostas", roles: ["staff", "staff_admin"] },
   { label: "Construtor", href: "manage/forms", roles: ["staff_admin"] },
+  { label: "Assinaturas", href: "manage/assinaturas", roles: ["staff_admin"] },
   { label: "Gerenciar", href: "manage/members", roles: ["staff_admin"] },
   { label: "Painel", href: null, roles: ["staff_admin"] },
 ];

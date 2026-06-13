@@ -8,7 +8,7 @@
 -- superuser role to read freely.
 
 begin;
-select plan(16);
+select plan(17);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -151,9 +151,26 @@ select throws_ok(
     (select (v->>'sec_s1')::uuid from ctx),
     (select jsonb_build_object((v->>'item_mc'), '"Sim"'::jsonb)::text from ctx)
   ),
-  '23514',  -- check_violation: the cross-version guard
+  'P0013',  -- distinct cross-version SQLSTATE (Phase-5 QA MINOR-2; was check_violation)
   null,
   'an item from a different version of the form is rejected (cross-version guard)'
+);
+reset role;
+
+-- ---- 6b) section cross-version guard (Phase-5 QA MINOR-1): a p_section_id from
+-- another version is rejected with P0013, before any answer is written. sec_u
+-- belongs to ver_u; the response rs is on ver_s. ----
+select test_helpers.claims_for((select (v->>'st_x')::uuid from ctx), false);
+set local role authenticated;
+select throws_ok(
+  format(
+    $$ select public.save_section_answers(%L, %L, '{}'::jsonb) $$,
+    (select rid from rs),
+    (select (v->>'sec_u')::uuid from ctx)
+  ),
+  'P0013',
+  null,
+  'a section from a different version of the form is rejected (section cross-version guard)'
 );
 reset role;
 

@@ -501,6 +501,26 @@ export type Database = {
         Args: { p_section_id: string; p_target_section_id: string }
         Returns: undefined
       }
+      get_response_for_signoff: {
+        Args: { p_response_id: string }
+        Returns: Json
+      }
+      list_signoff_queue: {
+        Args: { p_commission_id: string }
+        Returns: {
+          form_id: string
+          form_title: string
+          pending_count: number
+          respondent_id: string
+          respondent_name: string
+          response_id: string
+          section_id: string
+          section_title: string
+          started_at: string
+          updated_at: string
+          version_number: number
+        }[]
+      }
       publish_form_version: {
         Args: { p_form_version_id: string }
         Returns: {
@@ -548,6 +568,23 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "responses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      sign_section: {
+        Args: { p_note?: string; p_response_id: string; p_section_id: string }
+        Returns: {
+          id: string
+          note: string | null
+          response_id: string
+          section_id: string
+          signed_at: string
+          signed_by: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "response_section_signoffs"
           isOneToOne: true
           isSetofReturn: false
         }
