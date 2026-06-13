@@ -374,3 +374,87 @@ begin
     and s.requires_signoff
     and s.signoff_role = 'respondent';
 end $$;
+
+-- ===========================================================================
+-- Phase 7: Multi-phase cases fixture (commission A / CCIH)
+-- ===========================================================================
+-- A published process template "Investigação de Óbito (M&M)" with two phase-
+-- slots, both bound to Form A (the published CCIH checklist). Phase 2 carries a
+-- recommend_when over Phase 1's `dispensador_disponivel = 'Sim'`. One mid-flight
+-- case (deterministic id, "Caso 0001 — Óbito UTI leito 7", a NON-identifying
+-- pseudonym): Phase 1 is CONCLUIDA (a submitted response by staff1.ccih answering
+-- 'Sim'), Phase 2 is PENDENTE and flagged RECOMMENDED (the condition is met).
+--
+-- The seed runs as superuser (RLS bypassed) and inserts directly, like the
+-- responses above — it does NOT call the flag-gated RPCs (the cases_multi_phase
+-- flag ships OFF until phase completion). The case-number minting trigger still
+-- fires on the cases insert; the case/phase state-machine guards are satisfied by
+-- setting app.in_case_rpc for the seeded terminal transitions.
+do $$
+declare
+  v_comm_a   uuid := 'a0000000-0000-0000-0000-0000000000a1';
+  v_form_a   uuid := 'f0000000-0000-0000-0000-00000000a001';  -- forms.id (parent)
+  v_ver_a    uuid := '50000000-0000-0000-0000-00000000a001';  -- published version
+  v_admin    uuid := '00000000-0000-0000-0000-000000000001';
+  v_chefe_a  uuid := '00000000-0000-0000-0000-000000000002';
+  v_staff_a1 uuid := '00000000-0000-0000-0000-000000000003';
+  v_tpl      uuid := gen_random_uuid();
+  v_case     uuid := 'd0000000-0000-0000-0000-0000000000c1';   -- deterministic
+  v_cp1      uuid := gen_random_uuid();
+  v_cp2      uuid := gen_random_uuid();
+  v_resp     uuid := gen_random_uuid();
+  ia_disp    uuid;
+  ia_turno   uuid;
+begin
+  select id into ia_disp  from public.form_items where form_version_id = v_ver_a and question_key = 'dispensador_disponivel';
+  select id into ia_turno from public.form_items where form_version_id = v_ver_a and question_key = 'turno_auditoria';
+
+  -- Published template + two phase-slots.
+  insert into public.process_templates (id, commission_id, title, description, status, created_by)
+  values (v_tpl, v_comm_a, 'Investigação de Óbito (M&M)',
+          'Processo de avaliação multifásica de óbito. Sem dados de paciente.',
+          'active', v_chefe_a);
+
+  insert into public.process_template_phases (template_id, position, form_id, title, recommend_when) values
+    (v_tpl, 1, v_form_a, 'Fase 1 — Coleta inicial', null),
+    (v_tpl, 2, v_form_a, 'Fase 2 — Revisão do comitê',
+     jsonb_build_object('from_phase', 1, 'question_key', 'dispensador_disponivel',
+                        'op', 'equals', 'value', 'Sim'));
+
+  -- The case (number minted by the trigger). Pin Form A's published version.
+  insert into public.cases (id, commission_id, template_id, label, status, created_by)
+  values (v_case, v_comm_a, v_tpl, 'Óbito UTI leito 7', 'aberto', v_chefe_a);
+
+  -- Phase 1: concluida + assigned to staff1; Phase 2: pendente + recommended.
+  -- The guards permit these seeded statuses under app.in_case_rpc.
+  perform set_config('app.in_case_rpc', 'on', true);
+  insert into public.case_phases
+    (id, case_id, position, form_id, form_version_id, title, status, recommended, assigned_to, activated_at, completed_at)
+  values
+    (v_cp1, v_case, 1, v_form_a, v_ver_a, 'Fase 1 — Coleta inicial',
+     'concluida', false, v_staff_a1, now(), now());
+  insert into public.case_phases
+    (id, case_id, position, form_id, form_version_id, title, status, recommended, recommend_when)
+  values
+    (v_cp2, v_case, 2, v_form_a, v_ver_a, 'Fase 2 — Revisão do comitê',
+     'pendente', true,
+     jsonb_build_object('from_phase', 1, 'question_key', 'dispensador_disponivel',
+                        'op', 'equals', 'value', 'Sim'));
+  perform set_config('app.in_case_rpc', 'off', true);
+
+  -- Phase 1's SUBMITTED response (staff1.ccih), answering the gate 'Sim' so the
+  -- recommend_when for Phase 2 is satisfied (matches the seeded recommended=true).
+  -- Both required items answered so it is a valid submission. The submitted-
+  -- immutability trigger blocks answer inserts on a submitted parent unless
+  -- app.in_submit_rpc is on (the same path submit_response uses), so we set it
+  -- for the duration — exactly as the Phase-6 submitted responses above do.
+  perform set_config('app.in_submit_rpc', 'on', true);
+  insert into public.responses
+    (id, form_version_id, commission_id, created_by, status, case_phase_id, started_at, updated_at, submitted_at)
+  values
+    (v_resp, v_ver_a, v_comm_a, v_staff_a1, 'submitted', v_cp1, now(), now(), now());
+  insert into public.answers (response_id, item_id, question_key, value) values
+    (v_resp, ia_disp,  'dispensador_disponivel', to_jsonb('Sim'::text)),
+    (v_resp, ia_turno, 'turno_auditoria',        to_jsonb('Manhã'::text));
+  perform set_config('app.in_submit_rpc', 'off', true);
+end $$;

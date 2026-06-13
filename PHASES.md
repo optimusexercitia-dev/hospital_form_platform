@@ -148,7 +148,58 @@ ahead of its phase.
   `staff_admin` section (RLS verified through the UI); sign-off metadata
   visible in the read-only views.
 
-### Phase 7 — Dashboards & Submissions Browser
+### Phase 7 — Multi-Phase Cases
+A **case** groups several form-fills (responses) into an ordered sequence of
+**phases** so a commission can run a multi-step evaluation (e.g. a Mortality &
+Morbidity review). Each phase reuses the existing response / answer / sign-off /
+wizard machinery unchanged. **No patient data**: a case is a system-minted
+per-commission case number + an optional non-identifying label. Full design and
+rationale in ADR [0017](docs/decisions/0017-multi-phase-cases.md).
+- **Schema** (migration `20260613090004_cases_multi_phase.sql`): `process_templates`
+  (per-commission blueprint, `draft → active → archived`), `process_template_phases`
+  (ordered phase-slots, each bound to a form, optional `recommend_when`), `cases`
+  (case number minted per commission, `aberto → concluido | cancelado`), `case_phases`
+  (the authority — pinned `form_version_id`, status `pendente → ativa → concluida` /
+  `nao_necessaria`, `recommended`, `assigned_to`, `is_ad_hoc`). `responses` gains a
+  nullable `case_phase_id`; the one-draft index is scoped to standalone responses and a
+  new `unique(case_phase_id)` gives one response per phase.
+- **Condition evaluator REUSED unchanged.** `recommend_when` (referencing any earlier
+  phase via `from_phase`) is evaluated by feeding the existing `app.eval_condition` a
+  new `app.case_phase_answer_map(case_phase_id)` (`security definer`, **submitted-only**)
+  after stripping `from_phase`. SQL/TS evaluator + `condition-vectors.json` are untouched
+  (no mirror drift). `recompute_recommendations(case_id)` flags `recommended` phases.
+- **RPCs** (invoker unless noted): template lifecycle (`create`/`publish`/`archive`) +
+  phase-slot CRUD/reorder; `create_case_from_template` (**definer** — materializes phases
+  pinning published versions); `activate_phase` (assign + sequential guard), `skip_phase`,
+  `add_ad_hoc_phase`, `reassign_phase`, `start_or_resume_phase` (wraps
+  `start_or_resume_response`); phase submission reuses `submit_response` + a
+  `sync_case_phase_on_submit` trigger; `close_case`/`cancel_case`; **definer** board reads
+  `list_cases_board` + `get_case_detail` (status only / submitted answers only — mirror
+  ADR 0016, preserve the Phase-7 in_progress-answers invariant). Feature-flagged behind
+  `cases_multi_phase` (flipped on at phase completion). New SQLSTATEs `P0016`–`P0022`.
+- **UI** under the commission area, reusing the form builder + sign-off queue + wizard:
+  - `manage/process-templates/**` — template builder (reuse `BuilderShell`/`SectionCard`/
+    `PublishButton`/`StatusBadge`); phase-slot = a form picker + optional `recommend_when`
+    editor previewed with the existing `evalCondition`.
+  - `manage/cases/**` — cases board (per-case phase progress, `recommended` highlight) +
+    per-case detail; coordinator creates a case, assigns + activates phases, skips, adds
+    ad-hoc phases, closes. Label field warns it must not contain patient identifiers.
+  - `cases/[caseId]/phase/[…]/responder/[responseId]` — assignee fills a phase via the
+    **unchanged wizard**, entered through `start_or_resume_phase`.
+- **Acceptance**: E2E: a coordinator builds a 3-phase template (one phase with a
+  `recommend_when`) → publishes → creates a case → assigns + activates phase 1 → the
+  assignee fills + submits → the board shows `Fase 1: concluída` and phase 2 flagged
+  `recommended` → coordinator activates phase 2, appends an ad-hoc phase, skips a phase,
+  and closes the case; out-of-order activation is rejected (P0018); a member sees case/
+  phase **status** but cannot open another member's in-progress phase **answers** by any
+  path (board + `get_case_detail` leak none); the assignee fills only their own phase;
+  case numbers are per-commission; one keyboard-only pass of the phase wizard + the
+  activate/assign flow. SQL/pgTAP: case-number minting concurrency; sequential + skip
+  guards; snapshot pins versions and rejects an unpublished form (P0017);
+  `case_phase_answer_map` returns `'{}'` for an in-progress source phase (the invariant
+  test); terminal-state guards block re-open.
+
+### Phase 8 — Dashboards & Submissions Browser
 - SQL views / RPCs for aggregations (counts per option per question_key,
   submissions over time, completion by member — keyed by `question_key` so
   charts span versions). **`status = 'submitted'` only** (use the canonical
@@ -185,7 +236,7 @@ ahead of its phase.
   commission) yields "not found" with no data leakage; staff_admin cannot
   read the answers of another member's in_progress response.
 
-### Phase 8 — Deployment
+### Phase 9 — Deployment
 - Multi-stage Dockerfile (Next.js standalone), docker-compose with Caddy
   (auto-HTTPS), `.env` documentation, production Supabase config checklist
   (URL config, redirect URLs, email templates in pt-BR).

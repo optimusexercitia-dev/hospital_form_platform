@@ -20,6 +20,19 @@ export interface VisibleWhen {
   value: Json
 }
 
+/**
+ * A cross-phase recommendation condition (Phase 7, ADR 0017). A strict superset
+ * of `VisibleWhen`: it adds `from_phase` — the position of the EARLIER case-phase
+ * whose answers the condition reads. The backend strips `from_phase`
+ * (`recommend_when - 'from_phase'`) and feeds the remaining `VisibleWhen` to the
+ * UNCHANGED `eval_condition`/`evalCondition` against that source phase's
+ * (submitted-only) answer map, so the evaluator + its mirror + the shared vector
+ * file stay untouched (no drift). The template builder can preview a
+ * recommendation by calling `evalCondition({ question_key, op, value }, answers)`
+ * (i.e. the `RecommendWhen` minus `from_phase`).
+ */
+export type RecommendWhen = { from_phase: number } & VisibleWhen
+
 /** A flat map of question_key -> saved answer value. */
 export type AnswerMap = Record<string, Json | undefined>
 

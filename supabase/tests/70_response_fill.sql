@@ -151,7 +151,7 @@ select throws_ok(
     (select (v->>'sec_s1')::uuid from ctx),
     (select jsonb_build_object((v->>'item_mc'), '"Sim"'::jsonb)::text from ctx)
   ),
-  'P0013',  -- distinct cross-version SQLSTATE (Phase-5 QA MINOR-2; was check_violation)
+  'HC013',  -- distinct cross-version SQLSTATE (Phase-5 QA MINOR-2; was check_violation)
   null,
   'an item from a different version of the form is rejected (cross-version guard)'
 );
@@ -168,7 +168,7 @@ select throws_ok(
     (select rid from rs),
     (select (v->>'sec_u')::uuid from ctx)
   ),
-  'P0013',
+  'HC013',
   null,
   'a section from a different version of the form is rejected (section cross-version guard)'
 );

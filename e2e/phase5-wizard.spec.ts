@@ -704,11 +704,12 @@ test('AC6 — Server-rejection: submit_response rejects missing required answer 
   // Submit — server must reject with P0011.
   await page.getByRole('button', { name: /Enviar respostas/i }).click()
 
-  // B3 maps P0011 to: "Há perguntas obrigatórias sem resposta. Revise o formulário."
+  // HC011 (renamed from P0011 — P7-002 resolved) maps to:
+  // "Há perguntas obrigatórias sem resposta. Revise o formulário."
+  // PostgREST now returns structured JSON for HC-class codes, so the Supabase
+  // client extracts the message and shows it in the error banner.
   await expect(
-    page.getByRole('alert').filter({
-      hasText: /Há perguntas obrigatórias sem resposta/i,
-    }),
+    page.getByRole('alert').filter({ hasText: /Há perguntas obrigatórias sem resposta/i }),
   ).toBeVisible({ timeout: 20_000 })
   await expect(
     page.getByRole('alert').filter({ hasText: /Revise o formulário/i }),

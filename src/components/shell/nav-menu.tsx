@@ -30,7 +30,13 @@ const NAV_ITEMS: NavItem[] = [
   // light up both tabs on the history page.
   { label: "Formulários", href: "forms", roles: ["staff", "staff_admin"] },
   { label: "Minhas respostas", href: "respostas", roles: ["staff", "staff_admin"] },
+  // "Minhas fases" (Phase 7) is the MEMBER-scoped landing for the case phases
+  // the caller is assigned to fill — distinct from the staff_admin "Casos"
+  // board. Shown to both roles (a plain staff member may be a phase assignee).
+  { label: "Minhas fases", href: "minhas-fases", roles: ["staff", "staff_admin"] },
   { label: "Construtor", href: "manage/forms", roles: ["staff_admin"] },
+  { label: "Processos", href: "manage/process-templates", roles: ["staff_admin"] },
+  { label: "Casos", href: "manage/cases", roles: ["staff_admin"] },
   { label: "Assinaturas", href: "manage/assinaturas", roles: ["staff_admin"] },
   { label: "Gerenciar", href: "manage/members", roles: ["staff_admin"] },
   { label: "Painel", href: null, roles: ["staff_admin"] },

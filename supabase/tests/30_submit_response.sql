@@ -22,7 +22,7 @@ select test_helpers.claims_for((select (v->>'st_x')::uuid from ctx), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.submit_response(%L) $$, (select id from r)),
-  'P0011',
+  'HC011',
   null,
   'submit rejects when a required answer in a visible section is missing'
 );
@@ -45,7 +45,7 @@ select test_helpers.claims_for((select (v->>'st_x')::uuid from ctx), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.submit_response(%L) $$, (select id from r)),
-  'P0012',
+  'HC012',
   null,
   'submit rejects a missing sign-off when enforcement is ON'
 );
@@ -89,7 +89,7 @@ select test_helpers.claims_for((select (v->>'st_x')::uuid from ctx), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.submit_response(%L) $$, (select id from r)),
-  'P0010',
+  'HC010',
   null,
   'a second submit of the same response is rejected'
 );

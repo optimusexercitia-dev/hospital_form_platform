@@ -59,14 +59,18 @@ const MESSAGES = {
 const PG_CHECK_VIOLATION = '23514'
 const PG_NO_DATA_FOUND = 'P0002'
 const PG_RLS_VIOLATION = '42501'
-const SUBMIT_ALREADY_SUBMITTED = 'P0010'
-const SUBMIT_MISSING_REQUIRED = 'P0011'
-const SUBMIT_MISSING_SIGNOFF = 'P0012'
+// Custom SQLSTATE class HC0xx (Hospital Commission). Was P00xx through Phase 6;
+// renumbered in migration 20260613090009 so PostgREST 14 returns a 400 with the
+// JSON {code,message} body (an unknown class) instead of a 500 that drops the
+// body for non-ASCII messages. See docs/decisions/0018-custom-sqlstate-class.md.
+const SUBMIT_ALREADY_SUBMITTED = 'HC010'
+const SUBMIT_MISSING_REQUIRED = 'HC011'
+const SUBMIT_MISSING_SIGNOFF = 'HC012'
 /** save_section_answers cross-version guard (Phase-5 QA MINOR-2). */
-const SAVE_CROSS_VERSION = 'P0013'
+const SAVE_CROSS_VERSION = 'HC013'
 /** sign_section discriminated failures. */
-const SIGN_NOT_VISIBLE = 'P0014'
-const SIGN_ALREADY_SIGNED = 'P0015'
+const SIGN_NOT_VISIBLE = 'HC014'
+const SIGN_ALREADY_SIGNED = 'HC015'
 
 /** The staff filling area — revalidated as dynamic-segment pages. */
 const FORMS_LIST_PATH = '/c/[slug]/forms'

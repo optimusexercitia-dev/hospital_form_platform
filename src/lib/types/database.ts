@@ -73,6 +73,160 @@ export type Database = {
           },
         ]
       }
+      case_phases: {
+        Row: {
+          activated_at: string | null
+          assigned_to: string | null
+          case_id: string
+          completed_at: string | null
+          created_at: string
+          form_id: string
+          form_version_id: string
+          id: string
+          is_ad_hoc: boolean
+          position: number
+          recommend_when: Json | null
+          recommended: boolean
+          skipped_at: string | null
+          status: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          activated_at?: string | null
+          assigned_to?: string | null
+          case_id: string
+          completed_at?: string | null
+          created_at?: string
+          form_id: string
+          form_version_id: string
+          id?: string
+          is_ad_hoc?: boolean
+          position: number
+          recommend_when?: Json | null
+          recommended?: boolean
+          skipped_at?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activated_at?: string | null
+          assigned_to?: string | null
+          case_id?: string
+          completed_at?: string | null
+          created_at?: string
+          form_id?: string
+          form_version_id?: string
+          id?: string
+          is_ad_hoc?: boolean
+          position?: number
+          recommend_when?: Json | null
+          recommended?: boolean
+          skipped_at?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_phases_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_phases_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_phases_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_phases_form_version_id_fkey"
+            columns: ["form_version_id"]
+            isOneToOne: false
+            referencedRelation: "form_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cases: {
+        Row: {
+          case_number: number
+          closed_at: string | null
+          closed_by: string | null
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          status: string
+          template_id: string | null
+        }
+        Insert: {
+          case_number: number
+          closed_at?: string | null
+          closed_by?: string | null
+          commission_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          status?: string
+          template_id?: string | null
+        }
+        Update: {
+          case_number?: number
+          closed_at?: string | null
+          closed_by?: string | null
+          commission_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          label?: string | null
+          status?: string
+          template_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cases_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cases_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cases_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cases_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "process_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commission_members: {
         Row: {
           commission_id: string
@@ -335,6 +489,99 @@ export type Database = {
           },
         ]
       }
+      process_template_phases: {
+        Row: {
+          created_at: string
+          form_id: string
+          id: string
+          position: number
+          recommend_when: Json | null
+          template_id: string
+          title: string | null
+        }
+        Insert: {
+          created_at?: string
+          form_id: string
+          id?: string
+          position: number
+          recommend_when?: Json | null
+          template_id: string
+          title?: string | null
+        }
+        Update: {
+          created_at?: string
+          form_id?: string
+          id?: string
+          position?: number
+          recommend_when?: Json | null
+          template_id?: string
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_template_phases_form_id_fkey"
+            columns: ["form_id"]
+            isOneToOne: false
+            referencedRelation: "forms"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_template_phases_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "process_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_templates: {
+        Row: {
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          commission_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          commission_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_templates_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -413,6 +660,7 @@ export type Database = {
       }
       responses: {
         Row: {
+          case_phase_id: string | null
           commission_id: string
           created_by: string
           form_version_id: string
@@ -424,6 +672,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          case_phase_id?: string | null
           commission_id: string
           created_by: string
           form_version_id: string
@@ -435,6 +684,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          case_phase_id?: string | null
           commission_id?: string
           created_by?: string
           form_version_id?: string
@@ -446,6 +696,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "responses_case_phase_id_fkey"
+            columns: ["case_phase_id"]
+            isOneToOne: false
+            referencedRelation: "case_phases"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "responses_commission_id_fkey"
             columns: ["commission_id"]
@@ -481,9 +738,174 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activate_phase: {
+        Args: { p_assigned_to: string; p_case_phase_id: string }
+        Returns: {
+          activated_at: string | null
+          assigned_to: string | null
+          case_id: string
+          completed_at: string | null
+          created_at: string
+          form_id: string
+          form_version_id: string
+          id: string
+          is_ad_hoc: boolean
+          position: number
+          recommend_when: Json | null
+          recommended: boolean
+          skipped_at: string | null
+          status: string
+          title: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_phases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_ad_hoc_phase: {
+        Args: {
+          p_assigned_to?: string
+          p_case_id: string
+          p_form_id: string
+          p_recommend_when?: Json
+          p_title?: string
+        }
+        Returns: {
+          activated_at: string | null
+          assigned_to: string | null
+          case_id: string
+          completed_at: string | null
+          created_at: string
+          form_id: string
+          form_version_id: string
+          id: string
+          is_ad_hoc: boolean
+          position: number
+          recommend_when: Json | null
+          recommended: boolean
+          skipped_at: string | null
+          status: string
+          title: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_phases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_template_phase: {
+        Args: {
+          p_form_id: string
+          p_recommend_when?: Json
+          p_template_id: string
+          p_title?: string
+        }
+        Returns: {
+          created_at: string
+          form_id: string
+          id: string
+          position: number
+          recommend_when: Json | null
+          template_id: string
+          title: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "process_template_phases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      archive_process_template: {
+        Args: { p_template_id: string }
+        Returns: {
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "process_templates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cancel_case: {
+        Args: { p_case_id: string }
+        Returns: {
+          case_number: number
+          closed_at: string | null
+          closed_by: string | null
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          status: string
+          template_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       clone_form_version: {
         Args: { p_source_version_id: string }
         Returns: string
+      }
+      close_case: {
+        Args: { p_case_id: string }
+        Returns: {
+          case_number: number
+          closed_at: string | null
+          closed_by: string | null
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          status: string
+          template_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_case_from_template: {
+        Args: { p_label?: string; p_template_id: string }
+        Returns: {
+          case_number: number
+          closed_at: string | null
+          closed_by: string | null
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          status: string
+          template_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_form: {
         Args: {
@@ -496,14 +918,50 @@ export type Database = {
           version_id: string
         }[]
       }
+      create_process_template: {
+        Args: {
+          p_commission_id: string
+          p_description?: string
+          p_title: string
+        }
+        Returns: {
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "process_templates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       delete_section_moving_items: {
         Args: { p_section_id: string; p_target_section_id: string }
         Returns: undefined
       }
+      get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_response_for_signoff: {
         Args: { p_response_id: string }
         Returns: Json
+      }
+      list_cases_board: {
+        Args: { p_commission_id: string }
+        Returns: {
+          case_id: string
+          case_number: number
+          closed_at: string
+          created_at: string
+          label: string
+          phases: Json
+          status: string
+        }[]
       }
       list_signoff_queue: {
         Args: { p_commission_id: string }
@@ -539,12 +997,70 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      publish_process_template: {
+        Args: { p_template_id: string }
+        Returns: {
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "process_templates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reassign_phase: {
+        Args: { p_case_phase_id: string; p_new_assignee: string }
+        Returns: {
+          activated_at: string | null
+          assigned_to: string | null
+          case_id: string
+          completed_at: string | null
+          created_at: string
+          form_id: string
+          form_version_id: string
+          id: string
+          is_ad_hoc: boolean
+          position: number
+          recommend_when: Json | null
+          recommended: boolean
+          skipped_at: string | null
+          status: string
+          title: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_phases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      recompute_recommendations: {
+        Args: { p_case_id: string }
+        Returns: undefined
+      }
+      remove_template_phase: {
+        Args: { p_phase_id: string }
+        Returns: undefined
+      }
       reorder_item: {
         Args: { p_direction: string; p_item_id: string }
         Returns: undefined
       }
       reorder_section: {
         Args: { p_direction: string; p_section_id: string }
+        Returns: undefined
+      }
+      reorder_template_phase: {
+        Args: { p_direction: string; p_phase_id: string }
         Returns: undefined
       }
       save_section_answers: {
@@ -555,6 +1071,7 @@ export type Database = {
           p_section_id: string
         }
         Returns: {
+          case_phase_id: string | null
           commission_id: string
           created_by: string
           form_version_id: string
@@ -589,9 +1106,58 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      skip_phase: {
+        Args: { p_case_phase_id: string }
+        Returns: {
+          activated_at: string | null
+          assigned_to: string | null
+          case_id: string
+          completed_at: string | null
+          created_at: string
+          form_id: string
+          form_version_id: string
+          id: string
+          is_ad_hoc: boolean
+          position: number
+          recommend_when: Json | null
+          recommended: boolean
+          skipped_at: string | null
+          status: string
+          title: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_phases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      start_or_resume_phase: {
+        Args: { p_case_phase_id: string }
+        Returns: {
+          case_phase_id: string | null
+          commission_id: string
+          created_by: string
+          form_version_id: string
+          id: string
+          last_section_id: string | null
+          started_at: string
+          status: string
+          submitted_at: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "responses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       start_or_resume_response: {
         Args: { p_form_version_id: string }
         Returns: {
+          case_phase_id: string | null
           commission_id: string
           created_by: string
           form_version_id: string
@@ -612,6 +1178,7 @@ export type Database = {
       submit_response: {
         Args: { p_response_id: string }
         Returns: {
+          case_phase_id: string | null
           commission_id: string
           created_by: string
           form_version_id: string
@@ -625,6 +1192,30 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "responses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_template_phase: {
+        Args: {
+          p_clear_recommend_when?: boolean
+          p_form_id?: string
+          p_phase_id: string
+          p_recommend_when?: Json
+          p_title?: string
+        }
+        Returns: {
+          created_at: string
+          form_id: string
+          id: string
+          position: number
+          recommend_when: Json | null
+          template_id: string
+          title: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "process_template_phases"
           isOneToOne: true
           isSetofReturn: false
         }

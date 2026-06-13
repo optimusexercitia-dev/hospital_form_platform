@@ -89,7 +89,7 @@ set local role authenticated;
 select throws_ok(
   format($$ select public.sign_section(%L, %L, null) $$,
     (select id from r), (select v->>'sec_signoff_r' from ctx)),
-  'P0015',
+  'HC015',
   null,
   'signing an already-signed section raises P0015 (já assinada)'
 );
@@ -154,7 +154,7 @@ select throws_ok(
   format($$ select public.sign_section(%L, %L, null) $$,
     'dddddddd-0000-0000-0000-0000000000d1',
     current_setting('test.sec_psign')),
-  'P0014',
+  'HC014',
   null,
   'sign_section rejects a conditional-hidden sign-off section (P0014)'
 );
@@ -204,7 +204,7 @@ select lives_ok(
 );
 select throws_ok(
   format($$ select public.submit_response(%L) $$, (select id from r2)),
-  'P0012',
+  'HC012',
   null,
   'submit rejects (P0012) while a visible staff_admin section is unsigned'
 );

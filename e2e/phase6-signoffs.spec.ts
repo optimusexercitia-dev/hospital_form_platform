@@ -284,10 +284,12 @@ test('AC1/AC3 — respondent signs inline; submit stays blocked + server rejects
       data: { p_response_id: responseId },
     },
   )
-  // submit_response raises P0012 → PostgREST surfaces it as an error status.
+  // submit_response raises HC012 (renamed from P0012 — P7-002 resolved).
+  // PostgREST now returns structured JSON for HC-class codes, so the error
+  // body contains the SQLSTATE code we can assert directly.
   expect(rpc.ok()).toBeFalsy()
   const body = await rpc.json()
-  expect(JSON.stringify(body)).toMatch(/P0012/)
+  expect(JSON.stringify(body)).toMatch(/HC012/)
 
   // The response is still in_progress — not submitted.
   expect(await responseStatus(page, responseId)).toBe('in_progress')

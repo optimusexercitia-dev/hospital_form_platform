@@ -224,8 +224,9 @@ its phase.
 | 4 | Form Builder & Versioning |
 | 5 | Wizard Filling, Conditional Sections & Resume |
 | 6 | Section Sign-offs & Submission Lifecycle |
-| 7 | Dashboards & Submissions Browser |
-| 8 | Deployment |
+| 7 | Multi-Phase Cases |
+| 8 | Dashboards & Submissions Browser |
+| 9 | Deployment |
 
 See PHASES.md for the authoritative detail of each phase.
 
