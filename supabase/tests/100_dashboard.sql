@@ -11,7 +11,7 @@
 -- superuser to read freely.
 
 begin;
-select plan(16);
+select plan(18);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -271,7 +271,29 @@ select ok(
   'anon cannot SELECT public tables nor EXECUTE public functions (B6 revoke, incl. PUBLIC)'
 );
 
--- 16) archive_process_template raises HC023 on an already-archived template.
+-- 16) dashboard_export_rows specifically: anon CANNOT execute it (it was created
+-- after the first revoke and re-inherited the PUBLIC grant — closed by 090014),
+-- while authenticated (the CSV route's role) still can.
+select ok(
+  not has_function_privilege('anon', 'public.dashboard_export_rows(uuid)', 'EXECUTE')
+  and has_function_privilege('authenticated', 'public.dashboard_export_rows(uuid)', 'EXECUTE'),
+  'dashboard_export_rows is NOT anon-executable but remains authenticated-executable'
+);
+
+-- 17) Generic guard: NO public function (prokind='f') is anon-executable. Any
+-- future function that re-leaks anon EXECUTE (via PUBLIC inheritance or a stray
+-- grant) trips this assertion.
+select is(
+  (select count(*)::int
+   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and p.prokind = 'f'
+     and has_function_privilege('anon', p.oid, 'EXECUTE')),
+  0,
+  'no public function is anon-executable (catches any future PUBLIC re-leak)'
+);
+
+-- 18) archive_process_template raises HC023 on an already-archived template.
 update app.feature_flags set enabled = true where key = 'cases_multi_phase';
 create temp table tpl on commit drop as select gen_random_uuid() as tid;
 grant select on tpl to authenticated;
