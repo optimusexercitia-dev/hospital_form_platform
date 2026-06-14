@@ -21,26 +21,34 @@ import {
 export function UserMenu({
   fullName,
   email,
+  roleLabel,
 }: {
   fullName: string | null;
   email: string;
+  /** Optional pt-BR role label shown under the name in the sidebar footer card. */
+  roleLabel?: string;
 }) {
   const displayName = fullName?.trim() || email;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="flex items-center gap-2 rounded-full p-1 pr-2 text-sm transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+        className="flex w-full items-center gap-2.5 rounded-lg p-2 text-left text-sm transition-colors hover:bg-sidebar-accent focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
         aria-label="Abrir menu da conta"
       >
-        <Avatar>
+        <Avatar className="size-8">
           <AvatarFallback>{initials(displayName)}</AvatarFallback>
         </Avatar>
-        <span className="hidden max-w-[12rem] truncate font-medium sm:inline">
-          {displayName}
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate font-medium">{displayName}</span>
+          {roleLabel ? (
+            <span className="truncate text-xs font-normal text-muted-foreground">
+              {roleLabel}
+            </span>
+          ) : null}
         </span>
         <ChevronsUpDown
-          className="hidden size-4 text-muted-foreground sm:inline"
+          className="size-4 shrink-0 text-muted-foreground"
           aria-hidden="true"
         />
       </DropdownMenuTrigger>

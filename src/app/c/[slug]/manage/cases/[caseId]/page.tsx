@@ -5,11 +5,22 @@ import { ArrowLeft } from "lucide-react";
 
 import { getCommissionAccess } from "@/lib/queries/session";
 import { getCaseDetail } from "@/lib/queries/cases";
+import {
+  listCaseStatusDefs,
+  caseStatusIsTerminal,
+} from "@/lib/queries/case-statuses";
 import { listMembers, sortMembers } from "@/lib/queries/members";
 import { listForms } from "@/lib/queries/forms";
-import { CaseStatusBadge } from "@/components/cases/case-status-badge";
+import { CaseStatusBadgeForKey } from "@/components/cases/case-status-badge";
 import { CasePhaseList } from "@/components/cases/case-phase-list";
 import { CaseLifecycleActions } from "@/components/cases/case-lifecycle-actions";
+import { CaseDocumentsPanel } from "@/components/cases/case-documents-panel";
+import { CaseEventsTimeline } from "@/components/cases/case-events-timeline";
+import { CaseTagsPanel } from "@/components/cases/case-tags-panel";
+import { CaseActionItemsPanel } from "@/components/cases/case-action-items-panel";
+import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents";
+import { listCaseTags, listCaseTagsForCase } from "@/lib/queries/case-tags";
+import { listCaseActionItems } from "@/lib/queries/case-action-items";
 import { formatCaseNumber, formatDate } from "@/components/cases/format";
 
 export const metadata: Metadata = {
@@ -44,10 +55,28 @@ export default async function CaseDetailPage({
   }
 
   // Members back the assignee pickers; forms back the ad-hoc phase picker
-  // (published-only — an ad-hoc phase pins a published version, P0017).
-  const [members, forms] = await Promise.all([
+  // (published-only — an ad-hoc phase pins a published version, P0017). The
+  // Cases-Extras panels (documents/events/tags/action items) load alongside; the
+  // status defs drive the badge + the lifecycle status picker. Reads of the
+  // dark-flagged R1/R3/R4 surfaces return [] until their write side is enabled.
+  const [
+    members,
+    forms,
+    statusDefs,
+    documents,
+    events,
+    tags,
+    caseTags,
+    actionItems,
+  ] = await Promise.all([
     listMembers(access.commission.id),
     listForms(access.commission.id),
+    listCaseStatusDefs(access.commission.id),
+    listCaseDocuments(caseId),
+    listCaseEvents(caseId),
+    listCaseTags(access.commission.id),
+    listCaseTagsForCase(caseId),
+    listCaseActionItems(caseId),
   ]);
   const assignees = sortMembers(members).map((m) => ({
     userId: m.userId,
@@ -58,7 +87,11 @@ export default async function CaseDetailPage({
     .map((f) => ({ id: f.id, title: f.title }));
 
   const c = detail.case;
-  const isOpen = c.status === "aberto";
+  const isOpen = !caseStatusIsTerminal(statusDefs, c.status);
+  // Phases for the action-item "origin phase" picker (id + label only).
+  const phaseOptions = [...detail.phases]
+    .sort((a, b) => a.position - b.position)
+    .map((p) => ({ id: p.id, label: p.title || `Fase ${p.position}` }));
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
@@ -76,7 +109,7 @@ export default async function CaseDetailPage({
               <h1 className="text-3xl text-balance">
                 {formatCaseNumber(c.caseNumber)}
               </h1>
-              <CaseStatusBadge status={c.status} />
+              <CaseStatusBadgeForKey defs={statusDefs} statusKey={c.status} />
             </div>
             {c.label && (
               <p className="max-w-prose text-muted-foreground text-pretty">
@@ -92,6 +125,8 @@ export default async function CaseDetailPage({
           {isOpen && (
             <CaseLifecycleActions
               caseId={c.id}
+              currentStatus={c.status}
+              statusDefs={statusDefs}
               forms={publishableForms}
               phases={detail.phases}
               assignees={assignees}
@@ -106,6 +141,28 @@ export default async function CaseDetailPage({
         assignees={assignees}
         isOpen={isOpen}
       />
+
+      {/* The R1/R3/R4 panels are NOT part of the case workflow invariant (no
+          state-machine guard): a coordinator may attach closing minutes, tag, or
+          record follow-ups even on a concluded case. This page is already
+          staff_admin-gated, so management is always available here. */}
+      <CaseActionItemsPanel
+        caseId={c.id}
+        items={actionItems}
+        assignees={assignees}
+        phases={phaseOptions}
+      />
+
+      <CaseTagsPanel
+        slug={slug}
+        caseId={c.id}
+        assigned={caseTags}
+        vocabulary={tags}
+      />
+
+      <CaseDocumentsPanel caseId={c.id} documents={documents} />
+
+      <CaseEventsTimeline caseId={c.id} events={events} />
     </div>
   );
 }

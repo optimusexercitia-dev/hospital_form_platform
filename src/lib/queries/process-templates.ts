@@ -45,6 +45,13 @@ export interface ProcessTemplatePhase {
    * materialized case-phase is flagged `recommended`. `null` = never auto-flag.
    */
   recommendWhen: RecommendWhen | null
+  /**
+   * Optional DEFAULT number of days for this slot — a planning hint authored
+   * when the slot is defined. Snapshot-copied into each case-phase at case
+   * creation (ADR 0017), where it pre-fills the activation due-date picker.
+   * `null` = no default. Non-negative when present.
+   */
+  defaultDueDays: number | null
 }
 
 /** A process template (blueprint) plus its ordered phase-slots. */
@@ -73,6 +80,7 @@ interface TemplatePhaseRow {
   form_id: string
   title: string | null
   recommend_when: RecommendWhen | null
+  default_due_days: number | null
   forms: { title: string | null } | null
 }
 
@@ -89,7 +97,7 @@ interface TemplateRow {
 const TEMPLATE_SELECT = `
   id, commission_id, title, description, status, created_at,
   process_template_phases (
-    id, template_id, position, form_id, title, recommend_when,
+    id, template_id, position, form_id, title, recommend_when, default_due_days,
     forms ( title )
   )
 ` as const
@@ -103,6 +111,7 @@ function mapPhase(p: TemplatePhaseRow): ProcessTemplatePhase {
     formTitle: p.forms?.title ?? null,
     title: p.title,
     recommendWhen: p.recommend_when,
+    defaultDueDays: p.default_due_days,
   }
 }
 

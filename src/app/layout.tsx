@@ -1,27 +1,29 @@
 import type { Metadata } from "next";
-import { Fraunces, Spline_Sans, Spline_Sans_Mono } from "next/font/google";
+import { IBM_Plex_Sans, IBM_Plex_Serif, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-// Display serif with optical sizing — gives the platform a calm, trustworthy
-// editorial character that sets it apart from generic SaaS sans-only stacks.
-const fraunces = Fraunces({
+// Display serif — IBM Plex Serif. Sturdy, trustworthy editorial character for
+// page titles, the brand wordmark, and case titles ("Clinical Calm").
+const ibmPlexSerif = IBM_Plex_Serif({
   variable: "--font-display",
   subsets: ["latin"],
-  axes: ["opsz"],
+  weight: ["500", "600", "700"],
   display: "swap",
 });
 
-// Humanist-geometric body/UI sans — precise and legible for dense forms,
-// distinct from Inter/Roboto.
-const splineSans = Spline_Sans({
+// Body/UI sans — IBM Plex Sans. Precise and legible for dense clinical forms.
+const ibmPlexSans = IBM_Plex_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const splineSansMono = Spline_Sans_Mono({
+// Mono — IBM Plex Mono. Case IDs ("Caso 0042"), codes, numeric identifiers.
+const ibmPlexMono = IBM_Plex_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
+  weight: ["500", "600"],
   display: "swap",
 });
 
@@ -45,7 +47,7 @@ export default function RootLayout({
   return (
     <html
       lang="pt-BR"
-      className={`${fraunces.variable} ${splineSans.variable} ${splineSansMono.variable} h-full antialiased`}
+      className={`${ibmPlexSerif.variable} ${ibmPlexSans.variable} ${ibmPlexMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

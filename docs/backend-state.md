@@ -5,7 +5,7 @@
 > phase. The **lead keeps this current** at the §6 Record step (CLAUDE.md §7): when a
 > phase adds an RPC, flips a flag, or changes an RLS surface, update the relevant table
 > here. This is a map, not the authority — `ARCHITECTURE.md` is the spec and the
-> migrations are the truth. Last updated: **2026-06-14 (Phase 8 complete — dashboard/submissions aggregation; B6 anon/PUBLIC EXECUTE revoke).**
+> migrations are the truth. Last updated: **2026-06-14 (post-Phase-8 Cases-Extras batch — configurable case status R2, documents/events R1, tags R3, action items R4; ADRs 0022/0023).**
 
 ## Migrations (forward-only, additive)
 
@@ -29,6 +29,15 @@
 | `…090013` | 8 | `dashboard_export_rows` definer RPC (CSV export, standalone submitted-only). |
 | `…090014` | 8 | B6 follow-up: revoke the re-inherited PUBLIC EXECUTE on `dashboard_export_rows` + durable `alter default privileges … revoke execute on functions from public`. |
 | `…090015` | 8 | QA MINOR-1/2: date params (`p_from`/`p_to`) added to `dashboard_export_rows` + `dashboard_form_totals`. |
+| `20260614091000` | 7 (post) | Case-phase **due dates** (ADR 0021): additive cols `process_template_phases.default_due_days` (int, nonneg) + `case_phases.default_due_days` (snapshot copy at case creation) + `case_phases.due_date` (date). Trailing optional params appended: `add_template_phase(+p_default_due_days)`, `update_template_phase(+p_default_due_days,+p_clear_default_due_days)` (clear/replace/keep, mirrors `recommend_when`), `activate_phase(+p_due_date)` (set under existing `app.in_case_rpc`). `create_case_from_template` snapshots the slot default; `list_cases_board` exposes `due_date`, `get_case_detail` exposes `due_date`+`default_due_days`. No new RLS/SQLSTATE; evaluator untouched. |
+| `20260614091001` | 7 (post) | `reassign_phase(+p_due_date)` overload (ADR 0021). |
+| `…092000` | Extras (R2) | **Configurable case status** (ADR 0023): `public.case_status_defs` (per-commission vocab; unique key + DEFERRABLE unique position + partial-unique single non-archived `is_initial`); RLS member-read/staff_admin-write; `app.case_status_is_terminal(commission,key)`; `app.seed_default_case_statuses()` + AFTER INSERT trigger on `public.commissions`; **dropped `cases_status_check`** (no row remap, from-scratch reset). |
+| `…092001` | Extras (R2) | `cases.status` default → `em_andamento`; **rewritten `app.guard_case_status`** (configurable: HC024 undefined key / HC025 terminal-frozen; any non-terminal→any-defined); **liveness sweep** — `'aberto'` literal → `app.case_status_is_terminal(...)` across `sync_case_phase_on_submit`/`activate_phase`/`skip_phase`/`add_ad_hoc_phase`/`reassign_phase`/`create_case_from_template`; `app.apply_case_status` DEFINER core + `set_case_status`; `close_case`/`cancel_case` → thin wrappers (gate only `cases_multi_phase`); status CRUD + `list_case_status_defs` (definer); `cases_extras` flag (OFF) + `app.assert_extras_enabled()`. Re-revoked anon/PUBLIC EXECUTE on every public fn created/replaced (+ closed a 091000/091001 leak). |
+| `…092002` | Extras (R1) | **Documents & events:** `public.case_documents` (soft-delete `deleted_at`/`deleted_by`; unique `storage_path`) + `public.case_events` (edit + hard-delete); RLS member-read/staff_admin-write via `app.commission_of_case`. `public.cases_extras_enabled()` DEFINER read (TS-layer gate for the R1 direct-table-write actions). |
+| `…092003` | Extras (R1) | **`case-documents` Storage bucket** (private, 25 MiB, MIME allow-list PDF/images/Word/Excel/CSV/plain); path `{commission_id}/{case_id}/{uuid}.{ext}`; member-read / staff_admin-insert / NO update/delete (immutable, clone of `form-assets`). |
+| `…092004` | Extras (R3) | **Tagging:** `public.case_tags` (unique(commission,name)) + `public.case_tag_assignments` (PK (case,tag)) + `app.guard_case_tag_assignment` BEFORE INSERT (**HC026** mismatch); RLS member-read/staff_admin-write; RPCs `create/rename/archive_case_tag` + `assign/unassign_case_tag` (gate `cases_extras`); `case_tag_report(commission,from?,to?)` DEFINER/gated, counts on `cases.created_at::date`. |
+| `…092005` | Extras (R4) | **Action items:** `public.case_action_items` (status open/in_progress/done/cancelled; `source_case_phase_id` ON DELETE SET NULL); RLS member-read/staff_admin full-write; authoring RPCs `create/update_action_item`; lifecycle via `app.advance_action_item_core` (DEFINER, assignee OR staff_admin gate → **HC027**) behind `advance/complete_action_item`; hard-delete via RLS; `case_action_items_kpis(commission)` DEFINER/gated (open/overdue/completed-YTD). |
+| `…092006` | Extras | Flag flip: `cases_extras` → **ON** (mirror `…090008`). |
 
 ## RPC inventory
 
@@ -68,6 +77,21 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `dashboard_free_text` / `dashboard_submissions_over_time` / `dashboard_completion_by_member` / `dashboard_form_totals(commission, from?, to?)` | **DEFINER** | Free-text samples / volume trend / completion-by-member / per-form totals. Standalone submitted-only, date-bounded. |
 | `dashboard_export_rows(form, from?, to?)` | **DEFINER** | CSV rows: one col per `question_key` (checkbox `;`-joined) + per-signed-section sign-off status. |
 | `commission_overview()` | **DEFINER** | `is_admin`-gated cross-commission counts/volume (case-phase-excluded). |
+| **Cases-Extras — R2 status (set/CRUD gate `cases_extras`; close/cancel gate only `cases_multi_phase`):** | | |
+| `set_case_status(case, status_key)` | invoker | Board move / picker. Explicit `is_staff_admin_of`/admin gate, then `app.apply_case_status` (HC024 undefined key, HC025 terminal-frozen; terminal entry flips open phases + stamps `closed_*`). |
+| `close_case(case)` / `cancel_case(case)` | invoker | Thin wrappers → `app.apply_case_status(case, <terminal key>)` resolving the seeded `concluido`/`cancelado`. Keep gating ONLY `cases_multi_phase`. |
+| `create_case_status` / `update_case_status` / `reorder_case_status` / `archive_case_status` | invoker | Status-vocab CRUD; `is_staff_admin_of`-gated; key slugified from label on create + immutable; archive blocks the sole non-archived `is_initial`. |
+| `list_case_status_defs(commission, include_archived?)` | **DEFINER** | `is_staff_admin_of`/admin-gated. Returns the ordered vocab; **`position` column aliased `status_position`** (reserved word in `RETURNS TABLE`) — TS query remaps to `position`. |
+| **Cases-Extras — R1 documents/events (writes are DIRECT table ops gated in TS via `cases_extras_enabled`):** | | |
+| *(no write RPCs)* | — | `case_documents`/`case_events` writes go through the staff_admin-write RLS from the server actions (upload clones `uploadFormAsset`). `cases_extras_enabled()` DEFINER read is the TS-layer flag gate. |
+| **Cases-Extras — R3 tags (all gate `cases_extras`):** | | |
+| `create_case_tag` / `rename_case_tag` / `archive_case_tag` | invoker | Vocab CRUD; `is_staff_admin_of`-gated; `unique(commission,name)` → 23505. |
+| `assign_case_tag(case, tag)` / `unassign_case_tag(case, tag)` | invoker | `is_staff_admin_of`-gated; assign idempotent on PK; BEFORE INSERT guard → **HC026** on commission mismatch. |
+| `case_tag_report(commission, from?, to?)` | **DEFINER** | `is_staff_admin_of`/admin-gated; per-tag DISTINCT case count over `created_at::date` window (mirrors `dashboard_form_totals`). |
+| **Cases-Extras — R4 action items (writes gate `cases_extras`):** | | |
+| `create_action_item` / `update_action_item` | invoker | `is_staff_admin_of`-gated authoring; assignee-member check (HC021); source phase must belong to the case. |
+| `advance_action_item(item, status)` / `complete_action_item(item)` | invoker | Lifecycle via `app.advance_action_item_core` (DEFINER): caller must be the assignee OR staff_admin/admin → **HC027**; stamps `completed_*` on `done`. |
+| `case_action_items_kpis(commission)` | **DEFINER** | `is_staff_admin_of`/admin-gated; open / overdue / completed-YTD (zeroed row to non-staff_admin). |
 
 ## Helper functions
 
@@ -84,7 +108,21 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
   do response fact-finding for the sign-off path without RLS-filtering the parent row;
   signer-role rules unchanged.
 - `app.feature_enabled(name)` — reads `app.feature_flags`; `app.assert_cases_enabled()` is
-  the Phase-7 entry gate wrapper (raises `23514` when `cases_multi_phase` is OFF).
+  the Phase-7 entry gate wrapper (raises `23514` when `cases_multi_phase` is OFF);
+  `app.assert_extras_enabled()` is the Cases-Extras wrapper (raises `23514` when
+  `cases_extras` is OFF); `public.cases_extras_enabled()` is the DEFINER boolean read the
+  R1 direct-table-write actions call to gate the flag from TS.
+- **Cases-Extras (R2 status):** `app.case_status_is_terminal(commission, key)` — DEFINER; the
+  "is this status final" helper that REPLACED the `'aberto'` liveness literal everywhere (TS
+  twin `caseStatusIsTerminal(defs,key)`). `app.apply_case_status(case, key)` — **DEFINER core**
+  for the status flip (validate HC024/HC025, terminal cleanup, under `app.in_case_rpc`); the
+  public `set_case_status` + the `close/cancel_case` wrappers call it, so each carries its OWN
+  `is_staff_admin_of` gate. `app.case_terminal_key(commission, key)` — resolve+assert a terminal
+  key for the wrappers. `app.slugify_status_key`/`app.unaccent_fallback` — derive the immutable
+  ASCII key from a pt-BR label on create.
+- **Cases-Extras (R3/R4):** `app.guard_case_tag_assignment()` — BEFORE INSERT trigger asserting
+  tag+case share a commission (HC026). `app.advance_action_item_core(item, status)` — DEFINER
+  gated mutation (assignee OR staff_admin → HC027; stamps `completed_*` on `done`).
 - **Phase 7 (cases):** `app.commission_of_template(id)` / `app.commission_of_case(id)` —
   definer, mirror `commission_of_version` (drive RLS + definer reads).
   `app.case_phase_answer_map(case_phase)` — **definer, SUBMITTED-ONLY** `question_key→value`
@@ -103,6 +141,7 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | ---- | ----- | ----- |
 | `signoff_enforcement` | **ON** (Phase 6, migration `…090001`) | `submit_response` blocks submission until every VISIBLE `requires_signoff` section is signed → **P0012**. Was OFF in Phases 1–5 (ADR 0004). |
 | `cases_multi_phase` | **ON** (Phase 7, migration `…090008`) | Gates every Phase-7 cases RPC. Inserted OFF in `…090004`; flipped ON by the separate one-line `…090008` (mirrors the `signoff_enforcement` flip). The feature is live. |
+| `cases_extras` | **ON** (Extras, migration `…092006`) | Gates the Cases-Extras WRITE surface (R2 `set_case_status` + status CRUD; R3 tag CRUD/assign; R4 action-item authoring + lifecycle; R1 document/event actions via `cases_extras_enabled`). Inserted OFF in `…092001`; flipped ON by `…092006`. The MODIFIED core phase RPCs gate ONLY `cases_multi_phase`, so they were never affected. |
 
 ## RLS authorization surface (who can do what)
 
@@ -119,6 +158,15 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
   auth.uid()`, in_progress only). `signoffs_select` lets creator/admin/staff_admin read.
 - **Storage** (`form-assets`) — members read, staff_admin upload; no UPDATE/DELETE
   (immutable paths). Service role never used on the display/upload path.
+- **Cases-Extras child entities** — `case_status_defs`, `case_documents`, `case_events`,
+  `case_tags`, `case_tag_assignments`, `case_action_items` all grant member-READ /
+  staff_admin-WRITE (commission via `commission_of_case` / `commission_id`). An action-item
+  ASSIGNEE who is a plain staff member does NOT get a broad UPDATE — they move status only via
+  the narrow `advance/complete_action_item` DEFINER RPC (assignee-or-staff_admin gate). Document
+  "delete" is a SOFT delete (row hidden, object retained); reads filter `deleted_at is null`.
+- **Storage** (`case-documents`) — members read, staff_admin INSERT; NO UPDATE/DELETE
+  (immutable, Rule 6). Path `{commission_id}/{case_id}/{uuid}.{ext}`; `foldername[1]` = commission.
+  Reads via signed URLs (cookie client). 25 MiB, MIME allow-list (PDF/images/Word/Excel/CSV/plain).
 - **Submitted cross-member read (Phase 8)** — `responses_select`/`answers_select` ALREADY grant a
   staff_admin read of ANOTHER member's `status='submitted'` response+answers (the dashboard/
   submissions browser path); `in_progress` stays creator-only. **No Phase-8 RLS change** — the
@@ -151,6 +199,10 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 | `HC021` | assignee not a member | "O responsável deve ser membro da comissão." |
 | `HC022` | caller not the assignee | "Apenas o responsável pode preencher esta fase." |
 | `HC023` | template not in an archivable state | "Este processo não pode ser arquivado." |
+| `HC024` | invalid case status key for this commission | "Estado de caso inválido para esta comissão." |
+| `HC025` | case already in a terminal status (frozen) | "Este caso está em um estado final e não pode mais ser alterado." |
+| `HC026` | tag/case commission mismatch | "Esta etiqueta não pertence à comissão deste caso." |
+| `HC027` | not entitled to update this action item | "Você não pode alterar este item de ação." |
 | `23514` | check violation | "Publique um rascunho." / "já enviada." / "recurso indisponível" (context) |
 | `23505` | unique violation | (resume race; question_key collision retry) |
 | `42501` | RLS denied | forbidden (e.g. wrong signer role) |
@@ -169,6 +221,13 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
   `getFormExport`/`isDashboardCountable`) + `src/lib/queries/submissions.ts` (`listSubmissions`/
   `getSubmissionDetail`/filter lists). CSV route handler `src/app/c/[slug]/dashboard/export/route.ts`
   (staff_admin/admin-gated, cookie client — no service role).
+- **Cases-Extras:** Queries `src/lib/queries/{case-statuses,case-documents,case-tags,case-action-items}.ts`
+  (`listCaseStatusDefs(commission, includeArchived?)`+`caseStatusIsTerminal`; `listCaseDocuments`/
+  `getCaseDocumentDownloadUrl`/`listCaseEvents`; `listCaseTags`/`listCaseTagsForCase`/`getCaseTagReport`;
+  `listCaseActionItems`/`getCaseActionItemKpis`). Actions `src/lib/cases/{status-actions,documents-actions,
+  tags-actions,action-items-actions}.ts` + the shared `src/lib/cases/extras-gate.ts` (`casesExtrasEnabled`).
+  `CaseStatus` relaxed to `CaseStatusKey = string` in `cases.ts`. NOTE: `deleteActionItem` is a HARD
+  delete; cancel = `advanceActionItem(id,'cancelled')`.
 - Service-role client: `src/lib/supabase/admin.ts` (`import 'server-only'`), invite path only.
 
 ## ADR index (decisions that shape the backend)
@@ -178,4 +237,5 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 0011 reorder · 0012 clone-returns-existing-draft · 0013 form_versions insert RLS ·
 0015 response-fill RPCs · 0016 sign-off definer read path · 0017 multi-phase cases ·
 0018 custom SQLSTATE class `HC0xx` · 0019 default section may carry title ·
-0020 dashboard-countable responses.
+0020 dashboard-countable responses · 0021 case-phase due dates ·
+0022 cross-committee referrals (proposed/deferred) · 0023 configurable per-committee case status.

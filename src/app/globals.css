@@ -28,6 +28,13 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  /* Status tones — used by KPI sub-lines and the derived case-stage accents.
+     danger reuses --destructive; accent reuses --primary; neutral reuses
+     --muted-foreground, so only the positive/caution hues are net-new. */
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -58,87 +65,112 @@
 }
 
 /*
-  Aesthetic direction: "calm clinical precision".
-  A deep petrol/teal accent (clinical but warm, distinct from generic SaaS
-  blue) on faintly-warm porcelain neutrals. Refined, spacious, instrument-like.
-  Tokens retuned in oklch; existing shadcn token names preserved so
-  components keep working.
+  Aesthetic direction: "Clinical Calm".
+  A calm, confident blue accent (#1f5c9e) on faintly-warm porcelain neutrals
+  with a deep slate ink. Refined, spacious, instrument-like — professional first,
+  engaging through restraint. Neutrals stay warm (we did NOT move to the cooler
+  blue-grey of the reference); only the accent and data hues turned blue.
+  Tokens in oklch; existing shadcn token names preserved so components keep
+  working.
 */
 :root {
   --background: oklch(0.985 0.004 95); /* warm porcelain */
-  --foreground: oklch(0.23 0.018 230); /* deep slate-petrol ink */
+  --foreground: oklch(0.23 0.018 230); /* deep slate ink */
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.23 0.018 230);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.23 0.018 230);
 
-  /* Petrol accent as the primary brand color. */
-  --primary: oklch(0.52 0.083 205);
-  --primary-foreground: oklch(0.99 0.005 200);
+  /* Calm blue accent (#1f5c9e) as the primary brand color. */
+  --primary: oklch(0.475 0.11 252);
+  --primary-foreground: oklch(0.99 0.005 250);
 
-  --secondary: oklch(0.955 0.008 200);
-  --secondary-foreground: oklch(0.3 0.03 220);
-  --muted: oklch(0.962 0.006 200);
-  --muted-foreground: oklch(0.52 0.022 225);
-  --accent: oklch(0.93 0.035 195); /* soft petrol tint for hovers/fills */
-  --accent-foreground: oklch(0.32 0.06 215);
+  --secondary: oklch(0.955 0.008 250);
+  --secondary-foreground: oklch(0.3 0.03 250);
+  --muted: oklch(0.962 0.006 245);
+  --muted-foreground: oklch(0.52 0.022 252);
+  --accent: oklch(0.95 0.022 250); /* soft blue tint (#e7f0fa) for hovers/fills */
+  --accent-foreground: oklch(0.42 0.105 252);
   --destructive: oklch(0.55 0.2 25);
 
-  --border: oklch(0.9 0.008 215);
-  --input: oklch(0.9 0.008 215);
-  --ring: oklch(0.52 0.083 205);
+  /* Status tones (positive + caution). danger = --destructive, accent =
+     --primary, neutral = --muted-foreground are reused, not redefined. */
+  --success: oklch(0.55 0.09 158); /* calm green (~#3f7d58) */
+  --success-foreground: oklch(0.99 0.01 158);
+  --warning: oklch(0.62 0.13 65); /* amber (~#b45309) */
+  --warning-foreground: oklch(0.99 0.01 80);
 
-  /* Chart ramp built around the petrol accent + supporting hues. */
-  --chart-1: oklch(0.52 0.083 205);
-  --chart-2: oklch(0.62 0.1 165);
-  --chart-3: oklch(0.66 0.11 95);
-  --chart-4: oklch(0.6 0.13 45);
+  /* Derived case-stage accents (kanban columns + card left border). */
+  --st-todo: oklch(0.55 0.03 252); /* A iniciar — slate */
+  --st-active: var(--primary); /* Em andamento — blue */
+  --st-wait: var(--warning); /* Aguardando — amber */
+  --st-done: var(--success); /* Concluído — green */
+  --st-cancel: oklch(0.65 0.012 252); /* Cancelado — muted grey */
+
+  --border: oklch(0.9 0.008 250);
+  --input: oklch(0.9 0.008 250);
+  --ring: oklch(0.475 0.11 252);
+
+  /* Chart ramp built around the blue accent + supporting hues. */
+  --chart-1: oklch(0.475 0.11 252);
+  --chart-2: oklch(0.62 0.1 200);
+  --chart-3: oklch(0.66 0.11 150);
+  --chart-4: oklch(0.62 0.13 65);
   --chart-5: oklch(0.55 0.12 320);
 
   --radius: 0.75rem;
 
-  --sidebar: oklch(0.975 0.006 200);
-  --sidebar-foreground: oklch(0.23 0.018 230);
-  --sidebar-primary: oklch(0.52 0.083 205);
-  --sidebar-primary-foreground: oklch(0.99 0.005 200);
-  --sidebar-accent: oklch(0.93 0.035 195);
-  --sidebar-accent-foreground: oklch(0.32 0.06 215);
-  --sidebar-border: oklch(0.9 0.008 215);
-  --sidebar-ring: oklch(0.52 0.083 205);
+  --sidebar: oklch(0.99 0.003 95);
+  --sidebar-foreground: oklch(0.3 0.018 250);
+  --sidebar-primary: oklch(0.475 0.11 252);
+  --sidebar-primary-foreground: oklch(0.99 0.005 250);
+  --sidebar-accent: oklch(0.95 0.022 250);
+  --sidebar-accent-foreground: oklch(0.42 0.105 252);
+  --sidebar-border: oklch(0.9 0.008 250);
+  --sidebar-ring: oklch(0.475 0.11 252);
 }
 
 .dark {
-  --background: oklch(0.2 0.02 230);
-  --foreground: oklch(0.96 0.006 200);
-  --card: oklch(0.24 0.022 230);
-  --card-foreground: oklch(0.96 0.006 200);
-  --popover: oklch(0.24 0.022 230);
-  --popover-foreground: oklch(0.96 0.006 200);
-  --primary: oklch(0.7 0.1 195);
-  --primary-foreground: oklch(0.2 0.03 230);
-  --secondary: oklch(0.3 0.02 228);
-  --secondary-foreground: oklch(0.96 0.006 200);
-  --muted: oklch(0.3 0.02 228);
-  --muted-foreground: oklch(0.72 0.02 205);
-  --accent: oklch(0.36 0.05 205);
-  --accent-foreground: oklch(0.96 0.006 200);
+  --background: oklch(0.2 0.02 250);
+  --foreground: oklch(0.96 0.006 250);
+  --card: oklch(0.24 0.022 250);
+  --card-foreground: oklch(0.96 0.006 250);
+  --popover: oklch(0.24 0.022 250);
+  --popover-foreground: oklch(0.96 0.006 250);
+  --primary: oklch(0.72 0.12 252);
+  --primary-foreground: oklch(0.2 0.03 250);
+  --secondary: oklch(0.3 0.02 250);
+  --secondary-foreground: oklch(0.96 0.006 250);
+  --muted: oklch(0.3 0.02 250);
+  --muted-foreground: oklch(0.72 0.02 252);
+  --accent: oklch(0.36 0.05 252);
+  --accent-foreground: oklch(0.96 0.006 250);
   --destructive: oklch(0.7 0.19 22);
+  --success: oklch(0.7 0.1 158);
+  --success-foreground: oklch(0.18 0.02 158);
+  --warning: oklch(0.75 0.13 75);
+  --warning-foreground: oklch(0.2 0.03 75);
+  --st-todo: oklch(0.7 0.03 252);
+  --st-active: var(--primary);
+  --st-wait: var(--warning);
+  --st-done: var(--success);
+  --st-cancel: oklch(0.55 0.012 252);
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.7 0.1 195);
-  --chart-1: oklch(0.7 0.1 195);
-  --chart-2: oklch(0.72 0.1 165);
-  --chart-3: oklch(0.76 0.11 95);
-  --chart-4: oklch(0.7 0.13 45);
+  --ring: oklch(0.72 0.12 252);
+  --chart-1: oklch(0.72 0.12 252);
+  --chart-2: oklch(0.72 0.1 200);
+  --chart-3: oklch(0.76 0.11 150);
+  --chart-4: oklch(0.75 0.13 75);
   --chart-5: oklch(0.68 0.12 320);
-  --sidebar: oklch(0.24 0.022 230);
-  --sidebar-foreground: oklch(0.96 0.006 200);
-  --sidebar-primary: oklch(0.7 0.1 195);
-  --sidebar-primary-foreground: oklch(0.2 0.03 230);
-  --sidebar-accent: oklch(0.36 0.05 205);
-  --sidebar-accent-foreground: oklch(0.96 0.006 200);
+  --sidebar: oklch(0.24 0.022 250);
+  --sidebar-foreground: oklch(0.96 0.006 250);
+  --sidebar-primary: oklch(0.72 0.12 252);
+  --sidebar-primary-foreground: oklch(0.2 0.03 250);
+  --sidebar-accent: oklch(0.36 0.05 252);
+  --sidebar-accent-foreground: oklch(0.96 0.006 250);
   --sidebar-border: oklch(1 0 0 / 12%);
-  --sidebar-ring: oklch(0.7 0.1 195);
+  --sidebar-ring: oklch(0.72 0.12 252);
 }
 
 @layer base {
@@ -147,13 +179,15 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "cv05", "ss01";
+    /* Tabular figures everywhere (clinical/scannable) + the IBM Plex Sans
+       stylistic set. */
+    font-feature-settings: "tnum" 1, "ss01" 1;
   }
   html {
     @apply font-sans;
   }
-  /* Display serif for headings; optical sizing makes large sizes elegant
-     and small ones sturdy. */
+  /* Display serif (IBM Plex Serif) for headings; optical sizing makes large
+     sizes elegant and small ones sturdy. */
   h1,
   h2,
   h3 {

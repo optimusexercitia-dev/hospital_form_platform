@@ -1,8 +1,9 @@
-import { FileText, PlayCircle } from "lucide-react";
+import { CalendarClock, FileText, PlayCircle } from "lucide-react";
 
 import type { MyAssignedPhase } from "@/lib/queries/cases";
 import { StartPhaseButton } from "@/components/cases/start-phase-button";
-import { formatCaseNumber } from "@/components/cases/format";
+import { formatCaseNumber, formatDueDate, isOverdue } from "@/components/cases/format";
+import { cn } from "@/lib/utils";
 
 /**
  * One row in "Minhas fases" (F5): a case phase the caller is assigned to and that
@@ -49,6 +50,22 @@ export function MyPhaseCard({
             <FileText aria-hidden="true" className="size-3.5" />
             {phase.formTitle}
           </span>
+          {phase.dueDate &&
+            (() => {
+              const overdue = isOverdue(phase.dueDate, "ativa");
+              return (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1",
+                    overdue && "font-medium text-destructive",
+                  )}
+                >
+                  <CalendarClock aria-hidden="true" className="size-3.5" />
+                  Prazo: {formatDueDate(phase.dueDate)}
+                  {overdue && " · Atrasada"}
+                </span>
+              );
+            })()}
         </div>
       </div>
 

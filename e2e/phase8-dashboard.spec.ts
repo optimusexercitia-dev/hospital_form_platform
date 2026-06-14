@@ -445,7 +445,8 @@ test('AC-7a: Submissions browser filter by staff1.ccih returns expected submitte
   const rowCount = await rows.count()
   expect(rowCount).toBeGreaterThanOrEqual(3) // at minimum the 3 standalone
   // Verify the case-phase badge appears for at least one row.
-  const casePhaseBadge = responseList.getByText(/fase de caso/i)
+  // Use .first() — the cases-extras tests create additional case-phase submissions.
+  const casePhaseBadge = responseList.getByText(/fase de caso/i).first()
   await expect(casePhaseBadge).toBeVisible()
 })
 
@@ -854,8 +855,9 @@ test('AC-12: Keyboard-only — dashboard form picker → date filter → submiss
 
 test('P7 INFO-1: phase7-cases.spec.ts stale P0022 comment corrected to HC022', async () => {
   const { readFileSync } = await import('fs')
+  const { join } = await import('path')
   const specContent = readFileSync(
-    '/Users/mike/Projects/claude/hospital_form_platform/e2e/phase7-cases.spec.ts',
+    join(__dirname, 'phase7-cases.spec.ts'),
     'utf-8',
   )
   // The old reference "P0022" in the wrong-assignee comment line must be gone

@@ -73,6 +73,211 @@ export type Database = {
           },
         ]
       }
+      case_action_items: {
+        Row: {
+          assigned_to: string | null
+          case_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          source_case_phase_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          case_id: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          source_case_phase_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          case_id?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          source_case_phase_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_action_items_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_action_items_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_action_items_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_action_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_action_items_source_case_phase_id_fkey"
+            columns: ["source_case_phase_id"]
+            isOneToOne: false
+            referencedRelation: "case_phases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_documents: {
+        Row: {
+          case_id: string
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string | null
+          doc_type: string
+          id: string
+          mime_type: string | null
+          occurred_at: string | null
+          size_bytes: number | null
+          storage_path: string
+          title: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
+          doc_type?: string
+          id?: string
+          mime_type?: string | null
+          occurred_at?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          title: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
+          doc_type?: string
+          id?: string
+          mime_type?: string | null
+          occurred_at?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          title?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_documents_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_documents_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_events: {
+        Row: {
+          body: string
+          case_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          kind: string
+          occurred_at: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          occurred_at?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          kind?: string
+          occurred_at?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_events_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_phases: {
         Row: {
           activated_at: string | null
@@ -80,6 +285,8 @@ export type Database = {
           case_id: string
           completed_at: string | null
           created_at: string
+          default_due_days: number | null
+          due_date: string | null
           form_id: string
           form_version_id: string
           id: string
@@ -98,6 +305,8 @@ export type Database = {
           case_id: string
           completed_at?: string | null
           created_at?: string
+          default_due_days?: number | null
+          due_date?: string | null
           form_id: string
           form_version_id: string
           id?: string
@@ -116,6 +325,8 @@ export type Database = {
           case_id?: string
           completed_at?: string | null
           created_at?: string
+          default_due_days?: number | null
+          due_date?: string | null
           form_id?: string
           form_version_id?: string
           id?: string
@@ -155,6 +366,134 @@ export type Database = {
             columns: ["form_version_id"]
             isOneToOne: false
             referencedRelation: "form_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_status_defs: {
+        Row: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          is_initial: boolean
+          is_terminal: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          color_token?: string
+          commission_id: string
+          created_at?: string
+          id?: string
+          is_initial?: boolean
+          is_terminal?: boolean
+          key: string
+          label: string
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          color_token?: string
+          commission_id?: string
+          created_at?: string
+          id?: string
+          is_initial?: boolean
+          is_terminal?: boolean
+          key?: string
+          label?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_status_defs_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_tag_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          case_id: string
+          tag_id: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          case_id: string
+          tag_id: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          case_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_tag_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_tag_assignments_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_tag_assignments_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "case_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_tags: {
+        Row: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          archived?: boolean
+          color_token?: string
+          commission_id: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          archived?: boolean
+          color_token?: string
+          commission_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_tags_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
             referencedColumns: ["id"]
           },
         ]
@@ -492,6 +831,7 @@ export type Database = {
       process_template_phases: {
         Row: {
           created_at: string
+          default_due_days: number | null
           form_id: string
           id: string
           position: number
@@ -501,6 +841,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          default_due_days?: number | null
           form_id: string
           id?: string
           position: number
@@ -510,6 +851,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          default_due_days?: number | null
           form_id?: string
           id?: string
           position?: number
@@ -739,13 +1081,19 @@ export type Database = {
     }
     Functions: {
       activate_phase: {
-        Args: { p_assigned_to: string; p_case_phase_id: string }
+        Args: {
+          p_assigned_to: string
+          p_case_phase_id: string
+          p_due_date?: string
+        }
         Returns: {
           activated_at: string | null
           assigned_to: string | null
           case_id: string
           completed_at: string | null
           created_at: string
+          default_due_days: number | null
+          due_date: string | null
           form_id: string
           form_version_id: string
           id: string
@@ -779,6 +1127,8 @@ export type Database = {
           case_id: string
           completed_at: string | null
           created_at: string
+          default_due_days: number | null
+          due_date: string | null
           form_id: string
           form_version_id: string
           id: string
@@ -800,6 +1150,7 @@ export type Database = {
       }
       add_template_phase: {
         Args: {
+          p_default_due_days?: number
           p_form_id: string
           p_recommend_when?: Json
           p_template_id: string
@@ -807,6 +1158,7 @@ export type Database = {
         }
         Returns: {
           created_at: string
+          default_due_days: number | null
           form_id: string
           id: string
           position: number
@@ -817,6 +1169,69 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "process_template_phases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      advance_action_item: {
+        Args: { p_action_item_id: string; p_status: string }
+        Returns: {
+          assigned_to: string | null
+          case_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          source_case_phase_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      archive_case_status: {
+        Args: { p_commission_id: string; p_status_key: string }
+        Returns: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          is_initial: boolean
+          is_terminal: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_status_defs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      archive_case_tag: {
+        Args: { p_tag_id: string }
+        Returns: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_tags"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -840,6 +1255,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      assign_case_tag: {
+        Args: { p_case_id: string; p_tag_id: string }
+        Returns: undefined
+      }
       cancel_case: {
         Args: { p_case_id: string }
         Returns: {
@@ -861,6 +1280,24 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      case_action_items_kpis: {
+        Args: { p_commission_id: string }
+        Returns: {
+          completed_ytd: number
+          open: number
+          overdue: number
+        }[]
+      }
+      case_tag_report: {
+        Args: { p_commission_id: string; p_from?: string; p_to?: string }
+        Returns: {
+          case_count: number
+          color_token: string
+          name: string
+          tag_id: string
+        }[]
+      }
+      cases_extras_enabled: { Args: never; Returns: boolean }
       clone_form_version: {
         Args: { p_source_version_id: string }
         Returns: string
@@ -897,6 +1334,61 @@ export type Database = {
           submitted_last_30_days: number
         }[]
       }
+      complete_action_item: {
+        Args: { p_action_item_id: string }
+        Returns: {
+          assigned_to: string | null
+          case_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          source_case_phase_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_action_item: {
+        Args: {
+          p_assigned_to?: string
+          p_case_id: string
+          p_description?: string
+          p_due_date?: string
+          p_source_case_phase_id?: string
+          p_title: string
+        }
+        Returns: {
+          assigned_to: string | null
+          case_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          source_case_phase_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_case_from_template: {
         Args: { p_label?: string; p_template_id: string }
         Returns: {
@@ -914,6 +1406,55 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_case_status: {
+        Args: {
+          p_color_token?: string
+          p_commission_id: string
+          p_is_initial?: boolean
+          p_is_terminal?: boolean
+          p_label: string
+        }
+        Returns: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          is_initial: boolean
+          is_terminal: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_status_defs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_case_tag: {
+        Args: {
+          p_color_token?: string
+          p_commission_id: string
+          p_name: string
+        }
+        Returns: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_tags"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1029,6 +1570,18 @@ export type Database = {
         Args: { p_response_id: string }
         Returns: Json
       }
+      list_case_status_defs: {
+        Args: { p_commission_id: string; p_include_archived?: boolean }
+        Returns: {
+          archived: boolean
+          color_token: string
+          is_initial: boolean
+          is_terminal: boolean
+          key: string
+          label: string
+          status_position: number
+        }[]
+      }
       list_cases_board: {
         Args: { p_commission_id: string }
         Returns: {
@@ -1095,13 +1648,19 @@ export type Database = {
         }
       }
       reassign_phase: {
-        Args: { p_case_phase_id: string; p_new_assignee: string }
+        Args: {
+          p_case_phase_id: string
+          p_due_date?: string
+          p_new_assignee: string
+        }
         Returns: {
           activated_at: string | null
           assigned_to: string | null
           case_id: string
           completed_at: string | null
           created_at: string
+          default_due_days: number | null
+          due_date: string | null
           form_id: string
           form_version_id: string
           id: string
@@ -1127,6 +1686,27 @@ export type Database = {
       }
       remove_template_phase: {
         Args: { p_phase_id: string }
+        Returns: undefined
+      }
+      rename_case_tag: {
+        Args: { p_color_token: string; p_name: string; p_tag_id: string }
+        Returns: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          name: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_tags"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reorder_case_status: {
+        Args: { p_commission_id: string; p_ordered_keys: string[] }
         Returns: undefined
       }
       reorder_item: {
@@ -1167,6 +1747,27 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_case_status: {
+        Args: { p_case_id: string; p_status_key: string }
+        Returns: {
+          case_number: number
+          closed_at: string | null
+          closed_by: string | null
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          label: string | null
+          status: string
+          template_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       sign_section: {
         Args: { p_note?: string; p_response_id: string; p_section_id: string }
         Returns: {
@@ -1192,6 +1793,8 @@ export type Database = {
           case_id: string
           completed_at: string | null
           created_at: string
+          default_due_days: number | null
+          due_date: string | null
           form_id: string
           form_version_id: string
           id: string
@@ -1274,9 +1877,74 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      unassign_case_tag: {
+        Args: { p_case_id: string; p_tag_id: string }
+        Returns: undefined
+      }
+      update_action_item: {
+        Args: {
+          p_action_item_id: string
+          p_assigned_to?: string
+          p_description?: string
+          p_due_date?: string
+          p_title: string
+        }
+        Returns: {
+          assigned_to: string | null
+          case_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          source_case_phase_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_case_status: {
+        Args: {
+          p_color_token: string
+          p_commission_id: string
+          p_is_initial: boolean
+          p_is_terminal: boolean
+          p_label: string
+          p_status_key: string
+        }
+        Returns: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          is_initial: boolean
+          is_terminal: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_status_defs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_template_phase: {
         Args: {
+          p_clear_default_due_days?: boolean
           p_clear_recommend_when?: boolean
+          p_default_due_days?: number
           p_form_id?: string
           p_phase_id: string
           p_recommend_when?: Json
@@ -1284,6 +1952,7 @@ export type Database = {
         }
         Returns: {
           created_at: string
+          default_due_days: number | null
           form_id: string
           id: string
           position: number

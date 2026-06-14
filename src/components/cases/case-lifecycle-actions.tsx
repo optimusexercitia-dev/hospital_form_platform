@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, XCircle } from "lucide-react";
+import { Plus, SlidersHorizontal, XCircle } from "lucide-react";
 
-import type { CaseDetail } from "@/lib/queries/cases";
+import type { CaseDetail, CaseStatusKey } from "@/lib/queries/cases";
+import type { CaseStatusDef } from "@/lib/queries/case-statuses";
 import { closeCase, cancelCase } from "@/lib/cases/actions";
+import { setCaseStatus } from "@/lib/cases/status-actions";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -21,30 +23,38 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCaseAction } from "@/components/cases/use-case-action";
 import { AddAdHocPhaseDialog } from "@/components/cases/add-ad-hoc-phase-dialog";
+import { TOKEN_COLOR_VAR } from "@/components/cases/case-status-badge";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 import type { SlotForm } from "@/components/process-templates/template-builder-shell";
 
 /**
- * Case-level coordinator actions in the detail header (open case only):
+ * Case-level coordinator actions in the detail header (non-terminal case only —
+ * a terminal case is frozen, HC025):
+ *  - a "Estado" picker (Cases-Extras R2) → move to any OTHER NON-terminal status
+ *    via `setCaseStatus` (terminal moves stay the explicit Encerrar items so the
+ *    "open phases → não necessária" warning is shown);
  *  - "Adicionar fase" → ad-hoc phase dialog;
- *  - a "Encerrar" menu with Conclude / Cancel, each behind a confirm. Both flip
- *    remaining open phases to "não necessária".
- *
- * The assignee picker for the ad-hoc dialog comes from the page; here we only
- * need the publishable forms. Errors surface via the confirm dialogs / the
- * `useCaseAction` banner.
+ *  - an "Encerrar" menu with the terminal statuses (Concluir / Cancelar), each
+ *    behind a confirm. Both flip remaining open phases to "não necessária".
  */
 export function CaseLifecycleActions({
   caseId,
+  currentStatus,
+  statusDefs,
   forms,
   phases,
   assignees,
 }: {
   caseId: string;
+  currentStatus: CaseStatusKey;
+  /** The commission's non-archived status defs (the picker options). */
+  statusDefs: CaseStatusDef[];
   forms: SlotForm[];
   phases: CaseDetail["phases"];
   assignees: AssigneeOption[];
@@ -56,9 +66,45 @@ export function CaseLifecycleActions({
     (p) => p.status === "pendente" || p.status === "ativa",
   );
 
+  // Non-terminal targets the coordinator can switch to (excluding the current).
+  const nonTerminalTargets = statusDefs.filter(
+    (d) => !d.isTerminal && d.key !== currentStatus,
+  );
+  // Terminal statuses back the "Encerrar" menu (confirmed; closes open phases).
+  const terminalTargets = statusDefs.filter((d) => d.isTerminal);
+
   return (
     <div className="flex shrink-0 flex-col items-end gap-2">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {nonTerminalTargets.length > 0 && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="outline" size="lg" disabled={isPending}>
+                <SlidersHorizontal aria-hidden="true" />
+                Estado
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Alterar estado</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {nonTerminalTargets.map((d) => (
+                <DropdownMenuItem
+                  key={d.key}
+                  className="gap-2"
+                  onSelect={() => run(() => setCaseStatus(caseId, d.key))}
+                >
+                  <span
+                    aria-hidden="true"
+                    className="size-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: TOKEN_COLOR_VAR[d.colorToken] }}
+                  />
+                  {d.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+
         <Button
           type="button"
           variant="outline"
@@ -78,17 +124,16 @@ export function CaseLifecycleActions({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <ConcludeItem
-              caseId={caseId}
-              hasOpenPhases={hasOpenPhases}
-              run={run}
-              isPending={isPending}
-            />
-            <CancelItem
-              caseId={caseId}
-              run={run}
-              isPending={isPending}
-            />
+            {terminalTargets.map((d) => (
+              <TerminalItem
+                key={d.key}
+                caseId={caseId}
+                def={d}
+                hasOpenPhases={hasOpenPhases}
+                run={run}
+                isPending={isPending}
+              />
+            ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -110,29 +155,50 @@ export function CaseLifecycleActions({
   );
 }
 
-function ConcludeItem({
+/**
+ * One terminal-status item in the Encerrar menu, behind a confirm dialog. Uses
+ * the legacy thin wrappers for the two seeded keys (`concluido`/`cancelado`) so
+ * their well-known revalidation path is preserved; any OTHER custom terminal
+ * status funnels through the generic `setCaseStatus` (which also closes open
+ * phases on terminal entry).
+ */
+function TerminalItem({
   caseId,
+  def,
   hasOpenPhases,
   run,
   isPending,
 }: {
   caseId: string;
+  def: CaseStatusDef;
   hasOpenPhases: boolean;
   run: ReturnType<typeof useCaseAction>["run"];
   isPending: boolean;
 }) {
+  const isCancel = def.key === "cancelado";
+  const action = () => {
+    if (def.key === "concluido") return closeCase(caseId);
+    if (def.key === "cancelado") return cancelCase(caseId);
+    return setCaseStatus(caseId, def.key);
+  };
+
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-          Concluir caso
+        <DropdownMenuItem
+          onSelect={(e) => e.preventDefault()}
+          className={isCancel ? "text-destructive focus:text-destructive" : undefined}
+        >
+          {def.label}
         </DropdownMenuItem>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Concluir este caso?</AlertDialogTitle>
+          <AlertDialogTitle>
+            Marcar o caso como “{def.label}”?
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            O caso será marcado como concluído.{" "}
+            O caso passará para o estado final “{def.label}”.{" "}
             {hasOpenPhases
               ? "As fases ainda abertas serão marcadas como não necessárias."
               : ""}{" "}
@@ -140,53 +206,9 @@ function ConcludeItem({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={isPending}
-            onClick={() => run(() => closeCase(caseId))}
-          >
-            Concluir caso
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
-function CancelItem({
-  caseId,
-  run,
-  isPending,
-}: {
-  caseId: string;
-  run: ReturnType<typeof useCaseAction>["run"];
-  isPending: boolean;
-}) {
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <DropdownMenuItem
-          onSelect={(e) => e.preventDefault()}
-          className="text-destructive focus:text-destructive"
-        >
-          Cancelar caso
-        </DropdownMenuItem>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Cancelar este caso?</AlertDialogTitle>
-          <AlertDialogDescription>
-            O caso será marcado como cancelado e as fases abertas serão marcadas
-            como não necessárias. Esta ação não pode ser desfeita.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>Voltar</AlertDialogCancel>
-          <AlertDialogAction
-            disabled={isPending}
-            onClick={() => run(() => cancelCase(caseId))}
-          >
-            Cancelar caso
+          <AlertDialogAction disabled={isPending} onClick={() => run(action)}>
+            Confirmar
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -415,31 +415,42 @@ begin
           'Processo de avaliação multifásica de óbito. Sem dados de paciente.',
           'active', v_chefe_a);
 
-  insert into public.process_template_phases (template_id, position, form_id, title, recommend_when) values
-    (v_tpl, 1, v_form_a, 'Fase 1 — Coleta inicial', null),
+  insert into public.process_template_phases
+    (template_id, position, form_id, title, recommend_when, default_due_days) values
+    (v_tpl, 1, v_form_a, 'Fase 1 — Coleta inicial', null, 7),
     (v_tpl, 2, v_form_a, 'Fase 2 — Revisão do comitê',
      jsonb_build_object('from_phase', 1, 'question_key', 'dispensador_disponivel',
-                        'op', 'equals', 'value', 'Sim'));
+                        'op', 'equals', 'value', 'Sim'),
+     14);
 
   -- The case (number minted by the trigger). Pin Form A's published version.
+  -- status uses the default INITIAL key 'em_andamento' (the Cases-Extras R2
+  -- vocabulary; the old 'aberto' literal was renamed). The seed trigger on
+  -- public.commissions already seeded this commission's status set.
   insert into public.cases (id, commission_id, template_id, label, status, created_by)
-  values (v_case, v_comm_a, v_tpl, 'Óbito UTI leito 7', 'aberto', v_chefe_a);
+  values (v_case, v_comm_a, v_tpl, 'Óbito UTI leito 7', 'em_andamento', v_chefe_a);
 
   -- Phase 1: concluida + assigned to staff1; Phase 2: pendente + recommended.
   -- The guards permit these seeded statuses under app.in_case_rpc.
   perform set_config('app.in_case_rpc', 'on', true);
+  -- default_due_days are the SNAPSHOT copies of the template slot defaults
+  -- (ADR 0017). Phase 2 carries a past due_date so the board renders an OVERDUE
+  -- example for the frontend/tester (a due_date in the past on an open phase).
   insert into public.case_phases
-    (id, case_id, position, form_id, form_version_id, title, status, recommended, assigned_to, activated_at, completed_at)
+    (id, case_id, position, form_id, form_version_id, title, status, recommended,
+     assigned_to, activated_at, completed_at, default_due_days)
   values
     (v_cp1, v_case, 1, v_form_a, v_ver_a, 'Fase 1 — Coleta inicial',
-     'concluida', false, v_staff_a1, now(), now());
+     'concluida', false, v_staff_a1, now(), now(), 7);
   insert into public.case_phases
-    (id, case_id, position, form_id, form_version_id, title, status, recommended, recommend_when)
+    (id, case_id, position, form_id, form_version_id, title, status, recommended,
+     recommend_when, default_due_days, due_date)
   values
     (v_cp2, v_case, 2, v_form_a, v_ver_a, 'Fase 2 — Revisão do comitê',
      'pendente', true,
      jsonb_build_object('from_phase', 1, 'question_key', 'dispensador_disponivel',
-                        'op', 'equals', 'value', 'Sim'));
+                        'op', 'equals', 'value', 'Sim'),
+     14, current_date - 3);
   perform set_config('app.in_case_rpc', 'off', true);
 
   -- Phase 1's SUBMITTED response (staff1.ccih), answering the gate 'Sim' so the

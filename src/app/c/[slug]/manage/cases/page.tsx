@@ -4,9 +4,13 @@ import { FolderOpen } from "lucide-react";
 
 import { getCommissionAccess } from "@/lib/queries/session";
 import { listCasesBoard } from "@/lib/queries/cases";
+import { listCaseStatusDefs } from "@/lib/queries/case-statuses";
+import { getCaseActionItemKpis } from "@/lib/queries/case-action-items";
 import { listProcessTemplates } from "@/lib/queries/process-templates";
-import { CaseBoardCard } from "@/components/cases/case-board-card";
 import { CreateCaseDialog } from "@/components/cases/create-case-dialog";
+import { CasesKpiStrip } from "@/components/cases/cases-kpi-strip";
+import { CasesView, type CasesViewMode } from "@/components/cases/cases-view";
+import { computeCaseKpis } from "@/components/cases/case-derive";
 
 export const metadata: Metadata = {
   title: "Casos",
@@ -23,19 +27,24 @@ export const metadata: Metadata = {
  */
 export default async function CasesBoardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ view?: string }>;
 }) {
   const { slug } = await params;
+  const { view } = await searchParams;
   const access = await getCommissionAccess(slug);
 
   if (!access || (access.role !== "staff_admin" && !access.context.isAdmin)) {
     notFound();
   }
 
-  const [rows, templates] = await Promise.all([
+  const [rows, templates, statusDefs, actionItemKpis] = await Promise.all([
     listCasesBoard(access.commission.id),
     listProcessTemplates(access.commission.id),
+    listCaseStatusDefs(access.commission.id),
+    getCaseActionItemKpis(access.commission.id),
   ]);
 
   // A case can only be minted from an ACTIVE template.
@@ -43,8 +52,11 @@ export default async function CasesBoardPage({
     .filter((t) => t.status === "active")
     .map((t) => ({ id: t.id, title: t.title }));
 
+  const kpis = computeCaseKpis(rows, statusDefs);
+  const initialView: CasesViewMode = view === "kanban" ? "kanban" : "table";
+
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
@@ -81,16 +93,15 @@ export default async function CasesBoardPage({
           )}
         </section>
       ) : (
-        <section aria-label="Casos da comissão" className="flex flex-col gap-3">
-          {rows.map((row, index) => (
-            <CaseBoardCard
-              key={row.case.id}
-              slug={slug}
-              row={row}
-              index={index}
-            />
-          ))}
-        </section>
+        <>
+          <CasesKpiStrip kpis={kpis} actionItems={actionItemKpis} />
+          <CasesView
+            rows={rows}
+            slug={slug}
+            defs={statusDefs}
+            initialView={initialView}
+          />
+        </>
       )}
     </div>
   );

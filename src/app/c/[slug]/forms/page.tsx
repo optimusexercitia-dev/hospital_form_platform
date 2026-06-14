@@ -60,7 +60,12 @@ export default async function FormsListPage({
               form={form}
               index={index}
               startSlot={
+                // `key` because this element is authored here (a Server
+                // Component) but rendered among sibling children inside the
+                // FillableFormCard Client Component; without it React warns that
+                // the cross-boundary child is missing a "key" prop.
                 <StartFillButton
+                  key={form.formId}
                   slug={slug}
                   formId={form.formId}
                   publishedVersionId={form.publishedVersionId}

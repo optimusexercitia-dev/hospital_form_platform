@@ -3,7 +3,7 @@ name: frontend-design
 description: The binding design system for the Hospital Commission Forms Platform — "calm clinical precision". Invoke BEFORE building or restyling any screen, page, route group, or component. Covers the color tokens, typography (Fraunces/Spline Sans), spacing/radius, the shared motion system (GSAP + CSS, reduced-motion-safe), accessibility requirements, and the component conventions every UI must follow so screens stay cohesive.
 ---
 
-# Frontend Design — "calm clinical precision"
+# Frontend Design — "Clinical Calm"
 
 This is the **single source of truth** for how this platform looks, moves, and
 feels. The `frontend-engineer` role is required to invoke and follow it before
@@ -11,10 +11,11 @@ building any new screen. It codifies the system already implemented in
 `src/app/globals.css` and `src/app/layout.tsx` — do not invent a parallel
 direction; extend this one.
 
-> **Aesthetic in one line:** a deep petrol/teal accent (clinical but warm,
-> distinct from generic SaaS blue) on faintly-warm porcelain neutrals. Refined,
-> spacious, instrument-like. Editorial serif headings over a precise humanist
-> sans. Professional first; engaging through restraint and tasteful micro-motion.
+> **Aesthetic in one line:** a calm, confident blue accent (`#1f5c9e`) on
+> faintly-warm porcelain neutrals with a deep slate ink. Refined, spacious,
+> instrument-like. Editorial serif headings (IBM Plex Serif) over a precise
+> humanist sans (IBM Plex Sans). Professional first; engaging through restraint
+> and tasteful micro-motion.
 
 The platform brief (CLAUDE.md §1) asks for an experience that is "professional,
 but also interactive and engaging, with micro animations using things like GSAP
@@ -53,16 +54,23 @@ semantic Tailwind utilities; never reach for `bg-[#...]`, `text-slate-700`, etc.
 | Body text | `text-foreground` | deep slate-petrol ink |
 | Secondary/help text | `text-muted-foreground` | captions, descriptions, metadata |
 | Surfaces / cards | `bg-card` `text-card-foreground` | raised content |
-| Brand / primary action | `bg-primary` `text-primary-foreground` | **the petrol accent** |
-| Soft hover/fill tint | `bg-accent` `text-accent-foreground` | gentle petrol tint |
+| Brand / primary action | `bg-primary` `text-primary-foreground` | **the calm-blue accent** (`#1f5c9e`) |
+| Soft hover/fill tint | `bg-accent` `text-accent-foreground` | gentle blue tint |
 | Muted fill | `bg-muted` `text-muted-foreground` | inert chips, skeleton base |
 | Borders & inputs | `border-border` `border-input` | hairline `oklch(0.9 …)` |
-| Focus ring | `ring-ring` | petrol; see focus pattern below |
+| Focus ring | `ring-ring` | blue; see focus pattern below |
+| Success / positive | `text-success` `bg-success/12` | concluded/closed states, "good" KPI tone |
+| Warning / caution | `text-warning` `bg-warning/12` | pending/awaiting states, "warn" KPI tone |
 | Error/danger | `text-destructive` `bg-destructive/10` `border-destructive/30` | |
-| Charts | `--chart-1..5` (Recharts) | ramp built around the petrol accent |
+| Charts | `--chart-1..5` (Recharts) | ramp built around the blue accent |
+
+Status/stage tokens: `--success`, `--warning` (positive + caution; danger reuses
+`--destructive`, accent reuses `--primary`, neutral reuses `--muted-foreground`).
+Derived case-stage accents `--st-todo/active/wait/done/cancel` drive the cases
+kanban columns + card left borders — keep stage colour consistent app-wide.
 
 Rules:
-- The petrol **primary is precious** — use it for the single most important
+- The blue **primary is precious** — use it for the single most important
   action per view, active nav, key stats. Don't flood screens with it.
 - Convey status with **icon + text + shape**, never color alone (accessibility).
 - Dark mode is already tokenized; if you add a new color need, add a token in
@@ -74,14 +82,16 @@ Rules:
 
 Fonts are wired in `layout.tsx` as CSS variables; `globals.css` maps them.
 
-- **Display serif — Fraunces** (`--font-display`, `font-optical-sizing: auto`):
-  applied automatically to `h1, h2, h3` with `letter-spacing: -0.01em`. This is
-  the platform's editorial, trustworthy character. Use real heading elements so
-  they pick it up; for a serif accent elsewhere use `font-display`.
-- **Body/UI sans — Spline Sans** (`--font-sans`, the `html` default): precise and
-  legible for dense forms. All body, labels, controls.
-- **Mono — Spline Sans Mono** (`--font-mono`): slugs, ids, code-ish values.
-- Body sets `font-feature-settings: "cv05", "ss01"` globally — don't override.
+- **Display serif — IBM Plex Serif** (`--font-display`): applied automatically to
+  `h1, h2, h3` with `letter-spacing: -0.01em`. This is the platform's editorial,
+  trustworthy character (page titles, brand wordmark, case titles). Use real
+  heading elements so they pick it up; for a serif accent elsewhere use
+  `font-display`.
+- **Body/UI sans — IBM Plex Sans** (`--font-sans`, the `html` default): precise
+  and legible for dense clinical forms. All body, labels, controls.
+- **Mono — IBM Plex Mono** (`--font-mono`): case ids (`Caso 0042`), slugs, codes.
+- Body sets `font-feature-settings: "tnum" 1, "ss01" 1` globally (tabular figures
+  everywhere — scannable for committee chairs) — don't override.
 - Scale with Tailwind's type scale; favor generous `leading` and `max-w-prose`
   for running text. Headings can use `text-balance`; paragraphs `text-pretty`.
 

@@ -1,0 +1,18 @@
+-- Cases-Extras batch (last): enable the cases_extras feature.
+--
+-- The Cases-Extras equivalent of the multi-phase flag flip (20260613090008) and
+-- the sign-off enforcement flip (20260613090001): a one-line, data-only,
+-- forward-only flag flip. It adds no tables, policies, or code, and does NOT edit
+-- any applied migration — 20260614092001 inserted cases_extras = false on
+-- purpose; this turns it ON.
+--
+-- Every Cases-Extras WRITE RPC (set_case_status + the status CRUD; the tag CRUD /
+-- assign; the action-item authoring + lifecycle RPCs) and the direct-table write
+-- ACTIONS (documents/events via app.cases_extras_enabled) gate
+-- app.feature_enabled('cases_extras') and raise a clean "feature unavailable"
+-- while OFF. Flipping the flag here makes the R1–R4 surface exercisable for
+-- frontend's manual verification and the tester's E2E, and is the state the batch
+-- ships in. The MODIFIED core phase RPCs keep gating only cases_multi_phase, so
+-- they were never affected by this flag. See docs/decisions/0023-configurable-
+-- case-status.md.
+update app.feature_flags set enabled = true where key = 'cases_extras';

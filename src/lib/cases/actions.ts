@@ -56,6 +56,7 @@ const MESSAGES = {
   templateRequired: 'Selecione um processo.',
   formRequired: 'Selecione um formulário.',
   assigneeRequired: 'Selecione o responsável pela fase.',
+  dueDateInvalid: 'Informe uma data de prazo válida.',
   recommendInvalid:
     'A condição de recomendação é inválida. Verifique a fase de origem e a pergunta.',
   // Phase-7 codes
@@ -66,6 +67,9 @@ const MESSAGES = {
   caseNotOpen: 'Este caso não está aberto.',
   assigneeNotMember: 'O responsável deve ser membro da comissão.',
   notAssignee: 'Apenas o responsável pode preencher esta fase.',
+  // Cases-Extras R2 (configurable case status)
+  invalidStatus: 'Estado de caso inválido para esta comissão.',
+  caseTerminal: 'Este caso está em um estado final e não pode mais ser alterado.',
   caseCreated: 'Caso criado com sucesso.',
   phaseActivated: 'Fase ativada e atribuída.',
   phaseSkipped: 'Fase marcada como não necessária.',
@@ -87,6 +91,9 @@ const HC_PHASE_WRONG_STATE = 'HC019'
 const HC_CASE_NOT_OPEN = 'HC020'
 const HC_ASSIGNEE_NOT_MEMBER = 'HC021'
 const HC_NOT_ASSIGNEE = 'HC022'
+// Cases-Extras R2 (configurable case status).
+const HC_INVALID_STATUS = 'HC024'
+const HC_CASE_TERMINAL = 'HC025'
 
 const CASES_LIST_PATH = '/c/[slug]/manage/cases'
 const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
@@ -167,6 +174,10 @@ function mapCaseError(error: { code?: string; message?: string } | null): string
       return error.message || MESSAGES.assigneeNotMember
     case HC_NOT_ASSIGNEE:
       return error.message || MESSAGES.notAssignee
+    case HC_INVALID_STATUS:
+      return error.message || MESSAGES.invalidStatus
+    case HC_CASE_TERMINAL:
+      return error.message || MESSAGES.caseTerminal
     case PG_CHECK_VIOLATION:
       return error.message || MESSAGES.generic
     default:
@@ -182,6 +193,25 @@ function parseRecommendWhen(raw: string): Json | undefined | null {
   } catch {
     return null
   }
+}
+
+/**
+ * Validate the optional `dueDate` form field (a native date input emits
+ * `YYYY-MM-DD`). Returns `undefined` when absent/blank (→ the RPC stores null),
+ * the string when it is a real calendar date, or `null` to signal an invalid
+ * value. Belt-and-suspenders: a native date input is already safe, but a
+ * hand-crafted POST could carry garbage that Postgres would otherwise reject
+ * with a raw error.
+ */
+function parseDueDate(raw: string): string | undefined | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return null
+  const d = new Date(`${trimmed}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return null
+  // Reject out-of-range components the regex accepts (e.g. 2026-02-31 rolls over).
+  if (d.toISOString().slice(0, 10) !== trimmed) return null
+  return trimmed
 }
 
 /**
@@ -230,10 +260,14 @@ export async function activatePhase(
 ): Promise<ActionState> {
   const casePhaseId = String(formData.get('casePhaseId') ?? '')
   const assignedTo = String(formData.get('assignedTo') ?? '')
+  const dueDate = parseDueDate(String(formData.get('dueDate') ?? ''))
 
   if (!casePhaseId) return { ok: false, error: MESSAGES.missingPhase }
   if (!assignedTo) {
     return { ok: false, fieldErrors: { assignedTo: MESSAGES.assigneeRequired } }
+  }
+  if (dueDate === null) {
+    return { ok: false, fieldErrors: { dueDate: MESSAGES.dueDateInvalid } }
   }
 
   const supabase = await createClient()
@@ -246,6 +280,8 @@ export async function activatePhase(
   const { error } = await supabase.rpc('activate_phase', {
     p_case_phase_id: casePhaseId,
     p_assigned_to: assignedTo,
+    // Empty/omitted → undefined → the RPC stores null (no due date).
+    p_due_date: dueDate || undefined,
   })
 
   if (error) return { ok: false, error: mapCaseError(error) }
@@ -328,7 +364,7 @@ export async function addAdHocPhase(
 /**
  * Reassign a phase to another member BEFORE any response exists for it (P0019
  * otherwise — once a draft exists the assignee owns it). Fields: `casePhaseId`,
- * `newAssignee`. P0021 if the new assignee is not a member.
+ * `newAssignee`, `dueDate?`. P0021 if the new assignee is not a member.
  */
 export async function reassignPhase(
   _prev: ActionState | undefined,
@@ -336,10 +372,14 @@ export async function reassignPhase(
 ): Promise<ActionState> {
   const casePhaseId = String(formData.get('casePhaseId') ?? '')
   const newAssignee = String(formData.get('newAssignee') ?? '')
+  const dueDate = parseDueDate(String(formData.get('dueDate') ?? ''))
 
   if (!casePhaseId) return { ok: false, error: MESSAGES.missingPhase }
   if (!newAssignee) {
     return { ok: false, fieldErrors: { newAssignee: MESSAGES.assigneeRequired } }
+  }
+  if (dueDate === null) {
+    return { ok: false, fieldErrors: { dueDate: MESSAGES.dueDateInvalid } }
   }
 
   const supabase = await createClient()
@@ -352,6 +392,7 @@ export async function reassignPhase(
   const { error } = await supabase.rpc('reassign_phase', {
     p_case_phase_id: casePhaseId,
     p_new_assignee: newAssignee,
+    p_due_date: dueDate || undefined,
   })
 
   if (error) return { ok: false, error: mapCaseError(error) }

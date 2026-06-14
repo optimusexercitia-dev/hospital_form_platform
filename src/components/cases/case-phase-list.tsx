@@ -1,4 +1,4 @@
-import { FileText, User } from "lucide-react";
+import { CalendarClock, FileText, User } from "lucide-react";
 
 import type { CaseDetail } from "@/lib/queries/cases";
 import {
@@ -6,6 +6,8 @@ import {
   RecommendedChip,
 } from "@/components/cases/phase-status-pill";
 import { CoordinatorPhaseActions } from "@/components/cases/coordinator-phase-actions";
+import { formatDueDate, isOverdue } from "@/components/cases/format";
+import { cn } from "@/lib/utils";
 
 /** An assignee option for the activate / reassign pickers. */
 export interface AssigneeOption {
@@ -71,6 +73,22 @@ export function CasePhaseList({
                       {phase.assigneeName}
                     </span>
                   )}
+                  {phase.dueDate &&
+                    (() => {
+                      const overdue = isOverdue(phase.dueDate, phase.status);
+                      return (
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1",
+                            overdue && "font-medium text-destructive",
+                          )}
+                        >
+                          <CalendarClock aria-hidden="true" className="size-3.5" />
+                          Prazo: {formatDueDate(phase.dueDate)}
+                          {overdue && " · Atrasada"}
+                        </span>
+                      );
+                    })()}
                 </div>
               </div>
             </div>

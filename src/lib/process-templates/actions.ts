@@ -46,6 +46,7 @@ const MESSAGES = {
   featureOff: 'O recurso de casos multifásicos não está disponível.',
   titleRequired: 'Informe o título do processo.',
   formRequired: 'Selecione um formulário para a fase.',
+  defaultDaysInvalid: 'Informe um número inteiro de dias maior ou igual a zero.',
   missingTemplate: 'Processo não encontrado.',
   missingPhase: 'Fase não encontrada.',
   notDraft: 'Apenas processos em rascunho podem ser editados.',
@@ -152,6 +153,19 @@ function parseRecommendWhen(raw: string): Json | undefined | null {
 }
 
 /**
+ * Parse an optional `defaultDays` form field. Returns `undefined` when
+ * absent/blank, the parsed non-negative integer when valid, or `null` to signal
+ * an invalid value (negative or non-integer).
+ */
+function parseDefaultDays(raw: string): number | undefined | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  const n = Number(trimmed)
+  if (!Number.isInteger(n) || n < 0) return null
+  return n
+}
+
+/**
  * Create a draft process template. Fields: `commissionId`, `title`,
  * `description?`. Returns the new `templateId` on success.
  */
@@ -249,6 +263,7 @@ export async function addTemplatePhase(
   const recommendWhen = parseRecommendWhen(
     String(formData.get('recommendWhen') ?? ''),
   )
+  const defaultDays = parseDefaultDays(String(formData.get('defaultDays') ?? ''))
 
   if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
   if (!formId) {
@@ -256,6 +271,9 @@ export async function addTemplatePhase(
   }
   if (recommendWhen === null) {
     return { ok: false, fieldErrors: { recommendWhen: MESSAGES.recommendInvalid } }
+  }
+  if (defaultDays === null) {
+    return { ok: false, fieldErrors: { defaultDays: MESSAGES.defaultDaysInvalid } }
   }
 
   const supabase = await createClient()
@@ -270,6 +288,7 @@ export async function addTemplatePhase(
     p_form_id: formId,
     p_title: title || undefined,
     p_recommend_when: recommendWhen,
+    p_default_due_days: defaultDays,
   })
 
   if (error || !data) return { ok: false, error: mapRpcError(error) }
@@ -302,6 +321,29 @@ export async function updateTemplatePhase(
     return { ok: false, fieldErrors: { recommendWhen: MESSAGES.recommendInvalid } }
   }
 
+  // The dialog always includes `defaultDays`. Present-and-empty clears it;
+  // present-and-non-empty replaces it (validated non-negative int); absent leaves
+  // it untouched. We send the dedicated clear flag rather than a sentinel so the
+  // RPC's clear/replace/keep branch mirrors recommend_when exactly.
+  const hasDefaultDays = formData.has('defaultDays')
+  const defaultDaysRaw = String(formData.get('defaultDays') ?? '').trim()
+  let defaultDays: number | undefined
+  let clearDefaultDays = false
+  if (hasDefaultDays) {
+    if (defaultDaysRaw === '') {
+      clearDefaultDays = true
+    } else {
+      const parsed = parseDefaultDays(defaultDaysRaw)
+      if (parsed === null) {
+        return {
+          ok: false,
+          fieldErrors: { defaultDays: MESSAGES.defaultDaysInvalid },
+        }
+      }
+      defaultDays = parsed
+    }
+  }
+
   const supabase = await createClient()
   const ctx = await contextOfPhase(supabase, phaseId)
   if (!ctx) return { ok: false, error: MESSAGES.missingPhase }
@@ -315,6 +357,8 @@ export async function updateTemplatePhase(
     p_title: hasTitle ? title : undefined,
     p_recommend_when: recommendWhen,
     p_clear_recommend_when: clearRecommendWhen,
+    p_default_due_days: defaultDays,
+    p_clear_default_due_days: clearDefaultDays,
   })
 
   if (error) return { ok: false, error: mapRpcError(error) }

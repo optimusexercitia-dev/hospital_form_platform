@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 
 /**
  * Decorative animated brand panel for the auth screens — a slow, drifting mesh
- * of connected nodes in the platform's petrol accent. Purely atmospheric.
+ * of connected nodes in the platform's blue accent. Purely atmospheric.
  *
  * Constraints (team-lead, Phase 2):
  *  - GSAP is dynamically imported so it never sits on the critical path; the
@@ -47,7 +47,7 @@ export function AuthHero() {
     // the theme rather than hard-coding a hex.
     const accent =
       getComputedStyle(canvas).getPropertyValue("--hero-accent").trim() ||
-      "rgba(40, 120, 130, 1)";
+      "rgba(46, 116, 192, 1)";
 
     function seed() {
       nodes.length = 0;
@@ -159,7 +159,7 @@ export function AuthHero() {
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="absolute inset-0 h-full w-full [--hero-accent:oklch(0.7_0.1_195)]"
+      className="absolute inset-0 h-full w-full [--hero-accent:oklch(0.6_0.12_252)]"
     />
   );
 }

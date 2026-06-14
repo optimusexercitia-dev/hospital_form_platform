@@ -7,7 +7,10 @@ import {
   listDashboardForms,
   getFormDashboard,
 } from "@/lib/queries/dashboard";
+import { getCaseTagReport } from "@/lib/queries/case-tags";
 import { DashboardForms } from "@/components/dashboard/dashboard-forms";
+import { TagReportCard } from "@/components/dashboard/tag-report-card";
+import { formatDueDate } from "@/components/cases/format";
 
 export const metadata: Metadata = {
   title: "Painel",
@@ -48,8 +51,21 @@ export default async function DashboardPage({
     from || to ? { from: from || undefined, to: to || undefined } : undefined;
 
   // Pass the active date window so the form-picker tab badges reflect the same
-  // ?from/?to filter as the body headline (no all-time/filtered mismatch).
-  const forms = await listDashboardForms(access.commission.id, range);
+  // ?from/?to filter as the body headline (no all-time/filtered mismatch). The
+  // case tag report (R3) honours the same window (bounded on `cases.created_at`).
+  const [forms, tagReport] = await Promise.all([
+    listDashboardForms(access.commission.id, range),
+    getCaseTagReport(access.commission.id, range),
+  ]);
+
+  const rangeLabel =
+    from && to
+      ? `${formatDueDate(from)} a ${formatDueDate(to)}`
+      : from
+        ? `desde ${formatDueDate(from)}`
+        : to
+          ? `até ${formatDueDate(to)}`
+          : "todo o período";
 
   // Resolve the selected form: the requested one if it has data, else the first.
   const selectedFormId =
@@ -85,6 +101,8 @@ export default async function DashboardPage({
           dashboard={dashboard}
         />
       )}
+
+      <TagReportCard rows={tagReport} rangeLabel={rangeLabel} />
     </div>
   );
 }

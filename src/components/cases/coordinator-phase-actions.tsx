@@ -158,6 +158,7 @@ export function CoordinatorPhaseActions({
           phaseLabel={phaseLabel}
           currentAssignee={phase.assignedTo}
           assignees={assignees}
+          defaultDueDays={phase.defaultDueDays}
         />
       )}
       {phase.status === "ativa" && (
@@ -169,6 +170,8 @@ export function CoordinatorPhaseActions({
           phaseLabel={phaseLabel}
           currentAssignee={phase.assignedTo}
           assignees={assignees}
+          defaultDueDays={null}
+          currentDueDate={phase.dueDate}
         />
       )}
     </div>

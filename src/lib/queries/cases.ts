@@ -30,7 +30,23 @@ import type { RecommendWhen } from '@/lib/queries/conditions'
 // Domain types
 // ---------------------------------------------------------------------------
 
-export type CaseStatus = 'aberto' | 'concluido' | 'cancelado'
+/**
+ * A case's GLOBAL macro status. As of the Cases-Extras batch (R2) this is
+ * **configurable per commission** — each commission defines its own ordered set
+ * of statuses (`case_status_defs`), so the type is an open `string` keyed by the
+ * status `key`, NOT a fixed union. Use {@link CaseStatusDef} (from
+ * `@/lib/queries/case-statuses`) to resolve a key to its label / colour /
+ * terminal flag. The default seeded set is `rascunho`, `em_andamento` (initial),
+ * `em_revisao`, `concluido` (terminal), `cancelado` (terminal).
+ *
+ * NOTE (phase vs case status): this is the CASE-level macro status. The
+ * per-phase status ({@link CasePhaseStatus}) is a SEPARATE fixed lifecycle and
+ * is intentionally NOT configurable.
+ */
+export type CaseStatusKey = string
+
+/** @deprecated Back-compat alias — prefer {@link CaseStatusKey}. */
+export type CaseStatus = CaseStatusKey
 
 export type CasePhaseStatus =
   | 'pendente'
@@ -76,6 +92,18 @@ export interface CasePhase {
   /** `true` when appended ad-hoc to this case (not from the template). */
   isAdHoc: boolean
   recommendWhen: RecommendWhen | null
+  /**
+   * The phase's due date (ISO `YYYY-MM-DD`), set/edited/removed by the
+   * coordinator on activation. `null` = no due date. A past date on an open
+   * phase renders as overdue.
+   */
+  dueDate: string | null
+  /**
+   * The SNAPSHOT of the template slot's default number of days (ADR 0017),
+   * copied at case creation; pre-fills the activation due-date picker. `null` =
+   * no default. Never changes after creation (template edits don't reach it).
+   */
+  defaultDueDays: number | null
 }
 
 /** One row of the cases board: a case header + its phases' STATUS summary. */
@@ -85,7 +113,13 @@ export interface CaseBoardRow {
   phases: Array<
     Pick<
       CasePhase,
-      'position' | 'title' | 'status' | 'recommended' | 'assignedTo' | 'assigneeName'
+      | 'position'
+      | 'title'
+      | 'status'
+      | 'recommended'
+      | 'assignedTo'
+      | 'assigneeName'
+      | 'dueDate'
     >
   >
 }
@@ -128,6 +162,7 @@ interface BoardPhaseJson {
   recommended: boolean
   assigned_to: string | null
   assignee_name: string | null
+  due_date: string | null
 }
 
 /** One row of `list_cases_board`. */
@@ -155,6 +190,8 @@ interface DetailPhaseJson {
   assignee_name: string | null
   is_ad_hoc: boolean
   recommend_when: RecommendWhen | null
+  due_date: string | null
+  default_due_days: number | null
   response_id: string | null
   submitted_at: string | null
 }
@@ -209,6 +246,7 @@ export async function listCasesBoard(
       recommended: p.recommended,
       assignedTo: p.assigned_to,
       assigneeName: p.assignee_name,
+      dueDate: p.due_date,
     })),
   }))
 }
@@ -258,6 +296,8 @@ export async function getCaseDetail(
       assigneeName: p.assignee_name,
       isAdHoc: p.is_ad_hoc,
       recommendWhen: p.recommend_when,
+      dueDate: p.due_date,
+      defaultDueDays: p.default_due_days,
       responseId: p.response_id,
       submittedAt: p.submitted_at,
     })),
@@ -280,6 +320,8 @@ interface PhaseFillRow {
   assigned_to: string | null
   is_ad_hoc: boolean
   recommend_when: RecommendWhen | null
+  due_date: string | null
+  default_due_days: number | null
   forms: { title: string | null } | null
   cases: {
     id: string
@@ -309,7 +351,8 @@ export async function getCasePhaseForFill(
     .select(
       `
       id, case_id, position, form_id, form_version_id, title, status,
-      recommended, assigned_to, is_ad_hoc, recommend_when,
+      recommended, assigned_to, is_ad_hoc, recommend_when, due_date,
+      default_due_days,
       forms ( title ),
       cases (
         id, commission_id, template_id, case_number, label, status,
@@ -339,6 +382,8 @@ export async function getCasePhaseForFill(
       assigneeName: null,
       isAdHoc: data.is_ad_hoc,
       recommendWhen: data.recommend_when,
+      dueDate: data.due_date,
+      defaultDueDays: data.default_due_days,
     },
     case: {
       id: c.id,
@@ -366,6 +411,8 @@ export interface MyAssignedPhase {
   position: number
   phaseTitle: string | null
   formTitle: string
+  /** The phase's due date (ISO `YYYY-MM-DD`); `null` = none. */
+  dueDate: string | null
 }
 
 interface MyAssignedPhaseRow {
@@ -373,6 +420,7 @@ interface MyAssignedPhaseRow {
   position: number
   title: string | null
   updated_at: string
+  due_date: string | null
   forms: { title: string | null } | null
   cases: {
     id: string
@@ -407,7 +455,7 @@ export async function listMyAssignedPhases(
     .from('case_phases')
     .select(
       `
-      id, position, title, updated_at,
+      id, position, title, updated_at, due_date,
       forms ( title ),
       cases!inner ( id, case_number, label, commission_id )
     `,
@@ -432,5 +480,6 @@ export async function listMyAssignedPhases(
       position: r.position,
       phaseTitle: r.title,
       formTitle: r.forms?.title ?? '',
+      dueDate: r.due_date,
     }))
 }

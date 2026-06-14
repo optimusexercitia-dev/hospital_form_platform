@@ -188,7 +188,7 @@ select set_config('app.in_submit_rpc', 'on', true);
 create temp table cse on commit drop as select gen_random_uuid() as case_id, gen_random_uuid() as phase_id;
 grant select on cse to authenticated;
 insert into public.cases (id, commission_id, case_number, status, created_by)
-select cse.case_id, k.comm_x, 9999, 'aberto', k.sa_x from cse, k;
+select cse.case_id, k.comm_x, 9999, 'em_andamento', k.sa_x from cse, k;
 insert into public.case_phases (id, case_id, position, title, form_id, form_version_id, status)
 select cse.phase_id, cse.case_id, 1, 'P1', i.form_d, i.ver_d, 'concluida' from cse, ids i;
 insert into public.responses (id, form_version_id, commission_id, created_by, status, submitted_at, case_phase_id)

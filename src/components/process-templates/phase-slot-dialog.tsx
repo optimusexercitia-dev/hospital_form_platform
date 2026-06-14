@@ -75,6 +75,11 @@ export function PhaseSlotDialog({
 
   const [formId, setFormId] = useState<string>(phase?.formId ?? "");
   const [title, setTitle] = useState<string>(phase?.title ?? "");
+  // Optional per-slot default due-window (in days). "" = no default; an explicit
+  // empty submit clears a previously-set default (the action handles present-and-empty).
+  const [defaultDays, setDefaultDays] = useState<string>(
+    phase?.defaultDueDays != null ? String(phase.defaultDueDays) : "",
+  );
   // Serialized RecommendWhen JSON ("" = none) emitted by the editor.
   const [recommendJson, setRecommendJson] = useState<string>(
     phase?.recommendWhen ? JSON.stringify(phase.recommendWhen) : "",
@@ -157,6 +162,27 @@ export function PhaseSlotDialog({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Ex.: Fase 2 — Revisão do comitê"
             />
+          </label>
+
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium">
+              Prazo padrão (dias){" "}
+              <span className="font-normal text-muted-foreground">(opcional)</span>
+            </span>
+            <input
+              name="defaultDays"
+              type="number"
+              min={0}
+              inputMode="numeric"
+              className={SELECT_CLASS}
+              value={defaultDays}
+              onChange={(e) => setDefaultDays(e.target.value)}
+              placeholder="Ex.: 7"
+            />
+            <span className="text-xs text-muted-foreground">
+              Ao ativar a fase em um caso, o prazo será sugerido com base nesse
+              número de dias.
+            </span>
           </label>
 
           <RecommendWhenEditor

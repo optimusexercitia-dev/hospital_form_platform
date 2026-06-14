@@ -45,3 +45,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# personal Pictures library accidentally nested under docs/design (not project design assets)
+docs/design/Pictures/

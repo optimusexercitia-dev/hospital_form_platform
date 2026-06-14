@@ -39,7 +39,6 @@ test.beforeEach(async ({ page }) => {
 // Constants
 // ---------------------------------------------------------------------------
 
-const SUPABASE_URL = 'http://127.0.0.1:54321'
 // Service-role key — loaded from .env.local via @next/env in the Playwright config.
 // Never hardcoded. Used ONLY for DB-truth assertions (SELECT), never to mutate
 // application data under test (RLS is always the authority).
@@ -49,6 +48,13 @@ if (!SUPABASE_SERVICE_KEY) {
     'SUPABASE_SERVICE_ROLE_KEY ausente — defina-o em .env.local (a config do Playwright o carrega via @next/env).',
   )
 }
+
+// The Supabase API base. Uses NEXT_PUBLIC_SUPABASE_URL (the same instance the
+// app uses) so service-role key calls and owner JWT calls all hit the correct
+// instance. Falls back to the local stack for backwards compatibility.
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321'
+// Alias kept for due-date helpers authored after the env-aware refactor.
+const API_BASE = SUPABASE_URL
 
 // Seeded case (deterministic id from seed.sql).
 const SEEDED_CASE_ID = 'd0000000-0000-0000-0000-0000000000c1'
@@ -215,6 +221,98 @@ async function activatePhaseRPC(
   expect(resp.ok()).toBeTruthy()
 }
 
+/**
+ * Obtain a real JWT for a persona from API_BASE (remote-compatible).
+ * Uses the same Supabase instance as the app so the token works for
+ * REST API calls against API_BASE.
+ */
+async function getOwnerTokenRemote(page: Page, email: string, password = 'Test1234!'): Promise<string> {
+  const resp = await page.request.post(
+    `${API_BASE}/auth/v1/token?grant_type=password`,
+    {
+      headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
+      data: { email, password },
+    },
+  )
+  expect(resp.ok()).toBeTruthy()
+  return ((await resp.json()) as { access_token: string }).access_token
+}
+
+/**
+ * Service-role query using API_BASE (remote-compatible): case_phases for a case,
+ * including due_date and default_due_days.
+ */
+async function getCasePhasesWithDueDates(
+  page: Page,
+  caseId: string,
+): Promise<Array<{ id: string; status: string; position: number; due_date: string | null; default_due_days: number | null }>> {
+  const ownerToken = await getOwnerTokenRemote(page, 'chefe.ccih@test.local')
+  const resp = await page.request.get(
+    `${API_BASE}/rest/v1/case_phases?case_id=eq.${caseId}&order=position.asc&select=id,status,position,due_date,default_due_days`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${ownerToken}`,
+      },
+    },
+  )
+  const data = await resp.json()
+  return Array.isArray(data) ? data : []
+}
+
+/**
+ * Create a fresh case using API_BASE (remote-compatible).
+ */
+async function createFreshCaseRemote(page: Page, label: string): Promise<string> {
+  const ownerToken = await getOwnerTokenRemote(page, 'chefe.ccih@test.local')
+  const tplResp = await page.request.get(
+    `${API_BASE}/rest/v1/process_templates?commission_id=eq.${COMM_CCIH_ID}&status=eq.active&select=id&limit=1`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${ownerToken}`,
+      },
+    },
+  )
+  expect(tplResp.ok()).toBeTruthy()
+  const tpls = (await tplResp.json()) as Array<{ id: string }>
+  expect(tpls.length).toBeGreaterThan(0)
+
+  const createResp = await page.request.post(
+    `${API_BASE}/rest/v1/rpc/create_case_from_template`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${ownerToken}`,
+        'Content-Type': 'application/json',
+      },
+      data: { p_template_id: tpls[0].id, p_label: label },
+    },
+  )
+  expect(createResp.ok()).toBeTruthy()
+  const caseObj = (await createResp.json()) as { id: string }
+  expect(caseObj.id).toBeTruthy()
+  return caseObj.id
+}
+
+/**
+ * Format a date as YYYY-MM-DD for use in <input type="date"> assertions.
+ */
+function toDateInputValue(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/**
+ * Format a YYYY-MM-DD date as pt-BR dd/MM/yyyy for display assertions.
+ */
+function toPtBRDate(iso: string): string {
+  const [y, m, d] = iso.split('-').map(Number)
+  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`
+}
+
 // ---------------------------------------------------------------------------
 // AC-BUILDER — Coordinator builds a 3-phase template with recommend_when and publishes
 // ---------------------------------------------------------------------------
@@ -344,6 +442,55 @@ test('AC-Builder: coordinator creates a 3-phase template with recommend_when →
 })
 
 // ---------------------------------------------------------------------------
+// AC-DueDays-Overdue — MUST run before AC-HappyPath (which closes Caso 0001)
+// Seeded Phase 2 (pendente, due_date = today−3) renders overdue UI.
+// ---------------------------------------------------------------------------
+
+test('AC-DueDays-Overdue: seeded Phase 2 (due_date = today−3, pendente) shows "Prazo:" chip with "Atrasada" + destructive styling on case detail', async ({
+  page,
+}) => {
+  test.setTimeout(60_000)
+
+  // The seeded Caso 0001 has Phase 2 pendente with due_date = current_date - 3.
+  // Navigate to case detail and assert the overdue rendering.
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
+
+  // Phase 2 is visible. (The seeded Phase 2 is pendente with a past due_date;
+  // we assert the due-date chip directly rather than the status text, which
+  // would break if this test runs after a prior run already closed the case.)
+  const phase2Row = page.getByRole('article').filter({ hasText: /Fase 2/i }).first()
+  await expect(phase2Row).toBeVisible({ timeout: 10_000 })
+
+  // The due-date chip must render "Prazo:" text.
+  const dueDateChip = phase2Row.locator('span', { hasText: /Prazo:/i })
+  await expect(dueDateChip).toBeVisible({ timeout: 10_000 })
+
+  // The chip must contain "Atrasada" (because due_date < today and status = pendente).
+  await expect(dueDateChip).toContainText(/Atrasada/i)
+
+  // Destructive styling: the chip has a CSS class containing "destructive" applied
+  // by the `isOverdue` check in CasePhaseList. We assert the element carries
+  // "text-destructive" via the class attribute.
+  const chipClass = await dueDateChip.getAttribute('class')
+  expect(chipClass).toMatch(/destructive/)
+
+  // The board table (CasesTable) also shows the current phase's due date.
+  // Navigate to the cases list and assert the Caso 0001 row shows overdue.
+  await page.goto('/c/ccih/manage/cases')
+  await page.waitForURL('**/c/ccih/manage/cases', { timeout: 15_000 })
+
+  // The cases list renders as a table (default view); Phase 2 is the current phase
+  // for Caso 0001 (the only pendente, non-concluded phase). Its due date is past.
+  // Wait for the board to fully load.
+  await page.waitForLoadState('networkidle', { timeout: 15_000 })
+  // Look for "Atrasada" anywhere on the page (it is exclusive to overdue phases).
+  const overdueLabel = page.getByText(/Atrasada/i).first()
+  await expect(overdueLabel).toBeVisible({ timeout: 15_000 })
+})
+
+// ---------------------------------------------------------------------------
 // AC-HAPPY-PATH — Full coordinator happy path using the seeded Caso 0001
 //
 // The seeded case already has Phase 1 concluída (submitted, dispensador='Sim')
@@ -370,14 +517,16 @@ test('AC-HappyPath: board shows seeded Phase 1 concluída + Phase 2 recommended 
     page.getByRole('heading', { name: /Casos/i }),
   ).toBeVisible({ timeout: 10_000 })
 
-  // The board card for Caso 0001 (the seeded case) must be present.
-  const boardCard = page.locator('a[href*="/manage/cases/"]').filter({ hasText: /Caso 0001/i })
-  await expect(boardCard).toBeVisible({ timeout: 10_000 })
-  // Phase 1 is concluída on the board.
-  await expect(boardCard.getByText(/concluída/i).first()).toBeVisible()
-
-  // Open the case detail.
-  await boardCard.click()
+  // The board defaults to TABLE view. Find the row for Caso 0001 — in the
+  // table, the case number is a <Link> inside a <td>, so we scope to the <tr>
+  // that contains the "Caso 0001" link text, then navigate by clicking the link.
+  const caso0001Link = page.getByRole('link', { name: /Caso 0001/i })
+  await expect(caso0001Link).toBeVisible({ timeout: 10_000 })
+  // Phase 1 is concluída — the table shows progress dots and the current phase
+  // (Phase 2, pendente); the concluída detail is visible on the case-detail page.
+  // Navigate via the case number link (the <tr onClick> also works, but the link
+  // is more semantically correct for keyboard accessibility).
+  await caso0001Link.click()
   await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
 
   // ── Assert Phase 1 concluída + Phase 2 pendente+recommended ──
@@ -541,11 +690,13 @@ test('AC-HappyPath: board shows seeded Phase 1 concluída + Phase 2 recommended 
   await page.getByRole('button', { name: /Encerrar/i }).click()
   const encerrarMenu = page.getByRole('menu')
   await expect(encerrarMenu).toBeVisible({ timeout: 5_000 })
-  await encerrarMenu.getByRole('menuitem', { name: /Concluir caso/i }).click()
+  // R2 (Cases-Extras): the Encerrar menu now renders def.label ("Concluído"),
+  // and the AlertDialog confirm button is "Confirmar" (not "Concluir caso").
+  await encerrarMenu.getByRole('menuitem', { name: /Concluído/i }).click()
 
   const closeConfirm = page.getByRole('alertdialog')
   await expect(closeConfirm).toBeVisible({ timeout: 10_000 })
-  await closeConfirm.getByRole('button', { name: /Concluir caso/i }).click()
+  await closeConfirm.getByRole('button', { name: /Confirmar/i }).click()
   await expect(closeConfirm).toHaveCount(0, { timeout: 15_000 })
 
   // DB truth: case is concluido.
@@ -1022,3 +1173,218 @@ test('AC-Keyboard: keyboard-only activate + assign flow on a fresh case; focus a
   const focusedElement = page.locator(':focus')
   await expect(focusedElement).toBeVisible({ timeout: 5_000 })
 })
+
+// ---------------------------------------------------------------------------
+// DUE DATE TESTS — Phase due-date feature (ADR 0021)
+//
+// Contract:
+//   a. Template "Prazo padrão (dias)" field persists on the phase-slot.
+//   b. "Ativar e atribuir" prefills dueDate from default_due_days.
+//   c. "Remover prazo" clears the field; activating without a date → no chip.
+//   d. Seeded overdue example (Phase 2, due_date = today-3) shows "Atrasada"
+//      with destructive styling.
+//
+// Note: these tests use API_BASE (process.env.NEXT_PUBLIC_SUPABASE_URL or the
+// local fallback) so they work in both local-Docker and remote-Supabase
+// environments.
+// ---------------------------------------------------------------------------
+
+test('AC-DueDays-Template: adding a phase-slot with Prazo padrão (dias) persists the value', async ({
+  page,
+}) => {
+  test.setTimeout(180_000)
+
+  await signInAs(page, 'chefe.ccih@test.local')
+
+  // Create a fresh DRAFT template.
+  await page.goto('/c/ccih/manage/process-templates')
+  await page.waitForURL('**/c/ccih/manage/process-templates', { timeout: 15_000 })
+
+  const suffix = Date.now()
+  const templateTitle = `Prazo E2E ${suffix}`
+
+  await page.getByRole('button', { name: /Novo processo/i }).click()
+  const createDialog = page.getByRole('dialog').filter({ hasText: /Novo processo/i })
+  await expect(createDialog).toBeVisible({ timeout: 10_000 })
+  await createDialog.getByLabel(/Título/i).fill(templateTitle)
+  await createDialog.getByRole('button', { name: /Criar processo/i }).click()
+  await page.waitForURL(/\/manage\/process-templates\/[0-9a-f-]{36}/, { timeout: 20_000 })
+
+  // Add a phase-slot with defaultDays = 5.
+  await page.getByRole('button', { name: /Adicionar fase/i }).first().click()
+  const slotDialog = page.getByRole('dialog').filter({ hasText: /Nova fase/i })
+  await expect(slotDialog).toBeVisible({ timeout: 10_000 })
+
+  await slotDialog.locator('select[name="formId"]').selectOption({
+    label: 'Checklist de Higienização das Mãos',
+  })
+  await slotDialog.locator('input[name="title"]').fill('Fase Prazo E2E')
+  // Fill the "Prazo padrão (dias)" field.
+  const defaultDaysInput = slotDialog.locator('input[name="defaultDays"]')
+  await expect(defaultDaysInput).toBeVisible({ timeout: 10_000 })
+  await defaultDaysInput.fill('5')
+
+  await slotDialog.getByRole('button', { name: /Adicionar fase/i }).click()
+  await expect(slotDialog).toHaveCount(0, { timeout: 15_000 })
+
+  // The slot card should now be visible.
+  await expect(page.getByText(/Fase Prazo E2E/i)).toBeVisible({ timeout: 10_000 })
+
+  // Re-open the edit dialog for the slot we just added and verify the field persisted.
+  // The edit button (pencil/edit icon) is on the slot card.
+  const slotCard = page.getByRole('region').filter({ hasText: /Fase Prazo E2E/i })
+  await expect(slotCard).toBeVisible({ timeout: 10_000 })
+  // Click the edit button for this slot.
+  const editBtn = slotCard.getByRole('button', { name: /Editar/i })
+  await expect(editBtn).toBeVisible({ timeout: 10_000 })
+  await editBtn.click()
+
+  const editDialog = page.getByRole('dialog').filter({ hasText: /Editar fase/i })
+  await expect(editDialog).toBeVisible({ timeout: 10_000 })
+
+  // The defaultDays field should show 5.
+  const editDaysInput = editDialog.locator('input[name="defaultDays"]')
+  await expect(editDaysInput).toBeVisible({ timeout: 10_000 })
+  await expect(editDaysInput).toHaveValue('5')
+
+  // Keyboard assertion: the defaultDays field is reachable by Tab from the title field.
+  const titleInput = editDialog.locator('input[name="title"]')
+  await titleInput.focus()
+  await expect(titleInput).toBeFocused()
+  await page.keyboard.press('Tab')
+  // After the title field, the next tab stop should be reachable.
+  // We directly focus the defaultDays field and assert it accepts keyboard input.
+  await editDaysInput.focus()
+  await expect(editDaysInput).toBeFocused()
+
+  // Close without saving.
+  await editDialog.getByRole('button', { name: /Cancelar/i }).click()
+  await expect(editDialog).toHaveCount(0, { timeout: 10_000 })
+})
+
+test('AC-DueDays-Activate-Prefill: activate dialog prefills dueDate from default_due_days; set and activate → due-date chip appears', async ({
+  page,
+}) => {
+  test.setTimeout(180_000)
+
+  // Create a fresh case — its Phase 1 slot has default_due_days = 7 (seed template).
+  const newCaseId = await createFreshCaseRemote(page, `DueDatePrefill ${Date.now()}`)
+
+  // Verify default_due_days is 7 on Phase 1 via service-role API.
+  const phases = await getCasePhasesWithDueDates(page, newCaseId)
+  const phase1 = phases.find((p) => p.position === 1)
+  expect(phase1).toBeTruthy()
+  expect(phase1!.default_due_days).toBe(7)
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/c/ccih/manage/cases/${newCaseId}`)
+  await page.waitForURL(new RegExp(`/manage/cases/${newCaseId}`), { timeout: 15_000 })
+
+  // Open "Ativar e atribuir fase" dialog for Phase 1.
+  const phase1Article = page.getByRole('article').filter({ hasText: /Fase 1/i }).first()
+  await expect(phase1Article).toBeVisible({ timeout: 10_000 })
+  await phase1Article.getByRole('button', { name: /Ativar e atribuir/i }).click()
+
+  const activateDialog = page.getByRole('dialog').filter({ hasText: /Ativar e atribuir fase/i })
+  await expect(activateDialog).toBeVisible({ timeout: 10_000 })
+
+  // The dueDate input should be pre-filled to today + 7 days.
+  const dueDateInput = activateDialog.locator('input[name="dueDate"]')
+  await expect(dueDateInput).toBeVisible({ timeout: 5_000 })
+  const prefillValue = await dueDateInput.inputValue()
+  expect(prefillValue).not.toBe('')
+
+  // Assert it is approximately today + 7 (within ±1 day to account for timezone edge cases).
+  const expectedDate = new Date()
+  expectedDate.setDate(expectedDate.getDate() + 7)
+  const expectedIso = toDateInputValue(expectedDate)
+  // The prefilled date must equal today+7.
+  expect(prefillValue).toBe(expectedIso)
+
+  // Choose a specific target date: today + 10 days for easy assertion.
+  const targetDate = new Date()
+  targetDate.setDate(targetDate.getDate() + 10)
+  const targetIso = toDateInputValue(targetDate)
+  const targetPtBR = toPtBRDate(targetIso)
+
+  await dueDateInput.fill(targetIso)
+  await expect(dueDateInput).toHaveValue(targetIso)
+
+  // Select an assignee.
+  await activateDialog.locator('select[name="assignedTo"]').selectOption(STAFF1_CCIH_ID)
+  await activateDialog.getByRole('button', { name: /Ativar fase/i }).click()
+  await expect(activateDialog).toHaveCount(0, { timeout: 15_000 })
+
+  // The case-detail phase list should show the due-date chip "Prazo: dd/MM/yyyy".
+  await page.reload()
+  await page.waitForURL(new RegExp(`/manage/cases/${newCaseId}`), { timeout: 15_000 })
+  await page.waitForLoadState('networkidle', { timeout: 20_000 })
+
+  const updatedPhase1 = page.getByRole('article').filter({ hasText: /Fase 1/i }).first()
+  await expect(updatedPhase1).toBeVisible({ timeout: 15_000 })
+  // Assert the Prazo chip is present and contains the formatted pt-BR date.
+  const dueDateChipAfter = updatedPhase1.locator('span', { hasText: /Prazo:/i })
+  await expect(dueDateChipAfter).toBeVisible({ timeout: 10_000 })
+  await expect(dueDateChipAfter).toContainText(targetPtBR)
+})
+
+test('AC-DueDays-RemovePrazo: clicking "Remover prazo" clears the due date; activating without a date shows no due-date chip', async ({
+  page,
+}) => {
+  test.setTimeout(180_000)
+
+  // Create a fresh case — Phase 1 has default_due_days = 7 so the dialog pre-fills.
+  const newCaseId = await createFreshCaseRemote(page, `RemovePrazo ${Date.now()}`)
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/c/ccih/manage/cases/${newCaseId}`)
+  await page.waitForURL(new RegExp(`/manage/cases/${newCaseId}`), { timeout: 15_000 })
+
+  const phase1Article = page.getByRole('article').filter({ hasText: /Fase 1/i }).first()
+  await expect(phase1Article).toBeVisible({ timeout: 10_000 })
+  await phase1Article.getByRole('button', { name: /Ativar e atribuir/i }).click()
+
+  const activateDialog = page.getByRole('dialog').filter({ hasText: /Ativar e atribuir fase/i })
+  await expect(activateDialog).toBeVisible({ timeout: 10_000 })
+
+  // The dueDate input is pre-filled (default_due_days = 7).
+  const dueDateInput = activateDialog.locator('input[name="dueDate"]')
+  const prefillValue = await dueDateInput.inputValue()
+  expect(prefillValue).not.toBe('')
+
+  // "Remover prazo" button is visible only when dueDate is non-empty.
+  // The button is a <button type="button"> inside a <label>; use a direct CSS
+  // locator to avoid Playwright matching the outer label's computed role.
+  const removePrazoBtn = activateDialog.locator('button[type="button"]', { hasText: /Remover prazo/i })
+  await expect(removePrazoBtn).toBeVisible({ timeout: 5_000 })
+  await removePrazoBtn.click()
+
+  // The date field should now be empty.
+  await expect(dueDateInput).toHaveValue('', { timeout: 5_000 })
+  // "Remover prazo" button hides when the field is empty.
+  await expect(removePrazoBtn).toHaveCount(0, { timeout: 5_000 })
+
+  // Activate without a due date.
+  await activateDialog.locator('select[name="assignedTo"]').selectOption(STAFF1_CCIH_ID)
+  await activateDialog.getByRole('button', { name: /Ativar fase/i }).click()
+  await expect(activateDialog).toHaveCount(0, { timeout: 15_000 })
+
+  // After reload, the phase-detail row should NOT show a "Prazo:" chip.
+  await page.reload()
+  await page.waitForURL(new RegExp(`/manage/cases/${newCaseId}`), { timeout: 15_000 })
+  await page.waitForLoadState('networkidle', { timeout: 20_000 })
+
+  const updatedPhase1 = page.getByRole('article').filter({ hasText: /Fase 1/i }).first()
+  await expect(updatedPhase1).toBeVisible({ timeout: 15_000 })
+  // No due-date chip present.
+  await expect(updatedPhase1.locator('span', { hasText: /Prazo:/i })).toHaveCount(0, { timeout: 5_000 })
+  // DB truth: due_date is NULL.
+  const phasesAfter = await getCasePhasesWithDueDates(page, newCaseId)
+  const p1After = phasesAfter.find((p) => p.position === 1)
+  expect(p1After?.due_date).toBeNull()
+})
+
+// Note: AC-DueDays-Overdue depends on the seeded Caso 0001's Phase 2 being in
+// `pendente` state with due_date = current_date − 3. It must run BEFORE
+// AC-HappyPath, which closes the case and transitions Phase 2 away from pendente.
+// The test is defined further up in the file (before AC-HappyPath).

@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowDown, ArrowUp, FileText, GitBranch, Pencil, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  CalendarClock,
+  FileText,
+  GitBranch,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 
 import type { ProcessTemplatePhase } from "@/lib/queries/process-templates";
 import {
@@ -88,10 +96,19 @@ export function PhaseSlotCard({
             )}
           </div>
           <h2 className="text-lg font-semibold">{heading}</h2>
-          <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-            <FileText aria-hidden="true" className="size-3.5 shrink-0" />
-            <span className="truncate">{formLabel}</span>
-          </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+            <span className="inline-flex min-w-0 items-center gap-1.5">
+              <FileText aria-hidden="true" className="size-3.5 shrink-0" />
+              <span className="truncate">{formLabel}</span>
+            </span>
+            {phase.defaultDueDays != null && (
+              <span className="inline-flex items-center gap-1.5">
+                <CalendarClock aria-hidden="true" className="size-3.5 shrink-0" />
+                Prazo padrão: {phase.defaultDueDays}{" "}
+                {phase.defaultDueDays === 1 ? "dia" : "dias"}
+              </span>
+            )}
+          </div>
         </div>
 
         {editable && (
