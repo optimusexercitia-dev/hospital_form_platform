@@ -804,7 +804,7 @@ test("AC-AssigneeScoping: minhas-fases shows only the signed-in user's ativa pha
   await expect(page.getByRole('button', { name: /Preencher/i }).first()).toBeVisible({ timeout: 10_000 })
   await signOut(page)
 
-  // ── staff2.ccih does NOT get to start that phase (P0022) ──
+  // ── staff2.ccih does NOT get to start that phase (HC022) ──
   const staff2Token = await getOwnerToken(page, 'staff2.ccih@test.local')
   const startWrongResp = await page.request.post(
     `${SUPABASE_URL}/rest/v1/rpc/start_or_resume_phase`,
