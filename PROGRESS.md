@@ -16,7 +16,7 @@
 | 5     | Wizard Filling, Conditional Sections & Resume | ✅ complete | ✅ | ✅ 63/63 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `8418991` |
 | 6     | Section Sign-offs & Submission Lifecycle | ✅ complete | ✅ | ✅ 70/70 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `94566f2` |
 | 7     | Multi-Phase Cases             | ✅ complete | ✅ | ✅ 81/81 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `28e0405` |
-| 8     | Dashboards & Submissions Browser | 🔜 not started | – | – | – | – | – | – |
+| 8     | Dashboards & Submissions Browser | 🏗️ in progress | – | – | – | – | – | – |
 | 9     | Deployment                    | 🔜 not started | – | – | – | – | – | – |
 
 Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 QA review · ⏸️ awaiting human approval · ✅ complete · ❌ blocked
@@ -25,14 +25,40 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 
 <!-- Lead recreates this table at the start of each phase -->
 
-**Phase 7 — Multi-Phase Cases** — ✅ complete 2026-06-13. Task detail + lead notes
-archived to [docs/progress/phase-7.md](docs/progress/phase-7.md). Design: ADR
-[0017](docs/decisions/0017-multi-phase-cases.md) (+ [0018](docs/decisions/0018-custom-sqlstate-class.md));
-review: [docs/reviews/phase-7-review.md](docs/reviews/phase-7-review.md).
+**Phase 8 — Dashboards & Submissions Browser** — 🏗️ in progress (started 2026-06-13).
+Prior phase: Phase 7 ✅ complete 2026-06-13, archived to
+[docs/progress/phase-7.md](docs/progress/phase-7.md).
 
-> **No phase is currently in progress.** Phase 7 completed 2026-06-13; Phase 8 —
-> Dashboards & Submissions Browser — is not yet started. The lead recreates the task
-> table here when Phase 8 begins.
+### Backend (`backend`)
+
+| ID | Task | Deps | Plan | Status |
+| -- | ---- | ---- | ---- | ------ |
+| B1 | **Contract-first.** Post typed query/action *signatures* (typed stubs, `throw new Error('not impl')`) FE depends on: new `src/lib/queries/dashboard.ts` + `src/lib/queries/submissions.ts` (or extend `responses.ts`). Define return-shape types: per-`question_key` distribution `{ questionKey, label, sectionTitle, type, options: {value,count}[], denominator, n }`, submissions-over-time `{ day, count }[]`, completion-by-member `{ memberId, name, count }[]`; submissions list row + filters `{ memberId?, formId?, from?, to?, includeInProgress }`; version-faithful detail shape (reuse the read-only tree types). | – | one-line | ✅ done 2026-06-13 — stubs committed (`dashboard.ts` + `submissions.ts`, typecheck+lint green); types posted to lead |
+| B2 | Migration: dashboard aggregation **definer** RPCs (mirror ADR 0016 — `is_staff_admin_of`-gated). **submitted-only** via the canonical helper; checkbox values unnested via `jsonb_array_elements_text` (each option counts individually); **per-distribution denominator** = count of distinct submitted responses with ≥1 answer in that question's section. Submissions-over-time + completion-by-member keyed by `question_key` so charts span versions. | B1 | **full** | 🔜 |
+| B3 | Submissions browser queries: list commission's SUBMITTED responses (filter member/form/date) + opt-in in_progress **metadata-only** (no answers); **version-faithful detail** via sections → `form_items` LEFT JOIN `answers` (structure complete where answers absent). Resolve the **staff_admin read-of-others'-submitted** path (RLS today hides in_progress; confirm/extend submitted read; in_progress stays metadata-only — Phase-7 invariant). | B1 | **full** | 🔜 |
+| B4 | CSV export of raw submitted responses (one column per `question_key` + a per-signed-section sign-off-status column). Server route or RPC; pt-BR header row. | B2,B3 | one-line | 🔜 |
+| B5 | Admin cross-commission overview query (counts/volume per commission). | B2 | one-line | 🔜 |
+| B6 | Hardening bundle: revoke anon DML/EXECUTE grants (P1 QA INFO-1); add `archive_process_template` status guard → **HC023** (P7 QA MINOR-2); support tester's HC017 pgTAP (P7 QA MINOR-1). | – | **full** (grant revocation) | 🔜 |
+
+### Frontend (`frontend`)
+
+| ID | Task | Deps | Plan | Status |
+| -- | ---- | ---- | ---- | ------ |
+| F1 | **Invoke `frontend-design` skill first.** `/c/[slug]/dashboard` route group + shell + staff_admin gating (reuse existing commission-area gating + `not-found.tsx`). Loading/error states. | – | **full** (new route group + first charts UI) | 🔜 |
+| F2 | Charts (Recharts ^3.8.1): bar/pie for choice questions, trend line for volume; grouped by section; **each distribution renders its own denominator** ("n de N respostas em que a pergunta era aplicável"). | B1,F1 | with F1 plan | 🔜 |
+| F3 | Date-range filter + CSV export button/download (wires B4). | B1,F1 | one-line | 🔜 |
+| F4 | Submissions browser `/c/[slug]/dashboard/submissions`: list + member/form/date filters + explicit opt-in "em andamento" filter (in_progress listed **metadata-only**). | B1,F1 | one-line | 🔜 |
+| F5 | Read-only **version-faithful** submission detail view — reuse the wizard read-only renderer (`read-only-tree`/`answer-summary`); hidden conditional sections marked "não aplicável", unanswered optionals blank, sign-off metadata shown. Foreign/other-commission `response_id` → friendly 404, no leak. | B1,F1 | one-line | 🔜 |
+| F6 | Admin cross-commission overview UI (`/admin` variant). | B5 | one-line | 🔜 |
+
+### Lead notes — Phase 8
+
+- **Contract-first (CLAUDE.md §4):** backend posts B1 signatures BEFORE B2/B3 implementations so frontend builds against real types in parallel. F1 (design + shell) starts immediately alongside B1.
+- **Seeded dataset for acceptance (tester will assert exact values):** Form A = **6 submitted** (`i=1..6`: `dispensador_disponivel` → Sim×2/Não×2/Parcialmente×2; `epis_observados` checkbox unnested → Luvas×6, Máscara×3, Touca×3, Avental×3) **+ 1 case-phase submitted** sharing Form A's version (staff1.ccih, Sim/Manhã). Form B = **4 submitted** (2 conditional-branch `possui_termolabeis='Sim'` answering the temperature section, 2 `='Não'` → hidden) + **2 in_progress** (`e1` submit-ready). The conditional `temperatura_*` distribution has the **smaller denominator (2, not 4)** — the explicit acceptance case.
+- **DECISION FLAG (backend → lead):** the Phase-7 case-phase-1 submitted response is a real submitted response on Form A's *version* (`50000000-…-a001`). Decide whether dashboards/submissions count it (default: **yes** — it is a genuine submitted form-fill; surface in B1/B2 and document). Tester's expected counts depend on this.
+- **RLS crux (B3):** confirm whether `responses_select`/`answers_select` already let a staff_admin read *another member's SUBMITTED* response+answers. If not, extend (submitted-only) — the in_progress invariant (no cross-member in_progress answers) MUST stay intact.
+- **Carry-forwards folded into this phase** (per "clear MINORs before record"): P1 INFO-1 anon-grant revoke (B6), P7 MINOR-1 HC017 pgTAP (B6+tester), P7 MINOR-2 archive status guard (B6), P7 INFO-1 stale spec comment (tester). The prod-asymmetric-JWT item is **Phase 9 (deploy)**, not here.
+- Tester spawns only after FE+BE mark all tasks done and the dev server runs; QA after tester green.
 
 > **Completed-phase detail is archived** under [`docs/progress/`](docs/progress/) to
 > keep this file small (every teammate spawn reads it). The cross-phase logs below —
