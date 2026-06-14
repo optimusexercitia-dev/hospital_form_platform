@@ -5,7 +5,7 @@
 > phase. The **lead keeps this current** at the §6 Record step (CLAUDE.md §7): when a
 > phase adds an RPC, flips a flag, or changes an RLS surface, update the relevant table
 > here. This is a map, not the authority — `ARCHITECTURE.md` is the spec and the
-> migrations are the truth. Last updated: **2026-06-13 (Phase 7 backend B1–B7 landed; `cases_multi_phase` ON; pre-commit).**
+> migrations are the truth. Last updated: **2026-06-14 (Phase 8 complete — dashboard/submissions aggregation; B6 anon/PUBLIC EXECUTE revoke).**
 
 ## Migrations (forward-only, additive)
 
@@ -23,6 +23,12 @@
 | `…090004–090007` | 7 | Multi-phase cases (ADR 0017): 4 tables (`process_templates`, `process_template_phases`, `cases`, `case_phases`) + `responses.case_phase_id` bridge + reworked unique indexes; per-commission case-number minting + case/phase state-machine guards (`app.in_case_rpc`); template/case RPCs; submit trigger + recompute; **submitted-only** `case_phase_answer_map`; definer board reads; RLS (members read / staff_admin write). Evaluator REUSED unchanged. |
 | `…090008` | 7 | Flag flip: `cases_multi_phase` → **ON** (mirror `…090001`). The feature is live; the Phase-7 ship state. |
 | `…090009` | 7 | P7-002 fix: custom SQLSTATE class `P00xx` → **`HC0xx`** (ADR 0018). `CREATE OR REPLACE`s `submit_response`/`save_section_answers`/`sign_section` (committed Phase 5/6) with `HC010`–`HC015`; the unshipped `090005`/`090006` carry `HC016`–`HC022` in place. Restores `error.code` discrimination on PostgREST 14 (unknown class → 400/JSON). |
+| `…090010` | maint | Default (anchor) section may carry a title + builder rename (ADR 0019). |
+| `…090011` | 8 | Dashboard aggregation: 5 definer RPCs (`dashboard_distributions`/`_free_text`/`_submissions_over_time`/`_completion_by_member`/`_form_totals`) + `commission_overview`; helpers `app.submitted_form_responses` (canonical submitted+standalone filter) + `app.latest_published_version`. `is_staff_admin_of OR is_admin`-gated, `search_path` pinned (ADR 0020). |
+| `…090012` | 8 | B6: revoke anon **and PUBLIC** DML/EXECUTE on `public` (+ default-priv revokes). auth/storage/realtime untouched. |
+| `…090013` | 8 | `dashboard_export_rows` definer RPC (CSV export, standalone submitted-only). |
+| `…090014` | 8 | B6 follow-up: revoke the re-inherited PUBLIC EXECUTE on `dashboard_export_rows` + durable `alter default privileges … revoke execute on functions from public`. |
+| `…090015` | 8 | QA MINOR-1/2: date params (`p_from`/`p_to`) added to `dashboard_export_rows` + `dashboard_form_totals`. |
 
 ## RPC inventory
 
@@ -57,6 +63,11 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `list_cases_board(commission)` | **DEFINER** | `is_staff_admin_of`-gated; one row/case + phases **status only** (no answers). |
 | `get_case_detail(case)` | **DEFINER** | `is_staff_admin_of`-gated; case header + phases; `response_id`/`submitted_at` only for SUBMITTED phases (Phase-7 invariant). |
 | *phase submission* | trigger | **Reuses `submit_response` unchanged.** `sync_case_phase_on_submit` (AFTER UPDATE on `responses`) flips the phase `ativa→concluida` (sets its OWN `app.in_case_rpc`), recomputes. No-op when the case is not `aberto`. |
+| **Phase 8 — dashboards (DEFINER; `is_staff_admin_of OR is_admin`-gated; `commission_overview` is `is_admin`):** | | |
+| `dashboard_distributions(form, from?, to?)` | **DEFINER** | Per-(question_key, option) counts; checkbox unnested; per-section denominator; standalone submitted-only; date-bounded. |
+| `dashboard_free_text` / `dashboard_submissions_over_time` / `dashboard_completion_by_member` / `dashboard_form_totals(commission, from?, to?)` | **DEFINER** | Free-text samples / volume trend / completion-by-member / per-form totals. Standalone submitted-only, date-bounded. |
+| `dashboard_export_rows(form, from?, to?)` | **DEFINER** | CSV rows: one col per `question_key` (checkbox `;`-joined) + per-signed-section sign-off status. |
+| `commission_overview()` | **DEFINER** | `is_admin`-gated cross-commission counts/volume (case-phase-excluded). |
 
 ## Helper functions
 
@@ -81,6 +92,10 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
   answer surface; the Phase-7 invariant — tested, do not relax). `app.published_version_of_form`,
   `app.version_has_input_key`, `app.validate_template_recommend_when`,
   `app.is_member_of_for(commission, user)` (arbitrary-user membership, for assignee checks).
+- **Phase 8 (dashboards):** `app.submitted_form_responses(form)` — the canonical "dashboard-countable"
+  response-id set (`status='submitted' AND case_phase_id IS NULL AND form_id=…`); TS twin
+  `isDashboardCountable` in `dashboard.ts` (ADR 0020). `app.latest_published_version(form)` — labels/
+  sections for cross-version aggregation.
 
 ## Feature flags (`app.feature_flags`)
 
@@ -104,6 +119,13 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
   auth.uid()`, in_progress only). `signoffs_select` lets creator/admin/staff_admin read.
 - **Storage** (`form-assets`) — members read, staff_admin upload; no UPDATE/DELETE
   (immutable paths). Service role never used on the display/upload path.
+- **Submitted cross-member read (Phase 8)** — `responses_select`/`answers_select` ALREADY grant a
+  staff_admin read of ANOTHER member's `status='submitted'` response+answers (the dashboard/
+  submissions browser path); `in_progress` stays creator-only. **No Phase-8 RLS change** — the
+  Phase-7 in_progress-answers invariant is preserved at every dashboard/list/detail/export path.
+- **Anon grants (Phase 8 B6)** — `anon` now has **zero** DML/EXECUTE on `public` (revoked from anon
+  AND the implicit PUBLIC role; durable default-privilege revoke). `authenticated`/`service_role`
+  retain explicit grants. pgTAP guards "zero anon-executable public functions".
 
 ## SQLSTATE → meaning (data-layer maps these to pt-BR; no raw PG errors reach the UI)
 
@@ -143,6 +165,10 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
   — `ActionState` shape, server-side authz re-check before write, pt-BR mapping.
 - Domain types: `RecommendWhen = { from_phase } & VisibleWhen` is the only Phase-7 addition
   to `conditions.ts` (additive; evaluator/mirror/vectors UNCHANGED).
+- **Phase 8:** `src/lib/queries/dashboard.ts` (`getFormDashboard`/`listDashboardForms`/`getCommissionOverview`/
+  `getFormExport`/`isDashboardCountable`) + `src/lib/queries/submissions.ts` (`listSubmissions`/
+  `getSubmissionDetail`/filter lists). CSV route handler `src/app/c/[slug]/dashboard/export/route.ts`
+  (staff_admin/admin-gated, cookie client — no service role).
 - Service-role client: `src/lib/supabase/admin.ts` (`import 'server-only'`), invite path only.
 
 ## ADR index (decisions that shape the backend)
@@ -151,4 +177,5 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 0009 JWT local verification (prod needs asymmetric keys) · 0010 email denorm ·
 0011 reorder · 0012 clone-returns-existing-draft · 0013 form_versions insert RLS ·
 0015 response-fill RPCs · 0016 sign-off definer read path · 0017 multi-phase cases ·
-0018 custom SQLSTATE class `HC0xx`.
+0018 custom SQLSTATE class `HC0xx` · 0019 default section may carry title ·
+0020 dashboard-countable responses.
