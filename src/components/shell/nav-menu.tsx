@@ -39,7 +39,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Casos", href: "manage/cases", roles: ["staff_admin"] },
   { label: "Assinaturas", href: "manage/assinaturas", roles: ["staff_admin"] },
   { label: "Gerenciar", href: "manage/members", roles: ["staff_admin"] },
-  { label: "Painel", href: null, roles: ["staff_admin"] },
+  { label: "Painel", href: "dashboard", roles: ["staff_admin"] },
 ];
 
 export function NavMenu({

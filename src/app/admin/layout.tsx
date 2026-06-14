@@ -48,6 +48,23 @@ export default async function AdminLayout({
           >
             Admin global
           </span>
+          <nav
+            aria-label="Navegação da administração"
+            className="ml-4 hidden items-center gap-1 sm:flex"
+          >
+            <Link
+              href="/admin"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+            >
+              Comissões
+            </Link>
+            <Link
+              href="/admin/painel"
+              className="rounded-lg px-3 py-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+            >
+              Painel
+            </Link>
+          </nav>
           <div className="ml-auto">
             <UserMenu fullName={context.fullName} email={context.email} />
           </div>
