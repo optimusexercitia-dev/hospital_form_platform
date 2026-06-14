@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { answerableItems, getVersionTree } from '@/lib/queries/forms'
 import type { InputItemType, ItemType } from '@/lib/queries/forms'
 import type { ResponseStatus } from '@/lib/queries/responses'
 
@@ -128,6 +129,21 @@ export interface FormDashboard {
 export interface DashboardRange {
   from?: string
   to?: string
+}
+
+/**
+ * The CSV export payload (B4): a stable header row + one string-cell row per
+ * standalone submitted response. The column order is: fixed metadata columns,
+ * then one column per input `question_key` (in the latest published version's
+ * section/item order), then one column per signed section. The route handler
+ * serializes this to CSV (pt-BR headers, UTF-8 BOM). Cells are pre-rendered to
+ * display text (checkbox arrays joined with "; "). `null` when the form has no
+ * published version or the caller is not entitled.
+ */
+export interface FormExport {
+  formTitle: string
+  headers: string[]
+  rows: string[][]
 }
 
 /** One row in the admin cross-commission overview (B5): volume per commission. */
@@ -333,4 +349,79 @@ export async function getCommissionOverview(): Promise<CommissionOverviewRow[]> 
     submittedCount: Number(r.submitted_count),
     submittedLast30Days: Number(r.submitted_last_30_days),
   }))
+}
+
+interface ExportRpcRow {
+  response_id: string
+  member_name: string | null
+  submitted_at: string | null
+  version_number: number
+  answers: Record<string, string> | null
+  signoffs: Record<string, string> | null
+}
+
+/**
+ * The CSV export data for one form (B4): a stable header set derived from the
+ * form's latest published version (input question_keys in section/item order +
+ * signed-section status columns) and one pre-rendered string row per standalone
+ * submitted response (via the `dashboard_export_rows` definer RPC, ADR 0020
+ * standalone-only). `null` when the caller is not entitled (the RPC returns
+ * empty) or the form has no published version. The route handler serializes this
+ * to CSV; it never builds SQL inline (Architecture Rule 9).
+ */
+export async function getFormExport(formId: string): Promise<FormExport | null> {
+  const supabase = await createClient()
+
+  // Resolve the latest published version to fix the column set (current wording).
+  const { data: ver } = await supabase
+    .from('form_versions')
+    .select('id, forms(title)')
+    .eq('form_id', formId)
+    .eq('status', 'published')
+    .order('version_number', { ascending: false })
+    .limit(1)
+    .maybeSingle<{ id: string; forms: { title: string } }>()
+
+  if (!ver) return null
+
+  const tree = await getVersionTree(ver.id)
+  if (!tree) return null
+
+  // Input question columns in section → item order (the canonical answerable
+  // filter), plus the signed-section status columns.
+  const inputItems = answerableItems(tree)
+  const questionCols = inputItems
+    .filter((it) => it.questionKey != null)
+    .map((it) => ({ key: it.questionKey as string, label: it.label ?? (it.questionKey as string) }))
+
+  const signedSections = tree.sections
+    .filter((s) => s.requiresSignoff)
+    .map((s) => s.title ?? `Seção ${s.position}`)
+
+  const { data, error } = await supabase.rpc('dashboard_export_rows', { p_form_id: formId })
+  if (error) return null
+
+  const headers = [
+    'ID da resposta',
+    'Respondente',
+    'Enviada em',
+    'Versão',
+    ...questionCols.map((c) => c.label),
+    ...signedSections.map((title) => `Assinatura: ${title}`),
+  ]
+
+  const rows = ((data ?? []) as ExportRpcRow[]).map((r) => {
+    const answers = r.answers ?? {}
+    const signoffs = r.signoffs ?? {}
+    return [
+      r.response_id,
+      r.member_name ?? '',
+      r.submitted_at ?? '',
+      String(r.version_number),
+      ...questionCols.map((c) => answers[c.key] ?? ''),
+      ...signedSections.map((title) => signoffs[title] ?? 'N/A'),
+    ]
+  })
+
+  return { formTitle: ver.forms.title, headers, rows }
 }

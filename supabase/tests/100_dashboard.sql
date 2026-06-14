@@ -11,7 +11,7 @@
 -- superuser to read freely.
 
 begin;
-select plan(14);
+select plan(16);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -239,10 +239,31 @@ select is(
 reset role;
 
 -- =========================================================================
+-- B4: CSV export rows (dashboard_export_rows).
+-- =========================================================================
+-- 13) export returns the 4 standalone submitted rows (case-phase excluded),
+-- with the answers map rendering checkbox arrays joined.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.dashboard_export_rows((select form_d from ids))),
+  4,
+  'dashboard_export_rows returns the 4 standalone submitted rows (case-phase excluded)'
+);
+-- 14) the answers map joins checkbox values with "; " (r1 selected A,B).
+select is(
+  (select answers->>'d_cb' from public.dashboard_export_rows((select form_d from ids))
+   where response_id = (select r1 from rs)),
+  'A; B',
+  'export answers map joins checkbox-selected options with "; "'
+);
+reset role;
+
+-- =========================================================================
 -- B6 hardening assertions.
 -- =========================================================================
 
--- 13) anon has NO table/function access in public (revoked from anon + PUBLIC).
+-- 15) anon has NO table/function access in public (revoked from anon + PUBLIC).
 select ok(
   not has_table_privilege('anon', 'public.responses', 'SELECT')
   and not has_function_privilege('anon', 'public.submit_response(uuid)', 'EXECUTE')
@@ -250,7 +271,7 @@ select ok(
   'anon cannot SELECT public tables nor EXECUTE public functions (B6 revoke, incl. PUBLIC)'
 );
 
--- 14) archive_process_template raises HC023 on an already-archived template.
+-- 16) archive_process_template raises HC023 on an already-archived template.
 update app.feature_flags set enabled = true where key = 'cases_multi_phase';
 create temp table tpl on commit drop as select gen_random_uuid() as tid;
 grant select on tpl to authenticated;

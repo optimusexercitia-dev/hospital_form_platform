@@ -976,6 +976,17 @@ export type Database = {
           section_title: string
         }[]
       }
+      dashboard_export_rows: {
+        Args: { p_form_id: string }
+        Returns: {
+          answers: Json
+          member_name: string
+          response_id: string
+          signoffs: Json
+          submitted_at: string
+          version_number: number
+        }[]
+      }
       dashboard_form_totals: {
         Args: { p_commission_id: string }
         Returns: {
