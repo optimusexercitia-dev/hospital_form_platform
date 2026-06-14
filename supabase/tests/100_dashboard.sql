@@ -11,7 +11,7 @@
 -- superuser to read freely.
 
 begin;
-select plan(18);
+select plan(20);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -257,13 +257,35 @@ select is(
   'A; B',
   'export answers map joins checkbox-selected options with "; "'
 );
+
+-- 15) date-bounding (QA MINOR-1): rows are seeded at now()-1..4 days. A window
+-- from now()-2 days captures only the two most recent (r1, r2).
+select is(
+  (select count(*)::int from public.dashboard_export_rows(
+     (select form_d from ids), (now() - interval '2 days')::date, null)),
+  2,
+  'dashboard_export_rows honors the from date (only the 2 most recent rows)'
+);
+reset role;
+
+-- 16) date-bounding (QA MINOR-2): dashboard_form_totals respects the window —
+-- the same from now()-2 days yields total_submitted 2 for the dashboard form.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (select total_submitted from public.dashboard_form_totals(
+     (select comm_x from k), (now() - interval '2 days')::date, null)
+   where form_id = (select form_d from ids)),
+  2::bigint,
+  'dashboard_form_totals honors the from date (per-form total respects the window)'
+);
 reset role;
 
 -- =========================================================================
 -- B6 hardening assertions.
 -- =========================================================================
 
--- 15) anon has NO table/function access in public (revoked from anon + PUBLIC).
+-- 17) anon has NO table/function access in public (revoked from anon + PUBLIC).
 select ok(
   not has_table_privilege('anon', 'public.responses', 'SELECT')
   and not has_function_privilege('anon', 'public.submit_response(uuid)', 'EXECUTE')
@@ -271,16 +293,17 @@ select ok(
   'anon cannot SELECT public tables nor EXECUTE public functions (B6 revoke, incl. PUBLIC)'
 );
 
--- 16) dashboard_export_rows specifically: anon CANNOT execute it (it was created
--- after the first revoke and re-inherited the PUBLIC grant — closed by 090014),
--- while authenticated (the CSV route's role) still can.
+-- 18) dashboard_export_rows specifically: anon CANNOT execute it (created after
+-- the first revoke and re-inherited the PUBLIC grant — closed by 090014, and the
+-- date-param signature from 090015 re-revoked explicitly), while authenticated
+-- (the CSV route's role) still can.
 select ok(
-  not has_function_privilege('anon', 'public.dashboard_export_rows(uuid)', 'EXECUTE')
-  and has_function_privilege('authenticated', 'public.dashboard_export_rows(uuid)', 'EXECUTE'),
+  not has_function_privilege('anon', 'public.dashboard_export_rows(uuid,date,date)', 'EXECUTE')
+  and has_function_privilege('authenticated', 'public.dashboard_export_rows(uuid,date,date)', 'EXECUTE'),
   'dashboard_export_rows is NOT anon-executable but remains authenticated-executable'
 );
 
--- 17) Generic guard: NO public function (prokind='f') is anon-executable. Any
+-- 19) Generic guard: NO public function (prokind='f') is anon-executable. Any
 -- future function that re-leaks anon EXECUTE (via PUBLIC inheritance or a stray
 -- grant) trips this assertion.
 select is(
@@ -293,7 +316,7 @@ select is(
   'no public function is anon-executable (catches any future PUBLIC re-leak)'
 );
 
--- 18) archive_process_template raises HC023 on an already-archived template.
+-- 20) archive_process_template raises HC023 on an already-archived template.
 update app.feature_flags set enabled = true where key = 'cases_multi_phase';
 create temp table tpl on commit drop as select gen_random_uuid() as tid;
 grant select on tpl to authenticated;

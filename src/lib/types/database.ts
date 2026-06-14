@@ -977,7 +977,7 @@ export type Database = {
         }[]
       }
       dashboard_export_rows: {
-        Args: { p_form_id: string }
+        Args: { p_form_id: string; p_from?: string; p_to?: string }
         Returns: {
           answers: Json
           member_name: string
@@ -988,7 +988,7 @@ export type Database = {
         }[]
       }
       dashboard_form_totals: {
-        Args: { p_commission_id: string }
+        Args: { p_commission_id: string; p_from?: string; p_to?: string }
         Returns: {
           form_id: string
           last_submitted_at: string

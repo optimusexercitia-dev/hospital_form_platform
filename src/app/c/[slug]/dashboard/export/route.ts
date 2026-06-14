@@ -38,7 +38,12 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params
-  const formId = request.nextUrl.searchParams.get('form')
+  const { searchParams } = request.nextUrl
+  const formId = searchParams.get('form')
+  // The active dashboard date window (ISO YYYY-MM-DD), so the CSV matches the
+  // date-filtered dashboard body (QA MINOR-1). Absent → all-time.
+  const from = searchParams.get('from') ?? undefined
+  const to = searchParams.get('to') ?? undefined
 
   if (!formId) {
     return new Response('Parâmetro "form" ausente.', { status: 400 })
@@ -55,7 +60,7 @@ export async function GET(
     return new Response('Não encontrado.', { status: 404 })
   }
 
-  const exportData = await getFormExport(formId)
+  const exportData = await getFormExport(formId, { from, to })
   if (!exportData) {
     // Form not found / not published / not entitled → 404, no detail leak.
     return new Response('Não encontrado.', { status: 404 })

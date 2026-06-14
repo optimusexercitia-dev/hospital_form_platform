@@ -186,13 +186,20 @@ export function isDashboardCountable(r: {
  * The list of forms in a commission that have any standalone submitted
  * responses, for the dashboard's form picker. Newest-activity first. Returns
  * `[]` for a non-staff_admin (the backing RPC is gated).
+ *
+ * `range` is OPTIONAL: when passed (the active dashboard date window), each
+ * form's `totalSubmitted` is bound to `submitted_at` in that window so the tab
+ * badges match the date-filtered body (QA MINOR-2). Omit for all-time totals.
  */
 export async function listDashboardForms(
   commissionId: string,
+  range?: DashboardRange,
 ): Promise<{ formId: string; title: string; totalSubmitted: number }[]> {
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('dashboard_form_totals', {
     p_commission_id: commissionId,
+    p_from: range?.from,
+    p_to: range?.to,
   })
   if (error || !data) return []
   return data.map((r) => ({
@@ -244,8 +251,10 @@ export async function getFormDashboard(
     count: Number(m.count),
   }))
 
-  // Headline total = sum over distinct submitted responses; the over-time series
-  // sums to it (standalone submitted only).
+  // Headline total = the sum of the over-time series. Both come from the SAME
+  // RPC (dashboard_submissions_over_time), which is built on the canonical
+  // app.submitted_form_responses helper — so the headline and the trend chart
+  // are derived from one source and cannot silently disagree (QA INFO-1).
   const totalSubmitted = submissionsOverTime.reduce((acc, p) => acc + p.count, 0)
 
   return {
@@ -368,8 +377,15 @@ interface ExportRpcRow {
  * standalone-only). `null` when the caller is not entitled (the RPC returns
  * empty) or the form has no published version. The route handler serializes this
  * to CSV; it never builds SQL inline (Architecture Rule 9).
+ *
+ * `range` is OPTIONAL: when passed (the active dashboard date window), the
+ * exported rows are bound to `submitted_at` in that window so the CSV matches
+ * the date-filtered dashboard (QA MINOR-1). Omit for an all-time export.
  */
-export async function getFormExport(formId: string): Promise<FormExport | null> {
+export async function getFormExport(
+  formId: string,
+  range?: DashboardRange,
+): Promise<FormExport | null> {
   const supabase = await createClient()
 
   // Resolve the latest published version to fix the column set (current wording).
@@ -398,7 +414,11 @@ export async function getFormExport(formId: string): Promise<FormExport | null> 
     .filter((s) => s.requiresSignoff)
     .map((s) => s.title ?? `Seção ${s.position}`)
 
-  const { data, error } = await supabase.rpc('dashboard_export_rows', { p_form_id: formId })
+  const { data, error } = await supabase.rpc('dashboard_export_rows', {
+    p_form_id: formId,
+    p_from: range?.from,
+    p_to: range?.to,
+  })
   if (error) return null
 
   const headers = [
