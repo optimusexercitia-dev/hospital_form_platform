@@ -44,16 +44,18 @@ export default async function DashboardPage({
     notFound();
   }
 
-  const forms = await listDashboardForms(access.commission.id);
+  const range =
+    from || to ? { from: from || undefined, to: to || undefined } : undefined;
+
+  // Pass the active date window so the form-picker tab badges reflect the same
+  // ?from/?to filter as the body headline (no all-time/filtered mismatch).
+  const forms = await listDashboardForms(access.commission.id, range);
 
   // Resolve the selected form: the requested one if it has data, else the first.
   const selectedFormId =
     formParam && forms.some((f) => f.formId === formParam)
       ? formParam
       : (forms[0]?.formId ?? null);
-
-  const range =
-    from || to ? { from: from || undefined, to: to || undefined } : undefined;
 
   const dashboard = selectedFormId
     ? await getFormDashboard(selectedFormId, range)
