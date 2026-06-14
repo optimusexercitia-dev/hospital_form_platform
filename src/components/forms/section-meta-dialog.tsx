@@ -26,11 +26,14 @@ import { SectionConditionFields } from "@/components/forms/section-condition-fie
 import { SectionSignoffFields } from "@/components/forms/section-signoff-fields";
 
 /**
- * Rename / describe a non-default section (`updateSection`). Because
- * `updateSection` rebuilds the section's condition and sign-off from the
- * submitted fields (an absent field CLEARS it), this dialog re-emits the
- * section's CURRENT condition + sign-off as hidden fields so a plain rename
- * preserves them. Editing the condition/sign-off themselves lives in the
+ * Rename / describe a section (`updateSection`). Works for the default section
+ * too (lead refinement #2): a default section may now carry a title, so its
+ * title field is OPTIONAL (clearing it stores null); for non-default sections
+ * the title stays required. Because `updateSection` rebuilds the section's
+ * condition and sign-off from the submitted fields (an absent field CLEARS it),
+ * this dialog re-emits the section's CURRENT condition + sign-off as hidden
+ * fields so a plain rename preserves them (for the default section these are
+ * always null/false). Editing the condition/sign-off themselves lives in the
  * settings dialog.
  */
 export function SectionMetaDialog({
@@ -86,7 +89,7 @@ export function SectionMetaDialog({
               {...titleField.controlProps}
               type="text"
               defaultValue={section.title ?? ""}
-              required
+              required={!section.isDefault}
               autoFocus
             />
             <FieldError id={titleField.errorId}>

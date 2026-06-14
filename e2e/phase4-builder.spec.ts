@@ -194,12 +194,18 @@ test('publish is blocked when a reorder creates a forward-reference condition (A
   await page.getByRole('button', { name: 'Adicionar seção' }).click()
 
   // Name them so we can target each card unambiguously.
-  await page.getByRole('button', { name: 'Renomear seção' }).nth(0).click()
+  // The default section ("Seção inicial") now also has a "Renomear seção" button,
+  // so we scope each click to the "Seção sem título" region (the first untitled
+  // non-default section). After naming the first one "Falhas", the remaining
+  // untitled section is still "Seção sem título" — rename it to "Detalhes".
+  const unnamedSection = page.getByRole('region', { name: 'Seção sem título' })
+  await unnamedSection.first().getByRole('button', { name: 'Renomear seção' }).click()
   let rd = page.getByRole('dialog')
   await rd.getByLabel('Título da seção').fill('Falhas')
   await rd.getByRole('button', { name: 'Salvar' }).click()
   await expect(rd).toBeHidden()
-  await page.getByRole('button', { name: 'Renomear seção' }).nth(1).click()
+  // The other untitled section is still "Seção sem título" — rename it to "Detalhes".
+  await unnamedSection.first().getByRole('button', { name: 'Renomear seção' }).click()
   rd = page.getByRole('dialog')
   await rd.getByLabel('Título da seção').fill('Detalhes')
   await rd.getByRole('button', { name: 'Salvar' }).click()
@@ -292,9 +298,10 @@ test('build a 3-section form with conditional + sign-off sections, then publish 
   await page.getByRole('button', { name: 'Adicionar seção' }).click()
   await expect(page.getByRole('heading', { name: 'Seção inicial' })).toBeVisible()
 
-  // Rename the new section (index 0 of the rename buttons, since only the
-  // non-default section has a "Renomear seção" button at this point).
-  await page.getByRole('button', { name: 'Renomear seção' }).nth(0).click()
+  // Rename the new section — scope to the "Seção sem título" region so we
+  // don't click the default section's rename button (which now also exists).
+  const unnamedSection = page.getByRole('region', { name: 'Seção sem título' })
+  await unnamedSection.getByRole('button', { name: 'Renomear seção' }).click()
   let rd = page.getByRole('dialog')
   await rd.getByLabel('Título da seção').fill('Detalhes do Incidente')
   await rd.getByRole('button', { name: 'Salvar' }).click()
@@ -321,8 +328,9 @@ test('build a 3-section form with conditional + sign-off sections, then publish 
   // Add a third section.
   await page.getByRole('button', { name: 'Adicionar seção' }).click()
 
-  // The new section is the second "rename" button (first is "Detalhes do Incidente").
-  await page.getByRole('button', { name: 'Renomear seção' }).nth(1).click()
+  // The new section appears as "Seção sem título" again — rename it to "Revisão".
+  // ("Detalhes do Incidente" already has a title so "Seção sem título" is unambiguous.)
+  await unnamedSection.getByRole('button', { name: 'Renomear seção' }).click()
   rd = page.getByRole('dialog')
   await rd.getByLabel('Título da seção').fill('Revisão')
   await rd.getByRole('button', { name: 'Salvar' }).click()
@@ -367,6 +375,86 @@ test('build a 3-section form with conditional + sign-off sections, then publish 
 
   // The draft builder affordances must be gone (no "Adicionar seção" button).
   await expect(page.getByRole('button', { name: 'Adicionar seção' })).toHaveCount(0)
+})
+
+// ---------------------------------------------------------------------------
+// New feature: default section rename
+// ---------------------------------------------------------------------------
+
+test('default section can be renamed once form has ≥2 sections; settings/delete controls remain hidden', async ({
+  page,
+}) => {
+  /**
+   * Acceptance criterion for the maintenance change:
+   *
+   * 1. Flat form (only the default section): NO "Renomear seção" button is
+   *    present at the section level (no section chrome in flat mode).
+   * 2. Sectioned form (≥2 sections): the default section DOES expose a
+   *    "Renomear seção" button, but NOT the settings gear or the delete button.
+   * 3. After renaming the default section its new title renders as a heading
+   *    and the "Seção inicial" placeholder text disappears.
+   * 4. The "inicial" badge (if any) still renders alongside the new title.
+   *    (The builder shows a "Seção padrão" / "inicial" indicator on the card.)
+   *
+   * The test uses the seeded chefe.ccih@test.local persona on the local stack.
+   */
+  test.setTimeout(120_000)
+  const title = `DefaultRename ${Date.now()}`
+  await signInAs(page, 'chefe.ccih@test.local')
+  await createForm(page, title)
+
+  // --- Flat form: no section-level "Renomear seção" button ----------------
+  // In flat mode the builder renders with no section chrome at all.
+  await expect(page.getByRole('button', { name: 'Renomear seção' })).toHaveCount(0)
+
+  // --- Add a second section → sectioned mode ------------------------------
+  await page.getByRole('button', { name: 'Adicionar seção' }).click()
+  // Default section now shows "Seção inicial" placeholder heading.
+  const defaultSection = page.getByRole('region', { name: 'Seção inicial' })
+  await expect(defaultSection).toBeVisible({ timeout: 15_000 })
+
+  // The default section DOES have a "Renomear seção" button now.
+  const renameBtn = defaultSection.getByRole('button', { name: 'Renomear seção' })
+  await expect(renameBtn).toBeVisible()
+
+  // But the settings gear (condition/sign-off) and delete button are HIDDEN.
+  await expect(
+    defaultSection.getByRole('button', {
+      name: 'Configurações da seção (condição e assinatura)',
+    }),
+  ).toHaveCount(0)
+  await expect(
+    defaultSection.getByRole('button', { name: /Excluir|Remover|Delete/i }),
+  ).toHaveCount(0)
+
+  // --- Rename the default section -----------------------------------------
+  await renameBtn.click()
+  const rd = page.getByRole('dialog')
+  await rd.getByLabel('Título da seção').fill('Triagem')
+  await rd.getByRole('button', { name: 'Salvar' }).click()
+  await expect(rd).toBeHidden({ timeout: 10_000 })
+
+  // The default section now renders under the new title.
+  await expect(page.getByRole('heading', { name: 'Triagem' })).toBeVisible()
+  // The "Seção inicial" placeholder is gone.
+  await expect(page.getByRole('heading', { name: 'Seção inicial' })).toHaveCount(0)
+
+  // The region is now addressable by the new title.
+  const renamedDefault = page.getByRole('region', { name: 'Triagem' })
+  await expect(renamedDefault).toBeVisible()
+
+  // The settings gear and delete button are still absent after renaming.
+  await expect(
+    renamedDefault.getByRole('button', {
+      name: 'Configurações da seção (condição e assinatura)',
+    }),
+  ).toHaveCount(0)
+  await expect(
+    renamedDefault.getByRole('button', { name: /Excluir|Remover|Delete/i }),
+  ).toHaveCount(0)
+
+  // The rename button is still present (can rename again).
+  await expect(renamedDefault.getByRole('button', { name: 'Renomear seção' })).toBeVisible()
 })
 
 test('re-uploading an image in v2 yields a NEW storage path; v1 stays immutable (AC d)', async ({

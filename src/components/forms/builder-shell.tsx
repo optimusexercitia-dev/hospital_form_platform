@@ -24,9 +24,9 @@ import { useFlipReorder } from "@/components/forms/use-flip-reorder";
  * Default-section rule (CLAUDE.md §1): a version whose ONLY section is the
  * default renders as a flat list of blocks with NO section chrome. Once a second
  * section is added (≥2 sections), full section chrome appears — and the default
- * section then shows a neutral, non-editable placeholder with its
- * rename/condition/sign-off controls disabled (lead refinement #2 — enforced by
- * the `form_sections_default_shape` DB CHECK).
+ * section may now be RENAMED (lead refinement #2), but still has NO condition and
+ * NO sign-off and is never deletable, so only those controls stay hidden on its
+ * card.
  */
 export function BuilderShell({
   slug,

@@ -28,9 +28,8 @@ export function PhaseAnswersReadonly({
         if (inputItems.length === 0) return null;
 
         const headingId = `phase-answers-section-${section.id}`;
-        const heading = section.isDefault
-          ? "Respostas"
-          : section.title || "Seção sem título";
+        const heading =
+          section.title || (section.isDefault ? "Respostas" : "Seção sem título");
 
         return (
           <section

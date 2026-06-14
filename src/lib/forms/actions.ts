@@ -306,11 +306,15 @@ export async function addSection(
 }
 
 /**
- * Update a non-default section: title, description, visible_when condition, and
- * sign-off settings. Respects the `form_sections` CHECK shapes:
- *   - the default section stays plain (no title/condition/sign-off) and this
- *     action refuses to set them on it;
- *   - requires_signoff implies a signoff_role and vice versa.
+ * Update a section's editable fields. Respects the `form_sections` CHECK shapes:
+ *   - the DEFAULT (anchor) section may carry a title + description, but never a
+ *     visibility condition or a sign-off requirement (it is always first, so it
+ *     cannot reference an earlier answer, and sign-off on the anchor is out of
+ *     scope). Its title is OPTIONAL — a blank title clears it to null and is
+ *     NOT an error (unlike non-default sections, which require a title);
+ *   - non-default sections take title (required), description, visible_when
+ *     condition, and sign-off settings, where requires_signoff implies a
+ *     signoff_role and vice versa.
  * visible_when is parsed from the discrete fields the condition editor submits
  * (questionKey/op/value) or cleared when absent. Publish-time validation
  * (validate_visible_when) remains the authority on forward/missing references —
@@ -340,12 +344,15 @@ export async function updateSection(
   const title = String(formData.get('title') ?? '').trim()
   const description = String(formData.get('description') ?? '').trim()
 
-  // The default section is a plain container: never carries title / condition /
-  // sign-off. Update only its description and return.
+  // The default (anchor) section may carry a title + description but never a
+  // condition or sign-off (the CHECK still forbids those). Its title is
+  // optional: a blank title clears it to null without raising the
+  // sectionTitleRequired error. visible_when / requires_signoff are left
+  // untouched (they stay null / false).
   if (section.is_default) {
     const { error } = await supabase
       .from('form_sections')
-      .update({ description: description || null })
+      .update({ title: title || null, description: description || null })
       .eq('id', sectionId)
     if (error) return { ok: false, error: mapWriteError(error) }
     revalidateBuilder()

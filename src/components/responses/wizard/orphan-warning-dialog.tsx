@@ -34,10 +34,10 @@ export function OrphanWarningDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const names = sections.map((s) =>
-    s.section.isDefault
-      ? "Seção inicial"
-      : s.section.title || "Seção sem título",
+  const names = sections.map(
+    (s) =>
+      s.section.title ||
+      (s.section.isDefault ? "Seção inicial" : "Seção sem título"),
   );
 
   return (

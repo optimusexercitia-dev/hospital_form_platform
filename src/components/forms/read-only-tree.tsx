@@ -12,7 +12,9 @@ import {
  * history page (Phase 4), and intended for reuse by the Phase 7 submission viewer.
  *
  * Honours the default-section rule: a version whose only section is the default
- * renders as a flat block list with no section chrome.
+ * renders as a flat block list with no section chrome. In the sectioned view a
+ * default section shows its title when it has one (lead refinement #2), and
+ * stays heading-less only when it is untitled.
  */
 export function ReadOnlyTree({
   tree,
@@ -61,13 +63,12 @@ function ReadOnlySection({
   index: number;
   imageUrls: Record<string, string>;
 }) {
-  const heading = section.isDefault
-    ? "Seção inicial"
-    : section.title || "Seção sem título";
+  const heading =
+    section.title || (section.isDefault ? null : "Seção sem título");
 
   return (
     <section
-      aria-label={heading}
+      aria-label={heading ?? `Seção ${index + 1}`}
       className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs"
     >
       <div className="flex flex-col gap-1">
@@ -86,7 +87,7 @@ function ReadOnlySection({
             </span>
           )}
         </div>
-        <h2 className="text-lg font-semibold">{heading}</h2>
+        {heading && <h2 className="text-lg font-semibold">{heading}</h2>}
         {section.description && (
           <p className="max-w-prose text-sm text-muted-foreground text-pretty">
             {section.description}

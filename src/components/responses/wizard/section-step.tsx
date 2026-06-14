@@ -29,9 +29,8 @@ export function SectionStep({
   onChange: (item: { id: string; questionKey: string }, value: Json) => void;
 }) {
   const headingId = `section-${section.id}-heading`;
-  const heading = section.isDefault
-    ? null
-    : section.title || "Seção sem título";
+  const heading =
+    section.title || (section.isDefault ? null : "Seção sem título");
 
   return (
     <section

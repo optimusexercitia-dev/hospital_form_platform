@@ -25,15 +25,16 @@ import { useBuilderAction } from "@/components/forms/use-builder-action";
 
 /**
  * One section in the sectioned (≥2 sections) builder view. Header carries the
- * title (or a neutral placeholder for the locked default section), reorder
- * up/down, the settings entry (condition + sign-off), rename/describe, and
- * delete; the body is the section's {@link BlockList}.
+ * title (or a neutral placeholder), reorder up/down, rename/describe, the
+ * settings entry (condition + sign-off), and delete; the body is the section's
+ * {@link BlockList}.
  *
- * Default-section lock (lead refinement #2): the default section can never carry
- * a title, condition, or sign-off (DB CHECK `form_sections_default_shape`). So
- * its card shows a fixed "Seção inicial" placeholder and DISABLES rename,
- * settings, and delete (it is the form's anchor section). Only non-default
- * sections expose the full controls.
+ * Default-section rule (lead refinement #2): once a form has ≥2 sections the
+ * default section MAY carry (and be renamed to) a title — so its card now
+ * exposes the rename affordance and falls back to "Seção inicial" only when it
+ * has no title. It still has NO condition and NO sign-off and is never deletable
+ * (it is the form's anchor section), so the settings and delete controls stay
+ * hidden for it.
  */
 export function SectionCard({
   section,
@@ -59,9 +60,8 @@ export function SectionCard({
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const isDefault = section.isDefault;
-  const heading = isDefault
-    ? "Seção inicial"
-    : section.title || "Seção sem título";
+  const heading =
+    section.title || (isDefault ? "Seção inicial" : "Seção sem título");
 
   function handleMove(direction: "up" | "down") {
     onBeforeReorder();
@@ -103,7 +103,7 @@ export function SectionCard({
           </div>
           <h2
             className={
-              isDefault || section.title
+              section.title
                 ? "text-lg font-semibold"
                 : "text-lg font-semibold text-muted-foreground italic"
             }
@@ -139,17 +139,18 @@ export function SectionCard({
             <ArrowDown aria-hidden="true" />
           </Button>
 
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setMetaOpen(true)}
+            aria-label="Renomear seção"
+          >
+            <Pencil aria-hidden="true" />
+          </Button>
+
           {!isDefault && (
             <>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setMetaOpen(true)}
-                aria-label="Renomear seção"
-              >
-                <Pencil aria-hidden="true" />
-              </Button>
               <Button
                 type="button"
                 variant="ghost"
@@ -206,20 +207,19 @@ export function SectionCard({
         imageUrls={imageUrls}
       />
 
+      <SectionMetaDialog
+        open={metaOpen}
+        onOpenChange={setMetaOpen}
+        section={section}
+      />
+
       {!isDefault && (
-        <>
-          <SectionMetaDialog
-            open={metaOpen}
-            onOpenChange={setMetaOpen}
-            section={section}
-          />
-          <SectionSettingsDialog
-            open={settingsOpen}
-            onOpenChange={setSettingsOpen}
-            section={section}
-            sections={sections}
-          />
-        </>
+        <SectionSettingsDialog
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          section={section}
+          sections={sections}
+        />
       )}
     </section>
   );

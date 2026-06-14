@@ -164,7 +164,7 @@ export function BlockCard({
                     key={s.id}
                     onSelect={() => handleMoveToSection(s.id)}
                   >
-                    {s.isDefault ? "Seção inicial" : s.title || "Seção sem título"}
+                    {s.title || (s.isDefault ? "Seção inicial" : "Seção sem título")}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>

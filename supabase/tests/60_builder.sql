@@ -8,7 +8,7 @@
 -- exercises the full fidelity matrix.
 
 begin;
-select plan(33);
+select plan(37);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -437,6 +437,63 @@ select throws_ok(
 );
 
 reset role;
+
+-- =========================================================================
+-- form_sections_default_shape — the default (anchor) section may now carry a
+-- TITLE, but still no visibility condition and no sign-off requirement.
+-- =========================================================================
+-- Use a fresh DRAFT form so its default section is editable (the published
+-- versions' default sections are frozen by the immutability trigger). Run as
+-- superuser (reset role) so this exercises only the CHECK, not RLS.
+create temp table dft on commit drop as
+  select version_id from public.create_form(
+    (select (v->>'comm_x')::uuid from ctx), 'Default-title form', null
+  );
+grant select on dft to authenticated;
+
+create temp table dft_sec on commit drop as
+  select id from public.form_sections
+  where form_version_id = (select version_id from dft) and is_default;
+grant select on dft_sec to authenticated;
+
+-- (1) A title on the default section is now ALLOWED.
+select lives_ok(
+  format($$ update public.form_sections set title = 'Identificação'
+            where id = %L $$,
+         (select id from dft_sec)),
+  'default section can now be given a non-null title (constraint relaxed)'
+);
+
+select is(
+  (select title from public.form_sections where id = (select id from dft_sec)),
+  'Identificação',
+  'the default section title persisted'
+);
+
+-- (2) A visibility condition on the default section still VIOLATES the CHECK.
+select throws_ok(
+  format($$ update public.form_sections
+            set visible_when = jsonb_build_object(
+              'question_key','x','op','equals','value','y')
+            where id = %L $$,
+         (select id from dft_sec)),
+  '23514',
+  null,
+  'default section still cannot carry visible_when (form_sections_default_shape)'
+);
+
+-- (3) A sign-off requirement on the default section still VIOLATES a CHECK. We
+-- set a valid signoff_role alongside so the signoff_role CHECK is satisfied and
+-- the rejection is specifically the default_shape rule; either way it is 23514.
+select throws_ok(
+  format($$ update public.form_sections
+            set requires_signoff = true, signoff_role = 'respondent'
+            where id = %L $$,
+         (select id from dft_sec)),
+  '23514',
+  null,
+  'default section still cannot require a sign-off (form_sections_default_shape)'
+);
 
 select * from finish();
 rollback;

@@ -94,9 +94,11 @@ function ReviewSection({
   onEdit: () => void;
 }) {
   const headingId = `review-section-${section.id}`;
-  const heading = section.isDefault
-    ? "Respostas"
-    : section.title || "Seção sem título";
+  // A named default section shows its title + eyebrow like any other section; an
+  // untitled default keeps the neutral "Respostas" heading with no eyebrow.
+  const showSectionNumber = Boolean(section.title) || !section.isDefault;
+  const heading =
+    section.title || (section.isDefault ? "Respostas" : "Seção sem título");
   const inputItems = section.items.filter((it) => isInputItem(it.itemType));
 
   return (
@@ -107,7 +109,7 @@ function ReviewSection({
       <div className="flex items-start justify-between gap-3">
         <div className="flex flex-col gap-0.5">
           <div className="flex flex-wrap items-center gap-2">
-            {!section.isDefault && (
+            {showSectionNumber && (
               <span className="text-xs font-medium text-muted-foreground">
                 Seção {index + 1}
               </span>

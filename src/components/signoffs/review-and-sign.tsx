@@ -136,10 +136,11 @@ function ReviewSection({
   }) => Promise<{ ok: boolean; error?: string }>;
 }) {
   const headingId = `signoff-section-${section.id}`;
+  // A named default section shows its title (lead refinement #2); an untitled
+  // default keeps the neutral "Respostas" heading whether flat or sectioned.
   const heading =
-    section.isDefault && isFlat
-      ? "Respostas"
-      : section.title || "Seção sem título";
+    section.title || (section.isDefault ? "Respostas" : "Seção sem título");
+  const showSectionNumber = !(section.isDefault && isFlat);
 
   const isStaffAdminSignoff =
     section.requiresSignoff && section.signoffRole === "staff_admin";
@@ -153,7 +154,7 @@ function ReviewSection({
     >
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          {!(section.isDefault && isFlat) && (
+          {showSectionNumber && (
             <span className="text-xs font-medium text-muted-foreground">
               Seção {index + 1}
             </span>

@@ -83,10 +83,12 @@ test('coordinator builds, configures, publishes, edits and versions a form', asy
 
   // --- F2: add a second section → builder switches to sectioned view ----------
   await page.getByRole('button', { name: 'Adicionar seção' }).click()
-  // Default section is now a locked "Seção inicial" card.
+  // The default section now shows "Seção inicial" (with a rename button of its own).
   await expect(page.getByRole('heading', { name: 'Seção inicial' })).toBeVisible()
-  // Rename the new (untitled) section.
-  await page.getByRole('button', { name: 'Renomear seção' }).click()
+  // Rename the new (untitled, non-default) section — scope to its region so
+  // we don't accidentally click the default section's rename button.
+  const newSection = page.getByRole('region', { name: 'Seção sem título' })
+  await newSection.getByRole('button', { name: 'Renomear seção' }).click()
   const renameDialog = page.getByRole('dialog')
   await renameDialog.getByLabel('Título da seção').fill('Não conformidades')
   await renameDialog.getByRole('button', { name: 'Salvar' }).click()
