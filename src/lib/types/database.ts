@@ -886,6 +886,17 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      commission_overview: {
+        Args: never
+        Returns: {
+          commission_id: string
+          commission_name: string
+          form_count: number
+          slug: string
+          submitted_count: number
+          submitted_last_30_days: number
+        }[]
+      }
       create_case_from_template: {
         Args: { p_label?: string; p_template_id: string }
         Returns: {
@@ -942,6 +953,62 @@ export type Database = {
         }
       }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
+      dashboard_completion_by_member: {
+        Args: { p_form_id: string; p_from?: string; p_to?: string }
+        Returns: {
+          count: number
+          member_id: string
+          name: string
+        }[]
+      }
+      dashboard_distributions: {
+        Args: { p_form_id: string; p_from?: string; p_to?: string }
+        Returns: {
+          denominator: number
+          item_position: number
+          item_type: string
+          label: string
+          n: number
+          option_count: number
+          option_value: string
+          question_key: string
+          section_position: number
+          section_title: string
+        }[]
+      }
+      dashboard_form_totals: {
+        Args: { p_commission_id: string }
+        Returns: {
+          form_id: string
+          last_submitted_at: string
+          title: string
+          total_submitted: number
+        }[]
+      }
+      dashboard_free_text: {
+        Args: {
+          p_form_id: string
+          p_from?: string
+          p_limit?: number
+          p_to?: string
+        }
+        Returns: {
+          item_position: number
+          label: string
+          question_key: string
+          sample_value: string
+          section_position: number
+          section_title: string
+          total: number
+        }[]
+      }
+      dashboard_submissions_over_time: {
+        Args: { p_form_id: string; p_from?: string; p_to?: string }
+        Returns: {
+          count: number
+          day: string
+        }[]
+      }
       delete_section_moving_items: {
         Args: { p_section_id: string; p_target_section_id: string }
         Returns: undefined

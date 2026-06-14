@@ -1,4 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
+import { getVersionTree } from '@/lib/queries/forms'
+import { getResponseSignoffs } from '@/lib/queries/signoffs'
 import type { Json } from '@/lib/types/database'
 import type { VersionTree } from '@/lib/queries/forms'
 import type { ResponseStatus } from '@/lib/queries/responses'
@@ -125,58 +127,237 @@ export interface SubmissionFilterForm {
 }
 
 // ---------------------------------------------------------------------------
-// Queries (STUBS — bodies land in B3)
+// Row shapes (PostgREST embeds)
+// ---------------------------------------------------------------------------
+
+interface SubmissionListRow {
+  id: string
+  form_version_id: string
+  status: string
+  started_at: string
+  updated_at: string
+  submitted_at: string | null
+  case_phase_id: string | null
+  created_by: string
+  profiles: { full_name: string | null } | null
+  form_versions: {
+    form_id: string
+    version_number: number
+    forms: { title: string }
+  }
+}
+
+interface DetailResponseRow {
+  id: string
+  form_version_id: string
+  commission_id: string
+  status: string
+  started_at: string
+  submitted_at: string | null
+  case_phase_id: string | null
+  created_by: string
+  profiles: { full_name: string | null } | null
+  form_versions: {
+    form_id: string
+    version_number: number
+    forms: { title: string }
+  }
+}
+
+interface DetailAnswerRow {
+  item_id: string
+  question_key: string
+  value: Json | null
+}
+
+// ---------------------------------------------------------------------------
+// Queries — all RLS-scoped (cookie-wired client). `responses_select` grants a
+// staff_admin SELECT on SUBMITTED responses of their commission and denies
+// another member's in_progress rows; `answers_select` mirrors it. So the list +
+// detail need no definer RPC, and the Phase-7 in_progress-answers invariant is
+// preserved by construction (see the module header).
 // ---------------------------------------------------------------------------
 
 /**
  * The commission's SUBMITTED responses (standalone + case-phase, badged via
  * `isCasePhase`), filtered by member/form/date, newest-submitted first. When
- * `filters.includeInProgress` is true, also lists in_progress responses
- * METADATA-ONLY (no answers). Returns `[]` for a non-staff_admin caller.
- * Read through `responses_select` (submitted cross-member; own in_progress).
+ * `filters.includeInProgress` is true, also lists the caller-visible in_progress
+ * responses METADATA-ONLY (this read never touches `answers`, so no in_progress
+ * answers can leak). Returns `[]` for a caller with no readable responses (RLS).
+ *
+ * Note: a staff_admin only sees SUBMITTED rows of other members; the in_progress
+ * rows surfaced by the opt-in filter are limited by `responses_select` to ones
+ * they may read (their own), so the metadata-only list cannot expose another
+ * member's draft — and never its answers regardless.
  */
 export async function listSubmissions(
-  _commissionId: string,
-  _filters: SubmissionFilters,
+  commissionId: string,
+  filters: SubmissionFilters,
 ): Promise<SubmissionRow[]> {
-  void _commissionId
-  void _filters
-  await createClient()
-  throw new Error('not implemented')
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('responses')
+    .select(
+      'id, form_version_id, status, started_at, updated_at, submitted_at, ' +
+        'case_phase_id, created_by, profiles:created_by(full_name), ' +
+        'form_versions(form_id, version_number, forms(title))',
+    )
+    .eq('commission_id', commissionId)
+
+  query = filters.includeInProgress
+    ? query.in('status', ['submitted', 'in_progress'])
+    : query.eq('status', 'submitted')
+
+  if (filters.memberId) query = query.eq('created_by', filters.memberId)
+  // The form filter resolves through the version's form_id.
+  if (filters.from) query = query.gte('submitted_at', filters.from)
+  if (filters.to) query = query.lte('submitted_at', `${filters.to}T23:59:59.999Z`)
+
+  const { data } = await query
+    .order('submitted_at', { ascending: false, nullsFirst: false })
+    .order('updated_at', { ascending: false })
+    .returns<SubmissionListRow[]>()
+
+  let rows = (data ?? []).map(
+    (r): SubmissionRow => ({
+      responseId: r.id,
+      formId: r.form_versions.form_id,
+      formTitle: r.form_versions.forms.title,
+      formVersionId: r.form_version_id,
+      versionNumber: r.form_versions.version_number,
+      memberId: r.created_by,
+      memberName: r.profiles?.full_name ?? null,
+      status: r.status as ResponseStatus,
+      startedAt: r.started_at,
+      updatedAt: r.updated_at,
+      submittedAt: r.submitted_at,
+      isCasePhase: r.case_phase_id != null,
+    }),
+  )
+
+  // Form filter is applied client-side on the resolved form_id (the column lives
+  // on the embedded version, not filterable inline via PostgREST `.eq`).
+  if (filters.formId) rows = rows.filter((r) => r.formId === filters.formId)
+
+  return rows
 }
 
 /**
- * The version-faithful read-only detail of one response. Driven by a
- * sections → `form_items` LEFT JOIN `answers` read so the structure is complete
- * even where answers are absent. Returns `null` when the response is not visible
- * to the caller — which, by RLS, means: a foreign in_progress response (Phase-7
- * invariant), a foreign-commission response, or a missing id all surface as a
- * clean `null` (→ the page renders a friendly pt-BR 404, no data leak).
+ * The version-faithful read-only detail of one response. Driven by the response's
+ * OWN version tree (`getVersionTree`) plus a `answers` read keyed by item_id and
+ * question_key, so the structure is complete even where answers are absent
+ * (the renderer leaves unanswered items blank) and the condition evaluator can
+ * mark hidden conditional sections "não aplicável". Sign-off metadata is read
+ * via `getResponseSignoffs`. Returns `null` when the response is not visible to
+ * the caller — by RLS, a foreign in_progress response (Phase-7 invariant), a
+ * foreign-commission response, or a missing id all surface as a clean `null`
+ * (→ friendly pt-BR 404, no data leak).
  */
 export async function getSubmissionDetail(
-  _responseId: string,
+  responseId: string,
 ): Promise<SubmissionDetail | null> {
-  void _responseId
-  await createClient()
-  throw new Error('not implemented')
+  const supabase = await createClient()
+
+  const { data: response } = await supabase
+    .from('responses')
+    .select(
+      'id, form_version_id, commission_id, status, started_at, submitted_at, ' +
+        'case_phase_id, created_by, profiles:created_by(full_name), ' +
+        'form_versions(form_id, version_number, forms(title))',
+    )
+    .eq('id', responseId)
+    .maybeSingle<DetailResponseRow>()
+
+  if (!response) return null
+
+  // The response's own version tree (version-faithful — v1 stays v1 after v2).
+  const tree = await getVersionTree(response.form_version_id)
+  if (!tree) return null
+
+  // answers_select returns answers only for responses the caller may read; for a
+  // submitted response that's the structure-complete answer set. (No row leaks
+  // for in_progress foreign responses — `response` above would already be null.)
+  const { data: answers } = await supabase
+    .from('answers')
+    .select('item_id, question_key, value')
+    .eq('response_id', responseId)
+    .returns<DetailAnswerRow[]>()
+
+  const answersByItemId: Record<string, Json> = {}
+  const answersByKey: Record<string, Json> = {}
+  for (const a of answers ?? []) {
+    if (a.value === null) continue
+    answersByItemId[a.item_id] = a.value
+    answersByKey[a.question_key] = a.value
+  }
+
+  const signoffs = await getResponseSignoffs(responseId)
+
+  return {
+    responseId: response.id,
+    formId: response.form_versions.form_id,
+    formTitle: response.form_versions.forms.title,
+    formVersionId: response.form_version_id,
+    versionNumber: response.form_versions.version_number,
+    commissionId: response.commission_id,
+    memberId: response.created_by,
+    memberName: response.profiles?.full_name ?? null,
+    status: response.status as ResponseStatus,
+    startedAt: response.started_at,
+    submittedAt: response.submitted_at,
+    isCasePhase: response.case_phase_id != null,
+    tree,
+    answersByItemId,
+    answersByKey,
+    signoffs,
+  }
 }
 
-/** The member options for the submissions list's member filter. `[]` for a
- * non-staff_admin caller. */
+/** The member options for the submissions list's member filter: distinct
+ * respondents of the commission's responses the caller may read. `[]` when none
+ * are readable. */
 export async function listSubmissionFilterMembers(
-  _commissionId: string,
+  commissionId: string,
 ): Promise<SubmissionFilterMember[]> {
-  void _commissionId
-  await createClient()
-  throw new Error('not implemented')
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('responses')
+    .select('created_by, profiles:created_by(full_name)')
+    .eq('commission_id', commissionId)
+    .eq('status', 'submitted')
+    .returns<{ created_by: string; profiles: { full_name: string | null } | null }[]>()
+
+  const byId = new Map<string, SubmissionFilterMember>()
+  for (const r of data ?? []) {
+    if (!byId.has(r.created_by)) {
+      byId.set(r.created_by, { memberId: r.created_by, name: r.profiles?.full_name ?? null })
+    }
+  }
+  return Array.from(byId.values()).sort((a, b) =>
+    (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR'),
+  )
 }
 
-/** The form options for the submissions list's form filter. `[]` for a
- * non-staff_admin caller. */
+/** The form options for the submissions list's form filter: distinct forms with
+ * ≥1 submitted response the caller may read. `[]` when none are readable. */
 export async function listSubmissionFilterForms(
-  _commissionId: string,
+  commissionId: string,
 ): Promise<SubmissionFilterForm[]> {
-  void _commissionId
-  await createClient()
-  throw new Error('not implemented')
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('responses')
+    .select('form_versions(form_id, forms(title))')
+    .eq('commission_id', commissionId)
+    .eq('status', 'submitted')
+    .returns<{ form_versions: { form_id: string; forms: { title: string } } }[]>()
+
+  const byId = new Map<string, SubmissionFilterForm>()
+  for (const r of data ?? []) {
+    const fid = r.form_versions.form_id
+    if (!byId.has(fid)) {
+      byId.set(fid, { formId: fid, title: r.form_versions.forms.title })
+    }
+  }
+  return Array.from(byId.values()).sort((a, b) => a.title.localeCompare(b.title, 'pt-BR'))
 }

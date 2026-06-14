@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
-import type { InputItemType } from '@/lib/queries/forms'
+import type { InputItemType, ItemType } from '@/lib/queries/forms'
+import type { ResponseStatus } from '@/lib/queries/responses'
 
 /**
  * Dashboard aggregation data-access (Architecture Rule 9 — all reads go through
@@ -143,42 +144,193 @@ export interface CommissionOverviewRow {
 }
 
 // ---------------------------------------------------------------------------
-// Queries (STUBS — bodies land in B2/B5)
+// Queries — every read is a SECURITY DEFINER RPC, internally is_staff_admin_of /
+// is_admin gated (migration 20260613090011), so a non-entitled caller gets an
+// empty set and these resolve to [] / null with no leak.
 // ---------------------------------------------------------------------------
 
+const CHARTABLE = new Set<ItemType>(['multiple_choice', 'dropdown', 'checkbox'])
+
 /**
- * The list of forms in a commission that have any submitted responses, for the
- * dashboard's form picker. Newest-activity first. Returns `[]` for a
- * non-staff_admin (the backing read is gated).
+ * The canonical "dashboard-countable responses" predicate (Architecture Rule 9),
+ * the TS twin of the SQL helper `app.submitted_form_responses`: a response counts
+ * toward a standalone form's dashboard iff it is submitted AND not a case phase
+ * (ADR 0020). The SQL helper is the authority for the aggregations; this is the
+ * single source of the same rule for any TS-side filtering (e.g. a future
+ * client-side count). Keep the two in agreement.
+ */
+export function isDashboardCountable(r: {
+  status: ResponseStatus
+  casePhaseId: string | null
+}): boolean {
+  return r.status === 'submitted' && r.casePhaseId == null
+}
+
+/**
+ * The list of forms in a commission that have any standalone submitted
+ * responses, for the dashboard's form picker. Newest-activity first. Returns
+ * `[]` for a non-staff_admin (the backing RPC is gated).
  */
 export async function listDashboardForms(
-  _commissionId: string,
+  commissionId: string,
 ): Promise<{ formId: string; title: string; totalSubmitted: number }[]> {
-  void _commissionId
-  await createClient()
-  throw new Error('not implemented')
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('dashboard_form_totals', {
+    p_commission_id: commissionId,
+  })
+  if (error || !data) return []
+  return data.map((r) => ({
+    formId: r.form_id,
+    title: r.title,
+    totalSubmitted: Number(r.total_submitted),
+  }))
 }
 
 /**
  * The full aggregated dashboard for one form, optionally scoped to a
  * `submitted_at` date range. `null` when the caller is not a staff_admin of the
- * form's commission, or the form is not found. SUBMITTED + standalone only.
+ * form's commission, or the form has no submitted responses in scope. SUBMITTED
+ * + standalone only (case-phase responses excluded — ADR 0020).
+ *
+ * Five RPCs run in parallel (totals, distributions, free-text, over-time,
+ * completion). The flat distribution rows (one per question_key × option_value)
+ * are pivoted here into `QuestionDistribution[]`, and free-text sample rows into
+ * `FreeTextSample[]`. Ordering is by section then item (the RPCs already sort).
  */
 export async function getFormDashboard(
-  _formId: string,
-  _range?: DashboardRange,
+  formId: string,
+  range?: DashboardRange,
 ): Promise<FormDashboard | null> {
-  void _formId
-  void _range
-  await createClient()
-  throw new Error('not implemented')
+  const supabase = await createClient()
+  const args = { p_form_id: formId, p_from: range?.from, p_to: range?.to }
+
+  // The five aggregation RPCs (all internally gated) plus the form title (the
+  // title is RLS-readable to a member; the gating that matters is on the RPCs).
+  const [dist, freeText, overTime, byMember, formRes] = await Promise.all([
+    supabase.rpc('dashboard_distributions', args),
+    supabase.rpc('dashboard_free_text', args),
+    supabase.rpc('dashboard_submissions_over_time', args),
+    supabase.rpc('dashboard_completion_by_member', args),
+    supabase.from('forms').select('title').eq('id', formId).maybeSingle<{ title: string }>(),
+  ])
+
+  const formRow = formRes.data
+  if (!formRow) return null
+
+  const distributions = pivotDistributions(dist.data ?? [])
+  const freeTextSamples = pivotFreeText(freeText.data ?? [])
+  const submissionsOverTime: SubmissionsOverTimePoint[] = (overTime.data ?? []).map(
+    (p) => ({ day: p.day, count: Number(p.count) }),
+  )
+  const completionByMember: CompletionByMember[] = (byMember.data ?? []).map((m) => ({
+    memberId: m.member_id,
+    name: m.name,
+    count: Number(m.count),
+  }))
+
+  // Headline total = sum over distinct submitted responses; the over-time series
+  // sums to it (standalone submitted only).
+  const totalSubmitted = submissionsOverTime.reduce((acc, p) => acc + p.count, 0)
+
+  return {
+    formId,
+    formTitle: formRow.title,
+    totalSubmitted,
+    distributions,
+    freeTextSamples,
+    submissionsOverTime,
+    completionByMember,
+  }
+}
+
+/** Pivot the flat (question_key × option_value) distribution rows into one
+ * `QuestionDistribution` per question_key, preserving the RPC's section/item
+ * ordering and skipping any non-chartable rows defensively. */
+function pivotDistributions(
+  rows: {
+    question_key: string
+    label: string
+    section_title: string | null
+    section_position: number
+    item_position: number
+    item_type: string
+    option_value: string
+    option_count: number
+    denominator: number
+    n: number
+  }[],
+): QuestionDistribution[] {
+  const byKey = new Map<string, QuestionDistribution>()
+  for (const r of rows) {
+    if (!CHARTABLE.has(r.item_type as ItemType)) continue
+    let dist = byKey.get(r.question_key)
+    if (!dist) {
+      dist = {
+        questionKey: r.question_key,
+        label: r.label,
+        sectionTitle: r.section_title,
+        sectionPosition: r.section_position,
+        itemPosition: r.item_position,
+        type: r.item_type as ChartableInputType,
+        options: [],
+        denominator: Number(r.denominator),
+        n: Number(r.n),
+      }
+      byKey.set(r.question_key, dist)
+    }
+    dist.options.push({ value: r.option_value, count: Number(r.option_count) })
+  }
+  return Array.from(byKey.values())
+}
+
+/** Pivot the flat free-text sample rows into one `FreeTextSample` per
+ * question_key (capped sample list + total). */
+function pivotFreeText(
+  rows: {
+    question_key: string
+    label: string
+    section_title: string | null
+    section_position: number
+    item_position: number
+    total: number
+    sample_value: string
+  }[],
+): FreeTextSample[] {
+  const byKey = new Map<string, FreeTextSample>()
+  for (const r of rows) {
+    let s = byKey.get(r.question_key)
+    if (!s) {
+      s = {
+        questionKey: r.question_key,
+        label: r.label,
+        sectionTitle: r.section_title,
+        sectionPosition: r.section_position,
+        itemPosition: r.item_position,
+        total: Number(r.total),
+        samples: [],
+      }
+      byKey.set(r.question_key, s)
+    }
+    s.samples.push(r.sample_value)
+  }
+  return Array.from(byKey.values())
 }
 
 /**
  * The admin cross-commission overview (B5): one row per commission with form
- * and submission volumes. Returns `[]` for a non-admin caller. Admin-only.
+ * and submission volumes. Returns `[]` for a non-admin caller (the RPC is
+ * `is_admin`-gated). Admin-only.
  */
 export async function getCommissionOverview(): Promise<CommissionOverviewRow[]> {
-  await createClient()
-  throw new Error('not implemented')
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('commission_overview')
+  if (error || !data) return []
+  return data.map((r) => ({
+    commissionId: r.commission_id,
+    commissionName: r.commission_name,
+    slug: r.slug,
+    formCount: Number(r.form_count),
+    submittedCount: Number(r.submitted_count),
+    submittedLast30Days: Number(r.submitted_last_30_days),
+  }))
 }
