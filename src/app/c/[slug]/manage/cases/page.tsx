@@ -4,13 +4,15 @@ import { FolderOpen } from "lucide-react";
 
 import { getCommissionAccess } from "@/lib/queries/session";
 import { listCasesBoard } from "@/lib/queries/cases";
-import { listCaseStatusDefs } from "@/lib/queries/case-statuses";
 import { getCaseActionItemKpis } from "@/lib/queries/case-action-items";
 import { listProcessTemplates } from "@/lib/queries/process-templates";
 import { CreateCaseDialog } from "@/components/cases/create-case-dialog";
 import { CasesKpiStrip } from "@/components/cases/cases-kpi-strip";
 import { CasesView, type CasesViewMode } from "@/components/cases/cases-view";
-import { computeCaseKpis } from "@/components/cases/case-derive";
+import {
+  computeCaseKpis,
+  computeOutcomeBreakdown,
+} from "@/components/cases/case-derive";
 
 export const metadata: Metadata = {
   title: "Casos",
@@ -40,10 +42,9 @@ export default async function CasesBoardPage({
     notFound();
   }
 
-  const [rows, templates, statusDefs, actionItemKpis] = await Promise.all([
+  const [rows, templates, actionItemKpis] = await Promise.all([
     listCasesBoard(access.commission.id),
     listProcessTemplates(access.commission.id),
-    listCaseStatusDefs(access.commission.id),
     getCaseActionItemKpis(access.commission.id),
   ]);
 
@@ -52,7 +53,8 @@ export default async function CasesBoardPage({
     .filter((t) => t.status === "active")
     .map((t) => ({ id: t.id, title: t.title }));
 
-  const kpis = computeCaseKpis(rows, statusDefs);
+  const kpis = computeCaseKpis(rows);
+  const outcomeBreakdown = computeOutcomeBreakdown(rows);
   const initialView: CasesViewMode = view === "kanban" ? "kanban" : "table";
 
   return (
@@ -94,13 +96,12 @@ export default async function CasesBoardPage({
         </section>
       ) : (
         <>
-          <CasesKpiStrip kpis={kpis} actionItems={actionItemKpis} />
-          <CasesView
-            rows={rows}
-            slug={slug}
-            defs={statusDefs}
-            initialView={initialView}
+          <CasesKpiStrip
+            kpis={kpis}
+            actionItems={actionItemKpis}
+            outcomeBreakdown={outcomeBreakdown}
           />
+          <CasesView rows={rows} slug={slug} initialView={initialView} />
         </>
       )}
     </div>

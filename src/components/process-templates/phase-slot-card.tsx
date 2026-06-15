@@ -7,6 +7,7 @@ import {
   CalendarClock,
   FileText,
   GitBranch,
+  Lock,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -66,6 +67,11 @@ export function PhaseSlotCard({
 
   const heading = phase.title || `Fase ${phase.position}`;
   const formLabel = phase.formTitle ?? "Formulário não encontrado";
+  const blockers = [...phase.blocks].sort((a, b) => a - b);
+  const blockedLabel =
+    blockers.length === 1
+      ? `Bloqueada por: Fase ${blockers[0]}`
+      : `Bloqueada por: Fases ${blockers.join(", ")}`;
 
   function handleMove(direction: "up" | "down") {
     onBeforeReorder();
@@ -106,6 +112,12 @@ export function PhaseSlotCard({
                 <CalendarClock aria-hidden="true" className="size-3.5 shrink-0" />
                 Prazo padrão: {phase.defaultDueDays}{" "}
                 {phase.defaultDueDays === 1 ? "dia" : "dias"}
+              </span>
+            )}
+            {blockers.length > 0 && (
+              <span className="inline-flex items-center gap-1.5">
+                <Lock aria-hidden="true" className="size-3.5 shrink-0" />
+                {blockedLabel}
               </span>
             )}
           </div>

@@ -1,30 +1,28 @@
 import { cn } from "@/lib/utils";
 
-import type {
-  CaseStatusColorToken,
-  CaseStatusDef,
-} from "@/lib/queries/case-statuses";
-import type { CaseStatusKey } from "@/lib/queries/cases";
+import {
+  CASE_STATUS_META,
+  type CaseStatus,
+  type CaseStatusColorToken,
+} from "@/lib/cases/case-status";
 
 /**
- * Small status pill for a case, DATA-DRIVEN against the per-commission
- * `case_status_defs` (Cases-Extras R2). The hard-coded 3-state map is gone: the
- * caller passes the resolved {@link CaseStatusDef} (label + colour token), and
- * THIS component owns the single `colorToken → CSS class` mapping (the only place
- * a palette token becomes concrete styling — never raw CSS upstream).
+ * Small status pill for a case. As of the Case data-model adjustments (D12) the
+ * per-commission CONFIGURABLE status vocabulary is gone — a case carries one of
+ * five FIXED, auto-computed statuses ({@link CaseStatus}). This component renders
+ * a badge for a fixed status key via {@link CASE_STATUS_META}, and still owns the
+ * single `colorToken → CSS class` mapping (the only place a palette token becomes
+ * concrete styling — never raw CSS upstream) shared by the kanban, the colour
+ * picker, tags, and the outcome manager.
  *
- * Resilience (R2 risk #3 — relaxing `CaseStatusKey` removes compile-time
- * exhaustiveness): {@link resolveStatusDef} guarantees a render for ANY key. An
- * orphaned/archived key absent from `defs` falls back to a `muted` pill labelled
- * with the raw key, so a never-styled status never blows up the UI. Pure
- * presentational, Server-Component-safe.
+ * Pure presentational, Server-Component-safe.
  */
 
 /**
  * The constrained palette → Tailwind-token classes. Each token reuses the
  * semantic colour tokens already in `globals.css` (no new CSS): `muted` is the
  * guaranteed fallback. Kept here so the kanban/table and the badge agree on what
- * a token looks like.
+ * a token looks like. Shared across case statuses, tags and outcomes.
  */
 export const TOKEN_STYLES: Record<CaseStatusColorToken, string> = {
   muted: "bg-muted text-muted-foreground",
@@ -52,20 +50,9 @@ export const TOKEN_COLOR_VAR: Record<CaseStatusColorToken, string> = {
 };
 
 /**
- * Resolve a status `key` to a renderable `{ label, colorToken }` against the
- * loaded defs, with a guaranteed fallback for an unknown key (the muted pill
- * labelled with the key itself). The single source of "how do I display this
- * status" used by the badge, kanban, table and pickers.
+ * A badge for an explicit `{ label, colorToken }` pair. Used by tags and outcomes
+ * (their vocabulary rows carry a label + a palette token directly).
  */
-export function resolveStatusDef(
-  defs: CaseStatusDef[],
-  key: CaseStatusKey,
-): { label: string; colorToken: CaseStatusColorToken } {
-  const def = defs.find((d) => d.key === key);
-  if (def) return { label: def.label, colorToken: def.colorToken };
-  return { label: key, colorToken: "muted" };
-}
-
 export function CaseStatusBadge({
   label,
   colorToken,
@@ -89,21 +76,24 @@ export function CaseStatusBadge({
 }
 
 /**
- * Convenience: render a badge straight from a status key + the loaded defs (the
- * common call site). Resolves through {@link resolveStatusDef} so an unknown key
- * still renders.
+ * Render the badge for a FIXED case status — the common call site (board / table
+ * / detail header). Resolves the pt-BR label + palette token from
+ * {@link CASE_STATUS_META}; the fixed union is exhaustive so there is no unknown
+ * key to fall back on.
  */
-export function CaseStatusBadgeForKey({
-  defs,
-  statusKey,
+export function CaseStatusBadgeFixed({
+  status,
   className,
 }: {
-  defs: CaseStatusDef[];
-  statusKey: CaseStatusKey;
+  status: CaseStatus;
   className?: string;
 }) {
-  const { label, colorToken } = resolveStatusDef(defs, statusKey);
+  const meta = CASE_STATUS_META[status];
   return (
-    <CaseStatusBadge label={label} colorToken={colorToken} className={className} />
+    <CaseStatusBadge
+      label={meta.label}
+      colorToken={meta.colorToken}
+      className={className}
+    />
   );
 }

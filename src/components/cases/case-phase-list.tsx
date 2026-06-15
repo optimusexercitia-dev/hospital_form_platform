@@ -96,6 +96,7 @@ export function CasePhaseList({
             <CoordinatorPhaseActions
               slug={slug}
               phase={phase}
+              allPhases={phases}
               assignees={assignees}
               isOpen={isOpen}
             />

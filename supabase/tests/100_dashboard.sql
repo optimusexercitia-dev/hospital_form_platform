@@ -11,7 +11,7 @@
 -- superuser to read freely.
 
 begin;
-select plan(20);
+select plan(21);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -187,8 +187,12 @@ select set_config('app.in_submit_rpc', 'on', true);
 -- Minimal case + phase so case_phase_id is a valid FK.
 create temp table cse on commit drop as select gen_random_uuid() as case_id, gen_random_uuid() as phase_id;
 grant select on cse to authenticated;
+-- status uses the FIXED model (the configurable vocab + em_andamento were
+-- removed by the 093000–093003 batch). A direct INSERT is not guarded
+-- (guard_case_status fires only on UPDATE/DELETE), so any CHECK-valid status is
+-- fine; 'concluido' is coherent with the concluida phase below.
 insert into public.cases (id, commission_id, case_number, status, created_by)
-select cse.case_id, k.comm_x, 9999, 'em_andamento', k.sa_x from cse, k;
+select cse.case_id, k.comm_x, 9999, 'concluido', k.sa_x from cse, k;
 insert into public.case_phases (id, case_id, position, title, form_id, form_version_id, status)
 select cse.phase_id, cse.case_id, 1, 'P1', i.form_d, i.ver_d, 'concluida' from cse, ids i;
 insert into public.responses (id, form_version_id, commission_id, created_by, status, submitted_at, case_phase_id)
@@ -314,6 +318,32 @@ select is(
      and has_function_privilege('anon', p.oid, 'EXECUTE')),
   0,
   'no public function is anon-executable (catches any future PUBLIC re-leak)'
+);
+
+-- 19b) Explicit anon-revoke coverage for the Case data-model batch (093000–093003):
+-- every NEW or re-CREATE-OR-REPLACEd public function must be anon-non-executable
+-- (the generic test 19 already catches any leak; this names the batch's functions
+-- so a regression fails with a clear, specific message). authenticated retains
+-- EXECUTE (those are the app's RPCs).
+select ok(
+  not has_function_privilege('anon', 'public.set_case_outcome(uuid,uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.create_case_outcome(uuid,text,text,boolean,boolean)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.update_case_outcome(uuid,text,text,boolean,boolean)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.reorder_case_outcomes(uuid,uuid[])', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.archive_case_outcome(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.set_process_outcomes(uuid,uuid[])', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.set_template_phase_blocks(uuid,integer[])', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.activate_phase(uuid,uuid,date)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.close_case(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.cancel_case(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.create_case_from_template(uuid,text)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.add_template_phase(uuid,uuid,text,jsonb,integer,integer[])', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.update_template_phase(uuid,uuid,text,jsonb,boolean,integer,boolean,integer[],boolean)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.list_cases_board(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.get_case_detail(uuid)', 'EXECUTE')
+  and has_function_privilege('authenticated', 'public.set_case_outcome(uuid,uuid)', 'EXECUTE')
+  and has_function_privilege('authenticated', 'public.close_case(uuid)', 'EXECUTE'),
+  'Case data-model batch functions are anon-non-executable (explicit) but authenticated-executable'
 );
 
 -- 20) archive_process_template raises HC023 on an already-archived template.

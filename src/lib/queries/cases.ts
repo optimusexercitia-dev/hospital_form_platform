@@ -1,6 +1,12 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSessionContext } from '@/lib/queries/session'
 import type { RecommendWhen } from '@/lib/queries/conditions'
+import type {
+  CaseStatus,
+  CaseStatusColorToken,
+} from '@/lib/cases/case-status'
+
+export type { CaseStatus } from '@/lib/cases/case-status'
 
 /**
  * Cases data-access (Architecture Rule 9 — all reads go through
@@ -30,24 +36,6 @@ import type { RecommendWhen } from '@/lib/queries/conditions'
 // Domain types
 // ---------------------------------------------------------------------------
 
-/**
- * A case's GLOBAL macro status. As of the Cases-Extras batch (R2) this is
- * **configurable per commission** — each commission defines its own ordered set
- * of statuses (`case_status_defs`), so the type is an open `string` keyed by the
- * status `key`, NOT a fixed union. Use {@link CaseStatusDef} (from
- * `@/lib/queries/case-statuses`) to resolve a key to its label / colour /
- * terminal flag. The default seeded set is `rascunho`, `em_andamento` (initial),
- * `em_revisao`, `concluido` (terminal), `cancelado` (terminal).
- *
- * NOTE (phase vs case status): this is the CASE-level macro status. The
- * per-phase status ({@link CasePhaseStatus}) is a SEPARATE fixed lifecycle and
- * is intentionally NOT configurable.
- */
-export type CaseStatusKey = string
-
-/** @deprecated Back-compat alias — prefer {@link CaseStatusKey}. */
-export type CaseStatus = CaseStatusKey
-
 export type CasePhaseStatus =
   | 'pendente'
   | 'ativa'
@@ -65,9 +53,41 @@ export interface Case {
   /** Optional NON-IDENTIFYING label (never a patient name/MRN). */
   label: string | null
   status: CaseStatus
+  /**
+   * The id of the assigned outcome (D9 — at most one per case), or `null` if
+   * none chosen yet / the process offers no outcomes (D15). Resolve to label +
+   * flags via {@link CaseDetail.outcome} / {@link CaseBoardRow.outcome}.
+   */
+  outcomeId: string | null
   createdAt: string
   closedAt: string | null
 }
+
+/**
+ * A case's assigned outcome RESOLVED for display (D9–D11): the vocabulary row
+ * read LIVE (so label/flag edits propagate, D11), joined to the case via
+ * `cases.outcome_id`. Present on the board row + detail; `null` when no outcome
+ * is assigned. A trimmed projection of {@link CaseOutcome} (no commission /
+ * archived / position — the case views don't need them).
+ */
+export interface ResolvedCaseOutcome {
+  id: string
+  /** pt-BR label (resolved LIVE — propagates per D11). */
+  label: string
+  colorToken: CaseStatusColorToken
+  /** Advisory: show a "requires action plan" reminder (D10, non-gating). */
+  requiresActionPlan: boolean
+  /** Adverse-event tracking flag (D10, non-gating; feeds the % adverse KPI). */
+  isAdverse: boolean
+}
+
+/**
+ * One outcome a case OFFERS — its FROZEN offered set (`case_offered_outcomes`,
+ * snapshotted at creation), resolved to label + flags for the conclude dialog and
+ * the case-detail selector. The same trimmed projection as
+ * {@link ResolvedCaseOutcome}.
+ */
+export type OfferedCaseOutcome = ResolvedCaseOutcome
 
 /** One phase of a case (the authority row — status/assignee/recommended only). */
 export interface CasePhase {
@@ -91,6 +111,13 @@ export interface CasePhase {
   assigneeName: string | null
   /** `true` when appended ad-hoc to this case (not from the template). */
   isAdHoc: boolean
+  /**
+   * The 1-based positions of EARLIER phases that BLOCK this one (D1/D4): this
+   * phase cannot be activated until every listed phase is `concluida` or
+   * `nao_necessaria`. Snapshot-copied from the template slot at case creation;
+   * `[]` = no blockers (always activatable). References earlier positions only.
+   */
+  blocks: number[]
   recommendWhen: RecommendWhen | null
   /**
    * The phase's due date (ISO `YYYY-MM-DD`), set/edited/removed by the
@@ -109,6 +136,12 @@ export interface CasePhase {
 /** One row of the cases board: a case header + its phases' STATUS summary. */
 export interface CaseBoardRow {
   case: Case
+  /**
+   * The case's assigned outcome resolved for display (label/flags), or `null` if
+   * none assigned. Lets the table render the outcome column + the outcome /
+   * adverse filters (D14) without a second fetch.
+   */
+  outcome: ResolvedCaseOutcome | null
   /** Phase status only — NEVER answers (the Phase-7 invariant). */
   phases: Array<
     Pick<
@@ -132,6 +165,19 @@ export interface CaseBoardRow {
  */
 export interface CaseDetail {
   case: Case
+  /**
+   * The case's assigned outcome resolved for display (label/flags + the advisory
+   * `requiresActionPlan` / `isAdverse` markers, D10), or `null` if none assigned.
+   * Resolved LIVE from the vocabulary so edits propagate (D11).
+   */
+  outcome: ResolvedCaseOutcome | null
+  /**
+   * The outcomes this case OFFERS — its FROZEN offered set
+   * (`case_offered_outcomes`, snapshotted at creation, D15), resolved to
+   * label/flags. The outcome SELECTOR and the conclude dialog choose from THIS.
+   * `[]` when the case's process offered none (conclude needs no outcome then).
+   */
+  offeredOutcomes: OfferedCaseOutcome[]
   phases: Array<
     CasePhase & {
       responseId: string | null
@@ -165,12 +211,36 @@ interface BoardPhaseJson {
   due_date: string | null
 }
 
+/** A resolved outcome inside a board row / detail envelope (label + flags). */
+interface OutcomeJson {
+  id: string
+  label: string
+  color_token: CaseStatusColorToken
+  requires_action_plan: boolean
+  is_adverse: boolean
+}
+
+/** Map a resolved-outcome envelope object to its domain shape (`null`-safe). */
+function mapOutcomeJson(o: OutcomeJson | null): ResolvedCaseOutcome | null {
+  if (!o) return null
+  return {
+    id: o.id,
+    label: o.label,
+    colorToken: o.color_token,
+    requiresActionPlan: o.requires_action_plan,
+    isAdverse: o.is_adverse,
+  }
+}
+
 /** One row of `list_cases_board`. */
 interface BoardRowJson {
   case_id: string
   case_number: number
   label: string | null
   status: CaseStatus
+  outcome_id: string | null
+  /** The resolved assigned-outcome object, or `null` if none. */
+  outcome: OutcomeJson | null
   created_at: string
   closed_at: string | null
   phases: BoardPhaseJson[]
@@ -189,6 +259,7 @@ interface DetailPhaseJson {
   assigned_to: string | null
   assignee_name: string | null
   is_ad_hoc: boolean
+  blocks: number[] | null
   recommend_when: RecommendWhen | null
   due_date: string | null
   default_due_days: number | null
@@ -204,6 +275,11 @@ interface CaseDetailJson {
   case_number: number
   label: string | null
   status: CaseStatus
+  outcome_id: string | null
+  /** The resolved assigned-outcome object, or `null` if none. */
+  outcome: OutcomeJson | null
+  /** The frozen offered-outcome set, resolved to label/flags (`[]` if none). */
+  offered_outcomes: OutcomeJson[] | null
   created_at: string
   closed_at: string | null
   phases: DetailPhaseJson[]
@@ -236,9 +312,11 @@ export async function listCasesBoard(
       caseNumber: r.case_number,
       label: r.label,
       status: r.status,
+      outcomeId: r.outcome_id ?? null,
       createdAt: r.created_at,
       closedAt: r.closed_at,
     },
+    outcome: mapOutcomeJson(r.outcome ?? null),
     phases: (r.phases ?? []).map((p) => ({
       position: p.position,
       title: p.title,
@@ -279,9 +357,14 @@ export async function getCaseDetail(
       caseNumber: env.case_number,
       label: env.label,
       status: env.status,
+      outcomeId: env.outcome_id ?? null,
       createdAt: env.created_at,
       closedAt: env.closed_at,
     },
+    outcome: mapOutcomeJson(env.outcome ?? null),
+    offeredOutcomes: (env.offered_outcomes ?? [])
+      .map(mapOutcomeJson)
+      .filter((o): o is OfferedCaseOutcome => o != null),
     phases: (env.phases ?? []).map((p) => ({
       id: p.id,
       caseId: env.id,
@@ -295,6 +378,7 @@ export async function getCaseDetail(
       assignedTo: p.assigned_to,
       assigneeName: p.assignee_name,
       isAdHoc: p.is_ad_hoc,
+      blocks: p.blocks ?? [],
       recommendWhen: p.recommend_when,
       dueDate: p.due_date,
       defaultDueDays: p.default_due_days,
@@ -319,6 +403,7 @@ interface PhaseFillRow {
   recommended: boolean
   assigned_to: string | null
   is_ad_hoc: boolean
+  blocks: number[] | null
   recommend_when: RecommendWhen | null
   due_date: string | null
   default_due_days: number | null
@@ -330,6 +415,7 @@ interface PhaseFillRow {
     case_number: number
     label: string | null
     status: CaseStatus
+    outcome_id: string | null
     created_at: string
     closed_at: string | null
   } | null
@@ -351,11 +437,11 @@ export async function getCasePhaseForFill(
     .select(
       `
       id, case_id, position, form_id, form_version_id, title, status,
-      recommended, assigned_to, is_ad_hoc, recommend_when, due_date,
+      recommended, assigned_to, is_ad_hoc, blocks, recommend_when, due_date,
       default_due_days,
       forms ( title ),
       cases (
-        id, commission_id, template_id, case_number, label, status,
+        id, commission_id, template_id, case_number, label, status, outcome_id,
         created_at, closed_at
       )
     `,
@@ -381,6 +467,7 @@ export async function getCasePhaseForFill(
       // The fill landing does not need the assignee's name (it IS the caller).
       assigneeName: null,
       isAdHoc: data.is_ad_hoc,
+      blocks: data.blocks ?? [],
       recommendWhen: data.recommend_when,
       dueDate: data.due_date,
       defaultDueDays: data.default_due_days,
@@ -392,6 +479,7 @@ export async function getCasePhaseForFill(
       caseNumber: c.case_number,
       label: c.label,
       status: c.status,
+      outcomeId: c.outcome_id ?? null,
       createdAt: c.created_at,
       closedAt: c.closed_at,
     },

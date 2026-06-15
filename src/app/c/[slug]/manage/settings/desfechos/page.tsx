@@ -2,25 +2,25 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getCommissionAccess } from "@/lib/queries/session";
-import { listCaseStatusDefs } from "@/lib/queries/case-statuses";
+import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import { SettingsTabs } from "@/components/cases/settings-tabs";
-import { StatusManager } from "@/components/cases/status-manager";
+import { OutcomeManager } from "@/components/cases/outcome-manager";
 
 export const metadata: Metadata = {
-  title: "Estados dos casos",
+  title: "Desfechos dos casos",
 };
 
 /**
- * Case-status vocabulary manager (Cases-Extras R2, coordinator area): create /
- * rename / recolour / reorder / archive the commission's configurable case
- * statuses (which become the kanban columns).
+ * Outcome-vocabulary manager (coordinator area): create / rename / recolour /
+ * reorder / archive the commission's case outcomes (with the advisory
+ * "requires action plan" / "is adverse" flags). Mirrors the `etiquetas` settings
+ * route — an already-approved coordinator-gated pattern.
  *
- * Coordinator-gated here (mirrors the cases board / builder): only a staff_admin
- * of this commission OR a global admin may reach it; everyone else gets
- * `notFound()`. The CRUD actions are themselves staff_admin-gated (RLS is the
- * authority).
+ * Coordinator-gated here (only a staff_admin of this commission OR a global admin
+ * may reach it; everyone else gets `notFound()`); the CRUD actions are themselves
+ * staff_admin-gated (RLS is the authority).
  */
-export default async function CaseStatusesSettingsPage({
+export default async function CaseOutcomesSettingsPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
@@ -32,7 +32,7 @@ export default async function CaseStatusesSettingsPage({
     notFound();
   }
 
-  const defs = await listCaseStatusDefs(access.commission.id);
+  const outcomes = await listCaseOutcomes(access.commission.id);
 
   return (
     <div className="flex flex-col gap-8">
@@ -42,13 +42,13 @@ export default async function CaseStatusesSettingsPage({
         </p>
         <h1 className="text-3xl text-balance">Configurações</h1>
         <p className="max-w-prose text-muted-foreground text-pretty">
-          Personalize os estados e as etiquetas usados nos casos desta comissão.
+          Personalize os desfechos e as etiquetas usados nos casos desta comissão.
         </p>
       </header>
 
       <SettingsTabs slug={slug} />
 
-      <StatusManager commissionId={access.commission.id} defs={defs} />
+      <OutcomeManager commissionId={access.commission.id} outcomes={outcomes} />
     </div>
   );
 }

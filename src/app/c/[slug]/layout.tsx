@@ -2,10 +2,7 @@ import { notFound } from "next/navigation";
 
 import { getCommissionAccess } from "@/lib/queries/session";
 import { listCasesBoard, listMyAssignedPhases } from "@/lib/queries/cases";
-import {
-  listCaseStatusDefs,
-  caseStatusIsTerminal,
-} from "@/lib/queries/case-statuses";
+import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { listSignoffQueue } from "@/lib/queries/signoffs";
 import { AppSidebar, type SidebarCounts } from "@/components/shell/app-sidebar";
 
@@ -40,20 +37,17 @@ export default async function CommissionLayout({
   const isCoordinator =
     access.role === "staff_admin" || access.context.isAdmin;
 
-  const [myPhases, board, signoffQueue, statusDefs] = await Promise.all([
+  const [myPhases, board, signoffQueue] = await Promise.all([
     listMyAssignedPhases(commissionId),
     isCoordinator ? listCasesBoard(commissionId) : Promise.resolve([]),
     isCoordinator ? listSignoffQueue(commissionId) : Promise.resolve([]),
-    isCoordinator ? listCaseStatusDefs(commissionId) : Promise.resolve([]),
   ]);
 
   const counts: SidebarCounts = {
     minhasFases: myPhases.length,
-    // "Open" cases = those NOT in a terminal status (R2: was the `'aberto'`
-    // literal, which no longer matches the seeded key `em_andamento`).
-    casos: board.filter(
-      (row) => !caseStatusIsTerminal(statusDefs, row.case.status),
-    ).length,
+    // "Open" cases = those NOT in a terminal status (the FIXED computed enum:
+    // nao_iniciado / em_revisao / pendente are open; concluido / cancelado closed).
+    casos: board.filter((row) => !isTerminalCaseStatus(row.case.status)).length,
     assinaturas: signoffQueue.length,
   };
 

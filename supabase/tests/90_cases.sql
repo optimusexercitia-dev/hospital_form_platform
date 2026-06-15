@@ -11,13 +11,15 @@
 -- persona (authenticated) for each call; assertions reset to superuser to read.
 
 begin;
-select plan(29);
+select plan(35);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
 
--- The feature is dark by default; enable it for the duration of this txn.
-update app.feature_flags set enabled = true where key = 'cases_multi_phase';
+-- The features are dark by default; enable them for the duration of this txn.
+-- cases_extras is needed for the outcome RPCs exercised by the D3 conclude gate
+-- (create_case_outcome / set_process_outcomes / set_case_outcome).
+update app.feature_flags set enabled = true where key in ('cases_multi_phase', 'cases_extras');
 
 -- Convenience accessors.
 create temp table k on commit drop as
@@ -177,15 +179,94 @@ create temp table cp on commit drop as
   select id, position from public.case_phases where case_id = (select cid from cse);
 grant select on cp to authenticated;
 
--- ---- 9) out-of-order activation (phase 2 before phase 1) -> P0018 ----
+-- ---- 9) PARALLEL activation + BLOCKER enforcement (D1/D4) ----
+-- The sequential-unlock guard is GONE: a phase with empty blocks activates
+-- regardless of earlier phases (parallel). A phase that LISTS a blocker is HC018
+-- until that blocker settles — satisfied by EITHER concluida OR nao_necessaria
+-- (both D4 satisfiers). Built on a SEPARATE template/case so `cse`'s linear flow
+-- (tests 10-24) is undisturbed. This is a self-contained sub-scenario (5 asserts).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table btpl on commit drop as
+  select (public.create_process_template((select comm_x from k), 'Blockers 90', null)).id as tid;
+reset role;
+grant select on btpl to authenticated;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select public.add_template_phase((select tid from btpl), (select form_u from k), 'B1');
+-- B2 blocks [1]; B3 blocks [2].
+select public.add_template_phase((select tid from btpl), (select form_u from k), 'B2', null, null, array[1]);
+select public.add_template_phase((select tid from btpl), (select form_u from k), 'B3', null, null, array[2]);
+select public.publish_process_template((select tid from btpl));
+reset role;
+
+-- Case A: tests parallel activation + D4-A (concluida unblocks).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table bcse on commit drop as
+  select (public.create_case_from_template((select tid from btpl), 'Caso Blocker A')).id as cid;
+reset role;
+grant select on bcse to authenticated;
+create temp table bcp on commit drop as
+  select id, position from public.case_phases where case_id = (select cid from bcse);
+grant select on bcp to authenticated;
+
+-- (9a) B2 is BLOCKED while B1 (its blocker) is pendente.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.activate_phase(%L,%L) $$,
-          (select id from cp where position = 2), (select st_x from k)),
+          (select id from bcp where position = 2), (select st_x from k)),
   'HC018',
   null,
-  'activate_phase rejects out-of-order activation (P0018)'
+  'activate_phase rejects a phase whose blocker is unsettled (HC018 via blocks)'
+);
+reset role;
+
+-- (9b) B1 (empty blocks) activates freely — parallel, no strict-sequential guard.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (public.activate_phase((select id from bcp where position = 1), (select st_x from k))).status,
+  'ativa',
+  'a phase with empty blocks activates freely (parallel; sequential guard removed)'
+);
+reset role;
+
+-- (9c) Settle B1 by CONCLUIDA -> B2 unblocks (D4 satisfier A).
+select set_config('app.in_case_rpc', 'on', true);
+update public.case_phases set status = 'concluida', completed_at = now()
+  where id = (select id from bcp where position = 1);
+select set_config('app.in_case_rpc', 'off', true);
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (public.activate_phase((select id from bcp where position = 2), (select st_x from k))).status,
+  'ativa',
+  'D4 satisfier A: a CONCLUIDA blocker unblocks the dependent phase'
+);
+reset role;
+
+-- Case B: tests D4-B (nao_necessaria/skip unblocks). B3 blocks [2]; skip B2.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table bcse2 on commit drop as
+  select (public.create_case_from_template((select tid from btpl), 'Caso Blocker B')).id as cid;
+reset role;
+grant select on bcse2 to authenticated;
+create temp table bcp2 on commit drop as
+  select id, position from public.case_phases where case_id = (select cid from bcse2);
+grant select on bcp2 to authenticated;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select public.skip_phase((select id from bcp2 where position = 2));
+select is(
+  (public.activate_phase((select id from bcp2 where position = 3), (select st_x from k))).status,
+  'ativa',
+  'D4 satisfier B: a NAO_NECESSARIA (skipped) blocker unblocks the dependent phase'
 );
 reset role;
 
@@ -343,15 +424,82 @@ select throws_ok(
 reset role;
 
 -- =========================================================================
--- close_case + the case terminal guard.
+-- close_case + the D3 CONCLUDE GATE + the case terminal guard.
 -- =========================================================================
--- ---- 23) close the case ----
+-- ---- 23) D3 conclude gate: HC031 (unsettled) / HC028 (outcome required) / OK ----
+-- (23a) HC031: a case with an UNSETTLED (pendente/ativa) phase cannot conclude.
+-- Build a fresh 2-phase case (both pendente) and try to close it.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table gcse on commit drop as
+  select (public.create_case_from_template((select tid from tpl), 'Caso Gate')).id as cid;
+reset role;
+grant select on gcse to authenticated;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.close_case(%L) $$, (select cid from gcse)),
+  'HC031',
+  null,
+  'close_case rejects a case with unsettled (pendente/ativa) phases (HC031)'
+);
+reset role;
+
+-- (23b) HC028: a SETTLED case whose process OFFERS outcomes cannot conclude with
+-- none chosen. Build an outcome + a template offering it + a case, settle, close.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table goc on commit drop as
+  select (public.create_case_outcome((select comm_x from k), 'Desfecho gate', 'green', false, false)).id as oid;
+grant select on goc to authenticated;
+create temp table gtpl on commit drop as
+  select (public.create_process_template((select comm_x from k), 'Proc gate', null)).id as tid;
+grant select on gtpl to authenticated;
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select public.add_template_phase((select tid from gtpl), (select form_u from k), 'GF1');
+select public.set_process_outcomes((select tid from gtpl), array[(select oid from goc)]);
+select public.publish_process_template((select tid from gtpl));
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table gcse2 on commit drop as
+  select (public.create_case_from_template((select tid from gtpl), 'Caso Gate Outcome')).id as cid;
+reset role;
+grant select on gcse2 to authenticated;
+
+-- Settle the only phase (skip), then close must require an outcome (HC028).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select public.skip_phase((select id from public.case_phases
+  where case_id = (select cid from gcse2) and position = 1));
+select throws_ok(
+  format($$ select public.close_case(%L) $$, (select cid from gcse2)),
+  'HC028',
+  null,
+  'close_case rejects a settled case that offers outcomes but has none chosen (HC028)'
+);
+-- Choose the offered outcome -> close now succeeds.
+select public.set_case_outcome((select cid from gcse2), (select oid from goc));
+select is(
+  (public.close_case((select cid from gcse2))).status,
+  'concluido',
+  'close_case succeeds once settled AND an offered outcome is chosen'
+);
+reset role;
+
+-- (23c) The original happy path: cse is settled (phase1 concluida, phase2 skipped)
+-- and offers NO outcomes -> close succeeds. Leaves cse terminal for test 24.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (public.close_case((select cid from cse))).status,
   'concluido',
-  'close_case flips the case to concluido'
+  'close_case flips a settled, no-outcome case to concluido'
 );
 reset role;
 

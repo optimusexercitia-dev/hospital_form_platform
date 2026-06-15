@@ -60,6 +60,9 @@ const MESSAGES = {
   notArchivable: 'Este processo não pode ser arquivado.',
   slotReferenced:
     'Não é possível remover esta fase: outra fase a usa como condição de recomendação.',
+  // HC016 is also raised for an invalid blocker reference (earlier-only / exists).
+  blocksInvalid:
+    'Um bloqueio referencia uma fase inválida (deve ser uma fase anterior).',
   templateCreated: 'Processo criado com sucesso.',
   templateArchived: 'Processo arquivado.',
   templatePublished: 'Processo publicado com sucesso.',
@@ -67,6 +70,7 @@ const MESSAGES = {
   phaseUpdated: 'Fase atualizada com sucesso.',
   phaseRemoved: 'Fase removida com sucesso.',
   phaseMoved: 'Ordem das fases atualizada.',
+  blocksUpdated: 'Bloqueios da fase atualizados.',
 } as const
 
 const PG_CHECK_VIOLATION = '23514'
@@ -425,4 +429,47 @@ export async function moveTemplatePhase(
 
   revalidateTemplates()
   return { ok: true, error: MESSAGES.phaseMoved }
+}
+
+/**
+ * Set the EARLIER phases that BLOCK a phase-slot (D1/D4 — the "Bloqueios" editor).
+ * `blocks` is the full set of 1-based earlier-phase positions (`[]` = no blockers,
+ * always activatable). Draft-only; validated earlier-only + exists (HC016 → pt-BR)
+ * by `set_template_phase_blocks`. Persisted as a single round-trip so the slot
+ * dialog saves blockers independently of the recommend_when / due-date fields.
+ */
+export async function setTemplatePhaseBlocks(
+  phaseId: string,
+  blocks: number[],
+): Promise<ActionState> {
+  if (!phaseId) return { ok: false, error: MESSAGES.missingPhase }
+
+  // Normalise: drop non-positive / non-integer values (the RPC also normalises +
+  // deep-validates, but a clean client-side filter avoids a needless round-trip
+  // error for obviously-bad input).
+  const clean = Array.from(
+    new Set(blocks.filter((b) => Number.isInteger(b) && b >= 1)),
+  ).sort((a, b) => a - b)
+
+  const supabase = await createClient()
+  const ctx = await contextOfPhase(supabase, phaseId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingPhase }
+  if (!(await authorizeCommission(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('set_template_phase_blocks', {
+    p_phase_id: phaseId,
+    p_blocks: clean,
+  })
+
+  if (error) {
+    if (error.code === HC_INVALID_RECOMMEND) {
+      return { ok: false, error: error.message || MESSAGES.blocksInvalid }
+    }
+    return { ok: false, error: mapRpcError(error) }
+  }
+
+  revalidateTemplates()
+  return { ok: true, error: MESSAGES.blocksUpdated }
 }

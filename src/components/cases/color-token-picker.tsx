@@ -2,7 +2,7 @@
 
 import { Check } from "lucide-react";
 
-import type { CaseStatusColorToken } from "@/lib/queries/case-statuses";
+import type { CaseStatusColorToken } from "@/lib/cases/case-status";
 import { cn } from "@/lib/utils";
 import { TOKEN_COLOR_VAR } from "./case-status-badge";
 

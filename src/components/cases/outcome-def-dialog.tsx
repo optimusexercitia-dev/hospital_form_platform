@@ -3,17 +3,15 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-import type {
-  CaseStatusColorToken,
-  CaseStatusDef,
-} from "@/lib/queries/case-statuses";
+import type { CaseOutcome, CaseOutcomeColorToken } from "@/lib/queries/case-outcomes";
 import {
-  createCaseStatus,
-  updateCaseStatus,
+  createCaseOutcome,
+  updateCaseOutcome,
   type ActionState,
-  type CaseStatusInput,
-} from "@/lib/cases/status-actions";
+  type CaseOutcomeInput,
+} from "@/lib/cases/outcomes-actions";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -24,57 +22,55 @@ import {
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
 import { ColorTokenPicker } from "./color-token-picker";
-import { CaseStatusBadge } from "./case-status-badge";
+import { cn } from "@/lib/utils";
+import { TOKEN_STYLES } from "./case-status-badge";
 
 const FIELD_CLASS =
   "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
- * Create / edit a case-status definition (Cases-Extras R2): label, palette
- * colour, and the `is_initial` / `is_terminal` flags. The `key` is immutable
- * (it's the value stored on existing cases) — shown read-only on edit, derived
- * server-side on create. A live badge previews the chosen label + colour.
- *
- * The arg-based actions (`createCaseStatus`/`updateCaseStatus`) return an
- * `ActionState`; run inside a transition so field/top-level errors stay on screen
- * and the route refreshes on success.
+ * Create / edit a case outcome definition (D8–D11): label + colour + the two
+ * advisory flags ("Requer plano de ação" / "Evento adverso"). Arg-based actions
+ * run inside a transition; errors stay on screen and the route refreshes on
+ * success. A live chip previews the name + colour. Flag edits propagate to every
+ * case/process referencing the outcome (D11).
  */
-export function StatusDefDialog({
+export function OutcomeDefDialog({
   mode,
   open,
   onOpenChange,
   commissionId,
-  def,
+  outcome,
 }: {
   mode: "create" | "edit";
   open: boolean;
   onOpenChange: (open: boolean) => void;
   commissionId: string;
   /** Required for `edit`. */
-  def?: CaseStatusDef;
+  outcome?: CaseOutcome;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [state, setState] = useState<ActionState | null>(null);
 
-  const [label, setLabel] = useState(def?.label ?? "");
-  const [colorToken, setColorToken] = useState<CaseStatusColorToken>(
-    def?.colorToken ?? "slate",
+  const [label, setLabel] = useState(outcome?.label ?? "");
+  const [colorToken, setColorToken] = useState<CaseOutcomeColorToken>(
+    outcome?.colorToken ?? "blue",
   );
-  const [isInitial, setIsInitial] = useState(def?.isInitial ?? false);
-  const [isTerminal, setIsTerminal] = useState(def?.isTerminal ?? false);
+  const [requiresActionPlan, setRequiresActionPlan] = useState(
+    outcome?.requiresActionPlan ?? false,
+  );
+  const [isAdverse, setIsAdverse] = useState(outcome?.isAdverse ?? false);
 
-  // Reset the form to the def's values each time the dialog OPENS (render-phase
-  // prop-sync, the project's "adjust state when a prop changes" pattern).
   const [wasOpen, setWasOpen] = useState(false);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
       setState(null);
-      setLabel(def?.label ?? "");
-      setColorToken(def?.colorToken ?? "slate");
-      setIsInitial(def?.isInitial ?? false);
-      setIsTerminal(def?.isTerminal ?? false);
+      setLabel(outcome?.label ?? "");
+      setColorToken(outcome?.colorToken ?? "blue");
+      setRequiresActionPlan(outcome?.requiresActionPlan ?? false);
+      setIsAdverse(outcome?.isAdverse ?? false);
     }
   }
 
@@ -87,17 +83,17 @@ export function StatusDefDialog({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const input: CaseStatusInput = {
+    const input: CaseOutcomeInput = {
       label: label.trim(),
       colorToken,
-      isInitial,
-      isTerminal,
+      requiresActionPlan,
+      isAdverse,
     };
     startTransition(async () => {
       const result =
         mode === "create"
-          ? await createCaseStatus(commissionId, input)
-          : await updateCaseStatus(def!.key, commissionId, input);
+          ? await createCaseOutcome(commissionId, input)
+          : await updateCaseOutcome(outcome!.id, input);
       setState(result);
     });
   }
@@ -107,11 +103,11 @@ export function StatusDefDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {mode === "create" ? "Novo estado" : "Editar estado"}
+            {mode === "create" ? "Novo desfecho" : "Editar desfecho"}
           </DialogTitle>
           <DialogDescription>
-            Defina como o estado aparece e se ele é o estado inicial ou um estado
-            final.
+            Desfechos registram a conclusão de cada caso e alimentam os relatórios
+            (incluindo a proporção de eventos adversos).
           </DialogDescription>
         </DialogHeader>
 
@@ -128,7 +124,7 @@ export function StatusDefDialog({
               onChange={(e) => setLabel(e.target.value)}
               required
               className={FIELD_CLASS}
-              placeholder="Ex.: Em revisão"
+              placeholder="Ex.: Resolvido sem dano"
               aria-invalid={state?.fieldErrors?.label ? true : undefined}
             />
             {state?.fieldErrors?.label && (
@@ -138,63 +134,54 @@ export function StatusDefDialog({
             )}
           </label>
 
-          {mode === "edit" && def && (
-            <div className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium text-muted-foreground">Chave</span>
-              <span className="font-mono text-xs text-muted-foreground">
-                {def.key}{" "}
-                <span className="font-sans not-italic">
-                  (não pode ser alterada)
-                </span>
-              </span>
-            </div>
-          )}
-
           <div className="flex flex-col gap-2 text-sm">
             <span className="font-medium">Cor</span>
             <ColorTokenPicker value={colorToken} onChange={setColorToken} />
           </div>
 
-          <div className="flex flex-col gap-2 text-sm">
-            <span className="font-medium">Pré-visualização</span>
-            <CaseStatusBadge
-              label={label.trim() || "Sem nome"}
-              colorToken={colorToken}
-            />
-          </div>
-
-          <fieldset className="flex flex-col gap-2">
-            <legend className="sr-only">Comportamento do estado</legend>
-            <label className="flex items-start gap-2.5 text-sm">
-              <input
-                type="checkbox"
-                checked={isInitial}
-                onChange={(e) => setIsInitial(e.target.checked)}
-                className="mt-0.5 size-4 rounded border-input accent-primary"
+          <fieldset className="flex flex-col gap-2.5 text-sm">
+            <legend className="font-medium">Sinalizações</legend>
+            <label className="flex items-start gap-2.5">
+              <Checkbox
+                checked={requiresActionPlan}
+                onCheckedChange={(c) => setRequiresActionPlan(c === true)}
+                className="mt-0.5"
               />
               <span className="flex flex-col">
-                <span className="font-medium">Estado inicial</span>
+                <span>Requer plano de ação</span>
                 <span className="text-xs text-muted-foreground">
-                  Novos casos entram neste estado. Só um por comissão.
+                  Exibe um lembrete ao concluir um caso com este desfecho. Não
+                  impede a conclusão.
                 </span>
               </span>
             </label>
-            <label className="flex items-start gap-2.5 text-sm">
-              <input
-                type="checkbox"
-                checked={isTerminal}
-                onChange={(e) => setIsTerminal(e.target.checked)}
-                className="mt-0.5 size-4 rounded border-input accent-primary"
+            <label className="flex items-start gap-2.5">
+              <Checkbox
+                checked={isAdverse}
+                onCheckedChange={(c) => setIsAdverse(c === true)}
+                className="mt-0.5"
               />
               <span className="flex flex-col">
-                <span className="font-medium">Estado final</span>
+                <span>Evento adverso</span>
                 <span className="text-xs text-muted-foreground">
-                  Um caso neste estado é congelado e suas fases abertas são
-                  encerradas.
+                  Conta na proporção de eventos adversos do painel. Apenas para
+                  acompanhamento.
                 </span>
               </span>
             </label>
           </fieldset>
+
+          <div className="flex flex-col gap-2 text-sm">
+            <span className="font-medium">Pré-visualização</span>
+            <span
+              className={cn(
+                "inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+                TOKEN_STYLES[colorToken] ?? TOKEN_STYLES.muted,
+              )}
+            >
+              {label.trim() || "Sem nome"}
+            </span>
+          </div>
 
           <DialogFooter>
             <Button
@@ -209,7 +196,7 @@ export function StatusDefDialog({
               {isPending
                 ? "Salvando…"
                 : mode === "create"
-                  ? "Criar estado"
+                  ? "Criar desfecho"
                   : "Salvar"}
             </Button>
           </DialogFooter>

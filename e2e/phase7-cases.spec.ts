@@ -685,85 +685,256 @@ test('AC-HappyPath: board shows seeded Phase 1 concluída + Phase 2 recommended 
     }, { timeout: 15_000 })
     .toBe('nao_necessaria')
 
-  // ── 7. Close the case ──
+  // ── 7. Close the case via "Concluir" button + outcome dialog ──
+  // Fixed-status model (D12/D13): the old "Encerrar" dropdown menu is GONE.
+  // There is now a single "Concluir" button that opens a Dialog (not AlertDialog)
+  // where the coordinator picks the case outcome (D3 gate) and confirms.
+  // The seeded M&M template offers 3 outcomes (seed: Óbito evitável / não evitável
+  // / Alta sem intercorrências); Caso 0001 has all three in case_offered_outcomes.
   await page.reload()
-  await page.getByRole('button', { name: /Encerrar/i }).click()
-  const encerrarMenu = page.getByRole('menu')
-  await expect(encerrarMenu).toBeVisible({ timeout: 5_000 })
-  // R2 (Cases-Extras): the Encerrar menu now renders def.label ("Concluído"),
-  // and the AlertDialog confirm button is "Confirmar" (not "Concluir caso").
-  await encerrarMenu.getByRole('menuitem', { name: /Concluído/i }).click()
 
-  const closeConfirm = page.getByRole('alertdialog')
-  await expect(closeConfirm).toBeVisible({ timeout: 10_000 })
-  await closeConfirm.getByRole('button', { name: /Confirmar/i }).click()
-  await expect(closeConfirm).toHaveCount(0, { timeout: 15_000 })
+  const concludeBtn = page.getByRole('button', { name: /^Concluir$/i })
+  await expect(concludeBtn).toBeVisible({ timeout: 10_000 })
+  await concludeBtn.click()
+
+  const concludeDialog = page.getByRole('dialog').filter({ hasText: /Concluir o caso/i })
+  await expect(concludeDialog).toBeVisible({ timeout: 10_000 })
+
+  // The outcome selector must be visible (process offers outcomes — D15).
+  const outcomeSelect = concludeDialog.locator('select')
+  await expect(outcomeSelect).toBeVisible({ timeout: 5_000 })
+
+  // Pick the first non-empty outcome (any outcome satisfies the D3 gate).
+  const opts = await outcomeSelect.locator('option:not([value=""])').all()
+  expect(opts.length).toBeGreaterThan(0)
+  const firstOutcomeVal = await opts[0].getAttribute('value') ?? ''
+  await outcomeSelect.selectOption({ value: firstOutcomeVal })
+
+  const confirmBtn = concludeDialog.getByRole('button', { name: /Concluir caso/i })
+  await expect(confirmBtn).toBeEnabled({ timeout: 5_000 })
+  await confirmBtn.click()
+  await expect(concludeDialog).toHaveCount(0, { timeout: 15_000 })
 
   // DB truth: case is concluido.
   await expect
     .poll(async () => (await getCaseRow(page, SEEDED_CASE_ID))?.status, { timeout: 15_000 })
     .toBe('concluido')
 
-  // The case detail shows the "concluído" status badge.
+  // The case detail shows the "Concluído" status badge (fixed label, CASE_STATUS_META).
   await page.reload()
-  await expect(page.getByText(/concluído/i).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/Concluído/i).first()).toBeVisible({ timeout: 10_000 })
 })
 
 // ---------------------------------------------------------------------------
-// AC-SEQ-GUARD — Sequential guard: activating out of order is rejected (P0018)
+// AC-BlockerGuard — Phase blocking (D1/D4): a phase with explicit `blocks`
+// cannot be activated until each listed blocking phase is concluída OR
+// nao_necessaria. This replaces the old sequential-activation guard (which was
+// "all earlier phases" — now PARALLEL + explicit).
+//
+// Strategy: build a 2-phase template where Phase 2 explicitly blocks on Phase 1;
+// create a case from it; verify Phase 2 "Ativar e atribuir" is DISABLED with
+// "Bloqueada por Fase 1" label; skip Phase 1 (nao_necessaria unblocks — D4);
+// verify Phase 2 is now activatable.
 // ---------------------------------------------------------------------------
 
-test('AC-SeqGuard: activating a later phase before the prior concludes is rejected with P0018 message', async ({
+test('AC-BlockerGuard: Phase 2 with blocks=[1] is disabled until Phase 1 is settled; skip unblocks (D1/D4)', async ({
   page,
 }) => {
-  test.setTimeout(120_000)
+  test.setTimeout(180_000)
 
-  const ownerToken = await getOwnerToken(page, 'chefe.ccih@test.local')
-  const newCaseId = await createFreshCase(page, ownerToken, `SeqGuard ${Date.now()}`)
-
-  // The new case has Phase 1 and Phase 2 both pendente.
-  const phases = await getCasePhases(page, newCaseId)
-  expect(phases.every((p) => p.status === 'pendente')).toBeTruthy()
-  expect(phases.length).toBeGreaterThanOrEqual(2)
-
-  // Navigate to the case detail.
   await signInAs(page, 'chefe.ccih@test.local')
+
+  // ── Build a fresh 2-phase template with Phase 2 explicitly blocking on Phase 1 ──
+  await page.goto('/c/ccih/manage/process-templates')
+  await page.waitForURL('**/c/ccih/manage/process-templates', { timeout: 15_000 })
+
+  const suffix = Date.now()
+  const templateTitle = `Blocker E2E ${suffix}`
+
+  await page.getByRole('button', { name: /Novo processo/i }).click()
+  const createDialog = page.getByRole('dialog').filter({ hasText: /Novo processo/i })
+  await expect(createDialog).toBeVisible({ timeout: 10_000 })
+  await createDialog.getByLabel(/Título/i).fill(templateTitle)
+  await createDialog.getByRole('button', { name: /Criar processo/i }).click()
+  await page.waitForURL(/\/manage\/process-templates\/[0-9a-f-]{36}/, { timeout: 20_000 })
+
+  // ── Add Phase 1 (no blockers — first phase can have none) ──
+  await page.getByRole('button', { name: /Adicionar fase/i }).first().click()
+  const slotDialog1 = page.getByRole('dialog').filter({ hasText: /Nova fase/i })
+  await expect(slotDialog1).toBeVisible({ timeout: 10_000 })
+  await slotDialog1.locator('select[name="formId"]').selectOption({ label: 'Checklist de Higienização das Mãos' })
+  await slotDialog1.locator('input[name="title"]').fill('Fase 1 — Diagnóstico')
+  await slotDialog1.getByRole('button', { name: /Adicionar fase/i }).click()
+  await expect(slotDialog1).toHaveCount(0, { timeout: 15_000 })
+
+  // ── Add Phase 2 (blocks: [1]) ──
+  await page.getByRole('button', { name: /Adicionar fase/i }).first().click()
+  const slotDialog2 = page.getByRole('dialog').filter({ hasText: /Nova fase/i })
+  await expect(slotDialog2).toBeVisible({ timeout: 10_000 })
+  await slotDialog2.locator('select[name="formId"]').selectOption({ label: 'Checklist de Higienização das Mãos' })
+  await slotDialog2.locator('input[name="title"]').fill('Fase 2 — Intervenção')
+
+  // ── Enable the Phase 1 blocker in the "Bloqueios" checkbox list ──
+  // The PhaseBlocksEditor renders a fieldset with legend "Bloqueios" + checkboxes.
+  const bloqueiosFieldset = slotDialog2.locator('fieldset', { hasText: /Bloqueios/i })
+  await expect(bloqueiosFieldset).toBeVisible({ timeout: 10_000 })
+  // The checkbox for "Fase 1" is the only earlier phase.
+  const fase1Checkbox = bloqueiosFieldset.locator('label', { hasText: /Fase 1/i })
+  await expect(fase1Checkbox).toBeVisible({ timeout: 5_000 })
+  await fase1Checkbox.getByRole('checkbox').check()
+
+  await slotDialog2.getByRole('button', { name: /Adicionar fase/i }).click()
+  await expect(slotDialog2).toHaveCount(0, { timeout: 15_000 })
+
+  // ── Publish the template ──
+  await page.getByRole('button', { name: /^Publicar$/i }).click()
+  const confirmPub = page.getByRole('alertdialog')
+  await expect(confirmPub).toBeVisible({ timeout: 10_000 })
+  await confirmPub.getByRole('button', { name: /^Publicar$/i }).click()
+  await expect(page.getByText(/ativo/i).first()).toBeVisible({ timeout: 15_000 })
+
+  // ── Create a case from the new template ──
+  const ownerToken = await getOwnerToken(page, 'chefe.ccih@test.local')
+
+  // Resolve the just-published template id.
+  const tplResp = await page.request.get(
+    `${SUPABASE_URL}/rest/v1/process_templates?commission_id=eq.${COMM_CCIH_ID}&status=eq.active&title=eq.${encodeURIComponent(templateTitle)}&select=id&limit=1`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${ownerToken}`,
+      },
+    },
+  )
+  const tpls = (await tplResp.json()) as Array<{ id: string }>
+  expect(tpls.length).toBeGreaterThan(0)
+  const tplId = tpls[0].id
+
+  const createCaseResp = await page.request.post(
+    `${SUPABASE_URL}/rest/v1/rpc/create_case_from_template`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${ownerToken}`,
+        'Content-Type': 'application/json',
+      },
+      data: { p_template_id: tplId, p_label: `Blocker Case ${suffix}` },
+    },
+  )
+  expect(createCaseResp.ok()).toBeTruthy()
+  const newCase = (await createCaseResp.json()) as { id: string }
+  const newCaseId = newCase.id
+
+  // Verify the case_phases snapshotted the blocks (Phase 2 blocks = [1]).
+  const phasesResp = await page.request.get(
+    `${SUPABASE_URL}/rest/v1/case_phases?case_id=eq.${newCaseId}&order=position.asc&select=id,status,position,blocks`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      },
+    },
+  )
+  const casePhases = (await phasesResp.json()) as Array<{ id: string; status: string; position: number; blocks: number[] }>
+  expect(casePhases.length).toBe(2)
+  expect(casePhases[0].blocks).toEqual([]) // Phase 1: no blockers
+  expect(casePhases[1].blocks).toEqual([1]) // Phase 2: blocked by position 1
+
+  // ── Navigate to the case detail ──
   await page.goto(`/c/ccih/manage/cases/${newCaseId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${newCaseId}`), { timeout: 15_000 })
 
-  // Try to activate Phase 2 while Phase 1 is still pendente.
-  // Both are pendente so both have "Ativar e atribuir" buttons — we pick the
-  // second article (Phase 2). Articles are ordered by position.
-  const phaseArticles = page.getByRole('article')
-  await expect(phaseArticles).toHaveCount(phases.length, { timeout: 10_000 })
+  // ── Phase 2's "Ativar e atribuir" must be DISABLED + "Bloqueada por Fase 1" shown ──
+  const phase2Row = page.getByRole('article').filter({ hasText: /Fase 2/i }).first()
+  await expect(phase2Row).toBeVisible({ timeout: 10_000 })
 
-  // The phase-2 article: sort by the "Fase N" position text.
-  // We find the article whose "Fase N" text has the highest N.
-  const phase2Article = phaseArticles.filter({ hasText: /Fase 2/i }).first()
-  await expect(phase2Article).toBeVisible({ timeout: 10_000 })
+  const activateBtn2 = phase2Row.getByRole('button', { name: /Ativar e atribuir/i })
+  await expect(activateBtn2).toBeDisabled({ timeout: 10_000 })
 
-  await phase2Article.getByRole('button', { name: /Ativar e atribuir/i }).click()
-  const activateDialog = page.getByRole('dialog').filter({ hasText: /Ativar e atribuir fase/i })
-  await expect(activateDialog).toBeVisible({ timeout: 10_000 })
+  // The "Bloqueada por Fase 1" label must be visible in the row (A7 assumption).
+  await expect(phase2Row.getByText(/Bloqueada por Fase 1/i)).toBeVisible({ timeout: 5_000 })
 
-  // Select the first real assignee option.
-  const assigneeSelect = activateDialog.locator('select[name="assignedTo"]')
-  const optionValues = await assigneeSelect.locator('option:not([disabled]):not([value=""])').all()
-  if (optionValues.length > 0) {
-    const val = await optionValues[0].getAttribute('value')
-    if (val) await assigneeSelect.selectOption(val)
-  }
+  // ── Phase 1 IS independently activatable (no blockers, D1 parallel model) ──
+  const phase1Row = page.getByRole('article').filter({ hasText: /Fase 1/i }).first()
+  await expect(phase1Row).toBeVisible({ timeout: 10_000 })
+  const activateBtn1 = phase1Row.getByRole('button', { name: /Ativar e atribuir/i })
+  await expect(activateBtn1).toBeEnabled({ timeout: 5_000 })
 
-  await activateDialog.getByRole('button', { name: /Ativar fase/i }).click()
+  // ── Skip Phase 1 (nao_necessaria) — D4: skip ALSO unblocks ──
+  await phase1Row.getByRole('button', { name: /Não necessária/i }).click()
+  const skipConfirm = page.getByRole('alertdialog')
+  await expect(skipConfirm).toBeVisible({ timeout: 10_000 })
+  await skipConfirm.getByRole('button', { name: /Marcar como não necessária/i }).click()
+  await expect(skipConfirm).toHaveCount(0, { timeout: 15_000 })
 
-  // The server rejects with the P0018 sequential-guard message.
-  await expect(
-    activateDialog.getByText(/Conclua ou marque as fases anteriores/i),
-  ).toBeVisible({ timeout: 15_000 })
+  // DB truth: Phase 1 is nao_necessaria.
+  await expect
+    .poll(async () => {
+      const r = await page.request.get(
+        `${SUPABASE_URL}/rest/v1/case_phases?case_id=eq.${newCaseId}&position=eq.1&select=status`,
+        {
+          headers: {
+            apikey: SUPABASE_SERVICE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+          },
+        },
+      )
+      const rows = (await r.json()) as Array<{ status: string }>
+      return rows[0]?.status
+    }, { timeout: 15_000 })
+    .toBe('nao_necessaria')
 
-  // DB truth: Phase 2 is still pendente.
-  const phasesAfter = await getCasePhases(page, newCaseId)
-  expect(phasesAfter.find((p) => p.position === 2)?.status).toBe('pendente')
+  // ── After skip, Phase 2 "Ativar e atribuir" is now ENABLED ──
+  await page.reload()
+  await page.waitForURL(new RegExp(`/manage/cases/${newCaseId}`), { timeout: 15_000 })
+
+  const phase2RowAfter = page.getByRole('article').filter({ hasText: /Fase 2/i }).first()
+  const activateBtnAfter = phase2RowAfter.getByRole('button', { name: /Ativar e atribuir/i })
+  await expect(activateBtnAfter).toBeEnabled({ timeout: 10_000 })
+
+  // ── Direct API check: activate_phase without a settled Phase 1 also raises HC018 ──
+  // (Test with a fresh case from the same template so Phase 1 is still pendente.)
+  const createCase2Resp = await page.request.post(
+    `${SUPABASE_URL}/rest/v1/rpc/create_case_from_template`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${ownerToken}`,
+        'Content-Type': 'application/json',
+      },
+      data: { p_template_id: tplId, p_label: `Blocker Case 2 ${suffix}` },
+    },
+  )
+  expect(createCase2Resp.ok()).toBeTruthy()
+  const case2 = (await createCase2Resp.json()) as { id: string }
+
+  const phases2Resp = await page.request.get(
+    `${SUPABASE_URL}/rest/v1/case_phases?case_id=eq.${case2.id}&order=position.asc&select=id,position`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      },
+    },
+  )
+  const case2Phases = (await phases2Resp.json()) as Array<{ id: string; position: number }>
+  const case2Phase2 = case2Phases.find((p) => p.position === 2)!
+
+  const activateBlockedResp = await page.request.post(
+    `${SUPABASE_URL}/rest/v1/rpc/activate_phase`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${ownerToken}`,
+        'Content-Type': 'application/json',
+      },
+      data: { p_case_phase_id: case2Phase2.id, p_assigned_to: STAFF1_CCIH_ID },
+    },
+  )
+  // HC018 — blocked by unsettled earlier phase.
+  expect(activateBlockedResp.ok()).toBeFalsy()
+  const blockedBody = (await activateBlockedResp.json()) as { code?: string }
+  expect(blockedBody.code).toBe('HC018')
 })
 
 // ---------------------------------------------------------------------------

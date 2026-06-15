@@ -39,7 +39,7 @@ export default async function CaseTagsSettingsPage({
         </p>
         <h1 className="text-3xl text-balance">Configurações</h1>
         <p className="max-w-prose text-muted-foreground text-pretty">
-          Personalize os estados e as etiquetas usados nos casos desta comissão.
+          Personalize os desfechos e as etiquetas usados nos casos desta comissão.
         </p>
       </header>
 

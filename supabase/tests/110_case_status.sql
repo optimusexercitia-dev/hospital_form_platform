@@ -1,14 +1,24 @@
--- Cases-Extras R2: configurable per-commission case status.
--- Covers: seed trigger (new commission gets 5 defs); guard allows non-terminal→any-defined;
--- HC024 (undefined key); HC025 (terminal-frozen); DELETE blocked on terminal case;
--- set_case_status terminal-entry behaviour (flip open phases + closed_at);
--- CRITICAL REGRESSION: phase submit advances while case is in a CUSTOM NON-TERMINAL
--- status (em_revisao); cross-commission status-def isolation.
+-- Case data-model adjustments: the FIXED, auto-computed case status (decisions
+-- D6/D7 + the status precedence) — REPLACES the configurable-status model
+-- (migrations 093000/093001).
+--
+-- The macro status is now a fixed 5-value enum derived by app.recompute_case_status
+-- + an AFTER trigger on case_phases:
+--   * cancelado / concluido are MANUAL terminal (close_case / cancel_case), frozen.
+--   * em_revisao  : ANY phase ativa.
+--   * pendente    : >=1 phase concluida, NONE ativa.
+--   * nao_iniciado: no phase ativa/concluida (a SKIP-ONLY case stays here, D7).
+-- Precedence: cancelado > concluido > em_revisao > pendente > nao_iniciado.
+--
+-- This file drives a 3-phase case through every precedence branch by directly
+-- transitioning phase statuses under app.in_case_rpc (the same valid transitions
+-- the RPCs use), asserting the recompute trigger lands the right macro status,
+-- then exercises the manual terminal actions (conclude/cancel) + HC025 freeze +
+-- the terminal DELETE block. cases_multi_phase is flipped ON for the txn.
 
 begin;
-select plan(18);
+select plan(15);
 
--- Enable both feature flags for this transaction.
 update app.feature_flags set enabled = true where key in ('cases_multi_phase', 'cases_extras');
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
@@ -17,78 +27,28 @@ grant select on ctx to authenticated;
 create temp table k on commit drop as
   select (v->>'sa_x')::uuid    as sa_x,
          (v->>'st_x')::uuid    as st_x,
-         (v->>'sa_y')::uuid    as sa_y,
-         (v->>'st_y')::uuid    as st_y,
          (v->>'comm_x')::uuid  as comm_x,
          (v->>'comm_y')::uuid  as comm_y,
-         (v->>'form_u')::uuid  as form_u,
-         (v->>'ver_u')::uuid   as ver_u,
-         (v->>'sec_u')::uuid   as sec_u,
-         (v->>'item_mc')::uuid as item_mc,
-         (v->>'form_y')::uuid  as form_y
+         (v->>'st_y')::uuid    as st_y,
+         (v->>'form_u')::uuid  as form_u
   from ctx;
 grant select on k to authenticated;
 
 -- =========================================================================
--- 1) SEED TRIGGER: new commission (inserted by bootstrap) gets 5 status defs
--- =========================================================================
-select is(
-  (select count(*)::int from public.case_status_defs where commission_id = (select comm_x from k)),
-  5,
-  'seed trigger fires on commissions INSERT: comm_x receives 5 default status defs'
-);
-
--- The initial status key must be em_andamento.
-select is(
-  (select key from public.case_status_defs
-   where commission_id = (select comm_x from k) and is_initial = true),
-  'em_andamento',
-  'seed trigger: the initial status key is em_andamento'
-);
-
--- Two terminal statuses (concluido, cancelado).
-select is(
-  (select count(*)::int from public.case_status_defs
-   where commission_id = (select comm_x from k) and is_terminal = true),
-  2,
-  'seed trigger: exactly 2 terminal status defs (concluido, cancelado)'
-);
-
--- =========================================================================
--- 2) CROSS-COMMISSION ISOLATION: comm_y also has 5 independent defs
--- =========================================================================
-select is(
-  (select count(*)::int from public.case_status_defs where commission_id = (select comm_y from k)),
-  5,
-  'cross-commission isolation: comm_y independently gets 5 status defs'
-);
-
--- The position sequences of X and Y are independent; each starts at 1.
-select is(
-  (select min(position) from public.case_status_defs where commission_id = (select comm_x from k)),
-  1,
-  'comm_x positions start at 1'
-);
-select is(
-  (select min(position) from public.case_status_defs where commission_id = (select comm_y from k)),
-  1,
-  'comm_y positions start at 1 (independent counter)'
-);
-
--- =========================================================================
--- Build a 1-phase template + case (status em_andamento) in commission X.
+-- Build a 3-phase template (all bound to form_u) + a case in commission X.
 -- =========================================================================
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-
 create temp table tpl on commit drop as
-  select (public.create_process_template((select comm_x from k), 'Status E2E', null)).id as tid;
+  select (public.create_process_template((select comm_x from k), 'Status fixo', null)).id as tid;
 reset role;
 grant select on tpl to authenticated;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select public.add_template_phase((select tid from tpl), (select form_u from k), 'Fase 1');
+select public.add_template_phase((select tid from tpl), (select form_u from k), 'Fase 2');
+select public.add_template_phase((select tid from tpl), (select form_u from k), 'Fase 3');
 select public.publish_process_template((select tid from tpl));
 reset role;
 
@@ -99,182 +59,227 @@ create temp table cse on commit drop as
 reset role;
 grant select on cse to authenticated;
 
--- The new case starts in the initial status (em_andamento).
-select is(
-  (select status from public.cases where id = (select cid from cse)),
-  'em_andamento',
-  'create_case_from_template sets status to the commission initial key (em_andamento)'
-);
-
--- =========================================================================
--- 3) GUARD: non-terminal → any defined status is allowed (em_andamento → em_revisao)
--- =========================================================================
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select lives_ok(
-  format($$ select public.set_case_status(%L, 'em_revisao') $$, (select cid from cse)),
-  'set_case_status allows non-terminal → any defined status (em_andamento → em_revisao)'
-);
-reset role;
-
-select is(
-  (select status from public.cases where id = (select cid from cse)),
-  'em_revisao',
-  'case status is now em_revisao after set_case_status'
-);
-
--- =========================================================================
--- 4) HC024: undefined status key is rejected
--- =========================================================================
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select throws_ok(
-  format($$ select public.set_case_status(%L, 'inventado') $$, (select cid from cse)),
-  'HC024',
-  null,
-  'set_case_status rejects an undefined status key (HC024)'
-);
-reset role;
-
--- =========================================================================
--- 5) TERMINAL ENTRY: set_case_status to concluido stamps closed_at + flips phases
--- =========================================================================
--- First activate the phase and open it.
 create temp table cp on commit drop as
   select id, position from public.case_phases where case_id = (select cid from cse);
 grant select on cp to authenticated;
 
--- Activate phase 1 → assigned to st_x.
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select public.activate_phase((select id from cp where position = 1), (select st_x from k));
-reset role;
+-- =========================================================================
+-- 1) ONLY-PENDENTE  =>  nao_iniciado (a fresh case; no phase ativa/concluida)
+-- =========================================================================
+select is(
+  (select status from public.cases where id = (select cid from cse)),
+  'nao_iniciado',
+  'fresh case (all phases pendente) computes to nao_iniciado'
+);
 
--- Now move the case into a terminal status.
+-- Helper note: the following blocks transition phase statuses DIRECTLY as
+-- superuser under app.in_case_rpc, which is exactly the guarded transition path
+-- the RPCs use; the recompute trigger fires on each UPDATE and re-derives the
+-- macro status.
+
+-- =========================================================================
+-- 2) ONE ATIVA  =>  em_revisao
+-- =========================================================================
+select set_config('app.in_case_rpc', 'on', true);
+update public.case_phases set status = 'ativa', activated_at = now()
+  where id = (select id from cp where position = 1);
+select set_config('app.in_case_rpc', 'off', true);
+
+select is(
+  (select status from public.cases where id = (select cid from cse)),
+  'em_revisao',
+  'a single ativa phase computes the case to em_revisao'
+);
+
+-- =========================================================================
+-- 3) >=1 CONCLUIDA, NONE ATIVA  =>  pendente
+-- =========================================================================
+select set_config('app.in_case_rpc', 'on', true);
+update public.case_phases set status = 'concluida', completed_at = now()
+  where id = (select id from cp where position = 1);
+select set_config('app.in_case_rpc', 'off', true);
+
+select is(
+  (select status from public.cases where id = (select cid from cse)),
+  'pendente',
+  '>=1 concluida and NONE ativa computes the case to pendente'
+);
+
+-- =========================================================================
+-- 4) ATIVA + CONCLUIDA  =>  em_revisao (ativa takes precedence over pendente)
+-- =========================================================================
+select set_config('app.in_case_rpc', 'on', true);
+update public.case_phases set status = 'ativa', activated_at = now()
+  where id = (select id from cp where position = 2);
+select set_config('app.in_case_rpc', 'off', true);
+
+select is(
+  (select status from public.cases where id = (select cid from cse)),
+  'em_revisao',
+  'ativa + concluida computes to em_revisao (ativa precedence over pendente)'
+);
+
+-- =========================================================================
+-- 5) SKIP-ONLY  =>  nao_iniciado (D7: nao_necessaria does NOT move off nao_iniciado)
+-- =========================================================================
+-- Build a SEPARATE fresh case and skip its phases (no concluida, no ativa).
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select lives_ok(
-  format($$ select public.set_case_status(%L, 'concluido') $$, (select cid from cse)),
-  'set_case_status into terminal status (concluido) succeeds'
+create temp table skip_cse on commit drop as
+  select (public.create_case_from_template((select tid from tpl), 'Caso Skip')).id as cid;
+reset role;
+grant select on skip_cse to authenticated;
+
+select set_config('app.in_case_rpc', 'on', true);
+update public.case_phases set status = 'nao_necessaria', skipped_at = now()
+  where case_id = (select cid from skip_cse);
+select set_config('app.in_case_rpc', 'off', true);
+
+select is(
+  (select status from public.cases where id = (select cid from skip_cse)),
+  'nao_iniciado',
+  'a SKIP-ONLY case (all nao_necessaria, none concluida) stays nao_iniciado (D7)'
+);
+
+-- =========================================================================
+-- 6) CONCLUDE  =>  concluido (manual terminal), stamps closed_at, flips open phases
+-- =========================================================================
+-- The main case (cse) currently has phase 1 concluida, phase 2 ativa, phase 3
+-- pendente. Settle the open phases so the D3 conclude gate passes (the gate is
+-- asserted in 90_cases test 23; here we exercise the terminal computation).
+-- NOTE: re-assert the flag before EACH phase update — the recompute trigger
+-- (fired by the prior update) resets app.in_case_rpc to 'off' internally, so a
+-- second update in the same block would otherwise lose it and the phase guard
+-- would reject the transition.
+select set_config('app.in_case_rpc', 'on', true);
+update public.case_phases set status = 'concluida', completed_at = now()
+  where id = (select id from cp where position = 2);
+select set_config('app.in_case_rpc', 'on', true);
+update public.case_phases set status = 'nao_necessaria', skipped_at = now()
+  where id = (select id from cp where position = 3);
+select set_config('app.in_case_rpc', 'off', true);
+
+-- All phases settled, no offered outcomes -> close_case succeeds.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (public.close_case((select cid from cse))).status,
+  'concluido',
+  'close_case sets a settled case to concluido (manual terminal)'
 );
 reset role;
 
--- closed_at must now be set.
 select isnt(
   (select closed_at from public.cases where id = (select cid from cse)),
   null,
-  'set_case_status terminal entry stamps closed_at'
+  'close_case stamps closed_at on the case'
 );
 
--- The open (ativa) phase must have been flipped to nao_necessaria.
+-- =========================================================================
+-- 7) TERMINAL FREEZE: recompute does NOT override a concluido case (D6)
+-- =========================================================================
+-- A concluida phase cannot transition, but prove the recompute early-return:
+-- the case stays concluido even though a phase-status write fires the trigger.
+-- (Use a no-op-safe touch: re-stamp updated_at on a settled phase under the flag.)
+select set_config('app.in_case_rpc', 'on', true);
+update public.case_phases set updated_at = now()
+  where id = (select id from cp where position = 1);
+select set_config('app.in_case_rpc', 'off', true);
+
 select is(
-  (select status from public.case_phases where id = (select id from cp where position = 1)),
-  'nao_necessaria',
-  'set_case_status terminal entry flips remaining open phases to nao_necessaria'
+  (select status from public.cases where id = (select cid from cse)),
+  'concluido',
+  'recompute early-returns on a terminal case: concluido is never overridden (D6)'
 );
 
 -- =========================================================================
--- 6) HC025: further status changes from a terminal status are blocked
+-- 8) HC025: any status change out of a terminal case is blocked
 -- =========================================================================
+-- close_case on an already-terminal case raises HC025.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
-  format($$ select public.set_case_status(%L, 'em_andamento') $$, (select cid from cse)),
+  format($$ select public.close_case(%L) $$, (select cid from cse)),
   'HC025',
   null,
-  'set_case_status rejects any change out of a terminal status (HC025)'
+  'close_case rejects an already-terminal case (HC025)'
+);
+reset role;
+
+-- cancel_case on a terminal case also raises HC025.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.cancel_case(%L) $$, (select cid from cse)),
+  'HC025',
+  null,
+  'cancel_case rejects an already-terminal case (HC025)'
 );
 reset role;
 
 -- =========================================================================
--- 7) DELETE BLOCKED on a terminal case
+-- 9) TERMINAL DELETE BLOCK: a concluido case cannot be deleted (guard fires)
 -- =========================================================================
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
--- guard_case_status also fires on DELETE (set triggers for delete guard).
--- The guard raises 23514 on DELETE from a terminal status.
 select throws_ok(
   format($$ delete from public.cases where id = %L $$, (select cid from cse)),
   '23514',
   null,
-  'DELETE is blocked on a terminal case (guard fires on DELETE too)'
+  'DELETE is blocked on a terminal (concluido) case (guard fires on DELETE too)'
 );
 reset role;
 
 -- =========================================================================
--- 8) CRITICAL REGRESSION: phase submit while case is in a CUSTOM NON-TERMINAL
--- status (em_revisao) still advances the phase to concluida.
--- This guards the liveness-literal sweep (no hard-coded 'aberto' literal).
+-- 10) CANCEL ANYTIME  =>  cancelado, even from a NON-settled case
 -- =========================================================================
--- Build a fresh case for the regression test.
+-- Build a fresh case, move one phase to ativa (em_revisao), then CANCEL — cancel
+-- has no settle gate (only the terminal-freeze HC025), so it succeeds anytime.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-create temp table reg_cse on commit drop as
-  select (public.create_case_from_template((select tid from tpl), 'Regression Case')).id as cid;
+create temp table cancel_cse on commit drop as
+  select (public.create_case_from_template((select tid from tpl), 'Caso Cancel')).id as cid;
 reset role;
-grant select on reg_cse to authenticated;
+grant select on cancel_cse to authenticated;
 
--- Move it to the custom non-terminal status 'em_revisao'.
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select public.set_case_status((select cid from reg_cse), 'em_revisao');
+select set_config('app.in_case_rpc', 'on', true);
+update public.case_phases set status = 'ativa', activated_at = now()
+  where case_id = (select cid from cancel_cse) and position = 1;
+select set_config('app.in_case_rpc', 'off', true);
 
--- Activate phase 1 → assign to st_x.
-create temp table reg_cp on commit drop as
-  select id, position from public.case_phases where case_id = (select cid from reg_cse);
-grant select on reg_cp to authenticated;
-reset role;
-grant select on reg_cp to authenticated;
-
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select public.activate_phase((select id from reg_cp where position = 1), (select st_x from k));
-reset role;
-
--- The assignee starts the phase + creates a response.
-select test_helpers.claims_for((select st_x from k), false);
-set local role authenticated;
-create temp table reg_rsp on commit drop as
-  select (public.start_or_resume_phase((select id from reg_cp where position = 1))).id as rid;
-reset role;
-grant select on reg_rsp to authenticated;
-
--- Answer the required item (u_q1 = 'Sim').
-select test_helpers.claims_for((select st_x from k), false);
-set local role authenticated;
-select public.save_section_answers(
-  (select rid from reg_rsp),
-  (select sec_u from k),
-  jsonb_build_object((select item_mc from k)::text, to_jsonb('Sim'::text)));
-
--- SUBMIT while case is in em_revisao (a non-terminal custom status).
-select public.submit_response((select rid from reg_rsp));
-reset role;
-
--- THE CRITICAL ASSERTION: phase must now be 'concluida' (not stuck).
+-- Sanity: it is em_revisao (open) before cancel.
 select is(
-  (select status from public.case_phases where id = (select id from reg_cp where position = 1)),
-  'concluida',
-  'CRITICAL REGRESSION: submit advances phase to concluida while case is in custom non-terminal status em_revisao'
-);
-
--- The case itself must still be in em_revisao (not auto-closed by the submit).
-select is(
-  (select status from public.cases where id = (select cid from reg_cse)),
+  (select status from public.cases where id = (select cid from cancel_cse)),
   'em_revisao',
-  'case remains in em_revisao after phase submit (submit does not change case status)'
+  'the cancel fixture is em_revisao (an open, non-settled case) before cancel'
+);
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (public.cancel_case((select cid from cancel_cse))).status,
+  'cancelado',
+  'cancel_case sets ANY non-terminal case to cancelado (no settle gate, anytime)'
+);
+reset role;
+
+-- After cancel, the open phase was flipped to nao_necessaria (terminal-first).
+select is(
+  (select status from public.case_phases
+   where case_id = (select cid from cancel_cse) and position = 1),
+  'nao_necessaria',
+  'cancel_case flips remaining open phases to nao_necessaria (terminal-first)'
 );
 
 -- =========================================================================
--- 9) RLS: comm_y member cannot read comm_x status defs
+-- 11) RLS read boundary: a cross-commission member sees none of X's cases.
 -- =========================================================================
 select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 select is(
-  (select count(*)::int from public.case_status_defs
-   where commission_id = (select comm_x from k)),
+  (select count(*)::int from public.cases where id = (select cid from cse)),
   0,
-  'RLS: cross-commission member cannot read another commission''s status defs'
+  'RLS: a cross-commission member cannot read another commission''s case'
 );
 reset role;
 

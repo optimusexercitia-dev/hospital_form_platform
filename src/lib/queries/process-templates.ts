@@ -52,6 +52,15 @@ export interface ProcessTemplatePhase {
    * `null` = no default. Non-negative when present.
    */
   defaultDueDays: number | null
+  /**
+   * The 1-based positions of EARLIER slots that BLOCK this one (D1/D4): a case's
+   * materialized phase cannot be activated until every listed earlier phase is
+   * `concluida` or `nao_necessaria`. Validated earlier-only on save and remapped
+   * on reorder/remove (mirrors `recommend_when`'s renumber machinery);
+   * snapshot-copied verbatim into `case_phases` at case creation. `[]` = no
+   * blockers.
+   */
+  blocks: number[]
 }
 
 /** A process template (blueprint) plus its ordered phase-slots. */
@@ -63,6 +72,14 @@ export interface ProcessTemplate {
   status: ProcessTemplateStatus
   createdAt: string
   phases: ProcessTemplatePhase[]
+  /**
+   * The ids of the outcomes this template OFFERS (`process_template_outcomes`),
+   * for the builder's outcome multiselect to pre-check (D15 — outcomes optional
+   * per process; `[]` = offers none). Resolve to labels/flags via
+   * `listCaseOutcomes` (the vocabulary) + `listProcessOutcomes` (the offered
+   * objects) from `@/lib/queries/case-outcomes`. Order is not significant.
+   */
+  offeredOutcomeIds: string[]
 }
 
 // ---------------------------------------------------------------------------
@@ -81,7 +98,12 @@ interface TemplatePhaseRow {
   title: string | null
   recommend_when: RecommendWhen | null
   default_due_days: number | null
+  blocks: number[] | null
   forms: { title: string | null } | null
+}
+
+interface TemplateOutcomeRow {
+  outcome_id: string
 }
 
 interface TemplateRow {
@@ -92,14 +114,17 @@ interface TemplateRow {
   status: ProcessTemplateStatus
   created_at: string
   process_template_phases: TemplatePhaseRow[]
+  process_template_outcomes: TemplateOutcomeRow[]
 }
 
 const TEMPLATE_SELECT = `
   id, commission_id, title, description, status, created_at,
   process_template_phases (
     id, template_id, position, form_id, title, recommend_when, default_due_days,
+    blocks,
     forms ( title )
-  )
+  ),
+  process_template_outcomes ( outcome_id )
 ` as const
 
 function mapPhase(p: TemplatePhaseRow): ProcessTemplatePhase {
@@ -112,6 +137,7 @@ function mapPhase(p: TemplatePhaseRow): ProcessTemplatePhase {
     title: p.title,
     recommendWhen: p.recommend_when,
     defaultDueDays: p.default_due_days,
+    blocks: p.blocks ?? [],
   }
 }
 
@@ -127,6 +153,9 @@ function mapTemplate(t: TemplateRow): ProcessTemplate {
       .slice()
       .sort((a, b) => a.position - b.position)
       .map(mapPhase),
+    offeredOutcomeIds: (t.process_template_outcomes ?? []).map(
+      (o) => o.outcome_id,
+    ),
   }
 }
 

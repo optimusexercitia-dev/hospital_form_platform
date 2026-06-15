@@ -23,10 +23,12 @@ import type { Database, Json } from '@/lib/types/database'
  * UNCHANGED wizard. Phase completion is a DB trigger reacting to
  * `submit_response`, not an action here.
  *
- * Phase-7 SQLSTATEs mapped to pt-BR: P0016 invalid recommend_when, P0017 no
- * published version, P0018 not sequentially activatable, P0019 phase wrong
- * state, P0020 case not open, P0021 assignee not a member, P0022 caller not the
- * assignee. The RPCs raise their own pt-BR text; we prefer it and fall back.
+ * SQLSTATEs mapped to pt-BR: HC016 invalid recommend_when, HC017 no published
+ * version, HC018 phase blocked (its blockers are unsettled), HC019 phase wrong
+ * state, HC020 case not open, HC021 assignee not a member, HC022 caller not the
+ * assignee, HC024 invalid status, HC025 case terminal, and the D3 conclude gate
+ * (`close_case`) HC028 outcome required + HC031 unsettled phases. The RPCs raise
+ * their own pt-BR text; we prefer it and fall back to the constants below.
  */
 
 export interface ActionState {
@@ -70,6 +72,9 @@ const MESSAGES = {
   // Cases-Extras R2 (configurable case status)
   invalidStatus: 'Estado de caso inválido para esta comissão.',
   caseTerminal: 'Este caso está em um estado final e não pode mais ser alterado.',
+  // Case data-model adjustments — the D3 conclude gate (close_case)
+  outcomeRequired: 'Selecione um desfecho antes de concluir o caso.',
+  phasesUnsettled: 'Conclua ou marque todas as fases antes de concluir o caso.',
   caseCreated: 'Caso criado com sucesso.',
   phaseActivated: 'Fase ativada e atribuída.',
   phaseSkipped: 'Fase marcada como não necessária.',
@@ -94,6 +99,9 @@ const HC_NOT_ASSIGNEE = 'HC022'
 // Cases-Extras R2 (configurable case status).
 const HC_INVALID_STATUS = 'HC024'
 const HC_CASE_TERMINAL = 'HC025'
+// Case data-model adjustments — the D3 conclude gate (close_case).
+const HC_OUTCOME_REQUIRED = 'HC028'
+const HC_PHASES_UNSETTLED = 'HC031'
 
 const CASES_LIST_PATH = '/c/[slug]/manage/cases'
 const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
@@ -178,6 +186,10 @@ function mapCaseError(error: { code?: string; message?: string } | null): string
       return error.message || MESSAGES.invalidStatus
     case HC_CASE_TERMINAL:
       return error.message || MESSAGES.caseTerminal
+    case HC_OUTCOME_REQUIRED:
+      return error.message || MESSAGES.outcomeRequired
+    case HC_PHASES_UNSETTLED:
+      return error.message || MESSAGES.phasesUnsettled
     case PG_CHECK_VIOLATION:
       return error.message || MESSAGES.generic
     default:

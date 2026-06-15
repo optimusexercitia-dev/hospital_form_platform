@@ -278,10 +278,91 @@ export type Database = {
           },
         ]
       }
+      case_offered_outcomes: {
+        Row: {
+          case_id: string
+          created_at: string
+          outcome_id: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          outcome_id: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          outcome_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_offered_outcomes_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_offered_outcomes_outcome_id_fkey"
+            columns: ["outcome_id"]
+            isOneToOne: false
+            referencedRelation: "case_outcomes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_outcomes: {
+        Row: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          is_adverse: boolean
+          label: string
+          position: number
+          requires_action_plan: boolean
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          color_token?: string
+          commission_id: string
+          created_at?: string
+          id?: string
+          is_adverse?: boolean
+          label: string
+          position: number
+          requires_action_plan?: boolean
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          color_token?: string
+          commission_id?: string
+          created_at?: string
+          id?: string
+          is_adverse?: boolean
+          label?: string
+          position?: number
+          requires_action_plan?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_outcomes_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_phases: {
         Row: {
           activated_at: string | null
           assigned_to: string | null
+          blocks: number[]
           case_id: string
           completed_at: string | null
           created_at: string
@@ -302,6 +383,7 @@ export type Database = {
         Insert: {
           activated_at?: string | null
           assigned_to?: string | null
+          blocks?: number[]
           case_id: string
           completed_at?: string | null
           created_at?: string
@@ -322,6 +404,7 @@ export type Database = {
         Update: {
           activated_at?: string | null
           assigned_to?: string | null
+          blocks?: number[]
           case_id?: string
           completed_at?: string | null
           created_at?: string
@@ -366,56 +449,6 @@ export type Database = {
             columns: ["form_version_id"]
             isOneToOne: false
             referencedRelation: "form_versions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      case_status_defs: {
-        Row: {
-          archived: boolean
-          color_token: string
-          commission_id: string
-          created_at: string
-          id: string
-          is_initial: boolean
-          is_terminal: boolean
-          key: string
-          label: string
-          position: number
-          updated_at: string
-        }
-        Insert: {
-          archived?: boolean
-          color_token?: string
-          commission_id: string
-          created_at?: string
-          id?: string
-          is_initial?: boolean
-          is_terminal?: boolean
-          key: string
-          label: string
-          position: number
-          updated_at?: string
-        }
-        Update: {
-          archived?: boolean
-          color_token?: string
-          commission_id?: string
-          created_at?: string
-          id?: string
-          is_initial?: boolean
-          is_terminal?: boolean
-          key?: string
-          label?: string
-          position?: number
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "case_status_defs_commission_id_fkey"
-            columns: ["commission_id"]
-            isOneToOne: false
-            referencedRelation: "commissions"
             referencedColumns: ["id"]
           },
         ]
@@ -508,6 +541,7 @@ export type Database = {
           created_by: string | null
           id: string
           label: string | null
+          outcome_id: string | null
           status: string
           template_id: string | null
         }
@@ -520,6 +554,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           label?: string | null
+          outcome_id?: string | null
           status?: string
           template_id?: string | null
         }
@@ -532,6 +567,7 @@ export type Database = {
           created_by?: string | null
           id?: string
           label?: string | null
+          outcome_id?: string | null
           status?: string
           template_id?: string | null
         }
@@ -555,6 +591,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cases_outcome_id_fkey"
+            columns: ["outcome_id"]
+            isOneToOne: false
+            referencedRelation: "case_outcomes"
             referencedColumns: ["id"]
           },
           {
@@ -828,8 +871,45 @@ export type Database = {
           },
         ]
       }
+      process_template_outcomes: {
+        Row: {
+          created_at: string
+          outcome_id: string
+          position: number
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          outcome_id: string
+          position?: number
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          outcome_id?: string
+          position?: number
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_template_outcomes_outcome_id_fkey"
+            columns: ["outcome_id"]
+            isOneToOne: false
+            referencedRelation: "case_outcomes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_template_outcomes_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "process_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       process_template_phases: {
         Row: {
+          blocks: number[]
           created_at: string
           default_due_days: number | null
           form_id: string
@@ -840,6 +920,7 @@ export type Database = {
           title: string | null
         }
         Insert: {
+          blocks?: number[]
           created_at?: string
           default_due_days?: number | null
           form_id: string
@@ -850,6 +931,7 @@ export type Database = {
           title?: string | null
         }
         Update: {
+          blocks?: number[]
           created_at?: string
           default_due_days?: number | null
           form_id?: string
@@ -1089,6 +1171,7 @@ export type Database = {
         Returns: {
           activated_at: string | null
           assigned_to: string | null
+          blocks: number[]
           case_id: string
           completed_at: string | null
           created_at: string
@@ -1124,6 +1207,7 @@ export type Database = {
         Returns: {
           activated_at: string | null
           assigned_to: string | null
+          blocks: number[]
           case_id: string
           completed_at: string | null
           created_at: string
@@ -1150,6 +1234,7 @@ export type Database = {
       }
       add_template_phase: {
         Args: {
+          p_blocks?: number[]
           p_default_due_days?: number
           p_form_id: string
           p_recommend_when?: Json
@@ -1157,6 +1242,7 @@ export type Database = {
           p_title?: string
         }
         Returns: {
+          blocks: number[]
           created_at: string
           default_due_days: number | null
           form_id: string
@@ -1197,24 +1283,23 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      archive_case_status: {
-        Args: { p_commission_id: string; p_status_key: string }
+      archive_case_outcome: {
+        Args: { p_outcome_id: string }
         Returns: {
           archived: boolean
           color_token: string
           commission_id: string
           created_at: string
           id: string
-          is_initial: boolean
-          is_terminal: boolean
-          key: string
+          is_adverse: boolean
           label: string
           position: number
+          requires_action_plan: boolean
           updated_at: string
         }
         SetofOptions: {
           from: "*"
-          to: "case_status_defs"
+          to: "case_outcomes"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1270,6 +1355,7 @@ export type Database = {
           created_by: string | null
           id: string
           label: string | null
+          outcome_id: string | null
           status: string
           template_id: string | null
         }
@@ -1313,6 +1399,7 @@ export type Database = {
           created_by: string | null
           id: string
           label: string | null
+          outcome_id: string | null
           status: string
           template_id: string | null
         }
@@ -1400,6 +1487,7 @@ export type Database = {
           created_by: string | null
           id: string
           label: string | null
+          outcome_id: string | null
           status: string
           template_id: string | null
         }
@@ -1410,13 +1498,13 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      create_case_status: {
+      create_case_outcome: {
         Args: {
           p_color_token?: string
           p_commission_id: string
-          p_is_initial?: boolean
-          p_is_terminal?: boolean
+          p_is_adverse?: boolean
           p_label: string
+          p_requires_action_plan?: boolean
         }
         Returns: {
           archived: boolean
@@ -1424,16 +1512,15 @@ export type Database = {
           commission_id: string
           created_at: string
           id: string
-          is_initial: boolean
-          is_terminal: boolean
-          key: string
+          is_adverse: boolean
           label: string
           position: number
+          requires_action_plan: boolean
           updated_at: string
         }
         SetofOptions: {
           from: "*"
-          to: "case_status_defs"
+          to: "case_outcomes"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1570,18 +1657,6 @@ export type Database = {
         Args: { p_response_id: string }
         Returns: Json
       }
-      list_case_status_defs: {
-        Args: { p_commission_id: string; p_include_archived?: boolean }
-        Returns: {
-          archived: boolean
-          color_token: string
-          is_initial: boolean
-          is_terminal: boolean
-          key: string
-          label: string
-          status_position: number
-        }[]
-      }
       list_cases_board: {
         Args: { p_commission_id: string }
         Returns: {
@@ -1590,6 +1665,8 @@ export type Database = {
           closed_at: string
           created_at: string
           label: string
+          outcome: Json
+          outcome_id: string
           phases: Json
           status: string
         }[]
@@ -1656,6 +1733,7 @@ export type Database = {
         Returns: {
           activated_at: string | null
           assigned_to: string | null
+          blocks: number[]
           case_id: string
           completed_at: string | null
           created_at: string
@@ -1705,8 +1783,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      reorder_case_status: {
-        Args: { p_commission_id: string; p_ordered_keys: string[] }
+      reorder_case_outcomes: {
+        Args: { p_commission_id: string; p_ordered_ids: string[] }
         Returns: undefined
       }
       reorder_item: {
@@ -1747,8 +1825,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      set_case_status: {
-        Args: { p_case_id: string; p_status_key: string }
+      set_case_outcome: {
+        Args: { p_case_id: string; p_outcome_id?: string }
         Returns: {
           case_number: number
           closed_at: string | null
@@ -1758,12 +1836,37 @@ export type Database = {
           created_by: string | null
           id: string
           label: string | null
+          outcome_id: string | null
           status: string
           template_id: string | null
         }
         SetofOptions: {
           from: "*"
           to: "cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_process_outcomes: {
+        Args: { p_outcome_ids: string[]; p_template_id: string }
+        Returns: undefined
+      }
+      set_template_phase_blocks: {
+        Args: { p_blocks: number[]; p_phase_id: string }
+        Returns: {
+          blocks: number[]
+          created_at: string
+          default_due_days: number | null
+          form_id: string
+          id: string
+          position: number
+          recommend_when: Json | null
+          template_id: string
+          title: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "process_template_phases"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1790,6 +1893,7 @@ export type Database = {
         Returns: {
           activated_at: string | null
           assigned_to: string | null
+          blocks: number[]
           case_id: string
           completed_at: string | null
           created_at: string
@@ -1911,14 +2015,13 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      update_case_status: {
+      update_case_outcome: {
         Args: {
           p_color_token: string
-          p_commission_id: string
-          p_is_initial: boolean
-          p_is_terminal: boolean
+          p_is_adverse: boolean
           p_label: string
-          p_status_key: string
+          p_outcome_id: string
+          p_requires_action_plan: boolean
         }
         Returns: {
           archived: boolean
@@ -1926,22 +2029,23 @@ export type Database = {
           commission_id: string
           created_at: string
           id: string
-          is_initial: boolean
-          is_terminal: boolean
-          key: string
+          is_adverse: boolean
           label: string
           position: number
+          requires_action_plan: boolean
           updated_at: string
         }
         SetofOptions: {
           from: "*"
-          to: "case_status_defs"
+          to: "case_outcomes"
           isOneToOne: true
           isSetofReturn: false
         }
       }
       update_template_phase: {
         Args: {
+          p_blocks?: number[]
+          p_clear_blocks?: boolean
           p_clear_default_due_days?: boolean
           p_clear_recommend_when?: boolean
           p_default_due_days?: number
@@ -1951,6 +2055,7 @@ export type Database = {
           p_title?: string
         }
         Returns: {
+          blocks: number[]
           created_at: string
           default_due_days: number | null
           form_id: string

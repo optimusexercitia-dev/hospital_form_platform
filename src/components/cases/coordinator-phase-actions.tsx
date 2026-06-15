@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, PlayCircle, SkipForward, UserCog } from "lucide-react";
+import { ArrowRight, Lock, PlayCircle, SkipForward, UserCog } from "lucide-react";
 
 import type { CaseDetail } from "@/lib/queries/cases";
 import { skipPhase } from "@/lib/cases/actions";
+import { blockedBy } from "@/components/cases/case-derive";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -27,7 +28,9 @@ type DetailPhase = CaseDetail["phases"][number];
 /**
  * The contextual coordinator controls for one phase row, dispatched by status:
  *  - **pendente** → "Ativar e atribuir" (the activate dialog) + "Marcar como não
- *    necessária" (skip, confirmed).
+ *    necessária" (skip, confirmed). When earlier BLOCKING phases (D1/D4) are not
+ *    yet concluída/não-necessária, "Ativar e atribuir" is DISABLED with a
+ *    "Bloqueada por Fase N" note (the server also rejects via HC018).
  *  - **ativa** → "Alterar responsável" (reassign — only succeeds before the
  *    assignee starts; the backend returns a pt-BR message otherwise).
  *  - **concluída** → "Ver respostas" deep-link to the read-only answer view
@@ -42,11 +45,14 @@ type DetailPhase = CaseDetail["phases"][number];
 export function CoordinatorPhaseActions({
   slug,
   phase,
+  allPhases,
   assignees,
   isOpen,
 }: {
   slug: string;
   phase: DetailPhase;
+  /** The case's full phase list — to evaluate this phase's blockers (D4). */
+  allPhases: DetailPhase[];
   assignees: AssigneeOption[];
   isOpen: boolean;
 }) {
@@ -55,6 +61,13 @@ export function CoordinatorPhaseActions({
   const [reassignOpen, setReassignOpen] = useState(false);
 
   const phaseLabel = phase.title ? `“${phase.title}”` : `a fase ${phase.position}`;
+  // Earlier blocking phases not yet settled (D4); `[]` = activatable.
+  const blockingPositions = blockedBy(phase, allPhases);
+  const isBlocked = blockingPositions.length > 0;
+  const blockedLabel =
+    blockingPositions.length === 1
+      ? `Bloqueada por Fase ${blockingPositions[0]}`
+      : `Bloqueada por Fases ${blockingPositions.join(", ")}`;
 
   // Concluída: a read-only answer view is always available (even when closed).
   if (phase.status === "concluida") {
@@ -81,11 +94,18 @@ export function CoordinatorPhaseActions({
       <div className="flex flex-wrap items-center justify-end gap-2">
         {phase.status === "pendente" && (
           <>
+            {isBlocked && (
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                <Lock aria-hidden="true" className="size-3.5" />
+                {blockedLabel}
+              </span>
+            )}
             <Button
               type="button"
               size="sm"
               onClick={() => setActivateOpen(true)}
-              disabled={assignees.length === 0 || isPending}
+              disabled={assignees.length === 0 || isPending || isBlocked}
+              title={isBlocked ? blockedLabel : undefined}
             >
               <PlayCircle aria-hidden="true" />
               Ativar e atribuir

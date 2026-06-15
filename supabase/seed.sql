@@ -424,11 +424,14 @@ begin
      14);
 
   -- The case (number minted by the trigger). Pin Form A's published version.
-  -- status uses the default INITIAL key 'em_andamento' (the Cases-Extras R2
-  -- vocabulary; the old 'aberto' literal was renamed). The seed trigger on
-  -- public.commissions already seeded this commission's status set.
-  insert into public.cases (id, commission_id, template_id, label, status, created_by)
-  values (v_case, v_comm_a, v_tpl, 'Óbito UTI leito 7', 'em_andamento', v_chefe_a);
+  -- status is LEFT to the column default 'nao_iniciado' (the FIXED five-value
+  -- model; the configurable-status vocabulary R2 introduced was removed). The
+  -- recompute trigger on case_phases then auto-advances the macro status as the
+  -- phases below are inserted: once Phase 1 lands 'concluida' (and none 'ativa'),
+  -- the case computes to 'pendente' (>=1 concluida, none ativa) — matching the
+  -- mid-flight fixture the dashboard/board E2E expects.
+  insert into public.cases (id, commission_id, template_id, label, created_by)
+  values (v_case, v_comm_a, v_tpl, 'Óbito UTI leito 7', v_chefe_a);
 
   -- Phase 1: concluida + assigned to staff1; Phase 2: pendente + recommended.
   -- The guards permit these seeded statuses under app.in_case_rpc.
@@ -468,4 +471,73 @@ begin
     (v_resp, ia_disp,  'dispensador_disponivel', to_jsonb('Sim'::text)),
     (v_resp, ia_turno, 'turno_auditoria',        to_jsonb('Manhã'::text));
   perform set_config('app.in_submit_rpc', 'off', true);
+end $$;
+
+-- ===========================================================================
+-- Case OUTCOMES fixture (commission A / CCIH) — for the % adverse dashboard +
+-- the outcome E2E. A per-commission outcome vocabulary; the M&M process OFFERS
+-- them; Caso 0001 snapshots the offered set; a NEW concluded "Caso 0002" carries
+-- an adverse outcome so the dashboard breakdown has real data. No patient data.
+-- ===========================================================================
+do $$
+declare
+  v_comm_a   uuid := 'a0000000-0000-0000-0000-0000000000a1';
+  v_form_a   uuid := 'f0000000-0000-0000-0000-00000000a001';
+  v_ver_a    uuid := '50000000-0000-0000-0000-00000000a001';
+  v_chefe_a  uuid := '00000000-0000-0000-0000-000000000002';
+  v_staff_a1 uuid := '00000000-0000-0000-0000-000000000003';
+  v_case1    uuid := 'd0000000-0000-0000-0000-0000000000c1';  -- existing Caso 0001
+  v_case2    uuid := 'd0000000-0000-0000-0000-0000000000c2';  -- new concluded Caso 0002
+  v_tpl      uuid;
+  v_oc_evit  uuid := 'e1000000-0000-0000-0000-0000000000d1';  -- Óbito evitável (adverse + plan)
+  v_oc_nevit uuid := 'e1000000-0000-0000-0000-0000000000d2';  -- Óbito não evitável (adverse)
+  v_oc_alta  uuid := 'e1000000-0000-0000-0000-0000000000d3';  -- Alta sem intercorrências (neither)
+  v_cp1      uuid := gen_random_uuid();
+begin
+  -- Resolve the M&M template seeded in the Phase-7 block above (by title).
+  select id into v_tpl
+  from public.process_templates
+  where commission_id = v_comm_a and title = 'Investigação de Óbito (M&M)'
+  limit 1;
+
+  -- Outcome vocabulary (positions 1..3). At least one adverse + one action-plan.
+  insert into public.case_outcomes
+    (id, commission_id, label, color_token, requires_action_plan, is_adverse, position)
+  values
+    (v_oc_evit,  v_comm_a, 'Óbito evitável',           'red',   true,  true,  1),
+    (v_oc_nevit, v_comm_a, 'Óbito não evitável',       'amber', false, true,  2),
+    (v_oc_alta,  v_comm_a, 'Alta sem intercorrências', 'green', false, false, 3);
+
+  -- The process OFFERS all three (the builder selection).
+  insert into public.process_template_outcomes (template_id, outcome_id, position)
+  values (v_tpl, v_oc_evit, 1), (v_tpl, v_oc_nevit, 2), (v_tpl, v_oc_alta, 3);
+
+  -- Caso 0001 (mid-flight, pendente) snapshots the offered set (no outcome chosen
+  -- yet — it is still open; the selector offers these three).
+  insert into public.case_offered_outcomes (case_id, outcome_id) values
+    (v_case1, v_oc_evit), (v_case1, v_oc_nevit), (v_case1, v_oc_alta);
+
+  -- ---- Caso 0002: a CONCLUDED case with an ADVERSE outcome (dashboard data) ----
+  -- Insert the case (status defaults to nao_iniciado; we set it terminal here
+  -- under the case-RPC flag, mirroring close_case's terminal-first write). Its
+  -- single phase is concluida. outcome_id = the adverse "Óbito evitável".
+  perform set_config('app.in_case_rpc', 'on', true);
+  insert into public.cases
+    (id, commission_id, template_id, label, status, outcome_id, created_by, closed_at, closed_by)
+  values
+    (v_case2, v_comm_a, v_tpl, 'Óbito UTI leito 3', 'concluido', v_oc_evit, v_chefe_a, now(), v_chefe_a);
+
+  -- One concluida phase (pins Form A's published version). The recompute trigger
+  -- fires on the insert but early-returns because the case is already terminal.
+  insert into public.case_phases
+    (id, case_id, position, form_id, form_version_id, title, status, recommended,
+     assigned_to, activated_at, completed_at, default_due_days)
+  values
+    (v_cp1, v_case2, 1, v_form_a, v_ver_a, 'Fase 1 — Coleta inicial',
+     'concluida', false, v_staff_a1, now(), now(), 7);
+  perform set_config('app.in_case_rpc', 'off', true);
+
+  -- Caso 0002 also snapshots the offered set (consistency with the model).
+  insert into public.case_offered_outcomes (case_id, outcome_id) values
+    (v_case2, v_oc_evit), (v_case2, v_oc_nevit), (v_case2, v_oc_alta);
 end $$;

@@ -5,15 +5,16 @@ import { ArrowLeft } from "lucide-react";
 
 import { getCommissionAccess } from "@/lib/queries/session";
 import { getCaseDetail } from "@/lib/queries/cases";
-import {
-  listCaseStatusDefs,
-  caseStatusIsTerminal,
-} from "@/lib/queries/case-statuses";
+import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { listMembers, sortMembers } from "@/lib/queries/members";
 import { listForms } from "@/lib/queries/forms";
-import { CaseStatusBadgeForKey } from "@/components/cases/case-status-badge";
+import {
+  CaseStatusBadge,
+  CaseStatusBadgeFixed,
+} from "@/components/cases/case-status-badge";
 import { CasePhaseList } from "@/components/cases/case-phase-list";
 import { CaseLifecycleActions } from "@/components/cases/case-lifecycle-actions";
+import { CaseOutcomeSelector } from "@/components/cases/case-outcome-selector";
 import { CaseDocumentsPanel } from "@/components/cases/case-documents-panel";
 import { CaseEventsTimeline } from "@/components/cases/case-events-timeline";
 import { CaseTagsPanel } from "@/components/cases/case-tags-panel";
@@ -56,28 +57,20 @@ export default async function CaseDetailPage({
 
   // Members back the assignee pickers; forms back the ad-hoc phase picker
   // (published-only — an ad-hoc phase pins a published version, P0017). The
-  // Cases-Extras panels (documents/events/tags/action items) load alongside; the
-  // status defs drive the badge + the lifecycle status picker. Reads of the
-  // dark-flagged R1/R3/R4 surfaces return [] until their write side is enabled.
-  const [
-    members,
-    forms,
-    statusDefs,
-    documents,
-    events,
-    tags,
-    caseTags,
-    actionItems,
-  ] = await Promise.all([
-    listMembers(access.commission.id),
-    listForms(access.commission.id),
-    listCaseStatusDefs(access.commission.id),
-    listCaseDocuments(caseId),
-    listCaseEvents(caseId),
-    listCaseTags(access.commission.id),
-    listCaseTagsForCase(caseId),
-    listCaseActionItems(caseId),
-  ]);
+  // Cases-Extras panels (documents/events/tags/action items) load alongside. The
+  // case status is now a FIXED auto-computed enum (no per-commission defs). Reads
+  // of the dark-flagged R1/R3/R4 surfaces return [] until their write side is
+  // enabled.
+  const [members, forms, documents, events, tags, caseTags, actionItems] =
+    await Promise.all([
+      listMembers(access.commission.id),
+      listForms(access.commission.id),
+      listCaseDocuments(caseId),
+      listCaseEvents(caseId),
+      listCaseTags(access.commission.id),
+      listCaseTagsForCase(caseId),
+      listCaseActionItems(caseId),
+    ]);
   const assignees = sortMembers(members).map((m) => ({
     userId: m.userId,
     name: m.fullName ?? m.email ?? "Membro",
@@ -87,7 +80,7 @@ export default async function CaseDetailPage({
     .map((f) => ({ id: f.id, title: f.title }));
 
   const c = detail.case;
-  const isOpen = !caseStatusIsTerminal(statusDefs, c.status);
+  const isOpen = !isTerminalCaseStatus(c.status);
   // Phases for the action-item "origin phase" picker (id + label only).
   const phaseOptions = [...detail.phases]
     .sort((a, b) => a.position - b.position)
@@ -109,7 +102,13 @@ export default async function CaseDetailPage({
               <h1 className="text-3xl text-balance">
                 {formatCaseNumber(c.caseNumber)}
               </h1>
-              <CaseStatusBadgeForKey defs={statusDefs} statusKey={c.status} />
+              <CaseStatusBadgeFixed status={c.status} />
+              {detail.outcome && (
+                <CaseStatusBadge
+                  label={detail.outcome.label}
+                  colorToken={detail.outcome.colorToken}
+                />
+              )}
             </div>
             {c.label && (
               <p className="max-w-prose text-muted-foreground text-pretty">
@@ -125,8 +124,8 @@ export default async function CaseDetailPage({
           {isOpen && (
             <CaseLifecycleActions
               caseId={c.id}
-              currentStatus={c.status}
-              statusDefs={statusDefs}
+              offeredOutcomes={detail.offeredOutcomes}
+              currentOutcomeId={c.outcomeId}
               forms={publishableForms}
               phases={detail.phases}
               assignees={assignees}
@@ -134,6 +133,14 @@ export default async function CaseDetailPage({
           )}
         </div>
       </header>
+
+      {isOpen && (
+        <CaseOutcomeSelector
+          caseId={c.id}
+          offeredOutcomes={detail.offeredOutcomes}
+          current={detail.outcome}
+        />
+      )}
 
       <CasePhaseList
         slug={slug}

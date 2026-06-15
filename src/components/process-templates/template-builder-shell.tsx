@@ -8,11 +8,13 @@ import type {
   ProcessTemplate,
   PhaseConditionTarget,
 } from "@/lib/queries/process-templates";
+import type { CaseOutcome } from "@/lib/queries/case-outcomes";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
 import { TemplateStatusBadge } from "@/components/process-templates/template-status-badge";
 import { PhaseSlotCard } from "@/components/process-templates/phase-slot-card";
 import { PhaseSlotDialog } from "@/components/process-templates/phase-slot-dialog";
+import { ProcessOutcomesPicker } from "@/components/process-templates/process-outcomes-picker";
 import { PublishTemplateButton } from "@/components/process-templates/publish-template-button";
 import { ArchiveTemplateButton } from "@/components/process-templates/archive-template-button";
 import { attachTargets } from "@/components/process-templates/phase-with-targets";
@@ -40,12 +42,15 @@ export function TemplateBuilderShell({
   template,
   forms,
   conditionTargetsByForm,
+  outcomes,
 }: {
   slug: string;
   template: ProcessTemplate;
   forms: SlotForm[];
   /** `{ formId -> choice-question targets }` for every bound form (server-resolved). */
   conditionTargetsByForm: Record<string, PhaseConditionTarget[]>;
+  /** The commission's non-archived outcome vocabulary (the offered-outcomes picker). */
+  outcomes: CaseOutcome[];
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const { containerRef, captureBeforeReorder } =
@@ -158,6 +163,15 @@ export function TemplateBuilderShell({
             </Button>
           )}
         </div>
+      )}
+
+      {isDraft && (
+        <ProcessOutcomesPicker
+          commissionId={template.commissionId}
+          templateId={template.id}
+          outcomes={outcomes}
+          offeredOutcomeIds={template.offeredOutcomeIds}
+        />
       )}
 
       {isDraft && (

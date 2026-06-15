@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import type { CaseStatusColorToken } from '@/lib/queries/case-statuses'
+import type { CaseStatusColorToken } from '@/lib/cases/case-status'
 
 /**
  * Case TAGGING data-access (Cases-Extras batch, R3) — a controlled per-commission
