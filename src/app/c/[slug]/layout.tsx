@@ -4,6 +4,8 @@ import { getCommissionAccess } from "@/lib/queries/session";
 import { listCasesBoard, listMyAssignedPhases } from "@/lib/queries/cases";
 import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { listSignoffQueue } from "@/lib/queries/signoffs";
+import { myPendingMeetingSignatures } from "@/lib/queries/meetings";
+import { meetingsEnabled } from "@/lib/meetings/actions";
 import { AppSidebar, type SidebarCounts } from "@/components/shell/app-sidebar";
 
 /**
@@ -37,10 +39,15 @@ export default async function CommissionLayout({
   const isCoordinator =
     access.role === "staff_admin" || access.context.isAdmin;
 
-  const [myPhases, board, signoffQueue] = await Promise.all([
+  // The meetings feature flag gates the "Reuniões" nav item + its pending-
+  // signatures badge. When off, skip the pending-signatures read entirely.
+  const meetingsOn = await meetingsEnabled();
+
+  const [myPhases, board, signoffQueue, pendingSignatures] = await Promise.all([
     listMyAssignedPhases(commissionId),
     isCoordinator ? listCasesBoard(commissionId) : Promise.resolve([]),
     isCoordinator ? listSignoffQueue(commissionId) : Promise.resolve([]),
+    meetingsOn ? myPendingMeetingSignatures() : Promise.resolve([]),
   ]);
 
   const counts: SidebarCounts = {
@@ -49,6 +56,8 @@ export default async function CommissionLayout({
     // nao_iniciado / em_revisao / pendente are open; concluido / cancelado closed).
     casos: board.filter((row) => !isTerminalCaseStatus(row.case.status)).length,
     assinaturas: signoffQueue.length,
+    // Meetings awaiting THIS user's signature (any member; derived read).
+    reunioesPendentes: pendingSignatures.length,
   };
 
   const roleLabel =
@@ -69,6 +78,7 @@ export default async function CommissionLayout({
         email={access.context.email}
         roleLabel={roleLabel}
         counts={counts}
+        meetingsEnabled={meetingsOn}
       />
       <main className="min-w-0 flex-1">
         <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 md:px-8">

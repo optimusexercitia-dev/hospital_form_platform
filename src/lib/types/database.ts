@@ -609,6 +609,76 @@ export type Database = {
           },
         ]
       }
+      commission_meeting_settings: {
+        Row: {
+          commission_id: string
+          quorum_rule_type: string
+          quorum_value: number | null
+          updated_at: string
+        }
+        Insert: {
+          commission_id: string
+          quorum_rule_type?: string
+          quorum_value?: number | null
+          updated_at?: string
+        }
+        Update: {
+          commission_id?: string
+          quorum_rule_type?: string
+          quorum_value?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_meeting_settings_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: true
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commission_meeting_types: {
+        Row: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          color_token?: string
+          commission_id: string
+          created_at?: string
+          id?: string
+          name: string
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          color_token?: string
+          commission_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_meeting_types_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commission_members: {
         Row: {
           commission_id: string
@@ -867,6 +937,517 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_action_items: {
+        Row: {
+          assigned_to: string | null
+          case_id: string | null
+          commission_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          meeting_id: string
+          source_agenda_item_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          case_id?: string | null
+          commission_id: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          meeting_id: string
+          source_agenda_item_id?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          case_id?: string | null
+          commission_id?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          meeting_id?: string
+          source_agenda_item_id?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_action_items_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_action_items_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_action_items_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_action_items_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_action_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_action_items_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_action_items_source_agenda_item_id_fkey"
+            columns: ["source_agenda_item_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_agenda_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_agenda_items: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          discussion_notes: string | null
+          id: string
+          meeting_id: string
+          position: number
+          resolution: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          discussion_notes?: string | null
+          id?: string
+          meeting_id: string
+          position: number
+          resolution?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          discussion_notes?: string | null
+          id?: string
+          meeting_id?: string
+          position?: number
+          resolution?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_agenda_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_agenda_items_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_attachments: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          id: string
+          kind: string
+          meeting_id: string
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string
+          title: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          id?: string
+          kind?: string
+          meeting_id: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          title: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          id?: string
+          kind?: string
+          meeting_id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          title?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_attachments_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_attachments_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_attachments_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_attendees: {
+        Row: {
+          attendance: string
+          created_at: string
+          external_name: string | null
+          external_org: string | null
+          id: string
+          meeting_id: string
+          note: string | null
+          role: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          attendance?: string
+          created_at?: string
+          external_name?: string | null
+          external_org?: string | null
+          id?: string
+          meeting_id: string
+          note?: string | null
+          role?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          attendance?: string
+          created_at?: string
+          external_name?: string | null
+          external_org?: string | null
+          id?: string
+          meeting_id?: string
+          note?: string | null
+          role?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_attendees_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_attendees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_cases: {
+        Row: {
+          agenda_item_id: string | null
+          case_id: string
+          created_at: string
+          decision: string | null
+          id: string
+          meeting_id: string
+          summary: string | null
+        }
+        Insert: {
+          agenda_item_id?: string | null
+          case_id: string
+          created_at?: string
+          decision?: string | null
+          id?: string
+          meeting_id: string
+          summary?: string | null
+        }
+        Update: {
+          agenda_item_id?: string | null
+          case_id?: string
+          created_at?: string
+          decision?: string | null
+          id?: string
+          meeting_id?: string
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_cases_agenda_item_id_fkey"
+            columns: ["agenda_item_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_agenda_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_cases_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_cases_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_signatures: {
+        Row: {
+          attendee_id: string
+          content_hash: string | null
+          created_at: string
+          id: string
+          ip_address: unknown
+          meeting_id: string
+          method: string
+          note: string | null
+          provider_payload: Json | null
+          provider_ref: string | null
+          signed_at: string
+          signer_id: string
+          status: string
+          user_agent: string | null
+        }
+        Insert: {
+          attendee_id: string
+          content_hash?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: unknown
+          meeting_id: string
+          method?: string
+          note?: string | null
+          provider_payload?: Json | null
+          provider_ref?: string | null
+          signed_at?: string
+          signer_id: string
+          status?: string
+          user_agent?: string | null
+        }
+        Update: {
+          attendee_id?: string
+          content_hash?: string | null
+          created_at?: string
+          id?: string
+          ip_address?: unknown
+          meeting_id?: string
+          method?: string
+          note?: string | null
+          provider_payload?: Json | null
+          provider_ref?: string | null
+          signed_at?: string
+          signer_id?: string
+          status?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_signatures_attendee_id_fkey"
+            columns: ["attendee_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_attendees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_signatures_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_signatures_signer_id_fkey"
+            columns: ["signer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meetings: {
+        Row: {
+          cancelled_at: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          distributed_at: string | null
+          eligible_member_count: number | null
+          id: string
+          location_text: string | null
+          meeting_number: number
+          meeting_type_id: string | null
+          meeting_url: string | null
+          minutes_md: string | null
+          modality: string
+          present_count: number | null
+          quorum_met: boolean | null
+          quorum_rule_type: string | null
+          quorum_value: number | null
+          scheduled_end: string | null
+          scheduled_start: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          commission_id: string
+          concluded_at?: string | null
+          concluded_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          distributed_at?: string | null
+          eligible_member_count?: number | null
+          id?: string
+          location_text?: string | null
+          meeting_number: number
+          meeting_type_id?: string | null
+          meeting_url?: string | null
+          minutes_md?: string | null
+          modality?: string
+          present_count?: number | null
+          quorum_met?: boolean | null
+          quorum_rule_type?: string | null
+          quorum_value?: number | null
+          scheduled_end?: string | null
+          scheduled_start: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          commission_id?: string
+          concluded_at?: string | null
+          concluded_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          distributed_at?: string | null
+          eligible_member_count?: number | null
+          id?: string
+          location_text?: string | null
+          meeting_number?: number
+          meeting_type_id?: string | null
+          meeting_url?: string | null
+          minutes_md?: string | null
+          modality?: string
+          present_count?: number | null
+          quorum_met?: boolean | null
+          quorum_rule_type?: string | null
+          quorum_value?: number | null
+          scheduled_end?: string | null
+          scheduled_start?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meetings_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_concluded_by_fkey"
+            columns: ["concluded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_meeting_type_id_fkey"
+            columns: ["meeting_type_id"]
+            isOneToOne: false
+            referencedRelation: "commission_meeting_types"
             referencedColumns: ["id"]
           },
         ]
@@ -1232,6 +1813,64 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      add_meeting_attachment: {
+        Args: {
+          p_kind: string
+          p_meeting_id: string
+          p_mime_type?: string
+          p_size_bytes?: number
+          p_storage_path: string
+          p_title: string
+        }
+        Returns: {
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          id: string
+          kind: string
+          meeting_id: string
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string
+          title: string
+          uploaded_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meeting_attachments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_meeting_attendee: {
+        Args: {
+          p_attendance?: string
+          p_external_name?: string
+          p_external_org?: string
+          p_meeting_id: string
+          p_note?: string
+          p_role?: string
+          p_user_id?: string
+        }
+        Returns: {
+          attendance: string
+          created_at: string
+          external_name: string | null
+          external_org: string | null
+          id: string
+          meeting_id: string
+          note: string | null
+          role: string
+          updated_at: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meeting_attendees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       add_template_phase: {
         Args: {
           p_blocks?: number[]
@@ -1283,6 +1922,32 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      advance_meeting_action_item: {
+        Args: { p_action_item_id: string; p_status: string }
+        Returns: {
+          assigned_to: string | null
+          case_id: string | null
+          commission_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          meeting_id: string
+          source_agenda_item_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meeting_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       archive_case_outcome: {
         Args: { p_outcome_id: string }
         Returns: {
@@ -1317,6 +1982,25 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_tags"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      archive_meeting_type: {
+        Args: { p_type_id: string }
+        Returns: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "commission_meeting_types"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1362,6 +2046,41 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cancel_meeting: {
+        Args: { p_meeting_id: string }
+        Returns: {
+          cancelled_at: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          distributed_at: string | null
+          eligible_member_count: number | null
+          id: string
+          location_text: string | null
+          meeting_number: number
+          meeting_type_id: string | null
+          meeting_url: string | null
+          minutes_md: string | null
+          modality: string
+          present_count: number | null
+          quorum_met: boolean | null
+          quorum_rule_type: string | null
+          quorum_value: number | null
+          scheduled_end: string | null
+          scheduled_start: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meetings"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1441,6 +2160,67 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      complete_meeting_action_item: {
+        Args: { p_action_item_id: string }
+        Returns: {
+          assigned_to: string | null
+          case_id: string | null
+          commission_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          meeting_id: string
+          source_agenda_item_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meeting_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      conclude_meeting: {
+        Args: { p_meeting_id: string }
+        Returns: {
+          cancelled_at: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          distributed_at: string | null
+          eligible_member_count: number | null
+          id: string
+          location_text: string | null
+          meeting_number: number
+          meeting_type_id: string | null
+          meeting_url: string | null
+          minutes_md: string | null
+          modality: string
+          present_count: number | null
+          quorum_met: boolean | null
+          quorum_rule_type: string | null
+          quorum_value: number | null
+          scheduled_end: string | null
+          scheduled_start: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meetings"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1557,6 +2337,134 @@ export type Database = {
           version_id: string
         }[]
       }
+      create_meeting: {
+        Args: {
+          p_commission_id: string
+          p_location_text?: string
+          p_meeting_type_id?: string
+          p_meeting_url?: string
+          p_modality?: string
+          p_scheduled_end?: string
+          p_scheduled_start?: string
+          p_title: string
+        }
+        Returns: {
+          cancelled_at: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          distributed_at: string | null
+          eligible_member_count: number | null
+          id: string
+          location_text: string | null
+          meeting_number: number
+          meeting_type_id: string | null
+          meeting_url: string | null
+          minutes_md: string | null
+          modality: string
+          present_count: number | null
+          quorum_met: boolean | null
+          quorum_rule_type: string | null
+          quorum_value: number | null
+          scheduled_end: string | null
+          scheduled_start: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meetings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_meeting_action_item: {
+        Args: {
+          p_assigned_to?: string
+          p_case_id?: string
+          p_description?: string
+          p_due_date?: string
+          p_meeting_id: string
+          p_source_agenda_item_id?: string
+          p_title: string
+        }
+        Returns: {
+          assigned_to: string | null
+          case_id: string | null
+          commission_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          meeting_id: string
+          source_agenda_item_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meeting_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_meeting_agenda_item: {
+        Args: {
+          p_description?: string
+          p_discussion_notes?: string
+          p_meeting_id: string
+          p_resolution?: string
+          p_title: string
+        }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          discussion_notes: string | null
+          id: string
+          meeting_id: string
+          position: number
+          resolution: string | null
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meeting_agenda_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_meeting_type: {
+        Args: {
+          p_color_token?: string
+          p_commission_id: string
+          p_name: string
+        }
+        Returns: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "commission_meeting_types"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_process_template: {
         Args: {
           p_commission_id: string
@@ -1648,14 +2556,81 @@ export type Database = {
           day: string
         }[]
       }
+      delete_meeting_agenda_item: {
+        Args: { p_agenda_item_id: string }
+        Returns: undefined
+      }
+      delete_meeting_attachment: {
+        Args: { p_attachment_id: string }
+        Returns: undefined
+      }
       delete_section_moving_items: {
         Args: { p_section_id: string; p_target_section_id: string }
         Returns: undefined
+      }
+      distribute_meeting: {
+        Args: { p_meeting_id: string }
+        Returns: {
+          cancelled_at: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          distributed_at: string | null
+          eligible_member_count: number | null
+          id: string
+          location_text: string | null
+          meeting_number: number
+          meeting_type_id: string | null
+          meeting_url: string | null
+          minutes_md: string | null
+          modality: string
+          present_count: number | null
+          quorum_met: boolean | null
+          quorum_rule_type: string | null
+          quorum_value: number | null
+          scheduled_end: string | null
+          scheduled_start: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meetings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_response_for_signoff: {
         Args: { p_response_id: string }
         Returns: Json
+      }
+      link_meeting_case: {
+        Args: {
+          p_agenda_item_id?: string
+          p_case_id: string
+          p_decision?: string
+          p_meeting_id: string
+          p_summary?: string
+        }
+        Returns: {
+          agenda_item_id: string | null
+          case_id: string
+          created_at: string
+          decision: string | null
+          id: string
+          meeting_id: string
+          summary: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meeting_cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       list_cases_board: {
         Args: { p_commission_id: string }
@@ -1685,6 +2660,52 @@ export type Database = {
           started_at: string
           updated_at: string
           version_number: number
+        }[]
+      }
+      mark_meeting_held: {
+        Args: { p_meeting_id: string }
+        Returns: {
+          cancelled_at: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          distributed_at: string | null
+          eligible_member_count: number | null
+          id: string
+          location_text: string | null
+          meeting_number: number
+          meeting_type_id: string | null
+          meeting_url: string | null
+          minutes_md: string | null
+          modality: string
+          present_count: number | null
+          quorum_met: boolean | null
+          quorum_rule_type: string | null
+          quorum_value: number | null
+          scheduled_end: string | null
+          scheduled_start: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meetings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      meetings_enabled: { Args: never; Returns: boolean }
+      my_pending_meeting_signatures: {
+        Args: never
+        Returns: {
+          attendee_id: string
+          meeting_id: string
+          meeting_number: number
+          scheduled_start: string
+          title: string
         }[]
       }
       publish_form_version: {
@@ -1762,6 +2783,10 @@ export type Database = {
         Args: { p_case_id: string }
         Returns: undefined
       }
+      remove_meeting_attendee: {
+        Args: { p_attendee_id: string }
+        Returns: undefined
+      }
       remove_template_phase: {
         Args: { p_phase_id: string }
         Returns: undefined
@@ -1783,12 +2808,70 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      rename_meeting_type: {
+        Args: { p_color_token: string; p_name: string; p_type_id: string }
+        Returns: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "commission_meeting_types"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reopen_meeting: {
+        Args: { p_meeting_id: string }
+        Returns: {
+          cancelled_at: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          distributed_at: string | null
+          eligible_member_count: number | null
+          id: string
+          location_text: string | null
+          meeting_number: number
+          meeting_type_id: string | null
+          meeting_url: string | null
+          minutes_md: string | null
+          modality: string
+          present_count: number | null
+          quorum_met: boolean | null
+          quorum_rule_type: string | null
+          quorum_value: number | null
+          scheduled_end: string | null
+          scheduled_start: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meetings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reorder_case_outcomes: {
         Args: { p_commission_id: string; p_ordered_ids: string[] }
         Returns: undefined
       }
       reorder_item: {
         Args: { p_direction: string; p_item_id: string }
+        Returns: undefined
+      }
+      reorder_meeting_agenda_item: {
+        Args: { p_agenda_item_id: string; p_direction: string }
         Returns: undefined
       }
       reorder_section: {
@@ -1825,6 +2908,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      seed_expected_meeting_attendees: {
+        Args: { p_meeting_id: string }
+        Returns: undefined
+      }
       set_case_outcome: {
         Args: { p_case_id: string; p_outcome_id?: string }
         Returns: {
@@ -1843,6 +2930,41 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_meeting_quorum_met: {
+        Args: { p_meeting_id: string; p_quorum_met: boolean }
+        Returns: {
+          cancelled_at: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          distributed_at: string | null
+          eligible_member_count: number | null
+          id: string
+          location_text: string | null
+          meeting_number: number
+          meeting_type_id: string | null
+          meeting_url: string | null
+          minutes_md: string | null
+          modality: string
+          present_count: number | null
+          quorum_met: boolean | null
+          quorum_rule_type: string | null
+          quorum_value: number | null
+          scheduled_end: string | null
+          scheduled_start: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meetings"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1867,6 +2989,31 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "process_template_phases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      sign_meeting: {
+        Args: { p_attendee_id: string; p_method?: string; p_note?: string }
+        Returns: {
+          attendee_id: string
+          content_hash: string | null
+          created_at: string
+          id: string
+          ip_address: unknown
+          meeting_id: string
+          method: string
+          note: string | null
+          provider_payload: Json | null
+          provider_ref: string | null
+          signed_at: string
+          signer_id: string
+          status: string
+          user_agent: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meeting_signatures"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -1985,6 +3132,10 @@ export type Database = {
         Args: { p_case_id: string; p_tag_id: string }
         Returns: undefined
       }
+      unlink_meeting_case: {
+        Args: { p_case_link_id: string }
+        Returns: undefined
+      }
       update_action_item: {
         Args: {
           p_action_item_id: string
@@ -2038,6 +3189,192 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_outcomes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_meeting: {
+        Args: {
+          p_location_text?: string
+          p_meeting_id: string
+          p_meeting_type_id?: string
+          p_meeting_url?: string
+          p_minutes_md?: string
+          p_modality: string
+          p_scheduled_end?: string
+          p_scheduled_start: string
+          p_title: string
+        }
+        Returns: {
+          cancelled_at: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          distributed_at: string | null
+          eligible_member_count: number | null
+          id: string
+          location_text: string | null
+          meeting_number: number
+          meeting_type_id: string | null
+          meeting_url: string | null
+          minutes_md: string | null
+          modality: string
+          present_count: number | null
+          quorum_met: boolean | null
+          quorum_rule_type: string | null
+          quorum_value: number | null
+          scheduled_end: string | null
+          scheduled_start: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meetings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_meeting_action_item: {
+        Args: {
+          p_action_item_id: string
+          p_assigned_to?: string
+          p_description?: string
+          p_due_date?: string
+          p_title: string
+        }
+        Returns: {
+          assigned_to: string | null
+          case_id: string | null
+          commission_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          meeting_id: string
+          source_agenda_item_id: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meeting_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_meeting_agenda_item: {
+        Args: {
+          p_agenda_item_id: string
+          p_description?: string
+          p_discussion_notes?: string
+          p_resolution?: string
+          p_title: string
+        }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          discussion_notes: string | null
+          id: string
+          meeting_id: string
+          position: number
+          resolution: string | null
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meeting_agenda_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_meeting_attendee: {
+        Args: {
+          p_attendance: string
+          p_attendee_id: string
+          p_external_name?: string
+          p_external_org?: string
+          p_note?: string
+          p_role: string
+        }
+        Returns: {
+          attendance: string
+          created_at: string
+          external_name: string | null
+          external_org: string | null
+          id: string
+          meeting_id: string
+          note: string | null
+          role: string
+          updated_at: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meeting_attendees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_meeting_minutes: {
+        Args: { p_meeting_id: string; p_minutes_md: string }
+        Returns: {
+          cancelled_at: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          distributed_at: string | null
+          eligible_member_count: number | null
+          id: string
+          location_text: string | null
+          meeting_number: number
+          meeting_type_id: string | null
+          meeting_url: string | null
+          minutes_md: string | null
+          modality: string
+          present_count: number | null
+          quorum_met: boolean | null
+          quorum_rule_type: string | null
+          quorum_value: number | null
+          scheduled_end: string | null
+          scheduled_start: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meetings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_meeting_settings: {
+        Args: {
+          p_commission_id: string
+          p_quorum_rule_type: string
+          p_quorum_value?: number
+        }
+        Returns: {
+          commission_id: string
+          quorum_rule_type: string
+          quorum_value: number | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "commission_meeting_settings"
           isOneToOne: true
           isSetofReturn: false
         }

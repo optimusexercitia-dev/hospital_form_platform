@@ -5,7 +5,7 @@
 > phase. The **lead keeps this current** at the §6 Record step (CLAUDE.md §7): when a
 > phase adds an RPC, flips a flag, or changes an RLS surface, update the relevant table
 > here. This is a map, not the authority — `ARCHITECTURE.md` is the spec and the
-> migrations are the truth. Last updated: **2026-06-15 (Case data-model adjustments batch — phase blocking + fixed auto-computed statuses replacing the R2 configurable system + per-commission outcomes; ADR 0024, supersedes 0023). Earlier: post-Phase-8 Cases-Extras batch (R1 documents/events, R3 tags, R4 action items; ADR 0022).**
+> migrations are the truth. Last updated: **2026-06-15 (Phase 10 — Meetings: full meetings data model + lifecycle/child-lock guards + sign-own-row RLS + auto-flip `sign_meeting` + `meeting-attachments` bucket + UI; ADR 0025). Earlier same day: Case data-model adjustments batch — phase blocking + fixed auto-computed statuses replacing the R2 configurable system + per-commission outcomes; ADR 0024, supersedes 0023). Earlier: post-Phase-8 Cases-Extras batch (R1 documents/events, R3 tags, R4 action items; ADR 0022).**
 
 ## Migrations (forward-only, additive)
 
@@ -42,6 +42,11 @@
 | `…093001` | Case-model | **Fixed auto-computed status** (D6/D7): defensive normalize → `cases.status` fixed 5-value CHECK (`nao_iniciado`/`em_revisao`/`pendente`/`concluido`/`cancelado`), default `nao_iniciado`; `app.recompute_case_status` + AFTER-trigger on `case_phases`; `guard_case_status` rewritten (validity → CHECK; HC025 terminal-frozen). **Liveness-sweep landmine:** re-`CREATE OR REPLACE` `sync_case_phase_on_submit`/`skip_phase`/`add_ad_hoc_phase`/`reassign_phase`/`cancel_case` with a fixed-enum terminal check (`activate_phase`→093002, `create_case_from_template`/`close_case`→093003 — one final def each). `cancel_case` anytime + terminal-first. Re-revoke anon/PUBLIC. |
 | `…093002` | Case-model | **Phase blockers** (D1/D4): `blocks integer[]` on `process_template_phases` + `case_phases` (`not null default '{}'`); `app.guard_phase_blocks_shape` BEFORE INS/UPD (earlier-only → HC016) + `app.validate_template_phase_blocks` (deep "position exists" → HC016); `set_template_phase_blocks`; `add/update_template_phase` gain `p_blocks`; `reorder/remove_template_phase` remap the `blocks` arrays across the renumber **in a single atomic UPDATE per row** (shape trigger sees no transient forward-ref); `activate_phase` FINAL — blocker gate (HC018 reworded) replaces strict-sequential, parallel-safe. Re-revoke anon/PUBLIC. |
 | `…093003` | Case-model | **Outcomes** (D8–D11/D15): `case_outcomes` (per-commission vocab) + `process_template_outcomes` (offered set, `app.guard_process_template_outcome` → **HC030**) + `case_offered_outcomes` (per-case FROZEN snapshot) + `cases.outcome_id` (single FK, `NO ACTION`); RLS member-read/staff_admin-write on all three. RPCs `set_case_outcome` (HC025/HC029), `set_process_outcomes`, outcome CRUD (`create/update/reorder/archive_case_outcome`); **`close_case` FINAL = D3 conclude gate** (HC031 unsettled / HC028 outcome-required, terminal-first); `create_case_from_template` FINAL also snapshots `blocks` + copies `process_template_outcomes`→`case_offered_outcomes`; `list_cases_board` (DROP+recreate, return-shape changed) + `get_case_detail` gain answer-free outcome metadata + per-phase `blocks`. Re-revoke anon/PUBLIC. |
+| `…090000` | 10 | **Meetings core** (ADR 0025): `meetings` (per-commission `meeting_number` mint; lifecycle CHECK `agendada/realizada/em_assinatura/assinada/distribuida/cancelada`; conclusion quorum-snapshot cols) + `commission_meeting_types` + `commission_meeting_settings`; `app.guard_meeting_status` (state-machine + content-freeze ≥`em_assinatura`, gated `app.in_meeting_rpc`); `app.mint_meeting_number`; `app.commission_of_meeting`; `meetings` flag (OFF) + `app.assert_meetings_enabled()` + `public.meetings_enabled()`. |
+| `…090001–090005` | 10 | Children + signatures + RLS + storage + seed: `meeting_agenda_items`, `meeting_attendees` (platform user XOR external guest; partial-unique `(meeting,user)`), `meeting_cases` (same-commission guard → **HC032**), `meeting_action_items` (denorm `commission_id`); `app.guard_meeting_child_lock` (keys on PARENT status, NOT the flag); `meeting_signatures` (partial-unique on `status='signed'`); full RLS (member-read/staff_admin-write; `app.can_sign_meeting` sign-own-row); `meeting-attachments` bucket (private, immutable) + `meeting_attachments` (soft-delete); `app.seed_default_meeting_types` + **fresh** AFTER INSERT trigger on `public.commissions`. |
+| `…090006–090007` | 10 | RPCs: lifecycle (`create/update/conclude/reopen/distribute/cancel_meeting`); agenda/attendee CRUD + reorder + `seed_expected_meeting_attendees`; `link/unlink_meeting_case`; attachment insert + soft-delete; `sign_meeting` (DEFINER; `content_hash`; auto-flip → `assinada`); action-item CRUD + advance/complete (**HC037**); `my_pending_meeting_signatures` (DEFINER). `…090007`: F5 settings RPCs (`create/rename/archive_meeting_type`, `update_meeting_settings`). |
+| `…090008` | 10 | Flag flip: `meetings` → **ON** (mirror `…090008` cases pattern; enabled in-phase so the gate tests live). |
+| `…090009` | 10 | `mark_meeting_held(meeting)` — `agendada→realizada` (makes the `realizada` resting state reachable; `conclude_meeting` still accepts agendada as a shortcut). |
 
 ## RPC inventory
 
@@ -98,6 +103,14 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `create_action_item` / `update_action_item` | invoker | `is_staff_admin_of`-gated authoring; assignee-member check (HC021); source phase must belong to the case. |
 | `advance_action_item(item, status)` / `complete_action_item(item)` | invoker | Lifecycle via `app.advance_action_item_core` (DEFINER): caller must be the assignee OR staff_admin/admin → **HC027**; stamps `completed_*` on `done`. |
 | `case_action_items_kpis(commission)` | **DEFINER** | `is_staff_admin_of`/admin-gated; open / overdue / completed-YTD (zeroed row to non-staff_admin). |
+| **Phase 10 — meetings (all gate `meetings`; ADR 0025):** | | |
+| `create_meeting` / `update_meeting` | invoker | Header + scheduling; edit only while agendada/realizada; mint retry on unique. |
+| `mark_meeting_held` / `conclude_meeting` / `reopen_meeting` / `distribute_meeting` / `cancel_meeting` | invoker | Lifecycle under `app.in_meeting_rpc`. conclude (realizada\|agendada → em_assinatura): ≥1 present (**HC034**), snapshot quorum (members only — guests excluded), write `case_events` kind='meeting' per linkage. reopen (em_assinatura\|assinada → realizada): **revokes** signatures. Cancel blocked on `assinada`. |
+| agenda/attendee CRUD, `reorder_meeting_agenda_item`, `seed_expected_meeting_attendees`, `link_meeting_case` / `unlink_meeting_case`, attachment insert + soft-delete | invoker | Child authoring; blocked once parent ≥ `em_assinatura` (child-lock trigger). `meeting_cases` same-commission guard → **HC032**. |
+| `sign_meeting(attendee, note?)` | **DEFINER** | Signs the caller's own present-platform-attendee row; re-checks `app.can_sign_meeting` (a DEFINER fn bypasses RLS) → **HC036**; double-sign → **HC035**; computes `content_hash`; **auto-flips em_assinatura→assinada** when all required signatures present (RPC-side, not a trigger). |
+| `my_pending_meeting_signatures()` | **DEFINER** | Caller's em_assinatura meetings where they are a present platform attendee with no active signature (drives the "Pending Signatures" badge). |
+| `create/update/advance/complete/delete_meeting_action_item` | invoker | Mirror case action items; advance gated assignee-or-staff_admin → **HC037**. |
+| `create_meeting_type` / `rename_meeting_type` / `archive_meeting_type` / `update_meeting_settings` | invoker | F5 settings; `is_staff_admin_of`-gated; `unique(commission,name)` → 23505. |
 
 ## Helper functions
 
@@ -143,6 +156,16 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
   answer surface; the Phase-7 invariant — tested, do not relax). `app.published_version_of_form`,
   `app.version_has_input_key`, `app.validate_template_recommend_when`,
   `app.is_member_of_for(commission, user)` (arbitrary-user membership, for assignee checks).
+- **Phase 10 (meetings):** `app.commission_of_meeting(id)` — definer, drives child-table RLS + definer
+  reads. `app.can_sign_meeting(attendee, signer)` — definer predicate (caller's OWN row, present
+  PLATFORM attendee, meeting `em_assinatura`, member of commission); the sign-own-row authority for
+  BOTH the `meeting_signatures_insert` policy AND the `sign_meeting` DEFINER path (a DEFINER fn
+  bypasses RLS, so it re-checks explicitly). `app.guard_meeting_status` (state-machine + content-freeze
+  ≥`em_assinatura`) / `app.guard_meeting_child_lock` (keys on PARENT status, NOT the RPC flag) /
+  `app.mint_meeting_number` (advisory-lock, mirrors case number) / `app.seed_default_meeting_types`
+  (AFTER INSERT on `commissions`). `app.assert_meetings_enabled()` gate; `public.meetings_enabled()`
+  DEFINER boolean (TS-layer write gate). `content_hash = encode(extensions.digest(coalesce(minutes_md,''),'sha256'),'hex')`
+  (note the `extensions.` qualifier — pgcrypto isn't on the pinned search_path).
 - **Phase 8 (dashboards):** `app.submitted_form_responses(form)` — the canonical "dashboard-countable"
   response-id set (`status='submitted' AND case_phase_id IS NULL AND form_id=…`); TS twin
   `isDashboardCountable` in `dashboard.ts` (ADR 0020). `app.latest_published_version(form)` — labels/
@@ -155,6 +178,7 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `signoff_enforcement` | **ON** (Phase 6, migration `…090001`) | `submit_response` blocks submission until every VISIBLE `requires_signoff` section is signed → **P0012**. Was OFF in Phases 1–5 (ADR 0004). |
 | `cases_multi_phase` | **ON** (Phase 7, migration `…090008`) | Gates every Phase-7 cases RPC. Inserted OFF in `…090004`; flipped ON by the separate one-line `…090008` (mirrors the `signoff_enforcement` flip). The feature is live. |
 | `cases_extras` | **ON** (Extras, migration `…092006`) | Gates the Cases-Extras + outcome WRITE surface: the **OUTCOME** RPCs (`set_case_outcome`, `set_process_outcomes`, outcome vocab CRUD — ADR 0024); R3 tag CRUD/assign; R4 action-item authoring + lifecycle; R1 document/event actions via `cases_extras_enabled`. (The R2 `set_case_status` + status CRUD it formerly gated were REMOVED by ADR 0024.) Inserted OFF in `…092001`; flipped ON by `…092006`. The core phase RPCs (`activate_phase`/`skip_phase`/`add_ad_hoc_phase`/`reassign_phase`/`close_case`/`cancel_case`/`create_case_from_template`/`set_template_phase_blocks`) gate ONLY `cases_multi_phase`. |
+| `meetings` | **ON** (Phase 10, migration `…090008`) | Gates every Phase-10 meetings RPC + the TS-layer table writes via `public.meetings_enabled()`. Inserted OFF in `…090000`; flipped ON by `…090008` (enabled in-phase so the gate exercised the live feature — same pattern as `cases_multi_phase`). |
 
 ## RLS authorization surface (who can do what)
 
@@ -189,6 +213,16 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 - **Anon grants (Phase 8 B6)** — `anon` now has **zero** DML/EXECUTE on `public` (revoked from anon
   AND the implicit PUBLIC role; durable default-privilege revoke). `authenticated`/`service_role`
   retain explicit grants. pgTAP guards "zero anon-executable public functions".
+- **Meetings (Phase 10)** — `meetings`, `commission_meeting_types`, `commission_meeting_settings`,
+  `meeting_agenda_items`, `meeting_attendees`, `meeting_cases`, `meeting_action_items` grant
+  member-READ / staff_admin-WRITE (child tables resolve commission via `app.commission_of_meeting`;
+  action items via denormalized `commission_id`). `meeting_signatures` — members read; INSERT is
+  **sign-own-row** (`signer_id = auth.uid() AND app.can_sign_meeting(...)`); no broad UPDATE/DELETE
+  (revoke flows through `reopen_meeting`/`sign_meeting`). Meeting content (minutes/agenda/attendees/
+  case-links) **freezes at `em_assinatura`** (the child-lock trigger, keyed on parent status).
+  Storage (`meeting-attachments`) — members read, staff_admin INSERT, NO update/delete (immutable,
+  Rule 6); path `{commission_id}/{meeting_id}/{uuid}.{ext}`; reads via signed URLs. External guests
+  are name/org free-text only (no account, cannot sign) — **no patient data** anywhere.
 
 ## SQLSTATE → meaning (data-layer maps these to pt-BR; no raw PG errors reach the UI)
 
@@ -222,6 +256,12 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 | `HC029` | outcome not in the case's frozen offered set (ADR 0024) | "Este desfecho não está disponível para este caso." |
 | `HC030` | process/outcome commission mismatch (ADR 0024) | "Este desfecho não pertence à comissão deste processo." |
 | `HC031` | conclude: unsettled (pendente/ativa) phases remain (ADR 0024) | "Conclua ou marque todas as fases antes de concluir o caso." |
+| `HC032` | meeting/case (or action-item) commission mismatch (ADR 0025) | "Este caso não pertence à comissão desta reunião." |
+| `HC033` | meeting wrong state for the lifecycle op (ADR 0025) | "A reunião não está no estado necessário para esta ação." |
+| `HC034` | conclude: no attendee marked present (ADR 0025) | "Registre ao menos um participante presente antes de concluir." |
+| `HC035` | meeting already signed (unique race) (ADR 0025) | "Você já assinou esta reunião." |
+| `HC036` | not entitled to sign (not a present platform attendee) (ADR 0025) | "Você não pode assinar esta reunião." |
+| `HC037` | not entitled to update this meeting action item (ADR 0025) | "Você não pode alterar este item de ação." |
 | `23514` | check violation | "Publique um rascunho." / "já enviada." / "recurso indisponível" (context) |
 | `23505` | unique violation | (resume race; question_key collision retry) |
 | `42501` | RLS denied | forbidden (e.g. wrong signer role) |
@@ -259,6 +299,13 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
   `process-templates.ts` `ProcessTemplatePhase` gains `blocks`, `ProcessTemplate` gains
   `offeredOutcomeIds`. **REMOVED:** `src/lib/queries/case-statuses.ts` + `src/lib/cases/status-actions.ts`
   (the R2 configurable-status modules).
+- **Phase 10 (meetings):** Queries `src/lib/queries/{meetings,meeting-action-items}.ts`. Actions
+  `src/lib/meetings/actions.ts` + `src/lib/meetings/messages.ts` (the SQLSTATE→pt-BR map is
+  centralized here — a deliberate divergence from the inline cases pattern, noted in-file) +
+  the `meetingsEnabled()` TS-layer gate. Attachment upload mirrors the case-documents flow; minutes
+  render via the project's sanitizing Markdown renderer (Rule 7). Domain types are the frozen
+  contract `frontend` built against (`MeetingStatus`/`MeetingModality`/`AttendeeRole`/`AttendanceStatus`/
+  `SignatureStatus`/`MeetingAttachmentKind`/`QuorumRuleType`).
 - Service-role client: `src/lib/supabase/admin.ts` (`import 'server-only'`), invite path only.
 
 ## ADR index (decisions that shape the backend)
@@ -271,4 +318,5 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 0020 dashboard-countable responses · 0021 case-phase due dates ·
 0022 cross-committee referrals (proposed/deferred) · 0023 configurable per-committee case status
 (**superseded by 0024**) · 0024 case-model adjustments (fixed auto-computed statuses + phase
-blocking + outcomes).
+blocking + outcomes) · 0025 meetings (data model + 5-state lifecycle + internal e-signatures,
+provider-ready; sign-own-row RLS + RPC-side auto-flip).

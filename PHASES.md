@@ -244,3 +244,44 @@ rationale in ADR [0017](docs/decisions/0017-multi-phase-cases.md).
 - `docs/DEPLOY.md` runbook including backup notes.
 - **Acceptance**: container builds and runs locally against local Supabase;
   CI pipeline green; QA verifies the runbook is reproducible step-by-step.
+
+### Phase 10 — Meetings
+Committees schedule and register meetings (between members and external guests) and the
+data that comes out of them (minutes/atas, agenda, action plans, attendance, cases discussed),
+with **internal electronic signatures** (schema prepared for future third-party providers).
+**No patient data.** Full design + rationale in the approved plan and ADR
+[0025](docs/decisions/0025-meetings.md). Feature-flagged behind `meetings` (flipped on at phase
+completion). Built ahead of Phase 9 (Deployment), which remains pending.
+- **Schema** (migrations `20260615090000`–`090007`): `commission_meeting_types` + `commission_meeting_settings`
+  (per-commission vocab + quorum rule, seeded on commission insert), `meetings`
+  (per-commission `meeting_number`; lifecycle `agendada → realizada → em_assinatura → assinada →
+  distribuida` + `cancelada`; conclusion snapshots quorum), `meeting_agenda_items`,
+  `meeting_attendees` (platform user **XOR** external guest; role + attendance),
+  `meeting_cases` (junction; conclusion writes a `case_events` row per linkage),
+  `meeting_signatures` (provider-abstracted: `method`/`status`/`content_hash`/`provider_ref`/
+  `provider_payload`; partial-unique on active rows), `meeting_attachments` (new `meeting-attachments`
+  bucket; immutable objects, row soft-delete), `meeting_action_items` (mirrors `case_action_items`).
+  Immutability via `app.guard_meeting_status` + `app.guard_meeting_child_lock` (session flag
+  `app.in_meeting_rpc`). New SQLSTATEs `HC032`–`HC037`.
+- **RPCs**: `create/update/conclude/reopen/distribute/cancel_meeting`; agenda CRUD + reorder;
+  attendee CRUD + `seed_expected_meeting_attendees`; `meeting_cases` link/unlink; attachment
+  insert + soft-delete; `sign_meeting` (DEFINER; computes `content_hash`; auto-flips to `assinada`
+  when the last required signature lands — RPC-side, not a trigger); action-item
+  create/update/advance/complete; `my_pending_meeting_signatures` (DEFINER read).
+- **RLS**: member SELECT / staff_admin authoring; sign-own-row INSERT on `meeting_signatures`
+  gated by `app.can_sign_meeting` (present platform attendee of an `em_assinatura` meeting).
+- **UI** under the commission area (reuse cases/forms components): `meetings/` list (filter by
+  status/type), schedule form, `meetings/[id]/` detail hub (header + lifecycle controls, minutes
+  markdown editor, agenda editor, attendees & quorum, cases linker, action items, attachments,
+  signatures panel with "Assinar"), `manage/` meeting-types + quorum config; a **"Reuniões"** nav
+  item + a **"Pending Signatures"** shell indicator from `my_pending_meeting_signatures`.
+- **Acceptance**: E2E: staff_admin schedules a meeting → adds agenda + attendees (incl. an
+  external guest) + links a case + writes minutes → concludes (status `em_assinatura`, quorum
+  snapshot populated, a `case_events kind='meeting'` row appears on the case) → a present member
+  sees "Pending Signatures", signs, badge clears → when all present members have signed, status
+  auto-flips to `assinada` → staff_admin distributes. Negative/security: a plain member sees
+  read-only; a non-present user cannot sign (HC036); double-sign HC035; conclude with no present
+  attendee HC034; editing minutes while `em_assinatura` rejected; staff_admin reopen revokes
+  signatures and re-opens editing; a foreign-commission user gets 404/no leakage; one keyboard-only
+  flow. pgTAP: `meeting_number` minting concurrency; lifecycle + child-lock guards; sign-own-row
+  RLS + auto-flip; reopen-revokes; same-commission guards (HC032).

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  CalendarDays,
   ClipboardList,
   FolderOpen,
   Layers,
@@ -29,6 +30,8 @@ export interface SidebarCounts {
   minhasFases: number;
   casos: number;
   assinaturas: number;
+  /** Meetings awaiting the current user's signature (Phase 10). */
+  reunioesPendentes: number;
 }
 
 type CountKey = keyof SidebarCounts;
@@ -40,6 +43,8 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   roles: CommissionRole[];
   countKey?: CountKey;
+  /** When set, the item only renders if this feature flag is on (Phase 10). */
+  requiresFeature?: "meetings";
 }
 
 interface NavGroup {
@@ -87,6 +92,14 @@ const NAV_GROUPS: NavGroup[] = [
         roles: ["staff", "staff_admin"],
         countKey: "minhasFases",
       },
+      {
+        label: "Reuniões",
+        href: "meetings",
+        icon: CalendarDays,
+        roles: ["staff", "staff_admin"],
+        countKey: "reunioesPendentes",
+        requiresFeature: "meetings",
+      },
     ],
   },
   {
@@ -121,6 +134,13 @@ const NAV_GROUPS: NavGroup[] = [
         icon: Settings2,
         roles: ["staff_admin"],
       },
+      {
+        label: "Config. de reuniões",
+        href: "manage/meetings",
+        icon: CalendarDays,
+        roles: ["staff_admin"],
+        requiresFeature: "meetings",
+      },
     ],
   },
 ];
@@ -134,6 +154,7 @@ export function AppSidebar({
   email,
   roleLabel,
   counts,
+  meetingsEnabled = false,
 }: {
   slug: string;
   /** null when a global admin views a commission they're not a member of. */
@@ -144,6 +165,8 @@ export function AppSidebar({
   email: string;
   roleLabel: string;
   counts: SidebarCounts;
+  /** Whether the `meetings` feature flag is on (gates the "Reuniões" item). */
+  meetingsEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -154,8 +177,11 @@ export function AppSidebar({
   const base = `/c/${slug}`;
   const multiCommission = memberships.length > 1;
   // Admins (no membership row) see the full menu; members see their role's.
-  const isVisible = (item: NavItem) =>
-    role === null || item.roles.includes(role);
+  // Feature-gated items also require their flag to be on.
+  const isVisible = (item: NavItem) => {
+    if (item.requiresFeature === "meetings" && !meetingsEnabled) return false;
+    return role === null || item.roles.includes(role);
+  };
 
   return (
     <>

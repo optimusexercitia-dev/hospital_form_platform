@@ -541,3 +541,82 @@ begin
   insert into public.case_offered_outcomes (case_id, outcome_id) values
     (v_case2, v_oc_evit), (v_case2, v_oc_nevit), (v_case2, v_oc_alta);
 end $$;
+
+-- ===========================================================================
+-- Phase 10: Meetings fixture (commission A / CCIH)
+-- ===========================================================================
+-- A `realizada` meeting "Reunião Ordinária — Junho/2026" authored by chefe.ccih,
+-- with two agenda items, the three CCIH personas as `presente` attendees, one
+-- meeting_cases link to the existing demo case (Caso 0001), and one action item
+-- assigned to staff1.ccih. The two default meeting types + the quorum settings
+-- row already exist for commission A (seeded by the …090005 backfill).
+--
+-- The seed runs as superuser (RLS bypassed) and inserts DIRECTLY (like the cases
+-- fixture above) — it does NOT call the flag-gated RPCs (the `meetings` flag
+-- ships OFF until phase completion). The meeting-number minting trigger fires on
+-- the INSERT; the lifecycle/child-lock guards are UPDATE/DELETE-only, so the
+-- direct `realizada` insert + its children are unaffected. The same-commission
+-- guards on meeting_cases (HC032) DO fire on insert and pass (case + meeting are
+-- both commission A).
+do $$
+declare
+  v_comm_a   uuid := 'a0000000-0000-0000-0000-0000000000a1';
+  v_chefe_a  uuid := '00000000-0000-0000-0000-000000000002';
+  v_staff_a1 uuid := '00000000-0000-0000-0000-000000000003';
+  v_staff_a2 uuid := '00000000-0000-0000-0000-000000000004';
+  v_case1    uuid := 'd0000000-0000-0000-0000-0000000000c1';  -- existing Caso 0001
+  v_mtg      uuid := 'f1000000-0000-0000-0000-0000000000e1';  -- deterministic
+  v_type     uuid;
+  v_ag1      uuid := gen_random_uuid();
+  v_ag2      uuid := gen_random_uuid();
+begin
+  -- Resolve the "Ordinária" meeting type seeded for commission A.
+  select id into v_type
+  from public.commission_meeting_types
+  where commission_id = v_comm_a and name = 'Ordinária'
+  limit 1;
+
+  -- The meeting header (status realizada — held, not yet sent to signature).
+  insert into public.meetings
+    (id, commission_id, meeting_type_id, title, status, scheduled_start, scheduled_end,
+     modality, location_text, minutes_md, created_by)
+  values
+    (v_mtg, v_comm_a, v_type, 'Reunião Ordinária — Junho/2026', 'realizada',
+     now() - interval '2 days', now() - interval '2 days' + interval '90 minutes',
+     'presencial', 'Sala de reuniões da CCIH',
+     E'## Pauta\n\nDiscussão dos indicadores de infecção do mês e acompanhamento '
+     || E'das ações em andamento. **Sem dados de paciente.**',
+     v_chefe_a);
+
+  -- Two agenda items.
+  insert into public.meeting_agenda_items
+    (id, meeting_id, position, title, description, discussion_notes, resolution, created_by)
+  values
+    (v_ag1, v_mtg, 1, 'Indicadores do mês',
+     'Apresentação das taxas de infecção.',
+     'Taxas estáveis em relação ao mês anterior.',
+     'Manter o monitoramento atual.', v_chefe_a),
+    (v_ag2, v_mtg, 2, 'Acompanhamento de ações',
+     'Revisão das ações da última reunião.', null, null, v_chefe_a);
+
+  -- The three CCIH personas as PRESENT attendees (chefe = presidente).
+  insert into public.meeting_attendees (meeting_id, user_id, role, attendance) values
+    (v_mtg, v_chefe_a,  'presidente', 'presente'),
+    (v_mtg, v_staff_a1, 'membro',     'presente'),
+    (v_mtg, v_staff_a2, 'membro',     'presente');
+
+  -- One case discussed (Caso 0001), attached to the first agenda item.
+  insert into public.meeting_cases (meeting_id, case_id, agenda_item_id, summary, decision)
+  values (v_mtg, v_case1, v_ag1,
+          'Caso em investigação revisado pelo comitê.',
+          'Encaminhar para a próxima fase.');
+
+  -- One action item assigned to staff1 (sourced from agenda item 2).
+  insert into public.meeting_action_items
+    (meeting_id, commission_id, source_agenda_item_id, title, description, status,
+     assigned_to, due_date, created_by)
+  values
+    (v_mtg, v_comm_a, v_ag2, 'Atualizar protocolo de higienização',
+     'Revisar e redistribuir o protocolo às equipes.', 'open',
+     v_staff_a1, current_date + 14, v_chefe_a);
+end $$;
