@@ -620,3 +620,70 @@ begin
      'Revisar e redistribuir o protocolo às equipes.', 'open',
      v_staff_a1, current_date + 14, v_chefe_a);
 end $$;
+
+-- ===========================================================================
+-- Phase 11: Interviews fixture (commission A / CCIH)
+-- ===========================================================================
+-- An `em_andamento` interview "Entrevista sobre o Caso 0001" on the existing demo
+-- case (Caso 0001, commission A), authored by chefe.ccih. It records:
+--   * chefe.ccih as the REGISTERED interviewer (role entrevistador_principal) —
+--     this exercises the participant write grant (a registered interviewer can
+--     edit/conclude even if not acting as staff_admin), and one EXTERNAL interviewer.
+--   * staff1.ccih as a REGISTERED subject + one EXTERNAL subject (free-text role).
+--   * one `file` attachment (a signed-transcript metadata row — the object itself
+--     is not seeded; the row is enough for the panel/list) and one `link`
+--     attachment (an external https audio-recording URL — audio bytes are never
+--     stored).
+--
+-- The seed runs as superuser (RLS bypassed) and inserts DIRECTLY (like the cases /
+-- meetings fixtures) — it does NOT call the flag-gated RPCs. The interview-number
+-- minting trigger fires on the INSERT; the lifecycle/child-lock guards are
+-- UPDATE/DELETE-only (and the parent is em_andamento, not locked), so the direct
+-- inserts pass. app.guard_interview_links DOES fire on insert and passes
+-- (commission_id matches Caso 0001's commission; no case_phase_id set). The
+-- attachment XOR/https CHECKs fire and pass (each row sets exactly one source).
+do $$
+declare
+  v_comm_a   uuid := 'a0000000-0000-0000-0000-0000000000a1';
+  v_chefe_a  uuid := '00000000-0000-0000-0000-000000000002';
+  v_staff_a1 uuid := '00000000-0000-0000-0000-000000000003';
+  v_case1    uuid := 'd0000000-0000-0000-0000-0000000000c1';  -- existing Caso 0001
+  v_itw      uuid := 'f2000000-0000-0000-0000-0000000000e1';  -- deterministic
+begin
+  -- The interview header (status em_andamento — being conducted).
+  insert into public.case_interviews
+    (id, commission_id, case_id, title, status, modality, location_text,
+     scheduled_start, conducted_at, summary_md, created_by)
+  values
+    (v_itw, v_comm_a, v_case1, 'Entrevista sobre o Caso 0001', 'em_andamento',
+     'presencial', 'Sala da CCIH',
+     now() - interval '1 day', now() - interval '1 day',
+     E'## Resumo preliminar\n\nEntrevista com a equipe envolvida no caso. '
+     || E'**Sem dados de paciente.** Foco no processo assistencial e nas '
+     || E'oportunidades de melhoria.',
+     v_chefe_a);
+
+  -- Interviewers: chefe.ccih (REGISTERED, principal) + one external.
+  insert into public.case_interview_interviewers
+    (interview_id, user_id, external_name, external_org, role, note)
+  values
+    (v_itw, v_chefe_a, null, null, 'entrevistador_principal', null),
+    (v_itw, null, 'Dra. Helena Marques', 'Consultoria Externa', 'observador', null);
+
+  -- Subjects (interviewees): staff1.ccih (REGISTERED) + one external person.
+  insert into public.case_interview_subjects
+    (interview_id, user_id, external_name, external_org, clinical_role, note)
+  values
+    (v_itw, v_staff_a1, null, null, 'Enfermeiro(a) da unidade', null),
+    (v_itw, null, 'Carlos Pereira', 'Hospital Central', 'Técnico de enfermagem', null);
+
+  -- Attachments: one stored-file metadata row + one external audio link.
+  insert into public.case_interview_attachments
+    (interview_id, kind, title, storage_path, external_url, mime_type, size_bytes, uploaded_by)
+  values
+    (v_itw, 'transcricao_assinada', 'Transcrição assinada (rascunho)',
+     v_comm_a || '/' || v_itw || '/00000000-0000-0000-0000-0000000000f1.pdf',
+     null, 'application/pdf', 12345, v_chefe_a),
+    (v_itw, 'gravacao_audio', 'Gravação de áudio (link externo)',
+     null, 'https://example.com/recordings/caso-0001-entrevista.mp3', null, null, v_chefe_a);
+end $$;

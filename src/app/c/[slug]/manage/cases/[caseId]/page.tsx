@@ -22,6 +22,8 @@ import { CaseActionItemsPanel } from "@/components/cases/case-action-items-panel
 import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents";
 import { listCaseTags, listCaseTagsForCase } from "@/lib/queries/case-tags";
 import { listCaseActionItems } from "@/lib/queries/case-action-items";
+import { listCaseInterviews, interviewsEnabled } from "@/lib/queries/interviews";
+import { InterviewsPanel } from "@/components/interviews/interviews-panel";
 import { formatCaseNumber, formatDate } from "@/components/cases/format";
 
 export const metadata: Metadata = {
@@ -61,7 +63,10 @@ export default async function CaseDetailPage({
   // case status is now a FIXED auto-computed enum (no per-commission defs). Reads
   // of the dark-flagged R1/R3/R4 surfaces return [] until their write side is
   // enabled.
-  const [members, forms, documents, events, tags, caseTags, actionItems] =
+  // The Interviews panel (Phase 11) is feature-flagged; when off we skip the read
+  // and render nothing for it (the route 404s on its own detail page too).
+  const interviewsOn = await interviewsEnabled();
+  const [members, forms, documents, events, tags, caseTags, actionItems, interviews] =
     await Promise.all([
       listMembers(access.commission.id),
       listForms(access.commission.id),
@@ -70,6 +75,7 @@ export default async function CaseDetailPage({
       listCaseTags(access.commission.id),
       listCaseTagsForCase(caseId),
       listCaseActionItems(caseId),
+      interviewsOn ? listCaseInterviews(caseId) : Promise.resolve([]),
     ]);
   const assignees = sortMembers(members).map((m) => ({
     userId: m.userId,
@@ -168,6 +174,16 @@ export default async function CaseDetailPage({
       />
 
       <CaseDocumentsPanel caseId={c.id} documents={documents} />
+
+      {interviewsOn && (
+        <InterviewsPanel
+          slug={slug}
+          caseId={c.id}
+          interviews={interviews}
+          phases={phaseOptions}
+          canCreate
+        />
+      )}
 
       <CaseEventsTimeline caseId={c.id} events={events} />
     </div>

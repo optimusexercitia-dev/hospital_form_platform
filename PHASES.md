@@ -285,3 +285,46 @@ completion). Built ahead of Phase 9 (Deployment), which remains pending.
   signatures and re-opens editing; a foreign-commission user gets 404/no leakage; one keyboard-only
   flow. pgTAP: `meeting_number` minting concurrency; lifecycle + child-lock guards; sign-own-row
   RLS + auto-flip; reopen-revokes; same-commission guards (HC032).
+
+### Phase 11 — Interviews
+Committees interview healthcare professionals about a specific case (e.g. M&M interviewing the
+staff involved in a patient's care). Interviews are scheduled **from within an open case**, have
+their own lifecycle, link to a case phase (optional), record multiple **interviewees** and
+**interviewers** (registered platform user **XOR** external fallback, each with a role), and carry
+evidence attachments (uploaded documents + external audio-recording URLs). On conclusion the
+interview writes a `case_events` row (the case "registry"). **No patient data.** Full design +
+rationale in the approved plan (`.claude/plans/it-is-common-for-jazzy-lake.md`) and ADR
+[0026](docs/decisions/0026-interviews.md). Feature-flagged behind `interviews` (flipped on at phase
+completion). Built ahead of Phase 9 (Deployment), which remains pending.
+- **Schema** (migrations after `20260615090009`): `case_interviews`
+  (per-commission `interview_number`; lifecycle `rascunho → agendada → em_andamento → concluida`
+  + `cancelada`, **reopenable**; nullable `case_phase_id`; `summary_md`; nullable `form_version_id`
+  forward hook; `registry_event_id` → the `case_events` row), `case_interview_subjects`
+  (interviewees; `user_id` XOR `external_name`; **free-text** clinical role), `case_interview_interviewers`
+  (`user_id` XOR `external_name`; **fixed-enum** committee role: `entrevistador_principal` /
+  `entrevistador` / `observador` / `anotador`), `case_interview_attachments` (unified: `storage_path`
+  XOR `external_url`; new `interview-attachments` bucket, 25 MiB, no audio bytes; immutable objects,
+  row soft-delete). `case_events.kind` gains `'interview'`. Immutability/lifecycle via
+  `app.guard_interview_status` + content-freeze (session flag `app.in_interview_rpc`). New SQLSTATEs
+  continue after `HC037`.
+- **RPCs**: `create/schedule/start/conclude/reopen/cancel_interview`; subject + interviewer CRUD
+  (registered interviewer must be a member → `HC021`); attachment insert (upload XOR link) +
+  soft-delete; `conclude_interview` writes/updates the `case_events kind='interview'` row;
+  `interviews_enabled()`.
+- **RLS (NEW shape — row-level participant write grant)**: member SELECT; **create** = staff_admin/admin;
+  **write** (update/delete + all child writes) = staff_admin/admin **OR** a registered interviewer on
+  that interview, via `SECURITY DEFINER` `app.can_write_interview` (+ `app.commission_of_interview`),
+  mirroring `app.can_sign_meeting`/`commission_of_meeting` to avoid policy recursion. Storage INSERT
+  policy keys on path segment `[2]` (`interview_id`) so interviewers can upload.
+- **UI** nested under the case detail page: an **"Entrevistas"** panel + "Nova entrevista" dialog,
+  and an interview detail page (`cases/[caseId]/interviews/[interviewId]`) — header + lifecycle
+  controls, summary markdown editor, subjects panel, interviewers panel, attachments panel (upload +
+  add-link + open/download). pt-BR, keyboard-accessible, GSAP micro-animations.
+- **Acceptance**: E2E: staff_admin schedules an interview on a case → adds a registered + an external
+  subject → adds a registered (member) + external interviewer → starts → uploads a PDF + adds an audio
+  URL → concludes (a `case_events kind='interview'` row appears on the case) → reopen + re-conclude
+  updates the **same** timeline row (no duplicate) → cancel. Negative/security: a plain-`staff`
+  interviewer **can** edit/conclude their interview; a `staff` non-interviewer **cannot** write; a
+  foreign-commission user gets no read; MIME/size rejection on upload; `https`-only link validation;
+  one keyboard-only flow. pgTAP: `interview_number` minting concurrency; lifecycle + content-freeze
+  guards; `can_write_interview` participant grant; commission/case + phase-in-case guards.

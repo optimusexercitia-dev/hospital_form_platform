@@ -5,7 +5,7 @@
 > phase. The **lead keeps this current** at the §6 Record step (CLAUDE.md §7): when a
 > phase adds an RPC, flips a flag, or changes an RLS surface, update the relevant table
 > here. This is a map, not the authority — `ARCHITECTURE.md` is the spec and the
-> migrations are the truth. Last updated: **2026-06-15 (Phase 10 — Meetings: full meetings data model + lifecycle/child-lock guards + sign-own-row RLS + auto-flip `sign_meeting` + `meeting-attachments` bucket + UI; ADR 0025). Earlier same day: Case data-model adjustments batch — phase blocking + fixed auto-computed statuses replacing the R2 configurable system + per-commission outcomes; ADR 0024, supersedes 0023). Earlier: post-Phase-8 Cases-Extras batch (R1 documents/events, R3 tags, R4 action items; ADR 0022).**
+> migrations are the truth. Last updated: **2026-06-15 (Phase 11 — Interviews: case-scoped sibling of Meetings; 4 tables + per-commission `interview_number` minting + lifecycle/content-freeze/child-lock guards + NEW row-level participant-write RLS (`can_write_interview`) + `interview-attachments` bucket (INSERT keyed on path seg [2]) + `case_events` kind `'interview'`; ADR 0026). Earlier same day: Phase 10 — Meetings; ADR 0025. Earlier: Case data-model adjustments batch — phase blocking + fixed auto-computed statuses + per-commission outcomes; ADR 0024, supersedes 0023. Earlier: post-Phase-8 Cases-Extras batch; ADR 0022.**
 
 ## Migrations (forward-only, additive)
 
@@ -47,6 +47,11 @@
 | `…090006–090007` | 10 | RPCs: lifecycle (`create/update/conclude/reopen/distribute/cancel_meeting`); agenda/attendee CRUD + reorder + `seed_expected_meeting_attendees`; `link/unlink_meeting_case`; attachment insert + soft-delete; `sign_meeting` (DEFINER; `content_hash`; auto-flip → `assinada`); action-item CRUD + advance/complete (**HC037**); `my_pending_meeting_signatures` (DEFINER). `…090007`: F5 settings RPCs (`create/rename/archive_meeting_type`, `update_meeting_settings`). |
 | `…090008` | 10 | Flag flip: `meetings` → **ON** (mirror `…090008` cases pattern; enabled in-phase so the gate tests live). |
 | `…090009` | 10 | `mark_meeting_held(meeting)` — `agendada→realizada` (makes the `realizada` resting state reachable; `conclude_meeting` still accepts agendada as a shortcut). |
+| `20260615091000` | 11 | **Interviews core** (ADR 0026): 4 tables (`case_interviews` denorm `commission_id` + per-commission `interview_number` mint `app.mint_interview_number`; lifecycle CHECK `rascunho/agendada/em_andamento/concluida/cancelada`; `app.guard_interview_status` state-machine + content-freeze ≥`concluida`, gated `app.in_interview_rpc`; `app.guard_interview_links` commission-honesty + phase-in-case; `case_interview_subjects` free-text `clinical_role`, `case_interview_interviewers` fixed-enum role, both `user_id` XOR `external_name` + partial-unique; `case_interview_attachments` `storage_path` XOR `external_url` + https CHECK + 4-value `kind` taxonomy + soft-delete; `app.guard_interview_child_lock` freezes subjects+interviewers ≥`concluida`, **attachments excluded**). NEW RLS helpers `app.commission_of_interview` + `app.can_write_interview(interview,uid)` (DEFINER, uid-pure via NEW `app.is_staff_admin_of_for`/`app.is_admin_for`). `case_events.kind` CHECK widened (`case_events_kind_check` drop/recreate) → adds `'interview'`. `interviews` flag (OFF) + `app.assert_interviews_enabled()` + `public.interviews_enabled()`. |
+| `20260615091001` | 11 | **Interviews RPCs** (16 fns): lifecycle `create/update/update_summary/schedule/start/conclude/reopen/cancel_interview`; subject + interviewer CRUD (registered interviewer member-check → **HC021**); attachment insert (file XOR link, **HC040**) + soft-delete; `public.interview_viewer_can_write(interview)` (DEFINER read for the query layer's `viewerCanWrite`). All DEFINER; set `app.in_interview_rpc`; authorize via `app.assert_interview_writable` (→ **HC039**) except create (staff_admin bootstrap, 42501). `conclude_interview` requires ≥1 subject (**HC041**) + insert-or-update the `case_events kind='interview'` row via stored `registry_event_id` (no duplicate on re-conclude). Re-revoke anon/PUBLIC. |
+| `20260615091002` | 11 | **Interviews RLS**: `case_interviews` SELECT member / INSERT staff_admin / UPDATE+DELETE `can_write_interview`; 3 child tables SELECT member-of-`commission_of_interview` / write `can_write_interview` (FOR ALL). Each ORs `app.is_admin()` for the live JWT-claim admin path alongside the uid-pure `can_write_interview`. |
+| `20260615091003` | 11 | **`interview-attachments` Storage bucket** (private, 25 MiB, PDF/images/Office/CSV/txt — **NO audio**); path `{commission_id}/{interview_id}/{uuid}.{ext}`; SELECT member (seg [1]); **INSERT keyed on seg [2]=interview_id via `app.can_write_interview`** (so a registered interviewer uploads); NO update/delete (immutable, Rule 6). |
+| `20260615091004` | 11 | Flag flip: `interviews` → **ON** (mirror `…090008`; enabled in-phase so the gate tests live). |
 
 ## RPC inventory
 
@@ -111,6 +116,14 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `my_pending_meeting_signatures()` | **DEFINER** | Caller's em_assinatura meetings where they are a present platform attendee with no active signature (drives the "Pending Signatures" badge). |
 | `create/update/advance/complete/delete_meeting_action_item` | invoker | Mirror case action items; advance gated assignee-or-staff_admin → **HC037**. |
 | `create_meeting_type` / `rename_meeting_type` / `archive_meeting_type` / `update_meeting_settings` | invoker | F5 settings; `is_staff_admin_of`-gated; `unique(commission,name)` → 23505. |
+| **Phase 11 — interviews (all gate `interviews`; all **DEFINER**; ADR 0026):** | | |
+| `create_interview(case, title?, phase?, modality, start?, end?, location?, url?)` | **DEFINER** | **Bootstrap = staff_admin/admin only** (42501); derives `commission_id` from the case; mint retry; `status='rascunho'`. Returns the row (`.id` → `interviewId`). |
+| `update_interview` / `update_interview_summary` | **DEFINER** | Header / `summary_md` edit; authorize `app.assert_interview_writable` (→ **HC039**); rejected once concluida/cancelada (**HC038**). |
+| `schedule_interview` / `start_interview` / `conclude_interview` / `reopen_interview` / `cancel_interview` | **DEFINER** | Lifecycle under `app.in_interview_rpc`; writable-gated. conclude (em_andamento→concluida): ≥1 subject (**HC041**), insert-or-UPDATE the `case_events kind='interview'` row via `registry_event_id` (no dup on re-conclude). `cancelada` TERMINAL (only `concluida` reopens). Wrong state → **HC038**. |
+| subject CRUD (`add/update/remove_interview_subject`), interviewer CRUD (`add/update/remove_interview_interviewer`) | **DEFINER** | Writable-gated; member XOR external; a REGISTERED interviewer must be a commission member → **HC021** (subjects may be any user). Locked once parent concluida/cancelada (child-lock 23514). |
+| `add_interview_attachment(interview, kind, title, storage_path?, external_url?, mime?, size?)` / `delete_interview_attachment` | **DEFINER** | Writable-gated; storage_path XOR external_url + https → **HC040**; soft-delete. NOT child-locked (late signed transcript). |
+| `interview_viewer_can_write(interview)` | **DEFINER** | Thin read of `app.can_write_interview(interview, auth.uid())` — the query layer's `viewerCanWrite` signal (the `app` helper is not PostgREST-callable). |
+| `interviews_enabled()` | **DEFINER** | TS-layer flag read (mirror `meetings_enabled`). |
 
 ## Helper functions
 
@@ -166,6 +179,20 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
   (AFTER INSERT on `commissions`). `app.assert_meetings_enabled()` gate; `public.meetings_enabled()`
   DEFINER boolean (TS-layer write gate). `content_hash = encode(extensions.digest(coalesce(minutes_md,''),'sha256'),'hex')`
   (note the `extensions.` qualifier — pgcrypto isn't on the pinned search_path).
+- **Phase 11 (interviews):** `app.commission_of_interview(id)` — definer, drives child-table RLS + the
+  writable gate (reads the DENORMALIZED `commission_id` → no recursion). `app.can_write_interview(interview, uid)`
+  — **the NEW participant-write authority** (DEFINER, uid-pure): staff_admin/admin of the interview's
+  commission OR a registered interviewer (a `case_interview_interviewers` row with `user_id=uid`); drives
+  every `case_interviews` UPDATE/DELETE + child WRITE policy + the Storage INSERT policy + the
+  `assert_interview_writable` RPC gate. Built on NEW uid-pure mirrors `app.is_staff_admin_of_for(commission, uid)`
+  + `app.is_admin_for(uid)` (DB `profiles.is_admin` only — the JWT claim is per-session, so policies also OR
+  `app.is_admin()`). `app.guard_interview_status` (state-machine + content-freeze ≥`concluida`, gated
+  `app.in_interview_rpc`) / `app.guard_interview_child_lock` (keys on PARENT status; subjects+interviewers
+  only — **attachments excluded**) / `app.guard_interview_links` (commission-honesty + phase-in-case →
+  check_violation) / `app.mint_interview_number` (advisory-lock, mirrors meeting number) /
+  `app.assert_interview_writable(interview)` (→ HC039). `app.assert_interviews_enabled()` gate;
+  `public.interviews_enabled()` + `public.interview_viewer_can_write(interview)` DEFINER reads. No seed-on-commission
+  trigger (interviews are created per-case, not per-commission).
 - **Phase 8 (dashboards):** `app.submitted_form_responses(form)` — the canonical "dashboard-countable"
   response-id set (`status='submitted' AND case_phase_id IS NULL AND form_id=…`); TS twin
   `isDashboardCountable` in `dashboard.ts` (ADR 0020). `app.latest_published_version(form)` — labels/
@@ -179,6 +206,7 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `cases_multi_phase` | **ON** (Phase 7, migration `…090008`) | Gates every Phase-7 cases RPC. Inserted OFF in `…090004`; flipped ON by the separate one-line `…090008` (mirrors the `signoff_enforcement` flip). The feature is live. |
 | `cases_extras` | **ON** (Extras, migration `…092006`) | Gates the Cases-Extras + outcome WRITE surface: the **OUTCOME** RPCs (`set_case_outcome`, `set_process_outcomes`, outcome vocab CRUD — ADR 0024); R3 tag CRUD/assign; R4 action-item authoring + lifecycle; R1 document/event actions via `cases_extras_enabled`. (The R2 `set_case_status` + status CRUD it formerly gated were REMOVED by ADR 0024.) Inserted OFF in `…092001`; flipped ON by `…092006`. The core phase RPCs (`activate_phase`/`skip_phase`/`add_ad_hoc_phase`/`reassign_phase`/`close_case`/`cancel_case`/`create_case_from_template`/`set_template_phase_blocks`) gate ONLY `cases_multi_phase`. |
 | `meetings` | **ON** (Phase 10, migration `…090008`) | Gates every Phase-10 meetings RPC + the TS-layer table writes via `public.meetings_enabled()`. Inserted OFF in `…090000`; flipped ON by `…090008` (enabled in-phase so the gate exercised the live feature — same pattern as `cases_multi_phase`). |
+| `interviews` | **ON** (Phase 11, migration `…091004`) | Gates every Phase-11 interviews RPC + the TS-layer writes via `public.interviews_enabled()`. Inserted OFF in `…091000`; flipped ON by `…091004` (enabled in-phase — same pattern as `meetings`). |
 
 ## RLS authorization surface (who can do what)
 
@@ -223,6 +251,18 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
   Storage (`meeting-attachments`) — members read, staff_admin INSERT, NO update/delete (immutable,
   Rule 6); path `{commission_id}/{meeting_id}/{uuid}.{ext}`; reads via signed URLs. External guests
   are name/org free-text only (no account, cannot sign) — **no patient data** anywhere.
+- **Interviews (Phase 11)** — the NEW write shape: `case_interviews` SELECT = member; **INSERT =
+  staff_admin/admin** (bootstrap); **UPDATE/DELETE = `app.can_write_interview(id, auth.uid())`** (staff_admin/admin
+  OR a registered interviewer of that interview). The 3 child tables (`case_interview_subjects`/
+  `_interviewers`/`_attachments`) SELECT = member-of-`commission_of_interview`; write = `can_write_interview`
+  (FOR ALL). So a registered interviewer who is a plain `staff` member can edit/conclude THEIR interview;
+  a non-interviewer staff cannot (HC039). Content (subjects/interviewers) **freezes at `concluida`/`cancelada`**
+  (child-lock keyed on parent status); **attachments are NOT frozen** (late signed transcript). Storage
+  (`interview-attachments`) — members read (path seg [1] = commission); **INSERT keyed on seg [2] = interview_id
+  via `can_write_interview`** (so a registered interviewer uploads, not just staff_admin); NO update/delete
+  (immutable, Rule 6); path `{commission_id}/{interview_id}/{uuid}.{ext}`; reads via signed URLs; audio is
+  LINK-only (no audio bytes). Subjects/interviewers are platform-user XOR name/org free-text — **no patient
+  data** (interviewees are STAFF, never patients).
 
 ## SQLSTATE → meaning (data-layer maps these to pt-BR; no raw PG errors reach the UI)
 
@@ -262,6 +302,10 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 | `HC035` | meeting already signed (unique race) (ADR 0025) | "Você já assinou esta reunião." |
 | `HC036` | not entitled to sign (not a present platform attendee) (ADR 0025) | "Você não pode assinar esta reunião." |
 | `HC037` | not entitled to update this meeting action item (ADR 0025) | "Você não pode alterar este item de ação." |
+| `HC038` | interview wrong state for the lifecycle op (ADR 0026) | "A entrevista não está no estado necessário para esta ação." |
+| `HC039` | not entitled to write this interview (not staff_admin nor a registered interviewer) (ADR 0026) | "Você não pode editar esta entrevista." |
+| `HC040` | invalid attachment (storage_path XOR external_url violated, or non-https link) (ADR 0026) | "Anexo inválido: envie um arquivo OU informe um link https." |
+| `HC041` | conclude: interview has no interviewee (ADR 0026) | "Adicione ao menos um entrevistado antes de concluir." |
 | `23514` | check violation | "Publique um rascunho." / "já enviada." / "recurso indisponível" (context) |
 | `23505` | unique violation | (resume race; question_key collision retry) |
 | `42501` | RLS denied | forbidden (e.g. wrong signer role) |
@@ -306,6 +350,21 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
   render via the project's sanitizing Markdown renderer (Rule 7). Domain types are the frozen
   contract `frontend` built against (`MeetingStatus`/`MeetingModality`/`AttendeeRole`/`AttendanceStatus`/
   `SignatureStatus`/`MeetingAttachmentKind`/`QuorumRuleType`).
+- **Phase 11 (interviews):** Queries `src/lib/queries/interviews.ts` (`listCaseInterviews(caseId)` —
+  list items carry `subjectCount`/`subjectSummary`; `getInterviewDetail(id)` — carries
+  `viewerCanWrite` (via the `interview_viewer_can_write` RPC), `commissionId`, `caseId`, `caseNumber`
+  for the UI's write-gating + URL-consistency guards; `listInterviewSubjects`/`listInterviewInterviewers`/
+  `listInterviewAttachments` — attachments expose BOTH `openUrl` (signed URL, non-null for stored files)
+  and `externalUrl` (non-null for links), exactly one non-null; `interviewsEnabled()`). Actions
+  `src/lib/interviews/actions.ts` + `src/lib/interviews/messages.ts` (centralized SQLSTATE→pt-BR map,
+  mirroring meetings) + the `interviewsEnabled()` gate. `createInterview` returns `interviewId`;
+  attachment upload mirrors the case-documents/meetings flow (`uploadInterviewAttachment` file +
+  `addInterviewLink` https-only); summary renders via the sanitizing Markdown renderer (Rule 7). Domain
+  types are the frozen contract `frontend` built against (`InterviewStatus`/`InterviewModality`/
+  `InterviewerRole`/`InterviewAttachmentKind`). NOTE: every write action EXCEPT `createInterview` (staff_admin
+  bootstrap) does NO staff_admin pre-check — a registered interviewer who is a plain `staff` member must pass;
+  the RPC's `can_write_interview` gate (→ HC039) is the authority. `InterviewSubjectInput.externalOrg` is
+  OPTIONAL (the subject form need not collect it).
 - Service-role client: `src/lib/supabase/admin.ts` (`import 'server-only'`), invite path only.
 
 ## ADR index (decisions that shape the backend)
@@ -319,4 +378,6 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 0022 cross-committee referrals (proposed/deferred) · 0023 configurable per-committee case status
 (**superseded by 0024**) · 0024 case-model adjustments (fixed auto-computed statuses + phase
 blocking + outcomes) · 0025 meetings (data model + 5-state lifecycle + internal e-signatures,
-provider-ready; sign-own-row RLS + RPC-side auto-flip).
+provider-ready; sign-own-row RLS + RPC-side auto-flip) · 0026 interviews (case-scoped sibling of
+meetings; 5-state lifecycle + content-freeze; NEW row-level participant-write RLS
+`can_write_interview`; conclude writes/updates a single `case_events kind='interview'` registry row).

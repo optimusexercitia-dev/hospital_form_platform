@@ -93,7 +93,14 @@ export function AttachmentsPanel({
                 )}
                 {canEdit && (
                   <ConfirmDeleteButton
-                    action={() => deleteMeetingAttachment(att.id)}
+                    // Bound server-action reference (NOT an inline closure): this
+                    // panel is a Server Component, and a closure — even one
+                    // wrapping a `"use server"` action — is not serializable across
+                    // the RSC→Client boundary into `ConfirmDeleteButton`
+                    // (`"use client"`), which crashes the page on the
+                    // delete-with-attachments path (P10-LATENT-001, found in the
+                    // Phase 11 audit). `.bind(null, …)` IS serializable.
+                    action={deleteMeetingAttachment.bind(null, att.id)}
                     label={`Remover ${att.title}`}
                     title="Remover este anexo?"
                     description={`O anexo “${att.title}” deixará de aparecer. O arquivo enviado é mantido por imutabilidade.`}

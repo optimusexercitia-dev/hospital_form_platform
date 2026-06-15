@@ -278,6 +278,300 @@ export type Database = {
           },
         ]
       }
+      case_interview_attachments: {
+        Row: {
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          external_url: string | null
+          id: string
+          interview_id: string
+          kind: string
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string | null
+          title: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          external_url?: string | null
+          id?: string
+          interview_id: string
+          kind?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string | null
+          title: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          external_url?: string | null
+          id?: string
+          interview_id?: string
+          kind?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string | null
+          title?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_interview_attachments_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interview_attachments_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "case_interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interview_attachments_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_interview_interviewers: {
+        Row: {
+          created_at: string
+          external_name: string | null
+          external_org: string | null
+          id: string
+          interview_id: string
+          note: string | null
+          role: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          external_name?: string | null
+          external_org?: string | null
+          id?: string
+          interview_id: string
+          note?: string | null
+          role?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          external_name?: string | null
+          external_org?: string | null
+          id?: string
+          interview_id?: string
+          note?: string | null
+          role?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_interview_interviewers_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "case_interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interview_interviewers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_interview_subjects: {
+        Row: {
+          clinical_role: string | null
+          created_at: string
+          external_name: string | null
+          external_org: string | null
+          id: string
+          interview_id: string
+          note: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          clinical_role?: string | null
+          created_at?: string
+          external_name?: string | null
+          external_org?: string | null
+          id?: string
+          interview_id: string
+          note?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          clinical_role?: string | null
+          created_at?: string
+          external_name?: string | null
+          external_org?: string | null
+          id?: string
+          interview_id?: string
+          note?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_interview_subjects_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "case_interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interview_subjects_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_interviews: {
+        Row: {
+          cancelled_at: string | null
+          case_id: string
+          case_phase_id: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          conducted_at: string | null
+          created_at: string
+          created_by: string | null
+          form_version_id: string | null
+          id: string
+          interview_number: number
+          location_text: string | null
+          meeting_url: string | null
+          modality: string
+          registry_event_id: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          status: string
+          summary_md: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          case_id: string
+          case_phase_id?: string | null
+          commission_id: string
+          concluded_at?: string | null
+          concluded_by?: string | null
+          conducted_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          form_version_id?: string | null
+          id?: string
+          interview_number: number
+          location_text?: string | null
+          meeting_url?: string | null
+          modality?: string
+          registry_event_id?: string | null
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+          status?: string
+          summary_md?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          case_id?: string
+          case_phase_id?: string | null
+          commission_id?: string
+          concluded_at?: string | null
+          concluded_by?: string | null
+          conducted_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          form_version_id?: string | null
+          id?: string
+          interview_number?: number
+          location_text?: string | null
+          meeting_url?: string | null
+          modality?: string
+          registry_event_id?: string | null
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+          status?: string
+          summary_md?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_interviews_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interviews_case_phase_id_fkey"
+            columns: ["case_phase_id"]
+            isOneToOne: false
+            referencedRelation: "case_phases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interviews_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interviews_concluded_by_fkey"
+            columns: ["concluded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interviews_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interviews_form_version_id_fkey"
+            columns: ["form_version_id"]
+            isOneToOne: false
+            referencedRelation: "form_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interviews_registry_event_id_fkey"
+            columns: ["registry_event_id"]
+            isOneToOne: false
+            referencedRelation: "case_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_offered_outcomes: {
         Row: {
           case_id: string
@@ -1813,6 +2107,91 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      add_interview_attachment: {
+        Args: {
+          p_external_url?: string
+          p_interview_id: string
+          p_kind: string
+          p_mime_type?: string
+          p_size_bytes?: number
+          p_storage_path?: string
+          p_title: string
+        }
+        Returns: {
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          external_url: string | null
+          id: string
+          interview_id: string
+          kind: string
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string | null
+          title: string
+          uploaded_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_interview_attachments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_interview_interviewer: {
+        Args: {
+          p_external_name?: string
+          p_external_org?: string
+          p_interview_id: string
+          p_note?: string
+          p_role?: string
+          p_user_id?: string
+        }
+        Returns: {
+          created_at: string
+          external_name: string | null
+          external_org: string | null
+          id: string
+          interview_id: string
+          note: string | null
+          role: string
+          updated_at: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_interview_interviewers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_interview_subject: {
+        Args: {
+          p_clinical_role?: string
+          p_external_name?: string
+          p_external_org?: string
+          p_interview_id: string
+          p_note?: string
+          p_user_id?: string
+        }
+        Returns: {
+          clinical_role: string | null
+          created_at: string
+          external_name: string | null
+          external_org: string | null
+          id: string
+          interview_id: string
+          note: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_interview_subjects"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       add_meeting_attachment: {
         Args: {
           p_kind: string
@@ -2050,6 +2429,39 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      cancel_interview: {
+        Args: { p_interview_id: string }
+        Returns: {
+          cancelled_at: string | null
+          case_id: string
+          case_phase_id: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          conducted_at: string | null
+          created_at: string
+          created_by: string | null
+          form_version_id: string | null
+          id: string
+          interview_number: number
+          location_text: string | null
+          meeting_url: string | null
+          modality: string
+          registry_event_id: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          status: string
+          summary_md: string | null
+          title: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_interviews"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       cancel_meeting: {
         Args: { p_meeting_id: string }
         Returns: {
@@ -2186,6 +2598,39 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "meeting_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      conclude_interview: {
+        Args: { p_interview_id: string }
+        Returns: {
+          cancelled_at: string | null
+          case_id: string
+          case_phase_id: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          conducted_at: string | null
+          created_at: string
+          created_by: string | null
+          form_version_id: string | null
+          id: string
+          interview_number: number
+          location_text: string | null
+          meeting_url: string | null
+          modality: string
+          registry_event_id: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          status: string
+          summary_md: string | null
+          title: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_interviews"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -2336,6 +2781,48 @@ export type Database = {
           form_id: string
           version_id: string
         }[]
+      }
+      create_interview: {
+        Args: {
+          p_case_id: string
+          p_case_phase_id?: string
+          p_location_text?: string
+          p_meeting_url?: string
+          p_modality?: string
+          p_scheduled_end?: string
+          p_scheduled_start?: string
+          p_title?: string
+        }
+        Returns: {
+          cancelled_at: string | null
+          case_id: string
+          case_phase_id: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          conducted_at: string | null
+          created_at: string
+          created_by: string | null
+          form_version_id: string | null
+          id: string
+          interview_number: number
+          location_text: string | null
+          meeting_url: string | null
+          modality: string
+          registry_event_id: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          status: string
+          summary_md: string | null
+          title: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_interviews"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_meeting: {
         Args: {
@@ -2556,6 +3043,10 @@ export type Database = {
           day: string
         }[]
       }
+      delete_interview_attachment: {
+        Args: { p_attachment_id: string }
+        Returns: undefined
+      }
       delete_meeting_agenda_item: {
         Args: { p_agenda_item_id: string }
         Returns: undefined
@@ -2608,6 +3099,11 @@ export type Database = {
         Args: { p_response_id: string }
         Returns: Json
       }
+      interview_viewer_can_write: {
+        Args: { p_interview_id: string }
+        Returns: boolean
+      }
+      interviews_enabled: { Args: never; Returns: boolean }
       link_meeting_case: {
         Args: {
           p_agenda_item_id?: string
@@ -2783,6 +3279,14 @@ export type Database = {
         Args: { p_case_id: string }
         Returns: undefined
       }
+      remove_interview_interviewer: {
+        Args: { p_interviewer_id: string }
+        Returns: undefined
+      }
+      remove_interview_subject: {
+        Args: { p_subject_id: string }
+        Returns: undefined
+      }
       remove_meeting_attendee: {
         Args: { p_attendee_id: string }
         Returns: undefined
@@ -2823,6 +3327,39 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "commission_meeting_types"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reopen_interview: {
+        Args: { p_interview_id: string }
+        Returns: {
+          cancelled_at: string | null
+          case_id: string
+          case_phase_id: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          conducted_at: string | null
+          created_at: string
+          created_by: string | null
+          form_version_id: string | null
+          id: string
+          interview_number: number
+          location_text: string | null
+          meeting_url: string | null
+          modality: string
+          registry_event_id: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          status: string
+          summary_md: string | null
+          title: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_interviews"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -2904,6 +3441,43 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "responses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      schedule_interview: {
+        Args: {
+          p_interview_id: string
+          p_scheduled_end?: string
+          p_scheduled_start: string
+        }
+        Returns: {
+          cancelled_at: string | null
+          case_id: string
+          case_phase_id: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          conducted_at: string | null
+          created_at: string
+          created_by: string | null
+          form_version_id: string | null
+          id: string
+          interview_number: number
+          location_text: string | null
+          meeting_url: string | null
+          modality: string
+          registry_event_id: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          status: string
+          summary_md: string | null
+          title: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_interviews"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -3065,6 +3639,39 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      start_interview: {
+        Args: { p_interview_id: string }
+        Returns: {
+          cancelled_at: string | null
+          case_id: string
+          case_phase_id: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          conducted_at: string | null
+          created_at: string
+          created_by: string | null
+          form_version_id: string | null
+          id: string
+          interview_number: number
+          location_text: string | null
+          meeting_url: string | null
+          modality: string
+          registry_event_id: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          status: string
+          summary_md: string | null
+          title: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_interviews"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       start_or_resume_phase: {
         Args: { p_case_phase_id: string }
         Returns: {
@@ -3189,6 +3796,133 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_outcomes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_interview: {
+        Args: {
+          p_case_phase_id?: string
+          p_interview_id: string
+          p_location_text?: string
+          p_meeting_url?: string
+          p_modality?: string
+          p_scheduled_end?: string
+          p_scheduled_start?: string
+          p_title?: string
+        }
+        Returns: {
+          cancelled_at: string | null
+          case_id: string
+          case_phase_id: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          conducted_at: string | null
+          created_at: string
+          created_by: string | null
+          form_version_id: string | null
+          id: string
+          interview_number: number
+          location_text: string | null
+          meeting_url: string | null
+          modality: string
+          registry_event_id: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          status: string
+          summary_md: string | null
+          title: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_interviews"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_interview_interviewer: {
+        Args: {
+          p_external_name?: string
+          p_external_org?: string
+          p_interviewer_id: string
+          p_note?: string
+          p_role: string
+        }
+        Returns: {
+          created_at: string
+          external_name: string | null
+          external_org: string | null
+          id: string
+          interview_id: string
+          note: string | null
+          role: string
+          updated_at: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_interview_interviewers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_interview_subject: {
+        Args: {
+          p_clinical_role?: string
+          p_external_name?: string
+          p_external_org?: string
+          p_note?: string
+          p_subject_id: string
+        }
+        Returns: {
+          clinical_role: string | null
+          created_at: string
+          external_name: string | null
+          external_org: string | null
+          id: string
+          interview_id: string
+          note: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_interview_subjects"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_interview_summary: {
+        Args: { p_interview_id: string; p_summary_md: string }
+        Returns: {
+          cancelled_at: string | null
+          case_id: string
+          case_phase_id: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          conducted_at: string | null
+          created_at: string
+          created_by: string | null
+          form_version_id: string | null
+          id: string
+          interview_number: number
+          location_text: string | null
+          meeting_url: string | null
+          modality: string
+          registry_event_id: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          status: string
+          summary_md: string | null
+          title: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_interviews"
           isOneToOne: true
           isSetofReturn: false
         }
