@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
@@ -125,7 +126,19 @@ export async function requireUser(): Promise<SessionContext> {
  * a commission they are not a member of (admins read every commission via RLS
  * but have no membership row).
  */
-export async function getCommissionAccess(slug: string): Promise<{
+export const getCommissionAccess = cache(
+  async (
+    slug: string,
+  ): Promise<{
+    context: SessionContext
+    commission: { id: string; name: string; slug: string }
+    role: CommissionRole | null
+  } | null> => {
+    return getCommissionAccessUncached(slug)
+  },
+)
+
+async function getCommissionAccessUncached(slug: string): Promise<{
   context: SessionContext
   commission: { id: string; name: string; slug: string }
   role: CommissionRole | null

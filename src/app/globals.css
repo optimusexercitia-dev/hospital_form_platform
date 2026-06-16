@@ -111,6 +111,33 @@
   --input: oklch(0.9 0.008 250);
   --ring: oklch(0.475 0.11 252);
 
+  /* Case Timeline (Phase 12) — one strong + one soft (~8–12% tint) value per
+     event type, so the central `type-meta` map resolves every type through a
+     single `var(--event-*)` / `var(--event-*-soft)` pair. No new visual
+     language: each strong value REUSES an existing semantic token (primary,
+     warning, success, destructive, chart-2, the live violet, slate); only the
+     soft tints for milestone/action/meeting were genuinely missing. */
+  --event-phase: var(--primary);
+  --event-phase-soft: oklch(0.475 0.11 252 / 0.1);
+  --event-milestone: var(--destructive);
+  --event-milestone-soft: oklch(0.55 0.2 25 / 0.1);
+  --event-interview: oklch(0.55 0.12 320); /* the live cases violet */
+  --event-interview-soft: oklch(0.55 0.12 320 / 0.12);
+  --event-meeting: var(--chart-2); /* info / blue */
+  --event-meeting-soft: oklch(0.62 0.1 200 / 0.12);
+  --event-document: var(--st-todo); /* slate */
+  --event-document-soft: oklch(0.55 0.03 252 / 0.1);
+  --event-action: var(--warning); /* amber */
+  --event-action-soft: oklch(0.62 0.13 65 / 0.12);
+  --event-lifecycle: var(--muted-foreground); /* neutral — cool slate-petrol */
+  --event-lifecycle-soft: oklch(0.52 0.022 252 / 0.1);
+  /* note — nudged a touch WARMER + lower-chroma than the cool lifecycle neutral
+     so the two read apart at a glance (icons/labels stay as-is). Stays inside the
+     calm palette: a quiet warm taupe-grey (hue ~95, the porcelain family), not a
+     new accent hue. */
+  --event-note: oklch(0.5 0.014 95);
+  --event-note-soft: oklch(0.5 0.014 95 / 0.12);
+
   /* Chart ramp built around the blue accent + supporting hues. */
   --chart-1: oklch(0.475 0.11 252);
   --chart-2: oklch(0.62 0.1 200);
@@ -158,6 +185,28 @@
   --border: oklch(1 0 0 / 12%);
   --input: oklch(1 0 0 / 16%);
   --ring: oklch(0.72 0.12 252);
+
+  /* Timeline event tints — dark variants. Strong values inherit from the
+     re-pointed tokens above; the soft tints are re-stated brighter + slightly
+     more opaque so the icon chips read on the dark card surface. */
+  --event-phase: var(--primary);
+  --event-phase-soft: oklch(0.72 0.12 252 / 0.18);
+  --event-milestone: var(--destructive);
+  --event-milestone-soft: oklch(0.7 0.19 22 / 0.18);
+  --event-interview: oklch(0.72 0.12 320);
+  --event-interview-soft: oklch(0.72 0.12 320 / 0.2);
+  --event-meeting: var(--chart-2);
+  --event-meeting-soft: oklch(0.72 0.1 200 / 0.2);
+  --event-document: var(--st-todo);
+  --event-document-soft: oklch(0.7 0.03 252 / 0.16);
+  --event-action: var(--warning);
+  --event-action-soft: oklch(0.75 0.13 75 / 0.2);
+  --event-lifecycle: var(--muted-foreground); /* cool slate-petrol neutral */
+  --event-lifecycle-soft: oklch(0.72 0.02 252 / 0.16);
+  /* note — warmer taupe-grey, separated from the cool lifecycle neutral. */
+  --event-note: oklch(0.78 0.014 95);
+  --event-note-soft: oklch(0.78 0.014 95 / 0.16);
+
   --chart-1: oklch(0.72 0.12 252);
   --chart-2: oklch(0.72 0.1 200);
   --chart-3: oklch(0.76 0.11 150);

@@ -1,19 +1,11 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 
 import { getCommissionAccess } from "@/lib/queries/session";
 import { getCaseDetail } from "@/lib/queries/cases";
 import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { listMembers, sortMembers } from "@/lib/queries/members";
-import { listForms } from "@/lib/queries/forms";
-import {
-  CaseStatusBadge,
-  CaseStatusBadgeFixed,
-} from "@/components/cases/case-status-badge";
 import { CasePhaseList } from "@/components/cases/case-phase-list";
-import { CaseLifecycleActions } from "@/components/cases/case-lifecycle-actions";
 import { CaseOutcomeSelector } from "@/components/cases/case-outcome-selector";
 import { CaseDetailMotion } from "@/components/cases/case-detail-motion";
 import { CaseDocumentsPanel } from "@/components/cases/case-documents-panel";
@@ -25,21 +17,21 @@ import { listCaseTags, listCaseTagsForCase } from "@/lib/queries/case-tags";
 import { listCaseActionItems } from "@/lib/queries/case-action-items";
 import { listCaseInterviews, interviewsEnabled } from "@/lib/queries/interviews";
 import { InterviewsPanel } from "@/components/interviews/interviews-panel";
-import { formatCaseNumber, formatDate } from "@/components/cases/format";
 
 export const metadata: Metadata = {
   title: "Detalhe do caso",
 };
 
 /**
- * Per-case detail (coordinator area): the case header + every phase, with the
- * coordinator's actions (assign + activate, skip, reassign, add ad-hoc phase,
- * close / cancel). Backed by the SECURITY DEFINER `get_case_detail`
- * (`is_staff_admin_of`-gated): `responseId`/`submittedAt` are populated ONLY for
- * SUBMITTED phases, which the coordinator deep-links to a read-only answer view.
+ * The "Detalhes" tab body (default child of the `(detail)` layout): the case's
+ * two-column region (phases · action items · events narrative + the tags /
+ * documents / interviews rail) and the outcome card. The case header spine + tab
+ * bar now live in the layout, so this page renders only the tab CONTENT.
  *
- * Coordinator-gated here too (mirrors the board): a non-coordinator gets
- * `notFound()`. The case must belong to this commission (defends a tampered id).
+ * Coordinator-gated + commission-scoped here too (defense in depth; the layout
+ * gates identically and both reads are React `cache()`-memoized, so the repeat is
+ * free). Backed by the SECURITY DEFINER `get_case_detail`: `responseId` is set
+ * only for SUBMITTED phases, which the coordinator deep-links to a read-only view.
  */
 export default async function CaseDetailPage({
   params,
@@ -58,19 +50,14 @@ export default async function CaseDetailPage({
     notFound();
   }
 
-  // Members back the assignee pickers; forms back the ad-hoc phase picker
-  // (published-only — an ad-hoc phase pins a published version, P0017). The
-  // Cases-Extras panels (documents/events/tags/action items) load alongside. The
-  // case status is now a FIXED auto-computed enum (no per-commission defs). Reads
-  // of the dark-flagged R1/R3/R4 surfaces return [] until their write side is
-  // enabled.
-  // The Interviews panel (Phase 11) is feature-flagged; when off we skip the read
-  // and render nothing for it (the route 404s on its own detail page too).
+  // Members back the assignee pickers. The Cases-Extras panels
+  // (documents/events/tags/action items) load alongside. The Interviews panel
+  // (Phase 11) is feature-flagged; when off we skip the read and render nothing
+  // for it (the route 404s on its own detail page too).
   const interviewsOn = await interviewsEnabled();
-  const [members, forms, documents, events, tags, caseTags, actionItems, interviews] =
+  const [members, documents, events, tags, caseTags, actionItems, interviews] =
     await Promise.all([
       listMembers(access.commission.id),
-      listForms(access.commission.id),
       listCaseDocuments(caseId),
       listCaseEvents(caseId),
       listCaseTags(access.commission.id),
@@ -82,9 +69,6 @@ export default async function CaseDetailPage({
     userId: m.userId,
     name: m.fullName ?? m.email ?? "Membro",
   }));
-  const publishableForms = forms
-    .filter((f) => f.publishedVersionNumber != null)
-    .map((f) => ({ id: f.id, title: f.title }));
 
   const c = detail.case;
   const isOpen = !isTerminalCaseStatus(c.status);
@@ -95,53 +79,7 @@ export default async function CaseDetailPage({
     .map((p) => ({ id: p.id, label: p.title || `Fase ${p.position}` }));
 
   return (
-    <CaseDetailMotion className="mx-auto flex w-full max-w-6xl flex-col gap-8">
-      <header data-rise className="flex flex-col gap-4">
-        <Link
-          href={`/c/${slug}/manage/cases`}
-          className="inline-flex w-fit items-center gap-1.5 rounded text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-        >
-          <ArrowLeft aria-hidden="true" className="size-4" />
-          Casos
-        </Link>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-3xl text-balance">
-                {formatCaseNumber(c.caseNumber)}
-              </h1>
-              <CaseStatusBadgeFixed status={c.status} />
-              {detail.outcome && (
-                <CaseStatusBadge
-                  label={detail.outcome.label}
-                  colorToken={detail.outcome.colorToken}
-                />
-              )}
-            </div>
-            {c.label && (
-              <p className="max-w-prose text-muted-foreground text-pretty">
-                {c.label}
-              </p>
-            )}
-            <p className="text-sm text-muted-foreground">
-              Criado em {formatDate(c.createdAt)}
-              {c.closedAt ? ` · Encerrado em ${formatDate(c.closedAt)}` : ""}
-            </p>
-          </div>
-
-          {isOpen && (
-            <CaseLifecycleActions
-              caseId={c.id}
-              offeredOutcomes={detail.offeredOutcomes}
-              currentOutcomeId={c.outcomeId}
-              forms={publishableForms}
-              phases={detail.phases}
-              assignees={assignees}
-            />
-          )}
-        </div>
-      </header>
-
+    <CaseDetailMotion className="flex w-full flex-col gap-8">
       {/* Two-column region: flex-col (mobile) → 2-col grid (lg). `contents` on the
           column wrappers lets mobile interleave the columns via `order-*` while
           desktop packs each column independently.

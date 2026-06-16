@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionContext } from '@/lib/queries/session'
 import type { RecommendWhen } from '@/lib/queries/conditions'
@@ -336,7 +337,21 @@ export async function listCasesBoard(
  * is not a staff_admin of the case's commission or the case does not exist (the
  * RPC raises, surfaced here as null).
  */
-export async function getCaseDetail(
+/**
+ * Request-scoped memoized read of {@link getCaseDetail} (React `cache()`): the
+ * Phase-12 case route fetches it from BOTH the shared `layout.tsx` (header spine)
+ * AND its child (the Detalhes / Timeline tabs), so memoizing by `caseId`
+ * collapses that to a single RPC per request. `cache()` is per-request and the
+ * RPC is RLS-scoped, so this changes nothing about authorization or freshness —
+ * only the number of round trips. Existing single-call sites are unaffected.
+ */
+export const getCaseDetail = cache(
+  async (caseId: string): Promise<CaseDetail | null> => {
+    return getCaseDetailUncached(caseId)
+  },
+)
+
+async function getCaseDetailUncached(
   caseId: string,
 ): Promise<CaseDetail | null> {
   const supabase = await createClient()

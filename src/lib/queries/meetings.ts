@@ -243,7 +243,13 @@ export interface PendingMeetingSignature {
 // Row shapes (RLS-scoped table reads)
 // ---------------------------------------------------------------------------
 
-interface MeetingRow {
+/**
+ * The meetings-list row projection (the columns {@link MEETING_LIST_COLUMNS}
+ * selects). Exported so the Case Timeline's reverse `meeting_cases → meetings`
+ * read (`@/lib/queries/case-timeline`) can reuse the SAME projection + mapper
+ * instead of duplicating the meeting shape.
+ */
+export interface MeetingRow {
   id: string
   commission_id: string
   meeting_number: number
@@ -360,7 +366,12 @@ interface PendingSignatureRow {
 
 const SIGNED_URL_TTL_SECONDS = 3600
 
-function mapListItem(r: MeetingRow): MeetingListItem {
+/**
+ * Map a {@link MeetingRow} to the {@link MeetingListItem} domain shape. Exported
+ * (as `mapMeetingListItem`) for the Case Timeline's reverse meetings read; kept
+ * available under the local `mapListItem` alias for this module's own reads.
+ */
+export function mapMeetingListItem(r: MeetingRow): MeetingListItem {
   return {
     id: r.id,
     commissionId: r.commission_id,
@@ -382,7 +393,14 @@ function mapListItem(r: MeetingRow): MeetingListItem {
   }
 }
 
-const MEETING_LIST_COLUMNS = `
+/** Local alias preserving this module's existing internal call-sites. */
+const mapListItem = mapMeetingListItem
+
+/**
+ * The meetings-list column projection. Exported so the Case Timeline's reverse
+ * `meeting_cases → meetings` read reuses the identical projection.
+ */
+export const MEETING_LIST_COLUMNS = `
   id, commission_id, meeting_number, title, status, modality, meeting_type_id,
   scheduled_start, scheduled_end, location_text, meeting_url, quorum_met,
   created_by, created_at, updated_at,

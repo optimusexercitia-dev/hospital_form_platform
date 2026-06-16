@@ -365,6 +365,20 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
   bootstrap) does NO staff_admin pre-check — a registered interviewer who is a plain `staff` member must pass;
   the RPC's `can_write_interview` gate (→ HC039) is the authority. `InterviewSubjectInput.externalOrg` is
   OPTIONAL (the subject form need not collect it).
+- **Phase 12 (case timeline, ADR 0027 — read-only, NO migration/RLS):** Pure model
+  `src/lib/timeline/event-model.ts` (`CaseTimelineEvent`/`TimelineEventType`/`TimelineStatus`/
+  `TimelinePerson` + helpers `anchor`/`endDay`/`durationDays`/`statusOf`/`initialsOf`) — client-
+  importable, ZERO imports (no server leakage). Query `src/lib/queries/case-timeline.ts`
+  (`getCaseTimeline(caseId)` → `{ events, reference, closedAt, isOpen }`; `listCaseMeetings(caseId)`
+  → reverse `meeting_cases→meetings`). `getCaseTimeline` COMPOSES existing RLS-scoped reads only —
+  gated by `getCaseDetail` (returns `null`/empty for non-staff_admin/foreign), + a DIRECT RLS-scoped
+  `case_phases` read for bar timestamps (`case_phases_select` member-read; no RPC change). Two dedups:
+  interview→case_event by `registry_event_id`, AND meeting-echo (drop `case_events kind='meeting'` —
+  the meeting-conclusion RPC auto-writes one per linked case; the reverse `meeting_cases` link is
+  authoritative). **`getCaseDetail` (`cases.ts`) + `getCommissionAccess` (`session.ts`) are now wrapped
+  in React `cache()`** (request-scoped memo for the `(detail)` layout+child split; signatures
+  unchanged). `meetings.ts` gained ADDITIVE exports reused by the reverse read: `MeetingRow`,
+  `mapMeetingListItem`, `MEETING_LIST_COLUMNS`. No new RPC/SQLSTATE/feature-flag.
 - Service-role client: `src/lib/supabase/admin.ts` (`import 'server-only'`), invite path only.
 
 ## ADR index (decisions that shape the backend)
@@ -380,4 +394,6 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 blocking + outcomes) · 0025 meetings (data model + 5-state lifecycle + internal e-signatures,
 provider-ready; sign-own-row RLS + RPC-side auto-flip) · 0026 interviews (case-scoped sibling of
 meetings; 5-state lifecycle + content-freeze; NEW row-level participant-write RLS
-`can_write_interview`; conclude writes/updates a single `case_events kind='interview'` registry row).
+`can_write_interview`; conclude writes/updates a single `case_events kind='interview'` registry row) ·
+0027 case timeline (read-only event aggregation, two layouts; NO migration/RLS — composes existing
+RLS-scoped reads; meeting-echo dedup; React `cache()` on `getCaseDetail`/`getCommissionAccess`).
