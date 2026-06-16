@@ -15,6 +15,7 @@ import {
 import { CasePhaseList } from "@/components/cases/case-phase-list";
 import { CaseLifecycleActions } from "@/components/cases/case-lifecycle-actions";
 import { CaseOutcomeSelector } from "@/components/cases/case-outcome-selector";
+import { CaseDetailMotion } from "@/components/cases/case-detail-motion";
 import { CaseDocumentsPanel } from "@/components/cases/case-documents-panel";
 import { CaseEventsTimeline } from "@/components/cases/case-events-timeline";
 import { CaseTagsPanel } from "@/components/cases/case-tags-panel";
@@ -87,14 +88,15 @@ export default async function CaseDetailPage({
 
   const c = detail.case;
   const isOpen = !isTerminalCaseStatus(c.status);
+  const offersOutcomes = detail.offeredOutcomes.length > 0;
   // Phases for the action-item "origin phase" picker (id + label only).
   const phaseOptions = [...detail.phases]
     .sort((a, b) => a.position - b.position)
     .map((p) => ({ id: p.id, label: p.title || `Fase ${p.position}` }));
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
-      <header className="flex flex-col gap-4">
+    <CaseDetailMotion className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+      <header data-rise className="flex flex-col gap-4">
         <Link
           href={`/c/${slug}/manage/cases`}
           className="inline-flex w-fit items-center gap-1.5 rounded text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
@@ -140,52 +142,80 @@ export default async function CaseDetailPage({
         </div>
       </header>
 
-      {isOpen && (
-        <CaseOutcomeSelector
-          caseId={c.id}
-          offeredOutcomes={detail.offeredOutcomes}
-          current={detail.outcome}
-        />
-      )}
+      {/* Two-column region: flex-col (mobile) → 2-col grid (lg). `contents` on the
+          column wrappers lets mobile interleave the columns via `order-*` while
+          desktop packs each column independently.
 
-      <CasePhaseList
-        slug={slug}
-        detail={detail}
-        assignees={assignees}
-        isOpen={isOpen}
-      />
-
-      {/* The R1/R3/R4 panels are NOT part of the case workflow invariant (no
+          The R1/R3/R4 panels are NOT part of the case workflow invariant (no
           state-machine guard): a coordinator may attach closing minutes, tag, or
           record follow-ups even on a concluded case. This page is already
           staff_admin-gated, so management is always available here. */}
-      <CaseActionItemsPanel
-        caseId={c.id}
-        items={actionItems}
-        assignees={assignees}
-        phases={phaseOptions}
-      />
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8 lg:items-start">
+        {/* LEFT — case narrative */}
+        <div className="contents lg:flex lg:flex-col lg:gap-6">
+          <div data-rise className="order-1 lg:order-none">
+            <CasePhaseList
+              slug={slug}
+              detail={detail}
+              assignees={assignees}
+              isOpen={isOpen}
+            />
+          </div>
+          <div data-rise className="order-2 lg:order-none">
+            <CaseActionItemsPanel
+              caseId={c.id}
+              items={actionItems}
+              assignees={assignees}
+              phases={phaseOptions}
+            />
+          </div>
+          <div data-rise className="order-6 lg:order-none">
+            <CaseEventsTimeline caseId={c.id} events={events} />
+          </div>
+        </div>
 
-      <CaseTagsPanel
-        slug={slug}
-        caseId={c.id}
-        assigned={caseTags}
-        vocabulary={tags}
-      />
+        {/* RAIL — reference material (compact variant) */}
+        <div className="contents lg:flex lg:flex-col lg:gap-4">
+          <div data-rise className="order-3 lg:order-none">
+            <CaseTagsPanel
+              slug={slug}
+              caseId={c.id}
+              assigned={caseTags}
+              vocabulary={tags}
+              variant="rail"
+            />
+          </div>
+          <div data-rise className="order-4 lg:order-none">
+            <CaseDocumentsPanel
+              caseId={c.id}
+              documents={documents}
+              variant="rail"
+            />
+          </div>
+          {interviewsOn && (
+            <div data-rise className="order-5 lg:order-none">
+              <InterviewsPanel
+                slug={slug}
+                caseId={c.id}
+                interviews={interviews}
+                phases={phaseOptions}
+                canCreate
+                variant="rail"
+              />
+            </div>
+          )}
+        </div>
+      </div>
 
-      <CaseDocumentsPanel caseId={c.id} documents={documents} />
-
-      {interviewsOn && (
-        <InterviewsPanel
-          slug={slug}
-          caseId={c.id}
-          interviews={interviews}
-          phases={phaseOptions}
-          canCreate
-        />
+      {isOpen && offersOutcomes && (
+        <div data-rise>
+          <CaseOutcomeSelector
+            caseId={c.id}
+            offeredOutcomes={detail.offeredOutcomes}
+            current={detail.outcome}
+          />
+        </div>
       )}
-
-      <CaseEventsTimeline caseId={c.id} events={events} />
-    </div>
+    </CaseDetailMotion>
   );
 }

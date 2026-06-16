@@ -30,12 +30,15 @@ export function CaseTagsPanel({
   caseId,
   assigned,
   vocabulary,
+  variant = "default",
 }: {
   slug: string;
   caseId: string;
   assigned: CaseTag[];
   /** The commission's NON-archived tag vocabulary (the picker source). */
   vocabulary: CaseTag[];
+  /** "rail" = compact, flatter treatment for the case-detail side rail. */
+  variant?: "default" | "rail";
 }) {
   const { run, isPending, error } = useCaseAction();
 
@@ -49,12 +52,23 @@ export function CaseTagsPanel({
   return (
     <section
       aria-labelledby="case-tags-heading"
-      className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs"
+      className={cn(
+        "flex flex-col gap-3 rounded-2xl border bg-card",
+        variant === "rail"
+          ? "border-border/70 p-4 shadow-none"
+          : "border-border p-5 shadow-xs",
+      )}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Tag aria-hidden="true" className="size-4 text-muted-foreground" />
-          <h2 id="case-tags-heading" className="text-base font-semibold">
+          <h2
+            id="case-tags-heading"
+            className={cn(
+              "font-semibold",
+              variant === "rail" ? "text-sm" : "text-base",
+            )}
+          >
             Etiquetas
           </h2>
         </div>

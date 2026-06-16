@@ -1,6 +1,7 @@
 import { Download, FileText } from "lucide-react";
 
 import type { CaseDocumentWithUrl } from "@/lib/queries/case-documents";
+import { cn } from "@/lib/utils";
 import { CaseDocumentUpload } from "./case-document-upload";
 import { CaseDocumentDelete } from "./case-document-delete";
 import { DOC_TYPE_LABEL } from "./case-extras-labels";
@@ -16,19 +17,33 @@ import { formatDate, formatDueDate } from "./format";
 export function CaseDocumentsPanel({
   caseId,
   documents,
+  variant = "default",
 }: {
   caseId: string;
   documents: CaseDocumentWithUrl[];
+  /** "rail" = compact, flatter treatment for the case-detail side rail. */
+  variant?: "default" | "rail";
 }) {
   return (
     <section
       aria-labelledby="case-docs-heading"
-      className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs"
+      className={cn(
+        "flex flex-col gap-4 rounded-2xl border bg-card",
+        variant === "rail"
+          ? "border-border/70 p-4 shadow-none"
+          : "border-border p-5 shadow-xs",
+      )}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <FileText aria-hidden="true" className="size-4 text-muted-foreground" />
-          <h2 id="case-docs-heading" className="text-base font-semibold">
+          <h2
+            id="case-docs-heading"
+            className={cn(
+              "font-semibold",
+              variant === "rail" ? "text-sm" : "text-base",
+            )}
+          >
             Documentos
           </h2>
           <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.7rem] font-semibold text-muted-foreground tabular-nums">

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CalendarClock, MessagesSquare } from "lucide-react";
 
 import type { InterviewListItem } from "@/lib/queries/interviews";
+import { cn } from "@/lib/utils";
 import {
   InterviewModalityChip,
   InterviewStatusBadge,
@@ -28,6 +29,7 @@ export function InterviewsPanel({
   interviews,
   phases,
   canCreate,
+  variant = "default",
 }: {
   slug: string;
   caseId: string;
@@ -35,6 +37,8 @@ export function InterviewsPanel({
   /** The case's phases, for the create dialog's optional phase picker. */
   phases: InterviewPhaseOption[];
   canCreate: boolean;
+  /** "rail" = compact, flatter treatment for the case-detail side rail. */
+  variant?: "default" | "rail";
 }) {
   // Newest scheduled first; drafts (no start) sort to the top by created order.
   const ordered = [...interviews].sort((a, b) => {
@@ -47,7 +51,12 @@ export function InterviewsPanel({
   return (
     <section
       aria-labelledby="case-interviews-heading"
-      className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs"
+      className={cn(
+        "flex flex-col gap-4 rounded-2xl border bg-card",
+        variant === "rail"
+          ? "border-border/70 p-4 shadow-none"
+          : "border-border p-5 shadow-xs",
+      )}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
@@ -55,7 +64,13 @@ export function InterviewsPanel({
             aria-hidden="true"
             className="size-4 text-muted-foreground"
           />
-          <h2 id="case-interviews-heading" className="text-base font-semibold">
+          <h2
+            id="case-interviews-heading"
+            className={cn(
+              "font-semibold",
+              variant === "rail" ? "text-sm" : "text-base",
+            )}
+          >
             Entrevistas
           </h2>
           <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.7rem] font-semibold text-muted-foreground tabular-nums">

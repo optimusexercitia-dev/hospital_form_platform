@@ -58,7 +58,7 @@ export function CaseOutcomeSelector({
   return (
     <section
       aria-labelledby="case-outcome-heading"
-      className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs"
+      className="flex flex-col gap-3 rounded-2xl border border-primary/30 bg-accent/30 p-5 shadow-xs"
     >
       <div className="flex flex-col gap-0.5">
         <h2 id="case-outcome-heading" className="text-base font-semibold">
