@@ -32,6 +32,51 @@
 -- restated here is re-revoked from anon + public at the end.
 
 -- ===========================================================================
+-- 0. Rewrite guard_case_status FIRST so the normalization UPDATE below doesn't
+--    crash: the old guard body calls app.case_status_is_terminal which was
+--    dropped by 093000. Replace it with the fixed-enum version before any row
+--    is touched. (The full comment block for §3 stays below at its original
+--    position for readability; this is just an early CREATE OR REPLACE.)
+-- ===========================================================================
+create or replace function app.guard_case_status()
+returns trigger
+language plpgsql
+security definer
+set search_path = app, public, pg_catalog
+as $$
+declare
+  v_in_rpc boolean := coalesce(current_setting('app.in_case_rpc', true), 'off') = 'on';
+begin
+  if tg_op = 'DELETE' then
+    if old.status in ('concluido', 'cancelado') then
+      raise exception 'cases in a terminal state are immutable (delete blocked)'
+        using errcode = 'check_violation';
+    end if;
+    return old;
+  end if;
+
+  if new.status is distinct from old.status then
+    if not v_in_rpc then
+      raise exception 'case status changes must go through the case RPCs'
+        using errcode = 'check_violation';
+    end if;
+    if old.status in ('concluido', 'cancelado') then
+      raise exception 'este caso está em um estado final e não pode mais ser alterado'
+        using errcode = 'HC025';
+    end if;
+    return new;
+  end if;
+
+  if old.status in ('concluido', 'cancelado') and not v_in_rpc then
+    raise exception 'cases in a terminal state are immutable (update blocked)'
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end;
+$$;
+
+-- ===========================================================================
 -- 1. cases.status — defensive normalization, then the fixed CHECK + default
 -- ===========================================================================
 -- Runs BEFORE the CHECK is added. On a fresh `db reset` no row violates the new
@@ -40,9 +85,11 @@
 -- legacy 'aberto', which would make the additive CHECK fail — normalize them to
 -- 'nao_iniciado' first. (A terminal concluido/cancelado or an em_revisao row is
 -- already valid and untouched.)
+set local app.in_case_rpc = 'on';
 update public.cases
 set status = 'nao_iniciado'
 where status not in ('nao_iniciado', 'pendente', 'em_revisao', 'concluido', 'cancelado');
+reset app.in_case_rpc;
 
 -- The default flips to the fixed initial 'nao_iniciado' (a fresh case with no
 -- phase activity). 092000 had DROPPED cases_status_check; re-add it here under the
