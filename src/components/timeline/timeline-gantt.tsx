@@ -1,29 +1,41 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef, useState, useLayoutEffect } from "react";
 
 import type { CaseTimelineEvent } from "@/lib/timeline/event-model";
 import { anchor, endDay, statusOf } from "@/lib/timeline/event-model";
 import { cn } from "@/lib/utils";
 
 import { AvatarStack } from "./avatar-stack";
-import { buildAxis, nearRightEdge, type Axis } from "./gantt-axis";
+import {
+  buildAxis,
+  clampCalloutCenter,
+  fitAxis,
+  type Axis,
+} from "./gantt-axis";
 import type { TimelineDensity } from "./timeline-density-switch";
 import { formatEventDate } from "./format";
 import { EventIcon, TYPE_META } from "./type-meta";
 
-const ROW_H = { comfortable: 64, compact: 50 } as const;
+const ROW_H = { comfortable: 72, compact: 56 } as const;
 const HEADER_H = 56;
+
+/** Max width of a floating title callout (px); mirrors the CSS `max-w-[220px]`. */
+const CALLOUT_MAX_W = 220;
 
 /**
  * Duration (horizontal / Gantt) layout — README §3, adapted to the adaptive
  * ISO-date axis (`gantt-axis.ts`). One event per row, top-to-bottom in `anchor`
- * order. Phases render as width=duration bars; every other type renders as a
- * single-day pin (icon chip + inline card) anchored to its column — right-anchored
- * near the grid edge so it never overflows (§3.5). A sticky 2-row header (month
- * group + unit cells), weekend bands (day unit only), grid lines, and a today
- * marker (open cases) / terminal `closed_at` marker (closed cases) sit behind the
- * cards. Horizontal scroll appears only when the grid is wider than the viewport.
+ * order. The colored FOOTPRINT of every event encodes its duration; the title is
+ * decoupled into a light floating callout so an instantaneous event never reads
+ * as a span. Phases render as width=duration bars; every single-day event renders
+ * as a circular point marker on its day with the title in a callout centered
+ * ABOVE the marker. A phase bar too narrow for an inline title (`width < 116`)
+ * falls back to the same callout-above. Callouts clamp inward near the grid edges
+ * so they never overflow. A sticky 2-row header (month group + unit cells),
+ * weekend bands (day unit only), grid lines, and a today marker (open cases) /
+ * terminal `closed_at` marker (closed cases) sit behind the events. Horizontal
+ * scroll appears only when the grid is wider than the viewport.
  *
  * Pure presentational: a function of `(events, reference, closedAt, density)`.
  */
@@ -44,16 +56,40 @@ export function TimelineGantt({
     () => [...events].sort((a, b) => anchor(a).localeCompare(anchor(b))),
     [events],
   );
-  const axis = useMemo(
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [fitWidth, setFitWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // Seed synchronously from the current content-box so the fill-width fit
+    // applies on the first paint (e.g. when the panel mounts already visible),
+    // not only after the observer's first async callback.
+    if (el.clientWidth > 0) setFitWidth(el.clientWidth);
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => {
+      // Prefer the live content-box; fall back to clientWidth if a UA reports 0.
+      const w = entry.contentRect.width || el.clientWidth;
+      if (w > 0) setFitWidth(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const baseAxis = useMemo(
     () => buildAxis(ordered, reference, closedAt),
     [ordered, reference, closedAt],
+  );
+  const axis = useMemo(
+    () => (fitWidth > 0 ? fitAxis(baseAxis, fitWidth) : baseAxis),
+    [baseAxis, fitWidth],
   );
 
   const rowH = ROW_H[density];
   const bodyH = ordered.length * rowH;
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+    <div ref={scrollRef} className="overflow-x-auto rounded-2xl border border-border bg-card">
       <div className="relative" style={{ width: axis.width, minWidth: "100%" }}>
         <AxisHeader axis={axis} />
 
@@ -265,51 +301,97 @@ function PhaseBar({
   const end = endDay(event, reference ?? start);
   const left = axis.xOf(start) + 2;
   const width = Math.max(axis.colWidth - 4, axis.spanWidth(start, end) - 4);
-  const barH = Math.min(44, rowH - 16);
+  const barH = Math.min(40, rowH - 28);
   const upcoming = status === "upcoming";
+  // Below this width the inline title is unreadable; show the callout-above instead.
+  const showInlineTitle = width >= 116;
   const showMeta = width >= 116;
   const showAvatars = width >= 232 && event.owner;
+  // Bar midpoint in grid coords (button is positioned at `left`).
+  const midX = left + width / 2;
 
   return (
-    <button
-      type="button"
-      data-bar
-      onClick={() => onSelect(event)}
-      style={{
-        left,
-        width,
-        top: (rowH - barH) / 2,
-        height: barH,
-        "--rise-delay": `${index * 50}ms`,
-      } as React.CSSProperties}
-      className={cn(
-        "absolute flex items-center gap-2 overflow-hidden rounded-lg border bg-card pr-2 pl-3 text-left shadow-xs transition-all duration-[--dur-fast] ease-[--ease-out-soft] hover:-translate-y-px hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
-        upcoming
-          ? "border-dashed border-muted-foreground/50 bg-muted/40"
-          : "border-border",
-        status === "active" && "ring-1 ring-primary/50",
-      )}
-    >
+    <>
+      <button
+        type="button"
+        data-bar
+        onClick={() => onSelect(event)}
+        aria-label={event.title}
+        style={{
+          left,
+          width,
+          top: rowH - barH - 6,
+          height: barH,
+          "--rise-delay": `${index * 50}ms`,
+        } as React.CSSProperties}
+        className={cn(
+          "absolute flex items-center gap-2 overflow-hidden rounded-lg border bg-card pr-2 pl-3 text-left shadow-xs transition-all duration-[--dur-fast] ease-[--ease-out-soft] hover:-translate-y-px hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+          upcoming
+            ? "border-dashed border-muted-foreground/50 bg-muted/40"
+            : "border-border",
+          status === "active" && "ring-1 ring-primary/50",
+        )}
+      >
+        <span
+          aria-hidden="true"
+          className="absolute inset-y-0 left-0 w-1"
+          style={{ backgroundColor: upcoming ? "var(--muted-foreground)" : meta.colorVar, opacity: upcoming ? 0.5 : 1 }}
+        />
+        <EventIcon
+          event={event}
+          className="size-3.5 shrink-0"
+          style={{ color: upcoming ? undefined : meta.colorVar }}
+        />
+        {showInlineTitle ? (
+          <span className="truncate text-[0.8rem] font-semibold">{event.title}</span>
+        ) : null}
+        {showMeta ? (
+          <span className="shrink-0 truncate text-[0.7rem] text-muted-foreground tabular-nums">
+            {formatEventDate(event)}
+          </span>
+        ) : null}
+        {showAvatars && event.owner ? (
+          <AvatarStack people={[event.owner]} className="ml-auto" />
+        ) : null}
+      </button>
+      {!showInlineTitle ? (
+        <TitleCallout axis={axis} cx={midX} title={event.title} />
+      ) : null}
+    </>
+  );
+}
+
+/**
+ * Floating title label, centered above a marker/narrow bar — NEVER a bar (no
+ * left color strip, lighter than the duration footprint). A short vertical
+ * connector stub points at the real `cx`; the label box itself is clamped
+ * inward near the grid edges so a max-width callout never overflows.
+ */
+function TitleCallout({
+  axis,
+  cx,
+  title,
+}: {
+  axis: Axis;
+  cx: number;
+  title: string;
+}) {
+  const centerX = clampCalloutCenter(axis, cx, CALLOUT_MAX_W);
+  return (
+    <div aria-hidden="true" className="pointer-events-none">
+      {/* Vertical connector stub at the real cx, just below the label. */}
       <span
-        aria-hidden="true"
-        className="absolute inset-y-0 left-0 w-1"
-        style={{ backgroundColor: upcoming ? "var(--muted-foreground)" : meta.colorVar, opacity: upcoming ? 0.5 : 1 }}
+        className="absolute top-3 z-[3] w-px bg-border"
+        style={{ left: cx, height: 8 }}
       />
-      <EventIcon
-        event={event}
-        className="size-3.5 shrink-0"
-        style={{ color: upcoming ? undefined : meta.colorVar }}
-      />
-      <span className="truncate text-[0.8rem] font-semibold">{event.title}</span>
-      {showMeta ? (
-        <span className="shrink-0 truncate text-[0.7rem] text-muted-foreground tabular-nums">
-          {formatEventDate(event)}
-        </span>
-      ) : null}
-      {showAvatars && event.owner ? (
-        <AvatarStack people={[event.owner]} className="ml-auto" />
-      ) : null}
-    </button>
+      {/* Floating label, clamped within the grid. */}
+      <span
+        className="absolute top-1 z-[4] max-w-[220px] truncate rounded-md border border-border bg-background/85 px-2 py-0.5 text-[0.75rem] font-medium shadow-xs backdrop-blur-sm"
+        style={{ left: centerX, transform: "translateX(-50%)" }}
+      >
+        {title}
+      </span>
+    </div>
   );
 }
 
@@ -331,50 +413,47 @@ function Pin({
   const meta = TYPE_META[event.type];
   const day = anchor(event);
   const cx = axis.centerOf(day);
-  const rightAnchor = nearRightEdge(axis, day);
   const upcoming = status === "upcoming";
-  const chipH = Math.min(40, rowH - 16);
-
-  const pinStyle: React.CSSProperties & Record<string, string | number> = {
-    top: (rowH - chipH) / 2,
-    height: chipH,
-    "--rise-delay": `${index * 50}ms`,
-  };
-  if (rightAnchor) {
-    pinStyle.right = axis.width - cx;
-    pinStyle.flexDirection = "row-reverse";
-  } else {
-    pinStyle.left = cx;
-  }
+  const markerSize = 24; // size-6
+  // Marker sits in the LOWER part of the row; the callout above is `top-1`.
 
   return (
-    <button
-      type="button"
-      data-pin
-      onClick={() => onSelect(event)}
-      style={pinStyle}
-      className={cn(
-        "absolute flex max-w-[260px] items-center gap-2 rounded-lg border bg-card px-1.5 text-left shadow-xs transition-all duration-[--dur-fast] ease-[--ease-out-soft] hover:-translate-y-px hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
-        upcoming
-          ? "border-dashed border-muted-foreground/50 bg-muted/40"
-          : "border-border",
-        status === "active" && "ring-1 ring-primary/50",
-        event.muted && "opacity-80",
-      )}
-    >
-      <span
-        className="inline-flex size-6 shrink-0 items-center justify-center rounded-md"
-        style={{ backgroundColor: meta.softVar }}
+    <>
+      {/* Title callout — UPPER part of the row, with a connector to the marker. */}
+      <TitleCallout axis={axis} cx={cx} title={event.title} />
+
+      {/* Point marker — a single circular focusable control on the event's day. */}
+      <button
+        type="button"
+        data-pin
+        onClick={() => onSelect(event)}
+        aria-label={event.title}
+        title={event.title}
+        style={{
+          left: cx,
+          top: rowH - markerSize - 8,
+          transform: "translateX(-50%)",
+          "--rise-delay": `${index * 50}ms`,
+          // `done` state: solid soft fill + colored border (mirrors the Feed node).
+          ...(upcoming
+            ? null
+            : { backgroundColor: meta.softVar, borderColor: meta.colorVar }),
+        } as React.CSSProperties}
+        className={cn(
+          "absolute z-[5] inline-flex size-6 items-center justify-center rounded-full shadow-xs transition-all duration-[--dur-fast] ease-[--ease-out-soft] hover:-translate-y-px hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+          upcoming
+            ? "border border-dashed border-muted-foreground/50 bg-card text-muted-foreground"
+            : "border",
+          status === "active" && "ring-1 ring-primary/50",
+          event.muted && "opacity-80",
+        )}
       >
         <EventIcon
           event={event}
           className="size-3.5"
-          style={{ color: meta.colorVar }}
+          style={upcoming ? undefined : { color: meta.colorVar }}
         />
-      </span>
-      <span className="truncate pr-1 text-[0.78rem] font-medium">
-        {event.title}
-      </span>
-    </button>
+      </button>
+    </>
   );
 }

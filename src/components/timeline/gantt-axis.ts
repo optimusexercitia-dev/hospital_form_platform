@@ -381,3 +381,44 @@ export function nearRightEdge(
   const threshold = axis.width - n * axis.colWidth;
   return axis.centerOf(iso) >= threshold;
 }
+
+/**
+ * Stretch a base axis to fill `fitWidth` when the natural grid is NARROWER than
+ * its container, so columns fill the available space instead of clumping left
+ * with dead space on the right. When the grid is already wider (needs horizontal
+ * scroll) the axis is returned unchanged. Pure linear scale: every x/width and
+ * the marker/`xOf`/`centerOf`/`spanWidth` closures scale by the same factor, so
+ * all geometry (incl. `nearRightEdge`) is preserved.
+ */
+export function fitAxis(axis: Axis, fitWidth: number): Axis {
+  if (!Number.isFinite(fitWidth) || fitWidth <= axis.width) return axis;
+  const factor = fitWidth / axis.width;
+  return {
+    ...axis,
+    width: fitWidth,
+    colWidth: axis.colWidth * factor,
+    columns: axis.columns.map((c) => ({ ...c, x: c.x * factor, width: c.width * factor })),
+    groups: axis.groups.map((g) => ({ ...g, x: g.x * factor, width: g.width * factor })),
+    todayX: axis.todayX == null ? null : axis.todayX * factor,
+    closedX: axis.closedX == null ? null : axis.closedX * factor,
+    xOf: (iso) => axis.xOf(iso) * factor,
+    centerOf: (iso) => axis.centerOf(iso) * factor,
+    spanWidth: (a, b) => axis.spanWidth(a, b) * factor,
+  };
+}
+
+/**
+ * Center x for a title callout of width `maxW`, clamped so a max-width callout
+ * never overflows the grid on either edge. The callout is centered on `cx`
+ * (the column center / bar midpoint) but pulled inward near the edges so its
+ * half-width stays inside `[4, axis.width − 4]`. The visual connector still
+ * points at the real `cx`; only the label box shifts. Pure geometry, no DOM.
+ */
+export function clampCalloutCenter(axis: Axis, cx: number, maxW: number): number {
+  const half = maxW / 2;
+  const min = half + 4;
+  const max = axis.width - half - 4;
+  // Degenerate case: callout wider than the grid → center it.
+  if (max < min) return axis.width / 2;
+  return Math.min(Math.max(cx, min), max);
+}
