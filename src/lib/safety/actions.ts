@@ -138,7 +138,7 @@ export async function transferEventCustody(
   if (error) return { ok: false, error: mapSafetyError(error) }
 
   revalidateSafety()
-  return { ok: true, error: SAFETY_MESSAGES.custodyTransferred }
+  return { ok: true, message: SAFETY_MESSAGES.custodyTransferred }
 }
 
 /** Edit an event's governance fields (not status, not PHI). */
@@ -164,7 +164,7 @@ export async function updateEvent(
   if (error) return { ok: false, error: mapSafetyError(error) }
 
   revalidateSafety()
-  return { ok: true, error: SAFETY_MESSAGES.eventUpdated }
+  return { ok: true, message: SAFETY_MESSAGES.eventUpdated }
 }
 
 /**
@@ -197,7 +197,7 @@ export async function setEventPatient(
   if (error) return { ok: false, error: mapSafetyError(error) }
 
   revalidateSafety()
-  return { ok: true, error: SAFETY_MESSAGES.patientSaved }
+  return { ok: true, message: SAFETY_MESSAGES.patientSaved }
 }
 
 /** Cancel a wrongly-filed / duplicate event (`→ cancelled`; terminal). */
@@ -209,5 +209,5 @@ export async function cancelEvent(eventId: string): Promise<ActionState> {
   if (error) return { ok: false, error: mapSafetyError(error) }
 
   revalidateSafety()
-  return { ok: true, error: SAFETY_MESSAGES.eventCancelled }
+  return { ok: true, message: SAFETY_MESSAGES.eventCancelled }
 }

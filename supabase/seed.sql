@@ -705,6 +705,14 @@ declare
   v_case1    uuid := 'd0000000-0000-0000-0000-0000000000c1';  -- existing Caso 0001
   v_ev1      uuid := 'e1000000-0000-0000-0000-0000000000a1';  -- case-linked event (has PHI)
   v_ev2      uuid := 'e2000000-0000-0000-0000-0000000000a2';  -- stand-alone event
+  v_ev3      uuid := 'e3000000-0000-0000-0000-0000000000a3';  -- sentinel event (triaged)
+  v_crit_id  uuid;                                            -- a flagged sentinel criterion
+  v_rca3     uuid := 'f3000000-0000-0000-0000-0000000000a3';  -- the RCA for v_ev3
+  v_factor   uuid := 'fac00000-0000-0000-0000-0000000000a1';  -- a key fishbone factor
+  v_root3    uuid;                                            -- the RCA's root cause id
+  v_capa3    uuid := 'ca000000-0000-0000-0000-0000000000a3';  -- the CAPA for v_ev3
+  v_capa_act uuid := 'caa00000-0000-0000-0000-0000000000a1';  -- a corrective action
+  v_capa_meas uuid := 'cab00000-0000-0000-0000-0000000000a1'; -- a measure (hex-only)
 begin
   -- The singleton NSP department (one row; default name + 45-day RCA window).
   insert into public.pqs_department (name, rca_default_due_days)
@@ -760,4 +768,131 @@ begin
     (event_id, owner_kind, owner_commission_id, assigned_by, note)
   values
     (v_ev2, 'pqs', null, v_chefe_a, 'Notificação inicial ao NSP');
+
+  -- Event 3 — a SENTINEL event, fully TRIAGED (Phase 14b demo). Reported case-less,
+  -- acknowledged, then triaged: PSE=yes, reach=sentinel, harm=death, a designated
+  -- category flagged → sentinel determination → RCA mandated (shell + 45-day due).
+  -- Inserted at 'acknowledged' first, then the worksheet, then flipped to 'triaged'
+  -- under app.in_safety_rpc (so the state-machine + freeze guards admit the seed).
+  insert into public.patient_safety_event
+    (id, reporting_commission_id, case_id, discovered_at, location, reported_by,
+     suspected_harm_level, title, description_md, status,
+     current_owner_kind, current_owner_commission_id, acknowledged_by, acknowledged_at)
+  values
+    (v_ev3, v_comm_a, null, current_date - 5, 'Centro cirúrgico, sala 2', v_chefe_a,
+     'death', 'Retenção de corpo estranho após cirurgia',
+     E'## Descrição\n\nIdentificada retenção de compressa cirúrgica após procedimento; '
+     || E'necessário segundo procedimento. Caso encaminhado ao NSP para triagem.',
+     'acknowledged', 'pqs', null, v_chefe_a, now() - interval '4 days');
+
+  insert into public.event_custody
+    (event_id, owner_kind, owner_commission_id, assigned_by, note)
+  values
+    (v_ev3, 'pqs', null, v_chefe_a, 'Notificação inicial ao NSP');
+
+  -- The triage worksheet (sentinel determination = true; pathway = rca).
+  insert into public.event_triage
+    (event_id, is_pse, reach, harm_severity, natural_course, sentinel_determination,
+     review_pathway, disposition_notes_md, triaged_by, triaged_at)
+  values
+    (v_ev3, true, 'sentinel', 'death', false, true, 'rca',
+     E'Evento sentinela confirmado. RCA obrigatória em até 45 dias.',
+     v_chefe_a, now() - interval '3 days');
+
+  -- The flagged designated category (snapshot key+label — the permanent record).
+  select id into v_crit_id from public.pqs_sentinel_criteria where key = 'retained_object';
+  insert into public.event_triage_sentinel_flags
+    (event_id, criteria_id, criteria_key, criteria_label)
+  select v_ev3, v_crit_id, c.key, c.label
+  from public.pqs_sentinel_criteria c where c.id = v_crit_id;
+
+  -- Flip the event to 'triaged' (freezes the worksheet) + mint the RCA shell. Both
+  -- writes need the safety-RPC session flag so the guards admit the seed transition.
+  perform set_config('app.in_safety_rpc', 'on', true);
+  update public.patient_safety_event set status = 'triaged', updated_at = now() where id = v_ev3;
+  perform set_config('app.in_safety_rpc', 'off', true);
+
+  -- The RCA shell (as confirm_triage would mint it), then fleshed out into a
+  -- partially-complete analysis (Phase 14c demo; mirrors README_rca §1.4 depth) so the
+  -- workspace shows real content on load: problem statement, a team, a key fishbone
+  -- factor + a 5-Whys drill, and a distilled root cause. Status = in_progress.
+  insert into public.rca (id, event_id, status, due_date, created_by, what_md, expected_md,
+                          detected, impact, scope)
+  values (v_rca3, v_ev3, 'in_progress', (current_date - 5) + 45, v_chefe_a,
+          E'Compressa cirúrgica retida identificada após colectomia eletiva; '
+          || E'necessário segundo procedimento para remoção.',
+          E'A contagem de compressas deveria ter sido conferida e conciliada antes do '
+          || E'fechamento, conforme protocolo de cirurgia segura.',
+          'Centro cirúrgico, ao final do procedimento', 'Óbito · evento sentinela',
+          'Perioperatório · Cirurgia Geral');
+
+  -- Team: a Lead (staff_admin) + an SME who is a PLAIN staff member (demonstrates the
+  -- participant write grant — a non-observer staff SME can write the RCA).
+  insert into public.rca_members (rca_id, user_id, external_name, role) values
+    (v_rca3, v_chefe_a, null, 'lead'),
+    (v_rca3, v_staff_a1, null, 'sme');
+
+  -- An incident-timeline entry.
+  insert into public.rca_timeline_entries (rca_id, occurred_at, description, position) values
+    (v_rca3, now() - interval '6 days',
+     'Término do procedimento sem conciliação final da contagem de compressas.', 1);
+
+  -- A fishbone factor flagged as KEY (carried into the 5-Whys).
+  insert into public.rca_factors (id, rca_id, category, text, is_key, position) values
+    (v_factor, v_rca3, 'process',
+     'Contagem de compressas não conciliada antes do fechamento', true, 1);
+
+  -- The 5-Whys drill for that key factor + the reached root cause.
+  insert into public.rca_why_chains (rca_id, factor_id, steps, root_text) values
+    (v_rca3, v_factor,
+     to_jsonb(array[
+       'A equipe assumiu que a contagem inicial estava correta.',
+       'Não havia conferência independente obrigatória ao fechar.',
+       'O protocolo de cirurgia segura não definia uma dupla checagem.'
+     ]),
+     'Ausência de uma dupla checagem padronizada da contagem cirúrgica.');
+
+  -- A distilled root cause (the FK target Phase 14d addresses).
+  insert into public.rca_root_causes (rca_id, text, category, classification, type, position)
+  values
+    (v_rca3,
+     'Ausência de processo padronizado de dupla checagem da contagem cirúrgica.',
+     'process', 'system', 'root', 1)
+  returning id into v_root3;
+
+  -- A CAPA plan opened from that RCA root cause (Phase 14d demo). Left OPEN
+  -- (em_execucao) so the close-flow stays demoable: one corrective action with a
+  -- task, a measure with a result, and a recorded effectiveness verdict — but NOT
+  -- closed (closing requires every action settled, which the open action blocks).
+  insert into public.capa_plan (id, source, source_rca_id, classification, status, opened_by)
+  values (v_capa3, 'rca', v_rca3, 'corretiva', 'em_execucao', v_chefe_a);
+
+  -- A corrective action assigned to a PLAIN staff member (demonstrates the
+  -- assignee-or-PQS advance path); links back to the root cause. Strength = forte.
+  insert into public.capa_action
+    (id, capa_id, title, owner, assignee_user_id, due_date, action_strength,
+     success_measure, root_cause_id, status, position)
+  values
+    (v_capa_act, v_capa3,
+     'Implantar dupla checagem padronizada da contagem cirúrgica',
+     'Enf. responsável do CC', v_staff_a1, current_date + 30, 'forte',
+     'Conformidade da dupla checagem ≥ 95% nas cirurgias auditadas',
+     v_root3, 'em_andamento', 1);
+
+  insert into public.capa_action_task (action_id, description, is_done, position) values
+    (v_capa_act, 'Revisar o protocolo de cirurgia segura com a equipe do CC', true, 1),
+    (v_capa_act, 'Treinar a equipe na nova rotina de dupla checagem', false, 2);
+
+  insert into public.capa_measure (id, capa_id, name, target, definition, position) values
+    (v_capa_meas, v_capa3, 'Conformidade da dupla checagem', '≥ 95%',
+     'Percentual de cirurgias auditadas com dupla checagem registrada', 1);
+
+  insert into public.capa_measure_result (measure_id, period, value, note, created_by) values
+    (v_capa_meas, '2026-06', 82, 'Linha de base antes do treinamento.', v_chefe_a);
+
+  -- A recorded effectiveness verdict (partial — the plan stays open for re-verification).
+  insert into public.capa_effectiveness (capa_id, verdict, method_md, verified_by) values
+    (v_capa3, 'parcial',
+     E'Conformidade inicial de 82% após a primeira fase. Reavaliar após o treinamento completo.',
+     v_chefe_a);
 end $$;

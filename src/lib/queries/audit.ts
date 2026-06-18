@@ -52,6 +52,12 @@ export type AuditEntityType =
   | 'safety_event'
   | 'event_custody'
   | 'event_patient'
+  // patient-safety / NSP triage (Phase 14b)
+  | 'event_triage'
+  // patient-safety / NSP RCA (Phase 14c)
+  | 'rca'
+  // patient-safety / NSP CAPA (Phase 14d)
+  | 'capa_plan'
 
 /**
  * The audit `action` union — `'<entity>.<verb>'`. These are the verbs emitted by
@@ -104,6 +110,23 @@ export type AuditAction =
   | 'event_patient.updated'
   // patient-safety PHI READ — explicit `.read` call site (Rule 11/12; HIPAA)
   | 'event_patient.read'
+  // patient-safety / NSP triage (Phase 14b) — PHI-free metadata allow-list
+  | 'triage.saved'
+  | 'triage.confirmed'
+  | 'triage.reopened'
+  // patient-safety / NSP RCA (Phase 14c) — PHI-free metadata allow-list (status only)
+  | 'rca.created'
+  | 'rca.status_changed'
+  | 'rca.submitted'
+  | 'rca.completed'
+  | 'rca.reopened'
+  // patient-safety / NSP CAPA (Phase 14d) — PHI-free metadata allow-list
+  | 'capa.opened'
+  | 'capa.status_changed'
+  | 'capa.closed'
+  | 'capa.cancelled'
+  | 'capa.reopened'
+  | 'capa.effectiveness_recorded'
   // exports (logged via explicit `.export` writer calls in the route layer)
   | 'response.exported'
   | 'audit.exported'
@@ -131,6 +154,9 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   safety_event: 'Evento de segurança',
   event_custody: 'Custódia de evento',
   event_patient: 'Dados do paciente (evento)',
+  event_triage: 'Triagem de evento',
+  rca: 'Análise de causa raiz',
+  capa_plan: 'Plano de ação (CAPA)',
 }
 
 /** pt-BR labels for the action filter (short verb phrases). */
@@ -170,6 +196,20 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'event_custody.transferred': 'Custódia do evento transferida',
   'event_patient.updated': 'Dados do paciente atualizados',
   'event_patient.read': 'Dados do paciente visualizados',
+  'triage.saved': 'Triagem salva',
+  'triage.confirmed': 'Triagem confirmada',
+  'triage.reopened': 'Triagem reaberta',
+  'rca.created': 'Análise de causa raiz criada',
+  'rca.status_changed': 'Status da análise alterado',
+  'rca.submitted': 'Análise enviada para revisão',
+  'rca.completed': 'Análise concluída',
+  'rca.reopened': 'Análise reaberta',
+  'capa.opened': 'Plano de ação aberto',
+  'capa.status_changed': 'Status do plano alterado',
+  'capa.closed': 'Plano de ação encerrado',
+  'capa.cancelled': 'Plano de ação cancelado',
+  'capa.reopened': 'Plano de ação reaberto',
+  'capa.effectiveness_recorded': 'Eficácia verificada',
   'response.exported': 'Respostas exportadas',
   'audit.exported': 'Trilha de auditoria exportada',
 }

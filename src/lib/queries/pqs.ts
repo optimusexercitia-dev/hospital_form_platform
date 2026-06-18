@@ -20,12 +20,14 @@ import type {
   PqsInboxItem,
   SuspectedHarmLevel,
 } from '@/lib/safety/types'
+import type { PqsDepartment } from '@/lib/safety/triage-types'
 
 // The CLIENT-SAFE inbox types live in `@/lib/safety/types` (ZERO imports) so the
 // NSP UI imports them WITHOUT dragging this server-only module into the client
 // bundle (P14a-002). Re-exported so existing `import … from '@/lib/queries/pqs'`
 // consumers keep resolving unchanged.
 export type { PqsInboxItem, PqsInboxFilters } from '@/lib/safety/types'
+export type { PqsDepartment } from '@/lib/safety/triage-types'
 
 interface PqsInboxRow {
   id: string
@@ -76,6 +78,26 @@ export async function pqsInbox(
     reportedAt: r.reported_at,
     acknowledgedAt: r.acknowledged_at,
   }))
+}
+
+/**
+ * The singleton NSP/PQS-department config (name + the RCA due-window the NSP config
+ * area edits). PHI-free, any-authenticated READ (the `pqs_department` SELECT policy
+ * is `to authenticated using(true)`, …121005). Returns `null` if the singleton is
+ * somehow absent (defensive — the seed inserts exactly one).
+ */
+export async function getPqsDepartment(): Promise<PqsDepartment | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('pqs_department')
+    .select('name, rca_default_due_days')
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+    .returns<{ name: string; rca_default_due_days: number } | null>()
+
+  if (error || !data) return null
+  return { name: data.name, defaultDueDays: data.rca_default_due_days }
 }
 
 /** Whether the `patient_safety` feature flag is ON (TS-layer gate; mirrors

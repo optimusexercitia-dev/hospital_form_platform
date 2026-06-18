@@ -136,6 +136,415 @@ export type Database = {
           },
         ]
       }
+      capa_action: {
+        Row: {
+          action_strength: string
+          assignee_user_id: string | null
+          capa_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          owner: string | null
+          position: number
+          root_cause_id: string | null
+          status: string
+          success_measure: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          action_strength?: string
+          assignee_user_id?: string | null
+          capa_id: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          owner?: string | null
+          position: number
+          root_cause_id?: string | null
+          status?: string
+          success_measure?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          action_strength?: string
+          assignee_user_id?: string | null
+          capa_id?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          owner?: string | null
+          position?: number
+          root_cause_id?: string | null
+          status?: string
+          success_measure?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capa_action_assignee_user_id_fkey"
+            columns: ["assignee_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_action_capa_id_fkey"
+            columns: ["capa_id"]
+            isOneToOne: false
+            referencedRelation: "capa_plan"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_action_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_action_root_cause_id_fkey"
+            columns: ["root_cause_id"]
+            isOneToOne: false
+            referencedRelation: "rca_root_causes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      capa_action_evidence: {
+        Row: {
+          action_id: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          external_url: string | null
+          id: string
+          kind: string
+          storage_path: string | null
+          title: string
+        }
+        Insert: {
+          action_id: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          external_url?: string | null
+          id?: string
+          kind: string
+          storage_path?: string | null
+          title: string
+        }
+        Update: {
+          action_id?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          external_url?: string | null
+          id?: string
+          kind?: string
+          storage_path?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capa_action_evidence_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "capa_action"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_action_evidence_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_action_evidence_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      capa_action_task: {
+        Row: {
+          action_id: string
+          created_at: string
+          description: string
+          id: string
+          is_done: boolean
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          action_id: string
+          created_at?: string
+          description: string
+          id?: string
+          is_done?: boolean
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          action_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          is_done?: boolean
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capa_action_task_action_id_fkey"
+            columns: ["action_id"]
+            isOneToOne: false
+            referencedRelation: "capa_action"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      capa_effectiveness: {
+        Row: {
+          capa_id: string
+          created_at: string
+          method_md: string | null
+          updated_at: string
+          verdict: string
+          verified_at: string
+          verified_by: string | null
+        }
+        Insert: {
+          capa_id: string
+          created_at?: string
+          method_md?: string | null
+          updated_at?: string
+          verdict: string
+          verified_at?: string
+          verified_by?: string | null
+        }
+        Update: {
+          capa_id?: string
+          created_at?: string
+          method_md?: string | null
+          updated_at?: string
+          verdict?: string
+          verified_at?: string
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capa_effectiveness_capa_id_fkey"
+            columns: ["capa_id"]
+            isOneToOne: true
+            referencedRelation: "capa_plan"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_effectiveness_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      capa_measure: {
+        Row: {
+          capa_id: string
+          created_at: string
+          definition: string | null
+          id: string
+          indicator_id: string | null
+          name: string
+          position: number
+          target: string | null
+          updated_at: string
+        }
+        Insert: {
+          capa_id: string
+          created_at?: string
+          definition?: string | null
+          id?: string
+          indicator_id?: string | null
+          name: string
+          position: number
+          target?: string | null
+          updated_at?: string
+        }
+        Update: {
+          capa_id?: string
+          created_at?: string
+          definition?: string | null
+          id?: string
+          indicator_id?: string | null
+          name?: string
+          position?: number
+          target?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capa_measure_capa_id_fkey"
+            columns: ["capa_id"]
+            isOneToOne: false
+            referencedRelation: "capa_plan"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      capa_measure_result: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          measure_id: string
+          note: string | null
+          period: string
+          value: number | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          measure_id: string
+          note?: string | null
+          period: string
+          value?: number | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          measure_id?: string
+          note?: string | null
+          period?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capa_measure_result_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_measure_result_measure_id_fkey"
+            columns: ["measure_id"]
+            isOneToOne: false
+            referencedRelation: "capa_measure"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      capa_plan: {
+        Row: {
+          classification: string
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          id: string
+          lessons_learned_md: string | null
+          opened_by: string | null
+          source: string
+          source_audit_finding_id: string | null
+          source_event_id: string | null
+          source_indicator_id: string | null
+          source_meeting_id: string | null
+          source_rca_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          classification?: string
+          closed_at?: string | null
+          closed_by?: string | null
+          code: string
+          created_at?: string
+          id?: string
+          lessons_learned_md?: string | null
+          opened_by?: string | null
+          source: string
+          source_audit_finding_id?: string | null
+          source_event_id?: string | null
+          source_indicator_id?: string | null
+          source_meeting_id?: string | null
+          source_rca_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          classification?: string
+          closed_at?: string | null
+          closed_by?: string | null
+          code?: string
+          created_at?: string
+          id?: string
+          lessons_learned_md?: string | null
+          opened_by?: string | null
+          source?: string
+          source_audit_finding_id?: string | null
+          source_event_id?: string | null
+          source_indicator_id?: string | null
+          source_meeting_id?: string | null
+          source_rca_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "capa_plan_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_plan_opened_by_fkey"
+            columns: ["opened_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_plan_source_event_id_fkey"
+            columns: ["source_event_id"]
+            isOneToOne: false
+            referencedRelation: "patient_safety_event"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_plan_source_meeting_id_fkey"
+            columns: ["source_meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_plan_source_rca_id_fkey"
+            columns: ["source_rca_id"]
+            isOneToOne: false
+            referencedRelation: "rca"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_action_items: {
         Row: {
           assigned_to: string | null
@@ -1215,6 +1624,111 @@ export type Database = {
           },
         ]
       }
+      event_triage: {
+        Row: {
+          created_at: string
+          disposition_notes_md: string | null
+          event_id: string
+          harm_severity: string | null
+          is_pse: boolean | null
+          natural_course: boolean | null
+          pse_closure_reason: string | null
+          reach: string | null
+          review_pathway: string | null
+          sentinel_determination: boolean
+          triaged_at: string | null
+          triaged_by: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          disposition_notes_md?: string | null
+          event_id: string
+          harm_severity?: string | null
+          is_pse?: boolean | null
+          natural_course?: boolean | null
+          pse_closure_reason?: string | null
+          reach?: string | null
+          review_pathway?: string | null
+          sentinel_determination?: boolean
+          triaged_at?: string | null
+          triaged_by?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          disposition_notes_md?: string | null
+          event_id?: string
+          harm_severity?: string | null
+          is_pse?: boolean | null
+          natural_course?: boolean | null
+          pse_closure_reason?: string | null
+          reach?: string | null
+          review_pathway?: string | null
+          sentinel_determination?: boolean
+          triaged_at?: string | null
+          triaged_by?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_triage_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "patient_safety_event"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_triage_triaged_by_fkey"
+            columns: ["triaged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_triage_sentinel_flags: {
+        Row: {
+          created_at: string
+          criteria_id: string | null
+          criteria_key: string
+          criteria_label: string
+          event_id: string
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          criteria_id?: string | null
+          criteria_key: string
+          criteria_label: string
+          event_id: string
+          id?: string
+        }
+        Update: {
+          created_at?: string
+          criteria_id?: string | null
+          criteria_key?: string
+          criteria_label?: string
+          event_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_triage_sentinel_flags_criteria_id_fkey"
+            columns: ["criteria_id"]
+            isOneToOne: false
+            referencedRelation: "pqs_sentinel_criteria"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_triage_sentinel_flags_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "event_triage"
+            referencedColumns: ["event_id"]
+          },
+        ]
+      }
       form_items: {
         Row: {
           content: Json | null
@@ -2017,6 +2531,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "patient_safety_event_event_type_fk"
+            columns: ["event_type_id"]
+            isOneToOne: false
+            referencedRelation: "pqs_event_types"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "patient_safety_event_reported_by_fkey"
             columns: ["reported_by"]
             isOneToOne: false
@@ -2055,6 +2576,72 @@ export type Database = {
           name?: string
           rca_default_due_days?: number
           singleton?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pqs_event_types: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      pqs_sentinel_criteria: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          position?: number
           updated_at?: string
         }
         Relationships: []
@@ -2220,6 +2807,396 @@ export type Database = {
           is_admin?: boolean
         }
         Relationships: []
+      }
+      rca: {
+        Row: {
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          detected: string | null
+          due_date: string | null
+          event_id: string
+          expected_md: string | null
+          id: string
+          impact: string | null
+          scope: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          summary_md: string | null
+          updated_at: string
+          what_md: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          detected?: string | null
+          due_date?: string | null
+          event_id: string
+          expected_md?: string | null
+          id?: string
+          impact?: string | null
+          scope?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          summary_md?: string | null
+          updated_at?: string
+          what_md?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          detected?: string | null
+          due_date?: string | null
+          event_id?: string
+          expected_md?: string | null
+          id?: string
+          impact?: string | null
+          scope?: string | null
+          status?: string
+          submitted_at?: string | null
+          submitted_by?: string | null
+          summary_md?: string | null
+          updated_at?: string
+          what_md?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rca_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rca_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rca_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "patient_safety_event"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rca_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rca_evidence: {
+        Row: {
+          citation_label: string | null
+          cited_document_id: string | null
+          cited_interview_id: string | null
+          cited_meeting_id: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          external_url: string | null
+          id: string
+          kind: string
+          rca_id: string
+          storage_path: string | null
+          title: string
+        }
+        Insert: {
+          citation_label?: string | null
+          cited_document_id?: string | null
+          cited_interview_id?: string | null
+          cited_meeting_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          external_url?: string | null
+          id?: string
+          kind: string
+          rca_id: string
+          storage_path?: string | null
+          title: string
+        }
+        Update: {
+          citation_label?: string | null
+          cited_document_id?: string | null
+          cited_interview_id?: string | null
+          cited_meeting_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          external_url?: string | null
+          id?: string
+          kind?: string
+          rca_id?: string
+          storage_path?: string | null
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rca_evidence_cited_document_id_fkey"
+            columns: ["cited_document_id"]
+            isOneToOne: false
+            referencedRelation: "case_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rca_evidence_cited_interview_id_fkey"
+            columns: ["cited_interview_id"]
+            isOneToOne: false
+            referencedRelation: "case_interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rca_evidence_cited_meeting_id_fkey"
+            columns: ["cited_meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rca_evidence_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rca_evidence_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rca_evidence_rca_id_fkey"
+            columns: ["rca_id"]
+            isOneToOne: false
+            referencedRelation: "rca"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rca_factors: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          is_key: boolean
+          position: number
+          rca_id: string
+          text: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          id?: string
+          is_key?: boolean
+          position: number
+          rca_id: string
+          text: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          is_key?: boolean
+          position?: number
+          rca_id?: string
+          text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rca_factors_rca_id_fkey"
+            columns: ["rca_id"]
+            isOneToOne: false
+            referencedRelation: "rca"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rca_members: {
+        Row: {
+          created_at: string
+          external_name: string | null
+          id: string
+          rca_id: string
+          role: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          external_name?: string | null
+          id?: string
+          rca_id: string
+          role: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          external_name?: string | null
+          id?: string
+          rca_id?: string
+          role?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rca_members_rca_id_fkey"
+            columns: ["rca_id"]
+            isOneToOne: false
+            referencedRelation: "rca"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rca_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rca_root_causes: {
+        Row: {
+          category: string | null
+          classification: string
+          created_at: string
+          id: string
+          position: number
+          rca_id: string
+          text: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          classification?: string
+          created_at?: string
+          id?: string
+          position: number
+          rca_id: string
+          text: string
+          type?: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          classification?: string
+          created_at?: string
+          id?: string
+          position?: number
+          rca_id?: string
+          text?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rca_root_causes_rca_id_fkey"
+            columns: ["rca_id"]
+            isOneToOne: false
+            referencedRelation: "rca"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rca_timeline_entries: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          occurred_at: string
+          position: number
+          rca_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          occurred_at: string
+          position: number
+          rca_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          occurred_at?: string
+          position?: number
+          rca_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rca_timeline_entries_rca_id_fkey"
+            columns: ["rca_id"]
+            isOneToOne: false
+            referencedRelation: "rca"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rca_why_chains: {
+        Row: {
+          created_at: string
+          factor_id: string
+          id: string
+          rca_id: string
+          root_text: string | null
+          steps: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          factor_id: string
+          id?: string
+          rca_id: string
+          root_text?: string | null
+          steps?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          factor_id?: string
+          id?: string
+          rca_id?: string
+          root_text?: string | null
+          steps?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rca_why_chains_factor_id_fkey"
+            columns: ["factor_id"]
+            isOneToOne: true
+            referencedRelation: "rca_factors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rca_why_chains_rca_id_fkey"
+            columns: ["rca_id"]
+            isOneToOne: false
+            referencedRelation: "rca"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       response_section_signoffs: {
         Row: {
@@ -2452,6 +3429,111 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      add_capa_action: {
+        Args: {
+          p_action_strength?: string
+          p_assignee_user_id?: string
+          p_capa_id: string
+          p_due_date?: string
+          p_owner?: string
+          p_root_cause_id?: string
+          p_success_measure?: string
+          p_title: string
+        }
+        Returns: {
+          action_strength: string
+          assignee_user_id: string | null
+          capa_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          owner: string | null
+          position: number
+          root_cause_id: string | null
+          status: string
+          success_measure: string | null
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_action"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_capa_action_evidence: {
+        Args: {
+          p_action_id: string
+          p_external_url?: string
+          p_kind: string
+          p_storage_path?: string
+          p_title: string
+        }
+        Returns: {
+          action_id: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          external_url: string | null
+          id: string
+          kind: string
+          storage_path: string | null
+          title: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_action_evidence"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_capa_action_task: {
+        Args: { p_action_id: string; p_description: string }
+        Returns: {
+          action_id: string
+          created_at: string
+          description: string
+          id: string
+          is_done: boolean
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_action_task"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_capa_measure: {
+        Args: {
+          p_capa_id: string
+          p_definition?: string
+          p_name: string
+          p_target?: string
+        }
+        Returns: {
+          capa_id: string
+          created_at: string
+          definition: string | null
+          id: string
+          indicator_id: string | null
+          name: string
+          position: number
+          target: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_measure"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       add_interview_attachment: {
         Args: {
           p_external_url?: string
@@ -2595,6 +3677,124 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      add_rca_evidence: {
+        Args: {
+          p_citation_label?: string
+          p_citation_target?: string
+          p_cited_entity_id?: string
+          p_external_url?: string
+          p_kind: string
+          p_rca_id: string
+          p_storage_path?: string
+          p_title: string
+        }
+        Returns: {
+          citation_label: string | null
+          cited_document_id: string | null
+          cited_interview_id: string | null
+          cited_meeting_id: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          external_url: string | null
+          id: string
+          kind: string
+          rca_id: string
+          storage_path: string | null
+          title: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca_evidence"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_rca_factor: {
+        Args: { p_category: string; p_rca_id: string; p_text: string }
+        Returns: {
+          category: string
+          created_at: string
+          id: string
+          is_key: boolean
+          position: number
+          rca_id: string
+          text: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca_factors"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_rca_member: {
+        Args: {
+          p_external_name?: string
+          p_rca_id: string
+          p_role: string
+          p_user_id?: string
+        }
+        Returns: {
+          created_at: string
+          external_name: string | null
+          id: string
+          rca_id: string
+          role: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca_members"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_rca_root_cause: {
+        Args: {
+          p_category?: string
+          p_classification?: string
+          p_rca_id: string
+          p_text: string
+          p_type?: string
+        }
+        Returns: {
+          category: string | null
+          classification: string
+          created_at: string
+          id: string
+          position: number
+          rca_id: string
+          text: string
+          type: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca_root_causes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_rca_timeline_entry: {
+        Args: { p_description: string; p_occurred_at: string; p_rca_id: string }
+        Returns: {
+          created_at: string
+          description: string
+          id: string
+          occurred_at: string
+          position: number
+          rca_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca_timeline_entries"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       add_template_phase: {
         Args: {
           p_blocks?: number[]
@@ -2642,6 +3842,32 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      advance_capa_action: {
+        Args: { p_action_id: string; p_status: string }
+        Returns: {
+          action_strength: string
+          assignee_user_id: string | null
+          capa_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          owner: string | null
+          position: number
+          root_cause_id: string | null
+          status: string
+          success_measure: string | null
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_action"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -2710,6 +3936,25 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      archive_event_type: {
+        Args: { p_id: string }
+        Returns: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pqs_event_types"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       archive_meeting_type: {
         Args: { p_type_id: string }
         Returns: {
@@ -2748,11 +3993,57 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      archive_sentinel_criterion: {
+        Args: { p_id: string }
+        Returns: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pqs_sentinel_criteria"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       assign_case_tag: {
         Args: { p_case_id: string; p_tag_id: string }
         Returns: undefined
       }
       audit_trail_enabled: { Args: never; Returns: boolean }
+      cancel_capa_plan: {
+        Args: { p_capa_id: string }
+        Returns: {
+          classification: string
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          id: string
+          lessons_learned_md: string | null
+          opened_by: string | null
+          source: string
+          source_audit_finding_id: string | null
+          source_event_id: string | null
+          source_indicator_id: string | null
+          source_meeting_id: string | null
+          source_rca_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_plan"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       cancel_case: {
         Args: { p_case_id: string }
         Returns: {
@@ -2875,6 +4166,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      capa_kpis: {
+        Args: never
+        Returns: {
+          closed_ytd: number
+          in_verification: number
+          open_count: number
+          overdue_actions: number
+        }[]
+      }
+      capa_viewer_can_manage: { Args: { p_capa_id: string }; Returns: boolean }
       case_action_items_kpis: {
         Args: { p_commission_id: string }
         Returns: {
@@ -2896,6 +4197,33 @@ export type Database = {
       clone_form_version: {
         Args: { p_source_version_id: string }
         Returns: string
+      }
+      close_capa_plan: {
+        Args: { p_capa_id: string; p_lessons_learned_md?: string }
+        Returns: {
+          classification: string
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          id: string
+          lessons_learned_md: string | null
+          opened_by: string | null
+          source: string
+          source_audit_finding_id: string | null
+          source_event_id: string | null
+          source_indicator_id: string | null
+          source_meeting_id: string | null
+          source_rca_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_plan"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       close_case: {
         Args: { p_case_id: string }
@@ -2954,6 +4282,32 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      complete_capa_action: {
+        Args: { p_action_id: string }
+        Returns: {
+          action_strength: string
+          assignee_user_id: string | null
+          capa_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          owner: string | null
+          position: number
+          root_cause_id: string | null
+          status: string
+          success_measure: string | null
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_action"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       complete_meeting_action_item: {
         Args: { p_action_item_id: string }
         Returns: {
@@ -2976,6 +4330,34 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "meeting_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      complete_rca: {
+        Args: { p_rca_id: string }
+        Returns: {
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          detected: string | null
+          due_date: string | null
+          event_id: string
+          expected_md: string | null
+          id: string
+          impact: string | null
+          scope: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          summary_md: string | null
+          updated_at: string
+          what_md: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -3044,6 +4426,30 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "meetings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      confirm_triage: {
+        Args: { p_event_id: string }
+        Returns: {
+          created_at: string
+          disposition_notes_md: string | null
+          event_id: string
+          harm_severity: string | null
+          is_pse: boolean | null
+          natural_course: boolean | null
+          pse_closure_reason: string | null
+          reach: string | null
+          review_pathway: string | null
+          sentinel_determination: boolean
+          triaged_at: string | null
+          triaged_by: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_triage"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -3145,6 +4551,25 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_tags"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_event_type: {
+        Args: { p_description?: string; p_key: string; p_label: string }
+        Returns: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pqs_event_types"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -3353,6 +4778,25 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_sentinel_criterion: {
+        Args: { p_description?: string; p_key: string; p_label: string }
+        Returns: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pqs_sentinel_criteria"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       custom_access_token_hook: { Args: { event: Json }; Returns: Json }
       dashboard_completion_by_member: {
         Args: { p_form_id: string; p_from?: string; p_to?: string }
@@ -3421,6 +4865,10 @@ export type Database = {
           day: string
         }[]
       }
+      delete_capa_action_evidence: {
+        Args: { p_evidence_id: string }
+        Returns: undefined
+      }
       delete_interview_attachment: {
         Args: { p_attachment_id: string }
         Returns: undefined
@@ -3431,6 +4879,10 @@ export type Database = {
       }
       delete_meeting_attachment: {
         Args: { p_attachment_id: string }
+        Returns: undefined
+      }
+      delete_rca_evidence: {
+        Args: { p_evidence_id: string }
         Returns: undefined
       }
       delete_section_moving_items: {
@@ -3634,6 +5086,37 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      open_capa_plan: {
+        Args: {
+          p_classification?: string
+          p_source: string
+          p_source_id?: string
+        }
+        Returns: {
+          classification: string
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          id: string
+          lessons_learned_md: string | null
+          opened_by: string | null
+          source: string
+          source_audit_finding_id: string | null
+          source_event_id: string | null
+          source_indicator_id: string | null
+          source_meeting_id: string | null
+          source_rca_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_plan"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       patient_safety_enabled: { Args: never; Returns: boolean }
       pqs_inbox: {
         Args: {
@@ -3694,6 +5177,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      rca_writer_can_write: { Args: { p_rca_id: string }; Returns: boolean }
       reassign_phase: {
         Args: {
           p_case_phase_id: string
@@ -3732,6 +5216,56 @@ export type Database = {
         Args: { p_case_id: string }
         Returns: undefined
       }
+      record_capa_effectiveness: {
+        Args: { p_capa_id: string; p_method_md?: string; p_verdict: string }
+        Returns: {
+          capa_id: string
+          created_at: string
+          method_md: string | null
+          updated_at: string
+          verdict: string
+          verified_at: string
+          verified_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_effectiveness"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      record_capa_measure_result: {
+        Args: {
+          p_measure_id: string
+          p_note?: string
+          p_period: string
+          p_value?: number
+        }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          id: string
+          measure_id: string
+          note: string | null
+          period: string
+          value: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_measure_result"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      remove_capa_action: { Args: { p_action_id: string }; Returns: undefined }
+      remove_capa_action_task: {
+        Args: { p_task_id: string }
+        Returns: undefined
+      }
+      remove_capa_measure: {
+        Args: { p_measure_id: string }
+        Returns: undefined
+      }
       remove_interview_interviewer: {
         Args: { p_interviewer_id: string }
         Returns: undefined
@@ -3742,6 +5276,16 @@ export type Database = {
       }
       remove_meeting_attendee: {
         Args: { p_attendee_id: string }
+        Returns: undefined
+      }
+      remove_rca_factor: { Args: { p_factor_id: string }; Returns: undefined }
+      remove_rca_member: { Args: { p_member_id: string }; Returns: undefined }
+      remove_rca_root_cause: {
+        Args: { p_root_cause_id: string }
+        Returns: undefined
+      }
+      remove_rca_timeline_entry: {
+        Args: { p_entry_id: string }
         Returns: undefined
       }
       remove_template_phase: {
@@ -3780,6 +5324,33 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "commission_meeting_types"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reopen_capa_plan: {
+        Args: { p_capa_id: string }
+        Returns: {
+          classification: string
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          id: string
+          lessons_learned_md: string | null
+          opened_by: string | null
+          source: string
+          source_audit_finding_id: string | null
+          source_event_id: string | null
+          source_indicator_id: string | null
+          source_meeting_id: string | null
+          source_rca_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_plan"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -3852,8 +5423,64 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reopen_rca: {
+        Args: { p_rca_id: string }
+        Returns: {
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          detected: string | null
+          due_date: string | null
+          event_id: string
+          expected_md: string | null
+          id: string
+          impact: string | null
+          scope: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          summary_md: string | null
+          updated_at: string
+          what_md: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reopen_triage: {
+        Args: { p_event_id: string }
+        Returns: {
+          created_at: string
+          disposition_notes_md: string | null
+          event_id: string
+          harm_severity: string | null
+          is_pse: boolean | null
+          natural_course: boolean | null
+          pse_closure_reason: string | null
+          reach: string | null
+          review_pathway: string | null
+          sentinel_determination: boolean
+          triaged_at: string | null
+          triaged_by: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_triage"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reorder_case_outcomes: {
         Args: { p_commission_id: string; p_ordered_ids: string[] }
+        Returns: undefined
+      }
+      reorder_event_types: {
+        Args: { p_ordered_ids: string[] }
         Returns: undefined
       }
       reorder_item: {
@@ -3864,8 +5491,16 @@ export type Database = {
         Args: { p_agenda_item_id: string; p_direction: string }
         Returns: undefined
       }
+      reorder_rca_timeline: {
+        Args: { p_ordered_ids: string[]; p_rca_id: string }
+        Returns: undefined
+      }
       reorder_section: {
         Args: { p_direction: string; p_section_id: string }
+        Returns: undefined
+      }
+      reorder_sentinel_criteria: {
+        Args: { p_ordered_ids: string[] }
         Returns: undefined
       }
       reorder_template_phase: {
@@ -3894,6 +5529,40 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "responses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      save_triage: {
+        Args: {
+          p_disposition_notes_md?: string
+          p_event_id: string
+          p_harm_severity?: string
+          p_is_pse?: boolean
+          p_natural_course?: boolean
+          p_pse_closure_reason?: string
+          p_reach?: string
+          p_review_pathway?: string
+          p_sentinel_criteria_ids?: string[]
+        }
+        Returns: {
+          created_at: string
+          disposition_notes_md: string | null
+          event_id: string
+          harm_severity: string | null
+          is_pse: boolean | null
+          natural_course: boolean | null
+          pse_closure_reason: string | null
+          reach: string | null
+          review_pathway: string | null
+          sentinel_determination: boolean
+          triaged_at: string | null
+          triaged_by: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "event_triage"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -3938,6 +5607,24 @@ export type Database = {
       seed_expected_meeting_attendees: {
         Args: { p_meeting_id: string }
         Returns: undefined
+      }
+      set_capa_action_task_done: {
+        Args: { p_is_done: boolean; p_task_id: string }
+        Returns: {
+          action_id: string
+          created_at: string
+          description: string
+          id: string
+          is_done: boolean
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_action_task"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_case_outcome: {
         Args: { p_case_id: string; p_outcome_id?: string }
@@ -4010,9 +5697,65 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_pqs_rca_due_window: { Args: { p_days: number }; Returns: number }
       set_process_outcomes: {
         Args: { p_outcome_ids: string[]; p_template_id: string }
         Returns: undefined
+      }
+      set_rca_factor_key: {
+        Args: { p_factor_id: string; p_is_key: boolean }
+        Returns: {
+          category: string
+          created_at: string
+          id: string
+          is_key: boolean
+          position: number
+          rca_id: string
+          text: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca_factors"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_rca_why_root: {
+        Args: { p_factor_id: string; p_root_text: string }
+        Returns: {
+          created_at: string
+          factor_id: string
+          id: string
+          rca_id: string
+          root_text: string | null
+          steps: Json
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca_why_chains"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_rca_why_step: {
+        Args: { p_factor_id: string; p_index: number; p_text: string }
+        Returns: {
+          created_at: string
+          factor_id: string
+          id: string
+          rca_id: string
+          root_text: string | null
+          steps: Json
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca_why_chains"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_template_phase_blocks: {
         Args: { p_blocks: number[]; p_phase_id: string }
@@ -4181,6 +5924,34 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      submit_rca_for_review: {
+        Args: { p_rca_id: string }
+        Returns: {
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          detected: string | null
+          due_date: string | null
+          event_id: string
+          expected_md: string | null
+          id: string
+          impact: string | null
+          scope: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          summary_md: string | null
+          updated_at: string
+          what_md: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       submit_response: {
         Args: { p_response_id: string }
         Returns: {
@@ -4239,6 +6010,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      triage_disposition: {
+        Args: { p_event_id: string }
+        Returns: {
+          event_id: string
+          is_pse: boolean
+          is_sentinel: boolean
+          rca_due_date: string
+          reached: boolean
+          review_pathway: string
+          severe: boolean
+          verdict: string
+        }[]
+      }
       unassign_case_tag: {
         Args: { p_case_id: string; p_tag_id: string }
         Returns: undefined
@@ -4273,6 +6057,93 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_capa_action: {
+        Args: {
+          p_action_id: string
+          p_action_strength?: string
+          p_assignee_user_id?: string
+          p_due_date?: string
+          p_owner?: string
+          p_root_cause_id?: string
+          p_success_measure?: string
+          p_title: string
+        }
+        Returns: {
+          action_strength: string
+          assignee_user_id: string | null
+          capa_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          owner: string | null
+          position: number
+          root_cause_id: string | null
+          status: string
+          success_measure: string | null
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_action"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_capa_measure: {
+        Args: {
+          p_definition?: string
+          p_measure_id: string
+          p_name: string
+          p_target?: string
+        }
+        Returns: {
+          capa_id: string
+          created_at: string
+          definition: string | null
+          id: string
+          indicator_id: string | null
+          name: string
+          position: number
+          target: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_measure"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_capa_plan: {
+        Args: { p_capa_id: string; p_classification: string }
+        Returns: {
+          classification: string
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          id: string
+          lessons_learned_md: string | null
+          opened_by: string | null
+          source: string
+          source_audit_finding_id: string | null
+          source_event_id: string | null
+          source_indicator_id: string | null
+          source_meeting_id: string | null
+          source_rca_id: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "capa_plan"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -4340,6 +6211,25 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "patient_safety_event"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_event_type: {
+        Args: { p_description?: string; p_id: string; p_label: string }
+        Returns: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pqs_event_types"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -4653,6 +6543,144 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "commission_meeting_settings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_rca: {
+        Args: {
+          p_detected?: string
+          p_expected_md?: string
+          p_impact?: string
+          p_rca_id: string
+          p_scope?: string
+          p_summary_md?: string
+          p_what_md?: string
+        }
+        Returns: {
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          detected: string | null
+          due_date: string | null
+          event_id: string
+          expected_md: string | null
+          id: string
+          impact: string | null
+          scope: string | null
+          status: string
+          submitted_at: string | null
+          submitted_by: string | null
+          summary_md: string | null
+          updated_at: string
+          what_md: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_rca_factor: {
+        Args: { p_factor_id: string; p_text: string }
+        Returns: {
+          category: string
+          created_at: string
+          id: string
+          is_key: boolean
+          position: number
+          rca_id: string
+          text: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca_factors"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_rca_member_role: {
+        Args: { p_member_id: string; p_role: string }
+        Returns: {
+          created_at: string
+          external_name: string | null
+          id: string
+          rca_id: string
+          role: string
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca_members"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_rca_root_cause: {
+        Args: {
+          p_category?: string
+          p_classification?: string
+          p_root_cause_id: string
+          p_text: string
+          p_type?: string
+        }
+        Returns: {
+          category: string | null
+          classification: string
+          created_at: string
+          id: string
+          position: number
+          rca_id: string
+          text: string
+          type: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca_root_causes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_rca_timeline_entry: {
+        Args: {
+          p_description: string
+          p_entry_id: string
+          p_occurred_at: string
+        }
+        Returns: {
+          created_at: string
+          description: string
+          id: string
+          occurred_at: string
+          position: number
+          rca_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "rca_timeline_entries"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_sentinel_criterion: {
+        Args: { p_description?: string; p_id: string; p_label: string }
+        Returns: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pqs_sentinel_criteria"
           isOneToOne: true
           isSetofReturn: false
         }

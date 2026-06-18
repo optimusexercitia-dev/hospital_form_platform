@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import { ListChecks, Settings } from "lucide-react";
 
 import { requireUser } from "@/lib/queries/session";
 import { listCommissionsForAdmin } from "@/lib/queries/commissions";
@@ -72,17 +74,37 @@ export default async function NspInboxPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-2">
-        <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
-          Administração
-        </p>
-        <h1 className="text-3xl text-balance">Núcleo de Segurança do Paciente</h1>
-        <p className="max-w-prose text-muted-foreground text-pretty">
-          Fila de eventos de segurança notificados pelas comissões. Reconheça,
-          acompanhe a custódia e abra cada evento para a análise. A identificação
-          do paciente não aparece nesta lista — apenas dentro de cada evento, com
-          acesso registrado.
-        </p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
+            Administração
+          </p>
+          <h1 className="text-3xl text-balance">
+            Núcleo de Segurança do Paciente
+          </h1>
+          <p className="max-w-prose text-muted-foreground text-pretty">
+            Fila de eventos de segurança notificados pelas comissões. Reconheça,
+            acompanhe a custódia e abra cada evento para a análise. A
+            identificação do paciente não aparece nesta lista — apenas dentro de
+            cada evento, com acesso registrado.
+          </p>
+        </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <Link
+            href="/admin/nsp/triagem"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+          >
+            <ListChecks aria-hidden="true" className="size-4" />
+            Abrir triagem
+          </Link>
+          <Link
+            href="/admin/nsp/configuracoes"
+            className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+          >
+            <Settings aria-hidden="true" className="size-4" />
+            Configurações
+          </Link>
+        </div>
       </header>
 
       <PqsInboxFiltersBar

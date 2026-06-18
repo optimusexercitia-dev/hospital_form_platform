@@ -1,7 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, MapPin, CalendarClock, Building2 } from "lucide-react";
+import {
+  ArrowLeft,
+  MapPin,
+  CalendarClock,
+  Building2,
+  ListChecks,
+  ClipboardList,
+} from "lucide-react";
 
 import { requireUser } from "@/lib/queries/session";
 import {
@@ -10,6 +17,9 @@ import {
   getEventPatient,
 } from "@/lib/queries/safety-events";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
+import { listCapaPlansForEvent } from "@/lib/queries/capa";
+import { OpenCapaButton } from "@/components/safety/capa/open-capa-button";
+import { CapaPlanCard } from "@/components/safety/capa/capa-plan-card";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { SafetyMotion } from "@/components/safety/safety-motion";
 import {
@@ -66,10 +76,12 @@ export default async function NspEventDetailPage({
   }
 
   // Custody ledger always loads; the AUDITED PHI read fires only when a record
-  // exists (Rule 12 — no audit row for a non-existent read).
-  const [custody, patient] = await Promise.all([
+  // exists (Rule 12 — no audit row for a non-existent read). CAPA plans (Phase 14d)
+  // sourced from this event are listed alongside.
+  const [custody, patient, capaPlans] = await Promise.all([
     getEventCustody(eventId),
     event.hasPatient ? getEventPatient(eventId) : Promise.resolve(null),
+    listCapaPlansForEvent(eventId),
   ]);
 
   const meta: { icon: typeof MapPin; label: string; value: string }[] = [];
@@ -118,9 +130,18 @@ export default async function NspEventDetailPage({
             </div>
           </div>
 
-          {event.status === "reported" && (
-            <AcknowledgeButton eventId={event.id} />
-          )}
+          <div className="flex shrink-0 flex-wrap items-center gap-2">
+            {event.status === "reported" && (
+              <AcknowledgeButton eventId={event.id} />
+            )}
+            <Link
+              href={`/admin/nsp/triagem?event=${event.id}`}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+            >
+              <ListChecks aria-hidden="true" className="size-4" />
+              Abrir triagem
+            </Link>
+          </div>
         </div>
 
         <p className="text-sm text-muted-foreground tabular-nums">
@@ -190,6 +211,46 @@ export default async function NspEventDetailPage({
         </div>
 
         <div className="flex flex-col gap-6 lg:sticky lg:top-8">
+          {/* CAPA plans (Phase 14d) sourced from this event. */}
+          <section
+            data-rise
+            aria-labelledby="event-capa-heading"
+            className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2
+                id="event-capa-heading"
+                className="inline-flex items-center gap-2 text-base font-semibold"
+              >
+                <ClipboardList
+                  aria-hidden="true"
+                  className="size-4 text-muted-foreground"
+                />
+                Planos de ação
+              </h2>
+              <OpenCapaButton
+                source="event"
+                sourceId={event.id}
+                label="Abrir plano"
+                variant="outline"
+                size="sm"
+              />
+            </div>
+            {capaPlans.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-pretty">
+                Nenhum plano de ação para este evento.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {capaPlans.map((plan) => (
+                  <li key={plan.id}>
+                    <CapaPlanCard plan={plan} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
           <div data-rise>
             <CustodyHistory entries={custody} />
           </div>
