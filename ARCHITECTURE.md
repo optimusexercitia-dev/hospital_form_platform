@@ -114,3 +114,19 @@ may extend the schema but never contradict it. Cross-references elsewhere to
 10. All user-facing text in **Brazilian Portuguese (pt-BR)**; code, comments,
     commits, and docs in English. Keep strings centralized enough that i18n
     could be added later without a rewrite.
+11. **Auditability** (established in Phase 13; see ADR 0028). Once the
+    `audit_trail` feature lands, the platform keeps an **append-only,
+    tamper-evident** `audit_log`: every state-changing operation (RPC or
+    direct-table write) emits exactly one audit row attributing the actor, the
+    action (`<entity>.<verb>`), the entity reference, and a diff over a curated
+    **allow-list of non-sensitive columns**; reads of *another* member's data
+    (foreign-submission view, CSV/evidence export, surveyor portal) emit an
+    explicit `.read`/`.export` row. The log is **never updated or deleted** (a
+    BEFORE UPDATE/DELETE guard raises even for the service role) and is
+    hash-chained per commission so tampering is detectable. **Never log answer
+    payloads or free-text/Markdown bodies** — the log records *that* something
+    changed and *who*, never clinical or free-text content (no patient data,
+    Rule 1's boundary holds). Writes go through one `SECURITY DEFINER` writer;
+    reads are RLS-scoped (admin: all; staff_admin: own commission; staff/anon:
+    none). New cross-cutting features add their high-value tables to the
+    instrumented set as they land.

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/queries/session";
+import { auditTrailEnabled } from "@/lib/queries/audit";
 import { UserMenu } from "@/components/shell/user-menu";
 
 /**
@@ -22,6 +23,9 @@ export default async function AdminLayout({
   if (!context.isAdmin) {
     notFound();
   }
+
+  // The audit_trail flag gates the "Trilha de auditoria" admin nav entry.
+  const auditOn = await auditTrailEnabled();
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -64,6 +68,14 @@ export default async function AdminLayout({
             >
               Painel
             </Link>
+            {auditOn ? (
+              <Link
+                href="/admin/audit"
+                className="rounded-lg px-3 py-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+              >
+                Trilha de auditoria
+              </Link>
+            ) : null}
           </nav>
           <div className="ml-auto">
             <UserMenu fullName={context.fullName} email={context.email} />

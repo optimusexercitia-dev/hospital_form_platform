@@ -1,0 +1,11 @@
+-- Phase 13 / B4 tail: enable the `audit_trail` feature flag.
+--
+-- The audit data model + writer + instrumentation triggers + verify RPC
+-- (…120000–…120002) ship dark behind the `audit_trail` flag (app.audit_write
+-- no-ops while OFF, so the chain stays empty). This one-line migration flips it
+-- ON — applied DURING the phase, mirroring the meetings / cases / interviews
+-- enable migrations — so the Playwright E2E gate exercises the LIVE feature
+-- (mutations emit audit rows, verify_audit_chain runs, the audit views render).
+-- The chain starts cleanly HERE: the first audited mutation after this flip is
+-- seq 1 on its chain. After this, `supabase db reset` leaves `audit_trail` ON.
+update app.feature_flags set enabled = true where key = 'audit_trail';

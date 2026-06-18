@@ -24,6 +24,16 @@ dashboards instead of manual tabulation. Frontend design should be professional,
 HIPAA/LGPD-health compliance is explicitly out of scope. If a feature appears to
 require collecting patient-identifiable data, STOP and flag it to the human.
 
+**Positioning: a governance / quality LAYER for hospital accreditation.** Beyond
+digitizing checklists, the platform is being built to help hospitals satisfy — and
+*prepare for* — accreditation (ONA in Brazil; JCI / Joint Commission internationally;
+the ANVISA/RDC regulatory backdrop). It documents committee **process, measurement,
+and improvement**, sitting beside the EHR rather than duplicating it. The no-patient-data
+rule above is the deliberate boundary that keeps this scope clean; it is reaffirmed for
+every phase, including the accreditation track (Phases 13–21). Strategic rationale and the
+rejected "minimal-identifiers" alternative are in ADR
+[0028](./docs/decisions/0028-accreditation-governance-roadmap.md).
+
 ### Core domain concepts
 
 - **Commission**: an organizational unit (e.g., Infection Control Commission).
@@ -67,6 +77,32 @@ require collecting patient-identifiable data, STOP and flag it to the human.
   navigation, so a response has a lifecycle: `in_progress` (resumable,
   editable by its creator only) → `submitted` (immutable, counted by
   dashboards). One in_progress response per user per form version.
+
+### Governance & accreditation concepts (Phases 13+)
+
+These extend the model without touching the no-patient-data boundary; each is
+feature-flagged and detailed in PHASES.md + its ADR.
+
+- **Audit trail**: an append-only, tamper-evident (hash-chained) `audit_log` of
+  who did what to which entity, when. Every mutation emits a row (Architecture
+  Rule 11); reads of another member's data are logged explicitly. The data-integrity
+  backbone (ALCOA+) accreditation expects.
+- **PDCA / CAPA**: a corrective/preventive plan closes the improvement loop —
+  problem → **root-cause analysis** (5-whys / Ishikawa) → action steps →
+  **verification of effectiveness** → closure. Originates from a case, a meeting,
+  an off-target indicator, or an audit finding.
+- **Quality indicator**: a managed metric (numerator/denominator, target,
+  periodicity, direction) measured over time and tracked vs target — entered
+  manually or **derived** from submitted-form aggregates via `question_key`.
+- **Accreditation standard & evidence link**: a configurable framework
+  (ONA / JCI / custom) of hierarchical standards; commissions link the artifacts
+  they produce (forms, meetings, cases, indicators, CAPA, documents) as
+  **evidence**, driving a **readiness / gap report**.
+- **Controlled document**: a policy/POP/protocol/regimento under a lifecycle with
+  named-approver e-signatures, effective/expiry dates, and a scheduled review cycle.
+- **Internal audit / mock tracer**: scored self-assessment rounds mapped to
+  standards; a non-conforming finding opens a CAPA and updates the standard's
+  assessment.
 
 ## 2. Tech Stack (do not deviate without human approval)
 
@@ -140,6 +176,9 @@ its numbered rules. In brief:
 9. **Data access goes through `src/lib/queries/`** — no inline supabase-js;
    centralize the "answerable questions" and "submitted responses" filters.
 10. **All user-facing text pt-BR**; code, comments, commits, docs in English.
+11. **Auditability** (established Phase 13) — an append-only, tamper-evident
+    audit trail; every mutation emits an audit row and reads of another member's
+    data are logged. No payloads/free-text bodies in the log (no patient data).
 
 See ARCHITECTURE.md for the authoritative, detailed form of each rule.
 
@@ -226,7 +265,29 @@ its phase.
 | 6 | Section Sign-offs & Submission Lifecycle |
 | 7 | Multi-Phase Cases |
 | 8 | Dashboards & Submissions Browser |
-| 9 | Deployment |
+| 9 | Deployment *(pending — features below are built ahead of it)* |
+| 10 | Meetings |
+| 11 | Interviews |
+| 12 | Case Timeline |
+| **— Accreditation & Quality-Governance Track —** | |
+| 13 | Audit Trail |
+| 14 | PDCA / CAPA Closure |
+| 15 | Quality Indicators |
+| 16 | Standards Crosswalk & Readiness/Gap Engine |
+| 17 | Controlled-Document Lifecycle |
+| 18 | Self-Assessment, Internal Audit & Mock Tracer |
+| 19 | Surveyor Access & Evidence Export |
+| 20 | Notifications & Escalation |
+| 21 | Committee Charters & Meeting Cadence |
+
+Phases 13–21 are the **accreditation-readiness track**: they make the platform
+provably useful to hospitals pursuing ONA / JCI accreditation while keeping its
+governance/quality-layer positioning (no patient data). They follow the same
+Phase Gate (§6) and ordering hard-rule. **Deployment plan: ship a pilot after
+Phase 16** (the P0 core — audit trail, CAPA, indicators, standards crosswalk),
+which also validates the prod-auth gap (ADR 0009); Phases 17–21 follow, informed
+by pilot feedback. See PHASES.md for the authoritative detail of each phase, and
+ADR 0028 for the track's rationale and sequencing.
 
 See PHASES.md for the authoritative detail of each phase.
 

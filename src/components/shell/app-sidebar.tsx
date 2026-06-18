@@ -14,6 +14,7 @@ import {
   Menu,
   PencilLine,
   PenLine,
+  ScrollText,
   Settings2,
   Users,
   Workflow,
@@ -43,8 +44,8 @@ interface NavItem {
   icon: typeof LayoutDashboard;
   roles: CommissionRole[];
   countKey?: CountKey;
-  /** When set, the item only renders if this feature flag is on (Phase 10). */
-  requiresFeature?: "meetings";
+  /** When set, the item only renders if this feature flag is on (Phase 10+). */
+  requiresFeature?: "meetings" | "audit";
 }
 
 interface NavGroup {
@@ -127,6 +128,13 @@ const NAV_GROUPS: NavGroup[] = [
         countKey: "assinaturas",
       },
       { label: "Painel", href: "dashboard", icon: BarChart3, roles: ["staff_admin"] },
+      {
+        label: "Trilha de auditoria",
+        href: "manage/audit",
+        icon: ScrollText,
+        roles: ["staff_admin"],
+        requiresFeature: "audit",
+      },
       { label: "Gerenciar", href: "manage/members", icon: Users, roles: ["staff_admin"] },
       {
         label: "Configurações",
@@ -155,6 +163,7 @@ export function AppSidebar({
   roleLabel,
   counts,
   meetingsEnabled = false,
+  auditEnabled = false,
 }: {
   slug: string;
   /** null when a global admin views a commission they're not a member of. */
@@ -167,6 +176,8 @@ export function AppSidebar({
   counts: SidebarCounts;
   /** Whether the `meetings` feature flag is on (gates the "Reuniões" item). */
   meetingsEnabled?: boolean;
+  /** Whether the `audit_trail` feature flag is on (gates the audit item). */
+  auditEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -180,6 +191,7 @@ export function AppSidebar({
   // Feature-gated items also require their flag to be on.
   const isVisible = (item: NavItem) => {
     if (item.requiresFeature === "meetings" && !meetingsEnabled) return false;
+    if (item.requiresFeature === "audit" && !auditEnabled) return false;
     return role === null || item.roles.includes(role);
   };
 

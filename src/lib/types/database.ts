@@ -73,6 +73,69 @@ export type Database = {
           },
         ]
       }
+      audit_log: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_is_admin: boolean
+          commission_id: string | null
+          entity_id: string
+          entity_type: string
+          id: string
+          metadata: Json
+          occurred_at: string
+          prev_hash: string | null
+          row_hash: string
+          seq: number
+          summary: string
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_is_admin?: boolean
+          commission_id?: string | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          prev_hash?: string | null
+          row_hash: string
+          seq: number
+          summary: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_is_admin?: boolean
+          commission_id?: string | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          metadata?: Json
+          occurred_at?: string
+          prev_hash?: string | null
+          row_hash?: string
+          seq?: number
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_log_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_action_items: {
         Row: {
           assigned_to: string | null
@@ -2407,6 +2470,7 @@ export type Database = {
         Args: { p_case_id: string; p_tag_id: string }
         Returns: undefined
       }
+      audit_trail_enabled: { Args: never; Returns: boolean }
       cancel_case: {
         Args: { p_case_id: string }
         Returns: {
@@ -3157,6 +3221,17 @@ export type Database = {
           updated_at: string
           version_number: number
         }[]
+      }
+      log_audit_access: {
+        Args: {
+          p_action: string
+          p_commission: string
+          p_entity_id: string
+          p_entity_type: string
+          p_metadata?: Json
+          p_summary: string
+        }
+        Returns: undefined
       }
       mark_meeting_held: {
         Args: { p_meeting_id: string }
@@ -4146,6 +4221,13 @@ export type Database = {
       validate_visible_when: {
         Args: { p_form_version_id: string }
         Returns: boolean
+      }
+      verify_audit_chain: {
+        Args: { p_commission?: string }
+        Returns: {
+          broken_seq: number
+          ok: boolean
+        }[]
       }
     }
     Enums: {

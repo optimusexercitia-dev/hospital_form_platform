@@ -2,6 +2,7 @@ import { type NextRequest } from 'next/server'
 
 import { getFormExport } from '@/lib/queries/dashboard'
 import { getCommissionAccess } from '@/lib/queries/session'
+import { logAuditAccess } from '@/lib/audit/access'
 
 /**
  * CSV export of a form's raw standalone-submitted responses (Phase 8 B4). This
@@ -65,6 +66,18 @@ export async function GET(
     // Form not found / not published / not entitled → 404, no detail leak.
     return new Response('Não encontrado.', { status: 404 })
   }
+
+  // Sensitive-EXPORT audit (Phase 13 / ADR 0029 §6): a CSV export of submitted
+  // responses emits one `response.exported` row. Best-effort (never blocks the
+  // download); the row count + date window are non-sensitive metadata.
+  await logAuditAccess({
+    action: 'response.exported',
+    entityType: 'response',
+    entityId: formId,
+    commissionId: access.commission.id,
+    summary: 'Respostas exportadas (CSV)',
+    metadata: { form_id: formId, row_count: exportData.rows.length, from: from ?? null, to: to ?? null },
+  })
 
   const csv = toCsv(exportData.headers, exportData.rows)
 

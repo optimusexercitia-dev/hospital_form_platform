@@ -6,6 +6,7 @@ import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { listSignoffQueue } from "@/lib/queries/signoffs";
 import { myPendingMeetingSignatures } from "@/lib/queries/meetings";
 import { meetingsEnabled } from "@/lib/meetings/actions";
+import { auditTrailEnabled } from "@/lib/queries/audit";
 import { AppSidebar, type SidebarCounts } from "@/components/shell/app-sidebar";
 
 /**
@@ -41,7 +42,11 @@ export default async function CommissionLayout({
 
   // The meetings feature flag gates the "Reuniões" nav item + its pending-
   // signatures badge. When off, skip the pending-signatures read entirely.
-  const meetingsOn = await meetingsEnabled();
+  // The audit_trail flag gates the "Trilha de auditoria" coordinator nav item.
+  const [meetingsOn, auditOn] = await Promise.all([
+    meetingsEnabled(),
+    auditTrailEnabled(),
+  ]);
 
   const [myPhases, board, signoffQueue, pendingSignatures] = await Promise.all([
     listMyAssignedPhases(commissionId),
@@ -79,6 +84,7 @@ export default async function CommissionLayout({
         roleLabel={roleLabel}
         counts={counts}
         meetingsEnabled={meetingsOn}
+        auditEnabled={auditOn}
       />
       <main className="min-w-0 flex-1">
         <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 md:px-8">

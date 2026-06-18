@@ -1,0 +1,21 @@
+# ADR 0029 — Audit Trail: Hash-Chained, Trigger-Captured, Append-Only
+
+**Status:** Accepted · **Date:** 2026-06-17 · **Phase:** 13 (per-phase ADR under the [0028](0028-accreditation-governance-roadmap.md) umbrella). Implements Architecture **Rule 11**.
+
+## Context
+
+Accreditation (JCI `MOI`, ONA) scores a **tamper-evident, append-only** audit trail (ALCOA+: Attributable, Legible, Contemporaneous, Original, Accurate, Complete, Enduring). The platform has none. It must capture *who did what to which entity, when* across both RPC and direct-table writes, while honoring the hard **no-patient-data** boundary (Rule 1): never log answer payloads or free-text/Markdown bodies.
+
+## Decision
+
+- **`public.audit_log`** is append-only and **hash-chained**. `row_hash = sha256(prev_hash || canonical(row))` where **the canonical form commits to EVERY semantic column except `id`/`prev_hash`/`row_hash`** (ruling Q3 — covering `summary` + `actor_is_admin` too makes editing the human-readable summary or flipping the admit snapshot detectable, and "the hash covers the whole row" is easier to defend at a survey). Canonical order: `seq, occurred_at, actor_id, actor_is_admin, commission_id, action, entity_type, entity_id, summary, metadata`, joined by U+001E, `occurred_at` in UTC µs, NULL → empty; `metadata` serialized by `app.jsonb_canonical` (sorted keys), reused byte-identically by `verify_audit_chain`. Computed in a single `SECURITY DEFINER` writer. Chains are per-`commission_id`, with a separate **global chain** for `commission_id IS NULL` (admin/system actions); a `commission.created`/`.updated` row goes on **its own commission's chain** (ruling Q4). `seq` is a per-chain monotone counter (advisory-lock + `max+1`, the case/meeting minting pattern — a real Postgres sequence can't be per-commission). `audit_log.commission_id` is **`ON DELETE NO ACTION`** (ruling Q5): commissions are archived, not dropped (no `deleteCommission` exists), so the trail is genuinely enduring and a `SET NULL` cannot mutate a hashed column.
+- **Capture is trigger-based and path-independent.** AFTER INSERT/UPDATE/DELETE triggers on a curated set of high-value tables call `app.audit_write(...)`, so coverage holds for direct-table writes AND RPC writes alike. Service-role paths that bypass RLS (invite) and **sensitive reads/exports** the triggers can't see (staff_admin opening a foreign submitted response, dashboard/audit CSV export) emit explicit `.read`/`.export` rows from the query/route layer.
+- **Non-sensitive allow-list is the boundary.** `metadata` is an old→new diff over a **curated per-table allow-list of non-sensitive columns only** (e.g. `status`, `role`, `position`, `published_at`). NEVER `answers.value`, any `*_md`/free-text/Markdown body, or clinical content. `responses` logs only the status transition (`in_progress→submitted`), never answers. `summary` is a short pt-BR label.
+- **Append-only is DB-enforced.** `app.guard_audit_immutable` (BEFORE UPDATE OR DELETE) raises `HC042` for everyone, including the service role — no UPDATE/DELETE path exists anywhere.
+- **RLS reads, DEFINER writes.** SELECT = `app.is_admin()` (all) OR `is_staff_admin_of(commission_id)` (own commission); no INSERT/UPDATE/DELETE policy for anyone; zero anon/PUBLIC. `verify_audit_chain(commission?)` (DEFINER, gated) recomputes the chain and returns the first broken `seq` or OK. Feature-flagged `audit_trail` (OFF in the core migration, flipped ON in-phase).
+
+## Rejected alternatives
+
+- **RPC-only capture (no triggers):** every RPC calls the writer itself. Rejected — not path-independent: a direct-table write the RLS allows (a staff_admin editing a draft section) would escape the log, breaking Rule 11's "every mutation emits a row".
+- **Logging full row diffs (all columns):** simplest writer, but it would capture `answers.value`, `minutes_md`, `summary_md`, etc. — a direct violation of Rule 1's no-patient-data / no-free-text boundary. The curated non-sensitive allow-list is the deliberate trade.
+- **A global single chain (no per-commission chains):** simpler seq, but it serializes every mutation platform-wide on one advisory lock and lets one commission's staff_admin verify integrity only by reading rows they can't see. Per-commission chains + a global chain keep verification RLS-aligned and concurrency-friendly.

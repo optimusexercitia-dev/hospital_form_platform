@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { getVersionTree } from '@/lib/queries/forms'
 import { getResponseSignoffs } from '@/lib/queries/signoffs'
+import { getSessionContext } from '@/lib/queries/session'
+import { logAuditAccess } from '@/lib/audit/access'
 import type { Json } from '@/lib/types/database'
 import type { VersionTree } from '@/lib/queries/forms'
 import type { ResponseStatus } from '@/lib/queries/responses'
@@ -293,6 +295,27 @@ export async function getSubmissionDetail(
   }
 
   const signoffs = await getResponseSignoffs(responseId)
+
+  // Sensitive-READ audit (Phase 13 / ADR 0029 §6): a staff_admin opening ANOTHER
+  // member's SUBMITTED response emits a `response.opened_foreign` row. Guard:
+  //  - SUBMITTED only (a foreign in_progress response never reaches here — RLS
+  //    returns null above; the caller's OWN in_progress draft is self-access);
+  //  - actor != created_by (no self-read spam).
+  // Best-effort + once per access (this route is dynamic/uncached, so the write
+  // fires once per actual fetch and never blocks the read on failure).
+  if (response.status === 'submitted') {
+    const session = await getSessionContext()
+    if (session && session.userId !== response.created_by) {
+      await logAuditAccess({
+        action: 'response.opened_foreign',
+        entityType: 'response',
+        entityId: response.id,
+        commissionId: response.commission_id,
+        summary: 'Resposta de terceiro visualizada',
+        metadata: { form_version_id: response.form_version_id },
+      })
+    }
+  }
 
   return {
     responseId: response.id,
