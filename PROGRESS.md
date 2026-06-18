@@ -22,7 +22,7 @@
 | 11    | Interviews                    | ✅ complete | ✅ | ✅ 152/152 | ✅ APPROVED | ✅ 2026-06-15 | 2026-06-15 | `3d7376b` |
 | 12    | Case Timeline                 | ✅ complete | ✅ | ✅ 169/169 | ✅ APPROVED | ✅ 2026-06-16 | 2026-06-16 | `0feaa9a` |
 | 13    | Audit Trail                   | ✅ complete | ✅ | ✅ 195/195 | ✅ APPROVED | ✅ 2026-06-18 | 2026-06-18 | `a8739b5` |
-| 14    | Patient-Safety / NSP (RCA & CAPA, 14a–14d) | 🏗️ 14a ✅ · 14b–d 🔜 | ✅ (14a) | ✅ 211/211 (14a) | ✅ APPROVED (14a) | ✅ 2026-06-18 (14a) | 14a: 2026-06-18 | 14a: (pending) |
+| 14    | Patient-Safety / NSP (RCA & CAPA, 14a–14d) | 🏗️ 14a ✅ · 14b–d 🔜 | ✅ (14a) | ✅ 211/211 (14a) | ✅ APPROVED (14a) | ✅ 2026-06-18 (14a) | 14a: 2026-06-18 | 14a: `984e787` |
 | 15    | Quality Indicators            | 🔜 not started | – | – | – | – | – | – |
 | 16    | Standards Crosswalk & Readiness | 🔜 not started | – | – | – | – | – | – |
 | 17    | Controlled-Document Lifecycle | 🔜 not started | – | – | – | – | – | – |
