@@ -16,6 +16,7 @@ import {
   PenLine,
   ScrollText,
   Settings2,
+  ShieldAlert,
   Users,
   Workflow,
   X,
@@ -45,7 +46,7 @@ interface NavItem {
   roles: CommissionRole[];
   countKey?: CountKey;
   /** When set, the item only renders if this feature flag is on (Phase 10+). */
-  requiresFeature?: "meetings" | "audit";
+  requiresFeature?: "meetings" | "audit" | "patient_safety";
 }
 
 interface NavGroup {
@@ -100,6 +101,13 @@ const NAV_GROUPS: NavGroup[] = [
         roles: ["staff", "staff_admin"],
         countKey: "reunioesPendentes",
         requiresFeature: "meetings",
+      },
+      {
+        label: "Eventos de segurança",
+        href: "eventos",
+        icon: ShieldAlert,
+        roles: ["staff", "staff_admin"],
+        requiresFeature: "patient_safety",
       },
     ],
   },
@@ -164,6 +172,7 @@ export function AppSidebar({
   counts,
   meetingsEnabled = false,
   auditEnabled = false,
+  patientSafetyEnabled = false,
 }: {
   slug: string;
   /** null when a global admin views a commission they're not a member of. */
@@ -178,6 +187,8 @@ export function AppSidebar({
   meetingsEnabled?: boolean;
   /** Whether the `audit_trail` feature flag is on (gates the audit item). */
   auditEnabled?: boolean;
+  /** Whether the `patient_safety` flag is on (gates the "Eventos de segurança" item). */
+  patientSafetyEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -192,6 +203,8 @@ export function AppSidebar({
   const isVisible = (item: NavItem) => {
     if (item.requiresFeature === "meetings" && !meetingsEnabled) return false;
     if (item.requiresFeature === "audit" && !auditEnabled) return false;
+    if (item.requiresFeature === "patient_safety" && !patientSafetyEnabled)
+      return false;
     return role === null || item.roles.includes(role);
   };
 

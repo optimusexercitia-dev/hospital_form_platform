@@ -17,6 +17,8 @@ import { listCaseTags, listCaseTagsForCase } from "@/lib/queries/case-tags";
 import { listCaseActionItems } from "@/lib/queries/case-action-items";
 import { listCaseInterviews, interviewsEnabled } from "@/lib/queries/interviews";
 import { InterviewsPanel } from "@/components/interviews/interviews-panel";
+import { patientSafetyEnabled } from "@/lib/queries/pqs";
+import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
 
 export const metadata: Metadata = {
   title: "Detalhe do caso",
@@ -54,7 +56,10 @@ export default async function CaseDetailPage({
   // (documents/events/tags/action items) load alongside. The Interviews panel
   // (Phase 11) is feature-flagged; when off we skip the read and render nothing
   // for it (the route 404s on its own detail page too).
-  const interviewsOn = await interviewsEnabled();
+  const [interviewsOn, patientSafetyOn] = await Promise.all([
+    interviewsEnabled(),
+    patientSafetyEnabled(),
+  ]);
   const [members, documents, events, tags, caseTags, actionItems, interviews] =
     await Promise.all([
       listMembers(access.commission.id),
@@ -80,6 +85,16 @@ export default async function CaseDetailPage({
 
   return (
     <CaseDetailMotion className="flex w-full flex-col gap-8">
+      {/* Patient-safety entry (Phase 14a, F1): any commission member may notify
+          the NSP of a safety event raised from this case. Flag-gated; available
+          regardless of case status (filing an event is not a case-workflow op).
+          The dialog hosts the shared notify form, pre-bound to this case. */}
+      {patientSafetyOn && (
+        <div data-rise className="flex justify-end">
+          <NotifyEventDialog commissionId={access.commission.id} caseId={c.id} />
+        </div>
+      )}
+
       {/* Two-column region: flex-col (mobile) → 2-col grid (lg). `contents` on the
           column wrappers lets mobile interleave the columns via `order-*` while
           desktop packs each column independently.

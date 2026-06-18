@@ -48,6 +48,10 @@ export type AuditEntityType =
   | 'meeting_signature'
   | 'interview'
   | 'audit'
+  // patient-safety / NSP (Phase 14a)
+  | 'safety_event'
+  | 'event_custody'
+  | 'event_patient'
 
 /**
  * The audit `action` union — `'<entity>.<verb>'`. These are the verbs emitted by
@@ -91,6 +95,15 @@ export type AuditAction =
   // interviews
   | 'interview.created'
   | 'interview.status_changed'
+  // patient-safety / NSP (Phase 14a) — mutation triggers (PHI-free metadata)
+  | 'safety_event.reported'
+  | 'safety_event.acknowledged'
+  | 'safety_event.cancelled'
+  | 'safety_event.status_changed'
+  | 'event_custody.transferred'
+  | 'event_patient.updated'
+  // patient-safety PHI READ — explicit `.read` call site (Rule 11/12; HIPAA)
+  | 'event_patient.read'
   // exports (logged via explicit `.export` writer calls in the route layer)
   | 'response.exported'
   | 'audit.exported'
@@ -115,6 +128,9 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   meeting_signature: 'Assinatura de ata',
   interview: 'Entrevista',
   audit: 'Trilha de auditoria',
+  safety_event: 'Evento de segurança',
+  event_custody: 'Custódia de evento',
+  event_patient: 'Dados do paciente (evento)',
 }
 
 /** pt-BR labels for the action filter (short verb phrases). */
@@ -147,6 +163,13 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'meeting.signed': 'Ata assinada',
   'interview.created': 'Entrevista criada',
   'interview.status_changed': 'Status da entrevista alterado',
+  'safety_event.reported': 'Evento de segurança notificado',
+  'safety_event.acknowledged': 'Evento reconhecido pelo NSP',
+  'safety_event.cancelled': 'Evento cancelado',
+  'safety_event.status_changed': 'Status do evento alterado',
+  'event_custody.transferred': 'Custódia do evento transferida',
+  'event_patient.updated': 'Dados do paciente atualizados',
+  'event_patient.read': 'Dados do paciente visualizados',
   'response.exported': 'Respostas exportadas',
   'audit.exported': 'Trilha de auditoria exportada',
 }

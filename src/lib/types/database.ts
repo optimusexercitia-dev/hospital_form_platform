@@ -1107,6 +1107,114 @@ export type Database = {
           },
         ]
       }
+      event_custody: {
+        Row: {
+          assigned_by: string | null
+          created_at: string
+          event_id: string
+          held_from: string
+          held_until: string | null
+          id: string
+          note: string | null
+          owner_commission_id: string | null
+          owner_kind: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          created_at?: string
+          event_id: string
+          held_from?: string
+          held_until?: string | null
+          id?: string
+          note?: string | null
+          owner_commission_id?: string | null
+          owner_kind: string
+        }
+        Update: {
+          assigned_by?: string | null
+          created_at?: string
+          event_id?: string
+          held_from?: string
+          held_until?: string | null
+          id?: string
+          note?: string | null
+          owner_commission_id?: string | null
+          owner_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_custody_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_custody_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "patient_safety_event"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_custody_owner_commission_id_fkey"
+            columns: ["owner_commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_patient: {
+        Row: {
+          age_years: number | null
+          attending: string | null
+          created_at: string
+          date_of_birth: string | null
+          encounter_ref: string | null
+          event_id: string
+          mrn: string | null
+          name: string | null
+          sex: string
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          age_years?: number | null
+          attending?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          encounter_ref?: string | null
+          event_id: string
+          mrn?: string | null
+          name?: string | null
+          sex?: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          age_years?: number | null
+          attending?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          encounter_ref?: string | null
+          event_id?: string
+          mrn?: string | null
+          name?: string | null
+          sex?: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_patient_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: true
+            referencedRelation: "patient_safety_event"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_items: {
         Row: {
           content: Json | null
@@ -1809,6 +1917,148 @@ export type Database = {
           },
         ]
       }
+      patient_safety_event: {
+        Row: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          case_id: string | null
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          current_owner_commission_id: string | null
+          current_owner_kind: string
+          description_md: string | null
+          discovered_at: string | null
+          event_type_id: string | null
+          id: string
+          location: string | null
+          reported_at: string
+          reported_by: string | null
+          reporting_commission_id: string
+          status: string
+          suspected_harm_level: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          case_id?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          code: string
+          created_at?: string
+          current_owner_commission_id?: string | null
+          current_owner_kind?: string
+          description_md?: string | null
+          discovered_at?: string | null
+          event_type_id?: string | null
+          id?: string
+          location?: string | null
+          reported_at?: string
+          reported_by?: string | null
+          reporting_commission_id: string
+          status?: string
+          suspected_harm_level?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          case_id?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
+          code?: string
+          created_at?: string
+          current_owner_commission_id?: string | null
+          current_owner_kind?: string
+          description_md?: string | null
+          discovered_at?: string | null
+          event_type_id?: string | null
+          id?: string
+          location?: string | null
+          reported_at?: string
+          reported_by?: string | null
+          reporting_commission_id?: string
+          status?: string
+          suspected_harm_level?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_safety_event_acknowledged_by_fkey"
+            columns: ["acknowledged_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_safety_event_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_safety_event_closed_by_fkey"
+            columns: ["closed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_safety_event_current_owner_commission_id_fkey"
+            columns: ["current_owner_commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_safety_event_reported_by_fkey"
+            columns: ["reported_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_safety_event_reporting_commission_id_fkey"
+            columns: ["reporting_commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pqs_department: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          rca_default_due_days: number
+          singleton: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string
+          rca_default_due_days?: number
+          singleton?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          rca_default_due_days?: number
+          singleton?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       process_template_outcomes: {
         Row: {
           created_at: string
@@ -2100,6 +2350,38 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      acknowledge_event: {
+        Args: { p_event_id: string }
+        Returns: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          case_id: string | null
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          current_owner_commission_id: string | null
+          current_owner_kind: string
+          description_md: string | null
+          discovered_at: string | null
+          event_type_id: string | null
+          id: string
+          location: string | null
+          reported_at: string
+          reported_by: string | null
+          reporting_commission_id: string
+          status: string
+          suspected_harm_level: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "patient_safety_event"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       activate_phase: {
         Args: {
           p_assigned_to: string
@@ -2489,6 +2771,38 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cancel_event: {
+        Args: { p_event_id: string }
+        Returns: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          case_id: string | null
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          current_owner_commission_id: string | null
+          current_owner_kind: string
+          description_md: string | null
+          discovered_at: string | null
+          event_type_id: string | null
+          id: string
+          location: string | null
+          reported_at: string
+          reported_by: string | null
+          reporting_commission_id: string
+          status: string
+          suspected_harm_level: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "patient_safety_event"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -3279,6 +3593,70 @@ export type Database = {
           title: string
         }[]
       }
+      notify_safety_event: {
+        Args: {
+          p_case_id?: string
+          p_description_md?: string
+          p_discovered_at?: string
+          p_event_type_id?: string
+          p_location?: string
+          p_reporting_commission_id: string
+          p_suspected_harm_level?: string
+          p_title: string
+        }
+        Returns: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          case_id: string | null
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          current_owner_commission_id: string | null
+          current_owner_kind: string
+          description_md: string | null
+          discovered_at: string | null
+          event_type_id: string | null
+          id: string
+          location: string | null
+          reported_at: string
+          reported_by: string | null
+          reporting_commission_id: string
+          status: string
+          suspected_harm_level: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "patient_safety_event"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      patient_safety_enabled: { Args: never; Returns: boolean }
+      pqs_inbox: {
+        Args: {
+          p_reporting_commission_id?: string
+          p_status?: string
+          p_suspected_harm_level?: string
+        }
+        Returns: {
+          acknowledged_at: string
+          case_id: string
+          case_number: number
+          code: string
+          current_owner_commission_id: string
+          current_owner_kind: string
+          id: string
+          reported_at: string
+          reporting_commission_id: string
+          reporting_commission_name: string
+          status: string
+          suspected_harm_level: string
+          title: string
+        }[]
+      }
       publish_form_version: {
         Args: { p_form_version_id: string }
         Returns: {
@@ -3583,6 +3961,20 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_event_patient: {
+        Args: {
+          p_age_years?: number
+          p_attending?: string
+          p_date_of_birth?: string
+          p_encounter_ref?: string
+          p_event_id: string
+          p_mrn?: string
+          p_name?: string
+          p_sex?: string
+          p_unit?: string
+        }
+        Returns: undefined
+      }
       set_meeting_quorum_met: {
         Args: { p_meeting_id: string; p_quorum_met: boolean }
         Returns: {
@@ -3810,6 +4202,43 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      transfer_event_custody: {
+        Args: {
+          p_event_id: string
+          p_note?: string
+          p_to_commission_id?: string
+          p_to_owner_kind: string
+        }
+        Returns: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          case_id: string | null
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          current_owner_commission_id: string | null
+          current_owner_kind: string
+          description_md: string | null
+          discovered_at: string | null
+          event_type_id: string | null
+          id: string
+          location: string | null
+          reported_at: string
+          reported_by: string | null
+          reporting_commission_id: string
+          status: string
+          suspected_harm_level: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "patient_safety_event"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       unassign_case_tag: {
         Args: { p_case_id: string; p_tag_id: string }
         Returns: undefined
@@ -3871,6 +4300,46 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_outcomes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_event: {
+        Args: {
+          p_description_md?: string
+          p_discovered_at?: string
+          p_event_id: string
+          p_event_type_id?: string
+          p_location?: string
+          p_suspected_harm_level?: string
+          p_title: string
+        }
+        Returns: {
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          case_id: string | null
+          closed_at: string | null
+          closed_by: string | null
+          code: string
+          created_at: string
+          current_owner_commission_id: string | null
+          current_owner_kind: string
+          description_md: string | null
+          discovered_at: string | null
+          event_type_id: string | null
+          id: string
+          location: string | null
+          reported_at: string
+          reported_by: string | null
+          reporting_commission_id: string
+          status: string
+          suspected_harm_level: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "patient_safety_event"
           isOneToOne: true
           isSetofReturn: false
         }

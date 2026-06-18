@@ -23,7 +23,12 @@ import type { Json } from '@/lib/types/database'
  * match the positive allow-list in `public.log_audit_access`, ADR 0029 §6). */
 export type AuditAccessAction = Extract<
   AuditAction,
-  'response.opened_foreign' | 'response.exported' | 'audit.exported'
+  | 'response.opened_foreign'
+  | 'response.exported'
+  | 'audit.exported'
+  // patient-safety PHI READ (Phase 14a; Rule 11/12 — HIPAA requires logging PHI
+  // access). Added to the DB-side positive allow-list in migration …121004.
+  | 'event_patient.read'
 >
 
 export async function logAuditAccess(params: {

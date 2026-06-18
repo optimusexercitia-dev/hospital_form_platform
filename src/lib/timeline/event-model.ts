@@ -31,16 +31,20 @@
 // ---------------------------------------------------------------------------
 
 /**
- * The 8-type taxonomy (plan decision 13). Each maps in the UI's `type-meta` to
- * one icon + one color role + one pt-BR legend label:
- *   - `lifecycle`  — case opened / closed (`cases.created_at` / `closed_at`).
- *   - `phase`      — a `case_phases` row; the ONLY durational (bar) type.
- *   - `milestone`  — a `case_events` row with `kind = 'decision'`.
- *   - `interview`  — a `case_interviews` row.
- *   - `meeting`    — a `meetings` row linked via `meeting_cases`.
- *   - `document`   — a `case_documents` row.
- *   - `action`     — a `case_action_items` row.
- *   - `note`       — a `case_events` row with `kind ∈ {note, meeting, other}`.
+ * The 9-type taxonomy (plan decision 13; `safety_event` added in Phase 14a). Each
+ * maps in the UI's `type-meta` to one icon + one color role + one pt-BR legend label:
+ *   - `lifecycle`    — case opened / closed (`cases.created_at` / `closed_at`).
+ *   - `phase`        — a `case_phases` row; the ONLY durational (bar) type.
+ *   - `milestone`    — a `case_events` row with `kind = 'decision'`.
+ *   - `interview`    — a `case_interviews` row.
+ *   - `meeting`      — a `meetings` row linked via `meeting_cases`.
+ *   - `document`     — a `case_documents` row.
+ *   - `action`       — a `case_action_items` row.
+ *   - `safety_event` — a `patient_safety_event` raised from this case (Phase 14a).
+ *                      STRICTLY PHI-FREE on the timeline: code/title/status/date/
+ *                      owner only — never `event_patient` identifiers or
+ *                      `description_md`. Composed under access-follows-custody.
+ *   - `note`         — a `case_events` row with `kind ∈ {note, meeting, other}`.
  */
 export type TimelineEventType =
   | 'lifecycle'
@@ -50,6 +54,7 @@ export type TimelineEventType =
   | 'meeting'
   | 'document'
   | 'action'
+  | 'safety_event'
   | 'note'
 
 /**

@@ -687,3 +687,77 @@ begin
     (v_itw, 'gravacao_audio', 'Gravação de áudio (link externo)',
      null, 'https://example.com/recordings/caso-0001-entrevista.mp3', null, null, v_chefe_a);
 end $$;
+
+-- ===========================================================================
+-- 9. PATIENT-SAFETY / NSP (Phase 14a) — the singleton NSP + sample events
+-- ===========================================================================
+-- The platform's FIRST PHI (Rule 12; ADR 0030/0031), isolated + access-audited.
+-- Direct inserts as the superuser seed owner (mirrors the meetings/interviews seed;
+-- the lifecycle RPCs gate on auth.uid(), which is null here). The code-mint BEFORE
+-- INSERT trigger assigns EV-0001/EV-0002 automatically, so `code` is omitted.
+-- Two events: one CASE-LINKED with an isolated event_patient PHI row, and one
+-- STAND-ALONE (case-less). Both start at the NSP (current_owner_kind = 'pqs').
+do $$
+declare
+  v_comm_a   uuid := 'a0000000-0000-0000-0000-0000000000a1';  -- CCIH
+  v_chefe_a  uuid := '00000000-0000-0000-0000-000000000002';  -- chefe.ccih (staff_admin)
+  v_staff_a1 uuid := '00000000-0000-0000-0000-000000000003';  -- staff1.ccih (just-culture reporter)
+  v_case1    uuid := 'd0000000-0000-0000-0000-0000000000c1';  -- existing Caso 0001
+  v_ev1      uuid := 'e1000000-0000-0000-0000-0000000000a1';  -- case-linked event (has PHI)
+  v_ev2      uuid := 'e2000000-0000-0000-0000-0000000000a2';  -- stand-alone event
+begin
+  -- The singleton NSP department (one row; default name + 45-day RCA window).
+  insert into public.pqs_department (name, rca_default_due_days)
+  values ('Núcleo de Segurança do Paciente', 45);
+
+  -- Event 1 — CASE-LINKED, reported by a PLAIN staff member (just-culture),
+  -- acknowledged by the NSP. Held by the NSP.
+  insert into public.patient_safety_event
+    (id, reporting_commission_id, case_id, discovered_at, location, reported_by,
+     suspected_harm_level, title, description_md, status,
+     current_owner_kind, current_owner_commission_id, acknowledged_by, acknowledged_at)
+  values
+    (v_ev1, v_comm_a, v_case1, current_date - 2, 'UTI Adulto, leito 7', v_staff_a1,
+     'moderate', 'Queda de paciente durante transferência',
+     E'## Descrição\n\nPaciente sofreu queda durante a transferência da maca para o '
+     || E'leito. Avaliado pela equipe; conduta registrada no prontuário.',
+     'acknowledged', 'pqs', null, v_chefe_a, now() - interval '1 day');
+
+  -- Its initial custody interval (opened at the NSP).
+  insert into public.event_custody
+    (event_id, owner_kind, owner_commission_id, assigned_by, note)
+  values
+    (v_ev1, 'pqs', null, v_staff_a1, 'Notificação inicial ao NSP');
+
+  -- The case_events 'safety_event' echo (Phase-12 timeline; deduped off the
+  -- timeline against the authoritative patient_safety_event read).
+  insert into public.case_events (case_id, kind, title, body, occurred_at, created_by)
+  values
+    (v_case1, 'safety_event', 'Evento de segurança EV-0001',
+     'Evento EV-0001 notificado ao NSP: Queda de paciente durante transferência',
+     current_date - 2, v_staff_a1);
+
+  -- Its ISOLATED PHI row (minimum-necessary identifiers; Rule 12).
+  insert into public.event_patient
+    (event_id, name, mrn, date_of_birth, sex, encounter_ref, unit, attending)
+  values
+    (v_ev1, 'Paciente de Demonstração', 'PRT-0099123', '1958-03-14', 'male',
+     'ENC-2026-4471', 'UTI Adulto', 'Dr. Ricardo Antunes');
+
+  -- Event 2 — STAND-ALONE (no case), freshly reported, held by the NSP.
+  insert into public.patient_safety_event
+    (id, reporting_commission_id, case_id, discovered_at, location, reported_by,
+     suspected_harm_level, title, description_md, status,
+     current_owner_kind, current_owner_commission_id)
+  values
+    (v_ev2, v_comm_a, null, current_date - 1, 'Farmácia central', v_chefe_a,
+     'mild', 'Divergência na dispensação de medicamento',
+     E'## Descrição\n\nDivergência identificada na conferência de dispensação. '
+     || E'Sem alcance ao paciente. Notificado para análise do NSP.',
+     'reported', 'pqs', null);
+
+  insert into public.event_custody
+    (event_id, owner_kind, owner_commission_id, assigned_by, note)
+  values
+    (v_ev2, 'pqs', null, v_chefe_a, 'Notificação inicial ao NSP');
+end $$;

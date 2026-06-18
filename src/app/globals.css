@@ -129,6 +129,13 @@
   --event-document-soft: oklch(0.55 0.03 252 / 0.1);
   --event-action: var(--warning); /* amber */
   --event-action-soft: oklch(0.62 0.13 65 / 0.12);
+  /* safety_event (Phase 14a) — a DEDICATED high-attention ROSE (hue ~358), NOT an
+     alias of --destructive (kept for errors/delete) and clearly apart from the
+     orange-red milestone (~25), amber action (~65) and violet interview (~320),
+     so a patient-safety event reads as its own serious class at a glance. The
+     soft variant is the chip/node fill. */
+  --event-safety_event: oklch(0.53 0.2 358);
+  --event-safety_event-soft: oklch(0.53 0.2 358 / 0.12);
   --event-lifecycle: var(--muted-foreground); /* neutral — cool slate-petrol */
   --event-lifecycle-soft: oklch(0.52 0.022 252 / 0.1);
   /* note — nudged a touch WARMER + lower-chroma than the cool lifecycle neutral
@@ -201,6 +208,11 @@
   --event-document-soft: oklch(0.7 0.03 252 / 0.16);
   --event-action: var(--warning);
   --event-action-soft: oklch(0.75 0.13 75 / 0.2);
+  /* safety_event — dark variant: a brighter rose (same dedicated ~358 hue) + a
+     more opaque soft tint so the chip reads on the dark card surface (kept apart
+     from milestone's orange-red, amber action and violet interview). */
+  --event-safety_event: oklch(0.7 0.2 358);
+  --event-safety_event-soft: oklch(0.7 0.2 358 / 0.2);
   --event-lifecycle: var(--muted-foreground); /* cool slate-petrol neutral */
   --event-lifecycle-soft: oklch(0.72 0.02 252 / 0.16);
   /* note — warmer taupe-grey, separated from the cool lifecycle neutral. */

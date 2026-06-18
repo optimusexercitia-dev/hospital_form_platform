@@ -119,6 +119,23 @@ interface InterviewRegistryRow {
   registry_event_id: string | null
 }
 
+/**
+ * A `patient_safety_event` row read directly under the access-follows-custody RLS
+ * (`patient_safety_event_select`). STRICTLY PHI-FREE — governance columns only;
+ * NEVER `event_patient` identifiers or `description_md`. A case-linked event is
+ * readable here only by a member in the event's access scope (the case detail is
+ * staff_admin-gated upstream, and this read fails closed otherwise).
+ */
+interface CaseSafetyEventRow {
+  id: string
+  code: string
+  title: string
+  status: string
+  current_owner_kind: string
+  reported_at: string
+  discovered_at: string | null
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -227,6 +244,30 @@ async function interviewRegistryEventIds(caseId: string): Promise<Set<string>> {
   )
 }
 
+/**
+ * The case's patient-safety events read directly under the access-follows-custody
+ * RLS — STRICTLY PHI-FREE (code/title/status/dates/owner only). A non-member of
+ * the event's access scope reads nothing (RLS fails closed); no PHI ever loads on
+ * this path (the timeline never touches `event_patient`).
+ */
+async function listCaseSafetyEvents(
+  caseId: string,
+): Promise<CaseSafetyEventRow[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('patient_safety_event')
+    .select(
+      'id, code, title, status, current_owner_kind, reported_at, discovered_at',
+    )
+    .eq('case_id', caseId)
+    .order('reported_at', { ascending: true })
+    .returns<CaseSafetyEventRow[]>()
+
+  if (error || !data) return []
+  return data
+}
+
 /** A phase's display title: its own `title`, else the bound form title, else "Fase N". */
 function phaseTitle(p: CasePhaseTimelineRow): string {
   return p.title?.trim() || p.forms?.title?.trim() || `Fase ${p.position}`
@@ -308,16 +349,25 @@ export async function getCaseTimeline(caseId: string): Promise<CaseTimeline> {
   const detail = await getCaseDetail(caseId)
   if (!detail) return empty
 
-  const [interviews, meetings, documents, events, actions, phases, registryIds] =
-    await Promise.all([
-      listCaseInterviews(caseId),
-      listCaseMeetings(caseId),
-      listCaseDocuments(caseId),
-      listCaseEvents(caseId),
-      listCaseActionItems(caseId),
-      listCasePhasesForTimeline(caseId),
-      interviewRegistryEventIds(caseId),
-    ])
+  const [
+    interviews,
+    meetings,
+    documents,
+    events,
+    actions,
+    phases,
+    registryIds,
+    safetyEvents,
+  ] = await Promise.all([
+    listCaseInterviews(caseId),
+    listCaseMeetings(caseId),
+    listCaseDocuments(caseId),
+    listCaseEvents(caseId),
+    listCaseActionItems(caseId),
+    listCasePhasesForTimeline(caseId),
+    interviewRegistryEventIds(caseId),
+    listCaseSafetyEvents(caseId),
+  ])
 
   const isOpen = !isTerminalCaseStatus(detail.case.status)
   const reference = isOpen ? new Date().toISOString().slice(0, 10) : null
@@ -402,7 +452,25 @@ export async function getCaseTimeline(caseId: string): Promise<CaseTimeline> {
     })
   }
 
-  // --- Manual case events (milestone / note), with two dedups -----------
+  // --- Patient-safety events (Phase 14a) --------------------------------
+  // STRICTLY PHI-FREE: code/title/status/date/owner only — never `event_patient`
+  // identifiers or `description_md`. Composed under the access-follows-custody RLS
+  // (a non-scope member read nothing above). The `cancelled` event renders muted.
+  for (const se of safetyEvents) {
+    out.push({
+      id: `safety_event:${se.id}`,
+      type: 'safety_event',
+      title: se.title?.trim() ? `${se.code} — ${se.title.trim()}` : se.code,
+      day: se.discovered_at ?? se.reported_at,
+      owner: null,
+      note: se.current_owner_kind === 'pqs' ? 'Em custódia do NSP' : null,
+      statusSlug: se.status,
+      muted: se.status === 'cancelled',
+      href: null,
+    })
+  }
+
+  // --- Manual case events (milestone / note), with three dedups ---------
   // 1. INTERVIEW echo: the interview-conclusion RPC writes a `case_events`
   //    kind='interview' row whose id is the interview's `registry_event_id`;
   //    the `interview` event already represents it → drop by id.
@@ -414,9 +482,16 @@ export async function getCaseTimeline(caseId: string): Promise<CaseTimeline> {
   //    here (a manual note is never authored with kind='meeting'). Genuine
   //    manual notes are kind ∈ {note, other}; decisions → milestone. (Deviation
   //    from the plan's "kind ∈ {note,meeting,other} → note" — see report.)
+  // 3. SAFETY-EVENT echo: `notify_safety_event` writes a `case_events`
+  //    kind='safety_event' row per case-linked event (migration …121002); the
+  //    authoritative `safety_event` event (direct `patient_safety_event` read)
+  //    already represents it, and the echo carries no back-reference — drop the
+  //    whole kind='safety_event' class (mirrors the meeting-echo dedup).
   for (const e of events) {
     if (registryIds.has(e.id)) continue
-    if (e.kind === 'meeting') continue
+    // `safety_event` is a DB-only echo kind not in the user-facing CaseEventKind
+    // union (see case-documents.ts) — compare the raw string to drop it.
+    if (e.kind === 'meeting' || (e.kind as string) === 'safety_event') continue
     const isDecision = e.kind === 'decision'
     out.push({
       id: `event:${e.id}`,

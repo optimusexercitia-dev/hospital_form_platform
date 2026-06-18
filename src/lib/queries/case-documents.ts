@@ -54,7 +54,15 @@ export interface CaseDocumentWithUrl extends CaseDocument {
 // Events (manual free-text)
 // ---------------------------------------------------------------------------
 
-/** Manual event kinds (ASCII slugs; pt-BR labels in the UI). */
+/**
+ * Manual case-event kinds the UI authors + labels (ASCII slugs; pt-BR labels in
+ * the UI). The DB `case_events_kind_check` additionally allows system "registry
+ * echo" kinds (`interview` — Phase 11; `safety_event` — Phase 14a) written by
+ * conclusion/notify RPCs; those are deduped OFF the case timeline against their
+ * authoritative source event and are never surfaced as a manual event, so they
+ * stay out of this user-facing union (the timeline compares the raw `kind` string
+ * to drop them — see `case-timeline.ts`). `meeting` predates this and remains.
+ */
 export type CaseEventKind = 'note' | 'meeting' | 'decision' | 'other'
 
 /** A manual free-text case event (working note / minute of a decision). */

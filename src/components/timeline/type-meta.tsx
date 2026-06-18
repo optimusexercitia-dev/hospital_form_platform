@@ -26,6 +26,7 @@ import {
   Flag,
   FolderPlus,
   Paperclip,
+  ShieldAlert,
   StickyNote,
   Users,
   type LucideIcon,
@@ -95,6 +96,12 @@ export const TYPE_META: Record<TimelineEventType, TypeMeta> = {
     colorVar: "var(--event-action)",
     softVar: "var(--event-action-soft)",
   },
+  safety_event: {
+    label: "Evento de segurança",
+    icon: ShieldAlert,
+    colorVar: "var(--event-safety_event)",
+    softVar: "var(--event-safety_event-soft)",
+  },
   note: {
     label: "Nota",
     icon: StickyNote,
@@ -112,6 +119,7 @@ export const TYPE_ORDER: readonly TimelineEventType[] = [
   "meeting",
   "document",
   "action",
+  "safety_event",
   "note",
 ] as const;
 
