@@ -44,8 +44,10 @@ export const AUDIT_MESSAGES = {
   // Export
   exportFailed: 'Não foi possível exportar a trilha. Tente novamente.',
 
-  // Internal-only (append-only guard; not expected to reach the UI)
-  appendOnly: 'Os registros de auditoria não podem ser alterados nem excluídos.',
+  // Internal-only (append-only guard; not expected to reach the UI). Wording aligned
+  // to the HC042 DB RAISE in app.guard_audit_immutable (migration …120000) — QA
+  // Phase-13 cosmetic MINOR; TS-side only (the internal RAISE text is not churned).
+  appendOnly: 'Os registros de auditoria são imutáveis (somente inserção).',
 } as const
 
 /**

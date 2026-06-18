@@ -128,6 +128,80 @@ async function rpc(
   })
 }
 
+/**
+ * Create a fresh throwaway auth user via the Supabase admin API. The profile
+ * auto-creates via the on-signup trigger. Returns `{ userId, email }`.
+ *
+ * ISOLATION root-cause fix (P13-006): every AC-1 test that needs an actor
+ * creates a FRESH user here — NEVER a seeded persona. Seeded users (chefe.ccih,
+ * staff2.ccih, etc.) have single-commission assertions in phase2/phase3 that
+ * break the moment a seeded user is added to ANY extra commission. Throwaway
+ * users have no such assertions, so adding them to probe commissions is safe.
+ */
+async function makeProbeUser(
+  req: APIRequestContext,
+  label: string,
+): Promise<{ userId: string; email: string }> {
+  const email = `probe-${label}-${Date.now()}@probe.local`
+  const resp = await req.post(`${SUPABASE_URL}/auth/v1/admin/users`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    data: { email, password: 'Test1234!', email_confirm: true },
+  })
+  expect(resp.status()).toBe(200)
+  const body = (await resp.json()) as { id: string }
+  expect(body.id).toBeTruthy()
+  return { userId: body.id, email }
+}
+
+/**
+ * Create a throwaway probe commission (service-role direct write) and add the
+ * given user IDs as members with the specified roles. Returns the new commissionId.
+ *
+ * ALL AC-1 mutation tests operate inside their own probe commission so that no
+ * shared seeded commission (CCIH/Farm) is ever mutated — eliminating cross-spec
+ * contamination with phase2/5/6/7/8 specs that assert on the CCIH board/forms
+ * (Bug P13-004 / P13-005 root cause).
+ */
+async function makeProbeCommission(
+  req: APIRequestContext,
+  testId: string,
+  members: { userId: string; role: 'staff' | 'staff_admin' }[],
+): Promise<string> {
+  const slug = `probe-${testId}-${Date.now()}`
+  const commResp = await req.post(`${SUPABASE_URL}/rest/v1/commissions`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    data: { name: `Probe ${testId} (${slug})`, slug, created_by: ADMIN_ID },
+  })
+  expect(commResp.status()).toBe(201)
+  const commRow = (await commResp.json()) as { id: string }[]
+  const commId = commRow[0].id
+  expect(commId).toBeTruthy()
+
+  for (const { userId, role } of members) {
+    const mResp = await req.post(`${SUPABASE_URL}/rest/v1/commission_members`, {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=representation',
+      },
+      data: { commission_id: commId, user_id: userId, role },
+    })
+    expect(mResp.status()).toBe(201)
+  }
+
+  return commId
+}
+
 interface AuditRow {
   id: string
   action: string
@@ -161,20 +235,33 @@ async function auditRowsFor(
 // ISOLATION: Every test creates its OWN disposable fixture — never mutating
 // canonical seeded entities (FORM_A_VER / CASE_1 / MEETING_1 / RESP_E1 /
 // staff1.farm memberships). This prevents cross-spec contamination in the full
-// suite run (Bug P13-004).
+// suite run (Bugs P13-004 / P13-005 / P13-006).
+// AC-1a/1c/1d/1e: actor + member are FRESH throwaway users created via the
+// auth admin API — NEVER seeded personas. Seeded users have single-commission
+// assertions in phase2/phase3 that break when they are added to extra commissions.
+// AC-1b: actor = admin (global, safe); member = fresh throwaway user.
+// AC-1f: creates a fresh CCIH meeting using the seeded chefe.ccih (safe — the
+//         seeded CCIH membership is not changed; only a new meeting is created).
 // ===========================================================================
 
-test('AC-1a: publish a form version → exactly one form_version.published row (actor=chefe.ccih, entity=version)', async ({
+test('AC-1a: publish a form version → exactly one form_version.published row (actor=probe staff_admin, entity=version)', async ({
   request,
 }) => {
-  const chefe = await getOwnerToken(request, 'chefe.ccih@test.local')
+  // ISOLATION (P13-006): use a FRESH throwaway user as the actor — NEVER a seeded
+  // persona. Seeded users (e.g. chefe.ccih) have single-commission assertions in
+  // phase2/phase3; adding them to ANY extra commission breaks those specs.
+  // A throwaway user has no such assertions.
+  const probeAdmin = await makeProbeUser(request, 'ac1a-admin')
+  const probeCommId = await makeProbeCommission(request, 'ac1a', [
+    { userId: probeAdmin.userId, role: 'staff_admin' },
+  ])
+  const actorToken = await getOwnerToken(request, probeAdmin.email)
 
-  const before = await auditRowsFor(request, 'form_version.published', CHEFE_CCIH_ID)
+  const before = await auditRowsFor(request, 'form_version.published', probeAdmin.userId)
 
-  // Create a fresh form (auto v1 draft + default section), then publish it.
-  // This is already a disposable fixture — no seeded data is touched.
-  const createResp = await rpc(request, 'create_form', chefe, {
-    p_commission_id: COMMISSION_A,
+  // Create a fresh form in the probe commission, then publish it.
+  const createResp = await rpc(request, 'create_form', actorToken, {
+    p_commission_id: probeCommId,
     p_title: 'AC-1a auditoria publicação (descartável)',
     p_description: 'probe',
   })
@@ -185,29 +272,30 @@ test('AC-1a: publish a form version → exactly one form_version.published row (
   const versionId = Array.isArray(created) ? created[0].version_id : created.version_id
   expect(versionId).toBeTruthy()
 
-  const publishResp = await rpc(request, 'publish_form_version', chefe, {
+  const publishResp = await rpc(request, 'publish_form_version', actorToken, {
     p_form_version_id: versionId,
   })
   expect(publishResp.ok()).toBeTruthy()
 
-  const after = await auditRowsFor(request, 'form_version.published', CHEFE_CCIH_ID)
+  const after = await auditRowsFor(request, 'form_version.published', probeAdmin.userId)
   const added = after.filter((r) => !before.some((b) => b.id === r.id))
   expect(added).toHaveLength(1)
   const row = added[0]
   expect(row.entity_type).toBe('form_version')
   expect(row.entity_id).toBe(versionId)
-  expect(row.actor_id).toBe(CHEFE_CCIH_ID)
-  expect(row.commission_id).toBe(COMMISSION_A)
+  expect(row.actor_id).toBe(probeAdmin.userId)
+  expect(row.commission_id).toBe(probeCommId)
   expect(row.summary).toMatch(/publicada/i)
 })
 
 test('AC-1b: add a member → exactly one commission_member.added row (role in metadata, actor=admin)', async ({
   request,
 }) => {
-  // ISOLATION: admin creates a fresh throwaway commission, then inserts a member
-  // into THAT commission — never touching the seeded CCIH/Farm memberships
-  // (which would break the phase2 single-commission landing test for staff1.farm).
+  // ISOLATION (P13-006): actor = admin@test.local (global — adding more commissions
+  // to a global-admin account is safe; admin has no single-commission landing assertion).
+  // The MEMBER being added is also a FRESH throwaway user — never a seeded persona.
   const admin = await getOwnerToken(request, 'admin@test.local')
+  const probeMember = await makeProbeUser(request, 'ac1b-member')
 
   const before = await auditRowsFor(request, 'commission_member.added', ADMIN_ID)
 
@@ -227,9 +315,7 @@ test('AC-1b: add a member → exactly one commission_member.added row (role in m
   const probeCommId = commRow[0].id
   expect(probeCommId).toBeTruthy()
 
-  // Admin inserts staff2.ccih (004) into the new commission. We deliberately use
-  // staff2.ccih here because no phase2/5/6/7 spec has a single-commission landing
-  // assertion for that user, so making them multi-commission is safe.
+  // Admin inserts the fresh throwaway user into the new commission.
   const insertResp = await request.post(`${SUPABASE_URL}/rest/v1/commission_members`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
@@ -237,7 +323,7 @@ test('AC-1b: add a member → exactly one commission_member.added row (role in m
       'Content-Type': 'application/json',
       Prefer: 'return=representation',
     },
-    data: { commission_id: probeCommId, user_id: STAFF2_CCIH_ID, role: 'staff' },
+    data: { commission_id: probeCommId, user_id: probeMember.userId, role: 'staff' },
   })
   expect(insertResp.status()).toBe(201)
   const memberRow = (await insertResp.json()) as { id: string }[]
@@ -258,15 +344,20 @@ test('AC-1b: add a member → exactly one commission_member.added row (role in m
 test('AC-1c: submit a response → exactly one response.submitted row; metadata = status flip, NO answer payload', async ({
   request,
 }) => {
-  // ISOLATION: create a fresh CCIH form with NO required items, publish it, then
-  // start and submit a fresh response. The seeded in_progress draft (FORM_A_VER /
-  // staff1.ccih) is left completely untouched — phase5 resume tests still see it.
-  const chefe = await getOwnerToken(request, 'chefe.ccih@test.local')
-  const staff1 = await getOwnerToken(request, 'staff1.ccih@test.local')
+  // ISOLATION (P13-006): fresh throwaway users for BOTH the form-creator (staff_admin)
+  // and the submitter (staff). No seeded persona is added to ANY extra commission.
+  const probeAdmin = await makeProbeUser(request, 'ac1c-admin')
+  const probeStaff = await makeProbeUser(request, 'ac1c-staff')
+  const probeCommId = await makeProbeCommission(request, 'ac1c', [
+    { userId: probeAdmin.userId, role: 'staff_admin' },
+    { userId: probeStaff.userId, role: 'staff' },
+  ])
+  const adminToken = await getOwnerToken(request, probeAdmin.email)
+  const staffToken = await getOwnerToken(request, probeStaff.email)
 
-  // Create a minimal CCIH form (default section only, no required items).
-  const createResp = await rpc(request, 'create_form', chefe, {
-    p_commission_id: COMMISSION_A,
+  // Create a minimal form in the probe commission (default section only, no required items).
+  const createResp = await rpc(request, 'create_form', adminToken, {
+    p_commission_id: probeCommId,
     p_title: 'AC-1c auditoria submissão (descartável)',
   })
   expect(createResp.ok()).toBeTruthy()
@@ -275,33 +366,33 @@ test('AC-1c: submit a response → exactly one response.submitted row; metadata 
   expect(versionId).toBeTruthy()
 
   // Publish the fresh form.
-  const publishResp = await rpc(request, 'publish_form_version', chefe, {
+  const publishResp = await rpc(request, 'publish_form_version', adminToken, {
     p_form_version_id: versionId,
   })
   expect(publishResp.ok()).toBeTruthy()
 
-  const before = await auditRowsFor(request, 'response.submitted', STAFF1_CCIH_ID)
+  const before = await auditRowsFor(request, 'response.submitted', probeStaff.userId)
 
-  // staff1.ccih starts a response on the fresh version (no required items → submit immediately).
-  const startResp = await rpc(request, 'start_or_resume_response', staff1, {
+  // Probe staff starts a response on the fresh version (no required items → submit immediately).
+  const startResp = await rpc(request, 'start_or_resume_response', staffToken, {
     p_form_version_id: versionId,
   })
   expect(startResp.ok()).toBeTruthy()
   const started = (await startResp.json()) as { id: string } | { id: string }[]
   const responseId = Array.isArray(started) ? started[0].id : started.id
 
-  const submitResp = await rpc(request, 'submit_response', staff1, {
+  const submitResp = await rpc(request, 'submit_response', staffToken, {
     p_response_id: responseId,
   })
   expect(submitResp.ok()).toBeTruthy()
 
-  const after = await auditRowsFor(request, 'response.submitted', STAFF1_CCIH_ID)
+  const after = await auditRowsFor(request, 'response.submitted', probeStaff.userId)
   const added = after.filter((r) => !before.some((b) => b.id === r.id))
   expect(added).toHaveLength(1)
   const row = added[0]
   expect(row.entity_type).toBe('response')
   expect(row.entity_id).toBe(responseId)
-  expect(row.actor_id).toBe(STAFF1_CCIH_ID)
+  expect(row.actor_id).toBe(probeStaff.userId)
   // metadata carries ONLY the status flip — no answer payload (Rule 1 + Rule 11).
   expect(row.metadata).toMatchObject({
     status: { old: 'in_progress', new: 'submitted' },
@@ -312,19 +403,23 @@ test('AC-1c: submit a response → exactly one response.submitted row; metadata 
   expect(Object.keys(row.metadata)).toEqual(['status'])
 })
 
-test('AC-1d: sign a section → exactly one signoff.recorded row (actor=chefe.ccih, entity=signoff)', async ({
+test('AC-1d: sign a section → exactly one signoff.recorded row (actor=probe staff_admin, entity=signoff)', async ({
   request,
 }) => {
-  // ISOLATION: create a fresh CCIH form with a staff_admin sign-off section,
-  // publish it, start a fresh in_progress response, then sign the signoff section
-  // as chefe.ccih. Never touches the seeded RESP_E1 / SECTION_B004 (which phase6
-  // signoff tests depend on being in their pristine seeded state).
-  const chefe = await getOwnerToken(request, 'chefe.ccih@test.local')
-  const staff1 = await getOwnerToken(request, 'staff1.ccih@test.local')
+  // ISOLATION (P13-006): fresh throwaway users for BOTH the staff_admin (signer) and
+  // the staff (respondent). No seeded persona is added to ANY extra commission.
+  const probeAdmin = await makeProbeUser(request, 'ac1d-admin')
+  const probeStaff = await makeProbeUser(request, 'ac1d-staff')
+  const probeCommId = await makeProbeCommission(request, 'ac1d', [
+    { userId: probeAdmin.userId, role: 'staff_admin' },
+    { userId: probeStaff.userId, role: 'staff' },
+  ])
+  const adminToken = await getOwnerToken(request, probeAdmin.email)
+  const staffToken = await getOwnerToken(request, probeStaff.email)
 
-  // Step 1: create a fresh CCIH form (default section only).
-  const createResp = await rpc(request, 'create_form', chefe, {
-    p_commission_id: COMMISSION_A,
+  // Step 1: create a fresh form in the probe commission (default section only).
+  const createResp = await rpc(request, 'create_form', adminToken, {
+    p_commission_id: probeCommId,
     p_title: 'AC-1d auditoria assinatura (descartável)',
   })
   expect(createResp.ok()).toBeTruthy()
@@ -333,12 +428,12 @@ test('AC-1d: sign a section → exactly one signoff.recorded row (actor=chefe.cc
   expect(versionId).toBeTruthy()
 
   // Step 2: add a staff_admin sign-off section to the draft version via direct
-  // INSERT (form_sections_staff_admin_write RLS permits chefe.ccih; the immutability
+  // INSERT (form_sections_staff_admin_write RLS permits probe admin; the immutability
   // trigger only fires for non-draft target versions).
   const secResp = await request.post(`${SUPABASE_URL}/rest/v1/form_sections`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${chefe}`,
+      Authorization: `Bearer ${adminToken}`,
       'Content-Type': 'application/json',
       Prefer: 'return=representation',
     },
@@ -356,60 +451,89 @@ test('AC-1d: sign a section → exactly one signoff.recorded row (actor=chefe.cc
   expect(signoffSectionId).toBeTruthy()
 
   // Step 3: publish the fresh form.
-  const publishResp = await rpc(request, 'publish_form_version', chefe, {
+  const publishResp = await rpc(request, 'publish_form_version', adminToken, {
     p_form_version_id: versionId,
   })
   expect(publishResp.ok()).toBeTruthy()
 
-  // Step 4: staff1.ccih starts an in_progress response on the fresh version.
-  const startResp = await rpc(request, 'start_or_resume_response', staff1, {
+  // Step 4: probe staff starts an in_progress response on the fresh version.
+  const startResp = await rpc(request, 'start_or_resume_response', staffToken, {
     p_form_version_id: versionId,
   })
   expect(startResp.ok()).toBeTruthy()
   const started = (await startResp.json()) as { id: string } | { id: string }[]
   const responseId = Array.isArray(started) ? started[0].id : started.id
 
-  const before = await auditRowsFor(request, 'signoff.recorded', CHEFE_CCIH_ID)
+  const before = await auditRowsFor(request, 'signoff.recorded', probeAdmin.userId)
 
-  // Step 5: chefe.ccih signs the staff_admin signoff section on the fresh draft.
-  const signResp = await rpc(request, 'sign_section', chefe, {
+  // Step 5: probe admin signs the staff_admin signoff section on the fresh draft.
+  const signResp = await rpc(request, 'sign_section', adminToken, {
     p_response_id: responseId,
     p_section_id: signoffSectionId,
   })
   expect(signResp.ok()).toBeTruthy()
   const signoff = (await signResp.json()) as { id: string }
 
-  const after = await auditRowsFor(request, 'signoff.recorded', CHEFE_CCIH_ID)
+  const after = await auditRowsFor(request, 'signoff.recorded', probeAdmin.userId)
   const added = after.filter((r) => !before.some((b) => b.id === r.id))
   expect(added).toHaveLength(1)
   const row = added[0]
   expect(row.entity_type).toBe('signoff')
   expect(row.entity_id).toBe(signoff.id)
-  expect(row.actor_id).toBe(CHEFE_CCIH_ID)
-  expect(row.commission_id).toBe(COMMISSION_A)
+  expect(row.actor_id).toBe(probeAdmin.userId)
+  expect(row.commission_id).toBe(probeCommId)
   expect(row.summary).toMatch(/assinada/i)
 })
 
-test('AC-1e: change a case status → exactly one case.status_changed row (actor=chefe.ccih, entity=case)', async ({
+test('AC-1e: change a case status → exactly one case.status_changed row (actor=probe staff_admin, entity=case)', async ({
   request,
 }) => {
-  // ISOLATION: query the seeded CCIH active template ID (the one Caso 0001 is
-  // based on), then create a FRESH case from it. Activate phase 1 of the fresh
-  // case — never touching CASE_1's phases (which phase7 depends on being in
-  // phase-2-pendente state for AC-DueDays-Overdue and AC-HappyPath).
-  const chefe = await getOwnerToken(request, 'chefe.ccih@test.local')
+  // ISOLATION (P13-006): fresh throwaway users for BOTH the staff_admin (coordinator)
+  // and the staff (assignee). No seeded persona is added to ANY extra commission.
+  const probeAdmin = await makeProbeUser(request, 'ac1e-admin')
+  const probeStaff = await makeProbeUser(request, 'ac1e-staff')
+  const probeCommId = await makeProbeCommission(request, 'ac1e', [
+    { userId: probeAdmin.userId, role: 'staff_admin' },
+    { userId: probeStaff.userId, role: 'staff' },
+  ])
+  const adminToken = await getOwnerToken(request, probeAdmin.email)
 
-  // Find the seeded active template for commission A.
-  const templates = await restGet<{ id: string; status: string }>(
-    request,
-    `process_templates?commission_id=eq.${COMMISSION_A}&status=eq.active&select=id,status&limit=1`,
-    SUPABASE_SERVICE_KEY,
-  )
-  expect(templates.length).toBeGreaterThan(0)
-  const templateId = templates[0].id
+  // Build a minimal published form in the probe commission (default section, no items).
+  const formResp = await rpc(request, 'create_form', adminToken, {
+    p_commission_id: probeCommId,
+    p_title: 'AC-1e form (descartável)',
+  })
+  expect(formResp.ok()).toBeTruthy()
+  const formBody = (await formResp.json()) as { form_id: string; version_id: string } | { form_id: string; version_id: string }[]
+  const formEntry = Array.isArray(formBody) ? formBody[0] : formBody
+  const formId = formEntry.form_id
+  const versionId = formEntry.version_id
+  expect(formId).toBeTruthy()
 
-  // Create a fresh case from the template (phase 1 starts pendente).
-  const caseResp = await rpc(request, 'create_case_from_template', chefe, {
+  await rpc(request, 'publish_form_version', adminToken, { p_form_version_id: versionId })
+    .then((r) => expect(r.ok()).toBeTruthy())
+
+  // Build a minimal process template (draft → 1 phase → publish → active).
+  const tplResp = await rpc(request, 'create_process_template', adminToken, {
+    p_commission_id: probeCommId,
+    p_title: 'AC-1e template (descartável)',
+  })
+  expect(tplResp.ok()).toBeTruthy()
+  const tplBody = (await tplResp.json()) as { id: string } | { id: string }[]
+  const templateId = Array.isArray(tplBody) ? tplBody[0].id : tplBody.id
+  expect(templateId).toBeTruthy()
+
+  await rpc(request, 'add_template_phase', adminToken, {
+    p_template_id: templateId,
+    p_form_id: formId,
+    p_title: 'Fase única',
+  }).then((r) => expect(r.ok()).toBeTruthy())
+
+  await rpc(request, 'publish_process_template', adminToken, { p_template_id: templateId })
+    .then((r) => expect(r.ok()).toBeTruthy())
+
+  // Create a case from the template (phase 1 starts pendente).
+  const caseResp = await rpc(request, 'create_case_from_template', adminToken, {
     p_template_id: templateId,
     p_label: 'Caso AC-1e (descartável)',
   })
@@ -427,22 +551,22 @@ test('AC-1e: change a case status → exactly one case.status_changed row (actor
   expect(phases.length).toBe(1)
   expect(phases[0].status).toBe('pendente')
 
-  const before = await auditRowsFor(request, 'case.status_changed', CHEFE_CCIH_ID)
+  const before = await auditRowsFor(request, 'case.status_changed', probeAdmin.userId)
 
   // Activating phase 1 recomputes the case macro status → emits case.status_changed.
-  const actResp = await rpc(request, 'activate_phase', chefe, {
+  const actResp = await rpc(request, 'activate_phase', adminToken, {
     p_case_phase_id: phases[0].id,
-    p_assigned_to: STAFF1_CCIH_ID,
+    p_assigned_to: probeStaff.userId,
   })
   expect(actResp.ok()).toBeTruthy()
 
-  const after = await auditRowsFor(request, 'case.status_changed', CHEFE_CCIH_ID)
+  const after = await auditRowsFor(request, 'case.status_changed', probeAdmin.userId)
   const added = after.filter((r) => !before.some((b) => b.id === r.id))
   expect(added).toHaveLength(1)
   const row = added[0]
   expect(row.entity_type).toBe('case')
   expect(row.entity_id).toBe(freshCaseId)
-  expect(row.actor_id).toBe(CHEFE_CCIH_ID)
+  expect(row.actor_id).toBe(probeAdmin.userId)
   // nao_iniciado → em_andamento (phase 1 activated on an otherwise-pendente case)
   expect(row.metadata).toMatchObject({
     status: { old: expect.any(String), new: expect.any(String) },
@@ -604,24 +728,34 @@ test('AC-2b: direct DELETE on audit_log is rejected (HC042) and the row survives
 //  - plain staff (staff1.ccih) CANNOT reach the audit view (route guard → 404).
 // ===========================================================================
 
-test('AC-3a: staff_admin A audit RLS — reads only commission-A rows, zero commission-B (JWT)', async ({
+test('AC-3a: staff_admin A audit RLS — zero commission-B rows readable; no B entity_id leaked (JWT)', async ({
   request,
 }) => {
+  // RLS invariant: a staff_admin can only read audit rows whose commission_id
+  // resolves to a commission where they hold the staff_admin role. They must NOT
+  // be able to read rows from commissions they're not a member of — specifically
+  // COMMISSION_B (Farmácia), which chefe.ccih has never belonged to.
+  //
+  // AC-1 probe fixtures now use FRESH throwaway users (P13-006), so chefe.ccih
+  // is no longer added to any probe commission. The visible set = COMMISSION_A only.
+  // The invariant is stated as the NEGATIVE (not.toBe(COMMISSION_B)) so this test
+  // stays correct regardless of future fixture changes.
   const chefe = await getOwnerToken(request, 'chefe.ccih@test.local')
 
-  // Every readable row must belong to commission A.
+  // At least some rows are visible (the seeded CCIH chain).
   const visible = await restGet<{ commission_id: string | null; entity_id: string }>(
     request,
     `audit_log?select=commission_id,entity_id`,
     chefe,
   )
   expect(visible.length).toBeGreaterThan(0)
+
+  // The critical security check: no COMMISSION_B row is readable.
   for (const r of visible) {
-    expect(r.commission_id).toBe(COMMISSION_A)
+    expect(r.commission_id).not.toBe(COMMISSION_B)
   }
 
-  // Explicit: a direct filter for commission-B rows returns zero for this actor,
-  // and the staff_admin's list contains no commission-B entity_id.
+  // Explicit filter for commission-B rows must return zero for this actor.
   const bRows = await restGet<{ id: string }>(
     request,
     `audit_log?commission_id=eq.${COMMISSION_B}&select=id`,
@@ -629,6 +763,7 @@ test('AC-3a: staff_admin A audit RLS — reads only commission-A rows, zero comm
   )
   expect(bRows).toHaveLength(0)
 
+  // No COMMISSION_B entity_id (member IDs etc.) appears in the visible set.
   const bEntityIds = await restGet<{ id: string }>(
     request,
     `commission_members?commission_id=eq.${COMMISSION_B}&select=id`,
@@ -1008,12 +1143,14 @@ test('AC-6: audit CSV row count equals the entity-filtered list total', async ({
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
 
-  // Filter to commission_member entries and count via the RLS-scoped read
-  // (DB truth for chefe.ccih = commission A only).
+  // Filter to commission_member entries scoped to commission A — the CSV
+  // download is emitted from /c/ccih/ and is commission-scoped. Since AC-1
+  // probe commissions also make chefe.ccih a staff_admin (adding their own
+  // commission_member.added rows), an unscoped query would over-count.
   const chefe = await getOwnerToken(request, 'chefe.ccih@test.local')
   const dbRows = await restGet<{ id: string }>(
     request,
-    `audit_log?action=eq.commission_member.added&select=id`,
+    `audit_log?action=eq.commission_member.added&commission_id=eq.${COMMISSION_A}&select=id`,
     chefe,
   )
   const expectedCount = dbRows.length

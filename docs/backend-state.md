@@ -5,7 +5,7 @@
 > phase. The **lead keeps this current** at the §6 Record step (CLAUDE.md §7): when a
 > phase adds an RPC, flips a flag, or changes an RLS surface, update the relevant table
 > here. This is a map, not the authority — `ARCHITECTURE.md` is the spec and the
-> migrations are the truth. Last updated: **2026-06-15 (Phase 11 — Interviews: case-scoped sibling of Meetings; 4 tables + per-commission `interview_number` minting + lifecycle/content-freeze/child-lock guards + NEW row-level participant-write RLS (`can_write_interview`) + `interview-attachments` bucket (INSERT keyed on path seg [2]) + `case_events` kind `'interview'`; ADR 0026). Earlier same day: Phase 10 — Meetings; ADR 0025. Earlier: Case data-model adjustments batch — phase blocking + fixed auto-computed statuses + per-commission outcomes; ADR 0024, supersedes 0023. Earlier: post-Phase-8 Cases-Extras batch; ADR 0022.**
+> migrations are the truth. Last updated: **2026-06-18 (Phase 13 — Audit Trail: append-only hash-chained `audit_log` + DEFINER `audit_write` + curated PHI-free AFTER-triggers + SELECT-only RLS + `verify_audit_chain` + `log_audit_access`; `audit_trail` flag ON; ADR 0029; Architecture Rule 11). Earlier 2026-06-15: Phase 11 — Interviews: case-scoped sibling of Meetings; 4 tables + per-commission `interview_number` minting + lifecycle/content-freeze/child-lock guards + NEW row-level participant-write RLS (`can_write_interview`) + `interview-attachments` bucket (INSERT keyed on path seg [2]) + `case_events` kind `'interview'`; ADR 0026). Earlier same day: Phase 10 — Meetings; ADR 0025. Earlier: Case data-model adjustments batch — phase blocking + fixed auto-computed statuses + per-commission outcomes; ADR 0024, supersedes 0023. Earlier: post-Phase-8 Cases-Extras batch; ADR 0022.**
 
 ## Migrations (forward-only, additive)
 
@@ -52,6 +52,7 @@
 | `20260615091002` | 11 | **Interviews RLS**: `case_interviews` SELECT member / INSERT staff_admin / UPDATE+DELETE `can_write_interview`; 3 child tables SELECT member-of-`commission_of_interview` / write `can_write_interview` (FOR ALL). Each ORs `app.is_admin()` for the live JWT-claim admin path alongside the uid-pure `can_write_interview`. |
 | `20260615091003` | 11 | **`interview-attachments` Storage bucket** (private, 25 MiB, PDF/images/Office/CSV/txt — **NO audio**); path `{commission_id}/{interview_id}/{uuid}.{ext}`; SELECT member (seg [1]); **INSERT keyed on seg [2]=interview_id via `app.can_write_interview`** (so a registered interviewer uploads); NO update/delete (immutable, Rule 6). |
 | `20260615091004` | 11 | Flag flip: `interviews` → **ON** (mirror `…090008`; enabled in-phase so the gate tests live). |
+| `20260617120000–120004` | 13 | **Audit Trail** (ADR 0029): `public.audit_log` (per-commission **+ global** SHA-256 hash chains; `seq`/`prev_hash`/`row_hash`; nullable actor/commission) + `app.guard_audit_immutable` (BEFORE UPD/DEL → **HC042**, absolute incl. `service_role`) + `app.audit_write` DEFINER writer (advisory-locked per chain; `app.jsonb_canonical`/`app.audit_canonical` cover ALL semantic cols; no-op while flag OFF; null-actor=system) + 13 AFTER INS/UPD/DEL triggers on the curated table set (forms/versions/sections/items, commission_members, commissions, responses status-flips, signoffs, cases+case_phases status, meetings+signatures, interviews) with **non-sensitive column allow-lists** (never `answers.value`/`*_md`/free-text/PHI) + RLS (SELECT = admin OR `is_staff_admin_of`; **no INS/UPD/DEL policy**; zero anon/PUBLIC) + `verify_audit_chain(commission?)` DEFINER + `log_audit_access` DEFINER (positive allow-list `response.opened_foreign`/`response.exported`/`audit.exported`; rejects mutation verbs) + `audit_trail` flag flip **ON** (`…120003`). Establishes Architecture Rule 11. |
 
 ## RPC inventory
 
@@ -207,6 +208,7 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `cases_extras` | **ON** (Extras, migration `…092006`) | Gates the Cases-Extras + outcome WRITE surface: the **OUTCOME** RPCs (`set_case_outcome`, `set_process_outcomes`, outcome vocab CRUD — ADR 0024); R3 tag CRUD/assign; R4 action-item authoring + lifecycle; R1 document/event actions via `cases_extras_enabled`. (The R2 `set_case_status` + status CRUD it formerly gated were REMOVED by ADR 0024.) Inserted OFF in `…092001`; flipped ON by `…092006`. The core phase RPCs (`activate_phase`/`skip_phase`/`add_ad_hoc_phase`/`reassign_phase`/`close_case`/`cancel_case`/`create_case_from_template`/`set_template_phase_blocks`) gate ONLY `cases_multi_phase`. |
 | `meetings` | **ON** (Phase 10, migration `…090008`) | Gates every Phase-10 meetings RPC + the TS-layer table writes via `public.meetings_enabled()`. Inserted OFF in `…090000`; flipped ON by `…090008` (enabled in-phase so the gate exercised the live feature — same pattern as `cases_multi_phase`). |
 | `interviews` | **ON** (Phase 11, migration `…091004`) | Gates every Phase-11 interviews RPC + the TS-layer writes via `public.interviews_enabled()`. Inserted OFF in `…091000`; flipped ON by `…091004` (enabled in-phase — same pattern as `meetings`). |
+| `audit_trail` | **ON** (Phase 13, migration `…120003`) | `app.audit_write` no-ops while OFF; the AFTER-triggers + `log_audit_access` capture once ON. TS-layer reads via `public.audit_trail_enabled()`. Inserted OFF in `…120000`; flipped ON by `…120003` (in-phase). |
 
 ## RLS authorization surface (who can do what)
 
@@ -306,6 +308,7 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 | `HC039` | not entitled to write this interview (not staff_admin nor a registered interviewer) (ADR 0026) | "Você não pode editar esta entrevista." |
 | `HC040` | invalid attachment (storage_path XOR external_url violated, or non-https link) (ADR 0026) | "Anexo inválido: envie um arquivo OU informe um link https." |
 | `HC041` | conclude: interview has no interviewee (ADR 0026) | "Adicione ao menos um entrevistado antes de concluir." |
+| `HC042` | append-only audit violation (ADR 0029) — **internal, never user-facing** | (not surfaced; `AUDIT_MESSAGES.appendOnly` is the TS fallback) |
 | `23514` | check violation | "Publique um rascunho." / "já enviada." / "recurso indisponível" (context) |
 | `23505` | unique violation | (resume race; question_key collision retry) |
 | `42501` | RLS denied | forbidden (e.g. wrong signer role) |
@@ -396,4 +399,8 @@ provider-ready; sign-own-row RLS + RPC-side auto-flip) · 0026 interviews (case-
 meetings; 5-state lifecycle + content-freeze; NEW row-level participant-write RLS
 `can_write_interview`; conclude writes/updates a single `case_events kind='interview'` registry row) ·
 0027 case timeline (read-only event aggregation, two layouts; NO migration/RLS — composes existing
-RLS-scoped reads; meeting-echo dedup; React `cache()` on `getCaseDetail`/`getCommissionAccess`).
+RLS-scoped reads; meeting-echo dedup; React `cache()` on `getCaseDetail`/`getCommissionAccess`) ·
+0029 audit trail (append-only, per-commission + global SHA-256 hash chain; DEFINER `audit_write` +
+AFTER-triggers on the curated table set with non-sensitive/PHI-free allow-lists; SELECT-only RLS;
+`verify_audit_chain`; `log_audit_access` positive allow-list; **HC042** append-only guard; establishes
+Architecture Rule 11).

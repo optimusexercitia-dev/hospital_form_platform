@@ -433,7 +433,13 @@ test('AC3 — Resume: save-and-exit, re-sign-in, land at last section with answe
   await signInAs(page, 'staff1.ccih@test.local')
   await page.goto('/c/ccih/forms')
   await page.waitForURL('**/c/ccih/forms', { timeout: 15_000 })
-  const continuar = page.getByRole('link', { name: /continuar preenchimento/i })
+  // Scope to the seeded form card (other phase-13 AC-1d disposable form may also
+  // have a "Continuar preenchimento" link for staff1.ccih — scope to our form card
+  // to avoid a strict-mode violation from multiple matching links).
+  const formCard = page.locator('article').filter({
+    has: page.getByRole('heading', { name: /Higienização das Mãos/i }),
+  })
+  const continuar = formCard.getByRole('link', { name: /continuar preenchimento/i })
   await expect(continuar).toBeVisible({ timeout: 15_000 })
   await continuar.click()
   await page.waitForURL(/\/responder\//, { timeout: 20_000 })
