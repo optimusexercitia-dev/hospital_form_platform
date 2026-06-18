@@ -250,6 +250,10 @@ export interface PqsInboxFilters {
 export interface ActionState {
   ok: boolean
   error?: string
+  /** A pt-BR success confirmation on the `ok: true` path. Kept SEPARATE from
+   * `error` so success text never overloads the semantically-error field (QA N1/I2);
+   * consumers read `error` only when `!ok` and `message` only when `ok`. */
+  message?: string
   fieldErrors?: Record<string, string>
 }
 

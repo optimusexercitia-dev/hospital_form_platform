@@ -5,7 +5,7 @@
 > phase. The **lead keeps this current** at the §6 Record step (CLAUDE.md §7): when a
 > phase adds an RPC, flips a flag, or changes an RLS surface, update the relevant table
 > here. This is a map, not the authority — `ARCHITECTURE.md` is the spec and the
-> migrations are the truth. Last updated: **2026-06-18 (Phase 13 — Audit Trail: append-only hash-chained `audit_log` + DEFINER `audit_write` + curated PHI-free AFTER-triggers + SELECT-only RLS + `verify_audit_chain` + `log_audit_access`; `audit_trail` flag ON; ADR 0029; Architecture Rule 11). Earlier 2026-06-15: Phase 11 — Interviews: case-scoped sibling of Meetings; 4 tables + per-commission `interview_number` minting + lifecycle/content-freeze/child-lock guards + NEW row-level participant-write RLS (`can_write_interview`) + `interview-attachments` bucket (INSERT keyed on path seg [2]) + `case_events` kind `'interview'`; ADR 0026). Earlier same day: Phase 10 — Meetings; ADR 0025. Earlier: Case data-model adjustments batch — phase blocking + fixed auto-computed statuses + per-commission outcomes; ADR 0024, supersedes 0023. Earlier: post-Phase-8 Cases-Extras batch; ADR 0022.**
+> migrations are the truth. Last updated: **2026-06-18 (Phase 14a — Patient-Safety/NSP: **first PHI** on the platform (Architecture Rule 12; ADR 0030/0031) — isolated `event_patient` + append-only `event_custody` + access-follows-custody `app.can_read_event` + 8 DEFINER RPCs (incl. PHI-free `pqs_inbox`) + `event_patient.read` audited (empty metadata) + `patient_safety` flag ON; migrations `…121000–121005`). Earlier 2026-06-18: Phase 13 — Audit Trail: append-only hash-chained `audit_log` + DEFINER `audit_write` + curated PHI-free AFTER-triggers + SELECT-only RLS + `verify_audit_chain` + `log_audit_access`; `audit_trail` flag ON; ADR 0029; Architecture Rule 11). Earlier 2026-06-15: Phase 11 — Interviews: case-scoped sibling of Meetings; 4 tables + per-commission `interview_number` minting + lifecycle/content-freeze/child-lock guards + NEW row-level participant-write RLS (`can_write_interview`) + `interview-attachments` bucket (INSERT keyed on path seg [2]) + `case_events` kind `'interview'`; ADR 0026). Earlier same day: Phase 10 — Meetings; ADR 0025. Earlier: Case data-model adjustments batch — phase blocking + fixed auto-computed statuses + per-commission outcomes; ADR 0024, supersedes 0023. Earlier: post-Phase-8 Cases-Extras batch; ADR 0022.**
 
 ## Migrations (forward-only, additive)
 
@@ -53,6 +53,7 @@
 | `20260615091003` | 11 | **`interview-attachments` Storage bucket** (private, 25 MiB, PDF/images/Office/CSV/txt — **NO audio**); path `{commission_id}/{interview_id}/{uuid}.{ext}`; SELECT member (seg [1]); **INSERT keyed on seg [2]=interview_id via `app.can_write_interview`** (so a registered interviewer uploads); NO update/delete (immutable, Rule 6). |
 | `20260615091004` | 11 | Flag flip: `interviews` → **ON** (mirror `…090008`; enabled in-phase so the gate tests live). |
 | `20260617120000–120004` | 13 | **Audit Trail** (ADR 0029): `public.audit_log` (per-commission **+ global** SHA-256 hash chains; `seq`/`prev_hash`/`row_hash`; nullable actor/commission) + `app.guard_audit_immutable` (BEFORE UPD/DEL → **HC042**, absolute incl. `service_role`) + `app.audit_write` DEFINER writer (advisory-locked per chain; `app.jsonb_canonical`/`app.audit_canonical` cover ALL semantic cols; no-op while flag OFF; null-actor=system) + 13 AFTER INS/UPD/DEL triggers on the curated table set (forms/versions/sections/items, commission_members, commissions, responses status-flips, signoffs, cases+case_phases status, meetings+signatures, interviews) with **non-sensitive column allow-lists** (never `answers.value`/`*_md`/free-text/PHI) + RLS (SELECT = admin OR `is_staff_admin_of`; **no INS/UPD/DEL policy**; zero anon/PUBLIC) + `verify_audit_chain(commission?)` DEFINER + `log_audit_access` DEFINER (positive allow-list `response.opened_foreign`/`response.exported`/`audit.exported`; rejects mutation verbs) + `audit_trail` flag flip **ON** (`…120003`). Establishes Architecture Rule 11. |
+| `20260618121000–121005` | 14a | **Patient-Safety / NSP — first PHI** (Architecture Rule 12; ADR 0030/0031): `pqs_department` (singleton) + `patient_safety_event` (per-NSP `EV-%04d` global-advisory-lock mint) + state machine `app.guard_event_status` (**HC043** wrong-state / **HC044** not-current-custodian, freeze@triaged, gated `app.in_safety_rpc`) + `case_events.kind += 'safety_event'` [121000]; **isolated PHI** `event_patient` (PK=event_id, tightest RLS) + append-only `event_custody` (+ `app.guard_event_custody` → HC043; partial-unique open interval) + **access-follows-custody** `app.can_read_event(event,uid)` SELECT policies on all 3 (current custodian OR reporting-provenance OR PQS/admin; **no write policy** — DEFINER-only) [121001]; 6 mutation RPCs + `pqs_inbox` (PHI-free) DEFINER + 3 PHI-free mutation-audit triggers [121002]; `patient_safety` flag **ON** [121003]; `event_patient.read` added to `log_audit_access` allow-list [121004]; `pqs_department` SELECT `to authenticated` (QA M1) [121005]. |
 
 ## RPC inventory
 
@@ -125,6 +126,13 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `add_interview_attachment(interview, kind, title, storage_path?, external_url?, mime?, size?)` / `delete_interview_attachment` | **DEFINER** | Writable-gated; storage_path XOR external_url + https → **HC040**; soft-delete. NOT child-locked (late signed transcript). |
 | `interview_viewer_can_write(interview)` | **DEFINER** | Thin read of `app.can_write_interview(interview, auth.uid())` — the query layer's `viewerCanWrite` signal (the `app` helper is not PostgREST-callable). |
 | `interviews_enabled()` | **DEFINER** | TS-layer flag read (mirror `meetings_enabled`). |
+| **Phase 14a — patient-safety/NSP (all gate `patient_safety`; all **DEFINER**; ADR 0030/0031):** | | |
+| `notify_safety_event(reporting_commission, title, desc_md?, suspected_harm?, discovered_at?, location?, case?)` | **DEFINER** | **Any member** of the reporting commission (just-culture; non-member → 42501) — NOT a role gate; mints `EV-%04d`; writes a `case_events kind='safety_event'` when case-linked. Returns the row (`.id`/`.code`). |
+| `acknowledge_event` / `update_event` / `cancel_event` | **DEFINER** | NSP custody ops under `app.in_safety_rpc`; state machine (**HC043**); `acknowledge` stamps who/when. |
+| `transfer_event_custody(event, to_kind, to_commission?)` | **DEFINER** | Append-only custody hand-off — closes the open interval, appends a new one, updates the denormalized owner; only the **current custodian** (or PQS/admin) may transfer → **HC044**. |
+| `set_event_patient(event, …PHI…)` | **DEFINER** | Writes the isolated `event_patient` row (PHI). The query layer's `getEventPatient` read is the audited path (`event_patient.read`). |
+| `pqs_inbox(status?, priority?, reporting_commission?)` | **DEFINER** | NSP queue — **PHI-FREE** projection (no identifiers); PQS/admin only. |
+| `patient_safety_enabled()` | **DEFINER** | TS-layer flag read (mirror `audit_trail_enabled`). |
 
 ## Helper functions
 
@@ -198,6 +206,7 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
   response-id set (`status='submitted' AND case_phase_id IS NULL AND form_id=…`); TS twin
   `isDashboardCountable` in `dashboard.ts` (ADR 0020). `app.latest_published_version(form)` — labels/
   sections for cross-version aggregation.
+- **Phase 14a (patient-safety/NSP, ADR 0030/0031):** `app.is_pqs_member(uid)` — PQS-staff/admin predicate (mirrors the uid-pure `..._for` helpers). `app.can_read_event(event, uid)` — **DEFINER, uid-pure** access-follows-custody predicate driving the SELECT policy on `patient_safety_event` + `event_patient` + `event_custody` (current custodian OR reporting-commission provenance OR PQS/admin). `app.guard_event_status` (state machine + freeze@triaged, gated `app.in_safety_rpc` → HC043) / `app.guard_event_custody` (append-only ledger: rejects closed-interval edit, non-`held_until` column edit, DELETE → HC043) / `app.event_current_custodian(event)` (the HC044 gate) / `app.mint_event_code` (global advisory-lock `EV-%04d`, mirrors meeting/interview numbering). `app.assert_patient_safety_enabled()` gate (raises 23514 when OFF); `public.patient_safety_enabled()` DEFINER boolean (TS-layer read). **PHI isolation:** identifiers live ONLY in `event_patient`; never selected on queue/aggregate/timeline paths; every `getEventPatient` read emits a Phase-13 `event_patient.read` audit row with empty metadata.
 
 ## Feature flags (`app.feature_flags`)
 
@@ -209,6 +218,7 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
 | `meetings` | **ON** (Phase 10, migration `…090008`) | Gates every Phase-10 meetings RPC + the TS-layer table writes via `public.meetings_enabled()`. Inserted OFF in `…090000`; flipped ON by `…090008` (enabled in-phase so the gate exercised the live feature — same pattern as `cases_multi_phase`). |
 | `interviews` | **ON** (Phase 11, migration `…091004`) | Gates every Phase-11 interviews RPC + the TS-layer writes via `public.interviews_enabled()`. Inserted OFF in `…091000`; flipped ON by `…091004` (enabled in-phase — same pattern as `meetings`). |
 | `audit_trail` | **ON** (Phase 13, migration `…120003`) | `app.audit_write` no-ops while OFF; the AFTER-triggers + `log_audit_access` capture once ON. TS-layer reads via `public.audit_trail_enabled()`. Inserted OFF in `…120000`; flipped ON by `…120003` (in-phase). |
+| `patient_safety` | **ON** (Phase 14a, migration `…121003`) | Gates every Phase-14a NSP RPC via `app.assert_patient_safety_enabled()` + the TS-layer reads via `public.patient_safety_enabled()`. Inserted OFF in `…121000`; flipped ON by `…121003` (in-phase — same pattern as `audit_trail`). Establishes Architecture Rule 12 (PHI/HIPAA — first PHI). |
 
 ## RLS authorization surface (who can do what)
 
@@ -265,6 +275,7 @@ authority; definer RPCs are narrow, internally gated exceptions (documented in a
   (immutable, Rule 6); path `{commission_id}/{interview_id}/{uuid}.{ext}`; reads via signed URLs; audio is
   LINK-only (no audio bytes). Subjects/interviewers are platform-user XOR name/org free-text — **no patient
   data** (interviewees are STAFF, never patients).
+- **Patient-safety / NSP (Phase 14a — FIRST PHI; ADR 0030/0031; reverses the platform's prior "no patient data" rule under Architecture Rule 12):** `patient_safety_event` + the isolated PHI satellite `event_patient` + the append-only `event_custody` ledger all SELECT via the single **access-follows-custody** predicate `app.can_read_event(id, auth.uid())` = current custodian's commission OR the **reporting** commission (provenance, retained across hand-offs) OR PQS/admin. **No INSERT/UPDATE/DELETE policy** on any of the three — every write goes through a DEFINER RPC. A foreign committee sees nothing (route gating + RLS, not UI hiding). **PHI is minimum-necessary + isolated:** identifiers live ONLY in `event_patient`, never on the queue (`pqs_inbox`)/list/aggregate/timeline paths, and every read of it emits a Phase-13 `event_patient.read` audit row (empty metadata). `pqs_department` (non-PHI singleton config) SELECT = any authenticated member (`…121005`); writes DEFINER-only.
 
 ## SQLSTATE → meaning (data-layer maps these to pt-BR; no raw PG errors reach the UI)
 
@@ -309,6 +320,8 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 | `HC040` | invalid attachment (storage_path XOR external_url violated, or non-https link) (ADR 0026) | "Anexo inválido: envie um arquivo OU informe um link https." |
 | `HC041` | conclude: interview has no interviewee (ADR 0026) | "Adicione ao menos um entrevistado antes de concluir." |
 | `HC042` | append-only audit violation (ADR 0029) — **internal, never user-facing** | (not surfaced; `AUDIT_MESSAGES.appendOnly` is the TS fallback) |
+| `HC043` | safety-event wrong state / custody-ledger immutable violation (ADR 0031) | "O evento não está no estado necessário para esta ação." |
+| `HC044` | not the current custodian of the event (ADR 0031) | "Apenas o atual responsável pode transferir a custódia deste evento." |
 | `23514` | check violation | "Publique um rascunho." / "já enviada." / "recurso indisponível" (context) |
 | `23505` | unique violation | (resume race; question_key collision retry) |
 | `42501` | RLS denied | forbidden (e.g. wrong signer role) |
@@ -382,6 +395,7 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
   in React `cache()`** (request-scoped memo for the `(detail)` layout+child split; signatures
   unchanged). `meetings.ts` gained ADDITIVE exports reused by the reverse read: `MeetingRow`,
   `mapMeetingListItem`, `MEETING_LIST_COLUMNS`. No new RPC/SQLSTATE/feature-flag.
+- **Phase 14a (patient-safety/NSP, ADR 0030/0031):** Queries `src/lib/queries/{safety-events,pqs}.ts` (`listCommissionEvents`/`getSafetyEvent`/`getEventCustody` PHI-free; **`getEventPatient` — the ONLY PHI read, wired to `logAuditAccess('event_patient.read')`** with empty metadata, called only when `event.hasPatient`; `pqsInbox`/`patientSafetyEnabled`). Actions `src/lib/safety/actions.ts` (`notifySafetyEvent`/`acknowledgeEvent`/`transferEventCustody`/`updateEvent`/`setEventPatient`/`cancelEvent`) + `src/lib/safety/messages.ts` (HC043/HC044→pt-BR). **`src/lib/safety/types.ts` is the import-free, client-safe contract** (all domain unions + label maps + the `ActionState` shape — `message?` carries success text; P14a-002 boundary fix); the server query/action modules import types from it. `src/lib/audit/access.ts` extended with the `event_patient.read` allow-list entry. `getCaseTimeline` composes PHI-free `safety_event` rows (echo-dedup vs `case_events kind='safety_event'`).
 - Service-role client: `src/lib/supabase/admin.ts` (`import 'server-only'`), invite path only.
 
 ## ADR index (decisions that shape the backend)
@@ -403,4 +417,6 @@ RLS-scoped reads; meeting-echo dedup; React `cache()` on `getCaseDetail`/`getCom
 0029 audit trail (append-only, per-commission + global SHA-256 hash chain; DEFINER `audit_write` +
 AFTER-triggers on the curated table set with non-sensitive/PHI-free allow-lists; SELECT-only RLS;
 `verify_audit_chain`; `log_audit_access` positive allow-list; **HC042** append-only guard; establishes
-Architecture Rule 11).
+Architecture Rule 11). ·
+0030 patient-safety PHI & PQS architecture (permits PHI on HIPAA infra under a BAA, minimum-necessary; isolated PHI tables, access-audited, encrypted; **reverses** the prior "no patient data" stance + supersedes 0028's rejected "minimal-identifiers" alternative; Architecture Rule 12) ·
+0031 event custody ledger & PHI isolation (isolated `event_patient`; append-only `event_custody`; access-follows-custody `app.can_read_event`; state machine HC043/HC044; PHI `.read` Phase-13 integration).

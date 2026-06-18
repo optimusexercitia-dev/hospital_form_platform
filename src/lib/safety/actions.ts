@@ -95,7 +95,8 @@ export async function notifySafetyEvent(
   revalidateSafety()
   return {
     ok: true,
-    error: SAFETY_MESSAGES.eventNotified,
+    error: undefined,
+    message: SAFETY_MESSAGES.eventNotified,
     eventId: data.id,
     code: data.code,
   }
@@ -110,7 +111,7 @@ export async function acknowledgeEvent(eventId: string): Promise<ActionState> {
   if (error) return { ok: false, error: mapSafetyError(error) }
 
   revalidateSafety()
-  return { ok: true, error: SAFETY_MESSAGES.eventAcknowledged }
+  return { ok: true, error: undefined, message: SAFETY_MESSAGES.eventAcknowledged }
 }
 
 /**

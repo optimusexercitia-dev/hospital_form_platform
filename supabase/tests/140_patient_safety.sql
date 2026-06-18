@@ -14,7 +14,7 @@
 -- (T1), not here. This file asserts every DB-side guarantee.
 
 begin;
-select plan(32);
+select plan(35);
 
 -- Enable the flag for the whole test (it ships ON in-phase, but a hermetic test
 -- must not depend on migration order).
@@ -305,6 +305,30 @@ select is(
    where action = 'event_patient.updated' and entity_id = (select id from e1)
    order by seq desc limit 1),
   '{}', 'event_patient.updated audit row carries empty (identifier-free) metadata');
+
+-- =========================================================================
+-- QA fix M1: public.pqs_department has an explicit SELECT policy (Architecture
+-- Rule 1) — the non-PHI singleton NSP config is readable by any authenticated
+-- member; anon is excluded (no base GRANT). 14b reads rca_default_due_days directly,
+-- so a deny-by-default would silently break it.
+-- =========================================================================
+-- (a) a SELECT policy exists on pqs_department.
+select is(
+  (select count(*)::int from pg_policies
+   where schemaname = 'public' and tablename = 'pqs_department' and cmd = 'SELECT'),
+  1, 'pqs_department has exactly one SELECT policy (Rule 1: explicit policy)');
+-- (b) an authenticated member CAN read the singleton row.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.pqs_department),
+  1, 'an authenticated member reads the pqs_department singleton');
+reset role;
+-- (c) anon CANNOT read pqs_department (no base GRANT — denied before RLS; the
+-- policy is `to authenticated`, so anon is excluded by construction).
+select ok(
+  not has_table_privilege('anon', 'public.pqs_department', 'SELECT'),
+  'anon cannot SELECT pqs_department (excluded from the authenticated-only policy)');
 
 -- =========================================================================
 -- Flag-gate: with patient_safety OFF, the RPCs raise feature-unavailable (23514).
