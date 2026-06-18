@@ -22,7 +22,7 @@
 | 11    | Interviews                    | ✅ complete | ✅ | ✅ 152/152 | ✅ APPROVED | ✅ 2026-06-15 | 2026-06-15 | `3d7376b` |
 | 12    | Case Timeline                 | ✅ complete | ✅ | ✅ 169/169 | ✅ APPROVED | ✅ 2026-06-16 | 2026-06-16 | `0feaa9a` |
 | 13    | Audit Trail                   | 🏗️ in progress | – | – | – | – | – | – |
-| 14    | PDCA / CAPA Closure           | 🔜 not started | – | – | – | – | – | – |
+| 14    | Patient-Safety / NSP (RCA & CAPA, 14a–14d) | 🔜 not started | – | – | – | – | – | – |
 | 15    | Quality Indicators            | 🔜 not started | – | – | – | – | – | – |
 | 16    | Standards Crosswalk & Readiness | 🔜 not started | – | – | – | – | – | – |
 | 17    | Controlled-Document Lifecycle | 🔜 not started | – | – | – | – | – | – |
@@ -34,7 +34,7 @@
 > **Accreditation & Quality-Governance Track (13–21)** — planned 2026-06-17; specs in
 > [PHASES.md](PHASES.md) (§ Accreditation track), rationale in ADR
 > [0028](docs/decisions/0028-accreditation-governance-roadmap.md). **13 = Audit Trail** and
-> **14 = PDCA/CAPA** are the agreed first two. Each phase is feature-flagged, individually
+> **14 = Patient-Safety/NSP (Events, Triage, RCA & CAPA — sub-phases 14a–14d)** are the agreed first two. Each phase is feature-flagged, individually
 > testable, and gated by §6. **Deployment plan: pilot after Phase 16** (P0 core); Phase 9
 > stays pending until then (also validates the ADR 0009 prod-auth gap), and Phases 17–21
 > follow the pilot. This track is built ahead of Phase 9 (same convention as Phases 10–12).

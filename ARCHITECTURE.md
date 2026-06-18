@@ -11,7 +11,9 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    with explicit policies. The frontend never relies on UI hiding for access
    control. Service-role keys are used ONLY in server-side route handlers that
    genuinely need to bypass RLS (e.g., user invitations) and never shipped to
-   the client.
+   the client. With PHI in scope (Rule 12), RLS is also the **minimum-necessary**
+   boundary — PHI is isolated into dedicated tables behind the tightest policies
+   and never exposed on list/aggregate paths.
 2. **Schema (canonical — Backend may extend, not contradict):**
    - `profiles(id → auth.users, full_name, is_admin, is_active)` — profiles
      are NEVER deleted (responses reference them); deactivate via `is_active`
@@ -120,13 +122,35 @@ may extend the schema but never contradict it. Cross-references elsewhere to
     direct-table write) emits exactly one audit row attributing the actor, the
     action (`<entity>.<verb>`), the entity reference, and a diff over a curated
     **allow-list of non-sensitive columns**; reads of *another* member's data
-    (foreign-submission view, CSV/evidence export, surveyor portal) emit an
-    explicit `.read`/`.export` row. The log is **never updated or deleted** (a
+    (foreign-submission view, CSV/evidence export, surveyor portal) **and every
+    read of PHI** (Rule 12 — the patient panels and the isolated `event_patient`
+    table) emit an explicit `.read`/`.export` row. The log is **never updated or deleted** (a
     BEFORE UPDATE/DELETE guard raises even for the service role) and is
-    hash-chained per commission so tampering is detectable. **Never log answer
-    payloads or free-text/Markdown bodies** — the log records *that* something
-    changed and *who*, never clinical or free-text content (no patient data,
-    Rule 1's boundary holds). Writes go through one `SECURITY DEFINER` writer;
-    reads are RLS-scoped (admin: all; staff_admin: own commission; staff/anon:
-    none). New cross-cutting features add their high-value tables to the
-    instrumented set as they land.
+    hash-chained per commission so tampering is detectable. **Never copy answer
+    payloads, free-text/Markdown bodies, or PHI into the log** — it records *that*
+    something changed or was read and *who*, never the clinical/free-text content
+    itself, so the log stays low-sensitivity even though the app now holds PHI.
+    Writes go through one `SECURITY DEFINER` writer; reads are RLS-scoped (admin:
+    all; staff_admin: own commission; staff/anon: none). New cross-cutting features
+    add their high-value tables to the instrumented set as they land.
+
+12. **PHI / HIPAA handling** (established in Phase 14; see ADR 0030). PHI is
+    permitted on HIPAA-compliant infrastructure (Supabase, under a BAA), reversing
+    the former no-patient-data rule. It is governed by:
+    - **Minimum necessary** — PHI is collected only where the domain requires it
+      (the patient-safety / NSP module: `event_patient`, RCA/CAPA context) and
+      **isolated** into dedicated tables (`event_patient` is a 0..1 satellite of
+      `patient_safety_event`), never inlined onto governance rows and never
+      selected on queue/list/aggregate paths.
+    - **Access control** — RLS is the authority (Rule 1); PHI tables carry the
+      tightest scope (current custodian + reporting committee for provenance +
+      PQS/admin), and the NSP domain gates on `app.is_pqs_member` (= `is_admin()`
+      until real PQS membership lands).
+    - **Access auditing** — every PHI read emits an explicit `.read` audit row
+      (Rule 11); HIPAA *requires* this, inverting Phase 13's original
+      "don't log reads" default for these tables.
+    - **Encryption** — at rest on the Supabase platform, with optional
+      column-level encryption (pgcrypto) for the most sensitive identifiers.
+    - **Operational prerequisites** (Phase 9 deployment gates) — an executed
+      Supabase BAA, a HIPAA-eligible project tier, and a breach-response posture.
+    Modules that don't need patient identity hold none by design.

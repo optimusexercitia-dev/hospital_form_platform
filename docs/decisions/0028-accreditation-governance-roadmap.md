@@ -1,6 +1,9 @@
 # ADR 0028 — Accreditation & Quality-Governance Roadmap (Phases 13–21)
 
-**Status:** Accepted · **Date:** 2026-06-17 · **Phases:** 13–21 (planning)
+**Status:** Accepted — its **no-patient-data stance is superseded by ADR
+[0030](./0030-patient-safety-phi-and-pqs-architecture.md)** (2026-06-18); the 9-phase
+track structure and sequencing below still stand. · **Date:** 2026-06-17 ·
+**Phases:** 13–21 (planning)
 
 ## Context
 

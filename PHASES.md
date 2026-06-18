@@ -4,6 +4,16 @@ The detailed phased development plan and per-phase acceptance criteria.
 Referenced by `CLAUDE.md` (§5). Each phase is gated by the Phase Gate in
 `CLAUDE.md` (§6).
 
+This file holds the **core-platform track (Phases 0–12)** + the index of the
+accreditation track. The **accreditation & quality-governance track (Phases
+13–21)** detail lives in its own companion file —
+**[docs/phases/accreditation-track.md](docs/phases/accreditation-track.md)** —
+so the per-spawn read of this file stays small; its track-wide context (fixed
+positioning, inherited conventions, data-coupling map, ADR/flag index) is in
+**[docs/quality-track-context.md](docs/quality-track-context.md)**. Both defer
+to `CLAUDE.md` and `ARCHITECTURE.md` for the binding rules — those stay the
+single source of truth for the whole platform.
+
 **Hard rule: no phase begins until the previous phase has passed the Phase
 Gate (CLAUDE.md §6) and the human has approved.** Phases are sequenced so the
 Backend can run one phase ahead on schema work when idle, but nothing is merged
@@ -351,403 +361,36 @@ two dedups (interview `registry_event_id`; meeting-echo). 169/169 green.
 
 ## Accreditation & Quality-Governance Track (Phases 13–21)
 
-> **Why this track exists.** The platform is being positioned for hospitals that
-> must satisfy — or want to *prepare for* — accreditation (ONA in Brazil; JCI/Joint
-> Commission internationally; the ANVISA/RDC regulatory backdrop). Phases 0–12 make
-> the platform an excellent **committee-operations system**; this track makes it an
-> **accreditation-readiness system** by adding the three things surveyors actually
-> score — a tamper-evident audit trail, a closed PDCA/CAPA improvement loop, managed
-> quality indicators — and the engine that maps everything the platform produces to a
-> specific accreditation standard.
->
-> **Positioning is fixed: the platform remains a governance / quality LAYER.** The
-> hard **no-patient-data** rule (CLAUDE.md §1) is reaffirmed for every phase below —
-> these modules document committee *process, measurement, and improvement*, never the
-> clinical case itself. A feature that appears to need patient-identifiable data is a
-> STOP-and-flag, exactly as before. Strategic rationale + the rejected
-> "minimal-identifiers" alternative are recorded in ADR
-> [0028](docs/decisions/0028-accreditation-governance-roadmap.md).
->
-> **Conventions inherited by every phase here** (do not re-litigate per phase):
-> each new feature is **feature-flagged** (inserted OFF, flipped ON in-phase, mirror
-> the `meetings`/`interviews` pattern); custom errors continue the **`HC0xx`** class
-> from `HC042` upward; all writes go through RLS as the authority with narrow
-> `SECURITY DEFINER` exceptions documented in an ADR; all user-facing text pt-BR;
-> all explanatory/free text is **sanitized Markdown, never raw HTML** (Rule 7); every
-> mutation **emits an audit row** once Phase 13 lands (Architecture Rule 11); one
-> keyboard-only flow per phase; types regenerated after every migration. Built ahead
-> of Phase 9 (Deployment) — with the agreed plan to **deploy a pilot after Phase 16**
-> (the P0 accreditation core), then sequence Phases 17–21 on pilot feedback.
+> **Detail moved.** The full phase specs + acceptance criteria for this track
+> now live in **[docs/phases/accreditation-track.md](docs/phases/accreditation-track.md)**,
+> and the track-wide context (why it exists, the governance-layer positioning +
+> PHI posture (ADR 0030), the conventions every phase inherits, the data-coupling map to the
+> committee track, and the ADR/feature-flag index) lives in
+> **[docs/quality-track-context.md](docs/quality-track-context.md)**. They were
+> split out of this file to keep the per-spawn read small; `CLAUDE.md` and
+> `ARCHITECTURE.md` remain the single source of truth for the binding rules.
 
-### Phase 13 — Audit Trail (Trilha de Auditoria)
-A system-wide, **append-only, tamper-evident** audit log: who did what, to which
-entity, when. This is the data-integrity backbone (ALCOA+: Attributable, Legible,
-Contemporaneous, Original, Accurate, **Complete, Enduring**) that JCI `MOI` and ONA
-all lean on, and the cross-cutting contract every later phase honors. **No patient
-data**: the log stores actor + action + entity reference + a non-sensitive field
-diff, never answer payloads or free-text bodies. Establishes Architecture **Rule 11**.
-Full design + rationale in ADR [0028](docs/decisions/0028-accreditation-governance-roadmap.md).
-Feature-flagged behind `audit_trail`.
-- **Schema** (migration `…120000`): `public.audit_log`
-  (`id`, `occurred_at`, `actor_id → profiles` (nullable for system/service-role
-  actions), `actor_is_admin` snapshot, `commission_id` (nullable for global/admin
-  actions), `action` text (`'<entity>.<verb>'`, e.g. `form_version.published`,
-  `member.added`, `case.status_changed`, `meeting.signed`, `signoff.recorded`,
-  `response.opened_foreign`), `entity_type`, `entity_id`, `summary` (pt-BR short
-  string), `metadata jsonb` (old→new for a curated allow-list of non-sensitive
-  columns; NEVER `answers.value` or any `*_md`/free-text body), `seq bigint`
-  (per-commission monotone via sequence), `prev_hash`, `row_hash`). **Tamper-evidence:**
-  `row_hash = sha256(prev_hash || canonical(seq,occurred_at,actor,action,entity,metadata))`
-  forming a per-commission (and a global) hash chain, computed in the DEFINER writer.
-  **Append-only:** `app.guard_audit_immutable` BEFORE UPDATE OR DELETE raises (no row
-  is ever mutated or removed, even by service role). New SQLSTATE `HC042`
-  (append-only violation — internal, never user-facing).
-- **Capture mechanism:** a single DEFINER writer `app.audit_write(action, entity_type,
-  entity_id, commission, summary, metadata)` (advisory-locked per commission to serialize
-  the chain). Writes are driven by **AFTER INSERT/UPDATE/DELETE triggers on a curated set
-  of high-value tables** (forms/versions/sections/items, commission_members, responses
-  status flips, signoffs, cases + case_phases status, meetings + signatures, interviews,
-  controlled docs/CAPA/indicators/evidence as those land) so coverage is **path-independent**
-  (catches both RPC and direct-table writes). Service-role paths that bypass RLS (invites)
-  call `app.audit_write` explicitly. **Sensitive READS** that the triggers can't see —
-  staff_admin opening another member's submitted response, dashboard CSV export, the
-  Phase-19 surveyor portal — log via an explicit `app.audit_write(... '.read'/'.export')`
-  call in the query/route layer (a defined, finite set; not every read).
-- **RLS**: `audit_log` SELECT = `is_admin()` (all rows) **OR** `is_staff_admin_of(commission_id)`
-  (their commission's rows only); **no INSERT/UPDATE/DELETE policy for anyone** (writes only
-  through the DEFINER writer; the guard trigger backstops UPDATE/DELETE). Plain `staff` and
-  `anon` get nothing.
-- **RPCs**: `verify_audit_chain(commission?)` **DEFINER** (`is_staff_admin_of`/admin-gated) —
-  recomputes the chain and returns the first broken `seq` or OK; `list_audit(commission, filters)`
-  is served by an RLS-scoped query (no RPC needed). `audit_trail_enabled()` DEFINER read.
-- **UI**: `/c/[slug]/manage/audit` (staff_admin) + `/admin/audit` (admin cross-commission) —
-  a read-only, paginated, filterable timeline (actor, action type, entity type, date range),
-  reusing the timeline/feed components; CSV export (itself audited); a "verificar integridade"
-  control surfacing `verify_audit_chain`. pt-BR, keyboard-accessible, GSAP rise-in.
-- **Acceptance**: E2E: a mutation in each instrumented module writes exactly **one** audit
-  row with the correct actor/action/entity/summary (publish a form → row; add a member → row;
-  submit a response → row; sign a section → row; change a case status → row; sign a meeting →
-  row); `audit_log` **rejects UPDATE and DELETE** (direct attempt fails); staff_admin sees only
-  their commission's entries, admin sees all, **`staff` cannot reach the audit view** (RLS +
-  route gating); a sensitive read (staff_admin opens a foreign submitted response; CSV export)
-  produces a `.read`/`.export` row; actor/action/date filters change results; CSV row count
-  matches; one keyboard-only pass. pgTAP: append-only enforcement; per-commission RLS scoping;
-  **hash-chain integrity** (intact → `verify_audit_chain` OK; a simulated out-of-band row edit →
-  reports the broken `seq`); zero anon-readable audit rows; the writer attributes `auth.uid()`
-  correctly and falls back to system on a null actor.
+This track makes the platform an **accreditation-readiness system** (ONA / JCI),
+adding what surveyors score — a tamper-evident audit trail, a closed PDCA/CAPA
+loop, managed quality indicators — plus the standards-crosswalk engine, while
+keeping the governance/quality-layer positioning, with PHI confined to the
+patient-safety module (ADR 0030). Same Phase
+Gate (CLAUDE.md §6) and ordering hard-rule as the core track. **Deployment plan:
+pilot after Phase 16** (the P0 core), then sequence 17–21 on pilot feedback — see
+ADR [0028](docs/decisions/0028-accreditation-governance-roadmap.md).
 
-### Phase 14 — PDCA / CAPA Closure (Ciclo PDCA & Ações Corretivas/Preventivas)
-Turns the platform's existing lightweight action items into a **closed corrective/
-preventive loop**: problem → **root-cause analysis** → action plan → **verification of
-effectiveness** → closure. This is the "Check/Act" half of PDCA that JCI `QPS` and ONA
-Nível 3 require and that the platform cannot demonstrate today. Built on the existing
-action-item patterns; the indicator linkage is a **nullable forward hook** wired in
-Phase 15 (this phase does NOT hard-depend on indicators). **No patient data** — a CAPA
-documents a *process* failure and its remedy. Full design in ADR
-[0028](docs/decisions/0028-accreditation-governance-roadmap.md). Feature-flagged behind `capa`.
-- **Schema** (migrations `…121000–121002`): `public.capa_plans`
-  (`id`, `commission_id`, `code` (per-commission minted number), `title`,
-  `description_md`, `classification ∈ {corretiva, preventiva, melhoria}`,
-  `status ∈ {aberto → em_analise → em_execucao → em_verificacao → concluido | cancelado}`,
-  `source_kind ∈ {case, meeting, indicator, audit, manual}`, nullable
-  `source_case_id`/`source_meeting_id`/`source_indicator_id` (the Phase-15 hook)/
-  `source_audit_finding_id` (the Phase-18 hook), `opened_by`/`opened_at`,
-  `due_date`, `closed_by`/`closed_at`); `public.capa_root_causes`
-  (one-or-few per plan; `method ∈ {cinco_porques, ishikawa, livre}`, `structure jsonb`
-  — ordered whys for 5-whys, the 6-M category→causes map for Ishikawa — + `narrative_md`);
-  `public.capa_actions` (mirrors `case_action_items`: `assignee`, `due_date`,
-  `status ∈ {open, in_progress, done, cancelled}`, `completed_at/by`); `public.capa_effectiveness`
-  (`verified_by`, `verified_at`, `verdict ∈ {eficaz, parcial, ineficaz}`, `method_md`,
-  nullable `indicator_id` + `measured_value` (the loop-closing hook)). State machine +
-  content-freeze via `app.guard_capa_status` (session flag `app.in_capa_rpc`, mirror cases/
-  meetings); child-lock freezes RCA + actions once terminal. New SQLSTATEs from `HC043`.
-- **RPCs** (gate `capa`; invoker unless noted): `create_capa_plan` (mint retry; from a case/
-  meeting/manual), `update_capa_plan`, `set_capa_root_cause(method, structure, narrative)`;
-  action CRUD `add/update_capa_action` + lifecycle `advance/complete_capa_action`
-  (assignee-OR-staff_admin gate → **HC027**-style, reuse `app.advance_action_item_core` shape);
-  `record_capa_effectiveness(verdict, method_md, indicator_id?, measured_value?)`;
-  `close_capa_plan` — **conclude gate**: rejects unsettled (open/in_progress) actions
-  (**HC044**) and requires a recorded effectiveness verdict (**HC045**), else terminal-first
-  `concluido`; `cancel_capa_plan` (anytime; HC046 if already terminal); `reopen_capa_plan`
-  (`concluido → em_execucao`, **revokes** the effectiveness row — mirror `reopen_meeting`);
-  `capa_kpis(commission)` **DEFINER** (`is_staff_admin_of`/admin-gated: open / overdue /
-  em_verificacao / eficaz-vs-ineficaz counts). `commission_of_capa(id)` definer helper drives RLS.
-- **RLS**: `capa_plans` + 3 child tables member-READ / staff_admin-WRITE (resolve commission via
-  `app.commission_of_capa`); an action **assignee** who is plain `staff` moves status only via the
-  narrow `advance/complete_capa_action` DEFINER path (no broad UPDATE) — exactly the action-item rule.
-- **UI** under the commission area, reusing action-item + case components: `manage/capa/**` — CAPA
-  list (filter status/classification/source/overdue), detail page (header + lifecycle controls; an
-  **RCA editor** with method picker: 5-whys ordered inputs / Ishikawa 6-category grid / free Markdown;
-  actions panel; effectiveness panel). "Abrir plano de ação (CAPA)" entry points from a **case** detail
-  and a **meeting** detail (a decision/action item → CAPA, pre-filling `source_*`). CAPA surfaces on the
-  case **timeline** (Phase 12) when `source_case_id` is set. The indicator picker in the effectiveness
-  panel renders **disabled with a "disponível com Indicadores (Fase 15)" hint** until the flag lands.
-- **Acceptance**: E2E: staff_admin opens a CAPA from a case → classifies `corretiva` → records a
-  5-whys RCA → adds 2 actions with assignees + due dates → an assignee (plain `staff`) advances then
-  completes their action → staff_admin records effectiveness `eficaz` → closes the plan; the board
-  reflects each transition. Negative/lifecycle: **close blocked with no effectiveness** → `HC045` pt-BR;
-  **close blocked with an open action** → `HC044` pt-BR; **reopen revokes** the effectiveness verdict and
-  unfreezes editing; a concluded plan + its RCA + actions **reject edits** (guard); the Ishikawa method
-  persists the 6-category structure and 5-whys persists ordered whys; the narrative is sanitized Markdown
-  (no raw HTML survives — Rule 7); a non-assignee `staff` cannot advance an action and cannot edit the plan;
-  a foreign-commission user gets no read; every CAPA mutation appears in the **audit trail** (Phase-13
-  integration assertion). One keyboard-only pass. pgTAP: status-machine + child-lock guards;
-  effectiveness-required-to-close; reopen-revokes; assignee-or-staff_admin action gate; RLS scoping; the
-  `source_indicator_id` column accepts NULL and the FK is deferred-safe for the Phase-15 wiring.
+| Phase | Name | Feature flag |
+| ----- | ---- | ------------ |
+| 13 | Audit Trail | `audit_trail` |
+| 14 | Patient-Safety Events, Triage, RCA & CAPA (NSP) | `patient_safety` |
+| 15 | Quality Indicators | `quality_indicators` |
+| 16 | Standards Crosswalk & Readiness/Gap Engine | `accreditation` |
+| 17 | Controlled-Document Lifecycle | `controlled_docs` |
+| 18 | Self-Assessment, Internal Audit & Mock Tracer | `internal_audit` |
+| 19 | Surveyor Access & Evidence Export | `surveyor_access` |
+| 20 | Notifications & Escalation | `notifications` |
+| 21 | Committee Charters & Meeting Cadence | `charters` |
 
-### Phase 15 — Quality Indicators (Indicadores de Qualidade)
-Formal, managed quality indicators with **numerator/denominator definitions, targets,
-periodicity, and trend-vs-target** — the heart of ONA Nível 3 and JCI `QPS` data
-management, and the payoff of the platform's stable cross-version `question_key` spine.
-Indicators can be entered **manually** or **derived** from existing submitted-form
-aggregates. Off-target measurements wire the Phase-14 hook: "open a CAPA"; a CAPA's
-effectiveness can then cite a later measurement to **close the improvement loop**.
-**No patient data** — indicators are aggregate process/quality metrics. Feature-flagged
-behind `quality_indicators`.
-- **Schema** (migrations `…122000–122001`): `public.indicators`
-  (`id`, `commission_id`, `code`, `name`, `description_md`, `kind ∈ {percentual, taxa,
-  contagem, tempo_medio}`, `numerator_label`, `denominator_label`, `unit`,
-  `direction ∈ {maior_melhor, menor_melhor}`, `target_value numeric`,
-  `target_comparator ∈ {>=, <=, =, >, <}`, `lower_warn?`/`upper_warn?` (control/warning band),
-  `frequency ∈ {mensal, bimestral, trimestral, semestral, anual}`, `data_source ∈ {manual, derived}`,
-  `derived_config jsonb` (`{form_id, numerator: {question_key, option?}, denominator: {...}}` when
-  derived), `status ∈ {ativo, arquivado}`); `public.indicator_measurements`
-  (`id`, `indicator_id`, `period_label` (e.g. `'2026-06'`), `period_start`/`period_end`,
-  `numerator numeric`, `denominator numeric`, `value numeric`, `source ∈ {manual, derived}`,
-  `entered_by`/`entered_at`, `note`, `unique(indicator_id, period_label)`). Measurements are
-  **editable by staff_admin but every change is audited** (Phase 13) — corrections are
-  contemporaneous + attributable rather than silently overwritten. New SQLSTATEs from `HC047`.
-- **RPCs** (gate `quality_indicators`): indicator CRUD `create/update/archive_indicator`,
-  `set_indicator_target`; `record_indicator_measurement(indicator, period, num, den, note)`
-  (computes `value`; off-target detection); `compute_derived_measurement(indicator, period)`
-  **DEFINER** — reads the submitted-only aggregate via the **existing Phase-8 spine**
-  (`app.submitted_form_responses` + the `dashboard_distributions` logic) so a derived value
-  **equals** the dashboard for the same window; `indicator_series(indicator, from?, to?)`
-  **DEFINER** (trend points + the target line); `indicator_kpis(commission)` **DEFINER**
-  (`is_staff_admin_of`/admin: na-meta / fora-da-meta / sem-dados counts).
-- **RLS**: `indicators` + `indicator_measurements` member-READ / staff_admin-WRITE, commission-scoped.
-- **UI**: `manage/indicators/**` — indicator builder (definition, target/comparator, frequency,
-  data source: manual entry vs derived-from-a-form's-`question_key`), measurement entry grid, and an
-  indicator detail with a **run chart / trend-vs-target** (Recharts) + warning bands + a status chip
-  (`na meta` / `fora da meta` / `sem dados`). An off-target measurement surfaces **"Abrir plano de ação
-  (CAPA)"** pre-linking `source_indicator_id` (Phase 14). An **Indicadores** panel on
-  `/c/[slug]/dashboard` shows the commission's indicator scorecard.
-- **Acceptance**: E2E: a **manual** indicator (target ≥ 90%) with monthly measurements renders a trend
-  whose on/off-target classification matches the seeded numbers **exactly** (assert values, not just
-  rendering); a **derived** indicator bound to a form's `question_key` → `compute_derived_measurement`
-  equals the Phase-8 dashboard aggregate for that period (assert equality); an off-target measurement
-  exposes "Abrir CAPA" and the created CAPA carries `source_indicator_id`; a CAPA effectiveness row can
-  cite the indicator + a later (improved) measurement — the **loop closes end-to-end across Phases 14+15**;
-  editing a measurement writes an audit row (Phase 13); `staff` cannot edit indicators; a foreign-commission
-  user gets no read; one keyboard-only pass. pgTAP: derived-compute equals the canonical aggregate; RLS
-  scoping; off-target detection across both `direction` values; KPI counts; the CAPA `source_indicator_id`
-  FK resolves.
+→ **Full detail: [docs/phases/accreditation-track.md](docs/phases/accreditation-track.md)**
 
-### Phase 16 — Standards Crosswalk & Readiness/Gap Engine (Mapa de Padrões & Prontidão)
-The **strategic differentiator**: make the platform *aware of accreditation standards* and
-let a commission **link the artifacts it already produces** — published forms, meetings,
-cases, indicators, CAPA plans, controlled documents — as **evidence** against a specific
-standard, then compute a **readiness / gap report** ("for standard X: evidence present /
-partial / missing"). This is what turns "we run committees" into "we are prepared for the
-survey" and directly serves *facilitating accreditation for hospitals that don't yet have it*.
-Frameworks are admin-curated reference packs (ONA + a JCI chapter skeleton seeded);
-hospitals may add custom frameworks. **No patient data.** Feature-flagged behind `accreditation`.
-- **Schema** (migrations `…123000–123001`): `public.accreditation_frameworks`
-  (`id`, `key` (`'ona'`/`'jci'`/custom), `name`, `version`, `description`, `owner_commission_id`
-  nullable (NULL = global/admin-curated), `status ∈ {ativo, arquivado}`);
-  `public.accreditation_standards` (`id`, `framework_id`, `parent_id` (self-ref hierarchy:
-  capítulo → padrão → elemento de mensuração), `code` (e.g. `QPS.1`), `title`, `description_md`,
-  `position`); `public.evidence_links` (`id`, `commission_id`, `standard_id`,
-  `artifact_kind ∈ {form, form_version, meeting, case, indicator, capa_plan, controlled_document,
-  action_item}`, `artifact_id`, `note`, `linked_by`/`linked_at`,
-  `unique(commission_id, standard_id, artifact_kind, artifact_id)`);
-  `public.standard_assessments` (`id`, `commission_id`, `standard_id`,
-  `status ∈ {conforme, parcial, nao_conforme, nao_aplicavel}`, `assessed_by`/`assessed_at`,
-  `note_md`, `unique(commission_id, standard_id)`). New SQLSTATEs from `HC049`.
-- **RPCs** (gate `accreditation`): framework + standard admin CRUD (`is_admin`-gated for global packs;
-  `is_staff_admin_of` for a commission's custom framework) + seed packs; `link_evidence` / `unlink_evidence`
-  + `set_standard_assessment` (staff_admin); `readiness_report(commission, framework)` **DEFINER**
-  (per-standard evidence count + assessment + chapter rollup + overall %); `hospital_readiness(framework)`
-  **DEFINER** (`is_admin`: cross-commission rollup = hospital readiness). An `app.artifact_belongs_to_commission`
-  guard rejects linking a foreign artifact.
-- **RLS**: `accreditation_frameworks` + `accreditation_standards` SELECT to any authenticated user
-  (reference data); `evidence_links` + `standard_assessments` member-READ / staff_admin-WRITE,
-  commission-scoped.
-- **UI**: `manage/accreditation/**` — pick a framework → standards **tree** with status chips
-  (conforme/parcial/não-conforme/N.A.) + evidence count; a per-standard panel to **assess** status and
-  **link evidence** via an artifact picker that searches the commission's forms/meetings/cases/indicators/
-  CAPA/documents; a **readiness dashboard** (rollup gauges per chapter + a **gap list** of standards with
-  no evidence or `nao_conforme`). `/admin/accreditation` — hospital-wide readiness across commissions.
-- **Acceptance**: E2E: a seeded framework (ONA + a JCI skeleton) renders as a tree; linking a published
-  form + a meeting + an indicator to a standard marks it evidenced and removes it from the gap list;
-  assessing a standard `nao_conforme` puts it in the gap list and the rollup % reflects it (assert the
-  computed value); the admin hospital-wide view aggregates two commissions' readiness correctly; an
-  attempt to link a **foreign-commission artifact** is rejected; `staff` cannot edit; evidence links are
-  audited (Phase 13); one keyboard-only pass. pgTAP: evidence-link uniqueness + foreign-artifact rejection;
-  RLS scoping; readiness + hospital rollup correctness.
-
-### Phase 17 — Controlled-Document Lifecycle (Gestão de Documentos Controlados)
-Policy/procedure documents (políticas, POPs, protocolos, regimentos, manuais) under a
-**controlled-document lifecycle**: named-approver workflow, effective/expiry dates, a
-**scheduled review cycle**, and a controlled-document register — the core of JCI `MOI`
-document control. Reuses the immutable-storage pattern (`form-assets`/`case-documents`)
-and the meetings e-signature primitive for approvals. Form publishing is extended with
-the same approver + review-due metadata (a published form IS a controlled document).
-**No patient data.** Feature-flagged behind `controlled_docs`.
-- **Schema** (migrations `…124000–124002`): `public.controlled_documents`
-  (`id`, `commission_id`, `code`, `title`, `doc_type ∈ {politica, pop, protocolo, regimento,
-  manual, outro}`, `status ∈ {rascunho → em_aprovacao → vigente → em_revisao → obsoleto}`,
-  `current_version_id`); `public.controlled_document_versions` (`id`, `document_id`,
-  `version_number`, `storage_path` (immutable, new path per upload — Rule 6),
-  `summary_of_changes`, `effective_date`, `review_due_date`, `expiry_date?`, `status`);
-  `public.document_approvals` (`id`, `document_version_id`, `approver_id`, `approver_title`,
-  `decision ∈ {aprovado, rejeitado}`, `decided_at`, `note`, `signature_hash` — sha256 of the
-  object + decision, mirroring `meeting_signatures.content_hash`). Additive on `form_versions`:
-  `approved_by`, `approved_at`, `review_due_date`, `effective_date`. State machine via
-  `app.guard_controlled_document_status`. New SQLSTATEs from `HC051`.
-- **RPCs** (gate `controlled_docs`): document CRUD + `add_document_version` (immutable upload),
-  `submit_document_for_approval`, `approve_document` / `reject_document` (sign-own-approval, computes
-  `signature_hash`; mirror `app.can_sign_meeting`), `publish_document` (`→ vigente`, sets effective +
-  review-due), `supersede_document` (new version replaces, prior → obsolete-but-retained),
-  `mark_document_obsolete`; `documents_due_for_review(commission)` **DEFINER**. Form publish gains an
-  approver + review-due capture.
-- **RLS**: documents + versions member-READ / staff_admin-WRITE; approvers **sign their own approval row**
-  (no broad write); new immutable `controlled-documents` Storage bucket (members read, staff_admin INSERT,
-  NO update/delete; path `{commission_id}/{document_id}/{uuid}.{ext}`; signed-URL reads).
-- **UI**: `manage/documents/**` — controlled-document **register** (filter type/status/review-due), a
-  detail page (versions, approvals, effective/expiry, download), an **approval queue** ("pendentes de
-  aprovação"), and a **review-due list** (drives Phase-20 reminders). The publish-form flow gains
-  approver + review-due fields.
-- **Acceptance**: E2E: full lifecycle — draft → submit-for-approval → a **named approver e-signs**
-  (`aprovado`) → publish (`vigente`, effective date set) → a new version **supersedes** it (prior version
-  retained but flagged obsolete) → a past-due `review_due_date` surfaces the doc in the review-due list;
-  approval **requires** a named approver signature (unsigned publish rejected); the storage object gets a
-  **new path per version** (immutability, Rule 6) and the old version still downloads; documents are
-  audited (Phase 13); a foreign-commission user gets no read; one keyboard-only pass. pgTAP: status-machine
-  guard; sign-own-approval RLS; immutable-storage (no update/delete); review-due computation; review-due +
-  approver metadata on `form_versions`.
-
-### Phase 18 — Self-Assessment, Internal Audit & Mock Tracer (Autoavaliação & Auditoria Interna)
-**Scored** internal-audit checklists mapped to accreditation standards (Phase 16), with
-audit scheduling, a per-round auditor assignment, and a weighted conformity score —
-supporting mock-tracer rounds and gap closure. A non-conforming finding opens a CAPA
-(Phase 14) and updates the standard's assessment (Phase 16), wiring the
-measure → improve → re-assess loop. **No patient data.** Feature-flagged behind `internal_audit`.
-- **Schema** (migrations `…125000–125001`): `public.audit_rounds`
-  (`id`, `commission_id`, nullable `framework_id`, `title`, `round_type ∈ {autoavaliacao,
-  auditoria_interna, tracer}`, `scheduled_for`, `status ∈ {agendada → em_andamento → concluida |
-  cancelada}`, `auditor_id` (any assigned member — **per-round assignment, not a new global role**;
-  a true `auditor` role is a deferred ADR option), `score numeric` snapshot on conclude);
-  `public.audit_findings` (`id`, `round_id`, nullable `standard_id`, `item` text,
-  `result ∈ {conforme, parcial, nao_conforme, nao_aplicavel}`, `weight numeric`, `evidence_note_md`,
-  nullable `capa_plan_id` (Phase-14 link)). Weighted score = `Σ(result_factor × weight)` over
-  applicable findings. State machine via `app.guard_audit_round_status`. New SQLSTATEs from `HC053`.
-- **RPCs** (gate `internal_audit`): round CRUD + `schedule_audit_round`, finding CRUD,
-  `conclude_audit_round` (snapshots `score`, freezes findings), `link_finding_to_capa(finding)`
-  (creates/links a CAPA with `source_audit_finding_id`), `sync_finding_to_standard(finding)`
-  (writes the Phase-16 `standard_assessment`). `audit_round_score(round)` is computed.
-- **RLS**: rounds + findings member-READ; WRITE = staff_admin **OR** the round's assigned `auditor_id`
-  (a narrow per-round grant, mirror the interview participant-write shape via a definer predicate).
-- **UI**: `manage/audits/**` — schedule rounds, **conduct** a round (a checklist of items, each scored
-  conforme/parcial/não-conforme/N.A. with weight + evidence note; a standard picker per item), a live
-  **score rollup**, and "abrir CAPA" on a non-conforme finding. A mock-tracer is a `round_type`.
-- **Acceptance**: E2E: schedule a round → assign an auditor → conduct (score items) → the weighted score
-  computes correctly (assert the value) → a `nao_conforme` finding **opens a CAPA** (`source_audit_finding_id`
-  set) and **flags the standard** `nao_conforme` (Phase-16 assessment updated) → conclude snapshots the
-  score and freezes findings; the assigned auditor (plain `staff`) can score their round, a non-assigned
-  `staff` cannot; rounds are audited (Phase 13); a foreign-commission user gets no read; one keyboard-only
-  pass. pgTAP: status-machine + freeze-on-conclude; per-round auditor write grant; weighted-score
-  correctness across all four results; finding→CAPA + finding→standard links.
-
-### Phase 19 — Surveyor Access & Evidence Export (Acesso de Auditor Externo & Pacote de Evidências)
-A **time-boxed, scoped, read-only external-surveyor** access path and a curated
-**evidence-export bundle** — so an accreditation surveyor can review readiness + linked
-evidence without a full account and without any write path, with **every access audited**.
-This is the most security-sensitive phase in the track and requires a **full plan review**
-(new external-access shape). **No patient data** ever crosses the boundary. Feature-flagged
-behind `surveyor_access`.
-- **Schema** (migration `…126000`): `public.surveyor_grants`
-  (`id`, `commission_id` (or NULL = admin/hospital-wide), `grantee_name`, `grantee_email`,
-  `scope jsonb` (`{framework_ids, commission_ids, from, to}`), `token_hash` (a hashed,
-  single-use-mintable opaque token — never stored in clear), `expires_at`, `created_by`/`created_at`,
-  `revoked_at`/`revoked_by`, `last_accessed_at`). New SQLSTATEs from `HC055`.
-- **RPCs / routes**: `create_surveyor_grant` / `revoke_surveyor_grant` (staff_admin/admin); a **read-only
-  surveyor portal** at a separate route group (`/survey/[token]`) served by `SECURITY DEFINER`
-  scope-checked reads (readiness report + the standards tree + linked-evidence summaries — **answer-free,
-  download-by-signed-URL only where a document is explicitly linked as evidence**); **every portal view
-  and every export emits an audit `.read`/`.export` row** (Phase 13). An evidence-export bundle route
-  (server, grant-scoped or staff_admin cookie) renders a readiness package (PDF/zip) per framework.
-- **RLS / security**: a surveyor grant unlocks ONLY the DEFINER scope-checked reads — **no table write path,
-  no PostgREST table access**; the token is validated server-side, expiry + revocation enforced on every
-  request; out-of-scope frameworks/commissions/date-ranges are invisible. The platform's own users are
-  unaffected. This phase gets a dedicated **security/RLS review** at the QA gate.
-- **UI**: `manage/accreditation/survey` (staff_admin) + `/admin/accreditation/survey` (admin) — create /
-  list / revoke grants, copy the access link; the minimal, branded, read-only **surveyor portal**; the
-  evidence-export action.
-- **Acceptance**: E2E: create a time-boxed grant → open the surveyor portal via the link → see ONLY the
-  granted scope, **read-only** (no mutation control reachable; direct write attempts blocked) → access
-  **expires** after the window and is **killed by revoke**; every portal view + export writes an audit row;
-  the export bundle's contents match the readiness report; an out-of-scope framework/commission is not
-  visible through the portal by any path; the regular app's RLS is unchanged for normal users; one
-  keyboard-only pass. pgTAP / security: token expiry + revocation enforcement; scope confinement (no
-  cross-commission / cross-framework leakage); **zero write capability** from a grant; no answer payloads
-  in any surveyor read.
-
-### Phase 20 — Notifications & Escalation (Notificações & Escalonamento)
-Email + an in-app **notification center** + scheduled **reminders/escalation**, replacing
-the v1 "in-app pending queue only" posture. Timely follow-through is what accreditation
-follow-up depends on, and the track has accumulated several due/overdue signals worth
-surfacing: pending sign-offs, pending meeting signatures, **overdue CAPA actions**, CAPA
-effectiveness due, **document review-due**, **indicator measurement-due**, scheduled audit
-rounds. Reuses the Phase-3 Mailpit test harness. **No patient data** in any notification
-body. Feature-flagged behind `notifications`.
-- **Schema** (migration `…127000`): `public.notifications`
-  (`id`, `user_id`, `kind`, `commission_id`, `entity_type`/`entity_id`, `title`, `body`
-  (pt-BR, no sensitive content), `read_at`, `created_at`); `public.notification_preferences`
-  (`user_id`, `commission_id`, per-channel/per-kind opt-in). New SQLSTATEs from `HC057` (if any).
-- **RPCs / jobs**: `mark_notification_read` / `mark_all_read` / `set_notification_preferences`
-  (own-row only); `compute_due_notifications()` **DEFINER** batch — scans CAPA actions/effectiveness,
-  controlled-document review dates, indicator measurement periodicity, audit-round schedules, sign-off /
-  signature queues, and enqueues notifications + email payloads; invoked by **`pg_cron`** (or an external
-  cron hitting a server route). A server-only **email sender** route (SMTP/Supabase, service-role,
-  `import 'server-only'`) — provider-abstracted, mirror the invite path. **Escalation:** an item still
-  unactioned after N days notifies the staff_admin (configurable threshold).
-- **RLS**: `notifications` + `notification_preferences` are **own-row only** (`user_id = auth.uid()`).
-- **UI**: a notification **bell + center** in the app shell (per-user, unread badge), a per-user
-  **preferences** page; due/overdue states surfaced inline on the CAPA / documents / indicators lists.
-- **Acceptance**: E2E (Mailpit-intercepted, reuse Phase-3): an **overdue CAPA action** generates an in-app
-  notification **and** an email; mark-read clears the badge; **preferences are respected** (a disabled kind
-  produces neither channel); **escalation** fires to the staff_admin after the threshold; a user sees ONLY
-  their own notifications; the cron batch is idempotent (no duplicate notification for the same due event);
-  one keyboard-only pass. pgTAP: own-row RLS; `compute_due_notifications` selects exactly the due/overdue
-  set across each source; idempotency guard; escalation threshold.
-
-### Phase 21 — Committee Charters & Meeting Cadence (Regimentos & Periodicidade de Reuniões)
-Each commission carries a **charter (regimento)** — purpose, scope, authority, membership,
-and a **required meeting frequency** — and the platform **tracks adherence to that cadence**
-(e.g. CCIH must meet monthly) and **carries forward** unresolved agenda items + open action
-items into the next meeting. JCI `GLD` expects every committee to have a defined charter and
-to meet on schedule; this closes that governance gap and ties the track back to the Meetings
-module. The charter is itself a **controlled document** (Phase 17, `doc_type='regimento'`).
-**No patient data.** Feature-flagged behind `charters`.
-- **Schema** (migration `…128000`): `public.commission_charters`
-  (`commission_id` PK, `purpose_md`, `scope_md`, `authority_md`, `membership_md`,
-  `meeting_frequency ∈ {semanal, quinzenal, mensal, bimestral, trimestral}`,
-  `effective_date`, `review_due_date`, nullable `controlled_document_id` → the regimento doc).
-  (Quorum already lives in `commission_meeting_settings`.) Cadence adherence is **computed** from
-  `meetings` history vs `meeting_frequency`. New SQLSTATEs from `HC058` (if any).
-- **RPCs** (gate `charters`): `upsert_commission_charter` (staff_admin); `meeting_cadence_status(commission)`
-  **DEFINER** (compliant / em atraso vs the last `realizada` meeting + frequency); agenda **carry-forward**
-  — `suggest_carry_forward(commission)` pulls open `meeting_action_items` + deferred agenda items for the
-  next `create_meeting`.
-- **RLS**: `commission_charters` member-READ / staff_admin-WRITE.
-- **UI**: `manage/charter` (or under `manage/documents`) — the charter editor (sanitized Markdown) + a
-  frequency setting; a **cadence indicator** on the meetings list ("em dia" / "reunião em atraso"); a
-  **carry-forward** suggestion step in the schedule-meeting flow.
-- **Acceptance**: E2E: define a charter with a **monthly** cadence → the cadence indicator reads compliant
-  vs a recent meeting and **em atraso** when the last meeting predates the window (assert against seeded
-  meeting dates); scheduling a new meeting **auto-suggests** carried-forward open action items + deferred
-  agenda items; the charter renders as a controlled document with a review-due date (Phase 17); charter
-  edits are audited (Phase 13); a foreign-commission user gets no read; one keyboard-only pass. pgTAP:
-  cadence computation across frequencies; carry-forward selection; RLS scoping; charter↔controlled-document
-  link.
+<!-- Phases 13–21 detail relocated to docs/phases/accreditation-track.md; rationale in docs/quality-track-context.md. -->
