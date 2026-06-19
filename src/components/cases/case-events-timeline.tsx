@@ -21,9 +21,15 @@ import { formatDate, formatDueDate } from "./format";
 export function CaseEventsTimeline({
   caseId,
   events,
+  canWrite = true,
 }: {
   caseId: string;
   events: CaseEvent[];
+  /**
+   * Whether the viewer may add/edit/delete working notes (`canWriteContent`; ADR
+   * 0033). Default `true`; a read-only viewer sees the notes without affordances.
+   */
+  canWrite?: boolean;
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<CaseEvent | null>(null);
@@ -46,16 +52,19 @@ export function CaseEventsTimeline({
             {events.length}
           </span>
         </div>
-        <Button type="button" size="sm" onClick={() => setAddOpen(true)}>
-          <MessageSquarePlus aria-hidden="true" />
-          Adicionar registro
-        </Button>
+        {canWrite && (
+          <Button type="button" size="sm" onClick={() => setAddOpen(true)}>
+            <MessageSquarePlus aria-hidden="true" />
+            Adicionar registro
+          </Button>
+        )}
       </div>
 
       {events.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-          Nenhum registro ainda. Anote reuniões, decisões e notas de
-          acompanhamento deste caso.
+          {canWrite
+            ? "Nenhum registro ainda. Anote reuniões, decisões e notas de acompanhamento deste caso."
+            : "Nenhum registro ainda."}
         </p>
       ) : (
         <ol className="flex flex-col gap-3">
@@ -89,35 +98,39 @@ export function CaseEventsTimeline({
                   {ev.createdByName ? ` · ${ev.createdByName}` : ""}
                 </p>
               </div>
-              <div className="flex shrink-0 items-start gap-0.5">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => setEditing(ev)}
-                  aria-label={`Editar registro${ev.title ? ` ${ev.title}` : ""}`}
-                >
-                  <Pencil aria-hidden="true" />
-                </Button>
-                <ConfirmDeleteButton
-                  action={() => deleteCaseEvent(ev.id)}
-                  label={`Remover registro${ev.title ? ` ${ev.title}` : ""}`}
-                  title="Remover este registro?"
-                  description="O registro será removido permanentemente. Esta ação não pode ser desfeita."
-                />
-              </div>
+              {canWrite && (
+                <div className="flex shrink-0 items-start gap-0.5">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setEditing(ev)}
+                    aria-label={`Editar registro${ev.title ? ` ${ev.title}` : ""}`}
+                  >
+                    <Pencil aria-hidden="true" />
+                  </Button>
+                  <ConfirmDeleteButton
+                    action={() => deleteCaseEvent(ev.id)}
+                    label={`Remover registro${ev.title ? ` ${ev.title}` : ""}`}
+                    title="Remover este registro?"
+                    description="O registro será removido permanentemente. Esta ação não pode ser desfeita."
+                  />
+                </div>
+              )}
             </li>
           ))}
         </ol>
       )}
 
-      <CaseEventForm
-        mode="create"
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        caseId={caseId}
-      />
-      {editing && (
+      {canWrite && (
+        <CaseEventForm
+          mode="create"
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          caseId={caseId}
+        />
+      )}
+      {canWrite && editing && (
         <CaseEventForm
           mode="edit"
           open={editing !== null}

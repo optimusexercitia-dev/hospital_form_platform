@@ -68,11 +68,13 @@ function ActionItemRow({
   assignees,
   phases,
   caseId,
+  canWrite,
 }: {
   item: CaseActionItem;
   assignees: AssigneeOption[];
   phases: PhaseOption[];
   caseId: string;
+  canWrite: boolean;
 }) {
   const { run, isPending, error } = useCaseAction();
   const [editOpen, setEditOpen] = useState(false);
@@ -128,63 +130,65 @@ function ActionItemRow({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-0.5">
-          {!isClosed && (
+        {canWrite && (
+          <div className="flex shrink-0 items-center gap-0.5">
+            {!isClosed && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                disabled={isPending}
+                onClick={() => run(() => completeActionItem(item.id))}
+                aria-label={`Concluir ${item.title}`}
+                className="text-muted-foreground hover:text-success"
+              >
+                <Check aria-hidden="true" />
+              </Button>
+            )}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={isPending}
+                  aria-label={`Alterar estado de ${item.title}`}
+                >
+                  Estado
+                  <ChevronDown aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Definir estado</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {STATUS_ORDER.map((s) => (
+                  <DropdownMenuItem
+                    key={s}
+                    disabled={s === item.status}
+                    onSelect={() => run(() => advanceActionItem(item.id, s))}
+                  >
+                    {ACTION_ITEM_STATUS_LABEL[s]}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Button
               type="button"
               variant="ghost"
               size="icon-sm"
-              disabled={isPending}
-              onClick={() => run(() => completeActionItem(item.id))}
-              aria-label={`Concluir ${item.title}`}
-              className="text-muted-foreground hover:text-success"
+              onClick={() => setEditOpen(true)}
+              aria-label={`Editar ${item.title}`}
             >
-              <Check aria-hidden="true" />
+              <Pencil aria-hidden="true" />
             </Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={isPending}
-                aria-label={`Alterar estado de ${item.title}`}
-              >
-                Estado
-                <ChevronDown aria-hidden="true" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Definir estado</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {STATUS_ORDER.map((s) => (
-                <DropdownMenuItem
-                  key={s}
-                  disabled={s === item.status}
-                  onSelect={() => run(() => advanceActionItem(item.id, s))}
-                >
-                  {ACTION_ITEM_STATUS_LABEL[s]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setEditOpen(true)}
-            aria-label={`Editar ${item.title}`}
-          >
-            <Pencil aria-hidden="true" />
-          </Button>
-          <ConfirmDeleteButton
-            action={() => deleteActionItem(item.id)}
-            label={`Remover ${item.title}`}
-            title="Remover este item de ação?"
-            description={`O item “${item.title}” será removido permanentemente. Esta ação não pode ser desfeita.`}
-          />
-        </div>
+            <ConfirmDeleteButton
+              action={() => deleteActionItem(item.id)}
+              label={`Remover ${item.title}`}
+              title="Remover este item de ação?"
+              description={`O item “${item.title}” será removido permanentemente. Esta ação não pode ser desfeita.`}
+            />
+          </div>
+        )}
       </div>
 
       {error && (
@@ -193,15 +197,17 @@ function ActionItemRow({
         </p>
       )}
 
-      <CaseActionItemForm
-        mode="edit"
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        caseId={caseId}
-        item={item}
-        assignees={assignees}
-        phases={phases}
-      />
+      {canWrite && (
+        <CaseActionItemForm
+          mode="edit"
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          caseId={caseId}
+          item={item}
+          assignees={assignees}
+          phases={phases}
+        />
+      )}
     </li>
   );
 }
@@ -218,11 +224,18 @@ export function CaseActionItemsPanel({
   items,
   assignees,
   phases,
+  canWrite = true,
 }: {
   caseId: string;
   items: CaseActionItem[];
   assignees: AssigneeOption[];
   phases: PhaseOption[];
+  /**
+   * Whether the viewer may author/edit action items (`canWriteContent`; ADR 0033).
+   * Default `true` preserves the coordinator call-sites; a read-only viewer passes
+   * `false` to render the list without any mutating affordance.
+   */
+  canWrite?: boolean;
 }) {
   const [addOpen, setAddOpen] = useState(false);
 
@@ -250,16 +263,19 @@ export function CaseActionItemsPanel({
             </span>
           )}
         </div>
-        <Button type="button" size="sm" onClick={() => setAddOpen(true)}>
-          <Plus aria-hidden="true" />
-          Novo item
-        </Button>
+        {canWrite && (
+          <Button type="button" size="sm" onClick={() => setAddOpen(true)}>
+            <Plus aria-hidden="true" />
+            Novo item
+          </Button>
+        )}
       </div>
 
       {items.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-          Nenhum item de ação. Registre melhorias sistêmicas e ações de
-          acompanhamento decorrentes deste caso.
+          {canWrite
+            ? "Nenhum item de ação. Registre melhorias sistêmicas e ações de acompanhamento decorrentes deste caso."
+            : "Nenhum item de ação registrado."}
         </p>
       ) : (
         <ul className="flex flex-col gap-3">
@@ -270,19 +286,22 @@ export function CaseActionItemsPanel({
               assignees={assignees}
               phases={phases}
               caseId={caseId}
+              canWrite={canWrite}
             />
           ))}
         </ul>
       )}
 
-      <CaseActionItemForm
-        mode="create"
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        caseId={caseId}
-        assignees={assignees}
-        phases={phases}
-      />
+      {canWrite && (
+        <CaseActionItemForm
+          mode="create"
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          caseId={caseId}
+          assignees={assignees}
+          phases={phases}
+        />
+      )}
     </section>
   );
 }

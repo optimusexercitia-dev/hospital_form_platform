@@ -31,6 +31,7 @@ export function CaseTagsPanel({
   assigned,
   vocabulary,
   variant = "default",
+  canWrite = true,
 }: {
   slug: string;
   caseId: string;
@@ -39,6 +40,12 @@ export function CaseTagsPanel({
   vocabulary: CaseTag[];
   /** "rail" = compact, flatter treatment for the case-detail side rail. */
   variant?: "default" | "rail";
+  /**
+   * Whether the viewer may assign/unassign tags + manage the vocabulary
+   * (`canWriteContent`; ADR 0033). Default `true`; a read-only viewer sees the
+   * assigned chips without the add/remove/manage affordances.
+   */
+  canWrite?: boolean;
 }) {
   const { run, isPending, error } = useCaseAction();
 
@@ -72,45 +79,47 @@ export function CaseTagsPanel({
             Etiquetas
           </h2>
         </div>
-        <div className="flex items-center gap-1.5">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={isPending || available.length === 0}
-              >
-                <Plus aria-hidden="true" />
-                Adicionar
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Etiquetas disponíveis</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {available.map((t) => (
-                <DropdownMenuItem
-                  key={t.id}
-                  className="gap-2"
-                  onSelect={() => run(() => assignCaseTag(caseId, t.id))}
+        {canWrite && (
+          <div className="flex items-center gap-1.5">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isPending || available.length === 0}
                 >
-                  <span
-                    aria-hidden="true"
-                    className="size-2 shrink-0 rounded-full"
-                    style={{ backgroundColor: TOKEN_COLOR_VAR[t.colorToken] }}
-                  />
-                  {t.name}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button asChild type="button" variant="ghost" size="sm">
-            <Link href={`/c/${slug}/manage/settings/etiquetas`}>
-              <Settings2 aria-hidden="true" />
-              Gerenciar
-            </Link>
-          </Button>
-        </div>
+                  <Plus aria-hidden="true" />
+                  Adicionar
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Etiquetas disponíveis</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {available.map((t) => (
+                  <DropdownMenuItem
+                    key={t.id}
+                    className="gap-2"
+                    onSelect={() => run(() => assignCaseTag(caseId, t.id))}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="size-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: TOKEN_COLOR_VAR[t.colorToken] }}
+                    />
+                    {t.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button asChild type="button" variant="ghost" size="sm">
+              <Link href={`/c/${slug}/manage/settings/etiquetas`}>
+                <Settings2 aria-hidden="true" />
+                Gerenciar
+              </Link>
+            </Button>
+          </div>
+        )}
       </div>
 
       {error && (
@@ -121,7 +130,7 @@ export function CaseTagsPanel({
 
       {assigned.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          {vocabulary.length === 0
+          {canWrite && vocabulary.length === 0
             ? "Esta comissão ainda não tem etiquetas. Crie-as em Gerenciar."
             : "Nenhuma etiqueta atribuída a este caso."}
         </p>
@@ -131,20 +140,23 @@ export function CaseTagsPanel({
             <li key={t.id}>
               <span
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full py-0.5 pr-1 pl-2.5 text-xs font-medium",
+                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+                  canWrite && "pr-1",
                   TOKEN_STYLES[t.colorToken] ?? TOKEN_STYLES.muted,
                 )}
               >
                 {t.name}
-                <button
-                  type="button"
-                  disabled={isPending}
-                  onClick={() => run(() => unassignCaseTag(caseId, t.id))}
-                  aria-label={`Remover a etiqueta ${t.name}`}
-                  className="grid size-4 place-items-center rounded-full transition-colors hover:bg-foreground/10 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-                >
-                  <X aria-hidden="true" className="size-3" />
-                </button>
+                {canWrite && (
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => run(() => unassignCaseTag(caseId, t.id))}
+                    aria-label={`Remover a etiqueta ${t.name}`}
+                    className="grid size-4 place-items-center rounded-full transition-colors hover:bg-foreground/10 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                  >
+                    <X aria-hidden="true" className="size-3" />
+                  </button>
+                )}
               </span>
             </li>
           ))}

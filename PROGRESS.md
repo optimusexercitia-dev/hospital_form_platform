@@ -72,13 +72,30 @@ Frontend (`frontend`; build against frozen §2 contract; depends on BE-1):
 
 | # | Task | Status |
 | - | ---- | ------ |
-| FE-1 | Nav "Minhas fases" → "Meus Casos" + `/minhas-fases` redirect | 🏗️ in progress |
-| FE-2 | `/meus-casos` page + `MyCaseCard` (inline items + Ver caso completo) | 🏗️ in progress |
-| FE-3 | Capability-gate case-detail component + staff route `/casos/[caseId]` | 🏗️ in progress |
-| FE-4 | Focused narrative editor `/casos/[caseId]/narrativa/[narrativeId]` | 🏗️ in progress |
-| FE-5 | Coordinator access panel (read/write toggles + narrative assignment) | 🏗️ in progress |
-| FE-6 | Flag-gate + edge states + lint/typecheck clean | 🔜 blocked on FE-1..5 |
-| FE-7 | Meeting `MeetingCaseLink.restricted` → "Caso restrito" chip | ✅ UNBLOCKED — `MeetingCaseLink.restricted` shipped in `meetings.ts` (`…110001` ripple); `caseNumber` now `number \| null` |
+| FE-1 | Nav "Minhas fases" → "Meus Casos" + `/minhas-fases` redirect | ✅ done |
+| FE-2 | `/meus-casos` page + `MyCaseCard` (inline items + Ver caso completo) | ✅ done |
+| FE-3 | Capability-gate case-detail component + staff route `/casos/[caseId]` | ✅ done |
+| FE-4 | Focused narrative editor `/casos/[caseId]/narrativa/[narrativeId]` | ✅ done |
+| FE-5 | Coordinator access panel (read/write toggles + narrative assignment) | ✅ done |
+| FE-6 | Flag-gate + edge states + lint/typecheck clean | ✅ done |
+| FE-7 | Meeting `MeetingCaseLink.restricted` → "Caso restrito" chip | ✅ done |
+
+> **`frontend` build complete (2026-06-19).** All FE-1..7 done against the BE-1 contract.
+> `npm run lint` (0 errors in `src/`), `npm run typecheck` (exit 0), and `npm run build`
+> (Compiled successfully) all pass. New routes: `/c/[slug]/meus-casos`,
+> `/c/[slug]/casos/[caseId]`, `/c/[slug]/casos/[caseId]/narrativa/[narrativeId]`. Capability
+> gating threads `CaseViewerCapabilities` through the SHARED `CaseDetailView` (mounted at the
+> coordinator `/manage/...` route AND the staff `/casos/...` route); content panels gained a
+> `canWrite` prop (default `true` ⇒ coordinator call-sites unchanged); narrative cards gained a
+> `showLifecycle` prop (OFF ⇒ legacy today's-behavior, using `upsertNarrativeBody`). Q14 ownership
+> via `narrative-access.ts::canEditNarrative`. **Adopted backend's widened `CaseNarrative` (BE-3) —
+> deleted my interim adapter as instructed.** Runtime preview/E2E waits on BE-4/BE-6 (action stubs
+> throw `não implementado — BE-4`; `case_access` flag is OFF so today's behavior holds).
+>
+> **FE-5 note (for backend, low priority):** the access-panel roster shows DERIVED attribution +
+> grant ACTIONS (Conceder leitura/edição · Remover acesso); it can't show a live "currently granted:
+> read/write" state because no query returns the stored `case_access` rows. If you add a per-case
+> grants read later, the panel can surface live levels — small wire-up. Functionally complete now.
 
 > **`frontend` note (2026-06-19) — contract gap flagged to lead.** FE-3 & FE-5 need
 > per-narrative `assignedTo`/`status` (+ ideally `concludedAt`/`concludedBy`) to: (a) gate

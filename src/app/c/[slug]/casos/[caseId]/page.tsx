@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getCommissionAccess } from "@/lib/queries/session";
 import { getCaseDetail } from "@/lib/queries/cases";
+import type { CaseViewerCapabilities, MyCaseRole } from "@/lib/queries/cases";
 import { listMembers } from "@/lib/queries/members";
 import { CaseDetailView } from "@/components/cases/case-detail-view";
 import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents";
@@ -14,45 +15,58 @@ import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
 
 export const metadata: Metadata = {
-  title: "Detalhe do caso",
+  title: "Caso",
 };
 
+/** Derive the viewer's role chip from their capability descriptor (ADR 0033 D7). */
+function roleFromCapabilities(caps: CaseViewerCapabilities): MyCaseRole {
+  if (caps.canManageLifecycle) return "coordinator";
+  if (caps.canWriteContent) return "collaborator";
+  return "viewer";
+}
+
 /**
- * The "Detalhes" tab body (default child of the `(detail)` layout): the coordinator
- * case-detail content. The case header spine + tab bar live in the layout, so this
- * page renders only the tab CONTENT — now via the SHARED, capability-gated
- * {@link CaseDetailView} (Case Access Control increment, ADR 0033 D7), the SAME
- * component the staff route mounts. The coordinator keeps full caps (the
- * `get_case_detail` envelope is coordinator-grade here) and the layout's richer
- * chrome (so `withHeader={false}`).
+ * The STAFF full-case view (Case Access Control increment, ADR 0033 D7): the SAME
+ * capability-gated {@link CaseDetailView} the coordinator route mounts, opened by any
+ * member who can read the case — a phase/narrative assignee (attribution-derived
+ * read) or a `case_access` grantee. The view's affordances follow
+ * `detail.viewerCapabilities`: a read grantee sees a pure-read case; a write grantee
+ * ("collaborator") can edit un-attributed narratives + action items / docs / tags /
+ * events; lifecycle stays coordinator-only.
  *
- * Coordinator-gated + commission-scoped here too (defense in depth; the layout gates
- * identically and both reads are React `cache()`-memoized, so the repeat is free).
+ * Security is RLS (Rule 1): `get_case_detail` returns null when the caller may not
+ * read the case (BE-4 broadens its gate `is_staff_admin_of` → `can_read_case`), so a
+ * member with no attribution + no grant gets `notFound()` — the restrictive boundary,
+ * not UI hiding. Flag-gated: the route 404s while `case_access` is OFF (coordinator
+ * detail stays at `/manage/...`). Opening as a non-coordinator emits a `case.opened`
+ * audit row server-side (BE-5).
  */
-export default async function CaseDetailPage({
+export default async function StaffCaseDetailPage({
   params,
 }: {
   params: Promise<{ slug: string; caseId: string }>;
 }) {
   const { slug, caseId } = await params;
   const access = await getCommissionAccess(slug);
+  if (!access) notFound();
 
-  if (!access || (access.role !== "staff_admin" && !access.context.isAdmin)) {
-    notFound();
-  }
+  // Flag OFF → this staff surface does not exist yet.
+  if (!(await caseAccessEnabled())) notFound();
 
+  // RLS is the boundary: null = not readable by the caller (or absent) → 404.
   const detail = await getCaseDetail(caseId);
   if (!detail || detail.case.commissionId !== access.commission.id) {
     notFound();
   }
 
-  const [interviewsOn, patientSafetyOn, narrativesOn, caseAccessOn] =
-    await Promise.all([
-      interviewsEnabled(),
-      patientSafetyEnabled(),
-      narrativesEnabled(),
-      caseAccessEnabled(),
-    ]);
+  const caps = detail.viewerCapabilities;
+  const myRole = roleFromCapabilities(caps);
+
+  const [interviewsOn, patientSafetyOn, narrativesOn] = await Promise.all([
+    interviewsEnabled(),
+    patientSafetyEnabled(),
+    narrativesEnabled(),
+  ]);
   const [members, documents, events, tags, caseTags, actionItems, interviews] =
     await Promise.all([
       listMembers(access.commission.id),
@@ -78,11 +92,11 @@ export default async function CaseDetailPage({
       interviewsEnabled={interviewsOn}
       patientSafetyEnabled={patientSafetyOn}
       narrativesEnabled={narrativesOn}
-      caseAccessEnabled={caseAccessOn}
+      caseAccessEnabled
       viewerId={access.context.userId}
-      myRole="coordinator"
-      withHeader={false}
-      backHref={`/c/${slug}/manage/cases`}
+      myRole={myRole}
+      withHeader
+      backHref={`/c/${slug}/meus-casos`}
     />
   );
 }

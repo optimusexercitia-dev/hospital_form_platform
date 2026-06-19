@@ -18,11 +18,18 @@ export function CaseDocumentsPanel({
   caseId,
   documents,
   variant = "default",
+  canWrite = true,
 }: {
   caseId: string;
   documents: CaseDocumentWithUrl[];
   /** "rail" = compact, flatter treatment for the case-detail side rail. */
   variant?: "default" | "rail";
+  /**
+   * Whether the viewer may upload/delete documents (`canWriteContent`; ADR 0033).
+   * Default `true`; a read-only viewer keeps the signed-URL downloads but loses the
+   * upload + delete affordances.
+   */
+  canWrite?: boolean;
 }) {
   return (
     <section
@@ -50,13 +57,14 @@ export function CaseDocumentsPanel({
             {documents.length}
           </span>
         </div>
-        <CaseDocumentUpload caseId={caseId} />
+        {canWrite && <CaseDocumentUpload caseId={caseId} />}
       </div>
 
       {documents.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-          Nenhum documento anexado. Envie atas, digitalizações ou registros deste
-          caso.
+          {canWrite
+            ? "Nenhum documento anexado. Envie atas, digitalizações ou registros deste caso."
+            : "Nenhum documento anexado."}
         </p>
       ) : (
         <ul className="flex flex-col divide-y divide-border/70">
@@ -104,7 +112,9 @@ export function CaseDocumentsPanel({
                     indisponível
                   </span>
                 )}
-                <CaseDocumentDelete documentId={doc.id} title={doc.title} />
+                {canWrite && (
+                  <CaseDocumentDelete documentId={doc.id} title={doc.title} />
+                )}
               </div>
             </li>
           ))}

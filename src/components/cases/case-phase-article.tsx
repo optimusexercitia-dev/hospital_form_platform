@@ -28,6 +28,7 @@ export function CasePhaseArticle({
   allPhases,
   assignees,
   isOpen,
+  canManageLifecycle = true,
 }: {
   slug: string;
   phase: DetailPhase;
@@ -35,6 +36,8 @@ export function CasePhaseArticle({
   allPhases: DetailPhase[];
   assignees: AssigneeOption[];
   isOpen: boolean;
+  /** Whether the viewer may run phase lifecycle (ADR 0033); default `true`. */
+  canManageLifecycle?: boolean;
 }) {
   const heading = phase.title || `Fase ${phase.position}`;
 
@@ -94,6 +97,7 @@ export function CasePhaseArticle({
         allPhases={allPhases}
         assignees={assignees}
         isOpen={isOpen}
+        canManageLifecycle={canManageLifecycle}
       />
     </article>
   );

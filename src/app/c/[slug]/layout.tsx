@@ -1,13 +1,18 @@
 import { notFound } from "next/navigation";
 
 import { getCommissionAccess } from "@/lib/queries/session";
-import { listCasesBoard, listMyAssignedPhases } from "@/lib/queries/cases";
+import {
+  listCasesBoard,
+  listMyAssignedPhases,
+  listMyCases,
+} from "@/lib/queries/cases";
 import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { listSignoffQueue } from "@/lib/queries/signoffs";
 import { myPendingMeetingSignatures } from "@/lib/queries/meetings";
 import { meetingsEnabled } from "@/lib/meetings/actions";
 import { auditTrailEnabled } from "@/lib/queries/audit";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
+import { caseAccessEnabled } from "@/lib/case-access/actions";
 import { AppSidebar, type SidebarCounts } from "@/components/shell/app-sidebar";
 
 /**
@@ -44,21 +49,32 @@ export default async function CommissionLayout({
   // The meetings feature flag gates the "Reuniões" nav item + its pending-
   // signatures badge. When off, skip the pending-signatures read entirely.
   // The audit_trail flag gates the "Trilha de auditoria" coordinator nav item.
-  const [meetingsOn, auditOn, patientSafetyOn] = await Promise.all([
-    meetingsEnabled(),
-    auditTrailEnabled(),
-    patientSafetyEnabled(),
-  ]);
+  // The case_access flag swaps the "Minhas fases" badge for "Meus Casos" (ADR 0033).
+  const [meetingsOn, auditOn, patientSafetyOn, caseAccessOn] = await Promise.all(
+    [
+      meetingsEnabled(),
+      auditTrailEnabled(),
+      patientSafetyEnabled(),
+      caseAccessEnabled(),
+    ],
+  );
 
-  const [myPhases, board, signoffQueue, pendingSignatures] = await Promise.all([
-    listMyAssignedPhases(commissionId),
-    isCoordinator ? listCasesBoard(commissionId) : Promise.resolve([]),
-    isCoordinator ? listSignoffQueue(commissionId) : Promise.resolve([]),
-    meetingsOn ? myPendingMeetingSignatures() : Promise.resolve([]),
-  ]);
+  // The "my work" count is the badge for whichever nav item the flag selects:
+  // OFF → "Minhas fases" (active assigned phases, today's read); ON → "Meus Casos"
+  // (every accessible case via `list_my_cases`). When OFF we never call the ON-only
+  // read, so flag-OFF behavior is byte-for-byte today's.
+  const [myPhases, myCases, board, signoffQueue, pendingSignatures] =
+    await Promise.all([
+      caseAccessOn ? Promise.resolve([]) : listMyAssignedPhases(commissionId),
+      caseAccessOn ? listMyCases(commissionId) : Promise.resolve([]),
+      isCoordinator ? listCasesBoard(commissionId) : Promise.resolve([]),
+      isCoordinator ? listSignoffQueue(commissionId) : Promise.resolve([]),
+      meetingsOn ? myPendingMeetingSignatures() : Promise.resolve([]),
+    ]);
 
   const counts: SidebarCounts = {
     minhasFases: myPhases.length,
+    meusCasos: myCases.length,
     // "Open" cases = those NOT in a terminal status (the FIXED computed enum:
     // nao_iniciado / em_revisao / pendente are open; concluido / cancelado closed).
     casos: board.filter((row) => !isTerminalCaseStatus(row.case.status)).length,
@@ -88,6 +104,7 @@ export default async function CommissionLayout({
         meetingsEnabled={meetingsOn}
         auditEnabled={auditOn}
         patientSafetyEnabled={patientSafetyOn}
+        caseAccessEnabled={caseAccessOn}
       />
       <main className="min-w-0 flex-1">
         <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 md:px-8">

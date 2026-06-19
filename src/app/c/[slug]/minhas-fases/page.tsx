@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ListChecks } from "lucide-react";
 
 import { getCommissionAccess } from "@/lib/queries/session";
 import { listMyAssignedPhases } from "@/lib/queries/cases";
+import { caseAccessEnabled } from "@/lib/case-access/actions";
 import { MyPhaseCard } from "@/components/cases/my-phase-card";
 
 export const metadata: Metadata = {
@@ -19,6 +20,11 @@ export const metadata: Metadata = {
  *
  * Each row enters the phase landing, which starts/resumes the response and opens
  * the unchanged wizard.
+ *
+ * Case Access Control (ADR 0033 D7): when the `case_access` flag is ON this surface
+ * is superseded by "Meus Casos", so we redirect there — keeping any bookmarked
+ * `/minhas-fases` link working. With the flag OFF this page renders today's list
+ * unchanged (the invariant: flag OFF ⇒ today's behavior).
  */
 export default async function MyPhasesPage({
   params,
@@ -28,6 +34,11 @@ export default async function MyPhasesPage({
   const { slug } = await params;
   const access = await getCommissionAccess(slug);
   if (!access) notFound();
+
+  // Flag ON → "Meus Casos" replaces this page; preserve the old URL via redirect.
+  if (await caseAccessEnabled()) {
+    redirect(`/c/${slug}/meus-casos`);
+  }
 
   const phases = await listMyAssignedPhases(access.commission.id);
 

@@ -2,44 +2,61 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Lock, Pencil } from "lucide-react";
+import { FileText, Lock, Pencil, RotateCcw, User } from "lucide-react";
 
-import type { CaseNarrative } from "@/lib/queries/cases";
-import { upsertNarrativeBody } from "@/lib/case-narratives/actions";
+import {
+  saveNarrativeBody,
+  upsertNarrativeBody,
+  reopenNarrative,
+} from "@/lib/case-narratives/actions";
 import { SectionTextEditor } from "@/components/forms/section-text-editor";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NarrativeStatusPill } from "@/components/cases/narrative-status-pill";
+import { ConcludeNarrativeButton } from "@/components/cases/conclude-narrative-button";
+import type { CaseNarrative } from "@/lib/queries/cases";
 
 /**
- * One per-case NARRATIVE (`case_narratives`; ADR 0032) on the case-detail left
+ * One per-case NARRATIVE (`case_narratives`; ADR 0032/0033) on the case-detail left
  * column — a free-form sanitized-Markdown body (Architecture Rule 7) rendered
  * through the platform's one renderer, interleaved with the phase articles by
  * {@link import('@/lib/queries/case-narratives').mergeCaseLayout}.
  *
- * It is the narrative-side analogue of {@link CasePhaseList}'s phase `<article>`,
- * and clones {@link InterviewSummaryEditor}'s inline Markdown pattern — but as an
- * EXPAND-TO-EDIT card: the coordinator reads the rendered prose and clicks
- * "Editar" to switch the same card into an in-place {@link SectionTextEditor}
- * (Editar / Pré-visualizar live preview) with Salvar / Cancelar.
- *
- * - `canEdit` is decided by the parent from `isOpen && coordinator`. While the
- *   case is open and the viewer is a coordinator, the card is editable; once the
- *   case is concluído/cancelado (or the viewer is a plain member) it is read-only
- *   and shows a "Bloqueado" pill (the server also rejects writes — HC054).
- * - Read mode renders the body when set; an EMPTY body shows a muted placeholder
- *   ONLY to a coordinator (`canEdit`). A read-only viewer with an empty body sees
- *   nothing — the parent already filters empty narratives out for non-editors, and
- *   this is the belt-and-suspenders guard.
- * - `instructions` (authoring guidance snapshotted from the template slot) render
- *   as a muted helper line under the heading.
+ * As of Case Access Control (ADR 0033 D5) a narrative carries a single ASSIGNEE +
+ * an `aberta → concluida` lifecycle:
+ * - `canEdit` (decided by the parent via {@link import('./narrative-access').canEditNarrative},
+ *   Q14) gates the EXPAND-TO-EDIT affordance: coordinator/admin, the narrative's
+ *   assignee, or a write-grantee on an un-attributed narrative may edit while the
+ *   narrative is `aberta` and the case is open. Saving routes through
+ *   `saveNarrativeBody` (the broadened RPC re-checks `can_write_case_narrative`).
+ * - `canConclude` (assignee or coordinator, narrative `aberta`) shows a "Concluir"
+ *   button that freezes the body; `canReopen` (coordinator, narrative `concluida`)
+ *   shows "Reabrir".
+ * - A `concluida` narrative renders read-only with a "Concluída" pill; the body is
+ *   frozen (the server also rejects writes — HC055).
  */
 export function CaseNarrativeCard({
   narrative,
   canEdit,
+  canConclude = false,
+  canReopen = false,
+  showLifecycle = true,
 }: {
   narrative: CaseNarrative;
+  /** Whether the viewer may edit the body now (Q14 + `aberta` + case open). */
   canEdit: boolean;
+  /** Whether the viewer may conclude it (assignee/coordinator + `aberta`). */
+  canConclude?: boolean;
+  /** Whether the viewer may reopen it (coordinator + `concluida`). */
+  canReopen?: boolean;
+  /**
+   * Whether to show the narrative LIFECYCLE chrome (status pill, assignee, Concluir/
+   * Reabrir) — the Case Access Control surface (ADR 0033). `false` (flag `case_access`
+   * OFF) renders the card exactly as before the increment: just the body + Editar, so
+   * the flag-OFF invariant (today's behavior) holds.
+   */
+  showLifecycle?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -50,6 +67,7 @@ export function CaseNarrativeCard({
   const heading = narrative.title || narrative.typeLabel;
   const hasBody = (narrative.bodyMd ?? "").trim().length > 0;
   const headingId = `narrative-${narrative.id}-heading`;
+  const isConcluded = narrative.status === "concluida";
 
   function handleEdit() {
     setError(null);
@@ -66,7 +84,12 @@ export function CaseNarrativeCard({
   function handleSave() {
     setError(null);
     startTransition(async () => {
-      const result = await upsertNarrativeBody(narrative.id, value);
+      // Flag OFF → today's coordinator path (`update_case_narrative_body`); flag ON →
+      // the Q14-broadened RPC (`save_narrative_body`) so assignees / un-attributed
+      // write-grantees can also save. Both freeze on a terminal case (HC054).
+      const result = showLifecycle
+        ? await saveNarrativeBody(narrative.id, value)
+        : await upsertNarrativeBody(narrative.id, value);
       if (!result.ok) {
         setError(result.error ?? "Não foi possível salvar. Tente novamente.");
         return;
@@ -76,9 +99,25 @@ export function CaseNarrativeCard({
     });
   }
 
+  function handleReopen() {
+    setError(null);
+    startTransition(async () => {
+      const result = await reopenNarrative(narrative.id);
+      if (!result.ok) {
+        setError(result.error ?? "Não foi possível reabrir. Tente novamente.");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
   // A read-only viewer with no body has nothing to show (the parent filters these
   // out before rendering; this keeps the card honest if one slips through).
-  if (!canEdit && !hasBody) return null;
+  if (!canEdit && !canReopen && !hasBody) return null;
+
+  // Legacy (flag OFF): a non-editable card shows the old "Bloqueado" pill (case
+  // terminal). With the lifecycle on, "Bloqueada" tracks the narrative status instead.
+  const showLegacyLocked = !showLifecycle && !canEdit;
 
   return (
     <section
@@ -92,16 +131,23 @@ export function CaseNarrativeCard({
               <FileText aria-hidden="true" className="size-3.5" />
               Narrativa
             </span>
-            {!canEdit && (
+            {showLifecycle && <NarrativeStatusPill status={narrative.status} />}
+            {((showLifecycle && isConcluded) || showLegacyLocked) && (
               <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[0.7rem] font-medium text-muted-foreground">
                 <Lock aria-hidden="true" className="size-3" />
-                Bloqueado
+                Bloqueada
               </span>
             )}
           </div>
           <h2 id={headingId} className="text-base font-semibold">
             {heading}
           </h2>
+          {showLifecycle && narrative.assigneeName && (
+            <span className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground">
+              <User aria-hidden="true" className="size-3.5" />
+              {narrative.assigneeName}
+            </span>
+          )}
           {narrative.instructions && (
             <p className="max-w-prose text-xs text-muted-foreground text-pretty">
               {narrative.instructions}
@@ -119,6 +165,19 @@ export function CaseNarrativeCard({
           >
             <Pencil aria-hidden="true" />
             Editar
+          </Button>
+        )}
+        {showLifecycle && canReopen && !editing && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleReopen}
+            disabled={isPending}
+            className="shrink-0"
+          >
+            <RotateCcw aria-hidden="true" />
+            Reabrir
           </Button>
         )}
       </div>
@@ -158,12 +217,18 @@ export function CaseNarrativeCard({
         <div className="rounded-lg border border-border bg-card p-4">
           <MarkdownRenderer content={narrative.bodyMd ?? ""} />
         </div>
-      ) : (
-        // Coordinator-only placeholder (the early return handles read-only viewers).
+      ) : canEdit ? (
+        // Editable + empty: prompt to fill (the early return handles read-only viewers).
         <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground text-pretty">
           Nenhum conteúdo ainda. Clique em <span className="font-medium">Editar</span> para
           preencher.
         </p>
+      ) : null}
+
+      {showLifecycle && canConclude && !editing && (
+        <div className="flex justify-end">
+          <ConcludeNarrativeButton narrativeId={narrative.id} />
+        </div>
       )}
     </section>
   );

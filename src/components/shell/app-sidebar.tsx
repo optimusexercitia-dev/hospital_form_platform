@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  Briefcase,
   CalendarDays,
   ClipboardList,
   FolderOpen,
@@ -29,7 +30,14 @@ import { UserMenu } from "./user-menu";
 
 /** Live counts shown as nav badges (0 = hidden). */
 export interface SidebarCounts {
+  /** "Minhas fases" — the caller's active assigned phases (flag `case_access` OFF). */
   minhasFases: number;
+  /**
+   * "Meus Casos" — every case the caller can access, attributed or granted (flag
+   * `case_access` ON; Case Access Control increment, ADR 0033). Only one of
+   * `minhasFases` / `meusCasos` drives a visible nav item per the flag.
+   */
+  meusCasos: number;
   casos: number;
   assinaturas: number;
   /** Meetings awaiting the current user's signature (Phase 10). */
@@ -47,6 +55,13 @@ interface NavItem {
   countKey?: CountKey;
   /** When set, the item only renders if this feature flag is on (Phase 10+). */
   requiresFeature?: "meetings" | "audit" | "patient_safety";
+  /**
+   * Gates this item on the `case_access` flag (Case Access Control, ADR 0033):
+   *  - `"on"`  → render only when the flag is ON ("Meus Casos").
+   *  - `"off"` → render only when the flag is OFF ("Minhas fases", today's item).
+   * The two form an inverse pair so exactly one shows; OFF preserves today's nav.
+   */
+  caseAccess?: "on" | "off";
 }
 
 interface NavGroup {
@@ -88,11 +103,22 @@ const NAV_GROUPS: NavGroup[] = [
         roles: ["staff", "staff_admin"],
       },
       {
+        // Flag `case_access` OFF → today's "Minhas fases" (active assigned phases).
         label: "Minhas fases",
         href: "minhas-fases",
         icon: Layers,
         roles: ["staff", "staff_admin"],
         countKey: "minhasFases",
+        caseAccess: "off",
+      },
+      {
+        // Flag `case_access` ON → "Meus Casos" (every accessible case; ADR 0033).
+        label: "Meus Casos",
+        href: "meus-casos",
+        icon: Briefcase,
+        roles: ["staff", "staff_admin"],
+        countKey: "meusCasos",
+        caseAccess: "on",
       },
       {
         label: "Reuniões",
@@ -173,6 +199,7 @@ export function AppSidebar({
   meetingsEnabled = false,
   auditEnabled = false,
   patientSafetyEnabled = false,
+  caseAccessEnabled = false,
 }: {
   slug: string;
   /** null when a global admin views a commission they're not a member of. */
@@ -189,6 +216,11 @@ export function AppSidebar({
   auditEnabled?: boolean;
   /** Whether the `patient_safety` flag is on (gates the "Eventos de segurança" item). */
   patientSafetyEnabled?: boolean;
+  /**
+   * Whether the `case_access` flag is on (ADR 0033). Drives the "Minhas fases"
+   * (OFF) ↔ "Meus Casos" (ON) inverse swap; default `false` keeps today's nav.
+   */
+  caseAccessEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -205,6 +237,9 @@ export function AppSidebar({
     if (item.requiresFeature === "audit" && !auditEnabled) return false;
     if (item.requiresFeature === "patient_safety" && !patientSafetyEnabled)
       return false;
+    // The "Minhas fases" / "Meus Casos" inverse pair: one shows per the flag.
+    if (item.caseAccess === "on" && !caseAccessEnabled) return false;
+    if (item.caseAccess === "off" && caseAccessEnabled) return false;
     return role === null || item.roles.includes(role);
   };
 

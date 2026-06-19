@@ -41,6 +41,12 @@ type DetailPhase = CaseDetail["phases"][number];
  * All controls are hidden when the case is closed (`isOpen=false`), except the
  * concluída "Ver respostas" link, which stays available so a closed case's
  * answers remain reviewable.
+ *
+ * Case Access Control (ADR 0033): the MUTATING controls (activate / skip / reassign)
+ * are lifecycle ops — `staff_admin`/admin only. A read/write-grantee viewing the
+ * case (`canManageLifecycle=false`) sees the phase rows but NO lifecycle actions; the
+ * "Ver respostas" deep-link is also coordinator-only (it targets the `/manage/...`
+ * read view), so it is suppressed for non-coordinators too.
  */
 export function CoordinatorPhaseActions({
   slug,
@@ -48,6 +54,7 @@ export function CoordinatorPhaseActions({
   allPhases,
   assignees,
   isOpen,
+  canManageLifecycle = true,
 }: {
   slug: string;
   phase: DetailPhase;
@@ -55,6 +62,12 @@ export function CoordinatorPhaseActions({
   allPhases: DetailPhase[];
   assignees: AssigneeOption[];
   isOpen: boolean;
+  /**
+   * Whether the viewer may run phase lifecycle (activate/skip/reassign) + see the
+   * coordinator answer deep-link. Default `true` preserves every coordinator
+   * call-site; the staff full-case view passes `false`.
+   */
+  canManageLifecycle?: boolean;
 }) {
   const { run, isPending, error } = useCaseAction();
   const [activateOpen, setActivateOpen] = useState(false);
@@ -68,6 +81,10 @@ export function CoordinatorPhaseActions({
     blockingPositions.length === 1
       ? `Bloqueada por Fase ${blockingPositions[0]}`
       : `Bloqueada por Fases ${blockingPositions.join(", ")}`;
+
+  // A non-coordinator viewer (read/write grantee) gets no phase controls: lifecycle
+  // is coordinator-only and the answer deep-link targets the coordinator-only view.
+  if (!canManageLifecycle) return null;
 
   // Concluída: a read-only answer view is always available (even when closed).
   if (phase.status === "concluida") {
