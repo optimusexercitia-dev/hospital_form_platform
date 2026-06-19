@@ -34,7 +34,7 @@
 --   admin  platform admin — sees everything
 
 begin;
-select plan(78);
+select plan(82);
 
 -- The feature ships ON in-increment; flip it ON for the truth-table + boundary
 -- sections (a hermetic test must not depend on migration order). The flag-OFF
@@ -501,10 +501,42 @@ select is(
 reset role;
 
 -- =========================================================================
--- BE-5: AUDIT — case.opened on a non-coordinator open; coordinator opens do NOT
--- emit; the narrative audit metadata NEVER carries body_md (PHI-free, Rule 11).
+-- BE-5 + CA-001 REGRESSION GUARD: get_case_detail must be VOLATILE (it now writes
+-- the case.opened audit row); a non-coordinator open SUCCEEDS + writes EXACTLY ONE
+-- case.opened row; a coordinator open writes NONE. (CA-001: declared stable, the
+-- INSERT failed with 25006 in PostgREST's read-only txn → 404 for every
+-- non-coordinator. This catalog + behavior pair makes the regression permanent.)
 -- =========================================================================
--- A read-grantee opened the case above (det) → a case.opened row exists.
+-- (1) CATALOG: get_case_detail is volatile (provolatile='v'). The lone guard that
+-- would have caught CA-001 at the migration level.
+select is(
+  (select provolatile::text from pg_proc
+   where pronamespace = 'public'::regnamespace and proname = 'get_case_detail'),
+  'v', 'CA-001: get_case_detail is VOLATILE (it writes the case.opened audit row)');
+-- list_my_cases + case_viewer_capabilities are PURE reads → stable is correct.
+select is(
+  (select provolatile::text from pg_proc
+   where pronamespace = 'public'::regnamespace and proname = 'list_my_cases'),
+  's', 'list_my_cases is STABLE (pure read — no audit write)');
+select is(
+  (select provolatile::text from pg_proc
+   where pronamespace = 'public'::regnamespace and proname = 'case_viewer_capabilities'),
+  's', 'case_viewer_capabilities is STABLE (pure read)');
+
+-- (2) BEHAVIOR: a fresh non-coordinator open by gx_w (who has NOT opened this case
+-- yet — det above was gx_r) SUCCEEDS and writes EXACTLY ONE case.opened row for
+-- that actor. This is the exact path CA-001 broke (25006 → null → notFound()).
+select test_helpers.claims_for((select gx_w from p), false);
+set local role authenticated;
+select public.get_case_detail((select case_x from cs)) is not null as gxw_open_ok;
+reset role;
+select is(
+  (select count(*)::int from public.audit_log
+   where action = 'case.opened' and entity_id = (select case_x from cs)
+     and actor_id = (select gx_w from p)),
+  1, 'CA-001: a non-coordinator open SUCCEEDS and writes EXACTLY ONE case.opened row');
+
+-- A read-grantee opened the case earlier (det) → at least one case.opened exists.
 select cmp_ok(
   (select count(*)::int from public.audit_log
    where action = 'case.opened' and entity_id = (select case_x from cs)),
@@ -514,8 +546,6 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select public.get_case_detail((select case_x from cs)) is not null as coord_open;
 reset role;
--- (Still exactly the read-grantee's opens; the coordinator open added none. We
--- assert the coordinator's uid is NOT among the case.opened actors.)
 select is(
   (select count(*)::int from public.audit_log
    where action = 'case.opened' and entity_id = (select case_x from cs)

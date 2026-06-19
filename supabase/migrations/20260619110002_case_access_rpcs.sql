@@ -504,10 +504,15 @@ revoke execute on function public.list_my_cases(uuid) from anon, public;
 -- ⚠️ THE SUBMITTED-ONLY ANSWER LATERAL SUBQUERY IS COPIED VERBATIM — response_id /
 --    submitted_at stay non-null ONLY for a SUBMITTED response of a 'concluida'
 --    phase. The Phase-7 in_progress-answers invariant is structurally untouched.
+-- VOLATILE, not STABLE (CA-001): this RPC now has a WRITE side-effect — it INSERTs
+-- the case.opened audit row via log_audit_access on a non-coordinator open. A STABLE
+-- function runs in a read-only transaction, so PostgREST would raise 25006 "cannot
+-- execute INSERT in a read-only transaction" → null → notFound() for every
+-- non-coordinator. Same reason the event_patient.read audited-read path is volatile.
 create or replace function public.get_case_detail(p_case_id uuid)
 returns jsonb
 language plpgsql
-stable
+volatile
 security definer
 set search_path = public, pg_catalog
 as $$
