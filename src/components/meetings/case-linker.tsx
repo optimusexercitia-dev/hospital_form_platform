@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FolderOpen, Link2, Plus } from "lucide-react";
+import { FolderOpen, Link2, Lock, Plus } from "lucide-react";
 
 import {
   linkMeetingCase,
@@ -281,6 +281,12 @@ export function CaseLinker({
             const agendaTitle = link.agendaItemId
               ? agendaTitleById.get(link.agendaItemId)
               : null;
+            // A restricted link has no readable number; name it generically (the
+            // junction row is still removable by a coordinator).
+            const caseName =
+              link.restricted || link.caseNumber == null
+                ? "caso restrito"
+                : formatCaseNumber(link.caseNumber);
             return (
               <li
                 key={link.id}
@@ -288,13 +294,24 @@ export function CaseLinker({
               >
                 <div className="flex min-w-0 flex-col gap-1.5">
                   <div className="flex flex-wrap items-center gap-2">
-                    <a
-                      href={`/c/${slug}/manage/cases/${link.caseId}`}
-                      className="inline-flex items-center gap-1 font-mono text-xs font-medium text-primary underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-                    >
-                      <Link2 aria-hidden="true" className="size-3" />
-                      {formatCaseNumber(link.caseNumber)}
-                    </a>
+                    {link.restricted ? (
+                      // Case Access Control (ADR 0033, FE-7): the viewer may not read
+                      // this linked case (the `cases` join was withheld by
+                      // `can_read_case`). Show a muted chip instead of a broken
+                      // "Caso 0" / a dead link to a 404.
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 font-mono text-xs font-medium text-muted-foreground">
+                        <Lock aria-hidden="true" className="size-3" />
+                        Caso restrito
+                      </span>
+                    ) : (
+                      <a
+                        href={`/c/${slug}/manage/cases/${link.caseId}`}
+                        className="inline-flex items-center gap-1 font-mono text-xs font-medium text-primary underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                      >
+                        <Link2 aria-hidden="true" className="size-3" />
+                        {caseName}
+                      </a>
+                    )}
                     {link.caseLabel && (
                       <span className="truncate text-sm text-foreground">
                         {link.caseLabel}
@@ -331,7 +348,7 @@ export function CaseLinker({
                 {canEdit && (
                   <ConfirmDeleteButton
                     action={() => unlinkMeetingCase(link.id)}
-                    label={`Remover vínculo com ${formatCaseNumber(link.caseNumber)}`}
+                    label={`Remover vínculo com ${caseName}`}
                     title="Remover o vínculo do caso?"
                     description="O caso será desvinculado desta reunião. O caso em si não é afetado."
                   />
