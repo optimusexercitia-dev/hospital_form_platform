@@ -231,12 +231,121 @@ export interface CaseDetail {
    * excludes it.
    */
   narratives: CaseNarrative[]
+  /**
+   * The CURRENT viewer's capability descriptor for this case (Case Access Control
+   * increment, ADR 0033). The capability-gated detail component reads this to show
+   * lifecycle/assignment only for `canManageLifecycle`, content editors for
+   * `canWriteContent`, and read-only otherwise. With the `case_access` flag OFF
+   * the payload is only reachable by a coordinator (today's behavior), so this is
+   * `{ canRead: true, canWriteContent: true, canManageLifecycle: true }`. A
+   * capability signal, NOT the security boundary (RLS is — Rule 1).
+   */
+  viewerCapabilities: CaseViewerCapabilities
 }
 
 /** The assignee's phase-fill landing: the phase + its parent case (metadata). */
 export interface CasePhaseForFill {
   phase: CasePhase
   case: Case
+}
+
+// ---------------------------------------------------------------------------
+// Case Access Control (ADR 0033) — viewer capabilities + "Meus Casos"
+// ---------------------------------------------------------------------------
+
+/**
+ * The CURRENT viewer's capability descriptor for ONE case (ADR 0033 D7). Drives
+ * the single capability-gated detail component (generalizing the interviews
+ * `viewerCanWrite` signal): the page renders the lifecycle/assignment controls
+ * only when `canManageLifecycle`, the content editors when `canWriteContent`, and
+ * read-only otherwise. Computed server-side from `app.can_read_case` /
+ * `app.can_write_case_content` (+ the staff_admin/admin lifecycle gate) for
+ * `auth.uid()`; this is a CAPABILITY signal, NOT the security boundary — RLS is
+ * (Rule 1).
+ *
+ *   - `canRead`            — the viewer may open the full case (attributed or
+ *                            granted, or coordinator). Always `true` on a detail
+ *                            payload the viewer actually received.
+ *   - `canWriteContent`    — the viewer may author UN-attributed narratives and
+ *                            manage non-identity-bound content (action items,
+ *                            documents, tags, events): `staff_admin`/admin OR a
+ *                            `case_access` row at level `write`. Does NOT grant
+ *                            phase-fill (identity-bound) nor lifecycle.
+ *   - `canManageLifecycle` — the viewer may run lifecycle + assignment (activate /
+ *                            skip / reassign / close / cancel / add-ad-hoc / grant /
+ *                            assign-narrative): `staff_admin`/admin only.
+ */
+export interface CaseViewerCapabilities {
+  canRead: boolean
+  canWriteContent: boolean
+  canManageLifecycle: boolean
+}
+
+/**
+ * The viewer's relationship to a case in "Meus Casos" (ADR 0033 D7), surfaced as
+ * a role chip on the card:
+ *   - `coordinator`  — `staff_admin`/admin of the case's commission.
+ *   - `collaborator` — holds a `case_access` row at level `write` (case-wide
+ *                      content author; not a coordinator).
+ *   - `viewer`       — read-only access: a `case_access` `read` grant OR
+ *                      attribution-derived read (a phase/narrative assignee) with
+ *                      no write grant.
+ */
+export type MyCaseRole = 'viewer' | 'collaborator' | 'coordinator'
+
+/**
+ * One ITEM the viewer is personally attributed on within a "Meus Casos" card
+ * (ADR 0033 D7): a phase they must fill OR a narrative they must author. Rendered
+ * inline on the card with a direct action (Preencher / Abrir / Concluir); the
+ * card always also offers "Ver caso completo".
+ */
+export interface MyCaseItem {
+  /** Which attributed kind this is. */
+  kind: 'phase' | 'narrative'
+  /** The `case_phases.id` / `case_narratives.id`. */
+  id: string
+  /** Display title (phase: title|form|"Fase N"; narrative: `type_label`/title). */
+  title: string
+  /**
+   * The item's own status slug — a {@link CasePhaseStatus} for a phase, a
+   * narrative status (`'aberta' | 'concluida'`) for a narrative. A stable ASCII
+   * union the card maps to a pt-BR pill; not itself a label.
+   */
+  status: string
+  /** The item's order in the merged case layout (interleave; phases ∪ narratives). */
+  displayPosition: number
+  /**
+   * `true` when the viewer can act on it RIGHT NOW — a phase that is `ativa` AND
+   * assigned to the viewer (drives "Preencher"); a narrative that is `aberta` AND
+   * assigned to the viewer (drives "Abrir"/"Concluir"). `false` renders the item
+   * as context only (e.g. a concluded narrative, a not-yet-active phase).
+   */
+  actionable: boolean
+}
+
+/**
+ * One card of "Meus Casos" (ADR 0033 D7) — every case the member can access
+ * (attributed OR granted), one per card, replacing "Minhas fases". The member's
+ * own attributed items are listed inline (`items`) with direct actions; the card
+ * always offers "Ver caso completo" (the capability-gated detail page). A case the
+ * member can only READ (a pure read grant, no attribution) still appears, with an
+ * empty `items` array. Never carries answers (Phase-7 invariant) — status only.
+ */
+export interface MyCase {
+  caseId: string
+  /** Per-commission counter ("Caso 0042" is `caseNumber = 42`). */
+  caseNumber: number
+  /** Optional NON-IDENTIFYING label; `null` if none. */
+  label: string | null
+  status: CaseStatus
+  /** The viewer's role chip for this card. */
+  myRole: MyCaseRole
+  /**
+   * The viewer's personally-attributed items in this case (phases + narratives),
+   * ordered by `displayPosition`. `[]` when the viewer only has a read/write GRANT
+   * and is attributed on nothing (the card still shows "Ver caso completo").
+   */
+  items: MyCaseItem[]
 }
 
 // ---------------------------------------------------------------------------
@@ -366,6 +475,16 @@ interface CaseDetailJson {
   phases: DetailPhaseJson[]
   /** The case's narratives, ordered by `display_position` (`[]` if none / flag off). */
   narratives: DetailNarrativeJson[] | null
+  /**
+   * The viewer's capability descriptor (ADR 0033), added by `get_case_detail` in
+   * BE-4. Absent on a pre-BE-4 envelope → the mapper defaults to coordinator-grade
+   * (the only way the current `is_staff_admin_of`-gated RPC returns at all).
+   */
+  viewer_capabilities?: {
+    can_read: boolean
+    can_write_content: boolean
+    can_manage_lifecycle: boolean
+  } | null
 }
 
 /**
@@ -484,6 +603,17 @@ async function getCaseDetailUncached(
       submittedAt: p.submitted_at,
     })),
     narratives: (env.narratives ?? []).map((n) => mapNarrativeJson(n, env.id)),
+    // Until BE-4 adds `viewer_capabilities` to the RPC, default to coordinator-
+    // grade: today's `get_case_detail` is `is_staff_admin_of`-gated, so any
+    // non-null envelope was returned to a coordinator. BE-4 replaces this with the
+    // RPC-computed descriptor (read/write/lifecycle for the actual viewer).
+    viewerCapabilities: env.viewer_capabilities
+      ? {
+          canRead: env.viewer_capabilities.can_read,
+          canWriteContent: env.viewer_capabilities.can_write_content,
+          canManageLifecycle: env.viewer_capabilities.can_manage_lifecycle,
+        }
+      : { canRead: true, canWriteContent: true, canManageLifecycle: true },
   }
 }
 
@@ -671,4 +801,31 @@ export async function listMyAssignedPhases(
       formTitle: r.forms?.title ?? '',
       dueDate: r.due_date,
     }))
+}
+
+// ---------------------------------------------------------------------------
+// "Meus Casos" — the unified attributed-or-granted case list (ADR 0033 D7)
+// ---------------------------------------------------------------------------
+
+/**
+ * The caller's "Meus Casos" for a commission (ADR 0033 D7): every case the member
+ * can access — personally ATTRIBUTED (a phase or narrative assignee) OR GRANTED a
+ * `case_access` row — one {@link MyCase} per card, replacing the old "Minhas
+ * fases". Each card carries the member's own attributed items inline (with direct
+ * Preencher/Abrir/Concluir actions) plus context for "Ver caso completo".
+ *
+ * Backed by the SECURITY DEFINER `list_my_cases` (BE-4), gated by the
+ * `case_access` flag and self-scoped to `auth.uid()` — so it NEVER leaks a case
+ * the caller cannot access, and returns `[]` for a non-member. Carries STATUS
+ * only, never answers (the Phase-7 invariant). Ordered by the RPC.
+ *
+ * CONTRACT-FIRST STUB: signature + return type are frozen for `frontend`; the body
+ * is wired to the RPC in BE-4 (after the migration + `gen:types`).
+ */
+export async function listMyCases(commissionId: string): Promise<MyCase[]> {
+  // BE-4 wires this to `supabase.rpc('list_my_cases', { p_commission: ... })`
+  // once the RPC exists in the generated types. Until then it is unimplemented so
+  // the contract typechecks for FE without a provisional shape.
+  void commissionId
+  throw new Error('não implementado — BE-4')
 }

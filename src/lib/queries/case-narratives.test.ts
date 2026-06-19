@@ -86,6 +86,13 @@ function detail(
     offeredOutcomes: [],
     phases,
     narratives,
+    // mergeCaseLayout never reads capabilities; coordinator-grade default keeps the
+    // CaseDetail fixture valid (matches the flag-OFF mapper default — ADR 0033).
+    viewerCapabilities: {
+      canRead: true,
+      canWriteContent: true,
+      canManageLifecycle: true,
+    },
   }
 }
 

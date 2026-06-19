@@ -97,6 +97,17 @@ const MESSAGES = {
   slotUpdated: 'Narrativa do processo atualizada.',
   slotRemoved: 'Narrativa removida do processo.',
   layoutReordered: 'Ordem do processo atualizada.',
+  // Case Access Control increment (ADR 0033) — narrative attribution + lifecycle.
+  missingAssignee: 'Selecione um responsável.',
+  // HC021 — the assignee must be a current member of the case's commission.
+  assigneeNotMember: 'O responsável deve ser membro da comissão.',
+  // HC055 — narrative wrong state for the requested lifecycle op (assign/conclude
+  // requires 'aberta'; reopen requires 'concluida').
+  narrativeWrongState: 'A narrativa não está no estado necessário para esta ação.',
+  assigned: 'Responsável definido.',
+  unassigned: 'Responsável removido.',
+  concluded: 'Narrativa concluída.',
+  reopened: 'Narrativa reaberta.',
 } as const
 
 const PG_CHECK_VIOLATION = '23514'
@@ -557,4 +568,113 @@ export async function reorderCaseLayout(
 
   revalidateTemplate()
   return { ok: true, error: MESSAGES.layoutReordered }
+}
+
+// ---------------------------------------------------------------------------
+// Narrative ATTRIBUTION + LIFECYCLE (Case Access Control increment; ADR 0033 D5)
+// ---------------------------------------------------------------------------
+//
+// `case_narratives` gains a single `assigned_to` (mirroring phases) + a minimal
+// `aberta → concluida` lifecycle. The COORDINATOR assigns/unassigns + reopens; the
+// ASSIGNEE (or a write-grantee on an UN-attributed narrative — Q14) fills the body
+// and concludes (which freezes it). Authorization is the DB's: assign/unassign/
+// reopen are `staff_admin`/admin only; `save_narrative_body` re-checks
+// `app.can_write_case_narrative` (→ 42501); conclude is assignee-or-coordinator.
+// Each action ALSO re-verifies the commission server-side for a clean pt-BR
+// forbidden. SQLSTATE: HC021 (assignee not a member) + HC055 (narrative wrong
+// state) + HC054 (terminal-case freeze, unchanged).
+//
+// CONTRACT-FIRST STUBS: signatures frozen for `frontend`; bodies wired in BE-4 to
+// the RPCs `assign_narrative` / `unassign_narrative` / `save_narrative_body` /
+// `conclude_narrative` / `reopen_narrative` (after the migration + `gen:types`).
+
+/**
+ * Assign a narrative to a commission member (coordinator-only; ADR 0033 D5). The
+ * assignee then fills + concludes it; their attribution auto-grants full-case read
+ * (computed in `app.can_read_case`). The target must be a current member (`HC021`)
+ * and the narrative must be `aberta` (`HC055`). Routed through `assign_narrative`.
+ */
+export async function assignNarrative(
+  narrativeId: string,
+  assigneeId: string,
+): Promise<ActionState> {
+  if (!narrativeId) return { ok: false, error: MESSAGES.missingNarrative }
+  if (!assigneeId) {
+    return { ok: false, fieldErrors: { assigneeId: MESSAGES.missingAssignee } }
+  }
+  // BE-4: gate narrativesEnabled(), resolve+re-check the narrative's commission,
+  // then supabase.rpc('assign_narrative', { p_narrative: narrativeId, p_assignee: assigneeId }).
+  throw new Error('não implementado — BE-4')
+}
+
+/**
+ * Clear a narrative's assignee (coordinator-only; ADR 0033 D5). Removes that
+ * member's attribution-derived full-case read (unless they hold a separate grant)
+ * and reopens the narrative to write-grantees (Q14: an un-attributed narrative is
+ * writable by any `can_write_case_content` holder). Routed through
+ * `unassign_narrative`.
+ */
+export async function unassignNarrative(
+  narrativeId: string,
+): Promise<ActionState> {
+  if (!narrativeId) return { ok: false, error: MESSAGES.missingNarrative }
+  // BE-4: gate + re-check commission, then
+  // supabase.rpc('unassign_narrative', { p_narrative: narrativeId }).
+  throw new Error('não implementado — BE-4')
+}
+
+/**
+ * Persist a narrative's body (`body_md`, sanitized Markdown — Rule 7). The Case
+ * Access Control GENERALIZATION of {@link upsertNarrativeBody} (ADR 0033 D4/Q14):
+ * authorization broadens from `staff_admin`/admin to
+ * `app.can_write_case_narrative` = coordinator/admin OR the narrative's
+ * `assigned_to` OR (`can_write_case_content` AND `assigned_to IS NULL`) — so a
+ * focused-editor assignee or an un-attributed-narrative write-grantee may save.
+ * The narrative must be `aberta` (concluded → reopen first; `HC055`) and the case
+ * non-terminal (`HC054`). Routed through `save_narrative_body`.
+ *
+ * Mirrors `updateInterviewSummary`: an (id, value) action bound by the editor's
+ * transition. {@link upsertNarrativeBody} stays as the coordinator-only inline
+ * editor's call (BE-4 may alias it onto the same broadened RPC).
+ */
+export async function saveNarrativeBody(
+  narrativeId: string,
+  bodyMd: string,
+): Promise<ActionState> {
+  if (!narrativeId) return { ok: false, error: MESSAGES.missingNarrative }
+  // BE-4: gate narrativesEnabled(), then
+  // supabase.rpc('save_narrative_body', { p_narrative: narrativeId, p_body_md: bodyMd }).
+  // Authorization is the RPC's (can_write_case_narrative → 42501); the action maps
+  // 42501 → MESSAGES.forbidden and HC054/HC055 → the locked / wrong-state strings.
+  void bodyMd
+  throw new Error('não implementado — BE-4')
+}
+
+/**
+ * Conclude a narrative (`aberta → concluida`, freezing the body; ADR 0033 D5).
+ * The ASSIGNEE or a coordinator may conclude; the narrative must be `aberta`
+ * (`HC055`). Stamps `concluded_at`/`concluded_by`. A coordinator can later
+ * {@link reopenNarrative}. Routed through `conclude_narrative`.
+ */
+export async function concludeNarrative(
+  narrativeId: string,
+): Promise<ActionState> {
+  if (!narrativeId) return { ok: false, error: MESSAGES.missingNarrative }
+  // BE-4: gate + (assignee-or-coordinator authz is the RPC's), then
+  // supabase.rpc('conclude_narrative', { p_narrative: narrativeId }).
+  throw new Error('não implementado — BE-4')
+}
+
+/**
+ * Reopen a concluded narrative (`concluida → aberta`; coordinator-only; ADR 0033
+ * D5) so the assignee can edit again. The narrative must be `concluida` (`HC055`)
+ * and the case non-terminal. Routed through `reopen_narrative`.
+ */
+export async function reopenNarrative(
+  narrativeId: string,
+): Promise<ActionState> {
+  if (!narrativeId) return { ok: false, error: MESSAGES.missingNarrative }
+  // BE-4: gate + re-check commission, then
+  // supabase.rpc('reopen_narrative', { p_narrative: narrativeId }).
+  throw new Error('não implementado — BE-4')
 }
