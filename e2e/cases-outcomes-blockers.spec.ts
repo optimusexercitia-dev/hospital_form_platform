@@ -288,7 +288,11 @@ test('AC-ConcludeGate: Concluir blocked (HC028 pt-BR) when offered-outcome case 
   await page.goto(`/c/ccih/manage/cases/${caseId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${caseId}`), { timeout: 15_000 })
 
-  const concludeBtn = page.getByRole('button', { name: /^Concluir$/i })
+  // The lifecycle "Concluir" button lives in the page <header> (CaseLifecycleActions).
+  // Scope to <header> to avoid strict-mode conflicts with narrative "Concluir" buttons
+  // rendered in the page body (ConcludeNarrativeButton, one per narrative slot — the
+  // case-access increment added narrative cards to the case detail page, ADR 0033).
+  const concludeBtn = page.locator('header').getByRole('button', { name: /^Concluir$/i })
   await expect(concludeBtn).toBeVisible({ timeout: 10_000 })
   await concludeBtn.click()
 
@@ -362,7 +366,9 @@ test('AC-OutcomeFlow: conclude with adverse outcome → case has outcome_id → 
   await page.waitForURL(new RegExp(`/manage/cases/${caseId}`), { timeout: 15_000 })
 
   // ── Open "Concluir" dialog → pick the adverse outcome ──
-  const concludeBtn = page.getByRole('button', { name: /^Concluir$/i })
+  // Scope to <header> (CaseLifecycleActions) to avoid strict-mode conflict with
+  // narrative Concluir buttons in the page body (case-access increment, ADR 0033).
+  const concludeBtn = page.locator('header').getByRole('button', { name: /^Concluir$/i })
   await expect(concludeBtn).toBeVisible({ timeout: 10_000 })
   await concludeBtn.click()
 
@@ -624,7 +630,9 @@ test('AC-D15-NoOutcome: a process offering no outcomes lets the case conclude wi
   await page.goto(`/c/ccih/manage/cases/${case2Id}`)
   await page.waitForURL(new RegExp(`/manage/cases/${case2Id}`), { timeout: 15_000 })
 
-  const concludeBtn = page.getByRole('button', { name: /^Concluir$/i })
+  // Scope to <header> (CaseLifecycleActions) to avoid strict-mode conflict with
+  // narrative Concluir buttons in the page body (case-access increment, ADR 0033).
+  const concludeBtn = page.locator('header').getByRole('button', { name: /^Concluir$/i })
   await expect(concludeBtn).toBeVisible({ timeout: 10_000 })
   await concludeBtn.click()
 

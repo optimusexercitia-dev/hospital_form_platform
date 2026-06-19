@@ -821,7 +821,9 @@ test('AC-Keyboard: keyboard-only conclude flow — focus "Concluir", Enter opens
   await page.waitForURL(new RegExp(`/manage/cases/${kbCaseId}`), { timeout: 15_000 })
 
   // ── Keyboard: focus the "Concluir" button and press Enter ──
-  const concludeBtn = page.getByRole('button', { name: /^Concluir$/i })
+  // Scope to <header> (CaseLifecycleActions) to avoid strict-mode conflict with
+  // narrative Concluir buttons in the page body (case-access increment, ADR 0033).
+  const concludeBtn = page.locator('header').getByRole('button', { name: /^Concluir$/i })
   await expect(concludeBtn).toBeVisible({ timeout: 10_000 })
   await concludeBtn.focus()
   await expect(concludeBtn).toBeFocused()
