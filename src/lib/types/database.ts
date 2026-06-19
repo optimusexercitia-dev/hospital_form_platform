@@ -545,6 +545,52 @@ export type Database = {
           },
         ]
       }
+      case_access: {
+        Row: {
+          case_id: string
+          granted_at: string
+          granted_by: string | null
+          level: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          granted_at?: string
+          granted_by?: string | null
+          level: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          granted_at?: string
+          granted_by?: string | null
+          level?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_access_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_access_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_access_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_action_items: {
         Row: {
           assigned_to: string | null
@@ -1087,8 +1133,11 @@ export type Database = {
       }
       case_narratives: {
         Row: {
+          assigned_to: string | null
           body_md: string | null
           case_id: string
+          concluded_at: string | null
+          concluded_by: string | null
           created_at: string
           created_by: string | null
           display_position: number
@@ -1096,14 +1145,18 @@ export type Database = {
           instructions: string | null
           is_expected: boolean
           narrative_type_id: string | null
+          status: string
           title: string | null
           type_label: string
           updated_at: string
           updated_by: string | null
         }
         Insert: {
+          assigned_to?: string | null
           body_md?: string | null
           case_id: string
+          concluded_at?: string | null
+          concluded_by?: string | null
           created_at?: string
           created_by?: string | null
           display_position: number
@@ -1111,14 +1164,18 @@ export type Database = {
           instructions?: string | null
           is_expected?: boolean
           narrative_type_id?: string | null
+          status?: string
           title?: string | null
           type_label: string
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
+          assigned_to?: string | null
           body_md?: string | null
           case_id?: string
+          concluded_at?: string | null
+          concluded_by?: string | null
           created_at?: string
           created_by?: string | null
           display_position?: number
@@ -1126,6 +1183,7 @@ export type Database = {
           instructions?: string | null
           is_expected?: boolean
           narrative_type_id?: string | null
+          status?: string
           title?: string | null
           type_label?: string
           updated_at?: string
@@ -1133,10 +1191,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "case_narratives_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "case_narratives_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_narratives_concluded_by_fkey"
+            columns: ["concluded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -4235,6 +4307,10 @@ export type Database = {
         Args: { p_case_id: string; p_tag_id: string }
         Returns: undefined
       }
+      assign_narrative: {
+        Args: { p_assignee: string; p_narrative: string }
+        Returns: undefined
+      }
       audit_trail_enabled: { Args: never; Returns: boolean }
       cancel_capa_plan: {
         Args: { p_capa_id: string }
@@ -4395,6 +4471,7 @@ export type Database = {
         }[]
       }
       capa_viewer_can_manage: { Args: { p_capa_id: string }; Returns: boolean }
+      case_access_enabled: { Args: never; Returns: boolean }
       case_action_items_kpis: {
         Args: { p_commission_id: string }
         Returns: {
@@ -4413,6 +4490,7 @@ export type Database = {
           tag_id: string
         }[]
       }
+      case_viewer_capabilities: { Args: { p_case_id: string }; Returns: Json }
       cases_extras_enabled: { Args: never; Returns: boolean }
       clone_form_version: {
         Args: { p_source_version_id: string }
@@ -4650,6 +4728,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      conclude_narrative: { Args: { p_narrative: string }; Returns: undefined }
       confirm_triage: {
         Args: { p_event_id: string }
         Returns: {
@@ -5172,6 +5251,10 @@ export type Database = {
         Args: { p_response_id: string }
         Returns: Json
       }
+      grant_case_access: {
+        Args: { p_case: string; p_level: string; p_user: string }
+        Returns: undefined
+      }
       interview_viewer_can_write: {
         Args: { p_interview_id: string }
         Returns: boolean
@@ -5215,6 +5298,7 @@ export type Database = {
           status: string
         }[]
       }
+      list_my_cases: { Args: { p_commission: string }; Returns: Json }
       list_signoff_queue: {
         Args: { p_commission_id: string }
         Returns: {
@@ -5671,6 +5755,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reopen_narrative: { Args: { p_narrative: string }; Returns: undefined }
       reopen_rca: {
         Args: { p_rca_id: string }
         Returns: {
@@ -5761,6 +5846,14 @@ export type Database = {
       }
       reorder_template_phase: {
         Args: { p_direction: string; p_phase_id: string }
+        Returns: undefined
+      }
+      revoke_case_access: {
+        Args: { p_case: string; p_user: string }
+        Returns: undefined
+      }
+      save_narrative_body: {
+        Args: { p_body_md: string; p_narrative: string }
         Returns: undefined
       }
       save_section_answers: {
@@ -6285,6 +6378,7 @@ export type Database = {
         Args: { p_case_id: string; p_tag_id: string }
         Returns: undefined
       }
+      unassign_narrative: { Args: { p_narrative: string }; Returns: undefined }
       unlink_meeting_case: {
         Args: { p_case_link_id: string }
         Returns: undefined
@@ -6409,8 +6503,11 @@ export type Database = {
       update_case_narrative_body: {
         Args: { p_body_md: string; p_narrative_id: string }
         Returns: {
+          assigned_to: string | null
           body_md: string | null
           case_id: string
+          concluded_at: string | null
+          concluded_by: string | null
           created_at: string
           created_by: string | null
           display_position: number
@@ -6418,6 +6515,7 @@ export type Database = {
           instructions: string | null
           is_expected: boolean
           narrative_type_id: string | null
+          status: string
           title: string | null
           type_label: string
           updated_at: string

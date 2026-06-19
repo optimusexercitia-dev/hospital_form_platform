@@ -1,0 +1,16 @@
+-- Case Access Control (BE-6): flip the case_access flag ON. ADR 0033 D9.
+--
+-- A one-line flag flip mirroring …100009 (case_narratives), …121003
+-- (patient_safety), etc. With this ON:
+--   * app.can_read_case STOPS falling back to is_member_of and enforces the
+--     attribution/grant boundary (a member with no attribution + no grant can no
+--     longer read a case) — the restrictive boundary now bites;
+--   * get_case_detail re-gates to can_read_case + emits case.opened on a
+--     non-coordinator open;
+--   * the grant / narrative-lifecycle / list_my_cases RPCs become callable;
+--   * content-write grantees can author non-identity-bound case content.
+--
+-- Enabled in-increment so the gate tests exercise the LIVE feature (same pattern as
+-- the prior flag flips). Tests already flip it ON inside their rolled-back
+-- transactions; this makes the seeded persona fixtures + the app behave as shipped.
+update app.feature_flags set enabled = true where key = 'case_access';

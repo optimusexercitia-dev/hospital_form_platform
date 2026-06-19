@@ -10,6 +10,10 @@ select plan(19);
 
 -- Enable both feature flags.
 update app.feature_flags set enabled = true where key in ('cases_multi_phase', 'cases_extras');
+-- Assert the PRE-Case-Access-Control member-read model (a plain staff member reads
+-- case_action_items of their commission). With case_access ON those reads tighten to
+-- app.can_read_case; keep it OFF here (the ACL behavior is covered by 144_case_access).
+update app.feature_flags set enabled = false where key = 'case_access';
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;

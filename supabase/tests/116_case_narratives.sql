@@ -20,6 +20,12 @@ select plan(21);
 
 update app.feature_flags set enabled = true
   where key in ('case_narratives', 'cases_multi_phase', 'audit_trail');
+-- Assert the PRE-Case-Access-Control behavior: update_case_narrative_body rejects a
+-- plain member with 42501 (the coordinator inline path). With case_access ON, the
+-- invoker RPC's inner read of the narrative is tightened (can_read_case), so a
+-- non-attributed member gets P0002 instead. Keep the flag OFF here; the broadened
+-- save_narrative_body (Q14) path is covered by 144_case_access.
+update app.feature_flags set enabled = false where key = 'case_access';
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;

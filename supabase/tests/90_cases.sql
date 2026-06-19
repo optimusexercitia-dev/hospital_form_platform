@@ -20,6 +20,13 @@ grant select on ctx to authenticated;
 -- cases_extras is needed for the outcome RPCs exercised by the D3 conclude gate
 -- (create_case_outcome / set_process_outcomes / set_case_outcome).
 update app.feature_flags set enabled = true where key in ('cases_multi_phase', 'cases_extras');
+-- This file asserts the PRE-Case-Access-Control behavior — the coordinator-only
+-- get_case_detail gate (test "leaks nothing to a non-staff_admin") and the
+-- assignee-only phase fill via the original member-read RLS. With case_access ON,
+-- get_case_detail re-gates to can_read_case (a phase assignee may now read) and the
+-- invoker phase reads tighten. Keep the flag OFF here; the re-gated behavior +
+-- submitted-only preservation are covered by 144_case_access. (ADR 0033 Consequences.)
+update app.feature_flags set enabled = false where key = 'case_access';
 
 -- Convenience accessors.
 create temp table k on commit drop as

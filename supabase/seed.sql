@@ -32,7 +32,12 @@ declare
     jsonb_build_object('id', '00000000-0000-0000-0000-000000000005', 'email', 'chefe.farm@test.local',  'name', 'Chefe Farmácia'),
     jsonb_build_object('id', '00000000-0000-0000-0000-000000000006', 'email', 'staff1.farm@test.local', 'name', 'Farmacêutico Um'),
     jsonb_build_object('id', '00000000-0000-0000-0000-000000000007', 'email', 'staff2.farm@test.local', 'name', 'Farmacêutica Dois'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-000000000008', 'email', 'multi@test.local',       'name', 'Coordenadora Multi')
+    jsonb_build_object('id', '00000000-0000-0000-0000-000000000008', 'email', 'multi@test.local',       'name', 'Coordenadora Multi'),
+    -- Case Access Control (ADR 0033) personas — plain staff of CCIH used to
+    -- exercise the §5 acceptance access paths (grant read, grant write, and the
+    -- "gets nothing" boundary). staff3 = write-grantee; staff4 = unrelated boundary.
+    jsonb_build_object('id', '00000000-0000-0000-0000-000000000009', 'email', 'staff3.ccih@test.local', 'name', 'Técnico CCIH Três'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-00000000000a', 'email', 'staff4.ccih@test.local', 'name', 'Técnica CCIH Quatro')
   );
   u jsonb;
 begin
@@ -97,7 +102,10 @@ insert into public.commission_members (commission_id, user_id, role) values
   -- is E2E-testable (a single user with >1 membership). Kept as staff in both to
   -- avoid introducing a second staff_admin into either commission.
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000008', 'staff'),
-  ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000008', 'staff');
+  ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000008', 'staff'),
+  -- Case Access Control personas (plain staff of CCIH; ADR 0033 §5 acceptance).
+  ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000009', 'staff'),
+  ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000000a', 'staff');
 
 -- ===========================================================================
 -- FORM A (commission CCIH): UNSECTIONED — default section only.
@@ -623,6 +631,56 @@ begin
      'Descreva os achados e a discussão do comitê.', false, null, v_chefe_a, null),
     (v_case1, v_nt_conc, 'Conclusão do Comitê', 5, null, null, true, null,
      v_chefe_a, null);
+end $$;
+
+-- ===========================================================================
+-- Case ACCESS CONTROL fixture (commission A / CCIH) — ADR 0033, §5 acceptance.
+-- ===========================================================================
+-- Wires Caso 0001 ("Óbito UTI leito 7") to exercise EVERY access path the tester
+-- needs, so the §5 personas resolve to real rows once the case_access flag is ON
+-- (flipped in migration …110004, which runs before this seed):
+--   * chefe.ccih  (…02) — COORDINATOR (staff_admin); passes every predicate.
+--   * staff1.ccih (…03) — PHASE assignee: already assigned Caso 0001 Phase 1
+--     (the Phase-7 fixture above) → attribution-derived FULL-CASE READ.
+--   * staff2.ccih (…04) — NARRATIVE assignee: assigned the "Resumo Clínico"
+--     narrative below (status stays 'aberta') → attribution-derived FULL-CASE READ
+--     + may author/conclude THAT narrative (Q14).
+--   * multi       (…08) — standalone READ grant (a viewer; editors hidden).
+--   * staff3.ccih (…09) — standalone WRITE grant (a collaborator; may author the
+--     UN-assigned narratives + action items/docs/tags; no lifecycle, no phase-fill).
+--   * staff4.ccih (…0a) — UNRELATED member: NO attribution, NO grant → the BOUNDARY
+--     persona (notFound() on the case; absent from Meus Casos).
+-- The narrative assignee UPDATE needs no app.in_narrative_rpc flag — Caso 0001 is
+-- non-terminal, so guard_case_narrative_frozen passes. Grants insert directly
+-- (the grant RPC is the app path; the seed bypasses RLS as superuser). De-identified
+-- governance data only — no patient identifiers.
+do $$
+declare
+  v_case1    uuid := 'd0000000-0000-0000-0000-0000000000c1';  -- Caso 0001
+  v_chefe_a  uuid := '00000000-0000-0000-0000-000000000002';
+  v_staff_a2 uuid := '00000000-0000-0000-0000-000000000004';  -- narrative assignee
+  v_multi    uuid := '00000000-0000-0000-0000-000000000008';  -- read grant
+  v_staff_a3 uuid := '00000000-0000-0000-0000-000000000009';  -- write grant
+  v_nt_res   uuid := 'e2000000-0000-0000-0000-0000000000f1';  -- "Resumo Clínico" type
+  v_narr_res uuid;
+begin
+  -- Assign the "Resumo Clínico" narrative of Caso 0001 to staff2.ccih.
+  select id into v_narr_res
+  from public.case_narratives
+  where case_id = v_case1 and narrative_type_id = v_nt_res
+  limit 1;
+
+  if v_narr_res is not null then
+    update public.case_narratives
+    set assigned_to = v_staff_a2, updated_by = v_chefe_a
+    where id = v_narr_res;
+  end if;
+
+  -- Standalone grants: multi = read (viewer), staff3 = write (collaborator).
+  insert into public.case_access (case_id, user_id, level, granted_by) values
+    (v_case1, v_multi,    'read',  v_chefe_a),
+    (v_case1, v_staff_a3, 'write', v_chefe_a)
+  on conflict (case_id, user_id) do update set level = excluded.level;
 end $$;
 
 -- ===========================================================================

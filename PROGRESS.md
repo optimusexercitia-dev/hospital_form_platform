@@ -63,10 +63,10 @@ Backend (`backend`):
 | - | ---- | ------ |
 | BE-1 | Post the §2 typed contract (queries + actions + types) — unblocks FE | ✅ committed `7763016` |
 | BE-2 | Migration: `case_access` + `case_narratives` cols + flag (OFF) + SQLSTATEs | ✅ `…110000` (HC055 added) |
-| BE-3 | Predicates + RLS tighten (OFF-flag fallback) + read-ripple sweep | ✅ `…110001` + ripple (`meetings.ts` `restricted`); pgTAP `144` 43/43; **CHECKPOINT — awaiting lead green-light before BE-4** |
-| BE-4 | RPCs (grants, narrative lifecycle, `list_my_cases`) + `get_case_detail` re-gate | 🔜 plan review |
-| BE-5 | Audit `case.opened` + curated PHI-free mutation triggers | 🔜 |
-| BE-6 | Flag ON + regen types + pgTAP + seed personas (attributed + granted) | 🔜 |
+| BE-3 | Predicates + RLS tighten (OFF-flag fallback) + read-ripple sweep | ✅ `…110001` + ripple (`meetings.ts` `restricted`) |
+| BE-4 | RPCs (grants, narrative lifecycle, `list_my_cases`) + `get_case_detail` re-gate (submitted-only preserved) + content-write broadening | ✅ `…110002` |
+| BE-5 | Audit `case.opened` (allow-list) + PHI-free `case_access`/narrative mutation triggers | ✅ `…110003` |
+| BE-6 | Flag ON (`…110004`) + regen `database.ts` + stub bodies wired + seed personas + pgTAP `144` 78/78; **FULL SUITE 615/615 — awaiting lead review → tester** |
 
 Frontend (`frontend`; build against frozen §2 contract; depends on BE-1):
 

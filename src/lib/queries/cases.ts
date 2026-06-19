@@ -843,6 +843,26 @@ export async function listMyAssignedPhases(
 // "Meus Casos" — the unified attributed-or-granted case list (ADR 0033 D7)
 // ---------------------------------------------------------------------------
 
+/** One attributed item inside a `list_my_cases` row's `items` jsonb array. */
+interface MyCaseItemJson {
+  kind: 'phase' | 'narrative'
+  id: string
+  title: string
+  status: string
+  display_position: number
+  actionable: boolean
+}
+
+/** One row of the `list_my_cases` jsonb array. */
+interface MyCaseJson {
+  case_id: string
+  case_number: number
+  label: string | null
+  status: CaseStatus
+  my_role: MyCaseRole
+  items: MyCaseItemJson[]
+}
+
 /**
  * The caller's "Meus Casos" for a commission (ADR 0033 D7): every case the member
  * can access — personally ATTRIBUTED (a phase or narrative assignee) OR GRANTED a
@@ -859,9 +879,27 @@ export async function listMyAssignedPhases(
  * is wired to the RPC in BE-4 (after the migration + `gen:types`).
  */
 export async function listMyCases(commissionId: string): Promise<MyCase[]> {
-  // BE-4 wires this to `supabase.rpc('list_my_cases', { p_commission: ... })`
-  // once the RPC exists in the generated types. Until then it is unimplemented so
-  // the contract typechecks for FE without a provisional shape.
-  void commissionId
-  throw new Error('não implementado — BE-4')
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.rpc('list_my_cases', {
+    p_commission: commissionId,
+  })
+
+  if (error || !data) return []
+
+  return (data as unknown as MyCaseJson[]).map((r) => ({
+    caseId: r.case_id,
+    caseNumber: r.case_number,
+    label: r.label,
+    status: r.status,
+    myRole: r.my_role,
+    items: (r.items ?? []).map((it) => ({
+      kind: it.kind,
+      id: it.id,
+      title: it.title,
+      status: it.status,
+      displayPosition: it.display_position,
+      actionable: it.actionable,
+    })),
+  }))
 }

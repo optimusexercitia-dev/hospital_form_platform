@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
+import { caseAccessEnabled } from '@/lib/case-access/actions'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
 
@@ -101,6 +102,8 @@ const MESSAGES = {
   missingAssignee: 'Selecione um responsável.',
   // HC021 — the assignee must be a current member of the case's commission.
   assigneeNotMember: 'O responsável deve ser membro da comissão.',
+  // HC020 — assign/conclude/reopen attempted on a terminal (concluído/cancelado) case.
+  caseTerminal: 'Este caso está em um estado final e não pode mais ser alterado.',
   // HC055 — narrative wrong state for the requested lifecycle op (assign/conclude
   // requires 'aberta'; reopen requires 'concluida').
   narrativeWrongState: 'A narrativa não está no estado necessário para esta ação.',
@@ -117,6 +120,10 @@ const PG_FORBIDDEN = '42501'
 // code: a frozen-case body write, a template/type commission mismatch, or an
 // incomplete reorder set. See docs/decisions/0032-case-narratives.md.
 const HC_NARRATIVE = 'HC054'
+// HC0xx codes for the Case Access Control narrative lifecycle (ADR 0033):
+const HC_CASE_TERMINAL = 'HC020' // assign/conclude/reopen on a terminal case
+const HC_NOT_MEMBER = 'HC021' // assignee not a member of the commission
+const HC_NARRATIVE_STATE = 'HC055' // narrative wrong lifecycle state
 
 const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
 const CASES_LIST_PATH = '/c/[slug]/manage/cases'
@@ -204,6 +211,12 @@ function mapNarrativeError(
   switch (error.code) {
     case HC_NARRATIVE:
       return error.message || MESSAGES.narrativesLocked
+    case HC_CASE_TERMINAL:
+      return MESSAGES.caseTerminal
+    case HC_NOT_MEMBER:
+      return MESSAGES.assigneeNotMember
+    case HC_NARRATIVE_STATE:
+      return MESSAGES.narrativeWrongState
     case PG_UNIQUE_VIOLATION:
       return MESSAGES.labelTaken
     case PG_FORBIDDEN:
@@ -602,9 +615,26 @@ export async function assignNarrative(
   if (!assigneeId) {
     return { ok: false, fieldErrors: { assigneeId: MESSAGES.missingAssignee } }
   }
-  // BE-4: gate narrativesEnabled(), resolve+re-check the narrative's commission,
-  // then supabase.rpc('assign_narrative', { p_narrative: narrativeId, p_assignee: assigneeId }).
-  throw new Error('não implementado — BE-4')
+  if (!(await caseAccessEnabled())) {
+    return { ok: false, error: MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const commissionId = await commissionOfNarrative(supabase, narrativeId)
+  if (!commissionId) return { ok: false, error: MESSAGES.missingNarrative }
+  if (!(await authorizeCommission(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('assign_narrative', {
+    p_narrative: narrativeId,
+    p_assignee: assigneeId,
+  })
+
+  if (error) return { ok: false, error: mapNarrativeError(error) }
+
+  revalidateCase()
+  return { ok: true, error: MESSAGES.assigned }
 }
 
 /**
@@ -618,9 +648,25 @@ export async function unassignNarrative(
   narrativeId: string,
 ): Promise<ActionState> {
   if (!narrativeId) return { ok: false, error: MESSAGES.missingNarrative }
-  // BE-4: gate + re-check commission, then
-  // supabase.rpc('unassign_narrative', { p_narrative: narrativeId }).
-  throw new Error('não implementado — BE-4')
+  if (!(await caseAccessEnabled())) {
+    return { ok: false, error: MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const commissionId = await commissionOfNarrative(supabase, narrativeId)
+  if (!commissionId) return { ok: false, error: MESSAGES.missingNarrative }
+  if (!(await authorizeCommission(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('unassign_narrative', {
+    p_narrative: narrativeId,
+  })
+
+  if (error) return { ok: false, error: mapNarrativeError(error) }
+
+  revalidateCase()
+  return { ok: true, error: MESSAGES.unassigned }
 }
 
 /**
@@ -631,38 +677,57 @@ export async function unassignNarrative(
  * `assigned_to` OR (`can_write_case_content` AND `assigned_to IS NULL`) — so a
  * focused-editor assignee or an un-attributed-narrative write-grantee may save.
  * The narrative must be `aberta` (concluded → reopen first; `HC055`) and the case
- * non-terminal (`HC054`). Routed through `save_narrative_body`.
- *
- * Mirrors `updateInterviewSummary`: an (id, value) action bound by the editor's
- * transition. {@link upsertNarrativeBody} stays as the coordinator-only inline
- * editor's call (BE-4 may alias it onto the same broadened RPC).
+ * non-terminal (`HC054`). Routed through `save_narrative_body`. Authorization is
+ * the RPC's (`can_write_case_narrative` → 42501) — NO staff_admin pre-check (a
+ * registered assignee who is a plain `staff` member must pass; mirrors the
+ * interviews `can_write_interview` pattern). {@link upsertNarrativeBody} stays the
+ * coordinator-only inline editor's call.
  */
 export async function saveNarrativeBody(
   narrativeId: string,
   bodyMd: string,
 ): Promise<ActionState> {
   if (!narrativeId) return { ok: false, error: MESSAGES.missingNarrative }
-  // BE-4: gate narrativesEnabled(), then
-  // supabase.rpc('save_narrative_body', { p_narrative: narrativeId, p_body_md: bodyMd }).
-  // Authorization is the RPC's (can_write_case_narrative → 42501); the action maps
-  // 42501 → MESSAGES.forbidden and HC054/HC055 → the locked / wrong-state strings.
-  void bodyMd
-  throw new Error('não implementado — BE-4')
+  if (!(await caseAccessEnabled())) {
+    return { ok: false, error: MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('save_narrative_body', {
+    p_narrative: narrativeId,
+    p_body_md: bodyMd,
+  })
+
+  if (error) return { ok: false, error: mapNarrativeError(error) }
+
+  revalidateCase()
+  return { ok: true, error: MESSAGES.bodySaved }
 }
 
 /**
  * Conclude a narrative (`aberta → concluida`, freezing the body; ADR 0033 D5).
  * The ASSIGNEE or a coordinator may conclude; the narrative must be `aberta`
  * (`HC055`). Stamps `concluded_at`/`concluded_by`. A coordinator can later
- * {@link reopenNarrative}. Routed through `conclude_narrative`.
+ * {@link reopenNarrative}. Routed through `conclude_narrative` — authorization is
+ * the RPC's (assignee-or-coordinator), so NO staff_admin pre-check.
  */
 export async function concludeNarrative(
   narrativeId: string,
 ): Promise<ActionState> {
   if (!narrativeId) return { ok: false, error: MESSAGES.missingNarrative }
-  // BE-4: gate + (assignee-or-coordinator authz is the RPC's), then
-  // supabase.rpc('conclude_narrative', { p_narrative: narrativeId }).
-  throw new Error('não implementado — BE-4')
+  if (!(await caseAccessEnabled())) {
+    return { ok: false, error: MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('conclude_narrative', {
+    p_narrative: narrativeId,
+  })
+
+  if (error) return { ok: false, error: mapNarrativeError(error) }
+
+  revalidateCase()
+  return { ok: true, error: MESSAGES.concluded }
 }
 
 /**
@@ -674,7 +739,23 @@ export async function reopenNarrative(
   narrativeId: string,
 ): Promise<ActionState> {
   if (!narrativeId) return { ok: false, error: MESSAGES.missingNarrative }
-  // BE-4: gate + re-check commission, then
-  // supabase.rpc('reopen_narrative', { p_narrative: narrativeId }).
-  throw new Error('não implementado — BE-4')
+  if (!(await caseAccessEnabled())) {
+    return { ok: false, error: MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const commissionId = await commissionOfNarrative(supabase, narrativeId)
+  if (!commissionId) return { ok: false, error: MESSAGES.missingNarrative }
+  if (!(await authorizeCommission(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('reopen_narrative', {
+    p_narrative: narrativeId,
+  })
+
+  if (error) return { ok: false, error: mapNarrativeError(error) }
+
+  revalidateCase()
+  return { ok: true, error: MESSAGES.reopened }
 }
