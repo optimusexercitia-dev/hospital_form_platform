@@ -1,13 +1,7 @@
-import { CalendarClock, FileText, User } from "lucide-react";
-
 import type { CaseDetail } from "@/lib/queries/cases";
-import {
-  PhaseStatusPill,
-  RecommendedChip,
-} from "@/components/cases/phase-status-pill";
-import { CoordinatorPhaseActions } from "@/components/cases/coordinator-phase-actions";
-import { formatDueDate, isOverdue } from "@/components/cases/format";
-import { cn } from "@/lib/utils";
+import { mergeCaseLayout } from "@/lib/queries/case-narratives";
+import { CasePhaseArticle } from "@/components/cases/case-phase-article";
+import { CaseNarrativeCard } from "@/components/cases/case-narrative-card";
 
 /** An assignee option for the activate / reassign pickers. */
 export interface AssigneeOption {
@@ -16,93 +10,66 @@ export interface AssigneeOption {
 }
 
 /**
- * The ordered list of a case's phases (per-case detail). Each row mirrors the
- * {@link MyResponseCard} idiom: form/title, a status pill (icon+text+shape), the
- * `recommended` highlight, the assignee, and the contextual coordinator actions.
- * Server-Component-safe wrapper; the per-row actions are client islands.
+ * The case's MERGED left-column layout (per-case detail): phases interleaved with
+ * narratives in one ordered list via
+ * {@link import('@/lib/queries/case-narratives').mergeCaseLayout} (Case Narratives
+ * increment, ADR 0032). A `kind:'phase'` item renders the existing
+ * {@link CasePhaseArticle} (unchanged markup + coordinator actions); a
+ * `kind:'narrative'` item renders {@link CaseNarrativeCard}.
+ *
+ * Before the increment this was a flat `position`-sorted phase list; the merge
+ * preserves that for narrative-free cases (the narratives array is empty when the
+ * feature is off or the case defines none, so the layout collapses to phases in
+ * `displayPosition`≈`position` order). The `--rise-delay` entrance stagger runs
+ * across the WHOLE merged list. Server-Component-safe wrapper; the per-row phase
+ * actions and the narrative editor are client islands.
  */
 export function CasePhaseList({
   slug,
   detail,
   assignees,
   isOpen,
+  canEditNarratives,
 }: {
   slug: string;
   detail: CaseDetail;
   assignees: AssigneeOption[];
   /** Whether the parent case is still `aberto` (gates the coordinator actions). */
   isOpen: boolean;
+  /**
+   * Whether the viewer may edit narratives (`isOpen && coordinator`). When false,
+   * narrative cards render read-only; the parent ALSO filters empty narratives out
+   * of `detail.narratives` for non-editors, so this gates only the edit affordance.
+   */
+  canEditNarratives: boolean;
 }) {
-  const phases = [...detail.phases].sort((a, b) => a.position - b.position);
+  const allPhases = detail.phases;
+  const items = mergeCaseLayout(detail);
 
   return (
-    <section aria-label="Fases do caso" className="flex flex-col gap-3">
-      {phases.map((phase, index) => {
-        const heading = phase.title || `Fase ${phase.position}`;
-        return (
-          <article
-            key={phase.id}
-            style={{ ["--rise-delay" as string]: `${index * 50}ms` }}
-            className="animate-rise-in flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex min-w-0 flex-col gap-1.5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    Fase {phase.position}
-                  </span>
-                  <PhaseStatusPill status={phase.status} />
-                  {phase.recommended && phase.status === "pendente" && (
-                    <RecommendedChip />
-                  )}
-                  {phase.isAdHoc && (
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-muted-foreground uppercase">
-                      adicional
-                    </span>
-                  )}
-                </div>
-                <h2 className="text-base font-semibold">{heading}</h2>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                  <span className="inline-flex items-center gap-1">
-                    <FileText aria-hidden="true" className="size-3.5" />
-                    {phase.formTitle ?? "Formulário não encontrado"}
-                  </span>
-                  {phase.assigneeName && (
-                    <span className="inline-flex items-center gap-1">
-                      <User aria-hidden="true" className="size-3.5" />
-                      {phase.assigneeName}
-                    </span>
-                  )}
-                  {phase.dueDate &&
-                    (() => {
-                      const overdue = isOverdue(phase.dueDate, phase.status);
-                      return (
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1",
-                            overdue && "font-medium text-destructive",
-                          )}
-                        >
-                          <CalendarClock aria-hidden="true" className="size-3.5" />
-                          Prazo: {formatDueDate(phase.dueDate)}
-                          {overdue && " · Atrasada"}
-                        </span>
-                      );
-                    })()}
-                </div>
-              </div>
-            </div>
-
-            <CoordinatorPhaseActions
+    <section aria-label="Fases e narrativas do caso" className="flex flex-col gap-3">
+      {items.map((item, index) => (
+        <div
+          key={`${item.kind}-${item.kind === "phase" ? item.phase.id : item.narrative.id}`}
+          style={{ ["--rise-delay" as string]: `${index * 50}ms` }}
+          className="animate-rise-in"
+        >
+          {item.kind === "phase" ? (
+            <CasePhaseArticle
               slug={slug}
-              phase={phase}
-              allPhases={phases}
+              phase={item.phase}
+              allPhases={allPhases}
               assignees={assignees}
               isOpen={isOpen}
             />
-          </article>
-        );
-      })}
+          ) : (
+            <CaseNarrativeCard
+              narrative={item.narrative}
+              canEdit={canEditNarratives}
+            />
+          )}
+        </div>
+      ))}
     </section>
   );
 }

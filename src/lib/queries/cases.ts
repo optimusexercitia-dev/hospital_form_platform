@@ -132,6 +132,43 @@ export interface CasePhase {
    * no default. Never changes after creation (template edits don't reach it).
    */
   defaultDueDays: number | null
+  /**
+   * The phase's order in the MERGED case layout (phases interleaved with
+   * narratives; Case Narratives increment, ADR 0032). Distinct from `position`,
+   * which stays the immutable phase NUMBER (referenced by `blocks` /
+   * `recommendWhen.fromPhase`). `null` only for legacy rows pre-backfill; the
+   * merge falls back to `position`. Snapshot-copied at case creation.
+   */
+  displayPosition: number | null
+}
+
+/**
+ * One per-case NARRATIVE (`case_narratives`; Case Narratives increment, ADR
+ * 0032): a snapshot of a template narrative-slot plus the authored prose. The
+ * analogue of {@link CasePhase} on the narrative side. `typeLabel` is the
+ * effective label SNAPSHOTTED at case creation (so later vocabulary edits do not
+ * rewrite an opened case); `bodyMd` is the de-identified sanitized-Markdown body
+ * (Rule 7), authored inline by the coordinator and frozen once the case is
+ * concluído/cancelado.
+ */
+export interface CaseNarrative {
+  id: string
+  caseId: string
+  /** Provenance link to the vocabulary row (`set null` on type delete); `null` if detached. */
+  narrativeTypeId: string | null
+  /** The effective label SNAPSHOTTED at creation (never rewritten by vocab edits). */
+  typeLabel: string
+  /** Order in the merged case layout (interleaved with phases by `displayPosition`). */
+  displayPosition: number
+  /** Optional per-slot label override snapshotted from the template; `null` if none. */
+  title: string | null
+  /** Optional authoring guidance snapshotted from the template; `null` if none. */
+  instructions: string | null
+  /** Advisory close flag (decision 7): a soft warning if left empty at conclude. */
+  isExpected: boolean
+  /** The authored de-identified Markdown body (Rule 7); `null`/empty when unwritten. */
+  bodyMd: string | null
+  updatedAt: string
 }
 
 /** One row of the cases board: a case header + its phases' STATUS summary. */
@@ -185,6 +222,15 @@ export interface CaseDetail {
       submittedAt: string | null
     }
   >
+  /**
+   * The case's NARRATIVES (`case_narratives`; ADR 0032), ordered by
+   * `displayPosition`, interleaved with `phases` for the merged render via
+   * {@link import('@/lib/queries/case-narratives').mergeCaseLayout}. `[]` when the
+   * `case_narratives` feature is off or the case has none. `bodyMd` IS present
+   * here (de-identified governance prose for the coordinator); only the audit log
+   * excludes it.
+   */
+  narratives: CaseNarrative[]
 }
 
 /** The assignee's phase-fill landing: the phase + its parent case (metadata). */
@@ -264,8 +310,42 @@ interface DetailPhaseJson {
   recommend_when: RecommendWhen | null
   due_date: string | null
   default_due_days: number | null
+  display_position: number | null
   response_id: string | null
   submitted_at: string | null
+}
+
+/**
+ * One narrative entry inside the `get_case_detail` jsonb envelope's `narratives`
+ * array (Case Narratives increment, ADR 0032). `body_md` IS present — the
+ * coordinator read path; only the audit log excludes it.
+ */
+interface DetailNarrativeJson {
+  id: string
+  narrative_type_id: string | null
+  type_label: string
+  display_position: number
+  title: string | null
+  instructions: string | null
+  is_expected: boolean
+  body_md: string | null
+  updated_at: string
+}
+
+/** Map a `get_case_detail` narrative envelope object to its domain shape. */
+function mapNarrativeJson(n: DetailNarrativeJson, caseId: string): CaseNarrative {
+  return {
+    id: n.id,
+    caseId,
+    narrativeTypeId: n.narrative_type_id ?? null,
+    typeLabel: n.type_label,
+    displayPosition: n.display_position,
+    title: n.title,
+    instructions: n.instructions,
+    isExpected: n.is_expected,
+    bodyMd: n.body_md,
+    updatedAt: n.updated_at,
+  }
 }
 
 /** The `get_case_detail` jsonb envelope. */
@@ -284,6 +364,8 @@ interface CaseDetailJson {
   created_at: string
   closed_at: string | null
   phases: DetailPhaseJson[]
+  /** The case's narratives, ordered by `display_position` (`[]` if none / flag off). */
+  narratives: DetailNarrativeJson[] | null
 }
 
 /**
@@ -397,9 +479,11 @@ async function getCaseDetailUncached(
       recommendWhen: p.recommend_when,
       dueDate: p.due_date,
       defaultDueDays: p.default_due_days,
+      displayPosition: p.display_position ?? null,
       responseId: p.response_id,
       submittedAt: p.submitted_at,
     })),
+    narratives: (env.narratives ?? []).map((n) => mapNarrativeJson(n, env.id)),
   }
 }
 
@@ -486,6 +570,8 @@ export async function getCasePhaseForFill(
       recommendWhen: data.recommend_when,
       dueDate: data.due_date,
       defaultDueDays: data.default_due_days,
+      // The fill landing renders one phase, not the merged layout — no display order needed.
+      displayPosition: null,
     },
     case: {
       id: c.id,

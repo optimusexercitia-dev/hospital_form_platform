@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Plus, XCircle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Plus, XCircle } from "lucide-react";
 
 import type { CaseDetail, OfferedCaseOutcome } from "@/lib/queries/cases";
 import { closeCase, cancelCase } from "@/lib/cases/actions";
@@ -58,6 +58,7 @@ export function CaseLifecycleActions({
   forms,
   phases,
   assignees,
+  expectedEmptyNarrativeLabels = [],
 }: {
   caseId: string;
   /** The case's FROZEN offered outcomes (D15); `[]` = process offers none. */
@@ -67,6 +68,12 @@ export function CaseLifecycleActions({
   forms: SlotForm[];
   phases: CaseDetail["phases"];
   assignees: AssigneeOption[];
+  /**
+   * Labels of EXPECTED narratives (ADR 0032, decision 7) still empty — shown as a
+   * NON-BLOCKING advisory in the conclude dialog. `[]` = none / feature off; the
+   * dialog renders no warning then. Conclusion is never gated on this.
+   */
+  expectedEmptyNarrativeLabels?: string[];
 }) {
   const [adHocOpen, setAdHocOpen] = useState(false);
   const [concludeOpen, setConcludeOpen] = useState(false);
@@ -112,6 +119,7 @@ export function CaseLifecycleActions({
         offeredOutcomes={offeredOutcomes}
         currentOutcomeId={currentOutcomeId}
         hasOpenPhases={hasOpenPhases}
+        expectedEmptyNarrativeLabels={expectedEmptyNarrativeLabels}
       />
     </div>
   );
@@ -130,6 +138,7 @@ function ConcludeCaseDialog({
   offeredOutcomes,
   currentOutcomeId,
   hasOpenPhases,
+  expectedEmptyNarrativeLabels,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -137,6 +146,8 @@ function ConcludeCaseDialog({
   offeredOutcomes: OfferedCaseOutcome[];
   currentOutcomeId: string | null;
   hasOpenPhases: boolean;
+  /** Expected-but-empty narrative labels — a NON-BLOCKING advisory (decision 7). */
+  expectedEmptyNarrativeLabels: string[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -199,6 +210,27 @@ function ConcludeCaseDialog({
 
         <div className="flex flex-col gap-4">
           {error && <FormBanner tone="error">{error}</FormBanner>}
+
+          {expectedEmptyNarrativeLabels.length > 0 && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex flex-col gap-2 rounded-lg border border-warning/30 bg-warning/12 px-3.5 py-3 text-sm text-foreground"
+            >
+              <p className="flex items-center gap-2 font-medium text-warning">
+                <AlertTriangle aria-hidden="true" className="size-4 shrink-0" />
+                {expectedEmptyNarrativeLabels.length === 1
+                  ? "Uma narrativa esperada está sem conteúdo"
+                  : "Há narrativas esperadas sem conteúdo"}
+              </p>
+              <ul className="ml-6 list-disc text-muted-foreground">
+                {expectedEmptyNarrativeLabels.map((label) => (
+                  <li key={label}>{label}</li>
+                ))}
+              </ul>
+              <p className="text-muted-foreground">Você ainda pode concluir o caso.</p>
+            </div>
+          )}
 
           {offersOutcomes && (
             <label className="flex flex-col gap-1.5 text-sm">

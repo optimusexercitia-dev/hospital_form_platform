@@ -19,6 +19,7 @@ import { listCaseInterviews, interviewsEnabled } from "@/lib/queries/interviews"
 import { InterviewsPanel } from "@/components/interviews/interviews-panel";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
+import { narrativesEnabled } from "@/lib/case-narratives/actions";
 
 export const metadata: Metadata = {
   title: "Detalhe do caso",
@@ -56,9 +57,10 @@ export default async function CaseDetailPage({
   // (documents/events/tags/action items) load alongside. The Interviews panel
   // (Phase 11) is feature-flagged; when off we skip the read and render nothing
   // for it (the route 404s on its own detail page too).
-  const [interviewsOn, patientSafetyOn] = await Promise.all([
+  const [interviewsOn, patientSafetyOn, narrativesOn] = await Promise.all([
     interviewsEnabled(),
     patientSafetyEnabled(),
+    narrativesEnabled(),
   ]);
   const [members, documents, events, tags, caseTags, actionItems, interviews] =
     await Promise.all([
@@ -78,6 +80,19 @@ export default async function CaseDetailPage({
   const c = detail.case;
   const isOpen = !isTerminalCaseStatus(c.status);
   const offersOutcomes = detail.offeredOutcomes.length > 0;
+
+  // Narratives (ADR 0032): the coordinator (this page is staff_admin-gated) may
+  // edit while the case is open. When the feature is off, drop them entirely so
+  // the merged layout collapses to phases. For a read-only viewer (a concluded/
+  // cancelled case here), empty narratives are hidden (decision 8); a coordinator
+  // on an open case keeps them so the placeholder/Editar affordance shows.
+  const canEditNarratives = isOpen; // coordinator is implied by the page gate
+  const visibleNarratives = !narrativesOn
+    ? []
+    : canEditNarratives
+      ? detail.narratives
+      : detail.narratives.filter((n) => (n.bodyMd ?? "").trim().length > 0);
+  const detailForLayout = { ...detail, narratives: visibleNarratives };
   // Phases for the action-item "origin phase" picker (id + label only).
   const phaseOptions = [...detail.phases]
     .sort((a, b) => a.position - b.position)
@@ -109,9 +124,10 @@ export default async function CaseDetailPage({
           <div data-rise className="order-1 lg:order-none">
             <CasePhaseList
               slug={slug}
-              detail={detail}
+              detail={detailForLayout}
               assignees={assignees}
               isOpen={isOpen}
+              canEditNarratives={canEditNarratives}
             />
           </div>
           <div data-rise className="order-2 lg:order-none">

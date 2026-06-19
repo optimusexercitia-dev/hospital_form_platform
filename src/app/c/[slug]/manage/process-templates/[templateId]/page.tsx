@@ -9,6 +9,8 @@ import {
 } from "@/lib/queries/process-templates";
 import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import { listForms } from "@/lib/queries/forms";
+import { listNarrativeTypes } from "@/lib/queries/case-narratives";
+import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { TemplateBuilderShell } from "@/components/process-templates/template-builder-shell";
 
 export const metadata: Metadata = {
@@ -48,11 +50,16 @@ export default async function ProcessTemplateBuilderPage({
 
   // The form picker offers forms that have a published version (a phase pins one
   // at case creation). A form with only a draft can't back a phase yet. The
-  // offered-outcomes picker offers the commission's non-archived outcomes.
-  const [forms, outcomes] = await Promise.all([
+  // offered-outcomes picker offers the commission's non-archived outcomes; the
+  // narrative-slot picker the non-archived narrative types (when the feature is on).
+  const [forms, outcomes, narrativesOn] = await Promise.all([
     listForms(access.commission.id),
     listCaseOutcomes(access.commission.id),
+    narrativesEnabled(),
   ]);
+  const narrativeTypes = narrativesOn
+    ? await listNarrativeTypes(access.commission.id)
+    : [];
   const publishableForms = forms
     .filter((f) => f.publishedVersionNumber != null)
     .map((f) => ({ id: f.id, title: f.title }));
@@ -80,6 +87,8 @@ export default async function ProcessTemplateBuilderPage({
       forms={publishableForms}
       conditionTargetsByForm={conditionTargetsByForm}
       outcomes={outcomes}
+      narrativeTypes={narrativeTypes}
+      narrativesEnabled={narrativesOn}
     />
   );
 }

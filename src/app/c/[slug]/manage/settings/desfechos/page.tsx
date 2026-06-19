@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getCommissionAccess } from "@/lib/queries/session";
 import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
+import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { SettingsTabs } from "@/components/cases/settings-tabs";
 import { OutcomeManager } from "@/components/cases/outcome-manager";
 
@@ -32,7 +33,10 @@ export default async function CaseOutcomesSettingsPage({
     notFound();
   }
 
-  const outcomes = await listCaseOutcomes(access.commission.id);
+  const [outcomes, narrativesOn] = await Promise.all([
+    listCaseOutcomes(access.commission.id),
+    narrativesEnabled(),
+  ]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -46,7 +50,7 @@ export default async function CaseOutcomesSettingsPage({
         </p>
       </header>
 
-      <SettingsTabs slug={slug} />
+      <SettingsTabs slug={slug} narrativesEnabled={narrativesOn} />
 
       <OutcomeManager commissionId={access.commission.id} outcomes={outcomes} />
     </div>

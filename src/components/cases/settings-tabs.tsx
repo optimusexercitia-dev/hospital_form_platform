@@ -7,15 +7,30 @@ import { cn } from "@/lib/utils";
 
 /**
  * Sub-navigation for the commission settings area: switch between the outcome
- * vocabulary ("Desfechos") and the tag vocabulary ("Etiquetas"). The configurable
- * status vocabulary is gone (D12 — statuses are now fixed/computed), so its tab is
- * dropped. Keyboard-operable links with `aria-current` on the active tab.
+ * vocabulary ("Desfechos"), the tag vocabulary ("Etiquetas") and — when the
+ * `case_narratives` feature is on — the narrative vocabulary ("Narrativas"). The
+ * configurable status vocabulary is gone (D12 — statuses are now fixed/computed),
+ * so its tab is dropped. Keyboard-operable links with `aria-current` on the active
+ * tab.
+ *
+ * `narrativesEnabled` is resolved on the server by each settings page (the flag
+ * lives in the locked-down `app` schema) and passed in, so the Narrativas tab is
+ * hidden everywhere until the increment ships.
  */
-export function SettingsTabs({ slug }: { slug: string }) {
+export function SettingsTabs({
+  slug,
+  narrativesEnabled = false,
+}: {
+  slug: string;
+  narrativesEnabled?: boolean;
+}) {
   const pathname = usePathname();
   const tabs = [
     { href: `/c/${slug}/manage/settings/desfechos`, label: "Desfechos" },
     { href: `/c/${slug}/manage/settings/etiquetas`, label: "Etiquetas" },
+    ...(narrativesEnabled
+      ? [{ href: `/c/${slug}/manage/settings/narrativas`, label: "Narrativas" }]
+      : []),
   ];
 
   return (

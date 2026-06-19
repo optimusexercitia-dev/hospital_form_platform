@@ -1044,6 +1044,124 @@ export type Database = {
           },
         ]
       }
+      case_narrative_types: {
+        Row: {
+          archived: boolean
+          commission_id: string
+          created_at: string
+          description: string | null
+          id: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          commission_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          label: string
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          commission_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          label?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_narrative_types_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_narratives: {
+        Row: {
+          body_md: string | null
+          case_id: string
+          created_at: string
+          created_by: string | null
+          display_position: number
+          id: string
+          instructions: string | null
+          is_expected: boolean
+          narrative_type_id: string | null
+          title: string | null
+          type_label: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          body_md?: string | null
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          display_position: number
+          id?: string
+          instructions?: string | null
+          is_expected?: boolean
+          narrative_type_id?: string | null
+          title?: string | null
+          type_label: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          body_md?: string | null
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          display_position?: number
+          id?: string
+          instructions?: string | null
+          is_expected?: boolean
+          narrative_type_id?: string | null
+          title?: string | null
+          type_label?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_narratives_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_narratives_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_narratives_narrative_type_id_fkey"
+            columns: ["narrative_type_id"]
+            isOneToOne: false
+            referencedRelation: "case_narrative_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_narratives_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_offered_outcomes: {
         Row: {
           case_id: string
@@ -1133,6 +1251,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           default_due_days: number | null
+          display_position: number | null
           due_date: string | null
           form_id: string
           form_version_id: string
@@ -1154,6 +1273,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           default_due_days?: number | null
+          display_position?: number | null
           due_date?: string | null
           form_id: string
           form_version_id: string
@@ -1175,6 +1295,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           default_due_days?: number | null
+          display_position?: number | null
           due_date?: string | null
           form_id?: string
           form_version_id?: string
@@ -2646,6 +2767,54 @@ export type Database = {
         }
         Relationships: []
       }
+      process_template_narratives: {
+        Row: {
+          created_at: string
+          display_position: number
+          id: string
+          instructions: string | null
+          is_expected: boolean
+          narrative_type_id: string
+          template_id: string
+          title: string | null
+        }
+        Insert: {
+          created_at?: string
+          display_position: number
+          id?: string
+          instructions?: string | null
+          is_expected?: boolean
+          narrative_type_id: string
+          template_id: string
+          title?: string | null
+        }
+        Update: {
+          created_at?: string
+          display_position?: number
+          id?: string
+          instructions?: string | null
+          is_expected?: boolean
+          narrative_type_id?: string
+          template_id?: string
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_template_narratives_narrative_type_id_fkey"
+            columns: ["narrative_type_id"]
+            isOneToOne: false
+            referencedRelation: "case_narrative_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_template_narratives_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "process_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       process_template_outcomes: {
         Row: {
           created_at: string
@@ -2687,6 +2856,7 @@ export type Database = {
           blocks: number[]
           created_at: string
           default_due_days: number | null
+          display_position: number | null
           form_id: string
           id: string
           position: number
@@ -2698,6 +2868,7 @@ export type Database = {
           blocks?: number[]
           created_at?: string
           default_due_days?: number | null
+          display_position?: number | null
           form_id: string
           id?: string
           position: number
@@ -2709,6 +2880,7 @@ export type Database = {
           blocks?: number[]
           created_at?: string
           default_due_days?: number | null
+          display_position?: number | null
           form_id?: string
           id?: string
           position?: number
@@ -3373,6 +3545,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           default_due_days: number | null
+          display_position: number | null
           due_date: string | null
           form_id: string
           form_version_id: string
@@ -3409,6 +3582,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           default_due_days: number | null
+          display_position: number | null
           due_date: string | null
           form_id: string
           form_version_id: string
@@ -3795,6 +3969,31 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      add_template_narrative: {
+        Args: {
+          p_instructions?: string
+          p_is_expected?: boolean
+          p_narrative_type_id: string
+          p_template_id: string
+          p_title?: string
+        }
+        Returns: {
+          created_at: string
+          display_position: number
+          id: string
+          instructions: string | null
+          is_expected: boolean
+          narrative_type_id: string
+          template_id: string
+          title: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "process_template_narratives"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       add_template_phase: {
         Args: {
           p_blocks?: number[]
@@ -3808,6 +4007,7 @@ export type Database = {
           blocks: number[]
           created_at: string
           default_due_days: number | null
+          display_position: number | null
           form_id: string
           id: string
           position: number
@@ -3894,6 +4094,25 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "meeting_action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      archive_case_narrative_type: {
+        Args: { p_narrative_type_id: string }
+        Returns: {
+          archived: boolean
+          commission_id: string
+          created_at: string
+          description: string | null
+          id: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_narrative_types"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -4184,6 +4403,7 @@ export type Database = {
           overdue: number
         }[]
       }
+      case_narratives_enabled: { Args: never; Returns: boolean }
       case_tag_report: {
         Args: { p_commission_id: string; p_from?: string; p_to?: string }
         Returns: {
@@ -4503,6 +4723,29 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_case_narrative_type: {
+        Args: {
+          p_commission_id: string
+          p_description?: string
+          p_label: string
+        }
+        Returns: {
+          archived: boolean
+          commission_id: string
+          created_at: string
+          description: string | null
+          id: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_narrative_types"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -5192,6 +5435,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           default_due_days: number | null
+          display_position: number | null
           due_date: string | null
           form_id: string
           form_version_id: string
@@ -5286,6 +5530,10 @@ export type Database = {
       }
       remove_rca_timeline_entry: {
         Args: { p_entry_id: string }
+        Returns: undefined
+      }
+      remove_template_narrative: {
+        Args: { p_narrative_id: string }
         Returns: undefined
       }
       remove_template_phase: {
@@ -5474,6 +5722,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      reorder_case_layout_template: {
+        Args: { p_ordered: Json; p_template_id: string }
+        Returns: undefined
+      }
+      reorder_case_narrative_types: {
+        Args: { p_commission_id: string; p_ordered_ids: string[] }
+        Returns: undefined
       }
       reorder_case_outcomes: {
         Args: { p_commission_id: string; p_ordered_ids: string[] }
@@ -5763,6 +6019,7 @@ export type Database = {
           blocks: number[]
           created_at: string
           default_due_days: number | null
+          display_position: number | null
           form_id: string
           id: string
           position: number
@@ -5829,6 +6086,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           default_due_days: number | null
+          display_position: number | null
           due_date: string | null
           form_id: string
           form_version_id: string
@@ -6144,6 +6402,53 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "capa_plan"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_case_narrative_body: {
+        Args: { p_body_md: string; p_narrative_id: string }
+        Returns: {
+          body_md: string | null
+          case_id: string
+          created_at: string
+          created_by: string | null
+          display_position: number
+          id: string
+          instructions: string | null
+          is_expected: boolean
+          narrative_type_id: string | null
+          title: string | null
+          type_label: string
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_narratives"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_case_narrative_type: {
+        Args: {
+          p_description: string
+          p_label: string
+          p_narrative_type_id: string
+        }
+        Returns: {
+          archived: boolean
+          commission_id: string
+          created_at: string
+          description: string | null
+          id: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_narrative_types"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -6685,6 +6990,32 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_template_narrative: {
+        Args: {
+          p_clear_instructions?: boolean
+          p_clear_title?: boolean
+          p_instructions?: string
+          p_is_expected?: boolean
+          p_narrative_id: string
+          p_title?: string
+        }
+        Returns: {
+          created_at: string
+          display_position: number
+          id: string
+          instructions: string | null
+          is_expected: boolean
+          narrative_type_id: string
+          template_id: string
+          title: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "process_template_narratives"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_template_phase: {
         Args: {
           p_blocks?: number[]
@@ -6701,6 +7032,7 @@ export type Database = {
           blocks: number[]
           created_at: string
           default_due_days: number | null
+          display_position: number | null
           form_id: string
           id: string
           position: number

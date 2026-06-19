@@ -14,6 +14,7 @@ import {
 import { CaseLifecycleActions } from "@/components/cases/case-lifecycle-actions";
 import { CaseTabs } from "@/components/cases/case-tabs";
 import { formatCaseNumber, formatDate } from "@/components/cases/format";
+import { narrativesEnabled } from "@/lib/case-narratives/actions";
 
 /**
  * Shared shell for a case's two tabs — **Detalhes** (default child) and **Linha
@@ -58,10 +59,15 @@ export default async function CaseDetailLayout({
   // here in the spine so the action menu is available from BOTH tabs.
   let assignees: { userId: string; name: string }[] = [];
   let publishableForms: { id: string; title: string }[] = [];
+  // Advisory soft-close warning (ADR 0032, decision 7): the labels of EXPECTED
+  // narratives left empty. Non-blocking — surfaced in the conclude dialog so the
+  // coordinator notices, but `close_case` is untouched. Flag-gated.
+  let expectedEmptyNarrativeLabels: string[] = [];
   if (isOpen) {
-    const [members, forms] = await Promise.all([
+    const [members, forms, narrativesOn] = await Promise.all([
       listMembers(access.commission.id),
       listForms(access.commission.id),
+      narrativesEnabled(),
     ]);
     assignees = sortMembers(members).map((m) => ({
       userId: m.userId,
@@ -70,6 +76,11 @@ export default async function CaseDetailLayout({
     publishableForms = forms
       .filter((f) => f.publishedVersionNumber != null)
       .map((f) => ({ id: f.id, title: f.title }));
+    if (narrativesOn) {
+      expectedEmptyNarrativeLabels = detail.narratives
+        .filter((n) => n.isExpected && (n.bodyMd ?? "").trim().length === 0)
+        .map((n) => n.title || n.typeLabel);
+    }
   }
 
   return (
@@ -115,6 +126,7 @@ export default async function CaseDetailLayout({
               forms={publishableForms}
               phases={detail.phases}
               assignees={assignees}
+              expectedEmptyNarrativeLabels={expectedEmptyNarrativeLabels}
             />
           )}
         </div>

@@ -543,6 +543,89 @@ begin
 end $$;
 
 -- ===========================================================================
+-- Case NARRATIVES fixture (commission A / CCIH) — ADR 0032. A narrative-type
+-- vocabulary; the M&M process interleaves narrative SLOTS with its two phases via
+-- display_position (phase1=1, Resumo=2, phase2=3, Achados=4, Conclusão=5); Caso
+-- 0001 snapshots them — one with a short de-identified body_md, one left empty to
+-- exercise the placeholder + the empty-expected close-warning paths. No patient
+-- data (de-identified governance prose only). Direct inserts (the seed bypasses
+-- the flag-gated RPCs); the case_phases display_position UPDATE runs under
+-- app.in_case_rpc (the phase guard rejects a bare UPDATE on a non-pendente phase),
+-- and the case_narratives inserts pass guard_case_narrative_frozen because Caso
+-- 0001 is still 'aberto'.
+-- ===========================================================================
+do $$
+declare
+  v_comm_a   uuid := 'a0000000-0000-0000-0000-0000000000a1';
+  v_chefe_a  uuid := '00000000-0000-0000-0000-000000000002';
+  v_case1    uuid := 'd0000000-0000-0000-0000-0000000000c1';  -- existing Caso 0001
+  v_tpl      uuid;
+  v_nt_res   uuid := 'e2000000-0000-0000-0000-0000000000f1';  -- Resumo Clínico
+  v_nt_ach   uuid := 'e2000000-0000-0000-0000-0000000000f2';  -- Achados e Discussão
+  v_nt_conc  uuid := 'e2000000-0000-0000-0000-0000000000f3';  -- Conclusão do Comitê
+  v_cp1      uuid;
+  v_cp2      uuid;
+begin
+  -- Resolve the M&M template + Caso 0001's two phases (by position).
+  select id into v_tpl
+  from public.process_templates
+  where commission_id = v_comm_a and title = 'Investigação de Óbito (M&M)'
+  limit 1;
+  select id into v_cp1 from public.case_phases where case_id = v_case1 and position = 1;
+  select id into v_cp2 from public.case_phases where case_id = v_case1 and position = 2;
+
+  -- Narrative-type vocabulary (positions 1..3).
+  insert into public.case_narrative_types
+    (id, commission_id, label, description, position)
+  values
+    (v_nt_res,  v_comm_a, 'Resumo Clínico',
+     'Síntese do caso, sem dados que identifiquem o paciente.', 1),
+    (v_nt_ach,  v_comm_a, 'Achados e Discussão',
+     'Análise do comitê sobre os achados.', 2),
+    (v_nt_conc, v_comm_a, 'Conclusão do Comitê', null, 3);
+
+  -- Template narrative SLOTS interleaved with the two phase-slots (which sit at
+  -- display_position 1 and 3 after the UPDATE below): Resumo=2, Achados=4,
+  -- Conclusão=5. Conclusão is_expected (drives the soft close-warning).
+  insert into public.process_template_narratives
+    (template_id, narrative_type_id, display_position, title, instructions, is_expected)
+  values
+    (v_tpl, v_nt_res,  2, null, null, false),
+    (v_tpl, v_nt_ach,  4, null, 'Descreva os achados e a discussão do comitê.', false),
+    (v_tpl, v_nt_conc, 5, null, null, true);
+
+  -- The two existing template phases keep their order in the merged list
+  -- (display_position := position). process_template_phases is UNGUARDED.
+  update public.process_template_phases
+  set display_position = position
+  where template_id = v_tpl;
+
+  -- Caso 0001's phases: display_position := position. GUARDED → wrap in the flag.
+  perform set_config('app.in_case_rpc', 'on', true);
+  update public.case_phases set display_position = position
+  where case_id = v_case1;
+  perform set_config('app.in_case_rpc', 'off', true);
+
+  -- Snapshot the three narratives into Caso 0001 (still 'aberto', so the freeze
+  -- guard passes). type_label is the EFFECTIVE label (no slot title overrides
+  -- here, so = the type label). One has a short de-identified body_md; the other
+  -- two are left empty (Achados to exercise the coordinator placeholder; Conclusão
+  -- — is_expected — to exercise the empty-expected close warning).
+  insert into public.case_narratives
+    (case_id, narrative_type_id, type_label, display_position, title, instructions,
+     is_expected, body_md, created_by, updated_by)
+  values
+    (v_case1, v_nt_res,  'Resumo Clínico', 2, null, null, false,
+     E'Paciente do leito 7 da UTI, evoluiu com piora clínica progressiva.\n\n'
+     || 'O comitê revisou o checklist da Fase 1. Sem dados identificáveis.',
+     v_chefe_a, v_chefe_a),
+    (v_case1, v_nt_ach,  'Achados e Discussão', 4, null,
+     'Descreva os achados e a discussão do comitê.', false, null, v_chefe_a, null),
+    (v_case1, v_nt_conc, 'Conclusão do Comitê', 5, null, null, true, null,
+     v_chefe_a, null);
+end $$;
+
+-- ===========================================================================
 -- Phase 10: Meetings fixture (commission A / CCIH)
 -- ===========================================================================
 -- A `realizada` meeting "Reunião Ordinária — Junho/2026" authored by chefe.ccih,

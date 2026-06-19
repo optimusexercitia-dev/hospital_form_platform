@@ -5,6 +5,9 @@ import {
   type InputItemType,
 } from '@/lib/queries/forms'
 import type { RecommendWhen } from '@/lib/queries/conditions'
+import type { ProcessTemplateNarrative } from '@/lib/queries/case-narratives'
+
+export type { ProcessTemplateNarrative } from '@/lib/queries/case-narratives'
 
 /**
  * Process-template data-access (Architecture Rule 9 — all reads go through
@@ -61,6 +64,13 @@ export interface ProcessTemplatePhase {
    * blockers.
    */
   blocks: number[]
+  /**
+   * The slot's order in the MERGED template layout (phases interleaved with
+   * narrative-slots; Case Narratives increment, ADR 0032). Distinct from
+   * `position`, which stays the immutable phase NUMBER. `null` only for legacy
+   * rows pre-backfill; the builder's merge falls back to `position`.
+   */
+  displayPosition: number | null
 }
 
 /** A process template (blueprint) plus its ordered phase-slots. */
@@ -72,6 +82,14 @@ export interface ProcessTemplate {
   status: ProcessTemplateStatus
   createdAt: string
   phases: ProcessTemplatePhase[]
+  /**
+   * The template's narrative-SLOTS (`process_template_narratives`; ADR 0032),
+   * ordered by `displayPosition`, each carrying the joined LIVE type label. The
+   * builder interleaves these with `phases` using the SAME `displayPosition`
+   * comparator as `mergeCaseLayout`. `[]` when the `case_narratives` feature is
+   * off or the template defines none.
+   */
+  narratives: ProcessTemplateNarrative[]
   /**
    * The ids of the outcomes this template OFFERS (`process_template_outcomes`),
    * for the builder's outcome multiselect to pre-check (D15 — outcomes optional
@@ -99,11 +117,27 @@ interface TemplatePhaseRow {
   recommend_when: RecommendWhen | null
   default_due_days: number | null
   blocks: number[] | null
+  display_position: number | null
   forms: { title: string | null } | null
 }
 
 interface TemplateOutcomeRow {
   outcome_id: string
+}
+
+/**
+ * One `process_template_narratives` row joined to its live type label (ADR 0032).
+ * The nested embed surfaces the bound `case_narrative_types.label` for the builder.
+ */
+interface TemplateNarrativeRow {
+  id: string
+  template_id: string
+  narrative_type_id: string
+  title: string | null
+  instructions: string | null
+  is_expected: boolean
+  display_position: number | null
+  case_narrative_types: { label: string | null } | null
 }
 
 interface TemplateRow {
@@ -114,6 +148,7 @@ interface TemplateRow {
   status: ProcessTemplateStatus
   created_at: string
   process_template_phases: TemplatePhaseRow[]
+  process_template_narratives: TemplateNarrativeRow[]
   process_template_outcomes: TemplateOutcomeRow[]
 }
 
@@ -121,8 +156,13 @@ const TEMPLATE_SELECT = `
   id, commission_id, title, description, status, created_at,
   process_template_phases (
     id, template_id, position, form_id, title, recommend_when, default_due_days,
-    blocks,
+    blocks, display_position,
     forms ( title )
+  ),
+  process_template_narratives (
+    id, template_id, narrative_type_id, title, instructions, is_expected,
+    display_position,
+    case_narrative_types ( label )
   ),
   process_template_outcomes ( outcome_id )
 ` as const
@@ -138,6 +178,21 @@ function mapPhase(p: TemplatePhaseRow): ProcessTemplatePhase {
     recommendWhen: p.recommend_when,
     defaultDueDays: p.default_due_days,
     blocks: p.blocks ?? [],
+    displayPosition: p.display_position ?? null,
+  }
+}
+
+function mapNarrative(n: TemplateNarrativeRow): ProcessTemplateNarrative {
+  return {
+    id: n.id,
+    templateId: n.template_id,
+    narrativeTypeId: n.narrative_type_id,
+    typeLabel: n.case_narrative_types?.label ?? null,
+    title: n.title,
+    instructions: n.instructions,
+    isExpected: n.is_expected,
+    // The builder sorts the merged list; null sorts last via the merge comparator.
+    displayPosition: n.display_position ?? 0,
   }
 }
 
@@ -153,6 +208,10 @@ function mapTemplate(t: TemplateRow): ProcessTemplate {
       .slice()
       .sort((a, b) => a.position - b.position)
       .map(mapPhase),
+    narratives: (t.process_template_narratives ?? [])
+      .slice()
+      .sort((a, b) => (a.display_position ?? 0) - (b.display_position ?? 0))
+      .map(mapNarrative),
     offeredOutcomeIds: (t.process_template_outcomes ?? []).map(
       (o) => o.outcome_id,
     ),

@@ -53,6 +53,8 @@ export function PhaseSlotCard({
   isLast,
   editable,
   onBeforeReorder,
+  onMove,
+  busy,
 }: {
   phase: ProcessTemplatePhase;
   phases: PhaseWithTargets[];
@@ -61,9 +63,26 @@ export function PhaseSlotCard({
   isLast: boolean;
   editable: boolean;
   onBeforeReorder: () => void;
+  /**
+   * MERGED-layout override (Case Narratives, ADR 0032): when the builder renders
+   * the combined phase+narrative list it passes a handler that persists the move
+   * across BOTH tables via `reorderCaseLayout`. When omitted (narratives off /
+   * legacy phase-only list), the card falls back to the per-table
+   * `moveTemplatePhase`. `onBeforeReorder` (the Flip capture) runs either way.
+   */
+  onMove?: (direction: "up" | "down") => void;
+  /**
+   * MERGED-layout in-flight flag: true while the shell's cross-table reorder is
+   * pending, so the move buttons disable consistently with the narrative cards.
+   * Ignored in legacy mode (the card's own `useBuilderAction` pending governs).
+   */
+  busy?: boolean;
 }) {
   const { run, isPending, error } = useBuilderAction();
   const [editOpen, setEditOpen] = useState(false);
+  // Disable the reorder buttons while EITHER the local move (legacy) or the
+  // shell's cross-table reorder (merged) is in flight.
+  const moveBusy = isPending || Boolean(busy);
 
   const heading = phase.title || `Fase ${phase.position}`;
   const formLabel = phase.formTitle ?? "Formulário não encontrado";
@@ -75,6 +94,10 @@ export function PhaseSlotCard({
 
   function handleMove(direction: "up" | "down") {
     onBeforeReorder();
+    if (onMove) {
+      onMove(direction);
+      return;
+    }
     run(() => moveTemplatePhase(phase.id, direction));
   }
 
@@ -130,7 +153,7 @@ export function PhaseSlotCard({
               variant="ghost"
               size="icon-sm"
               onClick={() => handleMove("up")}
-              disabled={isFirst || isPending}
+              disabled={isFirst || moveBusy}
               aria-label={`Mover a fase ${phase.position} para cima`}
             >
               <ArrowUp aria-hidden="true" />
@@ -140,7 +163,7 @@ export function PhaseSlotCard({
               variant="ghost"
               size="icon-sm"
               onClick={() => handleMove("down")}
-              disabled={isLast || isPending}
+              disabled={isLast || moveBusy}
               aria-label={`Mover a fase ${phase.position} para baixo`}
             >
               <ArrowDown aria-hidden="true" />
