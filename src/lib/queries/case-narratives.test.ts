@@ -60,6 +60,11 @@ function narrative(
     instructions: null,
     isExpected: false,
     bodyMd: null,
+    assignedTo: null,
+    assigneeName: null,
+    status: 'aberta',
+    concludedAt: null,
+    concludedBy: null,
     updatedAt: '2026-06-19T00:00:00Z',
     ...partial,
   }

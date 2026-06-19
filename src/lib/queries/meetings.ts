@@ -154,10 +154,24 @@ export interface MeetingCaseLink {
   id: string
   meetingId: string
   caseId: string
-  /** The case's per-commission number (joined). */
-  caseNumber: number
-  /** The case's NON-identifying label (joined); `null` if the case has none. */
+  /**
+   * The case's per-commission number (joined). `null` when the viewer cannot READ
+   * the linked case — see {@link MeetingCaseLink.restricted}. (Case Access Control,
+   * ADR 0033: the meeting detail is visible to all commission members, but the
+   * embedded `cases` join now goes through the tightened `cases_select` =
+   * `can_read_case`, so a member without access to a linked case sees the linkage
+   * row but not the case identity.)
+   */
+  caseNumber: number | null
+  /** The case's NON-identifying label (joined); `null` if none OR restricted. */
   caseLabel: string | null
+  /**
+   * `true` when the viewer may NOT read the linked case (the embedded `cases` join
+   * returned null under `can_read_case`): the junction row stays visible but the
+   * case identity is withheld. The UI renders a muted "Caso restrito" chip (FE-7)
+   * instead of a broken "Caso 0". `false` ⇒ `caseNumber`/`caseLabel` are populated.
+   */
+  restricted: boolean
   /** Optional agenda item this discussion is attached to; `null` if free-standing. */
   agendaItemId: string | null
   summary: string | null
@@ -546,8 +560,12 @@ export async function listMeetingCases(
     id: r.id,
     meetingId: r.meeting_id,
     caseId: r.case_id,
-    caseNumber: r.cases?.case_number ?? 0,
+    // The embedded `cases` join is RLS-scoped (cases_select = can_read_case under
+    // ADR 0033); a null embed means the viewer cannot read the linked case → the
+    // linkage row stays, the case identity is withheld + flagged restricted.
+    caseNumber: r.cases?.case_number ?? null,
     caseLabel: r.cases?.label ?? null,
+    restricted: r.cases == null,
     agendaItemId: r.agenda_item_id,
     summary: r.summary,
     decision: r.decision,

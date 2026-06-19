@@ -45,9 +45,63 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 
 <!-- Lead recreates this table at the start of each phase -->
 
-**No phase in progress.** Phase 14 (Patient-Safety / NSP) is complete: 14a recorded earlier
-(`984e787`), and **14b–14d (Triage, RCA & CAPA) completed 2026-06-18** — QA APPROVED, human-approved.
-Task detail + gate outcome archived in [docs/progress/phase-14bcd.md](docs/progress/phase-14bcd.md).
+**Active increment: Case Access Control & "Meus Casos"** — plan
+[docs/phases/case-access-control.md](docs/phases/case-access-control.md), ADR
+[0033](docs/decisions/0033-case-access-control.md). Human-approved kickoff 2026-06-19 (DB reset +
+interviews-deferral authorized). Phase 14 (Patient-Safety / NSP) complete (14a `984e787`, 14b–d
+`c4e20b3`); Case Narratives increment FE done (below).
+
+### Increment: Case Access Control & "Meus Casos" (flag `case_access`)
+
+Per-case ACL (read/write) + phase/narrative attribution → full-case read, unioned via
+`can_read_case` / `can_write_case_content`. Contract-first: **BE-1 unblocks all FE.** Full plan
+review on BE-2/3/4 (new table, new RLS shape, DEFINER read-path).
+
+Backend (`backend`):
+
+| # | Task | Status |
+| - | ---- | ------ |
+| BE-1 | Post the §2 typed contract (queries + actions + types) — unblocks FE | ✅ committed `7763016` |
+| BE-2 | Migration: `case_access` + `case_narratives` cols + flag (OFF) + SQLSTATEs | ✅ `…110000` (HC055 added) |
+| BE-3 | Predicates + RLS tighten (OFF-flag fallback) + read-ripple sweep | ✅ `…110001` + ripple (`meetings.ts` `restricted`); pgTAP `144` 43/43; **CHECKPOINT — awaiting lead green-light before BE-4** |
+| BE-4 | RPCs (grants, narrative lifecycle, `list_my_cases`) + `get_case_detail` re-gate | 🔜 plan review |
+| BE-5 | Audit `case.opened` + curated PHI-free mutation triggers | 🔜 |
+| BE-6 | Flag ON + regen types + pgTAP + seed personas (attributed + granted) | 🔜 |
+
+Frontend (`frontend`; build against frozen §2 contract; depends on BE-1):
+
+| # | Task | Status |
+| - | ---- | ------ |
+| FE-1 | Nav "Minhas fases" → "Meus Casos" + `/minhas-fases` redirect | 🏗️ in progress |
+| FE-2 | `/meus-casos` page + `MyCaseCard` (inline items + Ver caso completo) | 🏗️ in progress |
+| FE-3 | Capability-gate case-detail component + staff route `/casos/[caseId]` | 🏗️ in progress |
+| FE-4 | Focused narrative editor `/casos/[caseId]/narrativa/[narrativeId]` | 🏗️ in progress |
+| FE-5 | Coordinator access panel (read/write toggles + narrative assignment) | 🏗️ in progress |
+| FE-6 | Flag-gate + edge states + lint/typecheck clean | 🔜 blocked on FE-1..5 |
+| FE-7 | Meeting `MeetingCaseLink.restricted` → "Caso restrito" chip | ✅ UNBLOCKED — `MeetingCaseLink.restricted` shipped in `meetings.ts` (`…110001` ripple); `caseNumber` now `number \| null` |
+
+> **`frontend` note (2026-06-19) — contract gap flagged to lead.** FE-3 & FE-5 need
+> per-narrative `assignedTo`/`status` (+ ideally `concludedAt`/`concludedBy`) to: (a) gate
+> the narrative editor to its assignee (Q14), (b) render a status pill / Concluir-Reabrir,
+> (c) drive the access-panel assignment control. The BE-1 `CaseNarrative` type
+> (`src/lib/queries/cases.ts`) does NOT yet carry these — all `assignedTo` in that file is on
+> `CasePhase`. ADR 0033 D5 + plan §2.3 say `get_case_detail` adds "per-narrative
+> `assigned_to`/`status`", so this is a BE-4 follow-on to the BE-1 stub. **I am building FE-3/4/5
+> against a thin FE-local view-extension typed off the documented shape** (`assigned_to`,
+> `status ∈ aberta|concluida`, `concluded_at`, `concluded_by`) at the component boundary, with a
+> single TODO marker, so the UI is complete and typecheck-clean now; when backend widens
+> `CaseNarrative`, I swap the import and delete the local extension. Requesting backend confirm
+> the field names so they match.
+>
+> > **`backend` resolution (2026-06-19, BE-3).** Done — `CaseNarrative`
+> > (`src/lib/queries/cases.ts`) now carries `assignedTo: string | null`,
+> > `assigneeName: string | null`, `status: 'aberta' | 'concluida'`,
+> > `concludedAt: string | null`, `concludedBy: string | null` (exact names you
+> > requested). The `get_case_detail` mapper defaults them to un-assigned / `aberta`
+> > until BE-4 populates the RPC, so they are safe to consume now. **FE: swap to the
+> > shared `CaseNarrative` import and delete the local view-extension + TODO.** The
+> > `assignNarrative`/`unassignNarrative`/`concludeNarrative`/`reopenNarrative`/
+> > `saveNarrativeBody` action stubs already match the §2.5 contract.
 
 ### Increment: Case Narratives (feature-flagged; plan `on-this-platform-a-zazzy-waterfall.md`)
 

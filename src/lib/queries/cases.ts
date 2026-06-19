@@ -168,6 +168,25 @@ export interface CaseNarrative {
   isExpected: boolean
   /** The authored de-identified Markdown body (Rule 7); `null`/empty when unwritten. */
   bodyMd: string | null
+  /**
+   * The member assigned to author this narrative (Case Access Control, ADR 0033
+   * D5; mirrors {@link CasePhase.assignedTo}), or `null` when un-assigned. The
+   * assignee gains full-case read automatically and is the sole non-coordinator who
+   * may write an ATTRIBUTED narrative (Q14). Existing rows pre-BE-4 are `null`.
+   */
+  assignedTo: string | null
+  /** The assignee's display name (joined); `null` if unassigned/unresolved. */
+  assigneeName: string | null
+  /**
+   * The narrative's lifecycle status (ADR 0033 D5): `aberta` (editable by the
+   * assignee / un-attributed write-grantee) → `concluida` (body frozen). A
+   * coordinator can reopen. Defaults to `aberta` for existing rows.
+   */
+  status: 'aberta' | 'concluida'
+  /** When it was concluded (ISO), or `null` while `aberta`. */
+  concludedAt: string | null
+  /** Who concluded it (profile id), or `null` while `aberta`. */
+  concludedBy: string | null
   updatedAt: string
 }
 
@@ -438,6 +457,16 @@ interface DetailNarrativeJson {
   instructions: string | null
   is_expected: boolean
   body_md: string | null
+  /**
+   * Narrative attribution + lifecycle (ADR 0033 D5), added to `get_case_detail` in
+   * BE-4. Absent on a pre-BE-4 envelope → the mapper defaults to un-assigned /
+   * `aberta` (the correct state for existing rows).
+   */
+  assigned_to?: string | null
+  assignee_name?: string | null
+  status?: 'aberta' | 'concluida' | null
+  concluded_at?: string | null
+  concluded_by?: string | null
   updated_at: string
 }
 
@@ -453,6 +482,13 @@ function mapNarrativeJson(n: DetailNarrativeJson, caseId: string): CaseNarrative
     instructions: n.instructions,
     isExpected: n.is_expected,
     bodyMd: n.body_md,
+    // Attribution + lifecycle (ADR 0033). Pre-BE-4 the RPC omits these → un-assigned
+    // / aberta, which is exactly the state of an existing narrative row.
+    assignedTo: n.assigned_to ?? null,
+    assigneeName: n.assignee_name ?? null,
+    status: n.status ?? 'aberta',
+    concludedAt: n.concluded_at ?? null,
+    concludedBy: n.concluded_by ?? null,
     updatedAt: n.updated_at,
   }
 }
