@@ -585,8 +585,11 @@ test('AC-6: conclude with expected-empty narrative — advisory warning listed; 
   await page.goto(`/c/${SLUG}/manage/cases/${freshCaseId}`)
   await page.waitForURL(`**/cases/${freshCaseId}**`, { timeout: 15_000 })
 
-  // The case header has a "Concluir" button (all phases now settled).
-  const concluirBtn = page.getByRole('button', { name: /^Concluir$/i })
+  // The case header has a "Concluir" button (all phases now settled). Scope to the
+  // page <header>: with the narrative lifecycle ON (case_access flag), every `aberta`
+  // narrative card also exposes its own "Concluir" trigger (ADR 0033), so an unscoped
+  // name match is ambiguous. The case-conclude control lives in the header.
+  const concluirBtn = page.locator('header').getByRole('button', { name: /^Concluir$/i })
   await expect(concluirBtn).toBeVisible({ timeout: 10_000 })
   await concluirBtn.click()
 
@@ -639,7 +642,7 @@ test('AC-6: conclude with expected-empty narrative — advisory warning listed; 
 // AC-7 — After conclusion: body READ-ONLY (Bloqueado pill); empty narratives hidden
 // ---------------------------------------------------------------------------
 
-test('AC-7: after conclusion — Bloqueado pill; no Editar; empty narratives hidden', async ({ page }) => {
+test('AC-7: after conclusion — read-only; no Editar; empty narratives hidden', async ({ page }) => {
   // Depends on AC-6 having concluded a fresh case and stored the id in
   // `concludedFreshCaseId`. Serial mode guarantees AC-6 ran before AC-7.
   if (!concludedFreshCaseId) {
@@ -661,19 +664,23 @@ test('AC-7: after conclusion — Bloqueado pill; no Editar; empty narratives hid
   const mergedSection = page.getByRole('region', { name: /Fases e narrativas do caso/i })
   await expect(mergedSection).toBeVisible({ timeout: 10_000 })
 
-  // The FILLED narrative (Resumo Clínico — filled by AC-6 setup via API) must be
-  // visible with a "Bloqueado" pill — case is concluded so canEdit=false.
-  // CaseNarrativeCard renders as <section aria-label={heading}> → region landmark.
+  // The FILLED narrative (Resumo Clínico — filled by AC-6 setup via API) must remain
+  // visible and READ-ONLY on the concluded case. CaseNarrativeCard renders as
+  // <section aria-label={heading}> → region landmark. The narrative stays `aberta`
+  // (AC-6 concluded the CASE, not the narrative), so under the case_access lifecycle
+  // it shows no lock pill; the freeze is evidenced by the body rendering read-only and
+  // the absence of an "Editar" control (asserted below).
   const resumoCard = mergedSection.getByRole('region', { name: /Resumo Clínico/i })
   await expect(resumoCard).toBeVisible()
-  await expect(resumoCard.getByText(/Bloqueado/i)).toBeVisible()
+  await expect(resumoCard.getByText(/Resumo de teste para AC-6\/AC-7\./i)).toBeVisible()
 
   // No "Editar" button on ANY narrative card (all are frozen).
   await expect(mergedSection.getByRole('button', { name: /Editar/i })).toHaveCount(0)
 
   // Empty narratives (Conclusão do Comitê was not filled in this fresh case) are
-  // HIDDEN on the closed view. CaseNarrativeCard early-returns null when
-  // !canEdit && !hasBody. The `region` for "Conclusão do Comitê" must be absent.
+  // HIDDEN on the closed view: the case-detail view drops empty-body narratives on a
+  // terminal case (decision 7), so they never render. The `region` for "Conclusão do
+  // Comitê" must be absent.
   await expect(mergedSection.getByRole('region', { name: /Conclusão do Comitê/i })).toHaveCount(0)
   // Muted placeholder text is also absent on the closed view.
   await expect(mergedSection.getByText(/Nenhum conteúdo ainda/i)).toHaveCount(0)

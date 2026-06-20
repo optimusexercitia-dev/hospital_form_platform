@@ -282,6 +282,15 @@ test('AC-3a grant-read (multi): viewer sees full case, content editors hidden', 
   // The narrative card shows the body but has no "Editar" edit-trigger button.
   await expect(page.getByRole('button', { name: /^Editar$/ })).toHaveCount(0)
 
+  // Regression (narrative-visibility bug): a pure READ grantee must see EVERY narrative
+  // slot of an OPEN case — including the un-started / un-attributed ones — not only the
+  // filled bodies. Caso 0001 seeds "Resumo Clínico" (filled), plus "Achados e Discussão"
+  // and "Conclusão do Comitê" (both empty + un-attributed). All three regions must be
+  // visible; the empties render a muted "Nenhum conteúdo ainda." with no Editar control.
+  await expect(page.getByRole('region', { name: /Resumo Clínico/i })).toBeVisible()
+  await expect(page.getByRole('region', { name: /Achados e Discussão/i })).toBeVisible()
+  await expect(page.getByRole('region', { name: /Conclusão do Comitê/i })).toBeVisible()
+
   // "Ver caso completo" is already the current page. Check "Meus Casos" shows the card.
   await page.goto(`/c/${SLUG}/meus-casos`)
   await expect(page.getByText(/caso\s*0001/i)).toBeVisible({ timeout: 10_000 })

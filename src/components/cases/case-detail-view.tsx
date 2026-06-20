@@ -102,13 +102,16 @@ export function CaseDetailView({
     name: m.fullName ?? m.email ?? "Membro",
   }));
 
-  // Narratives (ADR 0032/0033): a writer (coordinator OR a content/assignee writer)
-  // keeps empty narratives so the placeholder/Editar affordance shows; a pure reader
-  // sees only non-empty narratives (decision 8). When the feature is off, drop them.
-  const viewerCanAuthorNarratives = caps.canWriteContent;
+  // Narratives (ADR 0032/0033): the narrative SLOTS are part of the case structure
+  // (like phases), so ANYONE who can read the case sees them — including empty /
+  // un-attributed ones (a read grantee or a phase/narrative assignee, not just
+  // writers). The per-card Editar affordance stays gated by `canEditNarrative`, so a
+  // reader sees the slot without an edit control. EXCEPTION: on a CLOSED (terminal)
+  // case, never-filled slots are dropped as noise (decision 7 / AC-7). Feature off →
+  // none.
   const visibleNarratives = !narrativesEnabled
     ? []
-    : viewerCanAuthorNarratives
+    : isOpen
       ? detail.narratives
       : detail.narratives.filter((n) => (n.bodyMd ?? "").trim().length > 0);
   const detailForLayout = { ...detail, narratives: visibleNarratives };

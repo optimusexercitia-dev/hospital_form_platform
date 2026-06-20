@@ -159,9 +159,12 @@ export function CaseNarrativeCard({
     });
   }
 
-  // A read-only viewer with no body has nothing to show (the parent filters these
-  // out before rendering; this keeps the card honest if one slips through).
-  if (!canEdit && !canReopen && !hasBody) return null;
+  // Legacy (flag OFF, coordinator-only view): a non-editable narrative with no body
+  // has nothing to show. With the lifecycle ON, the parent decides narrative
+  // visibility by case state (open case → show the slot even when empty, so a case
+  // reader sees the narrative exists; closed case → empties filtered upstream), so a
+  // card that reaches here renders its slot.
+  if (!showLifecycle && !canEdit && !canReopen && !hasBody) return null;
 
   // Legacy (flag OFF): a non-editable card shows the old "Bloqueado" pill (case
   // terminal). With the lifecycle on, "Bloqueada" tracks the narrative status instead.
@@ -279,12 +282,19 @@ export function CaseNarrativeCard({
           <MarkdownRenderer content={narrative.bodyMd ?? ""} />
         </div>
       ) : canEdit ? (
-        // Editable + empty: prompt to fill (the early return handles read-only viewers).
+        // Editable + empty: prompt to fill.
         <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground text-pretty">
           Nenhum conteúdo ainda. Clique em <span className="font-medium">Editar</span> para
           preencher.
         </p>
-      ) : null}
+      ) : (
+        // Read-only + empty: a case reader on an OPEN case sees that the narrative
+        // slot exists, with no edit affordance (on a CLOSED case these are filtered
+        // upstream and never reach the card).
+        <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground text-pretty">
+          Nenhum conteúdo ainda.
+        </p>
+      )}
 
       {showLifecycle && canConclude && !editing && (
         <div className="flex justify-end">
