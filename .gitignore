@@ -38,6 +38,8 @@ yarn-error.log*
 /test-results/
 /playwright-report/
 /playwright/.cache/
+# ad-hoc run logs captured during gate runs (redirected output, never source)
+/playwright-*.txt
 
 # vercel
 .vercel
