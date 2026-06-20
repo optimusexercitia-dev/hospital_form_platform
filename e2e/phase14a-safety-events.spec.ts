@@ -281,11 +281,12 @@ test('AC-2b: reporting commission (CCIH) read-back shows acknowledged status', a
   await page.goto('/c/ccih/eventos')
   await page.waitForLoadState('networkidle')
 
-  // The event card list shows "Reconhecido" status chip. Scope to the `<ul>` so we
-  // don't accidentally match the hidden status-filter `<option value="acknowledged">
+  // The event card list shows "Reconhecido" status chip. Scope to `table tbody` so
+  // we don't accidentally match the status-filter `<option value="acknowledged">
   // Reconhecido</option>` (same class of false-match as SPEC-P13-001).
-  const eventList = page.locator('ul.grid')
-  await expect(eventList.getByText(/reconhecido/i).first()).toBeVisible()
+  // The EventsList component renders a <table>, not a ul.grid.
+  const tableBody = page.locator('table tbody')
+  await expect(tableBody.getByText(/reconhecido/i).first()).toBeVisible()
   // The seeded EV-0001 title
   await expect(page.getByText(/queda de paciente durante transferência/i)).toBeVisible()
 })
@@ -526,8 +527,9 @@ test('AC-7: keyboard-only — navigate to eventos list and filter by status', as
 
   // Switch back to "Todos" via keyboard
   await filterSelect.selectOption('all')
-  // More events visible again (seeded + any filed in this run)
-  const allCount = await page.locator('ul.grid li').count()
+  // More events visible again (seeded + any filed in this run).
+  // EventsList renders a <table>, not a ul.grid — count <tbody tr> rows.
+  const allCount = await page.locator('table tbody tr').count()
   expect(allCount).toBeGreaterThanOrEqual(1)
 })
 

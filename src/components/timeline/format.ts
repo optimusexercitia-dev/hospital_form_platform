@@ -95,27 +95,63 @@ const DERIVED_PILL: Record<TimelineStatus, PillSpec> = {
 };
 
 /**
- * pt-BR labels for the raw entity status slugs that carry their own state
- * (interview `cancelada`, meeting `realizada`/`cancelada`, action `done`, phase
- * `nao_necessaria`, …). Falls back to the derived status pill when a slug has no
- * explicit override.
+ * pt-BR labels for the raw entity status slugs that carry their OWN lifecycle
+ * state. An entity that tracks its own status (interview, meeting, action item,
+ * patient-safety event, plus the phase `nao_necessaria`/cancelled markers) must
+ * show THAT status verbatim — mirroring its Detalhes view — never the calendar
+ * `statusOf` derivation: a `concluida`/`agendada` interview anchored on today
+ * would otherwise fall through to the temporal `active` pill and read
+ * "Em andamento", contradicting the record (the bug this map closes). The
+ * derived done/active/upcoming pill remains the fallback only for types with no
+ * status of their own (lifecycle, document, milestone, note) and for a phase's
+ * temporal `ativa`/`concluida` bar. Slugs are unique across these entities (or
+ * share an identical label), so a flat map is unambiguous. Styling reuses the
+ * same semantic tokens as each entity's own badge (interview-/meeting-/
+ * case-extras-labels, safety `EVENT_STATUS_LABELS`) so the feed agrees with the
+ * detail screens.
  */
+const ACTIVE_PILL = "bg-accent text-accent-foreground";
+const DONE_PILL = "bg-success/12 text-success dark:bg-success/15";
+const SCHEDULED_PILL = "bg-secondary text-secondary-foreground";
+const MUTED_PILL = "bg-muted text-muted-foreground";
+const WARNING_PILL = "bg-warning/15 text-warning";
+const CANCELLED_PILL =
+  "bg-muted/70 text-muted-foreground line-through decoration-1";
+
 const SLUG_OVERRIDE: Record<string, PillSpec> = {
-  cancelada: {
-    label: "Cancelada",
-    className: "bg-muted/70 text-muted-foreground line-through decoration-1",
-    dot: false,
-  },
-  cancelado: {
-    label: "Cancelado",
-    className: "bg-muted/70 text-muted-foreground line-through decoration-1",
-    dot: false,
-  },
+  // Cancelled / not-needed markers (shared across interviews, meetings, actions,
+  // safety events, phases — all read as muted, struck-through where terminal).
+  cancelada: { label: "Cancelada", className: CANCELLED_PILL, dot: false },
+  cancelado: { label: "Cancelado", className: CANCELLED_PILL, dot: false },
+  cancelled: { label: "Cancelado", className: CANCELLED_PILL, dot: false },
   nao_necessaria: {
     label: "Não necessária",
     className: "bg-muted/60 text-muted-foreground/80",
     dot: false,
   },
+
+  // Interview lifecycle (em_andamento/concluida shared with action/phase labels).
+  rascunho: { label: "Rascunho", className: MUTED_PILL, dot: false },
+  agendada: { label: "Agendada", className: SCHEDULED_PILL, dot: false },
+  em_andamento: { label: "Em andamento", className: ACTIVE_PILL, dot: true },
+  concluida: { label: "Concluída", className: DONE_PILL, dot: false },
+
+  // Meeting lifecycle.
+  realizada: { label: "Realizada", className: ACTIVE_PILL, dot: false },
+  em_assinatura: { label: "Em assinatura", className: WARNING_PILL, dot: false },
+  assinada: { label: "Assinada", className: DONE_PILL, dot: false },
+  distribuida: { label: "Distribuída", className: "bg-primary/12 text-primary", dot: false },
+
+  // Action-item lifecycle (open/in_progress/done; cancelled handled above).
+  open: { label: "Aberto", className: MUTED_PILL, dot: false },
+  in_progress: { label: "Em andamento", className: ACTIVE_PILL, dot: true },
+  done: { label: "Concluído", className: DONE_PILL, dot: false },
+
+  // Patient-safety event lifecycle (reported→…→closed; cancelled handled above).
+  reported: { label: "Notificado", className: SCHEDULED_PILL, dot: false },
+  acknowledged: { label: "Reconhecido", className: SCHEDULED_PILL, dot: false },
+  triaged: { label: "Triado", className: WARNING_PILL, dot: false },
+  closed: { label: "Encerrado", className: DONE_PILL, dot: false },
 };
 
 /**
