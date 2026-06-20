@@ -20,7 +20,6 @@ import { CaseTagsPanel } from "@/components/cases/case-tags-panel";
 import { CaseDocumentsPanel } from "@/components/cases/case-documents-panel";
 import { CaseOutcomeSelector } from "@/components/cases/case-outcome-selector";
 import { CaseDetailMotion } from "@/components/cases/case-detail-motion";
-import { CaseAccessPanel } from "@/components/cases/case-access-panel";
 import { InterviewsPanel } from "@/components/interviews/interviews-panel";
 import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
 import { formatCaseNumber, formatDate } from "@/components/cases/format";
@@ -184,18 +183,11 @@ export function CaseDetailView({
           </div>
         )}
 
-        {/* Coordinator-only access panel (FE-5): member roster read/write grants +
-            narrative assignment. Only rendered with the flag on AND lifecycle caps. */}
-        {caseAccessEnabled && caps.canManageLifecycle && (
-          <div data-rise>
-            <CaseAccessPanel
-              caseId={c.id}
-              members={sorted}
-              detail={detail}
-              caseOpen={isOpen}
-            />
-          </div>
-        )}
+        {/* Case-access grants moved to the coordinator `(detail)` layout's top-bar
+            "Acesso ao caso" button + dialog (ADR 0033). This SHARED body — also mounted
+            at the staff `/casos/[caseId]` route — no longer renders the inline panel;
+            a coordinator manages access from the management route (reachable via the
+            "Gerenciar caso" link above). */}
 
         <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8 lg:items-start">
           {/* LEFT — phases + narratives, action items, working notes */}

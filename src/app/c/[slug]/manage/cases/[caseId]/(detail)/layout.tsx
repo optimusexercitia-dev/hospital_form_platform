@@ -12,9 +12,11 @@ import {
   CaseStatusBadgeFixed,
 } from "@/components/cases/case-status-badge";
 import { CaseLifecycleActions } from "@/components/cases/case-lifecycle-actions";
+import { CaseAccessButton } from "@/components/cases/case-access-button";
 import { CaseTabs } from "@/components/cases/case-tabs";
 import { formatCaseNumber, formatDate } from "@/components/cases/format";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
+import { caseAccessEnabled } from "@/lib/case-access/actions";
 
 /**
  * Shared shell for a case's two tabs — **Detalhes** (default child) and **Linha
@@ -54,6 +56,17 @@ export default async function CaseDetailLayout({
   const c = detail.case;
   const isOpen = !isTerminalCaseStatus(c.status);
 
+  // The commission roster + the `case_access` flag are needed UNCONDITIONALLY: the
+  // "Acesso ao caso" button (Case Access Control, ADR 0033) shows on terminal cases
+  // too (read grants are allowed there, D6), so it can't depend on `isOpen`. Loaded
+  // once here in the spine and reused by both the access roster and (when open) the
+  // lifecycle-actions assignee picker.
+  const [members, accessEnabled] = await Promise.all([
+    listMembers(access.commission.id),
+    caseAccessEnabled(),
+  ]);
+  const sortedMembers = sortMembers(members);
+
   // The lifecycle-actions menu (open cases only) needs the assignee + publishable-
   // form + phase pickers. These derive from cheap commission-scoped reads; loaded
   // here in the spine so the action menu is available from BOTH tabs.
@@ -64,12 +77,11 @@ export default async function CaseDetailLayout({
   // coordinator notices, but `close_case` is untouched. Flag-gated.
   let expectedEmptyNarrativeLabels: string[] = [];
   if (isOpen) {
-    const [members, forms, narrativesOn] = await Promise.all([
-      listMembers(access.commission.id),
+    const [forms, narrativesOn] = await Promise.all([
       listForms(access.commission.id),
       narrativesEnabled(),
     ]);
-    assignees = sortMembers(members).map((m) => ({
+    assignees = sortedMembers.map((m) => ({
       userId: m.userId,
       name: m.fullName ?? m.email ?? "Membro",
     }));
@@ -118,16 +130,31 @@ export default async function CaseDetailLayout({
             </p>
           </div>
 
-          {isOpen && (
-            <CaseLifecycleActions
-              caseId={c.id}
-              offeredOutcomes={detail.offeredOutcomes}
-              currentOutcomeId={c.outcomeId}
-              forms={publishableForms}
-              phases={detail.phases}
-              assignees={assignees}
-              expectedEmptyNarrativeLabels={expectedEmptyNarrativeLabels}
-            />
+          {(accessEnabled || isOpen) && (
+            <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
+              {/* Coordinator access roster (ADR 0033). Rendered INDEPENDENTLY of the
+                  lifecycle actions (open-only) so it still shows — alone — on a
+                  terminal case, where read grants remain allowed (D6). */}
+              {accessEnabled && (
+                <CaseAccessButton
+                  caseId={c.id}
+                  members={sortedMembers}
+                  detail={detail}
+                  caseOpen={isOpen}
+                />
+              )}
+              {isOpen && (
+                <CaseLifecycleActions
+                  caseId={c.id}
+                  offeredOutcomes={detail.offeredOutcomes}
+                  currentOutcomeId={c.outcomeId}
+                  forms={publishableForms}
+                  phases={detail.phases}
+                  assignees={assignees}
+                  expectedEmptyNarrativeLabels={expectedEmptyNarrativeLabels}
+                />
+              )}
+            </div>
           )}
         </div>
 

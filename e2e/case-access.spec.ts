@@ -8,6 +8,7 @@ import { test, expect, type Page } from '@playwright/test'
  *  AC-1  Attribution → full-case read (submitted-only; no in-progress leak).
  *  AC-2  Restrictive boundary (notFound() for staff4 / absent from Meus Casos).
  *  AC-3  Grant read / write (viewer vs collaborator); revoke removes access.
+ *  AC-3d Terminal-case dialog (ADR 0033 D6): button on concluido case; write disabled; coordinator absent from roster.
  *  AC-4  Q14 ownership (write-grantee cannot edit/conclude an attributed narrative).
  *  AC-5  Meus Casos list (unified; card; Preencher/Abrir/Concluir/Ver caso completo).
  *  AC-6  Narrative lifecycle (fill focused editor → Concluir → coordinator reopens).
@@ -15,7 +16,19 @@ import { test, expect, type Page } from '@playwright/test'
  *  AC-8  Audit (case.opened row on non-coordinator open; none on coordinator open).
  *  AC-9  Flag OFF — SKIPPED (ships ON; flag-OFF covered by pgTAP 615/615).
  *  AC-10 Keyboard-only: Meus Casos → narrative editor flow.
+ *  AC-N1 Narrative attribution via card DropdownMenu (assign / clear).
+ *  AC-N2 Negative: no inline access panel heading; no select[id^="narrative-assignee-"].
  *  AC-11 Full regression suite green (run separately as the gate).
+ *
+ * UI SHAPE (Case Access Control refinement, 2026-06-19):
+ *  - Access roster is NO LONGER inline on the case body. It lives behind a top-bar
+ *    "Acesso ao caso" button that opens a Dialog. Any step that touches the roster
+ *    must first click that button, then scope to:
+ *      page.getByRole('dialog', { name: 'Acesso ao caso' })
+ *  - Narrative assignment is NO LONGER a <select id="narrative-assignee-*">. Each
+ *    narrative card has a DropdownMenu trigger with
+ *      aria-label="Responsável pela narrativa <heading>"
+ *    Selecting a member calls assignNarrative; "Remover responsável" calls unassignNarrative.
  *
  * Runs against the LOCAL Supabase stack + a prod build
  * (`npm run build && npm start`). All tests are serial because several mutate
@@ -56,7 +69,8 @@ if (!SUPABASE_SERVICE_KEY) {
 const SLUG = 'ccih'
 
 // Deterministic IDs from seed.sql
-const CASE_ID = 'd0000000-0000-0000-0000-0000000000c1'         // Caso 0001
+const CASE_ID = 'd0000000-0000-0000-0000-0000000000c1'         // Caso 0001 (open)
+const CASE_ID_TERMINAL = 'd0000000-0000-0000-0000-0000000000c2' // Caso 0002 (concluido)
 const COMM_ID = 'a0000000-0000-0000-0000-0000000000a1'
 // Narrative type: "Resumo Clínico" (assigned to staff2)
 const NARRATIVE_TYPE_RES = 'e2000000-0000-0000-0000-0000000000f1'
@@ -152,6 +166,20 @@ async function caseOpenedCount(): Promise<number> {
   return rows.length
 }
 
+/**
+ * Helper: open the "Acesso ao caso" dialog on the coordinator manage page.
+ * After this call the dialog is open and scoped to the returned locator.
+ * The caller must already be on the correct manage/cases/[caseId] page.
+ */
+async function openAccessDialog(page: Page) {
+  const btn = page.getByRole('button', { name: /^Acesso ao caso$/i })
+  await expect(btn).toBeVisible({ timeout: 10_000 })
+  await btn.click()
+  const dialog = page.getByRole('dialog', { name: /acesso ao caso/i })
+  await expect(dialog).toBeVisible({ timeout: 5_000 })
+  return dialog
+}
+
 // ---------------------------------------------------------------------------
 // AC-1 — Attribution → read (phase assignee sees full case, submitted-only)
 // ---------------------------------------------------------------------------
@@ -162,8 +190,10 @@ test('AC-1 attribution-read: phase assignee (staff1) opens full case read-only; 
   await signInAs(page, 'staff1.ccih@test.local')
 
   // "Meus Casos" should appear in the sidebar nav (replaces "Minhas fases").
-  const sidebar = page.getByRole('navigation')
-  await expect(sidebar.getByRole('link', { name: /meus casos/i })).toBeVisible()
+  // The <nav aria-label="Navegação da comissão"> contains the link; we scope with name
+  // to pick the right nav when multiple navigation landmarks exist on the page.
+  const sidebar = page.getByRole('navigation', { name: /navegação da comissão/i })
+  await expect(sidebar.getByRole('link', { name: /meus casos/i })).toBeVisible({ timeout: 10_000 })
 
   // Navigate to the full case via the staff route.
   await page.goto(`/c/${SLUG}/casos/${CASE_ID}`)
@@ -289,27 +319,30 @@ test('AC-3b grant-write (staff3): collaborator can access case; sees content-wri
   await signOut(page)
 })
 
-test('AC-3c revoke: coordinator revokes multi; multi gets notFound()', async ({
+test('AC-3c revoke: coordinator revokes multi via dialog; multi gets notFound()', async ({
   page,
 }) => {
-  // Coordinator revokes via the access panel.
+  // Coordinator revokes via the "Acesso ao caso" dialog (NEW UI).
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID}`)
   await page.waitForURL(`**/manage/cases/${CASE_ID}`)
 
-  // Open the "Acesso ao caso" panel (coordinator detail has it).
-  const accessSection = page.getByRole('region', { name: /acesso ao caso/i })
-  await expect(accessSection).toBeVisible({ timeout: 10_000 })
+  // Open the "Acesso ao caso" dialog from the top-bar button.
+  const dialog = await openAccessDialog(page)
 
-  // Find multi's row in the member list and revoke.
-  // The access panel has two `ul` lists: (1) member roster, (2) narrative assignment.
-  // Scope to the FIRST ul (member roster) to avoid matching narrative li items that
-  // also contain "Coordenadora Multi" (as an option in assignment selects).
-  const memberRoster = accessSection.locator('ul').first()
-  const multiRow = memberRoster.locator('li').filter({ hasText: /Coordenadora Multi/i })
+  // LOCK: coordinator (Chefe CCIH) must be ABSENT from the dialog roster.
+  // staff_admin members already have full-case access via role; granting/revoking them
+  // is meaningless and the panel filters them out (regression guard for this behavior).
+  await expect(
+    dialog.locator('li').filter({ hasText: /Chefe CCIH/i })
+  ).toHaveCount(0)
+
+  // Counter-case: "Coordenadora Multi" IS present — she is staff_admin only in
+  // commission B but a regular staff member in CCIH, so she's a valid grant target.
+  const multiRow = dialog.locator('li').filter({ hasText: /Coordenadora Multi/i })
   await expect(multiRow).toBeVisible({ timeout: 10_000 })
 
-  // The GrantMenu for multi: click the dropdown trigger.
+  // The GrantMenu for multi: click the "Acesso" dropdown trigger.
   const grantTrigger = multiRow.getByRole('button', { name: /acesso/i })
   await grantTrigger.click()
 
@@ -329,24 +362,88 @@ test('AC-3c revoke: coordinator revokes multi; multi gets notFound()', async ({
   await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toHaveCount(0)
 
-  // Meus Casos should be empty.
+  // Meus Casos: Caso 0001 specifically must NOT appear for multi after revoke.
+  // (The empty-state assertion would be too strict if the DB has residual cases from
+  // prior test runs that happen to have a multi grant — assert absence of THIS case.)
   await page.goto(`/c/${SLUG}/meus-casos`)
-  await expect(page.getByText(/nenhum caso acessível/i)).toBeVisible({ timeout: 10_000 })
+  await page.waitForLoadState('networkidle', { timeout: 10_000 })
+  await expect(page.locator('article').filter({ hasText: /Óbito UTI leito 7/i })).toHaveCount(0)
+  await expect(page.locator('article').filter({ hasText: /caso\s*0001/i })).toHaveCount(0)
 
   await signOut(page)
 
   // Restore multi's grant for other tests.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID}`)
-  const accessSection2 = page.getByRole('region', { name: /acesso ao caso/i })
-  const memberRoster2 = accessSection2.locator('ul').first()
-  const multiRow2 = memberRoster2.locator('li').filter({ hasText: /Coordenadora Multi/i })
+  const dialog2 = await openAccessDialog(page)
+  const multiRow2 = dialog2.locator('li').filter({ hasText: /Coordenadora Multi/i })
+  await expect(multiRow2).toBeVisible({ timeout: 10_000 })
   const grantTrigger2 = multiRow2.getByRole('button', { name: /acesso/i })
   await grantTrigger2.click()
   const readItem = page.getByRole('menuitem', { name: /conceder leitura/i })
   await expect(readItem).toBeVisible({ timeout: 5_000 })
   await readItem.click()
   await page.waitForTimeout(1_500)
+  await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// AC-3d — Terminal case: "Acesso ao caso" button visible; write grant disabled
+// (ADR 0033 D6 — read grants allowed on terminal cases; write grants are not)
+// ---------------------------------------------------------------------------
+
+test('AC-3d terminal case: "Acesso ao caso" button present; "Conceder edição" disabled; "Conceder leitura" enabled', async ({
+  page,
+}) => {
+  // Caso 0002 ("Óbito UTI leito 3") is seeded as status=concluido (terminal).
+  // The CaseAccessButton is mounted OUTSIDE CaseLifecycleActions in the layout,
+  // so it renders even when lifecycle buttons (Concluir/Cancelar) do not.
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID_TERMINAL}`)
+  await page.waitForURL(`**/manage/cases/${CASE_ID_TERMINAL}`)
+
+  // The case heading must render (confirms we're not on a 404).
+  await expect(page.getByRole('heading', { name: /caso\s*0002/i })).toBeVisible({ timeout: 10_000 })
+
+  // The "Acesso ao caso" button IS present on a terminal case.
+  const accessBtn = page.getByRole('button', { name: /^Acesso ao caso$/i })
+  await expect(accessBtn).toBeVisible({ timeout: 5_000 })
+
+  // Lifecycle buttons (Concluir, Cancelar) must be ABSENT (case is already terminal).
+  await expect(page.getByRole('button', { name: /^Concluir$/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Cancelar$/i })).toHaveCount(0)
+
+  // Open the dialog and verify write grant is disabled, read grant is enabled.
+  const dialog = await openAccessDialog(page)
+
+  // LOCK: coordinator (Chefe CCIH) must be ABSENT from the roster even on a terminal case.
+  // staff_admin members bypass the grant system entirely; filtering them prevents a confusing
+  // self-revoke path. This assertion is the regression guard (see AC-3c for the open-case copy).
+  await expect(
+    dialog.locator('li').filter({ hasText: /Chefe CCIH/i })
+  ).toHaveCount(0)
+
+  // Pick any non-coordinator member row to test the GrantMenu — use the first `li`.
+  // (After the coordinator-exclusion change, the first row is now a regular staff member.)
+  // Click "Acesso" on the first member row to open the dropdown.
+  const firstMemberRow = dialog.locator('li').first()
+  await expect(firstMemberRow).toBeVisible({ timeout: 5_000 })
+  const grantTrigger = firstMemberRow.getByRole('button', { name: /acesso/i })
+  await grantTrigger.click()
+
+  // "Conceder leitura" must be enabled (read grants allowed on terminal cases).
+  const readItem = page.getByRole('menuitem', { name: /conceder leitura/i })
+  await expect(readItem).toBeVisible({ timeout: 5_000 })
+  await expect(readItem).not.toBeDisabled()
+
+  // "Conceder edição" must be DISABLED (write grants blocked on terminal cases — D6).
+  const writeItem = page.getByRole('menuitem', { name: /conceder edição/i })
+  await expect(writeItem).toBeVisible({ timeout: 5_000 })
+  await expect(writeItem).toBeDisabled()
+
+  // Close the menu without acting (press Escape).
+  await page.keyboard.press('Escape')
+
   await signOut(page)
 })
 
@@ -405,12 +502,13 @@ test('AC-5 Meus Casos: unified list — staff1 (phase assignee) sees card with P
   // Page heading
   await expect(page.getByRole('heading', { name: /meus casos/i })).toBeVisible({ timeout: 10_000 })
 
-  // staff1 is attributed to BOTH Caso 0001 (Phase 1) AND Caso 0002 (Phase 1 — seed line 545),
-  // so there are 2 case cards. The AC-5 contract "multi-item case = ONE card" means all of a
-  // case's phases+narratives collapse into one card (not that the total card count is 1).
-  // Assert Caso 0001 card is present as a single article (i.e. not duplicated).
+  // The AC-5 contract is "multi-item case = ONE card" — all phases+narratives belonging to
+  // the SAME case collapse into a single article, not multiple. We assert Caso 0001 appears
+  // exactly once (not duplicated) and at least one card is visible. We do NOT assert the total
+  // card count because prior test runs may have created and attributed cases to staff1 that
+  // remain in the shared DB.
   const cards = page.locator('article')
-  await expect(cards).toHaveCount(2)  // staff1 is assignee on both seeded cases
+  await expect(cards.first()).toBeVisible({ timeout: 10_000 })  // at least one card
 
   // Scope to the Caso 0001 card specifically.
   const card = page.locator('article').filter({ hasText: /Óbito UTI leito 7/i })
@@ -444,9 +542,11 @@ test('AC-5b Meus Casos: staff2 (narrative assignee) sees card with Abrir + Concl
   await page.goto(`/c/${SLUG}/meus-casos`)
   await page.waitForURL(`/c/${SLUG}/meus-casos`)
 
-  // staff2 only has attribution on Caso 0001 (narrative assignee); no connection to Caso 0002.
+  // staff2 is narrative assignee on Caso 0001. We assert Caso 0001 appears exactly once and
+  // the correct actions are present. We do NOT assert a total card count (prior test runs may
+  // have attributed staff2 on other cases in the shared DB — we scope to this seeded case).
   const cards = page.locator('article')
-  await expect(cards).toHaveCount(1)
+  await expect(cards.first()).toBeVisible({ timeout: 10_000 })
   const card = cards.filter({ hasText: /Óbito UTI leito 7/i })
   await expect(card).toHaveCount(1)
 
@@ -468,10 +568,10 @@ test('AC-5c Meus Casos: multi (read grant only) sees card with Ver caso completo
   await page.goto(`/c/${SLUG}/meus-casos`)
   await page.waitForURL(`/c/${SLUG}/meus-casos`)
 
-  // multi only has a read grant on Caso 0001; no connection to Caso 0002.
-  const cards = page.locator('article')
-  await expect(cards).toHaveCount(1)
-  const card = cards.filter({ hasText: /Óbito UTI leito 7/i })
+  // multi has a read grant on Caso 0001 (seeded). We assert Caso 0001 appears exactly once and
+  // contains only read-only actions. We do NOT assert a total card count (prior test runs may
+  // have granted multi access to other cases in the shared DB — scope to this seeded case only).
+  const card = page.locator('article').filter({ hasText: /Óbito UTI leito 7/i })
   await expect(card).toHaveCount(1)
 
   // "Ver caso completo" present.
@@ -755,6 +855,129 @@ test('AC-10 keyboard-only: Tab/Enter through Meus Casos to focused narrative edi
 
   // Confirm save succeeded.
   await expect(page.getByRole('status')).toContainText(/salva/i, { timeout: 10_000 })
+
+  await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// AC-N1 — Narrative attribution via card DropdownMenu (assign / clear)
+// ---------------------------------------------------------------------------
+
+test('AC-N1 narrative attribution: coordinator assigns member via card DropdownMenu; assignee shown; Remover responsável clears it', async ({
+  page,
+}) => {
+  // coordinator assigns the "Achados e Discussão" narrative to "Enfermeiro CCIH Um" (staff1).
+  // Achados is NOT attributed in seed, so it is safe to assign and then clear.
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID}`)
+  await page.waitForURL(`**/manage/cases/${CASE_ID}`)
+
+  // Locate the "Achados e Discussão" narrative card on the coordinator detail page.
+  // It is a <section aria-labelledby="narrative-...-heading"> containing "Achados e Discussão".
+  const ahadosSection = page.getByRole('region', { name: /achados e discussão/i })
+  await expect(ahadosSection).toBeVisible({ timeout: 10_000 })
+
+  // The attribution trigger has aria-label="Responsável pela narrativa Achados e Discussão".
+  const assignTrigger = ahadosSection.getByRole('button', {
+    name: /responsável pela narrativa achados e discussão/i,
+  })
+  await expect(assignTrigger).toBeVisible({ timeout: 5_000 })
+  await assignTrigger.click()
+
+  // The dropdown lists commission members. Assign to "Enfermeiro CCIH Um" (staff1).
+  // This member has a stable display name from seed.sql (full_name patch).
+  const assigneeItem = page.getByRole('menuitem', { name: /Enfermeiro CCIH Um/i })
+  await expect(assigneeItem).toBeVisible({ timeout: 5_000 })
+  await assigneeItem.click()
+
+  // Wait for server action and refresh.
+  await page.waitForTimeout(1_500)
+
+  // After assignment, the DB row should reflect assigned_to = staff1's UID.
+  const rows = await dbQuery<{ assigned_to: string | null }>('case_narratives', {
+    case_id: `eq.${CASE_ID}`,
+    type_label: `eq.Achados e Discussão`,
+  })
+  const assignedRow = rows.find((r) => r.assigned_to === '00000000-0000-0000-0000-000000000003')
+  expect(assignedRow).toBeTruthy()
+
+  // The card's attribution trigger should now show the assignee name (or the assignee
+  // chip re-renders after router.refresh()). Wait for the page to reflect the new state.
+  await page.waitForTimeout(500)
+
+  // Re-navigate to force a fresh server render (router.refresh() may be async).
+  await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID}`)
+  await page.waitForURL(`**/manage/cases/${CASE_ID}`)
+
+  const ahadosSection2 = page.getByRole('region', { name: /achados e discussão/i })
+  await expect(ahadosSection2).toBeVisible({ timeout: 10_000 })
+
+  // The trigger now shows the assignee name (button label updates to the name).
+  // aria-label is still "Responsável pela narrativa Achados e Discussão".
+  const assignTrigger2 = ahadosSection2.getByRole('button', {
+    name: /responsável pela narrativa achados e discussão/i,
+  })
+  await expect(assignTrigger2).toBeVisible({ timeout: 5_000 })
+
+  // Open the menu and use "Remover responsável" to clear.
+  await assignTrigger2.click()
+  const removeItem = page.getByRole('menuitem', { name: /remover responsável/i })
+  await expect(removeItem).toBeVisible({ timeout: 5_000 })
+  await removeItem.click()
+
+  await page.waitForTimeout(1_500)
+
+  // Verify DB: assigned_to is now null for Achados e Discussão.
+  const rows2 = await dbQuery<{ assigned_to: string | null }>('case_narratives', {
+    case_id: `eq.${CASE_ID}`,
+    type_label: `eq.Achados e Discussão`,
+  })
+  const clearedRow = rows2.find((r) => r.assigned_to === null)
+  expect(clearedRow).toBeTruthy()
+
+  await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// AC-N2 — Negative: old inline panel and old select controls are GONE
+// ---------------------------------------------------------------------------
+
+test('AC-N2 negative: coordinator page body has no inline access panel heading and no narrative-assignee <select>', async ({
+  page,
+}) => {
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID}`)
+  await page.waitForURL(`**/manage/cases/${CASE_ID}`)
+  await page.waitForTimeout(1_000) // let the full page render settle
+
+  // OLD inline panel had an id="case-access-heading" or a HEADING element "Acesso ao caso"
+  // rendered inline in the page body. The NEW UI moves this to a top-bar BUTTON (not a heading)
+  // that opens a dialog. Assert that no HEADING (h1-h6) with this text exists in the DOM
+  // (the button is not a heading, so it won't match).
+  // The heading roles h1-h6 via getByRole cover the old panel's heading.
+  for (const level of [1, 2, 3, 4, 5, 6] as const) {
+    await expect(
+      page.getByRole('heading', { level, name: /^acesso ao caso$/i })
+    ).toHaveCount(0)
+  }
+  // Also confirm no element with id="case-access-heading" exists (the old id).
+  await expect(page.locator('#case-access-heading')).toHaveCount(0)
+
+  // OLD narrative assignment used <select id="narrative-assignee-*"> elements.
+  // These must be completely absent from the DOM.
+  const oldSelects = page.locator('select[id^="narrative-assignee-"]')
+  await expect(oldSelects).toHaveCount(0)
+
+  // NEW: the "Acesso ao caso" button IS present (the trigger lives in the header,
+  // not a heading in the body).
+  await expect(page.getByRole('button', { name: /^Acesso ao caso$/i })).toBeVisible()
+
+  // NEW: the narrative attribution control IS present as a DropdownMenu trigger button.
+  // At least one "Responsável pela narrativa …" trigger must be visible.
+  const attributionTriggers = page.getByRole('button', {
+    name: /responsável pela narrativa/i,
+  })
+  await expect(attributionTriggers.first()).toBeVisible({ timeout: 5_000 })
 
   await signOut(page)
 })

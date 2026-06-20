@@ -51,6 +51,89 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 interviews-deferral authorized). Phase 14 (Patient-Safety / NSP) complete (14a `984e787`, 14b–d
 `c4e20b3`); Case Narratives increment FE done (below).
 
+### Refinement: Case-access dialog + narrative-card attribution (frontend-only) — ✅ FE DONE 2026-06-19
+
+UI relocation of two existing affordances (no BE/RLS/type/migration change; ADR 0033 D6 preserved):
+1. Inline `CaseAccessPanel` → a **"Acesso ao caso"** top-bar button + Dialog (grants-only roster),
+   mounted independently in the coordinator `(detail)` layout so it still shows on TERMINAL cases
+   (read-grant reachable). Members + `caseAccessEnabled()` lifted out of the `if (isOpen)` block.
+2. The panel's "Responsáveis pelas narrativas" `<select>` section is **removed**; narrative
+   attribution moves onto each `CaseNarrativeCard` as a coordinator `DropdownMenu` (assign / change /
+   remover responsável), threaded via `CasePhaseList` (lifecycle branch only; flag-OFF unaffected).
+3. Follow-up tweak: the grant dialog roster now lists **only non-coordinators** (`m.role !==
+   "staff_admin"`) — a `staff_admin` already has full-case access by role, so granting/revoking on
+   them (incl. the viewer on themselves) is meaningless. Empty-state line when no grantable members.
+   Scoped to `case-access-panel.tsx`; narrative-assignee list (coordinators stay selectable) untouched.
+
+| # | Frontend task | Status |
+| - | ------------- | ------ |
+| R-1 | `case-access-button.tsx` (button + Dialog wrapping grants roster) | ✅ done |
+| R-2 | `case-access-panel.tsx` → grants-only (strip narrative section) | ✅ done |
+| R-3 | `(detail)/layout.tsx` — load members + flag unconditionally; mount button | ✅ done |
+| R-4 | `case-detail-view.tsx` — remove inline panel block + import | ✅ done |
+| R-5 | `case-phase-list.tsx` + `case-narrative-card.tsx` — card attribution dropdown | ✅ done |
+
+> **`frontend` done (2026-06-19).** Lint 0 errors / typecheck exit 0 / `npm run build` Compiled
+> successfully. Verified on the prod standalone build (logged in `chefe.ccih@test.local`): top-bar
+> order is **Acesso ao caso · Adicionar fase · Concluir · Cancelar**; the dialog opens with the
+> member roster (grant/revoke runs with no console errors); each narrative card shows the
+> "Atribuir responsável"/assignee dropdown (assign + reassign verified, current assignee
+> check-marked, "Remover responsável" present); the old inline panel + "Responsáveis pelas
+> narrativas" `<select>` section are GONE from the body. **Terminal case (Caso 0012, Concluído):**
+> the access button shows ALONE and "Conceder edição" is disabled while "Conceder leitura" stays
+> enabled (D6). No `src/lib/**`/migration/spec changes.
+>
+> **Specs impacted (for `tester` — `e2e/case-access.spec.ts`):** two locator families changed.
+> (1) The coordinator access roster is no longer inline on the case body — it's behind a top-bar
+> **"Acesso ao caso"** button that opens a `[role="dialog"]`; any step that asserted/interacted
+> with the inline panel must first click that button, then scope to the dialog. (2) Narrative
+> assignment is no longer a `<select id="narrative-assignee-*">` — it's a `DropdownMenu` on each
+> narrative card (trigger `aria-label="Responsável pela narrativa <heading>"`; items are
+> `[role="menuitem"]` with member names + a destructive "Remover responsável"). Update those
+> locators; the underlying actions (`grantCaseAccess`/`revokeCaseAccess`/`assignNarrative`/
+> `unassignNarrative`) are unchanged.
+>
+> **Specs impacted — ADDENDUM (follow-up tweak, 2026-06-19; `tester` already reported GREEN below —
+> please re-check this one assertion):** the grant **dialog roster now excludes coordinators**
+> (`staff_admin`). The viewing coordinator `chefe.ccih` is NO LONGER a row in the dialog, so any
+> assertion expecting `chefe.ccih`/a "Coordenação" row inside `getByRole('dialog', { name: 'Acesso
+> ao caso' })` must change. Grant/revoke steps should target a regular `staff*.ccih` member.
+> Verified in-preview on Caso 0001: roster dropped from 8→7 rows, `chefe.ccih` absent, all rows
+> labelled "Membro", grant on a regular member still succeeds with no console error. Note
+> "Coordenadora Multi" REMAINS (she is `staff` in CCIH, `staff_admin` only in commission B — the
+> filter is on the CCIH membership role, which is correct). Empty-roster case renders "Nenhum outro
+> membro para conceder acesso." Narrative-assignee dropdown is unchanged (coordinators stay selectable
+> there — out of scope).
+
+> **`tester` GREEN (2026-06-19).** `e2e/case-access.spec.ts` updated to the new UI — the roster is
+> driven through the "Acesso ao caso" dialog (`getByRole('dialog', { name: 'Acesso ao caso' })`),
+> narrative assignment through the card `DropdownMenu` (`aria-label="Responsável pela narrativa …"`).
+> New assertions: **AC-3d** (TERMINAL case — access button shows alone, "Conceder edição" disabled /
+> "Conceder leitura" enabled, ADR 0033 D6), **AC-N1** (card assign → assignee shown → "Remover
+> responsável" clears), **AC-N2** (negatives: no inline panel heading, no `narrative-assignee-*`
+> `<select>`). Result **15 passed / 2 skipped** (AC-9 flag-ON skip; AC-7 conditional — no safety
+> event linked to Caso 0001 in the current DB). Broader cases triage (chromium): **0 new
+> regressions** — `cases-extras` 4 fails + `case-narratives` AC-1 all matched to the pre-existing
+> shared-DB / spec-isolation baseline (an assignment/dialog change cannot alter narrative-TYPE
+> labels or the docs/tags/action-item panels).
+>
+> **QA — right-sized SKIP (lead, 2026-06-19).** No formal `qa` gate for this refinement: it changes
+> ZERO security surface — no RLS / predicate / `SECURITY DEFINER`, no server action, no type, no
+> migration, no new route group (the "Acesso ao caso" button sits INSIDE the already-coordinator-
+> gated `(detail)` layout; the card attribution control is `canManageLifecycle`-gated; both server
+> actions re-check authz server-side). The security posture is the one QA already APPROVED for the
+> increment. Lead reviewed every diff (file ownership, flag-OFF invariant via the legacy
+> `case-phase-list` branch, the D6 terminal-case rule) + tester GREEN stand in for the gate. A formal
+> QA pass is available on request.
+>
+> **Coordinator-exclusion re-verify GREEN (tester, 2026-06-19).** The follow-up tweak's spec re-check
+> passed: lock assertions added to AC-3c/AC-3d (`Chefe CCIH` row ABSENT from the dialog;
+> `Coordenadora Multi` present as the counter-case) — `e2e/case-access.spec.ts` still **15 passed /
+> 2 skipped**, 0 regressions. All three changes verified green. **Record: pending human approval.**
+> Files to stage: `case-access-button.tsx` (new), `case-access-panel.tsx`, `case-detail-view.tsx`,
+> `case-narrative-card.tsx`, `case-phase-list.tsx`, `(detail)/layout.tsx`, `e2e/case-access.spec.ts`,
+> `PROGRESS.md`.
+
 ### Increment: Case Access Control & "Meus Casos" (flag `case_access`) — ✅ COMPLETE 2026-06-19
 
 **Gate: APPROVED (human-approved 2026-06-19).** Build green (pgTAP 619/619; FE lint/typecheck/prod-build
@@ -300,6 +383,8 @@ Frontend tasks (owned by `frontend`; build against the FROZEN contract in
 | 2026-06-19 | Case Access Control — **CA-001 fix + spec corrections (TESTER, run 2)** | prod build (`npm start` reused, CA-001 fix only a SQL volatility flip — no rebuild needed) → `supabase db reset` → `npx playwright test e2e/case-access.spec.ts --project=chromium --workers=1` (LOCAL, fresh seed; 14 tests, 1 skipped AC-9) | 5 | 1 (CA-002 MAJOR) + 7 did-not-run (serial halt) | **PARTIALLY PASSING — 5/13, blocked by CA-002.** CA-001 fixed (STABLE→VOLATILE) unblocked AC-1. Spec corrections also required this run: (1) AC-2 `status===404` replaced with content-based `getByText(/não encontramos esta página/i)` — Next.js App Router `notFound()` in a nested segment returns HTTP 200 with the not-found content (the shell layout renders); (2) AC-3c same fix; (3) `signInAs` `waitForURL(/\/c\//)` regex broadened to `/\/c($|\/)/ ` — `multi@test.local` belongs to two commissions so login lands on the commission picker (`/c`) not a slug page. AC-3c `li` locator scoped to `memberRoster = accessSection.locator('ul').first()` to avoid strict-mode violation from narrative assignment `li` elements. **New bug found: CA-002 (MAJOR, frontend) — `canEditNarrative` returns `false` for the narrative assignee (`staff2`) who only has attribution-derived read (no write grant); the `!caps.canWriteContent` early-return at line 29 fires before the `assignedTo === viewerId` check at line 32. DB predicate `can_write_case_narrative` is correct; only the TypeScript UI mirror is wrong.** AC-4 (staff2 half) fails. Awaiting frontend fix. |
 | 2026-06-19 | Case Access Control — **CA-002 fix + full spec run (TESTER, run 3)** | prod build (rebuilt after `e913efe` CA-002 fix) → `supabase db reset` → `npx playwright test e2e/case-access.spec.ts --project=chromium --workers=1` (LOCAL, fresh seed; 14 tests, 1 skipped AC-9) | 12 | 0 | ✅ **Case-access spec GREEN — 12/13 non-skipped passed (1 skip = AC-9 by design).** Spec corrections in this run: (4) AC-6 `reabrirBtn` locator changed from `locator('section').filter()` to `getByRole('region', { name: /resumo clínico/i })` — page renders named ARIA `region` for narrative, and `section.filter()` matched the access-panel's `<section>` first; (5) AC-4 "Concluir narrativa" button locator corrected to exact trigger label "Concluir" (the `AlertDialogAction` confirm is hidden inside the dialog). CA-001 RESOLVED; CA-002 RESOLVED. |
 | 2026-06-19 | Case Access Control — **GATE full-suite regression (TESTER)** | prod build (same; `npm start` on :3000) → `supabase db reset` (double-verified 2 cases) → `npx playwright test --workers=1 --reporter=list` (LOCAL, fresh reset; **285 tests** = 14 new `case-access.spec.ts` + 271 full regression) | 259 | 18 | ✅ **GATE STEP 2 GREEN — case-access spec 13/13 non-skipped PASS (1 skip = AC-9); 18 pre-existing harness-debt failures (vs 14-failure baseline; delta +4 explained by prod-build animation-timing variance and case-narratives AC-4 becoming first cascader after AC-3 contamination fix).** Spec additions in this run: (6) AC-6 cleanup restores seeded narrative body after conclude/reopen to prevent cross-spec contamination of `case-narratives.spec.ts` AC-3 which expected the seeded "Paciente do leito 7" text. All 18 failures are pre-existing (cases-extras 4, cases-outcomes-blockers 2, phase4-builder 4, phase7-cases 3, phase10-meetings 3, phase11-interviews 1, case-narratives 1) — ZERO case-access app bugs. Env: LOCAL Docker, prod build `next start`, `.env.local` targeting `127.0.0.1:54321`. |
+| 2026-06-19 | Case Access Control — **FE dialog+card-attribution locator update (TESTER)** | prod build (`npm start` reused; no app-code change) → `npx playwright test e2e/case-access.spec.ts --project=chromium` (LOCAL; 17 tests, 2 skipped = AC-9 + AC-7 PHI conditional) | 15 | 0 | ✅ **`e2e/case-access.spec.ts` GREEN — 15 passed / 2 skipped (AC-9 intentional skip; AC-7 conditional PHI skip — no safety event linked in current DB state, confirmed expected).** Spec locator updates to match the FE-only dialog+card-attribution refinement (no BE/RLS/type change): (1) access roster moved from inline panel to `[role="dialog"]` opened by "Acesso ao caso" button — `openAccessDialog()` helper added; (2) narrative assignment moved from `select[id^="narrative-assignee-"]` to `DropdownMenu` on each card — trigger `aria-label="Responsável pela narrativa <heading>"`; (3) AC-3d (terminal case) added — dialog present, "Conceder edição" disabled, "Conceder leitura" enabled; (4) AC-N1 (narrative attribution via card menu) added; (5) AC-N2 (negative: no inline heading, no old select) added; (6) DB-pollution-resistant count assertions in AC-3c/5/5b/5c (prior test runs left residual cases in the shared DB — scoped to seeded case identities, not global article counts). Broader cases triage (chromium, 1 worker): `case-narratives.spec.ts` 10/11 (AC-1 fails — seeded "Resumo Clínico" type was renamed by AC-1b in a prior run and not restored; pre-existing contamination, NOT a regression), `cases-extras.spec.ts` 4/8 (AC-Docs/AC-Tags/AC-ActionItems pre-existing failures per baseline; AC-FixedStatusAdvance/AC-SubmitWhileFixedStatus pass with 1 worker), `cases-outcomes-blockers.spec.ts` 8/8. Zero regressions from the FE refinement. |
+| 2026-06-19 | Case Access Control — **coordinator-exclusion lock assertion (TESTER)** | prod build (`npm start` reused; no app-code change) → `npx playwright test e2e/case-access.spec.ts --project=chromium --workers=1` (LOCAL; 17 tests, 2 skipped) | 15 | 0 | ✅ **`e2e/case-access.spec.ts` GREEN — 15 passed / 2 skipped (unchanged from prior run).** Two lock assertions added to `e2e/case-access.spec.ts`: (A) in AC-3c — after opening the dialog on Caso 0001, `dialog.locator('li').filter({ hasText: /Chefe CCIH/i }).toHaveCount(0)` (regression guard: coordinator excluded from roster); counter-case `Coordenadora Multi` asserted present (she is `staff` in CCIH, a valid grant target). (B) in AC-3d — same guard on the terminal-case (Caso 0002) dialog. Description comment in the file's AC-3d bullet updated to note "coordinator absent from roster". Both assertions passed immediately — the FE already excluded the coordinator; these are regression anchors. No application bugs. |
 
 ## QA Verdicts
 
@@ -368,6 +453,7 @@ Frontend tasks (owned by `frontend`; build against the FROZEN contract in
 - [ ] **Case Access — `listCaseAccess(caseId)` read for the access panel (QA INFO-N3).** The coordinator panel grants/revokes off the member roster but can't display each member's live read/write grant level (no query returns the stored `case_access` rows). Add a coordinator-readable `listCaseAccess` + wire the panel. Small BE read + FE wire-up.
 - [ ] **Case Access — push migrations `…110000–110004` (+ the in-place CA-001 edit to `…110002`) to the linked REMOTE** (`supabase db push --linked`) when taking the feature live. Verified ONLY against local `supabase db reset` (pgTAP 619/619, seed personas). **Auto-blocked as a production deploy — needs explicit human/lead go-ahead** (mirrors the Cases-Extras / case-model remote-push deferrals above).
 - [ ] **E2E regression suite is NOT reliably green against a PROD build (test-harness debt, surfaced 2026-06-18; NOT a Phase-14 defect).** The freeze-proof gate now requires `next build`+`next start` (the heavy NSP pages crawl + balloon the `next dev` server to 4.3 GB — see user MEMORY `e2e-gate-prod-build`). But the pre-≤13 specs were authored against `next dev` and flake against the prod build: (a) Radix dialog close-animations (`data-[state=closed]:animate-out`) race tight `toBeHidden`/`toHaveCount` timeouts because — unlike the Phase-14 specs — the older specs DON'T set `reducedMotion: 'reduce'`; (b) the suite shares one mutable DB with no per-test reset, so Playwright `retries` (and parallel workers) CASCADE write-pollution: retries=2 produced MORE hard failures (25) than retries=0 (14). **Phase-14 specs are clean (65/65).** Evidence (2026-06-18, prod build, LOCAL Docker): full suite workers=1/retries=0 → 246 pass / 14 fail; non-14 specs workers=4/retries=2 → 162/13 flaky/20 fail; non-14 specs workers=1/retries=2 → 167/3 flaky/25 fail. Every failure is a pre-14 spec. **Fixes (test-infra; `tester` + `backend` for config):** add `use: { reducedMotion: 'reduce' }` to `playwright.config.ts` (one line, stabilizes animation timing globally); point `webServer.command` at a prod build for the gate; give the older mutation specs DB isolation (unique per-test fixtures or reset-per-file). Until then, the older specs' "green" depends on the `next dev` model.
+- [ ] **E2E `case-narratives` AC-1b spec-isolation (tester-owned; surfaced 2026-06-19 during the case-access refinement triage).** AC-1b renames the "Resumo Clínico" narrative TYPE to "…(Renomeado) {timestamp}" and never restores it, so on the shared DB a re-run/later-ordered AC-1 (which asserts the original label) fails. NOT a code regression — pre-existing test debt, an instance of the no-per-test-DB-isolation problem in the item above. Fix: AC-1b restores the original label in a teardown/`finally` (or uses a throwaway type). Until then `case-narratives` AC-1 is order/state-dependent.
 - [ ] **Phase 14a deferred (QA re-verify INFO):** sweep the success string out of `ActionState.error` for the 4 remaining safety actions (`transferEventCustody` / `updateEvent` / `setEventPatient` / `cancelEvent`) into the new `message` field — harmless today (all consumers gate on `!result.ok`), do it on the next `src/lib/safety/actions.ts` touch (e.g. Phase 14b). Backend-owned. The 2 flagged in QA N1/I2 (`notifySafetyEvent`/`acknowledgeEvent`) are already done.
 - [ ] **Interviews — "Minhas entrevistas" discovery surface for plain-`staff` interviewers (Phase 11, deferred per lead).** v1 has NO dedicated list for a plain-`staff` registered interviewer to find interviews they may write — they reach the detail by DIRECT LINK only (the case-detail "Entrevistas" panel is coordinator-gated). The interview detail page renders correctly for them (membership guard + `viewerCanWrite` controls), and the detail header back-link points non-coordinators at the commission home (`/c/[slug]`), never the coordinator case page. A future "Minhas entrevistas" surface (mirroring "Minhas fases") would close the discovery gap. Owned by `frontend` when scheduled.
 - [ ] **Case data-model — D12 status-file DELETIONS deferred to land WITH frontend §H (backend tasks #2/#3 handoff).** Deleting the configurable-status modules now would red-line ~12 not-yet-reworked frontend consumers (kanban drag, the "Estado" picker, the status manager, `case-derive`, the badges, the cases/detail/settings pages), which is the §H rework owned by `frontend` — so to hand over a GREEN `lint`+`typecheck` baseline without touching `src/components/**`/`src/app/**`, backend INTERIM-SHIMMED the two backend D12 lib modules instead of deleting them:

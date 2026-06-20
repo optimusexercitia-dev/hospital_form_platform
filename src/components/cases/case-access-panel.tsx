@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { Eye, KeyRound, PenLine, UserPlus, Users, X } from "lucide-react";
+import { Eye, PenLine, UserPlus, X } from "lucide-react";
 
 import type { CaseDetail } from "@/lib/queries/cases";
 import type { MemberListItem } from "@/lib/queries/members";
@@ -9,10 +9,6 @@ import {
   grantCaseAccess,
   revokeCaseAccess,
 } from "@/lib/case-access/actions";
-import {
-  assignNarrative,
-  unassignNarrative,
-} from "@/lib/case-narratives/actions";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -26,22 +22,23 @@ import { useCaseAction } from "@/components/cases/use-case-action";
 import { initials } from "@/components/cases/format";
 import { cn } from "@/lib/utils";
 
-const SELECT_CLASS =
-  "h-9 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
-
 /**
- * Coordinator-only ACCESS panel on the case detail (Case Access Control increment,
- * ADR 0033 D6/D7; FE-5). Two controls over the case's access surface:
+ * Coordinator-only ACCESS roster (Case Access Control increment, ADR 0033 D6/D7;
+ * FE-5). The per-member read/write grant control over a case's access surface — grant
+ * any commission member read or write access (`grantCaseAccess`) or remove an explicit
+ * grant (`revokeCaseAccess`). Each row shows whether the member is ATTRIBUTED (a
+ * phase/narrative assignee) — which auto-grants full-case read that a revoke CANNOT
+ * remove (D6: unassign to remove it). Attribution is derived here from the loaded
+ * phases + narratives.
  *
- *  1. **Member roster + grants** — grant any commission member read or write access
- *     (`grantCaseAccess`) or remove an explicit grant (`revokeCaseAccess`). Each row
- *     shows whether the member is ATTRIBUTED (a phase/narrative assignee) — which
- *     auto-grants full-case read that a revoke CANNOT remove (D6: unassign to remove
- *     it). Attribution is derived here from the loaded phases + narratives.
+ * This is the BODY of the "Acesso ao caso" dialog opened from {@link CaseAccessButton}
+ * in the coordinator `(detail)` layout header; it no longer renders its own card
+ * chrome (the Dialog provides the frame). Narrative ASSIGNMENT moved onto each
+ * narrative card ({@link import('./case-narrative-card').CaseNarrativeCard}).
  *
- *  2. **Narrative assignment** — assign each narrative to a member
- *     (`assignNarrative`) or clear it (`unassignNarrative`); the assignee then fills
- *     + concludes it and gains full-case read.
+ * Only NON-coordinator members are listed: a `staff_admin` already holds full-case
+ * access by role, so a grant/revoke control on them (including the viewing coordinator
+ * on themselves) is meaningless/misleading. This inherently removes the current viewer.
  *
  * NOTE (contract): no read currently returns the stored `case_access` grant ROWS, so
  * the roster shows DERIVED attribution + grant ACTIONS rather than a live "currently
@@ -60,7 +57,11 @@ export function CaseAccessPanel({
   /** The commission roster (already sorted by the parent). */
   members: MemberListItem[];
   detail: CaseDetail;
-  /** Whether the case is non-terminal (narrative assignment requires an open case). */
+  /**
+   * Whether the case is non-terminal. Read grants are allowed on terminal cases
+   * (ADR 0033 D6); only WRITE grants require an open case, so on a terminal case the
+   * "Conceder edição" item is disabled (the server enforces this regardless).
+   */
   caseOpen: boolean;
 }) {
   const { run, isPending, error } = useCaseAction();
@@ -73,39 +74,31 @@ export function CaseAccessPanel({
     return ids;
   }, [detail.phases, detail.narratives]);
 
-  const narratives = detail.narratives;
+  // Coordinators (`staff_admin`) already hold full-case access by role, so a
+  // grant/revoke control on them is meaningless — and revoking your OWN access is
+  // misleading. List only non-coordinator members (this also drops the viewer).
+  const grantableMembers = members.filter((m) => m.role !== "staff_admin");
 
   return (
-    <section
-      aria-labelledby="case-access-heading"
-      className="flex flex-col gap-5 rounded-2xl border border-border bg-card p-5 shadow-xs"
-    >
-      <div className="flex items-center gap-2">
-        <KeyRound aria-hidden="true" className="size-4 text-muted-foreground" />
-        <h2 id="case-access-heading" className="text-base font-semibold">
-          Acesso ao caso
-        </h2>
-      </div>
-
+    <div className="flex flex-col gap-3">
       {error && (
         <p role="alert" className="text-sm font-medium text-destructive">
           {error}
         </p>
       )}
 
-      {/* 1. Member roster + grants */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2">
-          <Users aria-hidden="true" className="size-3.5 text-muted-foreground" />
-          <h3 className="text-sm font-medium text-foreground">Membros</h3>
-        </div>
-        <p className="text-xs text-muted-foreground text-pretty">
-          Conceda leitura ou edição a qualquer membro. Quem tem uma fase ou narrativa
-          atribuída já enxerga o caso inteiro (remova a atribuição para retirar esse
-          acesso).
+      <p className="text-xs text-muted-foreground text-pretty">
+        Conceda leitura ou edição a qualquer membro. Quem tem uma fase ou narrativa
+        atribuída já enxerga o caso inteiro (remova a atribuição para retirar esse
+        acesso).
+      </p>
+      {grantableMembers.length === 0 ? (
+        <p className="text-sm text-muted-foreground text-pretty">
+          Nenhum outro membro para conceder acesso.
         </p>
+      ) : (
         <ul className="flex flex-col divide-y divide-border/70">
-          {members.map((m) => {
+          {grantableMembers.map((m) => {
             const name = m.fullName ?? m.email ?? "Membro";
             const attributed = attributedIds.has(m.userId);
             return (
@@ -125,7 +118,7 @@ export function CaseAccessPanel({
                       {name}
                     </span>
                     <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      {m.role === "staff_admin" ? "Coordenação" : "Membro"}
+                      Membro
                       {attributed && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-accent px-1.5 py-0.5 text-[0.65rem] font-medium tracking-wide text-accent-foreground uppercase">
                           Atribuído
@@ -137,6 +130,7 @@ export function CaseAccessPanel({
 
                 <GrantMenu
                   disabled={isPending}
+                  caseOpen={caseOpen}
                   onGrant={(level) =>
                     run(() => grantCaseAccess(caseId, m.userId, level))
                   }
@@ -146,92 +140,24 @@ export function CaseAccessPanel({
             );
           })}
         </ul>
-      </div>
-
-      {/* 2. Narrative assignment */}
-      {narratives.length > 0 && (
-        <div className="flex flex-col gap-3 border-t border-border/70 pt-5">
-          <div className="flex items-center gap-2">
-            <PenLine
-              aria-hidden="true"
-              className="size-3.5 text-muted-foreground"
-            />
-            <h3 className="text-sm font-medium text-foreground">
-              Responsáveis pelas narrativas
-            </h3>
-          </div>
-          <ul className="flex flex-col gap-2.5">
-            {narratives.map((n) => {
-              const heading = n.title || n.typeLabel;
-              const selectId = `narrative-assignee-${n.id}`;
-              return (
-                <li
-                  key={n.id}
-                  className="flex flex-col gap-1.5 rounded-xl border border-border/70 bg-muted/20 p-3"
-                >
-                  <label
-                    htmlFor={selectId}
-                    className="text-sm font-medium text-foreground"
-                  >
-                    {heading}
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <select
-                      id={selectId}
-                      className={SELECT_CLASS}
-                      value={n.assignedTo ?? ""}
-                      disabled={isPending || !caseOpen || n.status !== "aberta"}
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        if (!next) {
-                          run(() => unassignNarrative(n.id));
-                        } else {
-                          run(() => assignNarrative(n.id, next));
-                        }
-                      }}
-                    >
-                      <option value="">Sem responsável</option>
-                      {members.map((m) => (
-                        <option key={m.userId} value={m.userId}>
-                          {m.fullName ?? m.email ?? "Membro"}
-                        </option>
-                      ))}
-                    </select>
-                    {n.assignedTo && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        disabled={isPending || !caseOpen}
-                        onClick={() => run(() => unassignNarrative(n.id))}
-                        aria-label={`Remover responsável de ${heading}`}
-                      >
-                        <X aria-hidden="true" />
-                      </Button>
-                    )}
-                  </div>
-                  {n.status !== "aberta" && (
-                    <p className="text-xs text-muted-foreground">
-                      Narrativa concluída — reabra para reatribuir.
-                    </p>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
       )}
-    </section>
+    </div>
   );
 }
 
-/** Per-member grant/revoke dropdown (read / write / remove). */
+/**
+ * Per-member grant/revoke dropdown (read / write / remove). "Conceder edição" is
+ * disabled on a terminal case (write grants require an open case, ADR 0033 D6);
+ * read + remove stay available.
+ */
 function GrantMenu({
   disabled,
+  caseOpen,
   onGrant,
   onRevoke,
 }: {
   disabled: boolean;
+  caseOpen: boolean;
   onGrant: (level: "read" | "write") => void;
   onRevoke: () => void;
 }) {
@@ -256,7 +182,11 @@ function GrantMenu({
           <Eye aria-hidden="true" className="size-4" />
           Conceder leitura
         </DropdownMenuItem>
-        <DropdownMenuItem className="gap-2" onSelect={() => onGrant("write")}>
+        <DropdownMenuItem
+          className="gap-2"
+          disabled={!caseOpen}
+          onSelect={() => onGrant("write")}
+        >
           <PenLine aria-hidden="true" className="size-4" />
           Conceder edição
         </DropdownMenuItem>

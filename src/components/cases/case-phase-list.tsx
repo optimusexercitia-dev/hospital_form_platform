@@ -98,12 +98,21 @@ export function CasePhaseList({
                 isOpen &&
                 narrative.status === "concluida" &&
                 caps.canManageLifecycle;
+              // Attribution (ADR 0033 D5): a coordinator may (re)assign the narrative's
+              // author from the card while it is `aberta` + the case is open. Mirrors the
+              // conclude/reopen gating; the legacy (flag-OFF) branch never passes this.
+              const canAssign =
+                caps.canManageLifecycle &&
+                isOpen &&
+                narrative.status === "aberta";
               return (
                 <CaseNarrativeCard
                   narrative={narrative}
                   canEdit={editable}
                   canConclude={canConclude}
                   canReopen={canReopen}
+                  assignees={assignees}
+                  canAssign={canAssign}
                   showLifecycle
                 />
               );

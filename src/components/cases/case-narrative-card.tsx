@@ -2,20 +2,32 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { FileText, Lock, Pencil, RotateCcw, User } from "lucide-react";
+import { Check, FileText, Lock, Pencil, RotateCcw, User, UserPlus, X } from "lucide-react";
 
 import {
   saveNarrativeBody,
   upsertNarrativeBody,
   reopenNarrative,
+  assignNarrative,
+  unassignNarrative,
 } from "@/lib/case-narratives/actions";
 import { SectionTextEditor } from "@/components/forms/section-text-editor";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { FormBanner } from "@/components/auth/form-banner";
 import { NarrativeStatusPill } from "@/components/cases/narrative-status-pill";
 import { ConcludeNarrativeButton } from "@/components/cases/conclude-narrative-button";
+import type { AssigneeOption } from "@/components/cases/case-phase-list";
 import type { CaseNarrative } from "@/lib/queries/cases";
+import { cn } from "@/lib/utils";
 
 /**
  * One per-case NARRATIVE (`case_narratives`; ADR 0032/0033) on the case-detail left
@@ -41,6 +53,8 @@ export function CaseNarrativeCard({
   canEdit,
   canConclude = false,
   canReopen = false,
+  assignees = [],
+  canAssign = false,
   showLifecycle = true,
 }: {
   narrative: CaseNarrative;
@@ -50,6 +64,14 @@ export function CaseNarrativeCard({
   canConclude?: boolean;
   /** Whether the viewer may reopen it (coordinator + `concluida`). */
   canReopen?: boolean;
+  /** The commission roster for the attribution control (only used when `canAssign`). */
+  assignees?: AssigneeOption[];
+  /**
+   * Whether to show the coordinator ATTRIBUTION control (ADR 0033 D5) — assign /
+   * change / clear the narrative's author. Gated by the parent to coordinator +
+   * `aberta` + case open; `false` (default, and the flag-OFF legacy branch) hides it.
+   */
+  canAssign?: boolean;
   /**
    * Whether to show the narrative LIFECYCLE chrome (status pill, assignee, Concluir/
    * Reabrir) — the Case Access Control surface (ADR 0033). `false` (flag `case_access`
@@ -111,6 +133,32 @@ export function CaseNarrativeCard({
     });
   }
 
+  function handleAssign(assigneeId: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await assignNarrative(narrative.id, assigneeId);
+      if (!result.ok) {
+        setError(result.error ?? "Não foi possível atribuir. Tente novamente.");
+        return;
+      }
+      router.refresh();
+    });
+  }
+
+  function handleUnassign() {
+    setError(null);
+    startTransition(async () => {
+      const result = await unassignNarrative(narrative.id);
+      if (!result.ok) {
+        setError(
+          result.error ?? "Não foi possível remover o responsável. Tente novamente.",
+        );
+        return;
+      }
+      router.refresh();
+    });
+  }
+
   // A read-only viewer with no body has nothing to show (the parent filters these
   // out before rendering; this keeps the card honest if one slips through).
   if (!canEdit && !canReopen && !hasBody) return null;
@@ -142,11 +190,24 @@ export function CaseNarrativeCard({
           <h2 id={headingId} className="text-base font-semibold">
             {heading}
           </h2>
-          {showLifecycle && narrative.assigneeName && (
-            <span className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground">
-              <User aria-hidden="true" className="size-3.5" />
-              {narrative.assigneeName}
-            </span>
+          {canAssign ? (
+            <NarrativeAssignMenu
+              heading={heading}
+              assignees={assignees}
+              assignedTo={narrative.assignedTo}
+              assigneeName={narrative.assigneeName}
+              disabled={isPending}
+              onAssign={handleAssign}
+              onUnassign={handleUnassign}
+            />
+          ) : (
+            showLifecycle &&
+            narrative.assigneeName && (
+              <span className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground">
+                <User aria-hidden="true" className="size-3.5" />
+                {narrative.assigneeName}
+              </span>
+            )
           )}
           {narrative.instructions && (
             <p className="max-w-prose text-xs text-muted-foreground text-pretty">
@@ -231,5 +292,92 @@ export function CaseNarrativeCard({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Coordinator ATTRIBUTION control on a narrative card (ADR 0033 D5) — assign the
+ * narrative's author, change them, or clear the assignment, from a `DropdownMenu`
+ * (mirrors the access-roster `GrantMenu`). The trigger shows the current assignee, or
+ * "Atribuir responsável" when none; the current assignee is marked in the list, and a
+ * destructive "Remover responsável" item appears only when one is set.
+ */
+function NarrativeAssignMenu({
+  heading,
+  assignees,
+  assignedTo,
+  assigneeName,
+  disabled,
+  onAssign,
+  onUnassign,
+}: {
+  heading: string;
+  assignees: AssigneeOption[];
+  assignedTo: string | null;
+  assigneeName: string | null;
+  disabled: boolean;
+  onAssign: (assigneeId: string) => void;
+  onUnassign: () => void;
+}) {
+  const assigned = assignedTo != null;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          className="w-fit"
+          aria-label={`Responsável pela narrativa ${heading}`}
+        >
+          {assigned ? (
+            <>
+              <User aria-hidden="true" />
+              {assigneeName ?? "Responsável"}
+            </>
+          ) : (
+            <>
+              <UserPlus aria-hidden="true" />
+              Atribuir responsável
+            </>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start">
+        <DropdownMenuLabel>Responsável</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {assignees.map((a) => {
+          const isCurrent = a.userId === assignedTo;
+          return (
+            <DropdownMenuItem
+              key={a.userId}
+              className="gap-2"
+              onSelect={() => {
+                if (!isCurrent) onAssign(a.userId);
+              }}
+            >
+              <Check
+                aria-hidden="true"
+                className={cn("size-4", isCurrent ? "opacity-100" : "opacity-0")}
+              />
+              {a.name}
+            </DropdownMenuItem>
+          );
+        })}
+        {assigned && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="gap-2 text-destructive focus:text-destructive"
+              onSelect={onUnassign}
+            >
+              <X aria-hidden="true" className="size-4" />
+              Remover responsável
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
