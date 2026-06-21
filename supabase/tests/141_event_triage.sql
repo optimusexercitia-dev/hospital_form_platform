@@ -33,6 +33,10 @@ create temp table k on commit drop as
   from ctx;
 grant select on k to authenticated;
 
+-- WS A: the bootstrap admin is the NSP/PQS operator in this file; enroll it in
+-- public.pqs_members (is_pqs_member no longer == admin). Mirrors the seed.
+insert into public.pqs_members (user_id) select admin from k;
+
 -- ===========================================================================
 -- Config vocab: defaults seeded; any-authenticated READ; is_pqs_member CRUD.
 -- ===========================================================================

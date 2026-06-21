@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { logAuditAccess } from '@/lib/audit/access'
 
 /**
  * Interviews data-access (Phase 11 — Interviews; Architecture Rule 9 — all reads
@@ -381,6 +382,16 @@ export async function getInterviewDetail(
     .maybeSingle<InterviewDetailRow>()
 
   if (error || !data) return null
+
+  // WS B (Rule 11/12): audit an interview detail-open (free-text summary_md). Best-
+  // effort, app-layer on the RLS-scoped read; commission-scoped attribution.
+  await logAuditAccess({
+    action: 'interview.viewed',
+    entityType: 'interview',
+    entityId: interviewId,
+    commissionId: data.commission_id,
+    summary: 'Detalhe da entrevista visualizado',
+  })
 
   // The participant-write signal for the current viewer (separate RPC; a stored
   // function in the locked-down app schema is not directly callable).

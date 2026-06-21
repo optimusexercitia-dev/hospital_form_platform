@@ -841,6 +841,7 @@ end $$;
 do $$
 declare
   v_comm_a   uuid := 'a0000000-0000-0000-0000-0000000000a1';  -- CCIH
+  v_admin    uuid := '00000000-0000-0000-0000-000000000001';  -- admin@test.local (enrolled in PQS)
   v_chefe_a  uuid := '00000000-0000-0000-0000-000000000002';  -- chefe.ccih (staff_admin)
   v_staff_a1 uuid := '00000000-0000-0000-0000-000000000003';  -- staff1.ccih (just-culture reporter)
   v_case1    uuid := 'd0000000-0000-0000-0000-0000000000c1';  -- existing Caso 0001
@@ -858,6 +859,14 @@ begin
   -- The singleton NSP department (one row; default name + 45-day RCA window).
   insert into public.pqs_department (name, rca_default_due_days)
   values ('Núcleo de Segurança do Paciente', 45);
+
+  -- WS A: enroll the seed admin in the real PQS roster so dev/E2E personas keep
+  -- NSP access (is_pqs_member now reads public.pqs_members, no longer == admin).
+  -- In PRODUCTION the first admin enrolls PQS staff via add_pqs_member — there is
+  -- no implicit admin→NSP access anymore (duty separation, ADR 0030/0031).
+  insert into public.pqs_members (user_id, added_by)
+  values (v_admin, v_admin)
+  on conflict (user_id) do nothing;
 
   -- Event 1 — CASE-LINKED, reported by a PLAIN staff member (just-culture),
   -- acknowledged by the NSP. Held by the NSP.
@@ -892,6 +901,9 @@ begin
   values
     (v_ev1, 'Paciente de Demonstração', 'PRT-0099123', '1958-03-14', 'male',
      'ENC-2026-4471', 'UTI Adulto', 'Dr. Ricardo Antunes');
+  -- WS A: this direct insert bypasses set_event_patient, so flip the denormalized
+  -- has_patient flag manually (set_event_patient does it on the real write path).
+  update public.patient_safety_event set has_patient = true where id = v_ev1;
 
   -- Event 2 — STAND-ALONE (no case), freshly reported, held by the NSP.
   insert into public.patient_safety_event

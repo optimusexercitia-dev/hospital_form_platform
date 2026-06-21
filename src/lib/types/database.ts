@@ -2638,8 +2638,12 @@ export type Database = {
           description_md: string | null
           discovered_at: string | null
           event_type_id: string | null
+          has_patient: boolean
           id: string
           location: string | null
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           reported_at: string
           reported_by: string | null
           reporting_commission_id: string
@@ -2661,8 +2665,12 @@ export type Database = {
           description_md?: string | null
           discovered_at?: string | null
           event_type_id?: string | null
+          has_patient?: boolean
           id?: string
           location?: string | null
+          phi_disposed_at?: string | null
+          phi_disposed_by?: string | null
+          phi_disposed_reason?: string | null
           reported_at?: string
           reported_by?: string | null
           reporting_commission_id: string
@@ -2684,8 +2692,12 @@ export type Database = {
           description_md?: string | null
           discovered_at?: string | null
           event_type_id?: string | null
+          has_patient?: boolean
           id?: string
           location?: string | null
+          phi_disposed_at?: string | null
+          phi_disposed_by?: string | null
+          phi_disposed_reason?: string | null
           reported_at?: string
           reported_by?: string | null
           reporting_commission_id?: string
@@ -2728,6 +2740,13 @@ export type Database = {
             columns: ["event_type_id"]
             isOneToOne: false
             referencedRelation: "pqs_event_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patient_safety_event_phi_disposed_by_fkey"
+            columns: ["phi_disposed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -2805,6 +2824,39 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      pqs_members: {
+        Row: {
+          added_at: string
+          added_by: string | null
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by?: string | null
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pqs_members_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pqs_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pqs_sentinel_criteria: {
         Row: {
@@ -3586,8 +3638,12 @@ export type Database = {
           description_md: string | null
           discovered_at: string | null
           event_type_id: string | null
+          has_patient: boolean
           id: string
           location: string | null
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           reported_at: string
           reported_by: string | null
           reporting_commission_id: string
@@ -3919,6 +3975,20 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "meeting_attendees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_pqs_member: {
+        Args: { p_user_id: string }
+        Returns: {
+          added_at: string
+          added_by: string | null
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pqs_members"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -4376,8 +4446,12 @@ export type Database = {
           description_md: string | null
           discovered_at: string | null
           event_type_id: string | null
+          has_patient: boolean
           id: string
           location: string | null
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           reported_at: string
           reported_by: string | null
           reporting_commission_id: string
@@ -5211,6 +5285,10 @@ export type Database = {
         Args: { p_section_id: string; p_target_section_id: string }
         Returns: undefined
       }
+      dispose_event_phi: {
+        Args: { p_event_id: string; p_reason: string }
+        Returns: undefined
+      }
       distribute_meeting: {
         Args: { p_meeting_id: string }
         Returns: {
@@ -5247,6 +5325,7 @@ export type Database = {
         }
       }
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
+      get_event_patient: { Args: { p_event_id: string }; Returns: Json }
       get_response_for_signoff: {
         Args: { p_response_id: string }
         Returns: Json
@@ -5299,6 +5378,7 @@ export type Database = {
         }[]
       }
       list_my_cases: { Args: { p_commission: string }; Returns: Json }
+      list_pqs_members: { Args: never; Returns: Json }
       list_signoff_queue: {
         Args: { p_commission_id: string }
         Returns: {
@@ -5396,8 +5476,12 @@ export type Database = {
           description_md: string | null
           discovered_at: string | null
           event_type_id: string | null
+          has_patient: boolean
           id: string
           location: string | null
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           reported_at: string
           reported_by: string | null
           reporting_commission_id: string
@@ -5606,6 +5690,7 @@ export type Database = {
         Args: { p_attendee_id: string }
         Returns: undefined
       }
+      remove_pqs_member: { Args: { p_user_id: string }; Returns: undefined }
       remove_rca_factor: { Args: { p_factor_id: string }; Returns: undefined }
       remove_rca_member: { Args: { p_member_id: string }; Returns: undefined }
       remove_rca_root_cause: {
@@ -6344,8 +6429,12 @@ export type Database = {
           description_md: string | null
           discovered_at: string | null
           event_type_id: string | null
+          has_patient: boolean
           id: string
           location: string | null
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           reported_at: string
           reported_by: string | null
           reporting_commission_id: string
@@ -6601,8 +6690,12 @@ export type Database = {
           description_md: string | null
           discovered_at: string | null
           event_type_id: string | null
+          has_patient: boolean
           id: string
           location: string | null
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           reported_at: string
           reported_by: string | null
           reporting_commission_id: string

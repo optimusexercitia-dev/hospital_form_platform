@@ -53,6 +53,16 @@ export type SuspectedHarmLevel =
 /** Patient biological sex on the isolated PHI record (minimum-necessary). */
 export type PatientSex = 'female' | 'male' | 'other' | 'unknown'
 
+/** WS C — the CONSTRAINED PHI-disposal justification category (never free text;
+ * Rule 11 + LGPD Art. 18). Mirrors the patient_safety_event.phi_disposed_reason
+ * CHECK; the UI's reason select binds to these. */
+export type PhiDisposeReason =
+  | 'retention_expired'
+  | 'subject_request'
+  | 'entered_in_error'
+  | 'duplicate'
+  | 'other'
+
 // ---------------------------------------------------------------------------
 // pt-BR display labels (Rule 10) — UI maps the ASCII slug → label
 // ---------------------------------------------------------------------------
@@ -88,6 +98,15 @@ export const PATIENT_SEX_LABELS: Record<PatientSex, string> = {
   male: 'Masculino',
   other: 'Outro',
   unknown: 'Não informado',
+}
+
+/** pt-BR labels for the PHI-disposal reason category (WS C). */
+export const PHI_DISPOSE_REASON_LABELS: Record<PhiDisposeReason, string> = {
+  retention_expired: 'Prazo de retenção expirado',
+  subject_request: 'Solicitação do titular',
+  entered_in_error: 'Registrado por engano',
+  duplicate: 'Registro duplicado',
+  other: 'Outro',
 }
 
 // ---------------------------------------------------------------------------

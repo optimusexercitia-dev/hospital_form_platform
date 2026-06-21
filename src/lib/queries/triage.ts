@@ -19,6 +19,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { auditClinicalView } from '@/lib/audit/access'
 import type {
   EventType,
   HarmSeverity,
@@ -158,7 +159,19 @@ export async function getEventTriage(eventId: string): Promise<Triage | null> {
     .maybeSingle()
     .returns<TriageRow | null>()
 
-  return data ? mapTriage(data) : null
+  if (!data) return null
+
+  // WS B (Rule 11/12): audit a detail-open of the triage worksheet (free-text
+  // disposition notes). Best-effort, app-layer on the RLS-scoped read.
+  await auditClinicalView({
+    eventId,
+    action: 'triage.viewed',
+    entityType: 'event_triage',
+    entityId: eventId,
+    summary: 'Triagem do evento visualizada',
+  })
+
+  return mapTriage(data)
 }
 
 /**

@@ -37,6 +37,8 @@ export const HC_CAPA_UNSETTLED_ACTIONS = 'HC051'
 export const HC_CAPA_NO_EFFECTIVENESS = 'HC052'
 /** Cancel blocked — the plan is already terminal (Phase 14d). */
 export const HC_CAPA_ALREADY_TERMINAL = 'HC053'
+/** WS C — PHI disposal is one-shot; a second call raises HC056. */
+export const HC_PHI_ALREADY_DISPOSED = 'HC056'
 
 /** Generic Postgres SQLSTATEs the safety RPCs/policies may surface. */
 export const PG_CHECK_VIOLATION = '23514'
@@ -153,6 +155,10 @@ export const SAFETY_MESSAGES = {
   capaMeasureRemoved: 'Medida removida.',
   capaResultRecorded: 'Resultado registrado.',
   capaEffectivenessRecorded: 'Verificação de eficácia registrada.',
+  // WS C — PHI disposal
+  phiDisposed: 'Dados do paciente descartados.',
+  phiAlreadyDisposed: 'Os dados do paciente deste evento já foram descartados.',
+  phiDisposeReasonInvalid: 'Selecione um motivo válido para o descarte.',
 } as const
 
 /**
@@ -170,6 +176,8 @@ export function mapSafetyError(
       return error.message || SAFETY_MESSAGES.eventWrongState
     case HC_NOT_CURRENT_CUSTODIAN:
       return error.message || SAFETY_MESSAGES.notCurrentCustodian
+    case HC_PHI_ALREADY_DISPOSED:
+      return error.message || SAFETY_MESSAGES.phiAlreadyDisposed
     case PG_FORBIDDEN:
       return SAFETY_MESSAGES.forbidden
     case PG_NO_DATA_FOUND:

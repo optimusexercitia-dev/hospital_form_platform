@@ -17,6 +17,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { auditClinicalView } from '@/lib/audit/access'
 import type {
   AssignableUser,
   Rca,
@@ -136,6 +137,7 @@ export async function getRca(eventId: string): Promise<Rca | null> {
     .returns<RcaRow | null>()
 
   if (!data) return null
+  await auditRcaView(data.id, data.event_id)
   return mapRca(data, await rcaViewerCanWrite(data.id))
 }
 
@@ -150,7 +152,21 @@ export async function getRcaById(rcaId: string): Promise<Rca | null> {
     .returns<RcaRow | null>()
 
   if (!data) return null
+  await auditRcaView(data.id, data.event_id)
   return mapRca(data, await rcaViewerCanWrite(data.id))
+}
+
+/** WS B (Rule 11/12): best-effort audit of an RCA workspace detail-open (free-text
+ * problem statement / 5-Whys / root-cause narratives), attributed to the event's
+ * reporting commission. App-layer on the RLS-scoped read. */
+async function auditRcaView(rcaId: string, eventId: string): Promise<void> {
+  await auditClinicalView({
+    eventId,
+    action: 'rca.viewed',
+    entityType: 'rca',
+    entityId: rcaId,
+    summary: 'Análise de causa raiz (RCA) visualizada',
+  })
 }
 
 interface RcaMemberRow {

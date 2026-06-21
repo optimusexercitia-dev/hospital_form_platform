@@ -100,10 +100,10 @@ interface SafetyEventRow {
   acknowledger: { full_name: string | null } | null
   closer: { full_name: string | null } | null
   cases: { case_number: number } | null
-  // A 0..1 embed used ONLY to derive `hasPatient` — selects NO identifier column.
-  // PostgREST returns this one-to-one embed as a single OBJECT (not an array)
-  // because `event_id` is both PK and FK on event_patient (P14a-003).
-  event_patient: { event_id: string } | null
+  // WS A: `hasPatient` now reads the denormalized has_patient column instead of an
+  // event_patient(event_id) embed — the embed breaks once direct SELECT on
+  // event_patient is revoked (the table is RPC-only).
+  has_patient: boolean
 }
 
 interface EventCustodyRow {
@@ -131,20 +131,19 @@ interface EventPatientRow {
   updated_at: string
 }
 
-/** Governance-only event select (NO identifier column; `event_patient(event_id)`
- * derives `hasPatient` without loading any PHI). */
+/** Governance-only event select (NO identifier column; the denormalized
+ * `has_patient` flag derives `hasPatient` without touching the PHI table). */
 const SAFETY_EVENT_SELECT =
   'id, code, reporting_commission_id, case_id, status, suspected_harm_level, ' +
   'event_type_id, title, description_md, location, discovered_at, reported_at, ' +
   'reported_by, current_owner_kind, current_owner_commission_id, acknowledged_at, ' +
-  'closed_at, created_at, ' +
+  'closed_at, created_at, has_patient, ' +
   'reporting_commission:reporting_commission_id(name), ' +
   'owner_commission:current_owner_commission_id(name), ' +
   'reporter:reported_by(full_name), ' +
   'acknowledger:acknowledged_by(full_name), ' +
   'closer:closed_by(full_name), ' +
-  'cases:case_id(case_number), ' +
-  'event_patient(event_id)'
+  'cases:case_id(case_number)'
 
 function mapSafetyEvent(r: SafetyEventRow): SafetyEvent {
   return {
@@ -173,7 +172,7 @@ function mapSafetyEvent(r: SafetyEventRow): SafetyEvent {
     acknowledgedByName: r.acknowledger?.full_name ?? null,
     closedAt: r.closed_at,
     closedByName: r.closer?.full_name ?? null,
-    hasPatient: r.event_patient != null,
+    hasPatient: r.has_patient,
     createdAt: r.created_at,
   }
 }
@@ -230,7 +229,20 @@ export async function getSafetyEvent(eventId: string): Promise<SafetyEvent | nul
     .maybeSingle()
     .returns<SafetyEventRow | null>()
 
-  return data ? mapSafetyEvent(data) : null
+  if (!data) return null
+
+  // WS B (Rule 11/12): a successful detail-open of a PHI-bearing event record emits
+  // a best-effort `safety_event.viewed` audit row (THAT + WHO, no clinical free text
+  // copied). App-layer on the RLS-scoped read (accepted bypass tradeoff, ADR 0030).
+  await logAuditAccess({
+    action: 'safety_event.viewed',
+    entityType: 'safety_event',
+    entityId: eventId,
+    commissionId: data.reporting_commission_id,
+    summary: 'Detalhe do evento de segurança visualizado',
+  })
+
+  return mapSafetyEvent(data)
 }
 
 /**
@@ -265,60 +277,38 @@ export async function getEventCustody(
 }
 
 /**
- * The isolated PHI panel for one event — THE AUDITED READ. On a successful load
- * this emits an explicit `event_patient.read` audit row attributing the caller
- * (Rule 12). Returns `null` when no PHI record exists OR the caller is out of
- * scope (in which case NO audit row is written — there was nothing read). NEVER
- * call this from a list/queue/aggregate path; use {@link SafetyEvent.hasPatient}
- * to gate the affordance.
+ * The isolated PHI panel for one event — THE AUDITED READ (WS A; ADR 0030/0031).
+ * Direct SELECT on event_patient is REVOKED from authenticated, so this goes
+ * through the `get_event_patient` SECURITY DEFINER RPC — the single door. The RPC
+ * re-gates with the tight identifier predicate (PQS member OR custodian
+ * staff_admin) AND emits the `event_patient.read` audit row server-side, so the
+ * read-audit can never be skipped and is no longer the app layer's job. Returns
+ * `null` when no PHI record exists OR the caller is out of scope (no audit row is
+ * written in that case). NEVER call from a list/queue/aggregate path; use
+ * {@link SafetyEvent.hasPatient} to gate the affordance.
  */
 export async function getEventPatient(
   eventId: string,
 ): Promise<EventPatient | null> {
   const supabase = await createClient()
-  const { data } = await supabase
-    .from('event_patient')
-    .select(
-      'event_id, name, mrn, date_of_birth, age_years, sex, encounter_ref, unit, ' +
-        'attending, updated_at',
-    )
-    .eq('event_id', eventId)
-    .maybeSingle()
-    .returns<EventPatientRow | null>()
+  const { data } = await supabase.rpc('get_event_patient', {
+    p_event_id: eventId,
+  })
 
-  // No row (or RLS-denied): nothing was actually read → write NO audit row.
+  // The RPC returns the identifier row as jsonb, or null (out of scope / no PHI).
   if (!data) return null
-
-  // HIPAA: a successful PHI load MUST emit an explicit `.read` audit row (Rule 12).
-  // Resolve the event's commission for the (commission-scoped) audit row; the audit
-  // metadata stays identifier-free (we pass none). Best-effort — never block the read.
-  const { data: ownerRow } = await supabase
-    .from('patient_safety_event')
-    .select('reporting_commission_id')
-    .eq('id', eventId)
-    .maybeSingle()
-    .returns<{ reporting_commission_id: string } | null>()
-
-  if (ownerRow) {
-    await logAuditAccess({
-      action: 'event_patient.read',
-      entityType: 'event_patient',
-      entityId: eventId,
-      commissionId: ownerRow.reporting_commission_id,
-      summary: 'Dados do paciente do evento visualizados',
-    })
-  }
+  const row = data as unknown as EventPatientRow
 
   return {
-    eventId: data.event_id,
-    name: data.name,
-    mrn: data.mrn,
-    dateOfBirth: data.date_of_birth,
-    ageYears: data.age_years,
-    sex: data.sex as PatientSex,
-    encounterRef: data.encounter_ref,
-    unit: data.unit,
-    attending: data.attending,
-    updatedAt: data.updated_at,
+    eventId: row.event_id,
+    name: row.name,
+    mrn: row.mrn,
+    dateOfBirth: row.date_of_birth,
+    ageYears: row.age_years,
+    sex: row.sex as PatientSex,
+    encounterRef: row.encounter_ref,
+    unit: row.unit,
+    attending: row.attending,
+    updatedAt: row.updated_at,
   }
 }

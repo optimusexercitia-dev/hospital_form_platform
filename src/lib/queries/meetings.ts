@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { logAuditAccess } from '@/lib/audit/access'
 
 /**
  * Meetings data-access (Phase 10 — Meetings; Architecture Rule 9 — all reads go
@@ -460,6 +461,16 @@ export async function getMeetingDetail(
     .maybeSingle<MeetingDetailRow>()
 
   if (error || !data) return null
+
+  // WS B (Rule 11/12): audit a meeting detail-open (free-text minutes_md). Best-
+  // effort, app-layer on the RLS-scoped read; commission-scoped attribution.
+  await logAuditAccess({
+    action: 'meeting.viewed',
+    entityType: 'meeting',
+    entityId: meetingId,
+    commissionId: data.commission_id,
+    summary: 'Detalhe da reunião visualizado',
+  })
 
   return {
     ...mapListItem(data),

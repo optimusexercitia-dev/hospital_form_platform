@@ -1,6 +1,0 @@
--- Initial migration (Phase 0): intentionally empty.
--- The canonical schema (profiles, commissions, forms, versions, sections,
--- items, responses, answers, sign-offs), RLS policies, helper functions, and
--- the submit_response RPC are introduced in Phase 1 via new, additive
--- migrations. This file exists so `supabase start` / `db reset` have a
--- migration history to apply from a clean clone.

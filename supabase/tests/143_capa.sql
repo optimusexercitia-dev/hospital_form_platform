@@ -34,6 +34,10 @@ create temp table k on commit drop as
   from ctx;
 grant select on k to authenticated;
 
+-- WS A: the bootstrap admin is the NSP/PQS operator in this file; enroll it in
+-- public.pqs_members (is_pqs_member no longer == admin). Mirrors the seed.
+insert into public.pqs_members (user_id) select admin from k;
+
 -- =========================================================================
 -- Drive an event -> triage(sentinel) -> RCA(completed with a root cause) so we can
 -- open an rca-sourced CAPA and test the close->event side effect.

@@ -44,14 +44,20 @@ Phase-13's "don't log reads" default for these tables.
 
 3. **PHI isolation + audited read.** `public.event_patient` is a 0..1 satellite
    (PK = `event_id`) holding minimum-necessary identifiers (name, MRN, DOB/age,
-   sex, encounter ref, unit, attending), encryption-ready (the most sensitive
-   columns can move to `extensions.` pgcrypto column-encryption without a shape
-   change). It carries the SAME access-follows-custody scope but is read ONLY via
+   sex, encounter ref, unit, attending). Column-level encryption was later
+   **considered and declined** — see ADR
+   [0035](./0035-lgpd-anvisa-regulatory-posture.md). It carries the SAME
+   access-follows-custody scope but is read ONLY via
    the dedicated `getEventPatient` path, which emits an explicit
    `event_patient.read` audit row (Rule 11/12) — added to the Phase-13
    `log_audit_access` positive allow-list. Identifiers are NEVER selected on the
    queue (`pqs_inbox`), the committee read-back list, or any aggregate path; the
    event row exposes only a `has_patient` boolean to gate the UI affordance.
+   **(Hardened 2026-06, ADR [0036](./0036-phi-access-hardening.md): direct
+   `authenticated` SELECT on `event_patient` was revoked and the read moved into
+   the `SECURITY DEFINER` `public.get_event_patient` RPC under the tighter
+   `app.can_read_event_patient` predicate — current-custodian staff_admins + PQS —
+   making the `event_patient.read` audit unbypassable.)**
 
 4. **Audit never copies PHI.** The mutation-audit triggers on
    `patient_safety_event` + `event_custody` use PHI-free column allow-lists

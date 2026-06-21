@@ -108,6 +108,9 @@ export type AuditAction =
   | 'safety_event.status_changed'
   | 'event_custody.transferred'
   | 'event_patient.updated'
+  // patient-safety PHI DISPOSAL (WS C) — the mutation row dispose_event_phi emits;
+  // metadata carries the CONSTRAINED reason category only (PHI-free, Rule 11/12).
+  | 'event_patient.disposed'
   // patient-safety PHI READ — explicit `.read` call site (Rule 11/12; HIPAA)
   | 'event_patient.read'
   // patient-safety / NSP triage (Phase 14b) — PHI-free metadata allow-list
@@ -130,6 +133,15 @@ export type AuditAction =
   // exports (logged via explicit `.export` writer calls in the route layer)
   | 'response.exported'
   | 'audit.exported'
+  // PHI-bearing clinical-detail READS (WS B; Rule 11/12) — emitted app-layer by the
+  // query helpers on the existing RLS-scoped reads (`.viewed` distinguishes them from
+  // mutation verbs). The residual app-layer bypass is the accepted tradeoff (ADR 0030).
+  | 'safety_event.viewed'
+  | 'triage.viewed'
+  | 'rca.viewed'
+  | 'capa.viewed'
+  | 'meeting.viewed'
+  | 'interview.viewed'
 
 // ---------------------------------------------------------------------------
 // pt-BR display labels (Rule 10) — UI maps the ASCII slug → label
@@ -196,6 +208,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'event_custody.transferred': 'Custódia do evento transferida',
   'event_patient.updated': 'Dados do paciente atualizados',
   'event_patient.read': 'Dados do paciente visualizados',
+  'event_patient.disposed': 'Dados do paciente descartados',
   'triage.saved': 'Triagem salva',
   'triage.confirmed': 'Triagem confirmada',
   'triage.reopened': 'Triagem reaberta',
@@ -210,6 +223,12 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'capa.cancelled': 'Plano de ação cancelado',
   'capa.reopened': 'Plano de ação reaberto',
   'capa.effectiveness_recorded': 'Eficácia verificada',
+  'safety_event.viewed': 'Detalhe do evento visualizado',
+  'triage.viewed': 'Triagem visualizada',
+  'rca.viewed': 'Análise de causa raiz visualizada',
+  'capa.viewed': 'Plano de ação (CAPA) visualizado',
+  'meeting.viewed': 'Detalhe da reunião visualizado',
+  'interview.viewed': 'Detalhe da entrevista visualizado',
   'response.exported': 'Respostas exportadas',
   'audit.exported': 'Trilha de auditoria exportada',
 }

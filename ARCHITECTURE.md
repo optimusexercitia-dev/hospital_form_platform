@@ -123,8 +123,9 @@ may extend the schema but never contradict it. Cross-references elsewhere to
     action (`<entity>.<verb>`), the entity reference, and a diff over a curated
     **allow-list of non-sensitive columns**; reads of *another* member's data
     (foreign-submission view, CSV/evidence export, surveyor portal) **and every
-    read of PHI** (Rule 12 — the patient panels and the isolated `event_patient`
-    table) emit an explicit `.read`/`.export` row. The log is **never updated or deleted** (a
+    read of PHI** (Rule 12 — the isolated `event_patient` identifiers via the
+    single-door RPC, and the clinical free-text detail-opens) emit an explicit
+    `.read`/`.viewed`/`.export` row. The log is **never updated or deleted** (a
     BEFORE UPDATE/DELETE guard raises even for the service role) and is
     hash-chained per commission so tampering is detectable. **Never copy answer
     payloads, free-text/Markdown bodies, or PHI into the log** — it records *that*
@@ -134,23 +135,58 @@ may extend the schema but never contradict it. Cross-references elsewhere to
     all; staff_admin: own commission; staff/anon: none). New cross-cutting features
     add their high-value tables to the instrumented set as they land.
 
-12. **PHI / HIPAA handling** (established in Phase 14; see ADR 0030). PHI is
-    permitted on HIPAA-compliant infrastructure (Supabase, under a BAA), reversing
-    the former no-patient-data rule. It is governed by:
+12. **PHI / HIPAA handling** (established in Phase 14; hardened in the 2026-06
+    PHI-readiness remediation — see ADR 0030, 0035, 0036). PHI is permitted on
+    HIPAA-compliant infrastructure (Supabase, under a BAA); the binding regime is
+    **LGPD + ANVISA/RDC + CFM** (ADR 0035). It is governed by:
     - **Minimum necessary** — PHI is collected only where the domain requires it
       (the patient-safety / NSP module: `event_patient`, RCA/CAPA context) and
       **isolated** into dedicated tables (`event_patient` is a 0..1 satellite of
       `patient_safety_event`), never inlined onto governance rows and never
       selected on queue/list/aggregate paths.
-    - **Access control** — RLS is the authority (Rule 1); PHI tables carry the
-      tightest scope (current custodian + reporting committee for provenance +
-      PQS/admin), and the NSP domain gates on `app.is_pqs_member` (= `is_admin()`
-      until real PQS membership lands).
-    - **Access auditing** — every PHI read emits an explicit `.read` audit row
-      (Rule 11); HIPAA *requires* this, inverting Phase 13's original
+    - **Membership, not admin** — the NSP domain gates on `app.is_pqs_member`,
+      backed by a real `public.pqs_members` table (no `is_admin` fallback). A
+      platform admin is **not** an NSP actor — it must be enrolled in
+      `pqs_members` to read or write any NSP/PHI content (deliberate IT/clinical
+      duty separation). Disposal is the sole admin-or-PQS exception (below).
+    - **Access control** — RLS is the authority (Rule 1). The governance event is
+      readable access-follows-custody (current custodian + reporting committee for
+      provenance + PQS). The **isolated identifiers** (`event_patient`) are scoped
+      *tighter* than the event — current-custodian **staff_admins** + PQS only
+      (`app.can_read_event_patient`) — and carry **no direct read grant**:
+      `authenticated` has zero DML on `event_patient`; the only door is the
+      `SECURITY DEFINER` `public.get_event_patient` RPC.
+    - **Access auditing** — the single-door identifier read emits an
+      **unbypassable** `event_patient.read` row from inside the RPC (Rule 11).
+      Clinical free-text detail-opens (event / triage / RCA / CAPA / meeting /
+      interview) emit an app-layer `*.viewed` row; per ADR 0036 these keep their
+      RLS-scoped reads, so that audit is best-effort and bypassable by a direct
+      PostgREST caller — an accepted, documented residual (the identifiers are
+      not). HIPAA/LGPD *require* PHI-access logging, inverting Phase 13's original
       "don't log reads" default for these tables.
-    - **Encryption** — at rest on the Supabase platform, with optional
-      column-level encryption (pgcrypto) for the most sensitive identifiers.
+    - **Free-text is PHI** — the clinical free-text/Markdown columns (event
+      `description_md`, triage notes, the RCA narrative + factor/root-cause/
+      timeline text, CAPA lessons/method/task text, meeting minutes + agenda
+      discussion/resolution, interview summaries + subject notes, case narratives
+      + events) are **PHI-bearing** (labeled by SQL column COMMENTs) and must be
+      treated as PHI by evidence/surveyor export (Phase 19) — never shipped as
+      "PHI-free". Short `*.title`/label fields are governance metadata and are
+      **kept** PHI-free by input policy.
+    - **Encryption** — at-rest encryption on the Supabase platform (under the
+      BAA). Column-/application-level encryption (pgcrypto) was **considered and
+      declined**: it does not address the platform threat model (a compromised
+      app role decrypts on read), co-locates keys with the data, and breaks
+      search/sort on the MRN/name identifiers the NSP must query. Minimum-
+      necessary RLS + the audited single-door identifier read are the
+      confidentiality controls instead (see ADR 0035).
+    - **Retention & disposal** — `public.dispose_event_phi` deletes/redacts an
+      event's PHI (identifiers + clinical free-text) while preserving the
+      governance skeleton (codes, status, custody ledger, structured non-PHI) and
+      the audit chain; it stamps `phi_disposed_at/by/reason` (a constrained
+      category, never free text), sets `has_patient = false`, and emits
+      `event_patient.disposed`. This is the LGPD Art. 18 erasure mechanism
+      reconciled with CFM 20-year retention of the governance record (ADR
+      0035/0036).
     - **Operational prerequisites** (Phase 9 deployment gates) — an executed
       Supabase BAA, a HIPAA-eligible project tier, and a breach-response posture.
     Modules that don't need patient identity hold none by design.

@@ -8,6 +8,7 @@ import type {
   ActionState,
   NotifyEventInput,
   NotifyEventState,
+  PhiDisposeReason,
   SetEventPatientInput,
   TransferCustodyInput,
   UpdateEventInput,
@@ -210,4 +211,30 @@ export async function cancelEvent(eventId: string): Promise<ActionState> {
 
   revalidateSafety()
   return { ok: true, message: SAFETY_MESSAGES.eventCancelled }
+}
+
+/**
+ * WS C — dispose the event's PHI (LGPD Art. 18 erasure). Destructively NULLs/redacts
+ * every PHI free-text column across the event + triage + RCA* + CAPA* and deletes the
+ * isolated event_patient row, PRESERVING the governance skeleton (codes, status,
+ * custody ledger, structured non-PHI, audit chain), then stamps who/when/why +
+ * has_patient=false and emits one PHI-free `event_patient.disposed` audit row. The
+ * `dispose_event_phi` DEFINER is the authority (admin/PQS gate → 42501; one-shot →
+ * HC056); `reason` is a CONSTRAINED category, never free text.
+ */
+export async function disposeEventPhi(
+  eventId: string,
+  reason: PhiDisposeReason,
+): Promise<ActionState> {
+  if (!eventId) return { ok: false, error: SAFETY_MESSAGES.missingEvent }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('dispose_event_phi', {
+    p_event_id: eventId,
+    p_reason: reason,
+  })
+  if (error) return { ok: false, error: mapSafetyError(error) }
+
+  revalidateSafety()
+  return { ok: true, message: SAFETY_MESSAGES.phiDisposed }
 }

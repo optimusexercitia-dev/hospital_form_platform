@@ -29,6 +29,14 @@ export type AuditAccessAction = Extract<
   // patient-safety PHI READ (Phase 14a; Rule 11/12 — HIPAA requires logging PHI
   // access). Added to the DB-side positive allow-list in migration …121004.
   | 'event_patient.read'
+  // PHI-bearing clinical-detail READS (WS B; Rule 11/12) — a detail-open of an
+  // event / triage / RCA / CAPA / meeting / interview record on the RLS-scoped path.
+  | 'safety_event.viewed'
+  | 'triage.viewed'
+  | 'rca.viewed'
+  | 'capa.viewed'
+  | 'meeting.viewed'
+  | 'interview.viewed'
 >
 
 export async function logAuditAccess(params: {
@@ -53,5 +61,40 @@ export async function logAuditAccess(params: {
     })
   } catch {
     // Best-effort: never let an audit-logging failure break the underlying read.
+  }
+}
+
+/**
+ * WS B convenience: emit a clinical-detail `.viewed` audit row for a record that
+ * hangs off a patient-safety event, attributing it to the event's reporting
+ * (provenance) commission. Resolves the commission with a lightweight PK lookup;
+ * best-effort throughout (a missing event or a failed write never breaks the read).
+ * Use for the event/triage/RCA/CAPA detail reads that live under one event.
+ */
+export async function auditClinicalView(params: {
+  eventId: string
+  action: AuditAccessAction
+  entityType: AuditEntityType
+  entityId: string
+  summary: string
+}): Promise<void> {
+  try {
+    const supabase = await createClient()
+    const { data } = await supabase
+      .from('patient_safety_event')
+      .select('reporting_commission_id')
+      .eq('id', params.eventId)
+      .maybeSingle()
+      .returns<{ reporting_commission_id: string } | null>()
+    if (!data) return
+    await logAuditAccess({
+      action: params.action,
+      entityType: params.entityType,
+      entityId: params.entityId,
+      commissionId: data.reporting_commission_id,
+      summary: params.summary,
+    })
+  } catch {
+    // Best-effort.
   }
 }

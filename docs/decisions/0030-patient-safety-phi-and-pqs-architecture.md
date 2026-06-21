@@ -54,9 +54,11 @@ through a design interview, 2026-06-18).
      logged" (an explicit `.read` audit row on the isolated PHI table and the
      patient panels), while the audit log still never *copies* PHI/clinical
      free-text bodies into itself;
-   - **encryption at rest** (Supabase platform) with optional column-level
-     encryption (pgcrypto is already available) for the most sensitive
-     identifiers;
+   - **encryption at rest** (Supabase platform, under the BAA); application/
+     column-level encryption (pgcrypto) was later **considered and declined**
+     (see ADR [0035](./0035-lgpd-anvisa-regulatory-posture.md)), leaving
+     minimum-necessary RLS + the audited single-door identifier read as the
+     confidentiality controls;
    - an **executed Supabase BAA + HIPAA-eligible project tier + breach-response
      posture** are **Phase-9 deployment-gating** items.
 
@@ -64,7 +66,10 @@ through a design interview, 2026-06-18).
    - **Dedicated PQS entity.** A singleton `pqs_department` + an access helper
      `app.is_pqs_member(uid)` that returns `is_admin()` today and later ORs in a
      real `pqs_members` table — so the data model is "prepared for the elaborate
-     module" the owner anticipates. PQS workspaces live under `/admin/nsp`;
+     module" the owner anticipates. **(Realized 2026-06, ADR
+     [0036](./0036-phi-access-hardening.md): `pqs_members` now exists and
+     `is_pqs_member` dropped the `is_admin()` fallback — a platform admin is
+     severed from NSP/PHI unless enrolled.)** PQS workspaces live under `/admin/nsp`;
      committee-side reporting + read-back live under `c/[slug]`.
    - **Two tiers with an escalation bridge.** Committees keep their existing
      **lightweight action-tasks** (`case_action_items` / `meeting_action_items`)

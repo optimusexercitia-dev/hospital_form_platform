@@ -40,6 +40,7 @@ yarn-error.log*
 /playwright/.cache/
 # ad-hoc run logs captured during gate runs (redirected output, never source)
 /playwright-*.txt
+/prod-server*.log
 
 # vercel
 .vercel

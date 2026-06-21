@@ -22,12 +22,16 @@ dashboards instead of manual tabulation. Frontend design should be professional,
 
 **Patient data (PHI) is in scope, on HIPAA-compliant infrastructure (Supabase, under
 a BAA) — see ADR [0030](./docs/decisions/0030-patient-safety-phi-and-pqs-architecture.md).**
-It is collected only where the clinical-governance domain requires it — notably the
-Phase-14 **patient-safety / NSP module** — and handled under HIPAA safeguards:
-minimum-necessary access via RLS, PHI isolated into dedicated tables, PHI-access
-auditing, and encryption (ARCHITECTURE.md **Rule 12**). Modules that don't need patient
-identity stay PHI-free by design. This **reverses** the platform's former "no patient
-data, ever" rule.
+The **binding regulatory regime** for this Brazilian deployment is **LGPD + ANVISA/RDC +
+CFM 1821/2007** (20-yr record retention); the HIPAA BAA is the *infrastructure* safeguard,
+not the governing law — see ADR
+[0035](./docs/decisions/0035-lgpd-anvisa-regulatory-posture.md). PHI is collected only where
+the clinical-governance domain requires it — notably the Phase-14 **patient-safety / NSP
+module** — and handled under those safeguards: minimum-necessary access via RLS, PHI isolated
+into dedicated tables, PHI-access auditing, and platform at-rest encryption (column-level
+encryption considered and **declined**; ARCHITECTURE.md **Rule 12**, ADR 0035). Modules that
+don't need patient identity stay PHI-free by design. This **reverses** the platform's former
+"no patient data, ever" rule.
 
 **Positioning: a governance / quality LAYER for hospital accreditation.** Beyond
 digitizing checklists, the platform is being built to help hospitals satisfy — and
@@ -193,10 +197,12 @@ its numbered rules. In brief:
     data — and every read of PHI (Rule 12) — are logged. The log records *that*
     something changed/was read and *who*, never copying answer payloads, free-text/
     Markdown bodies, or PHI into itself.
-12. **PHI / HIPAA handling** (established Phase 14; ADR 0030) — PHI is permitted on
-    HIPAA-compliant infrastructure (Supabase BAA), collected minimum-necessary,
+12. **PHI / HIPAA handling** (established Phase 14; ADR 0030, ADR 0035) — PHI is
+    permitted on HIPAA-compliant infrastructure (Supabase BAA), under the binding
+    LGPD + ANVISA/RDC + CFM regime (ADR 0035), collected minimum-necessary,
     isolated into dedicated tables behind the tightest RLS, access-audited, and
-    encrypted. Modules that don't need patient identity hold none by design.
+    protected by platform at-rest encryption (column-level encryption declined).
+    Modules that don't need patient identity hold none by design.
 
 See ARCHITECTURE.md for the authoritative, detailed form of each rule.
 

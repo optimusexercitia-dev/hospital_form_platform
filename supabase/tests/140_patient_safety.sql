@@ -37,6 +37,10 @@ create temp table k on commit drop as
   from ctx;
 grant select on k to authenticated;
 
+-- WS A: the bootstrap admin is the NSP/PQS operator in this file; enroll it in
+-- public.pqs_members (is_pqs_member no longer == admin). Mirrors the seed.
+insert into public.pqs_members (user_id) select admin from k;
+
 -- A case in comm_x (for the case-linked notify path + the case_events assertion).
 create temp table cs on commit drop as select gen_random_uuid() as case_x;
 grant select on cs to authenticated;
@@ -269,20 +273,24 @@ select cmp_ok(
   '>=', 1, 'pqs_inbox returns the open events to a PQS member');
 reset role;
 
--- A foreign committee can read e1's PHI? No — same access scope (0 rows).
+-- WS A: event_patient is now RPC-ONLY — direct SELECT is REVOKED from
+-- authenticated for EVERY caller (the audited public.get_event_patient is the only
+-- door). The identifier-access MATRIX (PQS member yes / custodian-staff_admin yes /
+-- reporting member no / admin-not-in-pqs no) is tested in 145_pqs_membership.sql.
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
-select is(
-  (select count(*)::int from public.event_patient where event_id = (select id from e1)),
-  0, 'PHI: a foreign committee reads 0 event_patient rows (tightest scope)');
+select throws_ok(
+  $$ select count(*) from public.event_patient $$,
+  '42501', null,
+  'PHI: a foreign committee cannot directly SELECT event_patient (revoked; RPC-only)');
 reset role;
 
--- The reporting/custodian committee CAN read the PHI row.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select is(
-  (select count(*)::int from public.event_patient where event_id = (select id from e1)),
-  1, 'PHI: the custodian/reporting committee reads its event_patient row');
+select throws_ok(
+  $$ select count(*) from public.event_patient $$,
+  '42501', null,
+  'PHI: even the reporting committee cannot directly SELECT event_patient (RPC-only door)');
 reset role;
 
 -- =========================================================================

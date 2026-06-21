@@ -18,6 +18,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { auditClinicalView } from '@/lib/audit/access'
 import type {
   CapaAction,
   CapaActionEvidence,
@@ -171,7 +172,23 @@ export async function getCapaPlan(capaId: string): Promise<CapaPlan | null> {
     .maybeSingle()
     .returns<CapaPlanRow | null>()
 
-  return data ? mapCapaPlan(data) : null
+  if (!data) return null
+  const plan = await mapCapaPlan(data)
+
+  // WS B (Rule 11/12): audit a CAPA detail-open (free-text lessons-learned /
+  // effectiveness method) when it is event/RCA-scoped — attribute to the event's
+  // reporting commission. Non-event-sourced CAPA (e.g. meeting) carries no PHI event.
+  if (plan.eventId) {
+    await auditClinicalView({
+      eventId: plan.eventId,
+      action: 'capa.viewed',
+      entityType: 'capa_plan',
+      entityId: plan.id,
+      summary: 'Plano de ação (CAPA) visualizado',
+    })
+  }
+
+  return plan
 }
 
 /** All CAPA plans opened from an event (event-sourced OR via the event's RCA), newest-first. */
