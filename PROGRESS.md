@@ -30,7 +30,7 @@
 | 19    | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
 | 20    | Notifications & Escalation    | 🔜 not started | – | – | – | – | – | – |
 | 21    | Committee Charters & Cadence  | 🔜 not started | – | – | – | – | – | – |
-| 22    | Inter-Committee Case Referrals | ✅ complete | ✅ | ✅ 29/29 + full 276/326 | ✅ APPROVED 2026-06-21 | ✅ 2026-06-21 | 2026-06-21 | _pending_ |
+| 22    | Inter-Committee Case Referrals | ✅ complete | ✅ | ✅ 29/29 + full 276/326 | ✅ APPROVED 2026-06-21 | ✅ 2026-06-21 | 2026-06-21 | `768b9f1` |
 
 > **Accreditation & Quality-Governance Track (13–21)** — planned 2026-06-17; specs in
 > [PHASES.md](PHASES.md) (§ Accreditation track), rationale in ADR
