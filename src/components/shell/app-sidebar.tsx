@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  ArrowLeftRight,
   BarChart3,
   Briefcase,
   CalendarDays,
@@ -42,6 +43,12 @@ export interface SidebarCounts {
   assinaturas: number;
   /** Meetings awaiting the current user's signature (Phase 10). */
   reunioesPendentes: number;
+  /**
+   * Inter-committee referrals needing this commission's attention (Phase 22 —
+   * `case_referrals`): incoming awaiting receive/accept/reply + outgoing drafts.
+   * Drives the "Encaminhamentos" nav badge.
+   */
+  encaminhamentos: number;
 }
 
 type CountKey = keyof SidebarCounts;
@@ -54,7 +61,7 @@ interface NavItem {
   roles: CommissionRole[];
   countKey?: CountKey;
   /** When set, the item only renders if this feature flag is on (Phase 10+). */
-  requiresFeature?: "meetings" | "audit" | "patient_safety";
+  requiresFeature?: "meetings" | "audit" | "patient_safety" | "case_referrals";
   /**
    * Gates this item on the `case_access` flag (Case Access Control, ADR 0033):
    *  - `"on"`  → render only when the flag is ON ("Meus Casos").
@@ -135,6 +142,14 @@ const NAV_GROUPS: NavGroup[] = [
         roles: ["staff", "staff_admin"],
         requiresFeature: "patient_safety",
       },
+      {
+        label: "Encaminhamentos",
+        href: "encaminhamentos",
+        icon: ArrowLeftRight,
+        roles: ["staff", "staff_admin"],
+        countKey: "encaminhamentos",
+        requiresFeature: "case_referrals",
+      },
     ],
   },
   {
@@ -199,6 +214,7 @@ export function AppSidebar({
   meetingsEnabled = false,
   auditEnabled = false,
   patientSafetyEnabled = false,
+  referralsEnabled = false,
   caseAccessEnabled = false,
 }: {
   slug: string;
@@ -216,6 +232,8 @@ export function AppSidebar({
   auditEnabled?: boolean;
   /** Whether the `patient_safety` flag is on (gates the "Eventos de segurança" item). */
   patientSafetyEnabled?: boolean;
+  /** Whether the `case_referrals` flag is on (gates the "Encaminhamentos" item). */
+  referralsEnabled?: boolean;
   /**
    * Whether the `case_access` flag is on (ADR 0033). Drives the "Minhas fases"
    * (OFF) ↔ "Meus Casos" (ON) inverse swap; default `false` keeps today's nav.
@@ -236,6 +254,8 @@ export function AppSidebar({
     if (item.requiresFeature === "meetings" && !meetingsEnabled) return false;
     if (item.requiresFeature === "audit" && !auditEnabled) return false;
     if (item.requiresFeature === "patient_safety" && !patientSafetyEnabled)
+      return false;
+    if (item.requiresFeature === "case_referrals" && !referralsEnabled)
       return false;
     // The "Minhas fases" / "Meus Casos" inverse pair: one shows per the flag.
     if (item.caseAccess === "on" && !caseAccessEnabled) return false;

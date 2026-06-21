@@ -1,4 +1,4 @@
-import { test, expect, type APIRequestContext } from '@playwright/test'
+import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 
 /**
  * PHI/HIPAA-Readiness Remediation — E2E acceptance tests
@@ -73,12 +73,12 @@ const PHI_ENC  = 'ENC-2026'
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function signInAs(page: Parameters<typeof test>[1]['page'], email: string) {
+async function signInAs(page: Page, email: string) {
   await page.goto('/login')
   await page.getByLabel('E-mail').fill(email)
   await page.getByLabel('Senha').fill('Test1234!')
   await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), {
+  await page.waitForURL((url: URL) => !url.pathname.startsWith('/login'), {
     timeout: 20_000,
   })
 }

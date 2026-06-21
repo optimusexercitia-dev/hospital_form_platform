@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ListChecks, Settings } from "lucide-react";
+import { ArrowLeftRight, ListChecks, Settings } from "lucide-react";
 
 import { requireUser } from "@/lib/queries/session";
 import { listCommissionsForAdmin } from "@/lib/queries/commissions";
@@ -10,6 +10,7 @@ import {
   patientSafetyEnabled,
   type PqsInboxFilters,
 } from "@/lib/queries/pqs";
+import { referralsEnabled } from "@/lib/queries/referrals";
 import {
   EVENT_STATUS_LABELS,
   SUSPECTED_HARM_LABELS,
@@ -59,9 +60,10 @@ export default async function NspInboxPage({
     reportingCommissionId: sp.commission || undefined,
   };
 
-  const [items, commissions] = await Promise.all([
+  const [items, commissions, referralsOn] = await Promise.all([
     pqsInbox(filters),
     listCommissionsForAdmin(),
+    referralsEnabled(),
   ]);
 
   const commissionNames = Object.fromEntries(
@@ -97,6 +99,15 @@ export default async function NspInboxPage({
             <ListChecks aria-hidden="true" className="size-4" />
             Abrir triagem
           </Link>
+          {referralsOn && (
+            <Link
+              href="/admin/nsp/encaminhamentos"
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+            >
+              <ArrowLeftRight aria-hidden="true" className="size-4" />
+              Encaminhamentos
+            </Link>
+          )}
           <Link
             href="/admin/nsp/configuracoes"
             className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"

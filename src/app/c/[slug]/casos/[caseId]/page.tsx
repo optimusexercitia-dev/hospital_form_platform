@@ -13,6 +13,7 @@ import { listCaseInterviews, interviewsEnabled } from "@/lib/queries/interviews"
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
+import { buildCaseReferralsModule } from "@/components/referrals/build-case-referrals-module";
 
 export const metadata: Metadata = {
   title: "Caso",
@@ -78,6 +79,10 @@ export default async function StaffCaseDetailPage({
       interviewsOn ? listCaseInterviews(caseId) : Promise.resolve([]),
     ]);
 
+  // The outbound-referrals card module (Phase 22; null when the flag is off). Built
+  // from data already loaded — no inline supabase-js (Rule 9; UI-prop assembly).
+  const referralsModule = await buildCaseReferralsModule(detail, documents);
+
   return (
     <CaseDetailView
       slug={slug}
@@ -97,6 +102,7 @@ export default async function StaffCaseDetailPage({
       myRole={myRole}
       withHeader
       backHref={`/c/${slug}/meus-casos`}
+      referralsModule={referralsModule}
     />
   );
 }

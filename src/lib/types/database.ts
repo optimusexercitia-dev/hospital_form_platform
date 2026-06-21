@@ -1412,6 +1412,139 @@ export type Database = {
           },
         ]
       }
+      case_referral: {
+        Row: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          type_label: string
+          updated_at: string
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        Insert: {
+          code: string
+          concluded_at?: string | null
+          concluded_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decline_note?: string | null
+          description_md?: string | null
+          has_patient?: boolean
+          id?: string
+          received_at?: string | null
+          received_by?: string | null
+          referral_type_id?: string | null
+          response_expected?: boolean
+          sent_at?: string | null
+          sent_by?: string | null
+          source_case_id: string
+          source_commission_id: string
+          status?: string
+          subject: string
+          target_case_id?: string | null
+          target_commission_id: string
+          type_label: string
+          updated_at?: string
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+        }
+        Update: {
+          code?: string
+          concluded_at?: string | null
+          concluded_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          decided_at?: string | null
+          decided_by?: string | null
+          decline_note?: string | null
+          description_md?: string | null
+          has_patient?: boolean
+          id?: string
+          received_at?: string | null
+          received_by?: string | null
+          referral_type_id?: string | null
+          response_expected?: boolean
+          sent_at?: string | null
+          sent_by?: string | null
+          source_case_id?: string
+          source_commission_id?: string
+          status?: string
+          subject?: string
+          target_case_id?: string | null
+          target_commission_id?: string
+          type_label?: string
+          updated_at?: string
+          withdrawn_at?: string | null
+          withdrawn_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_referral_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_referral_referral_type_id_fkey"
+            columns: ["referral_type_id"]
+            isOneToOne: false
+            referencedRelation: "referral_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_referral_source_case_id_fkey"
+            columns: ["source_case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_referral_source_commission_id_fkey"
+            columns: ["source_commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_referral_target_case_id_fkey"
+            columns: ["target_case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_referral_target_commission_id_fkey"
+            columns: ["target_commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_tag_assignments: {
         Row: {
           assigned_at: string
@@ -3494,6 +3627,304 @@ export type Database = {
           },
         ]
       }
+      referral_patient: {
+        Row: {
+          age_years: number | null
+          attending: string | null
+          created_at: string
+          date_of_birth: string | null
+          encounter_ref: string | null
+          mrn: string | null
+          name: string | null
+          referral_id: string
+          sex: string
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          age_years?: number | null
+          attending?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          encounter_ref?: string | null
+          mrn?: string | null
+          name?: string | null
+          referral_id: string
+          sex?: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          age_years?: number | null
+          attending?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          encounter_ref?: string | null
+          mrn?: string | null
+          name?: string | null
+          referral_id?: string
+          sex?: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_patient_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: true
+            referencedRelation: "case_referral"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_reply: {
+        Row: {
+          acknowledged_only: boolean
+          created_at: string
+          outcome_label: string | null
+          referral_id: string
+          replied_at: string | null
+          replied_by: string | null
+          reply_outcome_id: string | null
+          result_md: string | null
+          updated_at: string
+        }
+        Insert: {
+          acknowledged_only?: boolean
+          created_at?: string
+          outcome_label?: string | null
+          referral_id: string
+          replied_at?: string | null
+          replied_by?: string | null
+          reply_outcome_id?: string | null
+          result_md?: string | null
+          updated_at?: string
+        }
+        Update: {
+          acknowledged_only?: boolean
+          created_at?: string
+          outcome_label?: string | null
+          referral_id?: string
+          replied_at?: string | null
+          replied_by?: string | null
+          reply_outcome_id?: string | null
+          result_md?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_reply_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: true
+            referencedRelation: "case_referral"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_reply_replied_by_fkey"
+            columns: ["replied_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_reply_reply_outcome_id_fkey"
+            columns: ["reply_outcome_id"]
+            isOneToOne: false
+            referencedRelation: "reply_outcomes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_reply_attachment: {
+        Row: {
+          created_at: string
+          id: string
+          mime_type: string | null
+          referral_id: string
+          size_bytes: number | null
+          storage_path: string
+          title: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          mime_type?: string | null
+          referral_id: string
+          size_bytes?: number | null
+          storage_path: string
+          title: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          mime_type?: string | null
+          referral_id?: string
+          size_bytes?: number | null
+          storage_path?: string
+          title?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_reply_attachment_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "case_referral"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_reply_attachment_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_shared_item: {
+        Row: {
+          created_at: string
+          frozen_body_md: string | null
+          frozen_mime_type: string | null
+          frozen_size_bytes: number | null
+          frozen_storage_path: string | null
+          frozen_title: string | null
+          id: string
+          kind: string
+          position: number
+          referral_id: string
+          source_document_id: string | null
+          source_narrative_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          frozen_body_md?: string | null
+          frozen_mime_type?: string | null
+          frozen_size_bytes?: number | null
+          frozen_storage_path?: string | null
+          frozen_title?: string | null
+          id?: string
+          kind: string
+          position?: number
+          referral_id: string
+          source_document_id?: string | null
+          source_narrative_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          frozen_body_md?: string | null
+          frozen_mime_type?: string | null
+          frozen_size_bytes?: number | null
+          frozen_storage_path?: string | null
+          frozen_title?: string | null
+          id?: string
+          kind?: string
+          position?: number
+          referral_id?: string
+          source_document_id?: string | null
+          source_narrative_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_shared_item_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "case_referral"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_shared_item_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "case_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_shared_item_source_narrative_id_fkey"
+            columns: ["source_narrative_id"]
+            isOneToOne: false
+            referencedRelation: "case_narratives"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_types: {
+        Row: {
+          color_token: string | null
+          created_at: string
+          default_response_expected: boolean
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          color_token?: string | null
+          created_at?: string
+          default_response_expected?: boolean
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          color_token?: string | null
+          created_at?: string
+          default_response_expected?: boolean
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      reply_outcomes: {
+        Row: {
+          color_token: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          color_token?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          color_token?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       response_section_signoffs: {
         Row: {
           id: string
@@ -3623,6 +4054,44 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_referral: {
+        Args: { p_referral_id: string }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          type_label: string
+          updated_at: string
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       acknowledge_event: {
         Args: { p_event_id: string }
         Returns: {
@@ -4107,6 +4576,59 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "rca_timeline_entries"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_referral_reply_attachment: {
+        Args: {
+          p_mime_type?: string
+          p_referral_id: string
+          p_size_bytes?: number
+          p_storage_path: string
+          p_title: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          mime_type: string | null
+          referral_id: string
+          size_bytes: number | null
+          storage_path: string
+          title: string
+          uploaded_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_reply_attachment"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_referral_shared_item: {
+        Args: {
+          p_kind: string
+          p_referral_id: string
+          p_source_document_id?: string
+          p_source_narrative_id?: string
+        }
+        Returns: {
+          created_at: string
+          frozen_body_md: string | null
+          frozen_mime_type: string | null
+          frozen_size_bytes: number | null
+          frozen_storage_path: string | null
+          frozen_title: string | null
+          id: string
+          kind: string
+          position: number
+          referral_id: string
+          source_document_id: string | null
+          source_narrative_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_shared_item"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -4803,6 +5325,49 @@ export type Database = {
         }
       }
       conclude_narrative: { Args: { p_narrative: string }; Returns: undefined }
+      conclude_referral: {
+        Args: {
+          p_acknowledged_only?: boolean
+          p_referral_id: string
+          p_reply_outcome_id?: string
+          p_result_md?: string
+        }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          type_label: string
+          updated_at: string
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       confirm_triage: {
         Args: { p_event_id: string }
         Returns: {
@@ -5174,6 +5739,50 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_referral_draft: {
+        Args: {
+          p_referral_type_id: string
+          p_response_expected?: boolean
+          p_source_case_id: string
+          p_subject: string
+          p_target_commission_id: string
+        }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          type_label: string
+          updated_at: string
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_sentinel_criterion: {
         Args: { p_description?: string; p_key: string; p_label: string }
         Returns: {
@@ -5261,6 +5870,44 @@ export type Database = {
           day: string
         }[]
       }
+      decline_referral: {
+        Args: { p_note?: string; p_referral_id: string }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          type_label: string
+          updated_at: string
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       delete_capa_action_evidence: {
         Args: { p_evidence_id: string }
         Returns: undefined
@@ -5326,6 +5973,16 @@ export type Database = {
       }
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_event_patient: { Args: { p_event_id: string }; Returns: Json }
+      get_referral_attachment_path: {
+        Args: { p_attachment_id: string }
+        Returns: string
+      }
+      get_referral_detail: { Args: { p_referral_id: string }; Returns: Json }
+      get_referral_patient: { Args: { p_referral_id: string }; Returns: Json }
+      get_referral_snapshot_document_path: {
+        Args: { p_shared_item_id: string }
+        Returns: string
+      }
       get_response_for_signoff: {
         Args: { p_response_id: string }
         Returns: Json
@@ -5339,6 +5996,7 @@ export type Database = {
         Returns: boolean
       }
       interviews_enabled: { Args: never; Returns: boolean }
+      is_pqs_member_self: { Args: never; Returns: boolean }
       link_meeting_case: {
         Args: {
           p_agenda_item_id?: string
@@ -5363,6 +6021,44 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      link_referral_case: {
+        Args: { p_referral_id: string; p_target_case_id?: string }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          type_label: string
+          updated_at: string
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       list_cases_board: {
         Args: { p_commission_id: string }
         Returns: {
@@ -5379,6 +6075,13 @@ export type Database = {
       }
       list_my_cases: { Args: { p_commission: string }; Returns: Json }
       list_pqs_members: { Args: never; Returns: Json }
+      list_referral_target_commissions: {
+        Args: { p_source_commission_id: string }
+        Returns: {
+          id: string
+          name: string
+        }[]
+      }
       list_signoff_queue: {
         Args: { p_commission_id: string }
         Returns: {
@@ -5624,6 +6327,44 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      receive_referral: {
+        Args: { p_referral_id: string }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          type_label: string
+          updated_at: string
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       recompute_recommendations: {
         Args: { p_case_id: string }
         Returns: undefined
@@ -5669,6 +6410,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      referrals_enabled: { Args: never; Returns: boolean }
       remove_capa_action: { Args: { p_action_id: string }; Returns: undefined }
       remove_capa_action_task: {
         Args: { p_task_id: string }
@@ -5699,6 +6441,10 @@ export type Database = {
       }
       remove_rca_timeline_entry: {
         Args: { p_entry_id: string }
+        Returns: undefined
+      }
+      remove_referral_shared_item: {
+        Args: { p_shared_item_id: string }
         Returns: undefined
       }
       remove_template_narrative: {
@@ -6042,6 +6788,44 @@ export type Database = {
         Args: { p_meeting_id: string }
         Returns: undefined
       }
+      send_referral: {
+        Args: { p_referral_id: string }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          type_label: string
+          updated_at: string
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_capa_action_task_done: {
         Args: { p_is_done: boolean; p_task_id: string }
         Returns: {
@@ -6190,6 +6974,20 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_referral_patient: {
+        Args: {
+          p_age_years?: number
+          p_attending?: string
+          p_date_of_birth?: string
+          p_encounter_ref?: string
+          p_mrn?: string
+          p_name?: string
+          p_referral_id: string
+          p_sex?: string
+          p_unit?: string
+        }
+        Returns: undefined
       }
       set_template_phase_blocks: {
         Args: { p_blocks: number[]; p_phase_id: string }
@@ -6356,6 +7154,44 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "responses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      start_referral_review: {
+        Args: { p_referral_id: string }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          type_label: string
+          updated_at: string
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -7162,6 +7998,50 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_referral_draft: {
+        Args: {
+          p_description_md?: string
+          p_referral_id: string
+          p_referral_type_id: string
+          p_response_expected?: boolean
+          p_subject: string
+        }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          type_label: string
+          updated_at: string
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_sentinel_criterion: {
         Args: { p_description?: string; p_id: string; p_label: string }
         Returns: {
@@ -7248,6 +8128,44 @@ export type Database = {
           broken_seq: number
           ok: boolean
         }[]
+      }
+      withdraw_referral: {
+        Args: { p_referral_id: string }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          type_label: string
+          updated_at: string
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {

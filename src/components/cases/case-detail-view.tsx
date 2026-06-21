@@ -22,8 +22,31 @@ import { CaseOutcomeSelector } from "@/components/cases/case-outcome-selector";
 import { CaseDetailMotion } from "@/components/cases/case-detail-motion";
 import { InterviewsPanel } from "@/components/interviews/interviews-panel";
 import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
+import { CaseOutboundReferralsCard } from "@/components/referrals/case-outbound-referrals-card";
+import type { ReferralListItem, ReferralType } from "@/lib/referrals/types";
+import type {
+  PickableDocument,
+  PickableNarrative,
+  ReferralTargetCommission,
+} from "@/components/referrals/referral-send-wizard";
 import { formatCaseNumber, formatDate } from "@/components/cases/format";
 import type { MyCaseRole } from "@/lib/queries/cases";
+
+/**
+ * Everything the case-detail outbound-referrals card (Phase 22 — `case_referrals`)
+ * needs, assembled by the host page (Rule 9 — data-loading on the server). Passed
+ * as ONE optional prop so the card mounts only when the flag is on; `null`/absent
+ * → the card is not rendered (flag-OFF behavior unchanged). PHI-FREE — the
+ * safety-event PHI pre-fill is NOT here; the wizard loads it lazily on demand via
+ * the audited `loadCaseSafetyPrefill` bridge.
+ */
+export interface CaseReferralsModule {
+  referrals: ReferralListItem[];
+  referralTypes: ReferralType[];
+  targetCommissions: ReferralTargetCommission[];
+  narratives: PickableNarrative[];
+  documents: PickableDocument[];
+}
 
 /**
  * The SINGLE capability-gated case-detail body (Case Access Control increment, ADR
@@ -63,6 +86,7 @@ export function CaseDetailView({
   myRole,
   withHeader,
   backHref,
+  referralsModule,
 }: {
   slug: string;
   detail: CaseDetail;
@@ -78,6 +102,12 @@ export function CaseDetailView({
   narrativesEnabled: boolean;
   /** Whether the `case_access` flag is on (gates the access panel + role chip). */
   caseAccessEnabled: boolean;
+  /**
+   * The inter-committee referrals module data (Phase 22 — `case_referrals`), or
+   * `null`/absent when the flag is off → the outbound-referrals card is not
+   * rendered. Assembled + gated by the host page.
+   */
+  referralsModule?: CaseReferralsModule | null;
   /** The viewer's user id — for the per-narrative assignee check (Q14). */
   viewerId: string | null;
   /** The viewer's role chip (shown in the self-contained header only). */
@@ -215,6 +245,21 @@ export function CaseDetailView({
                 canWrite={caps.canWriteContent}
               />
             </div>
+            {referralsModule && (
+              <div data-rise className="order-3 lg:order-none">
+                <CaseOutboundReferralsCard
+                  slug={slug}
+                  sourceCaseId={c.id}
+                  sourceCaseNumber={c.caseNumber}
+                  referrals={referralsModule.referrals}
+                  canManageLifecycle={caps.canManageLifecycle}
+                  referralTypes={referralsModule.referralTypes}
+                  targetCommissions={referralsModule.targetCommissions}
+                  narratives={referralsModule.narratives}
+                  documents={referralsModule.documents}
+                />
+              </div>
+            )}
             <div data-rise className="order-6 lg:order-none">
               <CaseEventsTimeline
                 caseId={c.id}

@@ -37,6 +37,11 @@ export type AuditAccessAction = Extract<
   | 'capa.viewed'
   | 'meeting.viewed'
   | 'interview.viewed'
+  // inter-committee referrals (Phase 22; Rule 11/12) — the audited PHI-identifier
+  // read + the PHI-bearing detail/document open. Added to the DB-side allow-list in
+  // migration 20260620014000_referrals_rpcs.sql.
+  | 'referral_patient.read'
+  | 'referral.viewed'
 >
 
 export async function logAuditAccess(params: {

@@ -136,6 +136,12 @@
      soft variant is the chip/node fill. */
   --event-safety_event: oklch(0.53 0.2 358);
   --event-safety_event-soft: oklch(0.53 0.2 358 / 0.12);
+  /* referral (Phase 22) — a DEDICATED teal-cyan (hue ~190), distinct from the
+     meeting blue (~200, info), the safety rose (~358) and every other event hue,
+     so an inter-committee referral reads as its own calm "hand-off" class. Stays
+     inside the cool side of the palette. The soft variant is the chip/node fill. */
+  --event-referral: oklch(0.55 0.1 195);
+  --event-referral-soft: oklch(0.55 0.1 195 / 0.12);
   --event-lifecycle: var(--muted-foreground); /* neutral — cool slate-petrol */
   --event-lifecycle-soft: oklch(0.52 0.022 252 / 0.1);
   /* note — nudged a touch WARMER + lower-chroma than the cool lifecycle neutral
@@ -213,6 +219,10 @@
      from milestone's orange-red, amber action and violet interview). */
   --event-safety_event: oklch(0.7 0.2 358);
   --event-safety_event-soft: oklch(0.7 0.2 358 / 0.2);
+  /* referral — dark variant: a brighter teal-cyan (same dedicated ~190 hue) + a
+     more opaque soft tint so the chip reads on the dark card surface. */
+  --event-referral: oklch(0.72 0.1 195);
+  --event-referral-soft: oklch(0.72 0.1 195 / 0.2);
   --event-lifecycle: var(--muted-foreground); /* cool slate-petrol neutral */
   --event-lifecycle-soft: oklch(0.72 0.02 252 / 0.16);
   /* note — warmer taupe-grey, separated from the cool lifecycle neutral. */

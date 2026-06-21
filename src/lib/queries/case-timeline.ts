@@ -268,6 +268,39 @@ async function listCaseSafetyEvents(
   return data
 }
 
+/**
+ * A `case_referral` row SENT from this case (Phase 22). STRICTLY PHI-FREE —
+ * code/subject/status/dates/target-committee only; NEVER `referral_patient`
+ * identifiers, `description_md`, or the snapshot/reply bodies. RLS-scoped (the
+ * `case_referral` SELECT policy = source/target member OR QPS); a non-member reads
+ * nothing. We bound to `source_case_id` so only outbound referrals OF this case
+ * surface (the inbound view lives on the target committee's own case).
+ */
+interface CaseReferralTimelineRow {
+  id: string
+  code: string
+  subject: string
+  status: string
+  sent_at: string | null
+  created_at: string
+  target_commission: { name: string } | null
+}
+
+async function listCaseReferralsForTimeline(
+  caseId: string,
+): Promise<CaseReferralTimelineRow[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('case_referral')
+    .select('id, code, subject, status, sent_at, created_at, target_commission:target_commission_id(name)')
+    .eq('source_case_id', caseId)
+    .order('created_at', { ascending: true })
+    .returns<CaseReferralTimelineRow[]>()
+
+  if (error || !data) return []
+  return data
+}
+
 /** A phase's display title: its own `title`, else the bound form title, else "Fase N". */
 function phaseTitle(p: CasePhaseTimelineRow): string {
   return p.title?.trim() || p.forms?.title?.trim() || `Fase ${p.position}`
@@ -358,6 +391,7 @@ export async function getCaseTimeline(caseId: string): Promise<CaseTimeline> {
     phases,
     registryIds,
     safetyEvents,
+    referrals,
   ] = await Promise.all([
     listCaseInterviews(caseId),
     listCaseMeetings(caseId),
@@ -367,6 +401,7 @@ export async function getCaseTimeline(caseId: string): Promise<CaseTimeline> {
     listCasePhasesForTimeline(caseId),
     interviewRegistryEventIds(caseId),
     listCaseSafetyEvents(caseId),
+    listCaseReferralsForTimeline(caseId),
   ])
 
   const isOpen = !isTerminalCaseStatus(detail.case.status)
@@ -466,6 +501,28 @@ export async function getCaseTimeline(caseId: string): Promise<CaseTimeline> {
       note: se.current_owner_kind === 'pqs' ? 'Em custódia do NSP' : null,
       statusSlug: se.status,
       muted: se.status === 'cancelled',
+      href: null,
+    })
+  }
+
+  // --- Inter-committee referrals (Phase 22) -----------------------------
+  // STRICTLY PHI-FREE: code/subject/status/date/target-committee only — never
+  // `referral_patient` identifiers, `description_md`, or snapshot/reply bodies.
+  // Outbound only (source_case_id = this case). A withdrawn/declined referral
+  // renders muted. The flag-OFF case simply yields no rows (RLS unaffected, and
+  // the list returns [] when the table has none for this case).
+  for (const r of referrals) {
+    out.push({
+      id: `referral:${r.id}`,
+      type: 'referral',
+      title: `${r.code} — ${r.subject}`,
+      day: r.sent_at ?? r.created_at,
+      owner: null,
+      note: r.target_commission?.name
+        ? `Para ${r.target_commission.name}`
+        : null,
+      statusSlug: r.status,
+      muted: r.status === 'retirada' || r.status === 'recusada',
       href: null,
     })
   }

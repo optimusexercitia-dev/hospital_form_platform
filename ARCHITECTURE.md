@@ -136,7 +136,8 @@ may extend the schema but never contradict it. Cross-references elsewhere to
     add their high-value tables to the instrumented set as they land.
 
 12. **PHI / HIPAA handling** (established in Phase 14; hardened in the 2026-06
-    PHI-readiness remediation — see ADR 0030, 0035, 0036). PHI is permitted on
+    PHI-readiness remediation; extended to a second PHI-bearing module in Phase 22
+    — see ADR 0030, 0035, 0036, 0037). PHI is permitted on
     HIPAA-compliant infrastructure (Supabase, under a BAA); the binding regime is
     **LGPD + ANVISA/RDC + CFM** (ADR 0035). It is governed by:
     - **Minimum necessary** — PHI is collected only where the domain requires it
@@ -187,6 +188,17 @@ may extend the schema but never contradict it. Cross-references elsewhere to
       `event_patient.disposed`. This is the LGPD Art. 18 erasure mechanism
       reconciled with CFM 20-year retention of the governance record (ADR
       0035/0036).
+    - **Second PHI module — inter-committee referrals** (Phase 22; ADR 0037). The
+      `case_referrals` module is the second place PHI lives, under the *identical*
+      posture: an isolated `referral_patient` (0..1 on `case_referral`, modeled on
+      `event_patient`, all DML REVOKED from `authenticated`, read only via the audited
+      `get_referral_patient` door); the PHI-bearing free text
+      (`case_referral.description_md`/`decline_note`, `referral_shared_item.frozen_body_md`,
+      `referral_reply.result_md`) gated to `app.can_read_referral_phi` (column REVOKE +
+      DEFINER-door serving) so list/hub/dashboard projections stay PHI-free; audited
+      `referral_patient.read` + `referral.viewed`; no column encryption (ADR 0035). This
+      reverses the former "PHI only in the NSP module" stance — PHI now lives in the NSP
+      **and** referral modules, both under the same isolation + single-door + audit posture.
     - **Operational prerequisites** (Phase 9 deployment gates) — an executed
       Supabase BAA, a HIPAA-eligible project tier, and a breach-response posture.
     Modules that don't need patient identity hold none by design.

@@ -44,6 +44,10 @@
  *                      STRICTLY PHI-FREE on the timeline: code/title/status/date/
  *                      owner only — never `event_patient` identifiers or
  *                      `description_md`. Composed under access-follows-custody.
+ *   - `referral`     — a `case_referral` SENT from this case (Phase 22). STRICTLY
+ *                      PHI-FREE on the timeline: code/subject/status/date/target
+ *                      committee only — never `referral_patient` identifiers,
+ *                      `description_md`, or the snapshot/reply bodies.
  *   - `note`         — a `case_events` row with `kind ∈ {note, meeting, other}`.
  */
 export type TimelineEventType =
@@ -55,6 +59,7 @@ export type TimelineEventType =
   | 'document'
   | 'action'
   | 'safety_event'
+  | 'referral'
   | 'note'
 
 /**

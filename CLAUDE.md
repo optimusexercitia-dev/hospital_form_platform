@@ -107,6 +107,13 @@ context, under HIPAA safeguards (Rule 12; ADR 0030).
   learned. PHI-bearing, NSP-owned, access-follows-custody (Phase 14, sub-phases 14a–14d;
   ADR 0030). Committees keep their lightweight action-tasks and escalate when they need this
   rigor.
+- **Inter-committee case referrals (Encaminhamentos)**: a committee sends a `Case`
+  to another committee for analysis (Notification / Analysis Request) over a **frozen
+  point-in-time snapshot**; the destination returns a **structured reply**; each
+  committee's internal work stays private from the other, while **QPS (the NSP/PQS
+  roster)** sees the full trajectory; an outstanding expected reply blocks case
+  conclusion. PHI-bearing under NSP-grade safeguards — the **second** PHI module
+  (Phase 22; Rule 12; ADR 0037).
 - **Quality indicator**: a managed metric (numerator/denominator, target,
   periodicity, direction) measured over time and tracked vs target — entered
   manually or **derived** from submitted-form aggregates via `question_key`.
@@ -197,12 +204,15 @@ its numbered rules. In brief:
     data — and every read of PHI (Rule 12) — are logged. The log records *that*
     something changed/was read and *who*, never copying answer payloads, free-text/
     Markdown bodies, or PHI into itself.
-12. **PHI / HIPAA handling** (established Phase 14; ADR 0030, ADR 0035) — PHI is
-    permitted on HIPAA-compliant infrastructure (Supabase BAA), under the binding
-    LGPD + ANVISA/RDC + CFM regime (ADR 0035), collected minimum-necessary,
-    isolated into dedicated tables behind the tightest RLS, access-audited, and
-    protected by platform at-rest encryption (column-level encryption declined).
-    Modules that don't need patient identity hold none by design.
+12. **PHI / HIPAA handling** (established Phase 14; extended to a second module in
+    Phase 22 — ADR 0030, 0035, 0037) — PHI is permitted on HIPAA-compliant
+    infrastructure (Supabase BAA), under the binding LGPD + ANVISA/RDC + CFM regime
+    (ADR 0035), collected minimum-necessary, isolated into dedicated tables behind the
+    tightest RLS, access-audited, and protected by platform at-rest encryption
+    (column-level encryption declined). PHI lives in exactly two modules — the
+    patient-safety/NSP module and the inter-committee **referral** module — both under
+    identical isolation + audited-single-door safeguards; modules that don't need
+    patient identity hold none by design.
 
 See ARCHITECTURE.md for the authoritative, detailed form of each rule.
 

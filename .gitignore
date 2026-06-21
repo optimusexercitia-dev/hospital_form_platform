@@ -41,6 +41,8 @@ yarn-error.log*
 # ad-hoc run logs captured during gate runs (redirected output, never source)
 /playwright-*.txt
 /prod-server*.log
+# e2e-generated temp upload fixtures (written at runtime by specs, never source)
+e2e/__tmp_*
 
 # vercel
 .vercel

@@ -390,6 +390,7 @@ ADR [0028](docs/decisions/0028-accreditation-governance-roadmap.md).
 | 19 | Surveyor Access & Evidence Export | `surveyor_access` |
 | 20 | Notifications & Escalation | `notifications` |
 | 21 | Committee Charters & Meeting Cadence | `charters` |
+| 22 | Inter-Committee Case Referrals *(standalone; built 2026-06 — ADR [0037](docs/decisions/0037-inter-committee-case-referrals.md))* | `case_referrals` |
 
 → **Full detail: [docs/phases/accreditation-track.md](docs/phases/accreditation-track.md)**
 

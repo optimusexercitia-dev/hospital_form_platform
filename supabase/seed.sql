@@ -1049,3 +1049,120 @@ begin
      E'Conformidade inicial de 82% após a primeira fase. Reavaliar após o treinamento completo.',
      v_chefe_a);
 end $$;
+
+-- ===========================================================================
+-- 10. INTER-COMMITTEE REFERRALS (Phase 22) — demo fixtures for E2E
+-- ===========================================================================
+-- Two referrals A (CCIH) → B (Farmácia), as direct superuser inserts (the
+-- lifecycle RPCs gate on auth.uid(), null here — mirrors the NSP seed). The
+-- code-mint BEFORE INSERT trigger assigns ENC-0001/ENC-0002. Status transitions
+-- are made directly under the app.in_referral_rpc guard flag (so guard_referral_*
+-- permits them, exactly as the safety seed flips event status under in_safety_rpc).
+--   * ENC-0001 — CONCLUDED, reply-expecting: full happy path (frozen narrative +
+--     document snapshot + isolated referral_patient PHI + a delivered reply with a
+--     linked case in B). The isolation fixture: A sees only the reply; QPS sees both.
+--   * ENC-0002 — ENVIADA, reply-expecting: the CLOSE-GATE fixture (its source case
+--     cannot be concluded while it is in flight → close_case HC076).
+-- These exist regardless of the `case_referrals` flag (seed data); the E2E suite
+-- flips the flag ON to exercise them.
+do $$
+declare
+  v_comm_a    uuid := 'a0000000-0000-0000-0000-0000000000a1';  -- CCIH (source)
+  v_comm_b    uuid := 'b0000000-0000-0000-0000-0000000000b1';  -- Farmácia (target)
+  v_chefe_a   uuid := '00000000-0000-0000-0000-000000000002';  -- chefe.ccih (source coord)
+  v_chefe_b   uuid := '00000000-0000-0000-0000-000000000005';  -- chefe.farm (target coord)
+  v_src_case  uuid := 'd0000000-0000-0000-0000-0000000000c1';  -- existing Caso 0001 (CCIH)
+  v_gate_case uuid := 'dca00000-0000-0000-0000-0000000000a1';  -- a PHASE-CLEAN source for the HC076 close-gate
+  v_tgt_case  uuid := 'dba00000-0000-0000-0000-0000000000b1';  -- a case B creates to link
+  v_narr      uuid := 'a2200000-0000-0000-0000-0000000000a1';  -- a narrative to snapshot
+  v_doc       uuid := 'a3300000-0000-0000-0000-0000000000a1';  -- a document to snapshot
+  v_type_par  uuid;                                            -- 'parecer' (reply-expected)
+  v_outcome   uuid;                                            -- 'procede'
+  v_ref1      uuid := 'efa00000-0000-0000-0000-0000000000a1';  -- ENC-0001 (concluida)
+  v_ref2      uuid := 'efa00000-0000-0000-0000-0000000000a2';  -- ENC-0002 (enviada)
+begin
+  select id into v_type_par from public.referral_types where key = 'parecer';
+  select id into v_outcome  from public.reply_outcomes where key = 'procede';
+
+  -- Seed the rows at their final status directly; set the guard flag so the
+  -- snapshot-lock / status guards permit the inserts on already-sent referrals
+  -- (mirrors the in_case_rpc / in_submit_rpc pattern used elsewhere in this seed).
+  perform set_config('app.in_referral_rpc', 'on', true);
+
+  -- A narrative + a document on the SOURCE case, to freeze into the snapshot.
+  insert into public.case_narratives
+    (id, case_id, type_label, display_position, title, body_md, created_by)
+  values
+    (v_narr, v_src_case, 'Resumo do caso', 0, 'Resumo clínico',
+     E'## Resumo\n\nPaciente do leito 7 com evolução desfavorável; solicita-se '
+     || E'parecer da farmácia sobre a conciliação medicamentosa.', v_chefe_a);
+  insert into public.case_documents
+    (id, case_id, title, storage_path, mime_type, uploaded_by)
+  values
+    (v_doc, v_src_case, 'Prescrição digitalizada',
+     v_comm_a || '/' || v_src_case || '/prescricao-seed.pdf', 'application/pdf', v_chefe_a);
+
+  -- A case in B to link onto ENC-0001 (so B's analyst path is demonstrable).
+  insert into public.cases (id, commission_id, case_number, label, status, created_by)
+  values (v_tgt_case, v_comm_b, 9001, 'Análise de parecer — CCIH', 'pendente', v_chefe_b);
+
+  -- A PHASE-CLEAN source case in A for ENC-0002, so the close-gate E2E hits HC076
+  -- (a referral still in flight) WITHOUT the HC031 unsettled-phases gate masking it.
+  -- No phases/outcomes are attached, so close_case reaches the referral gate first.
+  insert into public.cases (id, commission_id, case_number, label, status, created_by)
+  values (v_gate_case, v_comm_a, 9101, 'Caso aguardando parecer (close-gate)', 'pendente', v_chefe_a);
+
+  -- === ENC-0001 — CONCLUDED, reply-expecting (full isolation happy path) =====
+  insert into public.case_referral
+    (id, source_case_id, source_commission_id, target_commission_id, referral_type_id,
+     type_label, subject, response_expected, has_patient, target_case_id, created_by,
+     status, sent_at, sent_by, received_at, received_by, decided_at, decided_by, concluded_at, concluded_by)
+  values
+    (v_ref1, v_src_case, v_comm_a, v_comm_b, v_type_par, 'Parecer',
+     'Solicitação de parecer sobre conciliação medicamentosa', true, true, v_tgt_case, v_chefe_a,
+     'concluida', now() - interval '6 days', v_chefe_a, now() - interval '5 days', v_chefe_b,
+     now() - interval '5 days', v_chefe_b, now() - interval '2 days', v_chefe_b);
+
+  -- Its frozen snapshot (a narrative copy + a document reference).
+  insert into public.referral_shared_item
+    (referral_id, kind, source_narrative_id, frozen_title, frozen_body_md, position)
+  values
+    (v_ref1, 'narrative', v_narr, 'Resumo clínico',
+     E'## Resumo\n\nPaciente do leito 7 com evolução desfavorável; solicita-se '
+     || E'parecer da farmácia sobre a conciliação medicamentosa.', 0);
+  insert into public.referral_shared_item
+    (referral_id, kind, source_document_id, frozen_title, frozen_storage_path, frozen_mime_type, position)
+  values
+    (v_ref1, 'document', v_doc, 'Prescrição digitalizada',
+     v_comm_a || '/' || v_src_case || '/prescricao-seed.pdf', 'application/pdf', 1);
+
+  -- Its ISOLATED patient PHI (Rule 12) — the audited-door fixture.
+  insert into public.referral_patient
+    (referral_id, name, mrn, age_years, sex, unit, attending)
+  values
+    (v_ref1, 'Paciente de Demonstração', 'PRT-77', 71, 'male', 'UTI Adulto', 'Dr. Plantonista');
+
+  -- Its delivered reply (procede) — what A receives; QPS sees both ends.
+  insert into public.referral_reply
+    (referral_id, reply_outcome_id, outcome_label, result_md, acknowledged_only, replied_by, replied_at)
+  values
+    (v_ref1, v_outcome, 'Procede',
+     E'## Parecer\n\nA conciliação medicamentosa procede. Recomenda-se ajuste de dose '
+     || E'conforme função renal e suspensão do item duplicado.', false, v_chefe_b, now() - interval '2 days');
+
+  -- === ENC-0002 — ENVIADA, reply-expecting (the close-gate fixture) ==========
+  insert into public.case_referral
+    (id, source_case_id, source_commission_id, target_commission_id, referral_type_id,
+     type_label, subject, response_expected, created_by, status, sent_at, sent_by)
+  values
+    (v_ref2, v_gate_case, v_comm_a, v_comm_b, v_type_par, 'Parecer',
+     'Segundo parecer — interação medicamentosa', true, v_chefe_a,
+     'enviada', now() - interval '1 day', v_chefe_a);
+  insert into public.referral_shared_item
+    (referral_id, kind, source_narrative_id, frozen_title, frozen_body_md, position)
+  values
+    (v_ref2, 'narrative', v_narr, 'Resumo clínico',
+     E'Solicita-se avaliação de possível interação medicamentosa.', 0);
+
+  perform set_config('app.in_referral_rpc', 'off', true);
+end $$;

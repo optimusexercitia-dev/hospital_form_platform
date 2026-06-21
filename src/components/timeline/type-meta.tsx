@@ -19,6 +19,7 @@
 
 import { createElement } from "react";
 import {
+  ArrowLeftRight,
   Calendar,
   Check,
   CheckCircle2,
@@ -49,9 +50,11 @@ export interface TypeMeta {
 }
 
 /**
- * The 8-type taxonomy → presentation. Order here is the canonical LEGEND order
+ * The taxonomy → presentation. Order here is the canonical LEGEND order
  * (lifecycle first, then the chronological "kinds" of activity, note last).
  * Colours map 1:1 to the `--event-*` tokens; see the plan's type table.
+ * `safety_event` (Phase 14a) and `referral` (Phase 22) are the cross-module
+ * governance events.
  */
 export const TYPE_META: Record<TimelineEventType, TypeMeta> = {
   lifecycle: {
@@ -102,6 +105,12 @@ export const TYPE_META: Record<TimelineEventType, TypeMeta> = {
     colorVar: "var(--event-safety_event)",
     softVar: "var(--event-safety_event-soft)",
   },
+  referral: {
+    label: "Encaminhamento",
+    icon: ArrowLeftRight,
+    colorVar: "var(--event-referral)",
+    softVar: "var(--event-referral-soft)",
+  },
   note: {
     label: "Nota",
     icon: StickyNote,
@@ -120,6 +129,7 @@ export const TYPE_ORDER: readonly TimelineEventType[] = [
   "document",
   "action",
   "safety_event",
+  "referral",
   "note",
 ] as const;
 

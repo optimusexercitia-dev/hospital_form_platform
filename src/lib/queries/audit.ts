@@ -58,6 +58,9 @@ export type AuditEntityType =
   | 'rca'
   // patient-safety / NSP CAPA (Phase 14d)
   | 'capa_plan'
+  // inter-committee referrals (Phase 22)
+  | 'referral'
+  | 'referral_patient'
 
 /**
  * The audit `action` union — `'<entity>.<verb>'`. These are the verbs emitted by
@@ -142,6 +145,14 @@ export type AuditAction =
   | 'capa.viewed'
   | 'meeting.viewed'
   | 'interview.viewed'
+  // inter-committee referrals (Phase 22) — mutation verbs (PHI-free metadata) +
+  // the audited PHI-identifier read + PHI-bearing detail/document open.
+  | 'referral.created'
+  | 'referral.updated'
+  | 'referral.status_changed'
+  | 'referral_patient.updated'
+  | 'referral_patient.read'
+  | 'referral.viewed'
 
 // ---------------------------------------------------------------------------
 // pt-BR display labels (Rule 10) — UI maps the ASCII slug → label
@@ -169,6 +180,8 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   event_triage: 'Triagem de evento',
   rca: 'Análise de causa raiz',
   capa_plan: 'Plano de ação (CAPA)',
+  referral: 'Encaminhamento',
+  referral_patient: 'Dados do paciente (encaminhamento)',
 }
 
 /** pt-BR labels for the action filter (short verb phrases). */
@@ -229,6 +242,12 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'capa.viewed': 'Plano de ação (CAPA) visualizado',
   'meeting.viewed': 'Detalhe da reunião visualizado',
   'interview.viewed': 'Detalhe da entrevista visualizado',
+  'referral.created': 'Encaminhamento criado',
+  'referral.updated': 'Encaminhamento atualizado',
+  'referral.status_changed': 'Status do encaminhamento alterado',
+  'referral_patient.updated': 'Dados do paciente (encaminhamento) atualizados',
+  'referral_patient.read': 'Dados do paciente (encaminhamento) visualizados',
+  'referral.viewed': 'Detalhe do encaminhamento visualizado',
   'response.exported': 'Respostas exportadas',
   'audit.exported': 'Trilha de auditoria exportada',
 }

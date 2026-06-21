@@ -13,6 +13,10 @@ import { meetingsEnabled } from "@/lib/meetings/actions";
 import { auditTrailEnabled } from "@/lib/queries/audit";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
+import {
+  countCommissionReferralActionable,
+  referralsEnabled,
+} from "@/lib/queries/referrals";
 import { AppSidebar, type SidebarCounts } from "@/components/shell/app-sidebar";
 
 /**
@@ -50,27 +54,38 @@ export default async function CommissionLayout({
   // signatures badge. When off, skip the pending-signatures read entirely.
   // The audit_trail flag gates the "Trilha de auditoria" coordinator nav item.
   // The case_access flag swaps the "Minhas fases" badge for "Meus Casos" (ADR 0033).
-  const [meetingsOn, auditOn, patientSafetyOn, caseAccessOn] = await Promise.all(
-    [
+  // The case_referrals flag gates the "Encaminhamentos" nav item + its actionable
+  // badge. When off, skip the actionable-count read entirely.
+  const [meetingsOn, auditOn, patientSafetyOn, caseAccessOn, referralsOn] =
+    await Promise.all([
       meetingsEnabled(),
       auditTrailEnabled(),
       patientSafetyEnabled(),
       caseAccessEnabled(),
-    ],
-  );
+      referralsEnabled(),
+    ]);
 
   // The "my work" count is the badge for whichever nav item the flag selects:
   // OFF → "Minhas fases" (active assigned phases, today's read); ON → "Meus Casos"
   // (every accessible case via `list_my_cases`). When OFF we never call the ON-only
   // read, so flag-OFF behavior is byte-for-byte today's.
-  const [myPhases, myCases, board, signoffQueue, pendingSignatures] =
-    await Promise.all([
-      caseAccessOn ? Promise.resolve([]) : listMyAssignedPhases(commissionId),
-      caseAccessOn ? listMyCases(commissionId) : Promise.resolve([]),
-      isCoordinator ? listCasesBoard(commissionId) : Promise.resolve([]),
-      isCoordinator ? listSignoffQueue(commissionId) : Promise.resolve([]),
-      meetingsOn ? myPendingMeetingSignatures() : Promise.resolve([]),
-    ]);
+  const [
+    myPhases,
+    myCases,
+    board,
+    signoffQueue,
+    pendingSignatures,
+    referralsActionable,
+  ] = await Promise.all([
+    caseAccessOn ? Promise.resolve([]) : listMyAssignedPhases(commissionId),
+    caseAccessOn ? listMyCases(commissionId) : Promise.resolve([]),
+    isCoordinator ? listCasesBoard(commissionId) : Promise.resolve([]),
+    isCoordinator ? listSignoffQueue(commissionId) : Promise.resolve([]),
+    meetingsOn ? myPendingMeetingSignatures() : Promise.resolve([]),
+    referralsOn
+      ? countCommissionReferralActionable(commissionId)
+      : Promise.resolve(0),
+  ]);
 
   const counts: SidebarCounts = {
     minhasFases: myPhases.length,
@@ -81,6 +96,9 @@ export default async function CommissionLayout({
     assinaturas: signoffQueue.length,
     // Meetings awaiting THIS user's signature (any member; derived read).
     reunioesPendentes: pendingSignatures.length,
+    // Referrals needing this commission's attention (incoming awaiting +
+    // outgoing drafts); 0 when the flag is off or out of scope.
+    encaminhamentos: referralsActionable,
   };
 
   const roleLabel =
@@ -104,6 +122,7 @@ export default async function CommissionLayout({
         meetingsEnabled={meetingsOn}
         auditEnabled={auditOn}
         patientSafetyEnabled={patientSafetyOn}
+        referralsEnabled={referralsOn}
         caseAccessEnabled={caseAccessOn}
       />
       <main className="min-w-0 flex-1">
