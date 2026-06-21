@@ -102,8 +102,10 @@ the prose-docs workstream (clean file-ownership split).
 > `docs/reviews/phi-remediation-review.md`) · Human ✅ **approved 2026-06-21** → recorded (this commit).
 > **Remote `supabase db push` ✅ APPLIED 2026-06-21 (owner-run).** The squash baseline + PHI-remediation
 > deltas + the Phase 22 referral migrations (`…013000–016000`) are all on remote now; `database.ts` already
-> matches (regenerated from the same migrations). The `case_referrals` flag ships OFF on remote — flip it
-> there (`UPDATE app.feature_flags SET enabled = true WHERE key = 'case_referrals';`) to go live.
+> matches (regenerated from the same migrations). The `case_referrals` flag is now **✅ ON in remote/prod**
+> — flipped 2026-06-21 via `supabase db query --linked` (`UPDATE app.feature_flags SET enabled = true WHERE
+> key = 'case_referrals'`); **Phase 22 is live**, with `audit_trail`/`case_access`/`patient_safety` confirmed
+> ON alongside it.
 
 **Previous increment (complete): Case Access Control & "Meus Casos"** — plan
 [docs/phases/case-access-control.md](docs/phases/case-access-control.md), ADR
