@@ -55,7 +55,7 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 
 ---
 
-**Previous increment (complete; owner remote `db push` pending): PHI / HIPAA-Readiness Remediation** — owner-approved plan from an
+**Previous increment (complete; remote `db push` ✅ applied 2026-06-21): PHI / HIPAA-Readiness Remediation** — owner-approved plan from an
 external-consultant DB review (2026-06-20). Owner agreed with all findings EXCEPT M1
 (action-item triplication — `case_action_items` / `meeting_action_items` / `capa_action`
 kept as-is) and authorized a full local DB reset. Backend owns code/migrations; lead owns
@@ -100,8 +100,10 @@ the prose-docs workstream (clean file-ownership split).
 
 > **§6 GATE: ✅ COMPLETE.** Build ✅ · Test pass ✅ · QA ✅ **APPROVED** (0 blockers, 0 majors, 2 INFO —
 > `docs/reviews/phi-remediation-review.md`) · Human ✅ **approved 2026-06-21** → recorded (this commit).
-> **Remote `supabase db push` PENDING — owner-run** (destructive reset: the squash replaces remote migration
-> history; take a remote backup first). Regenerate types after the remote apply.
+> **Remote `supabase db push` ✅ APPLIED 2026-06-21 (owner-run).** The squash baseline + PHI-remediation
+> deltas + the Phase 22 referral migrations (`…013000–016000`) are all on remote now; `database.ts` already
+> matches (regenerated from the same migrations). The `case_referrals` flag ships OFF on remote — flip it
+> there (`UPDATE app.feature_flags SET enabled = true WHERE key = 'case_referrals';`) to go live.
 
 **Previous increment (complete): Case Access Control & "Meus Casos"** — plan
 [docs/phases/case-access-control.md](docs/phases/case-access-control.md), ADR
