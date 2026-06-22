@@ -1321,9 +1321,11 @@ export type Database = {
           case_id: string
           created_at: string
           date_of_birth: string | null
+          encounter_key: string | null
           encounter_ref: string | null
           mrn: string | null
           name: string | null
+          patient_key: string | null
           sex: string
           unit: string | null
           updated_at: string
@@ -1334,9 +1336,11 @@ export type Database = {
           case_id: string
           created_at?: string
           date_of_birth?: string | null
+          encounter_key?: string | null
           encounter_ref?: string | null
           mrn?: string | null
           name?: string | null
+          patient_key?: string | null
           sex?: string
           unit?: string | null
           updated_at?: string
@@ -1347,9 +1351,11 @@ export type Database = {
           case_id?: string
           created_at?: string
           date_of_birth?: string | null
+          encounter_key?: string | null
           encounter_ref?: string | null
           mrn?: string | null
           name?: string | null
+          patient_key?: string | null
           sex?: string
           unit?: string | null
           updated_at?: string
@@ -1971,10 +1977,12 @@ export type Database = {
           attending: string | null
           created_at: string
           date_of_birth: string | null
+          encounter_key: string | null
           encounter_ref: string | null
           event_id: string
           mrn: string | null
           name: string | null
+          patient_key: string | null
           sex: string
           unit: string | null
           updated_at: string
@@ -1984,10 +1992,12 @@ export type Database = {
           attending?: string | null
           created_at?: string
           date_of_birth?: string | null
+          encounter_key?: string | null
           encounter_ref?: string | null
           event_id: string
           mrn?: string | null
           name?: string | null
+          patient_key?: string | null
           sex?: string
           unit?: string | null
           updated_at?: string
@@ -1997,10 +2007,12 @@ export type Database = {
           attending?: string | null
           created_at?: string
           date_of_birth?: string | null
+          encounter_key?: string | null
           encounter_ref?: string | null
           event_id?: string
           mrn?: string | null
           name?: string | null
+          patient_key?: string | null
           sex?: string
           unit?: string | null
           updated_at?: string
@@ -2963,6 +2975,39 @@ export type Database = {
           },
         ]
       }
+      patient_xref: {
+        Row: {
+          commission_id: string | null
+          created_at: string
+          disposed_at: string | null
+          disposed_reason: string | null
+          encounter_key: string | null
+          entity_id: string
+          module: string
+          patient_key: string | null
+        }
+        Insert: {
+          commission_id?: string | null
+          created_at?: string
+          disposed_at?: string | null
+          disposed_reason?: string | null
+          encounter_key?: string | null
+          entity_id: string
+          module: string
+          patient_key?: string | null
+        }
+        Update: {
+          commission_id?: string | null
+          created_at?: string
+          disposed_at?: string | null
+          disposed_reason?: string | null
+          encounter_key?: string | null
+          entity_id?: string
+          module?: string
+          patient_key?: string | null
+        }
+        Relationships: []
+      }
       pqs_department: {
         Row: {
           created_at: string
@@ -3701,9 +3746,11 @@ export type Database = {
           attending: string | null
           created_at: string
           date_of_birth: string | null
+          encounter_key: string | null
           encounter_ref: string | null
           mrn: string | null
           name: string | null
+          patient_key: string | null
           referral_id: string
           sex: string
           unit: string | null
@@ -3714,9 +3761,11 @@ export type Database = {
           attending?: string | null
           created_at?: string
           date_of_birth?: string | null
+          encounter_key?: string | null
           encounter_ref?: string | null
           mrn?: string | null
           name?: string | null
+          patient_key?: string | null
           referral_id: string
           sex?: string
           unit?: string | null
@@ -3727,9 +3776,11 @@ export type Database = {
           attending?: string | null
           created_at?: string
           date_of_birth?: string | null
+          encounter_key?: string | null
           encounter_ref?: string | null
           mrn?: string | null
           name?: string | null
+          patient_key?: string | null
           referral_id?: string
           sex?: string
           unit?: string | null
@@ -6064,6 +6115,10 @@ export type Database = {
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_case_patient: { Args: { p_case_id: string }; Returns: Json }
       get_event_patient: { Args: { p_event_id: string }; Returns: Json }
+      get_patient_trajectory_for_entity: {
+        Args: { p_entity_id: string; p_module: string }
+        Returns: Json
+      }
       get_referral_attachment_path: {
         Args: { p_attachment_id: string }
         Returns: string
@@ -6322,7 +6377,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      patient_access_audit: {
+        Args: { p_encounter?: string; p_mrn?: string }
+        Returns: Json
+      }
+      patient_index_enabled: { Args: never; Returns: boolean }
       patient_safety_enabled: { Args: never; Returns: boolean }
+      patient_xref_count: {
+        Args: { p_entity_id: string; p_module: string }
+        Returns: number
+      }
       pqs_inbox: {
         Args: {
           p_reporting_commission_id?: string
@@ -6875,6 +6939,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      search_patient_xref: {
+        Args: { p_encounter?: string; p_mrn?: string }
+        Returns: Json
       }
       seed_expected_meeting_attendees: {
         Args: { p_meeting_id: string }

@@ -418,10 +418,10 @@ begin
   select id into ia_turno from public.form_items where form_version_id = v_ver_a and question_key = 'turno_auditoria';
 
   -- Published template + two phase-slots.
-  insert into public.process_templates (id, commission_id, title, description, status, created_by)
+  insert into public.process_templates (id, commission_id, title, description, status, created_by, collects_patient)
   values (v_tpl, v_comm_a, 'Investigação de Óbito (M&M)',
-          'Processo de avaliação multifásica de óbito. Sem dados de paciente.',
-          'active', v_chefe_a);
+          'Processo de avaliação multifásica de óbito.',
+          'active', v_chefe_a, true);
 
   insert into public.process_template_phases
     (template_id, position, form_id, title, recommend_when, default_due_days) values
@@ -438,8 +438,13 @@ begin
   -- phases below are inserted: once Phase 1 lands 'concluida' (and none 'ativa'),
   -- the case computes to 'pendente' (>=1 concluida, none ativa) — matching the
   -- mid-flight fixture the dashboard/board E2E expects.
-  insert into public.cases (id, commission_id, template_id, label, created_by)
-  values (v_case, v_comm_a, v_tpl, 'Óbito UTI leito 7', v_chefe_a);
+  insert into public.cases (id, commission_id, template_id, label, created_by, patient_enabled)
+  values (v_case, v_comm_a, v_tpl, 'Óbito UTI leito 7', v_chefe_a, true);
+
+  -- Seeded patient identifiers for Case 0001 (gates the CasePatientPanel in the dev UI).
+  insert into public.case_patient (case_id, name, mrn, date_of_birth, age_years, sex, unit, attending)
+  values (v_case, 'Paciente de Demonstração', 'CCIH-2024-001', '1955-03-15', 70, 'female', 'UTI Adulto', 'Dr. João Mendes');
+  update public.cases set has_patient = true where id = v_case;
 
   -- Phase 1: concluida + assigned to staff1; Phase 2: pendente + recommended.
   -- The guards permit these seeded statuses under app.in_case_rpc.
@@ -1136,11 +1141,21 @@ begin
     (v_ref1, 'document', v_doc, 'Prescrição digitalizada',
      v_comm_a || '/' || v_src_case || '/prescricao-seed.pdf', 'application/pdf', 1);
 
-  -- Its ISOLATED patient PHI (Rule 12) — the audited-door fixture.
+  -- Its ISOLATED patient PHI (Rule 12) — the audited-door fixture. Phase 23 (ADR
+  -- 0039): this row is the SYNTHETIC CROSS-COMMITTEE TEST PATIENT — it deliberately
+  -- shares the MRN 'PRT-0099123' AND the encounter 'ENC-2026-4471' with the NSP
+  -- event_patient (event EV-0001, commission A; seed ~line 907) AND with the B-side
+  -- case_patient added below (case 9001, commission B). The derivation trigger is
+  -- ALWAYS-ON, so right after `db reset` all three rows already carry ONE shared
+  -- patient_key (and the event+referral share an encounter_key) — no backfill needed.
+  -- Flipping `patient_index` ON then makes a QPS search by 'PRT-0099123' return the
+  -- full cross-committee/cross-module trajectory. (The former demo MRN 'PRT-77'
+  -- produced zero matches — Phase-23 needs a real one.)
   insert into public.referral_patient
-    (referral_id, name, mrn, age_years, sex, unit, attending)
+    (referral_id, name, mrn, age_years, sex, encounter_ref, unit, attending)
   values
-    (v_ref1, 'Paciente de Demonstração', 'PRT-77', 71, 'male', 'UTI Adulto', 'Dr. Plantonista');
+    (v_ref1, 'Paciente de Demonstração', 'PRT-0099123', 71, 'male', 'ENC-2026-4471',
+     'UTI Adulto', 'Dr. Plantonista');
 
   -- Its delivered reply (procede) — what A receives; QPS sees both ends.
   insert into public.referral_reply
@@ -1163,6 +1178,21 @@ begin
   values
     (v_ref2, 'narrative', v_narr, 'Resumo clínico',
      E'Solicita-se avaliação de possível interação medicamentosa.', 0);
+
+  -- Phase 23 (ADR 0039) — SYNTHETIC CROSS-COMMITTEE TEST PATIENT, B-side leg. The
+  -- case B created to analyze ENC-0001 (v_tgt_case, case 9001, COMMISSION B) gets
+  -- its own isolated case_patient sharing the MRN 'PRT-0099123' with the NSP event
+  -- (commission A) and the referral above. This makes case 9001 patient-bearing and
+  -- completes the genuine CROSS-COMMITTEE (A ↔ B) + CROSS-MODULE (event/referral/case)
+  -- match on one patient_key. Direct insert bypasses set_case_patient's
+  -- patient_enabled gate (like the Caso 0001 case_patient seed at ~line 446); flip
+  -- has_patient + patient_enabled so the panel/flags read true. Encounter omitted
+  -- here so the encounter_key match stays event<->referral only (a second, narrower
+  -- match basis for the QPS view to demonstrate).
+  insert into public.case_patient (case_id, name, mrn, age_years, sex, unit, attending)
+  values (v_tgt_case, 'Paciente de Demonstração', 'PRT-0099123', 71, 'male',
+          'UTI Adulto', 'Dr. Plantonista');
+  update public.cases set has_patient = true, patient_enabled = true where id = v_tgt_case;
 
   perform set_config('app.in_referral_rpc', 'off', true);
 end $$;

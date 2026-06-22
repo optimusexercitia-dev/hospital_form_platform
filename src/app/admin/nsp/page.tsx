@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeftRight, ListChecks, Settings } from "lucide-react";
+import { ArrowLeftRight, ListChecks, Settings, Users } from "lucide-react";
 
 import { requireUser } from "@/lib/queries/session";
 import { listCommissionsForAdmin } from "@/lib/queries/commissions";
@@ -11,6 +11,7 @@ import {
   type PqsInboxFilters,
 } from "@/lib/queries/pqs";
 import { referralsEnabled } from "@/lib/queries/referrals";
+import { patientIndexEnabled } from "@/lib/queries/patient-index";
 import {
   EVENT_STATUS_LABELS,
   SUSPECTED_HARM_LABELS,
@@ -60,10 +61,11 @@ export default async function NspInboxPage({
     reportingCommissionId: sp.commission || undefined,
   };
 
-  const [items, commissions, referralsOn] = await Promise.all([
+  const [items, commissions, referralsOn, patientIndexOn] = await Promise.all([
     pqsInbox(filters),
     listCommissionsForAdmin(),
     referralsEnabled(),
+    patientIndexEnabled(),
   ]);
 
   const commissionNames = Object.fromEntries(
@@ -106,6 +108,15 @@ export default async function NspInboxPage({
             >
               <ArrowLeftRight aria-hidden="true" className="size-4" />
               Encaminhamentos
+            </Link>
+          )}
+          {patientIndexOn && (
+            <Link
+              href="/admin/nsp/pacientes"
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+            >
+              <Users aria-hidden="true" className="size-4" />
+              Pacientes
             </Link>
           )}
           <Link

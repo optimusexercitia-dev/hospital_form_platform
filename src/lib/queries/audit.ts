@@ -61,6 +61,10 @@ export type AuditEntityType =
   // inter-committee referrals (Phase 22)
   | 'referral'
   | 'referral_patient'
+  // patient identity & cross-committee linkage (Phase 23; ADR 0039) — the
+  // GLOBAL-chain QPS lookup trail. NOT a PHI entity; "patient" here is referenced
+  // by a non-reversible key-derived UUID, never an identifier.
+  | 'patient'
 
 /**
  * The audit `action` union — `'<entity>.<verb>'`. These are the verbs emitted by
@@ -153,6 +157,10 @@ export type AuditAction =
   | 'referral_patient.updated'
   | 'referral_patient.read'
   | 'referral.viewed'
+  // patient identity & cross-committee linkage (Phase 23; ADR 0039) — the QPS
+  // reassembly trail on the GLOBAL chain; KEY-ONLY metadata, never a raw MRN/name.
+  | 'patient.searched'
+  | 'patient.viewed'
 
 // ---------------------------------------------------------------------------
 // pt-BR display labels (Rule 10) — UI maps the ASCII slug → label
@@ -182,6 +190,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   capa_plan: 'Plano de ação (CAPA)',
   referral: 'Encaminhamento',
   referral_patient: 'Dados do paciente (encaminhamento)',
+  patient: 'Paciente (vínculo entre comissões)',
 }
 
 /** pt-BR labels for the action filter (short verb phrases). */
@@ -248,6 +257,8 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'referral_patient.updated': 'Dados do paciente (encaminhamento) atualizados',
   'referral_patient.read': 'Dados do paciente (encaminhamento) visualizados',
   'referral.viewed': 'Detalhe do encaminhamento visualizado',
+  'patient.searched': 'Paciente pesquisado entre comissões',
+  'patient.viewed': 'Trajetória do paciente visualizada',
   'response.exported': 'Respostas exportadas',
   'audit.exported': 'Trilha de auditoria exportada',
 }

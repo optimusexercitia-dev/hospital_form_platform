@@ -12,6 +12,7 @@ import {
   referralsEnabled,
 } from "@/lib/queries/referrals";
 import { revealReferralPatient } from "@/lib/referrals/actions";
+import { patientXrefCount } from "@/lib/queries/patient-index";
 import { listCasesBoard } from "@/lib/queries/cases";
 import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
@@ -148,6 +149,14 @@ export default async function ReferralDetailPage({
   // so the audited read fires only when the reader clicks "Exibir identificação".
   const revealPatient = revealReferralPatient.bind(null, detail.id);
 
+  // Phase 23 cross-record hint: how many OTHER records share this patient across
+  // the hospital. The `patient_xref_count` door is gated to referral-PHI-entitled
+  // viewers server-side (returns 0 when out of scope / flag off / no patient key),
+  // so it's safe to ask whenever an isolated PHI record exists — PHI-free count.
+  const appearsInCount = detail.hasPatient
+    ? await patientXrefCount("referral", detail.id)
+    : 0;
+
   const inFlight = !RESOLVED_REFERRAL_STATUSES.has(detail.status);
   const backHref = `/c/${slug}/encaminhamentos`;
 
@@ -265,6 +274,7 @@ export default async function ReferralDetailPage({
             <ReferralPatientPanel
               hasPatient={detail.hasPatient}
               onReveal={revealPatient}
+              appearsInCount={appearsInCount}
             />
           </div>
         </div>

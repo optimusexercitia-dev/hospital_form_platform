@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Eye, ShieldAlert } from "lucide-react";
+import { Eye, Network, ShieldAlert } from "lucide-react";
 
 import {
   REFERRAL_PATIENT_SEX_LABELS,
@@ -27,15 +27,29 @@ import { formatDate } from "./format";
  * assigns an analyst. So a plain member (pre-link) gets `null` back and NO audit
  * row — we render a calm "sem acesso" state, never a raw error. `hasPatient`
  * gates whether the panel renders at all (no record → a quiet empty state).
+ *
+ * Cross-record hint (Phase 23 — `patient_index`; ADR 0039): when the page can
+ * resolve it, `appearsInCount` is the COUNT of OTHER records across the hospital
+ * that share this patient — surfaced as a calm, NON-IDENTIFYING note (a number
+ * only, never names or a list). It is gated server-side to referral-PHI-entitled
+ * viewers (`can_read_referral_phi`); the page passes `0`/omits it otherwise, and
+ * we render the note only when `> 0`.
  */
 export function ReferralPatientPanel({
   hasPatient,
   onReveal,
+  appearsInCount,
 }: {
   /** Denormalized flag — an isolated PHI record exists. Gates the affordance. */
   hasPatient: boolean;
   /** The audited reveal door, bound by the page to the referral id. */
   onReveal: () => Promise<ReferralPatient | null>;
+  /**
+   * Phase 23: count of OTHER records sharing this patient across the hospital
+   * (PHI-free; count only). Rendered as a calm note when `> 0`; omitted/`0` hides
+   * it. Pre-resolved server-side (gated to referral-PHI-entitled viewers).
+   */
+  appearsInCount?: number;
 }) {
   const [isPending, startTransition] = useTransition();
   const [revealed, setRevealed] = useState(false);
@@ -130,6 +144,23 @@ export function ReferralPatientPanel({
         Acesso registrado em trilha de auditoria. Use apenas para a análise do
         encaminhamento (mínimo necessário).
       </p>
+
+      {appearsInCount != null && appearsInCount > 0 && (
+        <p
+          role="note"
+          className="flex items-start gap-2 rounded-xl border border-primary/20 bg-accent/50 px-3.5 py-2.5 text-sm text-accent-foreground text-pretty"
+        >
+          <Network
+            aria-hidden="true"
+            className="mt-0.5 size-4 shrink-0 text-primary"
+          />
+          <span>
+            Este paciente aparece em {appearsInCount}{" "}
+            {appearsInCount === 1 ? "outro registro" : "outros registros"} nesta
+            instituição.
+          </span>
+        </p>
+      )}
 
       {error && <FormBanner tone="error">{error}</FormBanner>}
 

@@ -8,6 +8,7 @@ import {
   Building2,
   ListChecks,
   ClipboardList,
+  Users,
 } from "lucide-react";
 
 import { requireUser } from "@/lib/queries/session";
@@ -17,6 +18,7 @@ import {
   getEventPatient,
 } from "@/lib/queries/safety-events";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
+import { patientIndexEnabled } from "@/lib/queries/patient-index";
 import { listCapaPlansForEvent } from "@/lib/queries/capa";
 import { OpenCapaButton } from "@/components/safety/capa/open-capa-button";
 import { CapaPlanCard } from "@/components/safety/capa/capa-plan-card";
@@ -78,11 +80,19 @@ export default async function NspEventDetailPage({
   // Custody ledger always loads; the AUDITED PHI read fires only when a record
   // exists (Rule 12 — no audit row for a non-existent read). CAPA plans (Phase 14d)
   // sourced from this event are listed alongside.
-  const [custody, patient, capaPlans] = await Promise.all([
+  const [custody, patient, capaPlans, patientIndexOn] = await Promise.all([
     getEventCustody(eventId),
     event.hasPatient ? getEventPatient(eventId) : Promise.resolve(null),
     listCapaPlansForEvent(eventId),
+    patientIndexEnabled(),
   ]);
+
+  // QPS-only cross-committee trajectory deep-link. This page is already
+  // `isAdmin`-gated and in the NSP admin area (where `is_pqs_member = is_admin`
+  // today); the target page re-gates `isAdmin` + the `patient_index` flag and the
+  // trajectory data is PQS-gated server-side. Shown only when the event carries a
+  // patient and the flag is on (so the link never 404s / never points at nothing).
+  const showTrajectoryLink = patientIndexOn && event.hasPatient;
 
   const meta: { icon: typeof MapPin; label: string; value: string }[] = [];
   if (event.location) {
@@ -133,6 +143,15 @@ export default async function NspEventDetailPage({
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             {event.status === "reported" && (
               <AcknowledgeButton eventId={event.id} />
+            )}
+            {showTrajectoryLink && (
+              <Link
+                href={`/admin/nsp/pacientes?entity=event:${event.id}`}
+                className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+              >
+                <Users aria-hidden="true" className="size-4" />
+                Ver trajetória do paciente
+              </Link>
             )}
             <Link
               href={`/admin/nsp/triagem?event=${event.id}`}
