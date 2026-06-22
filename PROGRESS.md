@@ -59,7 +59,7 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 > **Gate APPROVED** — Build ✅ · E2E `case-patient.spec.ts` **15/15** (all 8 ACs) + full suite
 > **green, zero regressions** · QA **APPROVED** ([docs/reviews/case-patient-review.md](docs/reviews/case-patient-review.md),
 > 0 blockers/0 majors) · Human ✅ 2026-06-22. Feature code on `feat/case-patient` (`2accca7`); flag
-> `case_patient` ships **OFF**; **not pushed to remote** (user-authorized `db push` pending). ADR
+> `case_patient` **ON** in local + remote (deployed 2026-06-22 — migrations `…017000`+`…018000` pushed; local↔remote in sync 18/18). ADR
 > [0038](docs/decisions/0038-case-patient-identifiers.md); ARCHITECTURE Rule 12 (two→three PHI
 > modules). Out-of-scope follow-ups (tracked, non-blocking): `dispose_referral_phi` parity gap;
 > CN-APP-AC4 (pre-existing narrative-save revalidation on `main`, `task_8014d5ae`). Task detail below.
