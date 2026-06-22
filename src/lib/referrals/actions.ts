@@ -8,6 +8,7 @@ import {
   getCaseSafetyEventPatientPrefill,
   getReferralPatient,
 } from '@/lib/queries/referrals'
+import type { CaseSafetyPrefill } from '@/lib/queries/referrals'
 import type {
   AddReplyAttachmentInput,
   AddSharedItemInput,
@@ -404,20 +405,20 @@ export async function revealReferralPatient(
 }
 
 /**
- * On-demand pre-fill of the referral patient block from the source case's linked
- * patient-safety event (GAP 2). A `"use client"` wizard cannot call the
- * `getCaseSafetyEventPatientPrefill` query (server-only, Rule 9), so this thin
- * `"use server"` wrapper triggers it when the coordinator actually REACHES the
- * patient step — NOT on every case-detail render — so the audited
- * `event_patient.read` (emitted inside the reused `get_event_patient` door) fires
- * only on a real, intentional access. Returns `null` when the case has no linked
- * event with PHI OR the caller is not entitled to that event's identifiers (the
- * door returns NULL, not an error). The returned `patient.referralId` is `''` —
- * the wizard fills it once the draft exists.
+ * On-demand precedence-aware pre-fill of the referral patient block (ADR 0038). A
+ * `"use client"` wizard cannot call the `getCaseSafetyEventPatientPrefill` query
+ * (server-only, Rule 9), so this thin `"use server"` wrapper triggers it when the
+ * coordinator actually REACHES the patient step — NOT on every case-detail render
+ * — so the audited read (`case_patient.read` OR the fallback `event_patient.read`,
+ * each emitted inside its own door) fires only on a real, intentional access.
+ * PRECEDENCE: prefer the case's own `case_patient`, fall back to a linked event's
+ * `event_patient` (`result.source` distinguishes them). Returns `null` when the
+ * case has neither source with PHI OR the caller is not entitled. The returned
+ * `patient.referralId` is `''` — the wizard fills it once the draft exists.
  */
 export async function loadCaseSafetyPrefill(
   caseId: string,
-): Promise<{ eventId: string; patient: ReferralPatient } | null> {
+): Promise<CaseSafetyPrefill | null> {
   if (!caseId) return null
   return getCaseSafetyEventPatientPrefill(caseId)
 }

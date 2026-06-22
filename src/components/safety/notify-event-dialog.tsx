@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShieldPlus } from "lucide-react";
 
+import type { CasePatient } from "@/lib/cases/types";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,9 +28,14 @@ import { EventNotifyForm } from "./event-notify-form";
 export function NotifyEventDialog({
   commissionId,
   caseId,
+  onLoadPatientPrefill,
 }: {
   commissionId: string;
   caseId: string;
+  /** Lazily seed the patient panel from the source case's `case_patient` (ADR 0038
+   * — an AUDITED read fired when the dialog opens). Absent for a PHI-free case.
+   * Bound by the (server) host to the case id. */
+  onLoadPatientPrefill?: () => Promise<CasePatient | null>;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -64,6 +70,7 @@ export function NotifyEventDialog({
               setOpen(false);
               router.refresh();
             }}
+            onLoadPatientPrefill={onLoadPatientPrefill}
           />
         </DialogContent>
       </Dialog>

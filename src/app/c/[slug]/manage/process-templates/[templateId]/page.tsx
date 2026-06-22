@@ -11,6 +11,7 @@ import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import { listForms } from "@/lib/queries/forms";
 import { listNarrativeTypes } from "@/lib/queries/case-narratives";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
+import { casePatientEnabled } from "@/lib/queries/cases";
 import { TemplateBuilderShell } from "@/components/process-templates/template-builder-shell";
 
 export const metadata: Metadata = {
@@ -52,10 +53,11 @@ export default async function ProcessTemplateBuilderPage({
   // at case creation). A form with only a draft can't back a phase yet. The
   // offered-outcomes picker offers the commission's non-archived outcomes; the
   // narrative-slot picker the non-archived narrative types (when the feature is on).
-  const [forms, outcomes, narrativesOn] = await Promise.all([
+  const [forms, outcomes, narrativesOn, casePatientOn] = await Promise.all([
     listForms(access.commission.id),
     listCaseOutcomes(access.commission.id),
     narrativesEnabled(),
+    casePatientEnabled(),
   ]);
   const narrativeTypes = narrativesOn
     ? await listNarrativeTypes(access.commission.id)
@@ -89,6 +91,7 @@ export default async function ProcessTemplateBuilderPage({
       outcomes={outcomes}
       narrativeTypes={narrativeTypes}
       narrativesEnabled={narrativesOn}
+      casePatientEnabled={casePatientOn}
     />
   );
 }

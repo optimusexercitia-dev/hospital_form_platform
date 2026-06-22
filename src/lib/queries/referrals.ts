@@ -35,6 +35,7 @@ import 'server-only'
 
 import { createClient } from '@/lib/supabase/server'
 import { getEventPatient } from '@/lib/queries/safety-events'
+import { getCasePatient } from '@/lib/queries/cases'
 import type {
   ReferralDashboardFilters,
   ReferralDetail,
@@ -595,19 +596,69 @@ export async function listReferralTargetCommissions(
 }
 
 /**
- * GAP 2 — pre-fill the referral patient block from the source case's linked
- * patient-safety event, if any. Reads the event's PHI THROUGH the EXISTING audited
- * `get_event_patient` door (so it is gated by `can_read_event_patient` and audited
- * as `event_patient.read` — NO new PHI read path). Returns `null` when the case has
- * no linked event OR the caller is not entitled to that event's PHI. The returned
- * `patient` is mapped to the {@link ReferralPatient} shape (sans `referralId`,
- * which the wizard fills once the draft exists).
+ * The precedence-aware patient pre-fill result (ADR 0038). A STRUCTURAL SUPERSET of
+ * the wizard's prior `{ eventId; patient }` prefill shape — it only ADDS `source`,
+ * so existing consumers keep compiling and FE adoption (the "a partir do caso"
+ * caption) is purely additive.
+ *   - `source`  — which origin the identifiers were copied from: `'case'` (the
+ *                 case's own `case_patient`) or `'event'` (a linked safety event's
+ *                 `event_patient`). The wizard captions accordingly.
+ *   - `eventId` — an opaque PROVENANCE id (never surfaced as a code): the source
+ *                 case id when `source === 'case'`, the linked event id when
+ *                 `source === 'event'`. Kept non-nullable for back-compat.
+ *   - `patient` — the {@link ReferralPatient} draft (sans `referralId`, which the
+ *                 wizard fills once the draft exists).
+ */
+export interface CaseSafetyPrefill {
+  source: 'case' | 'event'
+  eventId: string
+  patient: ReferralPatient
+}
+
+/**
+ * The precedence-aware patient pre-fill for a source case. PRECEDENCE (ADR 0038):
+ * prefer the case's OWN `case_patient` identifiers (the THIRD PHI module — the
+ * working "headwater"), falling back to a linked patient-safety event's
+ * `event_patient`. Both reads go THROUGH their respective EXISTING audited doors:
+ *   - `getCasePatient` → `case_patient.read`, gated by the BROAD `can_read_case`;
+ *   - `getEventPatient` → `event_patient.read`, gated by `can_read_event_patient`.
+ * No new PHI read path is introduced; each source stays independently isolated +
+ * audited (value copy, never an FK link). Returns `null` when the case has neither
+ * source with PHI OR the caller is not entitled to whichever exists. `source` tells
+ * the wizard which origin to caption ("a partir do caso" vs "do evento vinculado").
+ * The returned `patient` is mapped to the {@link ReferralPatient} shape (sans
+ * `referralId`, which the wizard fills once the draft exists).
  */
 export async function getCaseSafetyEventPatientPrefill(
   caseId: string,
-): Promise<{ eventId: string; patient: ReferralPatient } | null> {
+): Promise<CaseSafetyPrefill | null> {
+  if (!caseId) return null
+
+  // (1) Prefer the case's own identifiers. Emits only case_patient.read.
+  const casePatient = await getCasePatient(caseId)
+  if (casePatient) {
+    return {
+      source: 'case',
+      // Opaque provenance id (never surfaced): the source case id for a case-sourced
+      // prefill. Keeps the shape a back-compat superset of the wizard's prior prefill.
+      eventId: caseId,
+      patient: {
+        referralId: '', // filled by the wizard once the draft is created
+        name: casePatient.name,
+        mrn: casePatient.mrn,
+        dateOfBirth: casePatient.dateOfBirth,
+        ageYears: casePatient.ageYears,
+        sex: casePatient.sex as ReferralPatientSex,
+        encounterRef: casePatient.encounterRef,
+        unit: casePatient.unit,
+        attending: casePatient.attending,
+        updatedAt: casePatient.updatedAt,
+      },
+    }
+  }
+
+  // (2) Fall back to the case's linked safety event (RLS-scoped; PHI-free metadata).
   const supabase = await createClient()
-  // Find the case's linked safety event (RLS-scoped; PHI-free metadata).
   const { data: event } = await supabase
     .from('patient_safety_event')
     .select('id, has_patient')
@@ -625,6 +676,7 @@ export async function getCaseSafetyEventPatientPrefill(
   if (!eventPatient) return null
 
   return {
+    source: 'event',
     eventId: event.id,
     patient: {
       referralId: '', // filled by the wizard once the draft is created

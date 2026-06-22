@@ -50,8 +50,50 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 
 > Task detail + lead notes archived to **[docs/progress/phase-22.md](docs/progress/phase-22.md)** (§7).
 > Gate green (Build · Tests 29/29 + pgTAP 705/705 · QA APPROVED · Human 2026-06-21); ADR
-> [0037](docs/decisions/0037-inter-committee-case-referrals.md). No phase currently active — the
-> next phase recreates this table here.
+> [0037](docs/decisions/0037-inter-committee-case-referrals.md).
+
+---
+
+### Feature — `case_patient` (THIRD PHI module; ADR 0038) — in progress
+
+Backend (`backend`):
+
+| # | Task | Status |
+| - | ---- | ------ |
+| BE-1 | Migration `20260620017000_case_patient.sql` (flag OFF, `cases`/`process_templates` cols, isolated `case_patient` table + RLS + REVOKE, audit trigger `{}`, `log_audit_access` replace = full allow-list + `case_patient.read`, `can_read_case_patient` wrapping the LIVE broad `can_read_case`, `set`/`get`/`dispose`/`set_template_collects_patient`, `create_case_from_template` + `get_case_detail` replaces, grants) + pgTAP `151_case_patient.sql` | ✅ local-green — migration applies clean on `db reset`; pgTAP **35/35**; full suite **PASS** (referrals/audit/case_access regression green) |
+| BE-2 | TS layer — NEW `src/lib/cases/types.ts` (client-safe); `Case`/`CaseDetail` + all 3 mappers + `getCasePhaseForFill`/`process-templates` selects (`hasPatient`/`patientEnabled`/`collectsPatient`); `getCasePatient` + `casePatientEnabled` probe; actions `setCasePatient` (name-or-MRN floor) / `revealCasePatient` / `disposeCasePhi` / `setTemplateCollectsPatient` / `loadCasePatientForNotify`; generalized precedence-aware `getCaseSafetyEventPatientPrefill` (`case_patient` preferred, event fallback) + `loadCaseSafetyPrefill` bridge | ✅ local-green — types regenerated (`--local`); `typecheck` 0, `lint` 0 errors, `vitest` 34/34 |
+
+Frontend (`frontend`):
+
+| # | Task | Status |
+| - | ---- | ------ |
+| FE-1 | Builder toggle + Novo-caso PHI block — NEW `CollectsPatientPicker` (draft-only switch → `setTemplateCollectsPatient`, rendered like `ProcessOutcomesPicker`); threaded `collectsPatient` + `casePatientEnabled` through `template-builder-shell` + builder page. `create-case-dialog`: `TemplateOption.collectsPatient` + `casePatientEnabled` prop, controlled template select, conditional **reused** `PatientFields` block (safety), post-create `setCasePatient` (non-blocking) before navigation, reworded label warning (now about the *label* only); board page passes `collectsPatient`/flag to both dialog instances | ✅ local-green — `lint` 0 errors, `typecheck` 0; flag-ON server render verified (board + Novo caso enabled). `frontend-design` applied |
+| FE-2 | Case-detail reveal panel + edit dialog — NEW `case-patient-panel` (near-copy of referral panel; reveal-on-demand, softened "denied" copy for the broad read scope) + NEW `case-patient-edit-dialog` (coordinator-only; reuses `PatientFields`; pre-fills from a fresh `revealCasePatient` read; `setCasePatient` floor error surfaced). Bound `revealCasePatient`/`setCasePatient` in `case-detail-view` (shared by both detail pages); mounted in the rail; gated on `patientEnabled` (panel) + `hasPatient` (body); edit gated on `canManageLifecycle`. Threaded `casePatientEnabled` from both host pages | ✅ local-green — `lint` 0, `typecheck` 0; flag-ON server render verified (panel + reveal/edit affordances present, correct coordinator gating); door verified via SQL (`can_read_case_patient`=t, `get_case_patient` returns payload). `frontend-design` applied |
+| FE-3 | Referral wizard + notify prefill — wizard `SafetyEventPrefill` widened with `source: 'case'\|'event'`; patient-step caption + button keyed on `result.source` ("…do caso" vs "…do evento"). Notify dialog/`EventNotifyForm`: optional `onLoadPatientPrefill` seeds the `PatientDraft` from `loadCasePatientForNotify` on dialog open (mount-time audited read), with a "pré-preenchido a partir do caso" caption; `case-detail-view` binds it only when the case collects PHI | ✅ local-green — `lint` 0, `typecheck` 0 |
+
+> **Smoke-test note (FE-1/2/3).** Flag flipped ON locally (`app.feature_flags`); seed template set
+> `collects_patient=true`, case #1 set `patient_enabled/has_patient=true` + a `case_patient` row.
+> Server-side render is correct on all surfaces (panel renders with reveal + coordinator-edit
+> affordances; board + Novo caso enabled) and the audited door returns the payload for the entitled
+> coordinator (verified by direct RPC SQL). Interactive click-through could NOT be exercised on the
+> **dev** server — React never hydrated this session (`__reactFiber$`/`onClick` absent; persists across
+> reload; Next 16 + Turbopack dev quirk, matches the `e2e-prod-build` memory note). Full interactive
+> click-through (reveal, dialog open, prefill apply) is the tester's job (task #7) against a **prod
+> build**; a local prod build smoke is in progress.
+
+> **Verify-local only (not pushed to remote).** Background-agent `supabase db push` is auto-denied;
+> the remote deploy is a separate user-authorized step. Left uncommitted on `feat/case-patient` for
+> lead review (PHI / SECURITY DEFINER path).
+>
+> **Contract handoff to `frontend` (FE-1/2/3):** new exports in `src/lib/cases/types.ts`
+> (`CasePatient`, `SetCasePatientInput`, `CasePatientSex`, `CASE_PATIENT_SEX_LABELS`,
+> `PhiDisposeReason`, `CASE_PHI_DISPOSE_REASON_LABELS`); `getCasePatient(caseId)` +
+> `casePatientEnabled()` in `queries/cases`; `setCasePatient` / `revealCasePatient` /
+> `disposeCasePhi` / `setTemplateCollectsPatient` / `loadCasePatientForNotify` in `cases/actions`;
+> `Case`/`CaseDetail` gain `hasPatient` + `patientEnabled`; `ProcessTemplate` gains
+> `collectsPatient`. The referral prefill `loadCaseSafetyPrefill` now returns a `CaseSafetyPrefill`
+> **structural superset** (`source: 'case'|'event'` added; `eventId` kept non-null) — existing wizard
+> compiles unchanged; FE-3 reads `source` for the "a partir do caso" caption (additive).
 
 ---
 

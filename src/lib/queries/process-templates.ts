@@ -81,6 +81,14 @@ export interface ProcessTemplate {
   description: string | null
   status: ProcessTemplateStatus
   createdAt: string
+  /**
+   * Draft-only config (ADR 0038): when `true`, cases created from this template
+   * offer the optional patient-identifier block (the THIRD PHI module), snapshotted
+   * into `cases.patient_enabled` at creation. Default `false`. Set via
+   * `setTemplateCollectsPatient` while `status === 'draft'`. Surfaced behind the
+   * `case_patient` feature flag.
+   */
+  collectsPatient: boolean
   phases: ProcessTemplatePhase[]
   /**
    * The template's narrative-SLOTS (`process_template_narratives`; ADR 0032),
@@ -147,13 +155,14 @@ interface TemplateRow {
   description: string | null
   status: ProcessTemplateStatus
   created_at: string
+  collects_patient: boolean
   process_template_phases: TemplatePhaseRow[]
   process_template_narratives: TemplateNarrativeRow[]
   process_template_outcomes: TemplateOutcomeRow[]
 }
 
 const TEMPLATE_SELECT = `
-  id, commission_id, title, description, status, created_at,
+  id, commission_id, title, description, status, created_at, collects_patient,
   process_template_phases (
     id, template_id, position, form_id, title, recommend_when, default_due_days,
     blocks, display_position,
@@ -204,6 +213,7 @@ function mapTemplate(t: TemplateRow): ProcessTemplate {
     description: t.description,
     status: t.status,
     createdAt: t.created_at,
+    collectsPatient: t.collects_patient ?? false,
     phases: (t.process_template_phases ?? [])
       .slice()
       .sort((a, b) => a.position - b.position)

@@ -86,6 +86,8 @@ function detail(
       outcomeId: null,
       createdAt: '2026-06-19T00:00:00Z',
       closedAt: null,
+      hasPatient: false,
+      patientEnabled: false,
     },
     outcome: null,
     offeredOutcomes: [],

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getCommissionAccess } from "@/lib/queries/session";
-import { getCaseDetail } from "@/lib/queries/cases";
+import { getCaseDetail, casePatientEnabled } from "@/lib/queries/cases";
 import { listMembers } from "@/lib/queries/members";
 import { CaseDetailView } from "@/components/cases/case-detail-view";
 import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents";
@@ -47,13 +47,19 @@ export default async function CaseDetailPage({
     notFound();
   }
 
-  const [interviewsOn, patientSafetyOn, narrativesOn, caseAccessOn] =
-    await Promise.all([
-      interviewsEnabled(),
-      patientSafetyEnabled(),
-      narrativesEnabled(),
-      caseAccessEnabled(),
-    ]);
+  const [
+    interviewsOn,
+    patientSafetyOn,
+    casePatientOn,
+    narrativesOn,
+    caseAccessOn,
+  ] = await Promise.all([
+    interviewsEnabled(),
+    patientSafetyEnabled(),
+    casePatientEnabled(),
+    narrativesEnabled(),
+    caseAccessEnabled(),
+  ]);
   const [members, documents, events, tags, caseTags, actionItems, interviews] =
     await Promise.all([
       listMembers(access.commission.id),
@@ -82,6 +88,7 @@ export default async function CaseDetailPage({
       interviews={interviews}
       interviewsEnabled={interviewsOn}
       patientSafetyEnabled={patientSafetyOn}
+      casePatientEnabled={casePatientOn}
       narrativesEnabled={narrativesOn}
       caseAccessEnabled={caseAccessOn}
       viewerId={access.context.userId}

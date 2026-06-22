@@ -6,6 +6,7 @@ import type {
   CaseStatus,
   CaseStatusColorToken,
 } from '@/lib/cases/case-status'
+import type { CasePatient, CasePatientSex } from '@/lib/cases/types'
 
 export type { CaseStatus } from '@/lib/cases/case-status'
 
@@ -62,6 +63,22 @@ export interface Case {
   outcomeId: string | null
   createdAt: string
   closedAt: string | null
+  /**
+   * `true` when an isolated `case_patient` (PHI) row exists for this case (the
+   * THIRD PHI module; ADR 0038). Denormalized boolean (PHI-free) — the identifiers
+   * themselves are loaded ONLY through the audited
+   * {@link getCasePatient} door. Gates the detail panel BODY. The board/phase-fill
+   * reads default this to `false` (the panel only renders on the detail page).
+   */
+  hasPatient: boolean
+  /**
+   * `true` when this case COLLECTS patient identifiers — snapshotted at creation
+   * from the template's `collects_patient` (immutable per case; ADR 0038). Gates
+   * whether the create-dialog PHI block + the detail reveal panel are OFFERED at
+   * all. `false` keeps the case PHI-free. The board/phase-fill reads default to
+   * `false`.
+   */
+  patientEnabled: boolean
 }
 
 /**
@@ -504,6 +521,10 @@ interface CaseDetailJson {
   outcome_id: string | null
   /** The resolved assigned-outcome object, or `null` if none. */
   outcome: OutcomeJson | null
+  /** Denormalized "an isolated case_patient (PHI) row exists" flag (ADR 0038). */
+  has_patient?: boolean | null
+  /** Snapshotted "this case collects patient identifiers" flag (ADR 0038). */
+  patient_enabled?: boolean | null
   /** The frozen offered-outcome set, resolved to label/flags (`[]` if none). */
   offered_outcomes: OutcomeJson[] | null
   created_at: string
@@ -553,6 +574,10 @@ export async function listCasesBoard(
       outcomeId: r.outcome_id ?? null,
       createdAt: r.created_at,
       closedAt: r.closed_at,
+      // The board row does not surface PHI flags (the panel only renders on the
+      // detail page); default to false. The detail read carries the real values.
+      hasPatient: false,
+      patientEnabled: false,
     },
     outcome: mapOutcomeJson(r.outcome ?? null),
     phases: (r.phases ?? []).map((p) => ({
@@ -612,6 +637,8 @@ async function getCaseDetailUncached(
       outcomeId: env.outcome_id ?? null,
       createdAt: env.created_at,
       closedAt: env.closed_at,
+      hasPatient: env.has_patient ?? false,
+      patientEnabled: env.patient_enabled ?? false,
     },
     outcome: mapOutcomeJson(env.outcome ?? null),
     offeredOutcomes: (env.offered_outcomes ?? [])
@@ -654,6 +681,66 @@ async function getCaseDetailUncached(
 }
 
 // ---------------------------------------------------------------------------
+// case_patient — the audited PHI-identifier read + the flag probe (ADR 0038)
+// ---------------------------------------------------------------------------
+
+/** The raw `get_case_patient` jsonb row (snake_case from `to_jsonb(case_patient)`). */
+interface CasePatientJson {
+  case_id: string
+  name: string | null
+  mrn: string | null
+  date_of_birth: string | null
+  age_years: number | null
+  sex: string
+  encounter_ref: string | null
+  unit: string | null
+  attending: string | null
+  updated_at: string
+}
+
+/**
+ * The ISOLATED patient PHI for one case — THE AUDITED READ (Rule 12; the THIRD PHI
+ * module, ADR 0038). Routes through the `get_case_patient` SECURITY DEFINER RPC
+ * (direct SELECT on `case_patient` is revoked); the RPC re-gates with the BROAD
+ * `can_read_case` predicate (assignees need the MRN) and emits `case_patient.read`.
+ * Returns `null` when no PHI exists OR the caller is out of scope (no audit row
+ * then). The on-demand reveal is the ONLY place this is read — never on a list/board.
+ */
+export async function getCasePatient(
+  caseId: string,
+): Promise<CasePatient | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('get_case_patient', {
+    p_case_id: caseId,
+  })
+  if (!data) return null
+  const row = data as unknown as CasePatientJson
+
+  return {
+    caseId: row.case_id,
+    name: row.name,
+    mrn: row.mrn,
+    dateOfBirth: row.date_of_birth,
+    ageYears: row.age_years,
+    sex: row.sex as CasePatientSex,
+    encounterRef: row.encounter_ref,
+    unit: row.unit,
+    attending: row.attending,
+    updatedAt: row.updated_at,
+  }
+}
+
+/** Whether the `case_patient` feature flag is ON (probes `case_patient_enabled`).
+ * Gates the create-dialog PHI block, the detail reveal panel, and the builder
+ * toggle; `false` on any error (fail-closed). */
+export async function casePatientEnabled(): Promise<boolean> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('case_patient_enabled')
+  if (error) return false
+  return data === true
+}
+
+// ---------------------------------------------------------------------------
 // Phase-fill landing (RLS-scoped table reads — no answers)
 // ---------------------------------------------------------------------------
 
@@ -683,6 +770,8 @@ interface PhaseFillRow {
     outcome_id: string | null
     created_at: string
     closed_at: string | null
+    has_patient: boolean
+    patient_enabled: boolean
   } | null
 }
 
@@ -707,7 +796,7 @@ export async function getCasePhaseForFill(
       forms ( title ),
       cases (
         id, commission_id, template_id, case_number, label, status, outcome_id,
-        created_at, closed_at
+        created_at, closed_at, has_patient, patient_enabled
       )
     `,
     )
@@ -749,6 +838,8 @@ export async function getCasePhaseForFill(
       outcomeId: c.outcome_id ?? null,
       createdAt: c.created_at,
       closedAt: c.closed_at,
+      hasPatient: c.has_patient,
+      patientEnabled: c.patient_enabled,
     },
   }
 }

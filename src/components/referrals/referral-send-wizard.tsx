@@ -69,13 +69,18 @@ export interface PickableDocument {
   sizeBytes: number | null;
 }
 
-/** Pre-fill sourced from the case's linked safety event (an AUDITED PHI read).
- * Loaded LAZILY on the wizard's patient step (not eagerly at card mount), so the
- * `event_patient.read` audit row fires only when a coordinator actually reaches
- * the patient block — minimum-necessary access. `null` = no linked event with PHI,
- * or the caller isn't entitled to that event's PHI. */
+/** Pre-fill sourced from the case's own `case_patient` OR a linked safety event
+ * (an AUDITED PHI read — ADR 0038). Loaded LAZILY on the wizard's patient step (not
+ * eagerly at card mount), so the audited read (`case_patient.read` or the fallback
+ * `event_patient.read`) fires only when a coordinator actually reaches the patient
+ * block — minimum-necessary access. `null` = no source with PHI, or the caller
+ * isn't entitled. */
 export interface SafetyEventPrefill {
-  /** The linked safety event id (provenance; not surfaced as a code). */
+  /** Which origin the identifiers were copied from (drives the caption; ADR 0038):
+   * `'case'` (the case's own `case_patient`) or `'event'` (a linked event). */
+  source: "case" | "event";
+  /** Opaque provenance id (not surfaced as a code): the source case id when
+   * `source === 'case'`, the linked event id when `source === 'event'`. */
   eventId: string;
   patient: ReferralPatient;
 }
@@ -694,14 +699,16 @@ export function ReferralSendWizard({
             {prefillState === "loading" && (
               <p className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/20 p-3 text-sm text-muted-foreground">
                 <Sparkles aria-hidden="true" className="size-4 text-muted-foreground" />
-                Verificando evento de segurança vinculado…
+                Verificando identificação do paciente vinculada…
               </p>
             )}
             {prefillState === "loaded" && prefill && (
               <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/25 bg-accent/40 p-3">
                 <p className="inline-flex items-center gap-2 text-sm text-accent-foreground">
                   <Sparkles aria-hidden="true" className="size-4 text-primary" />
-                  Há um evento de segurança vinculado a este caso.
+                  {prefill.source === "case"
+                    ? "Este caso tem identificação do paciente registrada."
+                    : "Há um evento de segurança vinculado a este caso."}
                 </p>
                 <Button
                   type="button"
@@ -710,7 +717,9 @@ export function ReferralSendWizard({
                   onClick={applyPrefill}
                   disabled={isPending}
                 >
-                  Pré-preencher do evento
+                  {prefill.source === "case"
+                    ? "Pré-preencher do caso"
+                    : "Pré-preencher do evento"}
                 </Button>
               </div>
             )}

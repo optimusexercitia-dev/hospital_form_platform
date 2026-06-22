@@ -19,6 +19,12 @@ import { CaseEventsTimeline } from "@/components/cases/case-events-timeline";
 import { CaseTagsPanel } from "@/components/cases/case-tags-panel";
 import { CaseDocumentsPanel } from "@/components/cases/case-documents-panel";
 import { CaseOutcomeSelector } from "@/components/cases/case-outcome-selector";
+import { CasePatientPanel } from "@/components/cases/case-patient-panel";
+import {
+  loadCasePatientForNotify,
+  revealCasePatient,
+  setCasePatient,
+} from "@/lib/cases/actions";
 import { CaseDetailMotion } from "@/components/cases/case-detail-motion";
 import { InterviewsPanel } from "@/components/interviews/interviews-panel";
 import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
@@ -80,6 +86,7 @@ export function CaseDetailView({
   interviews,
   interviewsEnabled,
   patientSafetyEnabled,
+  casePatientEnabled,
   narrativesEnabled,
   caseAccessEnabled,
   viewerId,
@@ -99,6 +106,8 @@ export function CaseDetailView({
   interviews: InterviewListItem[];
   interviewsEnabled: boolean;
   patientSafetyEnabled: boolean;
+  /** Whether the `case_patient` flag is on (gates the patient reveal panel; ADR 0038). */
+  casePatientEnabled: boolean;
   narrativesEnabled: boolean;
   /** Whether the `case_access` flag is on (gates the access panel + role chip). */
   caseAccessEnabled: boolean;
@@ -150,6 +159,16 @@ export function CaseDetailView({
   const phaseOptions = [...detail.phases]
     .sort((a, b) => a.position - b.position)
     .map((p) => ({ id: p.id, label: p.title || `Fase ${p.position}` }));
+
+  // The audited isolated-PHI doors, bound to this case (ADR 0038). `revealCasePatient`
+  // wraps the `get_case_patient` RPC (emits `case_patient.read`, returns null for an
+  // unentitled reader); `setCasePatient` is the coordinator-only upsert. `.bind`
+  // yields no-/single-arg server references safe to hand the client panel, so the
+  // audited read fires only when a reader clicks "Exibir identificação". Rendered
+  // only when this case COLLECTS patient identifiers and the flag is on.
+  const showPatientPanel = casePatientEnabled && c.patientEnabled;
+  const revealPatient = revealCasePatient.bind(null, c.id);
+  const savePatient = setCasePatient.bind(null, c.id);
 
   const body = (
     <>
@@ -212,7 +231,18 @@ export function CaseDetailView({
             viewer can still raise a safety event (it is not a case-workflow op). */}
         {patientSafetyEnabled && (
           <div data-rise className="flex justify-end">
-            <NotifyEventDialog commissionId={c.commissionId} caseId={c.id} />
+            <NotifyEventDialog
+              commissionId={c.commissionId}
+              caseId={c.id}
+              // Seed the NSP patient panel from this case's identifiers when it
+              // collects PHI (ADR 0038 — value copy via the audited door). Absent
+              // for a PHI-free case (no prefill offered).
+              onLoadPatientPrefill={
+                showPatientPanel
+                  ? loadCasePatientForNotify.bind(null, c.id)
+                  : undefined
+              }
+            />
           </div>
         )}
 
@@ -271,6 +301,16 @@ export function CaseDetailView({
 
           {/* RAIL — reference material (compact variant) */}
           <div className="contents lg:flex lg:flex-col lg:gap-4">
+            {showPatientPanel && (
+              <div data-rise className="order-2 lg:order-none">
+                <CasePatientPanel
+                  hasPatient={c.hasPatient}
+                  canEdit={caps.canManageLifecycle}
+                  onReveal={revealPatient}
+                  onSave={savePatient}
+                />
+              </div>
+            )}
             <div data-rise className="order-3 lg:order-none">
               <CaseTagsPanel
                 slug={slug}

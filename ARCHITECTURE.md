@@ -137,7 +137,8 @@ may extend the schema but never contradict it. Cross-references elsewhere to
 
 12. **PHI / HIPAA handling** (established in Phase 14; hardened in the 2026-06
     PHI-readiness remediation; extended to a second PHI-bearing module in Phase 22
-    — see ADR 0030, 0035, 0036, 0037). PHI is permitted on
+    and a third — case patient identifiers — in the Cases module — see ADR 0030,
+    0035, 0036, 0037, 0038). PHI is permitted on
     HIPAA-compliant infrastructure (Supabase, under a BAA); the binding regime is
     **LGPD + ANVISA/RDC + CFM** (ADR 0035). It is governed by:
     - **Minimum necessary** — PHI is collected only where the domain requires it
@@ -197,8 +198,26 @@ may extend the schema but never contradict it. Cross-references elsewhere to
       `referral_reply.result_md`) gated to `app.can_read_referral_phi` (column REVOKE +
       DEFINER-door serving) so list/hub/dashboard projections stay PHI-free; audited
       `referral_patient.read` + `referral.viewed`; no column encryption (ADR 0035). This
-      reverses the former "PHI only in the NSP module" stance — PHI now lives in the NSP
-      **and** referral modules, both under the same isolation + single-door + audit posture.
+      reverses the former "PHI only in the NSP module" stance — PHI now lives in the NSP,
+      referral, **and case** modules, all under the same isolation + single-door + audit
+      posture.
+    - **Third PHI module — case patient identifiers** (Cases module; ADR 0038). A
+      case may carry an OPTIONAL minimum-necessary identifier set on an isolated
+      `case_patient` (0..1 on `cases`, modeled exactly on `event_patient`/
+      `referral_patient`, all DML REVOKED from `authenticated`, read only via the
+      audited `public.get_case_patient` door emitting `case_patient.read`). A
+      per-template opt-in `collects_patient` (draft-only) is snapshotted to
+      `cases.patient_enabled`, so cases stay PHI-free by default. **Deliberate
+      divergence:** the read predicate `app.can_read_case_patient` equals the BROAD
+      `app.can_read_case` (any case-worker — coordinator OR phase/narrative assignee
+      OR `case_access` grantee), looser than the staff_admin+PQS
+      `can_read_event_patient` / `can_read_referral_phi`, because case assignees need
+      the MRN to do the work; **writes stay coordinators-only** (staff_admin-of-
+      commission OR admin). Every read still funnels through the one audited door.
+      `dispose_case_phi` provides LGPD Art. 18 erasure (identifiers + the case
+      free-text PHI `case_narratives.body_md` / `case_events.body`), mirroring
+      `dispose_event_phi`. Reverses the Cases module's former "strictly PHI-free"
+      stance (ADR 0033 Q13).
     - **Operational prerequisites** (Phase 9 deployment gates) — an executed
       Supabase BAA, a HIPAA-eligible project tier, and a breach-response posture.
     Modules that don't need patient identity hold none by design.

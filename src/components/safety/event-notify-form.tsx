@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 
 import {
   SUSPECTED_HARM_LABELS,
@@ -8,6 +8,7 @@ import {
   type NotifyEventInput,
   type NotifyEventState,
 } from "@/lib/safety/types";
+import type { CasePatient } from "@/lib/cases/types";
 import { notifySafetyEvent, setEventPatient } from "@/lib/safety/actions";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
@@ -19,6 +20,23 @@ import {
   patientDraftToInput,
   type PatientDraft,
 } from "./patient-fields";
+
+/** Map a case's revealed {@link CasePatient} into the notify form's editable
+ * draft (camelCase strings). Used to SEED the optional patient panel when the
+ * event is raised from a PHI-collecting case (ADR 0038 — value copy, never a
+ * link; the NSP `event_patient` stays independently isolated). */
+function casePatientToDraft(patient: CasePatient): PatientDraft {
+  return {
+    name: patient.name ?? "",
+    mrn: patient.mrn ?? "",
+    dateOfBirth: patient.dateOfBirth ?? "",
+    ageYears: patient.ageYears != null ? String(patient.ageYears) : "",
+    sex: patient.sex,
+    encounterRef: patient.encounterRef ?? "",
+    unit: patient.unit ?? "",
+    attending: patient.attending ?? "",
+  };
+}
 
 const FIELD_CLASS =
   "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -58,6 +76,7 @@ export function EventNotifyForm({
   submitLabel = "Notificar evento",
   onCancel,
   onSuccess,
+  onLoadPatientPrefill,
 }: {
   reportingCommissionId: string;
   /** The case the event is raised from; `null` for a stand-alone event. */
@@ -69,6 +88,13 @@ export function EventNotifyForm({
   onCancel?: () => void;
   /** Called with the successful notify state (carries `eventId` + `code`). */
   onSuccess: (state: NotifyEventState) => void;
+  /** Lazily seed the optional patient panel from the source case's `case_patient`
+   * (ADR 0038 — an AUDITED `case_patient.read` fired on mount, i.e. when the
+   * dialog opens, NOT on case-detail render). Absent for a stand-alone event or a
+   * PHI-free case. Returns `null` when the case has no identifiers / out of scope.
+   * A value copy: the reporter may edit it before filing; the NSP `event_patient`
+   * stays independently isolated + disposable. */
+  onLoadPatientPrefill?: () => Promise<CasePatient | null>;
 }) {
   const [isPending, startTransition] = useTransition();
   const [state, setState] = useState<NotifyEventState | null>(null);
@@ -81,6 +107,33 @@ export function EventNotifyForm({
   const [discoveredAt, setDiscoveredAt] = useState("");
   const [location, setLocation] = useState("");
   const [patient, setPatient] = useState<PatientDraft>(EMPTY_PATIENT_DRAFT);
+  /** Whether the patient panel was seeded from the source case (drives a caption). */
+  const [patientPrefilled, setPatientPrefilled] = useState(false);
+
+  // Seed the optional patient panel from the source case's identifiers on mount
+  // (the dialog remounts this form on each open via `key`, so the audited read
+  // fires per open, on intent). Best-effort — a prefill failure must never block
+  // manual entry, and we never clobber a value once typed (mount-only).
+  useEffect(() => {
+    if (!onLoadPatientPrefill) return;
+    let active = true;
+    void (async () => {
+      try {
+        const prefill = await onLoadPatientPrefill();
+        if (active && prefill) {
+          setPatient(casePatientToDraft(prefill));
+          setPatientPrefilled(true);
+        }
+      } catch {
+        // Ignore — manual entry remains available.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+    // Mount-only: the loader is bound to a stable case id by the parent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -228,6 +281,11 @@ export function EventNotifyForm({
         />
       </label>
 
+      {patientPrefilled && (
+        <p className="-mb-2 text-xs text-muted-foreground text-pretty">
+          Identificação pré-preenchida a partir do caso. Revise antes de notificar.
+        </p>
+      )}
       <PatientFields
         draft={patient}
         onChange={setPatient}

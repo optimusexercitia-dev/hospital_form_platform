@@ -4,8 +4,14 @@ import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
+import { getCasePatient } from '@/lib/queries/cases'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
+import type {
+  CasePatient,
+  PhiDisposeReason,
+  SetCasePatientInput,
+} from '@/lib/cases/types'
 
 /**
  * Cases server actions (Architecture Rules 9 & 10): case creation, phase
@@ -82,6 +88,13 @@ const MESSAGES = {
   phaseReassigned: 'Responsável atualizado.',
   caseClosed: 'Caso concluído.',
   caseCancelled: 'Caso cancelado.',
+  // case_patient (ADR 0038) — the THIRD PHI module.
+  patientNameOrMrnRequired: 'Informe ao menos o nome ou o prontuário do paciente.',
+  patientSaved: 'Identificação do paciente salva.',
+  phiDisposed: 'Dados do paciente descartados.',
+  patientNotCollected: 'Este caso não coleta identificação do paciente.',
+  templateNotDraft: 'Apenas processos em rascunho podem ser editados.',
+  templateCollectsPatientSaved: 'Configuração de identificação do paciente atualizada.',
 } as const
 
 const PG_CHECK_VIOLATION = '23514'
@@ -481,4 +494,141 @@ export async function cancelCase(caseId: string): Promise<ActionState> {
 
   revalidateCases()
   return { ok: true, error: MESSAGES.caseCancelled }
+}
+
+// ---------------------------------------------------------------------------
+// case_patient — the THIRD PHI module (ADR 0038)
+// ---------------------------------------------------------------------------
+
+/**
+ * Map a `case_patient` RPC error to friendly pt-BR. The DEFINER RPCs raise their
+ * own pt-BR text for the authority (`42501`) / one-shot (`HC056`) / check
+ * (`23514`) cases, so prefer `error.message` and fall back to a generic.
+ */
+function mapCasePatientError(
+  error: { code?: string; message?: string } | null,
+): string {
+  if (!error) return MESSAGES.generic
+  // The RPC messages are already user-facing pt-BR; prefer them.
+  if (error.message) return error.message
+  return MESSAGES.generic
+}
+
+/**
+ * Upsert the ISOLATED patient PHI on a case (Rule 12; same 9-arg shape as
+ * `setEventPatient` / `setReferralPatient`). The minimum-necessary FLOOR (require
+ * ≥ name OR mrn) is enforced HERE (matching the existing pattern). The
+ * `set_case_patient` DEFINER is the authority: coordinators-only (`42501`
+ * otherwise), the case must collect patient identifiers (`23514` otherwise), and
+ * the write is audited WITHOUT copying any identifier into the audit metadata.
+ */
+export async function setCasePatient(
+  caseId: string,
+  input: SetCasePatientInput,
+): Promise<ActionState> {
+  if (!caseId) return { ok: false, error: MESSAGES.missingCase }
+  if (!input.name?.trim() && !input.mrn?.trim()) {
+    return { ok: false, error: MESSAGES.patientNameOrMrnRequired }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('set_case_patient', {
+    p_case_id: caseId,
+    p_name: input.name ?? undefined,
+    p_mrn: input.mrn ?? undefined,
+    p_date_of_birth: input.dateOfBirth ?? undefined,
+    p_age_years: input.ageYears ?? undefined,
+    p_sex: input.sex,
+    p_encounter_ref: input.encounterRef ?? undefined,
+    p_unit: input.unit ?? undefined,
+    p_attending: input.attending ?? undefined,
+  })
+  if (error) return { ok: false, error: mapCasePatientError(error) }
+
+  revalidateCases()
+  return { ok: true, error: MESSAGES.patientSaved }
+}
+
+/**
+ * On-demand audited PHI read for the `"use client"` case-patient panel. A Client
+ * Component cannot import the `getCasePatient` query (server-only, Rule 9), so this
+ * thin `"use server"` wrapper triggers it on click. The audit (`case_patient.read`)
+ * fires INSIDE the `get_case_patient` RPC; this returns `null` when no PHI exists OR
+ * the caller is out of scope (the door returns NULL, not an error). The broad read
+ * scope (= `can_read_case`) means a phase/narrative assignee CAN reveal — by design.
+ */
+export async function revealCasePatient(
+  caseId: string,
+): Promise<CasePatient | null> {
+  if (!caseId) return null
+  return getCasePatient(caseId)
+}
+
+/**
+ * Downstream prefill bridge (ADR 0038) — load a case's patient identifiers to
+ * SEED the "notify NSP" dialog's draft (value copy, never an FK link; the NSP
+ * `event_patient` stays independently isolated + disposable). A `"use client"`
+ * notify dialog cannot call `getCasePatient` (server-only, Rule 9); this thin
+ * `"use server"` bridge triggers it (audited as `case_patient.read` inside the
+ * door) only when the user opens the notify flow. Returns `null` when the case has
+ * no identifiers OR the caller is out of scope. Distinct from `revealCasePatient`
+ * only in intent (the notify-flow consumer), not behavior.
+ */
+export async function loadCasePatientForNotify(
+  caseId: string,
+): Promise<CasePatient | null> {
+  if (!caseId) return null
+  return getCasePatient(caseId)
+}
+
+/**
+ * Dispose the case's PHI (LGPD Art. 18 erasure; copy of the NSP dispose action).
+ * Destructively deletes the isolated `case_patient` row + NULLs/redacts the case
+ * PHI free text (`case_narratives.body_md` → NULL, `case_events.body` → sentinel),
+ * PRESERVING the governance skeleton (case number, status, phases, outcome, audit
+ * chain), then stamps who/when/why + `has_patient=false` and emits one PHI-free
+ * `case_patient.disposed` audit row. The `dispose_case_phi` DEFINER is the
+ * authority (staff_admin/admin gate → `42501`; one-shot → `HC056`); `reason` is a
+ * CONSTRAINED category, never free text.
+ */
+export async function disposeCasePhi(
+  caseId: string,
+  reason: PhiDisposeReason,
+): Promise<ActionState> {
+  if (!caseId) return { ok: false, error: MESSAGES.missingCase }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('dispose_case_phi', {
+    p_case_id: caseId,
+    p_reason: reason,
+  })
+  if (error) return { ok: false, error: mapCasePatientError(error) }
+
+  revalidateCases()
+  return { ok: true, error: MESSAGES.phiDisposed }
+}
+
+/**
+ * Toggle a template's `collects_patient` config (draft-only). The
+ * `set_template_collects_patient` DEFINER gates staff_admin/admin + `status=draft`
+ * (`42501` / `23514` otherwise). When on (and the `case_patient` flag is on), cases
+ * created from this template offer the optional PHI block.
+ */
+export async function setTemplateCollectsPatient(
+  templateId: string,
+  collects: boolean,
+): Promise<ActionState> {
+  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('set_template_collects_patient', {
+    p_template_id: templateId,
+    p_collects: collects,
+  })
+  if (error) return { ok: false, error: mapCasePatientError(error) }
+
+  // The builder lives under a different route; revalidate the template pages.
+  revalidatePath('/c/[slug]/manage/process-templates', 'page')
+  revalidatePath('/c/[slug]/manage/process-templates/[templateId]', 'page')
+  return { ok: true, error: MESSAGES.templateCollectsPatientSaved }
 }

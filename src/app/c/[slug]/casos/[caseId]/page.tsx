@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getCommissionAccess } from "@/lib/queries/session";
-import { getCaseDetail } from "@/lib/queries/cases";
+import { getCaseDetail, casePatientEnabled } from "@/lib/queries/cases";
 import type { CaseViewerCapabilities, MyCaseRole } from "@/lib/queries/cases";
 import { listMembers } from "@/lib/queries/members";
 import { CaseDetailView } from "@/components/cases/case-detail-view";
@@ -63,11 +63,13 @@ export default async function StaffCaseDetailPage({
   const caps = detail.viewerCapabilities;
   const myRole = roleFromCapabilities(caps);
 
-  const [interviewsOn, patientSafetyOn, narrativesOn] = await Promise.all([
-    interviewsEnabled(),
-    patientSafetyEnabled(),
-    narrativesEnabled(),
-  ]);
+  const [interviewsOn, patientSafetyOn, casePatientOn, narrativesOn] =
+    await Promise.all([
+      interviewsEnabled(),
+      patientSafetyEnabled(),
+      casePatientEnabled(),
+      narrativesEnabled(),
+    ]);
   const [members, documents, events, tags, caseTags, actionItems, interviews] =
     await Promise.all([
       listMembers(access.commission.id),
@@ -96,6 +98,7 @@ export default async function StaffCaseDetailPage({
       interviews={interviews}
       interviewsEnabled={interviewsOn}
       patientSafetyEnabled={patientSafetyOn}
+      casePatientEnabled={casePatientOn}
       narrativesEnabled={narrativesOn}
       caseAccessEnabled
       viewerId={access.context.userId}

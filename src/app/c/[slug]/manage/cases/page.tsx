@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { FolderOpen } from "lucide-react";
 
 import { getCommissionAccess } from "@/lib/queries/session";
-import { listCasesBoard } from "@/lib/queries/cases";
+import { listCasesBoard, casePatientEnabled } from "@/lib/queries/cases";
 import { getCaseActionItemKpis } from "@/lib/queries/case-action-items";
 import { listProcessTemplates } from "@/lib/queries/process-templates";
 import { CreateCaseDialog } from "@/components/cases/create-case-dialog";
@@ -42,16 +42,22 @@ export default async function CasesBoardPage({
     notFound();
   }
 
-  const [rows, templates, actionItemKpis] = await Promise.all([
+  const [rows, templates, actionItemKpis, casePatientOn] = await Promise.all([
     listCasesBoard(access.commission.id),
     listProcessTemplates(access.commission.id),
     getCaseActionItemKpis(access.commission.id),
+    casePatientEnabled(),
   ]);
 
-  // A case can only be minted from an ACTIVE template.
+  // A case can only be minted from an ACTIVE template. Carry `collectsPatient` so
+  // the create dialog can offer the optional patient block (ADR 0038).
   const activeTemplates = templates
     .filter((t) => t.status === "active")
-    .map((t) => ({ id: t.id, title: t.title }));
+    .map((t) => ({
+      id: t.id,
+      title: t.title,
+      collectsPatient: t.collectsPatient,
+    }));
 
   const kpis = computeCaseKpis(rows);
   const outcomeBreakdown = computeOutcomeBreakdown(rows);
@@ -71,7 +77,11 @@ export default async function CasesBoardPage({
             paciente.
           </p>
         </div>
-        <CreateCaseDialog slug={slug} templates={activeTemplates} />
+        <CreateCaseDialog
+          slug={slug}
+          templates={activeTemplates}
+          casePatientEnabled={casePatientOn}
+        />
       </header>
 
       {rows.length === 0 ? (
@@ -90,7 +100,11 @@ export default async function CasesBoardPage({
           </p>
           {activeTemplates.length > 0 && (
             <div className="mt-2">
-              <CreateCaseDialog slug={slug} templates={activeTemplates} />
+              <CreateCaseDialog
+                slug={slug}
+                templates={activeTemplates}
+                casePatientEnabled={casePatientOn}
+              />
             </div>
           )}
         </section>

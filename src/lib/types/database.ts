@@ -1314,6 +1314,56 @@ export type Database = {
           },
         ]
       }
+      case_patient: {
+        Row: {
+          age_years: number | null
+          attending: string | null
+          case_id: string
+          created_at: string
+          date_of_birth: string | null
+          encounter_ref: string | null
+          mrn: string | null
+          name: string | null
+          sex: string
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          age_years?: number | null
+          attending?: string | null
+          case_id: string
+          created_at?: string
+          date_of_birth?: string | null
+          encounter_ref?: string | null
+          mrn?: string | null
+          name?: string | null
+          sex?: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          age_years?: number | null
+          attending?: string | null
+          case_id?: string
+          created_at?: string
+          date_of_birth?: string | null
+          encounter_ref?: string | null
+          mrn?: string | null
+          name?: string | null
+          sex?: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_patient_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: true
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_phases: {
         Row: {
           activated_at: string | null
@@ -1631,9 +1681,14 @@ export type Database = {
           commission_id: string
           created_at: string
           created_by: string | null
+          has_patient: boolean
           id: string
           label: string | null
           outcome_id: string | null
+          patient_enabled: boolean
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           status: string
           template_id: string | null
         }
@@ -1644,9 +1699,14 @@ export type Database = {
           commission_id: string
           created_at?: string
           created_by?: string | null
+          has_patient?: boolean
           id?: string
           label?: string | null
           outcome_id?: string | null
+          patient_enabled?: boolean
+          phi_disposed_at?: string | null
+          phi_disposed_by?: string | null
+          phi_disposed_reason?: string | null
           status?: string
           template_id?: string | null
         }
@@ -1657,9 +1717,14 @@ export type Database = {
           commission_id?: string
           created_at?: string
           created_by?: string | null
+          has_patient?: boolean
           id?: string
           label?: string | null
           outcome_id?: string | null
+          patient_enabled?: boolean
+          phi_disposed_at?: string | null
+          phi_disposed_by?: string | null
+          phi_disposed_reason?: string | null
           status?: string
           template_id?: string | null
         }
@@ -3164,6 +3229,7 @@ export type Database = {
       }
       process_templates: {
         Row: {
+          collects_patient: boolean
           commission_id: string
           created_at: string
           created_by: string | null
@@ -3174,6 +3240,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          collects_patient?: boolean
           commission_id: string
           created_at?: string
           created_by?: string | null
@@ -3184,6 +3251,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          collects_patient?: boolean
           commission_id?: string
           created_at?: string
           created_by?: string | null
@@ -4860,6 +4928,7 @@ export type Database = {
       archive_process_template: {
         Args: { p_template_id: string }
         Returns: {
+          collects_patient: boolean
           commission_id: string
           created_at: string
           created_by: string | null
@@ -4940,9 +5009,14 @@ export type Database = {
           commission_id: string
           created_at: string
           created_by: string | null
+          has_patient: boolean
           id: string
           label: string | null
           outcome_id: string | null
+          patient_enabled: boolean
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           status: string
           template_id: string | null
         }
@@ -5077,6 +5151,7 @@ export type Database = {
         }[]
       }
       case_narratives_enabled: { Args: never; Returns: boolean }
+      case_patient_enabled: { Args: never; Returns: boolean }
       case_tag_report: {
         Args: { p_commission_id: string; p_from?: string; p_to?: string }
         Returns: {
@@ -5128,9 +5203,14 @@ export type Database = {
           commission_id: string
           created_at: string
           created_by: string | null
+          has_patient: boolean
           id: string
           label: string | null
           outcome_id: string | null
+          patient_enabled: boolean
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           status: string
           template_id: string | null
         }
@@ -5432,9 +5512,14 @@ export type Database = {
           commission_id: string
           created_at: string
           created_by: string | null
+          has_patient: boolean
           id: string
           label: string | null
           outcome_id: string | null
+          patient_enabled: boolean
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           status: string
           template_id: string | null
         }
@@ -5723,6 +5808,7 @@ export type Database = {
           p_title: string
         }
         Returns: {
+          collects_patient: boolean
           commission_id: string
           created_at: string
           created_by: string | null
@@ -5932,6 +6018,10 @@ export type Database = {
         Args: { p_section_id: string; p_target_section_id: string }
         Returns: undefined
       }
+      dispose_case_phi: {
+        Args: { p_case_id: string; p_reason: string }
+        Returns: undefined
+      }
       dispose_event_phi: {
         Args: { p_event_id: string; p_reason: string }
         Returns: undefined
@@ -5972,6 +6062,7 @@ export type Database = {
         }
       }
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
+      get_case_patient: { Args: { p_case_id: string }; Returns: Json }
       get_event_patient: { Args: { p_event_id: string }; Returns: Json }
       get_referral_attachment_path: {
         Args: { p_attachment_id: string }
@@ -6275,6 +6366,7 @@ export type Database = {
       publish_process_template: {
         Args: { p_template_id: string }
         Returns: {
+          collects_patient: boolean
           commission_id: string
           created_at: string
           created_by: string | null
@@ -6853,9 +6945,14 @@ export type Database = {
           commission_id: string
           created_at: string
           created_by: string | null
+          has_patient: boolean
           id: string
           label: string | null
           outcome_id: string | null
+          patient_enabled: boolean
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           status: string
           template_id: string | null
         }
@@ -6865,6 +6962,20 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_case_patient: {
+        Args: {
+          p_age_years?: number
+          p_attending?: string
+          p_case_id: string
+          p_date_of_birth?: string
+          p_encounter_ref?: string
+          p_mrn?: string
+          p_name?: string
+          p_sex?: string
+          p_unit?: string
+        }
+        Returns: undefined
       }
       set_event_patient: {
         Args: {
@@ -6987,6 +7098,10 @@ export type Database = {
           p_sex?: string
           p_unit?: string
         }
+        Returns: undefined
+      }
+      set_template_collects_patient: {
+        Args: { p_collects: boolean; p_template_id: string }
         Returns: undefined
       }
       set_template_phase_blocks: {

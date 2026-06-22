@@ -23,6 +23,7 @@ import { PhaseSlotDialog } from "@/components/process-templates/phase-slot-dialo
 import { NarrativeSlotCard } from "@/components/process-templates/narrative-slot-card";
 import { NarrativeSlotDialog } from "@/components/process-templates/narrative-slot-dialog";
 import { ProcessOutcomesPicker } from "@/components/process-templates/process-outcomes-picker";
+import { CollectsPatientPicker } from "@/components/process-templates/collects-patient-picker";
 import { PublishTemplateButton } from "@/components/process-templates/publish-template-button";
 import { ArchiveTemplateButton } from "@/components/process-templates/archive-template-button";
 import {
@@ -119,6 +120,7 @@ export function TemplateBuilderShell({
   outcomes,
   narrativeTypes,
   narrativesEnabled,
+  casePatientEnabled,
 }: {
   slug: string;
   template: ProcessTemplate;
@@ -131,6 +133,8 @@ export function TemplateBuilderShell({
   narrativeTypes: CaseNarrativeType[];
   /** Whether the `case_narratives` feature is on (gates the merged list + Add-narrativa). */
   narrativesEnabled: boolean;
+  /** Whether the `case_patient` feature is on (gates the draft-only collects-patient toggle; ADR 0038). */
+  casePatientEnabled: boolean;
 }) {
   const [addPhaseOpen, setAddPhaseOpen] = useState(false);
   const [addNarrativeOpen, setAddNarrativeOpen] = useState(false);
@@ -329,6 +333,13 @@ export function TemplateBuilderShell({
           templateId={template.id}
           outcomes={outcomes}
           offeredOutcomeIds={template.offeredOutcomeIds}
+        />
+      )}
+
+      {isDraft && casePatientEnabled && (
+        <CollectsPatientPicker
+          templateId={template.id}
+          collectsPatient={template.collectsPatient}
         />
       )}
 

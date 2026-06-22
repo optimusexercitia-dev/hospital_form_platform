@@ -1,11 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, ShieldAlert } from "lucide-react";
 
 import {
   createCaseFromTemplate,
+  setCasePatient,
   type CreateCaseState,
 } from "@/lib/cases/actions";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,13 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { FormBanner } from "@/components/auth/form-banner";
+import {
+  EMPTY_PATIENT_DRAFT,
+  PatientFields,
+  patientDraftHasData,
+  patientDraftToInput,
+  type PatientDraft,
+} from "@/components/safety/patient-fields";
 
 const SELECT_CLASS =
   "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -33,24 +41,38 @@ const SELECT_CLASS =
 interface TemplateOption {
   id: string;
   title: string;
+  /**
+   * Whether the process collects patient identifiers (ADR 0038). Snapshotted into
+   * `cases.patient_enabled` at creation. When `true` AND the `case_patient` flag is
+   * on, the dialog offers the optional PHI block. Defaults to `false`.
+   */
+  collectsPatient: boolean;
 }
 
 /**
  * "Novo caso" create flow. Mints a case from a published process template
  * (snapshotting its phases + pinning published versions). On success the action
- * returns the new `{ caseId }` and we navigate into the case detail.
+ * returns the new `{ caseId }`; if the selected process COLLECTS patient
+ * identifiers and the reporter filled any, we write the isolated PHI row
+ * (`setCasePatient`) BEFORE navigating into the case detail — mirroring the NSP
+ * notify→set-patient sequence (a PHI-write failure is non-blocking; the case still
+ * exists and the identifiers can be added from the detail panel).
  *
- * The optional label carries a prominent pt-BR PII warning (guardrail 2): a case
- * is identified by its minted NUMBER; the label must NOT contain patient
- * identifiers (name, prontuário/MRN, data de nascimento, etc.). This is guidance
- * + a reminder — the platform never stores patient data by design.
+ * Patient identifiers (ADR 0038 — the THIRD PHI module) are captured in the
+ * SANCTIONED block below (only when the process collects them and the
+ * `case_patient` flag is on). The case is still identified by its minted NUMBER —
+ * the free-text LABEL must stay non-identifying (that is what the warning is
+ * about), independent of the structured PHI block.
  */
 export function CreateCaseDialog({
   slug,
   templates,
+  casePatientEnabled = false,
 }: {
   slug: string;
   templates: TemplateOption[];
+  /** Whether the `case_patient` flag is on (gates the optional PHI block). */
+  casePatientEnabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [state, formAction, isPending] = useActionState<
@@ -59,14 +81,43 @@ export function CreateCaseDialog({
   >(createCaseFromTemplate, undefined);
   const router = useRouter();
 
+  // The selected process — drives whether the optional PHI block is offered.
+  const [templateId, setTemplateId] = useState("");
+  const [patient, setPatient] = useState<PatientDraft>(EMPTY_PATIENT_DRAFT);
+  /** Tracks the post-create PHI write + navigation (so the dialog stays busy). */
+  const [isFinishing, startFinish] = useTransition();
+
+  const selectedTemplate = templates.find((t) => t.id === templateId) ?? null;
+  const showPatientBlock = Boolean(
+    casePatientEnabled && selectedTemplate?.collectsPatient,
+  );
+
   useEffect(() => {
-    if (state?.ok && state.caseId) {
-      router.push(`/c/${slug}/manage/cases/${state.caseId}`);
-    }
-  }, [state, router, slug]);
+    if (!state?.ok || !state.caseId) return;
+    const caseId = state.caseId;
+    // Case minted. When the process collects PHI and the reporter supplied any,
+    // write the isolated patient row before navigating (best-effort — a failure
+    // never blocks navigation; the detail panel can add identifiers later). The
+    // work runs in a transition so the busy state update is deferred (no
+    // cascading synchronous setState in the effect body).
+    startFinish(async () => {
+      if (showPatientBlock && patientDraftHasData(patient)) {
+        try {
+          await setCasePatient(caseId, patientDraftToInput(patient));
+        } catch {
+          // Non-blocking — the case exists; identifiers can be added from detail.
+        }
+      }
+      router.push(`/c/${slug}/manage/cases/${caseId}`);
+    });
+    // We intentionally key only on the action result; the draft/flag are read at
+    // success time (they cannot change between create-submit and this effect).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   const labelField = useFieldIds("label", { hasDescription: true });
   const disabled = templates.length === 0;
+  const busy = isPending || isFinishing;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -76,7 +127,7 @@ export function CreateCaseDialog({
           Novo caso
         </Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90svh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Novo caso</DialogTitle>
           <DialogDescription>
@@ -96,7 +147,8 @@ export function CreateCaseDialog({
               name="templateId"
               className={SELECT_CLASS}
               required
-              defaultValue=""
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
               aria-invalid={state?.fieldErrors?.templateId ? true : undefined}
             >
               <option value="" disabled>
@@ -131,7 +183,9 @@ export function CreateCaseDialog({
             </FieldDescription>
           </Field>
 
-          {/* PII warning — prominent, role=note, never color-only. */}
+          {/* Label PII warning — about the free-text RÓTULO only (the structured
+              patient block below is the sanctioned place for identifiers). Prominent,
+              role=note, never color-only. */}
           <p
             role="note"
             className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2.5 text-sm text-destructive text-pretty"
@@ -144,17 +198,30 @@ export function CreateCaseDialog({
             </span>
           </p>
 
+          {/* Sanctioned, optional patient-identifier block (ADR 0038) — rendered
+              only when the chosen process collects patient identifiers and the
+              `case_patient` flag is on. Reuses the NSP/referral PatientFields. */}
+          {showPatientBlock && (
+            <PatientFields
+              draft={patient}
+              onChange={setPatient}
+              disabled={busy}
+              idPrefix="create-case-patient"
+            />
+          )}
+
           <DialogFooter>
             <Button
               type="button"
               variant="outline"
               size="lg"
               onClick={() => setOpen(false)}
+              disabled={busy}
             >
               Cancelar
             </Button>
-            <Button type="submit" size="lg" disabled={isPending}>
-              {isPending ? "Criando…" : "Criar caso"}
+            <Button type="submit" size="lg" disabled={busy}>
+              {busy ? "Criando…" : "Criar caso"}
             </Button>
           </DialogFooter>
         </form>
