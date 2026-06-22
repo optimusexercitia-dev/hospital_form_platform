@@ -52,7 +52,14 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 > Task detail + lead notes archived to **[docs/progress/phase-23.md](docs/progress/phase-23.md)** (§7).
 > Gate green (Build · E2E `patient-index.spec` 15/15 + pgTAP `152` 39/39 + regression sweep 130–152 10/10
 > · QA APPROVED · Human 2026-06-22); ADR [0039](docs/decisions/0039-patient-identity-cross-committee-linkage.md).
-> Flag `patient_index` ships **OFF** — local only; remote deploy + enabling the flag are separate steps.
+> Flag `patient_index` ships **OFF** in migrations (local stays OFF — pgTAP `152` proves always-on).
+> **DEPLOYED + ENABLED on remote/prod 2026-06-22** (`da4d127`): `db push` (mig `…019000`); production
+> pepper set out-of-band in `app.app_secrets` via server-side `gen_random_bytes` (64-char; **not** the
+> committed dev value); `backfill_patient_keys()` keyed the 2 existing remote PHI rows; flag flipped ON
+> via `db query --linked` (NOT a committed migration, to keep local OFF for `152`). Verified: flag ON,
+> pepper non-dev, `patient_xref` 2/2 keyed. **⚠ Pepper is out-of-band**: it lives ONLY in remote
+> `app.app_secrets` — a future `db reset --linked` re-seeds the dev pepper and orphans existing keys, so
+> back it up / re-set + re-backfill after any remote reset (pepper-rotation residual, now live).
 
 ---
 
