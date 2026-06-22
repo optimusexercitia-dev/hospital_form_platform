@@ -97,6 +97,19 @@ async function supabaseGet(page: Page, path: string) {
   })
 }
 
+/** Service-role PATCH against the Supabase REST API — bypasses RLS. */
+async function supabasePatch(page: Page, path: string, body: Record<string, unknown>) {
+  return page.request.patch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    data: JSON.stringify(body),
+  })
+}
+
 /** Query: narrative type rows for commission A, ordered by position. */
 async function getNarrativeTypes(
   page: Page,
@@ -336,6 +349,27 @@ test('AC-1b: rename a narrative type — new label persists in list and after re
   expect(renamed).toBeDefined()
   const stillOld = types.find((t) => t.label === 'Resumo Clínico')
   expect(stillOld).toBeUndefined()
+
+  // --- Cross-spec hygiene restore ---
+  // AC-1 (which runs BEFORE this test in serial order) asserts the SEEDED label
+  // 'Resumo Clínico' is visible. BUT if a prior full-suite run ended AFTER this
+  // AC-1b rename without restoring (e.g. crashed or the restore below hadn't
+  // existed yet), the seeded row is left with the renamed label, causing AC-1 to
+  // fail on the NEXT run with 'Resumo Clínico' not found.
+  //
+  // Fix: restore the seeded type to its canonical label immediately after the
+  // rename assertion, using the service-role key to bypass RLS. The seeded type
+  // has a deterministic ID: e2000000-0000-0000-0000-0000000000f1.
+  const SEEDED_RESUMO_TYPE_ID = 'e2000000-0000-0000-0000-0000000000f1'
+  await supabasePatch(
+    page,
+    `case_narrative_types?id=eq.${SEEDED_RESUMO_TYPE_ID}`,
+    { label: 'Resumo Clínico' },
+  )
+  // Verify the restore landed.
+  const typesAfterRestore = await getNarrativeTypes(page)
+  const restored = typesAfterRestore.find((t) => t.id === SEEDED_RESUMO_TYPE_ID)
+  expect(restored?.label).toBe('Resumo Clínico')
 })
 
 // ---------------------------------------------------------------------------
@@ -448,8 +482,10 @@ test('AC-3: case detail — merged layout renders phases AND narrative cards', a
   expect(hasConclusao).toBe(true)
 
   // The Resumo Clínico narrative (which has a seeded body) renders its filled body
-  // (not a placeholder) — assert the seeded text is visible.
-  await expect(mergedSection.getByText(/Paciente do leito 7/i)).toBeVisible()
+  // (not a placeholder) — assert the seeded text is visible. Use .first() because
+  // the seeded Caso 0001 has two narratives both containing "Paciente do leito 7"
+  // (referral summary + narrative body), so strict mode would fire without it.
+  await expect(mergedSection.getByText(/Paciente do leito 7/i).first()).toBeVisible()
 
   // The Conclusão do Comitê (empty + is_expected) shows the empty placeholder
   // because this is an open case viewed by the coordinator.

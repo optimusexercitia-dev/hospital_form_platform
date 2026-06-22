@@ -287,7 +287,10 @@ test('AC-3a grant-read (multi): viewer sees full case, content editors hidden', 
   // filled bodies. Caso 0001 seeds "Resumo Clínico" (filled), plus "Achados e Discussão"
   // and "Conclusão do Comitê" (both empty + un-attributed). All three regions must be
   // visible; the empties render a muted "Nenhum conteúdo ainda." with no Editar control.
-  await expect(page.getByRole('region', { name: /Resumo Clínico/i })).toBeVisible()
+  // Use .first() to avoid strict-mode collision with the referral-snapshot region
+  // (also rendered as a <section aria-labelledby="narrative-...-heading">) that the
+  // case-referrals seed adds to Caso 0001 with display_name='Resumo clínico'.
+  await expect(page.getByRole('region', { name: /Resumo Clínico/i }).first()).toBeVisible()
   await expect(page.getByRole('region', { name: /Achados e Discussão/i })).toBeVisible()
   await expect(page.getByRole('region', { name: /Conclusão do Comitê/i })).toBeVisible()
 
@@ -651,10 +654,14 @@ test('AC-6 narrative lifecycle: staff2 fills Resumo via focused editor, conclude
   await page.waitForURL(`**/manage/cases/${CASE_ID}`)
 
   // Find the Resumo narrative card and click "Reabrir".
-  // The page renders <section aria-label="Resumo Clínico"> inside "Fases e narrativas do caso".
-  // Using getByRole('region') targets the named ARIA region directly, avoiding the ambiguity of
-  // locator('section').filter() which would match the access-panel <section> containing the text first.
-  const narrativeSection = page.getByRole('region', { name: /resumo clínico/i })
+  // Both the Caso 0001 narrative AND the Phase-22 referral snapshot are rendered as regions
+  // with names matching /resumo clínico/i inside "Fases e narrativas do caso":
+  //   (1) 'Resumo Clínico' (uppercase C) — the actual case narrative (seeded type label)
+  //   (2) 'Resumo clínico' (lowercase c) — the referral snapshot display_name (ENC-0001)
+  // Use exact string match 'Resumo Clínico' (case-sensitive) to pick only the seeded narrative.
+  // Playwright getByRole with exact:true + string performs case-sensitive matching. Same class
+  // of defect as CA-SPEC-AC3a; scoped approach avoids relying on document order (.first()).
+  const narrativeSection = page.getByRole('region', { name: 'Resumo Clínico', exact: true })
   await expect(narrativeSection).toBeVisible({ timeout: 10_000 })
   const reabrirBtn = narrativeSection.getByRole('button', { name: /reabrir/i })
   await expect(reabrirBtn).toBeVisible({ timeout: 8_000 })

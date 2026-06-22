@@ -292,26 +292,45 @@ test('AC-3: in_progress excluded from dashboard counts (Form A = 6 not 7+)', asy
 //        Setting from/to = today - 2 days should yield at most 2 responses.
 // ---------------------------------------------------------------------------
 
-test('AC-4: Date filter narrows dashboard results', async ({ page }) => {
+test('AC-4: Date filter narrows dashboard results', async ({ page, request }) => {
   // Drive the date filter via URL params — most reliable for Server Component
   // re-query (avoids fighting React's controlled-input onChange/focus timing).
-  // The seed places responses at now() - i days (i=1..6). Restricting to
-  // just yesterday (i=1, the most recent submission) should yield exactly 1.
+  // The seed places responses at now() - i days (i=1..6) AT THE TIME OF db reset.
+  // We query the actual submitted_at dates from the DB to build a time-drift-
+  // resistant filter rather than assuming "yesterday" matches seeded data.
+  //
+  // SPEC-P8-002: replaced hardcoded "yesterday" with a query-derived anchor so
+  // this test doesn't fail when ≥2 days have elapsed since the last db reset.
   await signInAs(page, 'chefe.ccih@test.local')
 
-  const today = new Date()
-  const yesterday = new Date(today)
-  yesterday.setDate(today.getDate() - 1)
-  const yesterdayStr = yesterday.toISOString().slice(0, 10) // YYYY-MM-DD
+  // Query the two most recent Form-A submitted responses to get the actual
+  // submission date range, then filter to just the most-recent day (to get ≤2
+  // but at least 1 result, confirming the filter narrows relative to 6 total).
+  const resp = await request.get(
+    `${SUPABASE_URL}/rest/v1/responses?form_version_id=eq.50000000-0000-0000-0000-00000000a001&status=eq.submitted&select=submitted_at&order=submitted_at.desc&limit=2`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      },
+    },
+  )
+  const rows = (await resp.json()) as Array<{ submitted_at: string }>
+  expect(rows.length, 'AC-4 precondition: at least 2 submitted responses').toBeGreaterThan(0)
 
-  await page.goto(`/c/ccih/dashboard?from=${yesterdayStr}&to=${yesterdayStr}`)
+  // Use the most recent submission's date as the range end.
+  const newestDate = rows[0].submitted_at.slice(0, 10) // YYYY-MM-DD
+
+  await page.goto(`/c/ccih/dashboard?from=${newestDate}&to=${newestDate}`)
   await page.waitForLoadState('networkidle')
 
   // Wait for the form picker to hydrate (client component).
   const tabList = page.getByRole('tablist', { name: /form/i })
   await expect(tabList).toBeVisible({ timeout: 15_000 })
 
-  // The headline after filtering must be less than 6 (at most 1 for a single-day range).
+  // The headline after filtering must be less than 6 (the full seeded count).
+  // At most 2 responses share the same submitted_at date (submitted in the same
+  // db-reset session), so this is always true for a single-day filter.
   const filteredHeadline = page.locator('.font-display.text-4xl.tabular-nums')
   const headlineText = await filteredHeadline.textContent({ timeout: 10_000 })
   const headlineNum = parseInt(headlineText?.trim() ?? '999', 10)
