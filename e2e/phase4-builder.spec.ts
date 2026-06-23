@@ -147,8 +147,8 @@ test('build an unsectioned form with every input type + text + image, then publi
   await d.getByLabel('Opção 2', { exact: true }).fill('Avental')
   await submitDialog(d)
 
-  // free_text
-  d = await openAddBlock(page, page.locator('body'), /Texto livre/)
+  // free_text (label changed from "Texto livre" to "Resposta longa" in FBE phase)
+  d = await openAddBlock(page, page.locator('body'), /Resposta longa/)
   await d.getByLabel('Enunciado da pergunta').fill('Observações gerais')
   await submitDialog(d)
 
@@ -228,10 +228,13 @@ test('publish is blocked when a reorder creates a forward-reference condition (A
     })
     .click()
   const s = page.getByRole('dialog')
+  // Enable the condition toggle first (ConditionBuilder refactor in FBE phase).
   await s
-    .getByLabel('Mostrar a seção quando')
-    .selectOption({ label: 'Houve falha?' })
-  await s.getByLabel('Valor').selectOption({ label: 'Sim' })
+    .getByRole('checkbox', { name: /Exibir somente sob condições/i })
+    .check()
+  // ConditionBuilder uses stable id-suffix selects (no accessible label).
+  await s.locator('select[id$="-target"]').selectOption({ label: 'Houve falha?' })
+  await s.locator('select[id$="-value"]').selectOption({ label: 'Sim' })
   await s.getByRole('button', { name: 'Salvar' }).click()
   await expect(s).toBeHidden()
 
@@ -310,7 +313,7 @@ test('build a 3-section form with conditional + sign-off sections, then publish 
 
   // Add a free_text question to "Detalhes do Incidente".
   const detalhes = page.getByRole('region', { name: 'Detalhes do Incidente' })
-  d = await openAddBlock(page, detalhes, /Texto livre/)
+  d = await openAddBlock(page, detalhes, /Resposta longa/)
   await d.getByLabel('Enunciado da pergunta').fill('Descreva o incidente')
   await submitDialog(d)
 
@@ -320,8 +323,13 @@ test('build a 3-section form with conditional + sign-off sections, then publish 
     .getByRole('button', { name: 'Configurações da seção (condição e assinatura)' })
     .click()
   const settings = page.getByRole('dialog')
-  await settings.getByLabel('Mostrar a seção quando').selectOption({ label: 'Houve incidente?' })
-  await settings.getByLabel('Valor').selectOption({ label: 'Sim' })
+  // Enable the condition toggle first (ConditionBuilder refactor in FBE phase).
+  await settings
+    .getByRole('checkbox', { name: /Exibir somente sob condições/i })
+    .check()
+  // ConditionBuilder uses stable id-suffix selects (no accessible label).
+  await settings.locator('select[id$="-target"]').selectOption({ label: 'Houve incidente?' })
+  await settings.locator('select[id$="-value"]').selectOption({ label: 'Sim' })
   await settings.getByRole('button', { name: 'Salvar' }).click()
   await expect(settings).toBeHidden({ timeout: 10_000 })
 
