@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 
-import type { Json } from "@/lib/types/database";
 import {
   saveSection,
   saveAndExit,
@@ -30,21 +29,21 @@ export function WizardRunner({
 }) {
   const actions: WizardActions = useMemo(
     () => ({
-      saveSection: (input: {
-        sectionId: string;
-        answersByItemId: Record<string, Json>;
-        clearItemIds?: string[];
-      }) =>
+      // The input types reuse `WizardActions`'s own member parameter types
+      // (`Parameters<...>`) rather than re-declaring a narrower literal here —
+      // that narrower literal is exactly what silently dropped
+      // `observationsByItemId` (BUG-FBE-004). Bound to the source of truth, any
+      // future field added to `WizardActions.saveSection`/`saveAndExit` is a
+      // compile error here until it's forwarded.
+      saveSection: (input: Parameters<WizardActions["saveSection"]>[0]) =>
         saveSection({
           responseId: data.responseId,
           sectionId: input.sectionId,
           answersByItemId: input.answersByItemId,
           clearItemIds: input.clearItemIds,
+          observationsByItemId: input.observationsByItemId,
         }),
-      saveAndExit: (input: {
-        sectionId: string | null;
-        answersByItemId: Record<string, Json>;
-      }) => {
+      saveAndExit: (input: Parameters<WizardActions["saveAndExit"]>[0]) => {
         // `saveAndExit` persists the current section; with no active section
         // (already on review) there's nothing to persist — resolve ok so the
         // navigation proceeds.
@@ -53,6 +52,7 @@ export function WizardRunner({
           responseId: data.responseId,
           sectionId: input.sectionId,
           answersByItemId: input.answersByItemId,
+          observationsByItemId: input.observationsByItemId,
         });
       },
       // Case-phase fills (phase-results feature) route to `submitCasePhaseResponse`
