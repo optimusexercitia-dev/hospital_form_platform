@@ -53,6 +53,7 @@ export function toClientResponseForSignoff(
     updatedAt: data.updatedAt,
     tree: data.tree,
     answersByItemId: data.answersByItemId,
+    observationsByItemId: data.observationsByItemId,
     signoffsBySectionId: signoffRecordsToMap(data.signoffs),
   };
 }

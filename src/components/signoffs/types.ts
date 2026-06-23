@@ -56,6 +56,9 @@ export interface ClientResponseForSignoff {
   tree: VersionTree;
   /** Saved answer values keyed by `form_items.id`. */
   answersByItemId: Record<string, Json>;
+  /** Per-item observation notes keyed by `form_items.id`
+   *  (form-builder-enhancements; surfaced by BE-8). */
+  observationsByItemId: Record<string, string>;
   /** Existing sign-off rows for this response, by section. */
   signoffsBySectionId: Record<string, SectionSignoff>;
 }

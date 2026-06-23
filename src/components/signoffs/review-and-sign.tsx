@@ -87,6 +87,7 @@ export function ReviewAndSign({
             index={index}
             isFlat={isFlat}
             answersByItemId={data.answersByItemId}
+            observationsByItemId={data.observationsByItemId}
             visibleItemIds={visibleItemIds}
             imageUrls={imageUrls}
             existingSignoff={data.signoffsBySectionId[section.id] ?? null}
@@ -121,6 +122,7 @@ function ReviewSection({
   index,
   isFlat,
   answersByItemId,
+  observationsByItemId,
   visibleItemIds,
   imageUrls,
   existingSignoff,
@@ -132,6 +134,7 @@ function ReviewSection({
   index: number;
   isFlat: boolean;
   answersByItemId: Record<string, Json>;
+  observationsByItemId: Record<string, string>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
   existingSignoff: SectionSignoff | null;
@@ -186,6 +189,7 @@ function ReviewSection({
       <SectionBody
         section={section}
         answersByItemId={answersByItemId}
+        observationsByItemId={observationsByItemId}
         visibleItemIds={visibleItemIds}
         imageUrls={imageUrls}
       />
@@ -221,11 +225,13 @@ function ReviewSection({
 function SectionBody({
   section,
   answersByItemId,
+  observationsByItemId,
   visibleItemIds,
   imageUrls,
 }: {
   section: Section;
   answersByItemId: Record<string, Json>;
+  observationsByItemId: Record<string, string>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
 }) {
@@ -249,6 +255,7 @@ function SectionBody({
             key={item.id}
             item={item}
             value={(answersByItemId[item.id] as Json | undefined) ?? undefined}
+            observation={observationsByItemId[item.id]}
           />
         ) : (
           <DisplayBlock key={item.id} item={item} imageUrls={imageUrls} />

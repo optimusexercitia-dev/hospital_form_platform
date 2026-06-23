@@ -80,6 +80,7 @@ Frontend (`frontend`):
 | FE-3 | Fill inputs + colors + observations — `input-item.tsx` render switch (short_text/number/date/time, pt-BR number comma I/O, date min/max); colored mc+checkbox rows (left-accent + `TOKEN_STYLES` chips); "Adicionar observação" 2-line affordance on non-free-text items. **Swept all `item.options` readers** (block-card, read-only-tree, input-item, item-editor-dialog, section-settings, answer-summary, submission-detail, recommend-when/result-ruleset op-maps). | ✅ local-green |
 | FE-4 | Item-level visibility + summary — NEW pure `effective-visibility.ts` `computeEffectiveVisibility` (doc-order forward pass mirroring submit RPC; group-safe `evalVisibility`; drops hidden keys; cascades) shared by wizard + read views; `use-wizard.ts` consumes it + `setObservation` + orphan-clear hidden items (cross-section warn / same-section silent); `validation.ts` skip-hidden + number/date min/max; `types.ts` `AnswerRecord.observation`; `wizard-client.tsx`/`section-step`/`review-screen` thread `observationsByItemId` + `visibleItemIds`; `answer-summary.tsx`/`submission-detail-view.tsx`/`review-and-sign.tsx` number/date/time format + colored chip + observation line + item-level hide. 6 new `computeEffectiveVisibility` unit tests. | ✅ local-green |
 | FE-5 | **BUG-FBE-001 fix + read-surface observation audit** — submission-detail page now passes `observationsByItemId={detail.observationsByItemId}` (BE-7); `phase-answers-readonly.tsx` threads `response.observationsByItemId` into `AnswerSummary`; `prepare.ts` `toAnswerState` rehydrates observations into wizard `initialAnswers` (resume + review). Sign-off review still blocked on BE-8 (see DEP note). | ✅ local-green — `tsc` 0 / `lint` 0 / `vitest` 106/106 |
+| FE-6 | **Sign-off review observations (post-BE-8 `bf2a945`)** — `ClientResponseForSignoff` + `toClientResponseForSignoff` (`signoffs/types.ts`, `signoffs/adapt.ts`) now carry/map `observationsByItemId`; threaded through `ReviewAndSign → ReviewSection → SectionBody → AnswerSummary` (page/`SignRunner` unchanged — already pass the full `clientData`). The FE-4 observation line on the sign-off review now renders the real prop. **Observations now render on EVERY read surface** (fill/resume, submission detail, sign-off review) — feature build complete. | ✅ local-green — `tsc` 0 / `lint` 0 / `vitest` 106/106 |
 
 > **CONTRACT note (frontend → backend, blocks section conditions at runtime).**
 > Committed `updateSection` (`src/lib/forms/actions.ts:391`) still reads the LEGACY
@@ -91,20 +92,11 @@ Frontend (`frontend`):
 > (item conditions work). FE compiles green against the group shape and is ready the moment
 > that lands. (Couldn't reach lead by name mid-session — flagging here + in handoff.)
 >
-> **DEP note (read-view observation rehydration) — UPDATED post-BE-7.** BE-7 added
-> `observationsByItemId` to `SubmissionDetail` AND `ResponseForFill`, so as of FE-5 the
-> observation line is wired on every read surface those feed: submission detail
-> (BUG-FBE-001), the case-phase answers read-only view (`PhaseAnswersReadonly`), and the
-> wizard review on resume (`prepare.ts`). **STILL BLOCKED — needs BE-8:** the **sign-off
-> review** screen (`ReviewAndSign`, fed by `getResponseForSignoff` → `ResponseForSignoff`
-> → `ClientResponseForSignoff`) was NOT extended by BE-7 — `ResponseForSignoff`
-> (`src/lib/queries/signoffs.ts:67`) carries only `answersByItemId`, no observations, and
-> neither does the client adapter shape (`src/components/signoffs/adapt.ts` /
-> `signoffs/types.ts`). The `AnswerSummary` observation line there renders nothing until
-> backend adds `observationsByItemId` to `ResponseForSignoff` (+ the SECURITY DEFINER read
-> payload `answers_by_item`-equivalent) and the client adapter. Frontend owns the page +
-> `ReviewAndSign` and will thread it the moment the query field exists; I did NOT touch
-> `src/lib/**`.
+> **DEP note (read-view observation rehydration) — RESOLVED.** BE-7 surfaced
+> `observationsByItemId` on `SubmissionDetail` + `ResponseForFill` (wired in FE-5: submission
+> detail / `PhaseAnswersReadonly` / wizard resume), and BE-8 (`bf2a945`) surfaced it on
+> `ResponseForSignoff` (wired in FE-6: sign-off review via the client adapter). Observations
+> now render on every read surface — no remaining FE↔BE observation dependency.
 
 Tester (`tester`): **build complete** — full tree green (tsc 0 · lint 0 · vitest 106/106 + src/lib 94/94 · pgTAP 867/867 · clean `db reset` + backward-compat proof · **prod build green**). Spawned for the §6.2 test pass.
 
