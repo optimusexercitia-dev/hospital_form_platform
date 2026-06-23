@@ -72,10 +72,28 @@ Frontend (`frontend`):
 
 | # | Task | Status |
 | - | ---- | ------ |
-| FE-1 | Builder type meta + item dialog — `item-type-meta.tsx`/`add-block-menu.tsx` pt-BR labels (Resposta curta/longa, Número, Data, Hora) under "Perguntas"; `item-editor-dialog.tsx` (short/long no options; number/date Mínimo/Máximo→`config`; time plain); `options-editor.tsx` per-row `ColorTokenPicker` (mc+checkbox). | 🔜 |
-| FE-2 | `ConditionBuilder` (NEW `src/components/forms/condition-builder.tsx`) — reusable ALL/ANY + condition rows (target picker = earlier-in-doc-order inputs → op filtered by type → value control); disables+clears "obrigatória" when ≥1 condition. Refactor `section-settings-dialog.tsx` to reuse it (group shape, legacy single round-trips). | 🔜 |
-| FE-3 | Fill inputs + colors + observations — `input-item.tsx` render switch (short_text/number/date/time); colored mc+checkbox rows (`TOKEN_STYLES`); "Adicionar observação" 2-line affordance on non-free-text items. **Sweep all `item.options` readers** (BE-1 list). | 🔜 |
-| FE-4 | Item-level visibility + summary — `use-wizard.ts` `computeEffectiveVisibility` (doc-order forward pass mirroring submit RPC; orphan-clear hidden items) + `setObservation`; `validation.ts` skip-hidden + min/max client checks; `types.ts` `AnswerRecord.observation`; `wizard-client.tsx` thread `observationsByItemId`; `answer-summary.tsx` number/date/time format + colored chip + observation line. | 🔜 |
+| FE-1 | Builder type meta + item dialog — `item-type-meta.tsx`/`add-block-menu.tsx` pt-BR labels (Resposta curta/longa, Número, Data, Hora) under "Perguntas"; `item-editor-dialog.tsx` (short/long no options; number/date Mínimo/Máximo→`config`; time plain); `options-editor.tsx` per-row colour picker (mc+checkbox, "sem cor" default; reuses `TOKEN_COLOR_VAR` palette). | ✅ local-green — `tsc` 0 / `lint` 0 / `vitest` 106/106. `frontend-design` applied |
+| FE-2 | `ConditionBuilder` (NEW `condition-builder.tsx` + pure `condition-targets.ts`) — reusable ALL/ANY + condition rows (target picker = earlier-in-doc-order inputs → op filtered by type → value control); disables+clears "obrigatória" when ≥1 condition. Wired into `item-editor-dialog.tsx` (questions) + refactored `section-settings-dialog.tsx`/`section-condition-fields.tsx` to reuse it (serializes group shape via `visibleWhen` JSON; legacy single round-trips). | ✅ local-green — **DEP: needs `updateSection` to read `visibleWhen` JSON (see CONTRACT note below)** |
+| FE-3 | Fill inputs + colors + observations — `input-item.tsx` render switch (short_text/number/date/time, pt-BR number comma I/O, date min/max); colored mc+checkbox rows (left-accent + `TOKEN_STYLES` chips); "Adicionar observação" 2-line affordance on non-free-text items. **Swept all `item.options` readers** (block-card, read-only-tree, input-item, item-editor-dialog, section-settings, answer-summary, submission-detail, recommend-when/result-ruleset op-maps). | ✅ local-green |
+| FE-4 | Item-level visibility + summary — NEW pure `effective-visibility.ts` `computeEffectiveVisibility` (doc-order forward pass mirroring submit RPC; group-safe `evalVisibility`; drops hidden keys; cascades) shared by wizard + read views; `use-wizard.ts` consumes it + `setObservation` + orphan-clear hidden items (cross-section warn / same-section silent); `validation.ts` skip-hidden + number/date min/max; `types.ts` `AnswerRecord.observation`; `wizard-client.tsx`/`section-step`/`review-screen` thread `observationsByItemId` + `visibleItemIds`; `answer-summary.tsx`/`submission-detail-view.tsx`/`review-and-sign.tsx` number/date/time format + colored chip + observation line + item-level hide. 6 new `computeEffectiveVisibility` unit tests. | ✅ local-green — read-view observation rehydration pending backend query field (see DEP note) |
+
+> **CONTRACT note (frontend → backend, blocks section conditions at runtime).**
+> Committed `updateSection` (`src/lib/forms/actions.ts:391`) still reads the LEGACY
+> discrete `conditionKey`/`conditionOp`/`conditionValue` fields (only equals/not_equals/in,
+> single shape). FE-2 moved sections to the shared `ConditionBuilder`, which serializes the
+> group shape via a `visibleWhen` JSON field (same as `addItem`/`updateItem`). **Requested:
+> make `updateSection` use the same `parseVisibleWhen(formData)` path** (read `visibleWhen`,
+> clear the legacy fields). Until then, saving a SECTION condition is a no-op at runtime
+> (item conditions work). FE compiles green against the group shape and is ready the moment
+> that lands. (Couldn't reach lead by name mid-session — flagging here + in handoff.)
+>
+> **DEP note (read-view observation rehydration).** The observation affordance fully works
+> for the live in-session fill + the wizard review screen. Showing observations in the
+> read-only **submission detail** (`SubmissionDetail`) and the **sign-off review**
+> (`ClientResponseForFill`/`ResponseForFill`) needs those query shapes to surface an
+> `observationsByItemId` map (backend-owned `src/lib/queries/{submissions,responses}.ts`).
+> The FE props are already optional + wired (`AnswerSummary` observation line, `prepare.ts`
+> ready) — purely additive once the query field exists.
 
 Tester (`tester`): _spawned once build is complete & dev server runs._
 

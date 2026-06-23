@@ -20,6 +20,8 @@ export function SectionStep({
   answers,
   errors,
   onChange,
+  visibleItemIds,
+  onObservationChange,
 }: {
   section: Section;
   index: number;
@@ -27,6 +29,14 @@ export function SectionStep({
   answers: AnswerState;
   errors: Record<string, string>;
   onChange: (item: { id: string; questionKey: string }, value: Json) => void;
+  /**
+   * The item ids currently VISIBLE under item-level conditions
+   * (form-builder-enhancements). When provided, hidden input items are skipped;
+   * display items always render.
+   */
+  visibleItemIds?: Set<string>;
+  /** Persist a per-item observation note (form-builder-enhancements). */
+  onObservationChange?: (itemId: string, value: string) => void;
 }) {
   const headingId = `section-${section.id}-heading`;
   const heading =
@@ -62,6 +72,15 @@ export function SectionStep({
         ) : (
           section.items.map((item) => {
             const answerable = isInputItem(item.itemType);
+            // Skip input items hidden by an item-level condition; display items
+            // always render (they collect no answer).
+            if (
+              answerable &&
+              visibleItemIds &&
+              !visibleItemIds.has(item.id)
+            ) {
+              return null;
+            }
             return (
               <BlockRenderer
                 key={item.id}
@@ -73,6 +92,14 @@ export function SectionStep({
                   answerable &&
                   item.questionKey &&
                   onChange({ id: item.id, questionKey: item.questionKey }, value)
+                }
+                observation={
+                  answerable ? answers[item.id]?.observation : undefined
+                }
+                onObservationChange={
+                  answerable && onObservationChange
+                    ? (value) => onObservationChange(item.id, value)
+                    : undefined
                 }
               />
             );

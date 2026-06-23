@@ -60,7 +60,11 @@ export function BlockList({
         </div>
       )}
 
-      <AddBlockMenu sectionId={section.id} commissionId={commissionId} />
+      <AddBlockMenu
+        sectionId={section.id}
+        sections={sections}
+        commissionId={commissionId}
+      />
     </div>
   );
 }

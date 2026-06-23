@@ -5,16 +5,16 @@ import { User } from "lucide-react";
 
 import type { Json } from "@/lib/types/database";
 import type { Item, Section } from "@/lib/queries/forms";
-import {
-  evalCondition,
-  type AnswerMap,
-} from "@/lib/queries/conditions";
+import type { AnswerMap } from "@/lib/queries/conditions";
 import {
   ImageContentRenderer,
   SectionTextRenderer,
 } from "@/components/forms/read-only-blocks";
 import { AnswerSummary } from "@/components/responses/wizard/answer-summary";
-import { isInputItem } from "@/components/responses/wizard/use-wizard";
+import {
+  computeEffectiveVisibility,
+  isInputItem,
+} from "@/components/responses/wizard/effective-visibility";
 
 import type { ClientResponseForSignoff, SectionSignoff } from "./types";
 import { SignoffStatus } from "./signoff-status";
@@ -65,9 +65,14 @@ export function ReviewAndSign({
     return map;
   }, [sections, data.answersByItemId]);
 
-  const visibleSections = useMemo(
-    () => sections.filter((s) => evalCondition(s.visibleWhen, answerMap)),
+  // One forward pass drives both section AND item visibility (mirror of submit).
+  const { visibleSectionIds, visibleItemIds } = useMemo(
+    () => computeEffectiveVisibility(sections, answerMap),
     [sections, answerMap],
+  );
+  const visibleSections = useMemo(
+    () => sections.filter((s) => visibleSectionIds.has(s.id)),
+    [sections, visibleSectionIds],
   );
 
   return (
@@ -82,6 +87,7 @@ export function ReviewAndSign({
             index={index}
             isFlat={isFlat}
             answersByItemId={data.answersByItemId}
+            visibleItemIds={visibleItemIds}
             imageUrls={imageUrls}
             existingSignoff={data.signoffsBySectionId[section.id] ?? null}
             responseId={data.responseId}
@@ -115,6 +121,7 @@ function ReviewSection({
   index,
   isFlat,
   answersByItemId,
+  visibleItemIds,
   imageUrls,
   existingSignoff,
   responseId,
@@ -125,6 +132,7 @@ function ReviewSection({
   index: number;
   isFlat: boolean;
   answersByItemId: Record<string, Json>;
+  visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
   existingSignoff: SectionSignoff | null;
   responseId: string;
@@ -178,6 +186,7 @@ function ReviewSection({
       <SectionBody
         section={section}
         answersByItemId={answersByItemId}
+        visibleItemIds={visibleItemIds}
         imageUrls={imageUrls}
       />
 
@@ -207,17 +216,24 @@ function ReviewSection({
   );
 }
 
-/** The section's blocks: display blocks rendered faithfully, inputs as answers. */
+/** The section's blocks: display blocks rendered faithfully, inputs as answers.
+ *  Input items hidden by an item-level condition are omitted. */
 function SectionBody({
   section,
   answersByItemId,
+  visibleItemIds,
   imageUrls,
 }: {
   section: Section;
   answersByItemId: Record<string, Json>;
+  visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
 }) {
-  if (section.items.length === 0) {
+  const items = section.items.filter(
+    (it) => !isInputItem(it.itemType) || visibleItemIds.has(it.id),
+  );
+
+  if (items.length === 0) {
     return (
       <p className="text-sm text-muted-foreground italic">
         Esta seção não tem conteúdo.
@@ -227,7 +243,7 @@ function SectionBody({
 
   return (
     <dl className="flex flex-col gap-1">
-      {section.items.map((item) =>
+      {items.map((item) =>
         isInputItem(item.itemType) ? (
           <AnswerSummary
             key={item.id}

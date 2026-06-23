@@ -45,16 +45,20 @@ import { ConfirmationScreen } from "./confirmation-screen";
  * exactly (`answers` rows are per-item; no question_key reverse-lookup).
  */
 export interface WizardActions {
-  /** Persist a section's answers (+ advance `last_section_id`); F4. */
+  /** Persist a section's answers (+ advance `last_section_id`); F4.
+   *  `observationsByItemId` carries the optional per-item observation notes
+   *  (form-builder-enhancements). */
   saveSection: (input: {
     sectionId: string;
     answersByItemId: Record<string, Json>;
     clearItemIds?: string[];
+    observationsByItemId?: Record<string, string>;
   }) => Promise<{ ok: boolean; error?: string }>;
   /** Persist the current section + signal exit; F4. */
   saveAndExit: (input: {
     sectionId: string | null;
     answersByItemId: Record<string, Json>;
+    observationsByItemId?: Record<string, string>;
   }) => Promise<{ ok: boolean; error?: string }>;
   /**
    * Submit through the server authority (`submit_response`); F5. For case-phase
@@ -125,6 +129,7 @@ export function WizardClient({
   const {
     isFlat,
     visibleSections,
+    visibleItemIds,
     currentSection,
     currentStepIndex,
     stepCount,
@@ -132,6 +137,7 @@ export function WizardClient({
     answers,
     answerMap,
     setAnswer,
+    setObservation,
     next,
     back,
     goToSection,
@@ -141,17 +147,35 @@ export function WizardClient({
     commitAnswerChange,
   } = wizard;
 
-  /** Collect a section's current answers keyed by item_id (B3's save shape). */
+  /** Collect a section's current answers keyed by item_id (B3's save shape).
+   *  Only VISIBLE input items are sent — hidden items collect no answer. */
   const answersForSection = useCallback(
     (section: Section): Record<string, Json> => {
       const out: Record<string, Json> = {};
       for (const item of section.items) {
+        if (!visibleItemIds.has(item.id)) continue;
         const rec = answers[item.id];
         if (rec) out[rec.itemId] = rec.value;
       }
       return out;
     },
-    [answers],
+    [answers, visibleItemIds],
+  );
+
+  /** Collect a section's non-empty observation notes keyed by item_id
+   *  (form-builder-enhancements). Only for currently-visible items. */
+  const observationsForSection = useCallback(
+    (section: Section): Record<string, string> => {
+      const out: Record<string, string> = {};
+      for (const item of section.items) {
+        if (!visibleItemIds.has(item.id)) continue;
+        const rec = answers[item.id];
+        const note = rec?.observation?.trim();
+        if (note) out[item.id] = note;
+      }
+      return out;
+    },
+    [answers, visibleItemIds],
   );
 
   /** Persist the current section before navigating away from it (F4). */
@@ -162,6 +186,7 @@ export function WizardClient({
       const result = await actions.saveSection({
         sectionId: section.id,
         answersByItemId: answersForSection(section),
+        observationsByItemId: observationsForSection(section),
       });
       setSaving(false);
       if (!result.ok) {
@@ -170,7 +195,7 @@ export function WizardClient({
       }
       return true;
     },
-    [actions, answersForSection],
+    [actions, answersForSection, observationsForSection],
   );
 
   /**
@@ -181,16 +206,27 @@ export function WizardClient({
   const onChange = useCallback(
     (item: { id: string; questionKey: string }, value: Json) => {
       const prospective = previewAnswerChange(item, value);
-      const orphans = detectOrphans(prospective).filter(
-        // Don't warn about the section being edited itself; only OTHER sections
-        // whose visibility this answer controls.
+      const allOrphans = detectOrphans(prospective);
+      // Cross-section orphans are a data-loss moment ACROSS pages → warn first.
+      const crossSection = allOrphans.filter(
         (o) => o.section.id !== currentSection?.id,
       );
-      if (orphans.length > 0) {
-        setPendingOrphan({ item, value, orphans });
+      if (crossSection.length > 0) {
+        setPendingOrphan({ item, value, orphans: crossSection });
         return;
       }
-      setAnswer(item, value);
+      // Same-section item-level orphans (an answer hidden by THIS change within
+      // the current section): clear them silently alongside the change — the UI
+      // stops rendering them and they leave the save payload; the submit RPC is
+      // the backstop for any already-persisted stray row.
+      const sameSectionClearIds = allOrphans
+        .filter((o) => o.section.id === currentSection?.id)
+        .flatMap((o) => o.itemIds);
+      if (sameSectionClearIds.length > 0) {
+        commitAnswerChange(item, value, sameSectionClearIds);
+      } else {
+        setAnswer(item, value);
+      }
       setErrors((prev) => {
         if (!prev[item.id]) return prev;
         if (!hasAnswer({ itemId: item.id, questionKey: item.questionKey, value }))
@@ -200,7 +236,13 @@ export function WizardClient({
         return nextErrors;
       });
     },
-    [previewAnswerChange, detectOrphans, currentSection?.id, setAnswer],
+    [
+      previewAnswerChange,
+      detectOrphans,
+      currentSection?.id,
+      setAnswer,
+      commitAnswerChange,
+    ],
   );
 
   /** Confirm the warn-and-clear: commit the change + clear orphans (local + DB). */
@@ -224,20 +266,28 @@ export function WizardClient({
           [pending.item.id]: pending.value,
         },
         clearItemIds,
+        observationsByItemId: observationsForSection(currentSection),
       });
       setSaving(false);
       if (!result.ok) {
         setBanner(result.error ?? "Não foi possível salvar suas respostas.");
       }
     }
-  }, [pendingOrphan, commitAnswerChange, currentSection, actions, answersForSection]);
+  }, [
+    pendingOrphan,
+    commitAnswerChange,
+    currentSection,
+    actions,
+    answersForSection,
+    observationsForSection,
+  ]);
 
   /** Advance: validate the current section, persist, then move forward. */
   const handleNext = useCallback(async () => {
     const section = currentSection;
     if (!section) return;
 
-    const sectionErrors = validateSection(section, answers);
+    const sectionErrors = validateSection(section, answers, visibleItemIds);
     if (Object.keys(sectionErrors).length > 0) {
       setErrors(sectionErrors);
       setBanner("Revise os campos destacados antes de continuar.");
@@ -253,6 +303,7 @@ export function WizardClient({
   }, [
     currentSection,
     answers,
+    visibleItemIds,
     persistSection,
     currentStepIndex,
     stepCount,
@@ -276,6 +327,7 @@ export function WizardClient({
     const result = await actions.saveAndExit({
       sectionId: section?.id ?? null,
       answersByItemId: section ? answersForSection(section) : {},
+      observationsByItemId: section ? observationsForSection(section) : {},
     });
     setSaving(false);
     if (!result.ok) {
@@ -283,7 +335,14 @@ export function WizardClient({
       return;
     }
     router.push(`/c/${data.slug}/forms`);
-  }, [actions, currentSection, answersForSection, router, data.slug]);
+  }, [
+    actions,
+    currentSection,
+    answersForSection,
+    observationsForSection,
+    router,
+    data.slug,
+  ]);
 
   /** Submit (F5): the server is the authority; surface its pt-BR rejection. */
   const handleSubmit = useCallback(async () => {
@@ -415,6 +474,7 @@ export function WizardClient({
         <>
           <ReviewScreen
             visibleSections={visibleSections}
+            visibleItemIds={visibleItemIds}
             answers={answers}
             signoffs={signoffs}
             saving={saving}
@@ -438,6 +498,8 @@ export function WizardClient({
           answers={answers}
           errors={errors}
           onChange={onChange}
+          visibleItemIds={visibleItemIds}
+          onObservationChange={setObservation}
         />
         <WizardNav
           canGoBack={false}
@@ -471,6 +533,7 @@ export function WizardClient({
       {isReview ? (
         <ReviewScreen
           visibleSections={visibleSections}
+          visibleItemIds={visibleItemIds}
           answers={answers}
           signoffs={signoffs}
           saving={saving}
@@ -491,6 +554,8 @@ export function WizardClient({
             answers={answers}
             errors={errors}
             onChange={onChange}
+            visibleItemIds={visibleItemIds}
+            onObservationChange={setObservation}
           />
           <WizardNav
             canGoBack={currentStepIndex > 0}

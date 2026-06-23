@@ -1,9 +1,13 @@
 import {
   AlignLeft,
+  CalendarDays,
   CheckSquare,
   ChevronDownSquare,
   CircleDot,
+  Clock,
+  Hash,
   Image as ImageIcon,
+  Minus,
   Type,
 } from "lucide-react";
 
@@ -34,10 +38,30 @@ export const ITEM_TYPE_META: Record<ItemType, ItemTypeMeta> = {
     description: "Uma ou mais opções.",
     Icon: CheckSquare,
   },
+  short_text: {
+    label: "Resposta curta",
+    description: "Texto de uma linha.",
+    Icon: Minus,
+  },
   free_text: {
-    label: "Texto livre",
-    description: "Resposta escrita pela pessoa.",
+    label: "Resposta longa",
+    description: "Texto de várias linhas.",
     Icon: AlignLeft,
+  },
+  number: {
+    label: "Número",
+    description: "Valor numérico, com mínimo/máximo opcionais.",
+    Icon: Hash,
+  },
+  date: {
+    label: "Data",
+    description: "Data, com mínimo/máximo opcionais.",
+    Icon: CalendarDays,
+  },
+  time: {
+    label: "Hora",
+    description: "Horário no formato 24h.",
+    Icon: Clock,
   },
   section_text: {
     label: "Texto explicativo",

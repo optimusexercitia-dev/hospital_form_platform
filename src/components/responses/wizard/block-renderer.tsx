@@ -27,12 +27,16 @@ export function BlockRenderer({
   value,
   onChange,
   error,
+  observation,
+  onObservationChange,
 }: {
   item: Item;
   imageUrls: Record<string, string>;
   value: Json | undefined;
   onChange: (value: Json) => void;
   error?: string;
+  observation?: string;
+  onObservationChange?: (value: string) => void;
 }) {
   if (item.itemType === "section_text" && item.content) {
     return (
@@ -59,7 +63,14 @@ export function BlockRenderer({
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
-      <InputItem item={item} value={value} onChange={onChange} error={error} />
+      <InputItem
+        item={item}
+        value={value}
+        onChange={onChange}
+        error={error}
+        observation={observation}
+        onObservationChange={onObservationChange}
+      />
     </div>
   );
 }

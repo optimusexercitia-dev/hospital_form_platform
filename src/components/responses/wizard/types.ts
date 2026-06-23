@@ -29,6 +29,13 @@ export interface AnswerRecord {
   itemId: string;
   questionKey: string;
   value: Json;
+  /**
+   * Optional per-item observation note (form-builder-enhancements, decision
+   * #11). Stored on the answer row (`answers.observation`); persisted via
+   * `saveSection`'s `observationsByItemId`. The evaluator/answer_map read only
+   * `value`, so observations never affect conditions.
+   */
+  observation?: string;
 }
 
 /** The wizard's answer state: per-item answer records keyed by item id. */

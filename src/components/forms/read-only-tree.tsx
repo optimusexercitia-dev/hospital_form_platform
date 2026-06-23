@@ -1,5 +1,6 @@
 import type { Item, Section, VersionTree } from "@/lib/queries/forms";
 import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
+import { TOKEN_COLOR_VAR } from "@/components/cases/case-status-badge";
 import {
   ImageContentRenderer,
   SectionTextRenderer,
@@ -158,14 +159,21 @@ function ReadOnlyBlock({
           {item.options.map((opt, i) => (
             <li
               key={i}
-              className="rounded-full border border-border bg-card px-2.5 py-0.5 text-xs text-muted-foreground"
+              className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-0.5 text-xs text-muted-foreground"
             >
-              {opt}
+              {opt.color && (
+                <span
+                  aria-hidden="true"
+                  className="size-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: TOKEN_COLOR_VAR[opt.color] }}
+                />
+              )}
+              {opt.label}
             </li>
           ))}
         </ul>
       )}
-      {item.itemType === "free_text" && (
+      {(item.itemType === "free_text" || item.itemType === "short_text") && (
         <div className="h-9 rounded-lg border border-dashed border-border bg-muted/30" />
       )}
     </article>

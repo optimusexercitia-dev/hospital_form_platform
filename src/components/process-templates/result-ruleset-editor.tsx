@@ -24,6 +24,10 @@ const OP_LABELS: Record<ConditionOp, string> = {
   equals: "for igual a",
   not_equals: "for diferente de",
   in: "for uma das opções",
+  gt: "for maior que",
+  gte: "for maior ou igual a",
+  lt: "for menor que",
+  lte: "for menor ou igual a",
 };
 
 /** A locally-edited rule row (UI state; serialized to a {@link ResultRule}). */

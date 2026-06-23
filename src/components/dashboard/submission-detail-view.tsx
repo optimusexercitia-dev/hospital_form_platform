@@ -3,13 +3,16 @@ import { CalendarCheck } from "lucide-react";
 import type { Json } from "@/lib/types/database";
 import type { Item, Section, VersionTree } from "@/lib/queries/forms";
 import type { SignoffRecord } from "@/lib/queries/signoffs";
-import { evalCondition } from "@/lib/queries/conditions";
 import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
 import {
   ImageContentRenderer,
   SectionTextRenderer,
 } from "@/components/forms/read-only-blocks";
 import { AnswerSummary } from "@/components/responses/wizard/answer-summary";
+import {
+  computeEffectiveVisibility,
+  isInputItem,
+} from "@/components/responses/wizard/effective-visibility";
 
 /** pt-BR date + time for sign-off metadata. */
 function formatDateTime(iso: string): string {
@@ -34,10 +37,12 @@ function formatDateTime(iso: string): string {
  *  - `question_explanation` shown as muted helper text under the question.
  *
  * Version-faithfulness: the `tree` is the response's OWN version (v1 stays v1
- * after v2 publishes). Sections hidden by a condition under THIS response's own
- * answers (`evalCondition` over `answersByKey` — the same TS evaluator the
- * wizard uses) render as "não aplicável", collecting nothing. Sign-off metadata
- * (who/when/note) is shown per signed section.
+ * after v2 publishes). Section AND item visibility is resolved by the SAME
+ * document-order forward pass the wizard + submit RPC use
+ * ({@link computeEffectiveVisibility} over `answersByKey`, group-safe): a hidden
+ * SECTION renders "não aplicável" collecting nothing; a hidden ITEM is omitted
+ * from its section body. Sign-off metadata (who/when/note) is shown per signed
+ * section. Per-item observation notes (when provided) show as a muted line.
  *
  * Server-Component-safe: `AnswerSummary` is presentational, and all inputs are
  * plain props from the query layer.
@@ -46,12 +51,16 @@ export function SubmissionDetailView({
   tree,
   answersByItemId,
   answersByKey,
+  observationsByItemId = {},
   signoffs,
   imageUrls,
 }: {
   tree: VersionTree;
   answersByItemId: Record<string, Json>;
   answersByKey: Record<string, Json>;
+  /** Per-item observation notes (form-builder-enhancements). Optional — empty
+   *  until the query layer surfaces `answers.observation`. */
+  observationsByItemId?: Record<string, string>;
   signoffs: SignoffRecord[];
   imageUrls: Record<string, string>;
 }) {
@@ -59,12 +68,20 @@ export function SubmissionDetailView({
   const isFlat = sections.length === 1 && sections[0].isDefault;
   const signoffsBySection = new Map(signoffs.map((s) => [s.sectionId, s]));
 
+  // One forward pass drives both section AND item visibility (mirror of submit).
+  const { visibleSectionIds, visibleItemIds } = computeEffectiveVisibility(
+    sections,
+    answersByKey,
+  );
+
   if (isFlat) {
     return (
       <div className="flex flex-col gap-4">
         <SectionBody
           section={sections[0]}
           answersByItemId={answersByItemId}
+          observationsByItemId={observationsByItemId}
+          visibleItemIds={visibleItemIds}
           imageUrls={imageUrls}
         />
       </div>
@@ -73,20 +90,19 @@ export function SubmissionDetailView({
 
   return (
     <div className="flex flex-col gap-5">
-      {sections.map((section, index) => {
-        const visible = evalCondition(section.visibleWhen, answersByKey);
-        return (
-          <DetailSection
-            key={section.id}
-            section={section}
-            index={index}
-            visible={visible}
-            answersByItemId={answersByItemId}
-            signoff={signoffsBySection.get(section.id) ?? null}
-            imageUrls={imageUrls}
-          />
-        );
-      })}
+      {sections.map((section, index) => (
+        <DetailSection
+          key={section.id}
+          section={section}
+          index={index}
+          visible={visibleSectionIds.has(section.id)}
+          answersByItemId={answersByItemId}
+          observationsByItemId={observationsByItemId}
+          visibleItemIds={visibleItemIds}
+          signoff={signoffsBySection.get(section.id) ?? null}
+          imageUrls={imageUrls}
+        />
+      ))}
     </div>
   );
 }
@@ -96,6 +112,8 @@ function DetailSection({
   index,
   visible,
   answersByItemId,
+  observationsByItemId,
+  visibleItemIds,
   signoff,
   imageUrls,
 }: {
@@ -103,6 +121,8 @@ function DetailSection({
   index: number;
   visible: boolean;
   answersByItemId: Record<string, Json>;
+  observationsByItemId: Record<string, string>;
+  visibleItemIds: Set<string>;
   signoff: SignoffRecord | null;
   imageUrls: Record<string, string>;
 }) {
@@ -151,6 +171,8 @@ function DetailSection({
           <SectionBody
             section={section}
             answersByItemId={answersByItemId}
+            observationsByItemId={observationsByItemId}
+            visibleItemIds={visibleItemIds}
             imageUrls={imageUrls}
           />
           {section.requiresSignoff && <SignoffMeta signoff={signoff} />}
@@ -172,13 +194,23 @@ function DetailSection({
 function SectionBody({
   section,
   answersByItemId,
+  observationsByItemId,
+  visibleItemIds,
   imageUrls,
 }: {
   section: Section;
   answersByItemId: Record<string, Json>;
+  observationsByItemId: Record<string, string>;
+  visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
 }) {
-  if (section.items.length === 0) {
+  // Display items always render; input items hidden by an item-level condition
+  // are omitted (they collected no answer).
+  const items = section.items.filter(
+    (it) => !isInputItem(it.itemType) || visibleItemIds.has(it.id),
+  );
+
+  if (items.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-5 text-center text-sm text-muted-foreground">
         Seção sem blocos.
@@ -188,11 +220,12 @@ function SectionBody({
 
   return (
     <div className="flex flex-col gap-3">
-      {section.items.map((item) => (
+      {items.map((item) => (
         <DetailBlock
           key={item.id}
           item={item}
           value={answersByItemId[item.id]}
+          observation={observationsByItemId[item.id]}
           imageUrls={imageUrls}
         />
       ))}
@@ -204,10 +237,12 @@ function SectionBody({
 function DetailBlock({
   item,
   value,
+  observation,
   imageUrls,
 }: {
   item: Item;
   value: Json | undefined;
+  observation?: string;
   imageUrls: Record<string, string>;
 }) {
   if (item.itemType === "section_text" && item.content) {
@@ -230,7 +265,7 @@ function DetailBlock({
         </p>
       )}
       <dl>
-        <AnswerSummary item={item} value={value} />
+        <AnswerSummary item={item} value={value} observation={observation} />
       </dl>
     </article>
   );

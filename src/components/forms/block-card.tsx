@@ -32,6 +32,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
+import { TOKEN_COLOR_VAR } from "@/components/cases/case-status-badge";
 import { ItemEditorDialog } from "@/components/forms/item-editor-dialog";
 import { ImagePreview } from "@/components/forms/image-preview";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
@@ -217,6 +218,7 @@ export function BlockCard({
         mode="edit"
         item={item}
         sectionId={currentSectionId}
+        sections={sections}
         commissionId={commissionId}
         imageUrl={imageUrl}
       />
@@ -271,9 +273,16 @@ function BlockPreview({
           {item.options.map((opt, i) => (
             <li
               key={i}
-              className="rounded-full border border-border bg-card px-2.5 py-0.5 text-xs text-muted-foreground"
+              className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-0.5 text-xs text-muted-foreground"
             >
-              {opt}
+              {opt.color && (
+                <span
+                  aria-hidden="true"
+                  className="size-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: TOKEN_COLOR_VAR[opt.color] }}
+                />
+              )}
+              {opt.label}
             </li>
           ))}
         </ul>

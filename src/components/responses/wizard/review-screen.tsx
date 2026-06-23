@@ -24,6 +24,7 @@ import { isInputItem } from "./use-wizard";
  */
 export function ReviewScreen({
   visibleSections,
+  visibleItemIds,
   answers,
   signoffs,
   saving,
@@ -33,6 +34,9 @@ export function ReviewScreen({
   submitSlot,
 }: {
   visibleSections: Section[];
+  /** Input item ids visible under item-level conditions
+   *  (form-builder-enhancements); hidden items are not reviewed. */
+  visibleItemIds: Set<string>;
   answers: AnswerState;
   /** Existing sign-off rows by section_id (F3). */
   signoffs: Record<string, SectionSignoff>;
@@ -69,6 +73,7 @@ export function ReviewScreen({
             section={section}
             index={index}
             answers={answers}
+            visibleItemIds={visibleItemIds}
             signoff={signoffs[section.id] ?? null}
             saving={saving}
             onSign={(note) => onSignSection(section.id, note)}
@@ -88,6 +93,7 @@ function ReviewSection({
   section,
   index,
   answers,
+  visibleItemIds,
   signoff,
   saving,
   onSign,
@@ -96,6 +102,7 @@ function ReviewSection({
   section: Section;
   index: number;
   answers: AnswerState;
+  visibleItemIds: Set<string>;
   signoff: SectionSignoff | null;
   saving: boolean;
   onSign: (note: string | null) => void;
@@ -107,7 +114,10 @@ function ReviewSection({
   const showSectionNumber = Boolean(section.title) || !section.isDefault;
   const heading =
     section.title || (section.isDefault ? "Respostas" : "Seção sem título");
-  const inputItems = section.items.filter((it) => isInputItem(it.itemType));
+  // Only visible input items are reviewed (hidden ones collect no answer).
+  const inputItems = section.items.filter(
+    (it) => isInputItem(it.itemType) && visibleItemIds.has(it.id),
+  );
 
   return (
     <section
@@ -156,6 +166,7 @@ function ReviewSection({
                 key={item.id}
                 item={item}
                 value={answers[item.id]?.value}
+                observation={answers[item.id]?.observation}
               />
             ))}
           </dl>

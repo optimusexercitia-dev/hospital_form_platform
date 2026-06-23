@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 
-import type { ItemType } from "@/lib/queries/forms";
+import type { ItemType, Section } from "@/lib/queries/forms";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -20,7 +20,11 @@ const INPUT_TYPES: ItemType[] = [
   "multiple_choice",
   "dropdown",
   "checkbox",
+  "short_text",
   "free_text",
+  "number",
+  "date",
+  "time",
 ];
 const DISPLAY_TYPES: ItemType[] = ["section_text", "image"];
 
@@ -30,9 +34,11 @@ const DISPLAY_TYPES: ItemType[] = ["section_text", "image"];
  */
 export function AddBlockMenu({
   sectionId,
+  sections,
   commissionId,
 }: {
   sectionId: string;
+  sections: Section[];
   commissionId: string;
 }) {
   const [pendingType, setPendingType] = useState<ItemType | null>(null);
@@ -76,6 +82,7 @@ export function AddBlockMenu({
           mode="add"
           itemType={pendingType}
           sectionId={sectionId}
+          sections={sections}
           commissionId={commissionId}
           imageUrl={null}
         />
