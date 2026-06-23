@@ -110,6 +110,10 @@ export interface SubmissionDetail {
   /** Saved answers keyed by question_key (drives the condition evaluator for
    * "não aplicável" sections). */
   answersByKey: Record<string, Json>
+  /** Saved per-item observation notes keyed by item_id (form-builder
+   * enhancements, decision #11), non-null only. The read-only renderer shows
+   * them as a muted secondary line under the answer. */
+  observationsByItemId: Record<string, string>
   /** Per-section sign-off rows (who/when/note), for the detail view. */
   signoffs: SignoffRecord[]
 }
@@ -170,6 +174,7 @@ interface DetailAnswerRow {
   item_id: string
   question_key: string
   value: Json | null
+  observation: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -282,13 +287,19 @@ export async function getSubmissionDetail(
   // for in_progress foreign responses — `response` above would already be null.)
   const { data: answers } = await supabase
     .from('answers')
-    .select('item_id, question_key, value')
+    .select('item_id, question_key, value, observation')
     .eq('response_id', responseId)
     .returns<DetailAnswerRow[]>()
 
   const answersByItemId: Record<string, Json> = {}
   const answersByKey: Record<string, Json> = {}
+  const observationsByItemId: Record<string, string> = {}
   for (const a of answers ?? []) {
+    // Collect observations independently of the value guard (an observation can
+    // accompany a null value via an observation-only upsert).
+    if (a.observation !== null && a.observation !== '') {
+      observationsByItemId[a.item_id] = a.observation
+    }
     if (a.value === null) continue
     answersByItemId[a.item_id] = a.value
     answersByKey[a.question_key] = a.value
@@ -333,6 +344,7 @@ export async function getSubmissionDetail(
     tree,
     answersByItemId,
     answersByKey,
+    observationsByItemId,
     signoffs,
   }
 }

@@ -44,7 +44,8 @@ const MESSAGES = {
   sectionTitleRequired: 'Informe o título da seção.',
   signoffRoleRequired: 'Selecione quem deve assinar a seção.',
   signoffRoleInvalid: 'Papel de assinatura inválido.',
-  conditionInvalid: 'Condição de visibilidade inválida.',
+  defaultSectionNoCondition:
+    'A seção inicial não pode ter condição de aparência.',
   cannotDeleteOnlyDefault: 'Não é possível excluir a única seção do formulário.',
   formMetaUpdated: 'Formulário atualizado com sucesso.',
   sectionAdded: 'Seção adicionada com sucesso.',
@@ -339,10 +340,11 @@ export async function addSection(
  *   - non-default sections take title (required), description, visible_when
  *     condition, and sign-off settings, where requires_signoff implies a
  *     signoff_role and vice versa.
- * visible_when is parsed from the discrete fields the condition editor submits
- * (questionKey/op/value) or cleared when absent. Publish-time validation
- * (validate_visible_when) remains the authority on forward/missing references —
- * this only enforces the column SHAPE.
+ * visible_when is parsed from the shared `visibleWhen` JSON field (legacy single
+ * OR AND/OR group — the SAME field the shared ConditionBuilder emits for both
+ * sections and questions) via {@link parseVisibleWhen}, or cleared when absent.
+ * Publish-time validation (validate_visible_when) remains the authority on
+ * forward/missing references — this only enforces the column SHAPE.
  */
 export async function updateSection(
   _prev: ActionState | undefined,
@@ -369,11 +371,17 @@ export async function updateSection(
   const description = String(formData.get('description') ?? '').trim()
 
   // The default (anchor) section may carry a title + description but never a
-  // condition or sign-off (the CHECK still forbids those). Its title is
-  // optional: a blank title clears it to null without raising the
+  // condition or sign-off (the form_sections_default_shape CHECK forbids those).
+  // Its title is optional: a blank title clears it to null without raising the
   // sectionTitleRequired error. visible_when / requires_signoff are left
-  // untouched (they stay null / false).
+  // untouched (they stay null / false). A posted `visibleWhen` for the default
+  // section is rejected with a friendly pt-BR error rather than letting the raw
+  // Postgres CHECK bubble up.
   if (section.is_default) {
+    const rawVisible = String(formData.get('visibleWhen') ?? '').trim()
+    if (rawVisible) {
+      return { ok: false, error: MESSAGES.defaultSectionNoCondition }
+    }
     const { error } = await supabase
       .from('form_sections')
       .update({ title: title || null, description: description || null })
@@ -387,30 +395,16 @@ export async function updateSection(
     return { ok: false, fieldErrors: { title: MESSAGES.sectionTitleRequired } }
   }
 
-  // visible_when: build from the editor's discrete fields, or clear it.
-  const conditionKey = String(formData.get('conditionKey') ?? '').trim()
-  let visibleWhen: Json = null
-  if (conditionKey) {
-    const op = String(formData.get('conditionOp') ?? '').trim()
-    if (!['equals', 'not_equals', 'in'].includes(op)) {
-      return { ok: false, error: MESSAGES.conditionInvalid }
-    }
-    const rawValue = String(formData.get('conditionValue') ?? '')
-    // 'in' carries a JSON array of selected options; equals/not_equals a scalar.
-    let value: Json = rawValue
-    if (op === 'in') {
-      try {
-        const parsed: unknown = JSON.parse(rawValue)
-        if (!Array.isArray(parsed) || !parsed.every((v) => typeof v === 'string')) {
-          return { ok: false, error: MESSAGES.conditionInvalid }
-        }
-        value = parsed as string[]
-      } catch {
-        return { ok: false, error: MESSAGES.conditionInvalid }
-      }
-    }
-    visibleWhen = { question_key: conditionKey, op, value }
-  }
+  // visible_when: parse the shared `visibleWhen` JSON field (legacy single OR
+  // AND/OR group) via the SAME helper addItem/updateItem use, so a section
+  // condition built with the shared ConditionBuilder round-trips correctly.
+  // Absent/blank clears it (forms that preserve the condition re-emit it via the
+  // SectionConditionFields hidden field). Publish-time validate_visible_when
+  // remains the authority on forward/missing references — this only enforces the
+  // column SHAPE.
+  const parsedVisible = parseVisibleWhen(formData)
+  if ('error' in parsedVisible) return parsedVisible.error
+  const visibleWhen: Json = parsedVisible.visibleWhen
 
   // Sign-off settings: requires_signoff iff a valid signoff_role is set.
   const requiresSignoff = String(formData.get('requiresSignoff') ?? '') === 'on'
