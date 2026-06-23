@@ -66,6 +66,7 @@ const UID_CHEFE_A = '00000000-0000-0000-0000-000000000002'
 const SPEC_TAG = 'FBE-SPEC'
 const FORM_BUILDER_TITLE = `Builder ${SPEC_TAG}`
 const FORM_FILL_TITLE = `Fill ${SPEC_TAG}`
+const FORM_SIGNOFF_TITLE = `Signoff ${SPEC_TAG}`
 
 // ---------------------------------------------------------------------------
 // Fixture state (populated in beforeAll)
@@ -84,6 +85,14 @@ let fillNumId: string // number with min/max (fill_num)
 let fillDateId: string // date (fill_date)
 let fillTimeId: string // time (fill_time)
 let fillCrossId: string // cross-section conditional free_text (fill_cross)
+
+// AC-14 sign-off review form (FORM_SIGNOFF)
+let signoffFormId: string
+let signoffVersionId: string
+let signoffS0Id: string // default flat section (no signoff)
+let signoffS1Id: string // "Revisão" section — requires_signoff=true, staff_admin
+let signoffS0TxtId: string // short_text in S0 (fill before advancing)
+let signoffS1McId: string // MC in S1 (the item that carries an observation)
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -177,12 +186,12 @@ async function purgeLeftoverState() {
          SELECT fv.id FROM form_versions fv
          JOIN forms f ON f.id = fv.form_id
          WHERE f.commission_id = '${COMM_A}'
-           AND f.title IN ('${FORM_BUILDER_TITLE}', '${FORM_FILL_TITLE}')
+           AND f.title IN ('${FORM_BUILDER_TITLE}', '${FORM_FILL_TITLE}', '${FORM_SIGNOFF_TITLE}')
        )`,
     // The spec forms (cascades form_versions → form_sections → form_items).
     `DELETE FROM forms
        WHERE commission_id = '${COMM_A}'
-         AND title IN ('${FORM_BUILDER_TITLE}', '${FORM_FILL_TITLE}')`,
+         AND title IN ('${FORM_BUILDER_TITLE}', '${FORM_FILL_TITLE}', '${FORM_SIGNOFF_TITLE}')`,
     'SET session_replication_role = DEFAULT',
   ].join('; ')
 
@@ -380,6 +389,87 @@ test.beforeAll(async ({ request }) => {
   expect(
     publishResp.ok(),
     `beforeAll: publish FORM_FILL failed: ${await publishResp.text()}`,
+  ).toBeTruthy()
+
+  // ---- FORM_SIGNOFF: a published 2-section form for the AC-14 sign-off review
+  // test. S0 is a plain default section with one short_text question; S1 is a
+  // "Revisão" section with requires_signoff=true, signoff_role='staff_admin', and
+  // one multiple_choice question (non-free-text) so an observation can be added.
+  // get_response_for_signoff (SECURITY DEFINER gate 3) requires a pending
+  // staff_admin sign-off section on the form to grant the read.
+  const signoffForm = await svcInsert<{ id: string }>(request, 'forms', {
+    commission_id: COMM_A,
+    title: FORM_SIGNOFF_TITLE,
+    description: 'Spec-owned sign-off form for AC-14.',
+    created_by: UID_CHEFE_A,
+  })
+  signoffFormId = signoffForm.id
+
+  const signoffVersion = await svcInsert<{ id: string }>(request, 'form_versions', {
+    form_id: signoffFormId,
+    version_number: 1,
+    status: 'draft',
+    created_by: UID_CHEFE_A,
+  })
+  signoffVersionId = signoffVersion.id
+
+  // Reuse auto-created default section as S0 or create it.
+  const signoffAutoSections = await svcGet<{ id: string }>(
+    request,
+    `form_sections?form_version_id=eq.${signoffVersionId}&select=id`,
+  )
+  if (signoffAutoSections.length > 0) {
+    signoffS0Id = signoffAutoSections[0].id
+  } else {
+    const s0 = await svcInsert<{ id: string }>(request, 'form_sections', {
+      form_version_id: signoffVersionId,
+      position: 0,
+      is_default: true,
+      title: null,
+    })
+    signoffS0Id = s0.id
+  }
+
+  // S1 "Revisão" — requires_signoff=true, signoff_role='staff_admin'.
+  const signoffS1 = await svcInsert<{ id: string }>(request, 'form_sections', {
+    form_version_id: signoffVersionId,
+    position: 1,
+    is_default: false,
+    title: 'Revisão',
+    requires_signoff: true,
+    signoff_role: 'staff_admin',
+  })
+  signoffS1Id = signoffS1.id
+
+  // S0: one short_text question (plain, always visible, no observation needed here).
+  signoffS0TxtId = await insertItem(request, {
+    section_id: signoffS0Id,
+    position: 0,
+    item_type: 'short_text',
+    question_key: 'sign_intro',
+    label: 'Nome do responsável',
+    required: true,
+  })
+
+  // S1: one multiple_choice question — NOT free_text so the observation affordance
+  // appears (decision #11). Staff1 will select an option and add an observation.
+  signoffS1McId = await insertItem(request, {
+    section_id: signoffS1Id,
+    position: 0,
+    item_type: 'multiple_choice',
+    question_key: 'sign_avaliacao',
+    label: 'Avaliação da revisão',
+    options: ['Aprovado', 'Reprovado'],
+    required: false,
+  })
+
+  // Publish FORM_SIGNOFF.
+  const publishSignoffResp = await rpc(request, 'publish_form_version', chefeToken, {
+    p_form_version_id: signoffVersionId,
+  })
+  expect(
+    publishSignoffResp.ok(),
+    `beforeAll: publish FORM_SIGNOFF failed: ${await publishSignoffResp.text()}`,
   ).toBeTruthy()
 })
 
@@ -1104,4 +1194,94 @@ test('AC-K (keyboard-only): answer a question and reveal the observation with th
   await obsField.focus()
   await page.keyboard.type('Observação via teclado.')
   await expect(obsField).toHaveValue('Observação via teclado.')
+})
+
+// ===========================================================================
+// SIGN-OFF REVIEW READ SURFACE (BE-8 + FE-6)
+// ===========================================================================
+
+// AC-14 — observation renders in the sign-off review (get_response_for_signoff
+// + toClientResponseForSignoff + ReviewAndSign now carry observationsByItemId).
+//
+// Flow:
+//   1. Staff1 fills FORM_SIGNOFF's S0 (short_text) then S1 (MC + observation).
+//      Navigating from S1 to review calls persistSection → saveSection action
+//      → save_section_answers(p_observations) → answers.observation persisted.
+//   2. Staff_admin opens /c/ccih/manage/assinaturas/[responseId] (in_progress).
+//      get_response_for_signoff sees the pending staff_admin sign-off on S1 and
+//      gates the SECURITY DEFINER read through (Gate 3 satisfied).
+//   3. The sign-off review page renders the S1 MC answer + the "Observação:"
+//      line sourced from BE-8's observations_by_item projection.
+test('AC-14 (sign-off review): observation line renders in the sign-off review (BE-8/FE-6)', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(180_000)
+
+  // Start a fresh in_progress response on FORM_SIGNOFF as staff1.
+  const staff1Token = await getToken(request, 'staff1.ccih@test.local')
+  // Clear any stale in_progress draft for this version first.
+  await request.delete(
+    `${SUPABASE_URL}/rest/v1/responses?form_version_id=eq.${signoffVersionId}&status=eq.in_progress`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+        Prefer: 'return=minimal',
+      },
+    },
+  )
+  const startResp = await rpc(request, 'start_or_resume_response', staff1Token, {
+    p_form_version_id: signoffVersionId,
+  })
+  expect(startResp.ok(), `AC-14 start_or_resume_response failed: ${await startResp.text()}`).toBeTruthy()
+  const responseId = ((await startResp.json()) as { id: string }).id
+
+  // Drive the fill wizard as staff1.
+  await signInAs(page, 'staff1.ccih@test.local')
+  await page.goto(`/c/ccih/forms/${signoffFormId}/responder/${responseId}`)
+
+  // S0: fill the required short_text ("Nome do responsável").
+  await page.getByLabel(/Nome do responsável/i).fill('Enfermeiro Teste')
+
+  // Advance to S1.
+  await page.getByRole('button', { name: /Próximo|Avançar|Continuar/i }).first().click()
+  await expect(page.getByRole('heading', { name: 'Revisão' })).toBeVisible({ timeout: 15_000 })
+
+  // S1: answer the MC ("Aprovado").
+  await page.getByRole('radio', { name: 'Aprovado' }).check()
+
+  // Add an observation on the MC (the first — and only — "Adicionar observação"
+  // button in S1, since it's the only answered non-free-text item).
+  const addObsBtn = page.getByRole('button', { name: /Adicionar observação/i }).first()
+  await expect(addObsBtn).toBeVisible({ timeout: 10_000 })
+  await addObsBtn.click()
+  const obsFieldS1 = page.getByLabel(/^Observação/i)
+  await expect(obsFieldS1).toBeVisible({ timeout: 5_000 })
+  await obsFieldS1.fill('Aprovado com ressalvas menores.')
+
+  // Navigate to the review screen — this triggers persistSection(S1) which calls
+  // saveSection action → save_section_answers(p_observations={signoffS1McId: text}).
+  await page.getByRole('button', { name: /Revisar/i }).first().click()
+  await expect(
+    page.getByRole('heading', { name: /Revise suas respostas/i }),
+  ).toBeVisible({ timeout: 15_000 })
+
+  // Switch to staff_admin (chefe.ccih) and open the sign-off review page.
+  // The response stays in_progress — the sign-off panel is what appears here.
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/c/ccih/manage/assinaturas/${responseId}`)
+  await page.waitForLoadState('networkidle')
+
+  // The page must load the form title (not 404).
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 })
+
+  // AC-14 core assertion: the observation renders in the sign-off review.
+  // BE-8 adds observations_by_item to get_response_for_signoff; FE-6 threads it
+  // through toClientResponseForSignoff → ReviewAndSign → SectionBody → AnswerSummary.
+  await expect(page.getByText(/Observação:/i).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Aprovado com ressalvas menores.')).toBeVisible()
+
+  // Also confirm the MC answer itself renders (basic sanity).
+  await expect(page.getByText('Aprovado', { exact: true }).first()).toBeVisible()
 })
