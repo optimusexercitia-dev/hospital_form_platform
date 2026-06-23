@@ -632,15 +632,11 @@ function parseOptions(
 }
 
 /**
- * Serialize parsed options to the persisted `options` jsonb.
- *
- * BE-1 (contract stub): the DB CHECK still only accepts BARE STRINGS until the
- * BE-2 migration relaxes it (via `app.is_valid_options`). So today we write the
- * legacy bare-string form whenever NO colour is set (byte-identical to current
- * behaviour) and the `{label, color}` object form only once a colour is present.
- * Until BE-2 lands a coloured option would fail the CHECK and surface the
- * generic pt-BR error — acceptable for the stub round (the builder UI ships with
- * BE-2). When BE-2 is in, this stays correct as-is.
+ * Serialize parsed options to the persisted `options` jsonb. Writes the legacy
+ * bare-string form when NO colour is set on any option (keeps colourless forms
+ * compact and unchanged) and the `{label, color}` object form once any option
+ * carries a colour. Both shapes are accepted by `app.is_valid_options` and
+ * normalized back to `ItemOption[]` at read by `toOptions` (queries/forms.ts).
  */
 function serializeOptions(rows: ParsedOption[]): Json {
   const anyColor = rows.some((r) => r.color !== null)

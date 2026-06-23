@@ -577,28 +577,6 @@ export async function conditionTargets(
 }
 
 /**
- * Valid per-QUESTION `visible_when` targets for a given item: input questions
- * strictly EARLIER in DOCUMENT ORDER — an earlier section, OR an earlier item in
- * the SAME section (decision #6) — of the eligible {@link CONDITION_TARGET_TYPES}
- * (choice + number/date/time). Feeds the question-level condition builder.
- * Returns `[]` for the first item of the first section, or when the item/version
- * is not visible to the caller.
- *
- * NOTE (BE-1 contract stub): signature + shape are FINAL so the frontend builds
- * against it now; the body is filled in during BE-3/BE-5 alongside the SQL
- * `validate_visible_when` item walk.
- */
-export async function questionConditionTargets(
-  itemId: string,
-): Promise<ConditionTarget[]> {
-  // TODO(BE-3/BE-5): resolve the item's (sectionPosition, itemPosition) tuple,
-  // read the version tree, and return eligible inputs strictly earlier in
-  // document order (earlier section OR earlier item in the same section).
-  void itemId
-  throw new Error('not implemented')
-}
-
-/**
  * A short-lived signed URL for a private `form-assets` object, for rendering an
  * `image` display item. Uses the RLS-scoped cookie client: the
  * form_assets_select_member policy (M7) grants the signed URL only to members of

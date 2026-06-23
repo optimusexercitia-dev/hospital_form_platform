@@ -4,7 +4,7 @@
 -- walk and app.assert_condition_op_target (BE-3).
 
 begin;
-select plan(9);
+select plan(11);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 
@@ -169,6 +169,41 @@ select throws_ok(
   '23514',
   null,
   'a SECTION group whose sub-condition references a later section is rejected'
+);
+
+-- ---- 10) NUMBER condition VALUE-TYPE guard (QA MAJOR-1 safety net): a
+-- condition targeting the number question qnum with a STRING value is rejected
+-- at publish-validation; with a NUMERIC value it passes. ----
+-- Reset the section-9 fixtures back to a clean single-section state.
+update public.form_sections set visible_when = null
+  where form_version_id = (select ver_id from d);
+delete from public.form_items where question_key = 'laterkey'
+  and form_version_id = (select ver_id from d);
+delete from public.form_sections
+  where form_version_id = (select ver_id from d) and position in (1, 2);
+update public.form_items set visible_when = null where id = (select i_b from d);
+
+-- A later item (after qnum @ pos 2) referencing qnum with a STRING value.
+insert into public.form_items (id, section_id, position, item_type, question_key, label, visible_when)
+select gen_random_uuid(), s0, 4, 'free_text', 'qnumstr', 'NumStr?',
+       jsonb_build_object('question_key','qnum','op','gt','value','5')  -- string "5"
+from d;
+
+select throws_ok(
+  format($$ select public.validate_visible_when(%L) $$, (select ver_id from d)),
+  '23514',
+  null,
+  'a number condition with a STRING value is rejected (MAJOR-1 value-type guard)'
+);
+
+-- Swap the value to a JSON number -> accepted.
+update public.form_items
+  set visible_when = jsonb_build_object('question_key','qnum','op','gt','value',5)
+  where question_key = 'qnumstr' and form_version_id = (select ver_id from d);
+
+select lives_ok(
+  format($$ select public.validate_visible_when(%L) $$, (select ver_id from d)),
+  'a number condition with a NUMERIC value passes'
 );
 
 select * from finish();
