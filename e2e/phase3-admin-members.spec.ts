@@ -108,12 +108,17 @@ test.describe('AC1 — Admin creates a commission and assigns a staff_admin', ()
 
     await page.getByRole('button', { name: /criar comissão/i }).click()
 
-    // The action revalidates /admin; wait for the new commission card to appear.
-    await expect(page.getByText(commissionName)).toBeVisible({ timeout: 10_000 })
+    // createCommission now redirects to the commission detail page on success
+    // (commit 80eef96). Assert we land on the detail page and the heading is correct.
+    await page.waitForURL(`**/admin/comissoes/${slug}`, { timeout: 10_000 })
+    await expect(page.getByRole('heading', { level: 1, name: commissionName })).toBeVisible()
 
-    // Assert the commission appears with the EXACT name in the list.
+    // Navigate back to the list to confirm the new commission appears there too,
+    // preserving the "appears in the list" intent of this test.
+    await page.goto('/admin')
+    // The list renders server-side; wait for the commission name to appear.
     const commissionCards = page.locator('ul').filter({ has: page.locator('li') })
-    await expect(commissionCards.getByText(commissionName)).toBeVisible()
+    await expect(commissionCards.getByText(commissionName)).toBeVisible({ timeout: 10_000 })
 
     // The slug is rendered as the mono identifier on the card.
     await expect(page.getByText(`/${slug}`)).toBeVisible()
@@ -132,13 +137,11 @@ test.describe('AC1 — Admin creates a commission and assigns a staff_admin', ()
     await page.getByLabel('Identificador (slug)').fill(slug)
     await page.getByRole('button', { name: /criar comissão/i }).click()
 
-    // Wait for the new card link to appear in the list, then click it.
-    const newCard = page.locator(`a[href="/admin/comissoes/${slug}"]`)
-    await expect(newCard).toBeVisible({ timeout: 10_000 })
-    await newCard.click()
+    // createCommission now redirects straight to the detail page on success
+    // (commit 80eef96) — no need to find a card and click it.
+    await page.waitForURL(`**/admin/comissoes/${slug}`, { timeout: 10_000 })
 
     // The detail page should show the commission's name as the heading.
-    await page.waitForURL(`**/admin/comissoes/${slug}`, { timeout: 10_000 })
     await expect(page.getByRole('heading', { level: 1, name: commissionName })).toBeVisible()
 
     // The slug must be rendered as read-only — it's in mono text on the detail page.
@@ -161,9 +164,8 @@ test.describe('AC1 — Admin creates a commission and assigns a staff_admin', ()
     await page.getByLabel('Nome').fill(commissionName)
     await page.getByLabel('Identificador (slug)').fill(slug)
     await page.getByRole('button', { name: /criar comissão/i }).click()
-    const newCard = page.locator(`a[href="/admin/comissoes/${slug}"]`)
-    await expect(newCard).toBeVisible({ timeout: 10_000 })
-    await newCard.click()
+    // createCommission now redirects straight to the detail page on success
+    // (commit 80eef96) — rely on the post-create redirect instead of finding a card.
     await page.waitForURL(`**/admin/comissoes/${slug}`, { timeout: 10_000 })
 
     // Assign the novel email as coordinator.
@@ -406,7 +408,8 @@ test.describe('AC4 — Keyboard-only commission create and AlertDialog confirm',
     await page.keyboard.press('Tab') // move to submit button
     await page.keyboard.press('Enter') // activate
 
-    // The new commission should appear in the list without any mouse interaction.
+    // createCommission redirects to the detail page on success (commit 80eef96).
+    // The commission name and slug must be visible there — no mouse interaction used.
     await expect(page.getByText(commissionName)).toBeVisible({ timeout: 10_000 })
     await expect(page.getByText(`/${slug}`)).toBeVisible()
   })

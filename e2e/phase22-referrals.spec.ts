@@ -73,8 +73,11 @@ const CASE_A_ID    = 'd0000000-0000-0000-0000-0000000000c1' // Caso 0001 (ENC-00
 const CASE_B_ID    = 'dba00000-0000-0000-0000-0000000000b1' // B's linked case
 
 // PHI strings in the isolated referral_patient record (seed)
+// PHI_MRN updated from 'PRT-77' to match the Phase-23 patient_index synthetic
+// cross-committee patient that shares one MRN across the NSP event + ENC-0001
+// referral + the B-side case (seed.sql ~L1157).
 const PHI_NAME = 'Paciente de Demonstração'
-const PHI_MRN  = 'PRT-77'
+const PHI_MRN  = 'PRT-0099123'
 
 // ---------------------------------------------------------------------------
 // Flow-4 disposable fixtures — created in beforeAll, consumed in Flow 4a/4b.

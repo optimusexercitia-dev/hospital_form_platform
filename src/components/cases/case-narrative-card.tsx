@@ -83,23 +83,42 @@ export function CaseNarrativeCard({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [editing, setEditing] = useState(false);
+  // Optimistic override of the just-saved body. On the prod standalone build,
+  // `router.refresh()` / the action's `revalidatePath` may not re-render this server
+  // component with the new `narrative.bodyMd` synchronously, so the card would fall
+  // back to the empty placeholder right after a successful save (CN-APP-AC4). Holding
+  // the saved body locally keeps it visible until the refreshed prop catches up.
+  const [savedBody, setSavedBody] = useState<string | null>(null);
+  // Reconcile during render (the React-recommended "adjust state when a prop changes"
+  // pattern — avoids a setState-in-effect cascade): once the server-refreshed `bodyMd`
+  // lands (or a reopen / external edit changes it), drop the optimistic override so the
+  // PROP becomes authoritative again. This matters for a concluded/frozen or
+  // externally-edited body, which must reflect the server, not a stale local copy.
+  const [seenBodyMd, setSeenBodyMd] = useState(narrative.bodyMd);
+  if (seenBodyMd !== narrative.bodyMd) {
+    setSeenBodyMd(narrative.bodyMd);
+    setSavedBody(null);
+  }
+  // The body to display/seed from: the optimistic override wins until reconciled above,
+  // after which the prop is authoritative.
+  const effectiveBody = savedBody ?? narrative.bodyMd ?? "";
   const [value, setValue] = useState(narrative.bodyMd ?? "");
   const [error, setError] = useState<string | null>(null);
 
   const heading = narrative.title || narrative.typeLabel;
-  const hasBody = (narrative.bodyMd ?? "").trim().length > 0;
+  const hasBody = effectiveBody.trim().length > 0;
   const headingId = `narrative-${narrative.id}-heading`;
   const isConcluded = narrative.status === "concluida";
 
   function handleEdit() {
     setError(null);
-    setValue(narrative.bodyMd ?? "");
+    setValue(effectiveBody);
     setEditing(true);
   }
 
   function handleCancel() {
     setError(null);
-    setValue(narrative.bodyMd ?? "");
+    setValue(effectiveBody);
     setEditing(false);
   }
 
@@ -116,6 +135,10 @@ export function CaseNarrativeCard({
         setError(result.error ?? "Não foi possível salvar. Tente novamente.");
         return;
       }
+      // Show the saved body immediately from local state — the prop refresh below may
+      // lag on the prod standalone build (CN-APP-AC4); the effect above reconciles to
+      // the prop once it catches up.
+      setSavedBody(value);
       setEditing(false);
       router.refresh();
     });
@@ -279,7 +302,7 @@ export function CaseNarrativeCard({
         </div>
       ) : hasBody ? (
         <div className="rounded-lg border border-border bg-card p-4">
-          <MarkdownRenderer content={narrative.bodyMd ?? ""} />
+          <MarkdownRenderer content={effectiveBody} />
         </div>
       ) : canEdit ? (
         // Editable + empty: prompt to fill.
