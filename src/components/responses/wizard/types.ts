@@ -1,6 +1,7 @@
 import type { Json } from "@/lib/types/database";
 import type { Item, Section, VersionTree } from "@/lib/queries/forms";
-import type { AnswerMap } from "@/lib/queries/conditions";
+import type { AnswerMap, ResultRuleset } from "@/lib/queries/conditions";
+import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
 import type { SectionSignoff } from "@/components/signoffs/types";
 
 /**
@@ -64,6 +65,22 @@ export interface WizardData {
    * response with no signed sections (or no sign-off sections at all).
    */
   signoffsBySectionId: Record<string, SectionSignoff>;
+  /**
+   * Per-phase RESULT context (phase-results feature), present ONLY on the
+   * case-phase responder page and left `undefined` for standalone fills. Drives
+   * the end-of-wizard override panel: `ruleset` powers the live computed preview
+   * (client-side `walkResultRuleset` over the wizard's current answer map),
+   * `options` are the active result options for the override picker, and
+   * `currentOverrideId` is the override stashed on the still-`ativa` phase. When
+   * an override is chosen/cleared, the wizard routes submit through
+   * `submitCasePhaseResponse` (vs plain `submitResponse`).
+   */
+  phaseResult?: {
+    casePhaseId: string;
+    ruleset: ResultRuleset | null;
+    options: ResolvedPhaseResult[];
+    currentOverrideId: string | null;
+  };
 }
 
 export type { Item, Section, VersionTree, AnswerMap };

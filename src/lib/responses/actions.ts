@@ -293,6 +293,41 @@ export async function submitResponse(responseId: string): Promise<ActionState> {
   return { ok: true, error: MESSAGES.submitted }
 }
 
+/**
+ * Submit a CASE-PHASE response with an optional per-phase result OVERRIDE
+ * (phase-results feature). Used by the case-phase responder wizard's final step;
+ * the standalone-form path keeps calling plain {@link submitResponse}.
+ *
+ * Flow (task #4 implementation):
+ *   1. Authorize membership of the response's commission (existing pattern).
+ *   2. If `overrideResultId` is chosen (or explicitly cleared via `null`), call
+ *      `set_case_phase_result_override(casePhaseId, overrideResultId, reason)` —
+ *      a deliberate write on the still-`ativa` phase BEFORE submit. Per Rule 11
+ *      the free-text `reason` is audited as a fact only, never copied into the
+ *      payload.
+ *   3. Call the UNCHANGED `submit_response` RPC; its conclusion trigger
+ *      computes/honors the result atomically.
+ *   4. Map errors to pt-BR (reuse HC010/011/012 + new override SQLSTATEs).
+ *
+ * `overrideResultId === null` means "clear any stashed override → fall back to the
+ * computed path"; `undefined` means "leave the override untouched". `reason` is
+ * the optional override justification (ignored when no override is set).
+ *
+ * NOTE: stub — implementation lands in task #4 (contract-first signature only).
+ */
+export async function submitCasePhaseResponse(
+  responseId: string,
+  casePhaseId: string,
+  overrideResultId: string | null | undefined,
+  reason: string | null,
+): Promise<ActionState> {
+  void responseId
+  void casePhaseId
+  void overrideResultId
+  void reason
+  throw new Error('not implemented')
+}
+
 // ---------------------------------------------------------------------------
 // sign section
 // ---------------------------------------------------------------------------

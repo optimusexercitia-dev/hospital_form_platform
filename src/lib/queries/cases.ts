@@ -1,12 +1,15 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionContext } from '@/lib/queries/session'
-import type { RecommendWhen } from '@/lib/queries/conditions'
+import type { RecommendWhen, ResultRuleset } from '@/lib/queries/conditions'
 import type {
   CaseStatus,
   CaseStatusColorToken,
 } from '@/lib/cases/case-status'
 import type { CasePatient, CasePatientSex } from '@/lib/cases/types'
+import type { ResolvedPhaseResult } from '@/lib/queries/phase-results'
+
+export type { ResolvedPhaseResult } from '@/lib/queries/phase-results'
 
 export type { CaseStatus } from '@/lib/cases/case-status'
 
@@ -157,6 +160,17 @@ export interface CasePhase {
    * merge falls back to `position`. Snapshot-copied at case creation.
    */
   displayPosition: number | null
+  /**
+   * The EFFECTIVE per-phase result option id (phase-results feature), or `null`
+   * when the phase is not concluded, has no snapshotted ruleset and no override,
+   * or the feature is off. Written in the SAME statement that flips the phase to
+   * `concluida` (computed or honored-override); never rewritten afterward. The
+   * resolved label/colour for display is the sibling `result` projection on the
+   * board/detail phase entries.
+   */
+  resultId: string | null
+  /** When the effective result was written (ISO), or `null` if no result. */
+  resultComputedAt: string | null
 }
 
 /**
@@ -227,7 +241,15 @@ export interface CaseBoardRow {
       | 'assignedTo'
       | 'assigneeName'
       | 'dueDate'
-    >
+    > & {
+      /**
+       * The phase's EFFECTIVE result resolved for display (label/colour/source),
+       * or `null` when none / the feature is off. Resolved LIVE from
+       * `phase_results` so vocabulary edits propagate; lets the board render the
+       * result badge without a second fetch.
+       */
+      result: ResolvedPhaseResult | null
+    }
   >
 }
 
@@ -256,6 +278,14 @@ export interface CaseDetail {
     CasePhase & {
       responseId: string | null
       submittedAt: string | null
+      /**
+       * The phase's EFFECTIVE result resolved for display (label/colour/source),
+       * or `null` when none / the feature is off. Resolved LIVE from
+       * `phase_results` (propagates vocabulary edits); the `result_id` it resolves
+       * is the `resultId` on the `CasePhase`. Drives the result badge + the
+       * "manual" marker on the case detail/timeline.
+       */
+      result: ResolvedPhaseResult | null
     }
   >
   /**
@@ -283,6 +313,21 @@ export interface CaseDetail {
 export interface CasePhaseForFill {
   phase: CasePhase
   case: Case
+  /**
+   * Result context for the end-of-wizard override panel (phase-results feature),
+   * or `null` when the feature is off. Lets the responder page thread the phase's
+   * snapshotted ruleset (for the live computed preview), the active result options
+   * (the override picker), and the current stashed override into `WizardData`.
+   * Standalone (non-case) fills never carry this.
+   */
+  result: {
+    /** The phase's SNAPSHOTTED ruleset (`case_phases.result_ruleset`); `null` if none. */
+    resultRuleset: ResultRuleset | null
+    /** The commission's ACTIVE result options for the override picker. */
+    options: ResolvedPhaseResult[]
+    /** The currently-stashed override option id (set pre-submit), or `null`. */
+    currentOverrideId: string | null
+  } | null
 }
 
 // ---------------------------------------------------------------------------
@@ -588,6 +633,9 @@ export async function listCasesBoard(
       assignedTo: p.assigned_to,
       assigneeName: p.assignee_name,
       dueDate: p.due_date,
+      // STUB (phase-results, task #4): the board RPC projection of the resolved
+      // result lands with the migration. Until then the board shows no badge.
+      result: null,
     })),
   }))
 }
@@ -662,8 +710,13 @@ async function getCaseDetailUncached(
       dueDate: p.due_date,
       defaultDueDays: p.default_due_days,
       displayPosition: p.display_position ?? null,
+      // STUB (phase-results, task #4): the migration adds these to the
+      // get_case_detail projection. Until then no result is surfaced.
+      resultId: null,
+      resultComputedAt: null,
       responseId: p.response_id,
       submittedAt: p.submitted_at,
+      result: null,
     })),
     narratives: (env.narratives ?? []).map((n) => mapNarrativeJson(n, env.id)),
     // Until BE-4 adds `viewer_capabilities` to the RPC, default to coordinator-
@@ -827,6 +880,10 @@ export async function getCasePhaseForFill(
       defaultDueDays: data.default_due_days,
       // The fill landing renders one phase, not the merged layout — no display order needed.
       displayPosition: null,
+      // STUB (phase-results, task #4): the phase-fill read projects the stashed
+      // result + override once the migration lands.
+      resultId: null,
+      resultComputedAt: null,
     },
     case: {
       id: c.id,
@@ -841,6 +898,10 @@ export async function getCasePhaseForFill(
       hasPatient: c.has_patient,
       patientEnabled: c.patient_enabled,
     },
+    // STUB (phase-results, task #4): once the migration lands, the fill read
+    // projects the snapshotted ruleset + active options + current override so the
+    // wizard can render the override panel. Null keeps the panel hidden today.
+    result: null,
   }
 }
 

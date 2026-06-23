@@ -4,7 +4,7 @@ import {
   getVersionTree,
   type InputItemType,
 } from '@/lib/queries/forms'
-import type { RecommendWhen } from '@/lib/queries/conditions'
+import type { RecommendWhen, ResultRuleset } from '@/lib/queries/conditions'
 import type { ProcessTemplateNarrative } from '@/lib/queries/case-narratives'
 
 export type { ProcessTemplateNarrative } from '@/lib/queries/case-narratives'
@@ -71,6 +71,15 @@ export interface ProcessTemplatePhase {
    * rows pre-backfill; the builder's merge falls back to `position`.
    */
   displayPosition: number | null
+  /**
+   * Optional per-phase RESULT ruleset (phase-results feature): an ordered set of
+   * rules over THIS phase's OWN answers (no `from_phase`) that emit a categorical
+   * result option when the phase's form is submitted, with a default fallback.
+   * Authored in the rule editor; deep-validated at publish time and snapshotted
+   * onto each case-phase at case creation. `null` = the phase emits no result.
+   * Mutable only while the template is `draft`.
+   */
+  resultRuleset: ResultRuleset | null
 }
 
 /** A process template (blueprint) plus its ordered phase-slots. */
@@ -126,6 +135,9 @@ interface TemplatePhaseRow {
   default_due_days: number | null
   blocks: number[] | null
   display_position: number | null
+  // STUB (phase-results, task #4): added to TEMPLATE_SELECT once the migration
+  // adds the column. Optional here so the pre-migration SELECT still types.
+  result_ruleset?: ResultRuleset | null
   forms: { title: string | null } | null
 }
 
@@ -188,6 +200,9 @@ function mapPhase(p: TemplatePhaseRow): ProcessTemplatePhase {
     defaultDueDays: p.default_due_days,
     blocks: p.blocks ?? [],
     displayPosition: p.display_position ?? null,
+    // STUB (phase-results, task #4): defaults to null until the migration adds the
+    // column + TEMPLATE_SELECT projects it.
+    resultRuleset: p.result_ruleset ?? null,
   }
 }
 

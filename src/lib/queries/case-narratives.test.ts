@@ -43,8 +43,11 @@ function phase(
     dueDate: null,
     defaultDueDays: null,
     displayPosition: null,
+    resultId: null,
+    resultComputedAt: null,
     responseId: null,
     submittedAt: null,
+    result: null,
     ...partial,
   }
 }
