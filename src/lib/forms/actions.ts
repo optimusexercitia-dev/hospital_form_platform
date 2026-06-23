@@ -55,6 +55,10 @@ const MESSAGES = {
   itemTypeInvalid: 'Tipo de item inválido.',
   labelRequired: 'Informe o enunciado da pergunta.',
   optionsRequired: 'Informe ao menos uma opção de resposta.',
+  optionColorInvalid: 'Cor de opção inválida.',
+  configInvalid: 'Valores de mínimo/máximo inválidos.',
+  configRangeInvalid: 'O valor mínimo não pode ser maior que o máximo.',
+  conditionShapeInvalid: 'Condição de aparência inválida.',
   markdownRequired: 'Informe o texto a ser exibido.',
   altRequired: 'Informe um texto alternativo para a imagem.',
   imagePathRequired: 'Envie uma imagem antes de salvar.',
@@ -85,8 +89,28 @@ const PG_CHECK_VIOLATION = '23514'
 const PG_UNIQUE_VIOLATION = '23505'
 
 /** The input item types (mirrors INPUT_ITEM_TYPES in queries/forms.ts). */
-const INPUT_TYPES = ['multiple_choice', 'dropdown', 'checkbox', 'free_text']
+const INPUT_TYPES = [
+  'multiple_choice',
+  'dropdown',
+  'checkbox',
+  'free_text',
+  'short_text',
+  'number',
+  'date',
+  'time',
+]
 const CHOICE_TYPES = ['multiple_choice', 'dropdown', 'checkbox']
+/** Choice types that may carry per-option COLOURS (dropdown excluded — native
+ * `<select>` can't render colour; decision #4). */
+const COLOR_OPTION_TYPES = ['multiple_choice', 'checkbox']
+/** Types that accept optional min/max bounds via `config`. */
+const BOUNDED_TYPES = ['number', 'date']
+/** The valid colour tokens (mirrors ColorToken / the 7-token palette). */
+const COLOR_TOKENS = ['muted', 'slate', 'blue', 'amber', 'green', 'red', 'violet']
+/** The condition operators accepted in a `visible_when` sub-condition. */
+const CONDITION_OPS = ['equals', 'not_equals', 'in', 'gt', 'gte', 'lt', 'lte']
+/** Input types a condition may TARGET (decision #7). */
+const ORDERED_OPS = ['gt', 'gte', 'lt', 'lte']
 const DISPLAY_TYPES = ['section_text', 'image']
 const ALL_ITEM_TYPES = [...INPUT_TYPES, ...DISPLAY_TYPES]
 
@@ -550,13 +574,209 @@ export async function moveSection(
  * Returns either a validation error (to surface as ActionState) or the columns
  * to write. question_key is NOT set here — addItem generates it; updateItem
  * never changes it (it is stable across edits and versions).
+ *
+ * form-builder-enhancements FormData contract (parsed by the helpers below):
+ *   - `itemType` may be any of {@link INPUT_TYPES} (now incl. short_text /
+ *     number / date / time) or {@link DISPLAY_TYPES}.
+ *   - choice types: repeated `option` fields (the label), each paired with a
+ *     repeated `optionColor` field at the SAME index (a token or '' for none);
+ *     colours are honoured only for {@link COLOR_OPTION_TYPES}
+ *     (multiple_choice + checkbox).
+ *   - number/date: optional `configMin` / `configMax` (→ the `config` jsonb).
+ *   - any input: optional `visibleWhen` — a JSON-encoded visibility rule (legacy
+ *     single `{question_key, op, value}` OR `{match, conditions[]}` group). When PRESENT the server
+ *     CLEARS `required` (defence for the form_items_conditional_not_required
+ *     CHECK), regardless of the submitted `required` checkbox.
  */
 type ItemColumns = {
   label: string | null
   question_explanation: string | null
   options: Json
+  config: Json
+  visible_when: Json
   required: boolean
   content: Json
+}
+
+/** A parsed option with its optional colour token. */
+interface ParsedOption {
+  label: string
+  color: string | null
+}
+
+/**
+ * The form-builder-enhancements item columns (`config`, `visible_when`) as a
+ * spread-able patch for the form_items insert/update.
+ *
+ * TYPE-LAG CAST (BE-1 contract stub): these two columns are added by the BE-2
+ * migration; until `supabase gen types` runs after BE-2 they are absent from the
+ * generated `form_items` Insert/Update, so a direct literal trips the
+ * excess-property check (`Type 'Json' is not assignable to type 'never'`). We
+ * isolate the cast HERE (the same pattern as the `set_case_phase_result_override`
+ * arg cast in responses/actions.ts) so the rest of the write stays fully typed.
+ * Once BE-2's regenerated types include these columns this cast becomes a no-op
+ * and can be removed.
+ */
+function newItemColumns(columns: ItemColumns): Record<string, Json> {
+  return {
+    config: columns.config,
+    visible_when: columns.visible_when,
+  }
+}
+
+/**
+ * Parse the repeated `option` / `optionColor` fields into `{label, color}` rows.
+ * Colours are kept only for {@link COLOR_OPTION_TYPES}; for other choice types
+ * the colour is forced to null. Empty labels are dropped (with their colour).
+ */
+function parseOptions(
+  itemType: string,
+  formData: FormData,
+): { error: ActionState } | { options: ParsedOption[] } {
+  const labels = formData.getAll('option').map((o) => String(o))
+  const colors = formData.getAll('optionColor').map((c) => String(c))
+  const colorsAllowed = COLOR_OPTION_TYPES.includes(itemType)
+
+  const rows: ParsedOption[] = []
+  for (let i = 0; i < labels.length; i++) {
+    const label = labels[i].trim()
+    if (!label) continue
+    const rawColor = (colors[i] ?? '').trim()
+    let color: string | null = null
+    if (rawColor && colorsAllowed) {
+      if (!COLOR_TOKENS.includes(rawColor)) {
+        return { error: { ok: false, error: MESSAGES.optionColorInvalid } }
+      }
+      color = rawColor
+    }
+    rows.push({ label, color })
+  }
+  if (rows.length === 0) {
+    return { error: { ok: false, error: MESSAGES.optionsRequired } }
+  }
+  return { options: rows }
+}
+
+/**
+ * Serialize parsed options to the persisted `options` jsonb.
+ *
+ * BE-1 (contract stub): the DB CHECK still only accepts BARE STRINGS until the
+ * BE-2 migration relaxes it (via `app.is_valid_options`). So today we write the
+ * legacy bare-string form whenever NO colour is set (byte-identical to current
+ * behaviour) and the `{label, color}` object form only once a colour is present.
+ * Until BE-2 lands a coloured option would fail the CHECK and surface the
+ * generic pt-BR error — acceptable for the stub round (the builder UI ships with
+ * BE-2). When BE-2 is in, this stays correct as-is.
+ */
+function serializeOptions(rows: ParsedOption[]): Json {
+  const anyColor = rows.some((r) => r.color !== null)
+  if (!anyColor) return rows.map((r) => r.label)
+  return rows.map((r) => ({ label: r.label, color: r.color }))
+}
+
+/**
+ * Parse optional `configMin` / `configMax` into the `config` jsonb for a bounded
+ * type (number/date). number bounds are stored as JSON numbers; date bounds as
+ * ISO strings. Returns `{config: null}` when neither bound is set. min ≤ max is
+ * enforced here (and again by `submit_response` + an optional CHECK).
+ */
+function parseConfig(
+  itemType: string,
+  formData: FormData,
+): { error: ActionState } | { config: Json } {
+  if (!BOUNDED_TYPES.includes(itemType)) return { config: null }
+  const rawMin = String(formData.get('configMin') ?? '').trim()
+  const rawMax = String(formData.get('configMax') ?? '').trim()
+  if (!rawMin && !rawMax) return { config: null }
+
+  const coerce = (raw: string): number | string | null => {
+    if (!raw) return null
+    if (itemType === 'number') {
+      const n = Number(raw)
+      return Number.isFinite(n) ? n : null
+    }
+    // date: ISO YYYY-MM-DD (shape only; submit RPC + client validate the value).
+    return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null
+  }
+
+  const min = coerce(rawMin)
+  const max = coerce(rawMax)
+  if ((rawMin && min === null) || (rawMax && max === null)) {
+    return { error: { ok: false, error: MESSAGES.configInvalid } }
+  }
+  if (
+    min !== null &&
+    max !== null &&
+    ((typeof min === 'number' && typeof max === 'number' && min > max) ||
+      (typeof min === 'string' && typeof max === 'string' && min > max))
+  ) {
+    return { error: { ok: false, error: MESSAGES.configRangeInvalid } }
+  }
+
+  const config: Record<string, Json> = {}
+  if (min !== null) config.min = min
+  if (max !== null) config.max = max
+  return { config }
+}
+
+/** Validate ONE sub-condition's shape (key string, op in set, value present). */
+function isValidCondition(c: unknown): c is { question_key: string; op: string; value: Json } {
+  if (c === null || typeof c !== 'object') return false
+  const rec = c as Record<string, unknown>
+  if (typeof rec.question_key !== 'string' || !rec.question_key) return false
+  if (typeof rec.op !== 'string' || !CONDITION_OPS.includes(rec.op)) return false
+  if (!('value' in rec)) return false
+  // `in` carries an array; the ordered ops carry a scalar; equals/not_equals
+  // either. We only check the array-ness of `in` here (the deep value↔target
+  // type check is the publish-time validator's job, BE-3).
+  if (rec.op === 'in' && !Array.isArray(rec.value)) return false
+  if (ORDERED_OPS.includes(rec.op) && Array.isArray(rec.value)) return false
+  return true
+}
+
+/**
+ * Parse the optional `visibleWhen` JSON field into the `visible_when` jsonb.
+ * Returns `{visibleWhen: null}` when absent/blank. Validates the SHAPE only
+ * (legacy single OR non-empty `{match, conditions[]}` group); forward/self-ref
+ * and operator↔target-type are the publish-time `validate_visible_when`
+ * authority (BE-3). Mirrors the `app.is_valid_visibility` CHECK shape (BE-2).
+ */
+function parseVisibleWhen(
+  formData: FormData,
+): { error: ActionState } | { visibleWhen: Json } {
+  const raw = String(formData.get('visibleWhen') ?? '').trim()
+  if (!raw) return { visibleWhen: null }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { error: { ok: false, error: MESSAGES.conditionShapeInvalid } }
+  }
+  if (parsed === null || typeof parsed !== 'object') {
+    return { error: { ok: false, error: MESSAGES.conditionShapeInvalid } }
+  }
+  const rec = parsed as Record<string, unknown>
+
+  // Group shape: {match: all|any, conditions: [...]}.
+  if ('conditions' in rec) {
+    if (rec.match !== 'all' && rec.match !== 'any') {
+      return { error: { ok: false, error: MESSAGES.conditionShapeInvalid } }
+    }
+    if (!Array.isArray(rec.conditions) || rec.conditions.length === 0) {
+      return { error: { ok: false, error: MESSAGES.conditionShapeInvalid } }
+    }
+    if (!rec.conditions.every(isValidCondition)) {
+      return { error: { ok: false, error: MESSAGES.conditionShapeInvalid } }
+    }
+    return { visibleWhen: parsed as Json }
+  }
+
+  // Legacy single shape.
+  if (!isValidCondition(parsed)) {
+    return { error: { ok: false, error: MESSAGES.conditionShapeInvalid } }
+  }
+  return { visibleWhen: parsed as Json }
 }
 
 function parseItemFields(
@@ -569,27 +789,36 @@ function parseItemFields(
       return { error: { ok: false, fieldErrors: { label: MESSAGES.labelRequired } } }
     }
     const explanation = String(formData.get('questionExplanation') ?? '').trim()
-    const required = String(formData.get('required') ?? '') === 'on'
 
     let options: Json = null
     if (CHOICE_TYPES.includes(itemType)) {
-      // Options arrive as repeated 'option' fields; keep non-empty, in order.
-      const parsed = formData
-        .getAll('option')
-        .map((o) => String(o).trim())
-        .filter((o) => o.length > 0)
-      if (parsed.length === 0) {
-        return { error: { ok: false, error: MESSAGES.optionsRequired } }
-      }
-      options = parsed
+      const parsedOptions = parseOptions(itemType, formData)
+      if ('error' in parsedOptions) return { error: parsedOptions.error }
+      options = serializeOptions(parsedOptions.options)
     }
-    // free_text: options stays null (enforced by the form_items CHECK too).
+    // free_text / short_text / number / date / time: options stays null
+    // (enforced by the form_items_options_shape CHECK too).
+
+    const parsedConfig = parseConfig(itemType, formData)
+    if ('error' in parsedConfig) return { error: parsedConfig.error }
+
+    const parsedVisible = parseVisibleWhen(formData)
+    if ('error' in parsedVisible) return { error: parsedVisible.error }
+
+    // A conditional question can NEVER be required (decision #9): clear the
+    // `required` flag whenever a visibility condition is present — defence for
+    // the form_items_conditional_not_required CHECK (BE-2).
+    const required =
+      parsedVisible.visibleWhen === null &&
+      String(formData.get('required') ?? '') === 'on'
 
     return {
       columns: {
         label,
         question_explanation: explanation || null,
         options,
+        config: parsedConfig.config,
+        visible_when: parsedVisible.visibleWhen,
         required,
         content: null,
       },
@@ -606,6 +835,8 @@ function parseItemFields(
         label: null,
         question_explanation: null,
         options: null,
+        config: null,
+        visible_when: null,
         required: false,
         content: { markdown },
       },
@@ -627,6 +858,8 @@ function parseItemFields(
         label: null,
         question_explanation: null,
         options: null,
+        config: null,
+        visible_when: null,
         required: false,
         content: { storage_path: storagePath, alt, caption: caption || null },
       },
@@ -697,6 +930,7 @@ export async function addItem(
       options: columns.options,
       required: columns.required,
       content: columns.content,
+      ...newItemColumns(columns),
     })
 
     if (!error) {
@@ -752,6 +986,7 @@ export async function updateItem(
       options: columns.options,
       required: columns.required,
       content: columns.content,
+      ...newItemColumns(columns),
     })
     .eq('id', itemId)
 

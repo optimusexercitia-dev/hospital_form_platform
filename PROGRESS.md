@@ -47,6 +47,46 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 
 <!-- Lead recreates this table at the start of each phase -->
 
+### Feature — Form Builder Enhancements (new question types · option colors · per-question conditions · observations) — 🏗️ in progress
+
+> Seven additive author/respondent capabilities (plan
+> [docs/plans/form-builder-enhancements.md](docs/plans/form-builder-enhancements.md), human-APPROVED
+> `12a89fc`): `short_text`/`number`/`date`/`time` item types; per-option colors on
+> multiple_choice+checkbox; per-question conditional appearance (flat ALL/ANY groups + `gt/gte/lt/lte`
+> ops); optional per-answer observations. **Backward-compatible, additive migration, NO feature flag,
+> NO data migration.** Dashboard aggregation/colored charts DEFERRED. Run as a mini-phase (§6 gate) —
+> touches migrations + the condition evaluator + the submit RPC. Branch `feat/form-builder-enhancements`.
+> **Remote `db push` is deferred to a human-gated step after the gate passes** (local Docker only during build).
+
+Backend (`backend`):
+
+| # | Task | Status |
+| - | ---- | ------ |
+| BE-1 | **Contract-first typed stubs** — `forms.ts` (`ColorToken`/`ItemOption`/`InputItemType`+4/`ItemConfig`/`Item.{options:ItemOption[],config,visibleWhen}`/`toOptions` normalizer); `conditions.ts` (`ConditionOp`+4 ops/`ConditionGroup`/`Visibility`/`evalVisibility` sig); `forms/actions.ts` + `responses/actions.ts` FormData/param additions. Update backend-owned (`src/lib/**`) readers; **list frontend-owned `item.options` readers** for FE sweep. Post signatures + SQL implementation plan to lead. | ✅ contract landed (commit pending) — `src/lib/**` typecheck 0 / lint 0; `conditions.test.ts` 18/18 (existing vectors unchanged); FE-sweep list (13 files) + SQL plan for BE-2..BE-4 posted to lead. Awaiting SQL-plan approval before BE-2. |
+| BE-2 | Migration `<ts>_form_builder_enhancements.sql` — `form_items` item_type CHECK +4 / input-vs-display / options-shape relax (`app.is_valid_options`) / `visible_when`+`config` cols + CHECKs / conditional-not-required CHECK; `form_sections` visible_when CHECK → `app.is_valid_visibility`; `answers.observation`; helper `app.is_valid_visibility`. Regen types `--local`. **NO remote push.** | 🔜 |
+| BE-3 | Condition engine — SQL `app.eval_condition` +4 ops / `app.eval_visibility` / `validate_visible_when` extended to ITEMS (forward-ref/self-ref reject, op↔target-type validation); TS `evalCondition` +4 ops + `evalVisibility`; shared vectors (`condition-vectors.json` + new `visibility-vectors.json`). **Drift is phase-blocking.** | 🔜 |
+| BE-4 | `submit_response` per-item visibility forward pass (`v_eff` map, clear hidden answers, drop hidden keys) + number/date min/max enforcement; `clone_form_version` copy `visible_when`/`config`; `save_section_answers`+`saveSection` observation upsert; widen `conditionTargets` to number/date/time (carry target type). | 🔜 |
+| BE-5 | SQL tests — `20_conditions.sql` (+ops), new `app.eval_visibility` group test, `50_publish_validation.sql` (item forward/cycle/self-ref reject, conditional-not-required, op↔type mismatch), submit test (hidden-item answer cleared + min/max blocks). Vitest `conditions.test.ts` (+ops) + `evalVisibility` test. | 🔜 |
+
+Frontend (`frontend`):
+
+| # | Task | Status |
+| - | ---- | ------ |
+| FE-1 | Builder type meta + item dialog — `item-type-meta.tsx`/`add-block-menu.tsx` pt-BR labels (Resposta curta/longa, Número, Data, Hora) under "Perguntas"; `item-editor-dialog.tsx` (short/long no options; number/date Mínimo/Máximo→`config`; time plain); `options-editor.tsx` per-row `ColorTokenPicker` (mc+checkbox). | 🔜 |
+| FE-2 | `ConditionBuilder` (NEW `src/components/forms/condition-builder.tsx`) — reusable ALL/ANY + condition rows (target picker = earlier-in-doc-order inputs → op filtered by type → value control); disables+clears "obrigatória" when ≥1 condition. Refactor `section-settings-dialog.tsx` to reuse it (group shape, legacy single round-trips). | 🔜 |
+| FE-3 | Fill inputs + colors + observations — `input-item.tsx` render switch (short_text/number/date/time); colored mc+checkbox rows (`TOKEN_STYLES`); "Adicionar observação" 2-line affordance on non-free-text items. **Sweep all `item.options` readers** (BE-1 list). | 🔜 |
+| FE-4 | Item-level visibility + summary — `use-wizard.ts` `computeEffectiveVisibility` (doc-order forward pass mirroring submit RPC; orphan-clear hidden items) + `setObservation`; `validation.ts` skip-hidden + min/max client checks; `types.ts` `AnswerRecord.observation`; `wizard-client.tsx` thread `observationsByItemId`; `answer-summary.tsx` number/date/time format + colored chip + observation line. | 🔜 |
+
+Tester (`tester`): _spawned once build is complete & dev server runs._
+
+| # | Task | Status |
+| - | ---- | ------ |
+| QT-1 | E2E `e2e/form-builder-enhancements.spec.ts` — builder (add each new type, color options, build a question condition, confirm "obrigatória" disables); fill (render all new inputs, live show/hide incl. same-section ref, add observation); submit (hidden answer cleared, min/max blocks). ≥1 keyboard-only flow. Run failing+current specs during fix loop; full suite to declare green. | 🔜 |
+
+QA (`qa`): _spawned after tester reports green._ Writes `docs/reviews/form-builder-enhancements-review.md`.
+
+---
+
 ### Feature — `case_phase_results` (per-phase categorical result + manual override) — 🧪 testing in progress (tester)
 
 > Per-phase categorical result for multi-phase cases, computed from the phase's own

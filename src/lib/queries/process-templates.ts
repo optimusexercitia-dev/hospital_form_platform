@@ -339,7 +339,10 @@ export async function phaseConditionTargets(
       .map((item) => ({
         questionKey: item.questionKey as string,
         label: item.label ?? '',
-        options: item.options ?? [],
+        // Item.options is now ItemOption[] (form-builder-enhancements); the
+        // recommend_when picker still works in label strings (the answer stores
+        // the label), so project to labels here.
+        options: (item.options ?? []).map((o) => o.label),
       })),
   )
 }

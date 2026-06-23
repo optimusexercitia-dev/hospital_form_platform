@@ -1,10 +1,26 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Json } from '@/lib/types/database'
-import type { VisibleWhen } from '@/lib/queries/conditions'
+import type { Visibility } from '@/lib/queries/conditions'
+import type { CaseStatusColorToken } from '@/lib/cases/case-status'
 
-// Re-export the condition shape so the builder can import every form type from
-// this one module (the live wizard imports it from ./conditions directly).
-export type { VisibleWhen, ConditionOp } from '@/lib/queries/conditions'
+// Re-export the condition shapes so the builder can import every form type from
+// this one module (the live wizard imports them from ./conditions directly).
+export type {
+  VisibleWhen,
+  ConditionOp,
+  ConditionGroup,
+  Visibility,
+} from '@/lib/queries/conditions'
+
+/**
+ * The constrained colour-token palette for per-option colours (decision #4),
+ * REUSED from the case-outcome/tag/status palette so the builder shares the one
+ * `ColorTokenPicker` + 7-token vocabulary. Aliased here as `ColorToken` so the
+ * form builder imports it from this one module; it is the SAME underlying union
+ * as {@link CaseStatusColorToken} (`muted`/`slate`/`blue`/`amber`/`green`/`red`/
+ * `violet`).
+ */
+export type ColorToken = CaseStatusColorToken
 
 /**
  * Form builder data-access (Architecture Rule 9 — all reads go through
@@ -32,8 +48,25 @@ export type { VisibleWhen, ConditionOp } from '@/lib/queries/conditions'
 // Domain types
 // ---------------------------------------------------------------------------
 
-/** Input items collect answers; display items only render. */
-export type InputItemType = 'multiple_choice' | 'dropdown' | 'checkbox' | 'free_text'
+/**
+ * Input items collect answers; display items only render. The
+ * form-builder-enhancements set adds four input types:
+ *   - `short_text` — single-line free text ("Resposta curta"); `free_text` stays
+ *     the multi-line "Resposta longa".
+ *   - `number` — decimals + negatives, optional min/max (`config`).
+ *   - `date` — date-only `YYYY-MM-DD`, optional min/max (`config`).
+ *   - `time` — 24h `HH:mm`, no bounds.
+ * None of the four carry `options` (only the choice types do).
+ */
+export type InputItemType =
+  | 'multiple_choice'
+  | 'dropdown'
+  | 'checkbox'
+  | 'free_text'
+  | 'short_text'
+  | 'number'
+  | 'date'
+  | 'time'
 export type DisplayItemType = 'section_text' | 'image'
 export type ItemType = InputItemType | DisplayItemType
 
@@ -42,6 +75,10 @@ export const INPUT_ITEM_TYPES: readonly InputItemType[] = [
   'dropdown',
   'checkbox',
   'free_text',
+  'short_text',
+  'number',
+  'date',
+  'time',
 ]
 /** Choice inputs carry an `options` array (used by the condition editor). */
 export const CHOICE_ITEM_TYPES: readonly InputItemType[] = [
@@ -49,6 +86,32 @@ export const CHOICE_ITEM_TYPES: readonly InputItemType[] = [
   'dropdown',
   'checkbox',
 ]
+
+/**
+ * One choice option: a display `label` (the answer still STORES this label
+ * string — decision #4) plus an optional colour `token`. Colours are authored on
+ * `multiple_choice` + `checkbox` only (dropdown excluded — a native `<select>`
+ * can't render colour), but the shape is uniform; a colourless option is
+ * `{ label, color: null }`. Persisted inside the existing `options` jsonb as
+ * `{ "label": "...", "color": "<token>"|null }`; legacy bare-string options are
+ * normalized to `{ label, color: null }` at read by {@link toOptions}.
+ */
+export interface ItemOption {
+  label: string
+  color: ColorToken | null
+}
+
+/**
+ * Per-type settings (form-builder-enhancements). Today: optional `min`/`max`
+ * bounds for `number` (numeric) and `date` (ISO `YYYY-MM-DD`); `null`/absent for
+ * every other type. Stored as the `form_items.config` jsonb; bounds are
+ * validated client-side AND in `submit_response`. `number`/`string` because a
+ * numeric bound is a JSON number while a date bound is an ISO string.
+ */
+export interface ItemConfig {
+  min?: number | string | null
+  max?: number | string | null
+}
 
 export type VersionStatus = 'draft' | 'published' | 'archived'
 export type SignoffRole = 'respondent' | 'staff_admin'
@@ -68,6 +131,12 @@ export interface ImageContent {
  * `questionKey`/`label`/`options`/`required` and null `content`; display items
  * carry `content` and null input columns. The kind is discriminated by
  * `itemType`.
+ *
+ * form-builder-enhancements: `options` is now `ItemOption[]` (was `string[]`;
+ * {@link toOptions} normalizes legacy bare strings); `config` carries per-type
+ * settings (number/date min/max); `visibleWhen` is the per-question conditional
+ * appearance ({@link Visibility} — legacy single OR AND/OR group). A conditional
+ * question can never be `required` (UI + DB CHECK).
  */
 export interface Item {
   id: string
@@ -78,7 +147,9 @@ export interface Item {
   questionKey: string | null
   label: string | null
   questionExplanation: string | null
-  options: string[] | null
+  options: ItemOption[] | null
+  config: ItemConfig | null
+  visibleWhen: Visibility | null
   required: boolean
   // display-only
   content: SectionTextContent | ImageContent | null
@@ -91,7 +162,13 @@ export interface Section {
   title: string | null
   description: string | null
   isDefault: boolean
-  visibleWhen: VisibleWhen | null
+  /**
+   * Section visibility — legacy single OR AND/OR group ({@link Visibility}).
+   * form-builder-enhancements: sections share the one condition builder with
+   * questions, so they accept the group shape too; a legacy single condition
+   * round-trips unchanged.
+   */
+  visibleWhen: Visibility | null
   requiresSignoff: boolean
   signoffRole: SignoffRole | null
   items: Item[]
@@ -129,18 +206,46 @@ export interface FormListItem {
 }
 
 /**
- * A valid target for a `visible_when` condition: a CHOICE-type input question
- * in a strictly-earlier section. free_text is intentionally excluded — the
- * condition editor offers a discrete value picker from `options`, which
- * free_text has none of (UI contract, not a schema rule; publish validation
- * still allows any earlier input key).
+ * A valid target for a per-question/section `visible_when` condition: an input
+ * question strictly EARLIER in document order whose answer the condition reads.
+ *
+ * form-builder-enhancements (plan decision #7) WIDENS this beyond choice-only:
+ * conditions may now target `number`/`date`/`time` inputs too (with the new
+ * ordered ops gt/gte/lt/lte), so the editor needs the target's `type` to filter
+ * the operator list and pick the right value control. This INTENTIONALLY
+ * supersedes the prior "conditionTargets is choice-types only" rule (which was a
+ * UI value-picker contract, not a schema rule).
+ *   - CHOICE targets (`multiple_choice`/`dropdown`/`checkbox`) carry `options`
+ *     (label strings — the answer stores the label) for the equals/in picker.
+ *   - number/date/time targets carry `options: []` (they have none); the editor
+ *     renders a number/date/time value control instead.
+ * `free_text`/`short_text` are still excluded (no discrete or ordered value to
+ * compare). Publish-time `validate_visible_when` remains the authority on
+ * forward/self refs and operator↔type compatibility.
  */
 export interface ConditionTarget {
   questionKey: string
   label: string
   sectionPosition: number
+  /** The target input's type — drives operator filtering + the value control. */
+  type: InputItemType
+  /** Choice options (label strings); `[]` for number/date/time targets. */
   options: string[]
 }
+
+/**
+ * The input types a condition may TARGET (decision #7): the choice types plus
+ * number/date/time. `free_text`/`short_text` are excluded — there is no discrete
+ * set to pick from nor a meaningful ordering to compare against.
+ */
+export const CONDITION_TARGET_TYPES: readonly InputItemType[] = [
+  'multiple_choice',
+  'dropdown',
+  'checkbox',
+  'number',
+  'date',
+  'time',
+]
 
 // ---------------------------------------------------------------------------
 // Row → domain mappers
@@ -155,6 +260,8 @@ interface ItemRow {
   label: string | null
   question_explanation: string | null
   options: Json | null
+  config: Json | null
+  visible_when: Json | null
   required: boolean
   content: Json | null
 }
@@ -180,10 +287,52 @@ interface VersionRow {
   form_sections: SectionRow[]
 }
 
-/** Narrow a jsonb options column to a string[] (or null for non-choice inputs). */
-function toOptions(raw: Json | null): string[] | null {
+/** The set of valid colour tokens, for normalizing the persisted colour. */
+const COLOR_TOKENS: ReadonlySet<string> = new Set<ColorToken>([
+  'muted',
+  'slate',
+  'blue',
+  'amber',
+  'green',
+  'red',
+  'violet',
+])
+
+/**
+ * Narrow a jsonb `options` column to `ItemOption[]` (or `null` for non-choice
+ * inputs). form-builder-enhancements: each element is EITHER a legacy bare
+ * string OR `{ label, color }`. Legacy strings normalize to
+ * `{ label, color: null }`; an object's `color` is kept only when it is a known
+ * token (else null). This is the single read-side normalizer — the clone path
+ * copies the raw jsonb, so colours survive a clone untouched.
+ */
+export function toOptions(raw: Json | null): ItemOption[] | null {
   if (!Array.isArray(raw)) return null
-  return raw.map((o) => String(o))
+  return raw.map((o): ItemOption => {
+    if (o !== null && typeof o === 'object' && !Array.isArray(o)) {
+      const rec = o as Record<string, Json>
+      const label = typeof rec.label === 'string' ? rec.label : String(rec.label ?? '')
+      const color =
+        typeof rec.color === 'string' && COLOR_TOKENS.has(rec.color)
+          ? (rec.color as ColorToken)
+          : null
+      return { label, color }
+    }
+    // Legacy bare-string (or any scalar) option.
+    return { label: String(o), color: null }
+  })
+}
+
+/** Narrow the per-type `config` jsonb to {@link ItemConfig} (or null). */
+function toConfig(raw: Json | null): ItemConfig | null {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const rec = raw as Record<string, Json>
+  const min = rec.min
+  const max = rec.max
+  return {
+    min: typeof min === 'number' || typeof min === 'string' ? min : null,
+    max: typeof max === 'number' || typeof max === 'string' ? max : null,
+  }
 }
 
 function toItem(row: ItemRow): Item {
@@ -196,6 +345,9 @@ function toItem(row: ItemRow): Item {
     label: row.label,
     questionExplanation: row.question_explanation,
     options: toOptions(row.options),
+    config: toConfig(row.config),
+    // visible_when is the stored legacy-single OR AND/OR group shape.
+    visibleWhen: (row.visible_when as Visibility | null) ?? null,
     required: row.required,
     // content is a plain jsonb object for display items, null for inputs.
     content: (row.content as Item['content']) ?? null,
@@ -209,7 +361,7 @@ function toSection(row: SectionRow): Section {
     title: row.title,
     description: row.description,
     isDefault: row.is_default,
-    visibleWhen: (row.visible_when as VisibleWhen | null) ?? null,
+    visibleWhen: (row.visible_when as Visibility | null) ?? null,
     requiresSignoff: row.requires_signoff,
     signoffRole: (row.signoff_role as SignoffRole | null) ?? null,
     items: [...row.form_items]
@@ -236,7 +388,7 @@ const VERSION_TREE_SELECT =
   'form_sections(id, position, title, description, is_default, visible_when, ' +
   'requires_signoff, signoff_role, ' +
   'form_items(id, section_id, position, item_type, question_key, label, ' +
-  'question_explanation, options, required, content))'
+  'question_explanation, options, config, visible_when, required, content))'
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -355,9 +507,10 @@ export async function listVersions(formId: string): Promise<VersionSummary[]> {
 
 /**
  * CANONICAL "answerable questions of a version" filter (Architecture Rule 9):
- * the input items (item_type ∈ {multiple_choice, dropdown, checkbox, free_text})
- * of a version, ordered by section position then item position. Reused by the
- * dashboards later — keep this the single source of the input-type filter.
+ * the input items (item_type ∈ {@link INPUT_ITEM_TYPES} — the choice types,
+ * free_text/short_text, number, date, time) of a version, ordered by section
+ * position then item position. Reused by the dashboards later — keep this the
+ * single source of the input-type filter.
  */
 export function answerableItems(tree: VersionTree): Item[] {
   return tree.sections
@@ -367,11 +520,27 @@ export function answerableItems(tree: VersionTree): Item[] {
     )
 }
 
+/** Map an Item to a ConditionTarget (label strings out of `ItemOption[]`). */
+function toConditionTarget(item: Item, sectionPosition: number): ConditionTarget {
+  return {
+    questionKey: item.questionKey as string,
+    label: item.label ?? '',
+    sectionPosition,
+    type: item.itemType as InputItemType,
+    // Choice options expose their LABEL strings (the answer stores the label);
+    // number/date/time inputs have no options → [].
+    options: (item.options ?? []).map((o) => o.label),
+  }
+}
+
 /**
- * Valid `visible_when` targets for a section: CHOICE-type input questions in
- * strictly-earlier sections (lower position), as {questionKey, label,
- * sectionPosition, options}. free_text is excluded (see ConditionTarget).
- * Feeds the frontend condition editor so it only offers selectable targets.
+ * Valid SECTION `visible_when` targets: input questions in strictly-earlier
+ * sections (lower position), as {questionKey, label, sectionPosition, type,
+ * options}. form-builder-enhancements (decision #7): the eligible set is now
+ * {@link CONDITION_TARGET_TYPES} — choice types PLUS number/date/time —
+ * widening the prior choice-only set; `free_text`/`short_text` stay excluded.
+ * Feeds the shared condition builder so it only offers selectable targets and
+ * can filter operators by `type`.
  *
  * Reads the section's version tree to find earlier sections; returns `[]` when
  * the section is the first one (nothing earlier) or is not visible to the
@@ -400,16 +569,33 @@ export async function conditionTargets(
       s.items
         .filter(
           (item) =>
-            CHOICE_ITEM_TYPES.includes(item.itemType as InputItemType) &&
+            CONDITION_TARGET_TYPES.includes(item.itemType as InputItemType) &&
             item.questionKey != null,
         )
-        .map((item) => ({
-          questionKey: item.questionKey as string,
-          label: item.label ?? '',
-          sectionPosition: s.position,
-          options: item.options ?? [],
-        })),
+        .map((item) => toConditionTarget(item, s.position)),
     )
+}
+
+/**
+ * Valid per-QUESTION `visible_when` targets for a given item: input questions
+ * strictly EARLIER in DOCUMENT ORDER — an earlier section, OR an earlier item in
+ * the SAME section (decision #6) — of the eligible {@link CONDITION_TARGET_TYPES}
+ * (choice + number/date/time). Feeds the question-level condition builder.
+ * Returns `[]` for the first item of the first section, or when the item/version
+ * is not visible to the caller.
+ *
+ * NOTE (BE-1 contract stub): signature + shape are FINAL so the frontend builds
+ * against it now; the body is filled in during BE-3/BE-5 alongside the SQL
+ * `validate_visible_when` item walk.
+ */
+export async function questionConditionTargets(
+  itemId: string,
+): Promise<ConditionTarget[]> {
+  // TODO(BE-3/BE-5): resolve the item's (sectionPosition, itemPosition) tuple,
+  // read the version tree, and return eligible inputs strictly earlier in
+  // document order (earlier section OR earlier item in the same section).
+  void itemId
+  throw new Error('not implemented')
 }
 
 /**

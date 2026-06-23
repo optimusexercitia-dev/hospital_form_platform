@@ -10,15 +10,56 @@ import type { Json } from '@/lib/types/database'
  * `supabase/migrations/*_condition_evaluator_and_rpcs.sql` and vice versa.
  *
  * v1 shape (ADR 0005): a single condition, no AND/OR trees.
+ *
+ * Form-builder-enhancements extension: `evalCondition` stays the SINGLE
+ * authority over ONE condition (sections, Phase-7 `RecommendWhen`/`ResultRule`
+ * keep using it directly), now with four ordered-comparison ops
+ * (`gt`/`gte`/`lt`/`lte`) for number/date/time targets. The new AND/OR group is
+ * a THIN wrapper, {@link evalVisibility}, that delegates to `evalCondition` per
+ * sub-condition — `evalCondition`'s single-condition semantics are unchanged.
  */
 
-export type ConditionOp = 'equals' | 'not_equals' | 'in'
+/**
+ * The condition operators. `equals`/`not_equals`/`in` are the v1 set (choice
+ * targets). `gt`/`gte`/`lt`/`lte` are the ordered comparisons added for
+ * number/date/time targets (form-builder-enhancements): when BOTH operands are
+ * JSON numbers they compare numerically, otherwise as text — so ISO dates
+ * (`YYYY-MM-DD`) and 24h times (`HH:mm`) sort correctly lexicographically.
+ */
+export type ConditionOp =
+  | 'equals'
+  | 'not_equals'
+  | 'in'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
 
 export interface VisibleWhen {
   question_key: string
   op: ConditionOp
   value: Json
 }
+
+/**
+ * An AND/OR group of conditions — the form-builder-enhancements visibility
+ * shape for sections AND per-question conditions. `match` is the combinator
+ * (`all` = AND, `any` = OR) applied over `conditions` (a flat list, no nesting;
+ * decision #5). Mirrors SQL `app.eval_visibility`'s group branch. The legacy
+ * single {@link VisibleWhen} shape is still accepted and evaluated unchanged.
+ */
+export interface ConditionGroup {
+  match: 'all' | 'any'
+  conditions: VisibleWhen[]
+}
+
+/**
+ * A stored visibility rule: either the legacy single condition or an AND/OR
+ * group. `null` means "always visible". {@link evalVisibility} evaluates either
+ * shape; `evalCondition` only ever sees the single shape (a group's
+ * sub-conditions are fed to it one at a time).
+ */
+export type Visibility = VisibleWhen | ConditionGroup
 
 /**
  * A cross-phase recommendation condition (Phase 7, ADR 0017). A strict superset
@@ -101,6 +142,36 @@ function answerMatchesValue(answer: Json | undefined, target: Json): boolean {
 }
 
 /**
+ * Compare an answer against a target for the ordered ops (gt/gte/lt/lte). The
+ * SQL mirror (`app.eval_condition`) does the same: if BOTH operands are JSON
+ * numbers, compare numerically; otherwise compare as text (`::text`), which
+ * sorts ISO dates (`YYYY-MM-DD`) and 24h times (`HH:mm`) correctly. A
+ * missing/null answer, or an array (checkbox) answer, never orders → false.
+ * Returns the sign of (answer − target): -1, 0, or 1, or `null` when the
+ * comparison is undefined.
+ */
+function orderedCompare(answer: Json | undefined, target: Json): number | null {
+  if (answer === undefined || answer === null) return null
+  // Checkbox arrays (and any non-scalar) do not participate in ordering.
+  if (Array.isArray(answer) || Array.isArray(target)) return null
+  if (typeof answer === 'object' || typeof target === 'object') return null
+
+  if (typeof answer === 'number' && typeof target === 'number') {
+    if (answer < target) return -1
+    if (answer > target) return 1
+    return 0
+  }
+
+  // Text comparison (covers ISO date/time strings, and number↔string mixes by
+  // stringifying both — matches the SQL `::text` cast path).
+  const a = String(answer)
+  const b = String(target)
+  if (a < b) return -1
+  if (a > b) return 1
+  return 0
+}
+
+/**
  * Evaluate whether a section is visible given the current answers.
  * A null/undefined condition means "always visible".
  */
@@ -135,12 +206,64 @@ export function evalCondition(
       }
       return target.some((t) => jsonEquals(answer, t))
     }
+    case 'gt': {
+      const cmp = orderedCompare(present ? answer : undefined, target)
+      return cmp !== null && cmp > 0
+    }
+    case 'gte': {
+      const cmp = orderedCompare(present ? answer : undefined, target)
+      return cmp !== null && cmp >= 0
+    }
+    case 'lt': {
+      const cmp = orderedCompare(present ? answer : undefined, target)
+      return cmp !== null && cmp < 0
+    }
+    case 'lte': {
+      const cmp = orderedCompare(present ? answer : undefined, target)
+      return cmp !== null && cmp <= 0
+    }
     default: {
       // Exhaustiveness guard: a new op must be added to both evaluators.
       const _never: never = op
       throw new Error(`unknown condition op: ${String(_never)}`)
     }
   }
+}
+
+/**
+ * Evaluate a stored {@link Visibility} rule (legacy single OR AND/OR group)
+ * against the current answers. The TypeScript mirror of SQL
+ * `app.eval_visibility` (form-builder-enhancements):
+ *   - `null`/`undefined` → always visible (`true`);
+ *   - a group (has a `conditions` array) → fold `all`/`any` over
+ *     {@link evalCondition} per sub-condition. An empty group is rejected at the
+ *     CHECK/validation layer, but defensively: `all` of [] → true, `any` of []
+ *     → false (matches SQL `bool_and`/`bool_or` over an empty set);
+ *   - otherwise the legacy single shape → delegate to {@link evalCondition}.
+ *
+ * `evalCondition` (and `walkResultRuleset`/`RecommendWhen`/`ResultRule`) keep
+ * using single shapes directly — they are UNCHANGED and never author groups.
+ * Drift between this and `app.eval_visibility` is a phase-blocking bug
+ * (exercised by `__fixtures__/visibility-vectors.json`).
+ */
+export function evalVisibility(
+  rule: Visibility | null | undefined,
+  answers: AnswerMap,
+): boolean {
+  if (rule == null) return true
+  if (isConditionGroup(rule)) {
+    if (rule.match === 'any') {
+      return rule.conditions.some((c) => evalCondition(c, answers))
+    }
+    // 'all' (default/AND)
+    return rule.conditions.every((c) => evalCondition(c, answers))
+  }
+  return evalCondition(rule, answers)
+}
+
+/** Discriminate the group shape from the legacy single shape. */
+function isConditionGroup(rule: Visibility): rule is ConditionGroup {
+  return Array.isArray((rule as ConditionGroup).conditions)
 }
 
 /**

@@ -181,22 +181,35 @@ export async function startOrResumeResponse(
 // save section (+ orphan-clear)
 // ---------------------------------------------------------------------------
 
+/** The arguments shared by `saveSection` / `saveAndExit`. */
+interface SaveSectionInput {
+  responseId: string
+  sectionId: string
+  answersByItemId: Record<string, Json>
+  clearItemIds?: string[]
+  /**
+   * form-builder-enhancements (decision #11): optional per-item observation
+   * note, mapping an answered NON-free-text item's id → its observation text.
+   * Upserted into `answers.observation` by `save_section_answers`. Optional and
+   * never blocks. The evaluator/answer_map read only `value`, so observations
+   * never affect conditions; per Rule 11 the audit log never copies the text.
+   */
+  observationsByItemId?: Record<string, string>
+}
+
 /**
  * Persist a section's answers and the wizard position in one atomic call (wraps
  * `save_section_answers`). `answersByItemId` maps each answered input item's id
  * to its jsonb value; `clearItemIds` (optional) is the warn-and-clear path — the
  * answered item ids of section(s) a controlling answer just hid, deleted in the
- * SAME call. `sectionId` is stored as `last_section_id` so resume lands here.
+ * SAME call; `observationsByItemId` (optional) carries per-item observation
+ * notes. `sectionId` is stored as `last_section_id` so resume lands here.
  *
  * Called on every section navigation, so it stays lean: authorize, then one RPC.
  */
-export async function saveSection(input: {
-  responseId: string
-  sectionId: string
-  answersByItemId: Record<string, Json>
-  clearItemIds?: string[]
-}): Promise<ActionState> {
-  const { responseId, sectionId, answersByItemId, clearItemIds } = input
+export async function saveSection(input: SaveSectionInput): Promise<ActionState> {
+  const { responseId, sectionId, answersByItemId, clearItemIds, observationsByItemId } =
+    input
   if (!responseId || !sectionId) {
     return { ok: false, error: MESSAGES.missingResponse }
   }
@@ -208,6 +221,20 @@ export async function saveSection(input: {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
+  const hasObservations =
+    observationsByItemId != null && Object.keys(observationsByItemId).length > 0
+
+  // TYPE-LAG (BE-1 contract stub): `p_observations` is added to
+  // `save_section_answers` in BE-4. Until then it is absent from the generated
+  // Args type, so the optional fragment carrying it is typed `Record<string,
+  // Json>` (which bypasses the excess-property check) and omitted entirely when
+  // no observations are present — so the current (pre-BE-4) RPC is unaffected on
+  // the common path. This fragment becomes typed once BE-4's regenerated types
+  // land. The required params stay fully typed.
+  const observationArg: Record<string, Json> = hasObservations
+    ? { p_observations: observationsByItemId as Json }
+    : {}
+
   const { error } = await supabase.rpc('save_section_answers', {
     p_response_id: responseId,
     p_section_id: sectionId,
@@ -215,6 +242,7 @@ export async function saveSection(input: {
     // generated Args types p_clear_item_ids as optional string[]; omit when empty.
     p_clear_item_ids:
       clearItemIds && clearItemIds.length > 0 ? clearItemIds : undefined,
+    ...observationArg,
   })
 
   if (error) {
@@ -243,12 +271,7 @@ export async function saveSection(input: {
  * wizard (the redirect/navigation is the caller's job). Identical persistence to
  * `saveSection`; the distinct success copy lets the UI confirm the exit.
  */
-export async function saveAndExit(input: {
-  responseId: string
-  sectionId: string
-  answersByItemId: Record<string, Json>
-  clearItemIds?: string[]
-}): Promise<ActionState> {
+export async function saveAndExit(input: SaveSectionInput): Promise<ActionState> {
   const result = await saveSection(input)
   if (!result.ok) return result
   return { ok: true, error: MESSAGES.savedAndExited }
