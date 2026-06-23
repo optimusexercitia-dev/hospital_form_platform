@@ -78,8 +78,9 @@ function opsForType(type: InputItemType): ConditionOp[] {
   return isChoiceTarget(type) ? CHOICE_OPS : ORDERED_OPS;
 }
 
-/** A locally-edited condition row (UI state; serialized to a sub-condition). */
-interface DraftRow {
+/** A locally-edited condition row (UI state; serialized to a sub-condition).
+ *  Exported for unit tests. */
+export interface DraftRow {
   uid: string;
   questionKey: string;
   op: ConditionOp;
@@ -96,8 +97,9 @@ function nextUid(): string {
   return `cond-${uidCounter}`;
 }
 
-/** Parse an incoming {@link Visibility} into draft rows + the combinator. */
-function toDrafts(value: Visibility | null): {
+/** Parse an incoming {@link Visibility} into draft rows + the combinator.
+ *  Exported for unit tests (the round-trip with {@link toCondition}). */
+export function toDrafts(value: Visibility | null): {
   enabled: boolean;
   match: "all" | "any";
   rows: DraftRow[];
@@ -116,7 +118,12 @@ function toDrafts(value: Visibility | null): {
       uid: nextUid(),
       questionKey: c.question_key,
       op: c.op,
-      singleValue: typeof c.value === "string" ? c.value : "",
+      // Scalar values (choice label string OR number/date/time) are held as a
+      // STRING in the input buffer. A number condition's value is a JSON number
+      // (post MAJOR-1 fix), so `String(...)` is required to show it in the
+      // `<input type="number">` on reopen; arrays belong to `in` (multiValue).
+      singleValue:
+        c.value == null || Array.isArray(c.value) ? "" : String(c.value),
       multiValue: Array.isArray(c.value) ? c.value.map(String) : [],
     })),
   };
@@ -130,16 +137,34 @@ function isGroup(value: Visibility): value is ConditionGroup {
 function isRowComplete(row: DraftRow, target: ConditionTarget | undefined): boolean {
   if (!target) return false;
   if (row.op === "in") return row.multiValue.length > 0;
-  return row.singleValue !== "";
+  if (row.singleValue === "") return false;
+  // A number target must parse to a finite number, else it is incomplete (don't
+  // emit a NaN). date/time/choice accept any non-empty string.
+  if (target.type === "number") return Number.isFinite(Number(row.singleValue));
+  return true;
 }
 
-/** Serialize a complete row to a sub-condition. */
-function toCondition(row: DraftRow): VisibleWhen {
-  return {
-    question_key: row.questionKey,
-    op: row.op,
-    value: row.op === "in" ? row.multiValue : row.singleValue,
-  };
+/**
+ * Serialize a complete row to a sub-condition. The value type is keyed on the
+ * TARGET's type so it matches how the answer is stored (MAJOR-1):
+ *   - `in` → the selected option-label array;
+ *   - number target → a JSON **number** (`Number(...)`), so both evaluators
+ *     compare numerically (a string would fall to lexical compare and
+ *     mis-evaluate, e.g. `"10" < "5"`);
+ *   - date/time target → the ISO string (`YYYY-MM-DD` / `HH:mm`), which sorts
+ *     correctly lexically;
+ *   - choice target → the option-label string (equals/not_equals).
+ */
+export function toCondition(row: DraftRow, target: ConditionTarget): VisibleWhen {
+  let value: VisibleWhen["value"];
+  if (row.op === "in") {
+    value = row.multiValue;
+  } else if (target.type === "number") {
+    value = Number(row.singleValue);
+  } else {
+    value = row.singleValue;
+  }
+  return { question_key: row.questionKey, op: row.op, value };
 }
 
 export function ConditionBuilder({
@@ -180,7 +205,10 @@ export function ConditionBuilder({
     }
     const group: ConditionGroup = {
       match: nextMatch,
-      conditions: complete.map(toCondition),
+      // Each `complete` row passed isRowComplete → its target is present.
+      conditions: complete.map((r) =>
+        toCondition(r, targetByKey.get(r.questionKey) as ConditionTarget),
+      ),
     };
     onChange(group);
   }

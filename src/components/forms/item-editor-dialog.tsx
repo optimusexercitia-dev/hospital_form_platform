@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -171,6 +172,9 @@ export function ItemEditorDialog(props: Props) {
 
   const titleText =
     props.mode === "edit" ? `Editar ${meta.label.toLowerCase()}` : meta.label;
+  const descriptionText = isInput
+    ? "Defina o enunciado, as opções de resposta e quando esta pergunta aparece."
+    : "Configure o conteúdo deste bloco do formulário.";
 
   // Non-empty option labels (with their colour) → repeated hidden fields.
   const cleanOptions = options.filter((o) => o.label.trim().length > 0);
@@ -180,6 +184,7 @@ export function ItemEditorDialog(props: Props) {
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{titleText}</DialogTitle>
+          <DialogDescription>{descriptionText}</DialogDescription>
         </DialogHeader>
 
         <form action={formAction} className="flex flex-col gap-4" noValidate>

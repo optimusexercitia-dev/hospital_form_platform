@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -67,6 +68,9 @@ export function SectionMetaDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Editar seção</DialogTitle>
+          <DialogDescription>
+            Altere o título e a descrição desta seção.
+          </DialogDescription>
         </DialogHeader>
         <form action={formAction} className="flex flex-col gap-4" noValidate>
           <input type="hidden" name="sectionId" value={section.id} />

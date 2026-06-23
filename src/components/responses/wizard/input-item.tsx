@@ -343,6 +343,13 @@ function NumberItem({
   const min = typeof item.config?.min === "number" ? item.config.min : undefined;
   const max = typeof item.config?.max === "number" ? item.config.max : undefined;
   const boundsHint = formatBoundsHint(min, max);
+  const boundsId = `item-${item.id}-bounds`;
+  // Announce BOTH the explanation and the bounds hint: useFieldIds only wires
+  // the explanation/error, so append the bounds id ourselves (MINOR-3).
+  const describedBy =
+    [controlProps["aria-describedby"], boundsHint ? boundsId : null]
+      .filter(Boolean)
+      .join(" ") || undefined;
 
   return (
     <Field>
@@ -357,6 +364,7 @@ function NumberItem({
       )}
       <Input
         {...controlProps}
+        aria-describedby={describedBy}
         type="text"
         inputMode="decimal"
         value={text}
@@ -364,7 +372,7 @@ function NumberItem({
         placeholder={boundsHint ?? undefined}
       />
       {boundsHint && (
-        <FieldDescription>{boundsHint}</FieldDescription>
+        <FieldDescription id={boundsId}>{boundsHint}</FieldDescription>
       )}
       <FieldError id={errorId}>{error}</FieldError>
     </Field>
