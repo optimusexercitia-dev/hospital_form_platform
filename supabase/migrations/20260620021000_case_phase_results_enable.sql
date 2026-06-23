@@ -1,0 +1,11 @@
+-- ----------------------------------------------------------------------------
+-- Enable the `case_phase_results` feature flag (per-phase categorical RESULT)
+-- ----------------------------------------------------------------------------
+-- Flips the flag seeded OFF by 20260620020000_phase_results.sql to ON, now that
+-- the feature has passed its Phase Gate (pgTAP 824/824, Vitest 57/57, feature
+-- E2E 7/7, QA APPROVED, human ✓ 2026-06-23). Mirrors the established flag-flip
+-- migration pattern (…018000 `case_patient` → ON, …090008 `cases_multi_phase`
+-- → ON). Forward-only; the row already exists (…020000 seeds it OFF), so a plain
+-- UPDATE suffices. compute_case_phase_result early-returns when off, so this is
+-- the single switch that makes the conclude-hook compute results.
+UPDATE "app"."feature_flags" SET "enabled" = true WHERE "key" = 'case_phase_results';
