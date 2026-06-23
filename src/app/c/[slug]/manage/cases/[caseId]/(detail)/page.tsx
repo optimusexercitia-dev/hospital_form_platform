@@ -3,6 +3,11 @@ import { notFound } from "next/navigation";
 
 import { getCommissionAccess } from "@/lib/queries/session";
 import { getCaseDetail, casePatientEnabled } from "@/lib/queries/cases";
+import {
+  listPhaseResults,
+  phaseResultsEnabled,
+} from "@/lib/queries/phase-results";
+import { toResolvedPhaseResultOptions } from "@/components/cases/phase-result-options";
 import { listMembers } from "@/lib/queries/members";
 import { CaseDetailView } from "@/components/cases/case-detail-view";
 import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents";
@@ -53,13 +58,23 @@ export default async function CaseDetailPage({
     casePatientOn,
     narrativesOn,
     caseAccessOn,
+    phaseResultsOn,
   ] = await Promise.all([
     interviewsEnabled(),
     patientSafetyEnabled(),
     casePatientEnabled(),
     narrativesEnabled(),
     caseAccessEnabled(),
+    phaseResultsEnabled(),
   ]);
+
+  // Post-conclusion result correction (phase-results feature; task #10). This route
+  // is already staff_admin/admin-gated, so a coordinator here may correct a
+  // concluded phase's result when the flag is on. The dialog picks from the
+  // commission's active result vocabulary.
+  const phaseResultOptions = phaseResultsOn
+    ? toResolvedPhaseResultOptions(await listPhaseResults(access.commission.id))
+    : [];
   const [members, documents, events, tags, caseTags, actionItems, interviews] =
     await Promise.all([
       listMembers(access.commission.id),
@@ -96,6 +111,8 @@ export default async function CaseDetailPage({
       withHeader={false}
       backHref={`/c/${slug}/manage/cases`}
       referralsModule={referralsModule}
+      canManagePhaseResults={phaseResultsOn}
+      phaseResultOptions={phaseResultOptions}
     />
   );
 }

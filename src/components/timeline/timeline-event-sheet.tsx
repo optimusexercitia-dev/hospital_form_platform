@@ -9,6 +9,8 @@ import type {
 } from "@/lib/timeline/event-model";
 import { statusOf } from "@/lib/timeline/event-model";
 import { cn } from "@/lib/utils";
+import { PhaseResultBadge } from "@/components/cases/phase-result-badge";
+import { timelineResultToResolved } from "@/components/cases/phase-result-options";
 
 import { AvatarStack } from "./avatar-stack";
 import {
@@ -159,6 +161,11 @@ function SheetBody({
                 {roster.map((p) => p.name).join(", ")}
               </span>
             </div>
+          </Row>
+        ) : null}
+        {isPhase && event.result ? (
+          <Row label="Resultado">
+            <PhaseResultBadge result={timelineResultToResolved(event.result)} />
           </Row>
         ) : null}
         {event.note ? <Row label="Observação">{event.note}</Row> : null}

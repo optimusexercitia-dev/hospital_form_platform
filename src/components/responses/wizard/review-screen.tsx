@@ -29,6 +29,7 @@ export function ReviewScreen({
   saving,
   onSignSection,
   onEditSection,
+  phaseResultSlot,
   submitSlot,
 }: {
   visibleSections: Section[];
@@ -40,6 +41,11 @@ export function ReviewScreen({
   /** Record a respondent sign-off for a section (F3). */
   onSignSection: (sectionId: string, note: string | null) => void;
   onEditSection: (sectionId: string) => void;
+  /**
+   * The per-phase result panel (phase-results feature; task #8), a sibling of the
+   * sign-off blocks — case-phase fills only; `null`/undefined for standalone forms.
+   */
+  phaseResultSlot?: React.ReactNode;
   /** Submit button + server-rejection banner, owned by the parent (F5). */
   submitSlot?: React.ReactNode;
 }) {
@@ -70,6 +76,8 @@ export function ReviewScreen({
           />
         ))}
       </div>
+
+      {phaseResultSlot}
 
       {submitSlot}
     </div>

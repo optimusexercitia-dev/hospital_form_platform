@@ -75,11 +75,15 @@ export default async function PhaseResponderPage({
   }
 
   const signoffs = await getResponseSignoffs(responseId);
+  // Thread the case-phase RESULT context (phase-results feature) so the wizard's
+  // end-of-wizard override panel renders. `getCasePhaseForFill` returns `result:
+  // null` when the feature is off, leaving the panel hidden.
   const data = toWizardData(
     response,
     slug,
     access.context.fullName ?? "Você",
     signoffs,
+    { casePhaseId: fill.phase.id, result: fill.result },
   );
   const imageUrls = await resolveImageUrls(response);
 

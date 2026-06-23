@@ -13,6 +13,7 @@ import {
   CaseStatusBadgeFixed,
 } from "@/components/cases/case-status-badge";
 import { CaseRoleChip } from "@/components/cases/case-role-chip";
+import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
 import { CasePhaseList, type AssigneeOption } from "@/components/cases/case-phase-list";
 import { CaseActionItemsPanel } from "@/components/cases/case-action-items-panel";
 import { CaseEventsTimeline } from "@/components/cases/case-events-timeline";
@@ -94,6 +95,8 @@ export function CaseDetailView({
   withHeader,
   backHref,
   referralsModule,
+  canManagePhaseResults = false,
+  phaseResultOptions = [],
 }: {
   slug: string;
   detail: CaseDetail;
@@ -125,6 +128,15 @@ export function CaseDetailView({
   withHeader: boolean;
   /** Back-link target for the self-contained header. */
   backHref: string;
+  /**
+   * Whether the viewer may CORRECT a concluded phase's result post-conclusion
+   * (phase-results feature; task #10): resolved at the host page as
+   * `phaseResultsEnabled` + staff_admin/admin of the commission. Combined here with
+   * the case being non-terminal. Default `false`.
+   */
+  canManagePhaseResults?: boolean;
+  /** The commission's active result options (the correction dialog's picker). */
+  phaseResultOptions?: ResolvedPhaseResult[];
 }) {
   const c = detail.case;
   const caps = detail.viewerCapabilities;
@@ -264,6 +276,11 @@ export function CaseDetailView({
                 caps={caps}
                 viewerId={viewerId}
                 caseAccessEnabled={caseAccessEnabled}
+                // Post-conclusion correction (task #10): staff_admin + flag on +
+                // the case is non-terminal (open). The article also requires the
+                // phase to be `concluida`.
+                canCorrectResult={canManagePhaseResults && isOpen}
+                resultOptions={phaseResultOptions}
               />
             </div>
             <div data-rise className="order-2 lg:order-none">

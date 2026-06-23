@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-import type { ProcessTemplatePhase } from "@/lib/queries/process-templates";
+import type {
+  ProcessTemplatePhase,
+  PhaseConditionTarget,
+} from "@/lib/queries/process-templates";
+import type { PhaseResult } from "@/lib/queries/phase-results";
 import {
   addTemplatePhase,
   updateTemplatePhase,
@@ -22,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
 import { RecommendWhenEditor } from "@/components/process-templates/recommend-when-editor";
+import { ResultRulesetEditor } from "@/components/process-templates/result-ruleset-editor";
 import { PhaseBlocksEditor } from "@/components/process-templates/phase-blocks-editor";
 import type { PhaseWithTargets } from "@/components/process-templates/phase-with-targets";
 import type { SlotForm } from "@/components/process-templates/template-builder-shell";
@@ -62,6 +67,9 @@ export function PhaseSlotDialog({
   phase,
   forms,
   phases,
+  conditionTargetsByForm,
+  phaseResults = [],
+  phaseResultsEnabled = false,
 }: {
   mode: "create" | "edit";
   open: boolean;
@@ -71,6 +79,16 @@ export function PhaseSlotDialog({
   phase?: ProcessTemplatePhase;
   forms: SlotForm[];
   phases: PhaseWithTargets[];
+  /**
+   * `{ formId -> choice-question targets }` for the per-phase result-ruleset
+   * editor (phase-results feature). The editor follows the SELECTED `formId`, so
+   * the map must cover every publishable form, not only bound ones.
+   */
+  conditionTargetsByForm?: Record<string, PhaseConditionTarget[]>;
+  /** The commission's active result vocabulary (the ruleset editor's pickers). */
+  phaseResults?: PhaseResult[];
+  /** Whether the `case_phase_results` feature is on (gates the result editor). */
+  phaseResultsEnabled?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -87,6 +105,10 @@ export function PhaseSlotDialog({
   const [recommendJson, setRecommendJson] = useState<string>(
     phase?.recommendWhen ? JSON.stringify(phase.recommendWhen) : "",
   );
+  // Serialized ResultRuleset JSON ("" = none) emitted by the result editor.
+  const [resultRulesetJson, setResultRulesetJson] = useState<string>(
+    phase?.resultRuleset ? JSON.stringify(phase.resultRuleset) : "",
+  );
   // The selected blocker positions (D1/D4). Persisted separately on success.
   const [blocks, setBlocks] = useState<number[]>(phase?.blocks ?? []);
 
@@ -100,6 +122,9 @@ export function PhaseSlotDialog({
       setTitle(phase?.title ?? "");
       setDefaultDays(phase?.defaultDueDays != null ? String(phase.defaultDueDays) : "");
       setRecommendJson(phase?.recommendWhen ? JSON.stringify(phase.recommendWhen) : "");
+      setResultRulesetJson(
+        phase?.resultRuleset ? JSON.stringify(phase.resultRuleset) : "",
+      );
       setBlocks(phase?.blocks ?? []);
     }
   }
@@ -121,6 +146,13 @@ export function PhaseSlotDialog({
   const originalBlocks = phase?.blocks ?? [];
   const hadRecommend = Boolean(phase?.recommendWhen);
   const clearRecommend = mode === "edit" && hadRecommend && recommendJson === "";
+  const hadResultRuleset = Boolean(phase?.resultRuleset);
+  const clearResultRuleset =
+    mode === "edit" && hadResultRuleset && resultRulesetJson === "";
+
+  // The choice targets of the SELECTED form (the result editor follows `formId`).
+  const selectedTargets =
+    (formId && conditionTargetsByForm?.[formId]) || [];
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -135,6 +167,10 @@ export function PhaseSlotDialog({
     form.set("defaultDays", defaultDays);
     form.set("recommendWhen", recommendJson);
     if (clearRecommend) form.set("clearRecommendWhen", "true");
+    if (phaseResultsEnabled) {
+      form.set("resultRuleset", resultRulesetJson);
+      if (clearResultRuleset) form.set("clearResultRuleset", "true");
+    }
 
     startTransition(async () => {
       // The create action echoes the new phase id; edit operates on a known one.
@@ -268,6 +304,16 @@ export function PhaseSlotDialog({
             onChange={setRecommendJson}
             error={state?.fieldErrors?.recommendWhen}
           />
+
+          {phaseResultsEnabled && (
+            <ResultRulesetEditor
+              targets={selectedTargets}
+              results={phaseResults}
+              value={resultRulesetJson}
+              onChange={setResultRulesetJson}
+              error={state?.fieldErrors?.resultRuleset}
+            />
+          )}
 
           <DialogFooter>
             <Button

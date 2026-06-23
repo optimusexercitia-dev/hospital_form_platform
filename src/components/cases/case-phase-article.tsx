@@ -1,11 +1,14 @@
 import { CalendarClock, FileText, User } from "lucide-react";
 
 import type { CaseDetail } from "@/lib/queries/cases";
+import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
 import {
   PhaseStatusPill,
   RecommendedChip,
 } from "@/components/cases/phase-status-pill";
 import { CoordinatorPhaseActions } from "@/components/cases/coordinator-phase-actions";
+import { PhaseResultBadge } from "@/components/cases/phase-result-badge";
+import { PhaseResultCorrectButton } from "@/components/cases/phase-result-correct-button";
 import { formatDueDate, isOverdue } from "@/components/cases/format";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 import { cn } from "@/lib/utils";
@@ -29,6 +32,8 @@ export function CasePhaseArticle({
   assignees,
   isOpen,
   canManageLifecycle = true,
+  canCorrectResult = false,
+  resultOptions = [],
 }: {
   slug: string;
   phase: DetailPhase;
@@ -38,6 +43,15 @@ export function CasePhaseArticle({
   isOpen: boolean;
   /** Whether the viewer may run phase lifecycle (ADR 0033); default `true`. */
   canManageLifecycle?: boolean;
+  /**
+   * Whether the viewer may CORRECT this phase's result post-conclusion
+   * (phase-results feature; task #10): resolved at the page level as
+   * `phaseResultsEnabled` + staff_admin + the case is non-terminal. The button
+   * also requires the phase to be `concluida`. Default `false`.
+   */
+  canCorrectResult?: boolean;
+  /** The commission's active result options (the correction dialog's picker). */
+  resultOptions?: ResolvedPhaseResult[];
 }) {
   const heading = phase.title || `Fase ${phase.position}`;
 
@@ -57,6 +71,9 @@ export function CasePhaseArticle({
               <span className="rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-muted-foreground uppercase">
                 adicional
               </span>
+            )}
+            {phase.status === "concluida" && (
+              <PhaseResultBadge result={phase.result} />
             )}
           </div>
           <h2 className="text-base font-semibold">{heading}</h2>
@@ -99,6 +116,17 @@ export function CasePhaseArticle({
         isOpen={isOpen}
         canManageLifecycle={canManageLifecycle}
       />
+
+      {canCorrectResult && phase.status === "concluida" && (
+        <div className="flex justify-end">
+          <PhaseResultCorrectButton
+            casePhaseId={phase.id}
+            options={resultOptions}
+            currentResultId={phase.resultId}
+            phaseLabel={heading}
+          />
+        </div>
+      )}
     </article>
   );
 }

@@ -1,4 +1,5 @@
 import type { CaseDetail, CaseViewerCapabilities } from "@/lib/queries/cases";
+import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
 import { mergeCaseLayout } from "@/lib/queries/case-narratives";
 import { CasePhaseArticle } from "@/components/cases/case-phase-article";
 import { CaseNarrativeCard } from "@/components/cases/case-narrative-card";
@@ -34,6 +35,8 @@ export function CasePhaseList({
   caps,
   viewerId,
   caseAccessEnabled = true,
+  canCorrectResult = false,
+  resultOptions = [],
 }: {
   slug: string;
   detail: CaseDetail;
@@ -44,6 +47,14 @@ export function CasePhaseList({
   caps: CaseViewerCapabilities;
   /** The viewer's user id — for the per-narrative assignee check (Q14); `null` if unknown. */
   viewerId: string | null;
+  /**
+   * Whether the viewer may CORRECT a concluded phase's result post-conclusion
+   * (phase-results feature; task #10): `phaseResultsEnabled` + staff_admin + the
+   * case is non-terminal, resolved at the page level. Default `false`.
+   */
+  canCorrectResult?: boolean;
+  /** The commission's active result options (the correction dialog's picker). */
+  resultOptions?: ResolvedPhaseResult[];
   /**
    * Whether the `case_access` flag is on (ADR 0033). `false` renders narratives in
    * LEGACY mode (no status/assignee/Concluir/Reabrir; editability = `isOpen` +
@@ -70,6 +81,8 @@ export function CasePhaseList({
               assignees={assignees}
               isOpen={isOpen}
               canManageLifecycle={caps.canManageLifecycle}
+              canCorrectResult={canCorrectResult}
+              resultOptions={resultOptions}
             />
           ) : (
             (() => {

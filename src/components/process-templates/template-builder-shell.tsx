@@ -11,6 +11,7 @@ import type {
 } from "@/lib/queries/process-templates";
 import type { CaseOutcome } from "@/lib/queries/case-outcomes";
 import type { CaseNarrativeType } from "@/lib/queries/case-narratives";
+import type { PhaseResult } from "@/lib/queries/phase-results";
 import {
   reorderCaseLayout,
   removeTemplateNarrative,
@@ -121,11 +122,17 @@ export function TemplateBuilderShell({
   narrativeTypes,
   narrativesEnabled,
   casePatientEnabled,
+  phaseResultsEnabled = false,
+  phaseResults = [],
 }: {
   slug: string;
   template: ProcessTemplate;
   forms: SlotForm[];
-  /** `{ formId -> choice-question targets }` for every bound form (server-resolved). */
+  /**
+   * `{ formId -> choice-question targets }` for every bound + publishable form
+   * (server-resolved). Powers the recommend_when editor (earlier phases) and the
+   * per-phase result-ruleset editor (the form selected in the slot dialog).
+   */
   conditionTargetsByForm: Record<string, PhaseConditionTarget[]>;
   /** The commission's non-archived outcome vocabulary (the offered-outcomes picker). */
   outcomes: CaseOutcome[];
@@ -135,6 +142,10 @@ export function TemplateBuilderShell({
   narrativesEnabled: boolean;
   /** Whether the `case_patient` feature is on (gates the draft-only collects-patient toggle; ADR 0038). */
   casePatientEnabled: boolean;
+  /** Whether the `case_phase_results` feature is on (gates the per-phase result-ruleset editor). */
+  phaseResultsEnabled?: boolean;
+  /** The commission's active result vocabulary (the ruleset editor's option pickers). */
+  phaseResults?: PhaseResult[];
 }) {
   const [addPhaseOpen, setAddPhaseOpen] = useState(false);
   const [addNarrativeOpen, setAddNarrativeOpen] = useState(false);
@@ -270,6 +281,9 @@ export function TemplateBuilderShell({
                 phase={item.phase}
                 phases={phases}
                 forms={forms}
+                conditionTargetsByForm={conditionTargetsByForm}
+                phaseResults={phaseResults}
+                phaseResultsEnabled={phaseResultsEnabled}
                 isFirst={index === 0}
                 isLast={index === items.length - 1}
                 editable={isDraft}
@@ -351,6 +365,9 @@ export function TemplateBuilderShell({
           templateId={template.id}
           forms={forms}
           phases={phases}
+          conditionTargetsByForm={conditionTargetsByForm}
+          phaseResults={phaseResults}
+          phaseResultsEnabled={phaseResultsEnabled}
         />
       )}
 

@@ -4,6 +4,11 @@ import { notFound } from "next/navigation";
 import { getCommissionAccess } from "@/lib/queries/session";
 import { getCaseDetail, casePatientEnabled } from "@/lib/queries/cases";
 import type { CaseViewerCapabilities, MyCaseRole } from "@/lib/queries/cases";
+import {
+  listPhaseResults,
+  phaseResultsEnabled,
+} from "@/lib/queries/phase-results";
+import { toResolvedPhaseResultOptions } from "@/components/cases/phase-result-options";
 import { listMembers } from "@/lib/queries/members";
 import { CaseDetailView } from "@/components/cases/case-detail-view";
 import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents";
@@ -63,13 +68,28 @@ export default async function StaffCaseDetailPage({
   const caps = detail.viewerCapabilities;
   const myRole = roleFromCapabilities(caps);
 
-  const [interviewsOn, patientSafetyOn, casePatientOn, narrativesOn] =
-    await Promise.all([
-      interviewsEnabled(),
-      patientSafetyEnabled(),
-      casePatientEnabled(),
-      narrativesEnabled(),
-    ]);
+  const [
+    interviewsOn,
+    patientSafetyOn,
+    casePatientOn,
+    narrativesOn,
+    phaseResultsOn,
+  ] = await Promise.all([
+    interviewsEnabled(),
+    patientSafetyEnabled(),
+    casePatientEnabled(),
+    narrativesEnabled(),
+    phaseResultsEnabled(),
+  ]);
+
+  // Post-conclusion result correction (phase-results feature; task #10) is
+  // staff_admin-only — a plain staff/collaborator/read-grantee at this shared staff
+  // surface never sees the affordance (the RPC is staff_admin-gated by RLS too).
+  const canManagePhaseResults =
+    phaseResultsOn && (access.role === "staff_admin" || access.context.isAdmin);
+  const phaseResultOptions = canManagePhaseResults
+    ? toResolvedPhaseResultOptions(await listPhaseResults(access.commission.id))
+    : [];
   const [members, documents, events, tags, caseTags, actionItems, interviews] =
     await Promise.all([
       listMembers(access.commission.id),
@@ -106,6 +126,8 @@ export default async function StaffCaseDetailPage({
       withHeader
       backHref={`/c/${slug}/meus-casos`}
       referralsModule={referralsModule}
+      canManagePhaseResults={canManagePhaseResults}
+      phaseResultOptions={phaseResultOptions}
     />
   );
 }

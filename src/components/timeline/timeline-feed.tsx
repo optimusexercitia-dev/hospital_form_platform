@@ -7,6 +7,8 @@ import {
   statusOf,
 } from "@/lib/timeline/event-model";
 import { cn } from "@/lib/utils";
+import { PhaseResultBadge } from "@/components/cases/phase-result-badge";
+import { timelineResultToResolved } from "@/components/cases/phase-result-options";
 
 import { AvatarStack } from "./avatar-stack";
 import type { TimelineDensity } from "./timeline-density-switch";
@@ -183,6 +185,9 @@ function FeedRow({
               <span aria-hidden="true">·</span>
               <span className="tabular-nums">{durationSuffix(days, true)}</span>
             </>
+          ) : null}
+          {isPhase && event.result ? (
+            <PhaseResultBadge result={timelineResultToResolved(event.result)} />
           ) : null}
           {event.note ? (
             <>

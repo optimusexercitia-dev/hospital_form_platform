@@ -12,6 +12,11 @@ import { listForms } from "@/lib/queries/forms";
 import { listNarrativeTypes } from "@/lib/queries/case-narratives";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { casePatientEnabled } from "@/lib/queries/cases";
+import {
+  listPhaseResults,
+  phaseResultsEnabled,
+  type PhaseResult,
+} from "@/lib/queries/phase-results";
 import { TemplateBuilderShell } from "@/components/process-templates/template-builder-shell";
 
 export const metadata: Metadata = {
@@ -53,12 +58,14 @@ export default async function ProcessTemplateBuilderPage({
   // at case creation). A form with only a draft can't back a phase yet. The
   // offered-outcomes picker offers the commission's non-archived outcomes; the
   // narrative-slot picker the non-archived narrative types (when the feature is on).
-  const [forms, outcomes, narrativesOn, casePatientOn] = await Promise.all([
-    listForms(access.commission.id),
-    listCaseOutcomes(access.commission.id),
-    narrativesEnabled(),
-    casePatientEnabled(),
-  ]);
+  const [forms, outcomes, narrativesOn, casePatientOn, phaseResultsOn] =
+    await Promise.all([
+      listForms(access.commission.id),
+      listCaseOutcomes(access.commission.id),
+      narrativesEnabled(),
+      casePatientEnabled(),
+      phaseResultsEnabled(),
+    ]);
   const narrativeTypes = narrativesOn
     ? await listNarrativeTypes(access.commission.id)
     : [];
@@ -66,21 +73,34 @@ export default async function ProcessTemplateBuilderPage({
     .filter((f) => f.publishedVersionNumber != null)
     .map((f) => ({ id: f.id, title: f.title }));
 
-  // Pre-resolve the choice-question targets for every form already bound by a
-  // phase-slot, so the client `recommend_when` editor can offer a question +
-  // value picker for an earlier phase WITHOUT a server round trip per keystroke.
-  // `phaseConditionTargets` is server-only (RLS-scoped); resolving it here keeps
-  // the editor a pure client component. Keyed by formId (a form may back several
-  // phases; we resolve each distinct form once).
-  const boundFormIds = [...new Set(template.phases.map((p) => p.formId))];
+  // Pre-resolve the choice-question targets so the client `recommend_when` editor
+  // (earlier phases) and the per-phase `result_ruleset` editor (THIS phase's own
+  // form) can offer a question + value picker WITHOUT a server round trip per
+  // keystroke. `phaseConditionTargets` is server-only (RLS-scoped); resolving here
+  // keeps the editors pure client components. We resolve for every form already
+  // bound by a phase-slot AND every publishable form, since the result editor must
+  // follow the form selected in the create dialog (not yet a bound phase). Keyed by
+  // formId; each distinct form is resolved once.
+  const targetFormIds = [
+    ...new Set([
+      ...template.phases.map((p) => p.formId),
+      ...publishableForms.map((f) => f.id),
+    ]),
+  ];
   const targetEntries = await Promise.all(
-    boundFormIds.map(
+    targetFormIds.map(
       async (formId) =>
         [formId, await phaseConditionTargets(formId)] as const,
     ),
   );
   const conditionTargetsByForm: Record<string, PhaseConditionTarget[]> =
     Object.fromEntries(targetEntries);
+
+  // The commission's active result vocabulary, for the result-ruleset editor's
+  // result-option pickers (phase-results feature). Empty when the flag is off.
+  const phaseResults: PhaseResult[] = phaseResultsOn
+    ? await listPhaseResults(access.commission.id)
+    : [];
 
   return (
     <TemplateBuilderShell
@@ -92,6 +112,8 @@ export default async function ProcessTemplateBuilderPage({
       narrativeTypes={narrativeTypes}
       narrativesEnabled={narrativesOn}
       casePatientEnabled={casePatientOn}
+      phaseResultsEnabled={phaseResultsOn}
+      phaseResults={phaseResults}
     />
   );
 }

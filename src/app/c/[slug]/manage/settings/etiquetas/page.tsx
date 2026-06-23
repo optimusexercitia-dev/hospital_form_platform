@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getCommissionAccess } from "@/lib/queries/session";
 import { listCaseTags } from "@/lib/queries/case-tags";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
+import { phaseResultsEnabled } from "@/lib/queries/phase-results";
 import { SettingsTabs } from "@/components/cases/settings-tabs";
 import { TagManager } from "@/components/cases/tag-manager";
 
@@ -30,9 +31,10 @@ export default async function CaseTagsSettingsPage({
     notFound();
   }
 
-  const [tags, narrativesOn] = await Promise.all([
+  const [tags, narrativesOn, phaseResultsOn] = await Promise.all([
     listCaseTags(access.commission.id),
     narrativesEnabled(),
+    phaseResultsEnabled(),
   ]);
 
   return (
@@ -47,7 +49,11 @@ export default async function CaseTagsSettingsPage({
         </p>
       </header>
 
-      <SettingsTabs slug={slug} narrativesEnabled={narrativesOn} />
+      <SettingsTabs
+        slug={slug}
+        narrativesEnabled={narrativesOn}
+        phaseResultsEnabled={phaseResultsOn}
+      />
 
       <TagManager commissionId={access.commission.id} tags={tags} />
     </div>

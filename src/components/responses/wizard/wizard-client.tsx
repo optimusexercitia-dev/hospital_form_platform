@@ -19,6 +19,7 @@ import { WizardProgress } from "./wizard-progress";
 import { SectionStep } from "./section-step";
 import { WizardNav } from "./wizard-nav";
 import { ReviewScreen } from "./review-screen";
+import { PhaseResultPanel } from "./phase-result-panel";
 import { SubmitPanel } from "./submit-panel";
 import { OrphanWarningDialog } from "./orphan-warning-dialog";
 import { ConfirmationScreen } from "./confirmation-screen";
@@ -55,8 +56,18 @@ export interface WizardActions {
     sectionId: string | null;
     answersByItemId: Record<string, Json>;
   }) => Promise<{ ok: boolean; error?: string }>;
-  /** Submit through the server authority (`submit_response`); F5. */
-  submit: () => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Submit through the server authority (`submit_response`); F5. For case-phase
+   * fills (phase-results feature) an optional per-phase result OVERRIDE is passed:
+   * `overrideResultId` (a chosen option id, or `null` to CLEAR a stashed override,
+   * or `undefined` to leave it untouched) + an optional `reason`. The runner routes
+   * to `submitCasePhaseResponse` when the phase carries result context, else plain
+   * `submitResponse` (which ignores these args).
+   */
+  submit: (override?: {
+    overrideResultId: string | null | undefined;
+    reason: string | null;
+  }) => Promise<{ ok: boolean; error?: string }>;
   /**
    * Record a respondent sign-off for a `requires_signoff(respondent)` section
    * (F3) via B3's `signSection`. The server (RLS + the RPC's visibility check)
@@ -99,6 +110,18 @@ export function WizardClient({
     data.signoffsBySectionId,
   );
 
+  // Per-phase result override state (phase-results feature; task #8). Only used on
+  // the case-phase responder (gated on `data.phaseResult`); seeded from the
+  // currently-stashed override so a resumed fill keeps the operator's prior choice.
+  const phaseResult = data.phaseResult;
+  const [overrideEnabled, setOverrideEnabled] = useState<boolean>(
+    phaseResult?.currentOverrideId != null,
+  );
+  const [overrideResultId, setOverrideResultId] = useState<string>(
+    phaseResult?.currentOverrideId ?? "",
+  );
+  const [overrideReason, setOverrideReason] = useState<string>("");
+
   const {
     isFlat,
     visibleSections,
@@ -107,6 +130,7 @@ export function WizardClient({
     stepCount,
     isReview,
     answers,
+    answerMap,
     setAnswer,
     next,
     back,
@@ -265,7 +289,20 @@ export function WizardClient({
   const handleSubmit = useCallback(async () => {
     setSaving(true);
     setBanner(null);
-    const result = await actions.submit();
+    // For a case-phase fill, thread the per-phase result override (phase-results
+    // feature). `overrideResultId`: a chosen option id when the operator overrode;
+    // `null` to CLEAR a previously-stashed override (toggle off or pick "none");
+    // `undefined` for standalone fills (the runner ignores it). The reason is only
+    // meaningful alongside a non-null override.
+    const override = phaseResult
+      ? {
+          overrideResultId: overrideEnabled
+            ? overrideResultId || null
+            : null,
+          reason: overrideEnabled ? overrideReason.trim() || null : null,
+        }
+      : undefined;
+    const result = await actions.submit(override);
     setSaving(false);
     if (!result.ok) {
       setBanner(
@@ -274,7 +311,7 @@ export function WizardClient({
       return;
     }
     setSubmitted(true);
-  }, [actions]);
+  }, [actions, phaseResult, overrideEnabled, overrideResultId, overrideReason]);
 
   /**
    * Record a respondent sign-off for a visible `requires_signoff(respondent)`
@@ -345,6 +382,29 @@ export function WizardClient({
     />
   );
 
+  // The end-of-wizard per-phase result panel (phase-results feature; task #8) —
+  // case-phase fills only. Rendered on review as a sibling of the sign-off blocks.
+  const phaseResultSlot = phaseResult ? (
+    <PhaseResultPanel
+      ruleset={phaseResult.ruleset}
+      options={phaseResult.options}
+      answerMap={answerMap}
+      overrideEnabled={overrideEnabled}
+      overrideResultId={overrideResultId}
+      reason={overrideReason}
+      saving={saving}
+      onToggleOverride={(on) => {
+        setOverrideEnabled(on);
+        if (!on) {
+          setOverrideResultId("");
+          setOverrideReason("");
+        }
+      }}
+      onChangeOverrideResult={setOverrideResultId}
+      onChangeReason={setOverrideReason}
+    />
+  ) : null;
+
   // ----- FLAT (default-section-only) -----
   if (isFlat) {
     const section = visibleSections[0];
@@ -360,6 +420,7 @@ export function WizardClient({
             saving={saving}
             onSignSection={handleSignSection}
             onEditSection={(id) => goToSection(id)}
+            phaseResultSlot={phaseResultSlot}
             submitSlot={submitPanel}
           />
           {orphanDialog}
@@ -418,6 +479,7 @@ export function WizardClient({
             setBanner(null);
             goToSection(id);
           }}
+          phaseResultSlot={phaseResultSlot}
           submitSlot={submitPanel}
         />
       ) : currentSection ? (

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getCommissionAccess } from "@/lib/queries/session";
 import { listNarrativeTypes } from "@/lib/queries/case-narratives";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
+import { phaseResultsEnabled } from "@/lib/queries/phase-results";
 import { SettingsTabs } from "@/components/cases/settings-tabs";
 import { NarrativeTypeManager } from "@/components/cases/narrative-type-manager";
 
@@ -42,7 +43,10 @@ export default async function CaseNarrativesSettingsPage({
   // The settings manager shows the full vocabulary incl. archived? No — mirror
   // the outcomes manager and show the NON-archived working set (archive hides
   // from the picker; archived types stay snapshotted on existing slots/cases).
-  const narrativeTypes = await listNarrativeTypes(access.commission.id);
+  const [narrativeTypes, phaseResultsOn] = await Promise.all([
+    listNarrativeTypes(access.commission.id),
+    phaseResultsEnabled(),
+  ]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -57,7 +61,11 @@ export default async function CaseNarrativesSettingsPage({
         </p>
       </header>
 
-      <SettingsTabs slug={slug} narrativesEnabled />
+      <SettingsTabs
+        slug={slug}
+        narrativesEnabled
+        phaseResultsEnabled={phaseResultsOn}
+      />
 
       <NarrativeTypeManager
         commissionId={access.commission.id}

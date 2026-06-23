@@ -3,6 +3,7 @@ import "server-only";
 import { getSignedAssetUrl } from "@/lib/queries/forms";
 import type { ResponseForFill } from "@/lib/queries/responses";
 import type { SignoffRecord } from "@/lib/queries/signoffs";
+import type { CasePhaseForFill } from "@/lib/queries/cases";
 import { signoffRecordsToMap } from "@/components/signoffs/adapt";
 
 import type { AnswerState, WizardData } from "./types";
@@ -47,7 +48,27 @@ export function toWizardData(
   slug: string,
   respondentName: string,
   signoffs: SignoffRecord[],
+  /**
+   * The case-phase RESULT context (phase-results feature), present ONLY on the
+   * case-phase responder page. `casePhaseId` plus the phase's `result` context
+   * (snapshotted ruleset + active options + the current stashed override) drives
+   * the end-of-wizard override panel. Omitted/null for standalone form fills.
+   */
+  phaseResultContext?: {
+    casePhaseId: string;
+    result: CasePhaseForFill["result"];
+  } | null,
 ): WizardData {
+  const phaseResult =
+    phaseResultContext && phaseResultContext.result
+      ? {
+          casePhaseId: phaseResultContext.casePhaseId,
+          ruleset: phaseResultContext.result.resultRuleset,
+          options: phaseResultContext.result.options,
+          currentOverrideId: phaseResultContext.result.currentOverrideId,
+        }
+      : undefined;
+
   return {
     slug,
     formId: response.formId,
@@ -58,6 +79,7 @@ export function toWizardData(
     initialAnswers: toAnswerState(response),
     lastSectionId: response.lastSectionId,
     signoffsBySectionId: signoffRecordsToMap(signoffs),
+    phaseResult,
   };
 }
 

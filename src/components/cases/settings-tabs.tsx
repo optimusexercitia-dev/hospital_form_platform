@@ -7,26 +7,32 @@ import { cn } from "@/lib/utils";
 
 /**
  * Sub-navigation for the commission settings area: switch between the outcome
- * vocabulary ("Desfechos"), the tag vocabulary ("Etiquetas") and — when the
- * `case_narratives` feature is on — the narrative vocabulary ("Narrativas"). The
- * configurable status vocabulary is gone (D12 — statuses are now fixed/computed),
- * so its tab is dropped. Keyboard-operable links with `aria-current` on the active
- * tab.
+ * vocabulary ("Desfechos"), the tag vocabulary ("Etiquetas"), — when the
+ * `case_narratives` feature is on — the narrative vocabulary ("Narrativas"), and
+ * — when the `case_phase_results` feature is on — the per-phase result vocabulary
+ * ("Resultados"). The configurable status vocabulary is gone (D12 — statuses are
+ * now fixed/computed), so its tab is dropped. Keyboard-operable links with
+ * `aria-current` on the active tab.
  *
- * `narrativesEnabled` is resolved on the server by each settings page (the flag
- * lives in the locked-down `app` schema) and passed in, so the Narrativas tab is
- * hidden everywhere until the increment ships.
+ * `narrativesEnabled` / `phaseResultsEnabled` are resolved on the server by each
+ * settings page (the flags live in the locked-down `app` schema) and passed in, so
+ * those tabs are hidden everywhere until their increment ships.
  */
 export function SettingsTabs({
   slug,
   narrativesEnabled = false,
+  phaseResultsEnabled = false,
 }: {
   slug: string;
   narrativesEnabled?: boolean;
+  phaseResultsEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const tabs = [
     { href: `/c/${slug}/manage/settings/desfechos`, label: "Desfechos" },
+    ...(phaseResultsEnabled
+      ? [{ href: `/c/${slug}/manage/settings/resultados`, label: "Resultados" }]
+      : []),
     { href: `/c/${slug}/manage/settings/etiquetas`, label: "Etiquetas" },
     ...(narrativesEnabled
       ? [{ href: `/c/${slug}/manage/settings/narrativas`, label: "Narrativas" }]

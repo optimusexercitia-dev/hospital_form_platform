@@ -12,7 +12,11 @@ import {
   Trash2,
 } from "lucide-react";
 
-import type { ProcessTemplatePhase } from "@/lib/queries/process-templates";
+import type {
+  ProcessTemplatePhase,
+  PhaseConditionTarget,
+} from "@/lib/queries/process-templates";
+import type { PhaseResult } from "@/lib/queries/phase-results";
 import {
   moveTemplatePhase,
   removeTemplatePhase,
@@ -49,6 +53,9 @@ export function PhaseSlotCard({
   phase,
   phases,
   forms,
+  conditionTargetsByForm,
+  phaseResults,
+  phaseResultsEnabled = false,
   isFirst,
   isLast,
   editable,
@@ -59,6 +66,12 @@ export function PhaseSlotCard({
   phase: ProcessTemplatePhase;
   phases: PhaseWithTargets[];
   forms: SlotForm[];
+  /** `{ formId -> choice targets }` for the per-phase result-ruleset editor. */
+  conditionTargetsByForm?: Record<string, PhaseConditionTarget[]>;
+  /** The commission's active result vocabulary (the ruleset editor's pickers). */
+  phaseResults?: PhaseResult[];
+  /** Whether the `case_phase_results` feature is on (gates the result editor). */
+  phaseResultsEnabled?: boolean;
   isFirst: boolean;
   isLast: boolean;
   editable: boolean;
@@ -225,6 +238,9 @@ export function PhaseSlotCard({
           phase={phase}
           forms={forms}
           phases={phases}
+          conditionTargetsByForm={conditionTargetsByForm}
+          phaseResults={phaseResults}
+          phaseResultsEnabled={phaseResultsEnabled}
         />
       )}
     </section>

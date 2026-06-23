@@ -7,6 +7,7 @@ import {
   saveSection,
   saveAndExit,
   submitResponse,
+  submitCasePhaseResponse,
   signSection,
 } from "@/lib/responses/actions";
 
@@ -54,7 +55,22 @@ export function WizardRunner({
           answersByItemId: input.answersByItemId,
         });
       },
-      submit: () => submitResponse(data.responseId),
+      // Case-phase fills (phase-results feature) route to `submitCasePhaseResponse`
+      // so an optional per-phase result override is stashed on the still-`ativa`
+      // phase before the conclusion trigger honors it; standalone fills keep the
+      // plain `submitResponse` (no case-phase / no override).
+      submit: (override) => {
+        const phaseResult = data.phaseResult;
+        if (phaseResult) {
+          return submitCasePhaseResponse(
+            data.responseId,
+            phaseResult.casePhaseId,
+            override?.overrideResultId,
+            override?.reason ?? null,
+          );
+        }
+        return submitResponse(data.responseId);
+      },
       signSection: (input: { sectionId: string; note: string | null }) =>
         signSection({
           responseId: data.responseId,
@@ -62,7 +78,7 @@ export function WizardRunner({
           note: input.note,
         }),
     }),
-    [data.responseId],
+    [data.responseId, data.phaseResult],
   );
 
   return <WizardClient data={data} imageUrls={imageUrls} actions={actions} />;
