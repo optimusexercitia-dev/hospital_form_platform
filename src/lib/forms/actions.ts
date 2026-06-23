@@ -991,6 +991,66 @@ export async function startEditFromPublished(
   return { ok: true, error: MESSAGES.draftStarted, draftVersionId: data ?? undefined }
 }
 
+/** Result of a draft deletion — tells the client whether to navigate to the forms list. */
+export interface DeleteDraftState extends ActionState {
+  redirectToForms?: boolean
+}
+
+/**
+ * Delete a draft version. If it is the form's only version (never published),
+ * the entire form is deleted; otherwise only the draft is removed.
+ * Returns `redirectToForms: true` when the form itself was deleted (client
+ * navigates to the commission forms list), or `false` to send the client to
+ * the form page (which will render the published version read-only).
+ */
+export async function deleteDraftVersion(
+  versionId: string,
+): Promise<DeleteDraftState> {
+  if (!versionId) return { ok: false, error: MESSAGES.missingVersion }
+
+  const supabase = await createClient()
+  const ctx = await contextOfVersion(supabase, versionId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingVersion }
+  if (!(await authorizeCommission(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { data: version } = await supabase
+    .from('form_versions')
+    .select('status')
+    .eq('id', versionId)
+    .maybeSingle()
+  if (!version) return { ok: false, error: MESSAGES.missingVersion }
+  if (version.status !== 'draft') return { ok: false, error: MESSAGES.notDraft }
+
+  const { count } = await supabase
+    .from('form_versions')
+    .select('id', { count: 'exact', head: true })
+    .eq('form_id', ctx.formId)
+    .eq('status', 'published')
+
+  const hasPublished = (count ?? 0) > 0
+
+  if (hasPublished) {
+    const { error } = await supabase
+      .from('form_versions')
+      .delete()
+      .eq('id', versionId)
+    if (error) return { ok: false, error: MESSAGES.generic }
+    revalidateBuilder()
+    return { ok: true, redirectToForms: false }
+  }
+
+  // No published version — delete the whole form (cascades to versions).
+  const { error } = await supabase
+    .from('forms')
+    .delete()
+    .eq('id', ctx.formId)
+  if (error) return { ok: false, error: MESSAGES.generic }
+  revalidatePath(FORMS_LIST_PATH, 'page')
+  return { ok: true, redirectToForms: true }
+}
+
 /** Result of an image upload — carries the immutable storage_path. */
 export interface UploadState {
   ok: boolean

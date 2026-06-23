@@ -13,6 +13,7 @@ import { SectionCard } from "@/components/forms/section-card";
 import { BlockList } from "@/components/forms/block-list";
 import { FormMetaDialog } from "@/components/forms/form-meta-dialog";
 import { PublishButton } from "@/components/forms/publish-button";
+import { DeleteDraftButton } from "@/components/forms/delete-draft-button";
 import { useBuilderAction } from "@/components/forms/use-builder-action";
 import { useFlipReorder } from "@/components/forms/use-flip-reorder";
 
@@ -169,6 +170,7 @@ function BuilderHeader({
               Versões
             </Link>
           </Button>
+          <DeleteDraftButton versionId={versionId} slug={slug} formId={formId} />
           <PublishButton versionId={versionId} />
         </div>
       </div>

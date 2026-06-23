@@ -1,12 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, ShieldAlert } from "lucide-react";
 
 import {
   createCaseFromTemplate,
-  setCasePatient,
   type CreateCaseState,
 } from "@/lib/cases/actions";
 import { Button } from "@/components/ui/button";
@@ -30,8 +29,6 @@ import { FormBanner } from "@/components/auth/form-banner";
 import {
   EMPTY_PATIENT_DRAFT,
   PatientFields,
-  patientDraftHasData,
-  patientDraftToInput,
   type PatientDraft,
 } from "@/components/safety/patient-fields";
 
@@ -84,8 +81,6 @@ export function CreateCaseDialog({
   // The selected process — drives whether the optional PHI block is offered.
   const [templateId, setTemplateId] = useState("");
   const [patient, setPatient] = useState<PatientDraft>(EMPTY_PATIENT_DRAFT);
-  /** Tracks the post-create PHI write + navigation (so the dialog stays busy). */
-  const [isFinishing, startFinish] = useTransition();
 
   const selectedTemplate = templates.find((t) => t.id === templateId) ?? null;
   const showPatientBlock = Boolean(
@@ -94,30 +89,17 @@ export function CreateCaseDialog({
 
   useEffect(() => {
     if (!state?.ok || !state.caseId) return;
-    const caseId = state.caseId;
-    // Case minted. When the process collects PHI and the reporter supplied any,
-    // write the isolated patient row before navigating (best-effort — a failure
-    // never blocks navigation; the detail panel can add identifiers later). The
-    // work runs in a transition so the busy state update is deferred (no
-    // cascading synchronous setState in the effect body).
-    startFinish(async () => {
-      if (showPatientBlock && patientDraftHasData(patient)) {
-        try {
-          await setCasePatient(caseId, patientDraftToInput(patient));
-        } catch {
-          // Non-blocking — the case exists; identifiers can be added from detail.
-        }
-      }
-      router.push(`/c/${slug}/manage/cases/${caseId}`);
-    });
-    // We intentionally key only on the action result; the draft/flag are read at
-    // success time (they cannot change between create-submit and this effect).
+    // Case minted (and its optional PHI written atomically server-side, inside
+    // `createCaseFromTemplate` — no separate client round-trip to race the
+    // navigation/revalidation, so identifiers are never silently lost). Navigate.
+    router.push(`/c/${slug}/manage/cases/${state.caseId}`);
+    // Key only on the action result; slug/router are stable for a given mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);
 
   const labelField = useFieldIds("label", { hasDescription: true });
   const disabled = templates.length === 0;
-  const busy = isPending || isFinishing;
+  const busy = isPending;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -202,12 +184,42 @@ export function CreateCaseDialog({
               only when the chosen process collects patient identifiers and the
               `case_patient` flag is on. Reuses the NSP/referral PatientFields. */}
           {showPatientBlock && (
-            <PatientFields
-              draft={patient}
-              onChange={setPatient}
-              disabled={busy}
-              idPrefix="create-case-patient"
-            />
+            <>
+              <PatientFields
+                draft={patient}
+                onChange={setPatient}
+                disabled={busy}
+                idPrefix="create-case-patient"
+              />
+              {/* The PatientFields inputs are controlled (no `name`), so mirror the
+                  draft into hidden fields — this submits the PHI WITH the case in a
+                  single request, where `createCaseFromTemplate` writes it
+                  atomically (no post-create round-trip to race navigation). */}
+              <input type="hidden" name="patientName" value={patient.name} />
+              <input type="hidden" name="patientMrn" value={patient.mrn} />
+              <input
+                type="hidden"
+                name="patientDateOfBirth"
+                value={patient.dateOfBirth}
+              />
+              <input
+                type="hidden"
+                name="patientAgeYears"
+                value={patient.ageYears}
+              />
+              <input type="hidden" name="patientSex" value={patient.sex} />
+              <input
+                type="hidden"
+                name="patientEncounterRef"
+                value={patient.encounterRef}
+              />
+              <input type="hidden" name="patientUnit" value={patient.unit} />
+              <input
+                type="hidden"
+                name="patientAttending"
+                value={patient.attending}
+              />
+            </>
           )}
 
           <DialogFooter>

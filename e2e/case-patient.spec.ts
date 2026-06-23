@@ -160,6 +160,13 @@ test.beforeAll(async ({ request }) => {
   // if we call it while the flag is OFF (which is the state after supabase db reset).
   await setFeatureFlag('case_patient', true)
 
+  // Enable patient_index (Phase 23) — ships OFF in seed. The create-dialog
+  // regression test (AC-9) exercises the encounter-key derivation + patient_xref
+  // cross-committee mirror, which the real prod deploy runs with the flag ON
+  // (b1e6dd3: "patient_index live on remote … flag ON"). The derivation trigger is
+  // always-on, but enabling the flag matches prod and the task contract.
+  await setFeatureFlag('patient_index', true)
+
   // Enable patient_enabled on Caso 0001 — the seed.sql inserts Caso 0001 without
   // patient_enabled=true (seed.sql was committed before Phase 23 and has no case_patient
   // fixtures). set_case_patient will reject with "este caso não coleta identificação do
@@ -239,6 +246,12 @@ test.afterAll(async ({ request }) => {
   // Restore case_patient flag to OFF (seed default — flag ships OFF)
   try {
     await setFeatureFlag('case_patient', false)
+  } catch {
+    // best-effort
+  }
+  // Restore patient_index flag to OFF (seed default — flag ships OFF)
+  try {
+    await setFeatureFlag('patient_index', false)
   } catch {
     // best-effort
   }
@@ -1076,4 +1089,137 @@ test('AC-8b: case_patient flag OFF — Novo caso PHI block absent even for colle
     )
     await new Promise((r) => setTimeout(r, 600))
   }
+})
+
+// ---------------------------------------------------------------------------
+// AC-9 — Create-dialog PHI write path (regression: silent PHI loss)
+//
+// The "Novo caso" dialog flow that a coordinator actually uses was untested:
+// the rest of this suite seeds identifiers via the set_case_patient RPC + a
+// direct cases.patient_enabled PATCH, NEVER through the dialog. That let a real
+// bug ship — creating a case through the dialog with identifiers left the case
+// with has_patient=false and NO case_patient row, because the PHI write was a
+// racy best-effort client round-trip aborted by the post-create navigation and
+// silently swallowed. It was fixed by folding the PHI write INTO
+// createCaseFromTemplate (atomic with case creation).
+//
+// This test drives the genuine dialog flow with the originally-broken
+// minimum-necessary combination — Prontuário (mrn) + Atendimento (encounter_ref),
+// NO name — and asserts end to end:
+//   • the case detail patient panel is NOT the empty placeholder;
+//   • "Exibir identificação" reveals the entered MRN + encounter;
+//   • cases.has_patient=true and a case_patient row exists (the PHI landed);
+//   • the patient_xref row has a non-null encounter_key (the encounter-key
+//     derivation + cross-committee mirror path — never exercised before).
+// ---------------------------------------------------------------------------
+
+test('AC-9: create-case dialog writes PHI atomically (mrn+encounter, no name)', async ({
+  page,
+  request,
+}) => {
+  // Distinctive identifiers so the panel/DB assertions can't false-match seed data.
+  const DIALOG_MRN = 'PRT-CC-DIALOG-9001'
+  const DIALOG_ENCOUNTER = 'ATD-CC-DIALOG-9001'
+
+  // Resolve the seeded active, collecting CCIH template ("Investigação de Óbito
+  // (M&M)" — collects_patient=true). Query by config (not title) so it stays robust.
+  const collectingRows = await restGet<{ id: string; title: string }>(
+    request,
+    `process_templates?collects_patient=eq.true&status=eq.active&commission_id=eq.${COMM_A}&select=id,title`,
+    SUPABASE_SERVICE_KEY,
+  )
+  const template =
+    collectingRows.find((t) => /óbito|m&m/i.test(t.title)) ?? collectingRows[0]
+  expect(
+    template,
+    'no active collecting template seeded in CCIH — cannot drive the dialog flow',
+  ).toBeTruthy()
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto('/c/ccih/manage/cases')
+  await page.waitForLoadState('networkidle')
+
+  // Open the "Novo caso" dialog.
+  const novoCasoBtn = page.getByRole('button', { name: /novo caso/i })
+  await expect(novoCasoBtn).toBeVisible({ timeout: 10_000 })
+  await novoCasoBtn.click()
+
+  const dialog = page
+    .getByRole('dialog', { name: /novo caso/i })
+    .or(page.getByRole('dialog').filter({ hasText: /novo caso/i }))
+  await expect(dialog).toBeVisible({ timeout: 8_000 })
+
+  // Select the collecting process — the optional PHI block must appear.
+  const templateSelect = dialog.locator('select[name="templateId"]')
+  await templateSelect.selectOption({ value: template.id })
+
+  const phiBlock = dialog.locator('[id^="create-case-patient"]').first()
+  await expect(phiBlock).toBeVisible({ timeout: 8_000 })
+
+  // Fill the sanctioned PHI block — Prontuário (mrn) + Atendimento (encounter_ref)
+  // ONLY, NO name (the originally-broken minimum-necessary combination).
+  await dialog.getByLabel(/^Prontuário$/i).fill(DIALOG_MRN)
+  await dialog.getByLabel(/Atendimento/i).fill(DIALOG_ENCOUNTER)
+
+  // Submit — the action mints the case AND writes the PHI atomically, then the
+  // dialog navigates to the case detail page.
+  await dialog.getByRole('button', { name: /criar caso/i }).click()
+
+  // Capture the new case id from the post-create navigation target.
+  await page.waitForURL(/\/c\/ccih\/manage\/cases\/[0-9a-f-]{36}/i, {
+    timeout: 20_000,
+  })
+  const caseId = page.url().split('/').pop() as string
+  expect(caseId).toMatch(/^[0-9a-f-]{36}$/i)
+
+  await page.waitForLoadState('networkidle')
+
+  // The patient panel must render in its PROTECTED (has_patient=true) state — NOT
+  // the empty placeholder that the original bug produced.
+  await expect(
+    page.getByRole('heading', { name: /Identificação do paciente/i }),
+  ).toBeVisible({ timeout: 10_000 })
+  await expect(
+    page.getByText(/Nenhum dado de paciente registrado neste caso/i),
+  ).toHaveCount(0)
+
+  // Reveal identification → the entered MRN + encounter are shown.
+  const revealBtn = page.getByRole('button', { name: /exibir identificação/i })
+  await expect(revealBtn).toBeVisible({ timeout: 10_000 })
+  await revealBtn.click()
+  await expect(page.getByText(DIALOG_MRN)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(DIALOG_ENCOUNTER)).toBeVisible({ timeout: 8_000 })
+
+  // DB layer (service role): the PHI actually landed, atomically with the case.
+  const caseRows = await restGet<{ has_patient: boolean; patient_enabled: boolean }>(
+    request,
+    `cases?id=eq.${caseId}&select=has_patient,patient_enabled`,
+    SUPABASE_SERVICE_KEY,
+  )
+  expect(caseRows[0]?.patient_enabled).toBe(true) // snapshotted from collects_patient
+  expect(caseRows[0]?.has_patient).toBe(true) // the regression: was false before the fix
+
+  const cpRows = await restGet<{ case_id: string; mrn: string | null }>(
+    request,
+    `case_patient?case_id=eq.${caseId}&select=case_id,mrn`,
+    SUPABASE_SERVICE_KEY,
+  )
+  expect(cpRows.length).toBe(1) // the regression: zero rows before the fix
+  expect(cpRows[0]?.mrn).toBe(DIALOG_MRN)
+
+  // The encounter-key derivation + cross-committee mirror path — never exercised
+  // before. The always-on trigger hashes encounter_ref into encounter_key and
+  // mirrors it into the QPS-only patient_xref (module='case').
+  const xrefRows = await restGet<{
+    encounter_key: string | null
+    patient_key: string | null
+    module: string
+  }>(
+    request,
+    `patient_xref?module=eq.case&entity_id=eq.${caseId}&select=encounter_key,patient_key,module`,
+    SUPABASE_SERVICE_KEY,
+  )
+  expect(xrefRows.length).toBe(1)
+  expect(xrefRows[0]?.encounter_key).not.toBeNull()
+  expect(xrefRows[0]?.encounter_key?.length ?? 0).toBeGreaterThan(0)
 })

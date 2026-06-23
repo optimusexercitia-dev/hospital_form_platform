@@ -9,6 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
 import type {
   CasePatient,
+  CasePatientSex,
   PhiDisposeReason,
   SetCasePatientInput,
 } from '@/lib/cases/types'
@@ -240,10 +241,78 @@ function parseDueDate(raw: string): string | undefined | null {
 }
 
 /**
+ * Parse the optional patient (PHI) identifiers carried by the create-case form
+ * (ADR 0038). The dialog renders these as hidden inputs ONLY when the chosen
+ * process collects patient identifiers and the `case_patient` flag is on, so
+ * absent fields mean "no PHI to write" (-> null, the write is skipped). Mirrors
+ * the minimum-necessary FLOOR (require ≥ name OR mrn): identifiers below the floor
+ * are treated as "nothing to write", not an error.
+ */
+function patientInputFromForm(formData: FormData): SetCasePatientInput | null {
+  const name = String(formData.get('patientName') ?? '').trim()
+  const mrn = String(formData.get('patientMrn') ?? '').trim()
+  if (!name && !mrn) return null
+
+  const ageRaw = String(formData.get('patientAgeYears') ?? '').trim()
+  const age = ageRaw ? Number.parseInt(ageRaw, 10) : Number.NaN
+  const sexRaw = String(formData.get('patientSex') ?? '').trim()
+  const sex: CasePatientSex =
+    sexRaw === 'female' || sexRaw === 'male' || sexRaw === 'other'
+      ? sexRaw
+      : 'unknown'
+
+  return {
+    name: name || null,
+    mrn: mrn || null,
+    dateOfBirth: String(formData.get('patientDateOfBirth') ?? '').trim() || null,
+    ageYears: Number.isFinite(age) ? age : null,
+    sex,
+    encounterRef: String(formData.get('patientEncounterRef') ?? '').trim() || null,
+    unit: String(formData.get('patientUnit') ?? '').trim() || null,
+    attending: String(formData.get('patientAttending') ?? '').trim() || null,
+  }
+}
+
+/**
+ * Upsert the isolated patient PHI on a case via the `set_case_patient` DEFINER,
+ * on a CALLER-PROVIDED (RLS-scoped) client so it can share the same request as
+ * case creation. Returns a mapped pt-BR error (or null). The authority + the
+ * minimum-necessary FLOOR live in the RPC; callers enforce the floor too where a
+ * distinct empty-input UX is wanted (see {@link setCasePatient}).
+ */
+async function writeCasePatient(
+  supabase: SupabaseClient<Database>,
+  caseId: string,
+  input: SetCasePatientInput,
+): Promise<string | null> {
+  const { error } = await supabase.rpc('set_case_patient', {
+    p_case_id: caseId,
+    p_name: input.name ?? undefined,
+    p_mrn: input.mrn ?? undefined,
+    p_date_of_birth: input.dateOfBirth ?? undefined,
+    p_age_years: input.ageYears ?? undefined,
+    p_sex: input.sex,
+    p_encounter_ref: input.encounterRef ?? undefined,
+    p_unit: input.unit ?? undefined,
+    p_attending: input.attending ?? undefined,
+  })
+  return error ? mapCasePatientError(error) : null
+}
+
+/**
  * Create a case from a published template (snapshot: materialize phases, pin
  * each form's currently-published version, copy `recommend_when`, initial
  * recommendation pass). Fields: `templateId`, `label?` (NON-IDENTIFYING — the UI
- * warns it must not contain patient identifiers). Returns the new `caseId`.
+ * warns it must not contain patient identifiers), plus the OPTIONAL patient (PHI)
+ * identifiers (ADR 0038) when the process collects them.
+ *
+ * The patient write is folded INTO this action (same RLS-scoped request, right
+ * after the case is minted) rather than a separate post-create client round-trip:
+ * the old fire-and-forget `setCasePatient` from the dialog raced the
+ * `revalidatePath` + `router.push` in the same tick and its aborted POST was
+ * silently swallowed, so the case landed with `has_patient=false` and no row. Now
+ * a failed PHI write is surfaced (it never silently disappears). Returns the new
+ * `caseId`.
  */
 export async function createCaseFromTemplate(
   _prev: CreateCaseState | undefined,
@@ -269,6 +338,19 @@ export async function createCaseFromTemplate(
   })
 
   if (error || !data) return { ok: false, error: mapCaseError(error) }
+
+  // Optional, sanctioned PHI block (ADR 0038): write it in the SAME request so it
+  // is never lost to a navigation race. The case already exists; if the PHI write
+  // fails we surface it (with the caseId, so the user can open the case and add
+  // identifiers via the detail panel) instead of swallowing the loss.
+  const patientInput = patientInputFromForm(formData)
+  if (patientInput) {
+    const patientError = await writeCasePatient(supabase, data.id, patientInput)
+    if (patientError) {
+      revalidateCases()
+      return { ok: false, caseId: data.id, error: patientError }
+    }
+  }
 
   revalidateCases()
   return { ok: true, error: MESSAGES.caseCreated, caseId: data.id }
@@ -532,18 +614,8 @@ export async function setCasePatient(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc('set_case_patient', {
-    p_case_id: caseId,
-    p_name: input.name ?? undefined,
-    p_mrn: input.mrn ?? undefined,
-    p_date_of_birth: input.dateOfBirth ?? undefined,
-    p_age_years: input.ageYears ?? undefined,
-    p_sex: input.sex,
-    p_encounter_ref: input.encounterRef ?? undefined,
-    p_unit: input.unit ?? undefined,
-    p_attending: input.attending ?? undefined,
-  })
-  if (error) return { ok: false, error: mapCasePatientError(error) }
+  const error = await writeCasePatient(supabase, caseId, input)
+  if (error) return { ok: false, error }
 
   revalidateCases()
   return { ok: true, error: MESSAGES.patientSaved }

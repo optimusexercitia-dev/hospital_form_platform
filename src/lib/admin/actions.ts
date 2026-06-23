@@ -3,6 +3,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { headers } from 'next/headers'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 
 import { getSessionContext } from '@/lib/queries/session'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -131,8 +132,7 @@ export async function createCommission(
     return { ok: false, error: MESSAGES.generic }
   }
 
-  revalidatePath('/admin')
-  return { ok: true, error: MESSAGES.commissionCreated }
+  redirect(`/admin/comissoes/${slug}`)
 }
 
 /**
