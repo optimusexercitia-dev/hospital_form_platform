@@ -605,26 +605,6 @@ interface ParsedOption {
 }
 
 /**
- * The form-builder-enhancements item columns (`config`, `visible_when`) as a
- * spread-able patch for the form_items insert/update.
- *
- * TYPE-LAG CAST (BE-1 contract stub): these two columns are added by the BE-2
- * migration; until `supabase gen types` runs after BE-2 they are absent from the
- * generated `form_items` Insert/Update, so a direct literal trips the
- * excess-property check (`Type 'Json' is not assignable to type 'never'`). We
- * isolate the cast HERE (the same pattern as the `set_case_phase_result_override`
- * arg cast in responses/actions.ts) so the rest of the write stays fully typed.
- * Once BE-2's regenerated types include these columns this cast becomes a no-op
- * and can be removed.
- */
-function newItemColumns(columns: ItemColumns): Record<string, Json> {
-  return {
-    config: columns.config,
-    visible_when: columns.visible_when,
-  }
-}
-
-/**
  * Parse the repeated `option` / `optionColor` fields into `{label, color}` rows.
  * Colours are kept only for {@link COLOR_OPTION_TYPES}; for other choice types
  * the colour is forced to null. Empty labels are dropped (with their colour).
@@ -928,9 +908,10 @@ export async function addItem(
       label: columns.label,
       question_explanation: columns.question_explanation,
       options: columns.options,
+      config: columns.config,
+      visible_when: columns.visible_when,
       required: columns.required,
       content: columns.content,
-      ...newItemColumns(columns),
     })
 
     if (!error) {
@@ -984,9 +965,10 @@ export async function updateItem(
       label: columns.label,
       question_explanation: columns.question_explanation,
       options: columns.options,
+      config: columns.config,
+      visible_when: columns.visible_when,
       required: columns.required,
       content: columns.content,
-      ...newItemColumns(columns),
     })
     .eq('id', itemId)
 

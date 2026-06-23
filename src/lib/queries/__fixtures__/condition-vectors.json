@@ -148,6 +148,114 @@
       "visible_when": { "question_key": "q1", "op": "equals", "value": true },
       "answers": { "q1": true },
       "expected": true
+    },
+    {
+      "name": "gt numeric true",
+      "visible_when": { "question_key": "q1", "op": "gt", "value": 5 },
+      "answers": { "q1": 7 },
+      "expected": true
+    },
+    {
+      "name": "gt numeric false (equal)",
+      "visible_when": { "question_key": "q1", "op": "gt", "value": 5 },
+      "answers": { "q1": 5 },
+      "expected": false
+    },
+    {
+      "name": "gte numeric true (equal)",
+      "visible_when": { "question_key": "q1", "op": "gte", "value": 5 },
+      "answers": { "q1": 5 },
+      "expected": true
+    },
+    {
+      "name": "gte numeric false",
+      "visible_when": { "question_key": "q1", "op": "gte", "value": 5 },
+      "answers": { "q1": 4 },
+      "expected": false
+    },
+    {
+      "name": "lt numeric true",
+      "visible_when": { "question_key": "q1", "op": "lt", "value": 5 },
+      "answers": { "q1": 3 },
+      "expected": true
+    },
+    {
+      "name": "lte numeric true (equal)",
+      "visible_when": { "question_key": "q1", "op": "lte", "value": 5 },
+      "answers": { "q1": 5 },
+      "expected": true
+    },
+    {
+      "name": "gt numeric with negatives",
+      "visible_when": { "question_key": "q1", "op": "gt", "value": -3 },
+      "answers": { "q1": -1 },
+      "expected": true
+    },
+    {
+      "name": "gte numeric with decimals",
+      "visible_when": { "question_key": "q1", "op": "gte", "value": 2.5 },
+      "answers": { "q1": 2.5 },
+      "expected": true
+    },
+    {
+      "name": "gt missing answer is false",
+      "visible_when": { "question_key": "q1", "op": "gt", "value": 5 },
+      "answers": {},
+      "expected": false
+    },
+    {
+      "name": "lt null answer is false",
+      "visible_when": { "question_key": "q1", "op": "lt", "value": 5 },
+      "answers": { "q1": null },
+      "expected": false
+    },
+    {
+      "name": "gt array (checkbox) answer never orders, false",
+      "visible_when": { "question_key": "q1", "op": "gt", "value": 1 },
+      "answers": { "q1": [2, 3] },
+      "expected": false
+    },
+    {
+      "name": "gte ISO date string sorts as text, true",
+      "visible_when": {
+        "question_key": "q1",
+        "op": "gte",
+        "value": "2026-01-01"
+      },
+      "answers": { "q1": "2026-06-23" },
+      "expected": true
+    },
+    {
+      "name": "lt ISO date string sorts as text, false",
+      "visible_when": {
+        "question_key": "q1",
+        "op": "lt",
+        "value": "2026-01-01"
+      },
+      "answers": { "q1": "2026-06-23" },
+      "expected": false
+    },
+    {
+      "name": "lt ISO date boundary (strictly before)",
+      "visible_when": {
+        "question_key": "q1",
+        "op": "lt",
+        "value": "2026-06-23"
+      },
+      "answers": { "q1": "2026-06-22" },
+      "expected": true
+    },
+    {
+      "name": "gt 24h time string sorts as text, true",
+      "visible_when": { "question_key": "q1", "op": "gt", "value": "08:00" },
+      "answers": { "q1": "14:30" },
+      "expected": true
+    },
+    {
+      "name": "lte 24h time string equal, true",
+      "visible_when": { "question_key": "q1", "op": "lte", "value": "23:59" },
+      "answers": { "q1": "23:59" },
+      "expected": true
     }
   ]
 }

@@ -1,0 +1,119 @@
+{
+  "_comment": "Shared test vectors for the visibility-GROUP evaluator. Consumed by BOTH the SQL test (supabase/tests/20_conditions.sql, against app.eval_visibility) and the TypeScript mirror test (src/lib/queries/conditions.test.ts, against evalVisibility). `rule` is a Visibility — null, a legacy single condition, OR an AND/OR group {match, conditions[]}. Drift between the two evaluators is a phase-blocking bug (ARCHITECTURE Rule 3). These exercise the group wrapper only; the per-condition semantics (incl. the gt/gte/lt/lte ops) are covered by condition-vectors.json.",
+  "vectors": [
+    {
+      "name": "null rule is always visible",
+      "rule": null,
+      "answers": { "q1": "Sim" },
+      "expected": true
+    },
+    {
+      "name": "legacy single shape delegates (match)",
+      "rule": { "question_key": "q1", "op": "equals", "value": "Sim" },
+      "answers": { "q1": "Sim" },
+      "expected": true
+    },
+    {
+      "name": "legacy single shape delegates (mismatch)",
+      "rule": { "question_key": "q1", "op": "equals", "value": "Sim" },
+      "answers": { "q1": "Não" },
+      "expected": false
+    },
+    {
+      "name": "all: both true",
+      "rule": {
+        "match": "all",
+        "conditions": [
+          { "question_key": "q1", "op": "equals", "value": "Sim" },
+          { "question_key": "q2", "op": "gt", "value": 5 }
+        ]
+      },
+      "answers": { "q1": "Sim", "q2": 7 },
+      "expected": true
+    },
+    {
+      "name": "all: one false short-circuits to false",
+      "rule": {
+        "match": "all",
+        "conditions": [
+          { "question_key": "q1", "op": "equals", "value": "Sim" },
+          { "question_key": "q2", "op": "gt", "value": 5 }
+        ]
+      },
+      "answers": { "q1": "Sim", "q2": 3 },
+      "expected": false
+    },
+    {
+      "name": "all: missing answer for one is false",
+      "rule": {
+        "match": "all",
+        "conditions": [
+          { "question_key": "q1", "op": "equals", "value": "Sim" },
+          { "question_key": "q2", "op": "gte", "value": 1 }
+        ]
+      },
+      "answers": { "q1": "Sim" },
+      "expected": false
+    },
+    {
+      "name": "any: one true is true",
+      "rule": {
+        "match": "any",
+        "conditions": [
+          { "question_key": "q1", "op": "equals", "value": "Sim" },
+          { "question_key": "q2", "op": "gt", "value": 100 }
+        ]
+      },
+      "answers": { "q1": "Sim", "q2": 3 },
+      "expected": true
+    },
+    {
+      "name": "any: all false is false",
+      "rule": {
+        "match": "any",
+        "conditions": [
+          { "question_key": "q1", "op": "equals", "value": "Sim" },
+          { "question_key": "q2", "op": "gt", "value": 100 }
+        ]
+      },
+      "answers": { "q1": "Não", "q2": 3 },
+      "expected": false
+    },
+    {
+      "name": "any: single condition true",
+      "rule": {
+        "match": "any",
+        "conditions": [
+          { "question_key": "q1", "op": "in", "value": ["A", "B"] }
+        ]
+      },
+      "answers": { "q1": "B" },
+      "expected": true
+    },
+    {
+      "name": "all: three conditions incl. date + checkbox, all true",
+      "rule": {
+        "match": "all",
+        "conditions": [
+          { "question_key": "q1", "op": "not_equals", "value": "Não" },
+          { "question_key": "q2", "op": "lte", "value": "2026-12-31" },
+          { "question_key": "q3", "op": "equals", "value": "luvas" }
+        ]
+      },
+      "answers": { "q1": "Sim", "q2": "2026-06-23", "q3": ["luvas", "avental"] },
+      "expected": true
+    },
+    {
+      "name": "all: date out of range makes group false",
+      "rule": {
+        "match": "all",
+        "conditions": [
+          { "question_key": "q1", "op": "not_equals", "value": "Não" },
+          { "question_key": "q2", "op": "lte", "value": "2026-12-31" }
+        ]
+      },
+      "answers": { "q1": "Sim", "q2": "2027-01-01" },
+      "expected": false
+    }
+  ]
+}

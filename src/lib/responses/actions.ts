@@ -224,17 +224,6 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
   const hasObservations =
     observationsByItemId != null && Object.keys(observationsByItemId).length > 0
 
-  // TYPE-LAG (BE-1 contract stub): `p_observations` is added to
-  // `save_section_answers` in BE-4. Until then it is absent from the generated
-  // Args type, so the optional fragment carrying it is typed `Record<string,
-  // Json>` (which bypasses the excess-property check) and omitted entirely when
-  // no observations are present — so the current (pre-BE-4) RPC is unaffected on
-  // the common path. This fragment becomes typed once BE-4's regenerated types
-  // land. The required params stay fully typed.
-  const observationArg: Record<string, Json> = hasObservations
-    ? { p_observations: observationsByItemId as Json }
-    : {}
-
   const { error } = await supabase.rpc('save_section_answers', {
     p_response_id: responseId,
     p_section_id: sectionId,
@@ -242,7 +231,9 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     // generated Args types p_clear_item_ids as optional string[]; omit when empty.
     p_clear_item_ids:
       clearItemIds && clearItemIds.length > 0 ? clearItemIds : undefined,
-    ...observationArg,
+    // p_observations (BE-4): per-item observation upsert; omit when none so the
+    // common save path is unaffected.
+    p_observations: hasObservations ? (observationsByItemId as Json) : undefined,
   })
 
   if (error) {

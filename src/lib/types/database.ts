@@ -38,6 +38,7 @@ export type Database = {
         Row: {
           id: string
           item_id: string
+          observation: string | null
           question_key: string
           response_id: string
           value: Json | null
@@ -45,6 +46,7 @@ export type Database = {
         Insert: {
           id?: string
           item_id: string
+          observation?: string | null
           question_key: string
           response_id: string
           value?: Json | null
@@ -52,6 +54,7 @@ export type Database = {
         Update: {
           id?: string
           item_id?: string
+          observation?: string | null
           question_key?: string
           response_id?: string
           value?: Json | null
@@ -2202,6 +2205,7 @@ export type Database = {
       }
       form_items: {
         Row: {
+          config: Json | null
           content: Json | null
           created_at: string
           form_version_id: string
@@ -2214,8 +2218,10 @@ export type Database = {
           question_key: string | null
           required: boolean
           section_id: string
+          visible_when: Json | null
         }
         Insert: {
+          config?: Json | null
           content?: Json | null
           created_at?: string
           form_version_id: string
@@ -2228,8 +2234,10 @@ export type Database = {
           question_key?: string | null
           required?: boolean
           section_id: string
+          visible_when?: Json | null
         }
         Update: {
+          config?: Json | null
           content?: Json | null
           created_at?: string
           form_version_id?: string
@@ -2242,6 +2250,7 @@ export type Database = {
           question_key?: string | null
           required?: boolean
           section_id?: string
+          visible_when?: Json | null
         }
         Relationships: [
           {
@@ -7038,6 +7047,7 @@ export type Database = {
         Args: {
           p_answers?: Json
           p_clear_item_ids?: string[]
+          p_observations?: Json
           p_response_id: string
           p_section_id: string
         }
