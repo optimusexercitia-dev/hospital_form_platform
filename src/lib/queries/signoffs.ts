@@ -79,6 +79,10 @@ export interface ResponseForSignoff {
   answersByKey: Record<string, Json>
   /** Saved answers keyed by item_id (drives the read-only renderer). */
   answersByItemId: Record<string, Json>
+  /** Saved per-item observation notes keyed by item_id (form-builder
+   * enhancements, decision #11), non-null only. The read-only renderer shows
+   * them as a muted secondary line under the answer (mirrors BE-7). */
+  observationsByItemId: Record<string, string>
   /** Existing sign-off rows (all roles), for "assinado por X em DATA". */
   signoffs: SignoffRecord[]
 }
@@ -122,6 +126,7 @@ interface ResponseForSignoffJson {
   updated_at: string
   answers: Record<string, Json>
   answers_by_item: Record<string, Json>
+  observations_by_item: Record<string, string>
   signoffs: SignoffJsonRow[]
 }
 
@@ -201,6 +206,7 @@ export async function getResponseForSignoff(
     tree,
     answersByKey: payload.answers ?? {},
     answersByItemId: payload.answers_by_item ?? {},
+    observationsByItemId: payload.observations_by_item ?? {},
     signoffs: (payload.signoffs ?? []).map((s) => ({
       sectionId: s.section_id,
       signedById: s.signed_by,

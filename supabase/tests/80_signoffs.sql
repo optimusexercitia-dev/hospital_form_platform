@@ -9,7 +9,7 @@
 -- Sign-off enforcement is ON in this DB after migration 20260613090001.
 
 begin;
-select plan(18);
+select plan(19);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -191,8 +191,10 @@ select r2.id, (c.v->>'ver_s')::uuid, (c.v->>'comm_x')::uuid, (c.v->>'st_x2')::uu
 from r2, ctx c;
 insert into public.answers (response_id, item_id, question_key, value)
 select (select id from r2), (c.v->>'it_gate')::uuid, 's_gate', '"Não"'::jsonb from ctx c;
-insert into public.answers (response_id, item_id, question_key, value)
-select (select id from r2), (c.v->>'it_req')::uuid, 's_req', '"Sim"'::jsonb from ctx c;
+-- BE-8: attach an observation to it_req so the get_response_for_signoff read
+-- below proves observations_by_item is projected.
+insert into public.answers (response_id, item_id, question_key, value, observation)
+select (select id from r2), (c.v->>'it_req')::uuid, 's_req', '"Sim"'::jsonb, 'nota do revisor' from ctx c;
 
 -- Sign only the respondent section, leaving the staff_admin section unsigned.
 select test_helpers.claims_for((select (v->>'st_x2')::uuid from ctx), false);
@@ -262,6 +264,14 @@ select is(
   (select (public.get_response_for_signoff((select id from r2)) ->> 'response_id')),
   (select (id)::text from r2),
   'get_response_for_signoff returns the response payload for the gated staff_admin'
+);
+-- BE-8: the it_req observation is projected under observations_by_item, keyed by
+-- item_id (purely additive; gating unchanged — same caller, same response).
+select is(
+  (select public.get_response_for_signoff((select id from r2))
+            #>> array['observations_by_item', (select (v->>'it_req') from ctx)]),
+  'nota do revisor',
+  'get_response_for_signoff projects per-item observations (observations_by_item)'
 );
 select throws_ok(
   format($$ select public.get_response_for_signoff(%L) $$, (select id from r)),
