@@ -67,6 +67,9 @@ const SPEC_TAG = 'FBE-SPEC'
 const FORM_BUILDER_TITLE = `Builder ${SPEC_TAG}`
 const FORM_FILL_TITLE = `Fill ${SPEC_TAG}`
 const FORM_SIGNOFF_TITLE = `Signoff ${SPEC_TAG}`
+// AC-15: a fresh draft for the number-condition regression guard (MAJOR-1).
+// FORM_BUILDER is published after AC-6 and cannot accept new items.
+const FORM_NUMCOND_TITLE = `NumCond ${SPEC_TAG}`
 
 // ---------------------------------------------------------------------------
 // Fixture state (populated in beforeAll)
@@ -88,6 +91,9 @@ let fillCrossId: string // cross-section conditional free_text (fill_cross)
 
 // AC-14 sign-off review form (FORM_SIGNOFF)
 let signoffFormId: string
+
+// AC-15 number-condition regression guard (FORM_NUMCOND)
+let numCondFormId: string
 let signoffVersionId: string
 let signoffS0Id: string // default flat section (no signoff)
 let signoffS1Id: string // "Revisão" section — requires_signoff=true, staff_admin
@@ -186,12 +192,12 @@ async function purgeLeftoverState() {
          SELECT fv.id FROM form_versions fv
          JOIN forms f ON f.id = fv.form_id
          WHERE f.commission_id = '${COMM_A}'
-           AND f.title IN ('${FORM_BUILDER_TITLE}', '${FORM_FILL_TITLE}', '${FORM_SIGNOFF_TITLE}')
+           AND f.title IN ('${FORM_BUILDER_TITLE}', '${FORM_FILL_TITLE}', '${FORM_SIGNOFF_TITLE}', '${FORM_NUMCOND_TITLE}')
        )`,
     // The spec forms (cascades form_versions → form_sections → form_items).
     `DELETE FROM forms
        WHERE commission_id = '${COMM_A}'
-         AND title IN ('${FORM_BUILDER_TITLE}', '${FORM_FILL_TITLE}', '${FORM_SIGNOFF_TITLE}')`,
+         AND title IN ('${FORM_BUILDER_TITLE}', '${FORM_FILL_TITLE}', '${FORM_SIGNOFF_TITLE}', '${FORM_NUMCOND_TITLE}')`,
     'SET session_replication_role = DEFAULT',
   ].join('; ')
 
@@ -471,6 +477,37 @@ test.beforeAll(async ({ request }) => {
     publishSignoffResp.ok(),
     `beforeAll: publish FORM_SIGNOFF failed: ${await publishSignoffResp.text()}`,
   ).toBeTruthy()
+
+  // ---- FORM_NUMCOND: an empty DRAFT for the AC-15 number-condition test -----
+  // AC-15 adds items via the builder UI and publishes the form itself, so the
+  // beforeAll only creates the shell (the test drives all builder interactions).
+  const numCondForm = await svcInsert<{ id: string }>(request, 'forms', {
+    commission_id: COMM_A,
+    title: FORM_NUMCOND_TITLE,
+    description: 'Spec-owned draft for AC-15 number-condition regression guard.',
+    created_by: UID_CHEFE_A,
+  })
+  numCondFormId = numCondForm.id
+
+  const numCondVersion = await svcInsert<{ id: string }>(request, 'form_versions', {
+    form_id: numCondFormId,
+    version_number: 1,
+    status: 'draft',
+    created_by: UID_CHEFE_A,
+  })
+  // Ensure the auto-created default section exists (trigger fires on insert).
+  const numCondAutoSections = await svcGet<{ id: string }>(
+    request,
+    `form_sections?form_version_id=eq.${numCondVersion.id}&select=id`,
+  )
+  if (numCondAutoSections.length === 0) {
+    await svcInsert(request, 'form_sections', {
+      form_version_id: numCondVersion.id,
+      position: 0,
+      is_default: true,
+      title: null,
+    })
+  }
 })
 
 test.afterAll(async () => {
@@ -744,7 +781,7 @@ test('AC-5 (builder): section condition persists after reload (BE-6)', async ({
   const unnamed = page.getByRole('region', { name: 'Seção sem título' })
   await expect(unnamed.first()).toBeVisible({ timeout: 15_000 })
   await unnamed.first().getByRole('button', { name: 'Renomear seção' }).click()
-  let rd = page.getByRole('dialog')
+  const rd = page.getByRole('dialog')
   await rd.getByLabel('Título da seção').fill('Detalhes extras FBE')
   await rd.getByRole('button', { name: 'Salvar' }).click()
   await expect(rd).toBeHidden({ timeout: 10_000 })
@@ -1284,4 +1321,112 @@ test('AC-14 (sign-off review): observation line renders in the sign-off review (
 
   // Also confirm the MC answer itself renders (basic sanity).
   await expect(page.getByText('Aprovado', { exact: true }).first()).toBeVisible()
+})
+
+// ===========================================================================
+// NUMBER-CONDITION REGRESSION GUARD (QA MAJOR-1)
+// ===========================================================================
+
+// AC-15 — a number-target condition (gt operator) evaluates NUMERICALLY, not
+// lexically. The QA MAJOR-1 bug serialized condition values as strings
+// ("5"), causing "10" < "5" in lexical compare → a number answer of 10 with
+// threshold 5 would wrongly HIDE the dependent question.
+//
+// Flow (via the real ConditionBuilder UI):
+//   1. chefe.ccih opens FORM_NUMCOND (draft) in the builder.
+//   2. Adds number question "Pontuação".
+//   3. Adds short_text "Detalhes (condição numérica)" with condition:
+//      target = Pontuação  /  op = é maior que (gt)  /  value = 5
+//   4. Publishes the form.
+//   5. staff1.ccih starts a fill response.
+//   6. Answers Pontuação = 3 → "Detalhes (condição numérica)" HIDDEN.
+//   7. Changes Pontuação = 10 → "Detalhes (condição numérica)" SHOWN.
+//      (10 > 5 numerically; "10" < "5" lexically → regression guard fires)
+test('AC-15 (number-condition regression guard): number gt condition evaluates numerically not lexically (QA MAJOR-1)', async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(180_000)
+
+  // ------- BUILDER phase (chefe.ccih) ----------------------------------------
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/c/ccih/manage/forms/${numCondFormId}`)
+  await expect(
+    page.getByRole('heading', { level: 1, name: FORM_NUMCOND_TITLE }),
+  ).toBeVisible({ timeout: 20_000 })
+
+  // 1. Add the number question "Pontuação" (no min/max — any positive integer ok).
+  let d = await openAddBlock(page, /Número/)
+  await d.getByLabel('Enunciado da pergunta').fill('Pontuação')
+  await addSubmit(d)
+  await expect(page.getByText('Pontuação', { exact: true }).first()).toBeVisible()
+
+  // 2. Add the short_text "Detalhes (condição numérica)" with a number-target
+  //    condition: Pontuação gt 5.
+  d = await openAddBlock(page, /Resposta curta/)
+  await d.getByLabel('Enunciado da pergunta').fill('Detalhes (condição numérica)')
+
+  // Enable the condition toggle.
+  await d.getByRole('checkbox', { name: /Exibir somente sob condições/i }).check()
+
+  // Target: the "Pontuação" number question.
+  await d.locator('select[id$="-target"]').selectOption({ label: 'Pontuação' })
+
+  // Op: "é maior que" (gt). For a number target, the op select is rendered with
+  // all ORDERED_OPS. Default first op is "equals"; change it to "gt".
+  await d.locator('select[id$="-op"]').selectOption({ label: 'é maior que' })
+
+  // Value: type 5 into the number <Input>. The value control for ordered targets
+  // is a native <input type="number"> identified by the id-suffix "-value".
+  await d.locator('input[id$="-value"]').fill('5')
+
+  await addSubmit(d)
+  await expect(
+    page.getByText('Detalhes (condição numérica)', { exact: true }).first(),
+  ).toBeVisible()
+
+  // 3. Publish FORM_NUMCOND.
+  await page.getByRole('button', { name: 'Publicar' }).click()
+  const confirmDlg = page.getByRole('alertdialog')
+  await confirmDlg.getByRole('button', { name: 'Publicar' }).click()
+  await expect(
+    page.getByRole('button', { name: /Editar publicado/ }),
+  ).toBeVisible({ timeout: 20_000 })
+
+  // ------- FILL phase (staff1.ccih) -------------------------------------------
+  // Fetch the published version id to construct the fill URL.
+  const versions = await svcGet<{ id: string; status: string }>(
+    request,
+    `form_versions?form_id=eq.${numCondFormId}&status=eq.published&select=id,status`,
+  )
+  expect(versions.length, 'AC-15: FORM_NUMCOND must have a published version').toBe(1)
+  const numCondVersionId = versions[0].id
+
+  const staff1Token = await getToken(request, 'staff1.ccih@test.local')
+  const startResp = await rpc(request, 'start_or_resume_response', staff1Token, {
+    p_form_version_id: numCondVersionId,
+  })
+  expect(startResp.ok(), `AC-15 start_or_resume_response failed: ${await startResp.text()}`).toBeTruthy()
+  const responseId = ((await startResp.json()) as { id: string }).id
+
+  await signInAs(page, 'staff1.ccih@test.local')
+  await page.goto(`/c/ccih/forms/${numCondFormId}/responder/${responseId}`)
+  await expect(page.getByText('Pontuação').first()).toBeVisible({ timeout: 15_000 })
+
+  // 4. Answer Pontuação = 3 → 3 is NOT greater than 5 → dependent HIDDEN.
+  const numInput = page.getByLabel('Pontuação')
+  await numInput.fill('3')
+  // Trigger change event so the condition evaluator sees the new value.
+  await numInput.press('Tab')
+  await expect(
+    page.getByLabel(/Detalhes \(condição numérica\)/i),
+  ).toHaveCount(0, { timeout: 8_000 })
+
+  // 5. Change Pontuação = 10 → 10 IS greater than 5 (numerically; "10" < "5"
+  //    lexically — this is the MAJOR-1 regression guard). Dependent must SHOW.
+  await numInput.fill('10')
+  await numInput.press('Tab')
+  await expect(
+    page.getByLabel(/Detalhes \(condição numérica\)/i),
+  ).toBeVisible({ timeout: 8_000 })
 })
