@@ -7,6 +7,7 @@ import type {
   CaseStatusColorToken,
 } from '@/lib/cases/case-status'
 import type { CasePatient, CasePatientSex } from '@/lib/cases/types'
+import { listPhaseResults } from '@/lib/queries/phase-results'
 import type { ResolvedPhaseResult } from '@/lib/queries/phase-results'
 
 export type { ResolvedPhaseResult } from '@/lib/queries/phase-results'
@@ -446,6 +447,31 @@ interface BoardPhaseJson {
   assigned_to: string | null
   assignee_name: string | null
   due_date: string | null
+  /** The phase's effective result, resolved LIVE (`null` when none / flag off). */
+  result: ResolvedPhaseResultJson | null
+}
+
+/** A resolved phase-result inside a board/detail envelope (label + flags + source). */
+interface ResolvedPhaseResultJson {
+  id: string
+  label: string
+  color_token: ResolvedPhaseResult['colorToken']
+  is_adverse: boolean
+  source: 'computed' | 'manual' | null
+}
+
+/** Map a resolved-phase-result envelope object to its domain shape (`null`-safe). */
+function mapPhaseResultJson(
+  r: ResolvedPhaseResultJson | null,
+): ResolvedPhaseResult | null {
+  if (!r) return null
+  return {
+    id: r.id,
+    label: r.label,
+    colorToken: r.color_token,
+    isAdverse: r.is_adverse,
+    source: r.source,
+  }
 }
 
 /** A resolved outcome inside a board row / detail envelope (label + flags). */
@@ -503,6 +529,10 @@ interface DetailPhaseJson {
   display_position: number | null
   response_id: string | null
   submitted_at: string | null
+  /** phase-results: the effective result id/stamp + a LIVE-resolved object. */
+  result_id: string | null
+  result_computed_at: string | null
+  result: ResolvedPhaseResultJson | null
 }
 
 /**
@@ -633,9 +663,7 @@ export async function listCasesBoard(
       assignedTo: p.assigned_to,
       assigneeName: p.assignee_name,
       dueDate: p.due_date,
-      // STUB (phase-results, task #4): the board RPC projection of the resolved
-      // result lands with the migration. Until then the board shows no badge.
-      result: null,
+      result: mapPhaseResultJson(p.result ?? null),
     })),
   }))
 }
@@ -710,13 +738,11 @@ async function getCaseDetailUncached(
       dueDate: p.due_date,
       defaultDueDays: p.default_due_days,
       displayPosition: p.display_position ?? null,
-      // STUB (phase-results, task #4): the migration adds these to the
-      // get_case_detail projection. Until then no result is surfaced.
-      resultId: null,
-      resultComputedAt: null,
+      resultId: p.result_id ?? null,
+      resultComputedAt: p.result_computed_at ?? null,
       responseId: p.response_id,
       submittedAt: p.submitted_at,
-      result: null,
+      result: mapPhaseResultJson(p.result ?? null),
     })),
     narratives: (env.narratives ?? []).map((n) => mapNarrativeJson(n, env.id)),
     // Until BE-4 adds `viewer_capabilities` to the RPC, default to coordinator-
@@ -812,6 +838,8 @@ interface PhaseFillRow {
   recommend_when: RecommendWhen | null
   due_date: string | null
   default_due_days: number | null
+  result_ruleset: ResultRuleset | null
+  result_override_id: string | null
   forms: { title: string | null } | null
   cases: {
     id: string
@@ -845,7 +873,7 @@ export async function getCasePhaseForFill(
       `
       id, case_id, position, form_id, form_version_id, title, status,
       recommended, assigned_to, is_ad_hoc, blocks, recommend_when, due_date,
-      default_due_days,
+      default_due_days, result_ruleset, result_override_id,
       forms ( title ),
       cases (
         id, commission_id, template_id, case_number, label, status, outcome_id,
@@ -880,8 +908,8 @@ export async function getCasePhaseForFill(
       defaultDueDays: data.default_due_days,
       // The fill landing renders one phase, not the merged layout — no display order needed.
       displayPosition: null,
-      // STUB (phase-results, task #4): the phase-fill read projects the stashed
-      // result + override once the migration lands.
+      // The fill landing does not surface the effective result (the phase is being
+      // filled — it has none yet); the override panel uses the `result` context below.
       resultId: null,
       resultComputedAt: null,
     },
@@ -898,11 +926,46 @@ export async function getCasePhaseForFill(
       hasPatient: c.has_patient,
       patientEnabled: c.patient_enabled,
     },
-    // STUB (phase-results, task #4): once the migration lands, the fill read
-    // projects the snapshotted ruleset + active options + current override so the
-    // wizard can render the override panel. Null keeps the panel hidden today.
-    result: null,
+    // Result context for the end-of-wizard override panel: the phase's snapshotted
+    // ruleset (live computed preview), the commission's active result options (the
+    // override picker), and the current stashed override. `null` when the feature
+    // is off OR the phase carries no ruleset AND no override (nothing to surface).
+    result: await loadPhaseResultContext(
+      supabase,
+      data.result_ruleset,
+      data.result_override_id,
+      c.commission_id,
+    ),
   }
+}
+
+/**
+ * Build the {@link CasePhaseForFill.result} context. Returns `null` when the
+ * feature is off, or when the phase has neither a snapshotted ruleset nor a stashed
+ * override (so the wizard renders no override panel). Otherwise loads the
+ * commission's ACTIVE result options for the picker.
+ */
+async function loadPhaseResultContext(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  ruleset: ResultRuleset | null,
+  currentOverrideId: string | null,
+  commissionId: string,
+): Promise<CasePhaseForFill['result']> {
+  const { data: enabled } = await supabase.rpc('case_phase_results_enabled')
+  if (enabled !== true) return null
+  if (ruleset == null && currentOverrideId == null) return null
+
+  const options = (await listPhaseResults(commissionId)).map(
+    (o): ResolvedPhaseResult => ({
+      id: o.id,
+      label: o.label,
+      colorToken: o.colorToken,
+      isAdverse: o.isAdverse,
+      source: null,
+    }),
+  )
+
+  return { resultRuleset: ruleset, options, currentOverrideId }
 }
 
 // ---------------------------------------------------------------------------

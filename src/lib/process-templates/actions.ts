@@ -54,6 +54,8 @@ const MESSAGES = {
   // text; we prefer it and fall back to these.
   recommendInvalid:
     'A condição de recomendação é inválida. Verifique a fase de origem e a pergunta.',
+  resultRulesetInvalid:
+    'O resultado da fase é inválido. Verifique a pergunta e as opções de resultado.',
   noPublishedVersion:
     'O formulário de origem da recomendação ainda não foi publicado.',
   needsPhase: 'Um processo precisa de ao menos uma fase para ser publicado.',
@@ -81,6 +83,8 @@ const PG_CHECK_VIOLATION = '23514'
 const HC_INVALID_RECOMMEND = 'HC016'
 const HC_NO_PUBLISHED_VERSION = 'HC017'
 const HC_NOT_ARCHIVABLE = 'HC023'
+/** Result ruleset references an invalid/archived result option (phase-results). */
+const HC_INVALID_RESULT_OPTION = 'HC059'
 
 const TEMPLATES_LIST_PATH = '/c/[slug]/manage/process-templates'
 const TEMPLATE_PATH = '/c/[slug]/manage/process-templates/[templateId]'
@@ -137,8 +141,18 @@ function mapRpcError(error: { code?: string; message?: string } | null): string 
   if (error.code === HC_NO_PUBLISHED_VERSION) return error.message || MESSAGES.noPublishedVersion
   if (error.code === HC_INVALID_RECOMMEND) return error.message || MESSAGES.recommendInvalid
   if (error.code === HC_NOT_ARCHIVABLE) return error.message || MESSAGES.notArchivable
+  if (error.code === HC_INVALID_RESULT_OPTION) return error.message || MESSAGES.resultRulesetInvalid
   if (error.code === PG_CHECK_VIOLATION) return error.message || MESSAGES.generic
   return MESSAGES.generic
+}
+
+/**
+ * Parse the optional `resultRuleset` JSON form field (phase-results). Same shape
+ * contract as {@link parseRecommendWhen}: `undefined` when absent/blank (send SQL
+ * NULL), the parsed object when valid, or `null` to signal a field error.
+ */
+function parseResultRuleset(raw: string): Json | undefined | null {
+  return parseRecommendWhen(raw)
 }
 
 /**
@@ -267,6 +281,9 @@ export async function addTemplatePhase(
   const recommendWhen = parseRecommendWhen(
     String(formData.get('recommendWhen') ?? ''),
   )
+  const resultRuleset = parseResultRuleset(
+    String(formData.get('resultRuleset') ?? ''),
+  )
   const defaultDays = parseDefaultDays(String(formData.get('defaultDays') ?? ''))
 
   if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
@@ -275,6 +292,9 @@ export async function addTemplatePhase(
   }
   if (recommendWhen === null) {
     return { ok: false, fieldErrors: { recommendWhen: MESSAGES.recommendInvalid } }
+  }
+  if (resultRuleset === null) {
+    return { ok: false, fieldErrors: { resultRuleset: MESSAGES.resultRulesetInvalid } }
   }
   if (defaultDays === null) {
     return { ok: false, fieldErrors: { defaultDays: MESSAGES.defaultDaysInvalid } }
@@ -293,6 +313,7 @@ export async function addTemplatePhase(
     p_title: title || undefined,
     p_recommend_when: recommendWhen,
     p_default_due_days: defaultDays,
+    p_result_ruleset: resultRuleset,
   })
 
   if (error || !data) return { ok: false, error: mapRpcError(error) }
@@ -319,10 +340,18 @@ export async function updateTemplatePhase(
   const recommendWhen = parseRecommendWhen(
     String(formData.get('recommendWhen') ?? ''),
   )
+  const clearResultRuleset =
+    String(formData.get('clearResultRuleset') ?? '') === 'true'
+  const resultRuleset = parseResultRuleset(
+    String(formData.get('resultRuleset') ?? ''),
+  )
 
   if (!phaseId) return { ok: false, error: MESSAGES.missingPhase }
   if (recommendWhen === null) {
     return { ok: false, fieldErrors: { recommendWhen: MESSAGES.recommendInvalid } }
+  }
+  if (resultRuleset === null) {
+    return { ok: false, fieldErrors: { resultRuleset: MESSAGES.resultRulesetInvalid } }
   }
 
   // The dialog always includes `defaultDays`. Present-and-empty clears it;
@@ -363,6 +392,8 @@ export async function updateTemplatePhase(
     p_clear_recommend_when: clearRecommendWhen,
     p_default_due_days: defaultDays,
     p_clear_default_due_days: clearDefaultDays,
+    p_result_ruleset: resultRuleset,
+    p_clear_result_ruleset: clearResultRuleset,
   })
 
   if (error) return { ok: false, error: mapRpcError(error) }

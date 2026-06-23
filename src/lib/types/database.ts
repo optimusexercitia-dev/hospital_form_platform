@@ -1370,6 +1370,36 @@ export type Database = {
           },
         ]
       }
+      case_phase_offered_results: {
+        Row: {
+          case_id: string
+          result_id: string
+        }
+        Insert: {
+          case_id: string
+          result_id: string
+        }
+        Update: {
+          case_id?: string
+          result_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_phase_offered_results_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_phase_offered_results_result_id_fkey"
+            columns: ["result_id"]
+            isOneToOne: false
+            referencedRelation: "phase_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_phases: {
         Row: {
           activated_at: string | null
@@ -1388,6 +1418,14 @@ export type Database = {
           position: number
           recommend_when: Json | null
           recommended: boolean
+          result_computed_at: string | null
+          result_id: string | null
+          result_override_at: string | null
+          result_override_by: string | null
+          result_override_id: string | null
+          result_override_reason: string | null
+          result_ruleset: Json | null
+          result_source: string | null
           skipped_at: string | null
           status: string
           title: string | null
@@ -1410,6 +1448,14 @@ export type Database = {
           position: number
           recommend_when?: Json | null
           recommended?: boolean
+          result_computed_at?: string | null
+          result_id?: string | null
+          result_override_at?: string | null
+          result_override_by?: string | null
+          result_override_id?: string | null
+          result_override_reason?: string | null
+          result_ruleset?: Json | null
+          result_source?: string | null
           skipped_at?: string | null
           status?: string
           title?: string | null
@@ -1432,6 +1478,14 @@ export type Database = {
           position?: number
           recommend_when?: Json | null
           recommended?: boolean
+          result_computed_at?: string | null
+          result_id?: string | null
+          result_override_at?: string | null
+          result_override_by?: string | null
+          result_override_id?: string | null
+          result_override_reason?: string | null
+          result_ruleset?: Json | null
+          result_source?: string | null
           skipped_at?: string | null
           status?: string
           title?: string | null
@@ -1464,6 +1518,20 @@ export type Database = {
             columns: ["form_version_id"]
             isOneToOne: false
             referencedRelation: "form_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_phases_result_id_fkey"
+            columns: ["result_id"]
+            isOneToOne: false
+            referencedRelation: "phase_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_phases_result_override_id_fkey"
+            columns: ["result_override_id"]
+            isOneToOne: false
+            referencedRelation: "phase_results"
             referencedColumns: ["id"]
           },
         ]
@@ -3008,6 +3076,50 @@ export type Database = {
         }
         Relationships: []
       }
+      phase_results: {
+        Row: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          is_adverse: boolean
+          label: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          color_token?: string
+          commission_id: string
+          created_at?: string
+          id?: string
+          is_adverse?: boolean
+          label: string
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          color_token?: string
+          commission_id?: string
+          created_at?: string
+          id?: string
+          is_adverse?: boolean
+          label?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "phase_results_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pqs_department: {
         Row: {
           created_at: string
@@ -3228,6 +3340,7 @@ export type Database = {
           id: string
           position: number
           recommend_when: Json | null
+          result_ruleset: Json | null
           template_id: string
           title: string | null
         }
@@ -3240,6 +3353,7 @@ export type Database = {
           id?: string
           position: number
           recommend_when?: Json | null
+          result_ruleset?: Json | null
           template_id: string
           title?: string | null
         }
@@ -3252,6 +3366,7 @@ export type Database = {
           id?: string
           position?: number
           recommend_when?: Json | null
+          result_ruleset?: Json | null
           template_id?: string
           title?: string | null
         }
@@ -4270,6 +4385,14 @@ export type Database = {
           position: number
           recommend_when: Json | null
           recommended: boolean
+          result_computed_at: string | null
+          result_id: string | null
+          result_override_at: string | null
+          result_override_by: string | null
+          result_override_id: string | null
+          result_override_reason: string | null
+          result_ruleset: Json | null
+          result_source: string | null
           skipped_at: string | null
           status: string
           title: string | null
@@ -4307,6 +4430,14 @@ export type Database = {
           position: number
           recommend_when: Json | null
           recommended: boolean
+          result_computed_at: string | null
+          result_id: string | null
+          result_override_at: string | null
+          result_override_by: string | null
+          result_override_id: string | null
+          result_override_reason: string | null
+          result_ruleset: Json | null
+          result_source: string | null
           skipped_at: string | null
           status: string
           title: string | null
@@ -4783,6 +4914,7 @@ export type Database = {
           p_default_due_days?: number
           p_form_id: string
           p_recommend_when?: Json
+          p_result_ruleset?: Json
           p_template_id: string
           p_title?: string
         }
@@ -4795,6 +4927,7 @@ export type Database = {
           id: string
           position: number
           recommend_when: Json | null
+          result_ruleset: Json | null
           template_id: string
           title: string | null
         }
@@ -4972,6 +5105,26 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "commission_meeting_types"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      archive_phase_result: {
+        Args: { p_result_id: string }
+        Returns: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          is_adverse: boolean
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "phase_results"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -5203,6 +5356,7 @@ export type Database = {
       }
       case_narratives_enabled: { Args: never; Returns: boolean }
       case_patient_enabled: { Args: never; Returns: boolean }
+      case_phase_results_enabled: { Args: never; Returns: boolean }
       case_tag_report: {
         Args: { p_commission_id: string; p_from?: string; p_to?: string }
         Returns: {
@@ -5852,6 +6006,31 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_phase_result: {
+        Args: {
+          p_color_token?: string
+          p_commission_id: string
+          p_is_adverse?: boolean
+          p_label: string
+        }
+        Returns: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          is_adverse: boolean
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "phase_results"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_process_template: {
         Args: {
           p_commission_id: string
@@ -6471,6 +6650,14 @@ export type Database = {
           position: number
           recommend_when: Json | null
           recommended: boolean
+          result_computed_at: string | null
+          result_id: string | null
+          result_override_at: string | null
+          result_override_by: string | null
+          result_override_id: string | null
+          result_override_reason: string | null
+          result_ruleset: Json | null
+          result_source: string | null
           skipped_at: string | null
           status: string
           title: string | null
@@ -6819,6 +7006,10 @@ export type Database = {
         Args: { p_agenda_item_id: string; p_direction: string }
         Returns: undefined
       }
+      reorder_phase_results: {
+        Args: { p_commission_id: string; p_ordered_ids: string[] }
+        Returns: undefined
+      }
       reorder_rca_timeline: {
         Args: { p_ordered_ids: string[]; p_rca_id: string }
         Returns: undefined
@@ -7045,6 +7236,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_case_phase_result_override: {
+        Args: {
+          p_case_phase_id: string
+          p_reason?: string
+          p_result_id: string
+        }
+        Returns: undefined
+      }
       set_event_patient: {
         Args: {
           p_age_years?: number
@@ -7183,6 +7382,7 @@ export type Database = {
           id: string
           position: number
           recommend_when: Json | null
+          result_ruleset: Json | null
           template_id: string
           title: string | null
         }
@@ -7254,6 +7454,14 @@ export type Database = {
           position: number
           recommend_when: Json | null
           recommended: boolean
+          result_computed_at: string | null
+          result_id: string | null
+          result_override_at: string | null
+          result_override_by: string | null
+          result_override_id: string | null
+          result_override_reason: string | null
+          result_ruleset: Json | null
+          result_source: string | null
           skipped_at: string | null
           status: string
           title: string | null
@@ -8062,6 +8270,31 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_phase_result: {
+        Args: {
+          p_color_token: string
+          p_is_adverse: boolean
+          p_label: string
+          p_result_id: string
+        }
+        Returns: {
+          archived: boolean
+          color_token: string
+          commission_id: string
+          created_at: string
+          id: string
+          is_adverse: boolean
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "phase_results"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_rca: {
         Args: {
           p_detected?: string
@@ -8276,10 +8509,12 @@ export type Database = {
           p_clear_blocks?: boolean
           p_clear_default_due_days?: boolean
           p_clear_recommend_when?: boolean
+          p_clear_result_ruleset?: boolean
           p_default_due_days?: number
           p_form_id?: string
           p_phase_id: string
           p_recommend_when?: Json
+          p_result_ruleset?: Json
           p_title?: string
         }
         Returns: {
@@ -8291,6 +8526,7 @@ export type Database = {
           id: string
           position: number
           recommend_when: Json | null
+          result_ruleset: Json | null
           template_id: string
           title: string | null
         }

@@ -20,7 +20,6 @@ import type { CaseStatusColorToken } from '@/lib/cases/case-status'
  * when the flag is off. Vocabulary CRUD lives in `@/lib/cases/result-actions`;
  * this module is the READ side.
  *
- * NOTE: stubs — implementations land in task #4 (contract-first signatures only).
  */
 
 // ---------------------------------------------------------------------------
@@ -66,6 +65,35 @@ export interface ResolvedPhaseResult {
 }
 
 // ---------------------------------------------------------------------------
+// Row shape + mapper
+// ---------------------------------------------------------------------------
+
+interface PhaseResultRow {
+  id: string
+  commission_id: string
+  label: string
+  color_token: PhaseResultColorToken
+  is_adverse: boolean
+  archived: boolean
+  position: number
+}
+
+function mapResult(r: PhaseResultRow): PhaseResult {
+  return {
+    id: r.id,
+    commissionId: r.commission_id,
+    label: r.label,
+    colorToken: r.color_token,
+    isAdverse: r.is_adverse,
+    archived: r.archived,
+    position: r.position,
+  }
+}
+
+const RESULT_SELECT =
+  'id, commission_id, label, color_token, is_adverse, archived, position' as const
+
+// ---------------------------------------------------------------------------
 // Reads
 // ---------------------------------------------------------------------------
 
@@ -81,10 +109,22 @@ export async function listPhaseResults(
   commissionId: string,
   includeArchived = false,
 ): Promise<PhaseResult[]> {
-  void commissionId
-  void includeArchived
-  await createClient()
-  throw new Error('not implemented')
+  const supabase = await createClient()
+  let query = supabase
+    .from('phase_results')
+    .select(RESULT_SELECT)
+    .eq('commission_id', commissionId)
+
+  if (!includeArchived) {
+    query = query.eq('archived', false)
+  }
+
+  const { data, error } = await query
+    .order('position', { ascending: true })
+    .returns<PhaseResultRow[]>()
+
+  if (error || !data) return []
+  return data.map(mapResult)
 }
 
 /**
@@ -92,6 +132,8 @@ export async function listPhaseResults(
  * `false` when the flag is off or unreadable — the UI hides the result surfaces.
  */
 export async function phaseResultsEnabled(): Promise<boolean> {
-  await createClient()
-  throw new Error('not implemented')
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('case_phase_results_enabled')
+  if (error) return false
+  return data === true
 }

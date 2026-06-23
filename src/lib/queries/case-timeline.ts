@@ -102,8 +102,17 @@ interface CasePhaseTimelineRow {
   skipped_at: string | null
   due_date: string | null
   assigned_to: string | null
+  /** The effective result source (phase-results); `null` until a result is set. */
+  result_source: 'computed' | 'manual' | null
   forms: { title: string | null } | null
   profiles: { full_name: string | null } | null
+  /** The LIVE-resolved result option (phase-results embed); `null` when none. */
+  phase_results: {
+    id: string
+    label: string
+    color_token: string
+    is_adverse: boolean
+  } | null
 }
 
 /** A `meeting_cases` row joined to its parent meeting (the reverse list). */
@@ -208,9 +217,10 @@ async function listCasePhasesForTimeline(
     .from('case_phases')
     .select(
       `id, position, title, status, activated_at, completed_at, skipped_at,
-       due_date, assigned_to,
+       due_date, assigned_to, result_source,
        forms:form_id ( title ),
-       profiles:assigned_to ( full_name )`,
+       profiles:assigned_to ( full_name ),
+       phase_results:result_id ( id, label, color_token, is_adverse )`,
     )
     .eq('case_id', caseId)
     .order('position', { ascending: true })
@@ -320,6 +330,16 @@ function phaseTitle(p: CasePhaseTimelineRow): string {
  * `day` vs `start`/`end` (pin vs bar), and `muted`/`statusSlug` drive the styling.
  */
 function phaseToEvent(p: CasePhaseTimelineRow): CaseTimelineEvent | null {
+  const result: CaseTimelineEvent['result'] = p.phase_results
+    ? {
+        id: p.phase_results.id,
+        label: p.phase_results.label,
+        colorToken: p.phase_results.color_token,
+        isAdverse: p.phase_results.is_adverse,
+        source: p.result_source,
+      }
+    : null
+
   const base = {
     id: `phase:${p.id}`,
     type: 'phase' as const,
@@ -327,6 +347,7 @@ function phaseToEvent(p: CasePhaseTimelineRow): CaseTimelineEvent | null {
     owner: personOf(p.profiles?.full_name),
     statusSlug: p.status,
     href: null,
+    result,
   }
 
   if (p.status === 'nao_necessaria') {

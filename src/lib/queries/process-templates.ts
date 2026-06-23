@@ -135,9 +135,7 @@ interface TemplatePhaseRow {
   default_due_days: number | null
   blocks: number[] | null
   display_position: number | null
-  // STUB (phase-results, task #4): added to TEMPLATE_SELECT once the migration
-  // adds the column. Optional here so the pre-migration SELECT still types.
-  result_ruleset?: ResultRuleset | null
+  result_ruleset: ResultRuleset | null
   forms: { title: string | null } | null
 }
 
@@ -177,7 +175,7 @@ const TEMPLATE_SELECT = `
   id, commission_id, title, description, status, created_at, collects_patient,
   process_template_phases (
     id, template_id, position, form_id, title, recommend_when, default_due_days,
-    blocks, display_position,
+    blocks, display_position, result_ruleset,
     forms ( title )
   ),
   process_template_narratives (
@@ -200,8 +198,6 @@ function mapPhase(p: TemplatePhaseRow): ProcessTemplatePhase {
     defaultDueDays: p.default_due_days,
     blocks: p.blocks ?? [],
     displayPosition: p.display_position ?? null,
-    // STUB (phase-results, task #4): defaults to null until the migration adds the
-    // column + TEMPLATE_SELECT projects it.
     resultRuleset: p.result_ruleset ?? null,
   }
 }

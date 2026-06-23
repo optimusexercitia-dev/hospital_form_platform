@@ -152,14 +152,16 @@ export function evalCondition(
  * `null`. A `null` ruleset yields `null`. Used by the builder preview + the
  * end-of-wizard live computed preview; the SQL function is the authority at
  * conclude time. Drift between the two is a phase-blocking bug.
- *
- * NOTE: stub — implementation lands in task #4 (contract-first signature only).
  */
 export function walkResultRuleset(
   ruleset: ResultRuleset | null | undefined,
   answers: AnswerMap,
 ): string | null {
-  void ruleset
-  void answers
-  throw new Error('not implemented')
+  if (ruleset == null) return null
+  for (const rule of ruleset.rules) {
+    if (evalCondition(rule.when, answers)) {
+      return rule.result_id
+    }
+  }
+  return ruleset.default_result_id
 }

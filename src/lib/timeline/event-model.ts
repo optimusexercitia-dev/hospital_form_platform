@@ -83,6 +83,25 @@ export interface TimelinePerson {
 }
 
 /**
+ * A phase's effective categorical RESULT for the timeline badge (phase-results
+ * feature). A STRUCTURAL mirror of
+ * {@link import('@/lib/queries/phase-results').ResolvedPhaseResult} kept inline to
+ * preserve this module's purity (no cross-import into a data-access module). The
+ * composition in `@/lib/queries/case-timeline` populates it from the live-resolved
+ * `phase_results` join; the UI renders the badge + a "manual" marker from `source`.
+ */
+export interface TimelinePhaseResult {
+  id: string
+  /** pt-BR label (resolved LIVE). */
+  label: string
+  /** A `CaseStatusColorToken` (loose `string` for purity; UI maps via the palette). */
+  colorToken: string
+  isAdverse: boolean
+  /** How the effective result was set; drives the "manual" marker. */
+  source: 'computed' | 'manual' | null
+}
+
+/**
  * One normalized timeline event — the common shape every source row is mapped
  * into, driving both layouts. A row is EITHER a durational phase (`start`/`end`)
  * OR a single-day event (`day`); never both. All optional display fields are
@@ -148,6 +167,13 @@ export interface CaseTimelineEvent {
    * it through the shared palette.
    */
   colorToken?: string | null
+  /**
+   * The phase's effective categorical result (phase-results feature). Present ONLY
+   * on `type = 'phase'` events and only when the phase has an effective result;
+   * `null`/absent otherwise (no ruleset/override, feature off, or a non-phase
+   * event). Drives the result badge on the timeline.
+   */
+  result?: TimelinePhaseResult | null
 }
 
 // ---------------------------------------------------------------------------

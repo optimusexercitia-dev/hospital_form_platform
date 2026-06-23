@@ -48,6 +48,10 @@ const MESSAGES = {
   // sign_section discriminated failures
   signoffNotVisible: 'Esta seção não está disponível para assinatura.',
   signoffAlreadySigned: 'Esta seção já foi assinada.',
+  // set_case_phase_result_override discriminated failures (phase-results)
+  overrideNotAdjustable:
+    'O resultado só pode ser ajustado enquanto a fase está ativa.',
+  overrideResultInvalid: 'Opção de resultado inválida para esta comissão.',
   // success copy
   saved: 'Respostas salvas.',
   savedAndExited: 'Respostas salvas. Você pode continuar mais tarde.',
@@ -71,6 +75,9 @@ const SAVE_CROSS_VERSION = 'HC013'
 /** sign_section discriminated failures. */
 const SIGN_NOT_VISIBLE = 'HC014'
 const SIGN_ALREADY_SIGNED = 'HC015'
+/** set_case_phase_result_override discriminated failures (phase-results). */
+const OVERRIDE_PHASE_NOT_ADJUSTABLE = 'HC057'
+const OVERRIDE_RESULT_INVALID = 'HC058'
 
 /** The staff filling area — revalidated as dynamic-segment pages. */
 const FORMS_LIST_PATH = '/c/[slug]/forms'
@@ -312,8 +319,6 @@ export async function submitResponse(responseId: string): Promise<ActionState> {
  * `overrideResultId === null` means "clear any stashed override → fall back to the
  * computed path"; `undefined` means "leave the override untouched". `reason` is
  * the optional override justification (ignored when no override is set).
- *
- * NOTE: stub — implementation lands in task #4 (contract-first signature only).
  */
 export async function submitCasePhaseResponse(
   responseId: string,
@@ -321,11 +326,69 @@ export async function submitCasePhaseResponse(
   overrideResultId: string | null | undefined,
   reason: string | null,
 ): Promise<ActionState> {
-  void responseId
-  void casePhaseId
-  void overrideResultId
-  void reason
-  throw new Error('not implemented')
+  if (!responseId) return { ok: false, error: MESSAGES.missingResponse }
+
+  const supabase = await createClient()
+  const ctx = await contextOfResponse(supabase, responseId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingResponse }
+  if (!(await authorizeMember(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  // Stash / clear the override on the still-`ativa` phase BEFORE submit. `undefined`
+  // leaves any existing override untouched (skip the call entirely).
+  if (overrideResultId !== undefined && casePhaseId) {
+    const { error: overrideError } = await supabase.rpc(
+      'set_case_phase_result_override',
+      {
+        p_case_phase_id: casePhaseId,
+        // `null` (clear) is a valid argument — the RPC's p_result_id has DEFAULT
+        // NULL — but supabase-gen typed this mid-list defaulted param as required
+        // `string`. Cast to satisfy the stricter generated type while still passing
+        // the real null. `??  undefined` would WRONGLY clear when caller passed null.
+        p_result_id: overrideResultId as unknown as string,
+        p_reason: reason ?? undefined,
+      },
+    )
+    if (overrideError) {
+      switch (overrideError.code) {
+        case OVERRIDE_PHASE_NOT_ADJUSTABLE:
+          return { ok: false, error: MESSAGES.overrideNotAdjustable }
+        case OVERRIDE_RESULT_INVALID:
+          return { ok: false, error: MESSAGES.overrideResultInvalid }
+        case PG_RLS_VIOLATION:
+          return { ok: false, error: MESSAGES.forbidden }
+        case PG_NO_DATA_FOUND:
+          return { ok: false, error: MESSAGES.missingResponse }
+        default:
+          return { ok: false, error: MESSAGES.generic }
+      }
+    }
+  }
+
+  // Submit — the UNCHANGED authority; its conclusion trigger computes/honors the
+  // result atomically.
+  const { error } = await supabase.rpc('submit_response', {
+    p_response_id: responseId,
+  })
+
+  if (error) {
+    switch (error.code) {
+      case SUBMIT_ALREADY_SUBMITTED:
+        return { ok: false, error: MESSAGES.alreadySubmitted }
+      case SUBMIT_MISSING_REQUIRED:
+        return { ok: false, error: MESSAGES.missingRequired }
+      case SUBMIT_MISSING_SIGNOFF:
+        return { ok: false, error: MESSAGES.missingSignoff }
+      case PG_NO_DATA_FOUND:
+        return { ok: false, error: MESSAGES.missingResponse }
+      default:
+        return { ok: false, error: MESSAGES.generic }
+    }
+  }
+
+  revalidateFill()
+  return { ok: true, error: MESSAGES.submitted }
 }
 
 // ---------------------------------------------------------------------------
