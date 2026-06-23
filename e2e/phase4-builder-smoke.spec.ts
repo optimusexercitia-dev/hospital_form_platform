@@ -101,10 +101,15 @@ test('coordinator builds, configures, publishes, edits and versions a form', asy
     .getByRole('button', { name: 'Configurações da seção (condição e assinatura)' })
     .click()
   const settings = page.getByRole('dialog')
+  // Enable the condition toggle first (ConditionBuilder refactor in FBE phase).
   await settings
-    .getByLabel('Mostrar a seção quando')
+    .getByRole('checkbox', { name: /Exibir somente sob condições/i })
+    .check()
+  // ConditionBuilder uses stable id-suffix selects (no accessible label).
+  await settings
+    .locator('select[id$="-target"]')
     .selectOption({ label: 'A higienização foi realizada?' })
-  await settings.getByLabel('Valor').selectOption({ label: 'Não' })
+  await settings.locator('select[id$="-value"]').selectOption({ label: 'Não' })
   await settings
     .getByRole('checkbox', { name: /Exigir assinatura/ })
     .click()
