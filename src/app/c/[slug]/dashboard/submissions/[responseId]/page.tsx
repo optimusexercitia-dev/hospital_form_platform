@@ -83,6 +83,7 @@ export default async function SubmissionDetailPage({
         tree={detail.tree}
         answersByItemId={detail.answersByItemId}
         answersByKey={detail.answersByKey}
+        observationsByItemId={detail.observationsByItemId}
         signoffs={detail.signoffs}
         imageUrls={imageUrls}
       />

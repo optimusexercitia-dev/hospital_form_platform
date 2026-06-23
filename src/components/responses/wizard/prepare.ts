@@ -26,11 +26,15 @@ export function toAnswerState(response: ResponseForFill): AnswerState {
     for (const item of section.items) {
       if (!item.questionKey) continue; // display items carry no answer
       const value = response.answersByItemId[item.id];
-      if (value === undefined) continue;
+      // An observation can exist on a saved answer (BE-7); rehydrate it so a
+      // resumed fill keeps the note and shows it on the review screen.
+      const observation = response.observationsByItemId[item.id];
+      if (value === undefined && observation === undefined) continue;
       state[item.id] = {
         itemId: item.id,
         questionKey: item.questionKey,
-        value,
+        value: value ?? null,
+        ...(observation !== undefined ? { observation } : {}),
       };
     }
   }

@@ -46,6 +46,7 @@ export function PhaseAnswersReadonly({
                   key={item.id}
                   item={item}
                   value={response.answersByItemId[item.id]}
+                  observation={response.observationsByItemId[item.id]}
                 />
               ))}
             </dl>
