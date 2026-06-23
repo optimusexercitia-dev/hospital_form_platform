@@ -58,6 +58,47 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 > touches migrations + the condition evaluator + the submit RPC. Branch `feat/form-builder-enhancements`.
 > **Remote `db push` is deferred to a human-gated step after the gate passes** (local Docker only during build).
 
+> ## ▶ RESUME CHECKPOINT — paused 2026-06-23 (read this first)
+>
+> **Where we are:** build complete + E2E gate green (no regressions). QA returned **CHANGES REQUESTED**
+> (one MAJOR + MINORs); **all QA fixes have LANDED** — FE `b80c5ba` (number-condition value coercion +
+> a11y MINOR-1/3 + new `condition-builder.test.ts`), BE `cf6dcfb` (publish-time number-value guard
+> MAJOR-1 net + MINOR-2 + INFO-1; pgTAP **870/870**). **HEAD at pause: `b80c5ba`.**
+>
+> **In-flight at pause (VERIFY with `git log`/`git status` on resume):** the **tester** (`af9e7dd0464433361`)
+> was finishing (a) the `prefer-const` lint nit at `e2e/form-builder-enhancements.spec.ts:747` and (b) a
+> **number-condition E2E** (AC-15: build `<number> gt 5` via ConditionBuilder, fill **10 → shows**, **3 →
+> hidden** — the multi-digit lexical≠numeric guard for MAJOR-1), then a fresh-reset re-run of
+> `form-builder-enhancements.spec.ts` + `phase4-builder.spec.ts`. At pause its spec edit was **uncommitted**
+> (`M e2e/form-builder-enhancements.spec.ts`). The QA review doc `docs/reviews/form-builder-enhancements-review.md`
+> was **untracked** (committed at this checkpoint).
+>
+> **Remaining steps to close the gate (in order):**
+> 1. Confirm the tester's lint fix + number-condition E2E are committed & the subset is GREEN (re-dispatch
+>    tester `af9e7dd0464433361` if it didn't finish; the FE fix `b80c5ba` makes the number E2E pass).
+> 2. **QA re-review** — route the QA-fix diff (`cf6dcfb`+`b80c5ba`+ tester's number-E2E) to QA
+>    (`a99c26051bfdff186`); expect **APPROVED** (MAJOR-1 fixed both sides + now covered; MINOR-1/2/3 + INFO-1 cleared).
+> 3. **Human approval** — present the gate summary + the pre-existing-contamination finding (below).
+> 4. **Remote deploy (HUMAN-GATED, not yet done):** `supabase db push` to apply migrations
+>    `20260623120000` + `130000` + `140000` to remote. Deferred all session; needs explicit user go-ahead.
+> 5. **Record (§6.5):** flip this feature → ✅; update `docs/backend-state.md` (the 3 new migrations: form-builder
+>    additive schema + evaluator ops + submit forward-pass; BE-8 sign-off observations; BE-9 number-value guard);
+>    update memory `condition-targets-choice-types-only` (now WIDENED to number/date/time per ADR 0040); final commit.
+>
+> **Warm-teammate agent IDs (same-session resume via SendMessage):** backend `a49907074955eb291` ·
+> frontend `aa9ee5d38f59d8022` · tester `af9e7dd0464433361` · qa `a99c26051bfdff186`. (Fresh session: re-spawn
+> as needed; all context is in this file + the plan + ADR 0040.)
+>
+> **Key artifacts:** plan `docs/plans/form-builder-enhancements.md`; ADR `docs/decisions/0040-…`; migrations
+> `supabase/migrations/20260623{120000,130000,140000}_*.sql`; QA review `docs/reviews/form-builder-enhancements-review.md`.
+>
+> **Non-blocking follow-ups (do NOT gate this feature):** (a) **pre-existing full-serial-suite contamination** —
+> ~17–19 failures on BOTH this branch AND `main` (0 net new from this feature; the 2 branch-unique failures are
+> proven contamination/flaky churn) — a separate spec-isolation effort (phase13-saga class); (b) the FBE E2E spec
+> builds fixtures in the **seeded CCIH commission**, not a throwaway (QA INFO-4) — harden if it joins the full gate
+> matrix; (c) gate practice: declare via **prod build** (`next start`) — the **dev server crashes** under the full
+> serial run (`uncaughtException: Error: aborted`); the **lead** runs the full suite (subagents drop on long runs).
+
 Backend (`backend`):
 
 | # | Task | Status |
