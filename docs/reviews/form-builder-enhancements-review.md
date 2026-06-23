@@ -5,22 +5,51 @@
 **Date:** 2026-06-23
 **Reviewer:** `qa`
 
-## Verdict: CHANGES REQUESTED
+## Verdict: APPROVED
+
+**Re-review: 2026-06-23 — all findings addressed. Verdict upgraded from CHANGES REQUESTED.**
 
 The security / RLS / data-integrity surface is **clean** — the relaxed CHECKs are
 supersets, immutability and Rule 11 hold, the single-door sign-off read is byte-identical,
 and the SQL↔TS evaluator pair agree with no drift. Build is green (typecheck 0, lint 0,
-re-verified locally) and the E2E gate is green with 0 net-new failures vs the `main` baseline.
+vitest 113/113, pgTAP 870/870) and the E2E gate is green: FBE 15/15 + phase4 8/8 = 23/23
+(fresh local reset, chromium --workers=1). 0 net-new failures vs the `main` baseline.
 
-However, one **core spec deliverable is delivered but functionally incorrect**: per-question /
-section conditions that TARGET a `number` input (plan capability #6, decision #7 — the new
-`gt/gte/lt/lte` ops) silently mis-evaluate for any multi-digit / differing-magnitude
-comparison, on EVERY surface (builder → wizard live show/hide → submit RPC stray-clear). The
-existing tests miss it because the E2E condition flows use a *choice* target and the shared
-numeric vectors feed JSON **numbers**, whereas the builder emits the target value as a
-**string**. Per the phase-gate posture an unmet blocking requirement is CHANGES REQUESTED
-regardless of how much else is correct. This is MAJOR (functional correctness), not an
-RLS/immutability hole — fix is small and local.
+MAJOR-1 (number-target condition mis-evaluation) has been fixed on both sides, covered by
+new unit test vectors and a new E2E AC, and is no longer outstanding. All MINORs and the
+actionable INFO have been resolved. The phase-gate requirements are fully met.
+
+---
+
+## Re-review Summary (2026-06-23)
+
+All findings from the initial CHANGES REQUESTED verdict have been resolved across three
+fix commits:
+
+**`b80c5ba` (FE):**
+- MAJOR-1 fix: `condition-builder.tsx` `toCondition` now coerces the serialized value by
+  target type — number target → `Number()` (emits a JSON number, e.g. `{"op":"gt","value":5}`),
+  date/time → ISO string, choice → label string/array. Added NaN guard for incomplete rows.
+  `toDrafts` read-back fixed (`String(value)` for the number input's display).
+- MINOR-1: `DialogDescription` added to both `item-editor-dialog.tsx` and
+  `section-meta-dialog.tsx` — Radix a11y warning resolved.
+- MINOR-3: `NumberItem` bounds hint wired into `aria-describedby` in `input-item.tsx`.
+- New `condition-builder.test.ts` (7 cases) locks the serialized output type for
+  number/date/time/choice targets; vitest count 106 → 113.
+
+**`cf6dcfb` (BE):**
+- MAJOR-1 net: `app.assert_condition_op_target` now requires `jsonb_typeof(value)='number'`
+  for a `number` target on any scalar op — a malformed string value now fails publish loudly
+  (pt-BR check_violation) rather than mis-evaluating silently at fill/submit. pgTAP 868 → 870
+  (test 51 +2).
+- MINOR-2: stale BE-1 stub comment in `serializeOptions` (`actions.ts`) trimmed.
+- INFO-1: dead throwing server stub `questionConditionTargets(itemId)` deleted from
+  `forms.ts`.
+
+**`ef1e040` (tester):**
+- E2E AC-15: builds a `<number> gt 5` condition via the real ConditionBuilder, fills
+  answer=10 (dependent SHOWS) then answer=3 (dependent HIDDEN) — the multi-digit
+  lexical≠numeric case that the string-value bug would get wrong. FBE spec grows to 15 ACs.
 
 ---
 
@@ -226,14 +255,17 @@ full-serial gate matrix, to reduce shared-DB coupling.
 
 ---
 
-## Re-review checklist (to clear CHANGES REQUESTED)
+## Re-review checklist — all items RESOLVED
 
-1. **MAJOR-1** — number-target conditions evaluate correctly for multi-digit / decimal /
-   differing-magnitude values, end to end (builder serialize + read-back, wizard show/hide,
-   submit stray-clear). Add a vector exercising the builder's real authored shape (number
-   answer vs authored value) to `condition-vectors.json` + an E2E number-condition flow; keep
-   SQL↔TS in agreement. Optionally tighten `assert_condition_op_target` to reject a non-numeric
-   value on a `number` ordered op (fail publish loudly).
-2. **MINOR-1 / MINOR-2 / MINOR-3** — recommended before the §6 Record step (cheap; team
-   preference is to clear MINORs at gate close). MINOR-1 (`item-editor-dialog`
-   DialogDescription) is the one I'd most encourage given it is the central surface here.
+1. **MAJOR-1** ✅ RESOLVED (`b80c5ba` FE + `cf6dcfb` BE + `ef1e040` E2E AC-15).
+2. **MINOR-1** ✅ RESOLVED (`b80c5ba` — `DialogDescription` added to both dialogs).
+3. **MINOR-2** ✅ RESOLVED (`cf6dcfb` — stale `serializeOptions` comment trimmed).
+4. **MINOR-3** ✅ RESOLVED (`b80c5ba` — `NumberItem` bounds wired into `aria-describedby`).
+5. **INFO-1** ✅ RESOLVED (`cf6dcfb` — dead server stub deleted from `forms.ts`).
+
+**Carried non-blocking follow-ups (do not gate this phase):**
+- INFO-2: `form_items_options_shape` superset is data-dependent — noted, no action required.
+- INFO-3: pre-existing full-serial-suite contamination (~17–19 failures on branch AND `main`)
+  — separate spec-isolation effort, not this feature's regression.
+- INFO-4: FBE E2E builds fixtures in the seeded CCIH commission — harden to a probe
+  commission/users if this spec joins the full gate matrix.
