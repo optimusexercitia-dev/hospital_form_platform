@@ -23,9 +23,25 @@ import { createClient } from '@/lib/supabase/server'
 
 export type CommissionRole = 'staff' | 'staff_admin'
 
+/** Minimal organization reference carried alongside a commission (multi-tenancy). */
+export interface OrganizationRef {
+  id: string
+  slug: string
+  name: string
+}
+
 export interface Membership {
-  commission: { id: string; name: string; slug: string }
+  /**
+   * The commission, now nested under its organization (multi-tenancy Phase A).
+   * `organization` is the parent org resolved via `commissions.organization_id`.
+   */
+  commission: { id: string; name: string; slug: string; organization: OrganizationRef }
   role: CommissionRole
+}
+
+/** An org the caller administers (org_admin), independent of any commission membership. */
+export interface OrgAdminMembership {
+  organization: OrganizationRef
 }
 
 export interface SessionContext {
@@ -35,6 +51,11 @@ export interface SessionContext {
   isAdmin: boolean
   /** Sorted by commission.name (pt-BR locale). */
   memberships: Membership[]
+  /**
+   * Organizations the caller is an `org_admin` of (parallel `organization_members`
+   * read). Empty for non-org-admins. Sorted by organization.name (pt-BR locale).
+   */
+  orgAdminOf: OrgAdminMembership[]
 }
 
 /**
@@ -63,16 +84,26 @@ export async function getSessionContext(): Promise<SessionContext | null> {
   // full_name + memberships in two RLS-scoped DB reads (PostgREST verifies the
   // JWT locally — no GoTrue call). `profiles` is readable for self;
   // `commission_members` is joined to `commissions` and filtered to the caller.
-  const [profileResult, membershipResult] = await Promise.all([
+  const [profileResult, membershipResult, orgAdminResult] = await Promise.all([
     supabase
       .from('profiles')
       .select('full_name')
       .eq('id', userId)
       .maybeSingle(),
+    // The nested `organization:organizations(...)` select resolves the parent org
+    // via commissions.organization_id (denormalized, multi-tenancy Phase A).
     supabase
       .from('commission_members')
-      .select('role, commission:commissions(id, name, slug)')
+      .select(
+        'role, commission:commissions(id, name, slug, organization:organizations(id, slug, name))',
+      )
       .eq('user_id', userId),
+    // Orgs the caller is org_admin of (parallel read; RLS-scoped to own orgs).
+    supabase
+      .from('organization_members')
+      .select('organization:organizations(id, slug, name)')
+      .eq('user_id', userId)
+      .eq('role', 'org_admin'),
   ])
 
   const memberships: Membership[] = (membershipResult.data ?? [])
@@ -81,14 +112,31 @@ export async function getSessionContext(): Promise<SessionContext | null> {
         row,
       ): row is {
         role: CommissionRole
-        commission: { id: string; name: string; slug: string }
+        commission: {
+          id: string
+          name: string
+          slug: string
+          organization: OrganizationRef
+        }
       } =>
         row.commission !== null &&
+        (row.commission as { organization: OrganizationRef | null })
+          .organization !== null &&
         (row.role === 'staff' || row.role === 'staff_admin'),
     )
     .map((row) => ({ commission: row.commission, role: row.role }))
     .sort((a, b) =>
       a.commission.name.localeCompare(b.commission.name, 'pt-BR'),
+    )
+
+  const orgAdminOf: OrgAdminMembership[] = (orgAdminResult.data ?? [])
+    .filter(
+      (row): row is { organization: OrganizationRef } =>
+        row.organization !== null,
+    )
+    .map((row) => ({ organization: row.organization }))
+    .sort((a, b) =>
+      a.organization.name.localeCompare(b.organization.name, 'pt-BR'),
     )
 
   return {
@@ -97,6 +145,7 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     fullName: profileResult.data?.full_name ?? null,
     isAdmin,
     memberships,
+    orgAdminOf,
   }
 }
 
@@ -167,4 +216,97 @@ async function getCommissionAccessUncached(slug: string): Promise<{
     null
 
   return { context, commission, role }
+}
+
+/**
+ * Org-aware commission resolution for the `/o/[org]/c/[commission]` routes
+ * (multi-tenancy Phase A). Resolves the organization by `orgSlug`, then the
+ * commission by `(organization_id, slug)` — the commission slug is unique only
+ * PER ORG now, so the org scope is required.
+ *
+ * Returns `null` (caller renders `notFound()`, leaking nothing) when:
+ *   - the org slug does not exist or is not visible to the caller, OR
+ *   - the commission slug does not exist within that org, OR
+ *   - the caller is neither a member of the commission, an org_admin of its org,
+ *     nor a platform admin.
+ *
+ * `role` is the caller's effective coordinator-or-staff role in this commission:
+ *   - their `commission_members` role when they are a member, ELSE
+ *   - `'staff_admin'` when they are an org_admin of the commission's org (the
+ *     org_admin → coordinator branch — an org_admin has coordinator authority
+ *     over every commission in their org without an explicit membership row), ELSE
+ *   - `null` for a platform admin viewing a commission they don't otherwise hold.
+ *
+ * This is the canonical end-state resolver. The legacy single-arg
+ * `getCommissionAccess(slug)` above stays until Phase D cuts every `/c/[slug]`
+ * caller over to this function and removes it.
+ */
+export const getCommissionAccessByOrg = cache(
+  async (
+    orgSlug: string,
+    commissionSlug: string,
+  ): Promise<{
+    context: SessionContext
+    organization: OrganizationRef
+    commission: { id: string; name: string; slug: string }
+    role: CommissionRole | null
+  } | null> => {
+    return getCommissionAccessByOrgUncached(orgSlug, commissionSlug)
+  },
+)
+
+async function getCommissionAccessByOrgUncached(
+  orgSlug: string,
+  commissionSlug: string,
+): Promise<{
+  context: SessionContext
+  organization: OrganizationRef
+  commission: { id: string; name: string; slug: string }
+  role: CommissionRole | null
+} | null> {
+  const context = await getSessionContext()
+  if (!context) {
+    return null
+  }
+
+  const supabase = await createClient()
+
+  // Resolve the org first. RLS (`organizations_select`) returns a row only for
+  // platform admins and org_admins; a plain commission member does NOT read the
+  // org directly here. We therefore resolve the commission by org SLUG joined to
+  // its organization, scoping on the org's slug — the commission SELECT policy
+  // (member or admin) is the access authority, and the nested org comes back via
+  // the denormalized FK regardless of the org-table policy.
+  const { data: commissionRow } = await supabase
+    .from('commissions')
+    .select(
+      'id, name, slug, organization:organizations!inner(id, slug, name)',
+    )
+    .eq('slug', commissionSlug)
+    .eq('organization.slug', orgSlug)
+    .maybeSingle()
+
+  if (!commissionRow || commissionRow.organization === null) {
+    return null
+  }
+
+  const organization = commissionRow.organization as OrganizationRef
+  const commission = {
+    id: commissionRow.id,
+    name: commissionRow.name,
+    slug: commissionRow.slug,
+  }
+
+  // Member role first; else org_admin-of-this-org maps to the coordinator
+  // (staff_admin) branch; else null (platform admin without a held role).
+  const memberRole =
+    context.memberships.find((m) => m.commission.id === commission.id)?.role ??
+    null
+  const isOrgAdmin = context.orgAdminOf.some(
+    (o) => o.organization.id === organization.id,
+  )
+  const role: CommissionRole | null =
+    memberRole ?? (isOrgAdmin ? 'staff_admin' : null)
+
+  return { context, organization, commission, role }
 }

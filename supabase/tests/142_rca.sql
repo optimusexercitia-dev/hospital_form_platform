@@ -43,7 +43,10 @@ insert into public.pqs_members (user_id) select admin from k;
 -- =========================================================================
 -- Drive an event through triage to a confirmed sentinel RCA (admin = NSP).
 -- =========================================================================
-select test_helpers.claims_for((select admin from k), true);
+-- Multi-tenancy Phase B: notify_safety_event dropped its admin term (NSP module
+-- is org-orthogonal). The reporting-commission member registers the event;
+-- downstream NSP work continues as the PQS-enrolled admin.
+select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 create temp table ev on commit drop as
   select (public.notify_safety_event((select comm_x from k), 'Evento sentinela RCA', null, 'death', null, null, null, current_date)).id as id;
@@ -221,7 +224,8 @@ select is((select status from public.rca where id = (select rca_id from r)), 'in
   'reopen moves completed -> in_progress (unfreezes)');
 
 -- Complete-gate: an RCA with NO root cause cannot complete (HC047). Build a fresh one.
-select test_helpers.claims_for((select admin from k), true);
+-- Phase B: reporting-commission member registers (admin term dropped).
+select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 create temp table ev2 on commit drop as
   select (public.notify_safety_event((select comm_x from k), 'Sentinela 2', null, 'death', null, null, null, current_date)).id as id;

@@ -7,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -92,6 +87,7 @@ export type Database = {
           id: string
           metadata: Json
           occurred_at: string
+          organization_id: string | null
           prev_hash: string | null
           row_hash: string
           seq: number
@@ -107,6 +103,7 @@ export type Database = {
           id?: string
           metadata?: Json
           occurred_at?: string
+          organization_id?: string | null
           prev_hash?: string | null
           row_hash: string
           seq: number
@@ -122,6 +119,7 @@ export type Database = {
           id?: string
           metadata?: Json
           occurred_at?: string
+          organization_id?: string | null
           prev_hash?: string | null
           row_hash?: string
           seq?: number
@@ -1967,22 +1965,28 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          hospital_id: string | null
           id: string
           name: string
+          organization_id: string | null
           slug: string
         }
         Insert: {
           created_at?: string
           created_by?: string | null
+          hospital_id?: string | null
           id?: string
           name: string
+          organization_id?: string | null
           slug: string
         }
         Update: {
           created_at?: string
           created_by?: string | null
+          hospital_id?: string | null
           id?: string
           name?: string
+          organization_id?: string | null
           slug?: string
         }
         Relationships: [
@@ -1991,6 +1995,20 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commissions_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commissions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -2407,6 +2425,38 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hospitals: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          organization_id: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          organization_id: string
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          organization_id?: string
+          slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hospitals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -2918,6 +2968,77 @@ export type Database = {
             columns: ["meeting_type_id"]
             isOneToOne: false
             referencedRelation: "commission_meeting_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organization_members: {
+        Row: {
+          created_at: string
+          id: string
+          organization_id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          organization_id: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          organization_id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organization_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organizations: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+          slug: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+          slug: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+          slug?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "organizations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -8589,7 +8710,7 @@ export type Database = {
         Returns: boolean
       }
       verify_audit_chain: {
-        Args: { p_commission?: string }
+        Args: { p_commission?: string; p_organization?: string }
         Returns: {
           broken_seq: number
           ok: boolean
@@ -8768,3 +8889,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

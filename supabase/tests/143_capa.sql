@@ -42,7 +42,9 @@ insert into public.pqs_members (user_id) select admin from k;
 -- Drive an event -> triage(sentinel) -> RCA(completed with a root cause) so we can
 -- open an rca-sourced CAPA and test the close->event side effect.
 -- =========================================================================
-select test_helpers.claims_for((select admin from k), true);
+-- Multi-tenancy Phase B: notify_safety_event dropped its admin term; a
+-- reporting-commission member registers the event.
+select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 create temp table ev on commit drop as
   select (public.notify_safety_event((select comm_x from k), 'Sentinela CAPA', null, 'death', null, null, null, current_date)).id as id;

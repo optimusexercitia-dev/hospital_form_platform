@@ -157,8 +157,12 @@ select is(app.can_read_case_patient((select case_x from cs), (select sa_x from k
   'can_read_case_patient: coordinator → true');
 select is(app.can_read_case_patient((select case_x from cs), (select st_x from k)), true,
   'can_read_case_patient: phase ASSIGNEE → true (the broad scope; assignees need the MRN)');
-select is(app.can_read_case_patient((select case_x from cs), (select admin from k)), true,
-  'can_read_case_patient: admin → true');
+-- Multi-tenancy Phase B: can_read_case_patient is DECOUPLED from can_read_case
+-- (ADR 0038 fork) and carries NO admin and NO org-admin term — case PHI
+-- identifiers never follow platform/org governance. A platform admin who is not
+-- a case worker / PQS reads no MRN.
+select is(app.can_read_case_patient((select case_x from cs), (select admin from k)), false,
+  'can_read_case_patient: platform_admin → FALSE (PHI identifier; admin term dropped; Phase B)');
 select is(app.can_read_case_patient((select case_x from cs), (select st_x2 from k)), false,
   'can_read_case_patient: an unrelated member of the commission → FALSE');
 select is(app.can_read_case_patient((select case_x from cs), (select sa_y from k)), false,

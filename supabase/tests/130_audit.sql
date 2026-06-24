@@ -188,13 +188,16 @@ select is(
   0, 'RLS: plain staff sees zero audit rows');
 reset role;
 
--- admin sees both commissions' rows.
+-- Multi-tenancy Phase B: platform_admin is WALLED OFF from tenant audit rows.
+-- It reads ONLY the platform tier (organization_id IS NULL AND commission_id IS
+-- NULL). Cross-commission audit visibility is now the org_admin's (org-scoped) or
+-- the staff_admin's (own-commission), never the platform admin's.
 select test_helpers.claims_for((select admin from k), true);
 set local role authenticated;
-select ok(
-  (select count(*) from public.audit_log where commission_id = (select comm_x from k)) > 0
-  and (select count(*) from public.audit_log where commission_id = (select comm_y from k)) > 0,
-  'RLS: admin sees both commissions'' rows');
+select is(
+  (select count(*)::int from public.audit_log where commission_id is not null),
+  0,
+  'RLS: platform_admin sees ZERO commission-tier audit rows (walled off; Phase B)');
 reset role;
 
 -- =========================================================================
@@ -263,7 +266,11 @@ begin
 end $$;
 grant select on tamper to authenticated;
 
-select test_helpers.claims_for((select admin from k), true);
+-- Multi-tenancy Phase B: verify_audit_chain commission-tier authz is now
+-- staff_admin-of-commission OR org_admin-of-commission (the platform-admin term
+-- was dropped; the platform admin verifies only the platform chain). The
+-- commission's staff_admin (sa_x) is the legitimate verifier here.
+select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (select broken_seq from public.verify_audit_chain((select comm_x from k))),
