@@ -55,6 +55,7 @@ export function AuditFilters({
   to,
   exportBasePath,
   commissionId,
+  organizationId,
   commissions,
   commission,
 }: {
@@ -68,10 +69,16 @@ export function AuditFilters({
   entity: string | null;
   from: string | null;
   to: string | null;
-  /** The CSV export route path (e.g. `/c/[slug]/manage/audit/export`). null hides it. */
+  /** The CSV export route path (e.g. `/o/[org]/c/[commission]/manage/audit/export`). null hides it. */
   exportBasePath: string | null;
-  /** The commission to verify (own commission); undefined = whole trail (admin). */
+  /** The commission to verify (own commission); undefined = whole trail. */
   commissionId?: string;
+  /**
+   * The organization to verify (org-tier chain), for `/o/[org]/manage/audit`.
+   * Mutually exclusive with `commissionId` in practice; drives the org scope of
+   * the "Verificar integridade" control.
+   */
+  organizationId?: string;
   /** Admin cross-commission view: the commission-filter options. */
   commissions?: AuditCommissionOption[];
   /** The selected commission (admin view). */
@@ -229,7 +236,10 @@ export function AuditFilters({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
-        <AuditIntegrityCheck commissionId={commissionId} />
+        <AuditIntegrityCheck
+          commissionId={commissionId}
+          organizationId={organizationId}
+        />
 
         <div className="flex flex-wrap items-center gap-2">
           {hasAnyFilter && (

@@ -2,20 +2,28 @@
 
 import { useEffect } from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { orgHref } from "@/lib/routing";
 
 /**
- * Error boundary for the admin commission detail. Friendly pt-BR message with a
- * retry and a way back to the registry — never the raw error.
+ * Error boundary for the org-admin commission detail. Friendly pt-BR message with
+ * a retry and a way back to the registry — never the raw error. The back-link is
+ * org-aware (reads the `[org]` route param).
  */
-export default function AdminCommissionDetailError({
+export default function OrgCommissionDetailError({
   error,
   reset,
 }: {
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const params = useParams<{ org: string }>();
+  const backHref = params?.org
+    ? orgHref(params.org, "manage", "comissoes")
+    : "/";
+
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -32,7 +40,7 @@ export default function AdminCommissionDetailError({
           Tentar novamente
         </Button>
         <Button asChild variant="outline" size="lg">
-          <Link href="/admin">Voltar para as comissões</Link>
+          <Link href={backHref}>Voltar para as comissões</Link>
         </Button>
       </div>
     </div>
