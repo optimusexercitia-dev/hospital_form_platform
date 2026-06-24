@@ -25,17 +25,20 @@ export interface VerifyChainState {
 }
 
 /**
- * Run the chain-integrity check for one commission (or, for an admin, the whole
- * trail when `commissionId` is omitted) and return a UI-ready verdict. The
- * `verify_audit_chain` RPC is `is_staff_admin_of`/admin-gated INTERNALLY (the DB
- * is the authority), so no separate access pre-check is needed — a forbidden
- * caller's RPC error surfaces as the generic pt-BR message via the query layer's
+ * Run the chain-integrity check for one TIER and return a UI-ready verdict
+ * (multi-tenancy Phase B — the audit log is a 3-tier chain). Pass:
+ *  - `{ commissionId }` for a commission chain (staff_admin / org_admin gated),
+ *  - `{ organizationId }` for the org chain (org_admin gated — `/o/[org]/manage`),
+ *  - nothing for the platform chain (platform_admin gated — `/admin`).
+ * The `verify_audit_chain` RPC is authz-gated INTERNALLY per tier (the DB is the
+ * authority), so no separate pre-check is needed — a forbidden caller's RPC error
+ * surfaces as the generic pt-BR message via the query layer's
  * `{ ok: false, brokenSeq: -1 }` sentinel. Never throws.
  */
 export async function verifyAuditChainAction(
-  commissionId?: string,
+  scope?: string | { commissionId?: string; organizationId?: string },
 ): Promise<VerifyChainState> {
-  const result = await verifyAuditChain(commissionId)
+  const result = await verifyAuditChain(scope)
 
   if (result.ok) {
     return { ok: true, result, message: AUDIT_MESSAGES.chainOk }

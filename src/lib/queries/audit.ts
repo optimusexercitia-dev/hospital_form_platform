@@ -442,21 +442,78 @@ export async function listAudit(
 }
 
 /**
- * Recompute the hash chain and report integrity. `commissionId` scopes to one
- * commission's chain; `undefined` (admin only) verifies the global chain + every
- * commission chain. Backed by the `verify_audit_chain` DEFINER RPC
- * (`is_staff_admin_of`/admin-gated). Returns `{ ok: true }` when intact, else the
- * first broken `seq`. A forbidden/failed call surfaces as `{ ok: false,
- * brokenSeq: -1 }` so the caller (the action layer) maps it to a generic pt-BR
- * error rather than asserting integrity.
+ * One page of audit entries for an ORGANIZATION (multi-tenancy Phase C), for the
+ * `/o/[org]/manage` org-tier audit. Filters to `organization_id = orgId` — this
+ * is the union of the org chain (`commission_id IS NULL`) AND every commission
+ * chain under the org (every commission-tier row carries the derived
+ * `organization_id`). RLS-scoped: empty for a caller who is not org_admin of
+ * `orgId` (the `audit_log_select` org-tier term). Same shape/pagination as
+ * `listAudit`.
+ */
+export async function listAuditForOrg(
+  orgId: string,
+  filters: AuditFilters,
+): Promise<AuditPage> {
+  const supabase = await createClient()
+
+  const page = Math.max(1, filters.page ?? 1)
+  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, filters.pageSize ?? DEFAULT_PAGE_SIZE))
+  const offset = (page - 1) * pageSize
+
+  let query = supabase
+    .from('audit_log')
+    .select(AUDIT_SELECT, { count: 'exact' })
+    .eq('organization_id', orgId)
+
+  if (filters.actorId) query = query.eq('actor_id', filters.actorId)
+  if (filters.action) query = query.eq('action', filters.action)
+  if (filters.entityType) query = query.eq('entity_type', filters.entityType)
+  if (filters.from) query = query.gte('occurred_at', filters.from)
+  if (filters.to) query = query.lte('occurred_at', `${filters.to}T23:59:59.999Z`)
+
+  const { data, count } = await query
+    .order('occurred_at', { ascending: false })
+    .order('seq', { ascending: false })
+    .range(offset, offset + pageSize - 1)
+    .returns<AuditListRow[]>()
+
+  return {
+    entries: (data ?? []).map(mapAuditRow),
+    total: count ?? 0,
+    page,
+    pageSize,
+  }
+}
+
+/**
+ * Recompute the hash chain and report integrity, per TIER (multi-tenancy Phase B
+ * — the audit log is now a 3-tier chain). Pass exactly one scope:
+ *  - `{ commissionId }` → that commission's chain (authz: staff_admin OR
+ *    org_admin of the commission's org).
+ *  - `{ organizationId }` → that org's chain, `commission_id IS NULL` (authz:
+ *    org_admin of the org).
+ *  - neither → the PLATFORM chain only (authz: platform_admin).
+ * Backed by the `verify_audit_chain(p_commission, p_organization)` DEFINER RPC.
+ * Returns `{ ok: true }` when intact, else the first broken `seq`. A
+ * forbidden/failed call surfaces as `{ ok: false, brokenSeq: -1 }`.
  */
 export async function verifyAuditChain(
-  commissionId?: string,
+  scope?: string | { commissionId?: string; organizationId?: string },
 ): Promise<AuditChainResult> {
   const supabase = await createClient()
 
+  // Backward-compatible: a bare string is the legacy commission-id form (the
+  // existing `/c/.../manage/audit` caller); the object form adds the org tier.
+  const commissionId =
+    typeof scope === 'string' ? scope : scope?.commissionId
+  const organizationId =
+    typeof scope === 'string' ? undefined : scope?.organizationId
+
   const { data, error } = await supabase
-    .rpc('verify_audit_chain', { p_commission: commissionId ?? undefined })
+    .rpc('verify_audit_chain', {
+      p_commission: commissionId ?? undefined,
+      p_organization: organizationId ?? undefined,
+    })
     .returns<{ ok: boolean; broken_seq: number | null }[]>()
 
   if (error || !data || data.length === 0) {

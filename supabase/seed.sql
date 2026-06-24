@@ -37,7 +37,17 @@ declare
     -- exercise the §5 acceptance access paths (grant read, grant write, and the
     -- "gets nothing" boundary). staff3 = write-grantee; staff4 = unrelated boundary.
     jsonb_build_object('id', '00000000-0000-0000-0000-000000000009', 'email', 'staff3.ccih@test.local', 'name', 'Técnico CCIH Três'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-00000000000a', 'email', 'staff4.ccih@test.local', 'name', 'Técnica CCIH Quatro')
+    jsonb_build_object('id', '00000000-0000-0000-0000-00000000000a', 'email', 'staff4.ccih@test.local', 'name', 'Técnica CCIH Quatro'),
+    -- Multi-tenancy (Phase C) personas:
+    --   platform@test.local  = vendor platform_admin (is_admin); NO tenant access
+    --                          (walled off — holds NO commission/org membership).
+    --   orgadmin.a@test.local = org_admin of org-a (CCIH + Farmácia live here).
+    --   orgadmin.b@test.local = org_admin of org-b (the cross-org boundary org).
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b0', 'email', 'platform@test.local',     'name', 'Plataforma (Vendor)'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b1', 'email', 'orgadmin.a@test.local',   'name', 'Admin Rede A'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b2', 'email', 'orgadmin.b@test.local',   'name', 'Admin Rede B'),
+    -- A plain staff persona in org-b's commission, for cross-org isolation tests.
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b3', 'email', 'staff1.qual.b@test.local', 'name', 'Analista Qualidade B')
   );
   u jsonb;
 begin
@@ -80,18 +90,52 @@ begin
     where id = (u ->> 'id')::uuid;
   end loop;
 
+  -- Multi-tenancy (Phase C): the VENDOR platform_admin is platform@test.local —
+  -- the ONLY is_admin, and walled off from tenant data (no commission/org rows).
+  -- admin@test.local stays a plain profile (it is `created_by` on legacy fixtures)
+  -- and is re-homed as the org_admin of org-a below.
   update public.profiles set is_admin = true
-  where id = '00000000-0000-0000-0000-000000000001';
+  where id = '00000000-0000-0000-0000-0000000000b0';
 end $$;
 
 -- ---------------------------------------------------------------------------
--- Commissions + memberships
+-- Multi-tenancy hierarchy (Phase C): organizations -> hospitals -> commissions.
+-- Deterministic org/hospital UUIDs; the existing CCIH/Farmácia commission ids are
+-- PRESERVED. org-a holds BOTH CCIH and Farmácia (so multi@test.local's existing
+-- two-commission bridge is "two commissions within ONE org"); org-b is the
+-- cross-org boundary with its own commission. commissions.organization_id is
+-- auto-derived from hospital_id by the trigger — we set hospital_id only.
 -- ---------------------------------------------------------------------------
-insert into public.commissions (id, name, slug, created_by) values
-  ('a0000000-0000-0000-0000-0000000000a1', 'Comissão de Controle de Infecção Hospitalar', 'ccih', '00000000-0000-0000-0000-000000000001'),
-  ('b0000000-0000-0000-0000-0000000000b1', 'Comissão de Farmácia e Terapêutica',          'farmacia', '00000000-0000-0000-0000-000000000001');
+insert into public.organizations (id, name, slug, created_by) values
+  ('0c000000-0000-0000-0000-00000000000a', 'Rede Hospitalar A', 'rede-a', '00000000-0000-0000-0000-0000000000b0'),
+  ('0c000000-0000-0000-0000-00000000000b', 'Rede Hospitalar B', 'rede-b', '00000000-0000-0000-0000-0000000000b0');
+
+insert into public.hospitals (id, organization_id, name, slug) values
+  ('05000000-0000-0000-0000-00000000000a', '0c000000-0000-0000-0000-00000000000a', 'Hospital Central A', 'central-a'),
+  ('05000000-0000-0000-0000-00000000000b', '0c000000-0000-0000-0000-00000000000b', 'Hospital Central B', 'central-b');
+
+insert into public.organization_members (organization_id, user_id, role) values
+  -- admin@test.local re-homed as org_admin of org-a; orgadmin.a as well (so both
+  -- a legacy id and the named persona administer org-a). orgadmin.b runs org-b.
+  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000001', 'org_admin'),
+  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000b1', 'org_admin'),
+  ('0c000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000b2', 'org_admin');
+
+-- ---------------------------------------------------------------------------
+-- Commissions + memberships. CCIH + Farmácia under org-a's hospital (ids kept);
+-- a new Qualidade commission under org-b's hospital for cross-org isolation.
+-- ---------------------------------------------------------------------------
+insert into public.commissions (id, name, slug, created_by, hospital_id) values
+  ('a0000000-0000-0000-0000-0000000000a1', 'Comissão de Controle de Infecção Hospitalar', 'ccih', '00000000-0000-0000-0000-000000000001', '05000000-0000-0000-0000-00000000000a'),
+  ('b0000000-0000-0000-0000-0000000000b1', 'Comissão de Farmácia e Terapêutica',          'farmacia', '00000000-0000-0000-0000-000000000001', '05000000-0000-0000-0000-00000000000a'),
+  -- org-b commission. Note 'ccih' is reused as a slug HERE under a DIFFERENT org —
+  -- proving per-org slug uniqueness (two orgs may both have a `ccih`/`qualidade`).
+  ('c0000000-0000-0000-0000-0000000000c1', 'Comissão de Qualidade e Segurança',           'qualidade', '00000000-0000-0000-0000-0000000000b2', '05000000-0000-0000-0000-00000000000b');
 
 insert into public.commission_members (commission_id, user_id, role) values
+  -- org-b commission staff_admin + staff (cross-org isolation personas).
+  ('c0000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000b2', 'staff_admin'),
+  ('c0000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000b3', 'staff'),
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000002', 'staff_admin'),
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000003', 'staff'),
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000004', 'staff'),

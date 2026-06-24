@@ -29,6 +29,14 @@ declare
   st_y uuid := gen_random_uuid();
   comm_x uuid := gen_random_uuid();
   comm_y uuid := gen_random_uuid();
+  -- Multi-tenancy: commissions.{hospital_id,organization_id} are NOT NULL since
+  -- Phase C, so bootstrap creates an org + hospital and homes both commissions
+  -- under it. Tests that need a SECOND org (170/172) create their own and
+  -- re-home a commission via update; that still works (the derive trigger refills
+  -- organization_id). One org here keeps the legacy commission-isolation tests
+  -- (X vs Y) valid — isolation is by commission membership, not org.
+  org_b uuid := gen_random_uuid();
+  hosp_b uuid := gen_random_uuid();
   form_u uuid := gen_random_uuid();
   ver_u uuid := gen_random_uuid();
   sec_u uuid := gen_random_uuid();
@@ -69,9 +77,16 @@ begin
   update public.profiles set full_name = 'StaffAdmin Y' where id = sa_y;
   update public.profiles set full_name = 'Staff Y' where id = st_y;
 
-  insert into public.commissions (id, name, slug, created_by) values
-    (comm_x, 'Comissão X', 'comm-x-' || substr(comm_x::text,1,8), admin_id),
-    (comm_y, 'Comissão Y', 'comm-y-' || substr(comm_y::text,1,8), admin_id);
+  -- One org + hospital for the fixture; commissions.organization_id is
+  -- auto-derived from hospital_id by the trigger (we set hospital_id only).
+  insert into public.organizations (id, name, slug)
+    values (org_b, 'Org Bootstrap', 'org-' || substr(org_b::text,1,8));
+  insert into public.hospitals (id, organization_id, name, slug)
+    values (hosp_b, org_b, 'Hosp Bootstrap', 'hosp-' || substr(hosp_b::text,1,8));
+
+  insert into public.commissions (id, name, slug, created_by, hospital_id) values
+    (comm_x, 'Comissão X', 'comm-x-' || substr(comm_x::text,1,8), admin_id, hosp_b),
+    (comm_y, 'Comissão Y', 'comm-y-' || substr(comm_y::text,1,8), admin_id, hosp_b);
 
   insert into public.commission_members (commission_id, user_id, role) values
     (comm_x, sa_x, 'staff_admin'),
@@ -146,7 +161,9 @@ begin
     'sec_signoff_r', sec_signoff_r, 'sec_signoff_a', sec_signoff_a,
     'it_gate', it_gate, 'it_cond', it_cond, 'it_req', it_req,
     'it_signoff_q', it_signoff_q,
-    'form_y', form_y, 'ver_y', ver_y
+    'form_y', form_y, 'ver_y', ver_y,
+    -- Multi-tenancy: the bootstrap org + hospital both commissions hang under.
+    'org_b', org_b, 'hosp_b', hosp_b
   );
   return v;
 end;

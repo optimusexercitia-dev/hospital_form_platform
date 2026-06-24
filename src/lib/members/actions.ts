@@ -121,7 +121,7 @@ export async function inviteStaff(
     return { ok: false, error: MESSAGES.generic }
   }
 
-  revalidatePath(`/c/[slug]/manage/members`, 'page')
+  revalidatePath(`/o/[org]/c/[commission]/manage/members`, 'page')
   return {
     ok: true,
     error: invited ? MESSAGES.staffInvited : MESSAGES.staffAdded,
@@ -165,6 +165,6 @@ export async function removeStaff(
     return { ok: false, error: MESSAGES.generic }
   }
 
-  revalidatePath(`/c/[slug]/manage/members`, 'page')
+  revalidatePath(`/o/[org]/c/[commission]/manage/members`, 'page')
   return { ok: true, error: MESSAGES.staffRemoved }
 }

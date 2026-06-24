@@ -1965,28 +1965,28 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
-          hospital_id: string | null
+          hospital_id: string
           id: string
           name: string
-          organization_id: string | null
+          organization_id: string
           slug: string
         }
         Insert: {
           created_at?: string
           created_by?: string | null
-          hospital_id?: string | null
+          hospital_id: string
           id?: string
           name: string
-          organization_id?: string | null
+          organization_id: string
           slug: string
         }
         Update: {
           created_at?: string
           created_by?: string | null
-          hospital_id?: string | null
+          hospital_id?: string
           id?: string
           name?: string
-          organization_id?: string | null
+          organization_id?: string
           slug?: string
         }
         Relationships: [
