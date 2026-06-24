@@ -48,6 +48,8 @@ function phase(
     responseId: null,
     submittedAt: null,
     result: null,
+    emitsResult: false,
+    manualResultIds: null,
     ...partial,
   }
 }

@@ -353,13 +353,16 @@ export function WizardClient({
     // `null` to CLEAR a previously-stashed override (toggle off or pick "none");
     // `undefined` for standalone fills (the runner ignores it). The reason is only
     // meaningful alongside a non-null override.
+    // MANUAL phases: the picked result is THE result — always send it (the submit
+    // gate below guarantees it is non-empty). AUTOMATIC phases: send the optional
+    // override only when the operator enabled it (else null clears any stash).
     const override = phaseResult
-      ? {
-          overrideResultId: overrideEnabled
-            ? overrideResultId || null
-            : null,
-          reason: overrideEnabled ? overrideReason.trim() || null : null,
-        }
+      ? phaseResult.mode === "manual"
+        ? { overrideResultId: overrideResultId || null, reason: null }
+        : {
+            overrideResultId: overrideEnabled ? overrideResultId || null : null,
+            reason: overrideEnabled ? overrideReason.trim() || null : null,
+          }
       : undefined;
     const result = await actions.submit(override);
     setSaving(false);
@@ -418,6 +421,14 @@ export function WizardClient({
       ? "Há seções pendentes de assinatura. Assine todas as seções marcadas antes de enviar."
       : null;
 
+  // A MANUAL-result phase requires a selection before submit (the server's
+  // conclude path enforces this too; this is the UX guard).
+  const phaseResultBlockReason =
+    phaseResult?.mode === "manual" && !overrideResultId
+      ? "Selecione o resultado da fase antes de enviar."
+      : null;
+  const submitBlockReason = signoffBlockReason ?? phaseResultBlockReason;
+
   // ----- Confirmation (post-submit) -----
   if (submitted) {
     return <ConfirmationScreen slug={data.slug} formTitle={data.formTitle} />;
@@ -437,7 +448,7 @@ export function WizardClient({
       saving={saving}
       banner={banner}
       onSubmit={handleSubmit}
-      blockReason={signoffBlockReason}
+      blockReason={submitBlockReason}
     />
   );
 
@@ -445,6 +456,7 @@ export function WizardClient({
   // case-phase fills only. Rendered on review as a sibling of the sign-off blocks.
   const phaseResultSlot = phaseResult ? (
     <PhaseResultPanel
+      mode={phaseResult.mode}
       ruleset={phaseResult.ruleset}
       options={phaseResult.options}
       answerMap={answerMap}

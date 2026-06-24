@@ -17,21 +17,26 @@ const TEXTAREA_CLASS =
   "min-h-20 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
- * The end-of-wizard per-phase RESULT panel (phase-results feature; task #8),
- * rendered on the review screen as a sibling of the sign-off blocks and gated on
- * `WizardData.phaseResult` being present (case-phase fills only — never standalone
- * forms).
+ * The end-of-wizard per-phase RESULT panel (phase-results feature; extended by
+ * phase-result-manual-mode), rendered on the review screen as a sibling of the
+ * sign-off blocks and gated on `WizardData.phaseResult` (case-phase fills only).
  *
- * It shows the LIVE COMPUTED result — the client-side {@link walkResultRuleset}
- * over the wizard's current answer map, the exact mirror of what the conclusion
- * trigger will compute at submit — and an optional manual OVERRIDE: a result-option
- * picker (the active `options`) plus a reason textarea. The override is owned by
- * `WizardClient`; on submit it routes through `submitCasePhaseResponse` (vs plain
- * `submitResponse`), which stashes the override on the still-`ativa` phase before
- * the conclusion trigger honors it. Clearing the picker reverts to the computed
- * result.
+ * Two modes:
+ *   - AUTOMATIC: shows the LIVE COMPUTED result — the client-side
+ *     {@link walkResultRuleset} over the wizard's current answer map, the exact
+ *     mirror of what the conclusion trigger computes at submit — plus an OPTIONAL
+ *     manual override (a picker over the active vocabulary + a reason).
+ *   - MANUAL: no automatic rules — the filler MUST pick a result from `options`
+ *     (the author-selected allowed subset) before submit. The picker is REQUIRED;
+ *     `WizardClient` blocks submit until a choice is made (the server enforces it
+ *     too).
+ *
+ * Either way the chosen id is owned by `WizardClient`; on submit it routes through
+ * `submitCasePhaseResponse`, which stashes it on the still-`ativa` phase before the
+ * conclusion trigger honors it.
  */
 export function PhaseResultPanel({
+  mode,
   ruleset,
   options,
   answerMap,
@@ -43,17 +48,19 @@ export function PhaseResultPanel({
   onChangeOverrideResult,
   onChangeReason,
 }: {
+  /** `automatic` (computed + optional override) or `manual` (required picker). */
+  mode: "automatic" | "manual";
   /** The phase's snapshotted ruleset (drives the live computed preview). */
   ruleset: ResultRuleset | null;
-  /** The commission's active result options for the override picker. */
+  /** AUTOMATIC: active vocabulary. MANUAL: the author-selected allowed subset. */
   options: ResolvedPhaseResult[];
   /** The wizard's current answer map (question_key → value). */
   answerMap: AnswerMap;
-  /** Whether the manual override is enabled (the picker is shown). */
+  /** AUTOMATIC only: whether the optional override is enabled (the picker shows). */
   overrideEnabled: boolean;
-  /** The chosen override option id, or "" when none picked yet. */
+  /** The chosen option id, or "" when none picked yet. */
   overrideResultId: string;
-  /** The optional override justification. */
+  /** AUTOMATIC only: the optional override justification. */
   reason: string;
   /** Whether a submit is in flight — disables the controls. */
   saving: boolean;
@@ -67,18 +74,77 @@ export function PhaseResultPanel({
     return map;
   }, [options]);
 
-  // The live computed result (first-match-wins → default → none), exactly as the
-  // backend will compute it at conclude. A plain pure call — no memo needed, but we
-  // keep it lightweight.
-  const computedId = useMemo(
-    () => walkResultRuleset(ruleset, answerMap),
-    [ruleset, answerMap],
-  );
-  const computed = computedId ? optionsById.get(computedId) ?? null : null;
-
-  const overrideResult = overrideResultId
+  const chosen = overrideResultId
     ? optionsById.get(overrideResultId) ?? null
     : null;
+
+  // ---- MANUAL: a required result picker (no computed result; no reason) ----
+  if (mode === "manual") {
+    return (
+      <section
+        aria-labelledby="phase-result-heading"
+        className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs"
+      >
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Resultado da fase
+          </span>
+          <h2 id="phase-result-heading" className="text-lg font-semibold">
+            Selecione o resultado
+          </h2>
+          <p className="max-w-prose text-sm text-muted-foreground text-pretty">
+            Esta fase exige que você selecione um resultado antes de enviar.
+          </p>
+        </div>
+
+        <label className="flex flex-col gap-1.5 text-sm">
+          <span className="font-medium">
+            Resultado da fase{" "}
+            <span className="text-destructive" aria-hidden="true">
+              *
+            </span>
+          </span>
+          <select
+            className={SELECT_CLASS}
+            value={overrideResultId}
+            onChange={(e) => onChangeOverrideResult(e.target.value)}
+            disabled={saving}
+            required
+            aria-required="true"
+          >
+            <option value="">Selecione um resultado…</option>
+            {options.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {chosen ? (
+          <p className="inline-flex items-center gap-1.5 text-sm">
+            <span className="text-muted-foreground">Será registrado como:</span>
+            <span
+              className={cn(
+                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+                TOKEN_STYLES[chosen.colorToken] ?? TOKEN_STYLES.muted,
+              )}
+            >
+              {chosen.label}
+            </span>
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Escolha um resultado para poder enviar a fase.
+          </p>
+        )}
+      </section>
+    );
+  }
+
+  // ---- AUTOMATIC: live computed result + optional override ----
+  const computedId = walkResultRuleset(ruleset, answerMap);
+  const computed = computedId ? optionsById.get(computedId) ?? null : null;
 
   return (
     <section
@@ -151,16 +217,16 @@ export function PhaseResultPanel({
               </select>
             </label>
 
-            {overrideResult && (
+            {chosen && (
               <p className="inline-flex items-center gap-1.5 text-sm">
                 <span className="text-muted-foreground">Será registrado como:</span>
                 <span
                   className={cn(
                     "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                    TOKEN_STYLES[overrideResult.colorToken] ?? TOKEN_STYLES.muted,
+                    TOKEN_STYLES[chosen.colorToken] ?? TOKEN_STYLES.muted,
                   )}
                 >
-                  {overrideResult.label}
+                  {chosen.label}
                 </span>
               </p>
             )}

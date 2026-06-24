@@ -67,8 +67,11 @@ const UID_STAFF_1 = '00000000-0000-0000-0000-000000000003'
 const SPEC_TAG = 'CPR-SPEC'
 const FORM_TITLE = `Checklist ${SPEC_TAG}`
 const TEMPLATE_TITLE = `Template ${SPEC_TAG}`
+const MANUAL_TEMPLATE_TITLE = `Template ${SPEC_TAG} Manual`
 const LABEL_CONFORME = 'Conforme'
 const LABEL_NAO_CONFORME = 'Não-conforme'
+// A 3rd vocabulary option used ONLY to prove the manual subset excludes it.
+const LABEL_PENDENTE = 'Pendente'
 
 // ---------------------------------------------------------------------------
 // Fixture state (populated in beforeAll)
@@ -82,14 +85,17 @@ let specItemId: string         // the single required question item ID
 let conformeId: string         // phase_results row — LABEL_CONFORME
 let naoConformeId: string      // phase_results row — LABEL_NAO_CONFORME
 let templateId: string         // our 2-phase process_template
+let manualTemplateId: string   // 1-phase MANUAL-mode process_template
 
 let caseId1: string            // "Sim" → Conforme (computed)
 let caseId2: string            // "Não" → Não-conforme (default fallback)
 let caseId3: string            // override test: ruleset → Conforme, overridden → Não-conforme
+let caseId4: string            // MANUAL phase: subset = Conforme + Não-conforme (Pendente excluded)
 
 let phaseId1: string           // phase 1 of case 1
 let phaseId2: string           // phase 1 of case 2
 let phaseId3: string           // phase 1 of case 3
+let phaseId4: string           // the manual phase of case 4
 
 let responseId3: string        // in-progress response for case 3 (submitted in AC-3)
 
@@ -208,9 +214,10 @@ async function purgeLeftoverState() {
     // Delete the spec cases (cascades case_phases + case_offered_results)
     `DELETE FROM cases WHERE label LIKE 'Caso ${SPEC_TAG}%'`,
 
-    // Delete the spec templates (cascades process_template_phases)
+    // Delete the spec templates (cascades process_template_phases) — both the
+    // automatic 2-phase template AND the manual 1-phase template.
     `DELETE FROM process_templates
-     WHERE title = '${TEMPLATE_TITLE}' AND commission_id = '${COMM_A}'`,
+     WHERE title LIKE 'Template ${SPEC_TAG}%' AND commission_id = '${COMM_A}'`,
 
     // Delete the spec form (cascades form_versions → form_sections → form_items)
     `DELETE FROM forms
@@ -219,7 +226,7 @@ async function purgeLeftoverState() {
     // Delete the spec phase_results vocab rows
     `DELETE FROM phase_results
      WHERE commission_id = '${COMM_A}'
-       AND label IN ('${LABEL_CONFORME}', '${LABEL_NAO_CONFORME}')`,
+       AND label IN ('${LABEL_CONFORME}', '${LABEL_NAO_CONFORME}', '${LABEL_PENDENTE}')`,
 
     'SET session_replication_role = DEFAULT',
   ].join('; ')
@@ -351,6 +358,10 @@ test.beforeAll(async ({ request }) => {
     p_default_due_days: null,
     p_blocks: [],
     p_result_ruleset: ruleset,
+    // An AUTOMATIC (ruleset) phase must declare emits_result (phase-result-manual-mode);
+    // the `process_template_phases_result_emits` CHECK now rejects a ruleset with
+    // emits_result=false.
+    p_emits_result: true,
   })
   expect(
     phase1Resp.ok(),
@@ -468,6 +479,83 @@ test.beforeAll(async ({ request }) => {
   await activatePhase(phaseId3)
   responseId3 = await startResponse(phaseId3)
   await saveAnswer(responseId3, 'Sim')
+
+  // ── MANUAL-mode fixtures (post-conclusion correction subset coverage) ──────
+  // A 3rd vocabulary option that is NOT in the manual subset — the correction
+  // picker must exclude it for the manual phase but INCLUDE it for an automatic one.
+  const pendenteResp = await rpc(request, 'create_phase_result', chefeToken, {
+    p_commission_id: COMM_A,
+    p_label: LABEL_PENDENTE,
+    p_color_token: 'amber',
+    p_is_adverse: false,
+  })
+  expect(
+    pendenteResp.ok(),
+    `beforeAll: create_phase_result "Pendente" failed: ${await pendenteResp.text()}`,
+  ).toBeTruthy()
+
+  // A 1-phase MANUAL template: emits a result the filler MUST pick from an
+  // author-selected subset (Conforme + Não-conforme); Pendente is EXCLUDED. No
+  // ruleset (that would make it automatic).
+  const manualTemplateRow = await svcInsert<{ id: string }>(request, 'process_templates', {
+    commission_id: COMM_A,
+    title: MANUAL_TEMPLATE_TITLE,
+    description: 'Template MANUAL criado pela suite case-phase-result.spec.ts.',
+    status: 'draft',
+    created_by: UID_CHEFE_A,
+  })
+  manualTemplateId = manualTemplateRow.id
+
+  const manualPhaseResp = await rpc(request, 'add_template_phase', chefeToken, {
+    p_template_id: manualTemplateId,
+    p_form_id: specFormId,
+    p_title: 'Fase Manual — Seleção',
+    p_recommend_when: null,
+    p_default_due_days: null,
+    p_blocks: [],
+    p_result_ruleset: null,
+    p_emits_result: true,
+    p_manual_result_ids: [conformeId, naoConformeId],
+  })
+  expect(
+    manualPhaseResp.ok(),
+    `beforeAll: add_template_phase (manual) failed: ${await manualPhaseResp.text()}`,
+  ).toBeTruthy()
+
+  const publishManualResp = await rpc(request, 'publish_process_template', chefeToken, {
+    p_template_id: manualTemplateId,
+  })
+  expect(
+    publishManualResp.ok(),
+    `beforeAll: publish manual template failed: ${await publishManualResp.text()}`,
+  ).toBeTruthy()
+
+  const manualCaseResp = await rpc(request, 'create_case_from_template', chefeToken, {
+    p_template_id: manualTemplateId,
+    p_label: `Caso ${SPEC_TAG} — Manual`,
+  })
+  expect(
+    manualCaseResp.ok(),
+    `beforeAll: create manual case failed: ${await manualCaseResp.text()}`,
+  ).toBeTruthy()
+  caseId4 = ((await manualCaseResp.json()) as { id: string }).id
+
+  phaseId4 = await getPhaseId(caseId4)
+
+  // Conclude the manual phase: a MANUAL phase rejects submit unless a result from
+  // the subset is stashed first (HC061). Stash Conforme (in the subset), then submit.
+  await activatePhase(phaseId4)
+  const responseId4 = await startResponse(phaseId4)
+  await saveAnswer(responseId4, 'Sim')
+  const manualOverrideResp = await rpc(request, 'set_case_phase_result_override', staff1Token, {
+    p_case_phase_id: phaseId4,
+    p_result_id: conformeId,
+  })
+  expect(
+    manualOverrideResp.ok(),
+    `beforeAll: manual mandatory pick failed: ${await manualOverrideResp.text()}`,
+  ).toBeTruthy()
+  await submitResponse(responseId4)
 })
 
 test.afterAll(async () => {
@@ -806,4 +894,106 @@ test('AC-K: keyboard-only flow — vocab settings page and "Corrigir resultado" 
     await page.keyboard.press('Escape')
     await expect(overrideDialog).not.toBeVisible({ timeout: 5_000 })
   }
+})
+
+// ---------------------------------------------------------------------------
+// AC-M1 (MANUAL mode): post-conclusion correction picker is SUBSET-aware
+//
+// Case 4's manual phase allows only {Conforme, Não-conforme}; the commission
+// vocabulary also has "Pendente". The "Corrigir resultado" dialog must list ONLY
+// the allowed subset (no Pendente), offer NO "Limpar" option (a manual result is
+// mandatory), require a selection, and show the manual-specific copy.
+// ---------------------------------------------------------------------------
+
+test('AC-M1: manual-phase correction shows ONLY the allowed subset, no "Limpar"', async ({
+  page,
+}) => {
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/c/ccih/manage/cases/${caseId4}`)
+  await page.waitForLoadState('networkidle')
+
+  const corrigir = page
+    .getByRole('button', { name: /corrigir resultado/i })
+    .first()
+  await expect(corrigir).toBeVisible({ timeout: 12_000 })
+  await corrigir.click()
+
+  const dialog = page
+    .getByRole('dialog')
+    .filter({ hasText: /corrigir resultado/i })
+  await expect(dialog).toBeVisible({ timeout: 8_000 })
+
+  // Manual-specific copy (distinguishes it from the clearable automatic dialog).
+  await expect(
+    dialog.getByText(/resultado é obrigatório e não pode ser removido/i),
+  ).toBeVisible({ timeout: 5_000 })
+
+  const select = dialog.locator('select')
+  await expect(select).toBeVisible()
+
+  const optionTexts = (
+    await dialog.locator('select option').allTextContents()
+  ).map((t) => t.trim())
+
+  // Only the author-selected subset appears.
+  expect(optionTexts).toContain(LABEL_CONFORME)
+  expect(optionTexts).toContain(LABEL_NAO_CONFORME)
+  // "Pendente" is in the commission vocabulary but NOT in this phase's subset.
+  expect(
+    optionTexts.some((t) => t.includes(LABEL_PENDENTE)),
+    `Manual picker must NOT offer "${LABEL_PENDENTE}" (got: ${optionTexts.join(' | ')})`,
+  ).toBeFalsy()
+  // No "use the computed result" escape hatch — the manual result is mandatory.
+  expect(
+    optionTexts.some((t) => /limpar/i.test(t)),
+    'Manual picker must NOT offer a "Limpar" option',
+  ).toBeFalsy()
+
+  // The select is required (a selection is mandatory).
+  const required = await select.evaluate(
+    (el) => (el as HTMLSelectElement).required,
+  )
+  expect(required, 'Manual correction select must be required').toBeTruthy()
+})
+
+// ---------------------------------------------------------------------------
+// AC-M2 (AUTOMATIC mode, non-regression): the correction picker for an automatic
+// phase still offers the FULL active vocabulary (including "Pendente") AND the
+// clearable "Limpar (usar o resultado calculado)" option.
+// ---------------------------------------------------------------------------
+
+test('AC-M2: automatic-phase correction keeps full vocabulary + "Limpar" option', async ({
+  page,
+}) => {
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/c/ccih/manage/cases/${caseId1}`)
+  await page.waitForLoadState('networkidle')
+
+  const corrigir = page
+    .getByRole('button', { name: /corrigir resultado/i })
+    .first()
+  await expect(corrigir).toBeVisible({ timeout: 12_000 })
+  await corrigir.click()
+
+  const dialog = page
+    .getByRole('dialog')
+    .filter({ hasText: /corrigir resultado/i })
+  await expect(dialog).toBeVisible({ timeout: 8_000 })
+
+  const optionTexts = (
+    await dialog.locator('select option').allTextContents()
+  ).map((t) => t.trim())
+
+  // Full active vocabulary — including the option excluded from the manual subset.
+  expect(optionTexts).toContain(LABEL_CONFORME)
+  expect(optionTexts).toContain(LABEL_NAO_CONFORME)
+  expect(
+    optionTexts.some((t) => t.includes(LABEL_PENDENTE)),
+    `Automatic picker must offer the full vocabulary incl. "${LABEL_PENDENTE}"`,
+  ).toBeTruthy()
+  // The clearable "use computed result" option is present for an automatic phase.
+  expect(
+    optionTexts.some((t) => /limpar/i.test(t)),
+    'Automatic picker must offer a "Limpar" option',
+  ).toBeTruthy()
 })

@@ -9,6 +9,7 @@ import {
 import { CoordinatorPhaseActions } from "@/components/cases/coordinator-phase-actions";
 import { PhaseResultBadge } from "@/components/cases/phase-result-badge";
 import { PhaseResultCorrectButton } from "@/components/cases/phase-result-correct-button";
+import { resolvePhaseCorrectionOptions } from "@/components/cases/phase-result-options";
 import { formatDueDate, isOverdue } from "@/components/cases/format";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 import { cn } from "@/lib/utils";
@@ -50,10 +51,25 @@ export function CasePhaseArticle({
    * also requires the phase to be `concluida`. Default `false`.
    */
   canCorrectResult?: boolean;
-  /** The commission's active result options (the correction dialog's picker). */
+  /**
+   * The commission's live ACTIVE result vocabulary — the SOURCE the correction
+   * picker draws from. A MANUAL phase is narrowed to its allowed subset here
+   * before reaching the dialog (see {@link resolvePhaseCorrectionOptions}); an
+   * automatic phase uses the full vocabulary.
+   */
   resultOptions?: ResolvedPhaseResult[];
 }) {
   const heading = phase.title || `Fase ${phase.position}`;
+
+  // Per-phase correction options (phase-result-manual-mode): a MANUAL phase is
+  // restricted to its author-selected subset (and is not clearable); an automatic
+  // phase offers the full active vocabulary; a non-emitting phase offers no
+  // correction at all. `resultOptions` is the commission's live active vocabulary.
+  const correction = resolvePhaseCorrectionOptions(phase, resultOptions);
+  const showCorrect =
+    canCorrectResult &&
+    phase.status === "concluida" &&
+    correction.mode !== "none";
 
   return (
     <article className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs">
@@ -117,13 +133,14 @@ export function CasePhaseArticle({
         canManageLifecycle={canManageLifecycle}
       />
 
-      {canCorrectResult && phase.status === "concluida" && (
+      {showCorrect && (
         <div className="flex justify-end">
           <PhaseResultCorrectButton
             casePhaseId={phase.id}
-            options={resultOptions}
+            options={correction.options}
             currentResultId={phase.resultId}
             phaseLabel={heading}
+            allowClear={correction.allowClear}
           />
         </div>
       )}

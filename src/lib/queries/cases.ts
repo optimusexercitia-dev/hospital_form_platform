@@ -287,6 +287,24 @@ export interface CaseDetail {
        * "manual" marker on the case detail/timeline.
        */
       result: ResolvedPhaseResult | null
+      /**
+       * Whether this phase emits a result at all (phase-result-manual-mode):
+       * `false` → NONE (no result, no correction picker). Threaded so the
+       * post-conclusion correction surface (staff_admin) can hide the affordance
+       * on a non-emitting phase. The `get_case_detail` RPC does not carry this, so
+       * it is read RLS-scoped alongside the envelope (see {@link getCaseDetail}).
+       */
+      emitsResult: boolean
+      /**
+       * For a MANUAL phase (emits a result, no automatic ruleset), the author-
+       * selected ALLOWED SUBSET of result option ids (from
+       * `case_phases.allowed_result_ids`); `null` for an automatic or non-emitting
+       * phase. The post-conclusion correction picker restricts to THIS subset
+       * (resolved + ordered against the live vocabulary, like the wizard's manual
+       * picker) so the staff_admin never picks an option the server would reject
+       * with HC058. Mirrors {@link getCasePhaseForFill}.
+       */
+      manualResultIds: string[] | null
     }
   >
   /**
@@ -322,11 +340,25 @@ export interface CasePhaseForFill {
    * Standalone (non-case) fills never carry this.
    */
   result: {
-    /** The phase's SNAPSHOTTED ruleset (`case_phases.result_ruleset`); `null` if none. */
+    /**
+     * The phase's result MODE (phase-result-manual-mode). `automatic` = the
+     * snapshotted ruleset computes the result (the filler may optionally
+     * override); `manual` = the filler MUST pick from `options` (the
+     * author-selected subset) before submit.
+     */
+    mode: 'automatic' | 'manual'
+    /** The phase's SNAPSHOTTED ruleset (`case_phases.result_ruleset`); `null` for manual. */
     resultRuleset: ResultRuleset | null
-    /** The commission's ACTIVE result options for the override picker. */
+    /**
+     * The selectable result options. AUTOMATIC: the commission's ACTIVE
+     * vocabulary (optional override). MANUAL: only the author-selected allowed
+     * subset (the required picker).
+     */
     options: ResolvedPhaseResult[]
-    /** The currently-stashed override option id (set pre-submit), or `null`. */
+    /**
+     * The currently-stashed selection/override option id (set pre-submit), or
+     * `null`. For manual phases this is the filler's chosen result.
+     */
     currentOverrideId: string | null
   } | null
 }
@@ -507,6 +539,31 @@ interface BoardRowJson {
   created_at: string
   closed_at: string | null
   phases: BoardPhaseJson[]
+}
+
+/**
+ * The result-MODE columns of a `case_phases` row (phase-result-manual-mode),
+ * read RLS-scoped to supplement the `get_case_detail` envelope (which omits
+ * them). The MODE is the ruleset's presence (ruleset → automatic; none → manual);
+ * `allowed_result_ids` is the author-selected subset (present for both modes when
+ * emitting). The correction picker derives the MANUAL-only subset from these.
+ */
+interface CasePhaseModeRow {
+  id: string
+  emits_result: boolean
+  result_ruleset: ResultRuleset | null
+  allowed_result_ids: string[] | null
+}
+
+/**
+ * The MANUAL-only allowed subset of a case phase (for the correction picker): the
+ * allowed subset when the phase emits a result with NO automatic ruleset (manual),
+ * else `null` (automatic phases keep full-flexibility corrections; non-emitting
+ * phases have no result). Mirrors the wizard's `loadPhaseResultContext` mode rule.
+ */
+function manualSubsetOf(row: CasePhaseModeRow | undefined): string[] | null {
+  if (!row || !row.emits_result || row.result_ruleset != null) return null
+  return row.allowed_result_ids ?? null
 }
 
 /** One phase entry inside the `get_case_detail` jsonb envelope. */
@@ -702,6 +759,21 @@ async function getCaseDetailUncached(
 
   const env = data as unknown as CaseDetailJson
 
+  // The `get_case_detail` envelope does NOT carry each phase's result MODE inputs
+  // (`emits_result` / `result_ruleset` / `allowed_result_ids`). Read them RLS-scoped
+  // (commission members may read their case_phases) so the post-conclusion
+  // correction picker can gate on emits-result and restrict a MANUAL phase to its
+  // allowed subset — the same direct-read pattern as `getCasePhaseForFill`. A row
+  // the caller may not read simply defaults to "no result mode".
+  const { data: modeRows } = await supabase
+    .from('case_phases')
+    .select('id, emits_result, result_ruleset, allowed_result_ids')
+    .eq('case_id', caseId)
+    .returns<CasePhaseModeRow[]>()
+  const modeByPhaseId = new Map(
+    (modeRows ?? []).map((r) => [r.id, r] as const),
+  )
+
   return {
     case: {
       id: env.id,
@@ -743,6 +815,11 @@ async function getCaseDetailUncached(
       responseId: p.response_id,
       submittedAt: p.submitted_at,
       result: mapPhaseResultJson(p.result ?? null),
+      emitsResult: modeByPhaseId.get(p.id)?.emits_result ?? false,
+      // The MANUAL-only allowed subset (null for automatic / non-emitting): the
+      // correction picker restricts to it ONLY for manual phases (automatic
+      // corrections keep full flexibility). MANUAL = emits a result, no ruleset.
+      manualResultIds: manualSubsetOf(modeByPhaseId.get(p.id)),
     })),
     narratives: (env.narratives ?? []).map((n) => mapNarrativeJson(n, env.id)),
     // Until BE-4 adds `viewer_capabilities` to the RPC, default to coordinator-
@@ -840,6 +917,8 @@ interface PhaseFillRow {
   default_due_days: number | null
   result_ruleset: ResultRuleset | null
   result_override_id: string | null
+  emits_result: boolean
+  allowed_result_ids: string[] | null
   forms: { title: string | null } | null
   cases: {
     id: string
@@ -873,7 +952,8 @@ export async function getCasePhaseForFill(
       `
       id, case_id, position, form_id, form_version_id, title, status,
       recommended, assigned_to, is_ad_hoc, blocks, recommend_when, due_date,
-      default_due_days, result_ruleset, result_override_id,
+      default_due_days, result_ruleset, result_override_id, emits_result,
+      allowed_result_ids,
       forms ( title ),
       cases (
         id, commission_id, template_id, case_number, label, status, outcome_id,
@@ -932,7 +1012,9 @@ export async function getCasePhaseForFill(
     // is off OR the phase carries no ruleset AND no override (nothing to surface).
     result: await loadPhaseResultContext(
       supabase,
+      data.emits_result,
       data.result_ruleset,
+      data.allowed_result_ids,
       data.result_override_id,
       c.commission_id,
     ),
@@ -941,21 +1023,30 @@ export async function getCasePhaseForFill(
 
 /**
  * Build the {@link CasePhaseForFill.result} context. Returns `null` when the
- * feature is off, or when the phase has neither a snapshotted ruleset nor a stashed
- * override (so the wizard renders no override panel). Otherwise loads the
- * commission's ACTIVE result options for the picker.
+ * feature is off or the phase does NOT emit a result (no panel). The MODE is the
+ * snapshotted ruleset's presence (phase-result-manual-mode):
+ *   - MANUAL (no ruleset): `options` is the author-selected ALLOWED subset
+ *     (resolved + ordered against the live ACTIVE vocabulary) — the REQUIRED
+ *     picker;
+ *   - AUTOMATIC (ruleset present): `options` is the full ACTIVE vocabulary — the
+ *     OPTIONAL override picker — and `resultRuleset` drives the live computed
+ *     preview. (The allowed subset constrains rule AUTHORING, not the override.)
  */
 async function loadPhaseResultContext(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  emitsResult: boolean,
   ruleset: ResultRuleset | null,
+  allowedResultIds: string[] | null,
   currentOverrideId: string | null,
   commissionId: string,
 ): Promise<CasePhaseForFill['result']> {
   const { data: enabled } = await supabase.rpc('case_phase_results_enabled')
   if (enabled !== true) return null
-  if (ruleset == null && currentOverrideId == null) return null
+  // A phase that emits no result shows no panel (back-compat: legacy automatic
+  // phases were back-filled to emits_result = true).
+  if (!emitsResult) return null
 
-  const options = (await listPhaseResults(commissionId)).map(
+  const active = (await listPhaseResults(commissionId)).map(
     (o): ResolvedPhaseResult => ({
       id: o.id,
       label: o.label,
@@ -965,7 +1056,23 @@ async function loadPhaseResultContext(
     }),
   )
 
-  return { resultRuleset: ruleset, options, currentOverrideId }
+  // No ruleset → MANUAL: the filler picks from the allowed subset (required).
+  if (ruleset == null) {
+    const byId = new Map(active.map((o) => [o.id, o]))
+    // Preserve the author's chosen order; drop any since-archived option.
+    const options = (allowedResultIds ?? [])
+      .map((id) => byId.get(id))
+      .filter((o): o is ResolvedPhaseResult => o != null)
+    return { mode: 'manual', resultRuleset: null, options, currentOverrideId }
+  }
+
+  // Ruleset present → AUTOMATIC: optional override over the full active vocabulary.
+  return {
+    mode: 'automatic',
+    resultRuleset: ruleset,
+    options: active,
+    currentOverrideId,
+  }
 }
 
 // ---------------------------------------------------------------------------

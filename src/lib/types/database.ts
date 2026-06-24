@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -1406,6 +1411,7 @@ export type Database = {
       case_phases: {
         Row: {
           activated_at: string | null
+          allowed_result_ids: Json | null
           assigned_to: string | null
           blocks: number[]
           case_id: string
@@ -1414,6 +1420,7 @@ export type Database = {
           default_due_days: number | null
           display_position: number | null
           due_date: string | null
+          emits_result: boolean
           form_id: string
           form_version_id: string
           id: string
@@ -1436,6 +1443,7 @@ export type Database = {
         }
         Insert: {
           activated_at?: string | null
+          allowed_result_ids?: Json | null
           assigned_to?: string | null
           blocks?: number[]
           case_id: string
@@ -1444,6 +1452,7 @@ export type Database = {
           default_due_days?: number | null
           display_position?: number | null
           due_date?: string | null
+          emits_result?: boolean
           form_id: string
           form_version_id: string
           id?: string
@@ -1466,6 +1475,7 @@ export type Database = {
         }
         Update: {
           activated_at?: string | null
+          allowed_result_ids?: Json | null
           assigned_to?: string | null
           blocks?: number[]
           case_id?: string
@@ -1474,6 +1484,7 @@ export type Database = {
           default_due_days?: number | null
           display_position?: number | null
           due_date?: string | null
+          emits_result?: boolean
           form_id?: string
           form_version_id?: string
           id?: string
@@ -3341,10 +3352,12 @@ export type Database = {
       }
       process_template_phases: {
         Row: {
+          allowed_result_ids: Json | null
           blocks: number[]
           created_at: string
           default_due_days: number | null
           display_position: number | null
+          emits_result: boolean
           form_id: string
           id: string
           position: number
@@ -3354,10 +3367,12 @@ export type Database = {
           title: string | null
         }
         Insert: {
+          allowed_result_ids?: Json | null
           blocks?: number[]
           created_at?: string
           default_due_days?: number | null
           display_position?: number | null
+          emits_result?: boolean
           form_id: string
           id?: string
           position: number
@@ -3367,10 +3382,12 @@ export type Database = {
           title?: string | null
         }
         Update: {
+          allowed_result_ids?: Json | null
           blocks?: number[]
           created_at?: string
           default_due_days?: number | null
           display_position?: number | null
+          emits_result?: boolean
           form_id?: string
           id?: string
           position?: number
@@ -4379,6 +4396,7 @@ export type Database = {
         }
         Returns: {
           activated_at: string | null
+          allowed_result_ids: Json | null
           assigned_to: string | null
           blocks: number[]
           case_id: string
@@ -4387,6 +4405,7 @@ export type Database = {
           default_due_days: number | null
           display_position: number | null
           due_date: string | null
+          emits_result: boolean
           form_id: string
           form_version_id: string
           id: string
@@ -4424,6 +4443,7 @@ export type Database = {
         }
         Returns: {
           activated_at: string | null
+          allowed_result_ids: Json | null
           assigned_to: string | null
           blocks: number[]
           case_id: string
@@ -4432,6 +4452,7 @@ export type Database = {
           default_due_days: number | null
           display_position: number | null
           due_date: string | null
+          emits_result: boolean
           form_id: string
           form_version_id: string
           id: string
@@ -4919,8 +4940,10 @@ export type Database = {
       }
       add_template_phase: {
         Args: {
+          p_allowed_result_ids?: Json
           p_blocks?: number[]
           p_default_due_days?: number
+          p_emits_result?: boolean
           p_form_id: string
           p_recommend_when?: Json
           p_result_ruleset?: Json
@@ -4928,10 +4951,12 @@ export type Database = {
           p_title?: string
         }
         Returns: {
+          allowed_result_ids: Json | null
           blocks: number[]
           created_at: string
           default_due_days: number | null
           display_position: number | null
+          emits_result: boolean
           form_id: string
           id: string
           position: number
@@ -6066,6 +6091,7 @@ export type Database = {
       }
       create_referral_draft: {
         Args: {
+          p_description_md?: string
           p_referral_type_id: string
           p_response_expected?: boolean
           p_source_case_id: string
@@ -6644,6 +6670,7 @@ export type Database = {
         }
         Returns: {
           activated_at: string | null
+          allowed_result_ids: Json | null
           assigned_to: string | null
           blocks: number[]
           case_id: string
@@ -6652,6 +6679,7 @@ export type Database = {
           default_due_days: number | null
           display_position: number | null
           due_date: string | null
+          emits_result: boolean
           form_id: string
           form_version_id: string
           id: string
@@ -7384,10 +7412,12 @@ export type Database = {
       set_template_phase_blocks: {
         Args: { p_blocks: number[]; p_phase_id: string }
         Returns: {
+          allowed_result_ids: Json | null
           blocks: number[]
           created_at: string
           default_due_days: number | null
           display_position: number | null
+          emits_result: boolean
           form_id: string
           id: string
           position: number
@@ -7449,6 +7479,7 @@ export type Database = {
         Args: { p_case_phase_id: string }
         Returns: {
           activated_at: string | null
+          allowed_result_ids: Json | null
           assigned_to: string | null
           blocks: number[]
           case_id: string
@@ -7457,6 +7488,7 @@ export type Database = {
           default_due_days: number | null
           display_position: number | null
           due_date: string | null
+          emits_result: boolean
           form_id: string
           form_version_id: string
           id: string
@@ -8515,12 +8547,15 @@ export type Database = {
       }
       update_template_phase: {
         Args: {
+          p_allowed_result_ids?: Json
           p_blocks?: number[]
+          p_clear_allowed_result_ids?: boolean
           p_clear_blocks?: boolean
           p_clear_default_due_days?: boolean
           p_clear_recommend_when?: boolean
           p_clear_result_ruleset?: boolean
           p_default_due_days?: number
+          p_emits_result?: boolean
           p_form_id?: string
           p_phase_id: string
           p_recommend_when?: Json
@@ -8528,10 +8563,12 @@ export type Database = {
           p_title?: string
         }
         Returns: {
+          allowed_result_ids: Json | null
           blocks: number[]
           created_at: string
           default_due_days: number | null
           display_position: number | null
+          emits_result: boolean
           form_id: string
           id: string
           position: number
@@ -8731,4 +8768,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

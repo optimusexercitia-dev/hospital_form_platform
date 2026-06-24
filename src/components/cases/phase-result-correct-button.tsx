@@ -19,11 +19,18 @@ export function PhaseResultCorrectButton({
   options,
   currentResultId,
   phaseLabel,
+  allowClear = true,
 }: {
   casePhaseId: string;
   options: ResolvedPhaseResult[];
   currentResultId: string | null;
   phaseLabel: string;
+  /**
+   * Whether the dialog may CLEAR the result (automatic phases). `false` for a
+   * MANUAL phase — its result is mandatory, so the "use the computed result"
+   * option is hidden and a selection is required. Default `true`.
+   */
+  allowClear?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -44,6 +51,7 @@ export function PhaseResultCorrectButton({
         options={options}
         currentResultId={currentResultId}
         phaseLabel={phaseLabel}
+        allowClear={allowClear}
       />
     </>
   );

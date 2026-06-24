@@ -26,13 +26,28 @@ import {
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
 import { RecommendWhenEditor } from "@/components/process-templates/recommend-when-editor";
-import { ResultRulesetEditor } from "@/components/process-templates/result-ruleset-editor";
+import {
+  PhaseResultEditor,
+  MIN_ALLOWED_RESULTS,
+  type PhaseResultValue,
+} from "@/components/process-templates/result-ruleset-editor";
 import { PhaseBlocksEditor } from "@/components/process-templates/phase-blocks-editor";
 import type { PhaseWithTargets } from "@/components/process-templates/phase-with-targets";
 import type { SlotForm } from "@/components/process-templates/template-builder-shell";
 
 const SELECT_CLASS =
   "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
+
+/** Seed the consolidated phase-result config from an existing phase (or empty). */
+function initialResultValue(phase?: ProcessTemplatePhase): PhaseResultValue {
+  return {
+    emitsResult: phase?.emitsResult ?? false,
+    resultRuleset: phase?.resultRuleset
+      ? JSON.stringify(phase.resultRuleset)
+      : "",
+    allowedResultIds: phase?.allowedResultIds ?? [],
+  };
+}
 
 /** Stable compare of two unordered position arrays. */
 function sameBlocks(a: number[], b: number[]): boolean {
@@ -105,9 +120,10 @@ export function PhaseSlotDialog({
   const [recommendJson, setRecommendJson] = useState<string>(
     phase?.recommendWhen ? JSON.stringify(phase.recommendWhen) : "",
   );
-  // Serialized ResultRuleset JSON ("" = none) emitted by the result editor.
-  const [resultRulesetJson, setResultRulesetJson] = useState<string>(
-    phase?.resultRuleset ? JSON.stringify(phase.resultRuleset) : "",
+  // Consolidated phase-result config (phase-result-manual-mode): emits flag +
+  // automatic ruleset JSON ("" = none) + manual allowed subset.
+  const [resultValue, setResultValue] = useState<PhaseResultValue>(() =>
+    initialResultValue(phase),
   );
   // The selected blocker positions (D1/D4). Persisted separately on success.
   const [blocks, setBlocks] = useState<number[]>(phase?.blocks ?? []);
@@ -122,9 +138,7 @@ export function PhaseSlotDialog({
       setTitle(phase?.title ?? "");
       setDefaultDays(phase?.defaultDueDays != null ? String(phase.defaultDueDays) : "");
       setRecommendJson(phase?.recommendWhen ? JSON.stringify(phase.recommendWhen) : "");
-      setResultRulesetJson(
-        phase?.resultRuleset ? JSON.stringify(phase.resultRuleset) : "",
-      );
+      setResultValue(initialResultValue(phase));
       setBlocks(phase?.blocks ?? []);
     }
   }
@@ -148,7 +162,19 @@ export function PhaseSlotDialog({
   const clearRecommend = mode === "edit" && hadRecommend && recommendJson === "";
   const hadResultRuleset = Boolean(phase?.resultRuleset);
   const clearResultRuleset =
-    mode === "edit" && hadResultRuleset && resultRulesetJson === "";
+    mode === "edit" && hadResultRuleset && resultValue.resultRuleset === "";
+  const hadAllowedResultIds = Boolean(phase?.allowedResultIds?.length);
+  const clearAllowedResultIds =
+    mode === "edit" &&
+    hadAllowedResultIds &&
+    resultValue.allowedResultIds.length === 0;
+
+  // Client-side authoring gate (phase-result-manual-mode): an emitting phase needs
+  // at least MIN_ALLOWED_RESULTS allowed results before it can be added/saved.
+  const resultIncomplete =
+    phaseResultsEnabled &&
+    resultValue.emitsResult &&
+    resultValue.allowedResultIds.length < MIN_ALLOWED_RESULTS;
 
   // The choice targets of the SELECTED form (the result editor follows `formId`).
   const selectedTargets =
@@ -156,6 +182,9 @@ export function PhaseSlotDialog({
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    // Defensive: the submit button is disabled while the result config is
+    // incomplete (< MIN_ALLOWED_RESULTS), but never proceed if it slips through.
+    if (resultIncomplete) return;
     const form = new FormData();
     if (mode === "create") {
       form.set("templateId", templateId);
@@ -168,8 +197,16 @@ export function PhaseSlotDialog({
     form.set("recommendWhen", recommendJson);
     if (clearRecommend) form.set("clearRecommendWhen", "true");
     if (phaseResultsEnabled) {
-      form.set("resultRuleset", resultRulesetJson);
+      form.set("emitsResult", resultValue.emitsResult ? "true" : "false");
+      form.set("resultRuleset", resultValue.resultRuleset);
+      form.set(
+        "allowedResultIds",
+        resultValue.allowedResultIds.length
+          ? JSON.stringify(resultValue.allowedResultIds)
+          : "",
+      );
       if (clearResultRuleset) form.set("clearResultRuleset", "true");
+      if (clearAllowedResultIds) form.set("clearAllowedResultIds", "true");
     }
 
     startTransition(async () => {
@@ -306,11 +343,11 @@ export function PhaseSlotDialog({
           />
 
           {phaseResultsEnabled && (
-            <ResultRulesetEditor
+            <PhaseResultEditor
               targets={selectedTargets}
               results={phaseResults}
-              value={resultRulesetJson}
-              onChange={setResultRulesetJson}
+              value={resultValue}
+              onChange={setResultValue}
               error={state?.fieldErrors?.resultRuleset}
             />
           )}
@@ -324,7 +361,11 @@ export function PhaseSlotDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" size="lg" disabled={isPending}>
+            <Button
+              type="submit"
+              size="lg"
+              disabled={isPending || resultIncomplete}
+            >
               {isPending
                 ? "Salvando…"
                 : mode === "create"

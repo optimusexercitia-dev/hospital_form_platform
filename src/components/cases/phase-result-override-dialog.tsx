@@ -44,16 +44,28 @@ export function PhaseResultOverrideDialog({
   options,
   currentResultId,
   phaseLabel,
+  allowClear = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   casePhaseId: string;
-  /** The commission's active result options. */
+  /**
+   * The result options the picker offers. For a MANUAL phase this is the phase's
+   * author-selected allowed subset (the host narrows it); for an automatic phase
+   * it is the commission's full active vocabulary.
+   */
   options: ResolvedPhaseResult[];
   /** The phase's CURRENT effective result id (pre-selects the picker); `null` if none. */
   currentResultId: string | null;
   /** A label for the dialog title (e.g. "Fase 2 — Revisão"). */
   phaseLabel: string;
+  /**
+   * Whether the result may be CLEARED (automatic phases — revert to the computed
+   * result). `false` for a MANUAL phase: the result is mandatory, so the "use the
+   * computed result" option is hidden and a selection is required before saving.
+   * Default `true`.
+   */
+  allowClear?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -79,9 +91,14 @@ export function PhaseResultOverrideDialog({
     }
   }, [state, onOpenChange, router]);
 
+  // A MANUAL phase requires a selection (clearing is rejected server-side, HC062).
+  const missingRequired = !allowClear && !resultId;
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // "" → null clears any override (revert to the computed result).
+    if (missingRequired) return;
+    // "" → null clears any override (revert to the computed result). For a manual
+    // phase clearing is disallowed, so `resultId` is always set when we reach here.
     const chosen = resultId || null;
     const trimmedReason = reason.trim() || null;
     startTransition(async () => {
@@ -102,8 +119,9 @@ export function PhaseResultOverrideDialog({
         <DialogHeader>
           <DialogTitle>Corrigir resultado</DialogTitle>
           <DialogDescription>
-            Ajuste o resultado registrado para {phaseLabel}. O resultado corrigido
-            é marcado como manual.
+            {allowClear
+              ? `Ajuste o resultado registrado para ${phaseLabel}. O resultado corrigido é marcado como manual.`
+              : `Esta fase tem resultado manual: escolha uma das opções permitidas para ${phaseLabel}. O resultado é obrigatório e não pode ser removido.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -113,14 +131,34 @@ export function PhaseResultOverrideDialog({
           )}
 
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Resultado</span>
+            <span className="font-medium">
+              Resultado
+              {!allowClear && (
+                <span className="text-destructive" aria-hidden="true">
+                  {" "}
+                  *
+                </span>
+              )}
+            </span>
             <select
               className={SELECT_CLASS}
               value={resultId}
               onChange={(e) => setResultId(e.target.value)}
               disabled={isPending}
+              required={!allowClear}
+              aria-required={!allowClear}
             >
-              <option value="">Limpar (usar o resultado calculado)</option>
+              {allowClear ? (
+                <option value="">Limpar (usar o resultado calculado)</option>
+              ) : (
+                // Manual phase: no "clear" option — a result is mandatory. The
+                // disabled placeholder only shows until a choice is made.
+                !resultId && (
+                  <option value="" disabled>
+                    Selecione um resultado…
+                  </option>
+                )
+              )}
               {options.map((o) => (
                 <option key={o.id} value={o.id}>
                   {o.label}
@@ -166,7 +204,11 @@ export function PhaseResultOverrideDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" size="lg" disabled={isPending}>
+            <Button
+              type="submit"
+              size="lg"
+              disabled={isPending || missingRequired}
+            >
               {isPending ? "Salvando…" : "Salvar correção"}
             </Button>
           </DialogFooter>

@@ -72,14 +72,31 @@ export interface ProcessTemplatePhase {
    */
   displayPosition: number | null
   /**
+   * Whether this phase emits a result at all (phase-result-manual-mode). With the
+   * two fields below it drives the three modes:
+   *   - `emitsResult === false`                  → NONE (no result)
+   *   - `emitsResult && resultRuleset !== null`   → AUTOMATIC (rules pick a result)
+   *   - `emitsResult && resultRuleset === null`   → MANUAL (filler picks)
+   * An emitting phase with no `allowedResultIds` is an incomplete draft, blocked
+   * at publish.
+   */
+  emitsResult: boolean
+  /**
    * Optional per-phase RESULT ruleset (phase-results feature): an ordered set of
    * rules over THIS phase's OWN answers (no `from_phase`) that emit a categorical
    * result option when the phase's form is submitted, with a default fallback.
-   * Authored in the rule editor; deep-validated at publish time and snapshotted
-   * onto each case-phase at case creation. `null` = the phase emits no result.
-   * Mutable only while the template is `draft`.
+   * The rules may only reference {@link allowedResultIds}. `null` = MANUAL (the
+   * filler picks). Mutable only while the template is `draft`.
    */
   resultRuleset: ResultRuleset | null
+  /**
+   * The author-selected ALLOWED result subset (phase-result-manual-mode): present
+   * whenever the phase emits a result, for BOTH modes. MANUAL — the options the
+   * filler chooses from; AUTOMATIC — the options the rules/default may reference.
+   * `null` when the phase emits no result. Validated (non-archived, in-commission)
+   * at publish and snapshotted onto each case-phase.
+   */
+  allowedResultIds: string[] | null
 }
 
 /** A process template (blueprint) plus its ordered phase-slots. */
@@ -136,6 +153,8 @@ interface TemplatePhaseRow {
   blocks: number[] | null
   display_position: number | null
   result_ruleset: ResultRuleset | null
+  emits_result: boolean
+  allowed_result_ids: string[] | null
   forms: { title: string | null } | null
 }
 
@@ -175,7 +194,7 @@ const TEMPLATE_SELECT = `
   id, commission_id, title, description, status, created_at, collects_patient,
   process_template_phases (
     id, template_id, position, form_id, title, recommend_when, default_due_days,
-    blocks, display_position, result_ruleset,
+    blocks, display_position, result_ruleset, emits_result, allowed_result_ids,
     forms ( title )
   ),
   process_template_narratives (
@@ -199,6 +218,8 @@ function mapPhase(p: TemplatePhaseRow): ProcessTemplatePhase {
     blocks: p.blocks ?? [],
     displayPosition: p.display_position ?? null,
     resultRuleset: p.result_ruleset ?? null,
+    emitsResult: p.emits_result ?? false,
+    allowedResultIds: p.allowed_result_ids ?? null,
   }
 }
 

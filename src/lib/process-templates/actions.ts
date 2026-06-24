@@ -56,6 +56,8 @@ const MESSAGES = {
     'A condição de recomendação é inválida. Verifique a fase de origem e a pergunta.',
   resultRulesetInvalid:
     'O resultado da fase é inválido. Verifique a pergunta e as opções de resultado.',
+  allowedResultsInvalid:
+    'Selecione os resultados permitidos para esta fase.',
   noPublishedVersion:
     'O formulário de origem da recomendação ainda não foi publicado.',
   needsPhase: 'Um processo precisa de ao menos uma fase para ser publicado.',
@@ -153,6 +155,31 @@ function mapRpcError(error: { code?: string; message?: string } | null): string 
  */
 function parseResultRuleset(raw: string): Json | undefined | null {
   return parseRecommendWhen(raw)
+}
+
+/**
+ * Parse the optional `allowedResultIds` JSON form field (phase-result-manual-mode):
+ * a non-empty array of result-option id strings — the author-selected allowed
+ * subset, present for BOTH modes when emitting. Returns `undefined` when
+ * absent/blank (send SQL NULL → not emitting), the parsed array when valid, or
+ * `null` to signal a field error (malformed, empty, or non-string entries).
+ */
+function parseAllowedResultIds(raw: string): Json | undefined | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  try {
+    const parsed = JSON.parse(trimmed)
+    if (
+      !Array.isArray(parsed) ||
+      parsed.length === 0 ||
+      !parsed.every((x) => typeof x === 'string' && x.length > 0)
+    ) {
+      return null
+    }
+    return parsed as Json
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -284,6 +311,10 @@ export async function addTemplatePhase(
   const resultRuleset = parseResultRuleset(
     String(formData.get('resultRuleset') ?? ''),
   )
+  const emitsResult = String(formData.get('emitsResult') ?? '') === 'true'
+  const allowedResultIds = parseAllowedResultIds(
+    String(formData.get('allowedResultIds') ?? ''),
+  )
   const defaultDays = parseDefaultDays(String(formData.get('defaultDays') ?? ''))
 
   if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
@@ -295,6 +326,9 @@ export async function addTemplatePhase(
   }
   if (resultRuleset === null) {
     return { ok: false, fieldErrors: { resultRuleset: MESSAGES.resultRulesetInvalid } }
+  }
+  if (allowedResultIds === null) {
+    return { ok: false, fieldErrors: { resultRuleset: MESSAGES.allowedResultsInvalid } }
   }
   if (defaultDays === null) {
     return { ok: false, fieldErrors: { defaultDays: MESSAGES.defaultDaysInvalid } }
@@ -314,6 +348,8 @@ export async function addTemplatePhase(
     p_recommend_when: recommendWhen,
     p_default_due_days: defaultDays,
     p_result_ruleset: resultRuleset,
+    p_emits_result: emitsResult,
+    p_allowed_result_ids: allowedResultIds,
   })
 
   if (error || !data) return { ok: false, error: mapRpcError(error) }
@@ -345,6 +381,18 @@ export async function updateTemplatePhase(
   const resultRuleset = parseResultRuleset(
     String(formData.get('resultRuleset') ?? ''),
   )
+  // emits_result: the dialog always submits it when the result editor is shown
+  // (phase-result-manual-mode). Present → explicit boolean; absent → undefined
+  // (keep). allowedResultIds mirrors resultRuleset's clear/replace/keep contract.
+  const hasEmitsResult = formData.has('emitsResult')
+  const emitsResult = hasEmitsResult
+    ? String(formData.get('emitsResult') ?? '') === 'true'
+    : undefined
+  const clearAllowedResultIds =
+    String(formData.get('clearAllowedResultIds') ?? '') === 'true'
+  const allowedResultIds = parseAllowedResultIds(
+    String(formData.get('allowedResultIds') ?? ''),
+  )
 
   if (!phaseId) return { ok: false, error: MESSAGES.missingPhase }
   if (recommendWhen === null) {
@@ -352,6 +400,9 @@ export async function updateTemplatePhase(
   }
   if (resultRuleset === null) {
     return { ok: false, fieldErrors: { resultRuleset: MESSAGES.resultRulesetInvalid } }
+  }
+  if (allowedResultIds === null) {
+    return { ok: false, fieldErrors: { resultRuleset: MESSAGES.allowedResultsInvalid } }
   }
 
   // The dialog always includes `defaultDays`. Present-and-empty clears it;
@@ -394,6 +445,9 @@ export async function updateTemplatePhase(
     p_clear_default_due_days: clearDefaultDays,
     p_result_ruleset: resultRuleset,
     p_clear_result_ruleset: clearResultRuleset,
+    p_emits_result: emitsResult,
+    p_allowed_result_ids: allowedResultIds,
+    p_clear_allowed_result_ids: clearAllowedResultIds,
   })
 
   if (error) return { ok: false, error: mapRpcError(error) }

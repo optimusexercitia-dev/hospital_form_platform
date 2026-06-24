@@ -84,6 +84,12 @@ export interface WizardData {
    */
   phaseResult?: {
     casePhaseId: string;
+    /**
+     * Result MODE (phase-result-manual-mode). `automatic` = the ruleset computes
+     * the result and the override is OPTIONAL; `manual` = the filler MUST pick a
+     * result from `options` (the author-selected subset) before submit.
+     */
+    mode: "automatic" | "manual";
     ruleset: ResultRuleset | null;
     options: ResolvedPhaseResult[];
     currentOverrideId: string | null;

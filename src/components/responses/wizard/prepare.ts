@@ -67,6 +67,7 @@ export function toWizardData(
     phaseResultContext && phaseResultContext.result
       ? {
           casePhaseId: phaseResultContext.casePhaseId,
+          mode: phaseResultContext.result.mode,
           ruleset: phaseResultContext.result.resultRuleset,
           options: phaseResultContext.result.options,
           currentOverrideId: phaseResultContext.result.currentOverrideId,

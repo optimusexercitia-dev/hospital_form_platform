@@ -52,6 +52,8 @@ const MESSAGES = {
   overrideNotAdjustable:
     'O resultado só pode ser ajustado enquanto a fase está ativa.',
   overrideResultInvalid: 'Opção de resultado inválida para esta comissão.',
+  // phase-result-manual-mode: a MANUAL phase requires a result before submit.
+  resultRequired: 'Selecione o resultado da fase antes de enviar.',
   // success copy
   saved: 'Respostas salvas.',
   savedAndExited: 'Respostas salvas. Você pode continuar mais tarde.',
@@ -78,6 +80,10 @@ const SIGN_ALREADY_SIGNED = 'HC015'
 /** set_case_phase_result_override discriminated failures (phase-results). */
 const OVERRIDE_PHASE_NOT_ADJUSTABLE = 'HC057'
 const OVERRIDE_RESULT_INVALID = 'HC058'
+/** phase-result-manual-mode: MANUAL phase submitted with no result (conclude). */
+const SUBMIT_RESULT_REQUIRED = 'HC061'
+/** phase-result-manual-mode: MANUAL phase result cleared (set-override). */
+const OVERRIDE_RESULT_REQUIRED = 'HC062'
 
 /** The staff filling area — revalidated as dynamic-segment pages. */
 const FORMS_LIST_PATH = '/c/[slug]/forms'
@@ -303,6 +309,8 @@ export async function submitResponse(responseId: string): Promise<ActionState> {
         return { ok: false, error: MESSAGES.missingRequired }
       case SUBMIT_MISSING_SIGNOFF:
         return { ok: false, error: MESSAGES.missingSignoff }
+      case SUBMIT_RESULT_REQUIRED:
+        return { ok: false, error: MESSAGES.resultRequired }
       case PG_NO_DATA_FOUND:
         return { ok: false, error: MESSAGES.missingResponse }
       default:
@@ -370,6 +378,8 @@ export async function submitCasePhaseResponse(
           return { ok: false, error: MESSAGES.overrideNotAdjustable }
         case OVERRIDE_RESULT_INVALID:
           return { ok: false, error: MESSAGES.overrideResultInvalid }
+        case OVERRIDE_RESULT_REQUIRED:
+          return { ok: false, error: MESSAGES.resultRequired }
         case PG_RLS_VIOLATION:
           return { ok: false, error: MESSAGES.forbidden }
         case PG_NO_DATA_FOUND:
@@ -394,6 +404,8 @@ export async function submitCasePhaseResponse(
         return { ok: false, error: MESSAGES.missingRequired }
       case SUBMIT_MISSING_SIGNOFF:
         return { ok: false, error: MESSAGES.missingSignoff }
+      case SUBMIT_RESULT_REQUIRED:
+        return { ok: false, error: MESSAGES.resultRequired }
       case PG_NO_DATA_FOUND:
         return { ok: false, error: MESSAGES.missingResponse }
       default:

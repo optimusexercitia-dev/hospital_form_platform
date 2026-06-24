@@ -70,8 +70,9 @@ export default async function CaseDetailPage({
 
   // Post-conclusion result correction (phase-results feature; task #10). This route
   // is already staff_admin/admin-gated, so a coordinator here may correct a
-  // concluded phase's result when the flag is on. The dialog picks from the
-  // commission's active result vocabulary.
+  // concluded phase's result when the flag is on. This is the commission's full
+  // active vocabulary; the picker narrows it per phase — a MANUAL phase is
+  // restricted to its allowed subset (phase-result-manual-mode).
   const phaseResultOptions = phaseResultsOn
     ? toResolvedPhaseResultOptions(await listPhaseResults(access.commission.id))
     : [];

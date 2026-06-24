@@ -50,7 +50,16 @@ const MESSAGES = {
   labelTaken: 'Já existe um resultado com esse nome nesta comissão.',
   // override RPC discriminated failures
   phaseNotAdjustable: 'O resultado só pode ser ajustado em uma fase ativa ou concluída.',
+  // HC058 covers TWO distinct rejections; the RPC raises the precise pt-BR message
+  // for each (surfaced via `error.message`), and these are the fallbacks:
+  //   - the chosen option is archived / not in the commission's vocabulary;
   resultInvalid: 'Opção de resultado inválida para esta comissão.',
+  //   - the chosen option is valid for the commission but NOT in THIS phase's
+  //     manual subset (the subset-aware picker prevents this; a stale page can hit it).
+  resultNotInPhaseSubset:
+    'O resultado escolhido não está entre as opções permitidas para esta fase.',
+  // HC062 — a manual phase's result is mandatory and cannot be cleared.
+  resultMandatory: 'O resultado desta fase é obrigatório e não pode ser removido.',
   caseTerminal: 'Este caso está em um estado final e não pode mais ser alterado.',
   // success copy
   resultCreated: 'Resultado criado com sucesso.',
@@ -68,6 +77,7 @@ const PG_NO_DATA_FOUND = 'P0002'
 const HC_PHASE_NOT_ADJUSTABLE = 'HC057'
 const HC_RESULT_INVALID = 'HC058'
 const HC_CASE_TERMINAL = 'HC060'
+const HC_RESULT_MANDATORY = 'HC062'
 
 const RESULT_SETTINGS_PATH = '/c/[slug]/manage/settings/resultados'
 const TEMPLATE_PATH = '/c/[slug]/manage/process-templates/[templateId]'
@@ -147,7 +157,12 @@ function mapOverrideError(error: { code?: string; message?: string } | null): st
     case HC_PHASE_NOT_ADJUSTABLE:
       return error.message || MESSAGES.phaseNotAdjustable
     case HC_RESULT_INVALID:
+      // The RPC raises HC058 for BOTH "archived/invalid for commission" AND "not
+      // in this manual phase's allowed subset", with a distinct pt-BR message
+      // each; prefer that precise message and fall back to the commission-vocab one.
       return error.message || MESSAGES.resultInvalid
+    case HC_RESULT_MANDATORY:
+      return error.message || MESSAGES.resultMandatory
     case HC_CASE_TERMINAL:
       return error.message || MESSAGES.caseTerminal
     case PG_FORBIDDEN:

@@ -30,9 +30,23 @@ const OP_LABELS: Record<ConditionOp, string> = {
   lte: "for menor ou igual a",
 };
 
+/** The number of allowed results an emitting phase must select to be saved. */
+export const MIN_ALLOWED_RESULTS = 2;
+
+/** The consolidated value the editor emits (phase-result-manual-mode): the three
+ *  fields the {@link PhaseSlotDialog} submits. `resultRuleset` is "" unless
+ *  AUTOMATIC; `allowedResultIds` is the author-selected subset, present (for both
+ *  modes) whenever `emitsResult`. */
+export interface PhaseResultValue {
+  emitsResult: boolean;
+  /** Serialized {@link ResultRuleset} JSON, or "" — AUTOMATIC only. */
+  resultRuleset: string;
+  /** The author-selected allowed result subset (both modes when emitting). */
+  allowedResultIds: string[];
+}
+
 /** A locally-edited rule row (UI state; serialized to a {@link ResultRule}). */
 interface DraftRule {
-  /** Stable local key for React (not persisted). */
   uid: string;
   questionKey: string;
   op: ConditionOp;
@@ -63,6 +77,15 @@ function toDrafts(ruleset: ResultRuleset | null): DraftRule[] {
   });
 }
 
+function parseRuleset(value: string): ResultRuleset | null {
+  if (!value) return null;
+  try {
+    return JSON.parse(value) as ResultRuleset;
+  } catch {
+    return null;
+  }
+}
+
 /** A single draft rule is COMPLETE (serializable) when every picker is filled. */
 function isRuleComplete(
   rule: DraftRule,
@@ -83,29 +106,24 @@ function toResultRule(rule: DraftRule): ResultRule {
 }
 
 /**
- * The per-phase RESULT-ruleset editor (phase-results feature). Builds a
- * {@link ResultRuleset} — an ORDERED list of rules over THIS phase's OWN choice
- * questions (NO `from_phase`, unlike {@link RecommendWhenEditor}) plus a default
- * fallback — that emits a categorical result when the phase's form is submitted.
+ * The per-phase RESULT editor (phase-results feature, extended by
+ * phase-result-manual-mode). The "Resultado da fase" section of the
+ * {@link PhaseSlotDialog}, structured as a two-step choice:
  *
- * Each rule row picks:
- *   1. a CHOICE question of this phase's form (from `targets`),
- *   2. an operator (equals / not_equals / in),
- *   3. a discrete value (single option, or a multi-select for `in`),
- *   4. the RESULT option emitted when this rule is the FIRST to match.
- * Plus a default-result picker (the fallback when no rule matches; "Nenhum" = no
- * result).
+ *   1. "Esta fase emite um resultado" (outer toggle → `emitsResult`). Off ⇒ NONE.
+ *   2. When emitting, FIRST pick the **"Resultados permitidos"** — the allowed
+ *      result subset (≥ {@link MIN_ALLOWED_RESULTS}, gated by the dialog). THEN:
+ *      "Emitir um resultado automático para esta fase" (inner toggle, initially
+ *      OFF). OFF ⇒ MANUAL — the filler picks one of the allowed results at the end
+ *      of the wizard. ON ⇒ AUTOMATIC — an ordered ruleset decides the result, and
+ *      every rule/default RESULT picker is restricted to the allowed subset.
  *
- * It serializes a `{ rules, default_result_id }` JSON string via `onChange`
- * (or "" when there is nothing to author), which {@link PhaseSlotDialog} sends in
- * the `resultRuleset` hidden field. The pickers are discrete so an author can only
- * build a structurally valid ruleset; the backend deep-validates at publish time.
- *
- * Live preview — the author picks a hypothetical answer per referenced question and
- * we run the EXACT mirror the backend evaluates ({@link walkResultRuleset}) to show
- * which result WOULD be emitted (first-match-wins, else default, else none).
+ * It emits a {@link PhaseResultValue} via `onChange` (the dialog stores it and
+ * submits `emitsResult` / `resultRuleset` / `allowedResultIds`). The pickers are
+ * discrete so an author can only build a structurally valid config; the backend
+ * deep-validates at publish time.
  */
-export function ResultRulesetEditor({
+export function PhaseResultEditor({
   targets,
   results,
   value,
@@ -115,31 +133,38 @@ export function ResultRulesetEditor({
 }: {
   /** THIS phase's bound-form choice questions (server-resolved). */
   targets: PhaseConditionTarget[];
-  /** The commission's ACTIVE result vocabulary (the result-option pickers). */
+  /** The commission's ACTIVE result vocabulary (the option pickers). */
   results: PhaseResult[];
-  /** Current serialized ResultRuleset JSON ("" = none). */
-  value: string;
-  onChange: (next: string) => void;
+  /** The current consolidated value (emits + ruleset + allowed subset). */
+  value: PhaseResultValue;
+  onChange: (next: PhaseResultValue) => void;
   error?: string;
   /** Read-only (non-draft template) — hides the editing affordances. */
   disabled?: boolean;
 }) {
-  const initial = useMemo<ResultRuleset | null>(() => {
-    if (!value) return null;
-    try {
-      return JSON.parse(value) as ResultRuleset;
-    } catch {
-      return null;
-    }
-  }, [value]);
-
-  const [enabled, setEnabled] = useState<boolean>(initial !== null);
-  const [rules, setRules] = useState<DraftRule[]>(() => toDrafts(initial));
-  const [defaultResultId, setDefaultResultId] = useState<string>(
-    initial?.default_result_id ?? "",
+  const initialRuleset = useMemo(
+    () => parseRuleset(value.resultRuleset),
+    // Parse once on mount; subsequent edits flow through local state + onChange.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
   );
-  // Hypothetical answers for the live preview, keyed by question_key (not persisted).
-  const [previewAnswers, setPreviewAnswers] = useState<Record<string, string>>({});
+
+  const [emits, setEmits] = useState<boolean>(value.emitsResult);
+  // The automatic toggle defaults OFF (manual) for a new emitting phase; an
+  // existing AUTOMATIC phase (serialized ruleset present) seeds it ON.
+  const [automatic, setAutomatic] = useState<boolean>(
+    value.resultRuleset !== "",
+  );
+  const [allowedIds, setAllowedIds] = useState<string[]>(value.allowedResultIds);
+
+  // AUTOMATIC sub-state.
+  const [rules, setRules] = useState<DraftRule[]>(() => toDrafts(initialRuleset));
+  const [defaultResultId, setDefaultResultId] = useState<string>(
+    initialRuleset?.default_result_id ?? "",
+  );
+  const [previewAnswers, setPreviewAnswers] = useState<Record<string, string>>(
+    {},
+  );
 
   const resultsById = useMemo(() => {
     const map = new Map<string, PhaseResult>();
@@ -153,29 +178,40 @@ export function ResultRulesetEditor({
     return map;
   }, [targets]);
 
-  // Serialize up to the parent whenever the ruleset changes. We emit only the
-  // COMPLETE rules; an in-progress half-filled row simply doesn't serialize yet.
-  // "" is emitted when disabled, when there are no complete rules AND no default.
-  useEffect(() => {
-    if (!enabled) {
-      onChange("");
-      return;
-    }
+  // The allowed results, in vocabulary order — what the automatic rule/default
+  // pickers may reference.
+  const allowedResults = useMemo(
+    () => results.filter((r) => allowedIds.includes(r.id)),
+    [results, allowedIds],
+  );
+
+  // Serialize the AUTOMATIC ruleset from the complete rules + default.
+  const serializedRuleset = useMemo<string>(() => {
     const completeRules = rules
       .filter((r) => isRuleComplete(r, targetByKey.get(r.questionKey)))
       .map(toResultRule);
     const hasDefault = defaultResultId !== "";
-    if (completeRules.length === 0 && !hasDefault) {
-      onChange("");
-      return;
-    }
+    if (completeRules.length === 0 && !hasDefault) return "";
     const ruleset: ResultRuleset = {
       rules: completeRules,
       default_result_id: hasDefault ? defaultResultId : null,
     };
-    onChange(JSON.stringify(ruleset));
+    return JSON.stringify(ruleset);
+  }, [rules, defaultResultId, targetByKey]);
+
+  // Emit the consolidated value whenever any input changes.
+  useEffect(() => {
+    if (!emits) {
+      onChange({ emitsResult: false, resultRuleset: "", allowedResultIds: [] });
+      return;
+    }
+    onChange({
+      emitsResult: true,
+      resultRuleset: automatic ? serializedRuleset : "",
+      allowedResultIds: allowedIds,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, rules, defaultResultId, targetByKey]);
+  }, [emits, automatic, serializedRuleset, allowedIds]);
 
   function addRule() {
     setRules((prev) => [
@@ -211,8 +247,21 @@ export function ResultRulesetEditor({
     });
   }
 
-  // Live preview: build a hypothetical answer map from the per-question pickers and
-  // walk the COMPLETE ruleset exactly as the backend does. Result label or "none".
+  function toggleAllowed(id: string) {
+    const removing = allowedIds.includes(id);
+    setAllowedIds(
+      removing ? allowedIds.filter((x) => x !== id) : [...allowedIds, id],
+    );
+    // Removing an allowed result invalidates any rule/default that referenced it.
+    if (removing) {
+      setRules((prev) =>
+        prev.map((r) => (r.resultId === id ? { ...r, resultId: "" } : r)),
+      );
+      setDefaultResultId((d) => (d === id ? "" : d));
+    }
+  }
+
+  // Live preview (AUTOMATIC): walk the COMPLETE ruleset exactly as the backend does.
   const previewResultId = useMemo<string | null>(() => {
     const completeRules = rules
       .filter((r) => isRuleComplete(r, targetByKey.get(r.questionKey)))
@@ -229,11 +278,11 @@ export function ResultRulesetEditor({
     ? resultsById.get(previewResultId)
     : null;
 
-  // The distinct questions referenced by complete rules drive the preview pickers.
   const previewQuestions = useMemo(() => {
     const keys = new Set<string>();
     for (const r of rules) {
-      if (isRuleComplete(r, targetByKey.get(r.questionKey))) keys.add(r.questionKey);
+      if (isRuleComplete(r, targetByKey.get(r.questionKey)))
+        keys.add(r.questionKey);
     }
     return [...keys]
       .map((k) => targetByKey.get(k))
@@ -244,14 +293,14 @@ export function ResultRulesetEditor({
     rules.some((r) => isRuleComplete(r, targetByKey.get(r.questionKey))) ||
     defaultResultId !== "";
 
-  if (targets.length === 0 || results.length === 0) {
+  // No vocabulary at all — nothing can be emitted; offer no toggles.
+  if (results.length === 0) {
     return (
       <fieldset className="flex flex-col gap-3">
         <legend className="text-sm font-semibold">Resultado da fase</legend>
         <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground text-pretty">
-          {results.length === 0
-            ? "Cadastre ao menos um resultado nas configurações da comissão para definir o resultado desta fase."
-            : "O formulário desta fase não tem perguntas de múltipla escolha para condicionar um resultado."}
+          Cadastre ao menos um resultado nas configurações da comissão para
+          definir o resultado desta fase.
         </p>
       </fieldset>
     );
@@ -261,147 +310,69 @@ export function ResultRulesetEditor({
     <fieldset className="flex flex-col gap-3" disabled={disabled}>
       <legend className="text-sm font-semibold">Resultado da fase</legend>
       <p className="text-sm text-muted-foreground text-pretty">
-        Ao enviar o formulário, esta fase pode emitir um resultado conforme as
-        respostas. As regras são avaliadas em ordem — a primeira que corresponder
-        define o resultado; se nenhuma corresponder, vale o resultado padrão.
+        Defina se esta fase emite um resultado ao ser concluída — escolhido
+        manualmente por quem preenche ou calculado automaticamente pelas
+        respostas.
       </p>
 
       <label className="flex items-center gap-2.5 text-sm">
         <Checkbox
-          checked={enabled}
-          onCheckedChange={(c) => setEnabled(c === true)}
+          checked={emits}
+          onCheckedChange={(c) => setEmits(c === true)}
           disabled={disabled}
         />
-        Emitir um resultado automático para esta fase
+        Esta fase emite um resultado
       </label>
 
-      {enabled && (
+      {emits && (
         <div className="flex flex-col gap-4 rounded-lg border border-border bg-card p-3">
-          <div className="flex flex-col gap-3">
-            <span className="text-sm font-medium">Regras</span>
-            {rules.length === 0 ? (
-              <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
-                Nenhuma regra ainda. Adicione uma regra ou defina apenas um
-                resultado padrão abaixo.
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-3">
-                {rules.map((rule, index) => (
-                  <RuleRow
-                    key={rule.uid}
-                    rule={rule}
-                    index={index}
-                    total={rules.length}
-                    targets={targets}
-                    target={targetByKey.get(rule.questionKey)}
-                    results={results}
-                    disabled={disabled}
-                    onUpdate={(patch) => updateRule(rule.uid, patch)}
-                    onRemove={() => removeRule(rule.uid)}
-                    onMove={(d) => moveRule(index, d)}
-                  />
-                ))}
-              </ul>
-            )}
-            {!disabled && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={addRule}
-                className="w-fit"
-              >
-                <Plus aria-hidden="true" />
-                Adicionar regra
-              </Button>
-            )}
-          </div>
+          <AllowedResultsPicker
+            results={results}
+            selectedIds={allowedIds}
+            onToggle={toggleAllowed}
+            disabled={disabled}
+          />
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Resultado padrão</span>
-            <select
-              className={SELECT_CLASS}
-              value={defaultResultId}
-              onChange={(e) => setDefaultResultId(e.target.value)}
+          <label className="flex items-start gap-2.5 border-t border-border pt-4 text-sm">
+            <Checkbox
+              checked={automatic}
+              onCheckedChange={(c) => setAutomatic(c === true)}
               disabled={disabled}
-            >
-              <option value="">Nenhum (sem resultado padrão)</option>
-              {results.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs text-muted-foreground">
-              Aplicado quando nenhuma regra acima corresponde.
+              className="mt-0.5"
+            />
+            <span className="flex flex-col">
+              <span className="font-medium">
+                Emitir um resultado automático para esta fase
+              </span>
+              <span className="text-xs text-muted-foreground">
+                As respostas decidem o resultado por regras (entre os resultados
+                permitidos). Se desmarcado, quem preenche escolhe o resultado
+                manualmente.
+              </span>
             </span>
           </label>
 
-          {/* Live preview against hypothetical answers */}
-          {hasCompleteRuleset && (
-            <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-3">
-              <span className="text-sm font-medium">
-                Pré-visualizar: se as respostas fossem
-              </span>
-              {previewQuestions.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-pretty">
-                  Sem regras com perguntas — o resultado padrão será sempre
-                  aplicado.
-                </p>
-              ) : (
-                previewQuestions.map((target) => (
-                  <label
-                    key={target.questionKey}
-                    className="flex flex-col gap-1.5 text-sm"
-                  >
-                    <span className="font-medium">
-                      {target.label || target.questionKey}
-                    </span>
-                    <select
-                      className={SELECT_CLASS}
-                      value={previewAnswers[target.questionKey] ?? ""}
-                      onChange={(e) =>
-                        setPreviewAnswers((prev) => ({
-                          ...prev,
-                          [target.questionKey]: e.target.value,
-                        }))
-                      }
-                    >
-                      <option value="">Sem resposta</option>
-                      {target.options.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ))
-              )}
-              <p className="animate-fade-in inline-flex items-center gap-2 text-sm">
-                <Sparkles
-                  aria-hidden="true"
-                  className="size-4 shrink-0 text-primary"
-                />
-                {previewResult ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    Resultado:
-                    <span
-                      className={cn(
-                        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
-                        TOKEN_STYLES[previewResult.colorToken] ??
-                          TOKEN_STYLES.muted,
-                      )}
-                    >
-                      {previewResult.label}
-                    </span>
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">
-                    Nenhum resultado seria emitido.
-                  </span>
-                )}
-              </p>
-            </div>
+          {automatic && (
+            <AutomaticEditor
+              targets={targets}
+              results={allowedResults}
+              rules={rules}
+              defaultResultId={defaultResultId}
+              previewAnswers={previewAnswers}
+              previewQuestions={previewQuestions}
+              previewResult={previewResult ?? null}
+              hasCompleteRuleset={hasCompleteRuleset}
+              targetByKey={targetByKey}
+              disabled={disabled}
+              onAddRule={addRule}
+              onUpdateRule={updateRule}
+              onRemoveRule={removeRule}
+              onMoveRule={moveRule}
+              onChangeDefault={setDefaultResultId}
+              onChangePreviewAnswer={(key, val) =>
+                setPreviewAnswers((prev) => ({ ...prev, [key]: val }))
+              }
+            />
           )}
 
           {error && (
@@ -412,6 +383,238 @@ export function ResultRulesetEditor({
         </div>
       )}
     </fieldset>
+  );
+}
+
+/** The always-shown "Resultados permitidos" checklist (drives `allowedResultIds`),
+ *  with a live hint until the minimum is selected. */
+function AllowedResultsPicker({
+  results,
+  selectedIds,
+  onToggle,
+  disabled,
+}: {
+  results: PhaseResult[];
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+  disabled: boolean;
+}) {
+  const tooFew = selectedIds.length < MIN_ALLOWED_RESULTS;
+  return (
+    <fieldset className="flex flex-col gap-2.5">
+      <legend className="text-sm font-medium">Resultados permitidos</legend>
+      <p className="text-xs text-muted-foreground text-pretty">
+        Selecione ao menos {MIN_ALLOWED_RESULTS} resultados que esta fase pode
+        emitir.
+      </p>
+      <ul className="flex flex-col gap-2">
+        {results.map((r) => (
+          <li key={r.id}>
+            <label className="flex items-center gap-2.5 text-sm">
+              <Checkbox
+                checked={selectedIds.includes(r.id)}
+                onCheckedChange={() => onToggle(r.id)}
+                disabled={disabled}
+              />
+              <span
+                className={cn(
+                  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+                  TOKEN_STYLES[r.colorToken] ?? TOKEN_STYLES.muted,
+                )}
+              >
+                {r.label}
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      {tooFew && (
+        <p className="text-sm font-medium text-destructive">
+          Selecione ao menos {MIN_ALLOWED_RESULTS} resultados permitidos.
+        </p>
+      )}
+    </fieldset>
+  );
+}
+
+/** AUTOMATIC mode: the ordered ruleset + default + live preview (over the allowed
+ *  result subset passed as `results`). */
+function AutomaticEditor({
+  targets,
+  results,
+  rules,
+  defaultResultId,
+  previewAnswers,
+  previewQuestions,
+  previewResult,
+  hasCompleteRuleset,
+  targetByKey,
+  disabled,
+  onAddRule,
+  onUpdateRule,
+  onRemoveRule,
+  onMoveRule,
+  onChangeDefault,
+  onChangePreviewAnswer,
+}: {
+  targets: PhaseConditionTarget[];
+  results: PhaseResult[];
+  rules: DraftRule[];
+  defaultResultId: string;
+  previewAnswers: Record<string, string>;
+  previewQuestions: PhaseConditionTarget[];
+  previewResult: PhaseResult | null;
+  hasCompleteRuleset: boolean;
+  targetByKey: Map<string, PhaseConditionTarget>;
+  disabled: boolean;
+  onAddRule: () => void;
+  onUpdateRule: (uid: string, patch: Partial<DraftRule>) => void;
+  onRemoveRule: (uid: string) => void;
+  onMoveRule: (index: number, direction: "up" | "down") => void;
+  onChangeDefault: (id: string) => void;
+  onChangePreviewAnswer: (key: string, value: string) => void;
+}) {
+  if (results.length === 0) {
+    return (
+      <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground text-pretty">
+        Selecione os resultados permitidos acima para usá-los nas regras.
+      </p>
+    );
+  }
+
+  if (targets.length === 0) {
+    return (
+      <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground text-pretty">
+        O formulário desta fase não tem perguntas de múltipla escolha para
+        condicionar um resultado automático. Use a seleção manual ou ajuste o
+        formulário.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <div className="flex flex-col gap-3">
+        <span className="text-sm font-medium">Regras</span>
+        {rules.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
+            Nenhuma regra ainda. Adicione uma regra ou defina apenas um resultado
+            padrão abaixo.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {rules.map((rule, index) => (
+              <RuleRow
+                key={rule.uid}
+                rule={rule}
+                index={index}
+                total={rules.length}
+                targets={targets}
+                target={targetByKey.get(rule.questionKey)}
+                results={results}
+                disabled={disabled}
+                onUpdate={(patch) => onUpdateRule(rule.uid, patch)}
+                onRemove={() => onRemoveRule(rule.uid)}
+                onMove={(d) => onMoveRule(index, d)}
+              />
+            ))}
+          </ul>
+        )}
+        {!disabled && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onAddRule}
+            className="w-fit"
+          >
+            <Plus aria-hidden="true" />
+            Adicionar regra
+          </Button>
+        )}
+      </div>
+
+      <label className="flex flex-col gap-1.5 text-sm">
+        <span className="font-medium">Resultado padrão</span>
+        <select
+          className={SELECT_CLASS}
+          value={defaultResultId}
+          onChange={(e) => onChangeDefault(e.target.value)}
+          disabled={disabled}
+        >
+          <option value="">Nenhum (sem resultado padrão)</option>
+          {results.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-muted-foreground">
+          Aplicado quando nenhuma regra acima corresponde.
+        </span>
+      </label>
+
+      {hasCompleteRuleset && (
+        <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-3">
+          <span className="text-sm font-medium">
+            Pré-visualizar: se as respostas fossem
+          </span>
+          {previewQuestions.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-pretty">
+              Sem regras com perguntas — o resultado padrão será sempre aplicado.
+            </p>
+          ) : (
+            previewQuestions.map((target) => (
+              <label
+                key={target.questionKey}
+                className="flex flex-col gap-1.5 text-sm"
+              >
+                <span className="font-medium">
+                  {target.label || target.questionKey}
+                </span>
+                <select
+                  className={SELECT_CLASS}
+                  value={previewAnswers[target.questionKey] ?? ""}
+                  onChange={(e) =>
+                    onChangePreviewAnswer(target.questionKey, e.target.value)
+                  }
+                >
+                  <option value="">Sem resposta</option>
+                  {target.options.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ))
+          )}
+          <p className="animate-fade-in inline-flex items-center gap-2 text-sm">
+            <Sparkles
+              aria-hidden="true"
+              className="size-4 shrink-0 text-primary"
+            />
+            {previewResult ? (
+              <span className="inline-flex items-center gap-1.5">
+                Resultado:
+                <span
+                  className={cn(
+                    "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium",
+                    TOKEN_STYLES[previewResult.colorToken] ?? TOKEN_STYLES.muted,
+                  )}
+                >
+                  {previewResult.label}
+                </span>
+              </span>
+            ) : (
+              <span className="text-muted-foreground">
+                Nenhum resultado seria emitido.
+              </span>
+            )}
+          </p>
+        </div>
+      )}
+    </>
   );
 }
 
