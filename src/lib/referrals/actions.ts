@@ -79,6 +79,7 @@ export async function createReferralDraft(
     p_referral_type_id: input.referralTypeId,
     p_subject: input.subject.trim(),
     p_response_expected: input.responseExpected,
+    p_description_md: input.descriptionMd ?? undefined,
   })
   if (error || !data) return { ok: false, error: mapReferralError(error) }
 
