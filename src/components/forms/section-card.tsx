@@ -29,12 +29,15 @@ import { useBuilderAction } from "@/components/forms/use-builder-action";
  * settings entry (condition + sign-off), and delete; the body is the section's
  * {@link BlockList}.
  *
- * Default-section rule (lead refinement #2): once a form has ≥2 sections the
- * default section MAY carry (and be renamed to) a title — so its card now
- * exposes the rename affordance and falls back to "Seção inicial" only when it
- * has no title. It still has NO condition and NO sign-off and is never deletable
- * (it is the form's anchor section), so the settings and delete controls stay
- * hidden for it.
+ * Anchor rule: the anchor treatment follows POSITION — the FIRST section
+ * (`isFirst`) is the anchor regardless of which section was auto-created. It
+ * shows the "inicial" badge, falls back to "Seção inicial" when it has no title,
+ * has NO condition and NO sign-off (nothing precedes it to reference) and is
+ * never deletable (the form must keep ≥1 section), so the settings and delete
+ * controls stay hidden for it. Reordering transfers this: the DB keeps the
+ * stored `is_default` flag in sync with position 0 (see migration
+ * `20260624120000_default_section_tracks_position`), so the server's
+ * default-shape CHECK and the position-driven UI always agree.
  */
 export function SectionCard({
   section,
@@ -59,9 +62,8 @@ export function SectionCard({
   const [metaOpen, setMetaOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const isDefault = section.isDefault;
   const heading =
-    section.title || (isDefault ? "Seção inicial" : "Seção sem título");
+    section.title || (isFirst ? "Seção inicial" : "Seção sem título");
 
   function handleMove(direction: "up" | "down") {
     onBeforeReorder();
@@ -89,7 +91,7 @@ export function SectionCard({
             <span className="text-xs font-medium text-muted-foreground">
               Seção {index + 1}
             </span>
-            {isDefault && (
+            {isFirst && (
               <span className="rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-muted-foreground uppercase">
                 inicial
               </span>
@@ -149,7 +151,7 @@ export function SectionCard({
             <Pencil aria-hidden="true" />
           </Button>
 
-          {!isDefault && (
+          {!isFirst && (
             <>
               <Button
                 type="button"
@@ -213,7 +215,7 @@ export function SectionCard({
         section={section}
       />
 
-      {!isDefault && (
+      {!isFirst && (
         <SectionSettingsDialog
           open={settingsOpen}
           onOpenChange={setSettingsOpen}
