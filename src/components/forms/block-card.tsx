@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
   MoveRight,
   Pencil,
+  Split,
   Trash2,
 } from "lucide-react";
 
@@ -32,6 +33,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
+import {
+  buildQuestionLabelMap,
+  describeVisibility,
+} from "@/components/forms/describe-visibility";
 import { TOKEN_COLOR_VAR } from "@/components/cases/case-status-badge";
 import { ItemEditorDialog } from "@/components/forms/item-editor-dialog";
 import { ImagePreview } from "@/components/forms/image-preview";
@@ -206,6 +211,8 @@ export function BlockCard({
 
       <BlockPreview item={item} imageUrl={imageUrl} />
 
+      <BlockConditionNote item={item} sections={sections} />
+
       {error && (
         <p role="alert" className="text-sm font-medium text-destructive">
           {error}
@@ -242,6 +249,59 @@ function BlockHeadline({ item }: { item: Item }) {
     );
   }
   return null;
+}
+
+/**
+ * A muted footnote shown only when the block has a conditional appearance
+ * (`visibleWhen`), so an author sees AT A GLANCE — without opening the editor —
+ * that the question is shown conditionally and exactly what triggers it. The
+ * controlling question's `question_key` is resolved to its human label via the
+ * full section tree; multiple conditions are joined by E/OU per the group's
+ * combinator.
+ */
+function BlockConditionNote({
+  item,
+  sections,
+}: {
+  item: Item;
+  sections: Section[];
+}) {
+  const summary = useMemo(
+    () => describeVisibility(item.visibleWhen, buildQuestionLabelMap(sections)),
+    [item.visibleWhen, sections],
+  );
+  if (!summary) return null;
+
+  const combinatorWord = summary.combinator === "any" ? "ou" : "e";
+
+  return (
+    <div className="ml-9 flex items-start gap-2 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2">
+      <Split
+        aria-hidden="true"
+        className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+      />
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        <span className="font-semibold text-foreground">Aparece quando</span>{" "}
+        {summary.clauses.map((clause, i) => (
+          <span key={i}>
+            {i > 0 && (
+              <span className="font-medium text-foreground"> {combinatorWord} </span>
+            )}
+            <span className="font-medium text-foreground">{clause.target}</span>{" "}
+            {clause.op}
+            {clause.value && (
+              <>
+                {" "}
+                <span className="font-medium text-foreground">
+                  {clause.value}
+                </span>
+              </>
+            )}
+          </span>
+        ))}
+      </p>
+    </div>
+  );
 }
 
 /** A compact, faithful preview of the block's content. */
