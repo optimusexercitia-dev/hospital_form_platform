@@ -5,6 +5,11 @@ import { ArrowDown, ArrowUp, Ban, Check, Plus, Trash2 } from "lucide-react";
 
 import type { ColorToken, ItemOption } from "@/lib/queries/forms";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
@@ -110,7 +115,7 @@ export function OptionsEditor({
             const inputId = `${groupId}-option-${index}`;
             const position = index + 1;
             return (
-              <li key={index} className="flex flex-col gap-1.5">
+              <li key={index}>
                 <div className="flex items-center gap-2">
                   <Label htmlFor={inputId} className="sr-only">
                     Opção {position}
@@ -123,6 +128,13 @@ export function OptionsEditor({
                     className="h-9 flex-1"
                   />
                   <div className="flex items-center gap-0.5">
+                    {colorable && (
+                      <OptionColorDropdown
+                        position={position}
+                        value={option.color}
+                        onChange={(color) => updateColorAt(index, color)}
+                      />
+                    )}
                     <Button
                       type="button"
                       variant="ghost"
@@ -155,13 +167,6 @@ export function OptionsEditor({
                     </Button>
                   </div>
                 </div>
-                {colorable && (
-                  <OptionColorPicker
-                    position={position}
-                    value={option.color}
-                    onChange={(color) => updateColorAt(index, color)}
-                  />
-                )}
               </li>
             );
           })}
@@ -183,12 +188,11 @@ export function OptionsEditor({
 }
 
 /**
- * Inline per-option colour swatches over the constrained palette, with a leading
- * "sem cor" (null) default. Keyboard-operable: each swatch is a button with
- * `aria-pressed`; the selected one shows a check. Colour alone never carries
- * meaning — the accessible name includes the colour's pt-BR name.
+ * A single trigger button showing the current colour (or a Ban icon for "sem
+ * cor"). Clicking opens a dropdown with the full palette so the option row stays
+ * compact — one line regardless of whether colours are enabled.
  */
-function OptionColorPicker({
+function OptionColorDropdown({
   position,
   value,
   onChange,
@@ -198,49 +202,72 @@ function OptionColorPicker({
   onChange: (token: ColorToken | null) => void;
 }) {
   return (
-    <div
-      role="group"
-      aria-label={`Cor da opção ${position}`}
-      className="flex flex-wrap items-center gap-1.5 pl-0.5"
-    >
-      <button
-        type="button"
-        aria-pressed={value === null}
-        aria-label="Sem cor"
-        title="Sem cor"
-        onClick={() => onChange(null)}
-        className={cn(
-          "grid size-6 place-items-center rounded-full border border-input bg-card ring-offset-2 ring-offset-card transition-shadow focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
-          value === null && "ring-2 ring-ring",
-        )}
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={
+            value
+              ? `Cor da opção ${position}: ${TOKEN_NAME[value]}. Clique para alterar`
+              : `Cor da opção ${position}: sem cor. Clique para alterar`
+          }
+          title={value ? TOKEN_NAME[value] : "Sem cor"}
+          className={cn(
+            "grid size-7 place-items-center rounded-full border border-input ring-offset-2 ring-offset-card transition-shadow focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+            value === null && "bg-card",
+          )}
+          style={value ? { backgroundColor: TOKEN_COLOR_VAR[value] } : undefined}
+        >
+          {value === null ? (
+            <Ban aria-hidden="true" className="size-3.5 text-muted-foreground" />
+          ) : (
+            <span className="sr-only">{TOKEN_NAME[value]}</span>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        className="flex items-center gap-1.5 p-2"
       >
-        <Ban aria-hidden="true" className="size-3.5 text-muted-foreground" />
-      </button>
-      {COLOR_TOKENS.map((token) => {
-        const selected = token === value;
-        return (
-          <button
-            key={token}
-            type="button"
-            aria-pressed={selected}
-            aria-label={TOKEN_NAME[token]}
-            title={TOKEN_NAME[token]}
-            onClick={() => onChange(token)}
-            className={cn(
-              "grid size-6 place-items-center rounded-full ring-offset-2 ring-offset-card transition-shadow focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
-              selected && "ring-2 ring-ring",
-            )}
-            style={{ backgroundColor: TOKEN_COLOR_VAR[token] }}
-          >
-            {selected && (
-              <Check
-                aria-hidden="true"
-                className="size-3 text-white drop-shadow"
-              />
-            )}
-          </button>
-        );
-      })}
-    </div>
+        <button
+          type="button"
+          aria-pressed={value === null}
+          aria-label="Sem cor"
+          title="Sem cor"
+          onClick={() => onChange(null)}
+          className={cn(
+            "grid size-6 place-items-center rounded-full border border-input bg-card ring-offset-2 ring-offset-card transition-shadow focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+            value === null && "ring-2 ring-ring",
+          )}
+        >
+          <Ban aria-hidden="true" className="size-3.5 text-muted-foreground" />
+        </button>
+        {COLOR_TOKENS.map((token) => {
+          const selected = token === value;
+          return (
+            <button
+              key={token}
+              type="button"
+              aria-pressed={selected}
+              aria-label={TOKEN_NAME[token]}
+              title={TOKEN_NAME[token]}
+              onClick={() => onChange(token)}
+              className={cn(
+                "grid size-6 place-items-center rounded-full ring-offset-2 ring-offset-card transition-shadow focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+                selected && "ring-2 ring-ring",
+              )}
+              style={{ backgroundColor: TOKEN_COLOR_VAR[token] }}
+            >
+              {selected && (
+                <Check
+                  aria-hidden="true"
+                  className="size-3 text-white drop-shadow"
+                />
+              )}
+            </button>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
