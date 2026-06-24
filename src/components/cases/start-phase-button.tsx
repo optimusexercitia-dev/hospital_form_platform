@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight } from "lucide-react";
@@ -21,10 +22,13 @@ import { Button } from "@/components/ui/button";
  * assignee passes (P0022) — a non-assignee gets the pt-BR message inline.
  */
 export function StartPhaseButton({
+  org,
   slug,
   caseId,
   phaseId,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   caseId: string;
   phaseId: string;
@@ -42,7 +46,7 @@ export function StartPhaseButton({
         return;
       }
       router.push(
-        `/c/${slug}/cases/${caseId}/phase/${phaseId}/responder/${result.responseId}`,
+        commissionHref(org, slug, "cases", caseId, "phase", phaseId, "responder", result.responseId),
       );
     });
   }

@@ -56,11 +56,14 @@ import { MeetingFormDialog } from "./meeting-form-dialog";
  */
 export function MeetingLifecycleActions({
   meeting,
+  org,
   slug,
   commissionId,
   meetingTypes,
 }: {
   meeting: MeetingDetail;
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   commissionId: string;
   meetingTypes: CommissionMeetingType[];
@@ -176,7 +179,7 @@ export function MeetingLifecycleActions({
         mode="edit"
         open={editOpen}
         onOpenChange={setEditOpen}
-        slug={slug}
+        org={org} slug={slug}
         commissionId={commissionId}
         meetingTypes={meetingTypes}
         meeting={meeting}

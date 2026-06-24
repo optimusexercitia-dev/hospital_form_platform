@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -19,23 +20,26 @@ import { cn } from "@/lib/utils";
  * those tabs are hidden everywhere until their increment ships.
  */
 export function SettingsTabs({
+  org,
   slug,
   narrativesEnabled = false,
   phaseResultsEnabled = false,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   narrativesEnabled?: boolean;
   phaseResultsEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const tabs = [
-    { href: `/c/${slug}/manage/settings/desfechos`, label: "Desfechos" },
+    { href: commissionHref(org, slug, "manage", "settings", "desfechos"), label: "Desfechos" },
     ...(phaseResultsEnabled
-      ? [{ href: `/c/${slug}/manage/settings/resultados`, label: "Resultados" }]
+      ? [{ href: commissionHref(org, slug, "manage", "settings", "resultados"), label: "Resultados" }]
       : []),
-    { href: `/c/${slug}/manage/settings/etiquetas`, label: "Etiquetas" },
+    { href: commissionHref(org, slug, "manage", "settings", "etiquetas"), label: "Etiquetas" },
     ...(narrativesEnabled
-      ? [{ href: `/c/${slug}/manage/settings/narrativas`, label: "Narrativas" }]
+      ? [{ href: commissionHref(org, slug, "manage", "settings", "narrativas"), label: "Narrativas" }]
       : []),
   ];
 

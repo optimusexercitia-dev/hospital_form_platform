@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -203,7 +204,9 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 export function AppSidebar({
+  org,
   slug,
+  commissionId,
   role,
   memberships,
   commissionName,
@@ -217,7 +220,12 @@ export function AppSidebar({
   referralsEnabled = false,
   caseAccessEnabled = false,
 }: {
+  /** The organization slug — the `/o/[org]` segment of every nav href. */
+  org: string;
+  /** The commission slug — the `/c/[commission]` segment of every nav href. */
   slug: string;
+  /** The current commission's id — disambiguates the switcher across orgs. */
+  commissionId: string;
   /** null when a global admin views a commission they're not a member of. */
   role: CommissionRole | null;
   memberships: Membership[];
@@ -246,7 +254,6 @@ export function AppSidebar({
   // vs. a route-change effect).
   const closeDrawer = () => setOpen(false);
 
-  const base = `/c/${slug}`;
   const multiCommission = memberships.length > 1;
   // Admins (no membership row) see the full menu; members see their role's.
   // Feature-gated items also require their flag to be on.
@@ -340,7 +347,10 @@ export function AppSidebar({
         {/* Commission switcher (or plain name when single-commission). */}
         <div className="px-4 pb-3">
           {multiCommission ? (
-            <CommissionSwitcher memberships={memberships} currentSlug={slug} />
+            <CommissionSwitcher
+              memberships={memberships}
+              currentCommissionId={commissionId}
+            />
           ) : (
             <span className="block max-w-full truncate px-2 py-1.5 text-sm font-medium text-sidebar-foreground/80">
               {commissionName}
@@ -363,7 +373,14 @@ export function AppSidebar({
                 </p>
                 <ul className="flex flex-col gap-0.5">
                   {items.map((item) => {
-                    const href = `${base}${item.href ? `/${item.href}` : ""}`;
+                    // `item.href` is a relative path under the commission base
+                    // ("" = overview, e.g. "manage/forms"); split into segments
+                    // so it routes through the canonical href builder.
+                    const href = commissionHref(
+                      org,
+                      slug,
+                      ...(item.href ? item.href.split("/") : []),
+                    );
                     // Exact match for the overview (href ""), prefix match for
                     // areas with nested routes so the item stays active on
                     // detail pages.

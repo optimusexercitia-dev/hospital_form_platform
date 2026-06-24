@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, ShieldAlert } from "lucide-react";
@@ -62,10 +63,13 @@ interface TemplateOption {
  * about), independent of the structured PHI block.
  */
 export function CreateCaseDialog({
+  org,
   slug,
   templates,
   casePatientEnabled = false,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   templates: TemplateOption[];
   /** Whether the `case_patient` flag is on (gates the optional PHI block). */
@@ -92,7 +96,7 @@ export function CreateCaseDialog({
     // Case minted (and its optional PHI written atomically server-side, inside
     // `createCaseFromTemplate` — no separate client round-trip to race the
     // navigation/revalidation, so identifiers are never silently lost). Navigate.
-    router.push(`/c/${slug}/manage/cases/${state.caseId}`);
+    router.push(commissionHref(org, slug, "manage", "cases", state.caseId));
     // Key only on the action result; slug/router are stable for a given mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state]);

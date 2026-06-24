@@ -1,3 +1,4 @@
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import { CalendarClock, MessagesSquare } from "lucide-react";
 
@@ -24,6 +25,7 @@ import { formatInterviewNumber, formatSchedule, interviewTitle } from "./format"
  * coordinator-gated case page, so `canCreate` here always implies a coordinator.
  */
 export function InterviewsPanel({
+  org,
   slug,
   caseId,
   interviews,
@@ -31,6 +33,8 @@ export function InterviewsPanel({
   canCreate,
   variant = "default",
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   caseId: string;
   interviews: InterviewListItem[];
@@ -78,7 +82,12 @@ export function InterviewsPanel({
           </span>
         </div>
         {canCreate && (
-          <NewInterviewButton slug={slug} caseId={caseId} phases={phases} />
+          <NewInterviewButton
+            org={org}
+            slug={slug}
+            caseId={caseId}
+            phases={phases}
+          />
         )}
       </div>
 
@@ -99,7 +108,7 @@ export function InterviewsPanel({
               }
             >
               <Link
-                href={`/c/${slug}/manage/cases/${caseId}/interviews/${iv.id}`}
+                href={commissionHref(org, slug, "manage", "cases", caseId, "interviews", iv.id)}
                 className="group flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/20 p-4 transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-border hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
               >
                 <div className="flex items-start justify-between gap-3">

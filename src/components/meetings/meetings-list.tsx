@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -38,10 +39,13 @@ const SELECT_CLASS =
 
 function MeetingCard({
   meeting,
+  org,
   slug,
   index,
 }: {
   meeting: MeetingListItem;
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   index: number;
 }) {
@@ -52,7 +56,7 @@ function MeetingCard({
       style={{ "--rise-delay": `${index * 60}ms` } as React.CSSProperties}
     >
       <Link
-        href={`/c/${slug}/meetings/${meeting.id}`}
+        href={commissionHref(org, slug, "meetings", meeting.id)}
         className="group flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-border/80 hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
       >
         <div className="flex items-start justify-between gap-3">
@@ -99,12 +103,15 @@ function MeetingCard({
 function MeetingGroup({
   heading,
   meetings,
+  org,
   slug,
   emptyText,
   icon: Icon,
 }: {
   heading: string;
   meetings: MeetingListItem[];
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   emptyText: string;
   icon: typeof CalendarClock;
@@ -125,7 +132,7 @@ function MeetingGroup({
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
           {meetings.map((m, i) => (
-            <MeetingCard key={m.id} meeting={m} slug={slug} index={i} />
+            <MeetingCard key={m.id} meeting={m} org={org} slug={slug} index={i} />
           ))}
         </ul>
       )}
@@ -141,10 +148,13 @@ function MeetingGroup({
 export function MeetingsList({
   meetings,
   meetingTypes,
+  org,
   slug,
 }: {
   meetings: MeetingListItem[];
   meetingTypes: CommissionMeetingType[];
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
 }) {
   const [statusFilter, setStatusFilter] = useState<MeetingStatus | "all">(
@@ -227,14 +237,14 @@ export function MeetingsList({
       <MeetingGroup
         heading="Próximas"
         meetings={upcoming}
-        slug={slug}
+        org={org} slug={slug}
         icon={CalendarClock}
         emptyText="Nenhuma reunião agendada."
       />
       <MeetingGroup
         heading="Anteriores"
         meetings={past}
-        slug={slug}
+        org={org} slug={slug}
         icon={CalendarX2}
         emptyText="Nenhuma reunião anterior."
       />

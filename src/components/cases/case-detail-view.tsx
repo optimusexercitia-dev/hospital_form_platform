@@ -1,3 +1,4 @@
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
@@ -76,6 +77,7 @@ export interface CaseReferralsModule {
  * the staff route renders the self-contained header here (`withHeader={true}`).
  */
 export function CaseDetailView({
+  org,
   slug,
   detail,
   members,
@@ -98,6 +100,8 @@ export function CaseDetailView({
   canManagePhaseResults = false,
   phaseResultOptions = [],
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   detail: CaseDetail;
   members: MemberListItem[];
@@ -227,7 +231,7 @@ export function CaseDetailView({
                 access actions below still honour `caps`. */}
             {caps.canManageLifecycle && (
               <Link
-                href={`/c/${slug}/manage/cases/${c.id}`}
+                href={commissionHref(org, slug, "manage", "cases", c.id)}
                 className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
               >
                 Gerenciar caso
@@ -269,7 +273,7 @@ export function CaseDetailView({
           <div className="contents lg:flex lg:flex-col lg:gap-6">
             <div data-rise className="order-1 lg:order-none">
               <CasePhaseList
-                slug={slug}
+                org={org} slug={slug}
                 detail={detailForLayout}
                 assignees={assignees}
                 isOpen={isOpen}
@@ -295,7 +299,7 @@ export function CaseDetailView({
             {referralsModule && (
               <div data-rise className="order-3 lg:order-none">
                 <CaseOutboundReferralsCard
-                  slug={slug}
+                  org={org} slug={slug}
                   sourceCaseId={c.id}
                   sourceCaseNumber={c.caseNumber}
                   referrals={referralsModule.referrals}
@@ -330,7 +334,7 @@ export function CaseDetailView({
             )}
             <div data-rise className="order-3 lg:order-none">
               <CaseTagsPanel
-                slug={slug}
+                org={org} slug={slug}
                 caseId={c.id}
                 assigned={caseTags}
                 vocabulary={tags}
@@ -349,7 +353,7 @@ export function CaseDetailView({
             {interviewsEnabled && (
               <div data-rise className="order-5 lg:order-none">
                 <InterviewsPanel
-                  slug={slug}
+                  org={org} slug={slug}
                   caseId={c.id}
                   interviews={interviews}
                   phases={phaseOptions}

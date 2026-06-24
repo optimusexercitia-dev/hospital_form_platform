@@ -51,11 +51,14 @@ import type { InterviewPhaseOption } from "./interview-form-dialog";
  */
 export function InterviewLifecycleActions({
   interview,
+  org,
   slug,
   caseId,
   phases,
 }: {
   interview: InterviewDetail;
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   caseId: string;
   phases: InterviewPhaseOption[];
@@ -176,7 +179,7 @@ export function InterviewLifecycleActions({
         mode="edit"
         open={editOpen}
         onOpenChange={setEditOpen}
-        slug={slug}
+        org={org} slug={slug}
         caseId={caseId}
         phases={phases}
         interview={interview}

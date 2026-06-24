@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
@@ -61,6 +62,7 @@ export function InterviewFormDialog({
   mode,
   open,
   onOpenChange,
+  org,
   slug,
   caseId,
   phases,
@@ -69,6 +71,8 @@ export function InterviewFormDialog({
   mode: "create" | "edit";
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   caseId: string;
   /** The case's phases, for the optional "attach to phase" picker. */
@@ -118,13 +122,13 @@ export function InterviewFormDialog({
     if (!state?.ok) return;
     if (mode === "create" && state.interviewId) {
       router.push(
-        `/c/${slug}/manage/cases/${caseId}/interviews/${state.interviewId}`,
+        commissionHref(org, slug, "manage", "cases", caseId, "interviews", state.interviewId),
       );
       return;
     }
     onOpenChange(false);
     router.refresh();
-  }, [state, mode, slug, caseId, router, onOpenChange]);
+  }, [state, mode, org, slug, caseId, router, onOpenChange]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -365,10 +369,13 @@ export function InterviewFormDialog({
  * its own dialog open state so the panel can stay a Server Component.
  */
 export function NewInterviewButton({
+  org,
   slug,
   caseId,
   phases,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   caseId: string;
   phases: InterviewPhaseOption[];
@@ -384,7 +391,7 @@ export function NewInterviewButton({
         mode="create"
         open={open}
         onOpenChange={setOpen}
-        slug={slug}
+        org={org} slug={slug}
         caseId={caseId}
         phases={phases}
       />

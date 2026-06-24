@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -105,10 +106,13 @@ function SortHeader({
  * (who received it).
  */
 export function ReferralsList({
+  org,
   slug,
   direction,
   referrals,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   direction: ReferralDirection;
   referrals: ReferralListItem[];
@@ -267,7 +271,7 @@ export function ReferralsList({
                         {formatReferralCode(r.code)}
                       </span>
                       <Link
-                        href={`/c/${slug}/encaminhamentos/${r.id}`}
+                        href={commissionHref(org, slug, "encaminhamentos", r.id)}
                         className="truncate rounded font-medium text-foreground underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
                       >
                         {r.subject}
@@ -328,10 +332,13 @@ export function ReferralsList({
 /** Renders both hub sections (Recebidos + Enviados) with their own headings, fed
  * the pre-split arrays. A thin composition so the page stays declarative. */
 export function ReferralsHubSections({
+  org,
   slug,
   incoming,
   outgoing,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   incoming: ReferralListItem[];
   outgoing: ReferralListItem[];
@@ -345,7 +352,7 @@ export function ReferralsHubSections({
             Recebidos
           </h2>
         </div>
-        <ReferralsList slug={slug} direction="incoming" referrals={incoming} />
+        <ReferralsList org={org} slug={slug} direction="incoming" referrals={incoming} />
       </section>
 
       <section aria-labelledby="referrals-outgoing-heading" className="flex flex-col gap-4">
@@ -355,7 +362,7 @@ export function ReferralsHubSections({
             Enviados
           </h2>
         </div>
-        <ReferralsList slug={slug} direction="outgoing" referrals={outgoing} />
+        <ReferralsList org={org} slug={slug} direction="outgoing" referrals={outgoing} />
       </section>
     </div>
   );

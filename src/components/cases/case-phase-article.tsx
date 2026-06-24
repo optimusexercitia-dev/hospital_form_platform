@@ -27,6 +27,7 @@ type DetailPhase = CaseDetail["phases"][number];
  * client islands.
  */
 export function CasePhaseArticle({
+  org,
   slug,
   phase,
   allPhases,
@@ -36,6 +37,8 @@ export function CasePhaseArticle({
   canCorrectResult = false,
   resultOptions = [],
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   phase: DetailPhase;
   /** Every phase of the case (the reassign/skip pickers need the full set). */
@@ -125,7 +128,7 @@ export function CasePhaseArticle({
       </div>
 
       <CoordinatorPhaseActions
-        slug={slug}
+        org={org} slug={slug}
         phase={phase}
         allPhases={allPhases}
         assignees={assignees}

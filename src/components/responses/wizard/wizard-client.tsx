@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -334,13 +335,14 @@ export function WizardClient({
       setBanner(result.error ?? "Não foi possível salvar suas respostas.");
       return;
     }
-    router.push(`/c/${data.slug}/forms`);
+    router.push(commissionHref(data.org, data.slug, "forms"));
   }, [
     actions,
     currentSection,
     answersForSection,
     observationsForSection,
     router,
+    data.org,
     data.slug,
   ]);
 
@@ -431,7 +433,13 @@ export function WizardClient({
 
   // ----- Confirmation (post-submit) -----
   if (submitted) {
-    return <ConfirmationScreen slug={data.slug} formTitle={data.formTitle} />;
+    return (
+      <ConfirmationScreen
+        org={data.org}
+        slug={data.slug}
+        formTitle={data.formTitle}
+      />
+    );
   }
 
   const orphanDialog = (

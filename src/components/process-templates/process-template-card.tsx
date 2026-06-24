@@ -1,3 +1,4 @@
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import { ArrowUpRight, Layers, PencilLine } from "lucide-react";
 
@@ -13,14 +14,17 @@ import { TemplateStatusBadge } from "@/components/process-templates/template-sta
  */
 export function ProcessTemplateCard({
   template,
+  org,
   slug,
   index = 0,
 }: {
   template: ProcessTemplate;
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   index?: number;
 }) {
-  const href = `/c/${slug}/manage/process-templates/${template.id}`;
+  const href = commissionHref(org, slug, "manage", "process-templates", template.id);
   const phaseCount = template.phases.length;
   const action = template.status === "draft" ? "Continuar edição" : "Ver processo";
 

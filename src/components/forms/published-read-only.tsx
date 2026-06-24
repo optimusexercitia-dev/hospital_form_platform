@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -21,6 +22,7 @@ import { ReadOnlyTree } from "@/components/forms/read-only-tree";
  * always viewable and re-editable (F2 refinement).
  */
 export function PublishedReadOnly({
+  org,
   slug,
   formId,
   formTitle,
@@ -29,6 +31,8 @@ export function PublishedReadOnly({
   tree,
   imageUrls,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   formId: string;
   formTitle: string;
@@ -62,7 +66,7 @@ export function PublishedReadOnly({
           <div className="flex min-w-0 flex-col gap-2">
             <div className="flex items-center gap-3">
               <Link
-                href={`/c/${slug}/manage/forms`}
+                href={commissionHref(org, slug, "manage", "forms")}
                 className="text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:rounded focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
               >
                 ← Formulários
@@ -85,7 +89,7 @@ export function PublishedReadOnly({
 
           <div className="flex shrink-0 items-center gap-2">
             <Button asChild variant="outline" size="lg">
-              <Link href={`/c/${slug}/manage/forms/${formId}/versions`}>
+              <Link href={commissionHref(org, slug, "manage", "forms", formId, "versions")}>
                 <History aria-hidden="true" />
                 Versões
               </Link>

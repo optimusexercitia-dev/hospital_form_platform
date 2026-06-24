@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarPlus } from "lucide-react";
@@ -53,6 +54,7 @@ export function MeetingFormDialog({
   mode,
   open,
   onOpenChange,
+  org,
   slug,
   commissionId,
   meetingTypes,
@@ -61,6 +63,8 @@ export function MeetingFormDialog({
   mode: "create" | "edit";
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   commissionId: string;
   meetingTypes: CommissionMeetingType[];
@@ -108,12 +112,12 @@ export function MeetingFormDialog({
   useEffect(() => {
     if (!state?.ok) return;
     if (mode === "create" && state.meetingId) {
-      router.push(`/c/${slug}/meetings/${state.meetingId}`);
+      router.push(commissionHref(org, slug, "meetings", state.meetingId));
       return;
     }
     onOpenChange(false);
     router.refresh();
-  }, [state, mode, slug, router, onOpenChange]);
+  }, [state, mode, org, slug, router, onOpenChange]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -340,10 +344,13 @@ export function MeetingFormDialog({
  * dialog open state so the list page stays a Server Component.
  */
 export function NewMeetingButton({
+  org,
   slug,
   commissionId,
   meetingTypes,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   commissionId: string;
   meetingTypes: CommissionMeetingType[];
@@ -359,7 +366,7 @@ export function NewMeetingButton({
         mode="create"
         open={open}
         onOpenChange={setOpen}
-        slug={slug}
+        org={org} slug={slug}
         commissionId={commissionId}
         meetingTypes={meetingTypes}
       />

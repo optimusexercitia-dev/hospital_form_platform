@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useRouter } from "next/navigation";
 
 import { EventNotifyForm } from "./event-notify-form";
@@ -11,9 +12,12 @@ import { EventNotifyForm } from "./event-notify-form";
  * list. The server page does the gating + supplies the commission id.
  */
 export function StandaloneNotify({
+  org,
   slug,
   commissionId,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   commissionId: string;
 }) {
@@ -24,9 +28,9 @@ export function StandaloneNotify({
       caseId={null}
       idPrefix="standalone-notify"
       submitLabel="Notificar evento"
-      onCancel={() => router.push(`/c/${slug}/eventos`)}
+      onCancel={() => router.push(commissionHref(org, slug, "eventos"))}
       onSuccess={() => {
-        router.push(`/c/${slug}/eventos`);
+        router.push(commissionHref(org, slug, "eventos"));
         router.refresh();
       }}
     />

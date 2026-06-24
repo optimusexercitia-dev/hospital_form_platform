@@ -1,3 +1,4 @@
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -24,12 +25,15 @@ import { formatMeetingNumber, formatSchedule } from "./format";
  */
 export function MeetingHeader({
   meeting,
+  org,
   slug,
   commissionId,
   meetingTypes,
   isCoordinator,
 }: {
   meeting: MeetingDetail;
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   commissionId: string;
   meetingTypes: CommissionMeetingType[];
@@ -41,7 +45,7 @@ export function MeetingHeader({
   return (
     <header className="flex flex-col gap-4">
       <Link
-        href={`/c/${slug}/meetings`}
+        href={commissionHref(org, slug, "meetings")}
         className="inline-flex w-fit items-center gap-1.5 rounded text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
       >
         <ArrowLeft aria-hidden="true" className="size-4" />
@@ -95,7 +99,7 @@ export function MeetingHeader({
         {isCoordinator && (
           <MeetingLifecycleActions
             meeting={meeting}
-            slug={slug}
+            org={org} slug={slug}
             commissionId={commissionId}
             meetingTypes={meetingTypes}
           />
