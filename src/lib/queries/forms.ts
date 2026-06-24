@@ -446,13 +446,14 @@ export async function getEditableDraftTree(
 ): Promise<VersionTree | null> {
   const supabase = await createClient()
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('form_versions')
     .select(VERSION_TREE_SELECT)
     .eq('form_id', formId)
     .eq('status', 'draft')
     .maybeSingle<VersionRow>()
 
+  if (error) console.error('[getEditableDraftTree]', error)
   return data ? toVersionTree(data) : null
 }
 
