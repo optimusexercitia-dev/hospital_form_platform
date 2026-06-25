@@ -2,11 +2,13 @@
 -- (reset recreates the DB, then runs migrations, then this file once).
 --
 -- Content rules: all user-facing strings are pt-BR; questions are
--- compliance-checklist style. NO patient data of any kind. Identifiers and
--- comments are English.
+-- compliance-checklist style. Identifiers and comments are English. SYNTHETIC PHI
+-- (demo patient identifiers) lives ONLY in the isolated PHI tables — event_patient /
+-- referral_patient / case_patient — per Architecture Rule 12 (since Phase 14a). The
+-- direct seed inserts carry the new organization_id columns (NSP-per-org, ADR 0042).
 --
 -- Personas (password for ALL: Test1234!):
---   admin@test.local          global admin
+--   admin@test.local          org_admin of Rede A (+ enrolled in Rede A's PQS roster)
 --   chefe.ccih@test.local     staff_admin of commission A (CCIH)
 --   staff1.ccih@test.local     staff of A
 --   staff2.ccih@test.local     staff of A
@@ -14,6 +16,12 @@
 --   staff1.farm@test.local     staff of B
 --   staff2.farm@test.local     staff of B
 --   multi@test.local          staff of BOTH A and B (exercises the commission picker)
+--   platform@test.local       vendor platform_admin (walled off all tenant data)
+--   orgadmin.a/.b@test.local  org_admin of Rede A / Rede B
+--   nspcoord.a/.b@test.local  per-org NSP coordinator (CURATES the roster; NOT
+--                             enrolled → cannot read PHI until self-enrolled)
+--   pqs.a/.b@test.local       enrolled PQS reader of Rede A / Rede B (reads that
+--                             org's PHI only — the cross-org isolation keystone)
 
 set search_path = public, extensions;
 
@@ -47,7 +55,15 @@ declare
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b1', 'email', 'orgadmin.a@test.local',   'name', 'Admin Rede A'),
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b2', 'email', 'orgadmin.b@test.local',   'name', 'Admin Rede B'),
     -- A plain staff persona in org-b's commission, for cross-org isolation tests.
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b3', 'email', 'staff1.qual.b@test.local', 'name', 'Analista Qualidade B')
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b3', 'email', 'staff1.qual.b@test.local', 'name', 'Analista Qualidade B'),
+    -- NSP-per-org (ADR 0042) personas. Per-org NSP coordinators (CURATE their org's
+    -- roster, NOT implicitly readers) + enrolled PQS readers, for both orgs. The
+    -- coordinators are deliberately left UNENROLLED below so pgTAP proves "curate ≠
+    -- read until enrolled" (duty separation).
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c1', 'email', 'nspcoord.a@test.local', 'name', 'Coordenador NSP A'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c2', 'email', 'pqs.a@test.local',      'name', 'NSP Rede A'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c3', 'email', 'nspcoord.b@test.local', 'name', 'Coordenador NSP B'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c4', 'email', 'pqs.b@test.local',      'name', 'NSP Rede B')
   );
   u jsonb;
 begin
@@ -119,7 +135,12 @@ insert into public.organization_members (organization_id, user_id, role) values
   -- a legacy id and the named persona administer org-a). orgadmin.b runs org-b.
   ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000001', 'org_admin'),
   ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000b1', 'org_admin'),
-  ('0c000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000b2', 'org_admin');
+  ('0c000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000b2', 'org_admin'),
+  -- NSP-per-org (ADR 0042): a per-org nsp_coordinator for each org (CURATES the PQS
+  -- roster via add/remove_pqs_member; appointed by the org_admin). They are NOT
+  -- enrolled in pqs_members below — proving curate ≠ read (three-way duty separation).
+  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000c1', 'nsp_coordinator'),
+  ('0c000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000c3', 'nsp_coordinator');
 
 -- ---------------------------------------------------------------------------
 -- Commissions + memberships. CCIH + Farmácia under org-a's hospital (ids kept);
@@ -130,7 +151,11 @@ insert into public.commissions (id, name, slug, created_by, hospital_id) values
   ('b0000000-0000-0000-0000-0000000000b1', 'Comissão de Farmácia e Terapêutica',          'farmacia', '00000000-0000-0000-0000-000000000001', '05000000-0000-0000-0000-00000000000a'),
   -- org-b commission. Note 'ccih' is reused as a slug HERE under a DIFFERENT org —
   -- proving per-org slug uniqueness (two orgs may both have a `ccih`/`qualidade`).
-  ('c0000000-0000-0000-0000-0000000000c1', 'Comissão de Qualidade e Segurança',           'qualidade', '00000000-0000-0000-0000-0000000000b2', '05000000-0000-0000-0000-00000000000b');
+  ('c0000000-0000-0000-0000-0000000000c1', 'Comissão de Qualidade e Segurança',           'qualidade', '00000000-0000-0000-0000-0000000000b2', '05000000-0000-0000-0000-00000000000b'),
+  -- NSP-per-org (ADR 0042): a SECOND org-b commission so an INTRA-rede-b referral
+  -- (Qualidade B → Farmácia B) exists — referrals are forbidden across orgs, so the
+  -- rede-b referral fixture needs two rede-b commissions.
+  ('c0000000-0000-0000-0000-0000000000c2', 'Comissão de Farmácia B',                      'farmacia-b', '00000000-0000-0000-0000-0000000000b2', '05000000-0000-0000-0000-00000000000b');
 
 insert into public.commission_members (commission_id, user_id, role) values
   -- org-b commission staff_admin + staff (cross-org isolation personas).
@@ -149,7 +174,11 @@ insert into public.commission_members (commission_id, user_id, role) values
   ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000008', 'staff'),
   -- Case Access Control personas (plain staff of CCIH; ADR 0033 §5 acceptance).
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000009', 'staff'),
-  ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000000a', 'staff');
+  ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-00000000000a', 'staff'),
+  -- NSP-per-org: Farmácia B (org-b) staff_admin so the intra-rede-b referral has a
+  -- target coordinator; orgadmin.b coordinates Qualidade B (source) — already a
+  -- staff_admin there (above). staff1.qual.b is the Farmácia B coordinator here.
+  ('c0000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-0000000000b3', 'staff_admin');
 
 -- ===========================================================================
 -- FORM A (commission CCIH): UNSECTIONED — default section only.
@@ -890,6 +919,13 @@ end $$;
 do $$
 declare
   v_comm_a   uuid := 'a0000000-0000-0000-0000-0000000000a1';  -- CCIH
+  v_org_a    uuid := '0c000000-0000-0000-0000-00000000000a';  -- Rede A (CCIH's org)
+  v_org_b    uuid := '0c000000-0000-0000-0000-00000000000b';  -- Rede B
+  v_pqs_a    uuid := '00000000-0000-0000-0000-0000000000c2';  -- pqs.a (enrolled, rede-a)
+  v_pqs_b    uuid := '00000000-0000-0000-0000-0000000000c4';  -- pqs.b (enrolled, rede-b)
+  v_comm_b_qual uuid := 'c0000000-0000-0000-0000-0000000000c1'; -- Qualidade B (rede-b)
+  v_chefe_b_qual uuid := '00000000-0000-0000-0000-0000000000b2'; -- orgadmin.b (staff_admin Qualidade B)
+  v_evb      uuid := 'e4000000-0000-0000-0000-0000000000b1';  -- a rede-b event (has PHI)
   v_admin    uuid := '00000000-0000-0000-0000-000000000001';  -- admin@test.local (enrolled in PQS)
   v_chefe_a  uuid := '00000000-0000-0000-0000-000000000002';  -- chefe.ccih (staff_admin)
   v_staff_a1 uuid := '00000000-0000-0000-0000-000000000003';  -- staff1.ccih (just-culture reporter)
@@ -905,17 +941,23 @@ declare
   v_capa_act uuid := 'caa00000-0000-0000-0000-0000000000a1';  -- a corrective action
   v_capa_meas uuid := 'cab00000-0000-0000-0000-0000000000a1'; -- a measure (hex-only)
 begin
-  -- The singleton NSP department (one row; default name + 45-day RCA window).
-  insert into public.pqs_department (name, rca_default_due_days)
-  values ('Núcleo de Segurança do Paciente', 45);
+  -- NSP-per-org (ADR 0042): ONE pqs_department row PER ORG, with DELIBERATELY
+  -- DIFFERENT RCA due-windows (rede-a=45d, rede-b=30d) so pgTAP proves per-org config.
+  insert into public.pqs_department (organization_id, name, rca_default_due_days) values
+    (v_org_a, 'Núcleo de Segurança do Paciente — Rede A', 45),
+    (v_org_b, 'Núcleo de Segurança do Paciente — Rede B', 30);
 
-  -- WS A: enroll the seed admin in the real PQS roster so dev/E2E personas keep
-  -- NSP access (is_pqs_member now reads public.pqs_members, no longer == admin).
-  -- In PRODUCTION the first admin enrolls PQS staff via add_pqs_member — there is
-  -- no implicit admin→NSP access anymore (duty separation, ADR 0030/0031).
-  insert into public.pqs_members (user_id, added_by)
-  values (v_admin, v_admin)
-  on conflict (user_id) do nothing;
+  -- PER-ORG PQS rosters. Enrollment grants THAT org's PHI read.
+  --   rede-a: pqs.a (the named reader) + admin (so dev/E2E keep NSP access on org-a).
+  --   rede-b: pqs.b.
+  -- The per-org coordinators (nspcoord.a / nspcoord.b) are DELIBERATELY NOT enrolled
+  -- here — they can curate the roster but cannot read PHI until they enroll
+  -- themselves (duty separation; pgTAP asserts this).
+  insert into public.pqs_members (organization_id, user_id, added_by) values
+    (v_org_a, v_pqs_a, v_admin),
+    (v_org_a, v_admin, v_admin),
+    (v_org_b, v_pqs_b, v_admin)
+  on conflict (organization_id, user_id) do nothing;
 
   -- Event 1 — CASE-LINKED, reported by a PLAIN staff member (just-culture),
   -- acknowledged by the NSP. Held by the NSP.
@@ -1097,6 +1139,35 @@ begin
     (v_capa3, 'parcial',
      E'Conformidade inicial de 82% após a primeira fase. Reavaliar após o treinamento completo.',
      v_chefe_a);
+
+  -- ── REDE-B event + isolated PHI (NSP-per-org isolation fixture) ────────────────
+  -- A stand-alone event reported by a REDE-B commission (Qualidade B), held by the
+  -- NSP, with its own event_patient (MRN 'PRT-B-0001'). This is what an org-A NSP
+  -- member must get NOTHING on, and a rede-b NSP member (pqs.b) must read — the
+  -- cross-org PHI-isolation keystone. Its code mints per-org (rede-b's own EV
+  -- sequence). reported_by = orgadmin.b (a member of Qualidade B).
+  insert into public.patient_safety_event
+    (id, reporting_commission_id, case_id, discovered_at, location, reported_by,
+     suspected_harm_level, title, description_md, status,
+     current_owner_kind, current_owner_commission_id, acknowledged_by, acknowledged_at)
+  values
+    (v_evb, v_comm_b_qual, null, current_date - 3, 'Enfermaria B, leito 12', v_chefe_b_qual,
+     'moderate', 'Erro de identificação de paciente (Rede B)',
+     E'## Descrição\n\nPulseira de identificação trocada entre dois pacientes; '
+     || E'detectado antes de qualquer administração. Notificado ao NSP da Rede B.',
+     'acknowledged', 'pqs', null, v_chefe_b_qual, now() - interval '2 days');
+
+  insert into public.event_custody
+    (event_id, owner_kind, owner_commission_id, assigned_by, note)
+  values
+    (v_evb, 'pqs', null, v_chefe_b_qual, 'Notificação inicial ao NSP da Rede B');
+
+  insert into public.event_patient
+    (event_id, name, mrn, date_of_birth, sex, encounter_ref, unit, attending)
+  values
+    (v_evb, 'Paciente Rede B', 'PRT-B-0001', '1972-09-02', 'female',
+     'ENC-B-2026-0007', 'Enfermaria B', 'Dra. Beatriz Lima');
+  update public.patient_safety_event set has_patient = true where id = v_evb;
 end $$;
 
 -- ===========================================================================
@@ -1239,4 +1310,73 @@ begin
   update public.cases set has_patient = true, patient_enabled = true where id = v_tgt_case;
 
   perform set_config('app.in_referral_rpc', 'off', true);
+end $$;
+
+-- ===========================================================================
+-- 11. NSP-PER-ORG (ADR 0042) — REDE-B referral + cross-module patient_xref fixture
+-- ===========================================================================
+-- An INTRA-rede-b referral (Qualidade B → Farmácia B; cross-org referrals are
+-- forbidden) carrying isolated referral_patient PHI, plus a rede-b patient_xref
+-- synthetic patient sharing ONE MRN ('PRT-B-0001') across the rede-b EVENT (section
+-- 9) and this REFERRAL. This is the rede-b leg of the cross-org isolation proof: a
+-- rede-a NSP member's patient search must return NOTHING for 'PRT-B-0001', and a
+-- rede-b member (pqs.b) must see both the event and the referral. ENC mints continue
+-- the GLOBAL sequence (ENC-0003). Direct superuser inserts (RPCs gate on auth.uid()).
+do $$
+declare
+  v_comm_src  uuid := 'c0000000-0000-0000-0000-0000000000c1';  -- Qualidade B (source)
+  v_comm_tgt  uuid := 'c0000000-0000-0000-0000-0000000000c2';  -- Farmácia B (target)
+  v_coord_src uuid := '00000000-0000-0000-0000-0000000000b2';  -- orgadmin.b (staff_admin Qualidade B)
+  v_src_case  uuid := 'dc000000-0000-0000-0000-0000000000b1';  -- a rede-b source case
+  v_narr_b    uuid := 'a2200000-0000-0000-0000-0000000000b1';  -- a narrative to snapshot
+  v_type_par  uuid;                                            -- 'parecer' (reply-expected)
+  v_ref_b     uuid := 'efa00000-0000-0000-0000-0000000000b1';  -- ENC-0003 (rede-b, enviada)
+begin
+  select id into v_type_par from public.referral_types where key = 'parecer';
+
+  -- A minimal rede-b source case in Qualidade B (so the referral has a provenance
+  -- case in the source commission). Created by the source coordinator.
+  insert into public.cases (id, commission_id, case_number, label, status, created_by)
+  values (v_src_case, v_comm_src, 9101, 'Análise de incidente — Rede B', 'nao_iniciado', v_coord_src);
+
+  -- A narrative on that case to snapshot into the referral.
+  insert into public.case_narratives
+    (id, case_id, type_label, display_position, title, body_md, created_by, assigned_to, status)
+  values (v_narr_b, v_src_case, 'Resumo', 1, 'Resumo do incidente',
+          E'Resumo do incidente de identificação para parecer da Farmácia B.',
+          v_coord_src, v_coord_src, 'aberta');
+
+  -- The intra-rede-b referral (Qualidade B → Farmácia B), ENVIADA, reply-expecting.
+  -- Status set directly under the in_referral_rpc guard (mirrors the section-10 seed).
+  perform set_config('app.in_referral_rpc', 'on', true);
+  insert into public.case_referral
+    (id, source_case_id, source_commission_id, target_commission_id, referral_type_id,
+     type_label, subject, response_expected, created_by, status, sent_at, sent_by)
+  values
+    (v_ref_b, v_src_case, v_comm_src, v_comm_tgt, v_type_par, 'Parecer',
+     'Parecer sobre conduta medicamentosa — Rede B', true, v_coord_src,
+     'enviada', now() - interval '1 day', v_coord_src);
+
+  insert into public.referral_shared_item
+    (referral_id, kind, source_narrative_id, frozen_title, frozen_body_md, position)
+  values
+    (v_ref_b, 'narrative', v_narr_b, 'Resumo do incidente',
+     E'Resumo do incidente de identificação para parecer.', 0);
+
+  -- Its isolated referral_patient PHI — SAME MRN as the rede-b event (PRT-B-0001), so
+  -- the patient_xref links event<->referral within rede-b ONLY.
+  insert into public.referral_patient
+    (referral_id, name, mrn, age_years, sex, encounter_ref, unit, attending)
+  values
+    (v_ref_b, 'Paciente Rede B', 'PRT-B-0001', 54, 'female', 'ENC-B-2026-0007',
+     'Enfermaria B', 'Dra. Beatriz Lima');
+  update public.case_referral set has_patient = true where id = v_ref_b;
+  perform set_config('app.in_referral_rpc', 'off', true);
+
+  -- NOTE: patient_xref rows for the rede-b event + referral are maintained
+  -- AUTOMATICALLY by the trg_xref_maintain AFTER-trigger on event_patient /
+  -- referral_patient (keyed by the shared MRN under the deployment pepper), with
+  -- commission_id resolved to the rede-b commissions -> rede-b org. No manual
+  -- patient_xref insert is needed (and the rede-a synthetic PRT-0099123 from
+  -- section 10 stays a rede-a-only set).
 end $$;

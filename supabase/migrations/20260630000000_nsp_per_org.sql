@@ -109,6 +109,20 @@ COMMENT ON COLUMN "public"."pqs_members"."organization_id"
   IS 'The organization whose PHI this enrollment grants read of. Part of the composite PK (organization_id, user_id).';
 
 -- ===========================================================================
+-- §A2.3b — EVENT CODE uniqueness: GLOBAL -> PER-ORG (the §A3e per-org EV mint makes
+-- two orgs both reach EV-0001, which the global UNIQUE(code) would reject). The event
+-- has no organization_id column (org is derived via reporting_commission_id), and
+-- app.org_of_commission is STABLE (not indexable), so we scope the backstop unique to
+-- (reporting_commission_id, code). True per-org uniqueness is guaranteed at MINT time
+-- by the per-org advisory lock + per-org max(suffix)+1 in app.mint_event_code; this
+-- index backstops the common single-commission case.
+-- ===========================================================================
+ALTER TABLE "public"."patient_safety_event"
+  DROP CONSTRAINT IF EXISTS "patient_safety_event_code_key";
+CREATE UNIQUE INDEX IF NOT EXISTS "patient_safety_event_commission_code_key"
+  ON "public"."patient_safety_event" ("reporting_commission_id", "code");
+
+-- ===========================================================================
 -- §A2.4 — PREDICATE PRIMITIVES (replace the global ones) + ORG-RESOLUTION HELPERS.
 -- All STABLE SECURITY DEFINER, search_path pinned, OWNER postgres, REVOKE PUBLIC +
 -- GRANT authenticated/service_role. `_for(…, p_user_id)` + bare auth.uid() variants,
@@ -1599,7 +1613,7 @@ $_$;
 DROP FUNCTION IF EXISTS "public"."add_pqs_member"("uuid");
 DROP FUNCTION IF EXISTS "public"."remove_pqs_member"("uuid");
 DROP FUNCTION IF EXISTS "public"."list_pqs_members"();
-DROP FUNCTION IF EXISTS "public"."set_pqs_rca_due_window"("integer");
+DROP FUNCTION IF EXISTS "public"."set_pqs_rca_due_window"(integer);
 
 -- add_pqs_member(org, user): coordinator-only enrollment into THAT org's roster.
 CREATE OR REPLACE FUNCTION "public"."add_pqs_member"("p_org_id" "uuid", "p_user_id" "uuid") RETURNS "public"."pqs_members"

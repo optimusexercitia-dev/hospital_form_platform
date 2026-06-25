@@ -3266,27 +3266,35 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          organization_id: string
           rca_default_due_days: number
-          singleton: boolean
           updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
           name?: string
+          organization_id: string
           rca_default_due_days?: number
-          singleton?: boolean
           updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          organization_id?: string
           rca_default_due_days?: number
-          singleton?: boolean
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pqs_department_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pqs_event_types: {
         Row: {
@@ -3325,16 +3333,19 @@ export type Database = {
         Row: {
           added_at: string
           added_by: string | null
+          organization_id: string
           user_id: string
         }
         Insert: {
           added_at?: string
           added_by?: string | null
+          organization_id: string
           user_id: string
         }
         Update: {
           added_at?: string
           added_by?: string | null
+          organization_id?: string
           user_id?: string
         }
         Relationships: [
@@ -3346,9 +3357,16 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "pqs_members_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "pqs_members_user_id_fkey"
             columns: ["user_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -4850,10 +4868,11 @@ export type Database = {
         }
       }
       add_pqs_member: {
-        Args: { p_user_id: string }
+        Args: { p_org_id: string; p_user_id: string }
         Returns: {
           added_at: string
           added_by: string | null
+          organization_id: string
           user_id: string
         }
         SetofOptions: {
@@ -6210,51 +6229,96 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      create_referral_draft: {
-        Args: {
-          p_description_md?: string
-          p_referral_type_id: string
-          p_response_expected?: boolean
-          p_source_case_id: string
-          p_subject: string
-          p_target_commission_id: string
-        }
-        Returns: {
-          code: string
-          concluded_at: string | null
-          concluded_by: string | null
-          created_at: string
-          created_by: string | null
-          decided_at: string | null
-          decided_by: string | null
-          decline_note: string | null
-          description_md: string | null
-          has_patient: boolean
-          id: string
-          received_at: string | null
-          received_by: string | null
-          referral_type_id: string | null
-          response_expected: boolean
-          sent_at: string | null
-          sent_by: string | null
-          source_case_id: string
-          source_commission_id: string
-          status: string
-          subject: string
-          target_case_id: string | null
-          target_commission_id: string
-          type_label: string
-          updated_at: string
-          withdrawn_at: string | null
-          withdrawn_by: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "case_referral"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
+      create_referral_draft:
+        | {
+            Args: {
+              p_referral_type_id: string
+              p_response_expected?: boolean
+              p_source_case_id: string
+              p_subject: string
+              p_target_commission_id: string
+            }
+            Returns: {
+              code: string
+              concluded_at: string | null
+              concluded_by: string | null
+              created_at: string
+              created_by: string | null
+              decided_at: string | null
+              decided_by: string | null
+              decline_note: string | null
+              description_md: string | null
+              has_patient: boolean
+              id: string
+              received_at: string | null
+              received_by: string | null
+              referral_type_id: string | null
+              response_expected: boolean
+              sent_at: string | null
+              sent_by: string | null
+              source_case_id: string
+              source_commission_id: string
+              status: string
+              subject: string
+              target_case_id: string | null
+              target_commission_id: string
+              type_label: string
+              updated_at: string
+              withdrawn_at: string | null
+              withdrawn_by: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "case_referral"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              p_description_md?: string
+              p_referral_type_id: string
+              p_response_expected?: boolean
+              p_source_case_id: string
+              p_subject: string
+              p_target_commission_id: string
+            }
+            Returns: {
+              code: string
+              concluded_at: string | null
+              concluded_by: string | null
+              created_at: string
+              created_by: string | null
+              decided_at: string | null
+              decided_by: string | null
+              decline_note: string | null
+              description_md: string | null
+              has_patient: boolean
+              id: string
+              received_at: string | null
+              received_by: string | null
+              referral_type_id: string | null
+              response_expected: boolean
+              sent_at: string | null
+              sent_by: string | null
+              source_case_id: string
+              source_commission_id: string
+              status: string
+              subject: string
+              target_case_id: string | null
+              target_commission_id: string
+              type_label: string
+              updated_at: string
+              withdrawn_at: string | null
+              withdrawn_by: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "case_referral"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
       create_sentinel_criterion: {
         Args: { p_description?: string; p_key: string; p_label: string }
         Returns: {
@@ -6477,6 +6541,11 @@ export type Database = {
         Returns: boolean
       }
       interviews_enabled: { Args: never; Returns: boolean }
+      is_nsp_coordinator_of_self: {
+        Args: { p_org_id: string }
+        Returns: boolean
+      }
+      is_pqs_member_of_self: { Args: { p_org_id: string }; Returns: boolean }
       is_pqs_member_self: { Args: never; Returns: boolean }
       link_meeting_case: {
         Args: {
@@ -6555,7 +6624,7 @@ export type Database = {
         }[]
       }
       list_my_cases: { Args: { p_commission: string }; Returns: Json }
-      list_pqs_members: { Args: never; Returns: Json }
+      list_pqs_members: { Args: { p_org_id: string }; Returns: Json }
       list_referral_target_commissions: {
         Args: { p_source_commission_id: string }
         Returns: {
@@ -6713,7 +6782,7 @@ export type Database = {
         }
       }
       patient_access_audit: {
-        Args: { p_encounter?: string; p_mrn?: string }
+        Args: { p_encounter?: string; p_mrn?: string; p_org_id?: string }
         Returns: Json
       }
       patient_index_enabled: { Args: never; Returns: boolean }
@@ -6933,7 +7002,10 @@ export type Database = {
         Args: { p_attendee_id: string }
         Returns: undefined
       }
-      remove_pqs_member: { Args: { p_user_id: string }; Returns: undefined }
+      remove_pqs_member: {
+        Args: { p_org_id: string; p_user_id: string }
+        Returns: undefined
+      }
       remove_rca_factor: { Args: { p_factor_id: string }; Returns: undefined }
       remove_rca_member: { Args: { p_member_id: string }; Returns: undefined }
       remove_rca_root_cause: {
@@ -7291,7 +7363,7 @@ export type Database = {
         }
       }
       search_patient_xref: {
-        Args: { p_encounter?: string; p_mrn?: string }
+        Args: { p_encounter?: string; p_mrn?: string; p_org_id?: string }
         Returns: Json
       }
       seed_expected_meeting_attendees: {
@@ -7452,7 +7524,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      set_pqs_rca_due_window: { Args: { p_days: number }; Returns: number }
+      set_pqs_rca_due_window: {
+        Args: { p_days: number; p_org_id: string }
+        Returns: number
+      }
       set_process_outcomes: {
         Args: { p_outcome_ids: string[]; p_template_id: string }
         Returns: undefined
