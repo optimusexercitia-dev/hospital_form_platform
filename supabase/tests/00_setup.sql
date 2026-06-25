@@ -58,6 +58,15 @@ declare
   ver_y uuid := gen_random_uuid();
   sec_y uuid := gen_random_uuid();
 begin
+  -- Multi-tenancy: the committed seed creates 2 orgs, which makes
+  -- app.is_multi_org() true globally — turning the global-PQS PHI modules INERT
+  -- (the 20260629000000 guard). The hermetic suite tests SINGLE-org behavior, so
+  -- wipe the seed's tenant tree first (CASCADE clears commissions/forms/cases/
+  -- events/... ) and let bootstrap rebuild a clean single-org world below. This
+  -- runs inside each test's transaction and is rolled back, so it never touches
+  -- the persisted seed. Tests that WANT multi-org (e.g. 173) add a 2nd org after.
+  truncate table public.organizations cascade;
+
   -- profiles.id references auth.users, so create the auth users first; the
   -- on_auth_user_created trigger inserts the matching profiles rows. We then
   -- patch names + the admin flag.
