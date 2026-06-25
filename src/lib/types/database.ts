@@ -6229,96 +6229,51 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      create_referral_draft:
-        | {
-            Args: {
-              p_referral_type_id: string
-              p_response_expected?: boolean
-              p_source_case_id: string
-              p_subject: string
-              p_target_commission_id: string
-            }
-            Returns: {
-              code: string
-              concluded_at: string | null
-              concluded_by: string | null
-              created_at: string
-              created_by: string | null
-              decided_at: string | null
-              decided_by: string | null
-              decline_note: string | null
-              description_md: string | null
-              has_patient: boolean
-              id: string
-              received_at: string | null
-              received_by: string | null
-              referral_type_id: string | null
-              response_expected: boolean
-              sent_at: string | null
-              sent_by: string | null
-              source_case_id: string
-              source_commission_id: string
-              status: string
-              subject: string
-              target_case_id: string | null
-              target_commission_id: string
-              type_label: string
-              updated_at: string
-              withdrawn_at: string | null
-              withdrawn_by: string | null
-            }
-            SetofOptions: {
-              from: "*"
-              to: "case_referral"
-              isOneToOne: true
-              isSetofReturn: false
-            }
-          }
-        | {
-            Args: {
-              p_description_md?: string
-              p_referral_type_id: string
-              p_response_expected?: boolean
-              p_source_case_id: string
-              p_subject: string
-              p_target_commission_id: string
-            }
-            Returns: {
-              code: string
-              concluded_at: string | null
-              concluded_by: string | null
-              created_at: string
-              created_by: string | null
-              decided_at: string | null
-              decided_by: string | null
-              decline_note: string | null
-              description_md: string | null
-              has_patient: boolean
-              id: string
-              received_at: string | null
-              received_by: string | null
-              referral_type_id: string | null
-              response_expected: boolean
-              sent_at: string | null
-              sent_by: string | null
-              source_case_id: string
-              source_commission_id: string
-              status: string
-              subject: string
-              target_case_id: string | null
-              target_commission_id: string
-              type_label: string
-              updated_at: string
-              withdrawn_at: string | null
-              withdrawn_by: string | null
-            }
-            SetofOptions: {
-              from: "*"
-              to: "case_referral"
-              isOneToOne: true
-              isSetofReturn: false
-            }
-          }
+      create_referral_draft: {
+        Args: {
+          p_description_md?: string
+          p_referral_type_id: string
+          p_response_expected?: boolean
+          p_source_case_id: string
+          p_subject: string
+          p_target_commission_id: string
+        }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          type_label: string
+          updated_at: string
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_sentinel_criterion: {
         Args: { p_description?: string; p_key: string; p_label: string }
         Returns: {

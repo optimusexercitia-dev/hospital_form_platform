@@ -1409,9 +1409,11 @@ CREATE OR REPLACE FUNCTION "public"."is_nsp_coordinator_of_self"("p_org_id" "uui
 $$;
 ALTER FUNCTION "public"."is_nsp_coordinator_of_self"("p_org_id" "uuid") OWNER TO "postgres";
 
--- get_referral_detail: the QPS audit-exemption term -> per-org via the source
--- org. Read gate is can_read_referral (rebound). Body otherwise verbatim from
--- 20260620014000_referrals_rpcs.sql (only the is_pqs_member term changes).
+-- get_referral_detail: NSP-per-org needs NO direct change here — the canonical
+-- …015000 version already gates the read on can_read_referral and the PHI bodies
+-- (description_md/frozen_body_md/result_md) on can_read_referral_phi, BOTH rebound
+-- to per-org above. Reproduced VERBATIM from 20260620015000_referrals_phi_tighten.sql
+-- (the canonical, post the …015000 PHI-body lockdown — NOT the older …014000 body).
 CREATE OR REPLACE FUNCTION "public"."get_referral_detail"("p_referral_id" "uuid") RETURNS "jsonb"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'public', 'pg_catalog'
@@ -1419,26 +1421,37 @@ CREATE OR REPLACE FUNCTION "public"."get_referral_detail"("p_referral_id" "uuid"
 declare
   v_referral public.case_referral;
   v_is_source_coord boolean;
+  v_can_phi boolean;
   v_result jsonb;
 begin
   select * into v_referral from public.case_referral where id = p_referral_id;
   if v_referral.id is null then
     raise exception 'encaminhamento não encontrado' using errcode = 'no_data_found';
   end if;
+  -- Broad gate: any member of either committee (or QPS) may load the metadata.
   if not app.can_read_referral(p_referral_id, auth.uid()) then
     raise exception 'encaminhamento não encontrado' using errcode = 'no_data_found';
   end if;
 
-  v_is_source_coord :=
-    app.is_staff_admin_of(v_referral.source_commission_id) or app.is_admin();
+  -- The "originator" exemption from the body-view audit is STRICTLY the source
+  -- coordinator (the author who already holds the content). It must NOT fold in
+  -- app.is_admin(): a QPS member who is also a platform admin is NOT the originator
+  -- and must be audited (parity with get_referral_patient). So the exemption is
+  -- is_staff_admin_of(source) only — not is_admin().
+  v_is_source_coord := app.is_staff_admin_of(v_referral.source_commission_id);
+  -- Tight gate: coordinators + assigned target analyst + QPS read the free-text
+  -- bodies (frozen narrative + reply). Everyone else gets metadata only.
+  v_can_phi := app.can_read_referral_phi(p_referral_id, auth.uid());
 
-  -- AUDIT (Rule 11/12): a PHI-bearing detail open by a reader who is neither the
-  -- source coordinator (the originator, who already holds the content) nor QPS.
-  -- Attributed to the source (provenance) commission; no body/PHI in metadata.
-  if not (v_is_source_coord or app.is_pqs_member_of(app.org_of_referral(p_referral_id))) then
+  -- AUDIT (Rule 11/12): a PHI-BODY read by an entitled reader who is NOT the source
+  -- coordinator (the originator already holds the content). Fires for the target
+  -- coordinator/analyst AND for QPS (parity with get_referral_patient). A
+  -- metadata-only open writes no body-view row. Attributed to the source
+  -- (provenance) commission; never any body/PHI in the metadata.
+  if v_can_phi and not v_is_source_coord then
     perform public.log_audit_access(
       'referral.viewed', 'referral', p_referral_id, v_referral.source_commission_id,
-      'Detalhe do encaminhamento ' || coalesce(v_referral.code, '') || ' visualizado', '{}'::jsonb);
+      'Conteúdo do encaminhamento ' || coalesce(v_referral.code, '') || ' visualizado', '{}'::jsonb);
   end if;
 
   select jsonb_build_object(
@@ -1446,7 +1459,8 @@ begin
     'code', v_referral.code,
     'status', v_referral.status,
     'subject', v_referral.subject,
-    'description_md', v_referral.description_md,
+    -- description_md is PHI-bearing free text A wrote — gate it with the bodies.
+    'description_md', case when v_can_phi then v_referral.description_md else null end,
     'referral_type_id', v_referral.referral_type_id,
     'type_label', v_referral.type_label,
     'response_expected', v_referral.response_expected,
@@ -1462,6 +1476,7 @@ begin
     'created_by', v_referral.created_by,
     'created_by_name', (select full_name from public.profiles where id = v_referral.created_by),
     'decline_note', v_referral.decline_note,
+    -- shared_items: metadata always; frozen_body_md ONLY for a PHI reader.
     'shared_items', coalesce((
       select jsonb_agg(jsonb_build_object(
         'id', s.id,
@@ -1470,7 +1485,7 @@ begin
         'source_narrative_id', s.source_narrative_id,
         'source_document_id', s.source_document_id,
         'frozen_title', s.frozen_title,
-        'frozen_body_md', s.frozen_body_md,
+        'frozen_body_md', case when v_can_phi then s.frozen_body_md else null end,
         'frozen_storage_path', s.frozen_storage_path,
         'frozen_mime_type', s.frozen_mime_type,
         'frozen_size_bytes', s.frozen_size_bytes,
@@ -1478,12 +1493,14 @@ begin
       ) order by s.position)
       from public.referral_shared_item s where s.referral_id = p_referral_id
     ), '[]'::jsonb),
+    -- reply: metadata (outcome_label/flags/attachments) always; result_md ONLY for
+    -- a PHI reader.
     'reply', (
       select case when r.referral_id is null then null else jsonb_build_object(
         'referral_id', r.referral_id,
         'reply_outcome_id', r.reply_outcome_id,
         'outcome_label', r.outcome_label,
-        'result_md', r.result_md,
+        'result_md', case when v_can_phi then r.result_md else null end,
         'acknowledged_only', r.acknowledged_only,
         'replied_by', r.replied_by,
         'replied_by_name', (select full_name from public.profiles where id = r.replied_by),
@@ -2092,7 +2109,11 @@ END $g$;
 -- channel). Add an org guard to create_referral_draft + filter the target picker to
 -- the source's org. (Cross-HOSPITAL, same-org referrals stay fine.)
 -- ===========================================================================
-CREATE OR REPLACE FUNCTION "public"."create_referral_draft"("p_source_case_id" "uuid", "p_target_commission_id" "uuid", "p_referral_type_id" "uuid", "p_subject" "text", "p_response_expected" boolean DEFAULT NULL::boolean) RETURNS "public"."case_referral"
+-- 6-ARG (TRUE canonical = …626000, NOT …140000): …626000 superseded …140000 — it
+-- kept the 6-arg + p_description_md but DROPPED the is_admin_for() gate arm (the
+-- vendor platform_admin is not a tenant-path grant, ADR 0041). So this REPLACE uses
+-- the …626000 body + ONLY the cross-org guard added (BUG-NSP-001).
+CREATE OR REPLACE FUNCTION "public"."create_referral_draft"("p_source_case_id" "uuid", "p_target_commission_id" "uuid", "p_referral_type_id" "uuid", "p_subject" "text", "p_response_expected" boolean DEFAULT NULL::boolean, "p_description_md" "text" DEFAULT NULL::"text") RETURNS "public"."case_referral"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'app', 'public', 'pg_catalog'
     AS $$
@@ -2108,7 +2129,9 @@ begin
   if v_source_commission is null then
     raise exception 'caso não encontrado' using errcode = 'no_data_found';
   end if;
-  if not (app.is_staff_admin_of_for(v_source_commission, auth.uid()) or app.is_admin_for(auth.uid())) then
+  -- Authority = staff_admin of the SOURCE commission (…626000 dropped is_admin_for —
+  -- platform_admin is walled off tenant paths, ADR 0041).
+  if not app.is_staff_admin_of_for(v_source_commission, auth.uid()) then
     raise exception 'apenas a coordenação da comissão de origem pode encaminhar o caso'
       using errcode = 'HC071';
   end if;
@@ -2136,16 +2159,26 @@ begin
 
   insert into public.case_referral (
     source_case_id, source_commission_id, target_commission_id, referral_type_id,
-    type_label, subject, response_expected, created_by
+    type_label, subject, description_md, response_expected, created_by
   ) values (
     p_source_case_id, v_source_commission, p_target_commission_id, v_type.id,
-    v_type.label, btrim(p_subject), v_response_expected, auth.uid()
+    v_type.label, btrim(p_subject), nullif(btrim(coalesce(p_description_md, '')), ''),
+    v_response_expected, auth.uid()
   )
   returning * into v_row;
 
   return v_row;
 end;
 $$;
+
+ALTER FUNCTION "public"."create_referral_draft"("uuid", "uuid", "uuid", "text", boolean, "text") OWNER TO "postgres";
+
+-- Explicit grants on the 6-arg signature: this is a REPLACE of the canonical …140000
+-- function (same signature), so no stray overload + no DROP needed. Re-asserting the
+-- grants keeps the REVOKE-PUBLIC posture explicit at this rebind site.
+REVOKE ALL ON FUNCTION "public"."create_referral_draft"("uuid", "uuid", "uuid", "text", boolean, "text") FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION "public"."create_referral_draft"("uuid", "uuid", "uuid", "text", boolean, "text") TO "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."create_referral_draft"("uuid", "uuid", "uuid", "text", boolean, "text") TO "service_role";
 
 -- list_referral_target_commissions(source): filter to the SOURCE'S ORG (was every
 -- commission). Body otherwise verbatim from 20260620014000_referrals_rpcs.sql.
@@ -2155,7 +2188,10 @@ CREATE OR REPLACE FUNCTION "public"."list_referral_target_commissions"("p_source
     AS $$
 begin
   perform app.assert_referrals_enabled();
-  if not (app.is_staff_admin_of(p_source_commission_id) or app.is_admin()) then
+  -- Gate matches the …626000 canonical (multi-tenancy dropped the is_admin() arm —
+  -- the vendor platform_admin is NOT a tenant-path grant, ADR 0041). NSP-per-org adds
+  -- only the same-org target filter below; it does NOT re-introduce is_admin().
+  if not app.is_staff_admin_of(p_source_commission_id) then
     raise exception 'apenas a coordenação da comissão de origem pode listar destinos'
       using errcode = 'HC071';
   end if;
