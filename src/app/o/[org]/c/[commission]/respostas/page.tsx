@@ -27,7 +27,7 @@ export default async function MyResponsesPage({
   const { org, commission } = await params;
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access) notFound();
+  if (!access || access.role === null) notFound();
 
   const responses = await listMyResponses(access.commission.id);
 

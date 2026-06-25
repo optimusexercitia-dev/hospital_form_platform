@@ -31,7 +31,7 @@ export default async function MyCasesPage({
   const { org, commission } = await params;
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access) notFound();
+  if (!access || access.role === null) notFound();
 
   // Flag OFF → this surface does not exist yet (the redirect from /minhas-fases is
   // also gated on the flag, so OFF keeps the old page).

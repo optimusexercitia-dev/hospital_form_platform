@@ -41,7 +41,7 @@ export default async function CommissionReferralsPage({
   }
 
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access) {
+  if (!access || access.role === null) {
     notFound();
   }
 

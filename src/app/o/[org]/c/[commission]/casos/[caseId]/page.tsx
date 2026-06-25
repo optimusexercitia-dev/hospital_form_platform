@@ -56,7 +56,7 @@ export default async function StaffCaseDetailPage({
   const { org, commission, caseId } = await params;
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access) notFound();
+  if (!access || access.role === null) notFound();
 
   // Flag OFF → this staff surface does not exist yet.
   if (!(await caseAccessEnabled())) notFound();
@@ -88,7 +88,7 @@ export default async function StaffCaseDetailPage({
   // staff_admin-only — a plain staff/collaborator/read-grantee at this shared staff
   // surface never sees the affordance (the RPC is staff_admin-gated by RLS too).
   const canManagePhaseResults =
-    phaseResultsOn && (access.role === "staff_admin" || access.context.isAdmin);
+    phaseResultsOn && (access.role === "staff_admin");
   const phaseResultOptions = canManagePhaseResults
     ? toResolvedPhaseResultOptions(await listPhaseResults(access.commission.id))
     : [];

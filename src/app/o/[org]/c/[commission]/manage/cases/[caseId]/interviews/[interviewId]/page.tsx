@@ -49,7 +49,7 @@ export default async function InterviewDetailPage({
   }
 
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access) {
+  if (!access || access.role === null) {
     notFound();
   }
 
@@ -63,7 +63,7 @@ export default async function InterviewDetailPage({
   }
 
   const isCoordinator =
-    access.role === "staff_admin" || access.context.isAdmin;
+    access.role === "staff_admin";
   // The authoritative write signal: staff_admin/admin OR a registered interviewer
   // on this interview (even a plain `staff`), computed by the backend via
   // `can_write_interview`. The server/RLS is the real authority; this drives UX.

@@ -36,7 +36,7 @@ export default async function NarrativeEditorPage({
 }) {
   const { org, commission, caseId, narrativeId } = await params;
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access) notFound();
+  if (!access || access.role === null) notFound();
 
   if (!(await caseAccessEnabled())) notFound();
 

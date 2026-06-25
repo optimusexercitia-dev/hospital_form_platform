@@ -34,12 +34,12 @@ export default async function MeetingsListPage({
   }
 
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access) {
+  if (!access || access.role === null) {
     notFound();
   }
 
   const isCoordinator =
-    access.role === "staff_admin" || access.context.isAdmin;
+    access.role === "staff_admin";
 
   const [meetings, meetingTypes] = await Promise.all([
     listMeetings(access.commission.id),

@@ -39,7 +39,7 @@ export default async function ReviewAndSignPage({
   const { org, commission, responseId } = await params;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  if (!access || (access.role !== "staff_admin" && !access.context.isAdmin)) {
+  if (!access || access.role !== "staff_admin") {
     notFound();
   }
 
@@ -57,9 +57,11 @@ export default async function ReviewAndSignPage({
   // (`signoffs[]` → map, nullable names → pt-BR fallbacks).
   const clientData: ClientResponseForSignoff = toClientResponseForSignoff(data);
 
-  // A global admin observes but does not counter-sign as "chefia"; a staff_admin
-  // of the commission is the signer.
-  const isAdminViewer = access.role !== "staff_admin" && access.context.isAdmin;
+  // The signer is always a `staff_admin` coordinator (member, or org_admin
+  // resolved to that role) — the gate above guarantees it. A platform_admin is
+  // walled off and 404'd before reaching here, so there is no admin-observer mode
+  // in a tenant area (BUG-MT-005): this is always a real signer.
+  const isAdminViewer = false;
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">

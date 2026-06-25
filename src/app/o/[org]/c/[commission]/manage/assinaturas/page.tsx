@@ -32,7 +32,7 @@ export default async function SignoffQueuePage({
   const access = await getCommissionAccessByOrg(org, commission);
 
   // Unknown/inaccessible slug, or a caller who is neither coordinator nor admin.
-  if (!access || (access.role !== "staff_admin" && !access.context.isAdmin)) {
+  if (!access || access.role !== "staff_admin") {
     notFound();
   }
 

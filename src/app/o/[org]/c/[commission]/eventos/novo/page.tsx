@@ -35,7 +35,7 @@ export default async function NewCommissionEventPage({
   }
 
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access) {
+  if (!access || access.role === null) {
     notFound();
   }
 

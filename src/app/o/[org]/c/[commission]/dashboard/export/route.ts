@@ -50,14 +50,15 @@ export async function GET(
     return new Response('Parâmetro "form" ausente.', { status: 400 })
   }
 
-  // Coarse gate: must be a staff_admin of this commission (or admin). RLS +
-  // the RPC's internal gate are the real authority; this returns a friendly 404.
+  // Coarse gate: must be a coordinator (`staff_admin`) of this commission. The
+  // resolver maps an org_admin of the org to `staff_admin`, so coordinators —
+  // member or org_admin — are exactly `role === 'staff_admin'`. A platform_admin
+  // resolves to `role === null` (walled off from tenant data) and is denied here:
+  // route handlers are NOT behind the layout gate, so this is the only barrier on
+  // the direct URL (BUG-MT-005). RLS + the RPC's internal gate remain the
+  // authority; this returns a friendly 404.
   const access = await getCommissionAccessByOrg(org, commission)
-  if (!access) {
-    return new Response('Não encontrado.', { status: 404 })
-  }
-  const isAdmin = access.context.isAdmin
-  if (!isAdmin && access.role !== 'staff_admin') {
+  if (!access || access.role !== 'staff_admin') {
     return new Response('Não encontrado.', { status: 404 })
   }
 

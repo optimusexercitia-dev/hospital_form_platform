@@ -57,14 +57,14 @@ export async function GET(
   const { org, commission } = await params
   const { searchParams } = request.nextUrl
 
-  // Coarse gate: must be a staff_admin of this commission (or admin). RLS is the
-  // real authority; this returns a friendly 404 with no detail leak.
+  // Coarse gate: must be a coordinator (`staff_admin`) of this commission. The
+  // resolver maps an org_admin of the org to `staff_admin`, so coordinators are
+  // exactly `role === 'staff_admin'`; a platform_admin resolves to `role === null`
+  // (walled off from tenant data) and is denied. Route handlers are NOT behind the
+  // layout gate, so this is the only barrier on the direct URL (BUG-MT-005). RLS is
+  // the real authority; this returns a friendly 404 with no detail leak.
   const access = await getCommissionAccessByOrg(org, commission)
-  if (!access) {
-    return new Response('Não encontrado.', { status: 404 })
-  }
-  const isAdmin = access.context.isAdmin
-  if (!isAdmin && access.role !== 'staff_admin') {
+  if (!access || access.role !== 'staff_admin') {
     return new Response('Não encontrado.', { status: 404 })
   }
 

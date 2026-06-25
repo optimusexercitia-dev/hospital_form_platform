@@ -54,7 +54,7 @@ export default async function MeetingDetailPage({
   }
 
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access) {
+  if (!access || access.role === null) {
     notFound();
   }
 
@@ -64,7 +64,7 @@ export default async function MeetingDetailPage({
   }
 
   const isCoordinator =
-    access.role === "staff_admin" || access.context.isAdmin;
+    access.role === "staff_admin";
   // Content is editable only by a coordinator AND while the meeting is unlocked.
   const canEdit = isCoordinator && isEditableStatus(meeting.status);
 

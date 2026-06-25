@@ -35,7 +35,7 @@ export default async function MyPhasesPage({
   const { org, commission } = await params;
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access) notFound();
+  if (!access || access.role === null) notFound();
 
   // Flag ON → "Meus Casos" replaces this page; preserve the old URL via redirect.
   if (await caseAccessEnabled()) {

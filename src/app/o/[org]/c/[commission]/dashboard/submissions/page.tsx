@@ -46,7 +46,7 @@ export default async function SubmissionsPage({
   const sp = await searchParams;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  if (!access || (access.role !== "staff_admin" && !access.context.isAdmin)) {
+  if (!access || access.role !== "staff_admin") {
     notFound();
   }
 

@@ -37,7 +37,7 @@ export default async function ResponderPage({
   const access = await getCommissionAccessByOrg(org, commission);
 
   // Any member (staff or staff_admin) or a global admin may fill.
-  if (!access) notFound();
+  if (!access || access.role === null) notFound();
 
   const response = await getResponseForFill(responseId);
   // null = not found OR not visible to the caller (RLS). Either way: 404.

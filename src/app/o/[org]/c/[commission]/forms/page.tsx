@@ -29,7 +29,7 @@ export default async function FormsListPage({
   const { org, commission } = await params;
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access) notFound();
+  if (!access || access.role === null) notFound();
 
   const forms = await listFillableForms(access.commission.id);
 

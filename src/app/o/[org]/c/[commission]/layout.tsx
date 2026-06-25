@@ -27,10 +27,19 @@ import { AppSidebar, type SidebarCounts } from "@/components/shell/app-sidebar";
  * so we render `notFound()` for both and leak nothing about which commissions
  * exist (Phase 2 acceptance: foreign/unknown commission → 404).
  *
+ * We ALSO `notFound()` when `access.role === null`. Under multi-tenancy that role
+ * is null for exactly one caller: a platform_admin who is neither a member of this
+ * commission nor an org_admin of its org. The platform_admin is walled off from
+ * all tenant data, so it must not load a commission area at all (RLS already
+ * returns it empty data — this closes the route itself; BUG-MT-005). A legitimate
+ * commission-area user is always a member (`staff`/`staff_admin`) OR an org_admin
+ * of the org (resolved to the `staff_admin` coordinator role by the resolver), so
+ * no real user is denied by this check.
+ *
  * The sidebar shows live count badges. These reuse existing read queries (no new
  * backend): the coordinator-only counts (open cases, pending sign-offs) are only
- * fetched for staff_admins/admins; "minhas fases" is fetched for everyone (the
- * RPCs are internally role-gated and return [] otherwise, so this never leaks).
+ * fetched for staff_admins; "minhas fases" is fetched for everyone (the RPCs are
+ * internally role-gated and return [] otherwise, so this never leaks).
  */
 export default async function CommissionLayout({
   children,
@@ -42,13 +51,15 @@ export default async function CommissionLayout({
   const { org, commission } = await params;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  if (!access) {
+  if (!access || access.role === null) {
     notFound();
   }
 
   const commissionId = access.commission.id;
-  const isCoordinator =
-    access.role === "staff_admin" || access.context.isAdmin;
+  // `role` is non-null past the gate (member or org_admin coordinator); a
+  // staff_admin role is the coordinator. (Platform admins were 404'd above and
+  // never get coordinator powers in a tenant area.)
+  const isCoordinator = access.role === "staff_admin";
 
   // The meetings feature flag gates the "Reuniões" nav item + its pending-
   // signatures badge. When off, skip the pending-signatures read entirely.

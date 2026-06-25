@@ -44,7 +44,7 @@ export default async function PhaseResponderPage({
   const { org, commission, caseId, phaseId, responseId } = await params;
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access) notFound();
+  if (!access || access.role === null) notFound();
 
   const response = await getResponseForFill(responseId);
   // null = not found OR not the caller's (RLS). Either way: 404.

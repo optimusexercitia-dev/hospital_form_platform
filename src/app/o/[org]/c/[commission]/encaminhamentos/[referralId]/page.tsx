@@ -75,8 +75,12 @@ export default async function ReferralDetailPage({
     notFound();
   }
 
+  // Deny null-role callers: a platform_admin is walled off from tenant data and
+  // from this PHI-bearing referral module (BUG-MT-005). The resolver maps an
+  // org_admin to `staff_admin`, so legitimate referral managers are members with a
+  // role; only a platform_admin resolves to `role === null` here.
   const access = await getCommissionAccessByOrg(org, commission);
-  if (!access) {
+  if (!access || access.role === null) {
     notFound();
   }
 
@@ -85,19 +89,17 @@ export default async function ReferralDetailPage({
     notFound();
   }
 
-  // Coordinator authority, RLS-backed (the RPCs re-check). A global admin manages
-  // either end (`is_admin_for`); otherwise a `staff_admin` manages only the end
-  // that is THIS commission.
-  const isAdmin = access.context.isAdmin;
+  // Coordinator authority, RLS-backed (the RPCs re-check). A `staff_admin`
+  // (member coordinator, or org_admin resolved to that role) manages only the end
+  // that is THIS commission. A platform_admin is not a referral actor and was
+  // already denied above.
   const myCommissionId = access.commission.id;
   const canManageTarget =
-    isAdmin ||
-    (access.role === "staff_admin" &&
-      detail.targetCommissionId === myCommissionId);
+    access.role === "staff_admin" &&
+    detail.targetCommissionId === myCommissionId;
   const canManageSource =
-    isAdmin ||
-    (access.role === "staff_admin" &&
-      detail.sourceCommissionId === myCommissionId);
+    access.role === "staff_admin" &&
+    detail.sourceCommissionId === myCommissionId;
 
   // Snapshot document signed URLs — minted SERVER-SIDE via the DEFINER door (the
   // CaseDocumentWithUrl pattern; the plan's "Decided defaults"). Built as a map
