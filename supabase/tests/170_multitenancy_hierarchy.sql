@@ -10,7 +10,7 @@
 -- org-admin-of-commission predicates have real data.
 
 begin;
-select plan(41);
+select plan(42);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -238,16 +238,21 @@ select is((select count(*)::int from public.hospitals where organization_id in (
 
 reset role;
 
--- --- plain staff (st_x, no org role): 0 SELECT, no INSERT. ---
--- NOTE: st_x was added as an org_admin of A above; use st_y instead, a clean
--- no-org-role persona.
+-- --- plain staff (st_y, no org_admin role): reads ONLY its OWN org, no hospitals
+-- /org_members, no INSERT. st_y is a member of comm_y (re-homed under the test's
+-- org_b above), so per the org-member SELECT term (BUG-MT-003/004 fix) it reads
+-- org_b but NOT org_a; hospitals_select + organization_members_select stay tight
+-- (org_admin/platform only), so it reads 0 of those. NOTE: st_x was made an
+-- org_admin of A above, so we use the clean-membership st_y here. ---
 select test_helpers.claims_for((select (v->>'st_y')::uuid from ctx), false);
 set local role authenticated;
 
-select is((select count(*)::int from public.organizations), 0,
-  'plain staff: SELECT sees 0 organizations');
+select is((select count(*)::int from public.organizations where id = (select org_b from h)), 1,
+  'plain staff: SELECT sees its OWN org (org-member term)');
+select is((select count(*)::int from public.organizations where id = (select org_a from h)), 0,
+  'plain staff: SELECT sees 0 of a FOREIGN org (isolation holds)');
 select is((select count(*)::int from public.hospitals), 0,
-  'plain staff: SELECT sees 0 hospitals');
+  'plain staff: SELECT sees 0 hospitals (hospitals_select stays org_admin/platform-only)');
 select is((select count(*)::int from public.organization_members), 0,
   'plain staff: SELECT sees 0 organization_members');
 
