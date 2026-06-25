@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeftRight, ListChecks, Settings, Users } from "lucide-react";
 
@@ -58,6 +58,17 @@ export default async function NspInboxPage({
   if (!access) {
     notFound();
   }
+
+  // Coordinator-first landing (NSP-per-org, ADR 0042): a coordinator who is NOT
+  // also an enrolled PQS member has no business on the PHI inbox — their job is
+  // roster curation. Send them straight to "Equipe do NSP" rather than show an
+  // empty queue. An enrolled member (who may ALSO be the coordinator) stays on the
+  // inbox. The roster page is itself coordinator-gated, so this never lands a
+  // non-coordinator there.
+  if (access.isCoordinator && !access.isPqsMember) {
+    redirect(nspHref(org, "equipe"));
+  }
+
   if (!(await patientSafetyEnabled())) {
     notFound();
   }

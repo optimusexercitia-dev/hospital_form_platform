@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getSessionContext } from "@/lib/queries/session";
 import { orgHref } from "@/lib/routing";
 import { auditTrailEnabled } from "@/lib/queries/audit";
+import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { UserMenu } from "@/components/shell/user-menu";
 import { OrgManageNav } from "@/components/shell/org-manage-nav";
 
@@ -46,8 +47,12 @@ export default async function OrgManageLayout({
 
   const organization = orgAdmin.organization;
 
-  // The audit_trail flag gates the org-tier "Trilha de auditoria" nav entry.
-  const auditOn = await auditTrailEnabled();
+  // The audit_trail flag gates the "Trilha de auditoria" nav entry; the
+  // patient_safety flag gates the "Coordenação do NSP" entry.
+  const [auditOn, patientSafetyOn] = await Promise.all([
+    auditTrailEnabled(),
+    patientSafetyEnabled(),
+  ]);
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -74,7 +79,11 @@ export default async function OrgManageLayout({
           >
             Organização
           </span>
-          <OrgManageNav org={organization.slug} auditEnabled={auditOn} />
+          <OrgManageNav
+            org={organization.slug}
+            auditEnabled={auditOn}
+            patientSafetyEnabled={patientSafetyOn}
+          />
           <div className="ml-auto">
             <UserMenu fullName={context.fullName} email={context.email} />
           </div>

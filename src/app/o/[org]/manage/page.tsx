@@ -12,6 +12,8 @@ import {
 import { getSessionContext } from "@/lib/queries/session";
 import { orgHref } from "@/lib/routing";
 import { auditTrailEnabled } from "@/lib/queries/audit";
+import { patientSafetyEnabled } from "@/lib/queries/pqs";
+import { ShieldCheck } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Administração da organização",
@@ -22,7 +24,7 @@ interface ManageArea {
   description: string;
   segments: string[];
   icon: typeof Building2;
-  requiresFeature?: "audit";
+  requiresFeature?: "audit" | "patientSafety";
 }
 
 const AREAS: ManageArea[] = [
@@ -46,6 +48,14 @@ const AREAS: ManageArea[] = [
       "Acompanhe o volume de respostas enviadas em todas as comissões.",
     segments: ["painel"],
     icon: BarChart3,
+  },
+  {
+    title: "Coordenação do NSP",
+    description:
+      "Nomeie quem coordena o Núcleo de Segurança do Paciente e gerencia a equipe.",
+    segments: ["equipe-nsp"],
+    icon: ShieldCheck,
+    requiresFeature: "patientSafety",
   },
   {
     title: "Trilha de auditoria",
@@ -79,10 +89,15 @@ export default async function OrgManageHomePage({
     notFound();
   }
 
-  const auditOn = await auditTrailEnabled();
-  const areas = AREAS.filter(
-    (area) => area.requiresFeature !== "audit" || auditOn,
-  );
+  const [auditOn, patientSafetyOn] = await Promise.all([
+    auditTrailEnabled(),
+    patientSafetyEnabled(),
+  ]);
+  const areas = AREAS.filter((area) => {
+    if (area.requiresFeature === "audit") return auditOn;
+    if (area.requiresFeature === "patientSafety") return patientSafetyOn;
+    return true;
+  });
 
   return (
     <div className="flex flex-col gap-10">
