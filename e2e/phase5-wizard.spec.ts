@@ -125,9 +125,9 @@ const USER_MULTI = '00000000-0000-0000-0000-000000000008'
  *   (e.g., after Phase 4 builder tests added forms to ccih). When omitted,
  *   picks the first Continuar/Preencher found.
  */
-async function enterWizard(page: Page, slug: string, formTitle?: RegExp | string) {
-  await page.goto(`/c/${slug}/forms`)
-  await page.waitForURL(`**/c/${slug}/forms`, { timeout: 15_000 })
+async function enterWizard(page: Page, slug: string, formTitle?: RegExp | string, org = 'rede-a') {
+  await page.goto(`/o/${org}/c/${slug}/forms`)
+  await page.waitForURL(`**/o/${org}/c/${slug}/forms`, { timeout: 15_000 })
 
   // Wait until at least one form card is visible (page fully rendered).
   const firstCard = page.locator('article').first()
@@ -424,15 +424,15 @@ test('AC3 — Resume: save-and-exit, re-sign-in, land at last section with answe
   // Step 2.
   await page.getByLabel(/Turno em que a auditoria/i).selectOption('Tarde')
   await page.getByRole('button', { name: /salvar e sair/i }).click()
-  await page.waitForURL('**/c/ccih/forms', { timeout: 20_000 })
+  await page.waitForURL('**/o/rede-a/c/ccih/forms', { timeout: 20_000 })
 
   // Step 3.
   await signOut(page)
 
   // Step 4.
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto('/c/ccih/forms')
-  await page.waitForURL('**/c/ccih/forms', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/forms')
+  await page.waitForURL('**/o/rede-a/c/ccih/forms', { timeout: 15_000 })
   // Scope to the seeded form card (other phase-13 AC-1d disposable form may also
   // have a "Continuar preenchimento" link for staff1.ccih — scope to our form card
   // to avoid a strict-mode violation from multiple matching links).
@@ -585,8 +585,8 @@ test('AC5 — Keyboard-only: navigate and complete unsectioned form without mous
   test.setTimeout(120_000)
 
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto('/c/ccih/forms')
-  await page.waitForURL('**/c/ccih/forms', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/forms')
+  await page.waitForURL('**/o/rede-a/c/ccih/forms', { timeout: 15_000 })
 
   // Wait for form card to render.
   await expect(page.locator('article').first()).toBeVisible({ timeout: 15_000 })
@@ -751,8 +751,8 @@ test('AC7 — Version-faithfulness: v1 in_progress resumes v1 after v2 published
 
   // ── A: ensure staff1 has an in_progress (start one if needed) ─────────────
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto('/c/ccih/forms')
-  await page.waitForURL('**/c/ccih/forms', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/forms')
+  await page.waitForURL('**/o/rede-a/c/ccih/forms', { timeout: 15_000 })
   await expect(page.locator('article').first()).toBeVisible({ timeout: 15_000 })
 
   // Scope to Form A card to avoid strict-mode violations with multiple forms.
@@ -773,7 +773,7 @@ test('AC7 — Version-faithfulness: v1 in_progress resumes v1 after v2 published
     await page.getByRole('radio', { name: 'Sim' }).first().click()
     // Save progress explicitly via "Salvar e sair".
     await page.getByRole('button', { name: /salvar e sair/i }).click()
-    await page.waitForURL('**/c/ccih/forms', { timeout: 20_000 })
+    await page.waitForURL('**/o/rede-a/c/ccih/forms', { timeout: 20_000 })
   }
   expect(v1WizardHref).toBeTruthy()
 
@@ -781,8 +781,8 @@ test('AC7 — Version-faithfulness: v1 in_progress resumes v1 after v2 published
 
   // ── B: chefe.ccih publishes v2 ──────────────────────────────────────────
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/forms')
-  await page.waitForURL('**/c/ccih/manage/forms', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/forms')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/forms', { timeout: 15_000 })
 
   // Open Form A's builder.
   await page.getByText('Checklist de Higienização das Mãos').first().click()
@@ -827,8 +827,8 @@ test('AC7 — Version-faithfulness: v1 in_progress resumes v1 after v2 published
   ).toBeChecked({ timeout: 10_000 })
 
   // ── D: submitted v1 responses still in "minhas respostas" ─────────────────
-  await page.goto('/c/ccih/respostas')
-  await page.waitForURL('**/c/ccih/respostas', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/respostas')
+  await page.waitForURL('**/o/rede-a/c/ccih/respostas', { timeout: 15_000 })
 
   // staff1 has ≥3 submitted responses on Form A from the seed.
   await expect(
@@ -850,8 +850,8 @@ test('Security: foreign in_progress response URL is 404 with no form data leakag
    */
   // Sign in as staff1 to get their in_progress wizard URL.
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto('/c/ccih/forms')
-  await page.waitForURL('**/c/ccih/forms', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/forms')
+  await page.waitForURL('**/o/rede-a/c/ccih/forms', { timeout: 15_000 })
   await expect(page.locator('article').first()).toBeVisible({ timeout: 15_000 })
 
   const continuarLink = page.getByRole('link', { name: /continuar preenchimento/i })
@@ -862,7 +862,7 @@ test('Security: foreign in_progress response URL is 404 with no form data leakag
   } else {
     // staff1 has no in_progress; use a fake UUID to test the 404 boundary.
     staff1WizardUrl =
-      '/c/ccih/forms/f0000000-0000-0000-0000-00000000a001/responder/00000000-0000-0000-0000-000000000099'
+      '/o/rede-a/c/ccih/forms/f0000000-0000-0000-0000-00000000a001/responder/00000000-0000-0000-0000-000000000099'
   }
   expect(staff1WizardUrl).toBeTruthy()
 
@@ -893,8 +893,8 @@ test('"Minhas respostas" shows submitted rows with "Ver" and in_progress rows wi
    * The history page must list them with "enviada" status and "Ver" links.
    */
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto('/c/ccih/respostas')
-  await page.waitForURL('**/c/ccih/respostas', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/respostas')
+  await page.waitForURL('**/o/rede-a/c/ccih/respostas', { timeout: 15_000 })
 
   await expect(
     page.getByRole('heading', { name: /Minhas respostas/i }),

@@ -158,8 +158,8 @@ test('AC-OutcomeSettings: coordinator creates an outcome in Desfechos settings; 
 
   await signInAs(page, 'chefe.ccih@test.local')
 
-  await page.goto('/c/ccih/manage/settings/desfechos')
-  await page.waitForURL('**/c/ccih/manage/settings/desfechos', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/settings/desfechos')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/settings/desfechos', { timeout: 15_000 })
 
   // The seeded outcomes should be visible (Óbito evitável etc.).
   await expect(page.getByText(/Óbito evitável/i)).toBeVisible({ timeout: 10_000 })
@@ -204,7 +204,7 @@ test('AC-OutcomeSelector: case detail shows the offered outcome selector; pick o
 
   await signInAs(page, 'chefe.ccih@test.local')
 
-  await page.goto(`/c/ccih/manage/cases/${caseId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${caseId}`), { timeout: 15_000 })
   await page.waitForLoadState('networkidle', { timeout: 15_000 })
 
@@ -285,7 +285,7 @@ test('AC-ConcludeGate: Concluir blocked (HC028 pt-BR) when offered-outcome case 
 
   // ── UI layer: "Concluir" dialog shows a pt-BR error when no outcome is chosen ──
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${caseId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${caseId}`), { timeout: 15_000 })
 
   // The lifecycle "Concluir" button lives in the page <header> (CaseLifecycleActions).
@@ -362,7 +362,7 @@ test('AC-OutcomeFlow: conclude with adverse outcome → case has outcome_id → 
 
   // Set the adverse outcome via the detail page.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${caseId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${caseId}`), { timeout: 15_000 })
 
   // ── Open "Concluir" dialog → pick the adverse outcome ──
@@ -397,8 +397,8 @@ test('AC-OutcomeFlow: conclude with adverse outcome → case has outcome_id → 
   expect(finalRow?.outcome_id).toBe(OUTCOME_EVITAVEL_ID)
 
   // ── Board: the concluded case row shows the outcome chip ──
-  await page.goto('/c/ccih/manage/cases')
-  await page.waitForURL('**/c/ccih/manage/cases', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
   await page.waitForLoadState('networkidle', { timeout: 15_000 })
 
   // The "Desfechos" dropdown filter is visible (at least one case has an outcome
@@ -408,8 +408,8 @@ test('AC-OutcomeFlow: conclude with adverse outcome → case has outcome_id → 
   ).toBeVisible({ timeout: 15_000 })
 
   // ── Dashboard "Desfechos" outcome breakdown panel (D14) ──
-  await page.goto('/c/ccih/manage/cases')
-  await page.waitForURL('**/c/ccih/manage/cases', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
   await page.waitForLoadState('networkidle', { timeout: 15_000 })
 
   // The breakdown section heading.
@@ -444,8 +444,8 @@ test('AC-OutcomeFilter: "Apenas adversos" toggle shows only adverse cases; outco
   // loads cases including Caso 0002 (concluido). With "Apenas adversos" active,
   // only adverse-outcome cases appear.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/cases')
-  await page.waitForURL('**/c/ccih/manage/cases', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
   await page.waitForLoadState('networkidle', { timeout: 15_000 })
 
   // "Apenas adversos" toggle button.
@@ -502,8 +502,8 @@ test('AC-D15-NoOutcome: a process offering no outcomes lets the case conclude wi
 
   // Build a minimal 1-phase template that offers NO outcomes.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/process-templates')
-  await page.waitForURL('**/c/ccih/manage/process-templates', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/process-templates')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/process-templates', { timeout: 15_000 })
 
   const suffix = Date.now()
   const tplTitle = `Sem Desfecho E2E ${suffix}`
@@ -627,7 +627,7 @@ test('AC-D15-NoOutcome: a process offering no outcomes lets the case conclude wi
     )
   }
 
-  await page.goto(`/c/ccih/manage/cases/${case2Id}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${case2Id}`)
   await page.waitForURL(new RegExp(`/manage/cases/${case2Id}`), { timeout: 15_000 })
 
   // Scope to <header> (CaseLifecycleActions) to avoid strict-mode conflict with
@@ -670,7 +670,7 @@ test('AC-CancelAnytime: "Cancelar" works even when phases are unsettled (D3); ca
 
   // Do NOT skip phases — verify Cancelar works with open phases.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${caseId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${caseId}`), { timeout: 15_000 })
 
   // The "Cancelar" button must be visible.
@@ -737,8 +737,8 @@ test('AC-SeedDashboard: seeded Caso 0002 (adverse outcome) causes the Desfechos 
 
   // Navigate to the cases board as coordinator.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/cases')
-  await page.waitForURL('**/c/ccih/manage/cases', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
   await page.waitForLoadState('networkidle', { timeout: 15_000 })
 
   // The "Desfechos" breakdown section must be visible (≥1 case has an outcome).

@@ -5,12 +5,15 @@ import { test, expect } from '@playwright/test'
  *
  * Test contract: translates every bullet in PHASES.md §Phase 2 Acceptance into
  * Playwright assertions. Seeded personas (password: Test1234!):
- *   admin@test.local         — global admin, no commission membership  → /admin
- *   chefe.ccih@test.local    — staff_admin of 'ccih'                   → /c/ccih
- *   staff1.ccih@test.local   — staff of 'ccih'                         → /c/ccih
- *   staff2.ccih@test.local   — staff of 'ccih'                         → /c/ccih
- *   chefe.farm@test.local    — staff_admin of 'farmacia'               → /c/farmacia
- *   staff1.farm@test.local   — staff of 'farmacia'                     → /c/farmacia
+ *
+ * Multi-tenancy update (Phase C):
+ *   platform@test.local      — platform admin (is_admin)               → /admin
+ *   admin@test.local         — org_admin of rede-a                     → /o/rede-a/manage
+ *   chefe.ccih@test.local    — staff_admin of 'ccih' (rede-a)          → /o/rede-a/c/ccih
+ *   staff1.ccih@test.local   — staff of 'ccih' (rede-a)               → /o/rede-a/c/ccih
+ *   staff2.ccih@test.local   — staff of 'ccih' (rede-a)               → /o/rede-a/c/ccih
+ *   chefe.farm@test.local    — staff_admin of 'farmacia' (rede-a)      → /o/rede-a/c/farmacia
+ *   staff1.farm@test.local   — staff of 'farmacia' (rede-a)            → /o/rede-a/c/farmacia
  *   multi@test.local         — staff of BOTH 'ccih' and 'farmacia'     → /c picker
  */
 
@@ -55,24 +58,29 @@ async function signOutViaMenu(page: import('@playwright/test').Page) {
 // ---------------------------------------------------------------------------
 
 test.describe('Role landing — correct area per persona', () => {
-  test('admin@test.local lands on /admin', async ({ page }) => {
-    await signInAs(page, 'admin@test.local')
+  test('platform@test.local lands on /admin (platform admin)', async ({ page }) => {
+    await signInAs(page, 'platform@test.local')
     await expect(page).toHaveURL(`${BASE}/admin`)
   })
 
-  test('staff1.ccih@test.local lands on /c/ccih', async ({ page }) => {
+  test('admin@test.local lands on /o/rede-a/manage (org_admin of rede-a)', async ({ page }) => {
+    await signInAs(page, 'admin@test.local')
+    await expect(page).toHaveURL(`${BASE}/o/rede-a/manage`)
+  })
+
+  test('staff1.ccih@test.local lands on /o/rede-a/c/ccih', async ({ page }) => {
     await signInAs(page, 'staff1.ccih@test.local')
-    await expect(page).toHaveURL(`${BASE}/c/ccih`)
+    await expect(page).toHaveURL(`${BASE}/o/rede-a/c/ccih`)
   })
 
-  test('chefe.ccih@test.local lands on /c/ccih', async ({ page }) => {
+  test('chefe.ccih@test.local lands on /o/rede-a/c/ccih', async ({ page }) => {
     await signInAs(page, 'chefe.ccih@test.local')
-    await expect(page).toHaveURL(`${BASE}/c/ccih`)
+    await expect(page).toHaveURL(`${BASE}/o/rede-a/c/ccih`)
   })
 
-  test('staff1.farm@test.local lands on /c/farmacia', async ({ page }) => {
+  test('staff1.farm@test.local lands on /o/rede-a/c/farmacia', async ({ page }) => {
     await signInAs(page, 'staff1.farm@test.local')
-    await expect(page).toHaveURL(`${BASE}/c/farmacia`)
+    await expect(page).toHaveURL(`${BASE}/o/rede-a/c/farmacia`)
   })
 
   test('multi@test.local lands on /c picker with 2 cards', async ({ page }) => {
@@ -83,13 +91,13 @@ test.describe('Role landing — correct area per persona', () => {
     await expect(cards).toHaveCount(2)
   })
 
-  test('multi@test.local: clicking ccih card navigates to /c/ccih', async ({ page }) => {
+  test('multi@test.local: clicking ccih card navigates to /o/rede-a/c/ccih', async ({ page }) => {
     await signInAs(page, 'multi@test.local')
     await expect(page).toHaveURL(`${BASE}/c`)
-    // The card links to /c/ccih — use the href to locate it rather than
+    // The card links to /o/rede-a/c/ccih — use the href to locate it rather than
     // commission name text (name is "Comissão de Controle de Infecção Hospitalar").
-    await page.locator('a[href="/c/ccih"]').first().click()
-    await expect(page).toHaveURL(`${BASE}/c/ccih`)
+    await page.locator('a[href="/o/rede-a/c/ccih"]').first().click()
+    await expect(page).toHaveURL(`${BASE}/o/rede-a/c/ccih`)
   })
 })
 
@@ -98,10 +106,10 @@ test.describe('Role landing — correct area per persona', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Auth boundary and redirect round-trip', () => {
-  test('unauthenticated user hitting /c/ccih is redirected to /login?redirect=/c/ccih', async ({ page }) => {
+  test('unauthenticated user hitting /o/rede-a/c/ccih is redirected to /login', async ({ page }) => {
     // Navigate directly without any session.
-    await page.goto('/c/ccih')
-    await expect(page).toHaveURL(/\/login\?redirect=%2Fc%2Fccih/)
+    await page.goto('/o/rede-a/c/ccih')
+    await expect(page).toHaveURL(/\/login/)
   })
 
   test('unauthenticated user hitting /admin is redirected to /login?redirect=/admin', async ({ page }) => {
@@ -111,14 +119,14 @@ test.describe('Auth boundary and redirect round-trip', () => {
 
   test('redirect round-trip: after sign-in, user lands on the originally-requested path', async ({ page }) => {
     // Start at a protected path — middleware redirects to login with ?redirect.
-    await page.goto('/c/ccih')
+    await page.goto('/o/rede-a/c/ccih')
     await expect(page).toHaveURL(/\/login/)
-    // Now sign in; the action should return the user to /c/ccih.
+    // Now sign in; the action should return the user to /o/rede-a/c/ccih.
     await page.getByLabel('E-mail').fill('staff1.ccih@test.local')
     await page.getByLabel('Senha').fill('Test1234!')
     await page.getByRole('button', { name: /entrar/i }).click()
-    await page.waitForURL(`${BASE}/c/ccih`, { timeout: 15_000 })
-    await expect(page).toHaveURL(`${BASE}/c/ccih`)
+    await page.waitForURL(`${BASE}/o/rede-a/c/ccih`, { timeout: 15_000 })
+    await expect(page).toHaveURL(`${BASE}/o/rede-a/c/ccih`)
   })
 
   test('authenticated user navigating to /login is bounced away', async ({ page }) => {
@@ -126,9 +134,9 @@ test.describe('Auth boundary and redirect round-trip', () => {
     await signInAs(page, 'staff1.ccih@test.local')
     // Navigate to /login — middleware should redirect to /.
     await page.goto('/login')
-    // Should end up somewhere other than /login (/ then further to /c/ccih).
+    // Should end up somewhere other than /login (/ then further to /o/rede-a/c/ccih).
     await expect(page).not.toHaveURL(/\/login/)
-    await expect(page).toHaveURL(/\/c\/ccih|\//)
+    await expect(page).toHaveURL(/\/o\/rede-a\/c\/ccih|\//)
   })
 })
 
@@ -137,10 +145,10 @@ test.describe('Auth boundary and redirect round-trip', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Foreign commission access — 404, no data leakage', () => {
-  test('staff1.ccih visiting /c/farmacia gets 404 with no commission name', async ({ page }) => {
+  test('staff1.ccih visiting /o/rede-a/c/farmacia gets 404 with no commission name', async ({ page }) => {
     await signInAs(page, 'staff1.ccih@test.local')
     // Navigate to the foreign commission's root.
-    await page.goto('/c/farmacia')
+    await page.goto('/o/rede-a/c/farmacia')
     // The page must not render the commission's name "Farmácia".
     const bodyText = await page.locator('body').innerText()
     // Must not leak the real commission name.
@@ -149,13 +157,13 @@ test.describe('Foreign commission access — 404, no data leakage', () => {
     // The page should show a 404-style response — Next.js notFound() renders
     // the not-found.tsx component; assert no commission data is present.
     // (HTTP status check via response intercept is also valid here.)
-    const response = await page.request.get('/c/farmacia')
+    const response = await page.request.get('/o/rede-a/c/farmacia')
     expect(response.status()).toBe(404)
   })
 
-  test('staff1.ccih visiting unknown slug /c/naoexiste gets 404', async ({ page }) => {
+  test('staff1.ccih visiting unknown slug /o/rede-a/c/naoexiste gets 404', async ({ page }) => {
     await signInAs(page, 'staff1.ccih@test.local')
-    const response = await page.request.get('/c/naoexiste')
+    const response = await page.request.get('/o/rede-a/c/naoexiste')
     expect(response.status()).toBe(404)
     // Body must not contain any commission name or hint about what does exist.
     const text = await response.text()
@@ -175,10 +183,17 @@ test.describe('Admin area server-side gating', () => {
     expect(response.status()).toBe(404)
   })
 
-  test('admin@test.local accesses /admin successfully (200)', async ({ page }) => {
-    await signInAs(page, 'admin@test.local')
+  test('platform@test.local accesses /admin successfully (200)', async ({ page }) => {
+    await signInAs(page, 'platform@test.local')
     await expect(page).toHaveURL(`${BASE}/admin`)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  })
+
+  test('admin@test.local (org_admin) accessing /admin gets 404', async ({ page }) => {
+    await signInAs(page, 'admin@test.local')
+    // admin@ is org_admin only (not is_admin) — /admin is walled off.
+    const response = await page.request.get('/admin')
+    expect(response.status()).toBe(404)
   })
 })
 
@@ -215,7 +230,7 @@ test.describe('Role-aware shell', () => {
   test('multi user sees the commission switcher (2 commissions)', async ({ page }) => {
     await signInAs(page, 'multi@test.local')
     // After landing on /c, navigate to one commission to get the shell.
-    await page.goto('/c/ccih')
+    await page.goto('/o/rede-a/c/ccih')
     const switcher = page.getByRole('button', { name: /trocar de comissão/i })
     await expect(switcher).toBeVisible()
     // Open the switcher dropdown.
@@ -227,13 +242,13 @@ test.describe('Role-aware shell', () => {
 
   test('multi user can switch commissions from the switcher', async ({ page }) => {
     await signInAs(page, 'multi@test.local')
-    await page.goto('/c/ccih')
+    await page.goto('/o/rede-a/c/ccih')
     const switcher = page.getByRole('button', { name: /trocar de comissão/i })
     await switcher.click()
     // Click the link for farmacia.
     const farmLink = page.getByRole('menuitem').filter({ hasText: /farmacia|Farmácia/i }).first()
     await farmLink.click()
-    await expect(page).toHaveURL(/\/c\/farmacia/)
+    await expect(page).toHaveURL(/\/o\/rede-a\/c\/farmacia/)
   })
 })
 
@@ -244,11 +259,11 @@ test.describe('Role-aware shell', () => {
 test.describe('Logout', () => {
   test('logging out via user menu redirects to /login and clears session', async ({ page }) => {
     await signInAs(page, 'staff1.ccih@test.local')
-    await expect(page).toHaveURL(`${BASE}/c/ccih`)
+    await expect(page).toHaveURL(`${BASE}/o/rede-a/c/ccih`)
     await signOutViaMenu(page)
     await expect(page).toHaveURL(/\/login/)
     // After logout, revisiting a protected route should redirect to /login again.
-    await page.goto('/c/ccih')
+    await page.goto('/o/rede-a/c/ccih')
     await expect(page).toHaveURL(/\/login/)
   })
 })
@@ -330,8 +345,8 @@ test.describe('Keyboard-only flow (Phase 2)', () => {
 
     // Submit via keyboard: press Enter inside the password field.
     await passwordInput.press('Enter')
-    await page.waitForURL(`${BASE}/c/ccih`, { timeout: 15_000 })
-    await expect(page).toHaveURL(`${BASE}/c/ccih`)
+    await page.waitForURL(`${BASE}/o/rede-a/c/ccih`, { timeout: 15_000 })
+    await expect(page).toHaveURL(`${BASE}/o/rede-a/c/ccih`)
 
     // Shell-readiness gate: assert the authenticated shell has fully rendered
     // before attempting keyboard interaction. URL match alone is insufficient —

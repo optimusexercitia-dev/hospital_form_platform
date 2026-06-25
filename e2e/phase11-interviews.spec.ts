@@ -222,7 +222,7 @@ async function callRPC(
 
 /** Navigate to Caso 0001 detail as the currently signed-in coordinator. */
 async function goToCaseDetail(page: Page) {
-  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
   await page.waitForURL(`**/c/ccih/manage/cases/${SEEDED_CASE_ID}`, { timeout: 15_000 })
   // Entrevistas panel should be visible
   await expect(page.getByRole('heading', { name: /Entrevistas/i }).first()).toBeVisible({
@@ -426,7 +426,7 @@ test('AC1 — happy path: create interview, add participants, start, add attachm
   const cancelInterviewId = (cancelCreateResult.body as { id: string }).id
 
   // Navigate to the freshly created interview and cancel it
-  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${cancelInterviewId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${cancelInterviewId}`)
   await page.waitForURL(`**/interviews/${cancelInterviewId}`, { timeout: 15_000 })
   await expect(page.locator('text=Rascunho').first()).toBeVisible({ timeout: 15_000 })
   // Cancel from rascunho state (cancel is available in any non-terminal state)
@@ -508,7 +508,7 @@ test('AC2a — participant write grant: registered interviewer (staff role) CAN 
   // 2. Sign in as staff2 — a plain-staff registered INTERVIEWER
   await signInAs(page, 'staff2.ccih@test.local')
   await page.goto(
-    `/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${grantInterviewId}`,
+    `/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${grantInterviewId}`,
   )
   await page.waitForURL(`**/interviews/${grantInterviewId}`, { timeout: 15_000 })
 
@@ -566,7 +566,7 @@ test('AC2b — participant write grant: non-interviewer staff CANNOT write', asy
   // --- UI layer: staff1 (non-interviewer) should see NO write controls ---
   await signInAs(page, 'staff1.ccih@test.local')
   await page.goto(
-    `/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${noGrantInterviewId}`,
+    `/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${noGrantInterviewId}`,
   )
   await page.waitForURL(`**/interviews/${noGrantInterviewId}`, { timeout: 15_000 })
 
@@ -602,7 +602,7 @@ test('AC3 — security: foreign-commission user gets 404, no leakage', async ({ 
 
   // Attempt to access the seeded CCIH interview
   await page.goto(
-    `/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${SEEDED_INTERVIEW_ID}`,
+    `/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${SEEDED_INTERVIEW_ID}`,
   )
   // Next.js renders the not-found page via notFound() — chefe.farm is NOT a member of
   // CCIH so the commission layout calls notFound() → global 404 page renders.
@@ -615,7 +615,7 @@ test('AC3 — security: foreign-commission user gets 404, no leakage', async ({ 
   await expect(page.getByText(/Entrevista sobre o Caso 0001/i)).not.toBeVisible()
 
   // Also test the case detail itself (also coordinator-only, but still commission-gated)
-  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
   // chefe.farm can't access CCIH's cases (coordinator-only case detail) — renders 404
   await expect(page.getByText(/Erro 404/i).first()).toBeVisible({ timeout: 15_000 })
 
@@ -637,8 +637,8 @@ test('AC3 — security: foreign-commission user gets 404, no leakage', async ({ 
 
   // Navigate to chefe.farm's own commission before signing out (the CCIH 404 page
   // has no commission shell / account menu button — signing out requires the shell).
-  await page.goto('/c/farmacia')
-  await page.waitForURL('**/c/farmacia', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/farmacia')
+  await page.waitForURL('**/o/rede-a/c/farmacia', { timeout: 15_000 })
   await signOut(page)
 })
 
@@ -702,7 +702,7 @@ test('AC4 — negatives: MIME rejection, https-only link, conclude without subje
   await signInAs(page, 'chefe.ccih@test.local')
   // Navigate to an em_andamento interview for the upload test
   await page.goto(
-    `/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${noSubjectInterviewId}`,
+    `/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${noSubjectInterviewId}`,
   )
   await page.waitForURL(`**/interviews/${noSubjectInterviewId}`, { timeout: 15_000 })
 
@@ -923,7 +923,7 @@ test('AC8 — seeded interview detail: all panels render with correct seeded dat
   // "Algo deu errado" instead of the interview content. We assert on that boundary
   // so the bug surfaces as a test failure rather than a silent pass.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${SEEDED_INTERVIEW_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${SEEDED_INTERVIEW_ID}`)
   await page.waitForURL(
     `**/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${SEEDED_INTERVIEW_ID}`,
     { timeout: 15_000 },
@@ -1002,7 +1002,7 @@ test('AC9 — concluded interview: attachments manageable; content panels read-o
 
   // --- UI layer ---
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${ac9Id}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${ac9Id}`)
   await page.waitForURL(`**/interviews/${ac9Id}`, { timeout: 15_000 })
 
   // Page must render without error boundary

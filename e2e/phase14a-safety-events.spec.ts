@@ -49,7 +49,14 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 
 test.use({ viewport: { width: 1280, height: 900 } })
 
-test.beforeEach(async ({ page }) => {
+// SKIP(multi-org pilot): NSP/patient_safety module disabled when >1 org is
+// provisioned (2-org seed, multi-tenancy Phase E). Re-enable when NSP-per-org
+// lands and patient_safety_enabled() returns true for commission-scoped users.
+const MULTI_ORG_PILOT_SKIP =
+  'NSP/referral modules disabled in the 2-org multi-tenancy pilot seed — re-enable when NSP-per-org lands'
+
+test.beforeEach(async ({ page }, testInfo) => {
+  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
   await page.emulateMedia({ reducedMotion: 'reduce' })
 })
 
@@ -194,7 +201,7 @@ test('AC-1: chefe.ccih files event via case-detail dialog → NSP inbox + case t
   await signInAs(page, 'chefe.ccih@test.local')
 
   // Navigate to Caso 0001 detail
-  await page.goto('/c/ccih/manage/cases/d0000000-0000-0000-0000-0000000000c1')
+  await page.goto('/o/rede-a/c/ccih/manage/cases/d0000000-0000-0000-0000-0000000000c1')
   await page.waitForLoadState('networkidle')
 
   // The "Notificar evento ao NSP" button triggers the dialog
@@ -233,7 +240,7 @@ test('AC-1: chefe.ccih files event via case-detail dialog → NSP inbox + case t
   expect(created!.status).toBe('reported')
 
   // Case timeline includes a safety_event entry for Caso 0001
-  await page.goto('/c/ccih/manage/cases/d0000000-0000-0000-0000-0000000000c1/timeline')
+  await page.goto('/o/rede-a/c/ccih/manage/cases/d0000000-0000-0000-0000-0000000000c1/timeline')
   await page.waitForLoadState('networkidle')
   // The timeline feed renders an event card with the type label "Evento de segurança"
   await expect(page.getByText(/evento de segurança/i).first()).toBeVisible()
@@ -278,7 +285,7 @@ test('AC-2b: reporting commission (CCIH) read-back shows acknowledged status', a
 }) => {
   // EV-0001 is already `acknowledged` in seed — CCIH can see it on their list
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/eventos')
+  await page.goto('/o/rede-a/c/ccih/eventos')
   await page.waitForLoadState('networkidle')
 
   // The event card list shows "Reconhecido" status chip. Scope to `table tbody` so
@@ -404,7 +411,7 @@ test('AC-4b: PHI read writes event_patient.read audit row with no identifiers in
 })
 
 // ---------------------------------------------------------------------------
-// AC-5 — Stand-alone (case-less) event filing via `/c/ccih/eventos/novo`
+// AC-5 — Stand-alone (case-less) event filing via `/o/rede-a/c/ccih/eventos/novo`
 //         works; event appears in NSP inbox and CCIH read-back list
 // ---------------------------------------------------------------------------
 
@@ -413,7 +420,7 @@ test('AC-5: stand-alone event filing via /c/ccih/eventos/novo → inbox + read-b
   request,
 }) => {
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto('/c/ccih/eventos')
+  await page.goto('/o/rede-a/c/ccih/eventos')
   await page.waitForLoadState('networkidle')
 
   // "Notificar evento" link button navigates to the stand-alone form
@@ -474,7 +481,7 @@ test('AC-6: NSP inbox page renders NO PHI (name, mrn, dob absent from HTML)', as
 
 test('AC-6: CCIH eventos list renders NO PHI', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/eventos')
+  await page.goto('/o/rede-a/c/ccih/eventos')
   await page.waitForLoadState('networkidle')
 
   const html = await page.content()
@@ -485,7 +492,7 @@ test('AC-6: CCIH eventos list renders NO PHI', async ({ page }) => {
 
 test('AC-6: case timeline renders NO PHI for safety event cards', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/cases/d0000000-0000-0000-0000-0000000000c1/timeline')
+  await page.goto('/o/rede-a/c/ccih/manage/cases/d0000000-0000-0000-0000-0000000000c1/timeline')
   await page.waitForLoadState('networkidle')
 
   const html = await page.content()
@@ -504,7 +511,7 @@ test('AC-7: keyboard-only — navigate to eventos list and filter by status', as
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/eventos')
+  await page.goto('/o/rede-a/c/ccih/eventos')
   await page.waitForLoadState('networkidle')
 
   // Tab until the "Filtrar por estado" select is focused

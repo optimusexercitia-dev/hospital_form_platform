@@ -124,9 +124,9 @@ async function responseStatus(page: Page, responseId: string): Promise<string | 
  * until the review heading is reached. Leaves both sign-off sections UNSIGNED
  * (unless they were already signed on resume). Returns the wizard's responseId.
  */
-async function fillFormBToReview(page: Page, slug = 'farmacia'): Promise<string> {
-  await page.goto(`/c/${slug}/forms`)
-  await page.waitForURL(`**/c/${slug}/forms`, { timeout: 15_000 })
+async function fillFormBToReview(page: Page, slug = 'farmacia', org = 'rede-a'): Promise<string> {
+  await page.goto(`/o/${org}/c/${slug}/forms`)
+  await page.waitForURL(`**/o/${org}/c/${slug}/forms`, { timeout: 15_000 })
   await expect(page.locator('article').first()).toBeVisible({ timeout: 15_000 })
 
   const card = page
@@ -314,8 +314,8 @@ test('AC2/AC6/AC1 — staff_admin queue → review-and-sign (note) → response 
 
   // ── AC2: chefe.farm opens the queue and finds the seeded e1 row ──
   await signInAs(page, 'chefe.farm@test.local')
-  await page.goto('/c/farmacia/manage/assinaturas')
-  await page.waitForURL('**/c/farmacia/manage/assinaturas', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/farmacia/manage/assinaturas')
+  await page.waitForURL('**/o/rede-a/c/farmacia/manage/assinaturas', { timeout: 15_000 })
   await expect(
     page.getByRole('heading', { name: /Assinaturas pendentes/i }),
   ).toBeVisible({ timeout: 10_000 })
@@ -365,8 +365,8 @@ test('AC2/AC6/AC1 — staff_admin queue → review-and-sign (note) → response 
     .toEqual([SECTION_RESPONDENT, SECTION_STAFF_ADMIN].sort())
 
   // e1 has left the queue (its row is gone).
-  await page.goto('/c/farmacia/manage/assinaturas')
-  await page.waitForURL('**/c/farmacia/manage/assinaturas', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/farmacia/manage/assinaturas')
+  await page.waitForURL('**/o/rede-a/c/farmacia/manage/assinaturas', { timeout: 15_000 })
   await expect(
     page.locator(`a[href$="/manage/assinaturas/${SEED_RESPONSE_E1}"]`),
   ).toHaveCount(0, { timeout: 10_000 })
@@ -421,15 +421,15 @@ test('AC4 — submitted response exposes no re-sign affordance (sign-offs immuta
 
   // e1's row is GONE from the queue (other unrelated pending rows may remain,
   // so we assert e1 specifically — not that the whole queue is empty).
-  await page.goto('/c/farmacia/manage/assinaturas')
-  await page.waitForURL('**/c/farmacia/manage/assinaturas', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/farmacia/manage/assinaturas')
+  await page.waitForURL('**/o/rede-a/c/farmacia/manage/assinaturas', { timeout: 15_000 })
   await expect(
     page.locator(`a[href$="/manage/assinaturas/${SEED_RESPONSE_E1}"]`),
   ).toHaveCount(0, { timeout: 10_000 })
 
   // Direct navigation to the review-and-sign screen for the submitted response
   // yields the not-found boundary (no signable item) — no mutation path exposed.
-  await page.goto(`/c/farmacia/manage/assinaturas/${SEED_RESPONSE_E1}`)
+  await page.goto(`/o/rede-a/c/farmacia/manage/assinaturas/${SEED_RESPONSE_E1}`)
   await expect(
     page.getByRole('heading', { name: /Não encontramos esta página/i }),
   ).toBeVisible({ timeout: 15_000 })
@@ -444,7 +444,7 @@ test('AC4 — submitted response exposes no re-sign affordance (sign-offs immuta
   await signOut(page)
   await signInAs(page, 'staff1.farm@test.local')
   await page.goto(
-    `/c/farmacia/forms/f0000000-0000-0000-0000-00000000b001/responder/${SEED_RESPONSE_E1}`,
+    `/o/rede-a/c/farmacia/forms/f0000000-0000-0000-0000-00000000b001/responder/${SEED_RESPONSE_E1}`,
   )
   await page.waitForURL(/\/responder\//, { timeout: 20_000 })
   await expect(
@@ -566,8 +566,8 @@ test('AC7 — keyboard-only: staff_admin opens the queue, reviews, and signs wit
 
   // ── Keyboard-only: chefe.farm queue → review → sign ──
   await signInAs(page, 'chefe.farm@test.local')
-  await page.goto('/c/farmacia/manage/assinaturas')
-  await page.waitForURL('**/c/farmacia/manage/assinaturas', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/farmacia/manage/assinaturas')
+  await page.waitForURL('**/o/rede-a/c/farmacia/manage/assinaturas', { timeout: 15_000 })
 
   // Focus the queue row for THIS response and activate by Enter.
   const queueLink = page.locator(
@@ -615,13 +615,13 @@ test('Security: staff cannot reach the sign-off queue or review-and-sign screen 
   await signInAs(page, 'staff1.farm@test.local')
 
   // The queue route → not-found boundary for a plain staff member.
-  await page.goto('/c/farmacia/manage/assinaturas')
+  await page.goto('/o/rede-a/c/farmacia/manage/assinaturas')
   await expect(
     page.getByRole('heading', { name: /Não encontramos esta página/i }),
   ).toBeVisible({ timeout: 15_000 })
 
   // The review-and-sign route for the seeded response → not-found, no answers.
-  await page.goto(`/c/farmacia/manage/assinaturas/${SEED_RESPONSE_E1}`)
+  await page.goto(`/o/rede-a/c/farmacia/manage/assinaturas/${SEED_RESPONSE_E1}`)
   await expect(
     page.getByRole('heading', { name: /Não encontramos esta página/i }),
   ).toBeVisible({ timeout: 15_000 })
@@ -641,12 +641,12 @@ test('Security: foreign-commission staff_admin cannot reach another commission q
   // chefe.ccih is staff_admin of CCIH, not farmacia.
   await signInAs(page, 'chefe.ccih@test.local')
 
-  await page.goto('/c/farmacia/manage/assinaturas')
+  await page.goto('/o/rede-a/c/farmacia/manage/assinaturas')
   await expect(
     page.getByRole('heading', { name: /Não encontramos esta página/i }),
   ).toBeVisible({ timeout: 15_000 })
 
-  await page.goto(`/c/farmacia/manage/assinaturas/${SEED_RESPONSE_E1}`)
+  await page.goto(`/o/rede-a/c/farmacia/manage/assinaturas/${SEED_RESPONSE_E1}`)
   await expect(
     page.getByRole('heading', { name: /Não encontramos esta página/i }),
   ).toBeVisible({ timeout: 15_000 })

@@ -81,7 +81,10 @@ async function signInAs(page: Page, email: string, password = 'Test1234!') {
 }
 
 async function signOut(page: Page) {
-  await page.evaluate(() => window.scrollTo(0, 0))
+  // Scroll to top so the account menu is reachable. Wrapped in try-catch because
+  // page.evaluate can throw "Execution context was destroyed" if the page is
+  // mid-navigation (e.g. after a redirect from /minhas-fases → /meus-casos).
+  await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {})
   const userMenu = page.getByRole('button', { name: /abrir menu da conta/i })
   await userMenu.click()
   const sairItem = page.getByRole('menuitem', { name: /sair/i })
@@ -325,8 +328,8 @@ test('AC-Builder: coordinator creates a 3-phase template with recommend_when →
   await signInAs(page, 'chefe.ccih@test.local')
 
   // Navigate to the process-templates list.
-  await page.goto('/c/ccih/manage/process-templates')
-  await page.waitForURL('**/c/ccih/manage/process-templates', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/process-templates')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/process-templates', { timeout: 15_000 })
   await expect(
     page.getByRole('heading', { name: /Processos multifásicos/i }),
   ).toBeVisible({ timeout: 10_000 })
@@ -437,7 +440,7 @@ test('AC-Builder: coordinator creates a 3-phase template with recommend_when →
   ).toHaveCount(0)
 
   // The template appears in the list with "ativo" status.
-  await page.goto('/c/ccih/manage/process-templates')
+  await page.goto('/o/rede-a/c/ccih/manage/process-templates')
   await expect(page.getByText(templateTitle)).toBeVisible({ timeout: 10_000 })
 })
 
@@ -454,7 +457,7 @@ test('AC-DueDays-Overdue: seeded Phase 2 (due_date = today−3, pendente) shows 
   // The seeded Caso 0001 has Phase 2 pendente with due_date = current_date - 3.
   // Navigate to case detail and assert the overdue rendering.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
   await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
 
   // Phase 2 is visible. (The seeded Phase 2 is pendente with a past due_date;
@@ -478,8 +481,8 @@ test('AC-DueDays-Overdue: seeded Phase 2 (due_date = today−3, pendente) shows 
 
   // The board table (CasesTable) also shows the current phase's due date.
   // Navigate to the cases list and assert the Caso 0001 row shows overdue.
-  await page.goto('/c/ccih/manage/cases')
-  await page.waitForURL('**/c/ccih/manage/cases', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
 
   // The cases list renders as a table (default view); Phase 2 is the current phase
   // for Caso 0001 (the only pendente, non-concluded phase). Its due date is past.
@@ -511,8 +514,8 @@ test('AC-HappyPath: board shows seeded Phase 1 concluída + Phase 2 recommended 
 
   // ── 1. Coordinator opens the board, finds Caso 0001 ──
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/cases')
-  await page.waitForURL('**/c/ccih/manage/cases', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
   await expect(
     page.getByRole('heading', { name: /Casos/i }),
   ).toBeVisible({ timeout: 10_000 })
@@ -562,11 +565,11 @@ test('AC-HappyPath: board shows seeded Phase 1 concluída + Phase 2 recommended 
   // ── 3. staff2.ccih (Enfermeira CCIH Dois) fills + submits Phase 2 ──
   await signInAs(page, 'staff2.ccih@test.local')
 
-  // "Minhas fases" shows the newly activated phase.
-  await page.goto('/c/ccih/minhas-fases')
-  await page.waitForURL('**/c/ccih/minhas-fases', { timeout: 15_000 })
+  // "Meus Casos" shows the newly activated phase (case_access ON → /meus-casos).
+  await page.goto('/o/rede-a/c/ccih/meus-casos')
+  await page.waitForURL('**/o/rede-a/c/ccih/meus-casos', { timeout: 15_000 })
   await expect(
-    page.getByRole('heading', { name: /Minhas fases/i }),
+    page.getByRole('heading', { name: /Meus Casos/i }),
   ).toBeVisible({ timeout: 10_000 })
 
   // At least one card; Caso 0001 is listed.
@@ -627,7 +630,7 @@ test('AC-HappyPath: board shows seeded Phase 1 concluída + Phase 2 recommended 
 
   // ── 4. Coordinator — board and detail show Phase 2 concluída ──
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
   await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
   await page.reload()
 
@@ -691,9 +694,11 @@ test('AC-HappyPath: board shows seeded Phase 1 concluída + Phase 2 recommended 
   // where the coordinator picks the case outcome (D3 gate) and confirms.
   // The seeded M&M template offers 3 outcomes (seed: Óbito evitável / não evitável
   // / Alta sem intercorrências); Caso 0001 has all three in case_offered_outcomes.
+  // Scope to <header> because narrative cards also render "Concluir" (size="sm")
+  // buttons — the case-level button is size="lg" and lives in the page header.
   await page.reload()
 
-  const concludeBtn = page.getByRole('button', { name: /^Concluir$/i })
+  const concludeBtn = page.locator('header').getByRole('button', { name: /^Concluir$/i })
   await expect(concludeBtn).toBeVisible({ timeout: 10_000 })
   await concludeBtn.click()
 
@@ -745,8 +750,8 @@ test('AC-BlockerGuard: Phase 2 with blocks=[1] is disabled until Phase 1 is sett
   await signInAs(page, 'chefe.ccih@test.local')
 
   // ── Build a fresh 2-phase template with Phase 2 explicitly blocking on Phase 1 ──
-  await page.goto('/c/ccih/manage/process-templates')
-  await page.waitForURL('**/c/ccih/manage/process-templates', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/process-templates')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/process-templates', { timeout: 15_000 })
 
   const suffix = Date.now()
   const templateTitle = `Blocker E2E ${suffix}`
@@ -841,7 +846,7 @@ test('AC-BlockerGuard: Phase 2 with blocks=[1] is disabled until Phase 1 is sett
   expect(casePhases[1].blocks).toEqual([1]) // Phase 2: blocked by position 1
 
   // ── Navigate to the case detail ──
-  await page.goto(`/c/ccih/manage/cases/${newCaseId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${newCaseId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${newCaseId}`), { timeout: 15_000 })
 
   // ── Phase 2's "Ativar e atribuir" must be DISABLED + "Bloqueada por Fase 1" shown ──
@@ -954,8 +959,8 @@ test('AC-CaseNumbering: case numbers are scoped per commission (Caso N, not glob
   // The board renders per-commission case numbers starting at "Caso 0001".
   // Log in as coordinator and verify the board displays "Caso 0001".
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/cases')
-  await page.waitForURL('**/c/ccih/manage/cases', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
 
   // "Caso 0001" must be visible (the seeded case, commission-scoped case_number=1).
   await expect(page.getByText(/Caso 0001/i).first()).toBeVisible({ timeout: 10_000 })
@@ -1019,7 +1024,7 @@ test('AC-Security/InProgress: board + detail expose STATUS ONLY — no in-progre
 
   // ── As coordinator (chefe.ccih): the board and detail show STATUS only ──
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${secCaseId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${secCaseId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${secCaseId}`), { timeout: 15_000 })
 
   // The phase row renders the "ativa" status (in-progress = ativa from coordinator's view).
@@ -1054,7 +1059,7 @@ test('AC-Security/Staff: plain staff cannot reach coordinator board or builder (
   await signInAs(page, 'staff1.ccih@test.local')
 
   // The coordinator cases board is staff_admin-gated.
-  await page.goto('/c/ccih/manage/cases')
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
   await expect(
     page.getByRole('heading', { name: /Não encontramos esta página/i }),
   ).toBeVisible({ timeout: 15_000 })
@@ -1062,13 +1067,13 @@ test('AC-Security/Staff: plain staff cannot reach coordinator board or builder (
   await expect(page.getByText(/Caso 0001/i)).toHaveCount(0)
 
   // The coordinator case detail is also staff_admin-gated.
-  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
   await expect(
     page.getByRole('heading', { name: /Não encontramos esta página/i }),
   ).toBeVisible({ timeout: 15_000 })
 
   // The template builder list is coordinator-only.
-  await page.goto('/c/ccih/manage/process-templates')
+  await page.goto('/o/rede-a/c/ccih/manage/process-templates')
   await expect(
     page.getByRole('heading', { name: /Não encontramos esta página/i }),
   ).toBeVisible({ timeout: 15_000 })
@@ -1082,28 +1087,28 @@ test('AC-Security/ForeignAdmin: foreign-commission staff_admin cannot reach CCIH
   // chefe.farm is staff_admin of farmacia, NOT ccih.
   await signInAs(page, 'chefe.farm@test.local')
 
-  await page.goto('/c/ccih/manage/cases')
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
   await expect(
     page.getByRole('heading', { name: /Não encontramos esta página/i }),
   ).toBeVisible({ timeout: 15_000 })
 
-  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
   await expect(
     page.getByRole('heading', { name: /Não encontramos esta página/i }),
   ).toBeVisible({ timeout: 15_000 })
 
-  await page.goto('/c/ccih/manage/process-templates')
+  await page.goto('/o/rede-a/c/ccih/manage/process-templates')
   await expect(
     page.getByRole('heading', { name: /Não encontramos esta página/i }),
   ).toBeVisible({ timeout: 15_000 })
 })
 
 // ---------------------------------------------------------------------------
-// AC-ASSIGNEE-SCOPING — "Minhas fases" shows only the signed-in assignee's phases;
+// AC-ASSIGNEE-SCOPING — "Meus Casos" shows only the signed-in assignee's cases/phases;
 // HC022 enforced at the RPC level (the wrong person cannot start another's phase).
 // ---------------------------------------------------------------------------
 
-test("AC-AssigneeScoping: minhas-fases shows only the signed-in user's ativa phases; wrong assignee gets HC022", async ({
+test("AC-AssigneeScoping: meus-casos shows only the signed-in user's ativa phases; wrong assignee gets HC022", async ({
   page,
 }) => {
   test.setTimeout(120_000)
@@ -1116,11 +1121,11 @@ test("AC-AssigneeScoping: minhas-fases shows only the signed-in user's ativa pha
   const phase1 = phases.find((p) => p.position === 1)!
   await activatePhaseRPC(page, ownerToken, phase1.id, STAFF1_CCIH_ID)
 
-  // ── staff1.ccih sees the phase in "Minhas fases" ──
+  // ── staff1.ccih sees the phase in "Meus Casos" (case_access ON) ──
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto('/c/ccih/minhas-fases')
-  await page.waitForURL('**/c/ccih/minhas-fases', { timeout: 15_000 })
-  // At least one phase card appears (ativa phases assigned to staff1.ccih).
+  await page.goto('/o/rede-a/c/ccih/meus-casos')
+  await page.waitForURL('**/o/rede-a/c/ccih/meus-casos', { timeout: 15_000 })
+  // At least one case card appears (cases with ativa phases assigned to staff1.ccih).
   await expect(page.getByRole('article').first()).toBeVisible({ timeout: 10_000 })
   // A "Preencher" button exists (StartPhaseButton — P7-001 resolved).
   await expect(page.getByRole('button', { name: /Preencher/i }).first()).toBeVisible({ timeout: 10_000 })
@@ -1145,10 +1150,10 @@ test("AC-AssigneeScoping: minhas-fases shows only the signed-in user's ativa pha
   // invariant is that the call is REJECTED (non-2xx) — pgTAP covers HC022 detail.
   expect(startWrongResp.ok()).toBeFalsy()
 
-  // ── staff2.ccih's "Minhas fases" shows nothing for the scoping case ──
+  // ── staff2.ccih's "Meus Casos" shows nothing for the scoping case ──
   await signInAs(page, 'staff2.ccih@test.local')
-  await page.goto('/c/ccih/minhas-fases')
-  await page.waitForURL('**/c/ccih/minhas-fases', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/meus-casos')
+  await page.waitForURL('**/o/rede-a/c/ccih/meus-casos', { timeout: 15_000 })
   // staff2 has no "ativa" phases from this test case, so no scoping-case card.
   // We verify: if any cards exist, none links to the scoping case.
   const cards = page.getByRole('article')
@@ -1164,7 +1169,7 @@ test("AC-AssigneeScoping: minhas-fases shows only the signed-in user's ativa pha
   // StartPhaseButton calls start_or_resume_phase which raises HC022 (ADR 0018;
   // was P0022) and shows an error, OR the page server component returns 404.
   await signInAs(page, 'staff2.ccih@test.local')
-  await page.goto(`/c/ccih/cases/${scopeCaseId}/phase/${phase1.id}`)
+  await page.goto(`/o/rede-a/c/ccih/cases/${scopeCaseId}/phase/${phase1.id}`)
   // Either a 404 page or the StartPhaseButton error banner renders.
   // The RPC rejection (HC022) always prevents filling.
   // We wait until the loading spinner goes away and a blocking error text appears.
@@ -1175,11 +1180,12 @@ test("AC-AssigneeScoping: minhas-fases shows only the signed-in user's ativa pha
           .getByRole('heading', { name: /Não encontramos esta página/i })
           .isVisible()
           .catch(() => false)
-        // The FormBanner error renders as role=status with an error message.
-        // Accepted messages: generic, not-assignee, or any non-empty error text.
+        // Fallback: if the page renders (not 404), the wizard back-link is present.
+        // The responder page renders a back-link to /minhas-fases (which redirects to
+        // /meus-casos) with link text "Minhas fases". Either URL fragment matches.
         const hasError = await page
-          .locator('a[href*="minhas-fases"]')
-          .filter({ hasText: /Voltar para minhas fases/i })
+          .locator('a[href*="minhas-fases"], a[href*="meus-casos"]')
+          .filter({ hasText: /Minhas fases|Meus Casos/i })
           .isVisible()
           .catch(() => false)
         return hasNotFound || hasError
@@ -1201,7 +1207,7 @@ test('AC-CompletedPhaseReview: coordinator "Ver respostas" on seeded concluída 
   // The seeded Caso 0001 has Phase 1 concluída with a submitted response
   // answering dispensador_disponivel='Sim'. The coordinator reads it.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
   await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
 
   // Phase 1 "Ver respostas" link (seeded phase 1 is always concluída after db reset).
@@ -1238,8 +1244,8 @@ test('AC-PIIWarning: create-case dialog shows the PII warning (role=note)', asyn
   test.setTimeout(60_000)
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/cases')
-  await page.waitForURL('**/c/ccih/manage/cases', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
 
   await page.getByRole('button', { name: /Novo caso/i }).click()
   const dialog = page.getByRole('dialog').filter({ hasText: /Novo caso/i })
@@ -1267,7 +1273,7 @@ test('AC-Keyboard: keyboard-only activate + assign flow on a fresh case; focus a
   const kbCaseId = await createFreshCase(page, ownerToken, `Keyboard ${Date.now()}`)
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${kbCaseId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${kbCaseId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${kbCaseId}`), { timeout: 15_000 })
 
   // ── Keyboard: focus the "Ativar e atribuir" button for Phase 1 and press Enter ──
@@ -1310,15 +1316,15 @@ test('AC-Keyboard: keyboard-only activate + assign flow on a fresh case; focus a
     }, { timeout: 15_000 })
     .toBe('ativa')
 
-  // ── The assignee opens "Minhas fases" and enters the phase via keyboard ──
+  // ── The assignee opens "Meus Casos" and enters the phase via keyboard ──
   await signOut(page)
   await signInAs(page, 'staff1.ccih@test.local')
 
   // Keyboard: focus the "Preencher" button and press Enter.
   // StartPhaseButton is a <button> (P7-001 resolved); the card is identified
   // by case label text ("Keyboard" prefix is unique within this test run).
-  await page.goto('/c/ccih/minhas-fases')
-  await page.waitForURL('**/c/ccih/minhas-fases', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/meus-casos')
+  await page.waitForURL('**/o/rede-a/c/ccih/meus-casos', { timeout: 15_000 })
 
   const kbCard = page.getByRole('article').filter({ hasText: /Keyboard/i }).first()
   await expect(kbCard).toBeVisible({ timeout: 15_000 })
@@ -1368,8 +1374,8 @@ test('AC-DueDays-Template: adding a phase-slot with Prazo padrão (dias) persist
   await signInAs(page, 'chefe.ccih@test.local')
 
   // Create a fresh DRAFT template.
-  await page.goto('/c/ccih/manage/process-templates')
-  await page.waitForURL('**/c/ccih/manage/process-templates', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/process-templates')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/process-templates', { timeout: 15_000 })
 
   const suffix = Date.now()
   const templateTitle = `Prazo E2E ${suffix}`
@@ -1448,7 +1454,7 @@ test('AC-DueDays-Activate-Prefill: activate dialog prefills dueDate from default
   expect(phase1!.default_due_days).toBe(7)
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${newCaseId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${newCaseId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${newCaseId}`), { timeout: 15_000 })
 
   // Open "Ativar e atribuir fase" dialog for Phase 1.
@@ -1508,7 +1514,7 @@ test('AC-DueDays-RemovePrazo: clicking "Remover prazo" clears the due date; acti
   const newCaseId = await createFreshCaseRemote(page, `RemovePrazo ${Date.now()}`)
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${newCaseId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${newCaseId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${newCaseId}`), { timeout: 15_000 })
 
   const phase1Article = page.getByRole('article').filter({ hasText: /Fase 1/i }).first()

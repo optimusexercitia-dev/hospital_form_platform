@@ -38,7 +38,14 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 test.describe.configure({ mode: 'serial' })
 test.use({ viewport: { width: 1280, height: 900 } })
 
-test.beforeEach(async ({ page }) => {
+// SKIP(multi-org pilot): case_referrals module disabled when >1 org is
+// provisioned (2-org seed, multi-tenancy Phase E). Re-enable when NSP-per-org
+// and referrals-per-org land and referrals_enabled() returns true.
+const MULTI_ORG_PILOT_SKIP =
+  'NSP/referral modules disabled in the 2-org multi-tenancy pilot seed — re-enable when NSP-per-org lands'
+
+test.beforeEach(async ({ page }, testInfo) => {
+  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
   await page.emulateMedia({ reducedMotion: 'reduce' })
 })
 
@@ -196,6 +203,12 @@ async function auditRowsFor(req: APIRequestContext, action: string, entityId: st
 // ---------------------------------------------------------------------------
 
 test.beforeAll(async ({ request }) => {
+  // SKIP(multi-org pilot): referrals module is permanently OFF in the 2-org seed.
+  // Attempting to flip the flag will succeed (UPDATE runs) but create_referral_draft
+  // raises a constraint error because the module is structurally disabled. Skip all
+  // tests in this file rather than crash the beforeAll fixture setup.
+  test.skip(true, MULTI_ORG_PILOT_SKIP)
+
   // Enable the case_referrals flag for the whole suite. If the helper RPC
   // doesn't exist we catch the error and use the supabase CLI as a fallback
   // (local-only; safe per the gate constraint).
@@ -312,7 +325,7 @@ test('Flow 1a: A hub shows ENC-0001 (concluida) — subject, status, reply prese
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/encaminhamentos')
+  await page.goto('/o/rede-a/c/ccih/encaminhamentos')
   await page.waitForLoadState('networkidle')
 
   // Hub renders; the "Enviados" section contains ENC-0001
@@ -325,7 +338,7 @@ test("Flow 1b: A detail page shows reply but NOT B's internal case body", async 
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/encaminhamentos/${ENC1_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
   await page.waitForLoadState('networkidle')
 
   // A sees the referral subject
@@ -396,7 +409,7 @@ test('Flow 2a: B reads ENC-0001 snapshot and sees the frozen narrative body', as
 }) => {
   // B's coordinator logs in to their hub and opens ENC-0001
   await signInAs(page, 'chefe.farm@test.local')
-  await page.goto('/c/farmacia/encaminhamentos')
+  await page.goto('/o/rede-a/c/farmacia/encaminhamentos')
   await page.waitForLoadState('networkidle')
 
   // The referral appears in "Recebidos"
@@ -407,7 +420,7 @@ test('Flow 2b: B opens ENC-0001 detail — sees frozen narrative text from snaps
   page,
 }) => {
   await signInAs(page, 'chefe.farm@test.local')
-  await page.goto(`/c/farmacia/encaminhamentos/${ENC1_ID}`)
+  await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${ENC1_ID}`)
   await page.waitForLoadState('networkidle')
 
   // The frozen narrative body is visible (the seed copies the body_md at-send)
@@ -518,7 +531,7 @@ test('Flow 3d: QPS admin sees ENC-0001 reply (concluida) + delivered result on d
 }) => {
   await signInAs(page, 'admin@test.local')
   // Admin can navigate to ENC-0001 via the CCIH hub (admin is a member of all)
-  await page.goto(`/c/ccih/encaminhamentos/${ENC1_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
   await page.waitForLoadState('networkidle')
 
   // Reply is visible
@@ -656,7 +669,7 @@ test('Flow 5a: QPS admin PHI panel reveal → referral_patient.read audit row, n
   // Capture audit count BEFORE the reveal
   const before = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
 
-  await page.goto(`/c/ccih/encaminhamentos/${ENC1_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
   await page.waitForLoadState('networkidle')
 
   // The patient panel is visible (hasPatient=true on ENC-0001)
@@ -893,7 +906,7 @@ test('Flow 7c: B\'s linked case analyst (chefe.farm as coordinator) can read ENC
 
 test('Flow 8a: keyboard-only — hub page reachable via Tab navigation', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih')
+  await page.goto('/o/rede-a/c/ccih')
   await page.waitForLoadState('networkidle')
 
   // Tab through the sidebar nav until "Encaminhamentos" is focused
@@ -911,7 +924,7 @@ test('Flow 8b: keyboard-only — send wizard button focus and label visibility',
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${CASE_A_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
   await page.waitForLoadState('networkidle')
 
   // The "Encaminhar caso" button (or wizard trigger) must be keyboard-reachable
@@ -958,7 +971,7 @@ test('Flow 8c: keyboard-only — B-detail reply form labels and visible focus', 
   // available; instead verify all interactive controls on the detail page are
   // keyboard-reachable (reply view, patient panel reveal button).
   await signInAs(page, 'chefe.farm@test.local')
-  await page.goto(`/c/farmacia/encaminhamentos/${ENC1_ID}`)
+  await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${ENC1_ID}`)
   await page.waitForLoadState('networkidle')
 
   // Verify the patient panel reveal button is keyboard-reachable
@@ -987,7 +1000,7 @@ test('Flow 5-PHI-list: hub page renders NO patient identifiers in HTML', async (
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/encaminhamentos')
+  await page.goto('/o/rede-a/c/ccih/encaminhamentos')
   await page.waitForLoadState('networkidle')
 
   const html = await page.content()
@@ -1013,7 +1026,7 @@ test('Flow 5-PHI-timeline: case timeline shows referral entry with NO PHI', asyn
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${CASE_A_ID}/timeline`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}/timeline`)
   await page.waitForLoadState('networkidle')
 
   const html = await page.content()
