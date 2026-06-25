@@ -1,6 +1,6 @@
 # ADR 0042 — NSP-per-org: per-org PQS roster + org-bound PHI doors
 
-**Status:** Proposed (plan approved + human-approved 2026-06-25; accepted on phase gate) ·
+**Status:** Accepted (phase gate passed — pgTAP 1102/1102, full E2E 421/0, QA APPROVED A-core + whole-phase B, human-approved 2026-06-25) ·
 **Date:** 2026-06-25 · **Feature:** NSP-per-org — bind the PQS/NSP roster and **every PHI
 read door** of the two PHI modules (patient-safety/NSP and inter-committee referrals) to an
 **organization**, lifting ADR [0041](./0041-multi-tenancy-organizations-hospitals.md)

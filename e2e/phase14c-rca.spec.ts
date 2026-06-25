@@ -44,14 +44,7 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 
 test.use({ viewport: { width: 1280, height: 900 } })
 
-// SKIP(multi-org pilot): NSP/patient_safety module disabled when >1 org is
-// provisioned (2-org seed, multi-tenancy Phase E). Re-enable when NSP-per-org
-// lands and patient_safety_enabled() returns true for commission-scoped users.
-const MULTI_ORG_PILOT_SKIP =
-  'NSP/referral modules disabled in the 2-org multi-tenancy pilot seed — re-enable when NSP-per-org lands'
-
-test.beforeEach(async ({ page }, testInfo) => {
-  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
+test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
 })
 
@@ -72,9 +65,13 @@ const ADMIN_EMAIL   = 'admin@test.local'
 const CHEFE_EMAIL   = 'chefe.ccih@test.local'
 const STAFF1_EMAIL  = 'staff1.ccih@test.local'
 const FARM_EMAIL    = 'chefe.farm@test.local'
+// NSP console actor for rede-a (enrolled PQS reader; ADR 0042 per-org NSP).
+// Drives the /o/rede-a/nsp/** console UI; admin@ stays for RPC data-setup.
+const PQS_A_EMAIL   = 'pqs.a@test.local'
 
 const STAFF1_ID = '00000000-0000-0000-0000-000000000003'
 const ADMIN_ID  = '00000000-0000-0000-0000-000000000001'
+const PQS_A_ID  = '00000000-0000-0000-0000-0000000000c2'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -157,8 +154,8 @@ test('R1: RCA workspace page loads for a sentinel-triaged event', async ({ page,
   })
   expect(setResp.ok()).toBeTruthy()
 
-  await signInAs(page, ADMIN_EMAIL)
-  await page.goto(`/admin/nsp/rca/${RCA_ID}`)
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto(`/o/rede-a/nsp/rca/${RCA_ID}`)
   await page.waitForLoadState('networkidle')
 
   // Page heading / breadcrumb
@@ -654,8 +651,8 @@ test('R15: nsp-evidence bucket rejects DELETE from admin (immutable bucket)', as
 test('R16: keyboard-only — RCA workspace loads and content is keyboard reachable', async ({
   page,
 }) => {
-  await signInAs(page, ADMIN_EMAIL)
-  await page.goto(`/admin/nsp/rca/${RCA_ID}`)
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto(`/o/rede-a/nsp/rca/${RCA_ID}`)
   await page.waitForLoadState('networkidle')
 
   // Verify the page loaded the RCA workspace
@@ -681,8 +678,8 @@ test('R16: keyboard-only — RCA workspace loads and content is keyboard reachab
 // ---------------------------------------------------------------------------
 
 test('R17: RCA workspace page contains NO patient PHI', async ({ page }) => {
-  await signInAs(page, ADMIN_EMAIL)
-  await page.goto(`/admin/nsp/rca/${RCA_ID}`)
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto(`/o/rede-a/nsp/rca/${RCA_ID}`)
   await page.waitForLoadState('networkidle')
 
   const html = await page.content()

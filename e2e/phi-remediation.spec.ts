@@ -10,24 +10,31 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  *          the key NSP paths still work end-to-end.
  *
  * WS A  — event_patient lockdown:
- *   REM-1  PQS-enrolled admin sees NSP inbox + can open event detail
+ *   REM-1  PQS member reaches the rede-a NSP inbox + can open event detail
  *          (get_event_patient RPC round-trip proves new single-door works).
- *   REM-2  PHI panel renders for PQS admin; patient identifiers visible.
+ *   REM-2  PHI panel renders for the PQS member; patient identifiers visible.
  *   REM-3  PHI read emits event_patient.read audit row (metadata PHI-free).
  *   REM-4  Direct SELECT on event_patient is REVOKED; direct REST call returns 403.
  *   REM-5  Non-PQS committee user (chefe.ccih) cannot read event_patient via REST.
  *   REM-6  Committee read-back (/c/ccih/eventos) shows events with NO PHI leakage.
  *
  * WS B  — Audited free-text reads (*.viewed emits for 6 detail reads).
- *   REM-7  Navigating to NSP event detail (admin) emits safety_event.viewed audit row.
- *   REM-8  Navigating to RCA detail (admin) emits rca.viewed audit row.
- *   REM-9  Navigating to CAPA detail (admin) emits capa_plan.viewed audit row.
+ *   REM-7  Navigating to NSP event detail emits safety_event.viewed audit row.
+ *   REM-8  Navigating to RCA detail emits rca.viewed audit row.
+ *   REM-9  Navigating to CAPA detail emits capa_plan.viewed audit row.
  *
  * Keyboard-only:
  *   REM-K1 Keyboard-only navigation to NSP event detail + patient panel visible.
  *
+ * NSP-per-org (ADR 0042): the NSP console moved from /admin/nsp/** to the per-org
+ * /o/rede-a/nsp/**; the console requires PQS membership of THAT org. The rede-a
+ * NSP/PHI UI actor is `pqs.a@` (enrolled in rede-a's PQS roster). `admin@` is the
+ * rede-a org_admin AND ALSO enrolled in rede-a's PQS roster, so its PostgREST/RPC
+ * PHI truth-reads still resolve — kept where a call is a service/REST truth-read.
+ *
  * Personas (password Test1234!):
- *   admin@test.local        global admin, PQS member (seeded into pqs_members)
+ *   pqs.a@test.local        enrolled PQS member of rede-a — NSP-console/PHI UI actor
+ *   admin@test.local        rede-a org_admin, ALSO a rede-a PQS member (REST truth-read)
  *   chefe.ccih@test.local   staff_admin, CCIH — committee member, NOT PQS
  *   staff1.ccih@test.local  staff, CCIH — plain member, NOT PQS
  *
@@ -47,14 +54,7 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 
 test.use({ viewport: { width: 1280, height: 900 } })
 
-// SKIP(multi-org pilot): NSP/patient_safety module disabled when >1 org is
-// provisioned (2-org seed, multi-tenancy Phase E). Re-enable when NSP-per-org
-// lands and patient_safety_enabled() returns true for commission-scoped users.
-const MULTI_ORG_PILOT_SKIP =
-  'NSP/referral modules disabled in the 2-org multi-tenancy pilot seed — re-enable when NSP-per-org lands'
-
-test.beforeEach(async ({ page }, testInfo) => {
-  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
+test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
 })
 
@@ -152,13 +152,13 @@ async function auditRows(
 // REM-1 — PQS-enrolled admin can access NSP inbox and event list
 // ---------------------------------------------------------------------------
 
-test('REM-1: PQS admin reaches /admin/nsp and sees the seeded event', async ({ page }) => {
-  await signInAs(page, 'admin@test.local')
+test('REM-1: PQS member reaches /o/rede-a/nsp and sees the seeded event', async ({ page }) => {
+  await signInAs(page, 'pqs.a@test.local')
 
-  await page.goto('/admin/nsp')
+  await page.goto('/o/rede-a/nsp')
   await page.waitForLoadState('networkidle')
 
-  // Must NOT be redirected to 404 (admin IS a PQS member in the new baseline)
+  // Must NOT be redirected to 404 (pqs.a IS a rede-a PQS member)
   await expect(page).not.toHaveURL(/not-found|404/)
 
   // The seeded EV-0001 title appears in the inbox
@@ -178,12 +178,12 @@ test('REM-1: PQS admin reaches /admin/nsp and sees the seeded event', async ({ p
 // REM-2 — PQS admin opens EV-0001 detail → PHI panel renders (RPC round-trip)
 // ---------------------------------------------------------------------------
 
-test('REM-2: PQS admin opens event detail — patient panel shows PHI via get_event_patient RPC', async ({
+test('REM-2: PQS member opens event detail — patient panel shows PHI via get_event_patient RPC', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
+  await signInAs(page, 'pqs.a@test.local')
 
-  await page.goto(`/admin/nsp/${EV1_ID}`)
+  await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
   await page.waitForLoadState('networkidle')
 
   // Patient panel heading
@@ -209,12 +209,12 @@ test('REM-3: opening EV-0001 detail emits event_patient.read audit row with no P
   page,
   request,
 }) => {
-  await signInAs(page, 'admin@test.local')
+  await signInAs(page, 'pqs.a@test.local')
 
   // Capture baseline count BEFORE the page load
   const before = await auditRows(request, 'event_patient.read', EV1_ID)
 
-  await page.goto(`/admin/nsp/${EV1_ID}`)
+  await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
   await page.waitForLoadState('networkidle')
 
   // At least one new audit row must have been emitted
@@ -335,11 +335,11 @@ test('REM-7: opening event detail emits safety_event.viewed audit row', async ({
   page,
   request,
 }) => {
-  await signInAs(page, 'admin@test.local')
+  await signInAs(page, 'pqs.a@test.local')
 
   const before = await auditRows(request, 'safety_event.viewed', EV1_ID)
 
-  await page.goto(`/admin/nsp/${EV1_ID}`)
+  await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
   await page.waitForLoadState('networkidle')
 
   const after = await auditRows(request, 'safety_event.viewed', EV1_ID)
@@ -372,11 +372,11 @@ test('REM-8: opening RCA detail emits rca.viewed audit row', async ({
   }
   const rcaId = rcaRows[0].id
 
-  await signInAs(page, 'admin@test.local')
+  await signInAs(page, 'pqs.a@test.local')
 
   const before = await auditRows(request, 'rca.viewed', rcaId)
 
-  await page.goto(`/admin/nsp/rca/${rcaId}`)
+  await page.goto(`/o/rede-a/nsp/rca/${rcaId}`)
   await page.waitForLoadState('networkidle')
 
   // Page must load (not 404)
@@ -411,11 +411,11 @@ test('REM-9: opening CAPA detail emits capa_plan.viewed audit row', async ({
   }
   const capaId = capaRows[0].id
 
-  await signInAs(page, 'admin@test.local')
+  await signInAs(page, 'pqs.a@test.local')
 
   const before = await auditRows(request, 'capa_plan.viewed', capaId)
 
-  await page.goto(`/admin/nsp/capa/${capaId}`)
+  await page.goto(`/o/rede-a/nsp/capa/${capaId}`)
   await page.waitForLoadState('networkidle')
 
   await expect(page).not.toHaveURL(/not-found|404/)
@@ -436,10 +436,10 @@ test('REM-9: opening CAPA detail emits capa_plan.viewed audit row', async ({
 test('REM-K1: keyboard-only — NSP inbox → open event detail → patient panel visible', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
+  await signInAs(page, 'pqs.a@test.local')
 
-  // Navigate to inbox via keyboard: go to /admin/nsp first, then Tab to an event link
-  await page.goto('/admin/nsp')
+  // Navigate to inbox via keyboard: go to /o/rede-a/nsp first, then Tab to an event link
+  await page.goto('/o/rede-a/nsp')
   await page.waitForLoadState('networkidle')
 
   // The event title links are in the inbox table. Tab to the first one and press Enter.
@@ -455,7 +455,7 @@ test('REM-K1: keyboard-only — NSP inbox → open event detail → patient pane
   await page.waitForLoadState('networkidle')
 
   // Must be on an event detail page
-  await expect(page).toHaveURL(/\/admin\/nsp\/[0-9a-f-]+$/)
+  await expect(page).toHaveURL(/\/o\/rede-a\/nsp\/[0-9a-f-]+$/)
 
   // Patient panel is accessible (the PHI panel heading is present)
   await expect(

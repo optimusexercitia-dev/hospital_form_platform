@@ -23,7 +23,7 @@ import { test, expect } from '@playwright/test'
  *     Commission: qualidade
  *     Personas:
  *       orgadmin.b@test.local      — org_admin rede-b           → /o/rede-b/manage
- *       staff1.qual.b@test.local   — staff Qualidade            → /o/rede-b/c/qualidade
+ *       staff1.qual.b@test.local   — staff Qualidade B + staff_admin Farmácia B → /c picker (multi-commission, NSP-per-org)
  *
  * Acceptance clauses (§Verification in ADR 0041):
  *   MT-1  New routes — commission area now lives at /o/[org]/c/[commission].
@@ -92,9 +92,14 @@ test.describe('MT-1/2: New routes and root landing per persona', () => {
     await expect(page).toHaveURL(`${BASE}/o/rede-a/c/ccih`)
   })
 
-  test('staff1.qual.b@test.local lands on /o/rede-b/c/qualidade', async ({ page }) => {
+  test('staff1.qual.b@test.local lands on /c picker (now multi-commission in rede-b)', async ({ page }) => {
+    // NSP-per-org re-homed staff1.qual.b as the Farmácia B coordinator (staff_admin)
+    // in addition to its Qualidade B staff role (seed §10, for the intra-rede-b
+    // referral) — so it is now a MULTI-commission user (both in rede-b, no org_admin
+    // role) and lands on the /c picker, exactly like multi@ below. Pre-NSP-per-org it
+    // was single-commission and deep-landed on /o/rede-b/c/qualidade.
     await signInAs(page, 'staff1.qual.b@test.local')
-    await expect(page).toHaveURL(`${BASE}/o/rede-b/c/qualidade`)
+    await expect(page).toHaveURL(`${BASE}/c`)
   })
 
   test('admin@test.local (re-homed as org_admin rede-a) lands on /o/rede-a/manage', async ({ page }) => {

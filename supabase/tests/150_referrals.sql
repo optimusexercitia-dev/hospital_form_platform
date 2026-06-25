@@ -21,7 +21,7 @@
 -- SECURITY DEFINER RPC, so a DB-side test can observe them).
 
 begin;
-select plan(40);
+select plan(44);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -42,8 +42,12 @@ create temp table k on commit drop as
   from ctx;
 grant select on k to authenticated;
 
--- The bootstrap admin is the QPS/PQS operator in this file (is_pqs_member is real).
-insert into public.pqs_members (user_id) select admin from k;
+-- NSP-per-org (ADR 0042): pqs_members has composite PK (organization_id, user_id).
+insert into public.pqs_members (organization_id, user_id, added_by)
+  select (v->>'org_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
+insert into public.pqs_department (organization_id, name, rca_default_due_days)
+  select (v->>'org_b')::uuid, 'NSP Bootstrap', 30 from ctx
+  on conflict (organization_id) do nothing;
 
 -- Vocab ids (seeded by the migration; present in every environment).
 create temp table voc on commit drop as
@@ -222,7 +226,28 @@ select is(
 
 -- =========================================================================
 -- get_referral_detail body-gating + referral.viewed audit.
--- =========================================================================
+-- REGRESSION GUARD (BUG-NSP-002): get_referral_detail gates ALL THREE PHI bodies
+-- (description_md, shared_items[].frozen_body_md, reply.result_md) on
+-- can_read_referral_phi — NOT just frozen_body_md. The NSP-per-org migration had
+-- reverted the …015000 lockdown and served the bodies UNCONDITIONALLY to a
+-- metadata-only reader; this block asserts the within-referral metadata-reader-vs-
+-- PHI-reader distinction across every body so the leak cannot silently return.
+--
+-- Seed the two bodies the bootstrap r1 lacks (description_md was dropped by the
+-- 5-arg create_referral_draft; r1 has no reply). Direct writes under the
+-- in_referral_rpc guard flag (the seed's pattern) so the snapshot-lock/status
+-- guards permit them on an already-sent referral; reverts with the rollback.
+select set_config('app.in_referral_rpc', 'on', true);
+update public.case_referral
+  set description_md = 'DESCRICAO-SENSIVEL-DO-PACIENTE'
+  where id = (select id from r1);
+insert into public.referral_reply
+  (referral_id, reply_outcome_id, outcome_label, result_md, acknowledged_only, replied_by, replied_at)
+values
+  ((select id from r1), (select outcome_procede from voc), 'Procede',
+   'PARECER-SENSIVEL-DO-PACIENTE', false, (select sa_y from k), now());
+select set_config('app.in_referral_rpc', 'off', true);
+
 -- Plain staff of A: metadata flows, bodies NULL, NO referral.viewed row.
 create temp table vb on commit drop as
   select (select count(*) from public.audit_log where action = 'referral.viewed') as before;
@@ -237,6 +262,12 @@ select is((select j->>'subject' from d_staff), 'Solicitação de parecer',
   'metadata-only reader still gets the subject');
 select ok((select j->'shared_items'->0->>'frozen_body_md' from d_staff) is null,
   'metadata-only reader gets frozen_body_md = NULL');
+-- BUG-NSP-002 GUARD: the OTHER two PHI bodies must ALSO be NULL for a metadata-only
+-- reader (the leak served these unconditionally).
+select ok((select j->>'description_md' from d_staff) is null,
+  'BUG-NSP-002 GUARD: metadata-only reader gets description_md = NULL');
+select ok((select j->'reply'->>'result_md' from d_staff) is null,
+  'BUG-NSP-002 GUARD: metadata-only reader gets reply.result_md = NULL');
 select is(
   (select count(*) from public.audit_log where action = 'referral.viewed') - (select before from vb),
   0::bigint, 'a metadata-only open writes NO referral.viewed row');
@@ -253,6 +284,14 @@ reset role;
 grant select on d_coord to authenticated;
 select is((select d_coord.j->'shared_items'->0->>'frozen_body_md' from d_coord),
   'CORPO-SENSIVEL-DO-PACIENTE', 'PHI reader (target coord) gets the frozen narrative body');
+-- BUG-NSP-002 GUARD: the OTHER two PHI bodies must be POPULATED for a PHI reader —
+-- proves the gate serves (not just nulls) and pins the metadata/PHI distinction.
+select is((select d_coord.j->>'description_md' from d_coord),
+  'DESCRICAO-SENSIVEL-DO-PACIENTE',
+  'BUG-NSP-002 GUARD: PHI reader (target coord) gets the populated description_md');
+select is((select d_coord.j->'reply'->>'result_md' from d_coord),
+  'PARECER-SENSIVEL-DO-PACIENTE',
+  'BUG-NSP-002 GUARD: PHI reader (target coord) gets the populated reply.result_md');
 select is(
   (select count(*) from public.audit_log where action = 'referral.viewed') - (select before from vb2),
   1::bigint, 'a body-serve to the target coordinator writes one referral.viewed row');

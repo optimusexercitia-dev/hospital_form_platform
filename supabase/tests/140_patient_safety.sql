@@ -37,9 +37,14 @@ create temp table k on commit drop as
   from ctx;
 grant select on k to authenticated;
 
--- WS A: the bootstrap admin is the NSP/PQS operator in this file; enroll it in
--- public.pqs_members (is_pqs_member no longer == admin). Mirrors the seed.
-insert into public.pqs_members (user_id) select admin from k;
+-- NSP-per-org (ADR 0042): pqs_members now has a composite PK (organization_id, user_id).
+-- Enroll admin into the bootstrap org's PQS roster. Also seed a pqs_department row so
+-- the singleton-reader assertions and set_pqs_rca_due_window(org, days) work.
+insert into public.pqs_members (organization_id, user_id, added_by)
+  select (v->>'org_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
+insert into public.pqs_department (organization_id, name, rca_default_due_days)
+  select (v->>'org_b')::uuid, 'NSP Bootstrap', 30 from ctx
+  on conflict (organization_id) do nothing;
 
 -- A case in comm_x (for the case-linked notify path + the case_events assertion).
 create temp table cs on commit drop as select gen_random_uuid() as case_x;
@@ -325,12 +330,14 @@ select is(
   (select count(*)::int from pg_policies
    where schemaname = 'public' and tablename = 'pqs_department' and cmd = 'SELECT'),
   1, 'pqs_department has exactly one SELECT policy (Rule 1: explicit policy)');
--- (b) an authenticated member CAN read the singleton row.
+-- (b) an authenticated member CAN read their org's pqs_department row.
+-- NSP-per-org (ADR 0042): pqs_department is now per-org; scope by bootstrap org_b.
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select is(
-  (select count(*)::int from public.pqs_department),
-  1, 'an authenticated member reads the pqs_department singleton');
+  (select count(*)::int from public.pqs_department
+   where organization_id = (select (v->>'org_b')::uuid from ctx)),
+  1, 'an authenticated member reads their org pqs_department row (per-org, scoped)');
 reset role;
 -- (c) anon CANNOT read pqs_department (no base GRANT — denied before RLS; the
 -- policy is `to authenticated`, so anon is excluded by construction).

@@ -16,12 +16,15 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  *   T5  Non-PSE path records a closure reason and routes the event to `closed`.
  *   T6  Cross-field rules: non-harmful reach → harm forced to 'none';
  *       sentinel reach with low harm → harm floored to 'severe'.
- *   T7  NSP config area (/admin/nsp/configuracoes) edits event types / sentinel criteria
+ *   T7  NSP config area (/o/rede-a/nsp/configuracoes) edits event types / sentinel criteria
  *       / RCA due-window; the new due-window is reflected in triage_disposition.
  *   T8  Keyboard-only triage pass on the triage workstation.
  *
- * Drive: UI flows as admin@test.local (the sole NSP actor in the seeded stack).
- * Security is asserted at RLS layer for non-PQS actors.
+ * Drive: NSP-per-org (ADR 0042). UI console flows (triagem / configurações) run
+ * as pqs.a@test.local — the enrolled PQS member of rede-a — against the per-org
+ * console at /o/rede-a/nsp/**. Direct RPC data-setup runs under admin@test.local
+ * (also an enrolled rede-a PQS member, so the triage RPCs authorize). Security is
+ * asserted at the RLS layer for non-PQS actors (T9).
  *
  * Seeded NSP state (after `supabase db reset`):
  *   EV-0001  e1000000…a1  acknowledged, case-linked, has PHI
@@ -33,14 +36,7 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 
 test.use({ viewport: { width: 1280, height: 900 } })
 
-// SKIP(multi-org pilot): NSP/patient_safety module disabled when >1 org is
-// provisioned (2-org seed, multi-tenancy Phase E). Re-enable when NSP-per-org
-// lands and patient_safety_enabled() returns true for commission-scoped users.
-const MULTI_ORG_PILOT_SKIP =
-  'NSP/referral modules disabled in the 2-org multi-tenancy pilot seed — re-enable when NSP-per-org lands'
-
-test.beforeEach(async ({ page }, testInfo) => {
-  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
+test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
 })
 
@@ -54,10 +50,19 @@ if (!SUPABASE_SERVICE_KEY) {
   throw new Error('SUPABASE_SERVICE_ROLE_KEY ausente — defina-o em .env.local.')
 }
 
+// Personas (password Test1234!)
+//   pqs.a@test.local — enrolled PQS member of rede-a → the NSP-console actor.
+//   admin@test.local — rede-a org_admin ALSO enrolled in rede-a's PQS roster →
+//                      used for direct triage-RPC data-setup.
+const PQS_A_EMAIL = 'pqs.a@test.local'
+
 // Seeded events
 const EV1_ID = 'e1000000-0000-0000-0000-0000000000a1'
 const EV2_ID = 'e2000000-0000-0000-0000-0000000000a2'
 const EV3_ID = 'e3000000-0000-0000-0000-0000000000a3'
+
+// NSP-per-org: pqs_department + set_pqs_rca_due_window are now per-org. rede-a's org.
+const REDE_A_ORG = '0c000000-0000-0000-0000-00000000000a'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -172,8 +177,8 @@ test('T1: triage_disposition RPC call (BUG-14B-001: ambiguous column; assert RCA
 test('T1b: triage workstation page renders EV-0003 as sentinel with RCA mandated', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  await page.goto(`/admin/nsp/triagem?event=${EV3_ID}`)
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto(`/o/rede-a/nsp/triagem?event=${EV3_ID}`)
   await page.waitForLoadState('networkidle')
 
   // The disposition rail must show "RCA" or "RCA obrigatória" / sentinel verdict
@@ -406,11 +411,11 @@ test('T6c: save_triage with reach=sentinel keeps harm=death (higher than floor)'
 // T7 — NSP config area: edit event types / sentinel criteria / RCA due-window
 // ---------------------------------------------------------------------------
 
-test('T7a: /admin/nsp/configuracoes loads the sentinel checklist and event types', async ({
+test('T7a: /o/rede-a/nsp/configuracoes loads the sentinel checklist and event types', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  await page.goto('/admin/nsp/configuracoes')
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto('/o/rede-a/nsp/configuracoes')
   await page.waitForLoadState('networkidle')
 
   // Page heading
@@ -431,10 +436,14 @@ test('T7a: /admin/nsp/configuracoes loads the sentinel checklist and event types
 test('T7b: set_pqs_rca_due_window updates the due-window; triage_disposition reflects new window', async ({
   request,
 }) => {
+  // admin@ is enrolled in rede-a's PQS roster → may set rede-a's RCA window.
   const adminToken = await getOwnerToken(request, 'admin@test.local')
 
-  // Change the RCA due-window to 30 days
-  const setResp = await rpc(request, 'set_pqs_rca_due_window', adminToken, { p_days: 30 })
+  // Change the RCA due-window to 30 days. NSP-per-org: the RPC is now (p_org_id, p_days).
+  const setResp = await rpc(request, 'set_pqs_rca_due_window', adminToken, {
+    p_org_id: REDE_A_ORG,
+    p_days: 30,
+  })
   expect(setResp.ok()).toBeTruthy()
   const newDays = await setResp.json() as number
   expect(newDays).toBe(30)
@@ -444,24 +453,29 @@ test('T7b: set_pqs_rca_due_window updates the due-window; triage_disposition ref
   // However, the seeded RCA shell already has due_date minted at 45 days.
   // We verify set_pqs_rca_due_window by calling the function and confirming it writes a new
   // pqs_department.rca_default_due_days — verified via the direct DB read.
+  // NSP-per-org: pqs_department is PER-ORG (one row per org) — scope to rede-a's row.
   const deptRows = await restGet<{ rca_default_due_days: number }>(
     request,
-    `pqs_department?select=rca_default_due_days&limit=1`,
+    `pqs_department?select=rca_default_due_days&organization_id=eq.${REDE_A_ORG}`,
     SUPABASE_SERVICE_KEY,
   )
   expect(deptRows.length).toBe(1)
   expect(deptRows[0].rca_default_due_days).toBe(30)
 
-  // Audit confirms the change (set_pqs_rca_due_window emits a triage.saved row on the dept)
+  // Audit confirms the change. NSP-per-org renamed the action to
+  // pqs_config.rca_due_window_changed (org-tier audit).
   const auditRows = await restGet<{ action: string }>(
     request,
-    `audit_log?action=eq.triage.saved&select=action&limit=5`,
+    `audit_log?action=eq.pqs_config.rca_due_window_changed&select=action&limit=5`,
     SUPABASE_SERVICE_KEY,
   )
   expect(auditRows.length).toBeGreaterThanOrEqual(1)
 
   // Restore to 45 days (so other tests remain consistent)
-  const restoreResp = await rpc(request, 'set_pqs_rca_due_window', adminToken, { p_days: 45 })
+  const restoreResp = await rpc(request, 'set_pqs_rca_due_window', adminToken, {
+    p_org_id: REDE_A_ORG,
+    p_days: 45,
+  })
   expect(restoreResp.ok()).toBeTruthy()
 })
 
@@ -472,8 +486,8 @@ test('T7b: set_pqs_rca_due_window updates the due-window; triage_disposition ref
 test('T8: keyboard-only — navigate to triage workstation and verify keyboard reachability', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  await page.goto('/admin/nsp/triagem')
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto('/o/rede-a/nsp/triagem')
   await page.waitForLoadState('networkidle')
 
   // The triage workstation loads — verify the main content region is present.

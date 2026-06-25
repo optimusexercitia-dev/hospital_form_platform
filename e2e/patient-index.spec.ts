@@ -12,16 +12,34 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  * `supabase db reset`), so NO backfill is needed — only the flag flip.
  *
  * **Seeded cross-committee fixture (after `supabase db reset`):**
- *   MRN `PRT-0099123` is shared across:
- *     - NSP event EV-0001  (id e1000000-0000-0000-0000-0000000000a1, commission A)
- *     - referral ENC-0001  (id efa00000-0000-0000-0000-0000000000a1, commission A→B)
- *     - case_patient on case 9001 (id dba00000-0000-0000-0000-0000000000b1, commission B)
+ *   MRN `PRT-0099123` is shared across THREE rede-a committees:
+ *     - NSP event EV-0001  (id e1000000-0000-0000-0000-0000000000a1, CCIH / rede-a)
+ *     - referral ENC-0001  (id efa00000-0000-0000-0000-0000000000a1, CCIH→Farmácia / rede-a)
+ *     - case_patient on case (id dba00000-0000-0000-0000-0000000000b1, Farmácia / rede-a)
  *   Encounter `ENC-2026-4471` is shared event ↔ referral only.
- *   QPS search for `PRT-0099123` must return ≥3 entities spanning ≥2 committees.
- *   QPS search for `ENC-2026-4471` must return ≥2 entities (event + referral).
+ *   QPS search for `PRT-0099123` must return ≥3 entities spanning ≥2 committees
+ *   (CCIH + Farmácia, both in rede-a). QPS search for `ENC-2026-4471` must return
+ *   ≥2 entities (event + referral).
  *
- * **PQS persona:** admin@test.local (00…001) is enrolled in pqs_members (seed).
- * Non-PQS test: chefe.ccih@test.local (00…002) — admin of commission A only.
+ * **NSP-per-org (ADR 0042).** The cross-committee patient index moved from
+ * /admin/nsp/pacientes to /o/rede-a/nsp/pacientes; the console is gated on PQS
+ * membership of THAT org, and the search/count RPCs are org-scoped + fail-closed:
+ *   - `search_patient_xref(p_mrn, p_encounter, p_org_id)` returns the EMPTY bundle
+ *     (and emits NO audit row) unless `p_org_id` is passed AND the caller is a PQS
+ *     member of it. Direct-RPC tests MUST pass `p_org_id = REDE_A_ORG`. The UI path
+ *     pins the org via the URL, so UI-driven tests need only the route + persona.
+ *   - A `patient.searched`/`patient.viewed` audit row now carries
+ *     `commission_id = null` (still the cross-committee chain) with the org in
+ *     `organization_id` — so the existing `commission_id === null` checks hold.
+ *   - `patient_xref_count(p_module, p_entity_id)` and the deep-link
+ *     `get_patient_trajectory_for_entity` resolve the org server-side from the
+ *     entity, so they take no org param.
+ *
+ * **PQS persona:** pqs.a@test.local (00…0c2) is enrolled in rede-a's PQS roster
+ * (seed) — the NSP-console/patient-index UI actor. admin@test.local (00…001) is
+ * the rede-a org_admin AND ALSO a rede-a PQS member, so its direct REST/RPC truth-
+ * reads still resolve (kept on the PostgREST-only call sites). Non-PQS tests:
+ * chefe.ccih@test.local (00…002) — staff_admin of CCIH, NOT in pqs_members.
  *
  * **Note:** serial mode required — flag-flip beforeAll/afterAll are correct only
  * serially. Run with `--workers=1` during the fix-loop.
@@ -30,15 +48,7 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 test.describe.configure({ mode: 'serial' })
 test.use({ viewport: { width: 1280, height: 900 } })
 
-// SKIP(multi-org pilot): patient_index module depends on NSP/referrals which are
-// disabled when >1 org is provisioned (2-org seed, multi-tenancy Phase E).
-// Re-enable when NSP-per-org lands and patient_safety_enabled() + referrals_enabled()
-// return true for commission-scoped users.
-const MULTI_ORG_PILOT_SKIP =
-  'NSP/referral modules disabled in the 2-org multi-tenancy pilot seed — re-enable when NSP-per-org lands'
-
-test.beforeEach(async ({ page }, testInfo) => {
-  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
+test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
 })
 
@@ -58,8 +68,13 @@ if (!SUPABASE_SERVICE_KEY) {
 const COMM_A = 'a0000000-0000-0000-0000-0000000000a1' // CCIH (source)
 const COMM_B = 'b0000000-0000-0000-0000-0000000000b1' // Farmácia (target)
 
-// Personas (UUIDs)
-const UID_ADMIN   = '00000000-0000-0000-0000-000000000001' // admin@test.local — PQS member
+// Org (NSP-per-org, ADR 0042) — rede-a hosts the whole cross-committee fixture.
+// search_patient_xref is fail-closed unless p_org_id is this AND caller is a rede-a PQS member.
+const REDE_A_ORG = '0c000000-0000-0000-0000-00000000000a'
+
+// Personas (UUIDs). The UI/RPC actors are driven by email via signInAs/getToken;
+// these UUIDs are only for service-role data-setup (e.g. cases.created_by).
+const UID_ADMIN   = '00000000-0000-0000-0000-000000000001' // admin@test.local — rede-a org_admin + rede-a PQS member
 const UID_CHEFE_A = '00000000-0000-0000-0000-000000000002' // chefe.ccih — NOT in pqs_members
 
 // Seed fixture IDs
@@ -186,15 +201,16 @@ test.afterAll(async () => {
 // ---------------------------------------------------------------------------
 // AC-1 — Cross-committee match: PQS search for MRN → trajectory spans ≥2 committees
 //
-// Searches PRT-0099123 as PQS (admin@test.local). The result must include ≥3
-// entities (event, referral, case) spanning ≥2 committees (A and B).
+// Searches PRT-0099123 as a rede-a PQS member (pqs.a@test.local). The result must
+// include ≥3 entities (event, referral, case) spanning ≥2 rede-a committees
+// (CCIH and Farmácia). The org is pinned by the /o/rede-a URL.
 // ---------------------------------------------------------------------------
 
 test('AC-1: PQS search for PRT-0099123 → trajectory spans ≥3 entities / ≥2 committees', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  await page.goto('/admin/nsp/pacientes')
+  await signInAs(page, 'pqs.a@test.local')
+  await page.goto('/o/rede-a/nsp/pacientes')
   await page.waitForLoadState('networkidle')
 
   // The page must render (flag is ON, admin is PQS)
@@ -251,8 +267,8 @@ test('AC-1: PQS search for PRT-0099123 → trajectory spans ≥3 entities / ≥2
 test('AC-2: encounter search for ENC-2026-4471 → returns ≥2 entities (event + referral)', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  await page.goto('/admin/nsp/pacientes')
+  await signInAs(page, 'pqs.a@test.local')
+  await page.goto('/o/rede-a/nsp/pacientes')
   await page.waitForLoadState('networkidle')
 
   // Fill encounter only (no MRN)
@@ -355,20 +371,27 @@ test('AC-3: referral ENC-0001 detail shows count-only "aparece em N outros regis
 
 // ---------------------------------------------------------------------------
 // AC-4 — Search audit: a MATCHING search emits exactly one `patient.searched` on
-// the global chain with key-only metadata (NO raw MRN). A ZERO-match search emits
-// no audit row.
+// the cross-committee chain (commission_id = null; org in organization_id) with
+// key-only metadata (NO raw MRN). A ZERO-match search emits no audit row.
+//
+// NSP-per-org (ADR 0042): search_patient_xref is fail-closed — it returns the
+// empty bundle (and emits NO audit row) unless p_org_id is passed AND the caller
+// is a PQS member of it. admin@ is a rede-a PQS member, so the truth-read works
+// once p_org_id = REDE_A_ORG is supplied.
 // ---------------------------------------------------------------------------
 
-test('AC-4a: matching search for PRT-0099123 → exactly one patient.searched audit row (global chain, no MRN)', async ({
+test('AC-4a: matching search for PRT-0099123 → exactly one patient.searched audit row (cross-committee chain, no MRN)', async ({
   request,
 }) => {
   // Capture count BEFORE the search
   const before = await auditRowsForAction(request, 'patient.searched')
 
-  // Run the search via the RPC directly (same path the server action calls)
+  // Run the search via the RPC directly (same path the server action calls).
+  // p_org_id is REQUIRED now (org-scoped, fail-closed) — admin@ is a rede-a PQS member.
   const adminToken = await getToken(request, 'admin@test.local')
   const searchResp = await rpc(request, 'search_patient_xref', adminToken, {
     p_mrn: TEST_MRN,
+    p_org_id: REDE_A_ORG,
   })
   expect(searchResp.ok(), `search_patient_xref failed: ${await searchResp.text()}`).toBeTruthy()
   const searchBody = await searchResp.json() as { matchCount?: number } | null
@@ -382,7 +405,8 @@ test('AC-4a: matching search for PRT-0099123 → exactly one patient.searched au
   // Exactly ONE new audit row (one search = one row)
   expect(after.length - before.length).toBe(1)
 
-  // The new row must be on the GLOBAL chain: commission_id = null
+  // The new row stays on the cross-committee chain: commission_id = null
+  // (the org is carried in organization_id under NSP-per-org).
   const newRow = after[0]
   expect(newRow.commission_id).toBeNull()
 
@@ -401,9 +425,13 @@ test('AC-4b: zero-match search emits NO audit row', async ({
 }) => {
   const before = await auditRowsForAction(request, 'patient.searched')
 
+  // p_org_id supplied + caller is a PQS member, so an empty result here is a TRUE
+  // zero-match (not a fail-closed empty from a missing org) — the audit-suppression
+  // assertion below is therefore meaningful.
   const adminToken = await getToken(request, 'admin@test.local')
   const searchResp = await rpc(request, 'search_patient_xref', adminToken, {
     p_mrn: NONEXISTENT_MRN,
+    p_org_id: REDE_A_ORG,
   })
   // The RPC may return a 200 with empty result or a 404 — both are acceptable
   // (zero-match = empty entries, not an error)
@@ -425,8 +453,8 @@ test('AC-5: deep-link ?entity=event:<EV1_ID> renders trajectory and emits patien
 }) => {
   const beforeViewed = await auditRowsForAction(request, 'patient.viewed')
 
-  await signInAs(page, 'admin@test.local')
-  await page.goto(`/admin/nsp/pacientes?entity=event:${EV1_ID}`)
+  await signInAs(page, 'pqs.a@test.local')
+  await page.goto(`/o/rede-a/nsp/pacientes?entity=event:${EV1_ID}`)
   await page.waitForLoadState('networkidle')
 
   // The page should render the trajectory (deep-link resolved server-side)
@@ -464,12 +492,14 @@ test('AC-5: deep-link ?entity=event:<EV1_ID> renders trajectory and emits patien
 })
 
 // ---------------------------------------------------------------------------
-// AC-6 — Disposal: dispose_case_phi on B's case (dba…b1) → entity still appears
-// in trajectory flagged "PHI descartado"; xref row retained with disposed_at set.
+// AC-6 — Disposal: dispose_case_phi on a throwaway rede-a case → entity still
+// appears in trajectory flagged "PHI descartado"; xref row retained with
+// disposed_at set.
 //
-// We operate on a THROWAWAY case to avoid contaminating the cross-committee fixture.
-// The disposal-retain semantic is asserted via the RPC + DB layer (patient_xref
-// row must be retained with disposed_at set; the case_patient row is gone).
+// We operate on a THROWAWAY case (in COMM_A / rede-a, with its own unique MRN) to
+// avoid contaminating the cross-committee fixture. The disposal-retain semantic is
+// asserted via the RPC + DB layer (patient_xref row must be retained with
+// disposed_at set; the case_patient row is gone), then confirmed in the rede-a UI.
 // ---------------------------------------------------------------------------
 
 let disposalCaseId: string
@@ -478,7 +508,7 @@ test('AC-6: dispose_case_phi → xref retained (disposed_at set), trajectory fla
   request,
   page,
 }) => {
-  // Create a throwaway case in COMM_B with patient_enabled=true
+  // Create a throwaway case in COMM_A (rede-a) with patient_enabled=true
   const caseResp = await request.post(`${SUPABASE_URL}/rest/v1/cases`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
@@ -549,8 +579,8 @@ test('AC-6: dispose_case_phi → xref retained (disposed_at set), trajectory fla
 
   // UI: verify the trajectory renders "PHI descartado" badge for this disposed entity
   // (The throwaway case shares a patient_key so searching its MRN should show it disposed)
-  await signInAs(page, 'admin@test.local')
-  await page.goto('/admin/nsp/pacientes')
+  await signInAs(page, 'pqs.a@test.local')
+  await page.goto('/o/rede-a/nsp/pacientes')
   await page.waitForLoadState('networkidle')
 
   const mrnInput = page.getByPlaceholder('Número do prontuário')
@@ -571,12 +601,16 @@ test('AC-6: dispose_case_phi → xref retained (disposed_at set), trajectory fla
 
 // ---------------------------------------------------------------------------
 // AC-7 — Flag-OFF invisibility: with `patient_index` OFF
-//   - /admin/nsp/pacientes → 404 (notFound)
+//   - /o/rede-a/nsp/pacientes → 404 (notFound)
 //   - search_patient_xref RPC → denies / returns empty
 //   - no referral hint (count=0 from patient_xref_count when flag off)
+//
+// The page passes the org-PQS gate (pqs.a is a rede-a PQS member) and then
+// notFound()s on the flag; search_patient_xref/patient_xref_count both
+// `assert_patient_index_enabled()` FIRST, so they raise/empty regardless of org.
 // ---------------------------------------------------------------------------
 
-test('AC-7: flag OFF → /admin/nsp/pacientes → 404, search RPC denies/empty, no hint', async ({
+test('AC-7: flag OFF → /o/rede-a/nsp/pacientes → 404, search RPC denies/empty, no hint', async ({
   page,
   request,
 }) => {
@@ -585,8 +619,8 @@ test('AC-7: flag OFF → /admin/nsp/pacientes → 404, search RPC denies/empty, 
 
   try {
     // UI: the page must return 404 when flag is OFF
-    await signInAs(page, 'admin@test.local')
-    await page.goto('/admin/nsp/pacientes')
+    await signInAs(page, 'pqs.a@test.local')
+    await page.goto('/o/rede-a/nsp/pacientes')
     await page.waitForLoadState('networkidle')
 
     // The page should show 404 content (Next.js notFound → this page returns notFound())
@@ -597,15 +631,17 @@ test('AC-7: flag OFF → /admin/nsp/pacientes → 404, search RPC denies/empty, 
       !page.url().includes('pacientes')
 
     // Also acceptable: redirect away from the page entirely
-    const isRedirected = !page.url().includes('/admin/nsp/pacientes')
+    const isRedirected = !page.url().includes('/o/rede-a/nsp/pacientes')
 
     expect(is404 || isRedirected, 'Flag-OFF: page should 404 or redirect').toBeTruthy()
 
     // RPC: search_patient_xref must deny or return empty when flag is OFF
-    // (The `patient_index_enabled()` probe controls the RPC gate)
+    // (assert_patient_index_enabled() fires before the org check; p_org_id is
+    // supplied so the empty/raise is unambiguously flag-driven, not org-gated.)
     const adminToken = await getToken(request, 'admin@test.local')
     const searchResp = await rpc(request, 'search_patient_xref', adminToken, {
       p_mrn: TEST_MRN,
+      p_org_id: REDE_A_ORG,
     })
     // When flag is OFF the RPC raises 23514 or returns null
     if (searchResp.ok()) {
@@ -646,10 +682,13 @@ test('AC-7: flag OFF → /admin/nsp/pacientes → 404, search RPC denies/empty, 
 test('AC-8a: non-PQS admin (chefe.ccih) search_patient_xref → null/empty result', async ({
   request,
 }) => {
-  // chefe.ccih is a staff_admin (not in pqs_members) — must get nothing from the RPC
+  // chefe.ccih is a staff_admin (not in pqs_members) — must get nothing from the RPC.
+  // p_org_id = REDE_A_ORG is supplied so the denial is attributable to the ROSTER
+  // gate (is_pqs_member_of(rede-a) = false for chefe.ccih), not a missing org.
   const chefaToken = await getToken(request, 'chefe.ccih@test.local')
   const resp = await rpc(request, 'search_patient_xref', chefaToken, {
     p_mrn: TEST_MRN,
+    p_org_id: REDE_A_ORG,
   })
   if (resp.ok()) {
     const body = await resp.json() as { matchCount?: number; entries?: unknown[] } | null
@@ -698,9 +737,10 @@ test('AC-8c: non-PQS staff_admin (chefe.farm) cannot see QPS patient search page
   page,
 }) => {
   await signInAs(page, 'chefe.farm@test.local')
-  // chefe.farm is a staff_admin (not global admin) — the admin layout enforces isAdmin
-  // so they should not reach /admin/nsp/pacientes at all (redirect/404)
-  await page.goto('/admin/nsp/pacientes')
+  // chefe.farm is a rede-a staff_admin but NOT a rede-a PQS member — the
+  // /o/[org]/nsp layout gates on PQS membership of THIS org (getNspAccessByOrg →
+  // notFound), so committee-admin standing alone does not reach the console.
+  await page.goto('/o/rede-a/nsp/pacientes')
   await page.waitForLoadState('networkidle')
 
   // Must NOT render the patient search UI
@@ -719,8 +759,8 @@ test('AC-8c: non-PQS staff_admin (chefe.farm) cannot see QPS patient search page
 test('AC-9: trajectory + access-audit render NO patient name or raw MRN in DOM', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  await page.goto('/admin/nsp/pacientes')
+  await signInAs(page, 'pqs.a@test.local')
+  await page.goto('/o/rede-a/nsp/pacientes')
   await page.waitForLoadState('networkidle')
 
   // Perform a search that matches (MRN with results)
@@ -765,8 +805,8 @@ test('AC-9: trajectory + access-audit render NO patient name or raw MRN in DOM',
 test('AC-10: keyboard-only — Tab to search field, type MRN, Enter, read results', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  await page.goto('/admin/nsp/pacientes')
+  await signInAs(page, 'pqs.a@test.local')
+  await page.goto('/o/rede-a/nsp/pacientes')
   await page.waitForLoadState('networkidle')
 
   // The page heading is visible
@@ -814,8 +854,8 @@ test('AC-10: keyboard-only — Tab to search field, type MRN, Enter, read result
 test('AC-11a: patient search page uses pt-BR copy (no English error messages surface)', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  await page.goto('/admin/nsp/pacientes')
+  await signInAs(page, 'pqs.a@test.local')
+  await page.goto('/o/rede-a/nsp/pacientes')
   await page.waitForLoadState('networkidle')
 
   // Page headings and labels are in pt-BR
@@ -848,11 +888,11 @@ test('AC-11a: patient search page uses pt-BR copy (no English error messages sur
 
 test('AC-11b: NSP hub entry "Pacientes" is visible and in pt-BR', async ({ page }) => {
   // The NSP hub should have a "Pacientes" link entry when patient_index is ON
-  await signInAs(page, 'admin@test.local')
-  await page.goto('/admin/nsp')
+  await signInAs(page, 'pqs.a@test.local')
+  await page.goto('/o/rede-a/nsp')
   await page.waitForLoadState('networkidle')
 
-  // Look for the Pacientes nav link (the hub may link to /admin/nsp/pacientes)
+  // Look for the Pacientes nav link (the hub may link to /o/rede-a/nsp/pacientes)
   const pacientesLink = page.getByRole('link', { name: /pacientes/i })
     .or(page.getByText(/pacientes entre comissões/i))
 
@@ -860,7 +900,7 @@ test('AC-11b: NSP hub entry "Pacientes" is visible and in pt-BR', async ({ page 
     // Verify it's a proper Portuguese label (not "Patients" or "patients")
     const linkText = await pacientesLink.first().textContent() ?? ''
     expect(linkText.toLowerCase()).not.toContain('patients')
-    // The link or card must navigate to /admin/nsp/pacientes
+    // The link or card must navigate to .../nsp/pacientes
     const href = await pacientesLink.first().getAttribute('href')
     if (href) {
       expect(href).toContain('pacientes')
