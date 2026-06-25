@@ -83,7 +83,11 @@ reset role;
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
--- Phase 1: form_u with ruleset: u_q1='Sim' → Conforme; default → Não-conforme
+-- Phase 1: form_u with ruleset: u_q1='Sim' → Conforme; default → Não-conforme.
+-- Contract (rules ⟺ emits_result): a ruleset may exist ONLY on an emitting phase,
+-- and an emitting phase must carry a non-empty allowed_result_ids = the set the
+-- ruleset can produce ([Conforme, Não-conforme]). The
+-- process_template_phases_result_emits CHECK is the backstop.
 select public.add_template_phase(
   (select tid from tpl),
   (select form_u from k),
@@ -99,7 +103,12 @@ select public.add_template_phase(
       )
     ),
     'default_result_id', (select nao_conforme_id from vocab)::text
-  )
+  ),
+  true,             -- p_emits_result (a ruleset requires an emitting phase)
+  jsonb_build_array(
+    (select conforme_id from vocab)::text,
+    (select nao_conforme_id from vocab)::text
+  )                 -- p_allowed_result_ids = the results the ruleset can produce
 );
 -- Phase 2: no ruleset (so we can test null-ruleset path later with its own template)
 select public.add_template_phase(
@@ -644,7 +653,11 @@ create temp table tpl_hc059a on commit drop as
   select (public.create_process_template((select comm_x from k), 'Proc HC059a', null)).id as tid;
 grant select on tpl_hc059a to authenticated;
 
--- 31) HC059: rule result_id belongs to wrong commission
+-- 31) HC059: rule result_id belongs to wrong commission. Runs on a VALID emitting
+-- phase (emits_result=true + a valid same-commission allowed subset) so execution
+-- reaches the ruleset-content validator; HC059 fires on the rule's bad result_id
+-- (the ruleset validator runs BEFORE the allowed-results validator), not on the
+-- emits_result CHECK or on allowed_result_ids.
 select throws_ok(
   format($$ select public.add_template_phase(%L, %L, 'Fase 1', null, null, %L::integer[],
     jsonb_build_object(
@@ -655,12 +668,14 @@ select throws_ok(
         )
       ),
       'default_result_id', null
-    )
+    ),
+    true, jsonb_build_array(%L::text)
   ) $$,
     (select tid from tpl_hc059a),
     (select form_u from k),
     '{}',
-    (select approved_y_id from vocab_y)),
+    (select approved_y_id from vocab_y),
+    (select conforme_id from vocab)),
   'HC059',
   null,
   'HC059: add_template_phase rejects a result_ruleset whose rule result_id belongs to a different commission'
@@ -679,18 +694,22 @@ create temp table tpl_hc059b on commit drop as
   select (public.create_process_template((select comm_x from k), 'Proc HC059b', null)).id as tid;
 grant select on tpl_hc059b to authenticated;
 
--- 32) HC059: default_result_id is archived
+-- 32) HC059: default_result_id is archived. Emitting phase + a valid (non-archived,
+-- same-commission) allowed subset so the ruleset validator reaches the archived
+-- default_result_id and raises HC059 — not the CHECK / allowed-results path.
 select throws_ok(
   format($$ select public.add_template_phase(%L, %L, 'Fase 1', null, null, %L::integer[],
     jsonb_build_object(
       'rules', '[]'::jsonb,
       'default_result_id', %L::text
-    )
+    ),
+    true, jsonb_build_array(%L::text)
   ) $$,
     (select tid from tpl_hc059b),
     (select form_u from k),
     '{}',
-    (select aid from archived_result)),
+    (select aid from archived_result),
+    (select conforme_id from vocab)),
   'HC059',
   null,
   'HC059: add_template_phase rejects a result_ruleset whose default_result_id is archived'
@@ -704,7 +723,9 @@ create temp table tpl_hc016 on commit drop as
   select (public.create_process_template((select comm_x from k), 'Proc HC016', null)).id as tid;
 grant select on tpl_hc016 to authenticated;
 
--- 33) HC016: rule question_key does not exist in the published form
+-- 33) HC016: rule question_key does not exist in the published form. Emitting
+-- phase + a valid same-commission allowed subset so the ruleset validator reaches
+-- the unknown question_key and raises HC016 (it runs before allowed-results).
 select throws_ok(
   format($$ select public.add_template_phase(%L, %L, 'Fase 1', null, null, %L::integer[],
     jsonb_build_object(
@@ -715,11 +736,13 @@ select throws_ok(
         )
       ),
       'default_result_id', null
-    )
+    ),
+    true, jsonb_build_array(%L::text)
   ) $$,
     (select tid from tpl_hc016),
     (select form_u from k),
     '{}',
+    (select conforme_id from vocab),
     (select conforme_id from vocab)),
   'HC016',
   null,
@@ -761,17 +784,22 @@ create temp table tpl_hc017 on commit drop as
   select (public.create_process_template((select comm_x from k), 'Proc HC017', null)).id as tid;
 grant select on tpl_hc017 to authenticated;
 
--- 34) HC017: result_ruleset when the phase's form has no published version
+-- 34) HC017: result_ruleset when the phase's form has no published version.
+-- Emitting phase + a valid same-commission allowed subset so the ruleset
+-- validator runs and raises HC017 (the no-published-version check is the first
+-- thing it does) rather than the emits_result CHECK pre-empting.
 select throws_ok(
   format($$ select public.add_template_phase(%L, %L, 'Fase 1', null, null, %L::integer[],
     jsonb_build_object(
       'rules', '[]'::jsonb,
       'default_result_id', %L::text
-    )
+    ),
+    true, jsonb_build_array(%L::text)
   ) $$,
     (select tid from tpl_hc017),
     (select fid from form_unpub),
     '{}',
+    (select conforme_id from vocab),
     (select conforme_id from vocab)),
   'HC017',
   null,
