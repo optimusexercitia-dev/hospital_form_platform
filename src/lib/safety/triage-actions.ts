@@ -25,11 +25,16 @@ import type { SaveTriageInput, VocabInput } from '@/lib/safety/triage-types'
  * (centralized in `./messages.ts`); raw Supabase/Postgres errors NEVER reach the UI.
  */
 
-const NSP_PATH = '/admin/nsp'
+// NSP-per-org (ADR 0042): the console moved /admin/nsp → /o/[org]/nsp/**. Revalidate
+// the per-org NSP LAYOUT across all [org] values (Next-15 dynamic-segment form:
+// `type` is required for a bracketed path; 'layout' invalidates the NSP layout AND
+// every page beneath it — inbox/triage/event/rca/capa — so one call covers the
+// console). RLS-scoped data → broad revalidation is correct, no cross-org leak.
+const NSP_PATH = '/o/[org]/nsp'
 
-/** Revalidate the NSP workspaces after a triage / config mutation. */
+/** Revalidate the per-org NSP workspaces after a triage / config mutation. */
 function revalidateNsp(): void {
-  revalidatePath(NSP_PATH, 'page')
+  revalidatePath(NSP_PATH, 'layout')
 }
 
 // ---------------------------------------------------------------------------
