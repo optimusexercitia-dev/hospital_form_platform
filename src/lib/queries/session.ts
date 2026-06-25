@@ -2,6 +2,7 @@ import { cache } from 'react'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
+import { isPqsMemberOfSelf, isNspCoordinatorOfSelf } from '@/lib/queries/pqs'
 
 /**
  * Session & membership data-access (Architecture Rule 9 — all reads go through
@@ -252,4 +253,86 @@ async function getCommissionAccessByOrgUncached(
     memberRole ?? (isOrgAdmin ? 'staff_admin' : null)
 
   return { context, organization, commission, role }
+}
+
+/**
+ * The per-org NSP-console access resolver (NSP-per-org, ADR 0042) — the seam behind
+ * `/o/[org]/nsp/**`, mirroring {@link getCommissionAccessByOrg}. Resolves the org by
+ * slug (RLS-scoped: the `organizations_select` policy now admits an enrolled
+ * `pqs_member` / `nsp_coordinator` of the org, §A2.5b) and reports both NSP roles:
+ *
+ *   - `isPqsMember`   — enrolled in the org's PQS roster ⇒ may READ that org's PHI
+ *                       (the PHI nav lights up). Enforced again at every data door.
+ *   - `isCoordinator` — the org's `nsp_coordinator` ⇒ may CURATE the roster (the
+ *                       roster nav lights up). NOT implicitly a PHI reader.
+ *
+ * Returns `null` ONLY when BOTH are false (no NSP standing in this org → 404). An
+ * UNENROLLED coordinator (curate-but-not-read) MUST be able to enter the console to
+ * manage the roster, so a `isCoordinator && !isPqsMember` caller is admitted — PHI is
+ * still denied at the data doors (which gate on enrollment), so this is safe.
+ *
+ * The booleans come from the org-scoped DEFINER probes (`is_pqs_member_of_self` /
+ * `is_nsp_coordinator_of_self`); a platform admin without enrollment gets `null`
+ * (duty separation — admin standing is not NSP standing).
+ */
+export const getNspAccessByOrg = cache(
+  async (
+    orgSlug: string,
+  ): Promise<{
+    context: SessionContext
+    organization: OrganizationRef
+    orgId: string
+    isPqsMember: boolean
+    isCoordinator: boolean
+  } | null> => {
+    return getNspAccessByOrgUncached(orgSlug)
+  },
+)
+
+async function getNspAccessByOrgUncached(orgSlug: string): Promise<{
+  context: SessionContext
+  organization: OrganizationRef
+  orgId: string
+  isPqsMember: boolean
+  isCoordinator: boolean
+} | null> {
+  const context = await getSessionContext()
+  if (!context) {
+    return null
+  }
+
+  const supabase = await createClient()
+
+  // Resolve the org by slug. RLS (`organizations_select`, broadened in §A2.5b) returns
+  // the row for a platform admin, an org_admin/member, OR an enrolled PQS
+  // member/coordinator of this org — so a bare PQS member (no commission membership)
+  // resolves their org here. A foreign org's slug yields no row → null.
+  const { data: orgRow } = await supabase
+    .from('organizations')
+    .select('id, slug, name')
+    .eq('slug', orgSlug)
+    .maybeSingle()
+    .returns<OrganizationRef | null>()
+
+  if (!orgRow) {
+    return null
+  }
+
+  const [isPqsMember, isCoordinator] = await Promise.all([
+    isPqsMemberOfSelf(orgRow.id),
+    isNspCoordinatorOfSelf(orgRow.id),
+  ])
+
+  // No NSP standing in this org → no console access.
+  if (!isPqsMember && !isCoordinator) {
+    return null
+  }
+
+  return {
+    context,
+    organization: orgRow,
+    orgId: orgRow.id,
+    isPqsMember,
+    isCoordinator,
+  }
 }

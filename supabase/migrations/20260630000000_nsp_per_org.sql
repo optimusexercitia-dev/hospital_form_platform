@@ -259,6 +259,27 @@ COMMENT ON POLICY "pqs_members_coordinator_all" ON "public"."pqs_members"
   IS 'NSP-per-org (ADR 0042): the org''s nsp_coordinator is the ONLY direct writer of its roster. No platform_admin / org_admin escape hatch — three-way duty separation. Enrollment grants PHI read, so curation is a distinct grant from reading (a coordinator must enroll themselves to read).';
 
 -- ===========================================================================
+-- §A2.5b — organizations_select broadening for PQS roles (the getNspAccessByOrg seam).
+-- The …628000 policy is `is_admin OR is_org_admin_of OR is_org_member`. An enrolled
+-- pqs_member / nsp_coordinator who is NOT also a commission member, org_admin, or
+-- org_member CANNOT read their org's `organizations` row — so the per-org NSP console
+-- seam (getNspAccessByOrg resolves the org by slug) would 404 exactly the user who
+-- needs it. Broaden additively (SAME pattern + rationale as …628000's is_org_member
+-- fix): a PQS member/coordinator may read ONLY the org they belong to. No isolation
+-- leak — platform_admin holds no PQS enrollment; a PQS member still cannot read any
+-- OTHER org's row. hospitals_select stays tight (no NSP path joins org→hospital).
+-- ===========================================================================
+DROP POLICY "organizations_select" ON "public"."organizations";
+CREATE POLICY "organizations_select" ON "public"."organizations" FOR SELECT TO "authenticated"
+  USING ((
+    "app"."is_admin"()
+    OR "app"."is_org_admin_of"("id")
+    OR "app"."is_org_member"("id")
+    OR "app"."is_pqs_member_of"("id")
+    OR "app"."is_nsp_coordinator_of"("id")
+  ));
+
+-- ===========================================================================
 -- §A2.6 — GRANTS on every new helper/predicate (mirror the app predicates).
 -- ===========================================================================
 DO $grants$

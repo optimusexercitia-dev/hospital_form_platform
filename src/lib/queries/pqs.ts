@@ -130,8 +130,12 @@ export async function patientSafetyEnabled(): Promise<boolean> {
  * nav-level "member of ANY org" probe; THIS is its org-scoped sibling.
  */
 export async function isPqsMemberOfSelf(orgId: string): Promise<boolean> {
-  void orgId
-  throw new Error('not implemented: isPqsMemberOfSelf (NSP-per-org A2/A3)')
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('is_pqs_member_of_self', {
+    p_org_id: orgId,
+  })
+  if (error) return false
+  return data === true
 }
 
 /**
@@ -142,8 +146,12 @@ export async function isPqsMemberOfSelf(orgId: string): Promise<boolean> {
  * DEFINER probe.
  */
 export async function isNspCoordinatorOfSelf(orgId: string): Promise<boolean> {
-  void orgId
-  throw new Error('not implemented: isNspCoordinatorOfSelf (NSP-per-org A2/A3)')
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('is_nsp_coordinator_of_self', {
+    p_org_id: orgId,
+  })
+  if (error) return false
+  return data === true
 }
 
 /**
