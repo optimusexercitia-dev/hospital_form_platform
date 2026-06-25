@@ -548,22 +548,52 @@ CREATE OR REPLACE FUNCTION "public"."capa_viewer_can_manage"("p_capa_id" "uuid")
 $$;
 ALTER FUNCTION "public"."capa_viewer_can_manage"("p_capa_id" "uuid") OWNER TO "postgres";
 
+-- capa_kpis: org-scope the RESULT SET, not just the gate (M3). The old global
+-- is_pqs_member(auth.uid()) gate is replaced by a per-org SCOPE: the NSP-dashboard
+-- headline counts only plans/actions whose event-org is one of the CALLER'S enrolled
+-- orgs (the union-over-caller's-orgs pattern, same as pqs_inbox — keeps the door
+-- no-arg + hermetic, no p_org_id). A `capa_plan` is in scope when:
+--   * event/rca-sourced AND app.org_of_event(event_of_capa(plan)) is one of v_orgs; OR
+--   * non-event-sourced (indicator/audit/meeting/manual → event-org NULL): included
+--     for any-org PQS members, MATCHING can_write_capa's fallback (no org to attribute;
+--     PHI-free; none exist today — indicator is Phase 15). The two treatments are kept
+--     aligned on purpose.
+-- A non-PQS caller (not any-org) counts nothing → all-zero row.
 CREATE OR REPLACE FUNCTION "public"."capa_kpis"() RETURNS TABLE("open_count" integer, "in_verification" integer, "overdue_actions" integer, "closed_ytd" integer)
-    LANGUAGE "sql" STABLE SECURITY DEFINER
+    LANGUAGE "plpgsql" STABLE SECURITY DEFINER
     SET "search_path" TO 'app', 'public', 'pg_catalog'
     AS $$
+declare
+  v_orgs uuid[] := array(select organization_id from public.pqs_members where user_id = auth.uid());
+  v_any boolean := app.is_pqs_member_of_any(auth.uid());
+begin
+  return query
+  with in_scope as (
+    select p.*
+    from public.capa_plan p
+    where v_any  -- gate: an any-org PQS member (else empty)
+      and (
+        -- event/rca-sourced → must be one of the caller's orgs; non-event-sourced
+        -- (event-org NULL) → included (any-org fallback, mirrors can_write_capa).
+        app.org_of_event(app.event_of_capa(p.id)) is null
+        or app.org_of_event(app.event_of_capa(p.id)) = any(v_orgs)
+      )
+  )
   select
-    coalesce(count(*) filter (where p.status in ('aberto', 'em_execucao', 'em_verificacao')), 0)::int,
-    coalesce(count(*) filter (where p.status = 'em_verificacao'), 0)::int,
+    coalesce(count(*) filter (where status in ('aberto', 'em_execucao', 'em_verificacao')), 0)::int,
+    coalesce(count(*) filter (where status = 'em_verificacao'), 0)::int,
     coalesce((
-      select count(*) from public.capa_action a
+      -- overdue actions, org-scoped via action → capa → in_scope plan.
+      select count(*)
+      from public.capa_action a
+      join in_scope isp on isp.id = a.capa_id
       where a.due_date < current_date and a.status not in ('concluida', 'cancelada')
     ), 0)::int,
     coalesce(count(*) filter (
-      where p.status = 'concluido' and p.closed_at >= date_trunc('year', current_date)
+      where status = 'concluido' and closed_at >= date_trunc('year', current_date)
     ), 0)::int
-  from public.capa_plan p
-  where app.is_pqs_member_of_any(auth.uid());
+  from in_scope;
+end;
 $$;
 ALTER FUNCTION "public"."capa_kpis"() OWNER TO "postgres";
 
