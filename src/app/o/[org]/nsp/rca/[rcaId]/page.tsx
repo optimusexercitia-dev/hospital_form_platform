@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { requireUser } from "@/lib/queries/session";
+import { getNspAccessByOrg } from "@/lib/queries/session";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { getSafetyEvent } from "@/lib/queries/safety-events";
 import {
@@ -31,11 +31,12 @@ export const metadata: Metadata = {
  * "Abrir workspace de RCA". Loads the RCA + the event (for the breadcrumb/title) +
  * the team / timeline / evidence / fishbone factors / why-chains / root causes.
  *
- * Gating mirrors the other NSP pages: the admin layout enforces `isAdmin`; we
- * re-check it + the `patient_safety` flag → 404 when off. `getRcaById` returns
- * `null` outside the event's access scope → `notFound()` (RLS is the boundary).
- * Write controls are gated downstream by `rca.viewerCanWrite` (the server/RLS is
- * the authority).
+ * Access: the `/o/[org]/nsp` layout gates to a PQS member/coordinator of THIS
+ * org + the `patient_safety` flag → 404 when off; the page pins the org (for the
+ * workspace hrefs). The fine boundary is the data door: `getRcaById` returns
+ * `null` outside the event's access scope (a non-enrolled coordinator, another
+ * org) → `notFound()` (RLS is the boundary). Write controls are gated downstream
+ * by `rca.viewerCanWrite` (the server/RLS is the authority).
  *
  * PHI-FREE: the RCA carries no patient identifiers; this page never loads the
  * isolated `event_patient` panel (that stays on the event detail, Rule 12).
@@ -43,12 +44,12 @@ export const metadata: Metadata = {
 export default async function NspRcaPage({
   params,
 }: {
-  params: Promise<{ rcaId: string }>;
+  params: Promise<{ org: string; rcaId: string }>;
 }) {
-  const { rcaId } = await params;
+  const { org, rcaId } = await params;
 
-  const context = await requireUser();
-  if (!context.isAdmin) {
+  const access = await getNspAccessByOrg(org);
+  if (!access) {
     notFound();
   }
   if (!(await patientSafetyEnabled())) {
@@ -118,5 +119,5 @@ export default async function NspRcaPage({
     capaActionCountByRootCause,
   };
 
-  return <RcaWorkspace data={data} />;
+  return <RcaWorkspace org={org} data={data} />;
 }

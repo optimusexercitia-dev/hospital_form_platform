@@ -2,17 +2,20 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
 import type { CapaPlan } from "@/lib/safety/capa-types";
+import { nspHref } from "@/lib/routing";
 import { CapaClassificationChip, CapaStatusChip } from "./capa-badges";
 import { formatDate } from "../format";
 
 /**
  * A compact CAPA-plan summary card linking to its workspace. Used in the RCA stage-4
  * list and the event detail. Server-Component-safe (no client hooks).
+ *
+ * @param org  the org slug whose NSP console this is — builds the per-org CAPA href.
  */
-export function CapaPlanCard({ plan }: { plan: CapaPlan }) {
+export function CapaPlanCard({ org, plan }: { org: string; plan: CapaPlan }) {
   return (
     <Link
-      href={`/admin/nsp/capa/${plan.id}`}
+      href={nspHref(org, "capa", plan.id)}
       className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-4 shadow-xs transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
     >
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">

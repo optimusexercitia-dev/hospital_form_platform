@@ -11,7 +11,8 @@ import {
   Users,
 } from "lucide-react";
 
-import { requireUser } from "@/lib/queries/session";
+import { getNspAccessByOrg } from "@/lib/queries/session";
+import { nspHref } from "@/lib/routing";
 import {
   getSafetyEvent,
   getEventCustody,
@@ -47,10 +48,11 @@ export const metadata: Metadata = {
  * acknowledge action (while `reported`), the append-only custody ledger, and the
  * ISOLATED PHI patient panel.
  *
- * Gating: admin layout enforces `isAdmin` (today `is_pqs_member = is_admin`);
- * re-checked here + `patient_safety` flag → 404 when off. `getSafetyEvent`
- * returns `null` outside the access-follows-custody scope → `notFound()` (a
- * foreign committee sees nothing — RLS is the boundary, not UI hiding).
+ * Access: the `/o/[org]/nsp` layout gates to a PQS member/coordinator of THIS
+ * org + the `patient_safety` flag → 404 when off. The fine boundary is the data
+ * door: `getSafetyEvent` returns `null` outside the access-follows-custody scope
+ * (a non-enrolled coordinator, a foreign committee, or another org) → here that
+ * becomes `notFound()` — RLS is the boundary, not UI hiding.
  *
  * PHI (Rule 12): the patient panel loads via the AUDITED `getEventPatient`,
  * which emits the `event_patient.read` audit row SERVER-SIDE. We call it ONLY
@@ -60,12 +62,12 @@ export const metadata: Metadata = {
 export default async function NspEventDetailPage({
   params,
 }: {
-  params: Promise<{ eventId: string }>;
+  params: Promise<{ org: string; eventId: string }>;
 }) {
-  const { eventId } = await params;
+  const { org, eventId } = await params;
 
-  const context = await requireUser();
-  if (!context.isAdmin) {
+  const access = await getNspAccessByOrg(org);
+  if (!access) {
     notFound();
   }
   if (!(await patientSafetyEnabled())) {
@@ -87,11 +89,11 @@ export default async function NspEventDetailPage({
     patientIndexEnabled(),
   ]);
 
-  // QPS-only cross-committee trajectory deep-link. This page is already
-  // `isAdmin`-gated and in the NSP admin area (where `is_pqs_member = is_admin`
-  // today); the target page re-gates `isAdmin` + the `patient_index` flag and the
-  // trajectory data is PQS-gated server-side. Shown only when the event carries a
-  // patient and the flag is on (so the link never 404s / never points at nothing).
+  // QPS-only cross-committee trajectory deep-link. This page is already gated to
+  // an enrolled PQS member of this org; the target page re-gates membership + the
+  // `patient_index` flag and the trajectory data is org-scoped + PQS-gated
+  // server-side. Shown only when the event carries a patient and the flag is on
+  // (so the link never 404s / never points at nothing).
   const showTrajectoryLink = patientIndexOn && event.hasPatient;
 
   const meta: { icon: typeof MapPin; label: string; value: string }[] = [];
@@ -115,7 +117,7 @@ export default async function NspEventDetailPage({
     <SafetyMotion runKey={event.id} className="flex flex-col gap-8">
       <header data-rise className="flex flex-col gap-4">
         <Link
-          href="/admin/nsp"
+          href={nspHref(org)}
           className="inline-flex w-fit items-center gap-1.5 rounded text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
         >
           <ArrowLeft aria-hidden="true" className="size-4" />
@@ -146,7 +148,7 @@ export default async function NspEventDetailPage({
             )}
             {showTrajectoryLink && (
               <Link
-                href={`/admin/nsp/pacientes?entity=event:${event.id}`}
+                href={`${nspHref(org, "pacientes")}?entity=event:${event.id}`}
                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
               >
                 <Users aria-hidden="true" className="size-4" />
@@ -154,7 +156,7 @@ export default async function NspEventDetailPage({
               </Link>
             )}
             <Link
-              href={`/admin/nsp/triagem?event=${event.id}`}
+              href={`${nspHref(org, "triagem")}?event=${event.id}`}
               className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
             >
               <ListChecks aria-hidden="true" className="size-4" />
@@ -263,7 +265,7 @@ export default async function NspEventDetailPage({
               <ul className="flex flex-col gap-2">
                 {capaPlans.map((plan) => (
                   <li key={plan.id}>
-                    <CapaPlanCard plan={plan} />
+                    <CapaPlanCard org={org} plan={plan} />
                   </li>
                 ))}
               </ul>

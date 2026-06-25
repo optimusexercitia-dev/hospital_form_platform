@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Info, Users } from "lucide-react";
 
-import { requireUser } from "@/lib/queries/session";
+import { getNspAccessByOrg } from "@/lib/queries/session";
+import { nspHref } from "@/lib/routing";
 import {
   getPatientTrajectoryForEntity,
   patientIndexEnabled,
@@ -19,38 +20,46 @@ export const metadata: Metadata = {
 /**
  * The QPS-only CROSS-COMMITTEE patient view (Phase 23 — `patient_index`; ADR
  * 0039). The single place a QPS/PQS reviewer can search by MRN and/or encounter
- * and see a patient's PHI-FREE trajectory across ALL committees (cases /
+ * and see a patient's PHI-FREE trajectory across THIS org's committees (cases /
  * safety-events / referrals) plus the cross-committee access audit.
  *
- * Audience = the QPS/PQS roster (`is_pqs_member`), NOT plain admins. The data
- * layer is PQS-gated SERVER-SIDE inside the DEFINER RPCs, so a non-PQS admin who
- * reaches this page simply gets empty results — that's expected (duty separation,
- * ADR 0030/0039; RLS is the boundary, not UI hiding).
- *
- * Gating mirrors the NSP encaminhamentos page: the admin layout enforces
- * `isAdmin`; re-checked here defensively, plus the `patient_index` flag → 404 when
- * off. PHI-FREE throughout — this surface NEVER shows a name or MRN; raw
- * identifiers appear only behind each module's existing audited per-record door.
+ * Access: the `/o/[org]/nsp` layout gates to a PQS member/coordinator of THIS
+ * org + the `patient_index` flag → 404 when off; the page pins the org. The data
+ * layer is org-scoped + PQS-gated SERVER-SIDE inside the DEFINER RPCs, so a
+ * non-enrolled coordinator's searches return empty (sees it empty, not a 404).
+ * PHI-FREE throughout — this surface NEVER shows a name or MRN; raw identifiers
+ * appear only behind each module's existing audited per-record door.
  *
  * Two entry points (ADR 0039 Q7), which COEXIST: (a) the typed search form (MRN
  * and/or encounter); (b) a deep-link `?entity=<module>:<id>` from a
  * case/event/referral detail. The entity deep-link resolves the trajectory
- * SERVER-SIDE via `getPatientTrajectoryForEntity` (which emits `patient.viewed`,
- * not `patient.searched`) and renders the SAME {@link TrajectoryResult} as the
- * search path. A malformed/unknown-module param or an out-of-scope/keyless entity
- * (helper → `null`) degrades gracefully to a calm note + the search form — never a
- * crash. The cross-committee ACCESS AUDIT stays on the SEARCH path: its query is
+ * SERVER-SIDE via `getPatientTrajectoryForEntity` (which resolves the entity's
+ * org itself, gates on enrollment in THAT org, and emits `patient.viewed`) and
+ * renders the SAME {@link TrajectoryResult} as the search path. A
+ * malformed/unknown-module param or an out-of-scope/keyless entity (helper →
+ * `null`) degrades gracefully to a calm note + the search form — never a crash.
+ * The cross-committee ACCESS AUDIT stays on the SEARCH path: its query is
  * MRN-keyed (ADR 0039) and the deep-link holds no identifier, so the deep-link
  * notes that the audit is available via search rather than faking an entity-keyed
  * read.
+ *
+ * Org-scoping (NSP-per-org, ADR 0042): the typed-search path passes `access.orgId`
+ * into `PatientSearchView`, whose `searchPatientAction(orgId, …)` /
+ * `loadPatientAccessAudit(orgId, …)` route through `searchPatientForOrg` /
+ * `getPatientAccessAuditForOrg` — gated on enrollment in THIS org, scoped to its
+ * xref rows. The deep-link path (`getPatientTrajectoryForEntity`) resolves the
+ * entity's org server-side and needs no `orgId`.
  */
 export default async function NspPatientsPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ org: string }>;
   searchParams: Promise<{ entity?: string }>;
 }) {
-  const context = await requireUser();
-  if (!context.isAdmin) {
+  const { org } = await params;
+  const access = await getNspAccessByOrg(org);
+  if (!access) {
     notFound();
   }
   if (!(await patientIndexEnabled())) {
@@ -70,14 +79,14 @@ export default async function NspPatientsPage({
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
         <Link
-          href="/admin/nsp"
+          href={nspHref(org)}
           className="inline-flex w-fit items-center gap-1.5 rounded text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
         >
           <ArrowLeft aria-hidden="true" className="size-4" />
           Núcleo de Segurança do Paciente
         </Link>
         <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
-          Administração
+          Núcleo de Segurança do Paciente
         </p>
         <h1 className="inline-flex items-center gap-2.5 text-3xl text-balance">
           <Users aria-hidden="true" className="size-7 text-primary" />
@@ -101,6 +110,7 @@ export default async function NspPatientsPage({
           className="flex flex-col gap-4"
         >
           <TrajectoryResult
+            org={org}
             result={deepLinkTrajectory}
             headingId="patient-deeplink-heading"
           >
@@ -130,7 +140,7 @@ export default async function NspPatientsPage({
         </div>
       )}
 
-      <PatientSearchView />
+      <PatientSearchView org={org} orgId={access.orgId} />
     </div>
   );
 }

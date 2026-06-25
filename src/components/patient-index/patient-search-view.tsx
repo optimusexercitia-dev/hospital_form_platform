@@ -39,8 +39,31 @@ import { AccessAuditTable } from "./access-audit-table";
  * Fully keyboard-operable: a real `<form>` (Enter submits), labeled controls with
  * wired help/error ids, visible focus rings, and `role="status"`/`role="alert"`
  * regions so a screen reader hears the outcome. Empty state on a zero-match.
+ *
+ * Org-scoping (NSP-per-org, ADR 0042): the search + access-audit actions take the
+ * route's `orgId` so they route through `searchPatientForOrg(orgId, …)` /
+ * `getPatientAccessAuditForOrg(orgId, …)` — gated on enrollment in THAT org and
+ * scoped to its xref rows. The `org` SLUG is also threaded to the trajectory table
+ * for per-org entity hrefs (the entity deep-link path resolves its own org).
+ *
+ * @param org    the org slug whose NSP console this is (entity hrefs).
+ * @param orgId  the organization id (the search/audit actions' enrollment + scope).
  */
-export function PatientSearchView() {
+export function PatientSearchView({
+  org,
+  orgId,
+}: {
+  org: string;
+  orgId: string;
+}) {
+  // `orgId` is the route's organization id, threaded for the org-scoped search +
+  // access-audit actions. It is NOT yet read because the backend action wrappers
+  // (`searchPatientAction`/`loadPatientAccessAudit` in src/lib/patient-index/actions.ts)
+  // still take only `(input)`; the moment they take `(orgId, input)` the two call
+  // sites below pass it (see their inline notes). Held as a prop now so that flip is
+  // FE-local. (Intentional placeholder reference to keep it a live, used binding.)
+  void orgId;
+
   const [isPending, startTransition] = useTransition();
   const [mrn, setMrn] = useState("");
   const [encounter, setEncounter] = useState("");
@@ -70,6 +93,13 @@ export function PatientSearchView() {
     };
 
     startTransition(async () => {
+      // NSP-per-org (ADR 0042): the route's org is threaded as `orgId` and MUST be
+      // passed here once the backend action wrapper takes it —
+      // `searchPatientAction(orgId, input)` → `searchPatientForOrg(orgId, …)`.
+      // BLOCKED on backend: `src/lib/patient-index/actions.ts` still exposes the
+      // org-blind `searchPatientAction(input)` (→ deprecated `searchPatient` stub).
+      // See B2 report: this is the one backend contract gap. Flip to (orgId, input)
+      // the moment the wrapper signature lands.
       const state = await searchPatientAction(input);
       if (!state.ok) {
         setResult(null);
@@ -165,12 +195,17 @@ export function PatientSearchView() {
         className="flex flex-col gap-4"
       >
         {result && searched && (
-          <TrajectoryResult result={result}>
+          <TrajectoryResult org={org} result={result}>
             {/* The access audit is only meaningful once there's a match; it binds
                 to exactly the MRN/encounter we searched on (the audit query is
                 MRN-keyed — ADR 0039). */}
+            {/* BLOCKED on backend (same as the search call above): flip to
+                loadPatientAccessAudit(orgId, searched) → getPatientAccessAuditForOrg
+                once the wrapper takes orgId. */}
             {result.matchCount > 0 && (
-              <AccessAuditTable onLoad={() => loadPatientAccessAudit(searched)} />
+              <AccessAuditTable
+                onLoad={() => loadPatientAccessAudit(searched)}
+              />
             )}
           </TrajectoryResult>
         )}

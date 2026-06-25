@@ -7,6 +7,7 @@ import {
   PATIENT_XREF_MODULE_TOKENS,
   type TrajectoryEntry,
 } from "@/lib/patient-index/types";
+import { nspHref } from "@/lib/routing";
 import { formatDate } from "./format";
 import { PATIENT_META_CHIP_BASE, patientModuleChipClass } from "./format";
 
@@ -28,11 +29,11 @@ import { PATIENT_META_CHIP_BASE, patientModuleChipClass } from "./format";
  */
 
 /** Resolve a trajectory entry to its module-native detail-page href (PHI-free). */
-function entityHref(entry: TrajectoryEntry): string | null {
+function entityHref(org: string, entry: TrajectoryEntry): string | null {
   switch (entry.module) {
     case "event":
-      // The NSP event detail (QPS-scoped); the audited PHI door lives there.
-      return `/admin/nsp/${entry.entityId}`;
+      // The per-org NSP event detail (QPS-scoped); the audited PHI door lives there.
+      return nspHref(org, entry.entityId);
     case "referral":
     case "case":
       // Referrals and cases are commission-scoped; without the slug the QPS view
@@ -45,7 +46,14 @@ function entityHref(entry: TrajectoryEntry): string | null {
   }
 }
 
-export function TrajectoryTable({ entries }: { entries: TrajectoryEntry[] }) {
+export function TrajectoryTable({
+  org,
+  entries,
+}: {
+  /** The org slug whose NSP console this is — builds the per-org event hrefs. */
+  org: string;
+  entries: TrajectoryEntry[];
+}) {
   if (entries.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-border bg-card/50 px-4 py-10 text-center text-sm text-muted-foreground text-pretty">
@@ -85,7 +93,7 @@ export function TrajectoryTable({ entries }: { entries: TrajectoryEntry[] }) {
         </thead>
         <tbody>
           {entries.map((entry) => {
-            const href = entityHref(entry);
+            const href = entityHref(org, entry);
             return (
               <tr
                 key={`${entry.module}:${entry.entityId}`}

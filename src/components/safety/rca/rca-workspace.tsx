@@ -75,8 +75,8 @@ export interface RcaWorkspaceData {
  * Stage 4 is a Phase-14d placeholder. Write controls are gated by `rcaCanEdit`
  * (viewerCanWrite AND not completed); an observer / frozen RCA is fully read-only.
  */
-export function RcaWorkspace(props: { data: RcaWorkspaceData }) {
-  const { data } = props;
+export function RcaWorkspace(props: { org: string; data: RcaWorkspaceData }) {
+  const { org, data } = props;
   const { rca } = data;
   const router = useRouter();
   const pathname = usePathname();
@@ -143,6 +143,7 @@ export function RcaWorkspace(props: { data: RcaWorkspaceData }) {
   return (
     <div className="mx-auto flex w-full max-w-[1180px] flex-col gap-6">
       <RcaHeader
+        org={org}
         rca={rca}
         eventTitle={data.eventTitle}
         commissionName={data.commissionName}
@@ -190,6 +191,7 @@ export function RcaWorkspace(props: { data: RcaWorkspaceData }) {
           )}
           {active === "actions" && (
             <CapaStage
+              org={org}
               rcaId={rca.id}
               plans={data.capaPlans}
               rootCauses={data.rootCauses}

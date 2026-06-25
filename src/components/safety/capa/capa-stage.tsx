@@ -11,16 +11,20 @@ import { CapaPlanCard } from "./capa-plan-card";
  * plan level and per root cause (the root-cause→action link is set on the action
  * inside the plan). Server-Component-safe.
  *
- * `canManage` reflects the RCA-area admin gate (the whole `/admin/nsp/**` area is
- * admin-gated, and `is_pqs_member() = is_admin()` today, so a viewer who reaches this
- * stage may open CAPA plans).
+ * `canManage` reflects the per-org RCA write authority (`rca.viewerCanWrite`, the
+ * server/RLS authority) — a viewer who reaches this stage with write may open CAPA
+ * plans.
+ *
+ * @param org  the org slug whose NSP console this is — builds the per-org CAPA hrefs.
  */
 export function CapaStage({
+  org,
   rcaId,
   plans,
   rootCauses,
   canManage,
 }: {
+  org: string;
   rcaId: string;
   plans: CapaPlan[];
   rootCauses: RcaRootCause[];
@@ -57,7 +61,7 @@ export function CapaStage({
           <ul className="flex flex-col gap-3">
             {plans.map((plan) => (
               <li key={plan.id}>
-                <CapaPlanCard plan={plan} />
+                <CapaPlanCard org={org} plan={plan} />
               </li>
             ))}
           </ul>

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { requireUser } from "@/lib/queries/session";
-import { listCommissionsForAdmin } from "@/lib/queries/commissions";
+import { getNspAccessByOrg } from "@/lib/queries/session";
+import { listCommissionsForOrg } from "@/lib/queries/org";
 import { pqsInbox, patientSafetyEnabled } from "@/lib/queries/pqs";
 import {
   getSafetyEvent,
@@ -32,20 +32,27 @@ export const metadata: Metadata = {
  * the `event_patient.read` audit row server-side, Rule 12). The queue path never
  * loads PHI.
  *
- * Gating mirrors the 14a NSP pages: the admin layout enforces `isAdmin`; we
- * re-check it + the `patient_safety` flag → 404 when off. RLS remains the boundary
- * (a non-PQS caller's inbox is `[]`; an out-of-scope event detail is `null`).
+ * Access: the `/o/[org]/nsp` layout gates to a PQS member/coordinator of THIS
+ * org; here we re-resolve to pin the org id. We do NOT additionally 404 a
+ * non-enrolled coordinator — the `pqs_inbox` RPC returns `[]` for a non-member,
+ * so a coordinator-only user (PHI nav hidden) sees an empty workstation rather
+ * than a hard 404. Also gated on the `patient_safety` flag → 404 when off. RLS +
+ * the per-org door remain the boundary (a non-member's inbox is `[]`; an
+ * out-of-scope event is `null`).
  *
- * Full-bleed: the shared admin `main` is `max-w-7xl`; the workstation breaks out of
+ * Full-bleed: the shared NSP `main` is `max-w-7xl`; the workstation breaks out of
  * it with a scoped negative-margin wrapper (the layout itself is NOT edited).
  */
 export default async function NspTriagePage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ org: string }>;
   searchParams: Promise<{ event?: string }>;
 }) {
-  const context = await requireUser();
-  if (!context.isAdmin) {
+  const { org } = await params;
+  const access = await getNspAccessByOrg(org);
+  if (!access) {
     notFound();
   }
   if (!(await patientSafetyEnabled())) {
@@ -56,7 +63,7 @@ export default async function NspTriagePage({
 
   const [items, commissions] = await Promise.all([
     pqsInbox({}),
-    listCommissionsForAdmin(),
+    listCommissionsForOrg(access.orgId),
   ]);
 
   const commissionNames = Object.fromEntries(
@@ -94,7 +101,7 @@ export default async function NspTriagePage({
         getTriageDisposition(selectedId),
         listSentinelCriteria(),
         // The RCA shell exists only once a sentinel disposition is confirmed; its id
-        // wires the rail's "Abrir workspace de RCA" to /admin/nsp/rca/<rcaId>.
+        // wires the rail's "Abrir workspace de RCA" to /o/[org]/nsp/rca/<rcaId>.
         getRca(selectedId),
       ]);
       selected = {
@@ -116,6 +123,7 @@ export default async function NspTriagePage({
     <div className="-mx-4 sm:-mx-6">
       <div className="px-4 sm:px-6">
         <TriageWorkstation
+          org={org}
           items={items}
           commissionNames={commissionNames}
           selectedId={selectedId}

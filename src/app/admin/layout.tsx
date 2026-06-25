@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 
 import { requireUser } from "@/lib/queries/session";
 import { auditTrailEnabled } from "@/lib/queries/audit";
-import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { UserMenu } from "@/components/shell/user-menu";
 
 /**
@@ -25,12 +24,12 @@ export default async function AdminLayout({
     notFound();
   }
 
-  // The audit_trail flag gates the "Trilha de auditoria" admin nav entry; the
-  // patient_safety flag gates the NSP entry.
-  const [auditOn, patientSafetyOn] = await Promise.all([
-    auditTrailEnabled(),
-    patientSafetyEnabled(),
-  ]);
+  // The audit_trail flag gates the "Trilha de auditoria" admin nav entry. The NSP
+  // console is no longer a platform-admin destination — it moved to per-org
+  // `/o/[org]/nsp/**` (PQS-membership-gated), where a platform admin is walled off
+  // from PHI (notFound), so the admin shell no longer advertises an NSP entry
+  // (NSP-per-org, ADR 0042).
+  const auditOn = await auditTrailEnabled();
 
   return (
     <div className="flex min-h-svh flex-col">
@@ -73,14 +72,6 @@ export default async function AdminLayout({
                 className="rounded-lg px-3 py-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
               >
                 Trilha de auditoria
-              </Link>
-            ) : null}
-            {patientSafetyOn ? (
-              <Link
-                href="/admin/nsp"
-                className="rounded-lg px-3 py-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-              >
-                NSP
               </Link>
             ) : null}
           </nav>
