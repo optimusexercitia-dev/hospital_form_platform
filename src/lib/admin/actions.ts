@@ -62,18 +62,21 @@ async function requireAdmin(): Promise<boolean> {
 }
 
 /**
- * Authorize a staff_admin-management action for a commission: platform_admin, OR
- * an org_admin of the commission's organization (multi-tenancy Phase C — the
- * org_admin owns staff_admin assignment within their org). Resolves the
- * commission's `organization_id` and checks the caller's `orgAdminOf`. Phase B
- * RLS (`commission_members_admin_all` = admin OR org_admin-of-commission) is the
- * write authority; this is the defense-in-depth server check for the service-role
- * path (`assignStaffAdmin` uses the elevated client for the invite + upsert).
+ * Authorize a staff_admin-management action for a commission: an org_admin of the
+ * commission's ORGANIZATION (multi-tenancy Phase C — the org_admin owns
+ * staff_admin assignment within their org). Resolves the commission's
+ * `organization_id` and checks the caller's `orgAdminOf`.
+ *
+ * SECURITY: the platform_admin `isAdmin` short-circuit is DELIBERATELY ABSENT.
+ * `assignStaffAdmin` runs on the SERVICE-ROLE client (which BYPASSES RLS), so this
+ * TS check is the ONLY control on that path — the Phase-B `commission_members`
+ * RLS never sees it. A platform admin is walled off from tenant data and must NOT
+ * seat/remove a staff_admin in any commission; it provisions org/hospital/org_admin
+ * only (`@/lib/platform/actions`), where it then seats an org_admin who does this.
  */
 async function authorizeStaffAdminOps(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()
   if (!context) return false
-  if (context.isAdmin) return true
   if (context.orgAdminOf.length === 0) return false
 
   const supabase = await createClient()

@@ -14,13 +14,16 @@ import { resolveOrInviteUser } from '@/lib/members/invite'
  * raw Supabase/Postgres errors NEVER reach the UI (CLAUDE.md §8).
  *
  * SECURITY: each action re-verifies, server-side and COMMISSION-SCOPED, that the
- * caller is admin OR a staff_admin OF THAT SPECIFIC commission, BEFORE any
- * write — the client is never trusted. The target role is hard-coded
- * ('staff'); it is never read from formData, so a tampered form cannot escalate
- * to staff_admin via `inviteStaff`. The invite + cross-user lookup use the
- * service-role client (which bypasses RLS), so the explicit check above is the
- * authority; the membership upsert itself also runs as service role for the
- * freshly-invited (session-less) profile.
+ * caller is a staff_admin OF THAT SPECIFIC commission OR an org_admin of the
+ * commission's ORGANIZATION, BEFORE any write — the client is never trusted. The
+ * target role is hard-coded ('staff'); it is never read from formData, so a
+ * tampered form cannot escalate to staff_admin via `inviteStaff`. The invite +
+ * cross-user lookup use the service-role client (which bypasses RLS), so the
+ * explicit check above is the ONLY authority on the service-role path; the
+ * membership upsert also runs as service role for the freshly-invited
+ * (session-less) profile. The platform_admin (`isAdmin`) is NOT authorized here —
+ * it is walled off from tenant data and provisions org/hospital/org_admin only
+ * (`@/lib/platform/actions`).
  */
 
 export interface ActionState {
@@ -45,16 +48,40 @@ const MESSAGES = {
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /**
- * Authorize a staff-management action for a specific commission: admin, or a
- * staff_admin of THAT commission. Returns false (deny) otherwise.
+ * Authorize a staff-management action for a specific commission: a staff_admin of
+ * THAT commission, OR an org_admin of the commission's ORGANIZATION. Returns false
+ * (deny) otherwise.
+ *
+ * SECURITY (multi-tenancy): the platform_admin `isAdmin` short-circuit is
+ * DELIBERATELY ABSENT. `inviteStaff` runs on the SERVICE-ROLE client (bypasses
+ * RLS), so this TS check is the ONLY control there — a platform admin must NOT
+ * invite/manage staff in any commission. (`removeStaff` is invoker/RLS-backed but
+ * uses the same gate for a consistent, non-escalating policy.)
  */
 async function authorizeStaffOps(commissionId: string): Promise<boolean> {
   const context = await getSessionContext()
   if (!context) return false
-  if (context.isAdmin) return true
-  return context.memberships.some(
-    (m) => m.commission.id === commissionId && m.role === 'staff_admin',
-  )
+
+  // staff_admin of this exact commission.
+  if (
+    context.memberships.some(
+      (m) => m.commission.id === commissionId && m.role === 'staff_admin',
+    )
+  ) {
+    return true
+  }
+
+  // org_admin of the commission's organization.
+  if (context.orgAdminOf.length === 0) return false
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('commissions')
+    .select('organization_id')
+    .eq('id', commissionId)
+    .maybeSingle()
+  const orgId = data?.organization_id
+  if (!orgId) return false
+  return context.orgAdminOf.some((o) => o.organization.id === orgId)
 }
 
 async function appOrigin(): Promise<string> {
