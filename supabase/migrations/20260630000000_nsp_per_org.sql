@@ -280,6 +280,29 @@ CREATE POLICY "organizations_select" ON "public"."organizations" FOR SELECT TO "
   ));
 
 -- ===========================================================================
+-- §A2.5c — commissions_select broadening for PQS roles (the per-org QPS dashboards).
+-- The base policy is `is_member_of(id) OR is_org_admin_of(organization_id)` — no PQS
+-- term. A PQS member/coordinator who holds NO commission membership reads ZERO of the
+-- org's commissions, which breaks any per-org NSP surface that intersects with the
+-- org's commission list (the QPS referral dashboard org-filters `case_referral` by
+-- `listCommissionsForOrg(orgId)` → empty list → every referral filtered out, even
+-- though the referral rows themselves are readable via the per-org `can_read_referral`
+-- — BUG-NSP-005). A PQS member/coordinator works ACROSS the org's commissions (the
+-- NSP inbox already shows reporting-commission names; referrals are inter-commission),
+-- so they legitimately need the org's commission list — PHI-free metadata, org-scoped.
+-- EXACT parity with the §A2.5b organizations_select fix: additive, cross-org denied
+-- (a PQS member reads only THEIR org's commissions), platform_admin holds no PQS
+-- enrollment, plain non-members still denied.
+DROP POLICY "commissions_select_member_or_admin" ON "public"."commissions";
+CREATE POLICY "commissions_select_member_or_admin" ON "public"."commissions" FOR SELECT TO "authenticated"
+  USING ((
+    "app"."is_member_of"("id")
+    OR "app"."is_org_admin_of"("organization_id")
+    OR "app"."is_pqs_member_of"("organization_id")
+    OR "app"."is_nsp_coordinator_of"("organization_id")
+  ));
+
+-- ===========================================================================
 -- §A2.6 — GRANTS on every new helper/predicate (mirror the app predicates).
 -- ===========================================================================
 DO $grants$
