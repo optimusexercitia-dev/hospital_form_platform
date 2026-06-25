@@ -35,7 +35,7 @@ interface MemberRow {
  * The commission's members, sorted staff_admin-first then by name (pt-BR
  * locale). Returns `[]` when the caller may not read the commission (RLS yields
  * no rows) — callers that need access control should gate via
- * `getCommissionAccess` before rendering.
+ * `getCommissionAccessByOrg` before rendering.
  */
 export async function listMembers(
   commissionId: string,

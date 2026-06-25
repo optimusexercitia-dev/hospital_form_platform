@@ -32,7 +32,7 @@ export type ColorToken = CaseStatusColorToken
  *     (+ admins);
  *   - draft versions are visible to staff_admins of the commission (+ admins),
  *     published/archived to any member.
- * Gate the calling page on staff_admin/admin via `getCommissionAccess` before
+ * Gate the calling page on staff_admin/admin via `getCommissionAccessByOrg` before
  * rendering the builder — RLS returns no rows to a plain staff member, but a
  * friendly pt-BR 404/forbidden is the page's job, not this layer's.
  *

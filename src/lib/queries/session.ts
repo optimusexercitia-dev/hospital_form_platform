@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/server'
  * Session & membership data-access (Architecture Rule 9 — all reads go through
  * `src/lib/queries/`). These functions back the role-aware app shell: the root
  * `/` Server Component resolves the landing area from `getSessionContext()`, the
- * commission layout gates access via `getCommissionAccess()`, and protected
+ * commission layout gates access via `getCommissionAccessByOrg()`, and protected
  * Server Components call `requireUser()`.
  *
  * Identity is established by LOCAL JWT verification (`getClaims()` — signature
@@ -164,63 +164,8 @@ export async function requireUser(): Promise<SessionContext> {
 }
 
 /**
- * Resolves a commission the current user may access by slug.
- *
- * Returns `null` when the slug does not exist OR the user is neither a member
- * nor an admin — RLS makes a foreign/unknown commission indistinguishable
- * (the SELECT simply returns no row), so callers render `notFound()` (404) for
- * both, leaking nothing about which commissions exist.
- *
- * `role` is the caller's role in the commission, or `null` for an admin viewing
- * a commission they are not a member of (admins read every commission via RLS
- * but have no membership row).
- */
-export const getCommissionAccess = cache(
-  async (
-    slug: string,
-  ): Promise<{
-    context: SessionContext
-    commission: { id: string; name: string; slug: string }
-    role: CommissionRole | null
-  } | null> => {
-    return getCommissionAccessUncached(slug)
-  },
-)
-
-async function getCommissionAccessUncached(slug: string): Promise<{
-  context: SessionContext
-  commission: { id: string; name: string; slug: string }
-  role: CommissionRole | null
-} | null> {
-  const context = await getSessionContext()
-  if (!context) {
-    return null
-  }
-
-  const supabase = await createClient()
-
-  // RLS (`commissions_select_member_or_admin`) returns a row only for members
-  // and admins; non-members get no row → null → notFound() upstream.
-  const { data: commission } = await supabase
-    .from('commissions')
-    .select('id, name, slug')
-    .eq('slug', slug)
-    .maybeSingle()
-
-  if (!commission) {
-    return null
-  }
-
-  const role =
-    context.memberships.find((m) => m.commission.id === commission.id)?.role ??
-    null
-
-  return { context, commission, role }
-}
-
-/**
  * Org-aware commission resolution for the `/o/[org]/c/[commission]` routes
- * (multi-tenancy Phase A). Resolves the organization by `orgSlug`, then the
+ * (multi-tenancy). Resolves the organization by `orgSlug`, then the
  * commission by `(organization_id, slug)` — the commission slug is unique only
  * PER ORG now, so the org scope is required.
  *
@@ -237,9 +182,7 @@ async function getCommissionAccessUncached(slug: string): Promise<{
  *     over every commission in their org without an explicit membership row), ELSE
  *   - `null` for a platform admin viewing a commission they don't otherwise hold.
  *
- * This is the canonical end-state resolver. The legacy single-arg
- * `getCommissionAccess(slug)` above stays until Phase D cuts every `/c/[slug]`
- * caller over to this function and removes it.
+ * This is the canonical commission-access resolver.
  */
 export const getCommissionAccessByOrg = cache(
   async (
