@@ -1,13 +1,14 @@
 /**
  * NSP (Núcleo de Segurança do Paciente / PQS department) data-access (Phase 14a —
- * NSP Foundation; Architecture Rule 9; Rule 12 — PHI/HIPAA). Backs the NSP
- * inbox/queue under `/admin/nsp` and the `patient_safety` TS-layer flag gate.
+ * NSP Foundation; Architecture Rule 9; Rule 12 — PHI/HIPAA; per-org under ADR 0042).
+ * Backs the per-org NSP inbox/queue + roster + config under `/o/[org]/nsp/**`, plus
+ * the `patient_safety` TS-layer flag gate.
  *
  * RLS / access (Rule 1 + Rule 12):
- *  - The PQS inbox is served by the `pqs_inbox` DEFINER RPC, `is_pqs_member`-gated
- *    (= `app.is_admin()` today; membership-ready). It is a PHI-FREE queue — it
- *    returns governance metadata only and NEVER selects patient identifiers
- *    (minimum-necessary). A non-PQS caller gets `[]`.
+ *  - The PQS inbox is served by the `pqs_inbox` DEFINER RPC, ORG-SCOPED (NSP-per-org):
+ *    it returns only events whose reporting commission is in one of the caller's
+ *    enrolled orgs. PHI-FREE queue — governance metadata only, NEVER patient
+ *    identifiers (minimum-necessary). A non-PQS caller gets `[]`.
  *  - {@link patientSafetyEnabled} is the TS-layer flag read (mirror
  *    `meetingsEnabled`/`interviewsEnabled`/`auditTrailEnabled`).
  */
@@ -80,19 +81,6 @@ export async function pqsInbox(
     reportedAt: r.reported_at,
     acknowledgedAt: r.acknowledged_at,
   }))
-}
-
-/**
- * @deprecated NSP-per-org (ADR 0042): `pqs_department` is now PER-ORG (multiple
- * rows), so the old singleton read (`.limit(1)`) would return an ARBITRARY org's
- * config — a latent cross-org leak. Use {@link getPqsDepartmentForOrg}. Returns
- * `null` (safe-empty, not throw — it was a render-time reader) so the existing
- * single-org config page keeps compiling + rendering empty until sub-phase B
- * re-homes it to `/o/[org]/nsp/configuracoes` and passes `orgId`.
- */
-// TODO(nsp-per-org B): remove when the per-org config route supplies orgId
-export async function getPqsDepartment(): Promise<PqsDepartment | null> {
-  return null
 }
 
 /** Whether the `patient_safety` feature flag is ON (TS-layer gate; mirrors
@@ -179,9 +167,9 @@ export async function listPqsMembers(orgId: string): Promise<PqsRosterMember[]> 
 }
 
 /**
- * The singleton-per-org NSP/PQS-department config for `orgId` (name + RCA due-window
- * the config area edits). PHI-free; supersedes the global {@link getPqsDepartment}
- * (which read the lone singleton row). RLS-scoped read; `null` if absent.
+ * The per-org NSP/PQS-department config for `orgId` (name + RCA due-window the config
+ * area edits) — one row per org (NSP-per-org, ADR 0042). PHI-free; RLS-scoped read
+ * (`pqs_department_select` = any authenticated); `null` if absent.
  */
 export async function getPqsDepartmentForOrg(
   orgId: string,

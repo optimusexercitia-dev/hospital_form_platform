@@ -100,8 +100,8 @@ export async function removePqsMember(
  * — the days `confirm_triage` adds to the event date to mint an RCA due date. Backed
  * by the `set_pqs_rca_due_window(p_org_id, p_days)` DEFINER RPC (coordinator/member
  * gate; validated 1–365 → HC046; **audited at the ORG tier**, passing
- * `p_organization := p_org_id`). Supersedes the global `setRcaDueWindow(days)` in
- * `@/lib/safety/triage-actions`, which targeted the lone singleton.
+ * `p_organization := p_org_id`). The per-org replacement for the former global
+ * singleton setter (removed under NSP-per-org).
  */
 export async function setPqsRcaDueWindow(
   orgId: string,

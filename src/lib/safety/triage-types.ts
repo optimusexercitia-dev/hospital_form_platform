@@ -315,9 +315,10 @@ export interface VocabInput {
 }
 
 /**
- * The singleton NSP/PQS-department config (non-PHI). `defaultDueDays` is the RCA
- * window (DB column `rca_default_due_days`) confirm_triage uses to mint the RCA due
- * date; editable in the NSP config area via `setRcaDueWindow`.
+ * The per-org NSP/PQS-department config (non-PHI; one row per org under NSP-per-org,
+ * ADR 0042). `defaultDueDays` is the RCA window (DB column `rca_default_due_days`)
+ * confirm_triage uses to mint the RCA due date; editable in the per-org NSP config
+ * area via `setPqsRcaDueWindow(orgId, days)` (`@/lib/pqs/actions`).
  */
 export interface PqsDepartment {
   name: string

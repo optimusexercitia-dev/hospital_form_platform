@@ -233,25 +233,3 @@ export async function archiveSentinelCriterion(id: string): Promise<ActionState>
   revalidateNsp()
   return { ok: true, message: SAFETY_MESSAGES.vocabArchived }
 }
-
-// ---------------------------------------------------------------------------
-// NSP department config — the RCA due-window
-// ---------------------------------------------------------------------------
-
-/**
- * Set the configurable RCA due-window (`pqs_department.rca_default_due_days`), the
- * number of days confirm_triage adds to the event date to mint an RCA's due date.
- * `is_pqs_member`-gated; validated to a sane range (1–365 → HC046). Audited.
- */
-/**
- * @deprecated NSP-per-org (ADR 0042): the RCA due-window is now PER-ORG; the
- * underlying `set_pqs_rca_due_window` RPC took a `p_org_id`. Use
- * `setPqsRcaDueWindow(orgId, days)` in `@/lib/pqs/actions`. Kept as a safe-fail stub
- * (returns the unavailable message) so the existing single-org config form keeps
- * compiling until sub-phase B re-homes it and supplies `orgId`.
- */
-// TODO(nsp-per-org B): remove when the per-org config route supplies orgId
-export async function setRcaDueWindow(days: number): Promise<ActionState> {
-  void days
-  return { ok: false, error: SAFETY_MESSAGES.unavailable }
-}

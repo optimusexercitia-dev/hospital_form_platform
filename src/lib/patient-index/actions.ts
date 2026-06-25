@@ -76,9 +76,9 @@ export async function searchPatientAction(
 /**
  * On-demand patient-scoped ACCESS AUDIT for the QPS view (the page composes
  * "trajectory + access audit"). A thin `"use server"` wrapper over the server-only
- * {@link getPatientAccessAudit} query (Rule 9), so the `"use client"` audit table
- * can request it after a search. PHI-FREE; PQS-gated inside the DEFINER RPC
- * (returns `[]` to a non-PQS caller). Reading the audit is not itself audited.
+ * {@link getPatientAccessAuditForOrg} query (Rule 9), so the `"use client"` audit
+ * table can request it after a search. PHI-FREE; org-scoped + enrollment-gated inside
+ * the DEFINER RPC (returns `[]` to a non-member). Reading the audit is not re-audited.
  */
 export async function loadPatientAccessAudit(
   orgId: string,
