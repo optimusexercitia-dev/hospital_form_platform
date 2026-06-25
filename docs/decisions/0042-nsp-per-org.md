@@ -155,3 +155,37 @@ tests the old global roster), plus a one-line `organization_id` addition to the
 and signature updates in `141` (`set_pqs_rca_due_window`), `145`
 (`add_pqs_member`/`is_pqs_member`), `152` (`search_patient_xref`). None are behavior
 regressions.
+
+## Sub-phase A — QA fix-loop addenda (M1/M2/I1)
+
+The QA security review (`docs/reviews/nsp-per-org-a-review.md`) surfaced two "missed
+door" defects + one approved scope fold-in, all resolved in the migration:
+
+- **M2 — the catalog sweep is the real safeguard, not a file grep.** Two functions
+  from `…009000` that this migration never re-created still called the dropped global
+  predicates (`capa_viewer_can_manage` → `is_pqs_writer()`; `capa_kpis` →
+  `is_pqs_member()`), so they errored at call time. A *file grep* over the migration
+  could not find them (they live in a different file); only a **live `pg_proc` /
+  `pg_policies` sweep** for residual references to the dropped symbols catches this
+  class. The standing rule for any migration that DROPs a widely-called predicate:
+  after `db reset`, assert ZERO catalog references survive (precise `\m<name>\(`
+  word-boundary regex so `_of`/`_of_for` rebinds aren't false-positives), and rebind
+  every dangling caller. Rebinds: `capa_viewer_can_manage` → `can_write_capa`;
+  `capa_kpis` → `is_pqs_member_of_any` (no-arg cross-org PHI-free counts).
+
+- **M1 — an arity change must not silently widen a grant.** `patient_trajectory_bundle`
+  is an internal helper with no authorization of its own (its three DEFINER callers
+  gate first); its original 2-arg was `service_role`-ONLY. The 3-arg arity change
+  routed it through a grant loop that granted `authenticated`, making the enrollment
+  gate bypassable by a direct call. Fix: `service_role`-only, matching `…019000`. When
+  changing a helper's arity, carry forward its EXACT grant posture, not the loop's
+  default.
+
+- **I1 (folded in, human-approved) — `dispose_case_phi` walled.** The third PHI module
+  (`case_patient`, ADR 0038) is outside this phase's two-module brief, but its
+  `dispose_case_phi` carried a bare `is_admin()` arm = a live cross-tenant PHI-erase
+  path (flag ON in the seed; vendor `platform_admin` holds no memberships, so
+  `is_admin()` was its only tenant reach). Rewritten identically to `dispose_event_phi`
+  — `is_admin()` → `is_org_admin_of_commission(commission_of_case(...))`, keeping the
+  `is_staff_admin_of` arm. This brings all THREE PHI modules' disposal doors under the
+  same vendor-walled, org-scoped posture. `set_case_patient` was already clean.
