@@ -206,3 +206,22 @@ single entity that resolves org — confirmed by an exhaustive catalog sweep (al
 PHI/CAPA aggregate doors pass; `capa_kpis` was the sole offender). A strict
 single-org `p_org_id` shape, if the per-org console wants it, is a sub-phase-B FE
 concern, not this phase.
+
+### BUG-NSP-004 — the non-event CAPA fallback must be applied to EVERY org-gate, uniformly
+
+A `capa_plan` is source-polymorphic; only `event`/`rca` sources resolve to an event
+(hence an org). For `manual`/`indicator`/`audit_finding`/`meeting` sources
+`event_of_capa` is NULL, so `is_pqs_member_of(org_of_event(...))` = false — these PHI-
+free plans have NO org to scope to and must stay writable/advanceable by ANY-org NSP
+members (the `is_pqs_member_of_any` fallback). The fallback was added to `can_write_capa`
+in sub-phase A but NOT to `advance_capa_action_core`, so manual-source CAPA actions
+became unadvanceable by a non-assignee PQS member (BUG-NSP-004; 4 fails in
+`phase14d-capa`). Same class as M3 — a per-org gate applied without the non-event
+escape. **Resolution + standing rule:** every CAPA authority that resolves org via
+`event_of_capa` MUST handle the NULL-event case identically. The cleanest way to
+guarantee that is to route them ALL through the single `can_write_capa` consolidation
+(which owns the branch) rather than re-implementing `org_of_event(event_of_capa(...))`
+inline — `advance_capa_action_core` now does. Verified by enumerating the full CAPA
+gate set (`advance_capa_action_core`, `can_write_capa`, `assert_capa_writable`, the 8
+`capa_*_write` policies, `open_capa_plan`, `capa_kpis`) and confirming each handles
+the non-event case — none re-implements the org resolution in a way that could drift.
