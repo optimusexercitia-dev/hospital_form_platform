@@ -189,3 +189,20 @@ door" defects + one approved scope fold-in, all resolved in the migration:
   — `is_admin()` → `is_org_admin_of_commission(commission_of_case(...))`, keeping the
   `is_staff_admin_of` arm. This brings all THREE PHI modules' disposal doors under the
   same vendor-walled, org-scoped posture. `set_case_patient` was already clean.
+
+### M3 — "gate-fixed but body-not-scoped" (the second QA fix-loop class)
+
+`capa_kpis`'s M2 rebind fixed the GATE (`is_pqs_member()` → `is_pqs_member_of_any`)
+but the gate is a non-correlated boolean — the aggregate body still scanned every
+org's `capa_plan` (+ an org-blind `overdue_actions` subquery). A rede-a PQS member
+counted rede-b's CAPA volume. Lesson: **rebinding the gate of an aggregate/list door
+is NOT enough — the RESULT SET must be org-scoped too.** Fix kept the door no-arg
+(`capa_kpis()`, hermetic) by scoping to the *union of the caller's enrolled orgs* (the
+`pqs_inbox` pattern), with non-event-sourced plans included via the same any-org
+fallback as `can_write_capa` (kept aligned on purpose). The standing check for this
+class: every SECURITY DEFINER door returning a SET/TABLE/jsonb over a tenant/PHI table
+must, in its BODY, either filter by org (or the caller's org-union) or be keyed to a
+single entity that resolves org — confirmed by an exhaustive catalog sweep (all 9
+PHI/CAPA aggregate doors pass; `capa_kpis` was the sole offender). A strict
+single-org `p_org_id` shape, if the per-org console wants it, is a sub-phase-B FE
+concern, not this phase.
