@@ -530,6 +530,50 @@ REVOKE ALL ON FUNCTION "app"."can_write_capa"("p_capa_id" "uuid", "p_uid" "uuid"
 GRANT ALL ON FUNCTION "app"."can_write_capa"("p_capa_id" "uuid", "p_uid" "uuid") TO "authenticated";
 GRANT ALL ON FUNCTION "app"."can_write_capa"("p_capa_id" "uuid", "p_uid" "uuid") TO "service_role";
 
+-- Two OFF-INVENTORY callers of the dropped global predicates (found by the live
+-- catalog sweep, not a file grep — they live in …009000 and this phase never
+-- re-created them, so they would error at call time). Rebind both:
+--   capa_viewer_can_manage: is_pqs_writer() -> can_write_capa (mirror the *_write
+--     policy rebind; M2). Without this, the query layer's viewerCanManage silently
+--     computes false for every per-org CAPA writer.
+--   capa_kpis: the dropped is_pqs_member(auth.uid()) gate -> is_pqs_member_of_any
+--     (the no-arg NSP-dashboard headline is a cross-org aggregate of PHI-FREE counts;
+--     any-org NSP member sees it, faithful to the old "any PQS member" gate).
+CREATE OR REPLACE FUNCTION "public"."capa_viewer_can_manage"("p_capa_id" "uuid") RETURNS boolean
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'app', 'public', 'pg_catalog'
+    AS $$
+  -- The plan must be readable (scope) AND the viewer a per-org PQS writer.
+  select app.can_read_capa(p_capa_id, auth.uid()) and app.can_write_capa(p_capa_id, auth.uid());
+$$;
+ALTER FUNCTION "public"."capa_viewer_can_manage"("p_capa_id" "uuid") OWNER TO "postgres";
+
+CREATE OR REPLACE FUNCTION "public"."capa_kpis"() RETURNS TABLE("open_count" integer, "in_verification" integer, "overdue_actions" integer, "closed_ytd" integer)
+    LANGUAGE "sql" STABLE SECURITY DEFINER
+    SET "search_path" TO 'app', 'public', 'pg_catalog'
+    AS $$
+  select
+    coalesce(count(*) filter (where p.status in ('aberto', 'em_execucao', 'em_verificacao')), 0)::int,
+    coalesce(count(*) filter (where p.status = 'em_verificacao'), 0)::int,
+    coalesce((
+      select count(*) from public.capa_action a
+      where a.due_date < current_date and a.status not in ('concluida', 'cancelada')
+    ), 0)::int,
+    coalesce(count(*) filter (
+      where p.status = 'concluido' and p.closed_at >= date_trunc('year', current_date)
+    ), 0)::int
+  from public.capa_plan p
+  where app.is_pqs_member_of_any(auth.uid());
+$$;
+ALTER FUNCTION "public"."capa_kpis"() OWNER TO "postgres";
+
+REVOKE ALL ON FUNCTION "public"."capa_viewer_can_manage"("p_capa_id" "uuid") FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION "public"."capa_viewer_can_manage"("p_capa_id" "uuid") TO "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."capa_viewer_can_manage"("p_capa_id" "uuid") TO "service_role";
+REVOKE ALL ON FUNCTION "public"."capa_kpis"() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION "public"."capa_kpis"() TO "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."capa_kpis"() TO "service_role";
+
 -- The 8 CAPA write policies: is_pqs_writer() -> can_write_capa(<resolved capa_id>,
 -- auth.uid()). Per-table resolution: action->capa_id, child->action->capa_id,
 -- measure->capa_id, result->measure->capa_id, plan->id.
@@ -1378,6 +1422,81 @@ begin
 end;
 $$;
 
+-- ===========================================================================
+-- FOLDED-IN I1 (human-approved): dispose_case_phi — close the bare is_admin()
+-- cross-tenant PHI-erasure arm. This is the case_patient module (THIRD PHI module,
+-- ADR 0038) — slightly outside this phase's two-module NSP/referral inventory, but
+-- the case_patient flag is ON in the canonical seed, so the vendor platform_admin's
+-- is_admin() arm is a LIVE cross-tenant erase path. Identical rewrite to
+-- dispose_event_phi: is_admin() -> is_org_admin_of_commission(<case's commission>),
+-- KEEP the is_staff_admin_of arm. Canonical base = …019000 (last def before this
+-- migration; resolved via the catalog, NOT …017000/…626000); body otherwise verbatim.
+-- ===========================================================================
+CREATE OR REPLACE FUNCTION "public"."dispose_case_phi"("p_case_id" "uuid", "p_reason" "text") RETURNS "void"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'app', 'public', 'pg_catalog'
+    AS $$
+declare
+  v_case public.cases;
+  v_redacted constant text := '[PHI removido]';
+begin
+  perform app.assert_case_patient_enabled();
+
+  select * into v_case from public.cases where id = p_case_id;
+  if v_case.id is null then
+    raise exception 'caso não encontrado' using errcode = 'P0002';
+  end if;
+  -- Gate: staff_admin of the case's commission OR the case's-ORG org_admin (was a
+  -- bare is_admin() — the vendor platform_admin is NOT a tenant-path grant, ADR
+  -- 0041/0042). Erasure does NOT read PHI, so no can_read_case_patient.
+  if not (app.is_staff_admin_of(v_case.commission_id)
+          or app.is_org_admin_of_commission(app.commission_of_case(p_case_id))) then
+    raise exception 'apenas a coordenação da comissão ou um administrador da organização pode descartar dados do paciente'
+      using errcode = '42501';
+  end if;
+
+  if p_reason is null or p_reason not in
+       ('retention_expired', 'subject_request', 'entered_in_error', 'duplicate', 'other') then
+    raise exception 'motivo de descarte inválido' using errcode = 'check_violation';
+  end if;
+
+  if v_case.phi_disposed_at is not null then
+    raise exception 'os dados do paciente deste caso já foram descartados'
+      using errcode = 'HC056';
+  end if;
+
+  perform set_config('app.in_case_rpc', 'on', true);
+  perform set_config('app.in_narrative_rpc', 'on', true);
+  perform set_config('app.phi_dispose_reason', p_reason, true);
+
+  delete from public.case_patient where case_id = p_case_id;
+
+  update public.case_narratives
+     set body_md = null
+   where case_id = p_case_id;
+
+  update public.case_events
+     set body = v_redacted
+   where case_id = p_case_id;
+
+  update public.cases
+     set has_patient = false,
+         phi_disposed_at = now(),
+         phi_disposed_by = auth.uid(),
+         phi_disposed_reason = p_reason
+   where id = p_case_id;
+
+  perform app.audit_write(
+    'case_patient.disposed', 'case_patient', p_case_id, v_case.commission_id,
+    'Dados do paciente do caso ' || v_case.case_number || ' descartados',
+    jsonb_build_object('reason', p_reason)
+  );
+
+  perform set_config('app.in_narrative_rpc', 'off', true);
+  perform set_config('app.in_case_rpc', 'off', true);
+end;
+$$;
+
 -- is_pqs_member_self(): KEEP no-arg = "member of ANY org" (nav "show NSP at all";
 -- gates referrals.ts listAllReferrals/referralFlowMetrics — must survive). Rebound
 -- onto is_pqs_member_of_any.
@@ -2085,13 +2204,14 @@ end;
 $$;
 ALTER FUNCTION "public"."patient_xref_count"("p_module" "text", "p_entity_id" "uuid") OWNER TO "postgres";
 
--- Grants for the org-scoped patient_index doors (mirror their originals).
+-- Grants for the org-scoped patient_index doors (mirror their originals). NOTE
+-- patient_trajectory_bundle is DELIBERATELY EXCLUDED here — see the service_role-only
+-- block below (M1).
 DO $g$
 DECLARE fn text;
 BEGIN
   FOR fn IN SELECT unnest(ARRAY[
     'app.can_read_xref_row(uuid, uuid)',
-    'app.patient_trajectory_bundle(text, text, uuid)',
     'public.search_patient_xref(text, text, uuid)',
     'public.get_patient_trajectory_for_entity(text, uuid)',
     'public.patient_access_audit(text, text, uuid)',
@@ -2102,6 +2222,19 @@ BEGIN
     EXECUTE format('GRANT ALL ON FUNCTION %s TO service_role', fn);
   END LOOP;
 END $g$;
+
+-- M1 fix: app.patient_trajectory_bundle is an INTERNAL helper with NO authorization
+-- check of its own — its three public callers (search_patient_xref /
+-- get_patient_trajectory_for_entity / patient_access_audit) each gate on
+-- is_pqs_member_of(<org>) BEFORE calling it. The original 2-arg helper (…019000) was
+-- service_role-ONLY for exactly this reason; the 3-arg arity change must NOT widen
+-- that to `authenticated` (a non-PQS user holding a patient_key could otherwise call
+-- it directly and bypass the enrollment gate for any org). Those public callers are
+-- SECURITY DEFINER OWNER postgres, so they invoke it as postgres regardless of the
+-- invoker's grant — no door regresses.
+REVOKE ALL ON FUNCTION "app"."patient_trajectory_bundle"("text", "text", "uuid") FROM PUBLIC;
+REVOKE ALL ON FUNCTION "app"."patient_trajectory_bundle"("text", "text", "uuid") FROM "authenticated";
+GRANT ALL ON FUNCTION "app"."patient_trajectory_bundle"("text", "text", "uuid") TO "service_role";
 
 -- ===========================================================================
 -- §A3h — FORBID CROSS-ORG REFERRALS. case_referral_distinct_commissions only forbids
