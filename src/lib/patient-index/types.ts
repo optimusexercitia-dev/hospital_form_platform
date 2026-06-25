@@ -195,13 +195,6 @@ export interface PatientAccessAuditRow {
  * client JS bundle.
  */
 export interface PatientSearchInput {
-  /**
-   * The organization whose QPS console this search runs in (NSP-per-org, ADR 0042).
-   * The search is gated on enrollment in THIS org's PQS roster and filtered to its
-   * xref rows — no accidental cross-org union for a multi-org member. Sub-phase B's
-   * `/o/[org]/nsp/pacientes` page supplies it from the route segment.
-   */
-  orgId: string
   /** Medical record number / prontuário to match (exact, after normalization). */
   mrn: string | null
   /** Encounter / atendimento number to match (exact, after normalization). */

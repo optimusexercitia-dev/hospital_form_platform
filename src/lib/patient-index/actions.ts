@@ -61,10 +61,12 @@ export async function searchPatientAction(
     }
   }
 
-  const result = await searchPatient(input.orgId, mrn, encounter)
+  // TODO(nsp-per-org B): swap to searchPatientForOrg(orgId, mrn, encounter) once the
+  // page lives under /o/[org]/nsp/pacientes and supplies orgId. Until then this calls
+  // the deprecated org-blind stub — the page ships UI-OFF in sub-phase A.
+  const result = await searchPatient({ mrn, encounter })
   if (!result) {
-    // null = not entitled (non-PQS / wrong org), flag off, or RPC error → fail
-    // closed, pt-BR.
+    // null = not entitled (non-PQS), flag off, or RPC error → fail closed, pt-BR.
     return { ok: false, error: MESSAGES.searchUnavailable }
   }
 
@@ -84,5 +86,6 @@ export async function loadPatientAccessAudit(
   const mrn = input.mrn?.trim() || null
   const encounter = input.encounter?.trim() || null
   if (!mrn && !encounter) return []
-  return getPatientAccessAudit(input.orgId, mrn, encounter)
+  // TODO(nsp-per-org B): swap to getPatientAccessAuditForOrg(orgId, …) with the route's orgId.
+  return getPatientAccessAudit({ mrn, encounter })
 }

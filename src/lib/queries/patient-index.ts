@@ -154,44 +154,60 @@ export async function patientIndexEnabled(): Promise<boolean> {
 // QPS cross-committee search (PQS-gated; PHI-FREE result; audited on match)
 // ---------------------------------------------------------------------------
 
+// ===========================================================================
+// NSP-per-org (sub-phase A; ADR 0042) — the FOURTH PHI surface goes ORG-SCOPED.
+//
+// `patient_xref` aggregates across ALL commissions with NO org filter today — safe
+// only because the global PQS roster is inert. Once per-org membership is real it
+// would leak org-B patients to an org-A NSP member. So the QPS reads become
+// ORG-SCOPED: the caller passes the `orgId` whose console it is (the UI always knows
+// it); the DEFINER RPCs gate on enrollment in THAT org and filter the trajectory +
+// audit to that org's xref rows.
+//
+// HERMETIC sub-phase A (lead ruling): the per-org variants ship under NEW names
+// (`searchPatientForOrg` / `getPatientAccessAuditForOrg`) so NO existing exported
+// signature a `src/components/**` caller already uses is changed — A5's whole-tree
+// typecheck stays green with ZERO frontend edits. The OLD names remain as DEPRECATED
+// throwing stubs; sub-phase B swaps `patient-search-view.tsx` to the new names + the
+// per-org route's `orgId`, then deletes the stubs. `getPatientTrajectoryForEntity` /
+// `patientXrefCount` resolve the entity's org SERVER-SIDE → their arity is UNCHANGED.
+// ===========================================================================
+
 /**
- * Search the cross-committee patient index by MRN and/or encounter number,
- * returning the patient's PHI-FREE trajectory across ALL committees. Routes
- * through the `search_patient_xref` SECURITY DEFINER RPC, which hashes the inputs
- * under the deployment pepper, matches the key-only `patient_xref`, assembles the
- * trajectory, and (on matches ≥ 1) emits one `patient.searched` audit row on the
- * GLOBAL chain with key-only metadata. A non-PQS caller gets `null`; a zero-match
- * search returns a result with empty {@link PatientSearchResult.entries} and emits
- * no audit row.
+ * @deprecated NSP-per-org: the global (org-blind) search is removed; use
+ * {@link searchPatientForOrg}. Kept only so the existing single-org call site
+ * (`patient-search-view.tsx`) keeps compiling until sub-phase B re-homes the page to
+ * `/o/[org]/nsp/pacientes` and supplies `orgId`.
+ */
+// TODO(nsp-per-org B): remove when the per-org route supplies orgId
+export async function searchPatient(
+  _input: { mrn: string | null; encounter: string | null },
+): Promise<PatientSearchResult | null> {
+  void _input
+  throw new Error(
+    'searchPatient is org-blind and removed under NSP-per-org; use searchPatientForOrg(orgId, …)',
+  )
+}
+
+/**
+ * Search `orgId`'s cross-committee patient index by MRN and/or encounter, returning
+ * the patient's PHI-FREE trajectory across that org's committees. Routes through the
+ * `search_patient_xref(p_mrn, p_encounter, p_org_id)` SECURITY DEFINER RPC, which
+ * hashes the inputs under the deployment pepper, matches the key-only `patient_xref`
+ * **restricted to `orgId`**, assembles the trajectory, and (on matches ≥ 1) emits one
+ * `patient.searched` audit row on the ORG chain with key-only metadata. Gated on
+ * enrollment in `orgId`'s roster: a non-member (incl. a member of a DIFFERENT org
+ * passing this `orgId`) gets `null`; a zero-match search returns a result with empty
+ * {@link PatientSearchResult.entries} and emits no audit row.
  *
- * ORG-SCOPED (NSP-per-org): gated on enrollment in `orgId`'s roster and filtered to
- * `orgId`'s xref rows; a member of a DIFFERENT org passing this `orgId` gets `null`.
- *
- * @param orgId      the organization whose QPS console this is (the trajectory + the
- *                   enrollment gate are scoped to it; the UI always knows it).
+ * @param orgId      the organization whose QPS console this is (enrollment gate +
+ *                   trajectory scope; the UI always knows it from the route).
  * @param mrn        prontuário to match (exact, after conservative normalization).
  * @param encounter  atendimento to match (exact). At least one of the two must be
  *                   non-blank, else the function returns `null` (the action also
  *                   validates this for a friendly field error).
  */
-// ===========================================================================
-// NSP-per-org (sub-phase A; ADR 0042) — CONTRACT CHANGE.
-//
-// patient_index is the FOURTH PHI surface. `patient_xref` aggregates across ALL
-// commissions with NO org filter today — safe only because the global PQS roster is
-// inert. Once per-org membership is real it would leak org-B patients to an org-A NSP
-// member. So the QPS reads become ORG-SCOPED: the caller passes the `orgId` whose
-// console it is (the UI always knows), the DEFINER RPCs gate on enrollment in THAT
-// org and filter the trajectory + audit to xref rows in that org. `searchPatient` /
-// `getPatientAccessAudit` gain an explicit `orgId` (NO accidental cross-org union for
-// a multi-org member); `getPatientTrajectoryForEntity` / `patientXrefCount` resolve
-// the entity's org SERVER-SIDE (their arity is unchanged). The RPC arity changes in
-// A3 (`search_patient_xref(mrn, encounter, p_org_id)`, `patient_access_audit(mrn,
-// encounter, p_org_id)`); bodies throw until A3 + A5 (regenerated types) land. Keep
-// the SIGNATURES stable once posted (contract-first).
-// ===========================================================================
-
-export async function searchPatient(
+export async function searchPatientForOrg(
   orgId: string,
   mrn: string | null,
   encounter: string | null,
@@ -199,7 +215,7 @@ export async function searchPatient(
   void orgId
   void mrn
   void encounter
-  throw new Error('not implemented: searchPatient(orgId, …) (NSP-per-org A3/A5)')
+  throw new Error('not implemented: searchPatientForOrg (NSP-per-org A3/A5)')
 }
 
 /**
@@ -249,17 +265,35 @@ export async function getPatientTrajectoryForEntity(
  * cross-committee view), selecting NON-PHI columns only. Reading the audit is NOT
  * itself re-audited. Returns `[]` for a non-PQS caller or no match.
  *
- * The patient is identified the same way as {@link searchPatient} (by MRN and/or
- * encounter, hashed server-side); the RPC resolves the `patient_key` internally so
- * no key is ever shaped on the client.
+ * The patient is identified the same way as {@link searchPatientForOrg} (by MRN
+ * and/or encounter, hashed server-side); the RPC resolves the `patient_key`
+ * internally so no key is ever shaped on the client.
  *
- * ORG-SCOPED (NSP-per-org): gated on enrollment in `orgId`'s roster; the audit
- * subquery is restricted to entities in `orgId`'s xref rows AND `audit_log` rows of
- * that org's tier. A member of another org passing this `orgId` gets `[]`.
+ * @deprecated NSP-per-org: org-blind; use {@link getPatientAccessAuditForOrg}. Kept
+ * only so the existing single-org call site keeps compiling until sub-phase B.
+ */
+// TODO(nsp-per-org B): remove when the per-org route supplies orgId
+export async function getPatientAccessAudit(
+  _input: { mrn: string | null; encounter: string | null },
+): Promise<PatientAccessAuditRow[]> {
+  void _input
+  throw new Error(
+    'getPatientAccessAudit is org-blind and removed under NSP-per-org; use getPatientAccessAuditForOrg(orgId, …)',
+  )
+}
+
+/**
+ * The patient-scoped ACCESS AUDIT for `orgId` — every `audit_log` row touching any
+ * entity in `orgId` that shares this patient's `patient_key`, newest-first. Routes
+ * through the `patient_access_audit(p_mrn, p_encounter, p_org_id)` SECURITY DEFINER
+ * RPC, gated on enrollment in `orgId`'s roster, restricting the entity subquery to
+ * that org's xref rows AND `audit_log.organization_id = orgId`. PHI-free; reading the
+ * audit is not itself re-audited. A non-member (incl. another org's member passing
+ * this `orgId`) gets `[]`.
  *
  * @param orgId      the organization whose QPS console this is.
  */
-export async function getPatientAccessAudit(
+export async function getPatientAccessAuditForOrg(
   orgId: string,
   mrn: string | null,
   encounter: string | null,
@@ -267,9 +301,7 @@ export async function getPatientAccessAudit(
   void orgId
   void mrn
   void encounter
-  throw new Error(
-    'not implemented: getPatientAccessAudit(orgId, …) (NSP-per-org A3/A5)',
-  )
+  throw new Error('not implemented: getPatientAccessAuditForOrg (NSP-per-org A3/A5)')
 }
 
 // ---------------------------------------------------------------------------

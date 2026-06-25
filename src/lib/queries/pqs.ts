@@ -83,23 +83,16 @@ export async function pqsInbox(
 }
 
 /**
- * The singleton NSP/PQS-department config (name + the RCA due-window the NSP config
- * area edits). PHI-free, any-authenticated READ (the `pqs_department` SELECT policy
- * is `to authenticated using(true)`, …121005). Returns `null` if the singleton is
- * somehow absent (defensive — the seed inserts exactly one).
+ * @deprecated NSP-per-org (ADR 0042): `pqs_department` is now PER-ORG (multiple
+ * rows), so the old singleton read (`.limit(1)`) would return an ARBITRARY org's
+ * config — a latent cross-org leak. Use {@link getPqsDepartmentForOrg}. Returns
+ * `null` (safe-empty, not throw — it was a render-time reader) so the existing
+ * single-org config page keeps compiling + rendering empty until sub-phase B
+ * re-homes it to `/o/[org]/nsp/configuracoes` and passes `orgId`.
  */
+// TODO(nsp-per-org B): remove when the per-org config route supplies orgId
 export async function getPqsDepartment(): Promise<PqsDepartment | null> {
-  const supabase = await createClient()
-  const { data, error } = await supabase
-    .from('pqs_department')
-    .select('name, rca_default_due_days')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle()
-    .returns<{ name: string; rca_default_due_days: number } | null>()
-
-  if (error || !data) return null
-  return { name: data.name, defaultDueDays: data.rca_default_due_days }
+  return null
 }
 
 /** Whether the `patient_safety` feature flag is ON (TS-layer gate; mirrors

@@ -238,15 +238,15 @@ export async function archiveSentinelCriterion(id: string): Promise<ActionState>
  * number of days confirm_triage adds to the event date to mint an RCA's due date.
  * `is_pqs_member`-gated; validated to a sane range (1–365 → HC046). Audited.
  */
+/**
+ * @deprecated NSP-per-org (ADR 0042): the RCA due-window is now PER-ORG; the
+ * underlying `set_pqs_rca_due_window` RPC took a `p_org_id`. Use
+ * `setPqsRcaDueWindow(orgId, days)` in `@/lib/pqs/actions`. Kept as a safe-fail stub
+ * (returns the unavailable message) so the existing single-org config form keeps
+ * compiling until sub-phase B re-homes it and supplies `orgId`.
+ */
+// TODO(nsp-per-org B): remove when the per-org config route supplies orgId
 export async function setRcaDueWindow(days: number): Promise<ActionState> {
-  if (!Number.isInteger(days) || days < 1 || days > 365) {
-    return { ok: false, error: SAFETY_MESSAGES.triageInvalidDisposition }
-  }
-
-  const supabase = await createClient()
-  const { error } = await supabase.rpc('set_pqs_rca_due_window', { p_days: days })
-  if (error) return { ok: false, error: mapTriageError(error) }
-
-  revalidateNsp()
-  return { ok: true, message: SAFETY_MESSAGES.vocabSaved }
+  void days
+  return { ok: false, error: SAFETY_MESSAGES.unavailable }
 }
