@@ -219,8 +219,8 @@ test('AC-FixedStatusAdvance: activating a phase auto-computes em_revisao; comple
 
   // In the UI: the board shows "Em revisão" badge for this case.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/cases')
-  await page.waitForURL('**/c/ccih/manage/cases', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
   await page.waitForLoadState('networkidle', { timeout: 15_000 })
 
   // The cases view has "Em revisão" status filter chip (from CASE_STATUS_META).
@@ -274,8 +274,8 @@ test('AC-SubmitWhileFixedStatus: phase submit advances to concluida while case i
   // 2. staff1.ccih fills + submits Phase 1 via the wizard.
   await signInAs(page, 'staff1.ccih@test.local')
 
-  await page.goto('/c/ccih/minhas-fases')
-  await page.waitForURL('**/c/ccih/minhas-fases', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/meus-casos')
+  await page.waitForURL('**/o/rede-a/c/ccih/meus-casos', { timeout: 15_000 })
 
   const card = page.getByRole('article').filter({ hasText: /FixedStatusSubmit/i }).first()
   await expect(card).toBeVisible({ timeout: 10_000 })
@@ -346,7 +346,7 @@ test('AC-Docs: coordinator uploads a PDF document to a case and downloads it; ad
   await signInAs(page, 'chefe.ccih@test.local')
 
   // The seeded Caso 0001 is non-terminal (pendente), so uploading is allowed.
-  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
   await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
 
   // ── Upload a document ──
@@ -422,8 +422,8 @@ test('AC-Tags: coordinator creates a tag, assigns it to the seeded case, and see
   await signInAs(page, 'chefe.ccih@test.local')
 
   // ── Create the tag in the tag manager ──
-  await page.goto('/c/ccih/manage/settings/etiquetas')
-  await page.waitForURL('**/c/ccih/manage/settings/etiquetas', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/settings/etiquetas')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/settings/etiquetas', { timeout: 15_000 })
 
   await page.getByRole('button', { name: /Nova etiqueta/i }).click()
   const createTagDialog = page.getByRole('dialog').filter({ hasText: /Nova etiqueta/i })
@@ -436,7 +436,7 @@ test('AC-Tags: coordinator creates a tag, assigns it to the seeded case, and see
   await expect(page.getByText(tagName)).toBeVisible({ timeout: 10_000 })
 
   // ── Assign the tag to the seeded case ──
-  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
   await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
 
   const tagsPanel = page.getByRole('region', { name: /Etiquetas/i })
@@ -454,8 +454,8 @@ test('AC-Tags: coordinator creates a tag, assigns it to the seeded case, and see
   await expect(tagsPanel.getByText(tagName)).toBeVisible({ timeout: 10_000 })
 
   // ── Verify the tag appears in the dashboard tag-report ──
-  await page.goto('/c/ccih/dashboard')
-  await page.waitForURL('**/c/ccih/dashboard', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/dashboard')
+  await page.waitForURL('**/o/rede-a/c/ccih/dashboard', { timeout: 15_000 })
 
   const tagReportSection = page.getByRole('region', { name: /Casos por etiqueta/i })
   await expect(tagReportSection).toBeVisible({ timeout: 10_000 })
@@ -475,7 +475,7 @@ test('AC-ActionItems: coordinator creates action item assigned to staff1; staff1
 
   await signInAs(page, 'chefe.ccih@test.local')
 
-  await page.goto(`/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
   await page.waitForURL(new RegExp(`/manage/cases/${SEEDED_CASE_ID}`), { timeout: 15_000 })
 
   // ── Create an action item ──
@@ -572,8 +572,8 @@ test('AC-ActionItems: coordinator creates action item assigned to staff1; staff1
     },
   )
 
-  await page.goto('/c/ccih/manage/cases')
-  await page.waitForURL('**/c/ccih/manage/cases', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/cases', { timeout: 15_000 })
   await page.waitForLoadState('networkidle', { timeout: 20_000 })
 
   await expect(
@@ -721,7 +721,7 @@ test('AC-SecurityStatus: closing a case (concluido) prevents further phase activ
 
   // In the UI: a terminal case shows no lifecycle actions (Concluir/Cancelar gone).
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${caseId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${caseId}`), { timeout: 15_000 })
   await page.reload()
 
@@ -817,7 +817,7 @@ test('AC-Keyboard: keyboard-only conclude flow — focus "Concluir", Enter opens
   }
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${kbCaseId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${kbCaseId}`)
   await page.waitForURL(new RegExp(`/manage/cases/${kbCaseId}`), { timeout: 15_000 })
 
   // ── Keyboard: focus the "Concluir" button and press Enter ──

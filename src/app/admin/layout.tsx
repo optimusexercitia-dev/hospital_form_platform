@@ -48,30 +48,24 @@ export default async function AdminLayout({
               CH
             </span>
             <span className="text-sm font-semibold tracking-tight">
-              Administração
+              Plataforma
             </span>
           </Link>
           <span
             aria-hidden="true"
             className="ml-1 rounded-full bg-accent px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-accent-foreground uppercase"
           >
-            Admin global
+            Admin da plataforma
           </span>
           <nav
-            aria-label="Navegação da administração"
+            aria-label="Navegação da plataforma"
             className="ml-4 hidden items-center gap-1 sm:flex"
           >
             <Link
               href="/admin"
               className="rounded-lg px-3 py-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
             >
-              Comissões
-            </Link>
-            <Link
-              href="/admin/painel"
-              className="rounded-lg px-3 py-2 text-sm font-medium text-foreground/80 transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-            >
-              Painel
+              Organizações
             </Link>
             {auditOn ? (
               <Link

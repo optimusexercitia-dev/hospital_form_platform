@@ -44,7 +44,7 @@ async function signInAs(page: Page, email: string, password = 'Test1234!') {
 }
 
 async function createForm(page: Page, title: string) {
-  await page.goto('/c/ccih/manage/forms')
+  await page.goto('/o/rede-a/c/ccih/manage/forms')
   await page.getByRole('button', { name: 'Novo formulário' }).click()
   await page.getByLabel('Título do formulário').fill(title)
   await page.getByRole('button', { name: 'Criar formulário' }).click()
@@ -99,7 +99,7 @@ test('staff cannot reach the builder (no builder UI on the list or a form URL)',
     name: /Não encontramos esta página/,
   })
 
-  await page.goto('/c/ccih/manage/forms')
+  await page.goto('/o/rede-a/c/ccih/manage/forms')
   await expect(nav).toBeVisible()
   // The shell stays, and the commission not-found boundary renders (no blank
   // area) instead of the builder.
@@ -107,7 +107,7 @@ test('staff cannot reach the builder (no builder UI on the list or a form URL)',
   await expect(page.getByRole('button', { name: 'Novo formulário' })).toHaveCount(0)
   await expect(page.getByRole('heading', { level: 1, name: 'Formulários' })).toHaveCount(0)
 
-  await page.goto('/c/ccih/manage/forms/00000000-0000-0000-0000-000000000000')
+  await page.goto('/o/rede-a/c/ccih/manage/forms/00000000-0000-0000-0000-000000000000')
   await expect(nav).toBeVisible()
   await expect(notFound).toBeVisible()
   await expect(page.getByRole('button', { name: 'Adicionar seção' })).toHaveCount(0)
@@ -569,8 +569,8 @@ test('keyboard-only: create a form via dialog and publish via AlertDialog (keybo
 
   // Sign in by mouse (keyboard sign-in was the Phase 2 keyboard flow).
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/forms')
-  await page.waitForURL('**/c/ccih/manage/forms', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/forms')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/forms', { timeout: 15_000 })
 
   // ── PART 1: create form by keyboard ────────────────────────────────────────
 
@@ -674,8 +674,8 @@ test('RoleBadge renders "Coordenação" for a seeded staff_admin in the member r
    * It does NOT depend on Mailpit / email capture.
    */
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/members')
-  await page.waitForURL('**/c/ccih/manage/members', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/members')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/members', { timeout: 15_000 })
 
   // The roster must be visible (non-empty — seeded members exist).
   const memberList = page.locator('ul').filter({ has: page.locator('li') }).last()

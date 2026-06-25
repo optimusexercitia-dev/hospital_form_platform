@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import { ArrowRight, FileText, PlayCircle } from "lucide-react";
 
@@ -19,11 +20,14 @@ import { Button } from "@/components/ui/button";
  * data layer.
  */
 export function FillableFormCard({
+  org,
   slug,
   form,
   index,
   startSlot,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   form: FillableForm;
   index: number;
@@ -66,7 +70,7 @@ export function FillableFormCard({
         {resuming && form.inProgressResponseId ? (
           <Button asChild size="sm">
             <Link
-              href={`/c/${slug}/forms/${form.formId}/responder/${form.inProgressResponseId}`}
+              href={commissionHref(org, slug, "forms", form.formId, "responder", form.inProgressResponseId)}
             >
               Continuar preenchimento
               <ArrowRight aria-hidden="true" />

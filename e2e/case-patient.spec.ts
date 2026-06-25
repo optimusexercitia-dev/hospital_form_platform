@@ -41,6 +41,12 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 test.describe.configure({ mode: 'serial' })
 test.use({ viewport: { width: 1280, height: 900 } })
 
+// SKIP(multi-org pilot): used on AC-4 (case_referrals) and AC-5 (patient_safety/NSP)
+// which depend on modules disabled when >1 org is provisioned. Org-bounded
+// case-patient tests (AC-1 through AC-3, AC-6 through AC-9) are NOT skipped.
+const MULTI_ORG_PILOT_SKIP =
+  'NSP/referral modules disabled in the 2-org multi-tenancy pilot seed — re-enable when NSP-per-org lands'
+
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
 })
@@ -277,7 +283,7 @@ test('AC-1a: builder toggle enables collects_patient on draft template', async (
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/process-templates/${draftTemplateId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/process-templates/${draftTemplateId}`)
   await page.waitForLoadState('networkidle')
 
   // The collects_patient toggle should be present (flag is ON)
@@ -371,7 +377,7 @@ test('AC-1b: Novo caso from collecting template shows PHI block; non-collecting 
   )
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/cases')
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
   await page.waitForLoadState('networkidle')
 
   // Open the "Novo caso" dialog
@@ -445,7 +451,7 @@ test('AC-2a: opening case detail does NOT emit case_patient.read', async ({
   const before = await auditRowsFor(request, 'case_patient.read', CASE_A_ID)
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${CASE_A_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(1_500)
 
@@ -472,7 +478,7 @@ test('AC-2b: clicking "Exibir identificação" reveals PHI and emits exactly one
   const before = await auditRowsFor(request, 'case_patient.read', CASE_A_ID)
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${CASE_A_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
   await page.waitForLoadState('networkidle')
 
   // The reveal button is visible
@@ -520,7 +526,7 @@ test('AC-3a: phase assignee can reveal identifiers but has no edit affordance', 
 }) => {
   await signInAs(page, 'staff1.ccih@test.local')
   // Phase assignees use the staff route (can_read_case via assignment)
-  await page.goto(`/c/ccih/casos/${CASE_A_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/casos/${CASE_A_ID}`)
   await page.waitForLoadState('networkidle')
 
   // The panel must be visible (patient_enabled=true)
@@ -594,7 +600,7 @@ test('AC-3c: coordinator has edit affordance + name-or-MRN floor enforced server
   request,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${CASE_A_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
   await page.waitForLoadState('networkidle')
 
   // The "Editar identificação" button is present for a coordinator (has_patient=true)
@@ -667,17 +673,19 @@ test('AC-3d: foreign commission member (chefe.farm) calling get_case_patient →
 // registrada" banner and "Pré-preencher do caso" button with source='case'.
 // ---------------------------------------------------------------------------
 
+// SKIP(multi-org pilot): case_referrals module disabled in the 2-org seed.
 test('AC-4: referral wizard pre-fills from case_patient (source=case)', async ({
   page,
   request,
-}) => {
+}, testInfo) => {
+  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
   // Enable case_referrals for this test
   await setFeatureFlag('case_referrals', true)
   await new Promise((r) => setTimeout(r, 600)) // let PostgREST cache refresh
 
   try {
     await signInAs(page, 'chefe.ccih@test.local')
-    await page.goto(`/c/ccih/manage/cases/${CASE_A_ID}`)
+    await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
     await page.waitForLoadState('networkidle')
 
     // Find the "Encaminhar caso" button or referral send trigger
@@ -759,11 +767,13 @@ test('AC-4: referral wizard pre-fills from case_patient (source=case)', async ({
 // "Identificação pré-preenchida a partir do caso" caption.
 // ---------------------------------------------------------------------------
 
+// SKIP(multi-org pilot): patient_safety/NSP module disabled in the 2-org seed.
 test('AC-5: notify-NSP dialog pre-fills event_patient from case_patient', async ({
   page,
-}) => {
+}, testInfo) => {
+  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${CASE_A_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
   await page.waitForLoadState('networkidle')
 
   // Find the "Notificar NSP" button (patient_safety flag is ON)
@@ -951,7 +961,7 @@ test('AC-7: keyboard-only flow — reveal button is keyboard-focusable and activ
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${CASE_A_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
   await page.waitForLoadState('networkidle')
 
   // Locate the reveal button
@@ -1010,7 +1020,7 @@ test('AC-8a: case_patient flag OFF — detail panel absent from case detail', as
 
   try {
     await signInAs(page, 'chefe.ccih@test.local')
-    await page.goto(`/c/ccih/manage/cases/${CASE_A_ID}`)
+    await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(1_000)
 
@@ -1050,7 +1060,7 @@ test('AC-8b: case_patient flag OFF — Novo caso PHI block absent even for colle
     )
 
     await signInAs(page, 'chefe.ccih@test.local')
-    await page.goto('/c/ccih/manage/cases')
+    await page.goto('/o/rede-a/c/ccih/manage/cases')
     await page.waitForLoadState('networkidle')
 
     const novoCasoBtn = page.getByRole('button', { name: /novo caso/i })
@@ -1136,7 +1146,7 @@ test('AC-9: create-case dialog writes PHI atomically (mrn+encounter, no name)', 
   ).toBeTruthy()
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/cases')
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
   await page.waitForLoadState('networkidle')
 
   // Open the "Novo caso" dialog.

@@ -1,3 +1,4 @@
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import { ArrowUpRight, Clock, FileText, User } from "lucide-react";
 
@@ -10,9 +11,12 @@ import type { SignoffQueueRow } from "./types";
  * the page loads `listSignoffQueue` and passes plain rows.
  */
 export function SignoffQueueList({
+  org,
   slug,
   rows,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   rows: SignoffQueueRow[];
 }) {
@@ -34,7 +38,7 @@ export function SignoffQueueList({
       {rows.map((row, index) => (
         <li key={row.responseId}>
           <Link
-            href={`/c/${slug}/manage/assinaturas/${row.responseId}`}
+            href={commissionHref(org, slug, "manage", "assinaturas", row.responseId)}
             style={{ ["--rise-delay" as string]: `${index * 50}ms` }}
             className="animate-rise-in group flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
           >

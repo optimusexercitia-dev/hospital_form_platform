@@ -235,8 +235,8 @@ does NOT write feature code itself.
 
 | Teammate name | Agent type          | Scope |
 | ------------- | ------------------- | ----- |
-| `frontend`    | `frontend-engineer` | All UI: `src/app`, `src/components`. MUST use the `frontend-design` skill before building new screens. |
-| `backend`     | `backend-engineer`  | Supabase migrations, RLS, seed data, `src/lib/{supabase,queries,types}`, `middleware.ts`, server route handlers, Docker/deploy assets. |
+| `frontend`    | `frontend-engineer` | All UI: `src/app`, `src/components`. MUST use the `frontend-design` skill before building new screens; consults the `vercel-react-best-practices` skill when writing/refactoring React/Next.js. |
+| `backend`     | `backend-engineer`  | Supabase migrations, RLS, seed data, `src/lib/{supabase,queries,types}`, `middleware.ts`, server route handlers, Docker/deploy assets. Consults the `supabase` and `supabase-postgres-best-practices` skills for Supabase/Postgres work. |
 | `tester`      | `qa-tester`         | Playwright E2E specs in `e2e/`, test execution, bug reports. Never fixes app code. |
 | `qa`          | `qa-reviewer`       | Final phase review: requirements audit, code review, security/RLS review. Read-only on app code; writes only review reports. |
 

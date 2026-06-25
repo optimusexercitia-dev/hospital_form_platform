@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
@@ -18,10 +19,13 @@ import { Button } from "@/components/ui/button";
  * create two drafts.
  */
 export function StartFillButton({
+  org,
   slug,
   formId,
   publishedVersionId,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   formId: string;
   publishedVersionId: string;
@@ -39,7 +43,7 @@ export function StartFillButton({
         return;
       }
       router.push(
-        `/c/${slug}/forms/${formId}/responder/${result.responseId}`,
+        commissionHref(org, slug, "forms", formId, "responder", result.responseId),
       );
     });
   }

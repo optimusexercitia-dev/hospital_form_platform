@@ -362,6 +362,8 @@ test.beforeAll(async ({ request }) => {
     // the `process_template_phases_result_emits` CHECK now rejects a ruleset with
     // emits_result=false.
     p_emits_result: true,
+    // HC059: emitting phases must declare the allowed result vocabulary ids.
+    p_allowed_result_ids: [conformeId, naoConformeId],
   })
   expect(
     phase1Resp.ok(),
@@ -515,7 +517,7 @@ test.beforeAll(async ({ request }) => {
     p_blocks: [],
     p_result_ruleset: null,
     p_emits_result: true,
-    p_manual_result_ids: [conformeId, naoConformeId],
+    p_allowed_result_ids: [conformeId, naoConformeId],
   })
   expect(
     manualPhaseResp.ok(),
@@ -563,9 +565,10 @@ test.afterAll(async () => {
   // residue if this fails.
   await purgeLeftoverState()
 
-  // Restore flags to seed defaults (both ship OFF)
-  try { await setFeatureFlag('case_phase_results', false) } catch { /* best-effort */ }
-  try { await setFeatureFlag('case_access', false) } catch { /* best-effort */ }
+  // Migration 20260624130000_feature_flags_default_on.sql changed the defaults:
+  // case_phase_results and case_access both ship ON after db reset.
+  // Do NOT restore to false — that would contaminate subsequent specs.
+  // Flags are intentionally left ON (their new default) after this suite.
 })
 
 // ---------------------------------------------------------------------------
@@ -578,7 +581,7 @@ test('AC-1: computed badge "Conforme" on board and detail (case 1, Sim → Confo
   await signInAs(page, 'chefe.ccih@test.local')
 
   // Board — find the case card and assert the result badge
-  await page.goto('/c/ccih/manage/cases')
+  await page.goto('/o/rede-a/c/ccih/manage/cases')
   await page.waitForLoadState('networkidle')
 
   // Try data-attribute card selector first, then fall through to text search
@@ -601,7 +604,7 @@ test('AC-1: computed badge "Conforme" on board and detail (case 1, Sim → Confo
   }
 
   // Detail page — the definitive assertion
-  await page.goto(`/c/ccih/manage/cases/${caseId1}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId1}`)
   await page.waitForLoadState('networkidle')
 
   // The badge renders as "Resultado: Conforme" in a span; also match exact text.
@@ -628,7 +631,7 @@ test('AC-2: computed badge "Não-conforme" on detail (case 2, Não → default f
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${caseId2}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId2}`)
   await page.waitForLoadState('networkidle')
 
   await expect(
@@ -683,7 +686,7 @@ test('AC-3: pre-conclusion override → badge "Não-conforme" + "Manual" pill (c
 
   // 3. Navigate to case detail and assert
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${caseId3}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId3}`)
   await page.waitForLoadState('networkidle')
 
   await expect(
@@ -723,7 +726,7 @@ test('AC-4: post-conclusion correction by staff_admin → badge "Não-conforme" 
   ).toBeTruthy()
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${caseId1}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId1}`)
   await page.waitForLoadState('networkidle')
 
   // Badge must now show "Não-conforme"
@@ -754,7 +757,7 @@ test('AC-5: staff user does NOT see "Corrigir resultado" button', async ({
   await signInAs(page, 'staff1.ccih@test.local')
 
   // Staff route: /c/ccih/casos/{caseId}
-  await page.goto(`/c/ccih/casos/${caseId1}`)
+  await page.goto(`/o/rede-a/c/ccih/casos/${caseId1}`)
   await page.waitForLoadState('networkidle')
 
   // "Corrigir resultado" must NOT be visible to a regular staff member
@@ -775,7 +778,7 @@ test('AC-6: result label visible in timeline or phase history on case detail', a
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${caseId1}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId1}`)
   await page.waitForLoadState('networkidle')
 
   // Main detail view must show the result (Não-conforme after AC-4's correction)
@@ -803,7 +806,7 @@ test('AC-6: result label visible in timeline or phase history on case detail', a
     }
   } else {
     // Try direct timeline route
-    await page.goto(`/c/ccih/manage/cases/${caseId1}/timeline`)
+    await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId1}/timeline`)
     const notFound = await page
       .getByText(/não encontrado|not found|404/i)
       .isVisible({ timeout: 4_000 })
@@ -832,7 +835,7 @@ test('AC-K: keyboard-only flow — vocab settings page and "Corrigir resultado" 
   await signInAs(page, 'chefe.ccih@test.local')
 
   // K-1: Vocab settings page — keyboard navigation to "Novo resultado"
-  await page.goto('/c/ccih/manage/settings/resultados')
+  await page.goto('/o/rede-a/c/ccih/manage/settings/resultados')
   await page.waitForLoadState('networkidle')
 
   const novoBtn = page
@@ -864,7 +867,7 @@ test('AC-K: keyboard-only flow — vocab settings page and "Corrigir resultado" 
   // keyboard-access check, not a blocking assertion.
 
   // K-2: Case detail — "Corrigir resultado" keyboard activation
-  await page.goto(`/c/ccih/manage/cases/${caseId1}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId1}`)
   await page.waitForLoadState('networkidle')
 
   const corrigirBtn = page.getByRole('button', { name: /corrigir resultado/i })
@@ -909,7 +912,7 @@ test('AC-M1: manual-phase correction shows ONLY the allowed subset, no "Limpar"'
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${caseId4}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId4}`)
   await page.waitForLoadState('networkidle')
 
   const corrigir = page
@@ -966,7 +969,7 @@ test('AC-M2: automatic-phase correction keeps full vocabulary + "Limpar" option'
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/cases/${caseId1}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId1}`)
   await page.waitForLoadState('networkidle')
 
   const corrigir = page

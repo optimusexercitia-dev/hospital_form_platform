@@ -78,7 +78,7 @@ async function signOut(page: Page) {
 
 /** Navigate directly to the timeline tab for a case as currently signed-in user. */
 async function goToTimeline(page: Page, caseId: string, extraParams = '') {
-  const url = `/c/ccih/manage/cases/${caseId}/timeline${extraParams}`
+  const url = `/o/rede-a/c/ccih/manage/cases/${caseId}/timeline${extraParams}`
   await page.goto(url)
   await page.waitForURL(`**/cases/${caseId}/timeline**`, { timeout: 15_000 })
   // The timeline heading is always present (h2 inside the section)
@@ -89,7 +89,7 @@ async function goToTimeline(page: Page, caseId: string, extraParams = '') {
 
 /** Navigate to the case Detalhes (default) tab. */
 async function goToCaseDetail(page: Page, caseId: string) {
-  await page.goto(`/c/ccih/manage/cases/${caseId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId}`)
   await page.waitForURL(`**/cases/${caseId}`, { timeout: 15_000 })
 }
 
@@ -196,7 +196,7 @@ test('AC1-regression — deep routes (interview, fase/respostas) keep their own 
 
   // Navigate to the seeded interview detail (sibling route OUTSIDE the (detail) group)
   const SEEDED_INTERVIEW_ID = 'f2000000-0000-0000-0000-0000000000e1'
-  await page.goto(`/c/ccih/manage/cases/${CASE1_ID}/interviews/${SEEDED_INTERVIEW_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE1_ID}/interviews/${SEEDED_INTERVIEW_ID}`)
   await page.waitForURL(`**/interviews/${SEEDED_INTERVIEW_ID}`, { timeout: 15_000 })
 
   // Exactly one h1 (no double-header from the case layout)
@@ -692,7 +692,7 @@ test('AC10 — no uncaught console errors on timeline load for either layout', a
   await expect(feedList).toBeVisible({ timeout: 10_000 })
 
   // Duration layout
-  await page.goto(`/c/ccih/manage/cases/${CASE1_ID}/timeline?view=gantt`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE1_ID}/timeline?view=gantt`)
   await page.waitForURL('**/timeline?view=gantt', { timeout: 15_000 })
   const ganttContainer = page.locator('div.overflow-x-auto')
   await expect(ganttContainer).toBeVisible({ timeout: 10_000 })
@@ -732,7 +732,7 @@ test('Security — foreign-commission user gets 404 on case timeline, no data le
   await signInAs(page, 'chefe.farm@test.local')
 
   // Attempt to access CCIH Caso 0001 timeline directly
-  await page.goto(`/c/ccih/manage/cases/${CASE1_ID}/timeline`)
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE1_ID}/timeline`)
 
   // The commission layout guard fires (chefe.farm is not a member of CCIH)
   await expect(page.getByText(/Erro 404/i).first()).toBeVisible({ timeout: 15_000 })
@@ -769,7 +769,7 @@ test('Security — foreign-commission user gets 404 on case timeline, no data le
   expect((data as unknown[]).length).toBe(0)
 
   // Navigate to farmácia before signout (the CCIH 404 page has no account menu)
-  await page.goto('/c/farmacia')
-  await page.waitForURL('**/c/farmacia', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/farmacia')
+  await page.waitForURL('**/o/rede-a/c/farmacia', { timeout: 15_000 })
   await signOut(page)
 })

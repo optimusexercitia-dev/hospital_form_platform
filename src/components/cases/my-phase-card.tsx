@@ -14,10 +14,13 @@ import { cn } from "@/lib/utils";
  * phases), so the affordance is always "Preencher".
  */
 export function MyPhaseCard({
+  org,
   slug,
   phase,
   index,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   phase: MyAssignedPhase;
   index: number;
@@ -71,7 +74,7 @@ export function MyPhaseCard({
 
       <div className="shrink-0">
         <StartPhaseButton
-          slug={slug}
+          org={org} slug={slug}
           caseId={phase.caseId}
           phaseId={phase.phaseId}
         />

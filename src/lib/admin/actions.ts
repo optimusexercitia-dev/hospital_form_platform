@@ -9,7 +9,7 @@ import { getSessionContext } from '@/lib/queries/session'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { resolveOrInviteUser } from '@/lib/members/invite'
-import type { Database } from '@/lib/types/database'
+import type { Database, TablesInsert } from '@/lib/types/database'
 
 /**
  * Admin-only server actions (Architecture Rules 9 & 10): commission CRUD and
@@ -39,6 +39,7 @@ const MESSAGES = {
   slugInvalid:
     'Use apenas letras minúsculas, números e hífens (ex.: controle-infeccao).',
   slugTaken: 'Já existe uma comissão com esse identificador.',
+  hospitalRequired: 'Selecione um hospital.',
   emailRequired: 'Informe o e-mail.',
   emailInvalid: 'Informe um e-mail válido.',
   missingCommission: 'Comissão não encontrada.',
@@ -58,6 +59,35 @@ const PG_UNIQUE_VIOLATION = '23505'
 async function requireAdmin(): Promise<boolean> {
   const context = await getSessionContext()
   return context?.isAdmin === true
+}
+
+/**
+ * Authorize a staff_admin-management action for a commission: an org_admin of the
+ * commission's ORGANIZATION (multi-tenancy Phase C — the org_admin owns
+ * staff_admin assignment within their org). Resolves the commission's
+ * `organization_id` and checks the caller's `orgAdminOf`.
+ *
+ * SECURITY: the platform_admin `isAdmin` short-circuit is DELIBERATELY ABSENT.
+ * `assignStaffAdmin` runs on the SERVICE-ROLE client (which BYPASSES RLS), so this
+ * TS check is the ONLY control on that path — the Phase-B `commission_members`
+ * RLS never sees it. A platform admin is walled off from tenant data and must NOT
+ * seat/remove a staff_admin in any commission; it provisions org/hospital/org_admin
+ * only (`@/lib/platform/actions`), where it then seats an org_admin who does this.
+ */
+async function authorizeStaffAdminOps(commissionId: string): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context) return false
+  if (context.orgAdminOf.length === 0) return false
+
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('commissions')
+    .select('organization_id')
+    .eq('id', commissionId)
+    .maybeSingle()
+  const orgId = data?.organization_id
+  if (!orgId) return false
+  return context.orgAdminOf.some((o) => o.organization.id === orgId)
 }
 
 async function appOrigin(): Promise<string> {
@@ -110,20 +140,29 @@ export async function createCommission(
   const slug = String(formData.get('slug') ?? '')
     .trim()
     .toLowerCase()
+  // Multi-tenancy (Phase C): a commission now REQUIRES a hospital (NOT NULL);
+  // organization_id is auto-derived from hospital_id by the trigger. The
+  // canonical create path is `@/lib/org/actions.createCommission` (org-admin
+  // surface); this legacy admin action keeps working by requiring hospitalId.
+  const hospitalId = String(formData.get('hospitalId') ?? '')
 
   const fieldErrors: Record<string, string> = {}
   if (!name) fieldErrors.name = MESSAGES.nameRequired
   if (!slug) fieldErrors.slug = MESSAGES.slugRequired
   else if (!SLUG_PATTERN.test(slug)) fieldErrors.slug = MESSAGES.slugInvalid
+  if (!hospitalId) fieldErrors.hospitalId = MESSAGES.hospitalRequired
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, fieldErrors }
   }
 
   const supabase = await createClient()
+  // organization_id is DB-populated by the derive trigger (NOT NULL but
+  // non-app-writable); cast omits it from the app-supplied payload.
   const { error } = await supabase.from('commissions').insert({
     name,
     slug,
-  })
+    hospital_id: hospitalId,
+  } as TablesInsert<'commissions'>)
 
   if (error) {
     if (error.code === PG_UNIQUE_VIOLATION) {
@@ -188,10 +227,6 @@ export async function assignStaffAdmin(
   _prev: ActionState | undefined,
   formData: FormData,
 ): Promise<ActionState> {
-  if (!(await requireAdmin())) {
-    return { ok: false, error: MESSAGES.forbidden }
-  }
-
   const commissionId = String(formData.get('commissionId') ?? '')
   const email = String(formData.get('email') ?? '')
     .trim()
@@ -199,6 +234,10 @@ export async function assignStaffAdmin(
 
   if (!commissionId) {
     return { ok: false, error: MESSAGES.missingCommission }
+  }
+  // platform_admin OR org_admin of the commission's org (Phase C).
+  if (!(await authorizeStaffAdminOps(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
   }
   if (!email) {
     return { ok: false, fieldErrors: { email: MESSAGES.emailRequired } }
@@ -238,21 +277,21 @@ export async function assignStaffAdmin(
 }
 
 /**
- * Remove a staff_admin from a commission (deletes the membership row). Admin-only.
+ * Remove a staff_admin from a commission (deletes the membership row).
+ * platform_admin OR org_admin of the commission's org (Phase C).
  */
 export async function removeStaffAdmin(
   _prev: ActionState | undefined,
   formData: FormData,
 ): Promise<ActionState> {
-  if (!(await requireAdmin())) {
-    return { ok: false, error: MESSAGES.forbidden }
-  }
-
   const commissionId = String(formData.get('commissionId') ?? '')
   const userId = String(formData.get('userId') ?? '')
 
   if (!commissionId) {
     return { ok: false, error: MESSAGES.missingCommission }
+  }
+  if (!(await authorizeStaffAdminOps(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
   }
   if (!userId) {
     return { ok: false, error: MESSAGES.missingUser }

@@ -140,8 +140,10 @@ select ok(app.can_read_case((select case_x from cs), (select gx_r from p)),
   'can_read_case: granted read → true');
 select ok(app.can_read_case((select case_x from cs), (select gx_w from p)),
   'can_read_case: granted write → true (write implies read)');
-select ok(app.can_read_case((select case_x from cs), (select admin from k)),
-  'can_read_case: admin → true');
+-- Multi-tenancy Phase B: the platform-admin term was DROPPED from can_read_case
+-- (governance is now org_admin-scoped, and a platform admin is not a case worker).
+select ok(not app.can_read_case((select case_x from cs), (select admin from k)),
+  'can_read_case: platform_admin → FALSE (admin term dropped; Phase B duty separation)');
 select ok(not app.can_read_case((select case_x from cs), (select ux from p)),
   'can_read_case: unrelated member of the commission → FALSE');
 select ok(not app.can_read_case((select case_x from cs), (select sa_y from k)),
@@ -160,8 +162,11 @@ select ok(app.can_write_case_content((select case_x from cs), (select sa_x from 
   'can_write_case_content: coordinator → true');
 select ok(app.can_write_case_content((select case_x from cs), (select gx_w from p)),
   'can_write_case_content: granted write → true');
-select ok(app.can_write_case_content((select case_x from cs), (select admin from k)),
-  'can_write_case_content: admin → true');
+-- Multi-tenancy Phase B: the platform-admin term was DROPPED from
+-- can_write_case_content (PHI-module duty separation; org_admin governance does
+-- not grant case content-write either — writes stay coordinators/grantees).
+select ok(not app.can_write_case_content((select case_x from cs), (select admin from k)),
+  'can_write_case_content: platform_admin → FALSE (admin term dropped; Phase B)');
 select ok(not app.can_write_case_content((select case_x from cs), (select gx_r from p)),
   'can_write_case_content: granted READ only → FALSE (read ≠ write)');
 select ok(not app.can_write_case_content((select case_x from cs), (select st_x from k)),

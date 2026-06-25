@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { FolderOpen, Link2, Lock, Plus } from "lucide-react";
@@ -221,6 +222,7 @@ export function CaseLinker({
   cases,
   agendaItems,
   canEdit,
+  org,
   slug,
 }: {
   meetingId: string;
@@ -229,6 +231,8 @@ export function CaseLinker({
   cases: LinkableCase[];
   agendaItems: MeetingAgendaItem[];
   canEdit: boolean;
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
 }) {
   const [addOpen, setAddOpen] = useState(false);
@@ -305,7 +309,7 @@ export function CaseLinker({
                       </span>
                     ) : (
                       <a
-                        href={`/c/${slug}/manage/cases/${link.caseId}`}
+                        href={commissionHref(org, slug, "manage", "cases", link.caseId)}
                         className="inline-flex items-center gap-1 font-mono text-xs font-medium text-primary underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
                       >
                         <Link2 aria-hidden="true" className="size-3" />

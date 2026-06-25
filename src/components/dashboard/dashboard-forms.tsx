@@ -17,12 +17,15 @@ import { DashboardFilters } from "./dashboard-filters";
  * server-only query module.
  */
 export function DashboardForms({
+  org,
   slug,
   forms,
   selectedFormId,
   range,
   dashboard,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   forms: { formId: string; title: string; totalSubmitted: number }[];
   selectedFormId: string | null;
@@ -49,7 +52,7 @@ export function DashboardForms({
       />
 
       <DashboardFilters
-        slug={slug}
+        org={org} slug={slug}
         selectedFormId={selectedFormId}
         from={range.from}
         to={range.to}

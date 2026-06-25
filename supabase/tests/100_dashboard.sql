@@ -233,12 +233,25 @@ select is(
 reset role;
 
 -- 12) commission_overview is admin-only and excludes case-phase responses.
+-- Multi-tenancy Phase B: commission_overview() is no longer platform-admin-gated;
+-- it returns the caller's ORG-ADMIN commissions only. Home comm_x under a fresh
+-- org and enroll the admin persona as that org's org_admin, then assert the
+-- (unchanged) standalone-submitted count for X under the new org-scoped path.
+insert into public.organizations (id, name, slug) values
+  ('00000000-0000-0000-0000-0000000000aa', 'Org Dash', 'org-dash');
+insert into public.hospitals (id, organization_id, name, slug) values
+  ('00000000-0000-0000-0000-0000000000bb', '00000000-0000-0000-0000-0000000000aa', 'Hosp Dash', 'hosp-dash');
+update public.commissions set hospital_id = '00000000-0000-0000-0000-0000000000bb'
+  where id = (select comm_x from k);
+insert into public.organization_members (organization_id, user_id, role) values
+  ('00000000-0000-0000-0000-0000000000aa', (select admin from k), 'org_admin');
+
 select test_helpers.claims_for((select admin from k), true);
 set local role authenticated;
 select is(
   (select submitted_count from public.commission_overview() where commission_id = (select comm_x from k)),
   4::bigint,
-  'commission_overview counts 4 standalone submitted for X (case-phase excluded), admin-gated'
+  'commission_overview counts 4 standalone submitted for X (case-phase excluded), org_admin-scoped'
 );
 reset role;
 
@@ -337,8 +350,8 @@ select ok(
   and not has_function_privilege('anon', 'public.close_case(uuid)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.cancel_case(uuid)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.create_case_from_template(uuid,text)', 'EXECUTE')
-  and not has_function_privilege('anon', 'public.add_template_phase(uuid,uuid,text,jsonb,integer,integer[],jsonb)', 'EXECUTE')
-  and not has_function_privilege('anon', 'public.update_template_phase(uuid,uuid,text,jsonb,boolean,integer,boolean,integer[],boolean,jsonb,boolean)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.add_template_phase(uuid,uuid,text,jsonb,integer,integer[],jsonb,boolean,jsonb)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.update_template_phase(uuid,uuid,text,jsonb,boolean,integer,boolean,integer[],boolean,jsonb,boolean,boolean,jsonb,boolean)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.list_cases_board(uuid)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.get_case_detail(uuid)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.set_case_outcome(uuid,uuid)', 'EXECUTE')

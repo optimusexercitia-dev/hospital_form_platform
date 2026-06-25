@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useMemo } from "react";
 import Link from "next/link";
 import { Plus, Settings2, Tag, X } from "lucide-react";
@@ -26,6 +27,7 @@ import { useCaseAction } from "./use-case-action";
  * managed under Configurações (linked here). Client component fed plain props.
  */
 export function CaseTagsPanel({
+  org,
   slug,
   caseId,
   assigned,
@@ -33,6 +35,8 @@ export function CaseTagsPanel({
   variant = "default",
   canWrite = true,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   caseId: string;
   assigned: CaseTag[];
@@ -113,7 +117,7 @@ export function CaseTagsPanel({
               </DropdownMenuContent>
             </DropdownMenu>
             <Button asChild type="button" variant="ghost" size="sm">
-              <Link href={`/c/${slug}/manage/settings/etiquetas`}>
+              <Link href={commissionHref(org, slug, "manage", "settings", "etiquetas")}>
                 <Settings2 aria-hidden="true" />
                 Gerenciar
               </Link>

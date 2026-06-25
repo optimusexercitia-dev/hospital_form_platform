@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 
@@ -12,9 +13,12 @@ import { Button } from "@/components/ui/button";
  * sent. A live region announces the success to assistive tech.
  */
 export function ConfirmationScreen({
+  org,
   slug,
   formTitle,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   formTitle: string;
 }) {
@@ -36,10 +40,10 @@ export function ConfirmationScreen({
       </div>
       <div className="flex flex-wrap items-center justify-center gap-2">
         <Button asChild variant="outline" size="lg">
-          <Link href={`/c/${slug}/forms`}>Voltar aos formulários</Link>
+          <Link href={commissionHref(org, slug, "forms")}>Voltar aos formulários</Link>
         </Button>
         <Button asChild size="lg">
-          <Link href={`/c/${slug}/respostas`}>Ver minhas respostas</Link>
+          <Link href={commissionHref(org, slug, "respostas")}>Ver minhas respostas</Link>
         </Button>
       </div>
     </div>

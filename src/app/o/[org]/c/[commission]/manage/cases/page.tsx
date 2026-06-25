@@ -1,0 +1,124 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { FolderOpen } from "lucide-react";
+
+import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import { listCasesBoard, casePatientEnabled } from "@/lib/queries/cases";
+import { getCaseActionItemKpis } from "@/lib/queries/case-action-items";
+import { listProcessTemplates } from "@/lib/queries/process-templates";
+import { CreateCaseDialog } from "@/components/cases/create-case-dialog";
+import { CasesKpiStrip } from "@/components/cases/cases-kpi-strip";
+import { CasesView, type CasesViewMode } from "@/components/cases/cases-view";
+import {
+  computeCaseKpis,
+  computeOutcomeBreakdown,
+} from "@/components/cases/case-derive";
+
+export const metadata: Metadata = {
+  title: "Casos",
+};
+
+/**
+ * Per-commission cases board (coordinator area): one row per case with its
+ * phases' progress and a "Novo caso" create flow. Backed by the SECURITY DEFINER
+ * `list_cases_board` (internally `is_staff_admin_of`-gated → `[]` for non-staff_
+ * admins), but we ALSO gate the route here so a non-coordinator gets `notFound()`
+ * rather than an empty board.
+ *
+ * The board carries STATUS ONLY — never answers (the Phase-7 invariant).
+ */
+export default async function CasesBoardPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ org: string; commission: string }>;
+  searchParams: Promise<{ view?: string }>;
+}) {
+  const { org, commission } = await params;
+  const slug = commission;
+  const { view } = await searchParams;
+  const access = await getCommissionAccessByOrg(org, commission);
+
+  if (!access || access.role !== "staff_admin") {
+    notFound();
+  }
+
+  const [rows, templates, actionItemKpis, casePatientOn] = await Promise.all([
+    listCasesBoard(access.commission.id),
+    listProcessTemplates(access.commission.id),
+    getCaseActionItemKpis(access.commission.id),
+    casePatientEnabled(),
+  ]);
+
+  // A case can only be minted from an ACTIVE template. Carry `collectsPatient` so
+  // the create dialog can offer the optional patient block (ADR 0038).
+  const activeTemplates = templates
+    .filter((t) => t.status === "active")
+    .map((t) => ({
+      id: t.id,
+      title: t.title,
+      collectsPatient: t.collectsPatient,
+    }));
+
+  const kpis = computeCaseKpis(rows);
+  const outcomeBreakdown = computeOutcomeBreakdown(rows);
+  const initialView: CasesViewMode = view === "kanban" ? "kanban" : "table";
+
+  return (
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
+            {access.commission.name}
+          </p>
+          <h1 className="text-3xl text-balance">Casos</h1>
+          <p className="max-w-prose text-muted-foreground text-pretty">
+            Acompanhe as avaliações multifásicas em andamento e o progresso de cada
+            fase. Um caso é identificado por um número — nunca por dados de
+            paciente.
+          </p>
+        </div>
+        <CreateCaseDialog
+          org={org} slug={slug}
+          templates={activeTemplates}
+          casePatientEnabled={casePatientOn}
+        />
+      </header>
+
+      {rows.length === 0 ? (
+        <section
+          aria-label="Nenhum caso"
+          className="animate-rise-in flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border bg-card/50 px-6 py-16 text-center"
+        >
+          <span className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+            <FolderOpen aria-hidden="true" className="size-6" />
+          </span>
+          <h2 className="text-lg font-semibold">Nenhum caso ainda</h2>
+          <p className="max-w-sm text-sm text-muted-foreground text-pretty">
+            {activeTemplates.length === 0
+              ? "Publique um processo multifásico para começar a criar casos."
+              : "Crie o primeiro caso a partir de um processo publicado."}
+          </p>
+          {activeTemplates.length > 0 && (
+            <div className="mt-2">
+              <CreateCaseDialog
+                org={org} slug={slug}
+                templates={activeTemplates}
+                casePatientEnabled={casePatientOn}
+              />
+            </div>
+          )}
+        </section>
+      ) : (
+        <>
+          <CasesKpiStrip
+            kpis={kpis}
+            actionItems={actionItemKpis}
+            outcomeBreakdown={outcomeBreakdown}
+          />
+          <CasesView rows={rows} org={org} slug={slug} initialView={initialView} />
+        </>
+      )}
+    </div>
+  );
+}

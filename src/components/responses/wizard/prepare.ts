@@ -49,6 +49,7 @@ export function toAnswerState(response: ResponseForFill): AnswerState {
  */
 export function toWizardData(
   response: ResponseForFill,
+  org: string,
   slug: string,
   respondentName: string,
   signoffs: SignoffRecord[],
@@ -75,6 +76,7 @@ export function toWizardData(
       : undefined;
 
   return {
+    org,
     slug,
     formId: response.formId,
     responseId: response.id,

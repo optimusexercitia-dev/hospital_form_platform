@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -16,9 +17,9 @@ import { cn } from "@/lib/utils";
  * The Timeline tab href preserves nothing from the URL; its own search params
  * (`view`/`density`/`types`) are managed by the timeline shell once there.
  */
-export function CaseTabs({ slug, caseId }: { slug: string; caseId: string }) {
+export function CaseTabs({ org, slug, caseId }: { org: string; slug: string; caseId: string }) {
   const pathname = usePathname();
-  const base = `/c/${slug}/manage/cases/${caseId}`;
+  const base = commissionHref(org, slug, "manage", "cases", caseId);
   const tabs = [
     { href: base, label: "Detalhes" },
     { href: `${base}/timeline`, label: "Linha do tempo" },

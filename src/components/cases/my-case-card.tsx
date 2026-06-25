@@ -1,3 +1,4 @@
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import { ArrowRight, FileText, Layers } from "lucide-react";
 
@@ -31,15 +32,18 @@ import { cn } from "@/lib/utils";
  * Preencher / Concluir are client islands.
  */
 export function MyCaseCard({
+  org,
   slug,
   myCase,
   index,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   myCase: MyCase;
   index: number;
 }) {
-  const caseHref = `/c/${slug}/casos/${myCase.caseId}`;
+  const caseHref = commissionHref(org, slug, "casos", myCase.caseId);
   const headingId = `my-case-${myCase.caseId}-heading`;
 
   return (
@@ -80,7 +84,12 @@ export function MyCaseCard({
         <ul className="flex flex-col gap-2.5 border-t border-border/70 pt-4">
           {myCase.items.map((item) => (
             <li key={`${item.kind}-${item.id}`}>
-              <MyCaseItemRow slug={slug} caseId={myCase.caseId} item={item} />
+              <MyCaseItemRow
+                org={org}
+                slug={slug}
+                caseId={myCase.caseId}
+                item={item}
+              />
             </li>
           ))}
         </ul>
@@ -91,10 +100,12 @@ export function MyCaseCard({
 
 /** One attributed item (phase or narrative) inside a "Meus Casos" card. */
 function MyCaseItemRow({
+  org,
   slug,
   caseId,
   item,
 }: {
+  org: string;
   slug: string;
   caseId: string;
   item: MyCaseItem;
@@ -122,7 +133,7 @@ function MyCaseItemRow({
       </div>
 
       <div className="shrink-0">
-        <MyCaseItemAction slug={slug} caseId={caseId} item={item} />
+        <MyCaseItemAction org={org} slug={slug} caseId={caseId} item={item} />
       </div>
     </div>
   );
@@ -135,10 +146,12 @@ function MyCaseItemRow({
  * concluded narrative, a not-yet-active phase) renders as context only.
  */
 function MyCaseItemAction({
+  org,
   slug,
   caseId,
   item,
 }: {
+  org: string;
   slug: string;
   caseId: string;
   item: MyCaseItem;
@@ -147,12 +160,19 @@ function MyCaseItemAction({
     // A phase is actionable only when ativa AND assigned to the viewer — the same
     // condition StartPhaseButton's server action (start_or_resume_phase) enforces.
     if (!item.actionable) return null;
-    return <StartPhaseButton slug={slug} caseId={caseId} phaseId={item.id} />;
+    return (
+      <StartPhaseButton
+        org={org}
+        slug={slug}
+        caseId={caseId}
+        phaseId={item.id}
+      />
+    );
   }
 
   // Narrative: "Abrir" always navigates to the focused editor (read or edit per the
   // editor's own auth); when actionable (aberta + mine) also offer a quick Concluir.
-  const editorHref = `/c/${slug}/casos/${caseId}/narrativa/${item.id}`;
+  const editorHref = commissionHref(org, slug, "casos", caseId, "narrativa", item.id);
   return (
     <div className="flex items-center gap-2">
       {item.actionable && <ConcludeNarrativeButton narrativeId={item.id} />}

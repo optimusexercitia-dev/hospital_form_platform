@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useMemo } from "react";
 import Link from "next/link";
 import { Clock } from "lucide-react";
@@ -27,10 +28,13 @@ const PHASE_DOT: Record<CasePhaseStatus, string> = {
 
 function CaseCard({
   row,
+  org,
   slug,
   index,
 }: {
   row: CaseBoardRow;
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   index: number;
 }) {
@@ -42,7 +46,7 @@ function CaseCard({
 
   return (
     <Link
-      href={`/c/${slug}/manage/cases/${row.case.id}`}
+      href={commissionHref(org, slug, "manage", "cases", row.case.id)}
       style={{
         borderLeftColor: color,
         ["--rise-delay" as string]: `${Math.min(index, 8) * 40}ms`,
@@ -125,9 +129,12 @@ function CaseCard({
  * card left-border tint comes from the fixed status's palette token.
  */
 export function CasesKanban({
+  org,
   rows,
   slug,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   rows: CaseBoardRow[];
   slug: string;
 }) {
@@ -164,7 +171,7 @@ export function CasesKanban({
                 </p>
               ) : (
                 items.map((row, i) => (
-                  <CaseCard key={row.case.id} row={row} slug={slug} index={i} />
+                  <CaseCard key={row.case.id} row={row} org={org} slug={slug} index={i} />
                 ))
               )}
             </div>

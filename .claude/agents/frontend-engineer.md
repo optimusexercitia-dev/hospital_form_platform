@@ -37,6 +37,13 @@ table + the current phase's tasks); completed-phase detail is archived under
   `globals.css` design tokens, the established type pairings (Fraunces / Spline Sans),
   and the motion tokens + `prefers-reduced-motion` guards already in the repo. Match
   what prior phases built.
+- **Consult the `vercel-react-best-practices` skill** (React/Next.js performance
+  guidance from Vercel) via the Skill tool when writing or refactoring components,
+  data fetching, or anything performance-sensitive — Server vs Client Component
+  boundaries, `"use client"` placement, memoization, Suspense/streaming, and
+  bundle-size decisions. Follow it where it doesn't conflict with our binding rules
+  (CLAUDE.md / ARCHITECTURE.md). If the skill isn't present in your environment, don't
+  block.
 - The frontend design should be interactive and engaging, with micro animations using things like GSAP and three.js to make it a true experience for the users.
 - Server Components by default; add `"use client"` only where interaction
   genuinely requires it.

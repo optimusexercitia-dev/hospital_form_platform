@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import {
   Bar,
@@ -32,8 +33,15 @@ const CHART_COLORS = [
  * chart styling and reduced-motion guard.
  */
 export function CommissionOverview({
+  org,
   rows,
 }: {
+  /**
+   * The organization slug these commissions belong to. Under the multi-tenant
+   * rescoping, this rollup is org-scoped — every row is a commission in the
+   * caller's org — so a single org slug links each row to its dashboard.
+   */
+  org: string;
   rows: CommissionOverviewRow[];
 }) {
   const reduced = useReducedMotion();
@@ -146,7 +154,7 @@ export function CommissionOverview({
                 </td>
                 <td className="py-2 pl-2 text-right">
                   <Link
-                    href={`/c/${row.slug}/dashboard`}
+                    href={commissionHref(org, row.slug, "dashboard")}
                     aria-label={`Abrir painel de ${row.commissionName}`}
                     className="inline-flex items-center gap-1 rounded text-sm text-primary transition-colors hover:text-primary/80 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
                   >

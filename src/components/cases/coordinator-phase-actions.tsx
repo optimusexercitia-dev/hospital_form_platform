@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Lock, PlayCircle, SkipForward, UserCog } from "lucide-react";
@@ -49,6 +50,7 @@ type DetailPhase = CaseDetail["phases"][number];
  * read view), so it is suppressed for non-coordinators too.
  */
 export function CoordinatorPhaseActions({
+  org,
   slug,
   phase,
   allPhases,
@@ -56,6 +58,8 @@ export function CoordinatorPhaseActions({
   isOpen,
   canManageLifecycle = true,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   phase: DetailPhase;
   /** The case's full phase list — to evaluate this phase's blockers (D4). */
@@ -93,7 +97,7 @@ export function CoordinatorPhaseActions({
       <div className="flex items-center justify-end">
         <Button asChild variant="outline" size="sm">
           <Link
-            href={`/c/${slug}/manage/cases/${phase.caseId}/fase/${phase.id}/respostas`}
+            href={commissionHref(org, slug, "manage", "cases", phase.caseId, "fase", phase.id, "respostas")}
           >
             Ver respostas
             <ArrowRight aria-hidden="true" />

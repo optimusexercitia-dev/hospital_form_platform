@@ -81,10 +81,13 @@ function matchesQuery(row: CaseBoardRow, q: string): boolean {
  */
 export function CasesView({
   rows,
+  org,
   slug,
   initialView,
 }: {
   rows: CaseBoardRow[];
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   initialView: CasesViewMode;
 }) {
@@ -243,9 +246,9 @@ export function CasesView({
       </p>
 
       {view === "kanban" ? (
-        <CasesKanban rows={filtered} slug={slug} />
+        <CasesKanban rows={filtered} org={org} slug={slug} />
       ) : (
-        <CasesTable rows={filtered} slug={slug} />
+        <CasesTable rows={filtered} org={org} slug={slug} />
       )}
     </div>
   );

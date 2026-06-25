@@ -1,3 +1,4 @@
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Clock } from "lucide-react";
 
@@ -15,10 +16,13 @@ import { Button } from "@/components/ui/button";
  * Status is conveyed by an icon + text label, not colour alone (a11y).
  */
 export function MyResponseCard({
+  org,
   slug,
   response,
   index,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   response: MyResponse;
   index: number;
@@ -58,7 +62,7 @@ export function MyResponseCard({
       {inProgress ? (
         <Button asChild size="sm" className="shrink-0">
           <Link
-            href={`/c/${slug}/forms/${response.formId}/responder/${response.id}`}
+            href={commissionHref(org, slug, "forms", response.formId, "responder", response.id)}
           >
             Continuar
             <ArrowRight aria-hidden="true" />
@@ -67,7 +71,7 @@ export function MyResponseCard({
       ) : (
         <Button asChild variant="outline" size="sm" className="shrink-0">
           <Link
-            href={`/c/${slug}/forms/${response.formId}/responder/${response.id}`}
+            href={commissionHref(org, slug, "forms", response.formId, "responder", response.id)}
           >
             Ver
           </Link>

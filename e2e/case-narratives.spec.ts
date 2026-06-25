@@ -70,7 +70,9 @@ const COMM_CCIH_ID = 'a0000000-0000-0000-0000-0000000000a1'
 const SEEDED_CASE_ID = 'd0000000-0000-0000-0000-0000000000c1'
 
 // The CCIH commission slug.
+const ORG = 'rede-a'
 const SLUG = 'ccih'
+const BASE = `/o/${ORG}/c/${SLUG}`
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -251,7 +253,7 @@ async function createDraftTemplate(page: Page, token: string, title: string): Pr
 
 test('AC-1: coordinator creates a narrative type in Configurações → Narrativas', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/settings/narrativas`)
+  await page.goto(`${BASE}/manage/settings/narrativas`)
   await page.waitForURL(`**/settings/narrativas`, { timeout: 15_000 })
 
   // The page must render (flag ON). The vocabulary manager is present.
@@ -300,7 +302,7 @@ test('AC-1: coordinator creates a narrative type in Configurações → Narrativ
 
 test('AC-1b: rename a narrative type — new label persists in list and after reload', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/settings/narrativas`)
+  await page.goto(`${BASE}/manage/settings/narrativas`)
   await page.waitForURL(`**/settings/narrativas`, { timeout: 15_000 })
 
   // Wait for the manager to render.
@@ -385,7 +387,7 @@ test('AC-2: builder — add narrative slot with is_expected to a DRAFT template;
   const draftTemplateId = await createDraftTemplate(page, token, `Processo Narrativas ${Date.now()}`)
   expect(draftTemplateId).toBeTruthy()
 
-  await page.goto(`/c/${SLUG}/manage/process-templates/${draftTemplateId}`)
+  await page.goto(`${BASE}/manage/process-templates/${draftTemplateId}`)
   await page.waitForURL(`**/process-templates/${draftTemplateId}`, { timeout: 15_000 })
 
   // The builder renders the empty draft template (no slots yet).
@@ -455,7 +457,7 @@ test('AC-2: builder — add narrative slot with is_expected to a DRAFT template;
 
 test('AC-3: case detail — merged layout renders phases AND narrative cards', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`${BASE}/manage/cases/${SEEDED_CASE_ID}`)
   await page.waitForURL(`**/cases/${SEEDED_CASE_ID}**`, { timeout: 15_000 })
 
   // The case detail renders the merged layout section.
@@ -504,7 +506,7 @@ test('AC-3: case detail — merged layout renders phases AND narrative cards', a
 
 test('AC-4: inline Markdown fill — edit, preview, save; rendered Markdown appears in place', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`${BASE}/manage/cases/${SEEDED_CASE_ID}`)
   await page.waitForURL(`**/cases/${SEEDED_CASE_ID}**`, { timeout: 15_000 })
 
   // Find the "Achados e Discussão" narrative card (empty, so has a placeholder).
@@ -565,7 +567,7 @@ test('AC-4: inline Markdown fill — edit, preview, save; rendered Markdown appe
 
 test('AC-5: empty narrative shows muted placeholder to the coordinator', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`${BASE}/manage/cases/${SEEDED_CASE_ID}`)
   await page.waitForURL(`**/cases/${SEEDED_CASE_ID}**`, { timeout: 15_000 })
 
   // "Conclusão do Comitê" is seeded empty (is_expected, no body_md).
@@ -618,7 +620,7 @@ test('AC-6: conclude with expected-empty narrative — advisory warning listed; 
   // Skip all open phases so close_case accepts (HC031 gate).
   await skipAllOpenPhases(page, freshCaseId!, token)
 
-  await page.goto(`/c/${SLUG}/manage/cases/${freshCaseId}`)
+  await page.goto(`${BASE}/manage/cases/${freshCaseId}`)
   await page.waitForURL(`**/cases/${freshCaseId}**`, { timeout: 15_000 })
 
   // The case header has a "Concluir" button (all phases now settled). Scope to the
@@ -686,7 +688,7 @@ test('AC-7: after conclusion — read-only; no Editar; empty narratives hidden',
     return
   }
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/cases/${concludedFreshCaseId}`)
+  await page.goto(`${BASE}/manage/cases/${concludedFreshCaseId}`)
   await page.waitForURL(`**/cases/${concludedFreshCaseId}**`, { timeout: 15_000 })
 
   // Verify the case is indeed concluded (guard against test-order drift).
@@ -734,7 +736,7 @@ test('AC-8: keyboard-only fill of a narrative card', async ({ page }) => {
   const freshCaseId = await createFreshCase(page, token)
   expect(freshCaseId).toBeTruthy()
 
-  await page.goto(`/c/${SLUG}/manage/cases/${freshCaseId}`)
+  await page.goto(`${BASE}/manage/cases/${freshCaseId}`)
   await page.waitForURL(`**/cases/${freshCaseId}**`, { timeout: 15_000 })
 
   // The merged layout exists and has at least one narrative card.
@@ -816,7 +818,7 @@ test('AC-8: keyboard-only fill of a narrative card', async ({ page }) => {
 
 test('AC-FLAG: narrativas settings route is accessible with flag ON', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/settings/narrativas`)
+  await page.goto(`${BASE}/manage/settings/narrativas`)
   // The page must load without 404/redirect.
   await expect(page).not.toHaveURL(/login|not-found/i)
   // The NarrativeTypeManager component renders.
@@ -830,7 +832,7 @@ test('AC-FLAG: narrativas settings route is accessible with flag ON', async ({ p
 test('AC-SECURITY: foreign coordinator cannot reach CCIH narratives settings', async ({ page }) => {
   // chefe.farm is staff_admin of Farmácia (commission B), not CCIH.
   await signInAs(page, 'chefe.farm@test.local')
-  await page.goto(`/c/${SLUG}/manage/settings/narrativas`)
+  await page.goto(`${BASE}/manage/settings/narrativas`)
   // The route should 404 (notFound() in the page server component).
   // Either the URL changes to a not-found path or the heading is absent.
   // We assert the NarrativeTypeManager is NOT rendered.

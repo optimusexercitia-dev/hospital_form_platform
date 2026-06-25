@@ -28,6 +28,7 @@ export interface AssigneeOption {
  * are client islands.
  */
 export function CasePhaseList({
+  org,
   slug,
   detail,
   assignees,
@@ -38,6 +39,8 @@ export function CasePhaseList({
   canCorrectResult = false,
   resultOptions = [],
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   detail: CaseDetail;
   assignees: AssigneeOption[];
@@ -75,7 +78,7 @@ export function CasePhaseList({
         >
           {item.kind === "phase" ? (
             <CasePhaseArticle
-              slug={slug}
+              org={org} slug={slug}
               phase={item.phase}
               allPhases={allPhases}
               assignees={assignees}

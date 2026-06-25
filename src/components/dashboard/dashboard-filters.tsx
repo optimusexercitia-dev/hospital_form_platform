@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useId } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Download, X } from "lucide-react";
@@ -23,11 +24,14 @@ import { Label } from "@/components/ui/label";
  * the pt-BR header row and the raw submitted rows.
  */
 export function DashboardFilters({
+  org,
   slug,
   selectedFormId,
   from,
   to,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   selectedFormId: string | null;
   from: string | null;
@@ -63,7 +67,7 @@ export function DashboardFilters({
   if (selectedFormId) exportParams.set("form", selectedFormId);
   if (from) exportParams.set("from", from);
   if (to) exportParams.set("to", to);
-  const exportHref = `/c/${slug}/dashboard/export?${exportParams.toString()}`;
+  const exportHref = `${commissionHref(org, slug, "dashboard", "export")}?${exportParams.toString()}`;
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-xs sm:flex-row sm:items-end sm:justify-between">

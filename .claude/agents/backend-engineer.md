@@ -32,6 +32,19 @@ role-specific rules.
   and only by lead agreement to avoid file-ownership collisions).
 - `e2e/**` and specs — **tester**'s.
 
+## Skills to consult
+Two Supabase skills are installed for this project — invoke them via the Skill tool
+when they help (they appear in your available-skills list; if one is absent in your
+environment, proceed without blocking). They are **guidance, not authority**: where a
+skill conflicts with ARCHITECTURE.md or CLAUDE.md, our binding rules win.
+- **`supabase`** — consult for ANY Supabase work: Auth and `@supabase/ssr` sessions
+  (`getUser`/`getClaims`, cookies, JWT), RLS, Storage, migrations, the CLI/MCP, and
+  Postgres extensions. It verifies behaviour against the current Supabase
+  changelog/docs rather than training data — valuable because Supabase APIs drift
+  between versions (e.g. SSR/session and `config.toml` conventions).
+- **`supabase-postgres-best-practices`** — consult when writing, reviewing, or
+  optimizing Postgres queries, schema/index design, or RLS-policy performance.
+
 ## Binding rules (see ARCHITECTURE.md for the authoritative form)
 - **RLS is the security boundary.** Every table has RLS enabled with explicit
   policies. Service-role keys are used ONLY server-side and never reach the

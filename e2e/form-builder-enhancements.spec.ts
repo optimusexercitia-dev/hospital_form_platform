@@ -552,7 +552,7 @@ async function startFillResponse(
 
 /** The fill wizard URL for a response. */
 function fillUrl(responseId: string): string {
-  return `/c/ccih/forms/${fillFormId}/responder/${responseId}`
+  return `/o/rede-a/c/ccih/forms/${fillFormId}/responder/${responseId}`
 }
 
 // ===========================================================================
@@ -582,7 +582,7 @@ test('AC-1 (builder): new question types appear with pt-BR labels and can be add
 }) => {
   test.setTimeout(150_000)
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/forms/${builderFormId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/forms/${builderFormId}`)
   await expect(
     page.getByRole('heading', { level: 1, name: FORM_BUILDER_TITLE }),
   ).toBeVisible({ timeout: 20_000 })
@@ -643,7 +643,7 @@ test('AC-2 (builder): number and date items accept optional Mínimo/Máximo', as
 }) => {
   test.setTimeout(120_000)
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/forms/${builderFormId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/forms/${builderFormId}`)
 
   // number with bounds
   let d = await openAddBlock(page, /Número/)
@@ -671,37 +671,45 @@ test('AC-3 (builder): colour picker on multiple_choice + checkbox, NOT on dropdo
 }) => {
   test.setTimeout(120_000)
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/forms/${builderFormId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/forms/${builderFormId}`)
 
-  // multiple_choice → colour picker present, with a "Sem cor" default swatch.
+  // multiple_choice → colour picker present.
+  // The implementation uses a DropdownMenu: a swatch trigger button with
+  // aria-label "Cor da opção N: sem cor. Clique para alterar"; clicking it
+  // opens a dropdown with "Sem cor" and palette buttons.
   let d = await openAddBlock(page, /Múltipla escolha/)
   await d.getByLabel('Enunciado da pergunta').fill('Resultado MC com cor')
   await d.getByLabel('Opção 1', { exact: true }).fill('Conforme')
-  // The per-option colour group is labelled "Cor da opção N".
-  const mcColorGroup = d.getByRole('group', { name: 'Cor da opção 1' })
-  await expect(mcColorGroup).toBeVisible()
-  await expect(mcColorGroup.getByRole('button', { name: 'Sem cor' })).toBeVisible()
-  // Pick a colour (Verde) — asserts the swatch is operable.
-  await mcColorGroup.getByRole('button', { name: 'Verde' }).click()
-  await expect(
-    mcColorGroup.getByRole('button', { name: 'Verde' }),
-  ).toHaveAttribute('aria-pressed', 'true')
+  // Trigger button must be visible (proves colour picker is present for mc).
+  const mcColorTrigger = d.getByRole('button', { name: /Cor da opção 1/i })
+  await expect(mcColorTrigger).toBeVisible()
+  // Open the dropdown and assert the "Sem cor" button is there.
+  // Note: DropdownMenuContent portals to <body>; scope to page, not the dialog.
+  await mcColorTrigger.click()
+  const semCorBtn = page.getByRole('button', { name: 'Sem cor' })
+  await expect(semCorBtn).toBeVisible()
+  // Pick a colour (Verde) and assert it gets aria-pressed="true".
+  const verdeBtn = page.getByRole('button', { name: 'Verde' })
+  await verdeBtn.click()
+  await expect(verdeBtn).toHaveAttribute('aria-pressed', 'true')
+  // Close the dropdown (click outside or press Escape) so we can continue.
+  await page.keyboard.press('Escape')
   await d.getByRole('button', { name: 'Cancelar' }).click()
   await expect(d).toBeHidden()
 
-  // checkbox → colour picker present.
+  // checkbox → colour picker trigger present.
   d = await openAddBlock(page, /Caixas de seleção/)
   await d.getByLabel('Enunciado da pergunta').fill('Checkbox com cor')
   await d.getByLabel('Opção 1', { exact: true }).fill('Item A')
-  await expect(d.getByRole('group', { name: 'Cor da opção 1' })).toBeVisible()
+  await expect(d.getByRole('button', { name: /Cor da opção 1/i })).toBeVisible()
   await d.getByRole('button', { name: 'Cancelar' }).click()
   await expect(d).toBeHidden()
 
-  // dropdown → NO colour picker (native <select> can't render colour).
+  // dropdown → NO colour picker trigger (native <select> can't render colour).
   d = await openAddBlock(page, /Lista suspensa/)
   await d.getByLabel('Enunciado da pergunta').fill('Dropdown sem cor')
   await d.getByLabel('Opção 1', { exact: true }).fill('Opção X')
-  await expect(d.getByRole('group', { name: /Cor da opção/ })).toHaveCount(0)
+  await expect(d.getByRole('button', { name: /Cor da opção/i })).toHaveCount(0)
   await d.getByRole('button', { name: 'Cancelar' }).click()
   await expect(d).toBeHidden()
 })
@@ -713,7 +721,7 @@ test('AC-4 (builder): question condition disables and clears "obrigatória" with
 }) => {
   test.setTimeout(150_000)
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/forms/${builderFormId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/forms/${builderFormId}`)
 
   // Add a controller multiple_choice question FIRST (an earlier-in-doc-order
   // target the conditional question can reference).
@@ -772,7 +780,7 @@ test('AC-5 (builder): section condition persists after reload (BE-6)', async ({
 }) => {
   test.setTimeout(150_000)
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/forms/${builderFormId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/forms/${builderFormId}`)
 
   // Add a second section so the builder enters sectioned mode. The controller
   // "Pergunta controladora?" (added in AC-4) lives in the default section S0,
@@ -843,7 +851,7 @@ test('AC-6 (builder): publish succeeds with valid question + section conditions'
 }) => {
   test.setTimeout(150_000)
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/forms/${builderFormId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/forms/${builderFormId}`)
 
   await page.getByRole('button', { name: 'Publicar' }).click()
   const confirm = page.getByRole('alertdialog')
@@ -1153,7 +1161,7 @@ test('AC-12/AC-13 (read): observation line + coloured chip on submission detail'
 
   // Read-only submission detail (staff_admin view at /dashboard/submissions/{id}).
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/dashboard/submissions/${responseId}`)
+  await page.goto(`/o/rede-a/c/ccih/dashboard/submissions/${responseId}`)
   await page.waitForLoadState('networkidle')
 
   // AC-13: the selected coloured option renders as a chip carrying the palette
@@ -1244,7 +1252,7 @@ test('AC-K (keyboard-only): answer a question and reveal the observation with th
 //   1. Staff1 fills FORM_SIGNOFF's S0 (short_text) then S1 (MC + observation).
 //      Navigating from S1 to review calls persistSection → saveSection action
 //      → save_section_answers(p_observations) → answers.observation persisted.
-//   2. Staff_admin opens /c/ccih/manage/assinaturas/[responseId] (in_progress).
+//   2. Staff_admin opens /o/rede-a/c/ccih/manage/assinaturas/[responseId] (in_progress).
 //      get_response_for_signoff sees the pending staff_admin sign-off on S1 and
 //      gates the SECURITY DEFINER read through (Gate 3 satisfied).
 //   3. The sign-off review page renders the S1 MC answer + the "Observação:"
@@ -1276,7 +1284,7 @@ test('AC-14 (sign-off review): observation line renders in the sign-off review (
 
   // Drive the fill wizard as staff1.
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto(`/c/ccih/forms/${signoffFormId}/responder/${responseId}`)
+  await page.goto(`/o/rede-a/c/ccih/forms/${signoffFormId}/responder/${responseId}`)
 
   // S0: fill the required short_text ("Nome do responsável").
   await page.getByLabel(/Nome do responsável/i).fill('Enfermeiro Teste')
@@ -1307,7 +1315,7 @@ test('AC-14 (sign-off review): observation line renders in the sign-off review (
   // Switch to staff_admin (chefe.ccih) and open the sign-off review page.
   // The response stays in_progress — the sign-off panel is what appears here.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/assinaturas/${responseId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/assinaturas/${responseId}`)
   await page.waitForLoadState('networkidle')
 
   // The page must load the form title (not 404).
@@ -1350,7 +1358,7 @@ test('AC-15 (number-condition regression guard): number gt condition evaluates n
 
   // ------- BUILDER phase (chefe.ccih) ----------------------------------------
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/manage/forms/${numCondFormId}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/forms/${numCondFormId}`)
   await expect(
     page.getByRole('heading', { level: 1, name: FORM_NUMCOND_TITLE }),
   ).toBeVisible({ timeout: 20_000 })
@@ -1410,7 +1418,7 @@ test('AC-15 (number-condition regression guard): number gt condition evaluates n
   const responseId = ((await startResp.json()) as { id: string }).id
 
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto(`/c/ccih/forms/${numCondFormId}/responder/${responseId}`)
+  await page.goto(`/o/rede-a/c/ccih/forms/${numCondFormId}/responder/${responseId}`)
   await expect(page.getByText('Pontuação').first()).toBeVisible({ timeout: 15_000 })
 
   // 4. Answer Pontuação = 3 → 3 is NOT greater than 5 → dependent HIDDEN.

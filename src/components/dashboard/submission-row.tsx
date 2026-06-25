@@ -1,3 +1,4 @@
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import { ChevronRight, Clock, Layers } from "lucide-react";
 
@@ -28,10 +29,13 @@ function formatDateTime(iso: string): string {
  * Status is conveyed by icon + text + shape, never color alone.
  */
 export function SubmissionRow({
+  org,
   slug,
   row,
   index,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   row: SubmissionRowData;
   index: number;
@@ -94,7 +98,7 @@ export function SubmissionRow({
   return (
     <li>
       <Link
-        href={`/c/${slug}/dashboard/submissions/${row.responseId}`}
+        href={commissionHref(org, slug, "dashboard", "submissions", row.responseId)}
         style={style}
         className="group/row flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs transition-colors hover:bg-muted/40 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none animate-rise-in"
       >

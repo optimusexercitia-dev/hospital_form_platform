@@ -66,7 +66,9 @@ if (!SUPABASE_SERVICE_KEY) {
   throw new Error('SUPABASE_SERVICE_ROLE_KEY missing — set it in .env.local.')
 }
 
+const ORG  = 'rede-a'
 const SLUG = 'ccih'
+const BASE = `/o/${ORG}/c/${SLUG}` // canonical commission route prefix
 
 // Deterministic IDs from seed.sql
 const CASE_ID = 'd0000000-0000-0000-0000-0000000000c1'         // Caso 0001 (open)
@@ -92,14 +94,14 @@ async function signInAs(page: Page, email: string, pw = PW) {
   await page.getByLabel(/senha/i).fill(pw)
   await page.getByRole('button', { name: /entrar/i }).click()
   // Wait for navigation away from /login. multi@test.local belongs to two commissions,
-  // so login lands on the commission picker (/c) rather than a slug page (/c/slug/...).
-  // The regex matches both /c and /c/slug/... to handle both cases.
-  await page.waitForURL(/\/c($|\/)/)
+  // so login may land on the org-manage picker, a commission page, or the legacy /c picker.
+  // The regex matches /o/..., /c/..., or /c (no trailing slash — legacy multi-commission picker).
+  await page.waitForURL(/\/(o|c)(\/|$)/)
 }
 
 async function signOut(page: Page) {
   // Navigate to a page with the app shell so the account menu exists.
-  await page.goto(`/c/${SLUG}/meus-casos`)
+  await page.goto(`${BASE}/meus-casos`)
   await page.waitForURL(/meus-casos/)
   const menuBtn = page.getByRole('button', { name: /abrir menu da conta/i })
   await menuBtn.click()
@@ -196,8 +198,8 @@ test('AC-1 attribution-read: phase assignee (staff1) opens full case read-only; 
   await expect(sidebar.getByRole('link', { name: /meus casos/i })).toBeVisible({ timeout: 10_000 })
 
   // Navigate to the full case via the staff route.
-  await page.goto(`/c/${SLUG}/casos/${CASE_ID}`)
-  await page.waitForURL(`/c/${SLUG}/casos/${CASE_ID}`)
+  await page.goto(`${BASE}/casos/${CASE_ID}`)
+  await page.waitForURL(`${BASE}/casos/${CASE_ID}`)
 
   // Case header should render (case number).
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toBeVisible({ timeout: 10_000 })
@@ -243,15 +245,15 @@ test('AC-2 boundary: staff4 (no attribution, no grant) gets notFound() at case r
   // not-found.tsx boundary but the HTTP response status is 200 in prod mode
   // (the shell layout renders; not-found content is server-rendered into the slot).
   // Assert on page CONTENT — the boundary text is visible and case data is absent.
-  await page.goto(`/c/${SLUG}/casos/${CASE_ID}`)
+  await page.goto(`${BASE}/casos/${CASE_ID}`)
   await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
   // Caso 0001 content must NOT be present (no data leak).
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toHaveCount(0)
   await expect(page.getByText(/Óbito UTI leito 7/i)).toHaveCount(0)
 
   // Meus Casos must be empty (no card for Caso 0001).
-  await page.goto(`/c/${SLUG}/meus-casos`)
-  await page.waitForURL(`/c/${SLUG}/meus-casos`)
+  await page.goto(`${BASE}/meus-casos`)
+  await page.waitForURL(`${BASE}/meus-casos`)
   await expect(page.getByText(/nenhum caso acessível/i)).toBeVisible({ timeout: 10_000 })
   // Extra safety: no link to the case.
   await expect(page.getByRole('link', { name: /ver caso completo/i })).toHaveCount(0)
@@ -269,8 +271,8 @@ test('AC-3a grant-read (multi): viewer sees full case, content editors hidden', 
   await signInAs(page, 'multi@test.local')
 
   // multi has a read grant (seeded). Navigate to the full case.
-  await page.goto(`/c/${SLUG}/casos/${CASE_ID}`)
-  await page.waitForURL(`/c/${SLUG}/casos/${CASE_ID}`)
+  await page.goto(`${BASE}/casos/${CASE_ID}`)
+  await page.waitForURL(`${BASE}/casos/${CASE_ID}`)
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toBeVisible({ timeout: 10_000 })
 
   // Lifecycle buttons absent (no canManageLifecycle).
@@ -295,7 +297,7 @@ test('AC-3a grant-read (multi): viewer sees full case, content editors hidden', 
   await expect(page.getByRole('region', { name: /Conclusão do Comitê/i })).toBeVisible()
 
   // "Ver caso completo" is already the current page. Check "Meus Casos" shows the card.
-  await page.goto(`/c/${SLUG}/meus-casos`)
+  await page.goto(`${BASE}/meus-casos`)
   await expect(page.getByText(/caso\s*0001/i)).toBeVisible({ timeout: 10_000 })
   const card = page.locator('article').filter({ hasText: /caso\s*0001/i }).first()
   await expect(card.getByRole('link', { name: /ver caso completo/i })).toBeVisible()
@@ -309,8 +311,8 @@ test('AC-3b grant-write (staff3): collaborator can access case; sees content-wri
   await signInAs(page, 'staff3.ccih@test.local')
 
   // staff3 has a write grant (seeded). Navigate to full case.
-  await page.goto(`/c/${SLUG}/casos/${CASE_ID}`)
-  await page.waitForURL(`/c/${SLUG}/casos/${CASE_ID}`)
+  await page.goto(`${BASE}/casos/${CASE_ID}`)
+  await page.waitForURL(`${BASE}/casos/${CASE_ID}`)
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toBeVisible({ timeout: 10_000 })
 
   // Content-write UI IS present: narrative Editar buttons for un-attributed narratives.
@@ -336,7 +338,7 @@ test('AC-3c revoke: coordinator revokes multi via dialog; multi gets notFound()'
 }) => {
   // Coordinator revokes via the "Acesso ao caso" dialog (NEW UI).
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID}`)
+  await page.goto(`${BASE}/manage/cases/${CASE_ID}`)
   await page.waitForURL(`**/manage/cases/${CASE_ID}`)
 
   // Open the "Acesso ao caso" dialog from the top-bar button.
@@ -370,14 +372,14 @@ test('AC-3c revoke: coordinator revokes multi via dialog; multi gets notFound()'
 
   // Now multi should be denied (not-found boundary — content-based check, see AC-2 note).
   await signInAs(page, 'multi@test.local')
-  await page.goto(`/c/${SLUG}/casos/${CASE_ID}`)
+  await page.goto(`${BASE}/casos/${CASE_ID}`)
   await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toHaveCount(0)
 
   // Meus Casos: Caso 0001 specifically must NOT appear for multi after revoke.
   // (The empty-state assertion would be too strict if the DB has residual cases from
   // prior test runs that happen to have a multi grant — assert absence of THIS case.)
-  await page.goto(`/c/${SLUG}/meus-casos`)
+  await page.goto(`${BASE}/meus-casos`)
   await page.waitForLoadState('networkidle', { timeout: 10_000 })
   await expect(page.locator('article').filter({ hasText: /Óbito UTI leito 7/i })).toHaveCount(0)
   await expect(page.locator('article').filter({ hasText: /caso\s*0001/i })).toHaveCount(0)
@@ -386,7 +388,7 @@ test('AC-3c revoke: coordinator revokes multi via dialog; multi gets notFound()'
 
   // Restore multi's grant for other tests.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID}`)
+  await page.goto(`${BASE}/manage/cases/${CASE_ID}`)
   const dialog2 = await openAccessDialog(page)
   const multiRow2 = dialog2.locator('li').filter({ hasText: /Coordenadora Multi/i })
   await expect(multiRow2).toBeVisible({ timeout: 10_000 })
@@ -411,7 +413,7 @@ test('AC-3d terminal case: "Acesso ao caso" button present; "Conceder edição" 
   // The CaseAccessButton is mounted OUTSIDE CaseLifecycleActions in the layout,
   // so it renders even when lifecycle buttons (Concluir/Cancelar) do not.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID_TERMINAL}`)
+  await page.goto(`${BASE}/manage/cases/${CASE_ID_TERMINAL}`)
   await page.waitForURL(`**/manage/cases/${CASE_ID_TERMINAL}`)
 
   // The case heading must render (confirms we're not on a 404).
@@ -470,8 +472,8 @@ test('AC-4 Q14 ownership: staff3 (write grant) cannot edit Resumo Clínico (attr
 
   // --- staff3 (write-grantee) tries to edit the Resumo (attributed to staff2) ---
   await signInAs(page, 'staff3.ccih@test.local')
-  await page.goto(`/c/${SLUG}/casos/${CASE_ID}/narrativa/${narrativeId}`)
-  await page.waitForURL(`/c/${SLUG}/casos/${CASE_ID}/narrativa/${narrativeId}`)
+  await page.goto(`${BASE}/casos/${CASE_ID}/narrativa/${narrativeId}`)
+  await page.waitForURL(`${BASE}/casos/${CASE_ID}/narrativa/${narrativeId}`)
 
   // The NarrativeEditor's canEdit is false (Q14: attributed to staff2, not staff3).
   // The textarea / editor is absent; the body renders read-only OR the empty-state note.
@@ -487,8 +489,8 @@ test('AC-4 Q14 ownership: staff3 (write grant) cannot edit Resumo Clínico (attr
 
   // --- staff2 (narrative assignee) CAN edit the Resumo ---
   await signInAs(page, 'staff2.ccih@test.local')
-  await page.goto(`/c/${SLUG}/casos/${CASE_ID}/narrativa/${narrativeId}`)
-  await page.waitForURL(`/c/${SLUG}/casos/${CASE_ID}/narrativa/${narrativeId}`)
+  await page.goto(`${BASE}/casos/${CASE_ID}/narrativa/${narrativeId}`)
+  await page.waitForURL(`${BASE}/casos/${CASE_ID}/narrativa/${narrativeId}`)
 
   // Editor IS present.
   await expect(page.getByRole('textbox')).toBeVisible({ timeout: 10_000 })
@@ -508,8 +510,8 @@ test('AC-5 Meus Casos: unified list — staff1 (phase assignee) sees card with P
   page,
 }) => {
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto(`/c/${SLUG}/meus-casos`)
-  await page.waitForURL(`/c/${SLUG}/meus-casos`)
+  await page.goto(`${BASE}/meus-casos`)
+  await page.waitForURL(`${BASE}/meus-casos`)
 
   // Page heading
   await expect(page.getByRole('heading', { name: /meus casos/i })).toBeVisible({ timeout: 10_000 })
@@ -533,7 +535,7 @@ test('AC-5 Meus Casos: unified list — staff1 (phase assignee) sees card with P
   // "Ver caso completo" link present and navigates to the staff case route.
   const verLink = card.getByRole('link', { name: /ver caso completo/i })
   await expect(verLink).toBeVisible()
-  await expect(verLink).toHaveAttribute('href', `/c/${SLUG}/casos/${CASE_ID}`)
+  await expect(verLink).toHaveAttribute('href', `${BASE}/casos/${CASE_ID}`)
 
   // The phase item row shows Phase 1 (concluida → not actionable) — no Preencher.
   // Phase 2 is pendente (also not actionable — not ativa yet).
@@ -551,8 +553,8 @@ test('AC-5b Meus Casos: staff2 (narrative assignee) sees card with Abrir + Concl
   page,
 }) => {
   await signInAs(page, 'staff2.ccih@test.local')
-  await page.goto(`/c/${SLUG}/meus-casos`)
-  await page.waitForURL(`/c/${SLUG}/meus-casos`)
+  await page.goto(`${BASE}/meus-casos`)
+  await page.waitForURL(`${BASE}/meus-casos`)
 
   // staff2 is narrative assignee on Caso 0001. We assert Caso 0001 appears exactly once and
   // the correct actions are present. We do NOT assert a total card count (prior test runs may
@@ -577,8 +579,8 @@ test('AC-5c Meus Casos: multi (read grant only) sees card with Ver caso completo
   page,
 }) => {
   await signInAs(page, 'multi@test.local')
-  await page.goto(`/c/${SLUG}/meus-casos`)
-  await page.waitForURL(`/c/${SLUG}/meus-casos`)
+  await page.goto(`${BASE}/meus-casos`)
+  await page.waitForURL(`${BASE}/meus-casos`)
 
   // multi has a read grant on Caso 0001 (seeded). We assert Caso 0001 appears exactly once and
   // contains only read-only actions. We do NOT assert a total card count (prior test runs may
@@ -606,7 +608,7 @@ test('AC-6 narrative lifecycle: staff2 fills Resumo via focused editor, conclude
   page,
 }) => {
   const narrativeId = await getResumoCaseNarrativeId()
-  const editorHref = `/c/${SLUG}/casos/${CASE_ID}/narrativa/${narrativeId}`
+  const editorHref = `${BASE}/casos/${CASE_ID}/narrativa/${narrativeId}`
 
   // --- staff2 fills and concludes ---
   await signInAs(page, 'staff2.ccih@test.local')
@@ -638,7 +640,7 @@ test('AC-6 narrative lifecycle: staff2 fills Resumo via focused editor, conclude
   // After concluding, ConcludeNarrativeButton calls router.push(doneHref) which
   // navigates to the case page. Wait for navigation away from the narrativa URL,
   // then confirm the DB was written before checking.
-  await page.waitForURL(`/c/${SLUG}/casos/${CASE_ID}`, { timeout: 20_000 })
+  await page.waitForURL(`${BASE}/casos/${CASE_ID}`, { timeout: 20_000 })
 
   // Verify DB: narrative status = 'concluida'.
   const rows = await dbQuery<{ status: string }>('case_narratives', {
@@ -650,7 +652,7 @@ test('AC-6 narrative lifecycle: staff2 fills Resumo via focused editor, conclude
 
   // --- Coordinator reopens ---
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID}`)
+  await page.goto(`${BASE}/manage/cases/${CASE_ID}`)
   await page.waitForURL(`**/manage/cases/${CASE_ID}`)
 
   // Find the Resumo narrative card and click "Reabrir".
@@ -686,8 +688,8 @@ test('AC-6 narrative lifecycle: staff2 fills Resumo via focused editor, conclude
   // AC-6 overwrote the Resumo body with test content; restore the seeded body so
   // case-narratives.spec.ts AC-3 still finds "Paciente do leito 7" in the merged layout.
   await signInAs(page, 'staff2.ccih@test.local')
-  await page.goto(`/c/${SLUG}/casos/${CASE_ID}/narrativa/${narrativeId}`)
-  await page.waitForURL(`/c/${SLUG}/casos/${CASE_ID}/narrativa/${narrativeId}`)
+  await page.goto(`${BASE}/casos/${CASE_ID}/narrativa/${narrativeId}`)
+  await page.waitForURL(`${BASE}/casos/${CASE_ID}/narrativa/${narrativeId}`)
   const restoreEditor = page.getByRole('textbox')
   await expect(restoreEditor).toBeVisible({ timeout: 10_000 })
   const seedBody =
@@ -722,8 +724,8 @@ test('AC-7 PHI boundary: check if safety event linked to case; if so, read-grant
 
   // The safety event IS linked. Sign in as multi (read grant) and check the case.
   await signInAs(page, 'multi@test.local')
-  await page.goto(`/c/${SLUG}/casos/${CASE_ID}`)
-  await page.waitForURL(`/c/${SLUG}/casos/${CASE_ID}`)
+  await page.goto(`${BASE}/casos/${CASE_ID}`)
+  await page.waitForURL(`${BASE}/casos/${CASE_ID}`)
 
   // The PHI-free chip / badge should appear (the existing "Events" panel shows linked events
   // without PHI — event title / kind but not patient data).
@@ -733,7 +735,7 @@ test('AC-7 PHI boundary: check if safety event linked to case; if so, read-grant
 
   // The safety event detail route is /c/ccih/manage/pqs/events/[id]
   // A read-grantee should not be able to navigate there (custody-gated).
-  const eventDetailHref = `/c/${SLUG}/manage/pqs/events/e1000000-0000-0000-0000-0000000000a1`
+  const eventDetailHref = `${BASE}/manage/pqs/events/e1000000-0000-0000-0000-0000000000a1`
   const res = await page.goto(eventDetailHref)
   // Should be 404 or 403 (not custodian/PQS).
   const status = res?.status() ?? 0
@@ -754,8 +756,8 @@ test('AC-8 audit: non-coordinator open writes case.opened row; coordinator open 
 
   // Non-coordinator: staff1 (phase assignee) opens the case.
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto(`/c/${SLUG}/casos/${CASE_ID}`)
-  await page.waitForURL(`/c/${SLUG}/casos/${CASE_ID}`)
+  await page.goto(`${BASE}/casos/${CASE_ID}`)
+  await page.waitForURL(`${BASE}/casos/${CASE_ID}`)
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toBeVisible({ timeout: 10_000 })
   await signOut(page)
 
@@ -765,7 +767,7 @@ test('AC-8 audit: non-coordinator open writes case.opened row; coordinator open 
 
   // Coordinator: chefe.ccih opens the case via the manage route.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID}`)
+  await page.goto(`${BASE}/manage/cases/${CASE_ID}`)
   await page.waitForURL(`**/manage/cases/${CASE_ID}`)
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toBeVisible({ timeout: 10_000 })
   await signOut(page)
@@ -793,8 +795,8 @@ test('AC-10 keyboard-only: Tab/Enter through Meus Casos to focused narrative edi
 }) => {
   // staff2 is the narrative assignee → they have an Abrir button in Meus Casos.
   await signInAs(page, 'staff2.ccih@test.local')
-  await page.goto(`/c/${SLUG}/meus-casos`)
-  await page.waitForURL(`/c/${SLUG}/meus-casos`)
+  await page.goto(`${BASE}/meus-casos`)
+  await page.waitForURL(`${BASE}/meus-casos`)
 
   // Confirm "Meus Casos" renders with at least one card.
   await expect(page.getByRole('heading', { name: /meus casos/i })).toBeVisible({ timeout: 10_000 })
@@ -828,7 +830,7 @@ test('AC-10 keyboard-only: Tab/Enter through Meus Casos to focused narrative edi
 
   // Navigate to the narrative editor via keyboard (Enter on the focused link).
   await page.keyboard.press('Enter')
-  await page.waitForURL(`/c/${SLUG}/casos/${CASE_ID}/narrativa/**`, { timeout: 10_000 })
+  await page.waitForURL(`${BASE}/casos/${CASE_ID}/narrativa/**`, { timeout: 10_000 })
 
   // Verify the editor page renders and the textarea is reachable by keyboard.
   await expect(page.getByRole('textbox')).toBeVisible({ timeout: 10_000 })
@@ -885,7 +887,7 @@ test('AC-N1 narrative attribution: coordinator assigns member via card DropdownM
   // coordinator assigns the "Achados e Discussão" narrative to "Enfermeiro CCIH Um" (staff1).
   // Achados is NOT attributed in seed, so it is safe to assign and then clear.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID}`)
+  await page.goto(`${BASE}/manage/cases/${CASE_ID}`)
   await page.waitForURL(`**/manage/cases/${CASE_ID}`)
 
   // Locate the "Achados e Discussão" narrative card on the coordinator detail page.
@@ -922,7 +924,7 @@ test('AC-N1 narrative attribution: coordinator assigns member via card DropdownM
   await page.waitForTimeout(500)
 
   // Re-navigate to force a fresh server render (router.refresh() may be async).
-  await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID}`)
+  await page.goto(`${BASE}/manage/cases/${CASE_ID}`)
   await page.waitForURL(`**/manage/cases/${CASE_ID}`)
 
   const ahadosSection2 = page.getByRole('region', { name: /achados e discussão/i })
@@ -962,7 +964,7 @@ test('AC-N2 negative: coordinator page body has no inline access panel heading a
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/${SLUG}/manage/cases/${CASE_ID}`)
+  await page.goto(`${BASE}/manage/cases/${CASE_ID}`)
   await page.waitForURL(`**/manage/cases/${CASE_ID}`)
   await page.waitForTimeout(1_000) // let the full page render settle
 

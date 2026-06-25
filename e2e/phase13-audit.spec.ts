@@ -179,7 +179,15 @@ async function makeProbeCommission(
       'Content-Type': 'application/json',
       Prefer: 'return=representation',
     },
-    data: { name: `Probe ${testId} (${slug})`, slug, created_by: ADMIN_ID },
+    // organization_id + hospital_id are NOT NULL in the multi-tenancy schema;
+    // attach probe commissions to rede-a / Hospital Central A.
+    data: {
+      name: `Probe ${testId} (${slug})`,
+      slug,
+      created_by: ADMIN_ID,
+      organization_id: '0c000000-0000-0000-0000-00000000000a',
+      hospital_id: '05000000-0000-0000-0000-00000000000a',
+    },
   })
   expect(commResp.status()).toBe(201)
   const commRow = (await commResp.json()) as { id: string }[]
@@ -308,7 +316,14 @@ test('AC-1b: add a member → exactly one commission_member.added row (role in m
       'Content-Type': 'application/json',
       Prefer: 'return=representation',
     },
-    data: { name: `Probe AC-1b (${slug})`, slug, created_by: ADMIN_ID },
+    // organization_id + hospital_id are NOT NULL in the multi-tenancy schema.
+    data: {
+      name: `Probe AC-1b (${slug})`,
+      slug,
+      created_by: ADMIN_ID,
+      organization_id: '0c000000-0000-0000-0000-00000000000a',
+      hospital_id: '05000000-0000-0000-0000-00000000000a',
+    },
   })
   expect(commResp.status()).toBe(201)
   const commRow = (await commResp.json()) as { id: string }[]
@@ -814,7 +829,7 @@ test('AC-3d: staff_admin A sees the commission-A audit feed in the UI (own commi
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/audit')
+  await page.goto('/o/rede-a/c/ccih/manage/audit')
 
   await expect(
     page.getByRole('heading', { name: /trilha de auditoria/i }),
@@ -834,7 +849,7 @@ test('AC-3e: plain staff CANNOT reach the audit view — route guard returns 404
   page,
 }) => {
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto('/c/ccih/manage/audit')
+  await page.goto('/o/rede-a/c/ccih/manage/audit')
 
   // The route guard returns the friendly in-shell 404 (mirrors the dashboard),
   // not the audit content.
@@ -846,29 +861,62 @@ test('AC-3e: plain staff CANNOT reach the audit view — route guard returns 404
   ).not.toBeVisible()
 })
 
-test('AC-3f: admin /admin/audit shows the cross-commission feed incl. commission-B rows', async ({
+// AC-3f (BUG-MT-002 fix): multi-tenancy split the audit area into two tiers.
+//   - org_admin (admin@test.local) → /o/rede-a/manage/audit — cross-commission
+//     feed for all rede-a commissions (CCIH + Farmácia both under rede-a).
+//   - platform admin (platform@test.local) → /admin/audit — platform-tier chain
+//     (gated behind is_admin; org_admin gets 404 there).
+test('AC-3f: org_admin /o/rede-a/manage/audit shows the org-scoped cross-commission feed incl. Farmácia rows', async ({
   page,
 }) => {
   await signInAs(page, 'admin@test.local')
+  await page.goto('/o/rede-a/manage/audit')
+
+  await expect(
+    page.getByRole('heading', { name: /trilha de auditoria/i }),
+  ).toBeVisible({ timeout: 15_000 })
+
+  // The feed must be visible — confirming org_admin can read the cross-commission
+  // audit trail for their org.
+  const feed = page.getByRole('list', { name: /registros de auditoria/i })
+  await expect(feed).toBeVisible({ timeout: 10_000 })
+  expect(await feed.getByRole('listitem').count()).toBeGreaterThan(0)
+
+  // The pagination summary shows the TOTAL row count. The seed inserts 52 CCIH
+  // rows + 31 Farmácia rows = 83 rede-a rows total. Assert the total is ≥ 83
+  // to confirm BOTH commissions contribute to the org feed (not just CCIH).
+  // The Farmácia rows may not land on page 1 (all rows share the same occurred_at
+  // so ordering by seq DESC puts higher-seq CCIH rows first), but the total count
+  // always reflects the full cross-commission result.
+  const paginationStatus = page.getByRole('status')
+  await expect(paginationStatus).toBeVisible({ timeout: 5_000 })
+  const statusText = await paginationStatus.innerText()
+  // Extract the total from "Página 1 de N · 1–25 de TOTAL registros"
+  const totalMatch = statusText.match(/de (\d+)\s+registros?/)
+  expect(totalMatch).not.toBeNull()
+  const total = Number.parseInt(totalMatch![1], 10)
+  // 52 CCIH + 31 Farmácia = 83 minimum; tests may add more CCIH rows
+  expect(total).toBeGreaterThanOrEqual(83)
+})
+
+test('AC-3f-platform: platform@ /admin/audit renders the platform-tier audit page', async ({
+  page,
+}) => {
+  await signInAs(page, 'platform@test.local')
   await page.goto('/admin/audit')
 
   await expect(
     page.getByRole('heading', { name: /trilha de auditoria/i }),
   ).toBeVisible({ timeout: 15_000 })
 
-  const feed = page.getByRole('list', { name: /registros de auditoria/i })
-  await expect(feed).toBeVisible({ timeout: 10_000 })
-
-  // Filter to commission Farmácia (B) and confirm rows render — proof the admin
-  // view spans commissions the commission view cannot see.
-  await page.goto(`/admin/audit?commission=${COMMISSION_B}`)
-  await expect(feed).toBeVisible({ timeout: 10_000 })
-  expect(await feed.getByRole('listitem').count()).toBeGreaterThan(0)
-  // The commission column shows the Farmácia name ON THE FEED ROWS (scope to the
-  // feed — the page also has a hidden <option> with the same text in the select).
+  // In the 2-org seed, all seeded audit rows have organization_id set, so the
+  // platform-tier chain (where both organization_id IS NULL AND commission_id IS NULL)
+  // is empty. The page renders AuditEmptyState rather than the feed list.
+  // We assert the route is accessible and renders the audit UI correctly — the
+  // empty-state text confirms no data-leakage and the right component is shown.
   await expect(
-    feed.getByText(/Farmácia e Terapêutica/i).first(),
-  ).toBeVisible()
+    page.getByText(/Nenhum registro de auditoria ainda\./i),
+  ).toBeVisible({ timeout: 10_000 })
 })
 
 // ===========================================================================
@@ -900,7 +948,7 @@ test('AC-4a: opening a foreign submitted response writes response.opened_foreign
   expect(foreign).toBeTruthy()
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/dashboard/submissions/${foreign.id}`)
+  await page.goto(`/o/rede-a/c/ccih/dashboard/submissions/${foreign.id}`)
   await expect(
     page.getByRole('heading', { name: /checklist.*higienização.*mãos/i }),
   ).toBeVisible({ timeout: 15_000 })
@@ -941,7 +989,7 @@ test('AC-4b: a member opening their OWN submission writes NO audit row', async (
   )
 
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto(`/c/ccih/dashboard/submissions/${own.id}`)
+  await page.goto(`/o/rede-a/c/ccih/dashboard/submissions/${own.id}`)
   // staff cannot reach the staff_admin submissions detail (route-gated) — but
   // either way, the invariant is: no .read row is written for a self/own access.
   await page.waitForLoadState('networkidle')
@@ -966,7 +1014,7 @@ test('AC-4c: dashboard CSV export writes response.exported (.export)', async ({
   )
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/dashboard')
+  await page.goto('/o/rede-a/c/ccih/dashboard')
   const formATab = page.getByRole('tab', { name: /checklist.*higienização.*mãos/i })
   await expect(formATab).toBeVisible({ timeout: 15_000 })
   await formATab.click()
@@ -1000,7 +1048,7 @@ test('AC-4d: audit CSV export writes audit.exported (.export)', async ({
   )
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/audit')
+  await page.goto('/o/rede-a/c/ccih/manage/audit')
   await expect(
     page.getByRole('list', { name: /registros de auditoria/i }),
   ).toBeVisible({ timeout: 15_000 })
@@ -1030,14 +1078,14 @@ test('AC-4d: audit CSV export writes audit.exported (.export)', async ({
 
 test('AC-5a: entity-type filter narrows the feed to that entity', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/audit')
+  await page.goto('/o/rede-a/c/ccih/manage/audit')
   const feed = page.getByRole('list', { name: /registros de auditoria/i })
   await expect(feed).toBeVisible({ timeout: 15_000 })
   const unfiltered = await feed.getByRole('listitem').count()
   expect(unfiltered).toBeGreaterThan(0)
 
   // Filter to "Membro" (commission_member) entries only.
-  await page.goto('/c/ccih/manage/audit?entity=commission_member')
+  await page.goto('/o/rede-a/c/ccih/manage/audit?entity=commission_member')
   await expect(feed).toBeVisible({ timeout: 10_000 })
   const memberRows = await feed.getByRole('listitem').count()
   expect(memberRows).toBeGreaterThan(0)
@@ -1054,14 +1102,14 @@ test('AC-5b: action-type filter narrows the feed to that action', async ({ page 
   await signInAs(page, 'chefe.ccih@test.local')
 
   // Baseline: the full (unfiltered) CCIH feed.
-  await page.goto('/c/ccih/manage/audit')
+  await page.goto('/o/rede-a/c/ccih/manage/audit')
   const feed = page.getByRole('list', { name: /registros de auditoria/i })
   await expect(feed).toBeVisible({ timeout: 15_000 })
   const unfiltered = await feed.getByRole('listitem').count()
   expect(unfiltered).toBeGreaterThan(0)
 
   // commission_member.added is the most reliable CCIH action; use it.
-  await page.goto('/c/ccih/manage/audit?action=commission_member.added')
+  await page.goto('/o/rede-a/c/ccih/manage/audit?action=commission_member.added')
   await expect(feed).toBeVisible({ timeout: 10_000 })
   const rows = feed.getByRole('listitem')
   const count = await rows.count()
@@ -1079,7 +1127,7 @@ test('AC-5c: actor filter narrows the feed to that actor', async ({ page }) => {
   // heavy — instead pick the staff who authored seeded signoffs). The seed signs
   // sections as staff1.ccih on the case-phase response; assert the filter scopes.
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/audit')
+  await page.goto('/o/rede-a/c/ccih/manage/audit')
   const feed = page.getByRole('list', { name: /registros de auditoria/i })
   await expect(feed).toBeVisible({ timeout: 15_000 })
 
@@ -1102,7 +1150,7 @@ test('AC-5c: actor filter narrows the feed to that actor', async ({ page }) => {
     return
   }
   const actorValue = optionValues[0].value
-  await page.goto(`/c/ccih/manage/audit?actor=${actorValue}`)
+  await page.goto(`/o/rede-a/c/ccih/manage/audit?actor=${actorValue}`)
   await expect(feed).toBeVisible({ timeout: 10_000 })
   // Every visible card names that actor (the actor's full_name).
   const rows = feed.getByRole('listitem')
@@ -1119,7 +1167,7 @@ test('AC-5d: date-range filter (future window) yields an empty feed; (past windo
   await signInAs(page, 'chefe.ccih@test.local')
 
   // A future-only window must produce zero rows (the empty state renders).
-  await page.goto('/c/ccih/manage/audit?from=2099-01-01&to=2099-12-31')
+  await page.goto('/o/rede-a/c/ccih/manage/audit?from=2099-01-01&to=2099-12-31')
   await expect(
     page.getByRole('list', { name: /registros de auditoria/i }),
   ).not.toBeVisible({ timeout: 10_000 })
@@ -1127,7 +1175,7 @@ test('AC-5d: date-range filter (future window) yields an empty feed; (past windo
   await expect(page.getByText(/nenhum registro/i)).toBeVisible({ timeout: 10_000 })
 
   // A wide past-inclusive window must produce rows.
-  await page.goto('/c/ccih/manage/audit?from=2020-01-01&to=2099-12-31')
+  await page.goto('/o/rede-a/c/ccih/manage/audit?from=2020-01-01&to=2099-12-31')
   const feed = page.getByRole('list', { name: /registros de auditoria/i })
   await expect(feed).toBeVisible({ timeout: 10_000 })
   expect(await feed.getByRole('listitem').count()).toBeGreaterThan(0)
@@ -1156,7 +1204,7 @@ test('AC-6: audit CSV row count equals the entity-filtered list total', async ({
   const expectedCount = dbRows.length
   expect(expectedCount).toBeGreaterThan(0)
 
-  await page.goto('/c/ccih/manage/audit?action=commission_member.added')
+  await page.goto('/o/rede-a/c/ccih/manage/audit?action=commission_member.added')
   const feed = page.getByRole('list', { name: /registros de auditoria/i })
   await expect(feed).toBeVisible({ timeout: 15_000 })
 
@@ -1178,15 +1226,18 @@ test('AC-6: audit CSV row count equals the entity-filtered list total', async ({
 // AC-7: Integrity control — "Verificar integridade" on an intact chain shows OK.
 // ===========================================================================
 
-test('AC-7a: verify_audit_chain reports OK for an intact chain (admin + staff_admin, JWT)', async ({
+test('AC-7a: verify_audit_chain reports OK for an intact chain (platform_admin + staff_admin, JWT)', async ({
   request,
 }) => {
-  const admin = await getOwnerToken(request, 'admin@test.local')
-  const adminResp = await rpc(request, 'verify_audit_chain', admin, {})
-  expect(adminResp.ok()).toBeTruthy()
-  const adminVerdict = (await adminResp.json()) as { ok: boolean; broken_seq: number | null }[]
-  expect(adminVerdict[0].ok).toBe(true)
-  expect(adminVerdict[0].broken_seq).toBeNull()
+  // In multi-tenancy, `admin@test.local` is org_admin (not is_admin), so the
+  // platform-tier chain check (no p_commission / p_organization args) requires
+  // `platform@test.local` (is_admin = true). The staff_admin leg is unchanged.
+  const platform = await getOwnerToken(request, 'platform@test.local')
+  const platformResp = await rpc(request, 'verify_audit_chain', platform, {})
+  expect(platformResp.ok()).toBeTruthy()
+  const platformVerdict = (await platformResp.json()) as { ok: boolean; broken_seq: number | null }[]
+  expect(platformVerdict[0].ok).toBe(true)
+  expect(platformVerdict[0].broken_seq).toBeNull()
 
   const chefe = await getOwnerToken(request, 'chefe.ccih@test.local')
   const chefeResp = await rpc(request, 'verify_audit_chain', chefe, {
@@ -1201,7 +1252,7 @@ test('AC-7b: "Verificar integridade" control renders the intact/OK verdict in th
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/audit')
+  await page.goto('/o/rede-a/c/ccih/manage/audit')
   await expect(
     page.getByRole('list', { name: /registros de auditoria/i }),
   ).toBeVisible({ timeout: 15_000 })
@@ -1227,7 +1278,7 @@ test('AC-8: keyboard-only — focus a filter, apply, run integrity check (focus 
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/audit')
+  await page.goto('/o/rede-a/c/ccih/manage/audit')
   await expect(
     page.getByRole('list', { name: /registros de auditoria/i }),
   ).toBeVisible({ timeout: 15_000 })

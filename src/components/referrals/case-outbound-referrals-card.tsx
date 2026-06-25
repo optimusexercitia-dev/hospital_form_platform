@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeftRight, Send } from "lucide-react";
@@ -40,6 +41,7 @@ import { RESOLVED_REFERRAL_STATUSES } from "@/lib/referrals/types";
  * (`@/lib/referrals/actions`) — an audited PHI read fired on intent, not at card mount.
  */
 export function CaseOutboundReferralsCard({
+  org,
   slug,
   sourceCaseId,
   sourceCaseNumber,
@@ -50,6 +52,8 @@ export function CaseOutboundReferralsCard({
   narratives,
   documents,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   sourceCaseId: string;
   sourceCaseNumber: number | null;
@@ -112,7 +116,7 @@ export function CaseOutboundReferralsCard({
                   {r.responseExpected && inFlight && <ResponseExpectedChip />}
                 </div>
                 <Link
-                  href={`/c/${slug}/encaminhamentos/${r.id}`}
+                  href={commissionHref(org, slug, "encaminhamentos", r.id)}
                   className="rounded text-sm font-medium text-foreground underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
                 >
                   {r.subject}

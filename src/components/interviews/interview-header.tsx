@@ -1,3 +1,4 @@
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -34,6 +35,7 @@ import {
  */
 export function InterviewHeader({
   interview,
+  org,
   slug,
   caseId,
   phases,
@@ -41,6 +43,8 @@ export function InterviewHeader({
   canWrite,
 }: {
   interview: InterviewDetail;
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   caseId: string;
   phases: InterviewPhaseOption[];
@@ -48,8 +52,8 @@ export function InterviewHeader({
   canWrite: boolean;
 }) {
   const backHref = isCoordinator
-    ? `/c/${slug}/manage/cases/${caseId}`
-    : `/c/${slug}`;
+    ? commissionHref(org, slug, "manage", "cases", caseId)
+    : commissionHref(org, slug);
   const backLabel = isCoordinator
     ? interview.caseNumber != null
       ? formatCaseNumber(interview.caseNumber)
@@ -124,7 +128,7 @@ export function InterviewHeader({
         {canWrite && (
           <InterviewLifecycleActions
             interview={interview}
-            slug={slug}
+            org={org} slug={slug}
             caseId={caseId}
             phases={phases}
           />

@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, FileText, Plus } from "lucide-react";
@@ -114,6 +115,7 @@ function itemRef(item: LayoutItem): { kind: "phase" | "narrative"; id: string } 
  * controls below are read-only (the RPCs reject non-draft edits).
  */
 export function TemplateBuilderShell({
+  org,
   slug,
   template,
   forms,
@@ -125,6 +127,8 @@ export function TemplateBuilderShell({
   phaseResultsEnabled = false,
   phaseResults = [],
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   template: ProcessTemplate;
   forms: SlotForm[];
@@ -192,7 +196,7 @@ export function TemplateBuilderShell({
           <div className="flex min-w-0 flex-col gap-2">
             <div className="flex items-center gap-3">
               <Link
-                href={`/c/${slug}/manage/process-templates`}
+                href={commissionHref(org, slug, "manage", "process-templates")}
                 className="inline-flex items-center gap-1.5 rounded text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
               >
                 <ArrowLeft aria-hidden="true" className="size-4" />

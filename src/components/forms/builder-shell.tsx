@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useState } from "react";
 import Link from "next/link";
 import { History, Plus, Settings2 } from "lucide-react";
@@ -30,6 +31,7 @@ import { useFlipReorder } from "@/components/forms/use-flip-reorder";
  * card.
  */
 export function BuilderShell({
+  org,
   slug,
   formId,
   formTitle,
@@ -39,6 +41,8 @@ export function BuilderShell({
   tree,
   imageUrls,
 }: {
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   formId: string;
   formTitle: string;
@@ -65,6 +69,7 @@ export function BuilderShell({
   return (
     <div className="flex flex-col gap-8">
       <BuilderHeader
+        org={org}
         slug={slug}
         formId={formId}
         formTitle={formTitle}
@@ -111,6 +116,7 @@ export function BuilderShell({
 }
 
 function BuilderHeader({
+  org,
   slug,
   formId,
   formTitle,
@@ -119,6 +125,7 @@ function BuilderHeader({
   versionNumber,
   versionId,
 }: {
+  org: string;
   slug: string;
   formId: string;
   formTitle: string;
@@ -135,7 +142,7 @@ function BuilderHeader({
         <div className="flex min-w-0 flex-col gap-2">
           <div className="flex items-center gap-3">
             <Link
-              href={`/c/${slug}/manage/forms`}
+              href={commissionHref(org, slug, "manage", "forms")}
               className="text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:rounded focus-visible:outline-none"
             >
               ← Formulários
@@ -165,12 +172,17 @@ function BuilderHeader({
 
         <div className="flex shrink-0 items-center gap-2">
           <Button asChild variant="outline" size="lg">
-            <Link href={`/c/${slug}/manage/forms/${formId}/versions`}>
+            <Link href={commissionHref(org, slug, "manage", "forms", formId, "versions")}>
               <History aria-hidden="true" />
               Versões
             </Link>
           </Button>
-          <DeleteDraftButton versionId={versionId} slug={slug} formId={formId} />
+          <DeleteDraftButton
+            versionId={versionId}
+            org={org}
+            slug={slug}
+            formId={formId}
+          />
           <PublishButton versionId={versionId} />
         </div>
       </div>

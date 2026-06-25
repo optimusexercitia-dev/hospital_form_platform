@@ -44,7 +44,14 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 
 test.use({ viewport: { width: 1280, height: 900 } })
 
-test.beforeEach(async ({ page }) => {
+// SKIP(multi-org pilot): NSP/patient_safety module disabled when >1 org is
+// provisioned (2-org seed, multi-tenancy Phase E). Re-enable when NSP-per-org
+// lands and patient_safety_enabled() returns true for commission-scoped users.
+const MULTI_ORG_PILOT_SKIP =
+  'NSP/referral modules disabled in the 2-org multi-tenancy pilot seed — re-enable when NSP-per-org lands'
+
+test.beforeEach(async ({ page }, testInfo) => {
+  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
   await page.emulateMedia({ reducedMotion: 'reduce' })
 })
 

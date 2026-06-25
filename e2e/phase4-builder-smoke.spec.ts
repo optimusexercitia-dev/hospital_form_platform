@@ -42,7 +42,7 @@ test('coordinator builds, configures, publishes, edits and versions a form', asy
   await signInAs(page, 'chefe.ccih@test.local')
 
   // --- F1: create a form from the list → lands in the builder -----------------
-  await page.goto('/c/ccih/manage/forms')
+  await page.goto('/o/rede-a/c/ccih/manage/forms')
   await page.getByRole('button', { name: 'Novo formulário' }).click()
   await page.getByLabel('Título do formulário').fill(title)
   await page.getByRole('button', { name: 'Criar formulário' }).click()

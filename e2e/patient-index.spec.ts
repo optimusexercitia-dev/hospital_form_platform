@@ -30,7 +30,15 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 test.describe.configure({ mode: 'serial' })
 test.use({ viewport: { width: 1280, height: 900 } })
 
-test.beforeEach(async ({ page }) => {
+// SKIP(multi-org pilot): patient_index module depends on NSP/referrals which are
+// disabled when >1 org is provisioned (2-org seed, multi-tenancy Phase E).
+// Re-enable when NSP-per-org lands and patient_safety_enabled() + referrals_enabled()
+// return true for commission-scoped users.
+const MULTI_ORG_PILOT_SKIP =
+  'NSP/referral modules disabled in the 2-org multi-tenancy pilot seed — re-enable when NSP-per-org lands'
+
+test.beforeEach(async ({ page }, testInfo) => {
+  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
   await page.emulateMedia({ reducedMotion: 'reduce' })
 })
 
@@ -288,7 +296,7 @@ test('AC-3: referral ENC-0001 detail shows count-only "aparece em N outros regis
 
   try {
     await signInAs(page, 'chefe.ccih@test.local')
-    await page.goto(`/c/ccih/encaminhamentos/${ENC1_ID}`)
+    await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
     await page.waitForLoadState('networkidle')
 
     // The referral-patient panel renders on ENC-0001 (hasPatient=true)

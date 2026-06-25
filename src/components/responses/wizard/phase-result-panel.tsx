@@ -8,10 +8,7 @@ import { walkResultRuleset } from "@/lib/queries/conditions";
 import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
-import { TOKEN_STYLES } from "@/components/cases/case-status-badge";
-
-const SELECT_CLASS =
-  "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
+import { TOKEN_COLOR_VAR, TOKEN_STYLES } from "@/components/cases/case-status-badge";
 
 const TEXTAREA_CLASS =
   "min-h-20 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -97,29 +94,22 @@ export function PhaseResultPanel({
           </p>
         </div>
 
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium">
+        <fieldset className="flex flex-col gap-1.5 text-sm">
+          <legend className="font-medium">
             Resultado da fase{" "}
             <span className="text-destructive" aria-hidden="true">
               *
             </span>
-          </span>
-          <select
-            className={SELECT_CLASS}
+          </legend>
+          <ResultChoiceGroup
+            name="phase-result-manual"
+            options={options}
             value={overrideResultId}
-            onChange={(e) => onChangeOverrideResult(e.target.value)}
+            onChange={onChangeOverrideResult}
             disabled={saving}
             required
-            aria-required="true"
-          >
-            <option value="">Selecione um resultado…</option>
-            {options.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          />
+        </fieldset>
 
         {chosen ? (
           <p className="inline-flex items-center gap-1.5 text-sm">
@@ -200,22 +190,16 @@ export function PhaseResultPanel({
 
         {overrideEnabled && (
           <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-3">
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">Resultado escolhido</span>
-              <select
-                className={SELECT_CLASS}
+            <fieldset className="flex flex-col gap-1.5 text-sm">
+              <legend className="font-medium">Resultado escolhido</legend>
+              <ResultChoiceGroup
+                name="phase-result-override"
+                options={options}
                 value={overrideResultId}
-                onChange={(e) => onChangeOverrideResult(e.target.value)}
+                onChange={onChangeOverrideResult}
                 disabled={saving}
-              >
-                <option value="">Selecione um resultado…</option>
-                {options.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </label>
+              />
+            </fieldset>
 
             {chosen && (
               <p className="inline-flex items-center gap-1.5 text-sm">
@@ -250,5 +234,81 @@ export function PhaseResultPanel({
         )}
       </fieldset>
     </section>
+  );
+}
+
+/**
+ * A colour-aware single-select radio group over the phase's result options —
+ * the picker the filler uses to choose a result. Replaces the former native
+ * `<select>` so every allowed result is visible at once (multiple-choice), and
+ * mirrors the wizard's `multiple_choice` option rows (left accent + colour dot +
+ * a faint tint on hover/selection). Render inside a `<fieldset>` so the group
+ * carries its own label/legend.
+ */
+function ResultChoiceGroup({
+  name,
+  options,
+  value,
+  onChange,
+  disabled,
+  required,
+}: {
+  /** Stable radio `name` (one group per panel instance). */
+  name: string;
+  /** The allowed result options (author-selected subset or active vocabulary). */
+  options: ResolvedPhaseResult[];
+  /** The chosen option id, or "" when none picked yet. */
+  value: string;
+  onChange: (resultId: string) => void;
+  disabled: boolean;
+  /** MANUAL mode: marks the group required (a choice is mandatory). */
+  required?: boolean;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-required={required ? true : undefined}
+      className="flex flex-col gap-1.5"
+    >
+      {options.map((o, i) => {
+        const id = `${name}-opt-${i}`;
+        const selected = value === o.id;
+        const color = TOKEN_COLOR_VAR[o.colorToken] ?? TOKEN_COLOR_VAR.muted;
+        return (
+          <label
+            key={o.id}
+            htmlFor={id}
+            className={cn(
+              "flex cursor-pointer items-center gap-2.5 rounded-lg border border-l-4 border-border bg-card px-3.5 py-2.5 text-sm transition-colors",
+              "hover:bg-[var(--opt-tint)] has-[:focus-visible]:ring-[3px] has-[:focus-visible]:ring-ring/40",
+              selected && "border-primary bg-[var(--opt-tint)]",
+              disabled && "cursor-not-allowed opacity-50",
+            )}
+            style={{
+              borderLeftColor: color,
+              ["--opt-tint" as string]: `color-mix(in oklch, ${color} 12%, transparent)`,
+            }}
+          >
+            <input
+              type="radio"
+              id={id}
+              name={name}
+              value={o.id}
+              checked={selected}
+              onChange={() => onChange(o.id)}
+              disabled={disabled}
+              required={required}
+              className="size-4 shrink-0 accent-primary"
+            />
+            <span
+              aria-hidden="true"
+              className="size-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: color }}
+            />
+            <span>{o.label}</span>
+          </label>
+        );
+      })}
+    </div>
   );
 }

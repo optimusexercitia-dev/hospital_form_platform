@@ -1,3 +1,4 @@
+import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import { ArrowUpRight, FileText, PencilLine } from "lucide-react";
 
@@ -17,14 +18,17 @@ import { StatusBadge } from "@/components/forms/status-badge";
  */
 export function FormCard({
   form,
+  org,
   slug,
   index = 0,
 }: {
   form: FormListItem;
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   index?: number;
 }) {
-  const href = `/c/${slug}/manage/forms/${form.id}`;
+  const href = commissionHref(org, slug, "manage", "forms", form.id);
   const action = form.hasDraft ? "Continuar edição" : "Editar publicado";
 
   return (

@@ -1,17 +1,25 @@
 import { redirect } from "next/navigation";
 
 import { getSessionContext } from "@/lib/queries/session";
+import { commissionHref, orgHref } from "@/lib/routing";
 
 /**
  * Root role-landing. Server Component — resolves where the signed-in user
  * belongs and redirects there. Middleware already bounces the unauthenticated
  * to /login, but we re-check defensively.
  *
- * Precedence (confirmed with backend): admin first, then memberships.
- *  - admin                     → /admin
- *  - exactly one membership    → /c/<slug>
- *  - more than one membership  → /c  (picker)
- *  - none and not admin        → friendly "sem acesso" screen (below)
+ * Precedence (multi-tenancy, confirmed with the lead):
+ *  - platform_admin (vendor)            → /admin        (provisioning registry)
+ *  - org_admin of exactly one org       → /o/<org>/manage
+ *  - org_admin of more than one org     → /o            (org picker)
+ *  - exactly one commission membership  → /o/<org>/c/<commission>
+ *  - more than one membership           → /c            (grouped picker)
+ *  - none of the above                  → friendly "sem acesso" screen
+ *
+ * platform_admin is walled off from tenant data (it holds no memberships), so it
+ * lands on its own provisioning area. An org_admin — even one who also belongs to
+ * commissions — lands on their org's manage area first (their super-user home);
+ * they navigate into commissions from there.
  */
 export default async function Home() {
   const context = await getSessionContext();
@@ -24,15 +32,24 @@ export default async function Home() {
     redirect("/admin");
   }
 
+  if (context.orgAdminOf.length === 1) {
+    redirect(orgHref(context.orgAdminOf[0].organization.slug, "manage"));
+  }
+
+  if (context.orgAdminOf.length > 1) {
+    redirect("/o");
+  }
+
   if (context.memberships.length === 1) {
-    redirect(`/c/${context.memberships[0].commission.slug}`);
+    const { commission } = context.memberships[0];
+    redirect(commissionHref(commission.organization.slug, commission.slug));
   }
 
   if (context.memberships.length > 1) {
     redirect("/c");
   }
 
-  // No commissions and not an admin — nothing to route to. Show a calm,
+  // No org-admin role and no commissions — nothing to route to. Show a calm,
   // actionable pt-BR message rather than a dead redirect loop.
   return <NoAccess email={context.email} />;
 }

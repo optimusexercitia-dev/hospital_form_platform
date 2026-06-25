@@ -47,7 +47,11 @@ export type AnswerState = Record<string, AnswerRecord>;
  * `getResponseForFill`) and passed to `<WizardClient>`.
  */
 export interface WizardData {
-  /** Route identifiers — used by F4 save calls and F5 submit. */
+  /**
+   * Route identifiers — used by F4 save calls and F5 submit. `org` + `slug` (the
+   * commission slug) build the multi-tenant `/o/[org]/c/[commission]` URLs.
+   */
+  org: string;
   slug: string;
   formId: string;
   responseId: string;

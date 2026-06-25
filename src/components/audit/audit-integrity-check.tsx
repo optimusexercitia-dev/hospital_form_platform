@@ -22,13 +22,18 @@ import { cn } from "@/lib/utils";
  * the verdict; a failure (`brokenSeq`) escalates to `role="alert"` so it is read
  * assertively. The button is keyboard-operable with the project focus ring.
  *
- * `commissionId` scopes the check to one commission's chain; omitted (admin only)
- * verifies the whole trail.
+ * Scope (multi-tenancy Phase C — the audit log is a 3-tier chain):
+ *  - `commissionId` → that commission's chain (the `/c/.../manage/audit` caller).
+ *  - `organizationId` → that org's chain (the `/o/[org]/manage/audit` caller).
+ *  - neither → the platform chain (the `/admin` caller).
+ * `commissionId` takes precedence when both are somehow passed (never expected).
  */
 export function AuditIntegrityCheck({
   commissionId,
+  organizationId,
 }: {
   commissionId?: string;
+  organizationId?: string;
 }) {
   const [state, setState] = useState<VerifyChainState | null>(null);
   const [pending, startTransition] = useTransition();
@@ -36,7 +41,14 @@ export function AuditIntegrityCheck({
   function run() {
     startTransition(async () => {
       try {
-        const next = await verifyAuditChainAction(commissionId);
+        // Resolve the tier scope: commission (bare string, legacy form) wins;
+        // else the org object; else undefined (platform chain).
+        const scope = commissionId
+          ? commissionId
+          : organizationId
+            ? { organizationId }
+            : undefined;
+        const next = await verifyAuditChainAction(scope);
         setState(next);
       } catch {
         // The action degrades to a verdict on its own; this is the last-ditch

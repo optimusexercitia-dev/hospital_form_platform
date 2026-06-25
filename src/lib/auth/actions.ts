@@ -5,6 +5,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
+import { commissionHref, orgHref } from '@/lib/routing'
 import type { Database } from '@/lib/types/database'
 
 /**
@@ -76,33 +77,57 @@ async function appOrigin(): Promise<string> {
  * which under load is where the cookie set by this action races the immediately
  * following navigation (a missed cookie there bounces the user back to /login).
  *
- *   admin                    → /admin
- *   exactly one membership   → /c/<slug>
- *   more than one membership → /c   (picker)
- *   none and not admin       → /    (root renders the "sem acesso" screen)
+ * Mirrors the root-landing precedence in `src/app/page.tsx` (multi-tenancy):
+ *   platform_admin                 → /admin
+ *   org_admin of exactly one org   → /o/<org>/manage
+ *   org_admin of more than one org → /o            (org picker)
+ *   exactly one commission         → /o/<org>/c/<commission>
+ *   more than one commission       → /c            (grouped picker)
+ *   none and not admin             → /             (root "sem acesso" screen)
  */
 async function resolveLanding(
   supabase: SupabaseClient<Database>,
   userId: string,
 ): Promise<string> {
-  const [profileResult, membershipResult] = await Promise.all([
+  const [profileResult, membershipResult, orgAdminResult] = await Promise.all([
     supabase.from('profiles').select('is_admin').eq('id', userId).maybeSingle(),
     supabase
       .from('commission_members')
-      .select('commission:commissions(slug)')
+      .select('commission:commissions(slug, organization:organizations(slug))')
       .eq('user_id', userId),
+    supabase
+      .from('organization_members')
+      .select('organization:organizations(slug)')
+      .eq('user_id', userId)
+      .eq('role', 'org_admin'),
   ])
 
   if (profileResult.data?.is_admin) {
     return '/admin'
   }
 
-  const slugs = (membershipResult.data ?? [])
-    .map((row) => row.commission?.slug)
+  // org_admin precedence: a customer super-user lands on their org manage area.
+  const orgSlugs = (orgAdminResult.data ?? [])
+    .map((row) => row.organization?.slug)
     .filter((slug): slug is string => Boolean(slug))
+  if (orgSlugs.length === 1) return orgHref(orgSlugs[0], 'manage')
+  if (orgSlugs.length > 1) return '/o'
 
-  if (slugs.length === 1) return `/c/${slugs[0]}`
-  if (slugs.length > 1) return '/c'
+  // Commission memberships, now org-nested.
+  const memberships = (membershipResult.data ?? [])
+    .map((row) => ({
+      slug: row.commission?.slug,
+      orgSlug: row.commission?.organization?.slug,
+    }))
+    .filter(
+      (m): m is { slug: string; orgSlug: string } =>
+        Boolean(m.slug) && Boolean(m.orgSlug),
+    )
+
+  if (memberships.length === 1) {
+    return commissionHref(memberships[0].orgSlug, memberships[0].slug)
+  }
+  if (memberships.length > 1) return '/c'
   return '/'
 }
 

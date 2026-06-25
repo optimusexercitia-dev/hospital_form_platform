@@ -71,7 +71,10 @@ select isnt((select id from crit), null, 'PQS creates a custom designated criter
 -- ===========================================================================
 -- Set up three acknowledged events to triage (admin/NSP is the custodian).
 -- ===========================================================================
-select test_helpers.claims_for((select admin from k), true);
+-- Multi-tenancy Phase B: notify_safety_event dropped its admin term (NSP module
+-- is org-orthogonal). A reporting-commission member registers the events;
+-- downstream NSP triage continues as the PQS-enrolled admin.
+select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 create temp table ev on commit drop as
   select

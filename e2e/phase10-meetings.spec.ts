@@ -186,7 +186,7 @@ async function callRPC(
  * Navigate to the seeded meeting detail and confirm the page renders.
  */
 async function goToSeededMeeting(page: Page) {
-  await page.goto(`/c/ccih/meetings/${SEEDED_MEETING_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/meetings/${SEEDED_MEETING_ID}`)
   await page.waitForURL(`**/c/ccih/meetings/${SEEDED_MEETING_ID}`, { timeout: 15_000 })
   // The meeting title is present in the page.
   await expect(page.getByRole('heading', { name: /Reunião Ordinária/i }).first()).toBeVisible({ timeout: 15_000 })
@@ -200,8 +200,8 @@ test('AC1 — happy path: schedule meeting, Marcar como realizada, add content, 
   await signInAs(page, 'chefe.ccih@test.local')
 
   // Navigate to meetings list
-  await page.goto('/c/ccih/meetings')
-  await page.waitForURL('**/c/ccih/meetings', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/meetings')
+  await page.waitForURL('**/o/rede-a/c/ccih/meetings', { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: /Reuniões/i }).first()).toBeVisible({ timeout: 10_000 })
 
   // Staff_admin sees "Nova reunião" button
@@ -443,7 +443,7 @@ test('AC1b — seeded meeting: Concluir → em_assinatura, quorum snapshot popul
   expect(meetingEvents.length).toBeGreaterThanOrEqual(1)
 
   // The case timeline UI should show the meeting event (via the case detail page)
-  await page.goto(`/c/ccih/cases/${SEEDED_CASE_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/cases/${SEEDED_CASE_ID}`)
   await page.waitForURL(`**/c/ccih/cases/${SEEDED_CASE_ID}`, { timeout: 15_000 })
   // We simply confirm the route loads without error (data leaked would be an app bug)
   // The case_events row existence is the DB truth; the timeline UI is not asserted
@@ -483,7 +483,7 @@ test('AC2 — signing flow: pending badge, sign, badge clears, auto-flip to assi
   expect(navText).toBeTruthy()
 
   // Navigate to the meeting
-  await page.goto(`/c/ccih/meetings/${SEEDED_MEETING_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/meetings/${SEEDED_MEETING_ID}`)
   await page.waitForURL(`**/c/ccih/meetings/${SEEDED_MEETING_ID}`, { timeout: 15_000 })
   await expect(page.getByText(/Em assinatura/i).first()).toBeVisible({ timeout: 10_000 })
 
@@ -515,7 +515,7 @@ test('AC2 — signing flow: pending badge, sign, badge clears, auto-flip to assi
   // --- Sign as staff2.ccih ---
   await signOut(page)
   await signInAs(page, 'staff2.ccih@test.local')
-  await page.goto(`/c/ccih/meetings/${SEEDED_MEETING_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/meetings/${SEEDED_MEETING_ID}`)
   await page.waitForURL(`**/c/ccih/meetings/${SEEDED_MEETING_ID}`, { timeout: 15_000 })
 
   const assinarBtn2 = page.getByRole('button', { name: /Assinar/i })
@@ -529,7 +529,7 @@ test('AC2 — signing flow: pending badge, sign, badge clears, auto-flip to assi
   // --- Sign as chefe.ccih (the last present attendee) ---
   await signOut(page)
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/meetings/${SEEDED_MEETING_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/meetings/${SEEDED_MEETING_ID}`)
   await page.waitForURL(`**/c/ccih/meetings/${SEEDED_MEETING_ID}`, { timeout: 15_000 })
 
   const assinarBtn3 = page.getByRole('button', { name: /Assinar/i })
@@ -572,8 +572,8 @@ test('AC2 — signing flow: pending badge, sign, badge clears, auto-flip to assi
   // After signing their own row, staff1 should no longer see a pending badge
   await signOut(page)
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto('/c/ccih/meetings')
-  await page.waitForURL('**/c/ccih/meetings', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/meetings')
+  await page.waitForURL('**/o/rede-a/c/ccih/meetings', { timeout: 15_000 })
   // The "Reuniões" nav link badge should show 0 (no more pending signatures)
   // Scope to the sidebar for an unambiguous locator.
   const sidebarAfter = page.getByRole('complementary')
@@ -603,8 +603,8 @@ test('AC3 — settings: create/rename/archive meeting type; change quorum rule',
   await signInAs(page, 'chefe.ccih@test.local')
 
   // Navigate to manage/meetings
-  await page.goto('/c/ccih/manage/meetings')
-  await page.waitForURL('**/c/ccih/manage/meetings', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/meetings')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/meetings', { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: /Tipos de reunião/i }).first()).toBeVisible({ timeout: 10_000 })
 
   // --- Create a new meeting type ---
@@ -652,8 +652,8 @@ test('AC3 — settings: create/rename/archive meeting type; change quorum rule',
   }
 
   // Ensure we are still on manage/meetings (archive dialog may have navigated away)
-  await page.goto('/c/ccih/manage/meetings')
-  await page.waitForURL('**/c/ccih/manage/meetings', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/meetings')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/meetings', { timeout: 15_000 })
 
   // --- Quorum rule: change to maioria_simples first (check it's the default) ---
   // The section uses aria-labelledby pointing to the h2; locate by the heading text
@@ -681,7 +681,7 @@ test('AC3 — settings: create/rename/archive meeting type; change quorum rule',
 
   // Reload and verify persistence
   await page.reload()
-  await page.waitForURL('**/c/ccih/manage/meetings', { timeout: 15_000 })
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/meetings', { timeout: 15_000 })
   // Re-locate after reload using the section locator pattern
   const quorumHeadingAfter = page.getByRole('heading', { name: /Regra de quórum/i })
   await expect(quorumHeadingAfter).toBeVisible({ timeout: 10_000 })
@@ -927,7 +927,7 @@ test('AC4d — negative: editing minutes while em_assinatura is rejected (conten
 
   // Via the UI: navigate to the locked meeting and verify the minutes editor is read-only
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/meetings/${lockedMeetingId}`)
+  await page.goto(`/o/rede-a/c/ccih/meetings/${lockedMeetingId}`)
   await page.waitForURL(`**/c/ccih/meetings/${lockedMeetingId}`, { timeout: 15_000 })
   await expect(page.getByText(/Em assinatura/i).first()).toBeVisible({ timeout: 10_000 })
 
@@ -965,7 +965,7 @@ test('AC4e — Reabrir revokes signatures and unlocks editing', async ({ page })
   // There may be 0 or more active sigs
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/meetings/${reabrirMeetingId}`)
+  await page.goto(`/o/rede-a/c/ccih/meetings/${reabrirMeetingId}`)
   await page.waitForURL(`**/c/ccih/meetings/${reabrirMeetingId}`, { timeout: 15_000 })
   await expect(page.getByText(/Em assinatura/i).first()).toBeVisible({ timeout: 10_000 })
 
@@ -1010,8 +1010,8 @@ test('AC5a — plain staff sees meetings read-only (no lifecycle controls, no No
   await signInAs(page, 'staff1.ccih@test.local')
 
   // Meetings list
-  await page.goto('/c/ccih/meetings')
-  await page.waitForURL('**/c/ccih/meetings', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/meetings')
+  await page.waitForURL('**/o/rede-a/c/ccih/meetings', { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: /Reuniões/i }).first()).toBeVisible({ timeout: 10_000 })
 
   // "Nova reunião" button must NOT be visible
@@ -1020,7 +1020,7 @@ test('AC5a — plain staff sees meetings read-only (no lifecycle controls, no No
 
   // Meeting cards are visible (seeded meeting should appear)
   // Navigate to the seeded meeting detail
-  await page.goto(`/c/ccih/meetings/${SEEDED_MEETING_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/meetings/${SEEDED_MEETING_ID}`)
   await page.waitForURL(`**/c/ccih/meetings/${SEEDED_MEETING_ID}`, { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: /Reunião/i }).first()).toBeVisible({ timeout: 10_000 })
 
@@ -1040,7 +1040,7 @@ test('AC5b — foreign-commission user gets 404 on CCIH meeting (no data leakage
   await signInAs(page, 'chefe.farm@test.local')
 
   // Navigate to a CCIH meeting URL — should 404
-  await page.goto(`/c/ccih/meetings/${SEEDED_MEETING_ID}`)
+  await page.goto(`/o/rede-a/c/ccih/meetings/${SEEDED_MEETING_ID}`)
   // Either a 404 page or a redirect to not-found — either way, no CCIH data may leak.
   const bodyText = await page.locator('body').textContent({ timeout: 15_000 })
 
@@ -1050,7 +1050,7 @@ test('AC5b — foreign-commission user gets 404 on CCIH meeting (no data leakage
 
   // The farm admin navigating to /c/ccih (a commission they're not a member of)
   // should also 404 / no content
-  await page.goto('/c/ccih/meetings')
+  await page.goto('/o/rede-a/c/ccih/meetings')
   const meetingsText = await page.locator('body').textContent({ timeout: 15_000 })
   const ccihMeetingVisible = meetingsText?.includes('Reunião Ordinária — Junho/2026') ?? false
   expect(ccihMeetingVisible).toBe(false)
@@ -1059,7 +1059,7 @@ test('AC5b — foreign-commission user gets 404 on CCIH meeting (no data leakage
 test('AC5c — manage/meetings settings page is staff_admin-only', async ({ page }) => {
   // Plain staff cannot access settings
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto('/c/ccih/manage/meetings')
+  await page.goto('/o/rede-a/c/ccih/manage/meetings')
   await page.waitForURL((url) => !url.toString().includes('/login'), { timeout: 15_000 })
 
   // Should get a 404/forbidden or redirect — NOT the settings UI
@@ -1071,8 +1071,8 @@ test('AC5c — manage/meetings settings page is staff_admin-only', async ({ page
 
   // Staff_admin CAN access settings
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/c/ccih/manage/meetings')
-  await page.waitForURL('**/c/ccih/manage/meetings', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/meetings')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/meetings', { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: /Tipos de reunião/i }).first()).toBeVisible({ timeout: 10_000 })
 })
 
@@ -1084,8 +1084,8 @@ test('AC6 — keyboard-only: schedule meeting and Concluir via keyboard navigati
   await signInAs(page, 'chefe.ccih@test.local')
 
   // Tab to the "Reuniões" nav item and Enter
-  await page.goto('/c/ccih/meetings')
-  await page.waitForURL('**/c/ccih/meetings', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/meetings')
+  await page.waitForURL('**/o/rede-a/c/ccih/meetings', { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: /Reuniões/i }).first()).toBeVisible({ timeout: 10_000 })
 
   // Focus the "Nova reunião" button via keyboard (Tab until we reach it)
@@ -1192,8 +1192,8 @@ test('AC6 — keyboard-only: schedule meeting and Concluir via keyboard navigati
 test('AC7 — meetings list: filters by status and type; Reuniões nav item present', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
 
-  await page.goto('/c/ccih/meetings')
-  await page.waitForURL('**/c/ccih/meetings', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/meetings')
+  await page.waitForURL('**/o/rede-a/c/ccih/meetings', { timeout: 15_000 })
 
   // The sidebar nav shows a "Reuniões" link (with an optional pending-signature badge count
   // appended to the accessible name, e.g. "Reuniões 1"). Use href to locate unambiguously.
@@ -1258,7 +1258,7 @@ test('AC8 — Cancelar a meeting transitions to terminal cancelada state', async
   expect(cancelMeetingId).toBeTruthy()
 
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/c/ccih/meetings/${cancelMeetingId}`)
+  await page.goto(`/o/rede-a/c/ccih/meetings/${cancelMeetingId}`)
   await page.waitForURL(`**/c/ccih/meetings/${cancelMeetingId}`, { timeout: 15_000 })
   await expect(page.getByText(/Agendada/i).first()).toBeVisible({ timeout: 10_000 })
 

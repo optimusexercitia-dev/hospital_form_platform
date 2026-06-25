@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
@@ -20,10 +21,13 @@ import { FormBanner } from "@/components/auth/form-banner";
 
 export function DeleteDraftButton({
   versionId,
+  org,
   slug,
   formId,
 }: {
   versionId: string;
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
   formId: string;
 }) {
@@ -42,9 +46,9 @@ export function DeleteDraftButton({
       }
       setOpen(false);
       if (result.redirectToForms) {
-        router.push(`/c/${slug}/manage/forms`);
+        router.push(commissionHref(org, slug, "manage", "forms"));
       } else {
-        router.push(`/c/${slug}/manage/forms/${formId}`);
+        router.push(commissionHref(org, slug, "manage", "forms", formId));
       }
     });
   }

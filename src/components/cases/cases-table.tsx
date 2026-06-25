@@ -1,5 +1,6 @@
 "use client";
 
+import { commissionHref } from "@/lib/routing";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -105,9 +106,12 @@ function SortHeader({
  */
 export function CasesTable({
   rows,
+  org,
   slug,
 }: {
   rows: CaseBoardRow[];
+  /** Org slug for hrefs. */
+  org: string;
   slug: string;
 }) {
   const router = useRouter();
@@ -205,7 +209,7 @@ export function CasesTable({
             </tr>
           ) : (
             sorted.map((row) => {
-              const href = `/c/${slug}/manage/cases/${row.case.id}`;
+              const href = commissionHref(org, slug, "manage", "cases", row.case.id);
               const cp = currentPhase(row);
               const actives = activePhases(row);
               return (
