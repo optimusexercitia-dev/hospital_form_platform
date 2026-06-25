@@ -1,8 +1,8 @@
 'use server'
 
 import {
-  getPatientAccessAudit,
-  searchPatient,
+  getPatientAccessAuditForOrg,
+  searchPatientForOrg,
 } from '@/lib/queries/patient-index'
 import type {
   PatientAccessAuditRow,
@@ -48,6 +48,7 @@ const MESSAGES = {
  * deployment fails closed here, the DEFINER RPC having returned nothing).
  */
 export async function searchPatientAction(
+  orgId: string,
   input: PatientSearchInput,
 ): Promise<PatientSearchState> {
   const mrn = input.mrn?.trim() || null
@@ -61,12 +62,11 @@ export async function searchPatientAction(
     }
   }
 
-  // TODO(nsp-per-org B): swap to searchPatientForOrg(orgId, mrn, encounter) once the
-  // page lives under /o/[org]/nsp/pacientes and supplies orgId. Until then this calls
-  // the deprecated org-blind stub — the page ships UI-OFF in sub-phase A.
-  const result = await searchPatient({ mrn, encounter })
+  // NSP-per-org (ADR 0042): scoped to the route's org — the DEFINER RPC gates on
+  // enrollment in `orgId` + filters the trajectory to that org. A non-enrolled caller
+  // (incl. a member of a DIFFERENT org passing this orgId) gets null → fail closed.
+  const result = await searchPatientForOrg(orgId, mrn, encounter)
   if (!result) {
-    // null = not entitled (non-PQS), flag off, or RPC error → fail closed, pt-BR.
     return { ok: false, error: MESSAGES.searchUnavailable }
   }
 
@@ -81,11 +81,12 @@ export async function searchPatientAction(
  * (returns `[]` to a non-PQS caller). Reading the audit is not itself audited.
  */
 export async function loadPatientAccessAudit(
+  orgId: string,
   input: PatientSearchInput,
 ): Promise<PatientAccessAuditRow[]> {
   const mrn = input.mrn?.trim() || null
   const encounter = input.encounter?.trim() || null
   if (!mrn && !encounter) return []
-  // TODO(nsp-per-org B): swap to getPatientAccessAuditForOrg(orgId, …) with the route's orgId.
-  return getPatientAccessAudit({ mrn, encounter })
+  // NSP-per-org: org-scoped (enrollment gate + org-filtered audit rows).
+  return getPatientAccessAuditForOrg(orgId, mrn, encounter)
 }

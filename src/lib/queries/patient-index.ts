@@ -212,10 +212,16 @@ export async function searchPatientForOrg(
   mrn: string | null,
   encounter: string | null,
 ): Promise<PatientSearchResult | null> {
-  void orgId
-  void mrn
-  void encounter
-  throw new Error('not implemented: searchPatientForOrg (NSP-per-org A3/A5)')
+  if (!orgId) return null
+  if (!mrn?.trim() && !encounter?.trim()) return null
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('search_patient_xref', {
+    p_mrn: mrn?.trim() ?? undefined,
+    p_encounter: encounter?.trim() ?? undefined,
+    p_org_id: orgId,
+  })
+  if (error || !data) return null
+  return mapSearchResult(data as unknown as PatientSearchJson)
 }
 
 /**
@@ -298,10 +304,17 @@ export async function getPatientAccessAuditForOrg(
   mrn: string | null,
   encounter: string | null,
 ): Promise<PatientAccessAuditRow[]> {
-  void orgId
-  void mrn
-  void encounter
-  throw new Error('not implemented: getPatientAccessAuditForOrg (NSP-per-org A3/A5)')
+  if (!orgId) return []
+  if (!mrn?.trim() && !encounter?.trim()) return []
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('patient_access_audit', {
+    p_mrn: mrn?.trim() ?? undefined,
+    p_encounter: encounter?.trim() ?? undefined,
+    p_org_id: orgId,
+  })
+  return ((data as unknown as PatientAccessAuditJson[] | null) ?? []).map(
+    mapAccessAuditRow,
+  )
 }
 
 // ---------------------------------------------------------------------------

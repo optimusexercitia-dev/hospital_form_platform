@@ -6,6 +6,10 @@ import { getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
 import { orgHref } from '@/lib/routing'
 import type { ActionState } from '@/lib/admin/actions'
+// The appoint/revoke-coordinator actions return the `useActionState`-shaped result
+// with a success `message` (the FE coordinator-manager reads `result.message`); the
+// `@/lib/admin/actions` ActionState used by the form actions above has no `message`.
+import type { ActionState as MutationActionState } from '@/lib/safety/types'
 import type { TablesInsert } from '@/lib/types/database'
 
 /**
@@ -164,4 +168,96 @@ export async function createCommission(
     revalidatePath(orgHref(hospital.organizations.slug, 'manage'))
   }
   return { ok: true, error: MESSAGES.commissionCreated }
+}
+
+// ===========================================================================
+// NSP-coordinator appointment (NSP-per-org, ADR 0042) — the org_admin's BOOTSTRAP of
+// the per-org roster curator (three-way duty separation: org_admin APPOINTS the
+// coordinator; the coordinator CURATES pqs_members; enrollment grants PHI read).
+// ===========================================================================
+
+const COORD_MESSAGES = {
+  forbidden: 'Apenas um administrador da organização pode nomear o coordenador do NSP.',
+  generic: 'Não foi possível concluir. Tente novamente.',
+  appointed: 'Coordenador(a) do NSP nomeado(a).',
+  revoked: 'Coordenação do NSP removida.',
+} as const
+
+/**
+ * Appoint `userId` as the `nsp_coordinator` of `orgId`. Writes the `organization_members`
+ * role; gated `is_org_admin_of(orgId)` — the org_admin's bootstrap action. RLS
+ * (`organization_members_write` = `is_admin OR is_org_admin_of`) is the DB authority;
+ * we ALSO re-check `is_org_admin_of` server-side (defense in depth — ADR 0041 amd-11:
+ * never trust the client on a tenant write). Idempotent on the `(org, user)` row
+ * (UNIQUE) → upserts the role to `nsp_coordinator`.
+ */
+export async function appointNspCoordinator(
+  orgId: string,
+  userId: string,
+): Promise<MutationActionState> {
+  if (!orgId || !userId) {
+    return { ok: false, error: COORD_MESSAGES.generic }
+  }
+  if (!(await authorizeOrgAdmin(orgId))) {
+    return { ok: false, error: COORD_MESSAGES.forbidden }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('organization_members')
+    .upsert(
+      { organization_id: orgId, user_id: userId, role: 'nsp_coordinator' },
+      { onConflict: 'organization_id,user_id' },
+    )
+
+  if (error) {
+    return { ok: false, error: COORD_MESSAGES.generic }
+  }
+
+  const context = await getSessionContext()
+  const orgSlug = context?.orgAdminOf.find(
+    (o) => o.organization.id === orgId,
+  )?.organization.slug
+  if (orgSlug) revalidatePath(orgHref(orgSlug, 'manage'))
+  return { ok: true, message: COORD_MESSAGES.appointed }
+}
+
+/**
+ * Revoke `userId`'s `nsp_coordinator` role in `orgId`. Deletes ONLY a coordinator
+ * membership row (the `role = 'nsp_coordinator'` filter protects an org_admin's row
+ * from accidental deletion). Gated + re-checked `is_org_admin_of(orgId)`. Idempotent
+ * (a no-op if the user isn't a coordinator). Note: this does NOT touch the user's
+ * `pqs_members` enrollment — a coordinator who self-enrolled stays a PHI reader until
+ * removed from the roster (separate concern; the coordinator role only governs
+ * curation rights).
+ */
+export async function revokeNspCoordinator(
+  orgId: string,
+  userId: string,
+): Promise<MutationActionState> {
+  if (!orgId || !userId) {
+    return { ok: false, error: COORD_MESSAGES.generic }
+  }
+  if (!(await authorizeOrgAdmin(orgId))) {
+    return { ok: false, error: COORD_MESSAGES.forbidden }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('organization_members')
+    .delete()
+    .eq('organization_id', orgId)
+    .eq('user_id', userId)
+    .eq('role', 'nsp_coordinator')
+
+  if (error) {
+    return { ok: false, error: COORD_MESSAGES.generic }
+  }
+
+  const context = await getSessionContext()
+  const orgSlug = context?.orgAdminOf.find(
+    (o) => o.organization.id === orgId,
+  )?.organization.slug
+  if (orgSlug) revalidatePath(orgHref(orgSlug, 'manage'))
+  return { ok: true, message: COORD_MESSAGES.revoked }
 }

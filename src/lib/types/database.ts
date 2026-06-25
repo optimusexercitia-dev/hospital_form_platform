@@ -6579,6 +6579,10 @@ export type Database = {
         }[]
       }
       list_my_cases: { Args: { p_commission: string }; Returns: Json }
+      list_org_eligible_users_for_pqs: {
+        Args: { p_org_id: string }
+        Returns: Json
+      }
       list_pqs_members: { Args: { p_org_id: string }; Returns: Json }
       list_referral_target_commissions: {
         Args: { p_source_commission_id: string }

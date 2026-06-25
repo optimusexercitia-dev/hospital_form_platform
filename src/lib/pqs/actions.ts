@@ -1,6 +1,28 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
+
+import { createClient } from '@/lib/supabase/server'
 import type { ActionState } from '@/lib/safety/types'
+
+// Local pt-BR messages (Rule 10; raw Postgres errors never reach the UI). The DEFINER
+// RPCs are the authority — a non-coordinator hits 42501 → `forbidden`.
+const MESSAGES = {
+  forbidden: 'Apenas o coordenador do NSP da organização pode gerenciar a equipe.',
+  generic: 'Não foi possível concluir. Tente novamente.',
+  memberAdded: 'Membro adicionado à equipe do NSP.',
+  memberRemoved: 'Membro removido da equipe do NSP.',
+  windowSaved: 'Janela de RCA atualizada.',
+  windowRange: 'A janela de RCA deve estar entre 1 e 365 dias.',
+} as const
+
+const PG_RLS_DENIED = '42501'
+
+/** Revalidate the per-org NSP console after a roster / config mutation (the roster +
+ * config surfaces live beneath the `/o/[org]/nsp` layout; 'layout' covers them all). */
+function revalidateNsp(): void {
+  revalidatePath('/o/[org]/nsp', 'layout')
+}
 
 /**
  * NSP / PQS roster-curation + per-org config server actions (NSP-per-org, sub-phase
@@ -34,9 +56,19 @@ export async function addPqsMember(
   orgId: string,
   userId: string,
 ): Promise<ActionState> {
-  void orgId
-  void userId
-  throw new Error('not implemented: addPqsMember (NSP-per-org A2/A3)')
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('add_pqs_member', {
+    p_org_id: orgId,
+    p_user_id: userId,
+  })
+  if (error) {
+    return {
+      ok: false,
+      error: error.code === PG_RLS_DENIED ? MESSAGES.forbidden : MESSAGES.generic,
+    }
+  }
+  revalidateNsp()
+  return { ok: true, message: MESSAGES.memberAdded }
 }
 
 /**
@@ -48,9 +80,19 @@ export async function removePqsMember(
   orgId: string,
   userId: string,
 ): Promise<ActionState> {
-  void orgId
-  void userId
-  throw new Error('not implemented: removePqsMember (NSP-per-org A2/A3)')
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('remove_pqs_member', {
+    p_org_id: orgId,
+    p_user_id: userId,
+  })
+  if (error) {
+    return {
+      ok: false,
+      error: error.code === PG_RLS_DENIED ? MESSAGES.forbidden : MESSAGES.generic,
+    }
+  }
+  revalidateNsp()
+  return { ok: true, message: MESSAGES.memberRemoved }
 }
 
 /**
@@ -65,7 +107,21 @@ export async function setPqsRcaDueWindow(
   orgId: string,
   days: number,
 ): Promise<ActionState> {
-  void orgId
-  void days
-  throw new Error('not implemented: setPqsRcaDueWindow (NSP-per-org A2/A3)')
+  // Client-side range guard for a friendly message; the RPC re-validates → HC046.
+  if (!Number.isInteger(days) || days < 1 || days > 365) {
+    return { ok: false, error: MESSAGES.windowRange }
+  }
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('set_pqs_rca_due_window', {
+    p_org_id: orgId,
+    p_days: days,
+  })
+  if (error) {
+    return {
+      ok: false,
+      error: error.code === PG_RLS_DENIED ? MESSAGES.forbidden : MESSAGES.generic,
+    }
+  }
+  revalidateNsp()
+  return { ok: true, message: MESSAGES.windowSaved }
 }

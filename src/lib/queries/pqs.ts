@@ -21,7 +21,7 @@ import type {
   SuspectedHarmLevel,
 } from '@/lib/safety/types'
 import type { PqsDepartment } from '@/lib/safety/triage-types'
-import type { PqsRosterMember } from '@/lib/pqs/roster-types'
+import type { PqsRosterMember, PqsEligibleUser } from '@/lib/pqs/roster-types'
 
 // The CLIENT-SAFE inbox types live in `@/lib/safety/types` (ZERO imports) so the
 // NSP UI imports them WITHOUT dragging this server-only module into the client
@@ -29,7 +29,7 @@ import type { PqsRosterMember } from '@/lib/pqs/roster-types'
 // consumers keep resolving unchanged.
 export type { PqsInboxItem, PqsInboxFilters } from '@/lib/safety/types'
 export type { PqsDepartment } from '@/lib/safety/triage-types'
-export type { PqsRosterMember } from '@/lib/pqs/roster-types'
+export type { PqsRosterMember, PqsEligibleUser } from '@/lib/pqs/roster-types'
 
 interface PqsInboxRow {
   id: string
@@ -161,8 +161,21 @@ export async function isNspCoordinatorOfSelf(orgId: string): Promise<boolean> {
  * raises 42501; this maps to empty for the read path).
  */
 export async function listPqsMembers(orgId: string): Promise<PqsRosterMember[]> {
-  void orgId
-  throw new Error('not implemented: listPqsMembers (NSP-per-org A2/A3)')
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('list_pqs_members', {
+    p_org_id: orgId,
+  })
+  if (error || !data) return []
+  // The DEFINER RPC already shapes camelCase keys (jsonb_build_object); narrow the
+  // jsonb to the domain rows (a non-coordinator caller gets `[]` from the 42501 →
+  // error branch above).
+  return (data as unknown as PqsRosterMember[]).map((m) => ({
+    userId: m.userId,
+    fullName: m.fullName,
+    email: m.email,
+    addedAt: m.addedAt,
+    addedBy: m.addedBy,
+  }))
 }
 
 /**
@@ -173,6 +186,68 @@ export async function listPqsMembers(orgId: string): Promise<PqsRosterMember[]> 
 export async function getPqsDepartmentForOrg(
   orgId: string,
 ): Promise<PqsDepartment | null> {
-  void orgId
-  throw new Error('not implemented: getPqsDepartmentForOrg (NSP-per-org A2/A3)')
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('pqs_department')
+    .select('name, rca_default_due_days')
+    .eq('organization_id', orgId)
+    .maybeSingle()
+    .returns<{ name: string; rca_default_due_days: number } | null>()
+
+  if (error || !data) return null
+  return { name: data.name, defaultDueDays: data.rca_default_due_days }
+}
+
+/**
+ * Users eligible to be enrolled in `orgId`'s PQS roster OR appointed `nsp_coordinator`
+ * — DISTINCT users with ANY membership in the org (org-level ∪ commission members of
+ * the org's commissions), name-sorted (pt-BR). Backed by the
+ * `list_org_eligible_users_for_pqs(p_org_id)` DEFINER RPC (a coordinator can't read
+ * `commission_members` under RLS, so the union is assembled DEFINER-side), gated to
+ * coordinator OR org_admin of the org. A caller with neither role gets `[]` (the RPC
+ * raises 42501 → error branch). PHI-free.
+ */
+export async function listOrgEligibleUsersForPqs(
+  orgId: string,
+): Promise<PqsEligibleUser[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('list_org_eligible_users_for_pqs', {
+    p_org_id: orgId,
+  })
+  if (error || !data) return []
+  return (data as unknown as PqsEligibleUser[]).map((u) => ({
+    userId: u.userId,
+    fullName: u.fullName,
+    email: u.email,
+  }))
+}
+
+/**
+ * The CURRENT `nsp_coordinator`s of `orgId` (for the org-admin appoint surface, so an
+ * admin sees who is appointed + can revoke). Reads `organization_members` filtered to
+ * `role = 'nsp_coordinator'` joined to `profiles`; RLS (`organization_members_select`
+ * = `is_admin OR is_org_admin_of`) scopes it to the org_admin caller. PHI-free; `[]`
+ * for a non-admin (RLS yields no rows).
+ */
+export async function listNspCoordinators(
+  orgId: string,
+): Promise<PqsEligibleUser[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('organization_members')
+    .select('user_id, profiles:user_id(full_name, email)')
+    .eq('organization_id', orgId)
+    .eq('role', 'nsp_coordinator')
+    .returns<
+      { user_id: string; profiles: { full_name: string | null; email: string | null } | null }[]
+    >()
+
+  if (error || !data) return []
+  return data
+    .map((r) => ({
+      userId: r.user_id,
+      fullName: r.profiles?.full_name ?? null,
+      email: r.profiles?.email ?? null,
+    }))
+    .sort((a, b) => (a.fullName ?? '').localeCompare(b.fullName ?? '', 'pt-BR'))
 }

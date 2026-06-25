@@ -40,3 +40,18 @@ export interface PqsRosterMember {
   /** The curator (coordinator) who enrolled them; null for seed/system rows. */
   addedBy: string | null
 }
+
+/**
+ * A user eligible to be enrolled in an org's PQS roster OR appointed `nsp_coordinator`
+ * — i.e. anyone with ANY membership in the org (org-level OR a commission in the org).
+ * PHI-free (profile name/email for display). Serves both the roster enroll-picker
+ * (coordinator) and the appoint-coordinator picker (org_admin).
+ */
+export interface PqsEligibleUser {
+  /** The user's profile id. */
+  userId: string
+  /** Display name from `profiles.full_name` (may be null — treat as unknown). */
+  fullName: string | null
+  /** Denormalized auth email copy (`profiles.email`, nullable — `string | null`). */
+  email: string | null
+}

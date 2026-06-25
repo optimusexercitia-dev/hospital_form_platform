@@ -1872,6 +1872,52 @@ end;
 $$;
 ALTER FUNCTION "public"."list_pqs_members"("p_org_id" "uuid") OWNER TO "postgres";
 
+-- list_org_eligible_users_for_pqs(org): DISTINCT users with ANY membership in the org
+-- (organization_members ∪ commission_members of the org's commissions), name-sorted.
+-- Serves BOTH the roster enroll-picker (coordinator) AND the appoint-coordinator
+-- picker (org_admin). DEFINER because a coordinator who is NOT a commission member
+-- cannot read commission_members under RLS (commission_members_select = member OR
+-- org_admin) — so the union is assembled here, gated to coordinator OR org_admin of
+-- the org. PHI-free (profile name/email only).
+CREATE OR REPLACE FUNCTION "public"."list_org_eligible_users_for_pqs"("p_org_id" "uuid") RETURNS "jsonb"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'app', 'public', 'pg_catalog'
+    AS $$
+declare
+  v_result jsonb;
+begin
+  if not (app.is_nsp_coordinator_of(p_org_id) or app.is_org_admin_of(p_org_id)) then
+    raise exception 'apenas o coordenador do NSP ou um administrador da organização pode listar os usuários elegíveis'
+      using errcode = '42501';
+  end if;
+  with eligible as (
+    -- org-level members
+    select om.user_id
+    from public.organization_members om
+    where om.organization_id = p_org_id
+    union
+    -- members of any commission in the org
+    select cm.user_id
+    from public.commission_members cm
+    join public.commissions c on c.id = cm.commission_id
+    where c.organization_id = p_org_id
+  )
+  select coalesce(jsonb_agg(
+           jsonb_build_object(
+             'userId', p.id,
+             'fullName', p.full_name,
+             'email', p.email
+           )
+           order by p.full_name
+         ), '[]'::jsonb)
+    into v_result
+    from eligible e
+    join public.profiles p on p.id = e.user_id;
+  return v_result;
+end;
+$$;
+ALTER FUNCTION "public"."list_org_eligible_users_for_pqs"("p_org_id" "uuid") OWNER TO "postgres";
+
 -- set_pqs_rca_due_window(org, days): coordinator OR enrolled member of the org;
 -- updates THAT org's pqs_department row; audits at the ORG tier (p_organization).
 CREATE OR REPLACE FUNCTION "public"."set_pqs_rca_due_window"("p_org_id" "uuid", "p_days" integer) RETURNS integer
@@ -1921,6 +1967,7 @@ BEGIN
     'public.add_pqs_member(uuid, uuid)',
     'public.remove_pqs_member(uuid, uuid)',
     'public.list_pqs_members(uuid)',
+    'public.list_org_eligible_users_for_pqs(uuid)',
     'public.set_pqs_rca_due_window(uuid, integer)'
   ]) LOOP
     EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', fn);
