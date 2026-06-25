@@ -1,7 +1,8 @@
 /**
  * Patient-safety RCA WORKSPACE data-access (Phase 14c — Root Cause Analysis;
  * Architecture Rule 9 — all reads go through `src/lib/queries/`). Backs the 4-stage
- * RCA workspace + the team / timeline / evidence panels under `/admin/nsp`.
+ * RCA workspace + the team / timeline / evidence panels under `/o/[org]/nsp/**`
+ * (per-org, ADR 0042).
  *
  * The domain TYPES are the FROZEN contract the frontend builds against; they live
  * in the import-free, client-safe `@/lib/safety/rca-types` (re-exported here). All

@@ -39,8 +39,23 @@ import { AccessAuditTable } from "./access-audit-table";
  * Fully keyboard-operable: a real `<form>` (Enter submits), labeled controls with
  * wired help/error ids, visible focus rings, and `role="status"`/`role="alert"`
  * regions so a screen reader hears the outcome. Empty state on a zero-match.
+ *
+ * Org-scoping (NSP-per-org, ADR 0042): the search + access-audit actions take the
+ * route's `orgId` so they route through `searchPatientForOrg(orgId, …)` /
+ * `getPatientAccessAuditForOrg(orgId, …)` — gated on enrollment in THAT org and
+ * scoped to its xref rows. The `org` SLUG is also threaded to the trajectory table
+ * for per-org entity hrefs (the entity deep-link path resolves its own org).
+ *
+ * @param org    the org slug whose NSP console this is (entity hrefs).
+ * @param orgId  the organization id (the search/audit actions' enrollment + scope).
  */
-export function PatientSearchView() {
+export function PatientSearchView({
+  org,
+  orgId,
+}: {
+  org: string;
+  orgId: string;
+}) {
   const [isPending, startTransition] = useTransition();
   const [mrn, setMrn] = useState("");
   const [encounter, setEncounter] = useState("");
@@ -70,7 +85,9 @@ export function PatientSearchView() {
     };
 
     startTransition(async () => {
-      const state = await searchPatientAction(input);
+      // NSP-per-org (ADR 0042): the route's `orgId` scopes the search to THIS org's
+      // committees (gated on enrollment) → searchPatientForOrg(orgId, …).
+      const state = await searchPatientAction(orgId, input);
       if (!state.ok) {
         setResult(null);
         setSearched(null);
@@ -165,12 +182,14 @@ export function PatientSearchView() {
         className="flex flex-col gap-4"
       >
         {result && searched && (
-          <TrajectoryResult result={result}>
+          <TrajectoryResult org={org} result={result}>
             {/* The access audit is only meaningful once there's a match; it binds
                 to exactly the MRN/encounter we searched on (the audit query is
                 MRN-keyed — ADR 0039). */}
             {result.matchCount > 0 && (
-              <AccessAuditTable onLoad={() => loadPatientAccessAudit(searched)} />
+              <AccessAuditTable
+                onLoad={() => loadPatientAccessAudit(orgId, searched)}
+              />
             )}
           </TrajectoryResult>
         )}

@@ -41,11 +41,10 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 test.describe.configure({ mode: 'serial' })
 test.use({ viewport: { width: 1280, height: 900 } })
 
-// SKIP(multi-org pilot): used on AC-4 (case_referrals) and AC-5 (patient_safety/NSP)
-// which depend on modules disabled when >1 org is provisioned. Org-bounded
-// case-patient tests (AC-1 through AC-3, AC-6 through AC-9) are NOT skipped.
-const MULTI_ORG_PILOT_SKIP =
-  'NSP/referral modules disabled in the 2-org multi-tenancy pilot seed — re-enable when NSP-per-org lands'
+// NSP-per-org (ADR 0042): the case_referrals (AC-4) and patient_safety/NSP (AC-5)
+// modules are now provisioned per-org and their flags return true, so the multi-org
+// pilot skip is removed. The case flows here are commission-scoped at
+// /o/rede-a/c/ccih/manage/cases/... and the case_patient flag is ON in the seed.
 
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
@@ -673,12 +672,11 @@ test('AC-3d: foreign commission member (chefe.farm) calling get_case_patient →
 // registrada" banner and "Pré-preencher do caso" button with source='case'.
 // ---------------------------------------------------------------------------
 
-// SKIP(multi-org pilot): case_referrals module disabled in the 2-org seed.
+// NSP-per-org (ADR 0042): case_referrals is provisioned per-org and enabled here.
 test('AC-4: referral wizard pre-fills from case_patient (source=case)', async ({
   page,
   request,
-}, testInfo) => {
-  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
+}) => {
   // Enable case_referrals for this test
   await setFeatureFlag('case_referrals', true)
   await new Promise((r) => setTimeout(r, 600)) // let PostgREST cache refresh
@@ -767,11 +765,10 @@ test('AC-4: referral wizard pre-fills from case_patient (source=case)', async ({
 // "Identificação pré-preenchida a partir do caso" caption.
 // ---------------------------------------------------------------------------
 
-// SKIP(multi-org pilot): patient_safety/NSP module disabled in the 2-org seed.
+// NSP-per-org (ADR 0042): patient_safety/NSP is provisioned per-org and enabled here.
 test('AC-5: notify-NSP dialog pre-fills event_patient from case_patient', async ({
   page,
-}, testInfo) => {
-  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
+}) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
   await page.waitForLoadState('networkidle')

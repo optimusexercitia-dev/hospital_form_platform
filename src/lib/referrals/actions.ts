@@ -37,15 +37,19 @@ import type {
 const COMMISSION_REFERRALS_PATH = '/c/[slug]/encaminhamentos'
 const REFERRAL_DETAIL_PATH = '/c/[slug]/encaminhamentos/[referralId]'
 const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
-const NSP_REFERRALS_PATH = '/admin/nsp/encaminhamentos'
+// NSP-per-org (ADR 0042): the QPS referral dashboard moved /admin/nsp/encaminhamentos
+// → /o/[org]/nsp/encaminhamentos. Revalidate the per-org NSP LAYOUT across all [org]
+// values — 'layout' invalidates the layout AND every page beneath it (incl. the
+// referral dashboard), so one call refreshes the QPS view. RLS-scoped → no leak.
+const NSP_PATH = '/o/[org]/nsp'
 
-/** Revalidate the hub + referral detail + case detail + the QPS dashboard after a
- * referral mutation (the referral may surface on any of them). */
+/** Revalidate the hub + referral detail + case detail + the per-org QPS dashboard
+ * after a referral mutation (the referral may surface on any of them). */
 function revalidateReferrals(): void {
   revalidatePath(COMMISSION_REFERRALS_PATH, 'page')
   revalidatePath(REFERRAL_DETAIL_PATH, 'page')
   revalidatePath(CASE_PATH, 'page')
-  revalidatePath(NSP_REFERRALS_PATH, 'page')
+  revalidatePath(NSP_PATH, 'layout')
 }
 
 // ---------------------------------------------------------------------------

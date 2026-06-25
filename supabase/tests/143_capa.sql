@@ -17,7 +17,7 @@
 --   * PHI-free capa audit rows (status/verdict only — no *_md body).
 
 begin;
-select plan(31);
+select plan(38);
 
 update app.feature_flags set enabled = true where key = 'patient_safety';
 update app.feature_flags set enabled = true where key = 'audit_trail';
@@ -34,9 +34,12 @@ create temp table k on commit drop as
   from ctx;
 grant select on k to authenticated;
 
--- WS A: the bootstrap admin is the NSP/PQS operator in this file; enroll it in
--- public.pqs_members (is_pqs_member no longer == admin). Mirrors the seed.
-insert into public.pqs_members (user_id) select admin from k;
+-- NSP-per-org (ADR 0042): pqs_members has composite PK (organization_id, user_id).
+insert into public.pqs_members (organization_id, user_id, added_by)
+  select (v->>'org_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
+insert into public.pqs_department (organization_id, name, rca_default_due_days)
+  select (v->>'org_b')::uuid, 'NSP Bootstrap', 30 from ctx
+  on conflict (organization_id) do nothing;
 
 -- =========================================================================
 -- Drive an event -> triage(sentinel) -> RCA(completed with a root cause) so we can
@@ -301,6 +304,133 @@ select is(
   (select count(*)::int from public.capa_plan where id = (select capa_id from c)),
   0, 'a foreign-committee user reads NO event-scoped CAPA plan (source scope)');
 reset role;
+
+-- =========================================================================
+-- §M2 (NSP-per-org regression guard): capa_viewer_can_manage + capa_kpis were
+-- re-created off the …009000 base that still called the DROPPED is_pqs_writer() /
+-- is_pqs_member(uid) symbols — they ERRORED at call time for everyone (the query
+-- layer swallowed capa_viewer_can_manage → viewerCanManage silently false for every
+-- per-org writer; capa_kpis crashed the NSP dashboard headline). Rebound to
+-- can_write_capa / is_pqs_member_of_any. These guards prove they EXECUTE without
+-- error and gate correctly. (`admin` is the enrolled per-org PQS writer; § top.)
+-- =========================================================================
+-- capa_viewer_can_manage: TRUE for the enrolled per-org CAPA writer, no error.
+select test_helpers.claims_for((select admin from k), false);
+set local role authenticated;
+select is(
+  public.capa_viewer_can_manage((select capa_id from c)),
+  true,
+  'M2 GUARD: capa_viewer_can_manage = true for an enrolled per-org CAPA writer (no dropped-symbol error)');
+reset role;
+
+-- capa_viewer_can_manage: FALSE for a non-writer (st_y, foreign committee — neither
+-- reads nor writes this plan), without erroring.
+select test_helpers.claims_for((select st_y from k), false);
+set local role authenticated;
+select is(
+  public.capa_viewer_can_manage((select capa_id from c)),
+  false,
+  'M2 GUARD: capa_viewer_can_manage = false for a non-writer (no error)');
+reset role;
+
+-- capa_kpis: executes without error for a PQS member (the dropped is_pqs_member(uid)
+-- crash fix). Returns exactly one headline row.
+select test_helpers.claims_for((select admin from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.capa_kpis()),
+  1,
+  'M2 GUARD: capa_kpis() executes without error for a PQS member (returns one headline row)');
+reset role;
+
+-- =========================================================================
+-- §M3 (NSP-per-org RESULT-SCOPE guard): the M2 rebind fixed capa_kpis's GATE
+-- (is_pqs_member_of_any) but its first form left the RESULT SET global — the
+-- `where is_pqs_member_of_any(uid)` clause is a non-correlated boolean, so a
+-- rede-a-only PQS member's headline counted rede-b's event-sourced plans/actions
+-- (cross-org aggregate tenant-isolation leak; QA M3). The fix correlates each
+-- event/rca-sourced plan to org_of_event(event_of_capa(p.id)) = any(caller's orgs)
+-- (non-event-sourced plans kept any-org, mirroring can_write_capa). This guard
+-- reproduces QA's exact scenario INSIDE the rollback: inject ONE event-sourced
+-- capa_plan in a SECOND org + an overdue action; the org_b PQS member (admin) must
+-- NOT count it, while a PQS member OF that second org DOES.
+--
+-- The bootstrap world is single-org (its truncate wipes the seed's pqs.a/pqs.b +
+-- rede-b event), so we mint the 2nd org + commission + event-sourced plan directly
+-- (superuser; reverts with the rollback) — same scenario, bootstrap personas.
+-- =========================================================================
+-- Baseline: admin's (org_b PQS) headline BEFORE the cross-org injection.
+select test_helpers.claims_for((select admin from k), false);
+set local role authenticated;
+create temp table kpi_before on commit drop as
+  select open_count, overdue_actions from public.capa_kpis();
+reset role;
+grant select on kpi_before to authenticated;
+
+-- A 2nd org + hospital + commission, an event in it, an event-sourced capa_plan
+-- (em_execucao → counts toward open_count) + an OVERDUE action, and a PQS member
+-- enrolled in that 2nd org (st_y).
+create temp table m3 on commit drop as
+  select gen_random_uuid() as org_other, gen_random_uuid() as hosp_other,
+         gen_random_uuid() as comm_other, gen_random_uuid() as ev_other,
+         gen_random_uuid() as capa_other, gen_random_uuid() as action_other;
+grant select on m3 to authenticated;
+insert into public.organizations (id, name, slug)
+  values ((select org_other from m3), 'Org Other M3', 'org-m3-' || substr((select org_other from m3)::text,1,8));
+insert into public.hospitals (id, organization_id, name, slug)
+  values ((select hosp_other from m3), (select org_other from m3), 'Hosp M3',
+          'hosp-m3-' || substr((select hosp_other from m3)::text,1,8));
+insert into public.commissions (id, name, slug, created_by, hospital_id)
+  values ((select comm_other from m3), 'Comissão Other M3',
+          'comm-m3-' || substr((select comm_other from m3)::text,1,8),
+          (select admin from k), (select hosp_other from m3));
+-- An event in the 2nd org (org_of_event resolves via reporting_commission_id → org).
+insert into public.patient_safety_event
+  (id, code, reporting_commission_id, discovered_at, title, status,
+   current_owner_kind, current_owner_commission_id, reported_by)
+values
+  ((select ev_other from m3), 'EV-M3-OTHER', (select comm_other from m3), current_date,
+   'Evento rede-other', 'acknowledged', 'pqs', null, (select admin from k));
+-- An EVENT-SOURCED plan on that event (em_execucao) → event-org = org_other.
+insert into public.capa_plan (id, source, source_event_id, classification, status)
+  values ((select capa_other from m3), 'event', (select ev_other from m3), 'corretiva', 'em_execucao');
+-- An OVERDUE action on it (due in the past, not concluded/cancelled).
+insert into public.capa_action (id, capa_id, title, position, due_date, status)
+  values ((select action_other from m3), (select capa_other from m3), 'Ação rede-other', 0,
+          current_date - 1, 'pendente');
+-- Enroll st_y as a PQS member of the 2nd org (so it sees ITS org's KPIs).
+insert into public.pqs_members (organization_id, user_id, added_by)
+  values ((select org_other from m3), (select st_y from k), (select admin from k));
+
+-- (M3a) admin (org_b PQS) headline is UNCHANGED by the org_other plan — org-scoped.
+select test_helpers.claims_for((select admin from k), false);
+set local role authenticated;
+create temp table kpi_after on commit drop as
+  select open_count, overdue_actions from public.capa_kpis();
+reset role;
+grant select on kpi_after to authenticated;
+select is(
+  (select open_count from kpi_after),
+  (select open_count from kpi_before),
+  'M3 GUARD: a rede-a-only PQS member''s open_count is UNCHANGED by a cross-org event-sourced plan (org-scoped, does NOT count it)');
+select is(
+  (select overdue_actions from kpi_after),
+  (select overdue_actions from kpi_before),
+  'M3 GUARD: …and overdue_actions is UNCHANGED (the overdue subquery is org-scoped too)');
+
+-- (M3b) the 2nd-org PQS member (st_y) DOES see the org_other plan + overdue action.
+select test_helpers.claims_for((select st_y from k), false);
+set local role authenticated;
+create temp table kpi_other on commit drop as
+  select open_count, overdue_actions from public.capa_kpis();
+reset role;
+grant select on kpi_other to authenticated;
+select ok(
+  (select open_count from kpi_other) >= 1,
+  'M3 GUARD: the 2nd-org PQS member DOES count the org_other plan in open_count (own-org visibility)');
+select ok(
+  (select overdue_actions from kpi_other) >= 1,
+  'M3 GUARD: the 2nd-org PQS member DOES count the org_other overdue action');
 
 select * from finish();
 rollback;

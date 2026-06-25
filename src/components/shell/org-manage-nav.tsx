@@ -11,7 +11,7 @@ interface OrgNavItem {
   /** Relative segments under `/o/[org]/manage` ("" = the manage landing). */
   segments: string[];
   /** When set, render only if this feature flag is on. */
-  requiresFeature?: "audit";
+  requiresFeature?: "audit" | "patientSafety";
 }
 
 const ORG_NAV_ITEMS: OrgNavItem[] = [
@@ -19,6 +19,11 @@ const ORG_NAV_ITEMS: OrgNavItem[] = [
   { label: "Comissões", segments: ["comissoes"] },
   { label: "Hospitais", segments: ["hospitais"] },
   { label: "Painel", segments: ["painel"] },
+  {
+    label: "Coordenação do NSP",
+    segments: ["equipe-nsp"],
+    requiresFeature: "patientSafety",
+  },
   { label: "Trilha de auditoria", segments: ["audit"], requiresFeature: "audit" },
 ];
 
@@ -31,16 +36,20 @@ const ORG_NAV_ITEMS: OrgNavItem[] = [
 export function OrgManageNav({
   org,
   auditEnabled = false,
+  patientSafetyEnabled = false,
 }: {
   org: string;
   auditEnabled?: boolean;
+  patientSafetyEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const manageBase = orgHref(org, "manage");
 
-  const items = ORG_NAV_ITEMS.filter(
-    (item) => item.requiresFeature !== "audit" || auditEnabled,
-  );
+  const items = ORG_NAV_ITEMS.filter((item) => {
+    if (item.requiresFeature === "audit") return auditEnabled;
+    if (item.requiresFeature === "patientSafety") return patientSafetyEnabled;
+    return true;
+  });
 
   return (
     <nav

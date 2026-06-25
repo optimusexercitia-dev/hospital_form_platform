@@ -3,8 +3,8 @@
  * Hand-off; Architecture Rule 9 — all reads go through `src/lib/queries/`;
  * Rule 12 — PHI/HIPAA handling). Backs the committee-side reporting + read-back
  * (`c/[slug]/eventos`, the case-detail "Notificar evento ao NSP" entry, the
- * Phase-12 case timeline) and feeds the PQS inbox/triage workspaces under
- * `/admin/nsp`.
+ * Phase-12 case timeline) and feeds the per-org PQS inbox/triage workspaces under
+ * `/o/[org]/nsp/**` (NSP-per-org, ADR 0042).
  *
  * The domain TYPES below are the FROZEN contract the frontend builds against
  * (mirroring how meetings/interviews froze their contract types). The reads compose

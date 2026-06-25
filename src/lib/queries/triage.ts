@@ -1,7 +1,8 @@
 /**
  * Patient-safety event TRIAGE data-access (Phase 14b — Triage & Disposition;
  * Architecture Rule 9 — all reads go through `src/lib/queries/`). Backs the
- * three-pane NSP triage workstation + the NSP config area under `/admin/nsp`.
+ * three-pane NSP triage workstation + the NSP config area under `/o/[org]/nsp/**`
+ * (per-org, ADR 0042).
  *
  * The domain TYPES are the FROZEN contract the frontend builds against; they live
  * in the import-free, client-safe `@/lib/safety/triage-types` (re-exported here so

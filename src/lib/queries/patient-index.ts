@@ -1,9 +1,9 @@
 /**
  * Patient Identity & Cross-Committee Linkage data-access (Phase 23 —
  * `patient_index`; Architecture Rule 9 — all reads go through `src/lib/queries/`;
- * Rule 11 — audited PHI access; Rule 12 — PHI/HIPAA handling; ADR 0039). Backs the
- * QPS-only cross-committee patient view (`/admin/nsp/pacientes`) and the referral
- * receiver-hint ("aparece em N outros registros").
+ * Rule 11 — audited PHI access; Rule 12 — PHI/HIPAA handling; ADR 0039; per-org under
+ * ADR 0042). Backs the QPS cross-committee patient view (`/o/[org]/nsp/pacientes`,
+ * org-scoped) and the referral receiver-hint ("aparece em N outros registros").
  *
  * The domain TYPES are the FROZEN contract the frontend builds against; they live
  * in the CLIENT-SAFE `@/lib/patient-index/types` (ZERO imports) and are re-exported
@@ -13,14 +13,15 @@
  *
  * RLS / PHI (the security boundary — Rule 1 + Rule 12):
  *  - Direct SELECT on `patient_xref` is REVOKED from `authenticated`; the only read
- *    paths are the SECURITY DEFINER RPCs below. {@link searchPatient} /
- *    {@link getPatientAccessAudit} re-gate on `app.is_pqs_member(auth.uid())` and
- *    return NOTHING to a non-PQS caller (incl. a non-PQS platform admin — duty
- *    separation, ADR 0030/0031/0039).
- *  - {@link searchPatient} hashes the supplied MRN/encounter SERVER-SIDE (inside
- *    the DEFINER RPC, under the deployment pepper), matches the key-only
- *    `patient_xref`, and assembles a PHI-FREE trajectory. A successful match emits
- *    one `patient.searched` row on the GLOBAL audit chain with KEY-ONLY metadata
+ *    paths are the SECURITY DEFINER RPCs below. {@link searchPatientForOrg} /
+ *    {@link getPatientAccessAuditForOrg} re-gate on enrollment in the passed org
+ *    (`app.is_pqs_member_of(orgId, auth.uid())`, NSP-per-org/ADR 0042) and return
+ *    NOTHING to a non-member (incl. a member of a DIFFERENT org, or a non-PQS platform
+ *    admin — duty separation, ADR 0030/0031/0039/0042).
+ *  - {@link searchPatientForOrg} hashes the supplied MRN/encounter SERVER-SIDE (inside
+ *    the DEFINER RPC, under the deployment pepper), matches the key-only `patient_xref`
+ *    RESTRICTED TO `orgId`, and assembles a PHI-FREE trajectory. A successful match
+ *    emits one `patient.searched` row on the ORG audit chain with KEY-ONLY metadata
  *    (`patient_key` truncated, match count) — never the raw MRN/name (Rule 11). A
  *    ZERO-match search emits nothing.
  *  - {@link patientXrefCount} is the ONE exception that serves a non-QPS reader: it
@@ -154,30 +155,52 @@ export async function patientIndexEnabled(): Promise<boolean> {
 // QPS cross-committee search (PQS-gated; PHI-FREE result; audited on match)
 // ---------------------------------------------------------------------------
 
+// ===========================================================================
+// NSP-per-org (sub-phase A; ADR 0042) — the FOURTH PHI surface goes ORG-SCOPED.
+//
+// `patient_xref` aggregates across ALL commissions with NO org filter today — safe
+// only because the global PQS roster is inert. Once per-org membership is real it
+// would leak org-B patients to an org-A NSP member. So the QPS reads become
+// ORG-SCOPED: the caller passes the `orgId` whose console it is (the UI always knows
+// it); the DEFINER RPCs gate on enrollment in THAT org and filter the trajectory +
+// audit to that org's xref rows.
+//
+// The QPS reads ship under per-org names (`searchPatientForOrg` /
+// `getPatientAccessAuditForOrg`), each taking the caller's `orgId`.
+// `getPatientTrajectoryForEntity` / `patientXrefCount` resolve the entity's org
+// SERVER-SIDE → their arity is UNCHANGED.
+// ===========================================================================
+
 /**
- * Search the cross-committee patient index by MRN and/or encounter number,
- * returning the patient's PHI-FREE trajectory across ALL committees. Routes
- * through the `search_patient_xref` SECURITY DEFINER RPC, which hashes the inputs
- * under the deployment pepper, matches the key-only `patient_xref`, assembles the
- * trajectory, and (on matches ≥ 1) emits one `patient.searched` audit row on the
- * GLOBAL chain with key-only metadata. A non-PQS caller gets `null`; a zero-match
- * search returns a result with empty {@link PatientSearchResult.entries} and emits
- * no audit row.
+ * Search `orgId`'s cross-committee patient index by MRN and/or encounter, returning
+ * the patient's PHI-FREE trajectory across that org's committees. Routes through the
+ * `search_patient_xref(p_mrn, p_encounter, p_org_id)` SECURITY DEFINER RPC, which
+ * hashes the inputs under the deployment pepper, matches the key-only `patient_xref`
+ * **restricted to `orgId`**, assembles the trajectory, and (on matches ≥ 1) emits one
+ * `patient.searched` audit row on the ORG chain with key-only metadata. Gated on
+ * enrollment in `orgId`'s roster: a non-member (incl. a member of a DIFFERENT org
+ * passing this `orgId`) gets `null`; a zero-match search returns a result with empty
+ * {@link PatientSearchResult.entries} and emits no audit row.
  *
+ * @param orgId      the organization whose QPS console this is (enrollment gate +
+ *                   trajectory scope; the UI always knows it from the route).
  * @param mrn        prontuário to match (exact, after conservative normalization).
  * @param encounter  atendimento to match (exact). At least one of the two must be
  *                   non-blank, else the function returns `null` (the action also
  *                   validates this for a friendly field error).
  */
-export async function searchPatient(
+export async function searchPatientForOrg(
+  orgId: string,
   mrn: string | null,
   encounter: string | null,
 ): Promise<PatientSearchResult | null> {
+  if (!orgId) return null
   if (!mrn?.trim() && !encounter?.trim()) return null
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('search_patient_xref', {
     p_mrn: mrn?.trim() ?? undefined,
     p_encounter: encounter?.trim() ?? undefined,
+    p_org_id: orgId,
   })
   if (error || !data) return null
   return mapSearchResult(data as unknown as PatientSearchJson)
@@ -188,12 +211,18 @@ export async function searchPatient(
  * QPS user clicks a record on the access-audit table / a module detail page). The
  * entity's `patient_key` is resolved SERVER-SIDE from `patient_xref` (PQS-gated),
  * then the SAME {@link PatientSearchResult} bundle is assembled as
- * {@link searchPatient} — but this emits **`patient.viewed`** (the trajectory was
- * opened, not searched), global chain, key-only metadata. Routes through the
+ * {@link searchPatientForOrg} — but this emits **`patient.viewed`** (the trajectory
+ * was opened, not searched), org chain, key-only metadata. Routes through the
  * `get_patient_trajectory_for_entity` SECURITY DEFINER RPC.
  *
  * Returns `null` for a non-PQS caller, an unknown/keyless entity (name-only PHI →
  * not in the index), or any error. The caller never supplies or learns a key.
+ *
+ * ORG-SCOPED (NSP-per-org): the entity's org is resolved SERVER-SIDE (its
+ * commission → org), the caller is gated on enrollment in THAT org, and the
+ * assembled trajectory is filtered to that org — so its arity is UNCHANGED (no
+ * `orgId` param: the pivot entity already pins the org). A caller not enrolled in
+ * the entity's org gets `null`.
  *
  * @param module    the entity's PHI module (`'event' | 'referral' | 'case'`).
  * @param entityId  the module-native entity id to pivot from.
@@ -217,26 +246,28 @@ export async function getPatientTrajectoryForEntity(
 // ---------------------------------------------------------------------------
 
 /**
- * The patient-scoped ACCESS AUDIT — every `audit_log` row (read/mutation/disposal)
- * touching any entity that shares this patient's `patient_key`, newest-first.
- * Routes through the `patient_access_audit` SECURITY DEFINER RPC, which is
- * PQS-gated and bypasses per-commission audit RLS BY DESIGN (a QPS-only
- * cross-committee view), selecting NON-PHI columns only. Reading the audit is NOT
- * itself re-audited. Returns `[]` for a non-PQS caller or no match.
+ * The patient-scoped ACCESS AUDIT for `orgId` — every `audit_log` row touching any
+ * entity in `orgId` that shares this patient's `patient_key`, newest-first. Routes
+ * through the `patient_access_audit(p_mrn, p_encounter, p_org_id)` SECURITY DEFINER
+ * RPC, gated on enrollment in `orgId`'s roster, restricting the entity subquery to
+ * that org's xref rows AND `audit_log.organization_id = orgId`. PHI-free; reading the
+ * audit is not itself re-audited. A non-member (incl. another org's member passing
+ * this `orgId`) gets `[]`.
  *
- * The patient is identified the same way as {@link searchPatient} (by MRN and/or
- * encounter, hashed server-side); the RPC resolves the `patient_key` internally so
- * no key is ever shaped on the client.
+ * @param orgId      the organization whose QPS console this is.
  */
-export async function getPatientAccessAudit(
+export async function getPatientAccessAuditForOrg(
+  orgId: string,
   mrn: string | null,
   encounter: string | null,
 ): Promise<PatientAccessAuditRow[]> {
+  if (!orgId) return []
   if (!mrn?.trim() && !encounter?.trim()) return []
   const supabase = await createClient()
   const { data } = await supabase.rpc('patient_access_audit', {
     p_mrn: mrn?.trim() ?? undefined,
     p_encounter: encounter?.trim() ?? undefined,
+    p_org_id: orgId,
   })
   return ((data as unknown as PatientAccessAuditJson[] | null) ?? []).map(
     mapAccessAuditRow,

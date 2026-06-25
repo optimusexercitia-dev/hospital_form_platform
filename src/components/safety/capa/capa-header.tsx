@@ -5,6 +5,7 @@ import { ChevronRight, RefreshCw } from "lucide-react";
 
 import type { CapaPlan } from "@/lib/safety/capa-types";
 import { cancelCapaPlan, reopenCapaPlan } from "@/lib/safety/capa-actions";
+import { nspHref } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -29,8 +30,10 @@ import {
  * The CAPA workspace header: breadcrumb (NSP › evento › CAPA), the code (mono),
  * classification + status chips + source badge, and the lifecycle actions
  * (Reabrir — which warns it revokes the effectiveness verdict — and Cancelar).
+ *
+ * @param org  the org slug whose NSP console this is — builds the breadcrumb hrefs.
  */
-export function CapaHeader({ plan }: { plan: CapaPlan }) {
+export function CapaHeader({ org, plan }: { org: string; plan: CapaPlan }) {
   const isClosed = plan.status === "concluido";
   const isTerminal = isClosed || plan.status === "cancelado";
 
@@ -42,7 +45,7 @@ export function CapaHeader({ plan }: { plan: CapaPlan }) {
           className="flex items-center gap-1.5 text-sm text-muted-foreground"
         >
           <Link
-            href="/admin/nsp"
+            href={nspHref(org)}
             className="rounded transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
           >
             NSP
@@ -51,7 +54,7 @@ export function CapaHeader({ plan }: { plan: CapaPlan }) {
             <>
               <ChevronRight aria-hidden="true" className="size-3.5" />
               <Link
-                href={`/admin/nsp/${plan.eventId}`}
+                href={nspHref(org, plan.eventId)}
                 className="rounded font-mono text-xs transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
               >
                 {plan.eventCode ?? "Evento"}

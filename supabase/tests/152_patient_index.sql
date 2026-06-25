@@ -32,7 +32,7 @@
 -- a DB-side test observes them (like 150/151).
 
 begin;
-select plan(39);
+select plan(43);
 
 -- patient_index stays OFF through the data-layer assertions below — the triggers are
 -- ALWAYS-ON (ADR 0039), so keys + xref must be derived even with the flag OFF (the
@@ -60,12 +60,18 @@ create temp table k on commit drop as
          (v->>'sa_y')::uuid    as sa_y,    -- coordinator of Y
          (v->>'st_y')::uuid    as st_y,    -- foreign member (no PHI entitlement)
          (v->>'comm_x')::uuid  as comm_x,
-         (v->>'comm_y')::uuid  as comm_y
+         (v->>'comm_y')::uuid  as comm_y,
+         (v->>'org_b')::uuid   as org_b    -- NSP-per-org: bootstrap org for search scope
   from ctx;
 grant select on k to authenticated;
 
--- admin = the PQS roster (is_pqs_member). Only PQS may reassemble a trajectory.
-insert into public.pqs_members (user_id) select admin from k;
+-- NSP-per-org (ADR 0042): pqs_members has composite PK (organization_id, user_id).
+-- admin = the PQS roster. Only PQS may reassemble a trajectory.
+insert into public.pqs_members (organization_id, user_id, added_by)
+  select (v->>'org_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
+insert into public.pqs_department (organization_id, name, rca_default_due_days)
+  select (v->>'org_b')::uuid, 'NSP Bootstrap', 30 from ctx
+  on conflict (organization_id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- Fixture: the SYNTHETIC CROSS-COMMITTEE TEST PATIENT (MRN 'PRT-9'), touching
@@ -190,8 +196,9 @@ select is(
 -- =========================================================================
 select test_helpers.claims_for((select admin from k), false);
 set local role authenticated;
+-- NSP-per-org (ADR 0042): new 3-arg signature (mrn, encounter, org_id).
 select throws_ok(
-  $$ select public.search_patient_xref('PRT-9', null) $$,
+  format($$ select public.search_patient_xref('PRT-9', null, %L::uuid) $$, (select org_b from k)),
   '23514', null, 'search_patient_xref raises while patient_index is OFF (exposure gate)');
 reset role;
 
@@ -207,7 +214,7 @@ update app.feature_flags set enabled = true where key = 'patient_index';
 select test_helpers.claims_for((select admin from k), false);
 set local role authenticated;
 create temp table sr on commit drop as
-  select public.search_patient_xref('PRT-9', null) as j;
+  select public.search_patient_xref('PRT-9', null, (select org_b from k)) as j;
 reset role;
 grant select on sr to authenticated;
 
@@ -228,7 +235,7 @@ select ok((select j::text from sr) like '%ENC-T001%',
 select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 create temp table sr_np on commit drop as
-  select public.search_patient_xref('PRT-9', null) as j;
+  select public.search_patient_xref('PRT-9', null, (select org_b from k)) as j;
 reset role;
 grant select on sr_np to authenticated;
 select is((select (j->>'matchCount')::int from sr_np), 0,
@@ -238,7 +245,7 @@ select is((select (j->>'matchCount')::int from sr_np), 0,
 select test_helpers.claims_for((select admin from k), false);
 set local role authenticated;
 create temp table sr_enc on commit drop as
-  select public.search_patient_xref(null, 'ENC-9') as j;
+  select public.search_patient_xref(null, 'ENC-9', (select org_b from k)) as j;
 reset role;
 grant select on sr_enc to authenticated;
 select is((select (j->>'matchCount')::int from sr_enc), 1,
@@ -255,7 +262,7 @@ grant select on ab to authenticated;
 -- result is discarded into a temp table to keep the statement tidy.)
 select test_helpers.claims_for((select admin from k), false);
 set local role authenticated;
-create temp table _s1 on commit drop as select public.search_patient_xref('PRT-9', null) as j;
+create temp table _s1 on commit drop as select public.search_patient_xref('PRT-9', null, (select org_b from k)) as j;
 reset role;
 select is(
   (select count(*) from public.audit_log where action = 'patient.searched') - (select before from ab),
@@ -279,7 +286,7 @@ create temp table ab0 on commit drop as
 grant select on ab0 to authenticated;
 select test_helpers.claims_for((select admin from k), false);
 set local role authenticated;
-create temp table _s0 on commit drop as select public.search_patient_xref('NO-SUCH-MRN', null) as j;
+create temp table _s0 on commit drop as select public.search_patient_xref('NO-SUCH-MRN', null, (select org_b from k)) as j;
 reset role;
 select is(
   (select count(*) from public.audit_log where action = 'patient.searched') - (select before from ab0),
@@ -359,6 +366,48 @@ reset role;
 grant select on cnt_after to authenticated;
 select is((select n from cnt_after), 1,
   'a disposed xref row is EXCLUDED from patient_xref_count');
+
+-- =========================================================================
+-- §M1 (NSP-per-org regression guard): app.patient_trajectory_bundle is an INTERNAL
+-- helper with NO authorization check of its own — its 3 public DEFINER callers gate
+-- on is_pqs_member_of(<org>) BEFORE invoking it. The 2-arg → 3-arg arity change
+-- over-granted it to `authenticated` (a non-PQS user holding a patient_key could call
+-- it directly and bypass the per-org enrollment gate). It must be service_role-ONLY.
+-- These guards FAIL against the pre-fix `authenticated` grant.
+-- =========================================================================
+-- (M1a) the privilege-level guard: authenticated has NO EXECUTE on the 3-arg helper.
+select is(
+  has_function_privilege('authenticated', 'app.patient_trajectory_bundle(text, text, uuid)', 'execute'),
+  false,
+  'M1 GUARD: authenticated has NO EXECUTE on app.patient_trajectory_bundle (service_role-only)');
+-- anon likewise cannot execute it.
+select is(
+  has_function_privilege('anon', 'app.patient_trajectory_bundle(text, text, uuid)', 'execute'),
+  false,
+  'M1 GUARD: anon has NO EXECUTE on app.patient_trajectory_bundle');
+
+-- (M1b) a plain non-PQS authenticated persona calling the helper DIRECTLY is denied
+-- (permission denied = 42501) — the gate cannot be bypassed via the raw helper.
+select test_helpers.claims_for((select st_y from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select app.patient_trajectory_bundle('any-key', null, %L::uuid) $$, (select org_b from k)),
+  '42501', null,
+  'M1 GUARD: a non-PQS persona calling app.patient_trajectory_bundle directly is denied (42501)');
+reset role;
+
+-- (M1c) the DEFINER door still returns correct org-scoped results — the entitled PQS
+-- member gets a non-empty bundle via search_patient_xref (runs as postgres, so the
+-- service_role-only helper grant does NOT regress the door path).
+select test_helpers.claims_for((select admin from k), false);
+set local role authenticated;
+create temp table _m1door on commit drop as
+  select public.search_patient_xref('PRT-9', null, (select org_b from k)) as j;
+reset role;
+grant select on _m1door to authenticated;
+select ok(
+  (select (j->>'matchCount')::int from _m1door) >= 1,
+  'M1 GUARD: the DEFINER door (search_patient_xref) still returns org-scoped results for the entitled PQS member');
 
 select * from finish();
 rollback;

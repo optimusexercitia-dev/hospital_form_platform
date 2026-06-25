@@ -4,7 +4,7 @@ import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Clock } from "lucide-react";
 
-import { setRcaDueWindow } from "@/lib/safety/triage-actions";
+import { setPqsRcaDueWindow } from "@/lib/pqs/actions";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
 
@@ -12,12 +12,22 @@ const FIELD_CLASS =
   "h-10 w-32 rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
- * The RCA due-window setting (`pqs_department.rca_default_due_days`): the number of
- * days `confirm_triage` adds to the event date to mint an RCA's due date. Bound to
- * the `is_pqs_member`-gated `setRcaDueWindow(days)` action (validated 1–365 server-
- * side). Pre-seeded with the current value from `getPqsDepartment`.
+ * The per-org RCA due-window setting (`pqs_department.rca_default_due_days` for
+ * `orgId`): the number of days `confirm_triage` adds to the event date to mint an
+ * RCA's due date. Bound to the coordinator/member-gated, org-tier-audited
+ * `setPqsRcaDueWindow(orgId, days)` action (validated 1–365 server-side, HC046).
+ * Pre-seeded with the current value from `getPqsDepartmentForOrg` (NSP-per-org,
+ * ADR 0042).
+ *
+ * @param orgId  the organization whose RCA window this edits.
  */
-export function RcaWindowForm({ defaultDueDays }: { defaultDueDays: number }) {
+export function RcaWindowForm({
+  orgId,
+  defaultDueDays,
+}: {
+  orgId: string;
+  defaultDueDays: number;
+}) {
   const router = useRouter();
   const inputId = useId();
   const [isPending, startTransition] = useTransition();
@@ -35,7 +45,7 @@ export function RcaWindowForm({ defaultDueDays }: { defaultDueDays: number }) {
     setError(null);
     setSaved(false);
     startTransition(async () => {
-      const result = await setRcaDueWindow(parsed);
+      const result = await setPqsRcaDueWindow(orgId, parsed);
       if (!result.ok) {
         setError(result.error ?? "Não foi possível salvar o prazo.");
         return;

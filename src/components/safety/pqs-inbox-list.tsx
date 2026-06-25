@@ -14,6 +14,7 @@ import {
 
 import type { PqsInboxItem } from "@/lib/safety/types";
 import { cn } from "@/lib/utils";
+import { nspHref } from "@/lib/routing";
 import { EventStatusChip, OwnerChip, SuspectedHarmChip } from "./event-chips";
 import { SafetyMotion } from "./safety-motion";
 import { formatDate, formatEventCode } from "./format";
@@ -73,9 +74,9 @@ function SortHeader({
 
 /**
  * The NSP inbox/queue list (F3): a sortable, scannable table — one row per
- * {@link PqsInboxItem}, each linking to the event detail (`/admin/nsp/[eventId]`)
- * where the analyst acknowledges and (in scope) opens the audited PHI panel.
- * PHI-FREE — the queue shows governance metadata only.
+ * {@link PqsInboxItem}, each linking to the event detail
+ * (`/o/[org]/nsp/[eventId]`) where the analyst acknowledges and (in scope) opens
+ * the audited PHI panel. PHI-FREE — the queue shows governance metadata only.
  *
  * Mirrors the coordinator cases board (`cases-table.tsx`): a rounded card with a
  * muted header row, clickable striped rows, and sortable Evento/Status/Notificado
@@ -85,10 +86,13 @@ function SortHeader({
  * the entrance; reduced-motion-safe.
  */
 export function PqsInboxList({
+  org,
   items,
   commissionNames,
   runKey,
 }: {
+  /** The org slug whose NSP console this is — builds the per-org event hrefs. */
+  org: string;
   items: PqsInboxItem[];
   /** Map of commission id → display name (server-resolved). */
   commissionNames: Record<string, string>;
@@ -195,7 +199,7 @@ export function PqsInboxList({
         </thead>
         <tbody>
           {sorted.map((item) => {
-            const href = `/admin/nsp/${item.id}`;
+            const href = nspHref(org, item.id);
             const commissionName =
               item.reportingCommissionName ??
               commissionNames[item.reportingCommissionId] ??

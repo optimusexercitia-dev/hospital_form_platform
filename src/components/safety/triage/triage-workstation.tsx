@@ -14,6 +14,7 @@ import type {
   TriageReach,
 } from "@/lib/safety/triage-types";
 import { saveTriage, confirmTriage, reopenTriage } from "@/lib/safety/triage-actions";
+import { nspHref } from "@/lib/routing";
 import { FormBanner } from "@/components/auth/form-banner";
 import { formatDateTime } from "../format";
 import { TriageTopbar, type SaveState } from "./triage-topbar";
@@ -83,6 +84,7 @@ function draftFromTriage(triage: Triage | null): TriageDraft {
  * `"use server"` action module (allowed) and the client-safe types.
  */
 export function TriageWorkstation({
+  org,
   items,
   commissionNames,
   selectedId,
@@ -91,6 +93,8 @@ export function TriageWorkstation({
   sentinelCount,
   rcaCount,
 }: {
+  /** The org slug whose NSP console this is — builds the per-org RCA href. */
+  org: string;
   items: PqsInboxItem[];
   commissionNames: Record<string, string>;
   selectedId: string | null;
@@ -279,7 +283,7 @@ export function TriageWorkstation({
     // The RCA shell is minted by `confirm_triage` when the disposition is RCA; route
     // to the 14c workspace by its id. The button is disabled until that shell exists.
     if (!selected?.rcaId) return;
-    router.push(`/admin/nsp/rca/${selected.rcaId}`);
+    router.push(nspHref(org, "rca", selected.rcaId));
   };
 
   // --- Gating ---

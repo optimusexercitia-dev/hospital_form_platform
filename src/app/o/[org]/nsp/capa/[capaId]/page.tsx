@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { requireUser } from "@/lib/queries/session";
+import { getNspAccessByOrg } from "@/lib/queries/session";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import {
   getCapaPlan,
@@ -35,19 +35,21 @@ export const metadata: Metadata = {
  * action↔root-cause linkage labels) + the assignable-user roster + the session user
  * id (for the assignee self-advance gate).
  *
- * Gating mirrors the other NSP pages: the admin layout enforces `isAdmin`; re-checked
- * + the `patient_safety` flag → 404. `getCapaPlan` returns `null` out of scope →
- * `notFound()` (RLS boundary). PHI-free.
+ * Access: the `/o/[org]/nsp` layout gates to a PQS member/coordinator of THIS
+ * org + the `patient_safety` flag → 404; the page pins the org (for the
+ * workspace hrefs). The fine boundary is the data door: `getCapaPlan` returns
+ * `null` out of scope (a non-enrolled coordinator, another org) → `notFound()`
+ * (RLS boundary). PHI-free.
  */
 export default async function NspCapaPage({
   params,
 }: {
-  params: Promise<{ capaId: string }>;
+  params: Promise<{ org: string; capaId: string }>;
 }) {
-  const { capaId } = await params;
+  const { org, capaId } = await params;
 
-  const context = await requireUser();
-  if (!context.isAdmin) {
+  const access = await getNspAccessByOrg(org);
+  if (!access) {
     notFound();
   }
   if (!(await patientSafetyEnabled())) {
@@ -93,8 +95,8 @@ export default async function NspCapaPage({
     effectiveness,
     rootCauses,
     users,
-    sessionUserId: context.userId,
+    sessionUserId: access.context.userId,
   };
 
-  return <CapaWorkspace data={data} />;
+  return <CapaWorkspace org={org} data={data} />;
 }

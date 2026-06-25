@@ -44,8 +44,16 @@ export interface CapaWorkspaceData {
  * tasks/evidence/advance), the measures→results grid, the effectiveness panel, and
  * the closure panel with its conclude-gate. Write gating flows from
  * `plan.viewerCanManage` + per-action assignee entitlement (client-computed).
+ *
+ * @param org  the org slug whose NSP console this is — builds the header hrefs.
  */
-export function CapaWorkspace({ data }: { data: CapaWorkspaceData }) {
+export function CapaWorkspace({
+  org,
+  data,
+}: {
+  org: string;
+  data: CapaWorkspaceData;
+}) {
   const { plan } = data;
   const resultsByMeasure = groupResultsByMeasure(data.measureResults);
   const cells = derivePdca(plan, data.actions, data.measures, resultsByMeasure);
@@ -67,7 +75,7 @@ export function CapaWorkspace({ data }: { data: CapaWorkspaceData }) {
   return (
     <SafetyMotion runKey={`${plan.id}-${plan.status}`} className="mx-auto flex w-full max-w-[1100px] flex-col gap-6">
       <div data-rise>
-        <CapaHeader plan={plan} />
+        <CapaHeader org={org} plan={plan} />
       </div>
 
       <div

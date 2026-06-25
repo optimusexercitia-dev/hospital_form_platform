@@ -58,3 +58,22 @@ export function orgHref(
   const base = `/o/${encodeURIComponent(org)}`
   return buildPath(base, segments)
 }
+
+/**
+ * The per-org NSP (Núcleo de Segurança do Paciente) console URL:
+ * `/o/{org}/nsp` plus any nested path segments. Backs the standalone NSP area
+ * (inbox / triagem / event / rca / capa / encaminhamentos / pacientes /
+ * configuracoes / equipe), gated per-org on PQS membership or the
+ * `nsp_coordinator` grant (NSP-per-org, ADR 0042).
+ *
+ * @example nspHref('org-a')                         // /o/org-a/nsp
+ * @example nspHref('org-a', 'triagem')              // /o/org-a/nsp/triagem
+ * @example nspHref('org-a', 'rca', rcaId)           // /o/org-a/nsp/rca/<rcaId>
+ */
+export function nspHref(
+  org: string,
+  ...segments: Array<string | number>
+): string {
+  const base = `/o/${encodeURIComponent(org)}/nsp`
+  return buildPath(base, segments)
+}

@@ -22,7 +22,7 @@
 -- the SECURITY DEFINER door, so a DB-side test can observe them (like referrals).
 
 begin;
-select plan(35);
+select plan(38);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_patient';
@@ -45,9 +45,13 @@ create temp table k on commit drop as
   from ctx;
 grant select on k to authenticated;
 
--- The bootstrap admin is the QPS/PQS operator (is_pqs_member real) for parity; the
+-- NSP-per-org (ADR 0042): pqs_members has composite PK (organization_id, user_id).
 -- case_patient predicate does not require PQS, but admin must still read broadly.
-insert into public.pqs_members (user_id) select admin from k;
+insert into public.pqs_members (organization_id, user_id, added_by)
+  select (v->>'org_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
+insert into public.pqs_department (organization_id, name, rca_default_due_days)
+  select (v->>'org_b')::uuid, 'NSP Bootstrap', 30 from ctx
+  on conflict (organization_id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- One case in X with: patient_enabled = true, 1 phase (assigned st_x → the broad
@@ -247,6 +251,68 @@ set local role authenticated;
 select throws_ok(
   $$ select public.dispose_case_phi((select case_x from cs), 'porque_sim') $$,
   '23514', null, 'an invalid disposal reason raises check_violation');
+reset role;
+
+-- =========================================================================
+-- §I1 (NSP-per-org regression guard): dispose_case_phi gate is ORG-SCOPED.
+-- The case_patient module (ADR 0038) shipped with a bare is_admin() disposal arm —
+-- under multi-tenancy that is the VENDOR platform_admin, walled off from all tenant
+-- PHI (ADR 0041/0042). The fix swapped is_admin() → is_org_admin_of_commission(case's
+-- org), KEEPING the is_staff_admin_of(case's commission) arm. These guards assert the
+-- 3-way org gate: platform-admin DENIED · the case's-org org_admin ALLOWED · a
+-- DIFFERENT-org org_admin DENIED. The gate (errcode 42501) fires BEFORE the one-shot
+-- HC056 check, so we assert it inside the rollback without driving the full lifecycle;
+-- the single ALLOWED call uses a DEDICATED throwaway case so case_x's lifecycle below
+-- is untouched. The bootstrap world is single-org, so we mint a 2nd org + the
+-- org_admin org_members directly (superuser; reverts with the rollback).
+-- =========================================================================
+-- A 2nd org (for the cross-org denial) and an org_admin of EACH org.
+create temp table i1 on commit drop as
+  select gen_random_uuid() as org_other, gen_random_uuid() as hosp_other,
+         gen_random_uuid() as case_i1;
+grant select on i1 to authenticated;
+insert into public.organizations (id, name, slug)
+  values ((select org_other from i1), 'Org Other', 'org-other-' || substr((select org_other from i1)::text,1,8));
+insert into public.hospitals (id, organization_id, name, slug)
+  values ((select hosp_other from i1), (select org_other from i1), 'Hosp Other',
+          'hosp-other-' || substr((select hosp_other from i1)::text,1,8));
+-- st_x2 → org_admin of org_b (the CASE's org → ALLOWED); sa_y → org_admin of org_other
+-- (a DIFFERENT org → DENIED; sa_y is staff_admin of comm_y only, no comm_x tie). admin
+-- stays the platform_admin analog (is_admin, but no org-admin row + not a staff_admin
+-- of comm_x → DENIED).
+insert into public.organization_members (organization_id, user_id, role) values
+  ((select (v->>'org_b')::uuid from ctx), (select st_x2 from k), 'org_admin'),
+  ((select org_other from i1),            (select sa_y from k),  'org_admin');
+-- A dedicated patient_enabled case in comm_x (org_b) for the single ALLOWED disposal.
+insert into public.cases (id, commission_id, case_number, label, created_by, patient_enabled)
+  values ((select case_i1 from i1), (select comm_x from k), 9309, 'Caso I1', (select sa_x from k), true);
+
+-- (I1a) platform_admin analog (admin: is_admin, NOT org_admin of org_b, NOT staff_admin
+-- of comm_x) is DENIED — the vendor platform_admin cannot erase a tenant's case PHI.
+select test_helpers.claims_for((select admin from k), true);
+set local role authenticated;
+select throws_ok(
+  $$ select public.dispose_case_phi((select case_i1 from i1), 'subject_request') $$,
+  '42501', null,
+  'I1 GUARD: platform-admin (is_admin, no tenant grant) is DENIED dispose_case_phi (42501)');
+reset role;
+
+-- (I1b) a DIFFERENT-org org_admin (sa_y is org_admin of org_other, not org_b) is DENIED.
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.dispose_case_phi((select case_i1 from i1), 'subject_request') $$,
+  '42501', null,
+  'I1 GUARD: a DIFFERENT-org org_admin is DENIED dispose_case_phi on this org''s case (42501)');
+reset role;
+
+-- (I1c) the case's-ORG org_admin (st_x2 is org_admin of org_b) is ALLOWED. Uses the
+-- dedicated case_i1 so case_x''s lifecycle tests below are unaffected.
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select lives_ok(
+  $$ select public.dispose_case_phi((select case_i1 from i1), 'subject_request') $$,
+  'I1 GUARD: the case''s-org org_admin is ALLOWED dispose_case_phi (org-scoped grant)');
 reset role;
 
 -- =========================================================================

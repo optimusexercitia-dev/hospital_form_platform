@@ -36,9 +36,12 @@ create temp table k on commit drop as
   from ctx;
 grant select on k to authenticated;
 
--- WS A: the bootstrap admin is the NSP/PQS operator in this file; enroll it in
--- public.pqs_members (is_pqs_member no longer == admin). Mirrors the seed.
-insert into public.pqs_members (user_id) select admin from k;
+-- NSP-per-org (ADR 0042): pqs_members has composite PK (organization_id, user_id).
+insert into public.pqs_members (organization_id, user_id, added_by)
+  select (v->>'org_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
+insert into public.pqs_department (organization_id, name, rca_default_due_days)
+  select (v->>'org_b')::uuid, 'NSP Bootstrap', 30 from ctx
+  on conflict (organization_id) do nothing;
 
 -- =========================================================================
 -- Drive an event through triage to a confirmed sentinel RCA (admin = NSP).

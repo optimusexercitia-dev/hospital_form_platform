@@ -3,8 +3,8 @@
  * Architecture Rule 9 — all reads go through `src/lib/queries/`; Rule 12 —
  * PHI/HIPAA handling; ADR 0037). Backs the per-commission "Encaminhamentos" hub
  * (`c/[slug]/encaminhamentos`), the case-detail outbound-referrals card, the
- * B-side referral detail, the QPS `/admin/nsp/encaminhamentos` dashboard, and the
- * Phase-12 case timeline.
+ * B-side referral detail, the QPS `/o/[org]/nsp/encaminhamentos` dashboard (per-org,
+ * ADR 0042), and the Phase-12 case timeline.
  *
  * The domain TYPES are the FROZEN contract the frontend builds against; they live
  * in the CLIENT-SAFE `@/lib/referrals/types` (ZERO imports) and are re-exported
@@ -708,9 +708,12 @@ async function isPqsMemberSelf(): Promise<boolean> {
 }
 
 /**
- * The QPS macro list across ALL committees (Decision 6/13) — every referral,
- * filtered + newest-first. Gated on `is_pqs_member_self()` (a non-PQS caller gets
- * `[]`). PHI-free. Backs `/admin/nsp/encaminhamentos`.
+ * The QPS macro list of referrals (Decision 6/13), filtered + newest-first. Gated on
+ * `is_pqs_member_self()` (any-org NSP membership) as a render-gate; the ROWS are
+ * RLS-bounded per-org by `can_read_referral` (the invoker/cookie client — NSP-per-org,
+ * ADR 0042), so a QPS member sees only their own org's referrals (a non-PQS caller
+ * gets `[]`). PHI-free. Backs the per-org QPS dashboard `/o/[org]/nsp/encaminhamentos`
+ * (the FE filters the result to the route's org for display).
  */
 export async function listAllReferrals(
   filters: ReferralDashboardFilters = {},

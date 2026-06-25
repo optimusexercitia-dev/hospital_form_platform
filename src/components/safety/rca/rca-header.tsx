@@ -5,6 +5,7 @@ import { AlertTriangle, Check, ChevronRight, Loader2, RefreshCw } from "lucide-r
 
 import type { Rca } from "@/lib/safety/rca-types";
 import { cn } from "@/lib/utils";
+import { nspHref } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
 import { RcaStatusChip } from "./rca-badges";
 import type { SaveState } from "../triage/triage-topbar";
@@ -17,6 +18,7 @@ import { formatDate } from "../format";
  * and the lifecycle actions (Submit / Complete / Reopen) gated by status + write.
  */
 export function RcaHeader({
+  org,
   rca,
   eventTitle,
   commissionName,
@@ -28,6 +30,8 @@ export function RcaHeader({
   onComplete,
   onReopen,
 }: {
+  /** The org slug whose NSP console this is — builds the breadcrumb hrefs. */
+  org: string;
   rca: Rca;
   eventTitle: string;
   commissionName: string | null;
@@ -47,14 +51,14 @@ export function RcaHeader({
           className="flex items-center gap-1.5 text-sm text-muted-foreground"
         >
           <Link
-            href="/admin/nsp"
+            href={nspHref(org)}
             className="rounded transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
           >
             NSP
           </Link>
           <ChevronRight aria-hidden="true" className="size-3.5" />
           <Link
-            href={`/admin/nsp/${rca.eventId}`}
+            href={nspHref(org, rca.eventId)}
             className="rounded font-mono text-xs transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
           >
             {rca.eventCode ?? "Evento"}

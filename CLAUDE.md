@@ -231,6 +231,12 @@ Requires Claude Code v2.1.32+. The session that opens this project acts as
 **team lead / orchestrator**: it coordinates, assigns tasks, reviews plans, and
 does NOT write feature code itself.
 
+### Agent Delegation Rules
+- Exploration/grep tasks → Haiku
+- Implementation → Sonnet  
+- Architecture decisions / multi-file refactors → Opus
+- Read-only reviewers (security, quality) → Haiku or Sonnet
+
 ### Teammates (spawn using these agent types from `.claude/agents/`)
 
 | Teammate name | Agent type          | Scope |
@@ -368,14 +374,29 @@ Update it when: a task starts/finishes, a bug is filed/fixed, a gate step
 passes, a decision is made. Never report status verbally without writing it
 to `PROGRESS.md` first. Format is defined in the file itself.
 
-**Keep `PROGRESS.md` small — every spawn reads it.** The live file holds only the
-Phase Status table, the **current** phase's task table + lead notes, and the
-cross-phase logs (Bug Log, Test Run Summary, QA Verdicts, Decisions, Follow-ups). At
-the §6 Record step the lead moves the just-completed phase's task detail + per-phase
-notes into `docs/progress/phase-N.md`, leaving a one-line pointer behind; the
-cross-phase logs stay here. The durable map of what the backend already provides lives
-in **`docs/backend-state.md`** (the lead keeps it current) so per-phase "lead notes"
-reference it instead of re-deriving it each phase.
+**Keep `PROGRESS.md` small — every spawn reads it.** Target a few hundred lines / well
+under ~60 KB. The live file holds only the Phase Status table, the **current** phase's
+task table + lead notes, and the *current head* of each cross-phase log — NOT the full
+history. At the §6 Record step the lead **rotates** the just-completed phase's detail out
+of the live file into `docs/progress/`, leaving a one-line pointer behind:
+
+- **Phase task detail + per-phase notes** → `docs/progress/phase-N.md` (or a feature-named
+  file, e.g. `case-access.md`); replace with a one-line pointer under "Completed work".
+- **Bug Log** → keep only **OPEN** bugs live; move resolved/closed rows to
+  `docs/progress/bug-log-archive.md`.
+- **Test Run Summary** → keep only the **most recent gate's** rows live; move the rest to
+  `docs/progress/test-run-archive.md`.
+- **QA Verdicts** → a collapsed one-row-per-phase index (verdict + date + report link);
+  the full reviews already live in `docs/reviews/phase-N-review.md`.
+- **Decisions** → **one line per decision** + ADR link; rationale lives in
+  `docs/decisions/` (verbose pre-collapse history in `docs/progress/decisions-log.md`).
+- **Follow-ups / Deferred** → keep only **OPEN** (`[ ]`/`[~]`) items live; move resolved
+  `[x]` items to `docs/progress/follow-ups-archive.md`.
+
+The durable map of what the backend already provides lives in **`docs/backend-state.md`**
+(the lead keeps it current) so per-phase "lead notes" reference it instead of re-deriving
+it each phase. Archive files under `docs/progress/` are append-only and never loaded by
+spawns — detail goes there to stay out of every teammate's context.
 
 ## 8. Conventions & Quality Bar
 

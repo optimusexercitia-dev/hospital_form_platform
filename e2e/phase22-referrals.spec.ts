@@ -23,7 +23,14 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  *             Target: Farmácia. No reply. Used for the close-gate (HC076) test.
  *
  * **Personas (password Test1234!):**
- *   admin@test.local          global admin, PQS member   (00…001)
+ *   admin@test.local          rede-a org_admin + rede-a PQS roster (00…001) —
+ *                             resolves to staff_admin on /o/rede-a/c/* (org_admin→
+ *                             staff_admin); used for PostgREST/RPC truth-reads + setup.
+ *                             NOT the vendor platform admin (that is platform@…b0).
+ *   pqs.a@test.local          enrolled rede-a PQS member (00…00c2) — the QPS actor for
+ *                             the per-org QPS referral dashboard /o/rede-a/nsp/* and
+ *                             full-trajectory reads. No commission/org membership, so it
+ *                             404s on /o/rede-a/c/* commission hubs (use admin@ there).
  *   chefe.ccih@test.local     staff_admin, CCIH           (00…002) — source coordinator
  *   staff1.ccih@test.local    staff, CCIH                 (00…003) — plain A member
  *   chefe.farm@test.local     staff_admin, Farmácia       (00…005) — target coordinator
@@ -38,14 +45,12 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 test.describe.configure({ mode: 'serial' })
 test.use({ viewport: { width: 1280, height: 900 } })
 
-// SKIP(multi-org pilot): case_referrals module disabled when >1 org is
-// provisioned (2-org seed, multi-tenancy Phase E). Re-enable when NSP-per-org
-// and referrals-per-org land and referrals_enabled() returns true.
-const MULTI_ORG_PILOT_SKIP =
-  'NSP/referral modules disabled in the 2-org multi-tenancy pilot seed — re-enable when NSP-per-org lands'
+// NSP-per-org (ADR 0042): the case_referrals module is now provisioned per-org and
+// referrals_enabled() returns true. The QPS referral dashboard lives at
+// /o/rede-a/nsp/encaminhamentos; the source/target commission hubs at
+// /o/rede-a/c/{ccih,farmacia}/encaminhamentos. The multi-org pilot skip is removed.
 
-test.beforeEach(async ({ page }, testInfo) => {
-  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
+test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
 })
 
@@ -203,11 +208,10 @@ async function auditRowsFor(req: APIRequestContext, action: string, entityId: st
 // ---------------------------------------------------------------------------
 
 test.beforeAll(async ({ request }) => {
-  // SKIP(multi-org pilot): referrals module is permanently OFF in the 2-org seed.
-  // Attempting to flip the flag will succeed (UPDATE runs) but create_referral_draft
-  // raises a constraint error because the module is structurally disabled. Skip all
-  // tests in this file rather than crash the beforeAll fixture setup.
-  test.skip(true, MULTI_ORG_PILOT_SKIP)
+  // NSP-per-org (ADR 0042): the case_referrals module is provisioned per-org and
+  // referrals_enabled() returns true; create_referral_draft succeeds. We still flip
+  // the feature flag ON for the whole suite (and reset it in afterAll) so the
+  // regression suite's flag-OFF 404 path is unaffected if this suite runs first.
 
   // Enable the case_referrals flag for the whole suite. If the helper RPC
   // doesn't exist we catch the error and use the supabase CLI as a fallback
@@ -348,12 +352,14 @@ test("Flow 1b: A detail page shows reply but NOT B's internal case body", async 
   await expect(page.getByText(/Procede/i).first()).toBeVisible()
   await expect(page.getByText(/conciliação medicamentosa procede/i)).toBeVisible()
 
-  // A does NOT see B's linked case internal label ("Análise de parecer — CCIH"
-  // is B's case label; it should NOT appear in A's context beyond the case number link)
-  // The case label is private to B; A's view shows B's case NUMBER but not body
+  // A does NOT see B's linked case internal label. The detail page shows A only B's
+  // case NUMBER ("Vinculado: …"), never B's private label. B's label is
+  // "Análise de parecer — CCIH"; the distinctive phrase "Análise de parecer" appears
+  // nowhere in A's own artifacts (A's case label is "Óbito UTI leito 7", the referral
+  // subject is about "conciliação medicamentosa"), so its presence would be a leak.
   const html = await page.content()
-  // B's case internal narrative text should NOT appear
-  expect(html).not.toContain('Caso 9001')  // B's case_number=9001 internal label
+  // B's private case label must NOT appear in A's view (isolation boundary).
+  expect(html).not.toContain('Análise de parecer')
 })
 
 test("Flow 1c: get_case_detail on B's target_case_id as an A user → no_data_found (RLS)", async ({
@@ -481,9 +487,11 @@ test("Flow 2d: B user cannot read A's source case_referral source data directly 
 // ---------------------------------------------------------------------------
 // Flow 3 — QPS sees both ends
 //
-// A `pqs_member` (admin@test.local) can read A's live source case, the
-// ENC-0001 snapshot, the delivered reply, AND B's linked case — all via the
-// `can_read_case` QPS early-return in `can_read_case` (no case_access dependency).
+// A rede-a `pqs_member` can read A's live source case, the ENC-0001 snapshot, the
+// delivered reply, AND B's linked case — all via the `can_read_case` QPS early-return
+// (no case_access dependency). The PostgREST truth-reads (3a/3c) use admin@ (a rede-a
+// pqs_member); the per-org QPS DASHBOARD UI read (3b) uses pqs.a@, the enrolled PQS
+// member, since the dashboard is gated on PQS membership of the org (ADR 0042).
 // ---------------------------------------------------------------------------
 
 test('Flow 3a: QPS admin can read A\'s source case (get_case_detail returns non-null)', async ({
@@ -500,11 +508,14 @@ test('Flow 3a: QPS admin can read A\'s source case (get_case_detail returns non-
   expect(JSON.stringify(body)).toContain('Óbito')
 })
 
-test('Flow 3b: QPS admin can read ENC-0001 detail via referral hub', async ({
+test('Flow 3b: QPS member can read ENC-0001 detail via the per-org QPS referral dashboard', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  await page.goto('/admin/nsp/encaminhamentos')
+  // The QPS referral dashboard is per-org (ADR 0042) and gated on PQS membership of
+  // THIS org. pqs.a@ is the enrolled rede-a PQS member (the canonical QPS actor);
+  // admin@ is rede-a org_admin and a truth-read persona, not the dashboard actor.
+  await signInAs(page, 'pqs.a@test.local')
+  await page.goto('/o/rede-a/nsp/encaminhamentos')
   await page.waitForLoadState('networkidle')
 
   // Dashboard shows the referral
@@ -530,7 +541,10 @@ test('Flow 3d: QPS admin sees ENC-0001 reply (concluida) + delivered result on d
   page,
 }) => {
   await signInAs(page, 'admin@test.local')
-  // Admin can navigate to ENC-0001 via the CCIH hub (admin is a member of all)
+  // admin@ is rede-a org_admin → resolves to staff_admin on /o/rede-a/c/* (the
+  // commission-access resolver maps org_admin→staff_admin), so it can open ENC-0001
+  // via the CCIH commission hub. (pqs.a@ would 404 here — PQS-roster-only, no
+  // commission/org membership — so the QPS dashboard, not this hub, is its surface.)
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
   await page.waitForLoadState('networkidle')
 
@@ -1010,11 +1024,14 @@ test('Flow 5-PHI-list: hub page renders NO patient identifiers in HTML', async (
   await expect(page.getByText(/Solicitação de parecer sobre conciliação medicamentosa/i)).toBeVisible()
 })
 
-test('Flow 5-PHI-dash: QPS dashboard renders NO patient identifiers in HTML', async ({
+test('Flow 5-PHI-dash: per-org QPS referral dashboard renders NO patient identifiers in HTML', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  await page.goto('/admin/nsp/encaminhamentos')
+  // pqs.a@ is the enrolled rede-a PQS member; the QPS referral dashboard is per-org
+  // (ADR 0042). The aggregate is PHI-free by design — patient context lives only
+  // behind the per-referral audited PHI door, never on this macro view.
+  await signInAs(page, 'pqs.a@test.local')
+  await page.goto('/o/rede-a/nsp/encaminhamentos')
   await page.waitForLoadState('networkidle')
 
   const html = await page.content()

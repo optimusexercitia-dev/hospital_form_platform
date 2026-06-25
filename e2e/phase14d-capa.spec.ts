@@ -42,14 +42,7 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
 
 test.use({ viewport: { width: 1280, height: 900 } })
 
-// SKIP(multi-org pilot): NSP/patient_safety module disabled when >1 org is
-// provisioned (2-org seed, multi-tenancy Phase E). Re-enable when NSP-per-org
-// lands and patient_safety_enabled() returns true for commission-scoped users.
-const MULTI_ORG_PILOT_SKIP =
-  'NSP/referral modules disabled in the 2-org multi-tenancy pilot seed — re-enable when NSP-per-org lands'
-
-test.beforeEach(async ({ page }, testInfo) => {
-  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
+test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
 })
 
@@ -71,6 +64,9 @@ const EV2_ID      = 'e2000000-0000-0000-0000-0000000000a2'  // stand-alone event
 const ADMIN_EMAIL  = 'admin@test.local'
 const STAFF1_EMAIL = 'staff1.ccih@test.local'
 const FARM_EMAIL   = 'chefe.farm@test.local'
+// NSP console actor for rede-a (enrolled PQS reader; ADR 0042 per-org NSP).
+// Drives the /o/rede-a/nsp/** console UI; admin@ stays for RPC data-setup.
+const PQS_A_EMAIL  = 'pqs.a@test.local'
 const STAFF1_ID    = '00000000-0000-0000-0000-000000000003'
 
 // ---------------------------------------------------------------------------
@@ -145,8 +141,8 @@ async function auditRowsFor(
 // ---------------------------------------------------------------------------
 
 test('C1: CAPA workspace page loads with seeded plan content', async ({ page }) => {
-  await signInAs(page, ADMIN_EMAIL)
-  await page.goto(`/admin/nsp/capa/${CAPA_ID}`)
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto(`/o/rede-a/nsp/capa/${CAPA_ID}`)
   await page.waitForLoadState('networkidle')
 
   // Page heading
@@ -694,8 +690,8 @@ test('C16b: capa.action_advanced audit row written when action status changes', 
 test('C17: keyboard-only — CAPA workspace loads and action sections are keyboard reachable', async ({
   page,
 }) => {
-  await signInAs(page, ADMIN_EMAIL)
-  await page.goto(`/admin/nsp/capa/${CAPA_ID}`)
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto(`/o/rede-a/nsp/capa/${CAPA_ID}`)
   await page.waitForLoadState('networkidle')
 
   // Page main content area visible
@@ -722,8 +718,8 @@ test('C17: keyboard-only — CAPA workspace loads and action sections are keyboa
 // ---------------------------------------------------------------------------
 
 test('C18: CAPA workspace page contains NO patient PHI', async ({ page }) => {
-  await signInAs(page, ADMIN_EMAIL)
-  await page.goto(`/admin/nsp/capa/${CAPA_ID}`)
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto(`/o/rede-a/nsp/capa/${CAPA_ID}`)
   await page.waitForLoadState('networkidle')
 
   const html = await page.content()

@@ -3,8 +3,9 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-import { requireUser } from "@/lib/queries/session";
-import { patientSafetyEnabled, getPqsDepartment } from "@/lib/queries/pqs";
+import { getNspAccessByOrg } from "@/lib/queries/session";
+import { nspHref } from "@/lib/routing";
+import { patientSafetyEnabled, getPqsDepartmentForOrg } from "@/lib/queries/pqs";
 import { listEventTypes, listSentinelCriteria } from "@/lib/queries/triage";
 import { SafetyMotion } from "@/components/safety/safety-motion";
 import { EventTypeManager } from "@/components/safety/triage/event-type-manager";
@@ -17,14 +18,30 @@ export const metadata: Metadata = {
 
 /**
  * The NSP CONFIG area (Phase 14b): manage the configurable event-type vocabulary,
- * the sentinel checklist, and the RCA due-window. All `is_pqs_member`/admin-gated
- * (the admin layout enforces `isAdmin`; re-checked here + the `patient_safety`
- * flag → 404 when off). The vocab lists include INACTIVE entries (the managers show
- * archived ones in a muted section) so existing flags/events keep resolving.
+ * the sentinel checklist, and the RCA due-window. The vocab (event types +
+ * sentinel criteria) is GLOBAL config (shared across orgs); the RCA due-window is
+ * PER-ORG (`pqs_department`).
+ *
+ * Access: the `/o/[org]/nsp` layout gates to a PQS member/coordinator of THIS
+ * org + the `patient_safety` flag → 404 when off; the page pins the org. A
+ * non-enrolled coordinator may reach config (the vocab managers are global; the
+ * per-org RCA-window write is coordinator/member-gated server-side). The vocab
+ * lists include INACTIVE entries (the managers show archived ones in a muted
+ * section) so existing flags/events keep resolving.
+ *
+ * Org-scoping (NSP-per-org, ADR 0042): the RCA due-window reads the PER-ORG
+ * `pqs_department` row via `getPqsDepartmentForOrg(access.orgId)`, and
+ * `RcaWindowForm` submits through `setPqsRcaDueWindow(orgId, days)` (audited at
+ * the org tier). The vocab managers stay global (shared config across orgs).
  */
-export default async function NspConfigPage() {
-  const context = await requireUser();
-  if (!context.isAdmin) {
+export default async function NspConfigPage({
+  params,
+}: {
+  params: Promise<{ org: string }>;
+}) {
+  const { org } = await params;
+  const access = await getNspAccessByOrg(org);
+  if (!access) {
     notFound();
   }
   if (!(await patientSafetyEnabled())) {
@@ -34,14 +51,14 @@ export default async function NspConfigPage() {
   const [eventTypes, criteria, department] = await Promise.all([
     listEventTypes(true),
     listSentinelCriteria(true),
-    getPqsDepartment(),
+    getPqsDepartmentForOrg(access.orgId),
   ]);
 
   return (
     <SafetyMotion runKey="nsp-config" className="flex flex-col gap-8">
       <header data-rise className="flex flex-col gap-3">
         <Link
-          href="/admin/nsp"
+          href={nspHref(org)}
           className="inline-flex w-fit items-center gap-1.5 rounded text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
         >
           <ArrowLeft aria-hidden="true" className="size-4" />
@@ -89,7 +106,10 @@ export default async function NspConfigPage() {
           Prazo da análise de causa raiz
         </h2>
         {department ? (
-          <RcaWindowForm defaultDueDays={department.defaultDueDays} />
+          <RcaWindowForm
+            orgId={access.orgId}
+            defaultDueDays={department.defaultDueDays}
+          />
         ) : (
           <p className="text-sm text-muted-foreground">
             Não foi possível carregar a configuração do NSP.

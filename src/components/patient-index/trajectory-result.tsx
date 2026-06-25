@@ -19,10 +19,13 @@ import { TrajectoryTable } from "./trajectory-table";
  * search — the audit query is MRN-keyed, ADR 0039 contract).
  */
 export function TrajectoryResult({
+  org,
   result,
   headingId = "patient-trajectory-heading",
   children,
 }: {
+  /** The org slug whose NSP console this is — builds the per-org entity hrefs. */
+  org: string;
   result: PatientSearchResult;
   /** Override when more than one trajectory heading could exist on a page. */
   headingId?: string;
@@ -46,7 +49,7 @@ export function TrajectoryResult({
         </span>
       </div>
 
-      <TrajectoryTable entries={result.entries} />
+      <TrajectoryTable org={org} entries={result.entries} />
 
       {children}
     </div>

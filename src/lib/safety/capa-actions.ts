@@ -27,10 +27,13 @@ import type {
  * strings are pt-BR (`./messages.ts` via `mapCapaError`).
  */
 
-const NSP_PATH = '/admin/nsp'
+// NSP-per-org (ADR 0042): console moved /admin/nsp → /o/[org]/nsp/**. Revalidate the
+// per-org NSP LAYOUT across all [org] values (Next-15 dynamic-segment form; 'layout'
+// covers the layout + every page beneath it). RLS-scoped data → no cross-org leak.
+const NSP_PATH = '/o/[org]/nsp'
 
 function revalidateNsp(): void {
-  revalidatePath(NSP_PATH, 'page')
+  revalidatePath(NSP_PATH, 'layout')
 }
 
 // The nsp-evidence MIME allow-list (mirrors the bucket) → file extension. NO audio.

@@ -53,14 +53,17 @@ import type {
 
 const COMMISSION_EVENTS_PATH = '/c/[slug]/eventos'
 const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
-const NSP_PATH = '/admin/nsp'
+// NSP-per-org (ADR 0042): console moved /admin/nsp → /o/[org]/nsp/**. The NSP path now
+// carries a dynamic [org] segment, so it revalidates as a LAYOUT (covers the layout +
+// every NSP page beneath it). The commission/case paths above are unchanged.
+const NSP_PATH = '/o/[org]/nsp'
 
-/** Revalidate the committee read-back + case detail + the NSP workspaces after a
- * safety mutation (the event may surface on any of them). */
+/** Revalidate the committee read-back + case detail + the per-org NSP workspaces after
+ * a safety mutation (the event may surface on any of them). */
 function revalidateSafety(): void {
   revalidatePath(COMMISSION_EVENTS_PATH, 'page')
   revalidatePath(CASE_PATH, 'page')
-  revalidatePath(NSP_PATH, 'page')
+  revalidatePath(NSP_PATH, 'layout')
 }
 
 /**

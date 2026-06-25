@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeftRight, ListChecks, Settings, Users } from "lucide-react";
 
-import { requireUser } from "@/lib/queries/session";
-import { listCommissionsForAdmin } from "@/lib/queries/commissions";
+import { getNspAccessByOrg } from "@/lib/queries/session";
+import { nspHref } from "@/lib/routing";
+import { listCommissionsForOrg } from "@/lib/queries/org";
 import {
   pqsInbox,
   patientSafetyEnabled,
@@ -27,28 +28,47 @@ export const metadata: Metadata = {
 
 /**
  * The NSP inbox/queue (F3): the central Núcleo de Segurança do Paciente triage
- * queue, served by the `is_pqs_member`-gated `pqs_inbox` RPC. PHI-FREE — it
- * shows governance metadata only; the patient panel is loaded (and audited)
- * only when an analyst opens an event detail.
+ * queue, served by the per-org `is_pqs_member_of`-gated `pqs_inbox` RPC.
+ * PHI-FREE — it shows governance metadata only; the patient panel is loaded
+ * (and audited) only when an analyst opens an event detail.
  *
- * Gated behind the `patient_safety` flag (404 when off). The admin layout
- * already enforces `isAdmin` (today `is_pqs_member = is_admin`); we re-check
- * defensively. Filters are URL-driven (`?status=&priority=&commission=`); RLS
- * remains the boundary (a non-PQS caller gets `[]`).
+ * Access: the `/o/[org]/nsp` layout gates the caller to a PQS member or
+ * coordinator of THIS org (`getNspAccessByOrg`); here we re-resolve it to pin
+ * the org id (commission scope). We do NOT additionally 404 a non-enrolled
+ * coordinator — the `pqs_inbox` RPC is the fine boundary and returns `[]` for a
+ * non-member, so a coordinator-only user (whose PHI nav is hidden) sees an empty
+ * queue rather than a hard 404 ("sees it empty" — the per-org access decision).
+ * Also gated behind the `patient_safety` flag (404 when off). Filters are
+ * URL-driven (`?status=&priority=&commission=`); RLS + the per-org door remain
+ * the boundary (a non-member or cross-org caller gets `[]`).
  */
 export default async function NspInboxPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ org: string }>;
   searchParams: Promise<{
     status?: string;
     priority?: string;
     commission?: string;
   }>;
 }) {
-  const context = await requireUser();
-  if (!context.isAdmin) {
+  const { org } = await params;
+  const access = await getNspAccessByOrg(org);
+  if (!access) {
     notFound();
   }
+
+  // Coordinator-first landing (NSP-per-org, ADR 0042): a coordinator who is NOT
+  // also an enrolled PQS member has no business on the PHI inbox — their job is
+  // roster curation. Send them straight to "Equipe do NSP" rather than show an
+  // empty queue. An enrolled member (who may ALSO be the coordinator) stays on the
+  // inbox. The roster page is itself coordinator-gated, so this never lands a
+  // non-coordinator there.
+  if (access.isCoordinator && !access.isPqsMember) {
+    redirect(nspHref(org, "equipe"));
+  }
+
   if (!(await patientSafetyEnabled())) {
     notFound();
   }
@@ -63,7 +83,7 @@ export default async function NspInboxPage({
 
   const [items, commissions, referralsOn, patientIndexOn] = await Promise.all([
     pqsInbox(filters),
-    listCommissionsForAdmin(),
+    listCommissionsForOrg(access.orgId),
     referralsEnabled(),
     patientIndexEnabled(),
   ]);
@@ -81,11 +101,9 @@ export default async function NspInboxPage({
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
-            Administração
-          </p>
-          <h1 className="text-3xl text-balance">
             Núcleo de Segurança do Paciente
-          </h1>
+          </p>
+          <h1 className="text-3xl text-balance">Fila de eventos</h1>
           <p className="max-w-prose text-muted-foreground text-pretty">
             Fila de eventos de segurança notificados pelas comissões. Reconheça,
             acompanhe a custódia e abra cada evento para a análise. A
@@ -95,7 +113,7 @@ export default async function NspInboxPage({
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Link
-            href="/admin/nsp/triagem"
+            href={nspHref(org, "triagem")}
             className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
           >
             <ListChecks aria-hidden="true" className="size-4" />
@@ -103,7 +121,7 @@ export default async function NspInboxPage({
           </Link>
           {referralsOn && (
             <Link
-              href="/admin/nsp/encaminhamentos"
+              href={nspHref(org, "encaminhamentos")}
               className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
             >
               <ArrowLeftRight aria-hidden="true" className="size-4" />
@@ -112,7 +130,7 @@ export default async function NspInboxPage({
           )}
           {patientIndexOn && (
             <Link
-              href="/admin/nsp/pacientes"
+              href={nspHref(org, "pacientes")}
               className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
             >
               <Users aria-hidden="true" className="size-4" />
@@ -120,7 +138,7 @@ export default async function NspInboxPage({
             </Link>
           )}
           <Link
-            href="/admin/nsp/configuracoes"
+            href={nspHref(org, "configuracoes")}
             className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
           >
             <Settings aria-hidden="true" className="size-4" />
@@ -139,6 +157,7 @@ export default async function NspInboxPage({
       />
 
       <PqsInboxList
+        org={org}
         items={items}
         commissionNames={commissionNames}
         runKey={runKey}

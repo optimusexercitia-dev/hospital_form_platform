@@ -90,7 +90,8 @@ function SortHeader({
  * Mirrors the coordinator cases board (`cases-table.tsx`): a rounded card with a
  * muted header row, striped rows, and sortable Evento/Status/Notificado columns.
  * Rows are NOT links: in 14a the committee has read-back status only; the working
- * detail (and any PHI) lives in the access-audited NSP workspace under `/admin/nsp`.
+ * detail (and any PHI) lives in the access-audited per-org NSP workspace under
+ * `/o/[org]/nsp`.
  */
 export function EventsList({ events }: { events: SafetyEventListItem[] }) {
   const [statusFilter, setStatusFilter] = useState<EventStatus | "all">("all");

@@ -135,11 +135,11 @@ export interface TrajectoryEntry {
 
 /**
  * The full result of a QPS cross-committee patient search
- * ({@link import('@/lib/queries/patient-index').searchPatient}). PHI-FREE.
- * Returned ONLY to a PQS member; a non-PQS caller (incl. a non-PQS platform
- * admin) gets `null` (duty separation, ADR 0030/0039). A zero-match search
- * returns an empty {@link entries} and emits NO audit row (the audit fires only on
- * matches ≥ 1, ADR 0039).
+ * ({@link import('@/lib/queries/patient-index').searchPatientForOrg}). PHI-FREE.
+ * Returned ONLY to a member enrolled in the searched org; a non-member (incl. a
+ * non-PQS platform admin) gets `null` (duty separation, ADR 0030/0039/0042). A
+ * zero-match search returns an empty {@link entries} and emits NO audit row (the
+ * audit fires only on matches ≥ 1, ADR 0039).
  */
 export interface PatientSearchResult {
   /** Which key(s) the supplied MRN/encounter resolved to overall. */
@@ -152,7 +152,7 @@ export interface PatientSearchResult {
 
 /**
  * One patient-scoped ACCESS-AUDIT row
- * ({@link import('@/lib/queries/patient-index').getPatientAccessAudit}) — WHO read
+ * ({@link import('@/lib/queries/patient-index').getPatientAccessAuditForOrg}) — WHO read
  * (or disposed) this patient's PHI, across all committees, drawn from the
  * `audit_log` for every entity sharing the patient's `patient_key`. PHI-FREE: the
  * actor, the action verb, the entity reference, and the timestamp — never the

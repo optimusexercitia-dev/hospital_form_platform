@@ -1,7 +1,7 @@
 /**
  * Patient-safety CAPA data-access (Phase 14d — Corrective Action Plan, Effectiveness
  * & Closure; Architecture Rule 9 — all reads go through `src/lib/queries/`). Backs the
- * CAPA workspace + KPIs under `/admin/nsp`.
+ * CAPA workspace + KPIs under `/o/[org]/nsp/**` (per-org, ADR 0042).
  *
  * The domain TYPES are the FROZEN contract the frontend builds against; they live in
  * the import-free, client-safe `@/lib/safety/capa-types` (re-exported here). All reads

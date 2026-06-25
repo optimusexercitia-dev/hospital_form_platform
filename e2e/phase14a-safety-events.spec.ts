@@ -31,7 +31,12 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  *   sees the case detail). The seeded commission CCIH and case Caso 0001 are used
  *   READ-ONLY for AC-2/4/6; AC-1 and AC-5 create NEW events (additive, no
  *   mutation of existing rows).
- *   The `admin@test.local` persona is the NSP actor (is_pqs_member = is_admin).
+ *   NSP-per-org (ADR 0042): the NSP console lives at `/o/rede-a/nsp/**` and is
+ *   gated on enrolled PQS membership of the org (NOT global admin). The
+ *   `pqs.a@test.local` persona is the rede-a NSP-console actor (enrolled PQS
+ *   member of rede-a). `admin@test.local` is a rede-a org_admin that is ALSO
+ *   enrolled in rede-a's PQS roster, so it retains console + PHI access and is
+ *   used here for admin/RPC data-setup (acknowledge, custody transfer).
  *
  * Seeded events (after `supabase db reset`):
  *   EV-0001  id e1000000-0000-0000-0000-0000000000a1
@@ -41,22 +46,16 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  *            stand-alone (no case), status `reported`, no PHI.
  *
  * Personas (password Test1234!):
- *   admin@test.local        global admin / PQS member  (00…001)
+ *   admin@test.local        rede-a org_admin + enrolled PQS member  (00…001)
+ *   pqs.a@test.local        enrolled PQS member of rede-a (NSP actor) (00…0c2)
  *   chefe.ccih@test.local   staff_admin, CCIH          (00…002)
  *   staff1.ccih@test.local  staff, CCIH                (00…003)
- *   chefe.farm@test.local   staff_admin, Farmácia      (00…005) — foreign
+ *   chefe.farm@test.local   staff_admin, Farmácia (NOT a PQS member) (00…005) — foreign
  */
 
 test.use({ viewport: { width: 1280, height: 900 } })
 
-// SKIP(multi-org pilot): NSP/patient_safety module disabled when >1 org is
-// provisioned (2-org seed, multi-tenancy Phase E). Re-enable when NSP-per-org
-// lands and patient_safety_enabled() returns true for commission-scoped users.
-const MULTI_ORG_PILOT_SKIP =
-  'NSP/referral modules disabled in the 2-org multi-tenancy pilot seed — re-enable when NSP-per-org lands'
-
-test.beforeEach(async ({ page }, testInfo) => {
-  testInfo.skip(true, MULTI_ORG_PILOT_SKIP)
+test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
 })
 
@@ -78,6 +77,8 @@ const COMMISSION_B = 'b0000000-0000-0000-0000-0000000000b1' // Farmácia
 
 // Personas
 const ADMIN_ID    = '00000000-0000-0000-0000-000000000001'
+const PQS_A_ID    = '00000000-0000-0000-0000-0000000000c2'
+const PQS_A_EMAIL = 'pqs.a@test.local'
 const CHEFE_CCIH  = '00000000-0000-0000-0000-000000000002'
 const STAFF1_CCIH = '00000000-0000-0000-0000-000000000003'
 
@@ -366,11 +367,11 @@ test('AC-3: custody transfer gives new holder access; reporting commission keeps
 //         `event_patient.read` audit row with NO patient identifiers in metadata
 // ---------------------------------------------------------------------------
 
-test('AC-4a: admin navigates to EV-0001 detail → PHI panel renders with patient data', async ({
+test('AC-4a: pqs.a navigates to EV-0001 detail → PHI panel renders with patient data', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  await page.goto(`/admin/nsp/${EV1_ID}`)
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
   await page.waitForLoadState('networkidle')
 
   // The patient panel heading is present (the section is rendered for in-scope PHI)
@@ -387,22 +388,27 @@ test('AC-4b: PHI read writes event_patient.read audit row with no identifiers in
   page,
   request,
 }) => {
-  // Trigger a page load of EV-1 as admin (which fires the audited read server-side)
-  await signInAs(page, 'admin@test.local')
+  // Trigger a page load of EV-1 as the NSP actor (which fires the audited read
+  // server-side)
+  await signInAs(page, PQS_A_EMAIL)
 
   // Capture audit rows BEFORE the visit to measure the delta
   const before = await auditRowsFor(request, 'event_patient.read', EV1_ID)
 
-  await page.goto(`/admin/nsp/${EV1_ID}`)
+  await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
   await page.waitForLoadState('networkidle')
 
   // One new audit row must have been added
   const after = await auditRowsFor(request, 'event_patient.read', EV1_ID)
   expect(after.length).toBeGreaterThan(before.length)
 
+  // The audited read is attributed to the NSP reader (pqs.a), proving the
+  // server logs WHO read PHI.
+  const latest = after[after.length - 1]
+  expect(latest.actor_id).toBe(PQS_A_ID)
+
   // The most recent row's metadata must contain NO patient identifiers —
   // no name, no mrn, no date_of_birth, no encounter_ref
-  const latest = after[after.length - 1]
   const meta = JSON.stringify(latest.metadata)
   expect(meta).not.toMatch(/paciente de demonstração/i)
   expect(meta).not.toMatch(/PRT-0099123/)
@@ -465,8 +471,8 @@ test('AC-5: stand-alone event filing via /c/ccih/eventos/novo → inbox + read-b
 test('AC-6: NSP inbox page renders NO PHI (name, mrn, dob absent from HTML)', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  await page.goto('/admin/nsp')
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto('/o/rede-a/nsp')
   await page.waitForLoadState('networkidle')
 
   const html = await page.content()
@@ -550,7 +556,7 @@ test('AC-8a: event detail shows Reconhecer button when status is reported', asyn
 }) => {
   // EV-0002 is seeded as `reported` (though AC-2a may have flipped it — use a
   // fresh event filed in AC-5 or just assert on the DB state first)
-  const adminToken = await (async () => {
+  const ev2Status = await (async () => {
     // We need EV-0002 to be reported; if AC-2a ran first it is now acknowledged.
     // Either way, we verify: if `reported` → button visible; if `acknowledged` → button absent.
     const rows = await fetch(
@@ -565,12 +571,12 @@ test('AC-8a: event detail shows Reconhecer button when status is reported', asyn
     return rows[0]?.status
   })()
 
-  await signInAs(page, 'admin@test.local')
-  await page.goto(`/admin/nsp/${EV2_ID}`)
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto(`/o/rede-a/nsp/${EV2_ID}`)
   await page.waitForLoadState('networkidle')
 
   const acknowledgeBtn = page.getByRole('button', { name: /reconhecer evento/i })
-  if (adminToken === 'reported') {
+  if (ev2Status === 'reported') {
     await expect(acknowledgeBtn).toBeVisible()
   } else {
     // Already acknowledged by AC-2a — button should not be present
@@ -582,8 +588,8 @@ test('AC-8b: event detail shows NO Reconhecer button when status is acknowledged
   page,
 }) => {
   // EV-0001 is seeded as `acknowledged`
-  await signInAs(page, 'admin@test.local')
-  await page.goto(`/admin/nsp/${EV1_ID}`)
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
   await page.waitForLoadState('networkidle')
 
   await expect(page.getByRole('button', { name: /reconhecer evento/i })).not.toBeVisible()
@@ -598,10 +604,12 @@ test('AC-8b: event detail shows NO Reconhecer button when status is acknowledged
 test('AC-9: foreign commission member cannot access NSP event detail (redirects/404)', async ({
   page,
 }) => {
-  // chefe.farm is not a PQS member (not admin) → /admin/nsp is admin-only
+  // chefe.farm is staff_admin of commission B (Farmácia) under rede-a but is NOT
+  // an enrolled PQS member of rede-a → the NSP console layout gate
+  // (getNspAccessByOrg) returns null → notFound().
   await signInAs(page, 'chefe.farm@test.local')
-  await page.goto(`/admin/nsp/${EV1_ID}`)
-  // The admin layout gates on isAdmin → notFound() → Next.js 404 page
+  await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
+  // The NSP layout gates on PQS membership → notFound() → Next.js 404 page
   // (URL stays at the 404 path or redirects; we just assert no event data leaked)
   const html = await page.content()
   expect(html).not.toContain('Queda de paciente durante transferência')
@@ -615,8 +623,8 @@ test('AC-9: foreign commission member cannot access NSP event detail (redirects/
 test('AC-10: NSP event detail shows custody history with at least one entry', async ({
   page,
 }) => {
-  await signInAs(page, 'admin@test.local')
-  await page.goto(`/admin/nsp/${EV1_ID}`)
+  await signInAs(page, PQS_A_EMAIL)
+  await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
   await page.waitForLoadState('networkidle')
 
   // "Histórico de custódia" section heading
