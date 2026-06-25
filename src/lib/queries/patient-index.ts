@@ -164,23 +164,42 @@ export async function patientIndexEnabled(): Promise<boolean> {
  * search returns a result with empty {@link PatientSearchResult.entries} and emits
  * no audit row.
  *
+ * ORG-SCOPED (NSP-per-org): gated on enrollment in `orgId`'s roster and filtered to
+ * `orgId`'s xref rows; a member of a DIFFERENT org passing this `orgId` gets `null`.
+ *
+ * @param orgId      the organization whose QPS console this is (the trajectory + the
+ *                   enrollment gate are scoped to it; the UI always knows it).
  * @param mrn        prontuário to match (exact, after conservative normalization).
  * @param encounter  atendimento to match (exact). At least one of the two must be
  *                   non-blank, else the function returns `null` (the action also
  *                   validates this for a friendly field error).
  */
+// ===========================================================================
+// NSP-per-org (sub-phase A; ADR 0042) — CONTRACT CHANGE.
+//
+// patient_index is the FOURTH PHI surface. `patient_xref` aggregates across ALL
+// commissions with NO org filter today — safe only because the global PQS roster is
+// inert. Once per-org membership is real it would leak org-B patients to an org-A NSP
+// member. So the QPS reads become ORG-SCOPED: the caller passes the `orgId` whose
+// console it is (the UI always knows), the DEFINER RPCs gate on enrollment in THAT
+// org and filter the trajectory + audit to xref rows in that org. `searchPatient` /
+// `getPatientAccessAudit` gain an explicit `orgId` (NO accidental cross-org union for
+// a multi-org member); `getPatientTrajectoryForEntity` / `patientXrefCount` resolve
+// the entity's org SERVER-SIDE (their arity is unchanged). The RPC arity changes in
+// A3 (`search_patient_xref(mrn, encounter, p_org_id)`, `patient_access_audit(mrn,
+// encounter, p_org_id)`); bodies throw until A3 + A5 (regenerated types) land. Keep
+// the SIGNATURES stable once posted (contract-first).
+// ===========================================================================
+
 export async function searchPatient(
+  orgId: string,
   mrn: string | null,
   encounter: string | null,
 ): Promise<PatientSearchResult | null> {
-  if (!mrn?.trim() && !encounter?.trim()) return null
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('search_patient_xref', {
-    p_mrn: mrn?.trim() ?? undefined,
-    p_encounter: encounter?.trim() ?? undefined,
-  })
-  if (error || !data) return null
-  return mapSearchResult(data as unknown as PatientSearchJson)
+  void orgId
+  void mrn
+  void encounter
+  throw new Error('not implemented: searchPatient(orgId, …) (NSP-per-org A3/A5)')
 }
 
 /**
@@ -194,6 +213,12 @@ export async function searchPatient(
  *
  * Returns `null` for a non-PQS caller, an unknown/keyless entity (name-only PHI →
  * not in the index), or any error. The caller never supplies or learns a key.
+ *
+ * ORG-SCOPED (NSP-per-org): the entity's org is resolved SERVER-SIDE (its
+ * commission → org), the caller is gated on enrollment in THAT org, and the
+ * assembled trajectory is filtered to that org — so its arity is UNCHANGED (no
+ * `orgId` param: the pivot entity already pins the org). A caller not enrolled in
+ * the entity's org gets `null`.
  *
  * @param module    the entity's PHI module (`'event' | 'referral' | 'case'`).
  * @param entityId  the module-native entity id to pivot from.
@@ -227,19 +252,23 @@ export async function getPatientTrajectoryForEntity(
  * The patient is identified the same way as {@link searchPatient} (by MRN and/or
  * encounter, hashed server-side); the RPC resolves the `patient_key` internally so
  * no key is ever shaped on the client.
+ *
+ * ORG-SCOPED (NSP-per-org): gated on enrollment in `orgId`'s roster; the audit
+ * subquery is restricted to entities in `orgId`'s xref rows AND `audit_log` rows of
+ * that org's tier. A member of another org passing this `orgId` gets `[]`.
+ *
+ * @param orgId      the organization whose QPS console this is.
  */
 export async function getPatientAccessAudit(
+  orgId: string,
   mrn: string | null,
   encounter: string | null,
 ): Promise<PatientAccessAuditRow[]> {
-  if (!mrn?.trim() && !encounter?.trim()) return []
-  const supabase = await createClient()
-  const { data } = await supabase.rpc('patient_access_audit', {
-    p_mrn: mrn?.trim() ?? undefined,
-    p_encounter: encounter?.trim() ?? undefined,
-  })
-  return ((data as unknown as PatientAccessAuditJson[] | null) ?? []).map(
-    mapAccessAuditRow,
+  void orgId
+  void mrn
+  void encounter
+  throw new Error(
+    'not implemented: getPatientAccessAudit(orgId, …) (NSP-per-org A3/A5)',
   )
 }
 

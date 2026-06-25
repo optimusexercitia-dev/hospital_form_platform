@@ -61,9 +61,10 @@ export async function searchPatientAction(
     }
   }
 
-  const result = await searchPatient(mrn, encounter)
+  const result = await searchPatient(input.orgId, mrn, encounter)
   if (!result) {
-    // null = not entitled (non-PQS), flag off, or RPC error → fail closed, pt-BR.
+    // null = not entitled (non-PQS / wrong org), flag off, or RPC error → fail
+    // closed, pt-BR.
     return { ok: false, error: MESSAGES.searchUnavailable }
   }
 
@@ -83,5 +84,5 @@ export async function loadPatientAccessAudit(
   const mrn = input.mrn?.trim() || null
   const encounter = input.encounter?.trim() || null
   if (!mrn && !encounter) return []
-  return getPatientAccessAudit(mrn, encounter)
+  return getPatientAccessAudit(input.orgId, mrn, encounter)
 }

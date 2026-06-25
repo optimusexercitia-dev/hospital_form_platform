@@ -21,6 +21,7 @@ import type {
   SuspectedHarmLevel,
 } from '@/lib/safety/types'
 import type { PqsDepartment } from '@/lib/safety/triage-types'
+import type { PqsRosterMember } from '@/lib/pqs/roster-types'
 
 // The CLIENT-SAFE inbox types live in `@/lib/safety/types` (ZERO imports) so the
 // NSP UI imports them WITHOUT dragging this server-only module into the client
@@ -28,6 +29,7 @@ import type { PqsDepartment } from '@/lib/safety/triage-types'
 // consumers keep resolving unchanged.
 export type { PqsInboxItem, PqsInboxFilters } from '@/lib/safety/types'
 export type { PqsDepartment } from '@/lib/safety/triage-types'
+export type { PqsRosterMember } from '@/lib/pqs/roster-types'
 
 interface PqsInboxRow {
   id: string
@@ -110,4 +112,66 @@ export async function patientSafetyEnabled(): Promise<boolean> {
   const { data, error } = await supabase.rpc('patient_safety_enabled')
   if (error) return false
   return data === true
+}
+
+// ===========================================================================
+// NSP-per-org (sub-phase A; ADR 0042) — CONTRACT STUBS.
+//
+// These are the new/changed query-layer signatures sub-phase B (frontend) builds
+// against. The PQS roster is now PER-ORG: enrollment in an org's roster grants that
+// org's PHI read; a per-org `nsp_coordinator` curates the roster (three-way duty
+// separation org_admin ≠ coordinator ≠ member). All of these route through the
+// org-scoped DEFINER RPCs landed by migration `20260630000000_nsp_per_org.sql`
+// (A2/A3); bodies throw until then. Keep the SIGNATURES stable once posted — a shape
+// change goes through the lead so `frontend` adapts (CLAUDE.md contract-first rule).
+// ===========================================================================
+
+/**
+ * The org-scoped NSP-access probe: is the CURRENT user enrolled in `orgId`'s PQS
+ * roster (`app.is_pqs_member_of(orgId, auth.uid())`)? This is the gate the per-org
+ * QPS dashboard data-layer + the `/o/[org]/nsp/**` route guard use (the FE seam
+ * `getNspAccessByOrg`). A safe-default `false` reader — it is called at render time
+ * and must never throw. Backed by the `is_pqs_member_of_self(p_org_id)` DEFINER RPC.
+ *
+ * NOTE the no-arg `is_pqs_member_self()` (in `referrals.ts`) is KEPT as the
+ * nav-level "member of ANY org" probe; THIS is its org-scoped sibling.
+ */
+export async function isPqsMemberOfSelf(orgId: string): Promise<boolean> {
+  void orgId
+  throw new Error('not implemented: isPqsMemberOfSelf (NSP-per-org A2/A3)')
+}
+
+/**
+ * Is the current user the per-org `nsp_coordinator` of `orgId`
+ * (`app.is_nsp_coordinator_of(orgId, auth.uid())`)? Gates the per-org roster
+ * curation UI (enroll/remove/list) and the org-admin "appoint coordinator" affordance
+ * check. Safe-default `false`; backed by an `is_nsp_coordinator_of_self(p_org_id)`
+ * DEFINER probe.
+ */
+export async function isNspCoordinatorOfSelf(orgId: string): Promise<boolean> {
+  void orgId
+  throw new Error('not implemented: isNspCoordinatorOfSelf (NSP-per-org A2/A3)')
+}
+
+/**
+ * List the enrolled members of `orgId`'s PQS roster, name-sorted (pt-BR). Backed by
+ * the `list_pqs_members(p_org_id)` DEFINER RPC, gated **coordinator-only** (curation
+ * duty — NOT every enrolled member). A non-coordinator caller gets `[]` (the RPC
+ * raises 42501; this maps to empty for the read path).
+ */
+export async function listPqsMembers(orgId: string): Promise<PqsRosterMember[]> {
+  void orgId
+  throw new Error('not implemented: listPqsMembers (NSP-per-org A2/A3)')
+}
+
+/**
+ * The singleton-per-org NSP/PQS-department config for `orgId` (name + RCA due-window
+ * the config area edits). PHI-free; supersedes the global {@link getPqsDepartment}
+ * (which read the lone singleton row). RLS-scoped read; `null` if absent.
+ */
+export async function getPqsDepartmentForOrg(
+  orgId: string,
+): Promise<PqsDepartment | null> {
+  void orgId
+  throw new Error('not implemented: getPqsDepartmentForOrg (NSP-per-org A2/A3)')
 }
