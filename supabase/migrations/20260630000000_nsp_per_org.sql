@@ -703,9 +703,15 @@ begin
     raise exception 'ação % não encontrada', p_action_id using errcode = 'no_data_found';
   end if;
 
+  -- BUG-NSP-004: the PQS arm must use can_write_capa, which carries the non-event
+  -- fallback (event/rca-sourced → per-org; manual/indicator/audit/meeting → any-org,
+  -- since a non-event CAPA has NO org to scope to). The bare
+  -- is_pqs_member_of(org_of_event(...)) here made manual-source CAPA actions
+  -- unadvanceable by a non-assignee PQS member (NULL event-org → false). Identical
+  -- authority to the 8 capa_*_write policies + assert_capa_writable now.
   if not (
     (v_assignee is not null and v_assignee = v_uid)
-    or app.is_pqs_member_of(app.org_of_event(app.event_of_capa(v_capa_id)))
+    or app.can_write_capa(v_capa_id, v_uid)
   ) then
     raise exception 'você não pode alterar esta ação corretiva' using errcode = 'HC050';
   end if;
