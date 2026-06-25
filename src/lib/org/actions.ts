@@ -181,6 +181,8 @@ const COORD_MESSAGES = {
   generic: 'Não foi possível concluir. Tente novamente.',
   appointed: 'Coordenador(a) do NSP nomeado(a).',
   revoked: 'Coordenação do NSP removida.',
+  isOrgAdmin:
+    'Este usuário é administrador da organização; um usuário tem um único papel. Não é possível torná-lo coordenador do NSP.',
 } as const
 
 /**
@@ -190,6 +192,15 @@ const COORD_MESSAGES = {
  * we ALSO re-check `is_org_admin_of` server-side (defense in depth — ADR 0041 amd-11:
  * never trust the client on a tenant write). Idempotent on the `(org, user)` row
  * (UNIQUE) → upserts the role to `nsp_coordinator`.
+ *
+ * REFUSES if the target is currently an `org_admin` of the org: `organization_members`
+ * is one-row-per-(org,user) with a single role, so overwriting it would DEMOTE the
+ * admin → coordinator — appoint the org's last admin and the org has zero admins
+ * (only a walled-off platform_admin could recover it). Refusing makes `org_admin` and
+ * `nsp_coordinator` MUTUALLY EXCLUSIVE per user, which reinforces the ADR 0042 duty
+ * separation (distinct people: org_admin appoints, coordinator curates) and removes
+ * the orphan-the-org footgun. (Revoke is already role-filtered, so it never touches an
+ * admin row.)
  */
 export async function appointNspCoordinator(
   orgId: string,
@@ -203,6 +214,20 @@ export async function appointNspCoordinator(
   }
 
   const supabase = await createClient()
+
+  // Refuse to demote a current org_admin (the orphan-the-org guard). RLS lets the
+  // org_admin caller read its org's organization_members rows.
+  const { data: existing } = await supabase
+    .from('organization_members')
+    .select('role')
+    .eq('organization_id', orgId)
+    .eq('user_id', userId)
+    .maybeSingle<{ role: string }>()
+
+  if (existing?.role === 'org_admin') {
+    return { ok: false, error: COORD_MESSAGES.isOrgAdmin }
+  }
+
   const { error } = await supabase
     .from('organization_members')
     .upsert(
