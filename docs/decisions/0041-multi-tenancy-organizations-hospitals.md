@@ -1,6 +1,7 @@
 # ADR 0041 — Multi-Tenancy: organizations + hospitals above commissions
 
-**Status:** Proposed (pending the phase gate + human approval) · **Date:** 2026-06-24
+**Status:** Accepted (phase gate passed — QA APPROVED + human-approved 2026-06-25) ·
+**Date:** 2026-06-24, accepted 2026-06-25
 · **Feature:** Multi-tenancy — a new phase introducing `organizations` → `hospitals`
 above the top-level `commissions`, pooled single-database with RLS isolation, splitting
 the global admin into a vendor `platform_admin` and a customer `org_admin`. Extends the
@@ -173,3 +174,62 @@ predicate, and scope/retire the `is_admin()` term."
 - **Forward-compatible role model.** `organization_members.role` CHECK and a future nullable
   `hospital_id` on it are the seam for a `hospital_admin` tier; the dedicated-project escape hatch
   is the seam for enterprise physical isolation — neither requires touching the predicate shapes.
+
+## Implementation amendments (2026-06-25)
+
+Three things emerged during the build that the plan above did not anticipate. All are part of
+the accepted phase; the migrations that carry them are listed in `docs/backend-state.md`.
+
+10. **Multi-org PHI safety guard — the global-PQS/QPS roster cannot span orgs, so it goes inert
+    in multi-org (migration `20260629000000_multi_org_phi_guard.sql`).** The NSP/patient-safety
+    and inter-committee **referral** modules — the two PHI modules — authorize PHI access through
+    a **single global `pqs_members` roster** (`app.is_pqs_member`), which has no org bound. In a
+    pooled multi-org DB a QPS member of org A would read org B's PHI through that global term — a
+    cross-org leak the plan's `is_admin`-term rewrite did not touch (the leak is in the *roster*,
+    not the admin term). We close it at the **chokepoint**: `app.is_pqs_member` returns false
+    whenever `app.is_multi_org()` (`(select count(*) from public.organizations) > 1`), which makes
+    the **entire** global-roster surface (read predicates `can_read_event[_patient]`/
+    `can_read_referral_phi`/the `can_read_case[_patient]` QPS macro-term, the `pqs_inbox` /
+    `get_referral_*` / `search_patient_*` doors, and the `is_pqs_writer` RCA/CAPA/triage write
+    gates) inert in one place — no call-site enumeration to get wrong. Per-predicate
+    `and not app.is_multi_org()` guards are kept as **defense-in-depth**, and the module entry
+    points go dark for UX: `patient_safety_enabled()` / `referrals_enabled()` return false and
+    `assert_patient_safety_enabled()` / `assert_referrals_enabled()` raise in multi-org. The
+    **org-bounded** terms (member / custody / reporting-commission / staff_admin / case_access /
+    coordinator / assignee) are untouched — they were always org-safe. In **single-org**
+    (`is_multi_org()` false) behavior is byte-identical to before, so the whole PQS pgTAP suite
+    stays valid; the seed creates all NSP/referral rows via **direct inserts** (never the guarded
+    RPCs), so the 2-org seed needs no change. **Consequence:** with the 2-org demo seed, the NSP
+    and referral UIs are intentionally **absent platform-wide** (this is why "case referrals are
+    not appearing" in the seed is correct, not a bug); the corresponding E2E specs are quarantined
+    (the 124 skips). This is a deliberate **interim** posture — see the NSP-per-org follow-up below.
+
+11. **Vendor-wall + escalation hardening surfaced by the migrated E2E regression.** Porting the
+    full E2E suite onto the `/o/[org]/c/[commission]` routes caught isolation gaps that the
+    isolation pgTAP could not, all now fixed: (a) `getCommissionAccessByOrg` returned a non-null
+    object with `role: null` for a platform admin with no membership, and the commission layout's
+    `!access` check let it through with `isAdmin`-derived coordinator rights — the layout now
+    404s on `role === null` so `platform@` is walled off from the commission shell as intended
+    (BUG-MT-005, `f24f584`); (b) two **service-role** staff actions (`inviteStaff`,
+    `assignStaffAdmin`) treated `isAdmin` as an authorization grant — since service-role bypasses
+    RLS the TS gate is the *only* control, so these were re-gated to org-scoped authority and the
+    platform-admin escalation dropped (`fd21bc8`); (c) a CSV dashboard export was reachable by URL
+    outside the org gate. The takeaway, now a standing rule for this codebase: **a `platform_admin`
+    JWT claim is never an authorization grant on any tenant-data path, most critically in
+    service-role actions** where RLS is not a backstop.
+
+12. **Org-visibility fix for commission members (BUG-MT-003/004, `ce53fe3`).** The plan's
+    `organizations_select` policy (admin OR org_admin) was too tight: a plain commission member's
+    login-landing resolver and the central `getCommissionAccessByOrg` both join `commissions →
+    organizations`, and the inner join returned no rows, bouncing every member to `/` and 404ing
+    every commission page. Fixed by adding `app.is_org_member(org)` (a member of any commission in
+    the org) and broadening the org SELECT policy to include it — members may read *their own org's
+    row*, nothing more.
+
+13. **NSP-per-org is the deferred follow-up that lifts amendment 10.** Restoring the NSP and
+    referral modules *under* multi-tenancy requires binding the PQS roster and the PHI read scope
+    to an organization (a per-org `pqs_members` plus org-scoped event/referral access) instead of
+    the single global roster. That is its own gated phase (a per-org roster + org-bound PHI), not
+    part of this one; until it ships, the global-roster guard (amendment 10) is the safe interim
+    state and the NSP/referral E2E specs stay quarantined. Tracked in PHASES.md and
+    PROGRESS.md → Follow-ups.

@@ -395,3 +395,15 @@ ADR [0028](docs/decisions/0028-accreditation-governance-roadmap.md).
 → **Full detail: [docs/phases/accreditation-track.md](docs/phases/accreditation-track.md)**
 
 <!-- Phases 13–21 detail relocated to docs/phases/accreditation-track.md; rationale in docs/quality-track-context.md. -->
+
+---
+
+## Structural / platform phases (post-23)
+
+These are not feature modules on either track — they re-shape the platform itself (tenancy,
+isolation, roster scope) and follow the same Phase Gate (CLAUDE.md §6).
+
+| Phase | Name | Status |
+| ----- | ---- | ------ |
+| MT | **Multi-Tenancy** — `organizations → hospitals → commissions`; vendor `platform_admin` (provisioning-only, walled off all tenant data/PHI) vs customer `org_admin`; the ~60 `is_admin` tenant/PHI OR-terms re-scoped to `is_org_admin_of_commission`; 3-tier audit hash chain; routes `/c/[slug]` → `/o/[org]/c/[commission]`; pooled single-DB + silo-by-exception. **Structural — no feature flag**, greenfield reseed. ADR [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md). | ✅ complete 2026-06-25 |
+| NSP-per-org | **NSP-per-org** *(follow-up that lifts the multi-org PHI guard)* — the NSP/patient-safety + inter-committee **referral** PHI modules are **inert in any multi-org deployment** today (their single global `pqs_members`/QPS roster can't safely span orgs — `app.is_pqs_member` returns false when `is_multi_org()`; modules absent in the 2-org seed; 124 E2E specs quarantined). This phase re-scopes the roster + event/referral PHI **to an organization** (per-org PQS roster, org-bound DEFINER doors + audit), restoring both modules under multi-tenancy. ADR [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md) §Implementation amendments 10 + 13. | 🔜 not started (deferred follow-up) |
