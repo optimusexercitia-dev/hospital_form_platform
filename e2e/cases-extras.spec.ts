@@ -353,7 +353,9 @@ test('AC-Docs: coordinator uploads a PDF document to a case and downloads it; ad
   const docPanel = page.getByRole('region', { name: /Documentos/i })
   await expect(docPanel).toBeVisible({ timeout: 10_000 })
 
-  await docPanel.getByRole('button', { name: /Enviar documento/i }).click()
+  // The upload TRIGGER button is labeled "Anexar" (renamed in 37584f4); the
+  // dialog title + submit button remain "Enviar documento".
+  await docPanel.getByRole('button', { name: /Anexar/i }).click()
   const uploadDialog = page.getByRole('dialog').filter({ hasText: /Enviar documento/i })
   await expect(uploadDialog).toBeVisible({ timeout: 10_000 })
 
