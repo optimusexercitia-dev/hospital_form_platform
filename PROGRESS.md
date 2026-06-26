@@ -93,7 +93,9 @@ Tester (`tester`) — gate (spawn after BR4 + FR land + dev server runs):
 
 | # | Task | Status |
 | - | ---- | ------ |
-| TR1 `[gate]` | E2E — author a process with a result-based + a mixed answer/result recommendation; run a case; assert the downstream phase flips `recommended` when the source result matches (specific + adverse paths) and not otherwise; a post-conclusion result override re-flips it. Full pgTAP + full E2E green to declare. | 🧪 **CHROMIUM-GREEN** — `e2e/recommend-result.spec.ts` 9/9 PASS (chromium). Covers: RR-1a/1b specific-result match/nomatch; RR-2a/2b adverse match/nomatch; RR-3a/3b/3c mixed-group QUALQUER (result-leg only / answer-leg only / neither); RR-4 post-conclusion override re-flip; RR-K keyboard-only editor flow. **Lead to run full suite to declare gate.** |
+| TR1 `[gate]` | E2E — author a process with a result-based + a mixed answer/result recommendation; run a case; assert the downstream phase flips `recommended` when the source result matches (specific + adverse paths) and not otherwise; a post-conclusion result override re-flips it. Full pgTAP + full E2E green to declare. | ✅ **GATE GREEN (lead-declared 2026-06-26)** — `e2e/recommend-result.spec.ts` 9/9 + **full E2E 431 passed / 0 failed / 4 known skips** (chromium, `--workers=1`, fresh `db reset`) + **full pgTAP 1122/1122** + Vitest 164/164 + typecheck/lint clean. First full run had 2 transient flakes (`form-builder-enhancements:669` colour-picker — passes isolated; `cases-extras:341` AC-Docs — stale `37584f4` locator, fixed) + 12-did-not-run instability; the clean re-run is 431/0. |
+
+> **§6 gate status (result-rec):** 1. Build ✅ · 2. Test pass ✅ (lead-declared above) · 3. QA review ⏳ (qa spawned) · 4. Human approval ⏳ · 5. Record ⏳. **Remote `supabase db push`** of `20260630000004` + `20260630000005` still PENDING (human-run).
 
 ### NSP-per-org — Sub-phase A: Backend security core (✅ QA-APPROVED 2026-06-25)
 
