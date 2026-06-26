@@ -216,24 +216,11 @@ export function CaseNarrativeCard({
           <h2 id={headingId} className="text-base font-semibold">
             {heading}
           </h2>
-          {canAssign ? (
-            <NarrativeAssignMenu
-              heading={heading}
-              assignees={assignees}
-              assignedTo={narrative.assignedTo}
-              assigneeName={narrative.assigneeName}
-              disabled={isPending}
-              onAssign={handleAssign}
-              onUnassign={handleUnassign}
-            />
-          ) : (
-            showLifecycle &&
-            narrative.assigneeName && (
-              <span className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground">
-                <User aria-hidden="true" className="size-3.5" />
-                {narrative.assigneeName}
-              </span>
-            )
+          {showLifecycle && narrative.assigneeName && (
+            <span className="inline-flex w-fit items-center gap-1 text-xs text-muted-foreground">
+              <User aria-hidden="true" className="size-3.5" />
+              {narrative.assigneeName}
+            </span>
           )}
           {narrative.instructions && (
             <p className="max-w-prose text-xs text-muted-foreground text-pretty">
@@ -319,9 +306,22 @@ export function CaseNarrativeCard({
         </p>
       )}
 
-      {showLifecycle && canConclude && !editing && (
-        <div className="flex justify-end">
-          <ConcludeNarrativeButton narrativeId={narrative.id} />
+      {(canAssign || (showLifecycle && canConclude && !editing)) && (
+        <div className="flex items-center justify-end gap-2">
+          {canAssign && (
+            <NarrativeAssignMenu
+              heading={heading}
+              assignees={assignees}
+              assignedTo={narrative.assignedTo}
+              assigneeName={narrative.assigneeName}
+              disabled={isPending}
+              onAssign={handleAssign}
+              onUnassign={handleUnassign}
+            />
+          )}
+          {showLifecycle && canConclude && !editing && (
+            <ConcludeNarrativeButton narrativeId={narrative.id} />
+          )}
         </div>
       )}
     </section>

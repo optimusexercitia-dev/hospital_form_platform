@@ -20,6 +20,7 @@ import {
   ScrollText,
   Settings2,
   ShieldAlert,
+  ShieldCheck,
   Users,
   Workflow,
   X,
@@ -27,6 +28,7 @@ import {
 
 import type { CommissionRole, Membership } from "@/lib/queries/session";
 import { cn } from "@/lib/utils";
+import { nspHref } from "@/lib/routing";
 import { CommissionSwitcher } from "./commission-switcher";
 import { UserMenu } from "./user-menu";
 
@@ -219,6 +221,8 @@ export function AppSidebar({
   patientSafetyEnabled = false,
   referralsEnabled = false,
   caseAccessEnabled = false,
+  isNspCoordinator = false,
+  isPqsMember = false,
 }: {
   /** The organization slug — the `/o/[org]` segment of every nav href. */
   org: string;
@@ -247,6 +251,10 @@ export function AppSidebar({
    * (OFF) ↔ "Meus Casos" (ON) inverse swap; default `false` keeps today's nav.
    */
   caseAccessEnabled?: boolean;
+  /** Whether the current user is the org's NSP coordinator (curates the PQS roster). */
+  isNspCoordinator?: boolean;
+  /** Whether the current user is enrolled as a PQS member (may read PHI in the console). */
+  isPqsMember?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -432,6 +440,45 @@ export function AppSidebar({
               </div>
             );
           })}
+
+          {/* NSP console link — shown to PQS members and org NSP coordinators. */}
+          {(isPqsMember || isNspCoordinator) && (() => {
+            const href = nspHref(org);
+            const isActive = pathname.startsWith(href);
+            return (
+              <div className="mb-4">
+                <p className="px-2 pb-1.5 text-[0.65rem] font-semibold tracking-[0.08em] text-sidebar-foreground/45 uppercase">
+                  Organização
+                </p>
+                <ul className="flex flex-col gap-0.5">
+                  <li>
+                    <Link
+                      href={href}
+                      onClick={closeDrawer}
+                      aria-current={isActive ? "page" : undefined}
+                      className={cn(
+                        "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+                        isActive
+                          ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
+                          : "font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                      )}
+                    >
+                      <ShieldCheck
+                        aria-hidden="true"
+                        className={cn(
+                          "size-[1.05rem] shrink-0 transition-colors",
+                          isActive
+                            ? "text-sidebar-accent-foreground"
+                            : "text-sidebar-foreground/55 group-hover:text-sidebar-foreground",
+                        )}
+                      />
+                      <span className="flex-1 truncate">Núcleo de Segurança</span>
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+            );
+          })()}
         </nav>
 
         {/* User / account footer. */}

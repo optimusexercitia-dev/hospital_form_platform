@@ -62,7 +62,7 @@ export function CaseDocumentUpload({ caseId }: { caseId: string }) {
     <>
       <Button type="button" size="sm" onClick={() => setOpen(true)}>
         <Upload aria-hidden="true" />
-        Enviar documento
+        Anexar
       </Button>
       <UploadDialog caseId={caseId} open={open} onOpenChange={setOpen} />
     </>

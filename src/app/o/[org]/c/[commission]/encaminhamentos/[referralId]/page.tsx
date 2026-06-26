@@ -258,19 +258,22 @@ export default async function ReferralDetailPage({
         </div>
 
         <div className="flex flex-col gap-6 lg:sticky lg:top-8">
-          {/* Entitled coordinator actions (renders nothing for plain members). */}
-          <div data-rise>
-            <ReferralActions
-              referralId={detail.id}
-              status={detail.status}
-              responseExpected={detail.responseExpected}
-              canManageTarget={canManageTarget}
-              canManageSource={canManageSource}
-              replyOutcomes={replyOutcomes}
-              linkableCases={linkableCases}
-              linkedCaseNumber={detail.targetCaseNumber}
-            />
-          </div>
+          {/* Entitled coordinator actions — wrapper omitted when null to avoid a
+              phantom flex gap that misaligns the right column with the left. */}
+          {(canManageTarget || canManageSource) && inFlight && (
+            <div data-rise>
+              <ReferralActions
+                referralId={detail.id}
+                status={detail.status}
+                responseExpected={detail.responseExpected}
+                canManageTarget={canManageTarget}
+                canManageSource={canManageSource}
+                replyOutcomes={replyOutcomes}
+                linkableCases={linkableCases}
+                linkedCaseNumber={detail.targetCaseNumber}
+              />
+            </div>
+          )}
 
           {/* Lazy, audited isolated-PHI panel. */}
           <div data-rise>
