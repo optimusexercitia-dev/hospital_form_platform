@@ -52,7 +52,7 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-### Result-based phase recommendation — `recommend_when` answer/result groups (⏸️ PAUSED — machine handoff 2026-06-26)
+### Result-based phase recommendation — `recommend_when` answer/result groups (🏗️ in progress — backend green, frontend building 2026-06-26)
 
 > Kicked off 2026-06-26 (human-directed, post design-interview). `recommend_when`
 > becomes a combinable group of answer- and/or result-conditions; a phase can be
@@ -61,35 +61,33 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 > `recommended` flag); zero `eval_condition` drift (synthetic-map reuse). Locked
 > design: ADR [0043](docs/decisions/0043-phase-result-based-recommendation.md).
 
-> **⏸️ HANDOFF — RESUME HERE (other machine).** Backend BR1–BR3 LANDED; BR4 not
-> started; frontend/tester not yet spawned. The backend teammate was stopped mid-BR4.
-> **Resume steps, in order:**
-> 1. **Verify backend state** (not lead-verified): `supabase migration up` (apply
->    `20260630000004` locally if not already), then `supabase gen types …` to confirm
->    `database.ts` is current, then `npm run typecheck && npm run lint`.
-> 2. **BR4** — write `supabase/tests/161_recommend_result_source.sql` + a TS-only
->    Vitest test for `evalRecommendation`. The stopped agent's test design (reuse it):
->    **T1** (4 phases, all `form_u`; phase 1 AUTO ruleset `u_q1='Sim'`→Conforme, default→NãoConforme[adverse]): p2 `{result equals Conforme}`, p3 `{result adverse:true}`, p4 group `any [{result equals NãoConforme},{answer u_q1='Sim'}]`. Case A (Sim): p2✓ p3✗ p4✓. Case B (Não): p2✗ p3✓ p4✓. **T2** AND-group cases. **T3** no-result-at-creation (p2 equals→false, p3 not_equals→true footgun). **Override→recompute**: override case-A p1→NãoConforme while concluída → p2 flips false, p3 flips true.
-> 3. **Spawn `frontend`** on FR1/FR2 — the contract (BR1 types) IS posted, so it can
->    start immediately. 4. **Spawn `tester`** (TR1) after BR4 + FR land. 5. **Human runs
->    `supabase db push`** to deploy `20260630000004` to remote (background agents can't).
-> 6. Then §6 gate: QA → human approval → Record.
+> **✅ HANDOFF RESUMED (2026-06-26).** Backend BR1–BR4 LANDED + lead-verified:
+> `supabase db reset` replays all migrations incl. `20260630000004` cleanly;
+> `database.ts` matches regen; **full pgTAP 1122/1122 + Vitest 164/164 + typecheck
+> + lint all green locally** (`333085a`). BR4 added pgTAP `161` (20) + `recommendation.test.ts`
+> (32). A pre-existing anon-leak from the unrelated referral snapshot (`37584f4`,
+> `snap_referral_commission_names`) tripped `100_dashboard` test 19 → fixed by a
+> forward-only revoke migration `20260630000005` (user-approved).
+> **Remaining, in order:** (1) **`frontend`** building FR1/FR2 (spawned, plan
+> approved). (2) **`tester`** (TR1) after FR lands + dev server runs. (3) **Human runs
+> `supabase db push`** to deploy `20260630000004` + `20260630000005` to remote
+> (background agents can't). (4) §6 gate: QA → human approval → Record.
 
 Backend (`backend`):
 
 | # | Task | Status |
 | - | ---- | ------ |
-| BR1 | **Contract-first** — `conditions.ts` (`RecommendGroup` + result-condition types, superset of `RecommendWhen`, legacy single valid; `evalRecommendation(rule,resolve)` mirror; reserved keys `__phase_result__`/`__phase_result_adverse__`) + type-only widen in `process-templates.ts`; `actions.ts` passthrough unchanged. | ✅ done (committed, unpushed) |
-| BR2 | Migration `supabase/migrations/20260630000004_recommend_when_result_source.sql` (728 lines): both CHECKs widened via `app.is_valid_recommend_when`; `is_valid_recommend_cond`, `recommend_when_conditions`, group-aware `validate_template_recommend_when` (HC063 non-emitting source · HC064 id ∉ allowed-set), group-walk `recompute_recommendations` (synthetic-map result eval), `set_case_phase_result_override` (+recompute), `create_case_from_template` (group-aware inline fix). | ✅ written · ⚠ local `migration up` + remote `db push` UNVERIFIED by lead |
-| BR3 | `database.ts` regenerated. ⚠ `npm run typecheck`/`lint` NOT lead-verified — re-run on resume (step 1 above). | 🏗️ regen done, verify on resume |
-| BR4 | pgTAP `161_recommend_result_source.sql` + `evalRecommendation` Vitest test. | ⏳ NOT started (test design captured in HANDOFF above) |
+| BR1 | **Contract-first** — `conditions.ts` (`RecommendGroup` + result-condition types, superset of `RecommendWhen`, legacy single valid; `evalRecommendation(rule,resolve)` mirror; reserved keys `__phase_result__`/`__phase_result_adverse__`) + type-only widen in `process-templates.ts`; `actions.ts` passthrough unchanged. | ✅ done (`6c5baeb`) |
+| BR2 | Migration `supabase/migrations/20260630000004_recommend_when_result_source.sql` (728 lines): both CHECKs widened via `app.is_valid_recommend_when`; `is_valid_recommend_cond`, `recommend_when_conditions`, group-aware `validate_template_recommend_when` (HC063 non-emitting source · HC064 id ∉ allowed-set), group-walk `recompute_recommendations` (synthetic-map result eval), `set_case_phase_result_override` (+recompute), `create_case_from_template` (group-aware inline fix). | ✅ applies clean on `db reset` (lead-verified); remote `db push` PENDING (human) |
+| BR3 | `database.ts` regenerated. | ✅ matches `gen types` regen; typecheck + lint green (lead-verified) |
+| BR4 | pgTAP `161_recommend_result_source.sql` (20 assertions) + `recommendation.test.ts` (32, `evalRecommendation` mirror + no-drift). Plus forward-only revoke migration `20260630000005` (unrelated referral anon-leak fix). | ✅ done (`333085a`) — full pgTAP 1122/1122 + Vitest 164/164 |
 
-Frontend (`frontend`) — **ready to spawn** (BR1 contract posted):
+Frontend (`frontend`, `aebe7cdff7d0fbfad`) — plan approved, building:
 
 | # | Task | Status |
 | - | ---- | ------ |
-| FR1 | Rebuild `src/components/process-templates/recommend-when-editor.tsx` into a group builder (mirror `condition-builder.tsx`): TODAS/QUALQUER toggle, add/remove rows, per-row source toggle (Resposta de fase / Resultado de fase — result hidden when `!phaseResultsEnabled`), source-phase picker filtered by source type, value control (answer = existing; result = specific-id `equals/not_equals/in` OR `adverso` true/false), per-row live preview via `evalRecommendation`, `not_equals` footgun warning. Build against BR1 types. | ⏳ not started |
-| FR2 | Wire `phase-slot-dialog.tsx` (serialized `recommendWhen` field already exists) + pass `phaseResults` + `phaseResultsEnabled` (already on the slot card) into the editor; derive each source phase's emittable results from `allowedResultIds` × `phaseResults`. typecheck/lint/build + preview smoke. | ⏳ blocked on FR1 |
+| FR1 | Rebuild `src/components/process-templates/recommend-when-editor.tsx` into a group builder (mirror `condition-builder.tsx`): TODAS/QUALQUER toggle, add/remove rows, per-row source toggle (Resposta de fase / Resultado de fase — result hidden when `!phaseResultsEnabled`), source-phase picker filtered by source type, value control (answer = existing; result = specific-id `equals/not_equals/in` OR `adverso` true/false), per-row live preview via `evalRecommendation`, `not_equals` footgun warning. Build against BR1 types. | 🏗️ in progress |
+| FR2 | Wire `phase-slot-dialog.tsx` (serialized `recommendWhen` field already exists) + pass `phaseResults` + `phaseResultsEnabled` (already on the slot card) into the editor; derive each source phase's emittable results from `allowedResultIds` × `phaseResults`. typecheck/lint/build + preview smoke. | 🏗️ in progress |
 
 Tester (`tester`) — gate (spawn after BR4 + FR land + dev server runs):
 
