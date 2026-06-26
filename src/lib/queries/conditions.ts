@@ -71,8 +71,218 @@ export type Visibility = VisibleWhen | ConditionGroup
  * file stay untouched (no drift). The template builder can preview a
  * recommendation by calling `evalCondition({ question_key, op, value }, answers)`
  * (i.e. the `RecommendWhen` minus `from_phase`).
+ *
+ * This legacy single (answer-only) shape stays valid forever (no data migration,
+ * ADR 0043). The combinable {@link RecommendGroup} shape is the superset the
+ * editor now emits.
  */
 export type RecommendWhen = { from_phase: number } & VisibleWhen
+
+// ---------------------------------------------------------------------------
+// Result-based recommendation (ADR 0043) — combinable answer/result conditions
+// ---------------------------------------------------------------------------
+
+/**
+ * Reserved synthetic question_key for a RESULT-SPECIFIC recommendation condition.
+ * Never collides with a real `question_key` (those are author-typed slugs that
+ * cannot contain the `__…__` sentinel). The evaluator feeds `eval_condition` a
+ * synthetic map `{ [RECOMMEND_RESULT_KEY]: <result_id> }` (key ABSENT when the
+ * source phase landed on no result), so the UNCHANGED evaluator handles
+ * equals/not_equals/in over the result option id with no drift (ADR 0043).
+ */
+export const RECOMMEND_RESULT_KEY = '__phase_result__' as const
+
+/**
+ * Reserved synthetic question_key for a RESULT-ADVERSE recommendation condition.
+ * The evaluator feeds `eval_condition` a synthetic map
+ * `{ [RECOMMEND_RESULT_ADVERSE_KEY]: <is_adverse boolean> }` (key ABSENT when no
+ * result), `equals` against the requested `adverse` flag.
+ */
+export const RECOMMEND_RESULT_ADVERSE_KEY = '__phase_result_adverse__' as const
+
+/**
+ * A cross-phase recommendation condition reading an EARLIER phase's ANSWER — the
+ * legacy shape, now optionally tagged `source: 'answer'` for symmetry with the
+ * result conditions. Ops/value are exactly as today (choice ops only for
+ * recommendations: equals | not_equals | in — NO ordered ops; the CHECK + the SQL
+ * validator forbid ordered ops here).
+ */
+export interface RecommendAnswerCond {
+  source?: 'answer'
+  from_phase: number
+  question_key: string
+  op: Extract<ConditionOp, 'equals' | 'not_equals' | 'in'>
+  value: Json
+}
+
+/**
+ * A cross-phase recommendation condition reading an EARLIER phase's SPECIFIC
+ * RESULT option(s). `value` is a `phase_results` id (string) — or ids
+ * (string[]) for `in`. Evaluated over a synthetic `{ [RECOMMEND_RESULT_KEY]: id }`
+ * map by the UNCHANGED `eval_condition` (ADR 0043).
+ */
+export interface RecommendResultSpecificCond {
+  source: 'result'
+  from_phase: number
+  op: Extract<ConditionOp, 'equals' | 'not_equals' | 'in'>
+  value: Json
+}
+
+/**
+ * A cross-phase recommendation condition reading whether an EARLIER phase's
+ * result is ADVERSE (the `phase_results.is_adverse` flag). `adverse: true` matches
+ * an adverse result; `adverse: false` matches a non-adverse result (false until a
+ * real non-adverse result exists — no-result is absent, ADR 0043).
+ */
+export interface RecommendResultAdverseCond {
+  source: 'result'
+  from_phase: number
+  adverse: boolean
+}
+
+/** One condition of a {@link RecommendGroup}: an answer or a result condition. */
+export type RecommendCond =
+  | RecommendAnswerCond
+  | RecommendResultSpecificCond
+  | RecommendResultAdverseCond
+
+/**
+ * The combinable recommendation rule the editor emits (ADR 0043), even for a
+ * single condition: `match` (`all` = AND / `any` = OR) over a non-empty flat list
+ * of {@link RecommendCond} (no nesting, mirroring {@link ConditionGroup}). Answer-
+ * and result-conditions may be mixed freely in one group.
+ */
+export interface RecommendGroup {
+  match: 'all' | 'any'
+  conditions: RecommendCond[]
+}
+
+/**
+ * A stored recommendation rule: either the legacy single {@link RecommendWhen}
+ * (answer-only) or the combinable {@link RecommendGroup}. `null` means "never
+ * recommend". A strict SUPERSET — every legacy single row remains valid (no data
+ * migration, ADR 0043).
+ */
+export type RecommendRule = RecommendWhen | RecommendGroup
+
+/**
+ * The per-source data of ONE earlier case-phase, supplied by the caller of
+ * {@link evalRecommendation} so the TS mirror never touches the database:
+ *   - `answers` — the source phase's submitted answer map (for answer conditions);
+ *   - `resultId` — its EFFECTIVE result option id, or `null` when it landed on no
+ *     result (not concluded, skipped, or concluded without a result);
+ *   - `resultAdverse` — whether that result is adverse (`null` when no result).
+ * A missing source phase (dangling `from_phase`) resolves to `null`, treated as
+ * "no data" (empty answers + no result), matching the SQL side.
+ */
+export interface RecommendPhaseData {
+  answers: AnswerMap
+  resultId: string | null
+  resultAdverse: boolean | null
+}
+
+/** Discriminate the {@link RecommendGroup} shape from the legacy single shape. */
+function isRecommendGroup(rule: RecommendRule): rule is RecommendGroup {
+  return Array.isArray((rule as RecommendGroup).conditions)
+}
+
+/** Discriminate a result-condition from an answer-condition. */
+function isResultCond(
+  c: RecommendCond,
+): c is RecommendResultSpecificCond | RecommendResultAdverseCond {
+  return c.source === 'result'
+}
+
+/**
+ * Evaluate ONE recommendation condition against its resolved source-phase data,
+ * by building the synthetic single-condition map the UNCHANGED {@link evalCondition}
+ * expects (ADR 0043) — NO change to the shared evaluator or its vectors:
+ *   - answer → `evalCondition({question_key, op, value}, source.answers)`;
+ *   - result-specific → `evalCondition({RECOMMEND_RESULT_KEY, op, value}, {key:id})`
+ *     (key ABSENT when `resultId` is null → answer-style missing-value semantics);
+ *   - result-adverse → `evalCondition({RECOMMEND_RESULT_ADVERSE_KEY, equals, adverse},
+ *     {key:isAdverse})` (key ABSENT when no result).
+ */
+function evalRecommendCond(
+  c: RecommendCond,
+  data: RecommendPhaseData | null,
+): boolean {
+  const source: RecommendPhaseData = data ?? {
+    answers: {},
+    resultId: null,
+    resultAdverse: null,
+  }
+
+  if (!isResultCond(c)) {
+    // Answer condition (legacy / source:'answer').
+    return evalCondition(
+      { question_key: c.question_key, op: c.op, value: c.value },
+      source.answers,
+    )
+  }
+
+  if ('adverse' in c) {
+    // Result-adverse: synthetic boolean map; key absent when no result.
+    const map: AnswerMap =
+      source.resultAdverse === null
+        ? {}
+        : { [RECOMMEND_RESULT_ADVERSE_KEY]: source.resultAdverse }
+    return evalCondition(
+      { question_key: RECOMMEND_RESULT_ADVERSE_KEY, op: 'equals', value: c.adverse },
+      map,
+    )
+  }
+
+  // Result-specific: synthetic id map; key absent when no result.
+  const map: AnswerMap =
+    source.resultId === null ? {} : { [RECOMMEND_RESULT_KEY]: source.resultId }
+  return evalCondition(
+    { question_key: RECOMMEND_RESULT_KEY, op: c.op, value: c.value },
+    map,
+  )
+}
+
+/**
+ * The TypeScript MIRROR of the SQL `recompute_recommendations` group-walk (ADR
+ * 0043) — drives the template-builder recommendation preview. Walks a
+ * {@link RecommendRule} (legacy single OR group), resolving each condition's
+ * `from_phase` via `resolve` to that earlier phase's {@link RecommendPhaseData},
+ * then evaluating per condition through the UNCHANGED {@link evalCondition} (NO
+ * evaluator drift, shared vectors untouched). Folds `all`→AND / `any`→OR.
+ *
+ * `null` → `false` (Q1, ADR 0043): null means "never recommend"; a faithful
+ * mirror of the SQL side, which only visits non-null rows. A legacy single shape
+ * is treated as a one-condition `all` group. An empty group (rejected at the
+ * CHECK/validator layer) defensively folds `all` of [] → true, `any` of [] →
+ * false (matching `bool_and`/`bool_or` over an empty set).
+ */
+export function evalRecommendation(
+  rule: RecommendRule | null | undefined,
+  resolve: (fromPhase: number) => RecommendPhaseData | null,
+): boolean {
+  if (rule == null) return false
+
+  const conditions: RecommendCond[] = isRecommendGroup(rule)
+    ? rule.conditions
+    : // Legacy single (answer-only): a one-condition group.
+      [
+        {
+          source: 'answer',
+          from_phase: rule.from_phase,
+          question_key: rule.question_key,
+          // Recommendations only ever carry choice ops; narrow defensively.
+          op: rule.op as Extract<ConditionOp, 'equals' | 'not_equals' | 'in'>,
+          value: rule.value,
+        },
+      ]
+
+  const match = isRecommendGroup(rule) ? rule.match : 'all'
+
+  if (match === 'any') {
+    return conditions.some((c) => evalRecommendCond(c, resolve(c.from_phase)))
+  }
+  return conditions.every((c) => evalRecommendCond(c, resolve(c.from_phase)))
+}
 
 /**
  * One rule of a per-phase result ruleset (phase-results feature). The `when` is a

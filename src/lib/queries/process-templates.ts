@@ -4,7 +4,7 @@ import {
   getVersionTree,
   type InputItemType,
 } from '@/lib/queries/forms'
-import type { RecommendWhen, ResultRuleset } from '@/lib/queries/conditions'
+import type { RecommendRule, ResultRuleset } from '@/lib/queries/conditions'
 import type { ProcessTemplateNarrative } from '@/lib/queries/case-narratives'
 
 export type { ProcessTemplateNarrative } from '@/lib/queries/case-narratives'
@@ -43,11 +43,13 @@ export interface ProcessTemplatePhase {
   /** Optional per-slot label shown on the board ("Fase 2 — Discussão"). */
   title: string | null
   /**
-   * Optional cross-phase recommendation condition. When it evaluates true (over
-   * an EARLIER phase's submitted answers, qualified by `from_phase`), the
+   * Optional cross-phase recommendation rule (ADR 0017; combinable since ADR
+   * 0043). The legacy single answer-condition OR a {@link RecommendGroup} of
+   * answer/result conditions. When it evaluates true (over EARLIER phases'
+   * submitted answers + results, each qualified by `from_phase`), the
    * materialized case-phase is flagged `recommended`. `null` = never auto-flag.
    */
-  recommendWhen: RecommendWhen | null
+  recommendWhen: RecommendRule | null
   /**
    * Optional DEFAULT number of days for this slot — a planning hint authored
    * when the slot is defined. Snapshot-copied into each case-phase at case
@@ -148,7 +150,7 @@ interface TemplatePhaseRow {
   position: number
   form_id: string
   title: string | null
-  recommend_when: RecommendWhen | null
+  recommend_when: RecommendRule | null
   default_due_days: number | null
   blocks: number[] | null
   display_position: number | null

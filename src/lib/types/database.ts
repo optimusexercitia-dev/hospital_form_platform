@@ -1569,10 +1569,12 @@ export type Database = {
           sent_by: string | null
           source_case_id: string
           source_commission_id: string
+          source_commission_name: string | null
           status: string
           subject: string
           target_case_id: string | null
           target_commission_id: string
+          target_commission_name: string | null
           type_label: string
           updated_at: string
           withdrawn_at: string | null
@@ -1598,10 +1600,12 @@ export type Database = {
           sent_by?: string | null
           source_case_id: string
           source_commission_id: string
+          source_commission_name?: string | null
           status?: string
           subject: string
           target_case_id?: string | null
           target_commission_id: string
+          target_commission_name?: string | null
           type_label: string
           updated_at?: string
           withdrawn_at?: string | null
@@ -1627,10 +1631,12 @@ export type Database = {
           sent_by?: string | null
           source_case_id?: string
           source_commission_id?: string
+          source_commission_name?: string | null
           status?: string
           subject?: string
           target_case_id?: string | null
           target_commission_id?: string
+          target_commission_name?: string | null
           type_label?: string
           updated_at?: string
           withdrawn_at?: string | null
@@ -4475,10 +4481,12 @@ export type Database = {
           sent_by: string | null
           source_case_id: string
           source_commission_id: string
+          source_commission_name: string | null
           status: string
           subject: string
           target_case_id: string | null
           target_commission_id: string
+          target_commission_name: string | null
           type_label: string
           updated_at: string
           withdrawn_at: string | null
@@ -5811,10 +5819,12 @@ export type Database = {
           sent_by: string | null
           source_case_id: string
           source_commission_id: string
+          source_commission_name: string | null
           status: string
           subject: string
           target_case_id: string | null
           target_commission_id: string
+          target_commission_name: string | null
           type_label: string
           updated_at: string
           withdrawn_at: string | null
@@ -6258,10 +6268,12 @@ export type Database = {
           sent_by: string | null
           source_case_id: string
           source_commission_id: string
+          source_commission_name: string | null
           status: string
           subject: string
           target_case_id: string | null
           target_commission_id: string
+          target_commission_name: string | null
           type_label: string
           updated_at: string
           withdrawn_at: string | null
@@ -6383,10 +6395,12 @@ export type Database = {
           sent_by: string | null
           source_case_id: string
           source_commission_id: string
+          source_commission_name: string | null
           status: string
           subject: string
           target_case_id: string | null
           target_commission_id: string
+          target_commission_name: string | null
           type_label: string
           updated_at: string
           withdrawn_at: string | null
@@ -6548,10 +6562,12 @@ export type Database = {
           sent_by: string | null
           source_case_id: string
           source_commission_id: string
+          source_commission_name: string | null
           status: string
           subject: string
           target_case_id: string | null
           target_commission_id: string
+          target_commission_name: string | null
           type_label: string
           updated_at: string
           withdrawn_at: string | null
@@ -6878,10 +6894,12 @@ export type Database = {
           sent_by: string | null
           source_case_id: string
           source_commission_id: string
+          source_commission_name: string | null
           status: string
           subject: string
           target_case_id: string | null
           target_commission_id: string
+          target_commission_name: string | null
           type_label: string
           updated_at: string
           withdrawn_at: string | null
@@ -7351,10 +7369,12 @@ export type Database = {
           sent_by: string | null
           source_case_id: string
           source_commission_id: string
+          source_commission_name: string | null
           status: string
           subject: string
           target_case_id: string | null
           target_commission_id: string
+          target_commission_name: string | null
           type_label: string
           updated_at: string
           withdrawn_at: string | null
@@ -7768,10 +7788,12 @@ export type Database = {
           sent_by: string | null
           source_case_id: string
           source_commission_id: string
+          source_commission_name: string | null
           status: string
           subject: string
           target_case_id: string | null
           target_commission_id: string
+          target_commission_name: string | null
           type_label: string
           updated_at: string
           withdrawn_at: string | null
@@ -8639,10 +8661,12 @@ export type Database = {
           sent_by: string | null
           source_case_id: string
           source_commission_id: string
+          source_commission_name: string | null
           status: string
           subject: string
           target_case_id: string | null
           target_commission_id: string
+          target_commission_name: string | null
           type_label: string
           updated_at: string
           withdrawn_at: string | null
@@ -8772,10 +8796,12 @@ export type Database = {
           sent_by: string | null
           source_case_id: string
           source_commission_id: string
+          source_commission_name: string | null
           status: string
           subject: string
           target_case_id: string | null
           target_commission_id: string
+          target_commission_name: string | null
           type_label: string
           updated_at: string
           withdrawn_at: string | null

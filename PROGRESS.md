@@ -34,6 +34,7 @@
 | 23    | Patient Identity & Cross-Committee Linkage (MRN/encounter) | ✅ complete | ✅ | ✅ E2E 15/15 + pgTAP 10/10 sweep | ✅ APPROVED 2026-06-22 | ✅ 2026-06-22 | 2026-06-22 | `da4d127` |
 | MT    | **Multi-Tenancy** — organizations → hospitals → commissions; vendor `platform_admin` vs customer `org_admin`; RLS rewrite + 3-tier audit + multi-org PHI guard (ADR [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md)) | ✅ complete | ✅ | ✅ pgTAP 1029 (171 cross-org 74/74 · 173 guard 18/18) + E2E 292/0 (124 skip = NSP/referral module-off) | ✅ APPROVED 2026-06-25 | ✅ 2026-06-25 | 2026-06-25 | `ee35299…82ea157` (branch `feat/phase-d-multitenancy-frontend`) |
 | NSP-per-org | **NSP-per-org** — lift the multi-org PHI guard by binding the PQS roster + every PHI door **to an organization** (per-org `pqs_members`/`pqs_department`, `nsp_coordinator` grant, org-scoped doors, forbid cross-org referrals, org-scope the patient-index 4th surface). Restores NSP + referral modules under multi-tenancy; un-quarantined 124 E2E specs. ADR [0042](docs/decisions/0042-nsp-per-org.md); design [nsp-per-org-design.md](docs/progress/nsp-per-org-design.md). | ✅ complete | ✅ | ✅ pgTAP **1102/1102** + full E2E **421/0** (1 stale-test fixed · 4 known skips) | ✅ **APPROVED** A [core](docs/reviews/nsp-per-org-a-review.md) + B [whole-phase](docs/reviews/nsp-per-org-b-review.md) | ✅ 2026-06-25 | 2026-06-25 | branch `feat/nsp-per-org` (`b0e15f4…9c53035`) |
+| result-rec | **Result-based phase recommendation** — `recommend_when` becomes a combinable answer/result group; recommend a phase from an EARLIER phase's result (specific option or `adverse`), mixed freely under TODAS/QUALQUER. Suggestion-only; zero `eval_condition` drift. ADR [0043](docs/decisions/0043-phase-result-based-recommendation.md). | 🏗️ in progress | – | – | – | – | – | – |
 
 > **Accreditation & Quality-Governance Track (13–21)** — planned 2026-06-17; specs in
 > [PHASES.md](PHASES.md) (§ Accreditation track), rationale in ADR
@@ -50,6 +51,51 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 <!-- Lead recreates this table at the start of each phase. At the §6 Record step the
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
+
+### Result-based phase recommendation — `recommend_when` answer/result groups (⏸️ PAUSED — machine handoff 2026-06-26)
+
+> Kicked off 2026-06-26 (human-directed, post design-interview). `recommend_when`
+> becomes a combinable group of answer- and/or result-conditions; a phase can be
+> recommended from an EARLIER phase's RESULT (specific option or `adverse`), mixed
+> freely with answer-conditions under TODAS/QUALQUER. Suggestion-only (the
+> `recommended` flag); zero `eval_condition` drift (synthetic-map reuse). Locked
+> design: ADR [0043](docs/decisions/0043-phase-result-based-recommendation.md).
+
+> **⏸️ HANDOFF — RESUME HERE (other machine).** Backend BR1–BR3 LANDED; BR4 not
+> started; frontend/tester not yet spawned. The backend teammate was stopped mid-BR4.
+> **Resume steps, in order:**
+> 1. **Verify backend state** (not lead-verified): `supabase migration up` (apply
+>    `20260630000004` locally if not already), then `supabase gen types …` to confirm
+>    `database.ts` is current, then `npm run typecheck && npm run lint`.
+> 2. **BR4** — write `supabase/tests/161_recommend_result_source.sql` + a TS-only
+>    Vitest test for `evalRecommendation`. The stopped agent's test design (reuse it):
+>    **T1** (4 phases, all `form_u`; phase 1 AUTO ruleset `u_q1='Sim'`→Conforme, default→NãoConforme[adverse]): p2 `{result equals Conforme}`, p3 `{result adverse:true}`, p4 group `any [{result equals NãoConforme},{answer u_q1='Sim'}]`. Case A (Sim): p2✓ p3✗ p4✓. Case B (Não): p2✗ p3✓ p4✓. **T2** AND-group cases. **T3** no-result-at-creation (p2 equals→false, p3 not_equals→true footgun). **Override→recompute**: override case-A p1→NãoConforme while concluída → p2 flips false, p3 flips true.
+> 3. **Spawn `frontend`** on FR1/FR2 — the contract (BR1 types) IS posted, so it can
+>    start immediately. 4. **Spawn `tester`** (TR1) after BR4 + FR land. 5. **Human runs
+>    `supabase db push`** to deploy `20260630000004` to remote (background agents can't).
+> 6. Then §6 gate: QA → human approval → Record.
+
+Backend (`backend`):
+
+| # | Task | Status |
+| - | ---- | ------ |
+| BR1 | **Contract-first** — `conditions.ts` (`RecommendGroup` + result-condition types, superset of `RecommendWhen`, legacy single valid; `evalRecommendation(rule,resolve)` mirror; reserved keys `__phase_result__`/`__phase_result_adverse__`) + type-only widen in `process-templates.ts`; `actions.ts` passthrough unchanged. | ✅ done (committed, unpushed) |
+| BR2 | Migration `supabase/migrations/20260630000004_recommend_when_result_source.sql` (728 lines): both CHECKs widened via `app.is_valid_recommend_when`; `is_valid_recommend_cond`, `recommend_when_conditions`, group-aware `validate_template_recommend_when` (HC063 non-emitting source · HC064 id ∉ allowed-set), group-walk `recompute_recommendations` (synthetic-map result eval), `set_case_phase_result_override` (+recompute), `create_case_from_template` (group-aware inline fix). | ✅ written · ⚠ local `migration up` + remote `db push` UNVERIFIED by lead |
+| BR3 | `database.ts` regenerated. ⚠ `npm run typecheck`/`lint` NOT lead-verified — re-run on resume (step 1 above). | 🏗️ regen done, verify on resume |
+| BR4 | pgTAP `161_recommend_result_source.sql` + `evalRecommendation` Vitest test. | ⏳ NOT started (test design captured in HANDOFF above) |
+
+Frontend (`frontend`) — **ready to spawn** (BR1 contract posted):
+
+| # | Task | Status |
+| - | ---- | ------ |
+| FR1 | Rebuild `src/components/process-templates/recommend-when-editor.tsx` into a group builder (mirror `condition-builder.tsx`): TODAS/QUALQUER toggle, add/remove rows, per-row source toggle (Resposta de fase / Resultado de fase — result hidden when `!phaseResultsEnabled`), source-phase picker filtered by source type, value control (answer = existing; result = specific-id `equals/not_equals/in` OR `adverso` true/false), per-row live preview via `evalRecommendation`, `not_equals` footgun warning. Build against BR1 types. | ⏳ not started |
+| FR2 | Wire `phase-slot-dialog.tsx` (serialized `recommendWhen` field already exists) + pass `phaseResults` + `phaseResultsEnabled` (already on the slot card) into the editor; derive each source phase's emittable results from `allowedResultIds` × `phaseResults`. typecheck/lint/build + preview smoke. | ⏳ blocked on FR1 |
+
+Tester (`tester`) — gate (spawn after BR4 + FR land + dev server runs):
+
+| # | Task | Status |
+| - | ---- | ------ |
+| TR1 `[gate]` | E2E — author a process with a result-based + a mixed answer/result recommendation; run a case; assert the downstream phase flips `recommended` when the source result matches (specific + adverse paths) and not otherwise; a post-conclusion result override re-flips it. Full pgTAP + full E2E green to declare. | ⏳ not started |
 
 ### NSP-per-org — Sub-phase A: Backend security core (✅ QA-APPROVED 2026-06-25)
 
