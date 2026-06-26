@@ -337,6 +337,8 @@ export function PhaseSlotDialog({
           <RecommendWhenEditor
             phasePosition={newPosition}
             phases={phases}
+            phaseResults={phaseResults}
+            phaseResultsEnabled={phaseResultsEnabled}
             value={recommendJson}
             onChange={setRecommendJson}
             error={state?.fieldErrors?.recommendWhen}

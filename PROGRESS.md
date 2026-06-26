@@ -86,8 +86,8 @@ Frontend (`frontend`, `aebe7cdff7d0fbfad`) — plan approved, building:
 
 | # | Task | Status |
 | - | ---- | ------ |
-| FR1 | Rebuild `src/components/process-templates/recommend-when-editor.tsx` into a group builder (mirror `condition-builder.tsx`): TODAS/QUALQUER toggle, add/remove rows, per-row source toggle (Resposta de fase / Resultado de fase — result hidden when `!phaseResultsEnabled`), source-phase picker filtered by source type, value control (answer = existing; result = specific-id `equals/not_equals/in` OR `adverso` true/false), per-row live preview via `evalRecommendation`, `not_equals` footgun warning. Build against BR1 types. | 🏗️ in progress |
-| FR2 | Wire `phase-slot-dialog.tsx` (serialized `recommendWhen` field already exists) + pass `phaseResults` + `phaseResultsEnabled` (already on the slot card) into the editor; derive each source phase's emittable results from `allowedResultIds` × `phaseResults`. typecheck/lint/build + preview smoke. | 🏗️ in progress |
+| FR1 | Rebuild `src/components/process-templates/recommend-when-editor.tsx` into a group builder (mirror `condition-builder.tsx`): TODAS/QUALQUER toggle, add/remove rows, per-row source toggle (Resposta de fase / Resultado de fase — result hidden when `!phaseResultsEnabled`), source-phase picker filtered by source type, value control (answer = existing; result = specific-id `equals/not_equals/in` OR `adverso` true/false), per-row live preview via `evalRecommendation`, `not_equals` footgun warning. Build against BR1 types. | ✅ done (2026-06-26) — typecheck/lint 0 errors; smoke-verified |
+| FR2 | Wire `phase-slot-dialog.tsx` (serialized `recommendWhen` field already exists) + pass `phaseResults` + `phaseResultsEnabled` (already on the slot card) into the editor; derive each source phase's emittable results from `allowedResultIds` × `phaseResults`. typecheck/lint/build + preview smoke. | ✅ done (2026-06-26) — dialog passes new props; smoke confirmed result options render by label, live preview fires correctly |
 
 Tester (`tester`) — gate (spawn after BR4 + FR land + dev server runs):
 
