@@ -85,7 +85,18 @@ export async function createReferralDraft(
     p_response_expected: input.responseExpected,
     p_description_md: input.descriptionMd ?? undefined,
   })
-  if (error || !data) return { ok: false, error: mapReferralError(error) }
+  if (error || !data) {
+    // Log the RAW Postgres error server-side (code never reaches the UI — §8). A
+    // failed referral draft must be diagnosable: the mapped pt-BR string hides the
+    // SQLSTATE, so surface it here for the server log.
+    console.error('[createReferralDraft] RPC failed', {
+      code: error?.code,
+      message: error?.message,
+      details: error?.details,
+      hint: error?.hint,
+    })
+    return { ok: false, error: mapReferralError(error) }
+  }
 
   revalidateReferrals()
   return {
@@ -212,7 +223,16 @@ export async function sendReferral(
 
   const supabase = await createClient()
   const { error } = await supabase.rpc('send_referral', { p_referral_id: referralId })
-  if (error) return { ok: false, error: mapReferralError(error) }
+  if (error) {
+    console.error('[sendReferral] RPC failed', {
+      referralId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    })
+    return { ok: false, error: mapReferralError(error) }
+  }
 
   revalidateReferrals()
   return { ok: true, message: REFERRAL_MESSAGES.referralSent }

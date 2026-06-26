@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useState } from "react";
 import { ArrowDown, ArrowUp, Ban, Check, Plus, Trash2 } from "lucide-react";
 
 import type { ColorToken, ItemOption } from "@/lib/queries/forms";
@@ -201,8 +201,15 @@ function OptionColorDropdown({
   value: ColorToken | null;
   onChange: (token: ColorToken | null) => void;
 }) {
+  const [open, setOpen] = useState(false);
+
+  function select(token: ColorToken | null) {
+    onChange(token);
+    setOpen(false);
+  }
+
   return (
-    <DropdownMenu>
+    <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <button
           type="button"
@@ -234,7 +241,7 @@ function OptionColorDropdown({
           aria-pressed={value === null}
           aria-label="Sem cor"
           title="Sem cor"
-          onClick={() => onChange(null)}
+          onClick={() => select(null)}
           className={cn(
             "grid size-6 place-items-center rounded-full border border-input bg-card ring-offset-2 ring-offset-card transition-shadow focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
             value === null && "ring-2 ring-ring",
@@ -251,7 +258,7 @@ function OptionColorDropdown({
               aria-pressed={selected}
               aria-label={TOKEN_NAME[token]}
               title={TOKEN_NAME[token]}
-              onClick={() => onChange(token)}
+              onClick={() => select(token)}
               className={cn(
                 "grid size-6 place-items-center rounded-full ring-offset-2 ring-offset-card transition-shadow focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
                 selected && "ring-2 ring-ring",

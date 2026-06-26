@@ -95,8 +95,7 @@ const REFERRAL_LIST_SELECT =
   'id, code, status, subject, type_label, response_expected, ' +
   'source_commission_id, target_commission_id, source_case_id, target_case_id, ' +
   'has_patient, sent_at, created_at, referral_type_id, ' +
-  'source_commission:source_commission_id(name), ' +
-  'target_commission:target_commission_id(name), ' +
+  'source_commission_name, target_commission_name, ' +
   'source_case:source_case_id(case_number), ' +
   'target_case:target_case_id(case_number), ' +
   'referral_type:referral_type_id(color_token)'
@@ -116,8 +115,8 @@ interface ReferralListRow {
   sent_at: string | null
   created_at: string
   referral_type_id: string | null
-  source_commission: { name: string } | null
-  target_commission: { name: string } | null
+  source_commission_name: string | null
+  target_commission_name: string | null
   source_case: { case_number: number } | null
   target_case: { case_number: number } | null
   referral_type: { color_token: string | null } | null
@@ -144,9 +143,9 @@ function mapReferralListItem(
     typeColorToken: r.referral_type?.color_token ?? null,
     responseExpected: r.response_expected,
     sourceCommissionId: r.source_commission_id,
-    sourceCommissionName: r.source_commission?.name ?? null,
+    sourceCommissionName: r.source_commission_name,
     targetCommissionId: r.target_commission_id,
-    targetCommissionName: r.target_commission?.name ?? null,
+    targetCommissionName: r.target_commission_name,
     sourceCaseId: r.source_case_id,
     sourceCaseNumber: r.source_case?.case_number ?? null,
     targetCaseId: r.target_case_id,
@@ -188,7 +187,7 @@ export async function listCommissionReferrals(
   commissionId: string,
 ): Promise<ReferralListItem[]> {
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('case_referral')
     .select(REFERRAL_LIST_SELECT)
     .or(
@@ -196,6 +195,14 @@ export async function listCommissionReferrals(
     )
     .order('created_at', { ascending: false })
     .returns<ReferralListRow[]>()
+
+  if (error) {
+    console.error('[listCommissionReferrals] query failed', {
+      commissionId,
+      code: error.code,
+      message: error.message,
+    })
+  }
 
   return (data ?? []).map((r) => mapReferralListItem(r, commissionId))
 }
@@ -208,12 +215,25 @@ export async function listCaseOutboundReferrals(
   caseId: string,
 ): Promise<ReferralListItem[]> {
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('case_referral')
     .select(REFERRAL_LIST_SELECT)
     .eq('source_case_id', caseId)
     .order('created_at', { ascending: false })
     .returns<ReferralListRow[]>()
+
+  if (error) {
+    // A failed list read must be diagnosable — without this the card silently shows
+    // zero referrals (the swallowed-error anti-pattern). Surfaces e.g. a stale
+    // PostgREST schema cache after a migration (PGRST204) or an RLS denial.
+    console.error('[listCaseOutboundReferrals] query failed', {
+      caseId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    })
+  }
 
   // The viewer is the source commission here (the case's own commission), so every
   // row is outgoing — pass each row's source id so direction resolves to 'outgoing'.
@@ -736,7 +756,13 @@ export async function listAllReferrals(
   if (filters.responseExpected !== undefined)
     query = query.eq('response_expected', filters.responseExpected)
 
-  const { data } = await query.returns<ReferralListRow[]>()
+  const { data, error } = await query.returns<ReferralListRow[]>()
+  if (error) {
+    console.error('[listAllReferrals] query failed', {
+      code: error.code,
+      message: error.message,
+    })
+  }
   // QPS drill-down: no single viewing commission, so direction defaults to
   // source→target ('outgoing') — the dashboard renders source/target columns.
   return (data ?? []).map((r) => mapReferralListItem(r, null))
