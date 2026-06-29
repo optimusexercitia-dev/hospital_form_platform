@@ -114,6 +114,9 @@ export default async function CaseDetailLayout({
                 {formatCaseNumber(c.caseNumber)}
               </h1>
               <CaseStatusBadgeFixed status={c.status} />
+              {c.templateId === null && (
+                <CaseStatusBadge label="Sem processo" colorToken="muted" />
+              )}
               {detail.outcome && (
                 <CaseStatusBadge
                   label={detail.outcome.label}

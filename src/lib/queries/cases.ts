@@ -896,6 +896,27 @@ export async function casePatientEnabled(): Promise<boolean> {
   return data === true
 }
 
+/** Whether the `processless_cases` feature flag is ON (probes
+ * `processless_cases_enabled`). Gates the create-dialog "Sem processo" option,
+ * the `create_case` RPC, and the case-detail offered-outcome editor; `false` on
+ * any error (fail-closed). */
+export async function processlessCasesEnabled(): Promise<boolean> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('processless_cases_enabled')
+  if (error) return false
+  return data === true
+}
+
+/** Whether the `cases_extras` feature flag is ON (probes `cases_extras_enabled`).
+ * Gates the optional outcome sub-step of the process-less create dialog and the
+ * offered-outcome editor; `false` on any error (fail-closed). */
+export async function casesExtrasEnabled(): Promise<boolean> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('cases_extras_enabled')
+  if (error) return false
+  return data === true
+}
+
 // ---------------------------------------------------------------------------
 // Phase-fill landing (RLS-scoped table reads — no answers)
 // ---------------------------------------------------------------------------

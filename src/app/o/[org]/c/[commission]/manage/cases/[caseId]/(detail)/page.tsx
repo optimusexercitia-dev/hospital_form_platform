@@ -3,7 +3,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { getCaseDetail, casePatientEnabled } from "@/lib/queries/cases";
+import {
+  getCaseDetail,
+  casePatientEnabled,
+  casesExtrasEnabled,
+} from "@/lib/queries/cases";
+import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import {
   listPhaseResults,
   phaseResultsEnabled,
@@ -61,6 +66,7 @@ export default async function CaseDetailPage({
     narrativesOn,
     caseAccessOn,
     phaseResultsOn,
+    casesExtrasOn,
   ] = await Promise.all([
     interviewsEnabled(),
     patientSafetyEnabled(),
@@ -68,7 +74,16 @@ export default async function CaseDetailPage({
     narrativesEnabled(),
     caseAccessEnabled(),
     phaseResultsEnabled(),
+    casesExtrasEnabled(),
   ]);
+
+  // The commission's outcome vocabulary — for the process-less offered-outcome
+  // editor (processless_cases). Only needed when this case is process-less AND the
+  // coordinator may edit the set; otherwise the editor never renders, so `[]`.
+  const outcomes =
+    detail.case.templateId === null && casesExtrasOn
+      ? await listCaseOutcomes(access.commission.id)
+      : [];
 
   // Post-conclusion result correction (phase-results feature; task #10). This route
   // is already staff_admin/admin-gated, so a coordinator here may correct a
@@ -116,6 +131,8 @@ export default async function CaseDetailPage({
       referralsModule={referralsModule}
       canManagePhaseResults={phaseResultsOn}
       phaseResultOptions={phaseResultOptions}
+      outcomes={outcomes}
+      casesExtrasEnabled={casesExtrasOn}
     />
   );
 }

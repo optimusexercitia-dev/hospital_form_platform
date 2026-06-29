@@ -5892,6 +5892,38 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_case: {
+        Args: {
+          p_commission_id: string
+          p_label?: string
+          p_outcome_ids?: string[]
+          p_patient_enabled?: boolean
+        }
+        Returns: {
+          case_number: number
+          closed_at: string | null
+          closed_by: string | null
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          has_patient: boolean
+          id: string
+          label: string | null
+          outcome_id: string | null
+          patient_enabled: boolean
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
+          status: string
+          template_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_case_from_template: {
         Args: { p_label?: string; p_template_id: string }
         Returns: {
@@ -6788,6 +6820,7 @@ export type Database = {
           title: string
         }[]
       }
+      processless_cases_enabled: { Args: never; Returns: boolean }
       publish_form_version: {
         Args: { p_form_version_id: string }
         Returns: {
@@ -7404,6 +7437,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_case_offered_outcomes: {
+        Args: { p_case_id: string; p_outcome_ids: string[] }
+        Returns: undefined
       }
       set_case_outcome: {
         Args: { p_case_id: string; p_outcome_id?: string }

@@ -62,6 +62,9 @@ const MESSAGES = {
   missingCase: 'Caso não encontrado.',
   missingPhase: 'Fase não encontrada.',
   missingTemplate: 'Processo não encontrado.',
+  missingCommission: 'Comissão não encontrada.',
+  commissionMismatch: 'Este desfecho não pertence à comissão deste caso.',
+  outcomeRequiredForCase: 'Selecione ao menos um desfecho.',
   templateRequired: 'Selecione um processo.',
   formRequired: 'Selecione um formulário.',
   assigneeRequired: 'Selecione o responsável pela fase.',
@@ -116,6 +119,8 @@ const HC_CASE_TERMINAL = 'HC025'
 // Case data-model adjustments — the D3 conclude gate (close_case).
 const HC_OUTCOME_REQUIRED = 'HC028'
 const HC_PHASES_UNSETTLED = 'HC031'
+// Process-less case creation — outcome/commission mismatch (create_case).
+const HC_COMMISSION_MISMATCH = 'HC030'
 
 const CASES_LIST_PATH = '/c/[slug]/manage/cases'
 const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
@@ -204,6 +209,8 @@ function mapCaseError(error: { code?: string; message?: string } | null): string
       return error.message || MESSAGES.outcomeRequired
     case HC_PHASES_UNSETTLED:
       return error.message || MESSAGES.phasesUnsettled
+    case HC_COMMISSION_MISMATCH:
+      return error.message || MESSAGES.commissionMismatch
     case PG_CHECK_VIOLATION:
       return error.message || MESSAGES.generic
     default:
@@ -343,6 +350,69 @@ export async function createCaseFromTemplate(
   // is never lost to a navigation race. The case already exists; if the PHI write
   // fails we surface it (with the caseId, so the user can open the case and add
   // identifiers via the detail panel) instead of swallowing the loss.
+  const patientInput = patientInputFromForm(formData)
+  if (patientInput) {
+    const patientError = await writeCasePatient(supabase, data.id, patientInput)
+    if (patientError) {
+      revalidateCases()
+      return { ok: false, caseId: data.id, error: patientError }
+    }
+  }
+
+  revalidateCases()
+  return { ok: true, error: MESSAGES.caseCreated, caseId: data.id }
+}
+
+/**
+ * Create a process-less ("Sem processo") case (ADR — processless_cases): a case
+ * with `template_id` NULL and ZERO phases at creation (ad-hoc phases grown later
+ * via {@link addAdHocPhase}). Mirrors {@link createCaseFromTemplate}'s shape and
+ * its atomic PHI fold, but mints via the `create_case` RPC instead.
+ *
+ * Hidden fields: `commissionId` (required), `label?` (NON-IDENTIFYING — the UI
+ * warns), `emitsOutcome` (`'on'` when the "emite desfecho?" toggle is set),
+ * `outcomeIds` (repeated — the chosen offered-outcome ids; required ≥1 when
+ * `emitsOutcome`, forced to `[]` otherwise), `patientEnabled` (`'on'` when the
+ * "registra identificadores de paciente?" toggle is set → the case is
+ * PHI-capable). The optional PHI block is written in the SAME RLS-scoped request
+ * (an empty block → null → clean no-op, leaving a PHI-capable case with no
+ * `case_patient` row). Returns the new `caseId`.
+ */
+export async function createCase(
+  _prev: CreateCaseState | undefined,
+  formData: FormData,
+): Promise<CreateCaseState> {
+  const commissionId = String(formData.get('commissionId') ?? '')
+  const label = String(formData.get('label') ?? '').trim()
+  const emitsOutcome = formData.get('emitsOutcome') === 'on'
+  const patientEnabled = formData.get('patientEnabled') === 'on'
+  // When the case emits an outcome, the chosen ids are the offered set (≥1
+  // required); otherwise the set is forced empty (no outcome at conclusion).
+  const outcomeIds = emitsOutcome
+    ? formData.getAll('outcomeIds').map((v) => String(v)).filter(Boolean)
+    : []
+
+  if (!commissionId) return { ok: false, error: MESSAGES.missingCommission }
+  if (emitsOutcome && outcomeIds.length === 0) {
+    return { ok: false, fieldErrors: { outcomeIds: MESSAGES.outcomeRequiredForCase } }
+  }
+
+  if (!(await authorizeCommission(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('create_case', {
+    p_commission_id: commissionId,
+    p_label: label || undefined,
+    p_patient_enabled: patientEnabled,
+    p_outcome_ids: outcomeIds,
+  })
+
+  if (error || !data) return { ok: false, error: mapCaseError(error) }
+
+  // Optional, sanctioned PHI block (ADR 0038): write it in the SAME request so it
+  // is never lost to a navigation race — exactly as createCaseFromTemplate does.
   const patientInput = patientInputFromForm(formData)
   if (patientInput) {
     const patientError = await writeCasePatient(supabase, data.id, patientInput)

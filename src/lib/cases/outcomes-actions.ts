@@ -62,6 +62,7 @@ const MESSAGES = {
   outcomeReordered: 'Ordem dos desfechos atualizada.',
   outcomeArchived: 'Desfecho arquivado.',
   processOutcomesSet: 'Desfechos do processo atualizados.',
+  offeredOutcomesSet: 'Desfechos disponíveis do caso atualizados.',
 } as const
 
 const PG_CHECK_VIOLATION = '23514'
@@ -355,4 +356,41 @@ export async function setProcessOutcomes(
 
   revalidatePath(TEMPLATE_PATH, 'page')
   return { ok: true, error: MESSAGES.processOutcomesSet }
+}
+
+// ---------------------------------------------------------------------------
+// Case-side: which outcomes a PROCESS-LESS case offers (processless_cases)
+// ---------------------------------------------------------------------------
+
+/**
+ * Set the full offered-outcome set of a NON-TERMINAL case (the process-less
+ * case detail editor — processless_cases). DELIBERATELY breaks the offered-set
+ * "freeze" that templated cases keep by design: the `set_case_offered_outcomes`
+ * DEFINER gates coordinator-only (`42501`) + non-terminal (`HC025`) and validates
+ * same-commission / non-archived (`HC030`). EDGE: the outcome currently ASSIGNED
+ * to the case cannot be dropped from the offered list (`HC029` — change the case
+ * outcome first). Pass `[]` to clear the set. staff_admin-only.
+ */
+export async function setCaseOfferedOutcomes(
+  caseId: string,
+  outcomeIds: string[],
+): Promise<ActionState> {
+  if (!caseId) return { ok: false, error: MESSAGES.missingCase }
+
+  const supabase = await createClient()
+  const commissionId = await commissionOfCase(supabase, caseId)
+  if (!commissionId) return { ok: false, error: MESSAGES.missingCase }
+  if (!(await authorizeCommission(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('set_case_offered_outcomes', {
+    p_case_id: caseId,
+    p_outcome_ids: outcomeIds,
+  })
+
+  if (error) return { ok: false, error: mapOutcomeError(error) }
+
+  revalidateCaseOutcome()
+  return { ok: true, error: MESSAGES.offeredOutcomesSet }
 }

@@ -3,7 +3,13 @@ import { notFound } from "next/navigation";
 import { FolderOpen } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { listCasesBoard, casePatientEnabled } from "@/lib/queries/cases";
+import {
+  listCasesBoard,
+  casePatientEnabled,
+  processlessCasesEnabled,
+  casesExtrasEnabled,
+} from "@/lib/queries/cases";
+import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import { getCaseActionItemKpis } from "@/lib/queries/case-action-items";
 import { listProcessTemplates } from "@/lib/queries/process-templates";
 import { CreateCaseDialog } from "@/components/cases/create-case-dialog";
@@ -43,11 +49,22 @@ export default async function CasesBoardPage({
     notFound();
   }
 
-  const [rows, templates, actionItemKpis, casePatientOn] = await Promise.all([
+  const [
+    rows,
+    templates,
+    actionItemKpis,
+    casePatientOn,
+    processlessOn,
+    casesExtrasOn,
+    outcomes,
+  ] = await Promise.all([
     listCasesBoard(access.commission.id),
     listProcessTemplates(access.commission.id),
     getCaseActionItemKpis(access.commission.id),
     casePatientEnabled(),
+    processlessCasesEnabled(),
+    casesExtrasEnabled(),
+    listCaseOutcomes(access.commission.id),
   ]);
 
   // A case can only be minted from an ACTIVE template. Carry `collectsPatient` so
@@ -63,6 +80,10 @@ export default async function CasesBoardPage({
   const kpis = computeCaseKpis(rows);
   const outcomeBreakdown = computeOutcomeBreakdown(rows);
   const initialView: CasesViewMode = view === "kanban" ? "kanban" : "table";
+
+  // A case can be created from an active template OR, when the flag is on, without
+  // a process at all ("Sem processo"). Drives the create button + empty-state copy.
+  const canCreate = processlessOn || activeTemplates.length > 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -81,7 +102,11 @@ export default async function CasesBoardPage({
         <CreateCaseDialog
           org={org} slug={slug}
           templates={activeTemplates}
+          commissionId={access.commission.id}
           casePatientEnabled={casePatientOn}
+          processlessEnabled={processlessOn}
+          casesExtrasEnabled={casesExtrasOn}
+          outcomes={outcomes}
         />
       </header>
 
@@ -95,16 +120,22 @@ export default async function CasesBoardPage({
           </span>
           <h2 className="text-lg font-semibold">Nenhum caso ainda</h2>
           <p className="max-w-sm text-sm text-muted-foreground text-pretty">
-            {activeTemplates.length === 0
+            {!canCreate
               ? "Publique um processo multifásico para começar a criar casos."
-              : "Crie o primeiro caso a partir de um processo publicado."}
+              : processlessOn
+                ? "Crie o primeiro caso — a partir de um processo publicado ou sem processo."
+                : "Crie o primeiro caso a partir de um processo publicado."}
           </p>
-          {activeTemplates.length > 0 && (
+          {canCreate && (
             <div className="mt-2">
               <CreateCaseDialog
                 org={org} slug={slug}
                 templates={activeTemplates}
+                commissionId={access.commission.id}
                 casePatientEnabled={casePatientOn}
+                processlessEnabled={processlessOn}
+                casesExtrasEnabled={casesExtrasOn}
+                outcomes={outcomes}
               />
             </div>
           )}
