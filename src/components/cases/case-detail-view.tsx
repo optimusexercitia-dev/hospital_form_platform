@@ -21,6 +21,8 @@ import { CaseEventsTimeline } from "@/components/cases/case-events-timeline";
 import { CaseTagsPanel } from "@/components/cases/case-tags-panel";
 import { CaseDocumentsPanel } from "@/components/cases/case-documents-panel";
 import { CaseOutcomeSelector } from "@/components/cases/case-outcome-selector";
+import { CaseOfferedOutcomesEditor } from "@/components/cases/case-offered-outcomes-editor";
+import type { CaseOutcome } from "@/lib/queries/case-outcomes";
 import { CasePatientPanel } from "@/components/cases/case-patient-panel";
 import {
   loadCasePatientForNotify,
@@ -99,6 +101,8 @@ export function CaseDetailView({
   referralsModule,
   canManagePhaseResults = false,
   phaseResultOptions = [],
+  outcomes = [],
+  casesExtrasEnabled = false,
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -141,11 +145,25 @@ export function CaseDetailView({
   canManagePhaseResults?: boolean;
   /** The commission's active result options (the correction dialog's picker). */
   phaseResultOptions?: ResolvedPhaseResult[];
+  /**
+   * The commission's non-archived outcome vocabulary — threaded for the
+   * process-less offered-outcome editor (processless_cases). Default `[]` (e.g.
+   * staff renders where the editor never shows, since it is coordinator-only).
+   */
+  outcomes?: CaseOutcome[];
+  /** Whether `cases_extras` is on (gates the process-less offered-outcome editor). */
+  casesExtrasEnabled?: boolean;
 }) {
   const c = detail.case;
   const caps = detail.viewerCapabilities;
   const isOpen = !isTerminalCaseStatus(c.status);
   const offersOutcomes = detail.offeredOutcomes.length > 0;
+  // A process-less case (templateId === null) has no template snapshot to freeze,
+  // so its offered set stays editable by a coordinator while the case is open
+  // (processless_cases + cases_extras). Templated cases keep the frozen snapshot.
+  const isProcessless = c.templateId === null;
+  const showOfferedEditor =
+    isOpen && caps.canManageLifecycle && isProcessless && casesExtrasEnabled;
 
   const sorted = [...members].sort((a, b) => {
     const aKey = a.fullName || a.email || "";
@@ -204,6 +222,9 @@ export function CaseDetailView({
                   {formatCaseNumber(c.caseNumber)}
                 </h1>
                 <CaseStatusBadgeFixed status={c.status} />
+                {isProcessless && (
+                  <CaseStatusBadge label="Sem processo" colorToken="muted" />
+                )}
                 {detail.outcome && (
                   <CaseStatusBadge
                     label={detail.outcome.label}
@@ -365,13 +386,29 @@ export function CaseDetailView({
           </div>
         </div>
 
-        {isOpen && offersOutcomes && caps.canManageLifecycle && (
-          <div data-rise>
-            <CaseOutcomeSelector
-              caseId={c.id}
-              offeredOutcomes={detail.offeredOutcomes}
-              current={detail.outcome}
-            />
+        {isOpen && caps.canManageLifecycle && (offersOutcomes || showOfferedEditor) && (
+          <div data-rise className="flex flex-col gap-3">
+            {offersOutcomes && (
+              <CaseOutcomeSelector
+                caseId={c.id}
+                offeredOutcomes={detail.offeredOutcomes}
+                current={detail.outcome}
+              />
+            )}
+            {/* Process-less cases (templateId === null) keep an EDITABLE offered
+                set — the coordinator can grow/shrink it while the case is open
+                (processless_cases). Templated cases keep their frozen snapshot, so
+                no editor renders for them. */}
+            {showOfferedEditor && (
+              <div className="flex justify-end">
+                <CaseOfferedOutcomesEditor
+                  caseId={c.id}
+                  commissionId={c.commissionId}
+                  outcomes={outcomes}
+                  offeredOutcomes={detail.offeredOutcomes}
+                />
+              </div>
+            )}
           </div>
         )}
       </CaseDetailMotion>
