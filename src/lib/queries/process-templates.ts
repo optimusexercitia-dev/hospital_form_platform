@@ -372,10 +372,10 @@ export async function phaseConditionTargets(
         // form-model-normalization: project each option's { code, label }. The
         // condition STORES the code (clone-stable identity the code-keyed
         // answer_map evaluates); the picker SHOWS the label. Item.options is the
-        // normalized ItemOption[] (code + label both present).
-        // TODO(BE-5): the deep code-existence validation in
-        // validate_template_recommend_when / validate_template_result_ruleset
-        // moves to codes server-side once types are regenerated against the live DB.
+        // normalized ItemOption[] (code + label both present). The deep
+        // code-existence validation now lives server-side (BE-5): the template
+        // validators (validate_template_recommend_when / _result_ruleset) assert a
+        // referenced value code exists on the choice question at add/update/publish.
         options: (item.options ?? []).map(
           (o): ConditionTargetOption => ({ code: o.code, label: o.label }),
         ),
