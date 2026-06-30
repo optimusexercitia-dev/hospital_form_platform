@@ -40,6 +40,9 @@ export function WizardRunner({
           responseId: data.responseId,
           sectionId: input.sectionId,
           answersByItemId: input.answersByItemId,
+          // form-model-normalization: forward the CHOICE selections (option-code
+          // arrays) alongside the scalar answers.
+          selectionsByItemId: input.selectionsByItemId,
           clearItemIds: input.clearItemIds,
           observationsByItemId: input.observationsByItemId,
         }),
@@ -52,6 +55,7 @@ export function WizardRunner({
           responseId: data.responseId,
           sectionId: input.sectionId,
           answersByItemId: input.answersByItemId,
+          selectionsByItemId: input.selectionsByItemId,
           observationsByItemId: input.observationsByItemId,
         });
       },

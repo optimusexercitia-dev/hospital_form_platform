@@ -482,9 +482,10 @@ function DropdownItem({
           Selecione uma opção…
         </option>
         {/* Dropdown options never carry colour (a native <select> can't render
-            it — decision #4); render the label only. */}
-        {options.map((opt, i) => (
-          <option key={i} value={opt.label} className="text-foreground">
+            it — decision #4); render the label only. form-model-normalization:
+            the stored value is the option CODE, the displayed text the label. */}
+        {options.map((opt) => (
+          <option key={opt.code} value={opt.code} className="text-foreground">
             {opt.label}
           </option>
         ))}
@@ -536,10 +537,12 @@ function ChoiceGroup({
       <div className="flex flex-col gap-1.5">
         {options.map((opt, i) => {
           const id = `item-${item.id}-opt-${i}`;
-          const selected = value === opt.label;
+          // form-model-normalization: the wizard state stores the option CODE
+          // (the clone-stable identity the evaluator keys on); the label is shown.
+          const selected = value === opt.code;
           return (
             <label
-              key={i}
+              key={opt.code}
               htmlFor={id}
               className={optionRowClass(opt, selected)}
               style={optionRowStyle(opt)}
@@ -548,9 +551,9 @@ function ChoiceGroup({
                 type="radio"
                 id={id}
                 name={`item-${item.id}`}
-                value={opt.label}
+                value={opt.code}
                 checked={selected}
-                onChange={() => onChange(opt.label)}
+                onChange={() => onChange(opt.code)}
                 className="size-4 shrink-0 accent-primary"
               />
               <OptionDot option={opt} />
@@ -588,12 +591,13 @@ function CheckboxGroup({
       .filter(Boolean)
       .join(" ") || undefined;
 
-  function toggle(opt: string, checked: boolean) {
+  function toggle(code: string, checked: boolean) {
     const set = new Set(value);
-    if (checked) set.add(opt);
-    else set.delete(opt);
-    // Preserve option order for stable, comparable values.
-    onChange(options.map((o) => o.label).filter((o) => set.has(o)));
+    if (checked) set.add(code);
+    else set.delete(code);
+    // Preserve option order for stable, comparable values. form-model-
+    // normalization: the stored values are option CODEs, not labels.
+    onChange(options.map((o) => o.code).filter((c) => set.has(c)));
   }
 
   return (
@@ -614,10 +618,11 @@ function CheckboxGroup({
       <div className="flex flex-col gap-1.5">
         {options.map((opt, i) => {
           const id = `item-${item.id}-opt-${i}`;
-          const checked = value.includes(opt.label);
+          // form-model-normalization: checkbox state is an array of option CODEs.
+          const checked = value.includes(opt.code);
           return (
             <label
-              key={i}
+              key={opt.code}
               htmlFor={id}
               className={optionRowClass(opt, checked)}
               style={optionRowStyle(opt)}
@@ -625,9 +630,9 @@ function CheckboxGroup({
               <input
                 type="checkbox"
                 id={id}
-                value={opt.label}
+                value={opt.code}
                 checked={checked}
-                onChange={(e) => toggle(opt.label, e.target.checked)}
+                onChange={(e) => toggle(opt.code, e.target.checked)}
                 className="size-4 shrink-0 accent-primary"
               />
               <OptionDot option={opt} />

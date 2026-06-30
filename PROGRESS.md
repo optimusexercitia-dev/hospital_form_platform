@@ -66,19 +66,18 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 
 | ID | Owner | Task | Dep | Status |
 | -- | ----- | ---- | --- | ------ |
-| BE-1 | backend | **[plan-review]** Implementation plan for the squash + new tables/RLS/triggers + RPC rewrites; post contract-first typed signatures (domain `Item.options` w/ code/score/analyticsCode; save/submit action inputs; dashboard `{code,label,count}`). **STOP for lead review before migrations.** | — | 🏗️ plan + contract posted, awaiting lead review |
-| BE-2 | backend | Squashed baseline: `form_item_options` + `answer_selected_options` tables; drop `options` jsonb + CHECKs; RLS; triggers (version-sync, published-structure + submitted-children guards, display-item rejection). | BE-1✓ | 🔜 |
-| BE-3 | backend | `app.answer_map` rewrite — rebuild identical `question_key → code(s)` jsonb from both tables (evaluator + vectors UNCHANGED). | BE-2 | 🔜 |
-| BE-4 | backend | Rewrite `save_section_answers` + `submit_response` (scalars + selection-replace; required/bounds/hidden-cleanup; HC013 guards). | BE-3 | 🔜 |
-| BE-5 | backend | `clone_form_version` copies option rows (codes verbatim); publish-time "≥1 option" + condition/rule code-existence validation. | BE-2 | 🔜 |
-| BE-6 | backend | Dashboards/export RPCs (GROUP BY `option.code`, resolve current label); regen `database.ts`; update `seed.sql`. | BE-4 | 🔜 |
-| FE-1 | frontend | Read adapters + domain types: embed option rows in `VERSION_TREE_SELECT`; replace `toOptions`/`serializeOptions`. | BE-1 | 🔜 |
-| FE-2 | frontend | Builder: `OptionsEditor` gains score + analytics_code; `addItem`/`updateItem` CRUD option rows. | FE-1 | 🔜 |
-| FE-3 | frontend | Wizard: `input-item` emits codes; `answer-summary` resolves via option rows; `validation` required-accounts-for-selections. | FE-1 | 🔜 |
-| FE-4 | frontend | Save path: `saveSection`/`submitResponse` send scalars + selection sets to rewritten RPCs. | BE-4 | 🔜 |
-| FE-5 | frontend | Conditions/rulesets pickers show labels, store codes (`condition-targets`, recommend-when + result-ruleset editors). | FE-1 | 🔜 |
-| FE-6 | frontend | Dashboard consumers (`dashboard.ts`/`distribution-chart`) → `{code,label,count}`. | BE-6 | 🔜 |
-| T-1 | tester | **[gate]** E2E: builder (colors/scores/analytics_code/reorder), wizard (single+multi, option-driven show/skip, bounds), submit+immutability, clone preserves codes, dashboard+CSV resolve current labels, sign-off. Prod-build gate, workers=1. | FE-*, BE-* | 🔜 |
+| BE-1 | backend | **[plan-review]** Implementation plan + contract-first typed stubs. **✅ Lead-APPROVED 2026-06-30** (commit `29d93cf`). Decisions: full-absorption squash done as a FINAL dump-packaging step (develop as additive migrations, squash last); app-side `code` gen (question_key parity); whole plan approved with check-backs after BE-3 + before squash/remote handoff. | — | ✅ |
+| BE-2 | backend | New tables `form_item_options` + `answer_selected_options` (DDL/constraints/indexes/RLS/triggers: version-sync, immutable-code, parent-type guard, published-structure + submitted-children guards, display-item rejection); drop `options` jsonb + CHECKs. **Additive migration** (squash is BE-7). | BE-1✓ | 🏗️ |
+| BE-3 | backend | `app.answer_map` rewrite — identical `question_key → code(s)` jsonb from both tables (single→scalar code, checkbox→array; evaluator + vectors UNCHANGED) + server-side answer-map assembly in `getResponseForFill`/`getSubmissionDetail`. **[check-back: vectors + answer_map shape pgTAP green]** | BE-2 | 🔜 |
+| BE-4 | backend | Rewrite `save_section_answers` + `submit_response` (scalars + selection-replace, resolve code→option_id; required/bounds/hidden-cleanup; HC013) **+ `src/lib/**` adapters/actions**: `toOptions`/`VERSION_TREE_SELECT`, `forms/actions.ts` addItem/updateItem option-row CRUD + app-side code gen, `responses/actions.ts` saveSection selections. | BE-3 | 🔜 |
+| BE-5 | backend | `clone_form_version` copies option rows (codes verbatim, item-id remap); publish-time "≥1 option" + condition/rule code-existence validation. | BE-2 | 🔜 |
+| BE-6 | backend | Dashboards/export RPCs (GROUP BY `option.code`, resolve current label) + `dashboard.ts` + export route; regen `database.ts`; update `seed.sql` (option rows + selection rows). | BE-4 | 🔜 |
+| BE-7 | backend | **[STOP for lead]** Squash → single clean baseline via schema dump of the validated local DB (absorbs the 4 pending-remote migrations); `db reset` local; pre/post schema diff proving no object lost; hand lead the exact **human-run** remote re-baseline sequence. | BE-6, T-1✓ | 🔜 |
+| FE-1 | frontend | **Builder UI** (components only): `OptionsEditor` gains score + analytics_code fields; `item-editor-dialog`/`block-card` render & edit option rows; build the FormData the backend actions expect. | BE-1 | ✅ compiles vs contract (lint+tsc+vitest green); ⚠ FormData-field assumption flagged (see FE note) |
+| FE-2 | frontend | **Wizard** (components only): `input-item` renders option rows + emits selected **codes**; the client-side live answer-map (`question_key → code(s)`) MUST mirror the SQL `answer_map` shape (single→scalar code, checkbox→array) or live show/skip diverges from submit; `answer-summary` resolves label/color by code; `validation` required accounts for selections. | BE-1 | ✅ compiles vs contract; answer-map mirror Vitest added (green); ⚠ rehydration `ResponseForFill` gap flagged |
+| FE-3 | frontend | **Conditions/rulesets pickers** (components only): `condition-targets`, recommend-when + result-ruleset editors show **labels**, store **codes**. | BE-1 | 🏗️ `condition-targets`+`condition-builder`+`describe-visibility` DONE; ⚠ recommend-when/result-ruleset editors BLOCKED on `PhaseConditionTarget` contract update (see FE note) |
+| FE-4 | frontend | **Dashboard components** (`distribution-chart`/`dashboard-charts`) consume `{ code, label, count }`. | BE-6 | 🔜 (waiting on BE-6) |
+| T-1 | tester | **[gate]** E2E: builder (colors/scores/analytics_code/reorder), wizard (single+multi, option-driven show/skip, bounds), submit+immutability, clone preserves codes, dashboard+CSV resolve current labels, sign-off. Prod-build gate, workers=1. | FE-*, BE-6 | 🔜 |
 | QA-1 | qa | Requirements audit (wishlist delivered; translations deferred by design) + RLS review of 2 new tables + evaluator-non-drift confirmation. | T-1✓ | 🔜 |
 
 **Backend contract (BE-1, posted 2026-06-30 — branch `feat/form-model-normalization`).** Typed
@@ -97,6 +96,34 @@ stubs committed so FE compiles against real types now; bodies land BE-2…BE-6.
 - Expected contract-break compile errors are confined to FE-owned `src/components/**` (FE-1…FE-6
   adopt them). My three owned files typecheck clean; the only other `tsc` errors pre-exist on `main`
   (missing `react-day-picker`/`date-fns`/`react-aria-components`/`@internationalized/date` deps).
+
+**FE note (2026-06-30, frontend) — FE-1…FE-3 built against the contract; tsc+lint+vitest GREEN for
+all FE-owned files except FE-4 (deferred). Three contract items need lead → backend routing:**
+1. **FormData field names for score/analytics_code (FE-1, ASSUMED — please confirm).** The contract
+   posted the `ItemOption` domain type but NOT the `addItem`/`updateItem` FormData field names for the
+   two new per-option fields. I extended the existing index-parallel repeated-field pattern
+   (`option`/`optionColor`) with **`optionScore`** (raw number string, "" = none) and
+   **`optionAnalyticsCode`** (free text, "" = none) at the same index. BE-4's `parseOptions` rewrite
+   must read these exact names. Flag if backend prefers different names.
+2. **`PhaseConditionTarget` NOT updated by the contract (FE-3 BLOCKER for 2 editors).**
+   `recommend-when-editor.tsx` + `result-ruleset-editor.tsx` consume `PhaseConditionTarget`
+   (`src/lib/queries/process-templates.ts`, backend-owned) whose `options: string[]` is still LABELS.
+   Under the new model the `recommend_when`/`result_ruleset` answer conditions must STORE the option
+   **code** (the answer-map is code-keyed). Backend needs to change `PhaseConditionTarget.options` →
+   `{ code, label }[]` (mirroring `ConditionTargetOption`) and project codes in `phaseConditionTargets`.
+   I did NOT touch those two editors yet (they'd require guessing the shape) — they compile today
+   because the contract didn't change `PhaseConditionTarget`. Ready to flip both to label-shows/
+   code-stores the moment that type lands.
+3. **Rehydration + submission-detail need choice codes in `ResponseForFill.answersByItemId` /
+   submission `answersByItemId` (FE-2).** `prepare.ts`/`toAnswerState` and the read-only views
+   (`submission-detail-view`, `phase-answers-readonly` via `AnswerSummary`) read
+   `answersByItemId[item.id]`. With `answers.value` now scalars-only, choice answers won't appear
+   there unless backend's BE-3/BE-4 `getResponseForFill`/`getSubmissionDetail` **materialize each
+   choice item's selected code(s) into `answersByItemId`** (single→scalar code, checkbox→code array) —
+   which also matches what the wizard stores and the `answersByKey`/answer-map must be. Recommend
+   backend keep `answersByItemId` as that unified code-or-scalar rehydration map so `prepare.ts` and
+   the read-only views need NO change (I left them untouched). `AnswerSummary` already resolves
+   code → label/color from the item's option rows.
 
 ### Result-based phase recommendation — `recommend_when` answer/result groups (✅ COMPLETE 2026-06-26)
 

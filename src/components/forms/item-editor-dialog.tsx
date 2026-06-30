@@ -33,7 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormBanner } from "@/components/auth/form-banner";
-import { OptionsEditor } from "@/components/forms/options-editor";
+import { OptionsEditor, blankOption } from "@/components/forms/options-editor";
 import { ConditionBuilder } from "@/components/forms/condition-builder";
 import {
   newQuestionConditionTargets,
@@ -104,7 +104,7 @@ export function ItemEditorDialog(props: Props) {
 
   // Controlled state for the non-native fields.
   const [options, setOptions] = useState<ItemOption[]>(
-    existing?.options ?? [{ label: "", color: null }],
+    existing?.options ?? [blankOption(0)],
   );
   const [minBound, setMinBound] = useState<string>(
     boundToString(existing?.config?.min),
@@ -227,8 +227,13 @@ export function ItemEditorDialog(props: Props) {
 
           {isChoice && (
             <>
-              {/* Sync the options array into parallel hidden option/optionColor
-                  fields (same index = same option). */}
+              {/* Sync the options array into parallel hidden fields at the SAME
+                  index (option / optionColor / optionScore / optionAnalyticsCode).
+                  The author never edits `code`; the backend addItem/updateItem
+                  action generates a stable code from the label and assigns the
+                  option-row id on insert (form-model-normalization). Score is sent
+                  as the raw number string (or "" for none); analytics-code as the
+                  free-text tag (or "" for none). */}
               {cleanOptions.map((opt, i) => (
                 <span key={i} className="contents">
                   <input type="hidden" name="option" value={opt.label.trim()} />
@@ -236,6 +241,16 @@ export function ItemEditorDialog(props: Props) {
                     type="hidden"
                     name="optionColor"
                     value={colorable ? (opt.color ?? "") : ""}
+                  />
+                  <input
+                    type="hidden"
+                    name="optionScore"
+                    value={opt.score === null ? "" : String(opt.score)}
+                  />
+                  <input
+                    type="hidden"
+                    name="optionAnalyticsCode"
+                    value={opt.analyticsCode ?? ""}
                   />
                 </span>
               ))}

@@ -13,6 +13,7 @@ import type { AnswerState, WizardData } from "./types";
 import {
   useWizard,
   hasAnswer,
+  isChoiceItem,
   type OrphanedSection,
 } from "./use-wizard";
 import { validateSection } from "./validation";
@@ -47,11 +48,15 @@ import { ConfirmationScreen } from "./confirmation-screen";
  */
 export interface WizardActions {
   /** Persist a section's answers (+ advance `last_section_id`); F4.
-   *  `observationsByItemId` carries the optional per-item observation notes
-   *  (form-builder-enhancements). */
+   *  `answersByItemId` carries SCALAR answers only (number/date/time/text);
+   *  `selectionsByItemId` carries CHOICE selections as arrays of option CODEs
+   *  (single-select → a one-element array; checkbox → zero-or-more) — the
+   *  form-model-normalization split. `observationsByItemId` carries the optional
+   *  per-item observation notes (form-builder-enhancements). */
   saveSection: (input: {
     sectionId: string;
     answersByItemId: Record<string, Json>;
+    selectionsByItemId?: Record<string, string[]>;
     clearItemIds?: string[];
     observationsByItemId?: Record<string, string>;
   }) => Promise<{ ok: boolean; error?: string }>;
@@ -59,6 +64,7 @@ export interface WizardActions {
   saveAndExit: (input: {
     sectionId: string | null;
     answersByItemId: Record<string, Json>;
+    selectionsByItemId?: Record<string, string[]>;
     observationsByItemId?: Record<string, string>;
   }) => Promise<{ ok: boolean; error?: string }>;
   /**
@@ -148,17 +154,41 @@ export function WizardClient({
     commitAnswerChange,
   } = wizard;
 
-  /** Collect a section's current answers keyed by item_id (B3's save shape).
-   *  Only VISIBLE input items are sent — hidden items collect no answer. */
-  const answersForSection = useCallback(
-    (section: Section): Record<string, Json> => {
-      const out: Record<string, Json> = {};
+  /**
+   * Collect a section's current answers keyed by item_id (B3's save shape),
+   * SPLIT by the form-model-normalization contract: SCALAR answers
+   * (number/date/time/text) go to `answersByItemId`; CHOICE selections go to
+   * `selectionsByItemId` as arrays of option CODEs (single-select → a
+   * one-element array; checkbox → the code array as-is). Only VISIBLE input items
+   * are sent — hidden items collect no answer. A choice item with no/empty
+   * selection sends an empty array (the RPC clears its selection rows).
+   */
+  const collectSection = useCallback(
+    (
+      section: Section,
+    ): {
+      answersByItemId: Record<string, Json>;
+      selectionsByItemId: Record<string, string[]>;
+    } => {
+      const answersByItemId: Record<string, Json> = {};
+      const selectionsByItemId: Record<string, string[]> = {};
       for (const item of section.items) {
         if (!visibleItemIds.has(item.id)) continue;
         const rec = answers[item.id];
-        if (rec) out[rec.itemId] = rec.value;
+        if (!rec) continue;
+        if (isChoiceItem(item.itemType)) {
+          // Single-select stores a scalar code; checkbox stores a code array.
+          // Normalize both to a code array (empty when cleared/absent value).
+          selectionsByItemId[item.id] = Array.isArray(rec.value)
+            ? (rec.value as string[])
+            : typeof rec.value === "string" && rec.value !== ""
+              ? [rec.value]
+              : [];
+        } else {
+          answersByItemId[item.id] = rec.value;
+        }
       }
-      return out;
+      return { answersByItemId, selectionsByItemId };
     },
     [answers, visibleItemIds],
   );
@@ -184,9 +214,11 @@ export function WizardClient({
     async (section: Section): Promise<boolean> => {
       setSaving(true);
       setBanner(null);
+      const { answersByItemId, selectionsByItemId } = collectSection(section);
       const result = await actions.saveSection({
         sectionId: section.id,
-        answersByItemId: answersForSection(section),
+        answersByItemId,
+        selectionsByItemId,
         observationsByItemId: observationsForSection(section),
       });
       setSaving(false);
@@ -196,7 +228,7 @@ export function WizardClient({
       }
       return true;
     },
-    [actions, answersForSection, observationsForSection],
+    [actions, collectSection, observationsForSection],
   );
 
   /**
@@ -260,12 +292,28 @@ export function WizardClient({
     if (currentSection) {
       setSaving(true);
       setBanner(null);
+      // `collectSection` reads the render-time `answers` (the just-committed
+      // change hasn't flushed yet), so merge the controlling item's NEW value in
+      // explicitly — routing it to the choice-selection map or the scalar map by
+      // the controlling item's type.
+      const { answersByItemId, selectionsByItemId } =
+        collectSection(currentSection);
+      const controllingItem = currentSection.items.find(
+        (it) => it.id === pending.item.id,
+      );
+      if (controllingItem && isChoiceItem(controllingItem.itemType)) {
+        selectionsByItemId[pending.item.id] = Array.isArray(pending.value)
+          ? (pending.value as string[])
+          : typeof pending.value === "string" && pending.value !== ""
+            ? [pending.value]
+            : [];
+      } else {
+        answersByItemId[pending.item.id] = pending.value;
+      }
       const result = await actions.saveSection({
         sectionId: currentSection.id,
-        answersByItemId: {
-          ...answersForSection(currentSection),
-          [pending.item.id]: pending.value,
-        },
+        answersByItemId,
+        selectionsByItemId,
         clearItemIds,
         observationsByItemId: observationsForSection(currentSection),
       });
@@ -279,7 +327,7 @@ export function WizardClient({
     commitAnswerChange,
     currentSection,
     actions,
-    answersForSection,
+    collectSection,
     observationsForSection,
   ]);
 
@@ -324,10 +372,14 @@ export function WizardClient({
 
   const handleSaveAndExit = useCallback(async () => {
     const section = currentSection;
+    const collected = section
+      ? collectSection(section)
+      : { answersByItemId: {}, selectionsByItemId: {} };
     setSaving(true);
     const result = await actions.saveAndExit({
       sectionId: section?.id ?? null,
-      answersByItemId: section ? answersForSection(section) : {},
+      answersByItemId: collected.answersByItemId,
+      selectionsByItemId: collected.selectionsByItemId,
       observationsByItemId: section ? observationsForSection(section) : {},
     });
     setSaving(false);
@@ -339,7 +391,7 @@ export function WizardClient({
   }, [
     actions,
     currentSection,
-    answersForSection,
+    collectSection,
     observationsForSection,
     router,
     data.org,

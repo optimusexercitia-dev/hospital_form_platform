@@ -15,9 +15,15 @@ import { isEmptyValue } from "./use-wizard";
  *
  * form-builder-enhancements: the value is formatted by item type — number
  * (pt-BR), date (pt-BR `dd/mm/aaaa`), time (24h `HH:mm`) — a selected
- * multiple_choice/checkbox option renders as a COLOURED chip (its authored
- * palette token), and any per-item observation note is shown as a muted
- * secondary line beneath.
+ * multiple_choice/checkbox/dropdown option renders by its current LABEL (a
+ * multiple_choice/checkbox option as a COLOURED chip in its authored palette
+ * token), and any per-item observation note is shown as a muted secondary line
+ * beneath.
+ *
+ * form-model-normalization: a choice answer now stores the option CODE, so each
+ * selected code is resolved → `{ label, color }` via the item's option rows for
+ * display (an unknown code — e.g. an option deleted in a later draft — falls back
+ * to showing the raw code so nothing silently disappears).
  */
 export function AnswerSummary({
   item,
@@ -56,28 +62,36 @@ function renderValue(item: Item, value: Json | undefined) {
     return <span className="text-muted-foreground italic">Sem resposta</span>;
   }
 
-  // Choice option colour lookup (mc/checkbox carry colours; the answer stores
-  // the option LABEL string).
-  const colorByLabel = new Map<string, ItemOption["color"]>(
-    (item.options ?? []).map((o) => [o.label, o.color]),
+  // form-model-normalization: choice answers store the option CODE. Resolve each
+  // code → its option row for the current label + colour (mc/checkbox carry
+  // colours). An unknown code falls back to showing the raw code.
+  const byCode = new Map<string, ItemOption>(
+    (item.options ?? []).map((o) => [o.code, o]),
   );
+  const labelFor = (code: string) => byCode.get(code)?.label ?? code;
+  const colorFor = (code: string) => byCode.get(code)?.color ?? null;
 
-  // checkbox → an array of selected option labels, rendered as coloured chips.
+  // checkbox → an array of selected option codes, rendered as coloured chips.
   if (Array.isArray(value)) {
     return (
       <ul className="flex flex-wrap gap-1.5">
         {value.map((v, i) => (
           <li key={i}>
-            <OptionChip label={String(v)} color={colorByLabel.get(String(v)) ?? null} />
+            <OptionChip label={labelFor(String(v))} color={colorFor(String(v))} />
           </li>
         ))}
       </ul>
     );
   }
 
-  // multiple_choice → a single coloured chip.
+  // multiple_choice → a single coloured chip (resolved from the code).
   if (item.itemType === "multiple_choice" && typeof value === "string") {
-    return <OptionChip label={value} color={colorByLabel.get(value) ?? null} />;
+    return <OptionChip label={labelFor(value)} color={colorFor(value)} />;
+  }
+
+  // dropdown → the resolved label (no colour — a native <select> can't render it).
+  if (item.itemType === "dropdown" && typeof value === "string") {
+    return <span>{labelFor(value)}</span>;
   }
 
   // number / date / time → pt-BR formatting.
@@ -87,7 +101,7 @@ function renderValue(item: Item, value: Json | undefined) {
   if (item.itemType === "date" && typeof value === "string") {
     return <span>{formatIsoDate(value)}</span>;
   }
-  // time is already a 24h `HH:mm` string; dropdown/short/long render as-is.
+  // time is already a 24h `HH:mm` string; short/long text render as-is.
   return <span className="whitespace-pre-wrap">{String(value)}</span>;
 }
 

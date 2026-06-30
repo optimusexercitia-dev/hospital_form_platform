@@ -10,12 +10,13 @@ import type { AnswerRecord, AnswerState, WizardData } from "./types";
 import {
   computeEffectiveVisibility,
   isInputItem,
+  isChoiceItem,
   type EffectiveVisibility,
 } from "./effective-visibility";
 
 // Re-export so existing importers (validation, section-step, review-screen,
 // block dispatcher) keep their `./use-wizard` import path unchanged.
-export { computeEffectiveVisibility, isInputItem };
+export { computeEffectiveVisibility, isInputItem, isChoiceItem };
 export type { EffectiveVisibility };
 
 /**
