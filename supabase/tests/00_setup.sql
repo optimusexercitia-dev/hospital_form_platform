@@ -57,6 +57,7 @@ declare
   form_y uuid := gen_random_uuid();
   ver_y uuid := gen_random_uuid();
   sec_y uuid := gen_random_uuid();
+  it_y_q1 uuid := gen_random_uuid();
 begin
   -- Multi-tenancy: the committed seed creates 2 orgs, which makes
   -- app.is_multi_org() true globally — turning the global-PQS PHI modules INERT
@@ -112,8 +113,13 @@ begin
     values (ver_u, form_u, 1, 'draft');
   insert into public.form_sections (id, form_version_id, position, is_default)
     values (sec_u, ver_u, 0, true);
-  insert into public.form_items (id, section_id, position, item_type, question_key, label, options, required)
-    values (item_mc, sec_u, 0, 'multiple_choice', 'u_q1', 'Q1', '["Sim","Não"]'::jsonb, true);
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+    values (item_mc, sec_u, 0, 'multiple_choice', 'u_q1', 'Q1', true);
+  -- form-model-normalization: choice options are normalized rows. Codes are
+  -- stable, hidden; tests that need to SELECT an option reference these codes.
+  insert into public.form_item_options (item_id, position, code, label) values
+    (item_mc, 0, 'sim', 'Sim'),
+    (item_mc, 1, 'nao', 'Não');
   insert into public.form_items (section_id, position, item_type, content)
     values (sec_u, 1, 'section_text', jsonb_build_object('markdown','oi'));
   perform public.publish_form_version(ver_u);
@@ -129,19 +135,27 @@ begin
 
   insert into public.form_sections (id, form_version_id, position, title)
     values (sec_s1, ver_s, 1, 'Gate');
-  insert into public.form_items (id, section_id, position, item_type, question_key, label, options, required)
-    values (it_gate, sec_s1, 0, 'multiple_choice', 's_gate', 'Gate?', '["Sim","Não"]'::jsonb, true);
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+    values (it_gate, sec_s1, 0, 'multiple_choice', 's_gate', 'Gate?', true);
+  insert into public.form_item_options (item_id, position, code, label) values
+    (it_gate, 0, 'sim', 'Sim'),
+    (it_gate, 1, 'nao', 'Não');
 
+  -- form-model-normalization: the condition stores the option CODE ('sim'), not
+  -- the label — the answer_map is code-keyed. The gate option's code is 'sim'.
   insert into public.form_sections (id, form_version_id, position, title, visible_when)
     values (sec_cond, ver_s, 2, 'Conditional',
-            jsonb_build_object('question_key','s_gate','op','equals','value','Sim'));
+            jsonb_build_object('question_key','s_gate','op','equals','value','sim'));
   insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
     values (it_cond, sec_cond, 0, 'free_text', 's_cond', 'Cond detail', true);
 
   insert into public.form_sections (id, form_version_id, position, title, requires_signoff, signoff_role)
     values (sec_signoff_r, ver_s, 3, 'Respondent signoff', true, 'respondent');
-  insert into public.form_items (id, section_id, position, item_type, question_key, label, options, required)
-    values (it_req, sec_signoff_r, 0, 'multiple_choice', 's_req', 'Confirm?', '["Sim","Não"]'::jsonb, true);
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+    values (it_req, sec_signoff_r, 0, 'multiple_choice', 's_req', 'Confirm?', true);
+  insert into public.form_item_options (item_id, position, code, label) values
+    (it_req, 0, 'sim', 'Sim'),
+    (it_req, 1, 'nao', 'Não');
 
   insert into public.form_sections (id, form_version_id, position, title, requires_signoff, signoff_role)
     values (sec_signoff_a, ver_s, 4, 'Admin signoff', true, 'staff_admin');
@@ -157,8 +171,11 @@ begin
     values (ver_y, form_y, 1, 'draft');
   insert into public.form_sections (id, form_version_id, position, is_default)
     values (sec_y, ver_y, 0, true);
-  insert into public.form_items (section_id, position, item_type, question_key, label, options, required)
-    values (sec_y, 0, 'multiple_choice', 'y_q1', 'Y Q1', '["Sim","Não"]'::jsonb, true);
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+    values (it_y_q1, sec_y, 0, 'multiple_choice', 'y_q1', 'Y Q1', true);
+  insert into public.form_item_options (item_id, position, code, label) values
+    (it_y_q1, 0, 'sim', 'Sim'),
+    (it_y_q1, 1, 'nao', 'Não');
   perform public.publish_form_version(ver_y);
 
   v := jsonb_build_object(
@@ -170,7 +187,7 @@ begin
     'sec_signoff_r', sec_signoff_r, 'sec_signoff_a', sec_signoff_a,
     'it_gate', it_gate, 'it_cond', it_cond, 'it_req', it_req,
     'it_signoff_q', it_signoff_q,
-    'form_y', form_y, 'ver_y', ver_y,
+    'form_y', form_y, 'ver_y', ver_y, 'it_y_q1', it_y_q1,
     -- Multi-tenancy: the bootstrap org + hospital both commissions hang under.
     'org_b', org_b, 'hosp_b', hosp_b
   );
