@@ -322,27 +322,13 @@ export async function getResponseForFill(
   if (!tree) return null
 
   // Scalar answers (+ observations) and choice selections in parallel.
-  // form-model-normalization (BE-6 wiring point): `answer_selected_options` is a
-  // new table; the generated database.ts gains it when types are regenerated
-  // against the squashed baseline (BE-6/BE-7). Until then, query it through an
-  // untyped client view so this compiles — the row shape is asserted via
-  // `.returns<SelectionRow[]>()`.
-  const sel = supabase as unknown as {
-    from: (t: string) => {
-      select: (c: string) => {
-        eq: (c: string, v: string) => {
-          returns: <T>() => Promise<{ data: T | null }>
-        }
-      }
-    }
-  }
   const [{ data: answers }, { data: selections }] = await Promise.all([
     supabase
       .from('answers')
       .select('item_id, question_key, value, observation')
       .eq('response_id', responseId)
       .returns<AnswerRow[]>(),
-    sel
+    supabase
       .from('answer_selected_options')
       .select('item_id, option_id')
       .eq('response_id', responseId)

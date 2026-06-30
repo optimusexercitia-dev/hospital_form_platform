@@ -257,11 +257,9 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
   const hasSelections =
     selectionsByItemId != null && Object.keys(selectionsByItemId).length > 0
 
-  // form-model-normalization (BE-2 wiring point): `save_section_answers` gains a
-  // `p_selections jsonb` param (item_id -> array of option codes). The cast keeps
-  // this compiling against the CURRENT generated Args until BE-2 regenerates
-  // database.ts to include the param; the contract (the `p_selections` shape)
-  // is what the frontend builds against now.
+  // form-model-normalization: `save_section_answers` carries `p_selections jsonb`
+  // (item_id -> array of option codes, REPLACE semantics) alongside the scalar
+  // p_answers / observations / clear paths.
   const { error } = await supabase.rpc('save_section_answers', {
     p_response_id: responseId,
     p_section_id: sectionId,
@@ -269,11 +267,11 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     // generated Args types p_clear_item_ids as optional string[]; omit when empty.
     p_clear_item_ids:
       clearItemIds && clearItemIds.length > 0 ? clearItemIds : undefined,
-    // p_observations (BE-4): per-item observation upsert; omit when none so the
-    // common save path is unaffected.
+    // p_observations: per-item observation upsert; omit when none.
     p_observations: hasObservations ? (observationsByItemId as Json) : undefined,
-    ...(hasSelections ? { p_selections: selectionsByItemId as Json } : {}),
-  } as never)
+    // p_selections: choice selections by item id; omit when none.
+    p_selections: hasSelections ? (selectionsByItemId as Json) : undefined,
+  })
 
   if (error) {
     // P0013 = cross-version item/section guard (a malformed client, not a legit

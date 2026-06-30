@@ -356,17 +356,29 @@ export const COLOR_TOKENS: ReadonlySet<string> = new Set<ColorToken>([
 ])
 
 /**
- * Map the embedded `form_item_options` rows to `ItemOption[]` (or `null` for
- * non-choice items, which carry no rows). form-model-normalization: replaces the
- * old jsonb-blob normalizer — options are now normalized rows, so this is a
- * field rename + sort by `position`, no shape-guessing. `color_token` is kept
- * only when it is a known token (defence; the DB CHECK already constrains it).
- *
- * CONTRACT-FIRST STUB (BE-1): signature + return shape are the stable contract;
- * the body lands in BE-2/BE-3 once `VERSION_TREE_SELECT` embeds the rows.
+ * Map the embedded `form_item_options` rows to `ItemOption[]`, sorted by
+ * `position`. form-model-normalization: replaces the old jsonb-blob normalizer —
+ * options are normalized rows, so this is a field rename + sort, no
+ * shape-guessing. `color_token` is kept only when it is a known token (defence;
+ * the DB CHECK already constrains it). `null`/absent embed → `null` (non-choice
+ * items carry no rows); an empty array (a choice item with no options yet) → `[]`.
  */
-export function toOptions(_rows: OptionRow[] | null): ItemOption[] | null {
-  throw new Error('not implemented')
+export function toOptions(rows: OptionRow[] | null): ItemOption[] | null {
+  if (rows == null) return null
+  return [...rows]
+    .sort((a, b) => a.position - b.position)
+    .map((r): ItemOption => ({
+      id: r.id,
+      code: r.code,
+      label: r.label,
+      color:
+        r.color_token != null && COLOR_TOKENS.has(r.color_token)
+          ? (r.color_token as ColorToken)
+          : null,
+      score: typeof r.score === 'number' ? r.score : null,
+      analyticsCode: r.analytics_code,
+      position: r.position,
+    }))
 }
 
 /** Narrow the per-type `config` jsonb to {@link ItemConfig} (or null). */
@@ -390,7 +402,12 @@ function toItem(row: ItemRow): Item {
     questionKey: row.question_key,
     label: row.label,
     questionExplanation: row.question_explanation,
-    options: toOptions(row.form_item_options),
+    // Only choice items carry option rows; for every other type force `null`
+    // (PostgREST returns an empty array for the nested embed even on non-choice
+    // items, but the domain contract is `null` for non-choice).
+    options: CHOICE_ITEM_TYPES.includes(row.item_type as InputItemType)
+      ? (toOptions(row.form_item_options) ?? [])
+      : null,
     config: toConfig(row.config),
     // visible_when is the stored legacy-single OR AND/OR group shape.
     visibleWhen: (row.visible_when as Visibility | null) ?? null,

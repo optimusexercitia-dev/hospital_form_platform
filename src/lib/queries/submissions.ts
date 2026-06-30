@@ -286,25 +286,13 @@ export async function getSubmissionDetail(
   // answers_select returns answers only for responses the caller may read; for a
   // submitted response that's the structure-complete answer set. (No row leaks
   // for in_progress foreign responses — `response` above would already be null.)
-  // form-model-normalization (BE-6 wiring point): `answer_selected_options` joins
-  // the generated types once regenerated against the squashed baseline; until
-  // then query it through an untyped client view (row shape asserted by .returns).
-  const sel = supabase as unknown as {
-    from: (t: string) => {
-      select: (c: string) => {
-        eq: (c: string, v: string) => {
-          returns: <T>() => Promise<{ data: T | null }>
-        }
-      }
-    }
-  }
   const [{ data: answers }, { data: selections }] = await Promise.all([
     supabase
       .from('answers')
       .select('item_id, question_key, value, observation')
       .eq('response_id', responseId)
       .returns<DetailAnswerRow[]>(),
-    sel
+    supabase
       .from('answer_selected_options')
       .select('item_id, option_id')
       .eq('response_id', responseId)

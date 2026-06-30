@@ -34,6 +34,46 @@ export type Database = {
   }
   public: {
     Tables: {
+      answer_selected_options: {
+        Row: {
+          item_id: string
+          option_id: string
+          response_id: string
+        }
+        Insert: {
+          item_id: string
+          option_id: string
+          response_id: string
+        }
+        Update: {
+          item_id?: string
+          option_id?: string
+          response_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "answer_selected_options_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "form_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answer_selected_options_option_id_fkey"
+            columns: ["option_id"]
+            isOneToOne: false
+            referencedRelation: "form_item_options"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answer_selected_options_response_id_fkey"
+            columns: ["response_id"]
+            isOneToOne: false
+            referencedRelation: "responses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       answers: {
         Row: {
           id: string
@@ -2241,6 +2281,60 @@ export type Database = {
           },
         ]
       }
+      form_item_options: {
+        Row: {
+          analytics_code: string | null
+          code: string
+          color_token: string | null
+          created_at: string
+          form_version_id: string
+          id: string
+          item_id: string
+          label: string
+          position: number
+          score: number | null
+        }
+        Insert: {
+          analytics_code?: string | null
+          code: string
+          color_token?: string | null
+          created_at?: string
+          form_version_id: string
+          id?: string
+          item_id: string
+          label: string
+          position: number
+          score?: number | null
+        }
+        Update: {
+          analytics_code?: string | null
+          code?: string
+          color_token?: string | null
+          created_at?: string
+          form_version_id?: string
+          id?: string
+          item_id?: string
+          label?: string
+          position?: number
+          score?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_item_options_form_version_id_fkey"
+            columns: ["form_version_id"]
+            isOneToOne: false
+            referencedRelation: "form_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_item_options_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "form_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_items: {
         Row: {
           config: Json | null
@@ -2250,7 +2344,6 @@ export type Database = {
           id: string
           item_type: string
           label: string | null
-          options: Json | null
           position: number
           question_explanation: string | null
           question_key: string | null
@@ -2266,7 +2359,6 @@ export type Database = {
           id?: string
           item_type: string
           label?: string | null
-          options?: Json | null
           position: number
           question_explanation?: string | null
           question_key?: string | null
@@ -2282,7 +2374,6 @@ export type Database = {
           id?: string
           item_type?: string
           label?: string | null
-          options?: Json | null
           position?: number
           question_explanation?: string | null
           question_key?: string | null
@@ -7291,6 +7382,7 @@ export type Database = {
           p_observations?: Json
           p_response_id: string
           p_section_id: string
+          p_selections?: Json
         }
         Returns: {
           case_phase_id: string | null
