@@ -19,6 +19,7 @@ import {
   type ReferralStatus,
 } from "@/lib/referrals/types";
 import { cn } from "@/lib/utils";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   ReferralStatusChip,
   ReferralTypeChip,
@@ -38,8 +39,6 @@ const STATUS_FILTER_ORDER: ReferralStatus[] = [
   "retirada",
 ];
 
-const SELECT_CLASS =
-  "h-9 rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40";
 
 type SortKey = "code" | "status" | "criado";
 type SortDir = "asc" | "desc";
@@ -162,12 +161,12 @@ export function ReferralsList({
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card/50 p-3">
         <label className="flex items-center gap-2 text-sm">
           <span className="font-medium text-muted-foreground">Estado</span>
-          <select
+          <NativeSelect
             value={statusFilter}
             onChange={(e) =>
               setStatusFilter(e.target.value as ReferralStatus | "all")
             }
-            className={SELECT_CLASS}
+            className="h-9"
             aria-label="Filtrar por estado"
           >
             <option value="all">Todos</option>
@@ -176,7 +175,7 @@ export function ReferralsList({
                 {REFERRAL_STATUS_LABELS[s]}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
         <span
           className={cn(

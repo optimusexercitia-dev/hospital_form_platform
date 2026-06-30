@@ -10,6 +10,7 @@ import type {
 import { updateMeetingSettings } from "@/lib/meetings/actions";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   describeQuorumRule,
   QUORUM_RULE_LABEL,
@@ -102,7 +103,7 @@ export function QuorumSettingsForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">Regra</span>
-          <select
+          <NativeSelect
             value={ruleType}
             onChange={(e) => {
               const next = e.target.value as QuorumRuleType;
@@ -111,14 +112,14 @@ export function QuorumSettingsForm({
               // Clear a stale value when switching to a rule that ignores it.
               if (!ruleNeedsValue(next)) setValue("");
             }}
-            className={FIELD_CLASS}
+            className="h-10"
           >
             {QUORUM_RULE_ORDER.map((r) => (
               <option key={r} value={r}>
                 {QUORUM_RULE_LABEL[r]}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
 
         {needsValue && (

@@ -14,11 +14,10 @@ import { walkResultRuleset } from "@/lib/queries/conditions";
 import type { PhaseResult } from "@/lib/queries/phase-results";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 import { TOKEN_STYLES } from "@/components/cases/case-status-badge";
 
-const SELECT_CLASS =
-  "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 const OP_LABELS: Record<ConditionOp, string> = {
   equals: "for igual a",
@@ -536,8 +535,8 @@ function AutomaticEditor({
 
       <label className="flex flex-col gap-1.5 text-sm">
         <span className="font-medium">Resultado padrão</span>
-        <select
-          className={SELECT_CLASS}
+        <NativeSelect
+          className="h-10"
           value={defaultResultId}
           onChange={(e) => onChangeDefault(e.target.value)}
           disabled={disabled}
@@ -548,7 +547,7 @@ function AutomaticEditor({
               {r.label}
             </option>
           ))}
-        </select>
+        </NativeSelect>
         <span className="text-xs text-muted-foreground">
           Aplicado quando nenhuma regra acima corresponde.
         </span>
@@ -572,8 +571,8 @@ function AutomaticEditor({
                 <span className="font-medium">
                   {target.label || target.questionKey}
                 </span>
-                <select
-                  className={SELECT_CLASS}
+                <NativeSelect
+                  className="h-10"
                   value={previewAnswers[target.questionKey] ?? ""}
                   onChange={(e) =>
                     onChangePreviewAnswer(target.questionKey, e.target.value)
@@ -585,7 +584,7 @@ function AutomaticEditor({
                       {opt}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
             ))
           )}
@@ -696,8 +695,8 @@ function RuleRow({
 
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">Quando a resposta de</span>
-          <select
-            className={SELECT_CLASS}
+          <NativeSelect
+            className="h-10"
             value={rule.questionKey}
             onChange={(e) =>
               onUpdate({
@@ -714,15 +713,15 @@ function RuleRow({
                 {t.label || t.questionKey}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
 
         {target && (
           <>
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">A condição</span>
-              <select
-                className={SELECT_CLASS}
+              <NativeSelect
+                className="h-10"
                 value={rule.op}
                 onChange={(e) =>
                   onUpdate({
@@ -738,7 +737,7 @@ function RuleRow({
                     {OP_LABELS[o]}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
 
             {target.options.length === 0 ? (
@@ -764,8 +763,8 @@ function RuleRow({
             ) : (
               <label className="flex flex-col gap-1.5 text-sm">
                 <span className="font-medium">Valor</span>
-                <select
-                  className={SELECT_CLASS}
+                <NativeSelect
+                  className="h-10"
                   value={rule.singleValue}
                   onChange={(e) => onUpdate({ singleValue: e.target.value })}
                   disabled={disabled}
@@ -776,7 +775,7 @@ function RuleRow({
                       {opt}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               </label>
             )}
           </>
@@ -784,8 +783,8 @@ function RuleRow({
 
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">Então o resultado é</span>
-          <select
-            className={SELECT_CLASS}
+          <NativeSelect
+            className="h-10"
             value={rule.resultId}
             onChange={(e) => onUpdate({ resultId: e.target.value })}
             disabled={disabled}
@@ -796,7 +795,7 @@ function RuleRow({
                 {r.label}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
     </li>

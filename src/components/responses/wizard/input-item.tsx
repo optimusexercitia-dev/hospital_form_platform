@@ -13,6 +13,7 @@ import {
   FieldLabel,
   useFieldIds,
 } from "@/components/ui/field";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -471,17 +472,11 @@ function DropdownItem({
           {item.questionExplanation}
         </FieldDescription>
       )}
-      <select
+      <NativeSelect
         {...controlProps}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className={cn(
-          "flex h-11 w-full min-w-0 rounded-lg border border-input bg-card px-3.5 py-2 text-base text-foreground shadow-xs outline-none transition-[color,box-shadow,border-color]",
-          "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40",
-          "aria-invalid:border-destructive aria-invalid:ring-[3px] aria-invalid:ring-destructive/20",
-          "md:text-sm",
-          value === "" && "text-muted-foreground/70",
-        )}
+        className={cn(value === "" && "text-muted-foreground/70")}
       >
         <option value="" disabled>
           Selecione uma opção…
@@ -493,7 +488,7 @@ function DropdownItem({
             {opt.label}
           </option>
         ))}
-      </select>
+      </NativeSelect>
       <FieldError id={errorId}>{error}</FieldError>
     </Field>
   );

@@ -7,6 +7,8 @@ import {
   type ReferralPatientSex,
   type SetReferralPatientInput,
 } from "@/lib/referrals/types";
+import { NativeSelect } from "@/components/ui/native-select";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const FIELD_CLASS =
   "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -140,12 +142,10 @@ export function ReferralPatientFields({
 
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">Data de nascimento</span>
-          <input
-            type="date"
+          <DatePicker
             value={draft.dateOfBirth}
-            onChange={(e) => set("dateOfBirth", e.target.value)}
+            onChange={(v) => set("dateOfBirth", v)}
             disabled={disabled}
-            className={FIELD_CLASS}
           />
         </label>
 
@@ -170,19 +170,19 @@ export function ReferralPatientFields({
 
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">Sexo</span>
-          <select
+          <NativeSelect
             id={`${idPrefix}-sex`}
             value={draft.sex}
             onChange={(e) => set("sex", e.target.value as ReferralPatientSex)}
             disabled={disabled}
-            className={FIELD_CLASS}
+            className="h-10"
           >
             {SEX_ORDER.map((s) => (
               <option key={s} value={s}>
                 {REFERRAL_PATIENT_SEX_LABELS[s]}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm">

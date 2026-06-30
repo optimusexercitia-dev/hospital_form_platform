@@ -6,9 +6,9 @@ import { Download, X } from "lucide-react";
 
 import type { AuditFilterActor } from "@/lib/queries/audit";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { NativeSelect } from "@/components/ui/native-select";
+import { DatePicker } from "@/components/ui/date-picker";
 
 import { AuditIntegrityCheck } from "./audit-integrity-check";
 
@@ -129,21 +129,16 @@ export function AuditFilters({
     return qs ? `${exportBasePath}?${qs}` : exportBasePath;
   })();
 
-  const selectClasses = cn(
-    "h-11 w-full min-w-44 rounded-lg border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[color,box-shadow,border-color]",
-    "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40",
-  );
-
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-xs">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={actorId}>Autor</Label>
-          <select
+          <NativeSelect
             id={actorId}
             value={actor ?? ""}
             onChange={(e) => setParam("actor", e.target.value)}
-            className={selectClasses}
+            className="min-w-44"
           >
             <option value="">Todos os autores</option>
             {actors.map((a) => (
@@ -154,16 +149,16 @@ export function AuditFilters({
                 {a.actorId === null ? "Sistema" : (a.name ?? "Usuário removido")}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={actionId}>Ação</Label>
-          <select
+          <NativeSelect
             id={actionId}
             value={action ?? ""}
             onChange={(e) => setParam("action", e.target.value)}
-            className={selectClasses}
+            className="min-w-44"
           >
             <option value="">Todas as ações</option>
             {actionOptions.map(([slug, label]) => (
@@ -171,16 +166,16 @@ export function AuditFilters({
                 {label}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={entityId}>Tipo de entidade</Label>
-          <select
+          <NativeSelect
             id={entityId}
             value={entity ?? ""}
             onChange={(e) => setParam("entity", e.target.value)}
-            className={selectClasses}
+            className="min-w-44"
           >
             <option value="">Todos os tipos</option>
             {entityOptions.map(([slug, label]) => (
@@ -188,17 +183,17 @@ export function AuditFilters({
                 {label}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
 
         {commissions ? (
           <div className="flex flex-col gap-1.5">
             <Label htmlFor={commissionFieldId}>Comissão</Label>
-            <select
+            <NativeSelect
               id={commissionFieldId}
               value={commission ?? ""}
               onChange={(e) => setParam("commission", e.target.value)}
-              className={selectClasses}
+              className="min-w-44"
             >
               <option value="">Todas as comissões</option>
               {commissions.map((c) => (
@@ -206,30 +201,28 @@ export function AuditFilters({
                   {c.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
         ) : null}
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={fromId}>De</Label>
-          <Input
+          <DatePicker
             id={fromId}
-            type="date"
             value={from ?? ""}
+            onChange={(v) => setParam("from", v)}
             max={to ?? undefined}
-            onChange={(e) => setParam("from", e.target.value)}
             className="w-auto"
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={toId}>Até</Label>
-          <Input
+          <DatePicker
             id={toId}
-            type="date"
             value={to ?? ""}
+            onChange={(v) => setParam("to", v)}
             min={from ?? undefined}
-            onChange={(e) => setParam("to", e.target.value)}
             className="w-auto"
           />
         </div>

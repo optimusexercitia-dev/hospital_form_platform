@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   ATTENDANCE_LABEL,
   ATTENDANCE_ORDER,
@@ -85,12 +86,19 @@ export function AttendeeForm({
     attendee?.attendance ?? "convocado",
   );
   const [note, setNote] = useState(attendee?.note ?? "");
+  // Client-side guard for the member picker: the `<select>` is `required`, but the
+  // form sets `noValidate`, so the native guard never fires. Without this, a "member"
+  // attendee with no selection is sent with `userId: null` and lands as a GUEST row
+  // (user_id null) — silently excluded from quorum, which later makes "Concluir"
+  // raise HC034. Applies to both add and edit.
+  const [memberError, setMemberError] = useState<string | null>(null);
 
   const [wasOpen, setWasOpen] = useState(false);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
       setState(null);
+      setMemberError(null);
       setKind(initialKind);
       setUserId(attendee?.userId ?? "");
       setExternalName(attendee?.externalName ?? "");
@@ -114,6 +122,13 @@ export function AttendeeForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const isGuest = kind === "guest";
+    // Block a "member" attendee with no member selected (the required-but-noValidate
+    // select). Surface a field error instead of sending a userId-less guest row.
+    if (!isGuest && !userId) {
+      setMemberError("Selecione um membro.");
+      return;
+    }
+    setMemberError(null);
     const input: AttendeeInput = {
       userId: isGuest ? null : userId || null,
       externalName: isGuest ? externalName.trim() || null : null,
@@ -184,12 +199,16 @@ export function AttendeeForm({
           {kind === "member" ? (
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Membro</span>
-              <select
+              <NativeSelect
                 value={userId}
-                onChange={(e) => setUserId(e.target.value)}
+                onChange={(e) => {
+                  setUserId(e.target.value);
+                  if (e.target.value) setMemberError(null);
+                }}
                 required
                 disabled={lockKind}
-                className={FIELD_CLASS}
+                className="h-10"
+                aria-invalid={memberError ? true : undefined}
               >
                 <option value="" disabled>
                   Selecione um membro…
@@ -206,7 +225,12 @@ export function AttendeeForm({
                     {m.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
+              {memberError && (
+                <span role="alert" className="text-sm font-medium text-destructive">
+                  {memberError}
+                </span>
+              )}
             </label>
           ) : (
             <>
@@ -242,33 +266,33 @@ export function AttendeeForm({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Função</span>
-              <select
+              <NativeSelect
                 value={role}
                 onChange={(e) => setRole(e.target.value as AttendeeRole)}
-                className={FIELD_CLASS}
+                className="h-10"
               >
                 {ATTENDEE_ROLE_ORDER.map((r) => (
                   <option key={r} value={r}>
                     {ATTENDEE_ROLE_LABEL[r]}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Presença</span>
-              <select
+              <NativeSelect
                 value={attendance}
                 onChange={(e) =>
                   setAttendance(e.target.value as AttendanceStatus)
                 }
-                className={FIELD_CLASS}
+                className="h-10"
               >
                 {ATTENDANCE_ORDER.map((a) => (
                   <option key={a} value={a}>
                     {ATTENDANCE_LABEL[a]}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           </div>
 

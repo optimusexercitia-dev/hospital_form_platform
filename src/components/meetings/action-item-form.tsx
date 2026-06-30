@@ -22,6 +22,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
+import { DatePicker } from "@/components/ui/date-picker";
 
 const FIELD_CLASS =
   "w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -171,10 +173,10 @@ export function ActionItemForm({
                   (opcional)
                 </span>
               </span>
-              <select
+              <NativeSelect
                 value={assignedTo}
                 onChange={(e) => setAssignedTo(e.target.value)}
-                className={FIELD_CLASS}
+                className="py-2"
               >
                 <option value="">Sem responsável</option>
                 {assignees.map((a) => (
@@ -182,7 +184,7 @@ export function ActionItemForm({
                     {a.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
 
             <label className="flex flex-col gap-1.5 text-sm">
@@ -192,11 +194,9 @@ export function ActionItemForm({
                   (opcional)
                 </span>
               </span>
-              <input
-                type="date"
+              <DatePicker
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className={FIELD_CLASS}
+                onChange={setDueDate}
               />
             </label>
           </div>
@@ -209,10 +209,10 @@ export function ActionItemForm({
                   (opcional)
                 </span>
               </span>
-              <select
+              <NativeSelect
                 value={sourceAgendaItemId}
                 onChange={(e) => setSourceAgendaItemId(e.target.value)}
-                className={FIELD_CLASS}
+                className="py-2"
               >
                 <option value="">Nenhum</option>
                 {ordered.map((a, i) => (
@@ -220,7 +220,7 @@ export function ActionItemForm({
                     {i + 1}. {a.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           )}
 

@@ -19,6 +19,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
+import { DatePicker } from "@/components/ui/date-picker";
+import { TimeField } from "@/components/ui/time-field";
 import { EVENT_KIND_LABEL } from "./case-extras-labels";
 
 const FIELD_CLASS =
@@ -85,9 +88,9 @@ export function CaseEventForm({
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Tipo</span>
-            <select
+            <NativeSelect
               name="kind"
-              className={FIELD_CLASS}
+              className="py-2"
               defaultValue={event?.kind ?? "note"}
             >
               {EVENT_KINDS.map((k) => (
@@ -95,7 +98,7 @@ export function CaseEventForm({
                   {EVENT_KIND_LABEL[k]}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm">
@@ -132,20 +135,42 @@ export function CaseEventForm({
             )}
           </label>
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">
-              Data{" "}
-              <span className="font-normal text-muted-foreground">
-                (opcional)
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="font-medium">
+                Data{" "}
+                <span className="font-normal text-muted-foreground">
+                  (opcional)
+                </span>
               </span>
-            </span>
-            <input
-              name="occurredAt"
-              type="date"
-              className={FIELD_CLASS}
-              defaultValue={event?.occurredAt ?? ""}
-            />
-          </label>
+              <DatePicker
+                name="occurredAt"
+                defaultValue={event?.occurredAt ?? ""}
+              />
+            </label>
+
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="font-medium">
+                Hora{" "}
+                <span className="font-normal text-muted-foreground">
+                  (opcional)
+                </span>
+              </span>
+              {/* Uncontrolled — emits a hidden `occurredTime` ("HH:mm" or "")
+                  the create/update action reads directly. */}
+              <TimeField
+                name="occurredTime"
+                defaultValue={event?.occurredTime ?? ""}
+                aria-label="Hora do registro (opcional)"
+                aria-invalid={state?.fieldErrors?.occurredTime ? true : undefined}
+              />
+              {state?.fieldErrors?.occurredTime && (
+                <span role="alert" className="text-sm font-medium text-destructive">
+                  {state.fieldErrors.occurredTime}
+                </span>
+              )}
+            </label>
+          </div>
 
           <DialogFooter>
             <Button

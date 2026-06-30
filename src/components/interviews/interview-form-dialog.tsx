@@ -26,6 +26,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { MODALITY_LABEL, MODALITY_ORDER } from "./interview-labels";
 import { toDateTimeLocalValue } from "./format";
 
@@ -203,10 +205,10 @@ export function InterviewFormDialog({
                   (opcional)
                 </span>
               </span>
-              <select
+              <NativeSelect
                 value={casePhaseId}
                 onChange={(e) => setCasePhaseId(e.target.value)}
-                className={FIELD_CLASS}
+                className="h-10"
               >
                 <option value="">Não vincular a uma fase</option>
                 {phases.map((p) => (
@@ -214,7 +216,7 @@ export function InterviewFormDialog({
                     {p.label}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           )}
 
@@ -226,11 +228,9 @@ export function InterviewFormDialog({
                   (opcional)
                 </span>
               </span>
-              <input
-                type="datetime-local"
+              <DateTimePicker
                 value={start}
-                onChange={(e) => setStart(e.target.value)}
-                className={FIELD_CLASS}
+                onChange={setStart}
                 aria-invalid={
                   state?.fieldErrors?.scheduledStart ? true : undefined
                 }
@@ -252,11 +252,9 @@ export function InterviewFormDialog({
                   (opcional)
                 </span>
               </span>
-              <input
-                type="datetime-local"
+              <DateTimePicker
                 value={end}
-                onChange={(e) => setEnd(e.target.value)}
-                className={FIELD_CLASS}
+                onChange={setEnd}
                 aria-invalid={
                   state?.fieldErrors?.scheduledEnd ? true : undefined
                 }

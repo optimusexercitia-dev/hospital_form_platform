@@ -129,7 +129,10 @@ export function mapMeetingError(
     case HC_MEETING_WRONG_STATE:
       return error.message || MEETING_MESSAGES.meetingWrongState
     case HC_CANNOT_CONCLUDE:
-      return error.message || MEETING_MESSAGES.cannotConclude
+      // The RPC raises a raw lowercase SQL string ('registre ao menos um
+      // participante presente antes de concluir') — never surface it (CLAUDE.md
+      // §8). HC034 has exactly one cause, so always return the friendly pt-BR.
+      return MEETING_MESSAGES.cannotConclude
     case HC_ALREADY_SIGNED:
       return error.message || MEETING_MESSAGES.alreadySigned
     case HC_NOT_ENTITLED_TO_SIGN:

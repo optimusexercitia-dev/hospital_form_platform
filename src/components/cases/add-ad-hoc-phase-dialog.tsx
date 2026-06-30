@@ -17,6 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import type { SlotForm } from "@/components/process-templates/template-builder-shell";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 
@@ -79,9 +80,9 @@ export function AddAdHocPhaseDialog({
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Formulário da fase</span>
-            <select
+            <NativeSelect
               name="formId"
-              className={SELECT_CLASS}
+              className="h-10"
               required
               defaultValue=""
               aria-invalid={state?.fieldErrors?.formId ? true : undefined}
@@ -94,7 +95,7 @@ export function AddAdHocPhaseDialog({
                   {f.title}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             {state?.fieldErrors?.formId && (
               <span role="alert" className="text-sm font-medium text-destructive">
                 {state.fieldErrors.formId}
@@ -120,14 +121,14 @@ export function AddAdHocPhaseDialog({
               Responsável{" "}
               <span className="font-normal text-muted-foreground">(opcional)</span>
             </span>
-            <select name="assignedTo" className={SELECT_CLASS} defaultValue="">
+            <NativeSelect name="assignedTo" className="h-10" defaultValue="">
               <option value="">Atribuir depois</option>
               {assignees.map((a) => (
                 <option key={a.userId} value={a.userId}>
                   {a.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
 
           <DialogFooter>

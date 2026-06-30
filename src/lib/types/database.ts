@@ -760,6 +760,7 @@ export type Database = {
           id: string
           kind: string
           occurred_at: string | null
+          occurred_time: string | null
           title: string | null
           updated_at: string
         }
@@ -771,6 +772,7 @@ export type Database = {
           id?: string
           kind?: string
           occurred_at?: string | null
+          occurred_time?: string | null
           title?: string | null
           updated_at?: string
         }
@@ -782,6 +784,7 @@ export type Database = {
           id?: string
           kind?: string
           occurred_at?: string | null
+          occurred_time?: string | null
           title?: string | null
           updated_at?: string
         }
@@ -6611,6 +6614,13 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      list_case_access: {
+        Args: { p_case: string }
+        Returns: {
+          level: string
+          user_id: string
+        }[]
       }
       list_cases_board: {
         Args: { p_commission_id: string }

@@ -16,11 +16,10 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import { ConditionBuilder } from "@/components/forms/condition-builder";
 import { sectionConditionTargets } from "@/components/forms/condition-targets";
 
-const SELECT_CLASS =
-  "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
  * Per-section settings (F4): the `visible_when` condition editor and the
@@ -137,8 +136,8 @@ export function SectionSettingsDialog({
             {requiresSignoff && (
               <label className="flex flex-col gap-1.5 text-sm">
                 <span className="font-medium">Quem assina</span>
-                <select
-                  className={SELECT_CLASS}
+                <NativeSelect
+                  className="h-10"
                   value={signoffRole}
                   onChange={(e) =>
                     setSignoffRole(e.target.value as SignoffRole)
@@ -148,7 +147,7 @@ export function SectionSettingsDialog({
                     Quem preenche (a própria pessoa)
                   </option>
                   <option value="staff_admin">Coordenação da comissão</option>
-                </select>
+                </NativeSelect>
               </label>
             )}
           </fieldset>

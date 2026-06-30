@@ -19,6 +19,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
+import { DatePicker } from "@/components/ui/date-picker";
 import { DOC_TYPE_LABEL } from "./case-extras-labels";
 
 const FIELD_CLASS =
@@ -147,13 +149,13 @@ function UploadDialog({
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Tipo</span>
-            <select name="docType" className={FIELD_CLASS} defaultValue="ata">
+            <NativeSelect name="docType" className="h-10" defaultValue="ata">
               {DOC_TYPES.map((t) => (
                 <option key={t} value={t}>
                   {DOC_TYPE_LABEL[t]}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm">
@@ -195,7 +197,7 @@ function UploadDialog({
                 (opcional)
               </span>
             </span>
-            <input name="occurredAt" type="date" className={FIELD_CLASS} />
+            <DatePicker name="occurredAt" />
             <span className="text-xs text-muted-foreground">
               Data real do documento, se diferente da data de envio.
             </span>

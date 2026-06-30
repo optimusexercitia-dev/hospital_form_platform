@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { NativeSelect } from "@/components/ui/native-select";
 import { FormBanner } from "@/components/auth/form-banner";
 import { cn } from "@/lib/utils";
 
@@ -162,11 +163,11 @@ export function RcaMemberForm({
                       participante externo pelo nome.
                     </p>
                   ) : (
-                    <select
+                    <NativeSelect
                       value={userId}
                       onChange={(e) => setUserId(e.target.value)}
                       required
-                      className={FIELD_CLASS}
+                      className="h-10"
                     >
                       <option value="">Selecione…</option>
                       {availableUsers.map((u) => (
@@ -174,7 +175,7 @@ export function RcaMemberForm({
                           {userLabel(u)}
                         </option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   )}
                 </label>
               ) : (
@@ -195,17 +196,17 @@ export function RcaMemberForm({
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Papel</span>
-            <select
+            <NativeSelect
               value={role}
               onChange={(e) => setRole(e.target.value as RcaMemberRole)}
-              className={FIELD_CLASS}
+              className="h-10"
             >
               {ROLE_ORDER.map((r) => (
                 <option key={r} value={r}>
                   {RCA_MEMBER_ROLE_LABELS[r]}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
 
           <DialogFooter>

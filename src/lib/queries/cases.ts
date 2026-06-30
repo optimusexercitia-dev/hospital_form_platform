@@ -1183,6 +1183,53 @@ export async function listMyAssignedPhases(
 }
 
 // ---------------------------------------------------------------------------
+// case_access — explicit grant rows for a case (ADR 0033 D6)
+// ---------------------------------------------------------------------------
+
+/**
+ * One explicit `case_access` grant on a case: a (user, level) pair. `read` lets
+ * the user open the full case read-only; `write` additionally lets them author
+ * un-attributed content (write implies read). Attribution-derived read (a phase /
+ * narrative assignee) is NOT a grant and is never returned here — only the rows
+ * actually stored in `case_access`.
+ */
+export interface CaseAccessGrant {
+  userId: string
+  level: 'read' | 'write'
+}
+
+/** One row of the `list_case_access` result set. */
+interface CaseAccessGrantRow {
+  user_id: string
+  level: 'read' | 'write'
+}
+
+/**
+ * The explicit `case_access` grants for a case (the "Acesso ao caso" dialog's
+ * grant badges). Backed by the SECURITY DEFINER `list_case_access`, which mirrors
+ * `grant_case_access` authorization EXACTLY: it respects the `case_access` feature
+ * flag and is gated to a coordinator (staff_admin / org-admin of the case's
+ * commission). The RPC raises for a non-coordinator (or when the flag is off),
+ * surfaced here as `[]` — never a leak. Returns `[]` when the case has no grants.
+ */
+export async function listCaseAccessGrants(
+  caseId: string,
+): Promise<CaseAccessGrant[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.rpc('list_case_access', {
+    p_case: caseId,
+  })
+
+  if (error || !data) return []
+
+  return (data as unknown as CaseAccessGrantRow[]).map((r) => ({
+    userId: r.user_id,
+    level: r.level,
+  }))
+}
+
+// ---------------------------------------------------------------------------
 // "Meus Casos" — the unified attributed-or-granted case list (ADR 0033 D7)
 // ---------------------------------------------------------------------------
 

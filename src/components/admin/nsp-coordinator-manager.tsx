@@ -9,9 +9,9 @@ import {
   appointNspCoordinator,
   revokeNspCoordinator,
 } from "@/lib/org/actions";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -22,11 +22,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-
-const SELECT_CLASSES = cn(
-  "h-11 w-full min-w-44 rounded-lg border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[color,box-shadow,border-color]",
-  "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50",
-);
 
 function personLabel(p: {
   fullName: string | null;
@@ -118,12 +113,11 @@ export function NspCoordinatorManager({
             Pessoa da organização
           </label>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <select
+            <NativeSelect
               id={selectId}
               value={selected}
               onChange={(e) => setSelected(e.target.value)}
               disabled={isPending || candidates.length === 0}
-              className={SELECT_CLASSES}
               aria-describedby={`${selectId}-help`}
             >
               <option value="">
@@ -137,7 +131,7 @@ export function NspCoordinatorManager({
                   {u.fullName?.trim() && u.email ? ` · ${u.email}` : ""}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             <Button
               type="submit"
               size="lg"

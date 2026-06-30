@@ -6,8 +6,8 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Download, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
 
 /**
  * F3 — date-range filter + CSV export.
@@ -74,23 +74,21 @@ export function DashboardFilters({
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={fromId}>De</Label>
-          <Input
+          <DatePicker
             id={fromId}
-            type="date"
             value={from ?? ""}
+            onChange={(v) => setParam("from", v)}
             max={to ?? undefined}
-            onChange={(e) => setParam("from", e.target.value)}
             className="w-auto"
           />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={toId}>Até</Label>
-          <Input
+          <DatePicker
             id={toId}
-            type="date"
             value={to ?? ""}
+            onChange={(v) => setParam("to", v)}
             min={from ?? undefined}
-            onChange={(e) => setParam("to", e.target.value)}
             className="w-auto"
           />
         </div>

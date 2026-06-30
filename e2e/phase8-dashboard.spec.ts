@@ -830,17 +830,45 @@ test('AC-12: Keyboard-only — dashboard form picker → date filter → submiss
   await expect(firstTab).toBeFocused()
   await page.keyboard.press('Space')
 
-  // 2. Tab to the "De" date input and fill it. Use getByRole to avoid
-  // the strict-mode violation from the article's aria-labelledby also matching 'De'.
-  const fromInput = page.getByRole('textbox', { name: 'De' })
-  await expect(fromInput).toBeVisible({ timeout: 10_000 })
-  await fromInput.focus()
-  await expect(fromInput).toBeFocused()
+  // 2. The "De"/"Até" date filters are now DatePicker popover BUTTONS (role=button,
+  // aria-haspopup="dialog"), not native textboxes. First prove BOTH are
+  // keyboard-reachable (focus each before operating either — operating "De" filters
+  // the dashboard and re-renders the panel, which can hide the second filter when
+  // the range empties the data).
+  const fromTrigger = page.getByRole('button', { name: 'De' }).first()
+  await expect(fromTrigger).toBeVisible({ timeout: 10_000 })
+  await fromTrigger.focus()
+  await expect(fromTrigger).toBeFocused()
 
-  // 3. Tab to the "Até" input.
-  const toInput = page.getByRole('textbox', { name: 'Até' })
-  await toInput.focus()
-  await expect(toInput).toBeFocused()
+  const toTrigger = page.getByRole('button', { name: 'Até' }).first()
+  await expect(toTrigger).toBeVisible({ timeout: 10_000 })
+  await toTrigger.focus()
+  await expect(toTrigger).toBeFocused()
+
+  // 3. Now OPERATE the "De" filter via keyboard to prove it actually filters: focus
+  // the trigger, Enter to open the calendar, Tab into the grid to a focused day,
+  // Enter to select — all keyboard, no mouse. Picking pushes a `from` query param
+  // onto the dashboard URL (the server re-runs the aggregates against that bound),
+  // which is the real filtering effect.
+  await fromTrigger.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('grid')).toBeVisible({ timeout: 5_000 })
+  let pickedFrom = false
+  for (let i = 0; i < 10; i++) {
+    await page.keyboard.press('Tab')
+    const onDay = await page.evaluate(() => {
+      const a = document.activeElement as HTMLElement | null
+      if (!a || !a.closest('[role="grid"]')) return false
+      return /\bde \d{4}\b/.test(a.getAttribute('aria-label') ?? '')
+    })
+    if (onDay) {
+      await page.keyboard.press('Enter')
+      pickedFrom = true
+      break
+    }
+  }
+  expect(pickedFrom).toBe(true)
+  await expect(page).toHaveURL(/[?&]from=\d{4}-\d{2}-\d{2}/, { timeout: 10_000 })
 
   // 4. Navigate to the submissions browser via keyboard: find the
   // "Respostas enviadas" link in the nav / breadcrumb area.

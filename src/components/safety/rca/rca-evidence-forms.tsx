@@ -14,6 +14,7 @@ import {
   addRcaEvidence,
   uploadRcaEvidenceFile,
 } from "@/lib/safety/rca-actions";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -363,11 +364,11 @@ export function EvidenceCitationForm({
             )}
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Registro</span>
-              <select
+              <NativeSelect
                 value={selectedId}
                 onChange={(e) => setSelectedId(e.target.value)}
                 required
-                className={FIELD_CLASS}
+                className="h-10"
               >
                 <option value="">Selecione…</option>
                 {targets.map((t) => (
@@ -375,7 +376,7 @@ export function EvidenceCitationForm({
                     [{CITATION_KIND_LABELS[t.kind]}] {t.label}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
             <DialogFooter>
               <Button

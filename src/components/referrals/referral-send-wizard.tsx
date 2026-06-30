@@ -33,6 +33,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 import {
   EMPTY_REFERRAL_PATIENT_DRAFT,
@@ -438,11 +439,11 @@ export function ReferralSendWizard({
           <form onSubmit={submitDetails} className="flex flex-col gap-4" noValidate>
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Tipo de encaminhamento</span>
-              <select
+              <NativeSelect
                 value={referralTypeId}
                 onChange={(e) => handleTypeChange(e.target.value)}
                 required
-                className={FIELD_CLASS}
+                className="py-2"
               >
                 <option value="" disabled>
                   Selecione um tipo…
@@ -452,7 +453,7 @@ export function ReferralSendWizard({
                     {t.label}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               {selectedType?.description && (
                 <span className="text-xs text-muted-foreground text-pretty">
                   {selectedType.description}
@@ -462,11 +463,11 @@ export function ReferralSendWizard({
 
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Comissão de destino</span>
-              <select
+              <NativeSelect
                 value={targetCommissionId}
                 onChange={(e) => setTargetCommissionId(e.target.value)}
                 required
-                className={FIELD_CLASS}
+                className="py-2"
               >
                 <option value="" disabled>
                   Selecione a comissão…
@@ -476,7 +477,7 @@ export function ReferralSendWizard({
                     {c.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               {targetCommissions.length === 0 && (
                 <span className="text-xs text-muted-foreground">
                   Nenhuma outra comissão disponível para encaminhamento.

@@ -12,6 +12,7 @@ import {
   useFieldIds,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { FormBanner } from "@/components/auth/form-banner";
 
 import type { OrgOption } from "./hospital-create-form";
@@ -61,11 +62,11 @@ export function OrgAdminAssignForm({
 
       <Field>
         <FieldLabel htmlFor={orgField.controlProps.id}>Organização</FieldLabel>
-        <select
+        <NativeSelect
           {...orgField.controlProps}
           required
           defaultValue=""
-          className="h-10 rounded-lg border border-input bg-background px-3 text-sm focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+          className="h-10"
         >
           <option value="" disabled>
             Selecione uma organização
@@ -75,7 +76,7 @@ export function OrgAdminAssignForm({
               {o.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
         <FieldError id={orgField.errorId}>
           {state?.fieldErrors?.organizationId}
         </FieldError>

@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   EMPTY_PATIENT_DRAFT,
   PatientFields,
@@ -37,8 +38,6 @@ import {
 } from "@/components/safety/patient-fields";
 import { OutcomeMultiselect } from "@/components/cases/outcome-multiselect";
 
-const SELECT_CLASS =
-  "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 /** The sentinel `templateId` value that switches the dialog into the process-less flow. */
 const PROCESSLESS = "__processless__";
@@ -239,9 +238,9 @@ export function CreateCaseDialog({
           <div className={step === 2 ? "hidden" : "flex flex-col gap-4"}>
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Processo</span>
-              <select
+              <NativeSelect
                 name="templateId"
-                className={SELECT_CLASS}
+                className="h-10"
                 required
                 value={templateId}
                 onChange={(e) => changeTemplate(e.target.value)}
@@ -258,7 +257,7 @@ export function CreateCaseDialog({
                     {t.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               {state?.fieldErrors?.templateId && (
                 <span role="alert" className="text-sm font-medium text-destructive">
                   {state.fieldErrors.templateId}

@@ -24,6 +24,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   INTERVIEWER_ROLE_LABEL,
   INTERVIEWER_ROLE_ORDER,
@@ -184,12 +185,12 @@ export function InterviewerForm({
           {kind === "member" ? (
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Membro</span>
-              <select
+              <NativeSelect
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
                 required
                 disabled={lockKind}
-                className={FIELD_CLASS}
+                className="h-10"
               >
                 <option value="" disabled>
                   Selecione um membro…
@@ -204,7 +205,7 @@ export function InterviewerForm({
                     {m.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           ) : (
             <>
@@ -239,17 +240,17 @@ export function InterviewerForm({
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Função</span>
-            <select
+            <NativeSelect
               value={role}
               onChange={(e) => setRole(e.target.value as InterviewerRole)}
-              className={FIELD_CLASS}
+              className="h-10"
             >
               {INTERVIEWER_ROLE_ORDER.map((r) => (
                 <option key={r} value={r}>
                   {INTERVIEWER_ROLE_LABEL[r]}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm">

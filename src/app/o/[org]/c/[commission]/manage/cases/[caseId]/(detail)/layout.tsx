@@ -4,7 +4,11 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { getCaseDetail } from "@/lib/queries/cases";
+import {
+  getCaseDetail,
+  casePatientEnabled,
+  listCaseAccessGrants,
+} from "@/lib/queries/cases";
 import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { listMembers, sortMembers } from "@/lib/queries/members";
 import { listForms } from "@/lib/queries/forms";
@@ -14,10 +18,13 @@ import {
 } from "@/components/cases/case-status-badge";
 import { CaseLifecycleActions } from "@/components/cases/case-lifecycle-actions";
 import { CaseAccessButton } from "@/components/cases/case-access-button";
+import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
 import { CaseTabs } from "@/components/cases/case-tabs";
 import { formatCaseNumber, formatDate } from "@/components/cases/format";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
+import { patientSafetyEnabled } from "@/lib/queries/pqs";
+import { loadCasePatientForNotify } from "@/lib/cases/actions";
 
 /**
  * Shared shell for a case's two tabs — **Detalhes** (default child) and **Linha
@@ -60,14 +67,29 @@ export default async function CaseDetailLayout({
 
   // The commission roster + the `case_access` flag are needed UNCONDITIONALLY: the
   // "Acesso ao caso" button (Case Access Control, ADR 0033) shows on terminal cases
-  // too (read grants are allowed there, D6), so it can't depend on `isOpen`. Loaded
-  // once here in the spine and reused by both the access roster and (when open) the
+  // too (read grants are allowed there, D6), so it can't depend on `isOpen`. The
+  // patient-safety + case-patient flags gate the top-bar "Notificar evento ao NSP"
+  // button, which — like the access button — must show on terminal cases too
+  // (any member may raise a safety event regardless of case state). Loaded once here
+  // in the spine and reused by both the access roster and (when open) the
   // lifecycle-actions assignee picker.
-  const [members, accessEnabled] = await Promise.all([
-    listMembers(access.commission.id),
-    caseAccessEnabled(),
-  ]);
+  const [members, accessEnabled, patientSafetyOn, casePatientOn, accessGrants] =
+    await Promise.all([
+      listMembers(access.commission.id),
+      caseAccessEnabled(),
+      patientSafetyEnabled(),
+      casePatientEnabled(),
+      // The stored read/write grant rows for the access roster's per-member badge
+      // (coordinator/admin-gated — safe here, the layout already requires
+      // staff_admin). Used only when the access button renders.
+      listCaseAccessGrants(caseId),
+    ]);
   const sortedMembers = sortMembers(members);
+
+  // The NSP dialog seeds its patient panel from this case's identifiers only when
+  // the case COLLECTS PHI and the `case_patient` flag is on (ADR 0038 — value copy
+  // via the audited door). Mirrors `CaseDetailView`'s `showPatientPanel` derivation.
+  const showPatientPanel = casePatientOn && c.patientEnabled;
 
   // The lifecycle-actions menu (open cases only) needs the assignee + publishable-
   // form + phase pickers. These derive from cheap commission-scoped reads; loaded
@@ -135,8 +157,24 @@ export default async function CaseDetailLayout({
             </p>
           </div>
 
-          {(accessEnabled || isOpen) && (
+          {(accessEnabled || isOpen || patientSafetyOn) && (
             <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
+              {/* Patient-safety entry (Phase 14a): any commission member may notify
+                  the NSP of a safety event from this case — open OR concluded — so it
+                  is gated only on the flag (independent of `isOpen`/access), and sits
+                  leftmost in the cluster. Seeds the patient panel from the case's PHI
+                  only when the case collects it (ADR 0038, audited door). */}
+              {patientSafetyOn && (
+                <NotifyEventDialog
+                  commissionId={c.commissionId}
+                  caseId={c.id}
+                  onLoadPatientPrefill={
+                    showPatientPanel
+                      ? loadCasePatientForNotify.bind(null, c.id)
+                      : undefined
+                  }
+                />
+              )}
               {/* Coordinator access roster (ADR 0033). Rendered INDEPENDENTLY of the
                   lifecycle actions (open-only) so it still shows — alone — on a
                   terminal case, where read grants remain allowed (D6). */}
@@ -145,6 +183,7 @@ export default async function CaseDetailLayout({
                   caseId={c.id}
                   members={sortedMembers}
                   detail={detail}
+                  grants={accessGrants}
                   caseOpen={isOpen}
                 />
               )}

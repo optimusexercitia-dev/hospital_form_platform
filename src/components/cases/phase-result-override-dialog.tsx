@@ -18,11 +18,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import { cn } from "@/lib/utils";
 import { TOKEN_STYLES } from "./case-status-badge";
 
-const SELECT_CLASS =
-  "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 const TEXTAREA_CLASS =
   "min-h-20 w-full rounded-lg border border-input bg-card px-3 py-2 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -140,8 +139,8 @@ export function PhaseResultOverrideDialog({
                 </span>
               )}
             </span>
-            <select
-              className={SELECT_CLASS}
+            <NativeSelect
+              className="h-10"
               value={resultId}
               onChange={(e) => setResultId(e.target.value)}
               disabled={isPending}
@@ -164,7 +163,7 @@ export function PhaseResultOverrideDialog({
                   {o.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
 
           {selected && (

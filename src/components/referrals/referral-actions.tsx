@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import { formatCaseNumber } from "./format";
 
 const FIELD_CLASS =
@@ -328,11 +329,11 @@ function ReplyForm({
         <>
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Desfecho da análise</span>
-            <select
+            <NativeSelect
               value={outcomeId}
               onChange={(e) => setOutcomeId(e.target.value)}
               required
-              className={FIELD_CLASS}
+              className="py-2"
             >
               <option value="" disabled>
                 Selecione o desfecho…
@@ -342,7 +343,7 @@ function ReplyForm({
                   {o.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm">
@@ -531,11 +532,11 @@ function LinkCaseDialog({
           {error && <FormBanner tone="error">{error}</FormBanner>}
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Caso</span>
-            <select
+            <NativeSelect
               value={caseId}
               onChange={(e) => setCaseId(e.target.value)}
               required
-              className={FIELD_CLASS}
+              className="py-2"
             >
               <option value="" disabled>
                 Selecione um caso…
@@ -546,7 +547,7 @@ function LinkCaseDialog({
                   {c.label ? ` — ${c.label}` : ""}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             {cases.length === 0 && (
               <span className="text-xs text-muted-foreground">
                 Nenhum caso disponível nesta comissão para vincular.

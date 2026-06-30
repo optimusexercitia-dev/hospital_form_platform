@@ -6,7 +6,7 @@ import { X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { NativeSelect } from "@/components/ui/native-select";
 
 /** A commission option for the source / target filters. */
 export interface DashboardCommissionOption {
@@ -70,21 +70,16 @@ export function ReferralDashboardFilters({
 
   const hasAnyFilter = Boolean(status || source || target || type || response);
 
-  const selectClasses = cn(
-    "h-11 w-full min-w-44 rounded-lg border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[color,box-shadow,border-color]",
-    "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40",
-  );
-
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-xs">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={statusId}>Estado</Label>
-          <select
+          <NativeSelect
             id={statusId}
             value={status ?? ""}
             onChange={(e) => setParam("status", e.target.value)}
-            className={selectClasses}
+            className="min-w-44"
           >
             <option value="">Todos</option>
             {statusOptions.map(([slug, label]) => (
@@ -92,16 +87,16 @@ export function ReferralDashboardFilters({
                 {label}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={sourceId}>Origem</Label>
-          <select
+          <NativeSelect
             id={sourceId}
             value={source ?? ""}
             onChange={(e) => setParam("source", e.target.value)}
-            className={selectClasses}
+            className="min-w-44"
           >
             <option value="">Todas</option>
             {commissions.map((c) => (
@@ -109,16 +104,16 @@ export function ReferralDashboardFilters({
                 {c.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={targetId}>Destino</Label>
-          <select
+          <NativeSelect
             id={targetId}
             value={target ?? ""}
             onChange={(e) => setParam("target", e.target.value)}
-            className={selectClasses}
+            className="min-w-44"
           >
             <option value="">Todas</option>
             {commissions.map((c) => (
@@ -126,16 +121,16 @@ export function ReferralDashboardFilters({
                 {c.name}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={typeId}>Tipo</Label>
-          <select
+          <NativeSelect
             id={typeId}
             value={type ?? ""}
             onChange={(e) => setParam("type", e.target.value)}
-            className={selectClasses}
+            className="min-w-44"
           >
             <option value="">Todos</option>
             {typeOptions.map(([value, label]) => (
@@ -143,21 +138,21 @@ export function ReferralDashboardFilters({
                 {label}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={responseId}>Resposta</Label>
-          <select
+          <NativeSelect
             id={responseId}
             value={response ?? ""}
             onChange={(e) => setParam("response", e.target.value)}
-            className={selectClasses}
+            className="min-w-44"
           >
             <option value="">Todas</option>
             <option value="true">Aguarda resposta</option>
             <option value="false">Apenas ciência</option>
-          </select>
+          </NativeSelect>
         </div>
       </div>
 

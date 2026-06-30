@@ -13,6 +13,7 @@ import {
   useFieldIds,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { NativeSelect } from "@/components/ui/native-select";
 import { FormBanner } from "@/components/auth/form-banner";
 
 /**
@@ -64,12 +65,12 @@ export function OrgCommissionCreateForm({
         <FieldLabel htmlFor={hospitalField.controlProps.id}>
           Hospital
         </FieldLabel>
-        <select
+        <NativeSelect
           {...hospitalField.controlProps}
           required
           defaultValue=""
           disabled={noHospitals}
-          className="h-10 rounded-lg border border-input bg-background px-3 text-sm focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none disabled:opacity-60"
+          className="h-10"
         >
           <option value="" disabled>
             {noHospitals
@@ -81,7 +82,7 @@ export function OrgCommissionCreateForm({
               {h.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
         {noHospitals ? (
           <FieldDescription id={hospitalField.descriptionId}>
             Cadastre um hospital antes de criar uma comissão.

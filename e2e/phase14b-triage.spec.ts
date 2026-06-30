@@ -429,8 +429,14 @@ test('T7a: /o/rede-a/nsp/configuracoes loads the sentinel checklist and event ty
   // Event types section
   await expect(page.getByText(/tipos de evento/i).first()).toBeVisible()
 
-  // RCA due-window form — default 45 days
-  await expect(page.getByText(/45/)).toBeVisible()
+  // RCA due-window form — default 45 days. Assert the VALUE of the specific
+  // labeled number input ("Prazo padrão da RCA (dias)"), NOT a page-wide
+  // getByText(/45/): the old loose matcher hit strict-mode violations because a
+  // randomly-named sentinel criterion (`e2e_criterion_<timestamp>`) can contain
+  // "45" in its generated suffix. Scoping to the field is deterministic.
+  const rcaWindowInput = page.getByLabel(/Prazo padrão da RCA/i)
+  await expect(rcaWindowInput).toBeVisible()
+  await expect(rcaWindowInput).toHaveValue('45')
 })
 
 test('T7b: set_pqs_rca_due_window updates the due-window; triage_disposition reflects new window', async ({

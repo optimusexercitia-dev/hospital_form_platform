@@ -10,9 +10,11 @@ import {
 } from "@/lib/safety/types";
 import type { CasePatient } from "@/lib/cases/types";
 import { notifySafetyEvent, setEventPatient } from "@/lib/safety/actions";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
 import { SectionTextEditor } from "@/components/forms/section-text-editor";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   EMPTY_PATIENT_DRAFT,
   PatientFields,
@@ -235,20 +237,20 @@ export function EventNotifyForm({
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">Dano suspeito</span>
-          <select
+          <NativeSelect
             value={harmLevel}
             onChange={(e) =>
               setHarmLevel(e.target.value as SuspectedHarmLevel)
             }
             disabled={isPending}
-            className={FIELD_CLASS}
+            className="h-10"
           >
             {HARM_ORDER.map((level) => (
               <option key={level} value={level}>
                 {SUSPECTED_HARM_LABELS[level]}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm">
@@ -256,12 +258,10 @@ export function EventNotifyForm({
             Data do evento{" "}
             <span className="font-normal text-muted-foreground">(opcional)</span>
           </span>
-          <input
-            type="date"
+          <DatePicker
             value={discoveredAt}
-            onChange={(e) => setDiscoveredAt(e.target.value)}
+            onChange={setDiscoveredAt}
             disabled={isPending}
-            className={FIELD_CLASS}
           />
         </label>
       </div>

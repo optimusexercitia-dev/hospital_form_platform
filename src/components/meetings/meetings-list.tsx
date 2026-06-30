@@ -3,9 +3,11 @@
 import { commissionHref } from "@/lib/routing";
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
-  CalendarClock,
-  CalendarX2,
+  ArrowDown,
+  ArrowUp,
+  ChevronsUpDown,
   MapPin,
   Video,
 } from "lucide-react";
@@ -16,12 +18,9 @@ import type {
   MeetingStatus,
 } from "@/lib/queries/meetings";
 import { cn } from "@/lib/utils";
+import { NativeSelect } from "@/components/ui/native-select";
 import { MeetingStatusBadge, MeetingTypeChip } from "./meeting-badges";
-import {
-  MEETING_STATUS_LABEL,
-  MODALITY_LABEL,
-  isUpcomingStatus,
-} from "./meeting-labels";
+import { MEETING_STATUS_LABEL, MODALITY_LABEL } from "./meeting-labels";
 import { formatMeetingNumber, formatSchedule } from "./format";
 
 /** Status filter options, in lifecycle order, plus an "all" sentinel. */
@@ -34,116 +33,85 @@ const STATUS_FILTER_ORDER: MeetingStatus[] = [
   "cancelada",
 ];
 
-const SELECT_CLASS =
-  "h-9 rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40";
+type SortKey = "numero" | "data" | "status";
+type SortDir = "asc" | "desc";
 
-function MeetingCard({
-  meeting,
-  org,
-  slug,
-  index,
+// Status sort rank = the lifecycle order above; every status is present.
+const STATUS_RANK: Record<MeetingStatus, number> = Object.fromEntries(
+  STATUS_FILTER_ORDER.map((s, i) => [s, i]),
+) as Record<MeetingStatus, number>;
+
+function SortHeader({
+  label,
+  active,
+  dir,
+  onClick,
+  className,
 }: {
-  meeting: MeetingListItem;
-  /** Org slug for hrefs. */
-  org: string;
-  slug: string;
-  index: number;
+  label: string;
+  active: boolean;
+  dir: SortDir;
+  onClick: () => void;
+  className?: string;
 }) {
-  const remote = meeting.modality === "remoto" || meeting.modality === "hibrido";
+  const Icon = !active ? ChevronsUpDown : dir === "asc" ? ArrowUp : ArrowDown;
   return (
-    <li
-      className="animate-rise-in"
-      style={{ "--rise-delay": `${index * 60}ms` } as React.CSSProperties}
+    <th
+      scope="col"
+      aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : "none"}
+      className={cn(
+        "px-3 py-2.5 text-left text-[0.68rem] font-semibold tracking-wide text-muted-foreground uppercase",
+        className,
+      )}
     >
-      <Link
-        href={commissionHref(org, slug, "meetings", meeting.id)}
-        className="group flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-border/80 hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+      <button
+        type="button"
+        onClick={onClick}
+        className="inline-flex items-center gap-1 rounded transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 flex-col gap-1">
-            <span className="font-mono text-xs text-muted-foreground">
-              {formatMeetingNumber(meeting.meetingNumber)}
-            </span>
-            <h3 className="text-lg leading-snug text-balance">
-              {meeting.title}
-            </h3>
-          </div>
-          <MeetingStatusBadge status={meeting.status} />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5 tabular-nums">
-            <CalendarClock aria-hidden="true" className="size-4" />
-            {formatSchedule(meeting.scheduledStart, meeting.scheduledEnd)}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            {remote ? (
-              <Video aria-hidden="true" className="size-4" />
-            ) : (
-              <MapPin aria-hidden="true" className="size-4" />
-            )}
-            {MODALITY_LABEL[meeting.modality]}
-            {meeting.locationText ? ` · ${meeting.locationText}` : ""}
-          </span>
-        </div>
-
-        {meeting.meetingTypeName && (
-          <div>
-            <MeetingTypeChip
-              name={meeting.meetingTypeName}
-              colorToken={meeting.meetingTypeColorToken}
-            />
-          </div>
-        )}
-      </Link>
-    </li>
+        {label}
+        <Icon
+          aria-hidden="true"
+          className={cn(
+            "size-3",
+            active ? "text-foreground" : "text-muted-foreground/60",
+          )}
+        />
+      </button>
+    </th>
   );
 }
 
-function MeetingGroup({
-  heading,
-  meetings,
-  org,
-  slug,
-  emptyText,
-  icon: Icon,
+/** A plain (non-sortable) column header, matching the cases table. */
+function PlainHeader({
+  label,
+  className,
 }: {
-  heading: string;
-  meetings: MeetingListItem[];
-  /** Org slug for hrefs. */
-  org: string;
-  slug: string;
-  emptyText: string;
-  icon: typeof CalendarClock;
+  label: string;
+  className?: string;
 }) {
   return (
-    <section aria-label={heading} className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <Icon aria-hidden="true" className="size-4 text-muted-foreground" />
-        <h2 className="text-base font-semibold">{heading}</h2>
-        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.7rem] font-semibold text-muted-foreground tabular-nums">
-          {meetings.length}
-        </span>
-      </div>
-      {meetings.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-          {emptyText}
-        </p>
-      ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {meetings.map((m, i) => (
-            <MeetingCard key={m.id} meeting={m} org={org} slug={slug} index={i} />
-          ))}
-        </ul>
+    <th
+      scope="col"
+      className={cn(
+        "px-3 py-2.5 text-left text-[0.68rem] font-semibold tracking-wide text-muted-foreground uppercase",
+        className,
       )}
-    </section>
+    >
+      {label}
+    </th>
   );
 }
 
 /**
- * Client-side meetings list with status + type filters and an upcoming/past
- * split. Fed plain props from the Server page (no value-import of server query
- * modules). Filtering is purely presentational; RLS already scoped the data.
+ * Client-side meetings registry as a sortable, scannable table (mirrors the cases
+ * table). Status + type filters narrow the rows; the table sorts by number, date,
+ * or status. Fed plain props from the Server page (no value-import of server query
+ * modules). Filtering/sorting is purely presentational; RLS already scoped the data.
+ *
+ * Columns: Reunião № · Título · Data/hora · Tipo · Modalidade · Status · Ações
+ * pendentes · Assinaturas pendentes. "Assinaturas pendentes" renders `—` unless the
+ * meeting is `em_assinatura` (the count is `null` otherwise — backend contract).
  */
 export function MeetingsList({
   meetings,
@@ -157,10 +125,15 @@ export function MeetingsList({
   org: string;
   slug: string;
 }) {
+  const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<MeetingStatus | "all">(
     "all",
   );
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
+    key: "numero",
+    dir: "desc",
+  });
 
   const filtered = useMemo(() => {
     return meetings.filter((m) => {
@@ -170,12 +143,25 @@ export function MeetingsList({
     });
   }, [meetings, statusFilter, typeFilter]);
 
-  const upcoming = filtered
-    .filter((m) => isUpcomingStatus(m.status))
-    .sort((a, b) => a.scheduledStart.localeCompare(b.scheduledStart));
-  const past = filtered
-    .filter((m) => !isUpcomingStatus(m.status))
-    .sort((a, b) => b.scheduledStart.localeCompare(a.scheduledStart));
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      let cmp = 0;
+      if (sort.key === "numero") cmp = a.meetingNumber - b.meetingNumber;
+      else if (sort.key === "data")
+        cmp = a.scheduledStart.localeCompare(b.scheduledStart);
+      else cmp = STATUS_RANK[a.status] - STATUS_RANK[b.status];
+      return sort.dir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sort]);
+
+  const toggle = (key: SortKey) =>
+    setSort((s) =>
+      s.key === key
+        ? { key, dir: s.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: "asc" },
+    );
 
   const onlyDefaultType =
     meetingTypes.length === 0 ||
@@ -187,12 +173,12 @@ export function MeetingsList({
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card/50 p-3">
         <label className="flex items-center gap-2 text-sm">
           <span className="font-medium text-muted-foreground">Estado</span>
-          <select
+          <NativeSelect
             value={statusFilter}
             onChange={(e) =>
               setStatusFilter(e.target.value as MeetingStatus | "all")
             }
-            className={SELECT_CLASS}
+            className="h-9"
             aria-label="Filtrar por estado"
           >
             <option value="all">Todos</option>
@@ -201,16 +187,16 @@ export function MeetingsList({
                 {MEETING_STATUS_LABEL[s]}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
 
         {!onlyDefaultType && (
           <label className="flex items-center gap-2 text-sm">
             <span className="font-medium text-muted-foreground">Tipo</span>
-            <select
+            <NativeSelect
               value={typeFilter}
               onChange={(e) => setTypeFilter(e.target.value)}
-              className={SELECT_CLASS}
+              className="h-9"
               aria-label="Filtrar por tipo"
             >
               <option value="all">Todos</option>
@@ -219,7 +205,7 @@ export function MeetingsList({
                   {t.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
         )}
 
@@ -229,25 +215,135 @@ export function MeetingsList({
             filtered.length === 0 && "text-muted-foreground/70",
           )}
         >
-          {filtered.length}{" "}
-          {filtered.length === 1 ? "reunião" : "reuniões"}
+          {filtered.length} {filtered.length === 1 ? "reunião" : "reuniões"}
         </span>
       </div>
 
-      <MeetingGroup
-        heading="Próximas"
-        meetings={upcoming}
-        org={org} slug={slug}
-        icon={CalendarClock}
-        emptyText="Nenhuma reunião agendada."
-      />
-      <MeetingGroup
-        heading="Anteriores"
-        meetings={past}
-        org={org} slug={slug}
-        icon={CalendarX2}
-        emptyText="Nenhuma reunião anterior."
-      />
+      <div className="animate-fade-in overflow-x-auto rounded-2xl border border-border bg-card shadow-xs">
+        <table className="w-full min-w-[1040px] border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/40">
+              <SortHeader
+                label="Reunião №"
+                active={sort.key === "numero"}
+                dir={sort.dir}
+                onClick={() => toggle("numero")}
+              />
+              <PlainHeader label="Título" />
+              <SortHeader
+                label="Data/hora"
+                active={sort.key === "data"}
+                dir={sort.dir}
+                onClick={() => toggle("data")}
+              />
+              <PlainHeader label="Tipo" />
+              <PlainHeader label="Modalidade" />
+              <SortHeader
+                label="Status"
+                active={sort.key === "status"}
+                dir={sort.dir}
+                onClick={() => toggle("status")}
+              />
+              <PlainHeader label="Ações pendentes" className="text-right" />
+              <PlainHeader
+                label="Assinaturas pendentes"
+                className="text-right"
+              />
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={8}
+                  className="px-3 py-10 text-center text-sm text-muted-foreground"
+                >
+                  Nenhuma reunião corresponde aos filtros.
+                </td>
+              </tr>
+            ) : (
+              sorted.map((m) => {
+                const href = commissionHref(org, slug, "meetings", m.id);
+                const remote =
+                  m.modality === "remoto" || m.modality === "hibrido";
+                return (
+                  <tr
+                    key={m.id}
+                    onClick={() => router.push(href)}
+                    className="cursor-pointer border-b border-border/70 odd:bg-card even:bg-muted/20 transition-colors hover:bg-accent/40"
+                  >
+                    <td className="px-3 py-2.5 align-middle whitespace-nowrap">
+                      <Link
+                        href={href}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-mono text-[0.8rem] font-semibold text-primary hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                      >
+                        {formatMeetingNumber(m.meetingNumber)}
+                      </Link>
+                    </td>
+                    <td className="max-w-[18rem] px-3 py-2.5 align-middle">
+                      <span className="block truncate font-medium text-foreground">
+                        {m.title}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 align-middle text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+                      {formatSchedule(m.scheduledStart, m.scheduledEnd)}
+                    </td>
+                    <td className="px-3 py-2.5 align-middle">
+                      {m.meetingTypeName ? (
+                        <MeetingTypeChip
+                          name={m.meetingTypeName}
+                          colorToken={m.meetingTypeColorToken}
+                        />
+                      ) : (
+                        <span className="text-muted-foreground/70">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 align-middle">
+                      <span className="inline-flex items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground">
+                        {remote ? (
+                          <Video aria-hidden="true" className="size-4" />
+                        ) : (
+                          <MapPin aria-hidden="true" className="size-4" />
+                        )}
+                        {MODALITY_LABEL[m.modality]}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 align-middle">
+                      <MeetingStatusBadge status={m.status} />
+                    </td>
+                    <td className="px-3 py-2.5 align-middle text-right tabular-nums">
+                      {m.pendingActionItems > 0 ? (
+                        <span className="font-medium text-foreground">
+                          {m.pendingActionItems}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/70">0</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 align-middle text-right tabular-nums">
+                      {m.pendingSignatures == null ? (
+                        <span className="text-muted-foreground/70">—</span>
+                      ) : (
+                        <span
+                          className={cn(
+                            "font-medium",
+                            m.pendingSignatures > 0
+                              ? "text-warning"
+                              : "text-success",
+                          )}
+                        >
+                          {m.pendingSignatures}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

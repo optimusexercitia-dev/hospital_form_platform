@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import { ConfirmDeleteButton } from "./confirm-delete-button";
 
 const FIELD_CLASS =
@@ -117,11 +118,11 @@ function LinkCaseDialog({
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Caso</span>
-            <select
+            <NativeSelect
               value={caseId}
               onChange={(e) => setCaseId(e.target.value)}
               required
-              className={FIELD_CLASS}
+              className="py-2"
             >
               <option value="" disabled>
                 Selecione um caso…
@@ -132,7 +133,7 @@ function LinkCaseDialog({
                   {c.label ? ` — ${c.label}` : ""}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
 
           {ordered.length > 0 && (
@@ -143,10 +144,10 @@ function LinkCaseDialog({
                   (opcional)
                 </span>
               </span>
-              <select
+              <NativeSelect
                 value={agendaItemId}
                 onChange={(e) => setAgendaItemId(e.target.value)}
-                className={FIELD_CLASS}
+                className="py-2"
               >
                 <option value="">Não vincular a um item</option>
                 {ordered.map((a, i) => (
@@ -154,7 +155,7 @@ function LinkCaseDialog({
                     {i + 1}. {a.title}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           )}
 

@@ -11,6 +11,7 @@ import {
   type CaseStatus,
 } from "@/lib/cases/case-status";
 import { cn } from "@/lib/utils";
+import { NativeSelect } from "@/components/ui/native-select";
 import { CasesTable } from "./cases-table";
 import { CasesKanban } from "./cases-kanban";
 import { hasUnassignedWork } from "./case-derive";
@@ -18,8 +19,6 @@ import { formatCaseNumber } from "./format";
 
 export type CasesViewMode = "table" | "kanban";
 
-const SELECT_CLASS =
-  "h-9 rounded-lg border border-input bg-card px-2.5 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40";
 
 /**
  * Status filter chips: "Todos", the five FIXED statuses (D13), then the
@@ -207,11 +206,11 @@ export function CasesView({
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <span className="font-medium">Desfecho</span>
-            <select
+            <NativeSelect
               value={outcome}
               onChange={(e) => setOutcome(e.target.value)}
               aria-label="Filtrar por desfecho"
-              className={SELECT_CLASS}
+              className="h-9 px-2.5"
             >
               <option value="todos">Todos os desfechos</option>
               <option value="sem">Sem desfecho</option>
@@ -220,7 +219,7 @@ export function CasesView({
                   {o.label}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
 
           <button

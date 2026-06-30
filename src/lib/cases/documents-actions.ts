@@ -48,6 +48,7 @@ const MESSAGES = {
   fileTypeInvalid:
     'Envie um PDF, imagem, documento Word/Excel, CSV ou texto.',
   dateInvalid: 'Informe uma data válida.',
+  timeInvalid: 'Informe um horário válido.',
   uploadFailed: 'Não foi possível enviar o arquivo. Tente novamente.',
   documentAdded: 'Documento adicionado com sucesso.',
   documentRemoved: 'Documento removido.',
@@ -122,6 +123,23 @@ function parseDate(raw: string): string | undefined | null {
   const d = new Date(`${trimmed}T00:00:00Z`)
   if (Number.isNaN(d.getTime())) return null
   if (d.toISOString().slice(0, 10) !== trimmed) return null
+  return trimmed
+}
+
+/**
+ * Validate an optional `HH:mm` time field. `undefined` when blank (`""` → no
+ * time), the normalized `HH:mm` string when valid, `null` to signal invalid (a
+ * native time input is safe, but a hand-crafted POST could carry garbage). The
+ * DB column is `time`, which accepts `HH:mm`.
+ */
+function parseTime(raw: string): string | undefined | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return undefined
+  const m = /^(\d{2}):(\d{2})$/.exec(trimmed)
+  if (!m) return null
+  const hh = Number(m[1])
+  const mm = Number(m[2])
+  if (hh > 23 || mm > 59) return null
   return trimmed
 }
 
@@ -273,6 +291,7 @@ export async function createCaseEvent(
   const title = String(formData.get('title') ?? '').trim()
   const body = String(formData.get('body') ?? '').trim()
   const occurredAt = parseDate(String(formData.get('occurredAt') ?? ''))
+  const occurredTime = parseTime(String(formData.get('occurredTime') ?? ''))
 
   if (!caseId) return { ok: false, error: MESSAGES.missingCase }
   if (!EVENT_KINDS.includes(kind as CaseEventKind)) {
@@ -283,6 +302,9 @@ export async function createCaseEvent(
   }
   if (occurredAt === null) {
     return { ok: false, fieldErrors: { occurredAt: MESSAGES.dateInvalid } }
+  }
+  if (occurredTime === null) {
+    return { ok: false, fieldErrors: { occurredTime: MESSAGES.timeInvalid } }
   }
 
   if (!(await casesExtrasEnabled())) {
@@ -303,6 +325,7 @@ export async function createCaseEvent(
     title: title || null,
     body,
     occurred_at: occurredAt ?? null,
+    occurred_time: occurredTime ?? null,
     created_by: context?.userId ?? null,
   })
 
@@ -325,6 +348,7 @@ export async function updateCaseEvent(
   const title = String(formData.get('title') ?? '').trim()
   const body = String(formData.get('body') ?? '').trim()
   const occurredAt = parseDate(String(formData.get('occurredAt') ?? ''))
+  const occurredTime = parseTime(String(formData.get('occurredTime') ?? ''))
 
   if (!eventId) return { ok: false, error: MESSAGES.missingEvent }
   if (!EVENT_KINDS.includes(kind as CaseEventKind)) {
@@ -335,6 +359,9 @@ export async function updateCaseEvent(
   }
   if (occurredAt === null) {
     return { ok: false, fieldErrors: { occurredAt: MESSAGES.dateInvalid } }
+  }
+  if (occurredTime === null) {
+    return { ok: false, fieldErrors: { occurredTime: MESSAGES.timeInvalid } }
   }
 
   if (!(await casesExtrasEnabled())) {
@@ -360,6 +387,8 @@ export async function updateCaseEvent(
       title: title || null,
       body,
       occurred_at: occurredAt ?? null,
+      // "" → null clears the time on edit; a valid HH:mm sets it.
+      occurred_time: occurredTime ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', eventId)

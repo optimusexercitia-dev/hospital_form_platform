@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import path from 'path'
 import fs from 'fs'
+import { setDateTimeField } from './helpers/date-pickers'
 
 /**
  * Phase 11 — Interviews
@@ -332,9 +333,9 @@ test('AC1 — happy path: create interview, add participants, start, add attachm
   await page.getByRole('button', { name: 'Editar', exact: true }).click()
   const editDialog = page.getByRole('dialog', { name: /Editar entrevista/i })
   await expect(editDialog).toBeVisible({ timeout: 10_000 })
-  // Set scheduled start (datetime-local value)
-  const startInput = editDialog.locator('input[type="datetime-local"]').first()
-  await startInput.fill('2026-06-20T10:00')
+  // Set the scheduled start via the DateTimePicker (DatePicker popover + segmented
+  // TimeField — replaced the native datetime-local input).
+  await setDateTimeField(page, editDialog, 'Início', { time: '10:00' })
   await editDialog.getByRole('button', { name: /Salvar/i }).click()
   await expect(editDialog).not.toBeVisible({ timeout: 15_000 })
 
@@ -496,7 +497,7 @@ test('AC2a — participant write grant: registered interviewer (staff role) CAN 
   await page.getByRole('button', { name: 'Editar', exact: true }).click()
   const editDialog = page.getByRole('dialog', { name: /Editar entrevista/i })
   await expect(editDialog).toBeVisible({ timeout: 10_000 })
-  await editDialog.locator('input[type="datetime-local"]').first().fill('2026-06-21T10:00')
+  await setDateTimeField(page, editDialog, 'Início', { time: '10:00' })
   await editDialog.getByRole('button', { name: /Salvar/i }).click()
   await expect(editDialog).not.toBeVisible({ timeout: 15_000 })
   await confirmLifecycle(page, /Agendar/i, /Agendar entrevista/i)
@@ -767,10 +768,12 @@ test('AC5 — keyboard-only: create interview dialog via Tab/Enter, navigate to 
   await page.keyboard.type('Entrevista Teclado AC5')
 
   // Keyboard-only navigation proof: Tab through every interactive field in the dialog
-  // without using the mouse. datetime-local inputs expose multiple internal sub-fields
-  // (month/day/year/hour/minute) each consuming one Tab stop, so the count to reach
-  // the submit button is higher than the field count. We loop-Tab until we hit the
-  // submit button (max 40 presses), proving it is keyboard-reachable without a mouse.
+  // without using the mouse. The DateTimePicker contributes a date-trigger button
+  // plus segmented TimeField spinbutton stops (each a Tab stop), so the count to
+  // reach the submit button is higher than the field count. We loop-Tab until we hit
+  // the submit button (max 40 presses), proving it is keyboard-reachable without a
+  // mouse. (The interview is created in rascunho with no scheduled date — the
+  // schedule date is set later via the Editar dialog; AC1/AC2a cover that.)
   const submitBtn = createDialog.getByRole('button', { name: /Criar entrevista/i })
   let reached = false
   for (let i = 0; i < 40; i++) {

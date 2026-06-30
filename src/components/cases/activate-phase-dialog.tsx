@@ -4,6 +4,8 @@ import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarOff } from "lucide-react";
 
+import { DatePicker } from "@/components/ui/date-picker";
+
 import {
   activatePhase,
   reassignPhase,
@@ -19,10 +21,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
-
-const SELECT_CLASS =
-  "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
  * `today + days` formatted as `YYYY-MM-DD` from LOCAL date parts (never
@@ -149,9 +149,9 @@ export function ActivatePhaseDialog({
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Responsável</span>
-            <select
+            <NativeSelect
               name={fieldName}
-              className={SELECT_CLASS}
+              className="h-10"
               required
               defaultValue={mode === "reassign" ? (currentAssignee ?? "") : ""}
               aria-invalid={fieldError ? true : undefined}
@@ -164,7 +164,7 @@ export function ActivatePhaseDialog({
                   {a.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             {fieldError && (
               <span role="alert" className="text-sm font-medium text-destructive">
                 {fieldError}
@@ -191,12 +191,10 @@ export function ActivatePhaseDialog({
                 </button>
               )}
             </span>
-            <input
+            <DatePicker
               name="dueDate"
-              type="date"
-              className={SELECT_CLASS}
               value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+              onChange={setDueDate}
             />
             <span className="text-xs text-muted-foreground">
               {dueDateHint}

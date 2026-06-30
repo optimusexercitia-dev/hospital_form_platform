@@ -93,7 +93,9 @@ export function CaseEventsTimeline({
                 </p>
                 <p className="text-xs text-muted-foreground tabular-nums">
                   {ev.occurredAt
-                    ? formatDueDate(ev.occurredAt)
+                    ? `${formatDueDate(ev.occurredAt)}${
+                        ev.occurredTime ? ` · ${ev.occurredTime}` : ""
+                      }`
                     : formatDate(ev.createdAt)}
                   {ev.createdByName ? ` · ${ev.createdByName}` : ""}
                 </p>

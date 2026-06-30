@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, UserPlus, Users, UsersRound } from "lucide-react";
+import { Check, Pencil, UserPlus, Users, UsersRound } from "lucide-react";
 
 import type {
   CommissionMeetingSettings,
@@ -12,6 +12,7 @@ import {
   removeMeetingAttendee,
   seedExpectedAttendees,
   setMeetingQuorumMet,
+  updateMeetingAttendee,
 } from "@/lib/meetings/actions";
 import { Button } from "@/components/ui/button";
 import { AssigneeAvatar } from "@/components/cases/assignee-avatar";
@@ -34,8 +35,14 @@ function AttendeeRow({
   canEdit: boolean;
 }) {
   const [editOpen, setEditOpen] = useState(false);
+  const { run, isPending, error } = useMeetingAction();
   const name = attendee.displayName ?? "Participante";
   const isGuest = attendee.userId == null;
+  // A quick one-click flip to `presente` for a still-convocado attendee (member OR
+  // guest) — the common secretary action. Rebuilds the FULL attendee input from the
+  // row's current values so only `attendance` changes (the update RPC replaces the
+  // editable fields).
+  const canMarkPresent = canEdit && attendee.attendance === "convocado";
 
   return (
     <li className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
@@ -56,6 +63,11 @@ function AttendeeRow({
               ? ` · ${attendee.externalOrg}`
               : ""}
           </span>
+          {error && (
+            <span role="alert" className="text-xs font-medium text-destructive">
+              {error}
+            </span>
+          )}
         </div>
       </div>
 
@@ -63,6 +75,29 @@ function AttendeeRow({
         <AttendanceBadge attendance={attendee.attendance} />
         {canEdit && (
           <>
+            {canMarkPresent && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                disabled={isPending}
+                onClick={() =>
+                  run(() =>
+                    updateMeetingAttendee(attendee.id, {
+                      userId: attendee.userId,
+                      externalName: attendee.externalName,
+                      externalOrg: attendee.externalOrg,
+                      role: attendee.role,
+                      attendance: "presente",
+                      note: attendee.note,
+                    }),
+                  )
+                }
+                aria-label={`Marcar ${name} como presente`}
+              >
+                <Check aria-hidden="true" />
+              </Button>
+            )}
             <Button
               type="button"
               variant="ghost"

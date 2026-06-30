@@ -244,44 +244,50 @@ export function CaseDetailView({
               </p>
             </div>
 
-            {/* Lifecycle MANAGEMENT (activate/close/cancel/add-phase + its form +
-                expected-narrative pickers) lives on the coordinator `/manage/...`
-                route, whose `(detail)` layout loads the data it needs. The staff
-                full-case header is a read/contribute surface; a coordinator who needs
-                to run lifecycle uses the management route. Phase-level + content +
-                access actions below still honour `caps`. */}
-            {caps.canManageLifecycle && (
-              <Link
-                href={commissionHref(org, slug, "manage", "cases", c.id)}
-                className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-              >
-                Gerenciar caso
-              </Link>
+            {/* Self-contained header action cluster (staff route only — the
+                coordinator `(detail)` route renders its actions in the layout top bar
+                with `withHeader={false}`). The NSP entry is leftmost and gated only on
+                the flag, so any member may notify a safety event from an open OR
+                concluded case (mirrors the coordinator top bar). Lifecycle MANAGEMENT
+                lives on the coordinator `/manage/...` route, so here the right side
+                only offers the "Gerenciar caso" link to a coordinator. */}
+            {(patientSafetyEnabled || caps.canManageLifecycle) && (
+              <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
+                {patientSafetyEnabled && (
+                  <NotifyEventDialog
+                    commissionId={c.commissionId}
+                    caseId={c.id}
+                    // Seed the NSP patient panel from this case's identifiers when it
+                    // collects PHI (ADR 0038 — value copy via the audited door).
+                    // Absent for a PHI-free case (no prefill offered).
+                    onLoadPatientPrefill={
+                      showPatientPanel
+                        ? loadCasePatientForNotify.bind(null, c.id)
+                        : undefined
+                    }
+                  />
+                )}
+                {caps.canManageLifecycle && (
+                  <Link
+                    href={commissionHref(org, slug, "manage", "cases", c.id)}
+                    className="inline-flex w-fit shrink-0 items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-foreground shadow-xs transition-colors hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                  >
+                    Gerenciar caso
+                  </Link>
+                )}
+              </div>
             )}
           </div>
         </header>
       )}
 
       <CaseDetailMotion className="flex w-full flex-col gap-8">
-        {/* Patient-safety entry (Phase 14a): any commission member may notify the
-            NSP of a safety event raised from this case. Flag-gated. A read-only
-            viewer can still raise a safety event (it is not a case-workflow op). */}
-        {patientSafetyEnabled && (
-          <div data-rise className="flex justify-end">
-            <NotifyEventDialog
-              commissionId={c.commissionId}
-              caseId={c.id}
-              // Seed the NSP patient panel from this case's identifiers when it
-              // collects PHI (ADR 0038 — value copy via the audited door). Absent
-              // for a PHI-free case (no prefill offered).
-              onLoadPatientPrefill={
-                showPatientPanel
-                  ? loadCasePatientForNotify.bind(null, c.id)
-                  : undefined
-              }
-            />
-          </div>
-        )}
+        {/* Patient-safety entry (Phase 14a) moved to the coordinator `(detail)`
+            layout's top-bar "Notificar evento ao NSP" button, alongside the access
+            roster (D3 of the layout-fixes batch). It now shows on terminal cases too
+            (flag-gated, independent of case state). The staff `/casos/[caseId]` route
+            mounts this SHARED body without that top bar; the NSP entry there follows
+            its own route header. */}
 
         {/* Case-access grants moved to the coordinator `(detail)` layout's top-bar
             "Acesso ao caso" button + dialog (ADR 0033). This SHARED body — also mounted

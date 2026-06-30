@@ -34,7 +34,7 @@
 --   admin  platform admin — sees everything
 
 begin;
-select plan(82);
+select plan(88);
 
 -- The feature ships ON in-increment; flip it ON for the truth-table + boundary
 -- sections (a hermetic test must not depend on migration order). The flag-OFF
@@ -441,6 +441,60 @@ select throws_ok(
 reset role;
 select ok(app.can_read_case((select case_x from cs), (select ux from p)),
   'after grant, the formerly-unrelated member can_read_case → true');
+
+-- =========================================================================
+-- list_case_access (coordinator/admin-gated DEFINER read of the grant rows).
+-- At this point the case has THREE grants: gx_r (read), gx_w (write), ux (read,
+-- granted just above). Mirrors grant_case_access authz exactly.
+-- =========================================================================
+-- A coordinator reads ALL three grant rows.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.list_case_access((select case_x from cs))),
+  3, 'list_case_access: the coordinator reads all three grant rows');
+-- The levels are exactly read/write/read for gx_r/gx_w/ux.
+select is(
+  (select level from public.list_case_access((select case_x from cs))
+   where user_id = (select gx_w from p)),
+  'write', 'list_case_access: returns the correct level (gx_w → write)');
+reset role;
+
+-- A plain staff member (a non-coordinator, even though a member) is denied → 42501,
+-- mirroring grant_case_access (the RPC gate, not the per-row RLS policy).
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select * from public.list_case_access(%L) $$, (select case_x from cs)),
+  '42501', null, 'list_case_access: a plain staff member is denied (42501)');
+reset role;
+
+-- A read-grantee is likewise a non-coordinator → denied (NOT the RLS "see own row").
+select test_helpers.claims_for((select gx_r from p), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select * from public.list_case_access(%L) $$, (select case_x from cs)),
+  '42501', null, 'list_case_access: a read-grantee (non-coordinator) is denied (42501)');
+reset role;
+
+-- A foreign coordinator (commission Y) is denied → 42501.
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select * from public.list_case_access(%L) $$, (select case_x from cs)),
+  '42501', null, 'list_case_access: a foreign coordinator is denied (42501)');
+reset role;
+
+-- Flag OFF ⇒ unavailable (assert_case_access_enabled → 23514), proving the read
+-- respects the feature flag just like grant_case_access.
+update app.feature_flags set enabled = false where key = 'case_access';
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select * from public.list_case_access(%L) $$, (select case_x from cs)),
+  '23514', null, 'list_case_access: flag OFF raises unavailable (respects the feature flag)');
+reset role;
+update app.feature_flags set enabled = true where key = 'case_access';
 
 -- A plain staff member cannot grant (coordinator-only) → 42501.
 select test_helpers.claims_for((select st_x from k), false);

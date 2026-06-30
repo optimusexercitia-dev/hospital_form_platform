@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import {
   ATTACHMENT_KIND_LABEL,
   ATTACHMENT_KIND_ORDER,
@@ -149,9 +150,9 @@ function UploadDialog({
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Tipo</span>
-            <select
+            <NativeSelect
               name="kind"
-              className={FIELD_CLASS}
+              className="h-10"
               defaultValue={FILE_ATTACHMENT_DEFAULT_KIND}
             >
               {ATTACHMENT_KIND_ORDER.map((k) => (
@@ -159,7 +160,7 @@ function UploadDialog({
                   {ATTACHMENT_KIND_LABEL[k]}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm">

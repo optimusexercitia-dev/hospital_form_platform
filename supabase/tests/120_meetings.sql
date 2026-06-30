@@ -7,7 +7,7 @@
 -- case link; cross-commission RLS isolation.
 
 begin;
-select plan(29);
+select plan(30);
 
 -- Enable the meetings feature flag for the whole test.
 update app.feature_flags set enabled = true where key = 'meetings';
@@ -126,6 +126,27 @@ set local role authenticated;
 select throws_ok(
   $$ select public.conclude_meeting((select id from m2)) $$,
   'HC034', null, 'conclude with no present attendee raises HC034');
+reset role;
+
+-- =========================================================================
+-- C2 ROOT-CAUSE REGRESSION: a meeting whose ONLY present attendee is an external
+-- GUEST (user_id null) still raises HC034 — proving conclude_meeting's quorum
+-- guard (present AND user_id not null; ADR 0025) is CORRECT and unchanged. The
+-- reported "Concluir false-negative" is therefore an UPSTREAM defect: a committee
+-- MEMBER reaching the DB as a guest row (user_id null), NOT a conclude_meeting bug.
+-- =========================================================================
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table m3 on commit drop as
+  select * from public.create_meeting((select comm_x from k), 'Reunião 3', null, now(), null, 'presencial', null, null);
+grant select on m3 to authenticated;
+-- Only a PRESENT guest (user_id null) — no present member.
+select public.add_meeting_attendee(
+  (select id from m3), null, 'Só Convidado', 'Hospital W', 'convidado', 'presente', null);
+select throws_ok(
+  $$ select public.conclude_meeting((select id from m3)) $$,
+  'HC034', null,
+  'C2: a meeting with only a PRESENT GUEST (user_id null) raises HC034 — guard correct; bug is upstream (member-as-guest)');
 reset role;
 
 -- =========================================================================

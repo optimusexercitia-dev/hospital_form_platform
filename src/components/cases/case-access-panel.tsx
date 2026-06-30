@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Eye, PenLine, UserPlus, X } from "lucide-react";
 
-import type { CaseDetail } from "@/lib/queries/cases";
+import type { CaseAccessGrant, CaseDetail } from "@/lib/queries/cases";
 import type { MemberListItem } from "@/lib/queries/members";
 import {
   grantCaseAccess,
@@ -40,23 +40,28 @@ import { cn } from "@/lib/utils";
  * access by role, so a grant/revoke control on them (including the viewing coordinator
  * on themselves) is meaningless/misleading. This inherently removes the current viewer.
  *
- * NOTE (contract): no read currently returns the stored `case_access` grant ROWS, so
- * the roster shows DERIVED attribution + grant ACTIONS rather than a live "currently
- * granted: read/write" state. When backend adds a grants read, the row can show the
- * live level. Authorization is the DB's (coordinator/admin; `HC021` member check);
- * each action surfaces a pt-BR error inline. Rendered only when the viewer holds
+ * Each row shows the member's STORED grant level — `Leitura` (read) or `Edição`
+ * (write) — from {@link CaseAccessGrant} rows the parent loads server-side, beside
+ * the DERIVED `Atribuído` chip; a member may show both (an attributed member can also
+ * hold an explicit grant) or neither. Authorization is the DB's (coordinator/admin;
+ * `HC021` member check); each action surfaces a pt-BR error inline. A grant/revoke
+ * refreshes the server layout (via `useCaseAction` → `router.refresh()`), re-loading
+ * the grants so the badge updates live. Rendered only when the viewer holds
  * `canManageLifecycle` and the `case_access` flag is on (the parent gates this).
  */
 export function CaseAccessPanel({
   caseId,
   members,
   detail,
+  grants,
   caseOpen,
 }: {
   caseId: string;
   /** The commission roster (already sorted by the parent). */
   members: MemberListItem[];
   detail: CaseDetail;
+  /** The stored read/write grant rows, loaded server-side by the parent. */
+  grants: CaseAccessGrant[];
   /**
    * Whether the case is non-terminal. Read grants are allowed on terminal cases
    * (ADR 0033 D6); only WRITE grants require an open case, so on a terminal case the
@@ -73,6 +78,13 @@ export function CaseAccessPanel({
     for (const n of detail.narratives) if (n.assignedTo) ids.add(n.assignedTo);
     return ids;
   }, [detail.phases, detail.narratives]);
+
+  // The stored explicit grant level per member (`read`/`write`), for the level badge.
+  const grantLevelByUser = useMemo(() => {
+    const map = new Map<string, CaseAccessGrant["level"]>();
+    for (const g of grants) map.set(g.userId, g.level);
+    return map;
+  }, [grants]);
 
   // Coordinators (`staff_admin`) already hold full-case access by role, so a
   // grant/revoke control on them is meaningless — and revoking your OWN access is
@@ -101,6 +113,7 @@ export function CaseAccessPanel({
           {grantableMembers.map((m) => {
             const name = m.fullName ?? m.email ?? "Membro";
             const attributed = attributedIds.has(m.userId);
+            const grantLevel = grantLevelByUser.get(m.userId);
             return (
               <li
                 key={m.userId}
@@ -117,8 +130,23 @@ export function CaseAccessPanel({
                     <span className="truncate text-sm font-medium text-foreground">
                       {name}
                     </span>
-                    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                       Membro
+                      {/* Stored explicit grant level (D1: shown alongside — not
+                          instead of — `Atribuído`; a member may carry both). Same
+                          pill shape as `Atribuído`, distinct fill + label. */}
+                      {grantLevel && (
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[0.65rem] font-medium tracking-wide uppercase",
+                            grantLevel === "write"
+                              ? "bg-primary/12 text-primary"
+                              : "bg-muted text-muted-foreground",
+                          )}
+                        >
+                          {grantLevel === "write" ? "Edição" : "Leitura"}
+                        </span>
+                      )}
                       {attributed && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-accent px-1.5 py-0.5 text-[0.65rem] font-medium tracking-wide text-accent-foreground uppercase">
                           Atribuído

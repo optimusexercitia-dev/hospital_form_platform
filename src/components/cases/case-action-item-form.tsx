@@ -20,6 +20,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
+import { DatePicker } from "@/components/ui/date-picker";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 
 const FIELD_CLASS =
@@ -135,9 +137,9 @@ export function CaseActionItemForm({
                   (opcional)
                 </span>
               </span>
-              <select
+              <NativeSelect
                 name="assignedTo"
-                className={FIELD_CLASS}
+                className="py-2"
                 defaultValue={item?.assignedTo ?? ""}
               >
                 <option value="">Sem responsável</option>
@@ -146,7 +148,7 @@ export function CaseActionItemForm({
                     {a.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
 
             <label className="flex flex-col gap-1.5 text-sm">
@@ -156,10 +158,8 @@ export function CaseActionItemForm({
                   (opcional)
                 </span>
               </span>
-              <input
+              <DatePicker
                 name="dueDate"
-                type="date"
-                className={FIELD_CLASS}
                 defaultValue={item?.dueDate ?? ""}
               />
             </label>
@@ -173,14 +173,14 @@ export function CaseActionItemForm({
                   (opcional)
                 </span>
               </span>
-              <select name="sourceCasePhaseId" className={FIELD_CLASS} defaultValue="">
+              <NativeSelect name="sourceCasePhaseId" className="py-2" defaultValue="">
                 <option value="">Nenhuma</option>
                 {phases.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.label}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               <span className="text-xs text-muted-foreground">
                 A fase cuja revisão gerou esta ação, se houver.
               </span>

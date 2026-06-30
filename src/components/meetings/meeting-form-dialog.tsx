@@ -27,6 +27,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { MODALITY_LABEL, MODALITY_ORDER } from "./meeting-labels";
 import { toDateTimeLocalValue } from "./format";
 
@@ -183,10 +185,10 @@ export function MeetingFormDialog({
                 (opcional)
               </span>
             </span>
-            <select
+            <NativeSelect
               value={meetingTypeId}
               onChange={(e) => setMeetingTypeId(e.target.value)}
-              className={FIELD_CLASS}
+              className="h-10"
             >
               <option value="">Sem tipo</option>
               {meetingTypes.map((t) => (
@@ -194,18 +196,16 @@ export function MeetingFormDialog({
                   {t.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </label>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Início</span>
-              <input
-                type="datetime-local"
+              <DateTimePicker
                 value={start}
-                onChange={(e) => setStart(e.target.value)}
+                onChange={setStart}
                 required
-                className={FIELD_CLASS}
                 aria-invalid={
                   state?.fieldErrors?.scheduledStart ? true : undefined
                 }
@@ -227,11 +227,9 @@ export function MeetingFormDialog({
                   (opcional)
                 </span>
               </span>
-              <input
-                type="datetime-local"
+              <DateTimePicker
                 value={end}
-                onChange={(e) => setEnd(e.target.value)}
-                className={FIELD_CLASS}
+                onChange={setEnd}
                 aria-invalid={
                   state?.fieldErrors?.scheduledEnd ? true : undefined
                 }

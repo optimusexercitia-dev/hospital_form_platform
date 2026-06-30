@@ -10,9 +10,9 @@ import type {
 } from "@/lib/queries/submissions";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
+import { NativeSelect } from "@/components/ui/native-select";
+import { DatePicker } from "@/components/ui/date-picker";
 
 /**
  * F4 — submissions-browser filters: member, form, date range, and the explicit
@@ -68,21 +68,16 @@ export function SubmissionsFilters({
     member || form || from || to || includeInProgress,
   );
 
-  const selectClasses = cn(
-    "h-11 w-full min-w-44 rounded-lg border border-input bg-card px-3 text-sm text-foreground shadow-xs outline-none transition-[color,box-shadow,border-color]",
-    "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40",
-  );
-
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-xs">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={memberId}>Membro</Label>
-          <select
+          <NativeSelect
             id={memberId}
             value={member ?? ""}
             onChange={(e) => setParam("member", e.target.value)}
-            className={selectClasses}
+            className="min-w-44"
           >
             <option value="">Todos os membros</option>
             {members.map((m) => (
@@ -90,16 +85,16 @@ export function SubmissionsFilters({
                 {m.name ?? "Membro removido"}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={formId}>Formulário</Label>
-          <select
+          <NativeSelect
             id={formId}
             value={form ?? ""}
             onChange={(e) => setParam("form", e.target.value)}
-            className={selectClasses}
+            className="min-w-44"
           >
             <option value="">Todos os formulários</option>
             {forms.map((f) => (
@@ -107,29 +102,27 @@ export function SubmissionsFilters({
                 {f.title}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={fromId}>De</Label>
-          <Input
+          <DatePicker
             id={fromId}
-            type="date"
             value={from ?? ""}
+            onChange={(v) => setParam("from", v)}
             max={to ?? undefined}
-            onChange={(e) => setParam("from", e.target.value)}
             className="w-auto"
           />
         </div>
 
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={toId}>Até</Label>
-          <Input
+          <DatePicker
             id={toId}
-            type="date"
             value={to ?? ""}
+            onChange={(v) => setParam("to", v)}
             min={from ?? undefined}
-            onChange={(e) => setParam("to", e.target.value)}
             className="w-auto"
           />
         </div>

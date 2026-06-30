@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 
 const FIELD_CLASS =
   "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -164,12 +165,12 @@ export function SubjectForm({
           {kind === "member" ? (
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Membro</span>
-              <select
+              <NativeSelect
                 value={userId}
                 onChange={(e) => setUserId(e.target.value)}
                 required
                 disabled={lockKind}
-                className={FIELD_CLASS}
+                className="h-10"
               >
                 <option value="" disabled>
                   Selecione um membro…
@@ -186,7 +187,7 @@ export function SubjectForm({
                     {m.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           ) : (
             <label className="flex flex-col gap-1.5 text-sm">

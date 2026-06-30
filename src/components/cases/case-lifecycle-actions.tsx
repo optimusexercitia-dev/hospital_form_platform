@@ -28,14 +28,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import { useCaseAction } from "@/components/cases/use-case-action";
 import { AddAdHocPhaseDialog } from "@/components/cases/add-ad-hoc-phase-dialog";
 import { CaseStatusBadge } from "@/components/cases/case-status-badge";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 import type { SlotForm } from "@/components/process-templates/template-builder-shell";
 
-const SELECT_CLASS =
-  "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
  * Case-level coordinator actions in the detail header (non-terminal case only —
@@ -235,11 +234,11 @@ function ConcludeCaseDialog({
           {offersOutcomes && (
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Desfecho</span>
-              <select
+              <NativeSelect
                 value={selected}
                 onChange={(e) => setSelected(e.target.value)}
                 required
-                className={SELECT_CLASS}
+                className="h-10"
                 aria-invalid={!canConfirm ? true : undefined}
               >
                 <option value="">Selecione um desfecho…</option>
@@ -248,7 +247,7 @@ function ConcludeCaseDialog({
                     {o.label}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
               {selectedOutcome && (
                 <span className="mt-1 flex flex-wrap items-center gap-2">
                   <CaseStatusBadge

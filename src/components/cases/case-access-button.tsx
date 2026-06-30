@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { KeyRound } from "lucide-react";
 
-import type { CaseDetail } from "@/lib/queries/cases";
+import type { CaseAccessGrant, CaseDetail } from "@/lib/queries/cases";
 import type { MemberListItem } from "@/lib/queries/members";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,12 +32,15 @@ export function CaseAccessButton({
   caseId,
   members,
   detail,
+  grants,
   caseOpen,
 }: {
   caseId: string;
   /** The commission roster (already sorted by the layout). */
   members: MemberListItem[];
   detail: CaseDetail;
+  /** The stored read/write grant rows for the per-member level badge. */
+  grants: CaseAccessGrant[];
   /** Whether the case is non-terminal (gates WRITE grants in the roster). */
   caseOpen: boolean;
 }) {
@@ -66,6 +69,7 @@ export function CaseAccessButton({
           caseId={caseId}
           members={members}
           detail={detail}
+          grants={grants}
           caseOpen={caseOpen}
         />
       </DialogContent>

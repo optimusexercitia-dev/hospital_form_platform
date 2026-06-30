@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { pickDate, readHiddenDateValue } from './helpers/date-pickers'
 
 /**
  * Phase 7 — Multi-Phase Cases
@@ -1465,34 +1466,40 @@ test('AC-DueDays-Activate-Prefill: activate dialog prefills dueDate from default
   const activateDialog = page.getByRole('dialog').filter({ hasText: /Ativar e atribuir fase/i })
   await expect(activateDialog).toBeVisible({ timeout: 10_000 })
 
-  // The dueDate input should be pre-filled to today + 7 days.
-  const dueDateInput = activateDialog.locator('input[name="dueDate"]')
-  await expect(dueDateInput).toBeVisible({ timeout: 5_000 })
-  const prefillValue = await dueDateInput.inputValue()
+  // The dueDate DatePicker should be PRE-FILLED to today + 7 days. The DatePicker
+  // (now a calendar-popover button) renders a hidden input[name="dueDate"] carrying
+  // the YYYY-MM-DD value — read it directly (it is type=hidden, so we assert the
+  // VALUE, not visibility). This is the real prefill behavior the test guards.
+  const prefillValue = await readHiddenDateValue(activateDialog, 'dueDate')
   expect(prefillValue).not.toBe('')
 
-  // Assert it is approximately today + 7 (within ±1 day to account for timezone edge cases).
+  // It must equal today+7 (the seed template's default_due_days = 7).
   const expectedDate = new Date()
   expectedDate.setDate(expectedDate.getDate() + 7)
   const expectedIso = toDateInputValue(expectedDate)
-  // The prefilled date must equal today+7.
   expect(prefillValue).toBe(expectedIso)
 
-  // Choose a specific target date: today + 10 days for easy assertion.
-  const targetDate = new Date()
-  targetDate.setDate(targetDate.getDate() + 10)
-  const targetIso = toDateInputValue(targetDate)
-  const targetPtBR = toPtBRDate(targetIso)
-
-  await dueDateInput.fill(targetIso)
-  await expect(dueDateInput).toHaveValue(targetIso)
+  // Choose a NEW date via the calendar popover (day "20" — present + enabled in the
+  // prefilled month), then read back the actual chosen YYYY-MM-DD from the hidden
+  // input and assert the case's Prazo chip shows THAT date. Picking via the real UI
+  // (rather than fabricating an exact day) keeps the end-to-end flow honest while
+  // remaining deterministic.
+  await pickDate(activateDialog, page, {
+    trigger: activateDialog.locator('button[aria-haspopup="dialog"]').first(),
+    day: '20',
+  })
+  const chosenIso = await readHiddenDateValue(activateDialog, 'dueDate')
+  expect(chosenIso).not.toBe('')
+  expect(chosenIso).not.toBe(prefillValue) // a different date than the prefill
+  const chosenPtBR = toPtBRDate(chosenIso)
 
   // Select an assignee.
   await activateDialog.locator('select[name="assignedTo"]').selectOption(STAFF1_CCIH_ID)
   await activateDialog.getByRole('button', { name: /Ativar fase/i }).click()
   await expect(activateDialog).toHaveCount(0, { timeout: 15_000 })
 
-  // The case-detail phase list should show the due-date chip "Prazo: dd/MM/yyyy".
+  // The case-detail phase list should show the due-date chip "Prazo: dd/MM/yyyy"
+  // with the date we actually picked.
   await page.reload()
   await page.waitForURL(new RegExp(`/manage/cases/${newCaseId}`), { timeout: 15_000 })
   await page.waitForLoadState('networkidle', { timeout: 20_000 })
@@ -1502,7 +1509,7 @@ test('AC-DueDays-Activate-Prefill: activate dialog prefills dueDate from default
   // Assert the Prazo chip is present and contains the formatted pt-BR date.
   const dueDateChipAfter = updatedPhase1.locator('span', { hasText: /Prazo:/i })
   await expect(dueDateChipAfter).toBeVisible({ timeout: 10_000 })
-  await expect(dueDateChipAfter).toContainText(targetPtBR)
+  await expect(dueDateChipAfter).toContainText(chosenPtBR)
 })
 
 test('AC-DueDays-RemovePrazo: clicking "Remover prazo" clears the due date; activating without a date shows no due-date chip', async ({
@@ -1524,7 +1531,9 @@ test('AC-DueDays-RemovePrazo: clicking "Remover prazo" clears the due date; acti
   const activateDialog = page.getByRole('dialog').filter({ hasText: /Ativar e atribuir fase/i })
   await expect(activateDialog).toBeVisible({ timeout: 10_000 })
 
-  // The dueDate input is pre-filled (default_due_days = 7).
+  // The dueDate DatePicker is pre-filled (default_due_days = 7). Its hidden
+  // input[name="dueDate"] carries the value — read it (type=hidden, so assert the
+  // value, not visibility).
   const dueDateInput = activateDialog.locator('input[name="dueDate"]')
   const prefillValue = await dueDateInput.inputValue()
   expect(prefillValue).not.toBe('')

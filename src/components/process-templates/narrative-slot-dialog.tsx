@@ -23,6 +23,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 
 const FIELD_CLASS =
@@ -149,9 +150,9 @@ export function NarrativeSlotDialog({
                   Configurações → Narrativas antes de adicioná-la a um processo.
                 </span>
               ) : (
-                <select
+                <NativeSelect
                   name="narrativeTypeId"
-                  className={FIELD_CLASS}
+                  className="h-10"
                   value={narrativeTypeId}
                   onChange={(e) => setNarrativeTypeId(e.target.value)}
                   required
@@ -165,7 +166,7 @@ export function NarrativeSlotDialog({
                       {t.label}
                     </option>
                   ))}
-                </select>
+                </NativeSelect>
               )}
               {state?.fieldErrors?.narrativeTypeId && (
                 <span role="alert" className="text-sm font-medium text-destructive">

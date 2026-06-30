@@ -7,10 +7,8 @@ import { AlertTriangle, Stethoscope } from "lucide-react";
 import type { OfferedCaseOutcome, ResolvedCaseOutcome } from "@/lib/queries/cases";
 import { setCaseOutcome } from "@/lib/cases/outcomes-actions";
 import { cn } from "@/lib/utils";
+import { NativeSelect } from "@/components/ui/native-select";
 import { CaseStatusBadge } from "@/components/cases/case-status-badge";
-
-const SELECT_CLASS =
-  "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
  * The case-detail OUTCOME selector (D9/D15): choose the case's single outcome from
@@ -72,12 +70,12 @@ export function CaseOutcomeSelector({
 
       <label className="flex flex-col gap-1.5 text-sm">
         <span className="font-medium">Desfecho</span>
-        <select
+        <NativeSelect
           value={value}
           onChange={(e) => change(e.target.value)}
           disabled={isPending}
           aria-label="Desfecho do caso"
-          className={SELECT_CLASS}
+          className="h-10"
         >
           <option value="">Sem desfecho</option>
           {offeredOutcomes.map((o) => (
@@ -85,7 +83,7 @@ export function CaseOutcomeSelector({
               {o.label}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
 
       {selected && (

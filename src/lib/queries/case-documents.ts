@@ -74,6 +74,12 @@ export interface CaseEvent {
   /** Required free text. */
   body: string
   occurredAt: string | null
+  /**
+   * Optional wall-clock time companion to {@link occurredAt}, as `"HH:mm"`, or
+   * `null` when none was recorded. Stored in the `time` column `occurred_time`
+   * (Postgres returns `HH:mm:ss`); normalized to `HH:mm` here for the UI.
+   */
+  occurredTime: string | null
   createdBy: string | null
   /** Author's display name (joined); `null` if unresolved. */
   createdByName: string | null
@@ -107,6 +113,7 @@ interface CaseEventRow {
   title: string | null
   body: string
   occurred_at: string | null
+  occurred_time: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -206,8 +213,8 @@ export async function listCaseEvents(caseId: string): Promise<CaseEvent[]> {
     .from('case_events')
     .select(
       `
-      id, case_id, kind, title, body, occurred_at, created_by, created_at,
-      updated_at,
+      id, case_id, kind, title, body, occurred_at, occurred_time, created_by,
+      created_at, updated_at,
       profiles:created_by ( full_name )
     `,
     )
@@ -225,6 +232,8 @@ export async function listCaseEvents(caseId: string): Promise<CaseEvent[]> {
     title: r.title,
     body: r.body,
     occurredAt: r.occurred_at,
+    // Postgres `time` serializes as `HH:mm:ss`; the UI wants `HH:mm`.
+    occurredTime: r.occurred_time ? r.occurred_time.slice(0, 5) : null,
     createdBy: r.created_by,
     createdByName: r.profiles?.full_name ?? null,
     createdAt: r.created_at,

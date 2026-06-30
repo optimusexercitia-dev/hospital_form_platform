@@ -17,6 +17,7 @@ import {
 } from "@/lib/safety/rca-actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
 import {
   Dialog,
   DialogContent,
@@ -30,9 +31,6 @@ import { useFlipReorder } from "@/components/forms/use-flip-reorder";
 import { useSafetyAction } from "../use-safety-action";
 import { RcaConfirmDelete } from "./rca-confirm-delete";
 import { formatDateTime } from "../format";
-
-const FIELD_CLASS =
-  "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-60";
 
 /**
  * The incident-TIMELINE panel (track-doc deliverable): a chronology of what happened
@@ -276,12 +274,10 @@ function TimelineEntryDialog({
           )}
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Data e hora</span>
-            <input
-              type="datetime-local"
+            <DateTimePicker
               value={occurredAt}
-              onChange={(e) => setOccurredAt(e.target.value)}
+              onChange={setOccurredAt}
               required
-              className={FIELD_CLASS}
             />
           </label>
           <label className="flex flex-col gap-1.5 text-sm">

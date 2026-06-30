@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
+import { NativeSelect } from "@/components/ui/native-select";
 import { RecommendWhenEditor } from "@/components/process-templates/recommend-when-editor";
 import {
   PhaseResultEditor,
@@ -269,9 +270,9 @@ export function PhaseSlotDialog({
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Formulário da fase</span>
-            <select
+            <NativeSelect
               name="formId"
-              className={SELECT_CLASS}
+              className="h-10"
               value={formId}
               onChange={(e) => setFormId(e.target.value)}
               required
@@ -283,7 +284,7 @@ export function PhaseSlotDialog({
                   {f.title}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             {state?.fieldErrors?.formId && (
               <span role="alert" className="text-sm font-medium text-destructive">
                 {state.fieldErrors.formId}

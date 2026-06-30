@@ -16,6 +16,7 @@ import {
   type TriageDisposition,
 } from "@/lib/safety/triage-types";
 import { cn } from "@/lib/utils";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "../format";
 import { type TriageDraft, deriveVerdict, isSentinel, pathwayForcedToRca } from "./triage-derive";
@@ -163,12 +164,12 @@ export function DispositionRail({
               {REVIEW_PATHWAY_LABELS.rca} (obrigatório)
             </p>
           ) : (
-            <select
+            <NativeSelect
               id="triage-pathway"
               value={draft.reviewPathway ?? ""}
               disabled={frozen}
               onChange={(e) => onChangePathway(e.target.value as ReviewPathway)}
-              className="h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-10"
             >
               <option value="">Selecione…</option>
               {NON_RCA_PATHWAYS.map((p) => (
@@ -176,7 +177,7 @@ export function DispositionRail({
                   {REVIEW_PATHWAY_LABELS[p]}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           )}
         </div>
       )}

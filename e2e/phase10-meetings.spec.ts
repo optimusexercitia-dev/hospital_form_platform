@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { setDateTimeField, setDateTimeFieldKeyboard } from './helpers/date-pickers'
 
 /**
  * Phase 10 — Meetings
@@ -222,12 +223,10 @@ test('AC1 — happy path: schedule meeting, Marcar como realizada, add content, 
   const typeSelect = dialog.locator('select').first()
   await typeSelect.selectOption({ index: 1 }) // pick first non-empty type
 
-  // Set start (datetime-local input)
-  const startInput = dialog.locator('input[type="datetime-local"]').first()
-  await startInput.fill('2026-07-01T10:00')
-
-  const endInput = dialog.locator('input[type="datetime-local"]').nth(1)
-  await endInput.fill('2026-07-01T11:30')
+  // Set Início + Término via the DateTimePicker (DatePicker popover + segmented
+  // TimeField — replaced the native datetime-local inputs).
+  await setDateTimeField(page, dialog, 'Início', { time: '10:00' })
+  await setDateTimeField(page, dialog, 'Término', { time: '11:30' })
 
   // Modality: rendered as toggle buttons (aria-pressed), not a select
   // Default is presencial — just leave it (or click Presencial if available)
@@ -1109,15 +1108,12 @@ test('AC6 — keyboard-only: schedule meeting and Concluir via keyboard navigati
   await typeSelect.focus()
   await typeSelect.selectOption({ index: 1 })
 
-  // Tab to start datetime
-  const startInput = dialog.locator('input[type="datetime-local"]').first()
-  await startInput.focus()
-  await startInput.fill('2026-08-01T09:00')
-
-  // Tab to end datetime
-  const endInput = dialog.locator('input[type="datetime-local"]').nth(1)
-  await endInput.focus()
-  await endInput.fill('2026-08-01T10:00')
+  // Set Início via the DateTimePicker using the KEYBOARD only: focus the date
+  // trigger, Enter to open, Tab into the calendar grid to the focused day, Enter
+  // to select, then type the time digits into the segmented TimeField. (Término
+  // is optional — Início alone is enough for the schedule.) This proves the new
+  // DatePicker/TimeField are operable with no mouse.
+  await setDateTimeFieldKeyboard(page, dialog, 'Início', { time: '09:00' })
 
   // Submit the form: focus the Salvar button and click (keyboards Submit may not
   // fire the React button's onClick — use .click() for cross-browser reliability)

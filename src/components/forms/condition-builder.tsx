@@ -14,6 +14,7 @@ import type {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { NativeSelect } from "@/components/ui/native-select";
 
 /**
  * The ONE reusable visibility-condition builder (decision #8), used for BOTH
@@ -38,8 +39,6 @@ import { Checkbox } from "@/components/ui/checkbox";
  * question can never be required — decision #9).
  */
 
-const SELECT_CLASS =
-  "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 /** pt-BR operator labels (the full extended set). */
 const OP_LABELS: Record<ConditionOp, string> = {
@@ -314,14 +313,14 @@ export function ConditionBuilder({
           {rows.length > 1 && (
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Combinar condições</span>
-              <select
-                className={SELECT_CLASS}
+              <NativeSelect
+                className="h-10"
                 value={match}
                 onChange={(e) => changeMatch(e.target.value as "all" | "any")}
               >
                 <option value="all">Atender a TODAS as condições</option>
                 <option value="any">Atender a QUALQUER condição</option>
-              </select>
+              </NativeSelect>
             </label>
           )}
 
@@ -358,9 +357,9 @@ export function ConditionBuilder({
 
                   <label className="flex flex-col gap-1.5 text-sm">
                     <span className="sr-only">Pergunta controladora</span>
-                    <select
+                    <NativeSelect
                       id={`${rowId}-target`}
-                      className={SELECT_CLASS}
+                      className="h-10"
                       value={row.questionKey}
                       onChange={(e) => onPickTarget(row.uid, e.target.value)}
                     >
@@ -370,16 +369,16 @@ export function ConditionBuilder({
                           {t.label}
                         </option>
                       ))}
-                    </select>
+                    </NativeSelect>
                   </label>
 
                   {target && (
                     <div className="flex flex-col gap-2.5">
                       <label className="flex flex-col gap-1.5 text-sm">
                         <span className="sr-only">Operador</span>
-                        <select
+                        <NativeSelect
                           id={`${rowId}-op`}
-                          className={SELECT_CLASS}
+                          className="h-10"
                           value={row.op}
                           onChange={(e) =>
                             onPickOp(row.uid, e.target.value as ConditionOp)
@@ -390,7 +389,7 @@ export function ConditionBuilder({
                               {OP_LABELS[o]}
                             </option>
                           ))}
-                        </select>
+                        </NativeSelect>
                       </label>
 
                       <ValueControl
@@ -483,9 +482,9 @@ function ValueControl({
     return (
       <label className="flex flex-col gap-1.5 text-sm">
         <span className="font-medium">Valor</span>
-        <select
+        <NativeSelect
           id={`${rowId}-value`}
-          className={SELECT_CLASS}
+          className="h-10"
           value={singleValue}
           onChange={(e) => onSingleChange(e.target.value)}
         >
@@ -495,7 +494,7 @@ function ValueControl({
               {opt}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
     );
   }

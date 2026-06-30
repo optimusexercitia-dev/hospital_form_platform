@@ -18,14 +18,13 @@ import {
 import type { PhaseResult } from "@/lib/queries/phase-results";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { NativeSelect } from "@/components/ui/native-select";
 import type { PhaseWithTargets } from "@/components/process-templates/phase-with-targets";
 
 // ---------------------------------------------------------------------------
 // Shared style constants (matches the rest of this feature tree)
 // ---------------------------------------------------------------------------
 
-const SELECT_CLASS =
-  "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 // ---------------------------------------------------------------------------
 // Types — per-row draft state
@@ -446,15 +445,15 @@ export function RecommendWhenEditor({
           {rows.length > 1 && (
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Combinar condições</span>
-              <select
-                className={SELECT_CLASS}
+              <NativeSelect
+                className="h-10"
                 value={match}
                 onChange={(e) => changeMatch(e.target.value as "all" | "any")}
                 aria-label="Combinar condições de recomendação"
               >
                 <option value="all">Atender a TODAS as condições</option>
                 <option value="any">Atender a QUALQUER condição</option>
-              </select>
+              </NativeSelect>
             </label>
           )}
 
@@ -652,9 +651,9 @@ function ConditionRow({
       {/* Source phase picker */}
       <label className="flex flex-col gap-1.5 text-sm" htmlFor={`${rowId}-from-phase`}>
         <span className="font-medium">Fase de origem</span>
-        <select
+        <NativeSelect
           id={`${rowId}-from-phase`}
-          className={SELECT_CLASS}
+          className="h-10"
           value={row.fromPhase === "" ? "" : String(row.fromPhase)}
           onChange={(e) => {
             const next = e.target.value === "" ? "" : Number(e.target.value);
@@ -680,7 +679,7 @@ function ConditionRow({
                   : ""}
             </option>
           ))}
-        </select>
+        </NativeSelect>
 
         {/* Hint when no result-emitting phase qualifies */}
         {(row.source === "result-specific" || row.source === "result-adverse") &&
@@ -780,9 +779,9 @@ function AnswerRowControls({
     <>
       <label className="flex flex-col gap-1.5 text-sm" htmlFor={`${rowId}-question`}>
         <span className="font-medium">Quando a resposta de</span>
-        <select
+        <NativeSelect
           id={`${rowId}-question`}
-          className={SELECT_CLASS}
+          className="h-10"
           value={row.questionKey}
           onChange={(e) =>
             onUpdate({
@@ -800,16 +799,16 @@ function AnswerRowControls({
               {t.label || t.questionKey}
             </option>
           ))}
-        </select>
+        </NativeSelect>
       </label>
 
       {selectedTarget && (
         <>
           <label className="flex flex-col gap-1.5 text-sm" htmlFor={`${rowId}-op`}>
             <span className="font-medium">A condição</span>
-            <select
+            <NativeSelect
               id={`${rowId}-op`}
-              className={SELECT_CLASS}
+              className="h-10"
               value={row.op}
               onChange={(e) =>
                 onUpdate({
@@ -823,7 +822,7 @@ function AnswerRowControls({
               <option value="equals">for igual a</option>
               <option value="not_equals">for diferente de</option>
               <option value="in">for uma das opções</option>
-            </select>
+            </NativeSelect>
           </label>
 
           {selectedTarget.options.length === 0 ? (
@@ -851,9 +850,9 @@ function AnswerRowControls({
           ) : (
             <label className="flex flex-col gap-1.5 text-sm" htmlFor={`${rowId}-value`}>
               <span className="font-medium">Valor</span>
-              <select
+              <NativeSelect
                 id={`${rowId}-value`}
-                className={SELECT_CLASS}
+                className="h-10"
                 value={row.singleValue}
                 onChange={(e) => onUpdate({ singleValue: e.target.value })}
               >
@@ -863,7 +862,7 @@ function AnswerRowControls({
                     {opt}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           )}
         </>
@@ -951,9 +950,9 @@ function ResultRowControls({
         <>
           <label className="flex flex-col gap-1.5 text-sm" htmlFor={`${rowId}-result-op`}>
             <span className="font-medium">A condição</span>
-            <select
+            <NativeSelect
               id={`${rowId}-result-op`}
-              className={SELECT_CLASS}
+              className="h-10"
               value={row.op}
               onChange={(e) =>
                 onUpdate({
@@ -967,7 +966,7 @@ function ResultRowControls({
               <option value="equals">for igual a</option>
               <option value="not_equals">for diferente de</option>
               <option value="in">for um dos resultados</option>
-            </select>
+            </NativeSelect>
           </label>
 
           {availableResults.length === 0 ? (
@@ -1001,9 +1000,9 @@ function ResultRowControls({
               htmlFor={`${rowId}-result-value`}
             >
               <span className="font-medium">Resultado</span>
-              <select
+              <NativeSelect
                 id={`${rowId}-result-value`}
-                className={SELECT_CLASS}
+                className="h-10"
                 value={row.singleValue}
                 onChange={(e) => onUpdate({ singleValue: e.target.value })}
               >
@@ -1014,7 +1013,7 @@ function ResultRowControls({
                     {r.isAdverse ? " (adverso)" : ""}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           )}
         </>
@@ -1027,9 +1026,9 @@ function ResultRowControls({
           htmlFor={`${rowId}-adverse-value`}
         >
           <span className="font-medium">Resultado adverso</span>
-          <select
+          <NativeSelect
             id={`${rowId}-adverse-value`}
-            className={SELECT_CLASS}
+            className="h-10"
             value={row.adverseValue ? "true" : "false"}
             onChange={(e) =>
               onUpdate({ adverseValue: e.target.value === "true" })
@@ -1037,7 +1036,7 @@ function ResultRowControls({
           >
             <option value="true">for adverso</option>
             <option value="false">não for adverso</option>
-          </select>
+          </NativeSelect>
         </label>
       )}
     </>
@@ -1089,9 +1088,9 @@ function PreviewPanel({
           htmlFor={`${rowId}-preview-answer`}
         >
           <span className="font-medium">Pré-visualizar: se a resposta fosse</span>
-          <select
+          <NativeSelect
             id={`${rowId}-preview-answer`}
-            className={SELECT_CLASS}
+            className="h-10"
             value={row.previewAnswer}
             onChange={(e) => onUpdate({ previewAnswer: e.target.value })}
           >
@@ -1101,7 +1100,7 @@ function PreviewPanel({
                 {opt}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       )}
 
@@ -1112,9 +1111,9 @@ function PreviewPanel({
           htmlFor={`${rowId}-preview-result`}
         >
           <span className="font-medium">Pré-visualizar: se o resultado fosse</span>
-          <select
+          <NativeSelect
             id={`${rowId}-preview-result`}
-            className={SELECT_CLASS}
+            className="h-10"
             value={row.previewResultId}
             onChange={(e) => onUpdate({ previewResultId: e.target.value })}
           >
@@ -1125,7 +1124,7 @@ function PreviewPanel({
                 {r.isAdverse ? " (adverso)" : ""}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       )}
 
@@ -1136,9 +1135,9 @@ function PreviewPanel({
           htmlFor={`${rowId}-preview-adverse`}
         >
           <span className="font-medium">Pré-visualizar: se o resultado fosse</span>
-          <select
+          <NativeSelect
             id={`${rowId}-preview-adverse`}
-            className={SELECT_CLASS}
+            className="h-10"
             value={row.previewAdverse === "" ? "" : String(row.previewAdverse)}
             onChange={(e) =>
               onUpdate({
@@ -1149,7 +1148,7 @@ function PreviewPanel({
             <option value="">Selecione…</option>
             <option value="true">adverso</option>
             <option value="false">não adverso</option>
-          </select>
+          </NativeSelect>
         </label>
       )}
 

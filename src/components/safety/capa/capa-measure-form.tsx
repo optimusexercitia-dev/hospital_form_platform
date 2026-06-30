@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { CapaMeasure, CapaMeasureInput } from "@/lib/safety/capa-types";
 import type { ActionState } from "@/lib/safety/types";
 import { addCapaMeasure, updateCapaMeasure } from "@/lib/safety/capa-actions";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -139,13 +140,13 @@ export function CapaMeasureForm({
             <span className="font-medium text-muted-foreground">
               Indicador vinculado
             </span>
-            <select
+            <NativeSelect
               disabled
               aria-describedby={indicatorHintId}
-              className={FIELD_CLASS}
+              className="h-10"
             >
               <option>Nenhum</option>
-            </select>
+            </NativeSelect>
             <span id={indicatorHintId} className="text-xs text-muted-foreground">
               Disponível com Indicadores (Fase 15).
             </span>

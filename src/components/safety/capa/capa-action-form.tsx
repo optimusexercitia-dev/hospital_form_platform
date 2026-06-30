@@ -14,8 +14,10 @@ import type { AssignableUser, RcaRootCause } from "@/lib/safety/rca-types";
 import type { ActionState } from "@/lib/safety/types";
 import { addCapaAction, updateCapaAction } from "@/lib/safety/capa-actions";
 import { cn } from "@/lib/utils";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Dialog,
   DialogContent,
@@ -194,21 +196,19 @@ export function CapaActionForm({
             </label>
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Prazo</span>
-              <input
-                type="date"
+              <DatePicker
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className={FIELD_CLASS}
+                onChange={setDueDate}
               />
             </label>
           </div>
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Encarregado (avança a própria ação)</span>
-            <select
+            <NativeSelect
               value={assigneeUserId}
               onChange={(e) => setAssigneeUserId(e.target.value)}
-              className={FIELD_CLASS}
+              className="h-10"
             >
               <option value="">Sem encarregado</option>
               {users.map((u) => (
@@ -216,7 +216,7 @@ export function CapaActionForm({
                   {userLabel(u)}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
             <span className="text-xs text-muted-foreground">
               O encarregado pode avançar e concluir esta ação, mesmo sem gerenciar o
               plano.
@@ -237,10 +237,10 @@ export function CapaActionForm({
           {rootCauses.length > 0 && (
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Causa raiz endereçada (opcional)</span>
-              <select
+              <NativeSelect
                 value={rootCauseId}
                 onChange={(e) => setRootCauseId(e.target.value)}
-                className={FIELD_CLASS}
+                className="h-10"
               >
                 <option value="">Nenhuma</option>
                 {rootCauses.map((rc, i) => (
@@ -248,7 +248,7 @@ export function CapaActionForm({
                     {String(i + 1).padStart(2, "0")} — {rc.text || "Causa sem texto"}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </label>
           )}
 

@@ -84,6 +84,20 @@ export interface MeetingListItem {
   meetingUrl: string | null
   /** Secretary's quorum verdict (computed at conclusion, overridable); `null` before conclusion. */
   quorumMet: boolean | null
+  /**
+   * Count of this meeting's OPEN action items — `meeting_action_items` with
+   * `status ∈ {open, in_progress}` (excludes `done` / `cancelled`). Always a
+   * number (0 when none); drives the "Ações pendentes" column.
+   */
+  pendingActionItems: number
+  /**
+   * For a meeting in the SIGNATURE phase (`status = 'em_assinatura'`): the number
+   * of required signatures still outstanding — present platform signers
+   * (attendees with `user_id` set AND `attendance = 'presente'`) minus the
+   * `meeting_signatures` rows already `signed`. `null` for any other status (the
+   * "Assinaturas pendentes" column renders `—`). Never negative.
+   */
+  pendingSignatures: number | null
   createdBy: string | null
   createdAt: string
   updatedAt: string
@@ -402,6 +416,11 @@ export function mapMeetingListItem(r: MeetingRow): MeetingListItem {
     locationText: r.location_text,
     meetingUrl: r.meeting_url,
     quorumMet: r.quorum_met,
+    // Aggregates are populated by `listMeetings` (which batch-reads the child
+    // tables); other consumers of this shared mapper (e.g. the Case Timeline's
+    // reverse meetings read) get the neutral defaults.
+    pendingActionItems: 0,
+    pendingSignatures: null,
     createdBy: r.created_by,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -427,7 +446,15 @@ export const MEETING_LIST_COLUMNS = `
 // when unreadable).
 // ---------------------------------------------------------------------------
 
-/** Every meeting of a commission (upcoming + past), for the list view. Newest scheduled first. */
+/**
+ * Every meeting of a commission (upcoming + past), for the list view. Newest
+ * scheduled first. Each row carries two derived aggregates
+ * ({@link MeetingListItem.pendingActionItems} / `pendingSignatures`), computed
+ * from three batched, RLS-scoped child reads (so a non-member sees neither the
+ * meetings nor their aggregates) and merged in memory — no DEFINER RPC, no
+ * schema object. `pendingSignatures` is `null` for any non-`em_assinatura`
+ * meeting (the column renders `—`).
+ */
 export async function listMeetings(
   commissionId: string,
 ): Promise<MeetingListItem[]> {
@@ -440,8 +467,78 @@ export async function listMeetings(
     .order('scheduled_start', { ascending: false })
     .returns<MeetingRow[]>()
 
-  if (error || !data) return []
-  return data.map(mapListItem)
+  if (error || !data || data.length === 0) return []
+
+  const meetingIds = data.map((m) => m.id)
+  const signatureMeetingIds = data
+    .filter((m) => m.status === 'em_assinatura')
+    .map((m) => m.id)
+
+  // (1) Open action items per meeting (status open/in_progress).
+  const pendingActionsByMeeting = new Map<string, number>()
+  const { data: actionRows } = await supabase
+    .from('meeting_action_items')
+    .select('meeting_id')
+    .in('meeting_id', meetingIds)
+    .in('status', ['open', 'in_progress'])
+    .returns<{ meeting_id: string }[]>()
+  for (const r of actionRows ?? []) {
+    pendingActionsByMeeting.set(
+      r.meeting_id,
+      (pendingActionsByMeeting.get(r.meeting_id) ?? 0) + 1,
+    )
+  }
+
+  // (2) Pending signatures — ONLY for em_assinatura meetings: present platform
+  // signers (user_id set AND attendance='presente') minus rows already signed.
+  // Mirrors the conclude/sign "required signers" set (user_id not null & present).
+  const presentSignersByMeeting = new Map<string, number>()
+  const signedByMeeting = new Map<string, number>()
+  if (signatureMeetingIds.length > 0) {
+    const { data: presentRows } = await supabase
+      .from('meeting_attendees')
+      .select('meeting_id')
+      .in('meeting_id', signatureMeetingIds)
+      .eq('attendance', 'presente')
+      .not('user_id', 'is', null)
+      .returns<{ meeting_id: string }[]>()
+    for (const r of presentRows ?? []) {
+      presentSignersByMeeting.set(
+        r.meeting_id,
+        (presentSignersByMeeting.get(r.meeting_id) ?? 0) + 1,
+      )
+    }
+
+    const { data: signedRows } = await supabase
+      .from('meeting_signatures')
+      .select('meeting_id')
+      .in('meeting_id', signatureMeetingIds)
+      .eq('status', 'signed')
+      .returns<{ meeting_id: string }[]>()
+    for (const r of signedRows ?? []) {
+      signedByMeeting.set(
+        r.meeting_id,
+        (signedByMeeting.get(r.meeting_id) ?? 0) + 1,
+      )
+    }
+  }
+
+  return data.map((m) => {
+    const base = mapListItem(m)
+    const pendingSignatures =
+      m.status === 'em_assinatura'
+        ? Math.max(
+            0,
+            (presentSignersByMeeting.get(m.id) ?? 0) -
+              (signedByMeeting.get(m.id) ?? 0),
+          )
+        : null
+    return {
+      ...base,
+      pendingActionItems: pendingActionsByMeeting.get(m.id) ?? 0,
+      pendingSignatures,
+    }
+  })
 }
 
 /** Full detail for one meeting (the registry hub), or `null` if unreadable/absent. */
