@@ -125,6 +125,11 @@ all FE-owned files except FE-4 (deferred). Three contract items need lead → ba
    the read-only views need NO change (I left them untouched). `AnswerSummary` already resolves
    code → label/color from the item's option rows.
 
+**Backend ACK (2026-06-30) — all three FE items confirmed + folded into the downstream tasks (lead-approved):**
+1. **CONFIRMED** the field names — BE-4 `parseOptions`/`parseItemFields` read `option`/`optionColor`/`optionScore`/`optionAnalyticsCode` (index-parallel; `""` = none for score/analytics_code).
+2. **BE-5** changes `PhaseConditionTarget.options` → `{ code, label }[]` in `src/lib/queries/process-templates.ts`, projects codes in `phaseConditionTargets`, and makes `recommend_when`/`result_ruleset` stored values + `validate_template_recommend_when`/`validate_template_result_ruleset` code-based with code-existence checks.
+3. **BE-3/BE-6** materialize choice selections into `answersByItemId[item.id]` (single→scalar code, checkbox→code array, scalars→raw) in `getResponseForFill` + `getSubmissionDetail` — the by-item_id sibling of the by-question_key `answer_map`; `prepare.ts` + read-only views unchanged.
+
 ### Result-based phase recommendation — `recommend_when` answer/result groups (✅ COMPLETE 2026-06-26)
 
 > Full task detail, handoff note, and gate record rotated to
