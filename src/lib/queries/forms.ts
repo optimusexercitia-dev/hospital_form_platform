@@ -88,17 +88,42 @@ export const CHOICE_ITEM_TYPES: readonly InputItemType[] = [
 ]
 
 /**
- * One choice option: a display `label` (the answer still STORES this label
- * string — decision #4) plus an optional colour `token`. Colours are authored on
- * `multiple_choice` + `checkbox` only (dropdown excluded — a native `<select>`
- * can't render colour), but the shape is uniform; a colourless option is
- * `{ label, color: null }`. Persisted inside the existing `options` jsonb as
- * `{ "label": "...", "color": "<token>"|null }`; legacy bare-string options are
- * normalized to `{ label, color: null }` at read by {@link toOptions}.
+ * One choice option — the NORMALIZED row shape (form-model-normalization).
+ *
+ * CONTRACT (BE-1, posted for frontend): options are no longer a JSONB blob on
+ * `form_items.options`. Each option of a choice item is a row in the new
+ * `form_item_options` table, version-scoped, cloned + frozen with the version.
+ * The domain object the frontend consumes is:
+ *   - `id`           — the option-row UUID. Instance identity; the answer's
+ *     `answer_selected_options.option_id` is a HARD FK to it. Wizard emits CODES,
+ *     not ids (codes survive clones; the FK ids do not), but the builder needs
+ *     `id` to address an existing row for update/delete.
+ *   - `code`         — auto-generated (slug(label)+suffix), immutable, hidden,
+ *     `unique(item_id, code)`. The ANALYTICS / CONDITION identity: conditions,
+ *     `recommend_when`, and `result_ruleset` store this code; dashboards group by
+ *     it; it is copied verbatim on clone so analytics aggregate across versions.
+ *   - `label`        — canonical pt-BR display text (renameable WITHOUT breaking
+ *     analytics, since identity is `code`, not `label` — the whole point of the
+ *     refactor).
+ *   - `color`        — optional colour token (7-token palette). Authored on
+ *     `multiple_choice` + `checkbox` only (dropdown excluded — a native
+ *     `<select>` can't render colour); `null` = no colour.
+ *   - `score`        — optional numeric, stored-only (no scoring engine yet).
+ *   - `analyticsCode`— optional free-text cross-form tagging hook (greenfield
+ *     indicator engine); `null` = untagged.
+ *   - `position`     — order within the item (`unique(item_id, position)`).
+ *
+ * Translations are deferred (decision #5) — no column now; adding one later is
+ * additive and does not change this shape.
  */
 export interface ItemOption {
+  id: string
+  code: string
   label: string
   color: ColorToken | null
+  score: number | null
+  analyticsCode: string | null
+  position: number
 }
 
 /**
@@ -222,15 +247,28 @@ export interface FormListItem {
  * `free_text`/`short_text` are still excluded (no discrete or ordered value to
  * compare). Publish-time `validate_visible_when` remains the authority on
  * forward/self refs and operator↔type compatibility.
+ *
+ * form-model-normalization (BE-1): conditions now STORE the option **code**, not
+ * the label (the code is the clone-stable identity the evaluator keys on). The
+ * picker therefore needs BOTH — the `value` to store (`code`) and the human
+ * `label` to show. `options` carries `{ code, label }` per choice option
+ * (`[]` for number/date/time targets, which have none).
  */
+export interface ConditionTargetOption {
+  /** The value stored in the condition (`equals`/`in` value). */
+  code: string
+  /** The display label shown in the picker. */
+  label: string
+}
+
 export interface ConditionTarget {
   questionKey: string
   label: string
   sectionPosition: number
   /** The target input's type — drives operator filtering + the value control. */
   type: InputItemType
-  /** Choice options (label strings); `[]` for number/date/time targets. */
-  options: string[]
+  /** Choice options (`{code,label}`); `[]` for number/date/time targets. */
+  options: ConditionTargetOption[]
 }
 
 /**
@@ -251,6 +289,17 @@ export const CONDITION_TARGET_TYPES: readonly InputItemType[] = [
 // Row → domain mappers
 // ---------------------------------------------------------------------------
 
+/** One embedded `form_item_options` row (form-model-normalization). */
+interface OptionRow {
+  id: string
+  code: string
+  label: string
+  color_token: string | null
+  score: number | null
+  analytics_code: string | null
+  position: number
+}
+
 interface ItemRow {
   id: string
   section_id: string
@@ -259,7 +308,11 @@ interface ItemRow {
   question_key: string | null
   label: string | null
   question_explanation: string | null
-  options: Json | null
+  /**
+   * form-model-normalization: the embedded `form_item_options` rows (replaces the
+   * old `options` jsonb blob). Null/empty for non-choice items.
+   */
+  form_item_options: OptionRow[] | null
   config: Json | null
   visible_when: Json | null
   required: boolean
@@ -287,8 +340,12 @@ interface VersionRow {
   form_sections: SectionRow[]
 }
 
-/** The set of valid colour tokens, for normalizing the persisted colour. */
-const COLOR_TOKENS: ReadonlySet<string> = new Set<ColorToken>([
+/**
+ * The set of valid colour tokens, for normalizing the persisted `color_token`.
+ * Exported so the {@link toOptions} normalizer body (BE-2) and the builder share
+ * one palette guard; referenced by `toOptions` once implemented.
+ */
+export const COLOR_TOKENS: ReadonlySet<string> = new Set<ColorToken>([
   'muted',
   'slate',
   'blue',
@@ -299,28 +356,17 @@ const COLOR_TOKENS: ReadonlySet<string> = new Set<ColorToken>([
 ])
 
 /**
- * Narrow a jsonb `options` column to `ItemOption[]` (or `null` for non-choice
- * inputs). form-builder-enhancements: each element is EITHER a legacy bare
- * string OR `{ label, color }`. Legacy strings normalize to
- * `{ label, color: null }`; an object's `color` is kept only when it is a known
- * token (else null). This is the single read-side normalizer — the clone path
- * copies the raw jsonb, so colours survive a clone untouched.
+ * Map the embedded `form_item_options` rows to `ItemOption[]` (or `null` for
+ * non-choice items, which carry no rows). form-model-normalization: replaces the
+ * old jsonb-blob normalizer — options are now normalized rows, so this is a
+ * field rename + sort by `position`, no shape-guessing. `color_token` is kept
+ * only when it is a known token (defence; the DB CHECK already constrains it).
+ *
+ * CONTRACT-FIRST STUB (BE-1): signature + return shape are the stable contract;
+ * the body lands in BE-2/BE-3 once `VERSION_TREE_SELECT` embeds the rows.
  */
-export function toOptions(raw: Json | null): ItemOption[] | null {
-  if (!Array.isArray(raw)) return null
-  return raw.map((o): ItemOption => {
-    if (o !== null && typeof o === 'object' && !Array.isArray(o)) {
-      const rec = o as Record<string, Json>
-      const label = typeof rec.label === 'string' ? rec.label : String(rec.label ?? '')
-      const color =
-        typeof rec.color === 'string' && COLOR_TOKENS.has(rec.color)
-          ? (rec.color as ColorToken)
-          : null
-      return { label, color }
-    }
-    // Legacy bare-string (or any scalar) option.
-    return { label: String(o), color: null }
-  })
+export function toOptions(_rows: OptionRow[] | null): ItemOption[] | null {
+  throw new Error('not implemented')
 }
 
 /** Narrow the per-type `config` jsonb to {@link ItemConfig} (or null). */
@@ -344,7 +390,7 @@ function toItem(row: ItemRow): Item {
     questionKey: row.question_key,
     label: row.label,
     questionExplanation: row.question_explanation,
-    options: toOptions(row.options),
+    options: toOptions(row.form_item_options),
     config: toConfig(row.config),
     // visible_when is the stored legacy-single OR AND/OR group shape.
     visibleWhen: (row.visible_when as Visibility | null) ?? null,
@@ -383,12 +429,17 @@ function toVersionTree(row: VersionRow): VersionTree {
   }
 }
 
+// form-model-normalization: `form_items.options` jsonb is gone; options embed as
+// the related `form_item_options` rows (PostgREST nested select). The rows are
+// sorted by `position` in `toOptions` (PostgREST nested ordering is not relied
+// on). Every option column the domain shape needs is selected here.
 const VERSION_TREE_SELECT =
   'id, form_id, version_number, status, published_at, ' +
   'form_sections(id, position, title, description, is_default, visible_when, ' +
   'requires_signoff, signoff_role, ' +
   'form_items(id, section_id, position, item_type, question_key, label, ' +
-  'question_explanation, options, config, visible_when, required, content))'
+  'question_explanation, config, visible_when, required, content, ' +
+  'form_item_options(id, code, label, color_token, score, analytics_code, position)))'
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -521,16 +572,19 @@ export function answerableItems(tree: VersionTree): Item[] {
     )
 }
 
-/** Map an Item to a ConditionTarget (label strings out of `ItemOption[]`). */
+/**
+ * Map an Item to a ConditionTarget. form-model-normalization: a choice target
+ * exposes `{ code, label }` per option — the condition stores the `code`
+ * (clone-stable identity) while the picker shows the `label`. number/date/time
+ * inputs have no options → [].
+ */
 function toConditionTarget(item: Item, sectionPosition: number): ConditionTarget {
   return {
     questionKey: item.questionKey as string,
     label: item.label ?? '',
     sectionPosition,
     type: item.itemType as InputItemType,
-    // Choice options expose their LABEL strings (the answer stores the label);
-    // number/date/time inputs have no options → [].
-    options: (item.options ?? []).map((o) => o.label),
+    options: (item.options ?? []).map((o) => ({ code: o.code, label: o.label })),
   }
 }
 

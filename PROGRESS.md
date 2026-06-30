@@ -37,6 +37,7 @@
 | NSP-per-org | **NSP-per-org** — lift the multi-org PHI guard by binding the PQS roster + every PHI door **to an organization** (per-org `pqs_members`/`pqs_department`, `nsp_coordinator` grant, org-scoped doors, forbid cross-org referrals, org-scope the patient-index 4th surface). Restores NSP + referral modules under multi-tenancy; un-quarantined 124 E2E specs. ADR [0042](docs/decisions/0042-nsp-per-org.md); design [nsp-per-org-design.md](docs/progress/nsp-per-org-design.md). | ✅ complete | ✅ | ✅ pgTAP **1102/1102** + full E2E **421/0** (1 stale-test fixed · 4 known skips) | ✅ **APPROVED** A [core](docs/reviews/nsp-per-org-a-review.md) + B [whole-phase](docs/reviews/nsp-per-org-b-review.md) | ✅ 2026-06-25 | 2026-06-25 | branch `feat/nsp-per-org` (`b0e15f4…9c53035`) |
 | result-rec | **Result-based phase recommendation** — `recommend_when` becomes a combinable answer/result group; recommend a phase from an EARLIER phase's result (specific option or `adverse`), mixed freely under TODAS/QUALQUER. Suggestion-only; zero `eval_condition` drift. ADR [0043](docs/decisions/0043-phase-result-based-recommendation.md). Detail: [docs/progress/result-rec.md](docs/progress/result-rec.md). | ✅ complete | ✅ | ✅ pgTAP **1122/1122** + Vitest **164/164** + full E2E **431/0** (4 known skips) | ✅ **APPROVED** 2026-06-26 [review](docs/reviews/result-rec-review.md) | ✅ 2026-06-26 | 2026-06-26 | branch `feat/result-based-recommendation` (`6c5baeb…`) · ⚠ remote `db push` pending |
 | processless-cases | **"Sem processo" (process-less cases)** — coordinator mints a template-less case (`template_id` NULL, zero phases; ad-hoc phases grown later) with an OPTIONAL hand-picked offered-outcome set + OPTIONAL patient identifiers. Two coordinator-gated DEFINER RPCs (`create_case`, `set_case_offered_outcomes`); no new RLS shape; one intentional ADR-0024-D15 divergence (process-less offered sets mutable while non-terminal). ADR [0044](docs/decisions/0044-processless-cases.md). Detail: [processless-cases.md](docs/progress/processless-cases.md). | ✅ complete | ✅ | ✅ pgTAP **1153/1153** (+31 new) + feature E2E **8/8** + full E2E **439/0** (dev, 4 known skips) | ✅ **APPROVED** 2026-06-30 [review](docs/reviews/processless-cases-review.md) (0 BLOCKER · 0 MAJOR · 1 MINOR informational) | ✅ 2026-06-30 | 2026-06-30 | branch `feat/processless-cases` (`cdf26d0`) · ⚠ remote `db push` pending |
+| form-model-norm | **Form data-model normalization** — pull `form_items.options` JSONB into a normalized `form_item_options` table (stable hidden `code`, label, color, nullable `score`, free-text `analytics_code`, ordering; version-scoped + cloned), and normalize answer selections into `answer_selected_options` (hard FK to option row). `answers.value` → scalars only. Evaluator + shared vectors stay byte-for-byte unchanged via an `app.answer_map` rewrite. Pre-launch **squash-to-clean-baseline + full reset** (no users, no feature flag). Plan: `~/.claude/plans/snappy-juggling-duckling.md`; decisions memory `form-model-normalization-decisions`. | 🏗️ planning | – | – | – | – | – | – |
 
 > **Accreditation & Quality-Governance Track (13–21)** — planned 2026-06-17; specs in
 > [PHASES.md](PHASES.md) (§ Accreditation track), rationale in ADR
@@ -53,6 +54,49 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 <!-- Lead recreates this table at the start of each phase. At the §6 Record step the
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
+
+### Form data-model normalization (🏗️ planning — started 2026-06-30)
+
+> Plan `~/.claude/plans/snappy-juggling-duckling.md` · decisions memory
+> `form-model-normalization-decisions`. Contract-first: BE-1 posts signatures + a plan for lead
+> review BEFORE any migration; FE builds against the contract in parallel. **Invariant:** the dual
+> evaluator (`app.eval_condition`/`eval_visibility` + TS mirror) and `__fixtures__` vectors stay
+> byte-for-byte unchanged — `app.answer_map` is rewritten to rebuild the same `question_key →
+> code(s)` shapes. Rollout = squash to clean baseline + full local & remote reset (human-run push).
+
+| ID | Owner | Task | Dep | Status |
+| -- | ----- | ---- | --- | ------ |
+| BE-1 | backend | **[plan-review]** Implementation plan for the squash + new tables/RLS/triggers + RPC rewrites; post contract-first typed signatures (domain `Item.options` w/ code/score/analyticsCode; save/submit action inputs; dashboard `{code,label,count}`). **STOP for lead review before migrations.** | — | 🏗️ plan + contract posted, awaiting lead review |
+| BE-2 | backend | Squashed baseline: `form_item_options` + `answer_selected_options` tables; drop `options` jsonb + CHECKs; RLS; triggers (version-sync, published-structure + submitted-children guards, display-item rejection). | BE-1✓ | 🔜 |
+| BE-3 | backend | `app.answer_map` rewrite — rebuild identical `question_key → code(s)` jsonb from both tables (evaluator + vectors UNCHANGED). | BE-2 | 🔜 |
+| BE-4 | backend | Rewrite `save_section_answers` + `submit_response` (scalars + selection-replace; required/bounds/hidden-cleanup; HC013 guards). | BE-3 | 🔜 |
+| BE-5 | backend | `clone_form_version` copies option rows (codes verbatim); publish-time "≥1 option" + condition/rule code-existence validation. | BE-2 | 🔜 |
+| BE-6 | backend | Dashboards/export RPCs (GROUP BY `option.code`, resolve current label); regen `database.ts`; update `seed.sql`. | BE-4 | 🔜 |
+| FE-1 | frontend | Read adapters + domain types: embed option rows in `VERSION_TREE_SELECT`; replace `toOptions`/`serializeOptions`. | BE-1 | 🔜 |
+| FE-2 | frontend | Builder: `OptionsEditor` gains score + analytics_code; `addItem`/`updateItem` CRUD option rows. | FE-1 | 🔜 |
+| FE-3 | frontend | Wizard: `input-item` emits codes; `answer-summary` resolves via option rows; `validation` required-accounts-for-selections. | FE-1 | 🔜 |
+| FE-4 | frontend | Save path: `saveSection`/`submitResponse` send scalars + selection sets to rewritten RPCs. | BE-4 | 🔜 |
+| FE-5 | frontend | Conditions/rulesets pickers show labels, store codes (`condition-targets`, recommend-when + result-ruleset editors). | FE-1 | 🔜 |
+| FE-6 | frontend | Dashboard consumers (`dashboard.ts`/`distribution-chart`) → `{code,label,count}`. | BE-6 | 🔜 |
+| T-1 | tester | **[gate]** E2E: builder (colors/scores/analytics_code/reorder), wizard (single+multi, option-driven show/skip, bounds), submit+immutability, clone preserves codes, dashboard+CSV resolve current labels, sign-off. Prod-build gate, workers=1. | FE-*, BE-* | 🔜 |
+| QA-1 | qa | Requirements audit (wishlist delivered; translations deferred by design) + RLS review of 2 new tables + evaluator-non-drift confirmation. | T-1✓ | 🔜 |
+
+**Backend contract (BE-1, posted 2026-06-30 — branch `feat/form-model-normalization`).** Typed
+stubs committed so FE compiles against real types now; bodies land BE-2…BE-6.
+- `src/lib/queries/forms.ts` — `ItemOption` is now the normalized row `{ id, code, label, color,
+  score, analyticsCode, position }`. `VERSION_TREE_SELECT` embeds
+  `form_item_options(id, code, label, color_token, score, analytics_code, position)` (the
+  `options` jsonb is gone). `toOptions(rows)` re-typed to the embedded rows (stub).
+  `ConditionTarget.options` → `ConditionTargetOption[] = { code, label }[]` (condition STORES the
+  `code`, picker SHOWS the `label`).
+- `src/lib/responses/actions.ts` — `SaveSectionInput` gains `selectionsByItemId: Record<itemId,
+  string[]>` (selected option **codes**); `answersByItemId` is SCALARS only. `save_section_answers`
+  gains a `p_selections` jsonb arg (replace-semantics).
+- `src/lib/queries/dashboard.ts` — `DistributionOption` is `{ code, label, count }` (was
+  `{ value, count }`); aggregation keys on `code`, `label` resolved server-side (current version).
+- Expected contract-break compile errors are confined to FE-owned `src/components/**` (FE-1…FE-6
+  adopt them). My three owned files typecheck clean; the only other `tsc` errors pre-exist on `main`
+  (missing `react-day-picker`/`date-fns`/`react-aria-components`/`@internationalized/date` deps).
 
 ### Result-based phase recommendation — `recommend_when` answer/result groups (✅ COMPLETE 2026-06-26)
 
