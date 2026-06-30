@@ -571,6 +571,9 @@ function AutomaticEditor({
                 <span className="font-medium">
                   {target.label || target.questionKey}
                 </span>
+                {/* The preview feeds answers into walkResultRuleset over a
+                    code-keyed answer map, so it stores the option CODE (shows
+                    label) — form-model-normalization. */}
                 <NativeSelect
                   className="h-10"
                   value={previewAnswers[target.questionKey] ?? ""}
@@ -580,8 +583,8 @@ function AutomaticEditor({
                 >
                   <option value="">Sem resposta</option>
                   {target.options.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
+                    <option key={opt.code} value={opt.code}>
+                      {opt.label}
                     </option>
                   ))}
                 </NativeSelect>
@@ -640,10 +643,12 @@ function RuleRow({
   onRemove: () => void;
   onMove: (direction: "up" | "down") => void;
 }) {
-  function toggleMulti(option: string) {
-    const next = rule.multiValue.includes(option)
-      ? rule.multiValue.filter((o) => o !== option)
-      : [...rule.multiValue, option];
+  // form-model-normalization: the rule's answer condition STORES the option code
+  // (the code-keyed answer_map evaluates on codes); the picker shows the label.
+  function toggleMulti(code: string) {
+    const next = rule.multiValue.includes(code)
+      ? rule.multiValue.filter((c) => c !== code)
+      : [...rule.multiValue, code];
     onUpdate({ multiValue: next });
   }
 
@@ -750,13 +755,13 @@ function RuleRow({
                   Opções selecionadas
                 </legend>
                 {target.options.map((opt) => (
-                  <label key={opt} className="flex items-center gap-2.5 text-sm">
+                  <label key={opt.code} className="flex items-center gap-2.5 text-sm">
                     <Checkbox
-                      checked={rule.multiValue.includes(opt)}
-                      onCheckedChange={() => toggleMulti(opt)}
+                      checked={rule.multiValue.includes(opt.code)}
+                      onCheckedChange={() => toggleMulti(opt.code)}
                       disabled={disabled}
                     />
-                    {opt}
+                    {opt.label}
                   </label>
                 ))}
               </fieldset>
@@ -771,8 +776,8 @@ function RuleRow({
                 >
                   <option value="">Selecione…</option>
                   {target.options.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
+                    <option key={opt.code} value={opt.code}>
+                      {opt.label}
                     </option>
                   ))}
                 </NativeSelect>

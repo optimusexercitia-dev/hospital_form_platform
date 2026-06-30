@@ -67,15 +67,15 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 | ID | Owner | Task | Dep | Status |
 | -- | ----- | ---- | --- | ------ |
 | BE-1 | backend | **[plan-review]** Implementation plan + contract-first typed stubs. **✅ Lead-APPROVED 2026-06-30** (commit `29d93cf`). Decisions: full-absorption squash done as a FINAL dump-packaging step (develop as additive migrations, squash last); app-side `code` gen (question_key parity); whole plan approved with check-backs after BE-3 + before squash/remote handoff. | — | ✅ |
-| BE-2 | backend | New tables `form_item_options` + `answer_selected_options` (DDL/constraints/indexes/RLS/triggers: version-sync, immutable-code, parent-type guard, published-structure + submitted-children guards, display-item rejection); drop `options` jsonb + CHECKs. **Additive migration** (squash is BE-7). | BE-1✓ | 🏗️ |
-| BE-3 | backend | `app.answer_map` rewrite — identical `question_key → code(s)` jsonb from both tables (single→scalar code, checkbox→array; evaluator + vectors UNCHANGED) + server-side answer-map assembly in `getResponseForFill`/`getSubmissionDetail`. **[check-back: vectors + answer_map shape pgTAP green]** | BE-2 | 🔜 |
+| BE-2 | backend | New tables `form_item_options` + `answer_selected_options` (DDL/constraints/indexes/RLS/triggers: version-sync, immutable-code, parent-type guard, published-structure + submitted-children guards, display-item rejection); drop `options` jsonb + CHECKs. **Additive migration** (squash is BE-7). | BE-1✓ | ✅ applied + smoke-test 7/7 (commit `8c6f01f`) |
+| BE-3 | backend | `app.answer_map` rewrite — identical `question_key → code(s)` jsonb from both tables (single→scalar code, checkbox→array; evaluator + vectors UNCHANGED) + server-side answer-map assembly in `getResponseForFill`/`getSubmissionDetail`. **[check-back: vectors + answer_map shape pgTAP green]** | BE-2 | 🏗️ |
 | BE-4 | backend | Rewrite `save_section_answers` + `submit_response` (scalars + selection-replace, resolve code→option_id; required/bounds/hidden-cleanup; HC013) **+ `src/lib/**` adapters/actions**: `toOptions`/`VERSION_TREE_SELECT`, `forms/actions.ts` addItem/updateItem option-row CRUD + app-side code gen, `responses/actions.ts` saveSection selections. | BE-3 | 🔜 |
 | BE-5 | backend | `clone_form_version` copies option rows (codes verbatim, item-id remap); publish-time "≥1 option" + condition/rule code-existence validation. | BE-2 | 🔜 |
 | BE-6 | backend | Dashboards/export RPCs (GROUP BY `option.code`, resolve current label) + `dashboard.ts` + export route; regen `database.ts`; update `seed.sql` (option rows + selection rows). | BE-4 | 🔜 |
 | BE-7 | backend | **[STOP for lead]** Squash → single clean baseline via schema dump of the validated local DB (absorbs the 4 pending-remote migrations); `db reset` local; pre/post schema diff proving no object lost; hand lead the exact **human-run** remote re-baseline sequence. | BE-6, T-1✓ | 🔜 |
 | FE-1 | frontend | **Builder UI** (components only): `OptionsEditor` gains score + analytics_code fields; `item-editor-dialog`/`block-card` render & edit option rows; build the FormData the backend actions expect. | BE-1 | ✅ compiles vs contract (lint+tsc+vitest green); ⚠ FormData-field assumption flagged (see FE note) |
 | FE-2 | frontend | **Wizard** (components only): `input-item` renders option rows + emits selected **codes**; the client-side live answer-map (`question_key → code(s)`) MUST mirror the SQL `answer_map` shape (single→scalar code, checkbox→array) or live show/skip diverges from submit; `answer-summary` resolves label/color by code; `validation` required accounts for selections. | BE-1 | ✅ compiles vs contract; answer-map mirror Vitest added (green); ⚠ rehydration `ResponseForFill` gap flagged |
-| FE-3 | frontend | **Conditions/rulesets pickers** (components only): `condition-targets`, recommend-when + result-ruleset editors show **labels**, store **codes**. | BE-1 | 🏗️ `condition-targets`+`condition-builder`+`describe-visibility` DONE; ⚠ recommend-when/result-ruleset editors BLOCKED on `PhaseConditionTarget` contract update (see FE note) |
+| FE-3 | frontend | **Conditions/rulesets pickers** (components only): `condition-targets`, recommend-when + result-ruleset editors show **labels**, store **codes**. | BE-1 | ✅ DONE — `condition-targets`+`condition-builder`+`describe-visibility` (`61ef52c`) + recommend-when/result-ruleset editors flipped after `PhaseConditionTarget` landed (`5f4de89`); tsc+lint+vitest 170/170 green |
 | FE-4 | frontend | **Dashboard components** (`distribution-chart`/`dashboard-charts`) consume `{ code, label, count }`. | BE-6 | 🔜 (waiting on BE-6) |
 | T-1 | tester | **[gate]** E2E: builder (colors/scores/analytics_code/reorder), wizard (single+multi, option-driven show/skip, bounds), submit+immutability, clone preserves codes, dashboard+CSV resolve current labels, sign-off. Prod-build gate, workers=1. | FE-*, BE-6 | 🔜 |
 | QA-1 | qa | Requirements audit (wishlist delivered; translations deferred by design) + RLS review of 2 new tables + evaluator-non-drift confirmation. | T-1✓ | 🔜 |
@@ -105,15 +105,10 @@ all FE-owned files except FE-4 (deferred). Three contract items need lead → ba
    (`option`/`optionColor`) with **`optionScore`** (raw number string, "" = none) and
    **`optionAnalyticsCode`** (free text, "" = none) at the same index. BE-4's `parseOptions` rewrite
    must read these exact names. Flag if backend prefers different names.
-2. **`PhaseConditionTarget` NOT updated by the contract (FE-3 BLOCKER for 2 editors).**
-   `recommend-when-editor.tsx` + `result-ruleset-editor.tsx` consume `PhaseConditionTarget`
-   (`src/lib/queries/process-templates.ts`, backend-owned) whose `options: string[]` is still LABELS.
-   Under the new model the `recommend_when`/`result_ruleset` answer conditions must STORE the option
-   **code** (the answer-map is code-keyed). Backend needs to change `PhaseConditionTarget.options` →
-   `{ code, label }[]` (mirroring `ConditionTargetOption`) and project codes in `phaseConditionTargets`.
-   I did NOT touch those two editors yet (they'd require guessing the shape) — they compile today
-   because the contract didn't change `PhaseConditionTarget`. Ready to flip both to label-shows/
-   code-stores the moment that type lands.
+2. **`PhaseConditionTarget` → `{ code, label }[]` — ✅ RESOLVED (backend `5f4de89`; FE flip done).**
+   `recommend-when-editor.tsx` + `result-ruleset-editor.tsx` now show the option label / store the
+   option code (equals + `in` arrays + the live-preview answer selects), mirroring the form
+   `condition-builder`. FE-3 fully complete; tsc+lint+vitest green.
 3. **Rehydration + submission-detail need choice codes in `ResponseForFill.answersByItemId` /
    submission `answersByItemId` (FE-2).** `prepare.ts`/`toAnswerState` and the read-only views
    (`submission-detail-view`, `phase-answers-readonly` via `AnswerSummary`) read
