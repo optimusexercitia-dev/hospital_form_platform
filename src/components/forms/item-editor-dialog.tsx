@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type {
@@ -42,6 +42,12 @@ import {
 import { SectionTextEditor } from "@/components/forms/section-text-editor";
 import { ImageItemEditor } from "@/components/forms/image-item-editor";
 import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
+import {
+  DefaultValueEditor,
+  initialDefaultValue,
+  supportsDefaultValue,
+  type DefaultValue,
+} from "@/components/forms/default-value-editor";
 
 const CHOICE_TYPES: ItemType[] = ["multiple_choice", "dropdown", "checkbox"];
 /** Choice types whose options can carry a colour (native `<select>` excluded). */
@@ -116,6 +122,10 @@ export function ItemEditorDialog(props: Props) {
   const [visibleWhen, setVisibleWhen] = useState<Visibility | null>(
     existing?.visibleWhen ?? null,
   );
+  // answer-model-v2 (FE-1): the per-input default value (null = none).
+  const [defaultValue, setDefaultValue] = useState<DefaultValue>(
+    initialDefaultValue(existing),
+  );
   const [markdown, setMarkdown] = useState<string>(
     existing?.content && itemType === "section_text"
       ? (existing.content as SectionTextContent).markdown
@@ -146,6 +156,27 @@ export function ItemEditorDialog(props: Props) {
       router.refresh();
     }
   }, [state, onOpenChange, router]);
+
+  // Derive (not effect-prune) a default value stripped of any option code no
+  // longer present once the author renames/removes options in this same
+  // editing session (a code only changes identity by removal — renaming a
+  // label keeps the code). Choice types only; scalar defaults are unaffected
+  // by option edits. Computed during render so it's always in sync with the
+  // live `options` state, with no cascading setState-in-effect render.
+  const effectiveDefaultValue = useMemo<DefaultValue>(() => {
+    if (!isChoice || defaultValue === null) return defaultValue;
+    const codes = new Set(
+      options.filter((o) => o.label.trim().length > 0).map((o) => o.code),
+    );
+    if (Array.isArray(defaultValue)) {
+      const kept = defaultValue.filter((c) => codes.has(c));
+      return kept.length === 0 ? null : kept;
+    }
+    if (typeof defaultValue === "string") {
+      return codes.has(defaultValue) ? defaultValue : null;
+    }
+    return defaultValue;
+  }, [isChoice, options, defaultValue]);
 
   const meta = ITEM_TYPE_META[itemType];
 
@@ -319,6 +350,30 @@ export function ItemEditorDialog(props: Props) {
                   Mostrado como texto de ajuda associado à pergunta.
                 </FieldDescription>
               </Field>
+
+              {/* answer-model-v2 (FE-1): the per-input default value, synced
+                  into the hidden `defaultValue` field the addItem/updateItem
+                  actions read (JSON: scalar, or option code / code[]). Never
+                  rendered for display items — isInput already excludes those. */}
+              {supportsDefaultValue(itemType) && (
+                <>
+                  <input
+                    type="hidden"
+                    name="defaultValue"
+                    value={
+                      effectiveDefaultValue === null
+                        ? ""
+                        : JSON.stringify(effectiveDefaultValue)
+                    }
+                  />
+                  <DefaultValueEditor
+                    itemType={itemType}
+                    options={cleanOptions}
+                    value={effectiveDefaultValue}
+                    onChange={setDefaultValue}
+                  />
+                </>
+              )}
 
               <label className="flex items-center gap-2.5 text-sm">
                 <Checkbox

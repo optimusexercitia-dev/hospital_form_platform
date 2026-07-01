@@ -1,0 +1,287 @@
+"use client";
+
+import { useId } from "react";
+
+import type { Item, ItemOption, ItemType } from "@/lib/queries/forms";
+import { Field, FieldDescription, FieldLabel, useFieldIds } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
+
+/**
+ * answer-model-v2 (FE-1, ADR 0046 / P2.4): the builder's per-input "Valor
+ * padrão" control. Presentational + controlled — the parent
+ * ({@link ItemEditorDialog}) owns the value and syncs it into the hidden
+ * `defaultValue` field the `addItem`/`updateItem` actions read (a JSON string:
+ * a scalar for text/number/date/time, or an option `code` / `code[]` for
+ * choice types). Never rendered for display items (`section_text`/`image`).
+ *
+ * The control shape mirrors the wizard's own input for the same item type, so
+ * authoring a default feels identical to filling the question:
+ *   - free_text / short_text → text input;
+ *   - number → decimal text input (pt-BR comma accepted, stored as JSON number);
+ *   - date / time → native date/time input;
+ *   - multiple_choice / dropdown → a single-select of the item's options (by
+ *     code), plus a "Nenhum" (no default) choice;
+ *   - checkbox → a set of checkboxes, one per option (by code).
+ */
+
+export type DefaultValue = string | number | boolean | string[] | null;
+
+const NONE_VALUE = "__none__";
+
+export function DefaultValueEditor({
+  itemType,
+  options,
+  value,
+  onChange,
+}: {
+  itemType: ItemType;
+  /** The item's current option rows (choice types only). */
+  options: ItemOption[];
+  value: DefaultValue;
+  onChange: (value: DefaultValue) => void;
+}) {
+  const ids = useFieldIds("default-value", { hasDescription: true });
+  // The control's own `name` attribute is intentionally dropped: its value is
+  // submitted via the parent's single `defaultValue` hidden field
+  // (JSON-encoded), not as a native form field, so a stray
+  // `name="default-value"` would only add confusing, unused FormData.
+  const field = {
+    controlProps: {
+      id: ids.controlProps.id,
+      "aria-describedby": ids.controlProps["aria-describedby"],
+      "aria-invalid": ids.controlProps["aria-invalid"],
+    },
+    descriptionId: ids.descriptionId,
+  };
+
+  switch (itemType) {
+    case "free_text":
+      return (
+        <Field>
+          <FieldLabel htmlFor={field.controlProps.id}>
+            Valor padrão{" "}
+            <span className="font-normal text-muted-foreground">(opcional)</span>
+          </FieldLabel>
+          <Textarea
+            {...field.controlProps}
+            value={typeof value === "string" ? value : ""}
+            onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
+            placeholder="Texto pré-preenchido ao abrir o formulário."
+            className="min-h-16"
+          />
+          <FieldDescription id={field.descriptionId}>
+            Preenchido automaticamente enquanto a pergunta não for respondida; a
+            pessoa pode alterar livremente.
+          </FieldDescription>
+        </Field>
+      );
+
+    case "short_text":
+      return (
+        <Field>
+          <FieldLabel htmlFor={field.controlProps.id}>
+            Valor padrão{" "}
+            <span className="font-normal text-muted-foreground">(opcional)</span>
+          </FieldLabel>
+          <Input
+            {...field.controlProps}
+            type="text"
+            value={typeof value === "string" ? value : ""}
+            onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
+            placeholder="Texto pré-preenchido ao abrir o formulário."
+          />
+          <FieldDescription id={field.descriptionId}>
+            Preenchido automaticamente enquanto a pergunta não for respondida; a
+            pessoa pode alterar livremente.
+          </FieldDescription>
+        </Field>
+      );
+
+    case "number":
+      return (
+        <Field>
+          <FieldLabel htmlFor={field.controlProps.id}>
+            Valor padrão{" "}
+            <span className="font-normal text-muted-foreground">(opcional)</span>
+          </FieldLabel>
+          <Input
+            {...field.controlProps}
+            type="text"
+            inputMode="decimal"
+            value={value === null || value === undefined ? "" : String(value)}
+            onChange={(e) => {
+              const raw = e.target.value.trim();
+              if (raw === "") {
+                onChange(null);
+                return;
+              }
+              const normalized = raw.replace(",", ".");
+              const n = Number(normalized);
+              onChange(Number.isFinite(n) ? n : null);
+            }}
+            placeholder="Ex.: 2 ou 2,5"
+          />
+          <FieldDescription id={field.descriptionId}>
+            Preenchido automaticamente enquanto a pergunta não for respondida; a
+            pessoa pode alterar livremente.
+          </FieldDescription>
+        </Field>
+      );
+
+    case "date":
+    case "time":
+      return (
+        <Field>
+          <FieldLabel htmlFor={field.controlProps.id}>
+            Valor padrão{" "}
+            <span className="font-normal text-muted-foreground">(opcional)</span>
+          </FieldLabel>
+          <Input
+            {...field.controlProps}
+            type={itemType}
+            value={typeof value === "string" ? value : ""}
+            onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
+            className="w-fit"
+          />
+          <FieldDescription id={field.descriptionId}>
+            Preenchido automaticamente enquanto a pergunta não for respondida; a
+            pessoa pode alterar livremente.
+          </FieldDescription>
+        </Field>
+      );
+
+    case "multiple_choice":
+    case "dropdown":
+      return (
+        <Field>
+          <FieldLabel htmlFor={field.controlProps.id}>
+            Valor padrão{" "}
+            <span className="font-normal text-muted-foreground">(opcional)</span>
+          </FieldLabel>
+          <NativeSelect
+            {...field.controlProps}
+            value={typeof value === "string" ? value : NONE_VALUE}
+            onChange={(e) =>
+              onChange(e.target.value === NONE_VALUE ? null : e.target.value)
+            }
+          >
+            <option value={NONE_VALUE}>Nenhum</option>
+            {options
+              .filter((o) => o.label.trim().length > 0)
+              .map((o, i) => (
+                <option key={o.code || i} value={o.code}>
+                  {o.label}
+                </option>
+              ))}
+          </NativeSelect>
+          <FieldDescription id={field.descriptionId}>
+            A opção marcada automaticamente enquanto a pergunta não for
+            respondida; a pessoa pode alterar livremente.
+          </FieldDescription>
+        </Field>
+      );
+
+    case "checkbox": {
+      const selected = Array.isArray(value) ? value : [];
+      const cleanOptions = options.filter((o) => o.label.trim().length > 0);
+      return (
+        <DefaultCheckboxSet
+          options={cleanOptions}
+          selected={selected}
+          onChange={onChange}
+        />
+      );
+    }
+
+    default:
+      // Display items (section_text / image) never carry a default.
+      return null;
+  }
+}
+
+function DefaultCheckboxSet({
+  options,
+  selected,
+  onChange,
+}: {
+  options: ItemOption[];
+  selected: string[];
+  onChange: (value: DefaultValue) => void;
+}) {
+  const groupId = useId();
+  const descriptionId = `${groupId}-description`;
+
+  function toggle(code: string, checked: boolean) {
+    const set = new Set(selected);
+    if (checked) set.add(code);
+    else set.delete(code);
+    const next = options.map((o) => o.code).filter((c) => set.has(c));
+    onChange(next.length === 0 ? null : next);
+  }
+
+  return (
+    <fieldset className="flex flex-col gap-2" aria-describedby={descriptionId}>
+      <legend className="mb-1 text-sm font-medium text-foreground">
+        Valor padrão{" "}
+        <span className="font-normal text-muted-foreground">(opcional)</span>
+      </legend>
+      {options.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          Adicione opções para definir um valor padrão.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {options.map((opt, i) => {
+            const id = `${groupId}-default-${i}`;
+            const checked = selected.includes(opt.code);
+            return (
+              <label
+                key={opt.code || i}
+                htmlFor={id}
+                className={cn(
+                  "flex cursor-pointer items-center gap-2.5 rounded-lg border border-border/70 bg-background/40 px-3 py-2 text-sm transition-colors",
+                  "hover:border-primary/40",
+                )}
+              >
+                <Checkbox
+                  id={id}
+                  checked={checked}
+                  onCheckedChange={(state) => toggle(opt.code, state === true)}
+                />
+                {opt.label}
+              </label>
+            );
+          })}
+        </div>
+      )}
+      <FieldDescription id={descriptionId}>
+        As opções marcadas automaticamente enquanto a pergunta não for
+        respondida; a pessoa pode alterar livremente.
+      </FieldDescription>
+    </fieldset>
+  );
+}
+
+/** Present item type for the default-value control (never display items). */
+export function supportsDefaultValue(itemType: ItemType): boolean {
+  return itemType !== "section_text" && itemType !== "image";
+}
+
+/** Derive the initial controlled `DefaultValue` from an existing item's stored
+ *  `default_value` jsonb (already narrowed to `Json | null` on {@link Item}). */
+export function initialDefaultValue(item: Item | null): DefaultValue {
+  if (!item) return null;
+  const raw = item.defaultValue;
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "string" || typeof raw === "number" || typeof raw === "boolean") {
+    return raw;
+  }
+  if (Array.isArray(raw) && raw.every((v) => typeof v === "string")) {
+    return raw as string[];
+  }
+  return null;
+}
