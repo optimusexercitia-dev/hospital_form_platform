@@ -1,7 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
-import { getVersionTree } from '@/lib/queries/forms'
+import { CHOICE_ITEM_TYPES, getVersionTree } from '@/lib/queries/forms'
 import type { Json } from '@/lib/types/database'
-import type { VersionTree, VersionStatus } from '@/lib/queries/forms'
+import type {
+  Item,
+  VersionTree,
+  VersionStatus,
+} from '@/lib/queries/forms'
 
 // Re-export the form tree shapes so the wizard can import everything it renders
 // (sections, items, the answerable-questions filter) from this one module.
@@ -197,6 +201,98 @@ interface ResponseRow {
   }
 }
 
+/** One `answer_selected_options` row (item_id + the selected option id). */
+export interface SelectionRow {
+  item_id: string
+  option_id: string
+}
+
+/**
+ * Build the canonical `answersByItemId` + `answersByKey` maps from the normalized
+ * model (form-model-normalization, BE-3) — the TS sibling of the SQL
+ * `app.answer_map`, producing the IDENTICAL per-value shapes so the wizard's
+ * initial map agrees with its live map and with the submit-time evaluator:
+ *   - single-select (multiple_choice/dropdown) → the selected option's CODE
+ *     (scalar string);
+ *   - checkbox → an ARRAY of selected codes ordered by option.position;
+ *   - scalar inputs (free_text/short_text/number/date/time) → the raw
+ *     `answers.value`.
+ * A choice item with NO selection contributes no entry (missing-answer
+ * semantics). `tree` supplies each item's type + option `id → {code, position}`,
+ * so no extra round-trip is needed to resolve codes.
+ *
+ * Both maps are keyed identically per item: `answersByItemId[item.id]` and
+ * `answersByKey[item.questionKey]` hold the same value, so `prepare.ts` and the
+ * read-only views (which read by item_id) and the TS evaluator (which reads by
+ * question_key) both see the canonical shape.
+ */
+export function buildAnswerMaps(
+  tree: VersionTree,
+  scalarAnswers: { item_id: string; question_key: string; value: Json | null }[],
+  selections: SelectionRow[],
+): {
+  answersByItemId: Record<string, Json>
+  answersByKey: Record<string, Json>
+} {
+  const answersByItemId: Record<string, Json> = {}
+  const answersByKey: Record<string, Json> = {}
+
+  // Index every item once: id → the Item (type, questionKey, option rows).
+  const itemsById = new Map<string, Item>()
+  for (const section of tree.sections) {
+    for (const item of section.items) itemsById.set(item.id, item)
+  }
+
+  // (a) Scalar answers — non-choice input items only (choice items leave
+  // answers.value null in the normalized model; ignore any stray non-null value
+  // on a choice item, mirroring the SQL answer_map which sources choice answers
+  // solely from selections).
+  for (const a of scalarAnswers) {
+    if (a.value === null) continue
+    const item = itemsById.get(a.item_id)
+    if (!item) continue
+    if (CHOICE_ITEM_TYPES.includes(item.itemType as (typeof CHOICE_ITEM_TYPES)[number])) {
+      continue
+    }
+    answersByItemId[a.item_id] = a.value
+    answersByKey[a.question_key] = a.value
+  }
+
+  // (b/c) Choice selections — group the selected option ids per item, resolve to
+  // codes via the item's option rows, ordered by option.position.
+  const selectedByItem = new Map<string, Set<string>>()
+  for (const s of selections) {
+    let set = selectedByItem.get(s.item_id)
+    if (!set) {
+      set = new Set<string>()
+      selectedByItem.set(s.item_id, set)
+    }
+    set.add(s.option_id)
+  }
+
+  for (const [itemId, selectedIds] of selectedByItem) {
+    const item = itemsById.get(itemId)
+    if (!item || !item.questionKey) continue
+    // The item's options carry { id, code, position }; sort by position then map
+    // the SELECTED ones to their codes (same ordering as the SQL array).
+    const codes = (item.options ?? [])
+      .filter((o) => selectedIds.has(o.id))
+      .sort((x, y) => x.position - y.position)
+      .map((o) => o.code)
+    if (codes.length === 0) continue // missing-answer semantics
+
+    const value: Json =
+      item.itemType === 'checkbox'
+        ? codes
+        : // single-select (multiple_choice/dropdown): one code as a scalar.
+          codes[0]
+    answersByItemId[item.id] = value
+    answersByKey[item.questionKey] = value
+  }
+
+  return { answersByItemId, answersByKey }
+}
+
 /**
  * A single response prepared for the wizard: the published-version tree, the
  * saved answers (both by item_id and by question_key), and the resume metadata.
@@ -225,24 +321,35 @@ export async function getResponseForFill(
   const tree = await getVersionTree(response.form_version_id)
   if (!tree) return null
 
-  const { data: answers } = await supabase
-    .from('answers')
-    .select('item_id, question_key, value, observation')
-    .eq('response_id', responseId)
-    .returns<AnswerRow[]>()
+  // Scalar answers (+ observations) and choice selections in parallel.
+  const [{ data: answers }, { data: selections }] = await Promise.all([
+    supabase
+      .from('answers')
+      .select('item_id, question_key, value, observation')
+      .eq('response_id', responseId)
+      .returns<AnswerRow[]>(),
+    supabase
+      .from('answer_selected_options')
+      .select('item_id, option_id')
+      .eq('response_id', responseId)
+      .returns<SelectionRow[]>(),
+  ])
 
-  const answersByItemId: Record<string, Json> = {}
-  const answersByKey: Record<string, Json> = {}
+  // form-model-normalization: rebuild the canonical maps (single→scalar code,
+  // checkbox→code array, scalars→raw) — the TS sibling of app.answer_map.
+  const { answersByItemId, answersByKey } = buildAnswerMaps(
+    tree,
+    answers ?? [],
+    selections ?? [],
+  )
+
+  // Observations are collected independently of the value guard (an observation
+  // can accompany a null value via an observation-only upsert).
   const observationsByItemId: Record<string, string> = {}
   for (const a of answers ?? []) {
-    // An answer row may carry an observation with a null value (observation-only
-    // upsert), so collect observations independently of the value guard.
     if (a.observation !== null && a.observation !== '') {
       observationsByItemId[a.item_id] = a.observation
     }
-    if (a.value === null) continue
-    answersByItemId[a.item_id] = a.value
-    answersByKey[a.question_key] = a.value
   }
 
   return {

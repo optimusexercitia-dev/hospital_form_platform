@@ -179,10 +179,10 @@ select is(
     (select visible_when from public.form_sections
      where form_version_id = (select new_version_id from cloned)
        and visible_when is not null),
-    '{"s_gate": "Sim"}'::jsonb
+    '{"s_gate": "sim"}'::jsonb
   ),
   true,
-  'cloned visible_when evaluates true for the matching answer (keys survived)'
+  'cloned visible_when evaluates true for the matching answer (codes survived)'
 );
 
 -- =========================================================================
@@ -205,8 +205,8 @@ select throws_ok(
 );
 
 select throws_ok(
-  format($$ insert into public.form_items (section_id, position, item_type, question_key, label, options, required)
-            values (%L, 9, 'free_text', 'sneak', 'x', null, false) $$,
+  format($$ insert into public.form_items (section_id, position, item_type, question_key, label, required)
+            values (%L, 9, 'free_text', 'sneak', 'x', false) $$,
          (select v->>'sec_s1' from ctx)),
   '23514',
   null,

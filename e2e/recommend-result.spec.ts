@@ -188,6 +188,38 @@ async function svcInsert<T>(
   return rows[0]
 }
 
+/**
+ * form-model-normalization: option `code` = lowercase ASCII slug of the label
+ * (Sim→sim, Não→nao). Mirrors the seed/pgTAP convention so recommend_when /
+ * result-ruleset conditions keyed on the code resolve.
+ */
+function slug(label: string): string {
+  return label
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+/** Insert the normalized `form_item_options` ROWS for a choice item. */
+async function insertChoiceOptions(
+  req: APIRequestContext,
+  itemId: string,
+  formVersionId: string,
+  labels: string[],
+): Promise<void> {
+  for (let i = 0; i < labels.length; i++) {
+    await svcInsert(req, 'form_item_options', {
+      item_id: itemId,
+      form_version_id: formVersionId,
+      position: i,
+      code: slug(labels[i]),
+      label: labels[i],
+    })
+  }
+}
+
 /** PostgREST service-role GET — bypasses RLS. */
 async function svcGet<T>(req: APIRequestContext, path: string): Promise<T[]> {
   const resp = await req.get(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -325,28 +357,38 @@ test.beforeAll(async ({ request }) => {
   })
   specSectionId = sectionRow.id
 
-  const itemRow = await svcInsert<{ id: string }>(request, 'form_items', {
-    section_id: specSectionId,
-    position: 0,
-    item_type: 'multiple_choice',
-    question_key: 'rr_inspection',
-    label: 'Inspeção — conformidade?',
-    options: ['Sim', 'Não'],
-    required: true,
-  })
+  // form-model-normalization: options are normalized rows — insert the item,
+  // then its option rows (codes = slug: sim/nao).
+  const itemRow = await svcInsert<{ id: string; form_version_id: string }>(
+    request,
+    'form_items',
+    {
+      section_id: specSectionId,
+      position: 0,
+      item_type: 'multiple_choice',
+      question_key: 'rr_inspection',
+      label: 'Inspeção — conformidade?',
+      required: true,
+    },
+  )
   specItemId = itemRow.id
+  await insertChoiceOptions(request, specItemId, itemRow.form_version_id, ['Sim', 'Não'])
 
   // A second question used by the Mixed-group template (answer leg).
-  const item2Row = await svcInsert<{ id: string }>(request, 'form_items', {
-    section_id: specSectionId,
-    position: 1,
-    item_type: 'multiple_choice',
-    question_key: 'rr_check',
-    label: 'Verificação adicional?',
-    options: ['Sim', 'Não'],
-    required: false,
-  })
+  const item2Row = await svcInsert<{ id: string; form_version_id: string }>(
+    request,
+    'form_items',
+    {
+      section_id: specSectionId,
+      position: 1,
+      item_type: 'multiple_choice',
+      question_key: 'rr_check',
+      label: 'Verificação adicional?',
+      required: false,
+    },
+  )
   specItem2Id = item2Row.id
+  await insertChoiceOptions(request, specItem2Id, item2Row.form_version_id, ['Sim', 'Não'])
 
   // Publish the form.
   const publishFormResp = await rpc(request, 'publish_form_version', chefeToken, {
@@ -535,7 +577,8 @@ test.beforeAll(async ({ request }) => {
         from_phase: 1,
         question_key: 'rr_check',
         op: 'equals',
-        value: 'Sim',
+        // form-model-normalization: answer conditions store the option CODE.
+        value: 'sim',
       },
     ],
   }
@@ -624,13 +667,18 @@ test.beforeAll(async ({ request }) => {
     // `rr_inspection` → specItemId, `rr_check` → specItem2Id
     answersByKey: { rr_inspection?: string; rr_check?: string },
   ): Promise<void> {
-    const p_answers: Record<string, string> = {}
-    if (answersByKey.rr_inspection !== undefined) p_answers[specItemId] = answersByKey.rr_inspection
-    if (answersByKey.rr_check !== undefined) p_answers[specItem2Id] = answersByKey.rr_check
+    // form-model-normalization: both are multiple_choice, so selections go
+    // through p_selections as option CODES (slug of the label), not p_answers.
+    const p_selections: Record<string, string[]> = {}
+    if (answersByKey.rr_inspection !== undefined)
+      p_selections[specItemId] = [slug(answersByKey.rr_inspection)]
+    if (answersByKey.rr_check !== undefined)
+      p_selections[specItem2Id] = [slug(answersByKey.rr_check)]
     const r = await rpc(request, 'save_section_answers', staff1Token, {
       p_response_id: responseId,
       p_section_id: specSectionId,
-      p_answers,
+      p_answers: {},
+      p_selections,
     })
     expect(r.ok(), `beforeAll: save_section_answers failed: ${await r.text()}`).toBeTruthy()
   }

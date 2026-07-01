@@ -832,18 +832,21 @@ function AnswerRowControls({
           ) : row.op === "in" ? (
             <fieldset className="flex flex-col gap-2">
               <legend className="text-sm font-medium">Opções selecionadas</legend>
+              {/* form-model-normalization: the picker SHOWS the option label but
+                  STORES the option code (the code-keyed answer_map evaluates on
+                  codes). For `in`, multiValue is an array of codes. */}
               {selectedTarget.options.map((opt) => (
-                <label key={opt} className="flex items-center gap-2.5 text-sm">
+                <label key={opt.code} className="flex items-center gap-2.5 text-sm">
                   <Checkbox
-                    checked={row.multiValue.includes(opt)}
+                    checked={row.multiValue.includes(opt.code)}
                     onCheckedChange={() => {
-                      const next = row.multiValue.includes(opt)
-                        ? row.multiValue.filter((o) => o !== opt)
-                        : [...row.multiValue, opt];
+                      const next = row.multiValue.includes(opt.code)
+                        ? row.multiValue.filter((c) => c !== opt.code)
+                        : [...row.multiValue, opt.code];
                       onUpdate({ multiValue: next });
                     }}
                   />
-                  {opt}
+                  {opt.label}
                 </label>
               ))}
             </fieldset>
@@ -858,8 +861,8 @@ function AnswerRowControls({
               >
                 <option value="">Selecione…</option>
                 {selectedTarget.options.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
+                  <option key={opt.code} value={opt.code}>
+                    {opt.label}
                   </option>
                 ))}
               </NativeSelect>
@@ -1088,6 +1091,8 @@ function PreviewPanel({
           htmlFor={`${rowId}-preview-answer`}
         >
           <span className="font-medium">Pré-visualizar: se a resposta fosse</span>
+          {/* The preview feeds `previewAnswer` into evalRecommendation over a
+              code-keyed answer map, so it stores the option CODE (shows label). */}
           <NativeSelect
             id={`${rowId}-preview-answer`}
             className="h-10"
@@ -1096,8 +1101,8 @@ function PreviewPanel({
           >
             <option value="">Selecione uma resposta…</option>
             {selectedTarget.options.map((opt) => (
-              <option key={opt} value={opt}>
-                {opt}
+              <option key={opt.code} value={opt.code}>
+                {opt.label}
               </option>
             ))}
           </NativeSelect>

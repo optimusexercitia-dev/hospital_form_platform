@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { Item, Section, Visibility } from "@/lib/queries/forms";
 
 import {
+  buildOptionLabelMap,
   buildQuestionLabelMap,
   describeVisibility,
 } from "./describe-visibility";
@@ -98,6 +99,59 @@ describe("describeVisibility", () => {
         { target: "Caso terminal?", op: "é uma das opções", value: "Sim, Não Aplica" },
         { target: "Dias internado", op: "é maior que", value: "5" },
       ],
+    });
+  });
+
+  describe("form-model-normalization: choice code → option label", () => {
+    // A choice question whose stored condition value is the option CODE; the
+    // card must render the human option LABEL.
+    const choiceSections: Section[] = [
+      section([
+        item({
+          id: "q1",
+          questionKey: "terminal",
+          label: "Caso terminal?",
+          options: [
+            { id: "o1", code: "sim_a1b2", label: "Sim", color: null, score: null, analyticsCode: null, position: 0 },
+            { id: "o2", code: "nao_c3d4", label: "Não", color: null, score: null, analyticsCode: null, position: 1 },
+            { id: "o3", code: "na_e5f6", label: "Não Aplica", color: null, score: null, analyticsCode: null, position: 2 },
+          ],
+        }),
+      ]),
+    ];
+
+    it("resolves a scalar code to its option label", () => {
+      const v: Visibility = { question_key: "terminal", op: "equals", value: "sim_a1b2" };
+      const summary = describeVisibility(
+        v,
+        buildQuestionLabelMap(choiceSections),
+        buildOptionLabelMap(choiceSections),
+      );
+      expect(summary?.clauses[0].value).toBe("Sim");
+    });
+
+    it("resolves an array of codes (in) to comma-joined option labels", () => {
+      const v: Visibility = {
+        question_key: "terminal",
+        op: "in",
+        value: ["sim_a1b2", "na_e5f6"],
+      };
+      const summary = describeVisibility(
+        v,
+        buildQuestionLabelMap(choiceSections),
+        buildOptionLabelMap(choiceSections),
+      );
+      expect(summary?.clauses[0].value).toBe("Sim, Não Aplica");
+    });
+
+    it("falls back to the raw code when it is unknown (option since deleted)", () => {
+      const v: Visibility = { question_key: "terminal", op: "equals", value: "gone_9999" };
+      const summary = describeVisibility(
+        v,
+        buildQuestionLabelMap(choiceSections),
+        buildOptionLabelMap(choiceSections),
+      );
+      expect(summary?.clauses[0].value).toBe("gone_9999");
     });
   });
 });

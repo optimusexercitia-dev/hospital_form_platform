@@ -32,8 +32,10 @@ function isEligibleTarget(itemType: string): itemType is InputItemType {
   return CONDITION_TARGET_TYPES.includes(itemType as InputItemType);
 }
 
-/** Map an eligible input item to a {@link ConditionTarget} (label strings out
- *  of `ItemOption[]`; number/date/time carry `options: []`). */
+/** Map an eligible input item to a {@link ConditionTarget}. form-model-
+ *  normalization: a choice target exposes `{ code, label }` per option — the
+ *  condition STORES the `code` (clone-stable identity the evaluator keys on)
+ *  while the picker SHOWS the `label`. number/date/time carry `options: []`. */
 function toTarget(
   item: Section["items"][number],
   sectionPosition: number,
@@ -43,7 +45,7 @@ function toTarget(
     label: item.label ?? (item.questionKey as string),
     sectionPosition,
     type: item.itemType as InputItemType,
-    options: (item.options ?? []).map((o) => o.label),
+    options: (item.options ?? []).map((o) => ({ code: o.code, label: o.label })),
   };
 }
 

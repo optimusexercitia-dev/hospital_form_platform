@@ -23,9 +23,12 @@ function inputItem(over: Partial<Item> & Pick<Item, "id" | "sectionId">): Item {
     questionKey: over.id,
     label: "Pergunta",
     questionExplanation: null,
+    // form-model-normalization: options are normalized rows. The option CODE is
+    // the answer-map identity, so codes are chosen to equal the condition values
+    // these tests assert on ("sim"/"não").
     options: [
-      { label: "sim", color: null },
-      { label: "não", color: null },
+      { id: "o-sim", code: "sim", label: "Sim", color: null, score: null, analyticsCode: null, position: 0 },
+      { id: "o-nao", code: "não", label: "Não", color: null, score: null, analyticsCode: null, position: 1 },
     ],
     config: null,
     visibleWhen: null,
@@ -429,5 +432,86 @@ describe("computeEffectiveVisibility (item-level)", () => {
         "followup",
       ),
     ).toBe(false);
+  });
+});
+
+/**
+ * form-model-normalization (FE-2 CRITICAL): the wizard's client-side answer map
+ * (`question_key → value`) that drives live show/skip via the frozen
+ * `evalVisibility` MUST match the SQL `app.answer_map` shape EXACTLY, or live
+ * visibility diverges from submit-time visibility (a real bug):
+ *   - single-select (multiple_choice / dropdown) → a SCALAR option-code string;
+ *   - checkbox → an ARRAY of option codes (even for a 1-element selection);
+ *   - scalars (number / date / time / text) → the raw value.
+ * The wizard stores the option CODE(s) in the answer record `value` (set by
+ * `InputItem`); `toAnswerMap` copies the value verbatim — so asserting
+ * `result.current.answerMap` is the true end-to-end check that the map-builder
+ * produces exactly these shapes.
+ */
+describe("answer-map shape mirrors app.answer_map (FE-2)", () => {
+  function singleData(): WizardData {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        title: null,
+        items: [
+          inputItem({ id: "mc", sectionId: "s0", questionKey: "mc", itemType: "multiple_choice" }),
+          inputItem({ id: "dd", sectionId: "s0", questionKey: "dd", itemType: "dropdown" }),
+          inputItem({ id: "cb", sectionId: "s0", questionKey: "cb", itemType: "checkbox" }),
+          inputItem({
+            id: "num",
+            sectionId: "s0",
+            questionKey: "num",
+            itemType: "number",
+            options: null,
+          }),
+          inputItem({
+            id: "txt",
+            sectionId: "s0",
+            questionKey: "txt",
+            itemType: "short_text",
+            options: null,
+          }),
+        ],
+      }),
+    ]);
+    return data(t);
+  }
+
+  it("single-select (multiple_choice / dropdown) → a scalar code string", () => {
+    const { result } = renderHook(() => useWizard(singleData()));
+    act(() => {
+      // InputItem emits the option CODE; here we feed codes directly.
+      result.current.setAnswer({ id: "mc", questionKey: "mc" }, "sim");
+      result.current.setAnswer({ id: "dd", questionKey: "dd" }, "não");
+    });
+    expect(result.current.answerMap.mc).toBe("sim");
+    expect(typeof result.current.answerMap.mc).toBe("string");
+    expect(result.current.answerMap.dd).toBe("não");
+  });
+
+  it("checkbox → an array of codes (even for a 1-element selection)", () => {
+    const { result } = renderHook(() => useWizard(singleData()));
+    act(() => {
+      result.current.setAnswer({ id: "cb", questionKey: "cb" }, ["sim"]);
+    });
+    expect(Array.isArray(result.current.answerMap.cb)).toBe(true);
+    expect(result.current.answerMap.cb).toEqual(["sim"]);
+
+    act(() => {
+      result.current.setAnswer({ id: "cb", questionKey: "cb" }, ["sim", "não"]);
+    });
+    expect(result.current.answerMap.cb).toEqual(["sim", "não"]);
+  });
+
+  it("scalars (number / text) → the raw value, unwrapped", () => {
+    const { result } = renderHook(() => useWizard(singleData()));
+    act(() => {
+      result.current.setAnswer({ id: "num", questionKey: "num" }, 7);
+      result.current.setAnswer({ id: "txt", questionKey: "txt" }, "olá");
+    });
+    expect(result.current.answerMap.num).toBe(7);
+    expect(result.current.answerMap.txt).toBe("olá");
   });
 });

@@ -25,9 +25,21 @@ const INPUT_ITEM_TYPES: readonly InputItemType[] = [
 ];
 const INPUT_TYPES = new Set<string>(INPUT_ITEM_TYPES);
 
+/** The three CHOICE input types (kept in lockstep with `CHOICE_ITEM_TYPES` in
+ *  `forms.ts`) — the ones whose answer is a selection of option CODEs
+ *  (form-model-normalization), persisted via `saveSection`'s `selectionsByItemId`
+ *  rather than `answersByItemId`. Declared locally to keep this module pure. */
+const CHOICE_TYPES = new Set<string>(["multiple_choice", "dropdown", "checkbox"]);
+
 /** True for items that collect an answer (input items, not display blocks). */
 export function isInputItem(itemType: string): boolean {
   return INPUT_TYPES.has(itemType);
+}
+
+/** True for the choice input types (multiple_choice / dropdown / checkbox) whose
+ *  answer is a set of option CODEs (form-model-normalization). */
+export function isChoiceItem(itemType: string): boolean {
+  return CHOICE_TYPES.has(itemType);
 }
 
 /**

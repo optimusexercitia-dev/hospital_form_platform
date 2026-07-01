@@ -27,11 +27,11 @@ import { NativeSelect } from "@/components/ui/native-select";
  * Each row picks an earlier-in-document-order input question (`targets`), an
  * operator filtered by that target's type (choice ⇒ equals/not_equals/in;
  * number/date/time ⇒ equals/not_equals/gt/gte/lt/lte), and a value control
- * (option picker for choice — the value is the option LABEL string; a
- * number/date/time input otherwise). The pickers are discrete so an author can
- * only build a structurally valid condition; publish-time
- * `validate_visible_when` is the server authority on forward/self refs and
- * operator↔type compatibility.
+ * (option picker for choice — form-model-normalization: the picker SHOWS the
+ * option label but the stored value is the option CODE; a number/date/time input
+ * otherwise). The pickers are discrete so an author can only build a structurally
+ * valid condition; publish-time `validate_visible_when` is the server authority
+ * on forward/self refs and operator↔type compatibility.
  *
  * Presentational + controlled: the parent owns the `Visibility` value and feeds
  * it into the item/section action. In a QUESTION context the parent disables the
@@ -83,10 +83,10 @@ export interface DraftRow {
   uid: string;
   questionKey: string;
   op: ConditionOp;
-  /** Scalar value for equals/not_equals + ordered ops (option label, number,
-   *  date or time string). */
+  /** Scalar value for equals/not_equals + ordered ops (choice option CODE,
+   *  number, date or time string). */
   singleValue: string;
-  /** Selected option labels for `in`. */
+  /** Selected option CODEs for `in`. */
   multiValue: string[];
 }
 
@@ -146,13 +146,13 @@ function isRowComplete(row: DraftRow, target: ConditionTarget | undefined): bool
 /**
  * Serialize a complete row to a sub-condition. The value type is keyed on the
  * TARGET's type so it matches how the answer is stored (MAJOR-1):
- *   - `in` → the selected option-label array;
+ *   - `in` → the selected option-CODE array;
  *   - number target → a JSON **number** (`Number(...)`), so both evaluators
  *     compare numerically (a string would fall to lexical compare and
  *     mis-evaluate, e.g. `"10" < "5"`);
  *   - date/time target → the ISO string (`YYYY-MM-DD` / `HH:mm`), which sorts
  *     correctly lexically;
- *   - choice target → the option-label string (equals/not_equals).
+ *   - choice target → the option-CODE string (equals/not_equals).
  */
 export function toCondition(row: DraftRow, target: ConditionTarget): VisibleWhen {
   let value: VisibleWhen["value"];
@@ -401,15 +401,17 @@ export function ConditionBuilder({
                         onSingleChange={(v) =>
                           updateRow(row.uid, { singleValue: v })
                         }
-                        onMultiToggle={(opt) => {
+                        onMultiToggle={(code) => {
                           const set = new Set(row.multiValue);
-                          if (set.has(opt)) set.delete(opt);
-                          else set.add(opt);
+                          if (set.has(code)) set.delete(code);
+                          else set.add(code);
                           // Preserve option order for stable, comparable values.
+                          // form-model-normalization: the stored value is the
+                          // option CODE, not the label.
                           updateRow(row.uid, {
-                            multiValue: target.options.filter((o) =>
-                              set.has(o),
-                            ),
+                            multiValue: target.options
+                              .map((o) => o.code)
+                              .filter((c) => set.has(c)),
                           });
                         }}
                       />
@@ -454,7 +456,9 @@ function ValueControl({
   onSingleChange: (value: string) => void;
   onMultiToggle: (option: string) => void;
 }) {
-  // CHOICE target → discrete option picker (value is the option label string).
+  // CHOICE target → discrete option picker. form-model-normalization: the picker
+  // SHOWS the option label but the stored value is the option CODE (the
+  // clone-stable identity the evaluator keys on).
   if (isChoiceTarget(target.type)) {
     if (target.options.length === 0) {
       return (
@@ -468,12 +472,12 @@ function ValueControl({
         <fieldset className="flex flex-col gap-2">
           <legend className="text-sm font-medium">Opções selecionadas</legend>
           {target.options.map((opt) => (
-            <label key={opt} className="flex items-center gap-2.5 text-sm">
+            <label key={opt.code} className="flex items-center gap-2.5 text-sm">
               <Checkbox
-                checked={multiValue.includes(opt)}
-                onCheckedChange={() => onMultiToggle(opt)}
+                checked={multiValue.includes(opt.code)}
+                onCheckedChange={() => onMultiToggle(opt.code)}
               />
-              {opt}
+              {opt.label}
             </label>
           ))}
         </fieldset>
@@ -490,8 +494,8 @@ function ValueControl({
         >
           <option value="">Selecione…</option>
           {target.options.map((opt) => (
-            <option key={opt} value={opt}>
-              {opt}
+            <option key={opt.code} value={opt.code}>
+              {opt.label}
             </option>
           ))}
         </NativeSelect>

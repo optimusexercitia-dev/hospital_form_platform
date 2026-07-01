@@ -22,11 +22,17 @@ import {
  * (`multiple_choice` / `dropdown` / `checkbox`). Add, edit, remove, and reorder
  * (up/down — no drag-and-drop in v1) the options.
  *
- * form-builder-enhancements (decision #4): each option is now an
- * {@link ItemOption} (`{ label, color }`). When `colorable` is true
- * (multiple_choice + checkbox only — a native `<select>` can't render colour) a
- * per-row colour picker is shown, defaulting to "sem cor" (`color: null`). The
- * answer still STORES the option label string; the colour is presentation only.
+ * form-model-normalization: each option is now a NORMALIZED {@link ItemOption}
+ * row (`{ id, code, label, color, score, analyticsCode, position }`). The author
+ * edits only `label`, `color`, `score` (a stored-only numeric weight) and
+ * `analyticsCode` (a free-text cross-form tagging hook); `id`/`code`/`position`
+ * are managed by the platform and never shown — `code` is the stable analytics /
+ * condition identity, so renaming a `label` never breaks analytics. New rows are
+ * created with an empty `id`/`code` (the backend assigns them on insert).
+ *
+ * When `colorable` is true (multiple_choice + checkbox only — a native
+ * `<select>` can't render colour) a per-row colour picker is shown, defaulting to
+ * "sem cor" (`color: null`).
  *
  * Presentational + controlled: owns no persistence. The parent supplies
  * `options`/`onChange`; persistence happens when the parent item editor calls
@@ -54,6 +60,24 @@ const TOKEN_NAME: Record<ColorToken, string> = {
   violet: "Violeta",
   muted: "Neutro",
 };
+
+/**
+ * A blank option row for a freshly-added option. `id`/`code` are empty — the
+ * backend `addItem`/`updateItem` action assigns the stable code (slug+suffix) and
+ * the row id on insert; `position` is by index and is recomputed by the parent on
+ * reorder/serialize, so the value held here is only a placeholder.
+ */
+export function blankOption(position: number): ItemOption {
+  return {
+    id: "",
+    code: "",
+    label: "",
+    color: null,
+    score: null,
+    analyticsCode: null,
+    position,
+  };
+}
 
 export function OptionsEditor({
   options,
@@ -83,6 +107,26 @@ export function OptionsEditor({
     onChange(next);
   }
 
+  /** Parse the score buffer to a number, or null when blank/invalid. The buffer
+   *  itself is held in the DOM; the canonical value is the parsed number. */
+  function updateScoreAt(index: number, raw: string) {
+    const next = options.slice();
+    const trimmed = raw.trim().replace(",", ".");
+    const parsed = trimmed === "" ? null : Number(trimmed);
+    next[index] = {
+      ...next[index],
+      score: parsed !== null && Number.isFinite(parsed) ? parsed : null,
+    };
+    onChange(next);
+  }
+
+  function updateAnalyticsCodeAt(index: number, raw: string) {
+    const next = options.slice();
+    const trimmed = raw.trim();
+    next[index] = { ...next[index], analyticsCode: trimmed === "" ? null : trimmed };
+    onChange(next);
+  }
+
   function removeAt(index: number) {
     onChange(options.filter((_, i) => i !== index));
   }
@@ -96,7 +140,7 @@ export function OptionsEditor({
   }
 
   function add() {
-    onChange([...options, { label: "", color: null }]);
+    onChange([...options, blankOption(options.length)]);
   }
 
   return (
@@ -110,12 +154,17 @@ export function OptionsEditor({
           Nenhuma opção ainda. Adicione pelo menos uma.
         </p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-3">
           {options.map((option, index) => {
             const inputId = `${groupId}-option-${index}`;
+            const scoreId = `${groupId}-option-${index}-score`;
+            const analyticsId = `${groupId}-option-${index}-analytics`;
             const position = index + 1;
             return (
-              <li key={index}>
+              <li
+                key={index}
+                className="flex flex-col gap-2 rounded-lg border border-border/70 bg-background/40 p-2.5"
+              >
                 <div className="flex items-center gap-2">
                   <Label htmlFor={inputId} className="sr-only">
                     Opção {position}
@@ -166,6 +215,47 @@ export function OptionsEditor({
                       <Trash2 aria-hidden="true" />
                     </Button>
                   </div>
+                </div>
+
+                {/* Score + analytics-code: optional analytics metadata, paired in
+                    one compact row beneath the label. Both default to "no value"
+                    so the common (label-only) option stays uncluttered. */}
+                <div className="grid grid-cols-2 gap-2 pl-0.5">
+                  <label
+                    htmlFor={scoreId}
+                    className="flex flex-col gap-1 text-xs text-muted-foreground"
+                  >
+                    <span>
+                      Pontuação{" "}
+                      <span className="font-normal">(opcional)</span>
+                    </span>
+                    <Input
+                      id={scoreId}
+                      type="text"
+                      inputMode="decimal"
+                      defaultValue={option.score === null ? "" : String(option.score)}
+                      onChange={(e) => updateScoreAt(index, e.target.value)}
+                      placeholder="Ex.: 2"
+                      className="h-8"
+                    />
+                  </label>
+                  <label
+                    htmlFor={analyticsId}
+                    className="flex flex-col gap-1 text-xs text-muted-foreground"
+                  >
+                    <span>
+                      Código de análise{" "}
+                      <span className="font-normal">(opcional)</span>
+                    </span>
+                    <Input
+                      id={analyticsId}
+                      type="text"
+                      defaultValue={option.analyticsCode ?? ""}
+                      onChange={(e) => updateAnalyticsCodeAt(index, e.target.value)}
+                      placeholder="Ex.: conforme"
+                      className="h-8"
+                    />
+                  </label>
                 </div>
               </li>
             );

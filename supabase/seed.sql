@@ -209,25 +209,36 @@ begin
           jsonb_build_object('markdown',
             '## Higienização das mãos\nResponda com base na observação da unidade no momento da auditoria.'));
 
-  -- position 1: multiple_choice (with explanation)
-  insert into public.form_items (section_id, position, item_type, question_key, label, question_explanation, options, required)
-  values (v_section_id, 1, 'multiple_choice', 'dispensador_disponivel',
+  -- position 1: multiple_choice (with explanation). form-model-normalization:
+  -- options are normalized rows with stable codes (slug of the label).
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, question_explanation, required)
+  values ('d0000000-0000-0000-0000-00000000a101', v_section_id, 1, 'multiple_choice', 'dispensador_disponivel',
           'Há dispensador de álcool em gel disponível e abastecido no ponto de atendimento?',
-          'Considere abastecido quando há volume suficiente para uso imediato.',
-          '["Sim", "Não", "Parcialmente"]'::jsonb, true);
+          'Considere abastecido quando há volume suficiente para uso imediato.', true);
+  insert into public.form_item_options (item_id, position, code, label) values
+    ('d0000000-0000-0000-0000-00000000a101', 0, 'sim', 'Sim'),
+    ('d0000000-0000-0000-0000-00000000a101', 1, 'nao', 'Não'),
+    ('d0000000-0000-0000-0000-00000000a101', 2, 'parcialmente', 'Parcialmente');
 
   -- position 2: dropdown
-  insert into public.form_items (section_id, position, item_type, question_key, label, options, required)
-  values (v_section_id, 2, 'dropdown', 'turno_auditoria',
-          'Turno em que a auditoria foi realizada',
-          '["Manhã", "Tarde", "Noite"]'::jsonb, true);
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+  values ('d0000000-0000-0000-0000-00000000a102', v_section_id, 2, 'dropdown', 'turno_auditoria',
+          'Turno em que a auditoria foi realizada', true);
+  insert into public.form_item_options (item_id, position, code, label) values
+    ('d0000000-0000-0000-0000-00000000a102', 0, 'manha', 'Manhã'),
+    ('d0000000-0000-0000-0000-00000000a102', 1, 'tarde', 'Tarde'),
+    ('d0000000-0000-0000-0000-00000000a102', 2, 'noite', 'Noite');
 
   -- position 3: checkbox (with explanation)
-  insert into public.form_items (section_id, position, item_type, question_key, label, question_explanation, options, required)
-  values (v_section_id, 3, 'checkbox', 'epis_observados',
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, question_explanation, required)
+  values ('d0000000-0000-0000-0000-00000000a103', v_section_id, 3, 'checkbox', 'epis_observados',
           'Quais EPIs estavam disponíveis no momento da observação?',
-          'Marque todos os itens observados na unidade.',
-          '["Luvas", "Avental", "Máscara", "Touca"]'::jsonb, false);
+          'Marque todos os itens observados na unidade.', false);
+  insert into public.form_item_options (item_id, position, code, label) values
+    ('d0000000-0000-0000-0000-00000000a103', 0, 'luvas', 'Luvas'),
+    ('d0000000-0000-0000-0000-00000000a103', 1, 'avental', 'Avental'),
+    ('d0000000-0000-0000-0000-00000000a103', 2, 'mascara', 'Máscara'),
+    ('d0000000-0000-0000-0000-00000000a103', 3, 'touca', 'Touca');
 
   -- position 4: image display block
   insert into public.form_items (section_id, position, item_type, content)
@@ -280,25 +291,31 @@ begin
   insert into public.form_sections (id, form_version_id, position, title, description)
   values (s_armazenamento, v_version_id, 1, 'Armazenamento geral',
           'Condições gerais do estoque.');
-  insert into public.form_items (section_id, position, item_type, question_key, label, options, required)
-  values (s_armazenamento, 0, 'multiple_choice', 'organizacao_estoque',
-          'O estoque está organizado e identificado conforme o procedimento?',
-          '["Sim", "Não"]'::jsonb, true);
-  insert into public.form_items (section_id, position, item_type, question_key, label, question_explanation, options, required)
-  values (s_armazenamento, 1, 'multiple_choice', 'possui_termolabeis',
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+  values ('d0000000-0000-0000-0000-00000000b101', s_armazenamento, 0, 'multiple_choice', 'organizacao_estoque',
+          'O estoque está organizado e identificado conforme o procedimento?', true);
+  insert into public.form_item_options (item_id, position, code, label) values
+    ('d0000000-0000-0000-0000-00000000b101', 0, 'sim', 'Sim'),
+    ('d0000000-0000-0000-0000-00000000b101', 1, 'nao', 'Não');
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, question_explanation, required)
+  values ('d0000000-0000-0000-0000-00000000b102', s_armazenamento, 1, 'multiple_choice', 'possui_termolabeis',
           'A unidade armazena medicamentos termolábeis (refrigerados)?',
-          'Se sim, a seção de controle de temperatura será exibida.',
-          '["Sim", "Não"]'::jsonb, true);
+          'Se sim, a seção de controle de temperatura será exibida.', true);
+  insert into public.form_item_options (item_id, position, code, label) values
+    ('d0000000-0000-0000-0000-00000000b102', 0, 'sim', 'Sim'),
+    ('d0000000-0000-0000-0000-00000000b102', 1, 'nao', 'Não');
 
-  -- Section 2 (CONDITIONAL): only when possui_termolabeis = 'Sim'
+  -- Section 2 (CONDITIONAL): only when possui_termolabeis = 'sim' (the option CODE).
   insert into public.form_sections (id, form_version_id, position, title, description, visible_when)
   values (s_geladeira, v_version_id, 2, 'Controle de temperatura',
           'Aplicável apenas quando há medicamentos refrigerados.',
-          jsonb_build_object('question_key', 'possui_termolabeis', 'op', 'equals', 'value', 'Sim'));
-  insert into public.form_items (section_id, position, item_type, question_key, label, options, required)
-  values (s_geladeira, 0, 'multiple_choice', 'temperatura_na_faixa',
-          'A temperatura da câmara/refrigerador está dentro da faixa de 2 °C a 8 °C?',
-          '["Sim", "Não"]'::jsonb, true);
+          jsonb_build_object('question_key', 'possui_termolabeis', 'op', 'equals', 'value', 'sim'));
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+  values ('d0000000-0000-0000-0000-00000000b103', s_geladeira, 0, 'multiple_choice', 'temperatura_na_faixa',
+          'A temperatura da câmara/refrigerador está dentro da faixa de 2 °C a 8 °C?', true);
+  insert into public.form_item_options (item_id, position, code, label) values
+    ('d0000000-0000-0000-0000-00000000b103', 0, 'sim', 'Sim'),
+    ('d0000000-0000-0000-0000-00000000b103', 1, 'nao', 'Não');
   insert into public.form_items (section_id, position, item_type, question_key, label, required)
   values (s_geladeira, 1, 'free_text', 'temperatura_registrada',
           'Temperatura registrada no momento da inspeção (°C)', false);
@@ -307,10 +324,12 @@ begin
   insert into public.form_sections (id, form_version_id, position, title, description, requires_signoff, signoff_role)
   values (s_conformidade, v_version_id, 3, 'Conformidade e validades',
           'Verificação de prazos de validade.', true, 'respondent');
-  insert into public.form_items (section_id, position, item_type, question_key, label, options, required)
-  values (s_conformidade, 0, 'multiple_choice', 'sem_vencidos',
-          'Não foram encontrados medicamentos vencidos no estoque?',
-          '["Sim", "Não"]'::jsonb, true);
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+  values ('d0000000-0000-0000-0000-00000000b104', s_conformidade, 0, 'multiple_choice', 'sem_vencidos',
+          'Não foram encontrados medicamentos vencidos no estoque?', true);
+  insert into public.form_item_options (item_id, position, code, label) values
+    ('d0000000-0000-0000-0000-00000000b104', 0, 'sim', 'Sim'),
+    ('d0000000-0000-0000-0000-00000000b104', 1, 'nao', 'Não');
 
   -- Section 4 (staff_admin sign-off)
   insert into public.form_sections (id, form_version_id, position, title, description, requires_signoff, signoff_role)
@@ -368,15 +387,23 @@ begin
             case when i % 2 = 0 then v_staff_a2 else v_staff_a1 end,
             'submitted', now() - (i || ' days')::interval, now() - (i || ' days')::interval);
 
+    -- Scalar answer (free_text) stays in answers.value.
     insert into public.answers (response_id, item_id, question_key, value) values
-      (v_resp, ia_disp,  'dispensador_disponivel',
-        to_jsonb((array['Sim','Não','Parcialmente'])[1 + (i % 3)])),
-      (v_resp, ia_turno, 'turno_auditoria',
-        to_jsonb((array['Manhã','Tarde','Noite'])[1 + (i % 3)])),
-      (v_resp, ia_epis,  'epis_observados',
-        case when i % 2 = 0 then '["Luvas","Avental"]'::jsonb else '["Luvas","Máscara","Touca"]'::jsonb end),
-      (v_resp, ia_obs,   'observacoes_gerais',
-        to_jsonb('Auditoria de rotina nº ' || i || '.'));
+      (v_resp, ia_obs, 'observacoes_gerais', to_jsonb('Auditoria de rotina nº ' || i || '.'));
+    -- Choice selections -> answer_selected_options (by option code).
+    -- mc: cycle sim/nao/parcialmente; dropdown: manha/tarde/noite.
+    insert into public.answer_selected_options (response_id, item_id, option_id)
+    select v_resp, ia_disp, o.id from public.form_item_options o
+    where o.item_id = ia_disp and o.code = (array['sim','nao','parcialmente'])[1 + (i % 3)];
+    insert into public.answer_selected_options (response_id, item_id, option_id)
+    select v_resp, ia_turno, o.id from public.form_item_options o
+    where o.item_id = ia_turno and o.code = (array['manha','tarde','noite'])[1 + (i % 3)];
+    -- checkbox: even -> {luvas,avental}; odd -> {luvas,mascara,touca}.
+    insert into public.answer_selected_options (response_id, item_id, option_id)
+    select v_resp, ia_epis, o.id from public.form_item_options o
+    where o.item_id = ia_epis
+      and o.code = any (case when i % 2 = 0 then array['luvas','avental']
+                             else array['luvas','mascara','touca'] end);
   end loop;
 
   -- ----- Form B: 4 submitted responses — 2 take the conditional branch
@@ -389,16 +416,26 @@ begin
             case when i % 2 = 0 then v_staff_b2 else v_staff_b1 end,
             'submitted', now() - (i || ' days')::interval, now() - (i || ' days')::interval);
 
+    -- Scalar answer (free_text) stays.
     insert into public.answers (response_id, item_id, question_key, value) values
-      (v_resp, ib_org,   'organizacao_estoque', to_jsonb('Sim'::text)),
-      (v_resp, ib_termo, 'possui_termolabeis',  to_jsonb(case when i <= 2 then 'Sim' else 'Não' end)),
-      (v_resp, ib_venc,  'sem_vencidos',        to_jsonb('Sim'::text)),
-      (v_resp, ib_parecer,'parecer_chefia',     to_jsonb('Inspeção dentro do esperado.'::text));
+      (v_resp, ib_parecer, 'parecer_chefia', to_jsonb('Inspeção dentro do esperado.'::text));
+    -- Choice selections by code: org='sim', venc='sim', termo='sim' (i<=2) else 'nao'.
+    insert into public.answer_selected_options (response_id, item_id, option_id)
+    select v_resp, ib_org, o.id from public.form_item_options o
+    where o.item_id = ib_org and o.code = 'sim';
+    insert into public.answer_selected_options (response_id, item_id, option_id)
+    select v_resp, ib_venc, o.id from public.form_item_options o
+    where o.item_id = ib_venc and o.code = 'sim';
+    insert into public.answer_selected_options (response_id, item_id, option_id)
+    select v_resp, ib_termo, o.id from public.form_item_options o
+    where o.item_id = ib_termo and o.code = (case when i <= 2 then 'sim' else 'nao' end);
 
-    -- Conditional-section answers only for the 'Sim' branch.
+    -- Conditional-section answers only for the 'sim' branch.
     if i <= 2 then
+      insert into public.answer_selected_options (response_id, item_id, option_id)
+      select v_resp, ib_temp, o.id from public.form_item_options o
+      where o.item_id = ib_temp and o.code = 'sim';
       insert into public.answers (response_id, item_id, question_key, value) values
-        (v_resp, ib_temp,    'temperatura_na_faixa',  to_jsonb('Sim'::text)),
         (v_resp, ib_tempreg, 'temperatura_registrada', to_jsonb(('' || (4 + i) || ' °C'))::jsonb);
     end if;
 
@@ -420,8 +457,9 @@ begin
   insert into public.responses (id, form_version_id, commission_id, created_by, status, last_section_id, started_at)
   values (v_resp, v_form_a, v_comm_a, v_staff_a1, 'in_progress',
           'c0000000-0000-0000-0000-00000000a001', now());
-  insert into public.answers (response_id, item_id, question_key, value) values
-    (v_resp, ia_disp, 'dispensador_disponivel', to_jsonb('Sim'::text));
+  insert into public.answer_selected_options (response_id, item_id, option_id)
+  select v_resp, ia_disp, o.id from public.form_item_options o
+  where o.item_id = ia_disp and o.code = 'sim';
 
   -- ----- Phase 6: 1 in_progress response on Form B (Farmácia) by staff1.farm,
   -- SUBMIT-READY and AWAITING the staff_admin sign-off, so the E2E exercises BOTH
@@ -442,10 +480,15 @@ begin
              where form_version_id = v_form_b and signoff_role = 'staff_admin'),
           now(), now());
 
-  insert into public.answers (response_id, item_id, question_key, value) values
-    (v_resp, ib_org,   'organizacao_estoque', to_jsonb('Sim'::text)),
-    (v_resp, ib_termo, 'possui_termolabeis',  to_jsonb('Não'::text)),
-    (v_resp, ib_venc,  'sem_vencidos',        to_jsonb('Sim'::text));
+  insert into public.answer_selected_options (response_id, item_id, option_id)
+  select v_resp, ib_org, o.id from public.form_item_options o
+  where o.item_id = ib_org and o.code = 'sim';
+  insert into public.answer_selected_options (response_id, item_id, option_id)
+  select v_resp, ib_termo, o.id from public.form_item_options o
+  where o.item_id = ib_termo and o.code = 'nao';
+  insert into public.answer_selected_options (response_id, item_id, option_id)
+  select v_resp, ib_venc, o.id from public.form_item_options o
+  where o.item_id = ib_venc and o.code = 'sim';
 
   -- Respondent sign-off already recorded (signed_by the respondent themselves).
   insert into public.response_section_signoffs (response_id, section_id, signed_by)
@@ -501,7 +544,7 @@ begin
     (v_tpl, 1, v_form_a, 'Fase 1 — Coleta inicial', null, 7),
     (v_tpl, 2, v_form_a, 'Fase 2 — Revisão do comitê',
      jsonb_build_object('from_phase', 1, 'question_key', 'dispensador_disponivel',
-                        'op', 'equals', 'value', 'Sim'),
+                        'op', 'equals', 'value', 'sim'),
      14);
 
   -- The case (number minted by the trigger). Pin Form A's published version.
@@ -538,7 +581,7 @@ begin
     (v_cp2, v_case, 2, v_form_a, v_ver_a, 'Fase 2 — Revisão do comitê',
      'pendente', true,
      jsonb_build_object('from_phase', 1, 'question_key', 'dispensador_disponivel',
-                        'op', 'equals', 'value', 'Sim'),
+                        'op', 'equals', 'value', 'sim'),
      14, current_date - 3);
   perform set_config('app.in_case_rpc', 'off', true);
 
@@ -553,9 +596,14 @@ begin
     (id, form_version_id, commission_id, created_by, status, case_phase_id, started_at, updated_at, submitted_at)
   values
     (v_resp, v_ver_a, v_comm_a, v_staff_a1, 'submitted', v_cp1, now(), now(), now());
-  insert into public.answers (response_id, item_id, question_key, value) values
-    (v_resp, ia_disp,  'dispensador_disponivel', to_jsonb('Sim'::text)),
-    (v_resp, ia_turno, 'turno_auditoria',        to_jsonb('Manhã'::text));
+  -- Choice answers -> selections (by code). in_submit_rpc is on, so the
+  -- submitted-children guard permits these inserts (same path as submit_response).
+  insert into public.answer_selected_options (response_id, item_id, option_id)
+  select v_resp, ia_disp, o.id from public.form_item_options o
+  where o.item_id = ia_disp and o.code = 'sim';
+  insert into public.answer_selected_options (response_id, item_id, option_id)
+  select v_resp, ia_turno, o.id from public.form_item_options o
+  where o.item_id = ia_turno and o.code = 'manha';
   perform set_config('app.in_submit_rpc', 'off', true);
 end $$;
 

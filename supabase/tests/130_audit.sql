@@ -67,9 +67,17 @@ reset role;
 grant select on f1 to authenticated;
 
 -- Add a required item to the default section so publish validates, then publish.
-insert into public.form_items (section_id, form_version_id, position, item_type, question_key, label, options, required)
-  select s.id, s.form_version_id, 0, 'multiple_choice', 'pt_q1', 'Q', '["Sim","Não"]'::jsonb, true
+-- form-model-normalization: options are normalized rows (needed so publish's
+-- ">= 1 option" check passes for this choice item).
+insert into public.form_items (section_id, form_version_id, position, item_type, question_key, label, required)
+  select s.id, s.form_version_id, 0, 'multiple_choice', 'pt_q1', 'Q', true
   from public.form_sections s where s.form_version_id = (select version_id from f1) limit 1;
+insert into public.form_item_options (item_id, position, code, label)
+  select i.id, 0, 'sim', 'Sim' from public.form_items i
+  where i.form_version_id = (select version_id from f1) and i.question_key = 'pt_q1'
+  union all
+  select i.id, 1, 'nao', 'Não' from public.form_items i
+  where i.form_version_id = (select version_id from f1) and i.question_key = 'pt_q1';
 
 select lives_ok($$
   select public.publish_form_version((select version_id from f1))
@@ -114,7 +122,8 @@ begin
     jsonb_build_object('sub', (select st_x from k), 'role','authenticated','is_admin', false)::text, true);
   perform public.save_section_answers(
     v_rid, (select sec_u from k),
-    jsonb_build_object((select item_mc from k)::text, to_jsonb('Sim'::text))
+    '{}'::jsonb, null, null,
+    jsonb_build_object((select item_mc from k)::text, jsonb_build_array('sim'))
   );
   perform public.submit_response(v_rid);
   perform set_config('request.jwt.claims', '', true);

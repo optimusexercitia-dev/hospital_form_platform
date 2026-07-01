@@ -57,6 +57,7 @@ const MESSAGES = {
   labelRequired: 'Informe o enunciado da pergunta.',
   optionsRequired: 'Informe ao menos uma opção de resposta.',
   optionColorInvalid: 'Cor de opção inválida.',
+  optionScoreInvalid: 'A pontuação da opção deve ser um número.',
   configInvalid: 'Valores de mínimo/máximo inválidos.',
   configRangeInvalid: 'O valor mínimo não pode ser maior que o máximo.',
   conditionShapeInvalid: 'Condição de aparência inválida.',
@@ -585,36 +586,56 @@ export async function moveSection(
 type ItemColumns = {
   label: string | null
   question_explanation: string | null
-  options: Json
   config: Json
   visible_when: Json
   required: boolean
   content: Json
 }
 
-/** A parsed option with its optional colour token. */
+/** The result of parsing an item's fields: the form_items columns + (for choice
+ * types) the parsed option rows to persist into form_item_options. */
+type ParsedItem = { columns: ItemColumns; options: ParsedOption[] | null }
+
+/**
+ * A parsed option row (form-model-normalization). `code` carries the existing
+ * option's stable code for a KEPT row (so updateItem preserves it) or '' for a
+ * NEW row (addItem/updateItem generates one). `color`/`score`/`analyticsCode`
+ * are the editable metadata.
+ */
 interface ParsedOption {
+  /** Existing option code (kept rows) or '' (new rows — code generated). */
+  code: string
   label: string
   color: string | null
+  score: number | null
+  analyticsCode: string | null
 }
 
 /**
- * Parse the repeated `option` / `optionColor` fields into `{label, color}` rows.
+ * Parse the index-parallel `option` (label) / `optionCode` / `optionColor` /
+ * `optionScore` / `optionAnalyticsCode` fields into {@link ParsedOption} rows.
  * Colours are kept only for {@link COLOR_OPTION_TYPES}; for other choice types
- * the colour is forced to null. Empty labels are dropped (with their colour).
+ * the colour is forced to null. Empty labels are dropped (with their metadata).
+ * Position is the surviving row index. `optionScore` is the raw number string
+ * ('' = none); a non-numeric non-empty value is rejected. `optionCode` is the
+ * existing code for a kept row, '' for a new row.
  */
 function parseOptions(
   itemType: string,
   formData: FormData,
 ): { error: ActionState } | { options: ParsedOption[] } {
   const labels = formData.getAll('option').map((o) => String(o))
+  const codes = formData.getAll('optionCode').map((c) => String(c))
   const colors = formData.getAll('optionColor').map((c) => String(c))
+  const scores = formData.getAll('optionScore').map((s) => String(s))
+  const analytics = formData.getAll('optionAnalyticsCode').map((a) => String(a))
   const colorsAllowed = COLOR_OPTION_TYPES.includes(itemType)
 
   const rows: ParsedOption[] = []
   for (let i = 0; i < labels.length; i++) {
     const label = labels[i].trim()
     if (!label) continue
+
     const rawColor = (colors[i] ?? '').trim()
     let color: string | null = null
     if (rawColor && colorsAllowed) {
@@ -623,25 +644,31 @@ function parseOptions(
       }
       color = rawColor
     }
-    rows.push({ label, color })
+
+    const rawScore = (scores[i] ?? '').trim()
+    let score: number | null = null
+    if (rawScore) {
+      const n = Number(rawScore)
+      if (!Number.isFinite(n)) {
+        return { error: { ok: false, error: MESSAGES.optionScoreInvalid } }
+      }
+      score = n
+    }
+
+    const analyticsCode = (analytics[i] ?? '').trim() || null
+
+    rows.push({
+      code: (codes[i] ?? '').trim(),
+      label,
+      color,
+      score,
+      analyticsCode,
+    })
   }
   if (rows.length === 0) {
     return { error: { ok: false, error: MESSAGES.optionsRequired } }
   }
   return { options: rows }
-}
-
-/**
- * Serialize parsed options to the persisted `options` jsonb. Writes the legacy
- * bare-string form when NO colour is set on any option (keeps colourless forms
- * compact and unchanged) and the `{label, color}` object form once any option
- * carries a colour. Both shapes are accepted by `app.is_valid_options` and
- * normalized back to `ItemOption[]` at read by `toOptions` (queries/forms.ts).
- */
-function serializeOptions(rows: ParsedOption[]): Json {
-  const anyColor = rows.some((r) => r.color !== null)
-  if (!anyColor) return rows.map((r) => r.label)
-  return rows.map((r) => ({ label: r.label, color: r.color }))
 }
 
 /**
@@ -752,7 +779,7 @@ function parseVisibleWhen(
 function parseItemFields(
   itemType: string,
   formData: FormData,
-): { error: ActionState } | { columns: ItemColumns } {
+): { error: ActionState } | ParsedItem {
   if (INPUT_TYPES.includes(itemType)) {
     const label = String(formData.get('label') ?? '').trim()
     if (!label) {
@@ -760,14 +787,15 @@ function parseItemFields(
     }
     const explanation = String(formData.get('questionExplanation') ?? '').trim()
 
-    let options: Json = null
+    // form-model-normalization: options are persisted as form_item_options rows
+    // by addItem/updateItem, NOT as a form_items column. Parse them here; the
+    // caller does the row CRUD. free_text/short_text/number/date/time carry none.
+    let options: ParsedOption[] | null = null
     if (CHOICE_TYPES.includes(itemType)) {
       const parsedOptions = parseOptions(itemType, formData)
       if ('error' in parsedOptions) return { error: parsedOptions.error }
-      options = serializeOptions(parsedOptions.options)
+      options = parsedOptions.options
     }
-    // free_text / short_text / number / date / time: options stays null
-    // (enforced by the form_items_options_shape CHECK too).
 
     const parsedConfig = parseConfig(itemType, formData)
     if ('error' in parsedConfig) return { error: parsedConfig.error }
@@ -786,12 +814,12 @@ function parseItemFields(
       columns: {
         label,
         question_explanation: explanation || null,
-        options,
         config: parsedConfig.config,
         visible_when: parsedVisible.visibleWhen,
         required,
         content: null,
       },
+      options,
     }
   }
 
@@ -804,12 +832,12 @@ function parseItemFields(
       columns: {
         label: null,
         question_explanation: null,
-        options: null,
         config: null,
         visible_when: null,
         required: false,
         content: { markdown },
       },
+      options: null,
     }
   }
 
@@ -827,16 +855,122 @@ function parseItemFields(
       columns: {
         label: null,
         question_explanation: null,
-        options: null,
         config: null,
         visible_when: null,
         required: false,
         content: { storage_path: storagePath, alt, caption: caption || null },
       },
+      options: null,
     }
   }
 
   return { error: { ok: false, error: MESSAGES.itemTypeInvalid } }
+}
+
+/**
+ * Generate a unique option code for a NEW option row of an item: `slug(label)`
+ * + a short suffix, retried against the existing codes (in-memory uniqueness is
+ * enough — the DB `unique(item_id, code)` is the backstop). Mirrors the
+ * question_key generation (slugifyLabel + shortSuffix).
+ */
+function generateOptionCode(label: string, taken: Set<string>): string {
+  const base = slugifyLabel(label)
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const code = `${base}_${shortSuffix()}`
+    if (!taken.has(code)) {
+      taken.add(code)
+      return code
+    }
+  }
+  // Astronomically unlikely; fall back to a longer suffix.
+  const code = `${base}_${shortSuffix()}${shortSuffix()}`
+  taken.add(code)
+  return code
+}
+
+/**
+ * Insert option rows for a freshly-created choice item (addItem). Generates a
+ * stable code per row; position is the array index. The DB triggers fill
+ * form_version_id (from the item) and enforce parent-is-choice + unique code.
+ */
+async function insertOptionRows(
+  supabase: SupabaseClient<Database>,
+  itemId: string,
+  versionId: string,
+  options: ParsedOption[],
+): Promise<{ ok: boolean }> {
+  const taken = new Set<string>()
+  const rows = options.map((o, i) => ({
+    item_id: itemId,
+    // The form_item_options_sync_version trigger overwrites this from the item;
+    // we pass the resolved value only to satisfy the typed (NOT NULL) Insert.
+    form_version_id: versionId,
+    position: i,
+    code: o.code.trim() || generateOptionCode(o.label, taken),
+    label: o.label,
+    color_token: o.color,
+    score: o.score,
+    analytics_code: o.analyticsCode,
+  }))
+  // Reserve any kept codes so generated ones can't collide with them.
+  for (const r of rows) taken.add(r.code)
+
+  const { error } = await supabase.from('form_item_options').insert(rows)
+  return { ok: !error }
+}
+
+/**
+ * Reconcile an existing choice item's option rows to the submitted set
+ * (updateItem). Kept rows (those whose submitted `code` matches an existing row)
+ * are UPDATEd (label/color/score/analytics_code/position — never the code, which
+ * the DB freezes); new rows (empty or unknown code) are INSERTed with a fresh
+ * code; existing rows whose code is absent from the submission are DELETEd. This
+ * preserves the analytics-stable code across edits while letting the author
+ * rename/recolour/reorder freely.
+ */
+async function reconcileOptionRows(
+  supabase: SupabaseClient<Database>,
+  itemId: string,
+  options: ParsedOption[],
+): Promise<{ ok: boolean }> {
+  // Resolve which submitted rows are KEPT (code already on the item) vs NEW, so
+  // new rows get an app-generated code (Decision 2) while kept rows preserve
+  // theirs (the code is DB-frozen). The whole set is then reconciled ATOMICALLY
+  // by the reconcile_item_options RPC in ONE transaction — the per-row position
+  // UPDATE loop is gone (it ran in separate transactions, so a reorder into an
+  // occupied slot violated the DEFERRABLE unique(item_id, position); QA MAJOR-1).
+  const { data: existing } = await supabase
+    .from('form_item_options')
+    .select('code')
+    .eq('item_id', itemId)
+    .returns<{ code: string }[]>()
+
+  const existingCodes = new Set<string>((existing ?? []).map((e) => e.code))
+  const taken = new Set<string>(existingCodes)
+
+  // Build the ordered payload; every element carries a code (kept or generated).
+  const payload = options.map((o) => {
+    const submittedCode = o.code.trim()
+    const code =
+      submittedCode && existingCodes.has(submittedCode)
+        ? submittedCode
+        : generateOptionCode(o.label, taken)
+    return {
+      code,
+      label: o.label,
+      color_token: o.color,
+      score: o.score,
+      analytics_code: o.analyticsCode,
+    }
+  })
+
+  const { error } = await supabase.rpc('reconcile_item_options', {
+    p_item_id: itemId,
+    p_options: payload as unknown as Json,
+  })
+  if (error) return { ok: false }
+
+  return { ok: true }
 }
 
 /**
@@ -866,7 +1000,7 @@ export async function addItem(
 
   const parsed = parseItemFields(itemType, formData)
   if ('error' in parsed) return parsed.error
-  const columns = parsed.columns
+  const { columns, options } = parsed
 
   // Append after the current max position in the section.
   const { data: last } = await supabase
@@ -881,36 +1015,56 @@ export async function addItem(
   const isInput = INPUT_TYPES.includes(itemType)
   const keyBase = isInput ? slugifyLabel(columns.label ?? '') : null
 
-  // Insert; for input items retry on a per-version question_key collision with a
-  // fresh suffix. form_version_id is omitted — the sync trigger fills it.
+  // Insert the item; for input items retry on a per-version question_key
+  // collision with a fresh suffix. form_version_id is omitted — the sync trigger
+  // fills it. The insert returns the new item id so choice options can be
+  // attached (form-model-normalization: options are rows, not a column).
   const MAX_ATTEMPTS = 5
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
     const questionKey = isInput ? `${keyBase}_${shortSuffix()}` : null
-    const { error } = await supabase.from('form_items').insert({
-      section_id: sectionId,
-      // The form_items_sync_version trigger derives form_version_id from the
-      // section; we pass the resolved value (same id) only to satisfy the typed
-      // Insert, which marks the NOT-NULL column required.
-      form_version_id: ctx.versionId,
-      position: nextPosition,
-      item_type: itemType,
-      question_key: questionKey,
-      label: columns.label,
-      question_explanation: columns.question_explanation,
-      options: columns.options,
-      config: columns.config,
-      visible_when: columns.visible_when,
-      required: columns.required,
-      content: columns.content,
-    })
+    const { data: inserted, error } = await supabase
+      .from('form_items')
+      .insert({
+        section_id: sectionId,
+        // The form_items_sync_version trigger derives form_version_id from the
+        // section; we pass the resolved value (same id) only to satisfy the typed
+        // Insert, which marks the NOT-NULL column required.
+        form_version_id: ctx.versionId,
+        position: nextPosition,
+        item_type: itemType,
+        question_key: questionKey,
+        label: columns.label,
+        question_explanation: columns.question_explanation,
+        config: columns.config,
+        visible_when: columns.visible_when,
+        required: columns.required,
+        content: columns.content,
+      })
+      .select('id')
+      .maybeSingle<{ id: string }>()
 
-    if (!error) {
+    if (!error && inserted) {
+      // Attach the choice options as normalized rows.
+      if (options && options.length > 0) {
+        const res = await insertOptionRows(
+          supabase,
+          inserted.id,
+          ctx.versionId,
+          options,
+        )
+        if (!res.ok) {
+          // Roll back the orphaned item (no option rows) so the builder stays
+          // consistent; the item is a draft row, freely deletable.
+          await supabase.from('form_items').delete().eq('id', inserted.id)
+          return { ok: false, error: MESSAGES.generic }
+        }
+      }
       revalidateBuilder()
       return { ok: true, error: MESSAGES.itemAdded }
     }
     // Only a question_key collision is retryable; anything else is terminal.
-    if (error.code === PG_UNIQUE_VIOLATION && isInput) continue
-    return { ok: false, error: mapWriteError(error) }
+    if (error?.code === PG_UNIQUE_VIOLATION && isInput) continue
+    return { ok: false, error: error ? mapWriteError(error) : MESSAGES.generic }
   }
 
   // Exhausted retries (astronomically unlikely) — fail cleanly.
@@ -942,19 +1096,18 @@ export async function updateItem(
     .from('form_items')
     .select('item_type')
     .eq('id', itemId)
-    .maybeSingle()
+    .maybeSingle<{ item_type: string }>()
   if (!existing) return { ok: false, error: MESSAGES.missingItem }
 
   const parsed = parseItemFields(existing.item_type, formData)
   if ('error' in parsed) return parsed.error
-  const columns = parsed.columns
+  const { columns, options } = parsed
 
   const { error } = await supabase
     .from('form_items')
     .update({
       label: columns.label,
       question_explanation: columns.question_explanation,
-      options: columns.options,
       config: columns.config,
       visible_when: columns.visible_when,
       required: columns.required,
@@ -963,6 +1116,14 @@ export async function updateItem(
     .eq('id', itemId)
 
   if (error) return { ok: false, error: mapWriteError(error) }
+
+  // form-model-normalization: reconcile the choice options into form_item_options
+  // rows (kept rows updated by code; new rows generate a code; removed rows
+  // deleted) — codes stay stable across the edit.
+  if (options) {
+    const res = await reconcileOptionRows(supabase, itemId, options)
+    if (!res.ok) return { ok: false, error: MESSAGES.generic }
+  }
 
   revalidateBuilder()
   return { ok: true, error: MESSAGES.itemUpdated }

@@ -5,7 +5,8 @@ import { getSessionContext } from '@/lib/queries/session'
 import { logAuditAccess } from '@/lib/audit/access'
 import type { Json } from '@/lib/types/database'
 import type { VersionTree } from '@/lib/queries/forms'
-import type { ResponseStatus } from '@/lib/queries/responses'
+import { buildAnswerMaps } from '@/lib/queries/responses'
+import type { ResponseStatus, SelectionRow } from '@/lib/queries/responses'
 import type { SignoffRecord } from '@/lib/queries/signoffs'
 
 /**
@@ -285,24 +286,32 @@ export async function getSubmissionDetail(
   // answers_select returns answers only for responses the caller may read; for a
   // submitted response that's the structure-complete answer set. (No row leaks
   // for in_progress foreign responses — `response` above would already be null.)
-  const { data: answers } = await supabase
-    .from('answers')
-    .select('item_id, question_key, value, observation')
-    .eq('response_id', responseId)
-    .returns<DetailAnswerRow[]>()
+  const [{ data: answers }, { data: selections }] = await Promise.all([
+    supabase
+      .from('answers')
+      .select('item_id, question_key, value, observation')
+      .eq('response_id', responseId)
+      .returns<DetailAnswerRow[]>(),
+    supabase
+      .from('answer_selected_options')
+      .select('item_id, option_id')
+      .eq('response_id', responseId)
+      .returns<SelectionRow[]>(),
+  ])
 
-  const answersByItemId: Record<string, Json> = {}
-  const answersByKey: Record<string, Json> = {}
+  // form-model-normalization: canonical maps (single→scalar code, checkbox→code
+  // array, scalars→raw) via the shared app.answer_map sibling.
+  const { answersByItemId, answersByKey } = buildAnswerMaps(
+    tree,
+    answers ?? [],
+    selections ?? [],
+  )
+
   const observationsByItemId: Record<string, string> = {}
   for (const a of answers ?? []) {
-    // Collect observations independently of the value guard (an observation can
-    // accompany a null value via an observation-only upsert).
     if (a.observation !== null && a.observation !== '') {
       observationsByItemId[a.item_id] = a.observation
     }
-    if (a.value === null) continue
-    answersByItemId[a.item_id] = a.value
-    answersByKey[a.question_key] = a.value
   }
 
   const signoffs = await getResponseSignoffs(responseId)

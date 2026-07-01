@@ -218,12 +218,59 @@ async function purgeLeftoverState() {
   )
 }
 
-/** Insert one input item via the service role. */
+/**
+ * form-model-normalization: option `code` = lowercase ASCII slug of the label
+ * (Sim→sim, Não→nao, Baixo→baixo, Aprovado→aprovado …). Mirrors the backend
+ * seed/pgTAP convention so conditions keyed on codes resolve.
+ */
+function slug(label: string): string {
+  return label
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // strip diacritics
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+type OptionSpec = string | { label: string; color?: string; code?: string }
+
+/**
+ * Insert one input item via the service role. form-model-normalization: the
+ * `options` jsonb column is gone — pass `options` here as label strings (or
+ * `{label,color}`) and this helper inserts the corresponding `form_item_options`
+ * ROWS (with a slug `code`) after creating the item. The item's
+ * `form_version_id` is trigger-synced from its section and read back from the
+ * insert representation.
+ */
 async function insertItem(
   req: APIRequestContext,
   fields: Record<string, unknown>,
 ): Promise<string> {
-  const row = await svcInsert<{ id: string }>(req, 'form_items', fields)
+  const { options, ...itemFields } = fields as {
+    options?: OptionSpec[]
+  } & Record<string, unknown>
+  const row = await svcInsert<{ id: string; form_version_id: string }>(
+    req,
+    'form_items',
+    itemFields,
+  )
+  if (options && options.length > 0) {
+    const optionRows = options.map((o, i) => {
+      const spec = typeof o === 'string' ? { label: o } : o
+      return {
+        item_id: row.id,
+        form_version_id: row.form_version_id,
+        position: i,
+        code: spec.code ?? slug(spec.label),
+        label: spec.label,
+        color_token: 'color' in spec ? spec.color ?? null : null,
+      }
+    })
+    await svcInsert(req, 'form_item_options', optionRows[0])
+    for (const r of optionRows.slice(1)) {
+      await svcInsert(req, 'form_item_options', r)
+    }
+  }
   return row.id
 }
 
@@ -327,7 +374,9 @@ test.beforeAll(async ({ request }) => {
     required: false,
     visible_when: {
       match: 'all',
-      conditions: [{ question_key: 'fill_ctrl', op: 'equals', value: 'Sim' }],
+      // form-model-normalization: conditions store the option CODE (slug), not
+      // the label — fill_ctrl "Sim" → code "sim".
+      conditions: [{ question_key: 'fill_ctrl', op: 'equals', value: 'sim' }],
     },
   })
   // Coloured MC (green/red).
@@ -382,7 +431,9 @@ test.beforeAll(async ({ request }) => {
     required: false,
     visible_when: {
       match: 'all',
-      conditions: [{ question_key: 'fill_ctrl', op: 'equals', value: 'Sim' }],
+      // form-model-normalization: conditions store the option CODE (slug), not
+      // the label — fill_ctrl "Sim" → code "sim".
+      conditions: [{ question_key: 'fill_ctrl', op: 'equals', value: 'sim' }],
     },
   })
 
@@ -839,8 +890,11 @@ test('AC-5 (builder): section condition persists after reload (BE-6)', async ({
     return s.options[s.selectedIndex]?.textContent?.trim() ?? ''
   })
   expect(selectedTargetLabel).toBe('Pergunta controladora?')
-  // The value select retained "Sim".
-  await expect(settings.locator('select[id$="-value"]')).toHaveValue('Sim')
+  // The value select retained "Sim". form-model-normalization: the <option>
+  // VALUE is the option CODE — the backend mints it as the slug plus a short
+  // random suffix for uniqueness (e.g. "sim_g1l4bx"), so match the slug prefix,
+  // not an exact string; the visible text stays the label.
+  await expect(settings.locator('select[id$="-value"]')).toHaveValue(/^sim(_|$)/)
   await settings.getByRole('button', { name: 'Cancelar' }).click()
   await expect(settings).toBeHidden()
 })
@@ -1031,13 +1085,16 @@ test('AC-10 (submit): an answered-then-hidden conditional answer is cleared on s
     'orphaned conditional answer must be cleared on submit',
   ).toBe(0)
 
-  // The controller answer (Não) persisted.
-  const ctrlAnswers = await svcGet<{ value: unknown }>(
+  // The controller answer (Não) persisted. form-model-normalization: a
+  // multiple_choice selection now lives in answer_selected_options (FK to the
+  // option row), not answers.value — assert exactly the "nao" option is selected.
+  const ctrlSel = await svcGet<{ form_item_options: { code: string } | null }>(
     request,
-    `answers?response_id=eq.${responseId}&item_id=eq.${fillCtrlId}&select=value`,
+    `answer_selected_options?response_id=eq.${responseId}&item_id=eq.${fillCtrlId}` +
+      `&select=form_item_options!answer_selected_options_option_id_fkey(code)`,
   )
-  expect(ctrlAnswers.length).toBe(1)
-  expect(ctrlAnswers[0].value).toBe('Não')
+  expect(ctrlSel.length).toBe(1)
+  expect(ctrlSel[0].form_item_options?.code).toBe('nao')
 })
 
 // AC-11 — number/date min/max blocks submit with a pt-BR error (HC061).
@@ -1085,13 +1142,16 @@ test('AC-11 (submit): number out of bounds blocks submit with a pt-BR error (HC0
   const staff1Token = await getToken(request, 'staff1.ccih@test.local')
 
   // Save answers: controller = "Não" (required), number = 99 (out of bounds).
-  // p_answers is a JSONB object keyed by item_id (not an array).
+  // form-model-normalization: a choice selection goes through p_selections (option
+  // CODES), while scalars (the number) stay in p_answers. Both keyed by item_id.
   const saveResp = await rpc(request, 'save_section_answers', staff1Token, {
     p_response_id: responseId,
     p_section_id: fillS0Id,
     p_answers: {
-      [fillCtrlId]: 'Não',
       [fillNumId]: 99,
+    },
+    p_selections: {
+      [fillCtrlId]: ['nao'],
     },
   })
   // save_section_answers stores the answer (no bounds check on save).

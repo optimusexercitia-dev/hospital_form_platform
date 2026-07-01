@@ -191,14 +191,33 @@ export async function startOrResumeResponse(
 interface SaveSectionInput {
   responseId: string
   sectionId: string
+  /**
+   * form-model-normalization (BE-1 contract): SCALAR answers only — `number`,
+   * `date`, `time`, `free_text`/`short_text`. Maps an answered scalar input
+   * item's id → its jsonb value. Choice selections move to
+   * {@link SaveSectionInput.selectionsByItemId}; a choice item's `value` is
+   * always null now (its answer lives in `answer_selected_options`).
+   */
   answersByItemId: Record<string, Json>
+  /**
+   * form-model-normalization (BE-1 contract): CHOICE selections — maps a choice
+   * input item's id → the array of selected option **codes** (the clone-stable
+   * `form_item_options.code`, NOT the row UUID and NOT the label). Single-select
+   * (`multiple_choice`/`dropdown`) sends a one-element array; `checkbox` sends
+   * zero-or-more. `save_section_answers` REPLACES the item's selection rows:
+   * delete the item's existing rows, then insert one
+   * `answer_selected_options` row per code (resolved to the option row's id,
+   * validated to belong to the item). An item present here with an EMPTY array
+   * clears its selections. An item absent is left untouched.
+   */
+  selectionsByItemId?: Record<string, string[]>
   clearItemIds?: string[]
   /**
    * form-builder-enhancements (decision #11): optional per-item observation
-   * note, mapping an answered NON-free-text item's id → its observation text.
-   * Upserted into `answers.observation` by `save_section_answers`. Optional and
-   * never blocks. The evaluator/answer_map read only `value`, so observations
-   * never affect conditions; per Rule 11 the audit log never copies the text.
+   * note, mapping an answered item's id → its observation text. Upserted into
+   * `answers.observation` by `save_section_answers`. Optional and never blocks.
+   * The evaluator/answer_map read only `value`/selections, so observations never
+   * affect conditions; per Rule 11 the audit log never copies the text.
    */
   observationsByItemId?: Record<string, string>
 }
@@ -214,8 +233,14 @@ interface SaveSectionInput {
  * Called on every section navigation, so it stays lean: authorize, then one RPC.
  */
 export async function saveSection(input: SaveSectionInput): Promise<ActionState> {
-  const { responseId, sectionId, answersByItemId, clearItemIds, observationsByItemId } =
-    input
+  const {
+    responseId,
+    sectionId,
+    answersByItemId,
+    selectionsByItemId,
+    clearItemIds,
+    observationsByItemId,
+  } = input
   if (!responseId || !sectionId) {
     return { ok: false, error: MESSAGES.missingResponse }
   }
@@ -229,7 +254,12 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
 
   const hasObservations =
     observationsByItemId != null && Object.keys(observationsByItemId).length > 0
+  const hasSelections =
+    selectionsByItemId != null && Object.keys(selectionsByItemId).length > 0
 
+  // form-model-normalization: `save_section_answers` carries `p_selections jsonb`
+  // (item_id -> array of option codes, REPLACE semantics) alongside the scalar
+  // p_answers / observations / clear paths.
   const { error } = await supabase.rpc('save_section_answers', {
     p_response_id: responseId,
     p_section_id: sectionId,
@@ -237,9 +267,10 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     // generated Args types p_clear_item_ids as optional string[]; omit when empty.
     p_clear_item_ids:
       clearItemIds && clearItemIds.length > 0 ? clearItemIds : undefined,
-    // p_observations (BE-4): per-item observation upsert; omit when none so the
-    // common save path is unaffected.
+    // p_observations: per-item observation upsert; omit when none.
     p_observations: hasObservations ? (observationsByItemId as Json) : undefined,
+    // p_selections: choice selections by item id; omit when none.
+    p_selections: hasSelections ? (selectionsByItemId as Json) : undefined,
   })
 
   if (error) {

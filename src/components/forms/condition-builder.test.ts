@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { ConditionTarget, InputItemType } from "@/lib/queries/forms";
+import type {
+  ConditionTarget,
+  ConditionTargetOption,
+  InputItemType,
+} from "@/lib/queries/forms";
 
 import { toCondition, toDrafts, type DraftRow } from "./condition-builder";
 
@@ -12,9 +16,16 @@ import { toCondition, toDrafts, type DraftRow } from "./condition-builder";
  * lexical compare. These assert `toCondition` emits the value TYPE that matches
  * how the answer is stored, keyed on the target's type, and that a number
  * condition round-trips through `toDrafts` for editing.
+ *
+ * form-model-normalization: a choice condition now STORES the option CODE (not
+ * the label); `singleValue`/`multiValue` therefore carry codes. `toCondition`
+ * passes them through as-is, so the choice assertions below use codes.
  */
 
-function target(type: InputItemType, options: string[] = []): ConditionTarget {
+function target(
+  type: InputItemType,
+  options: ConditionTargetOption[] = [],
+): ConditionTarget {
   return { questionKey: "q", label: "Pergunta", sectionPosition: 0, type, options };
 }
 
@@ -63,20 +74,27 @@ describe("ConditionBuilder toCondition (value typing — MAJOR-1)", () => {
     expect(typeof cond.value).toBe("string");
   });
 
-  it("keeps the label string for a choice equals/not_equals", () => {
+  it("keeps the option-code string for a choice equals/not_equals", () => {
     const cond = toCondition(
-      row({ op: "equals", singleValue: "Sim" }),
-      target("multiple_choice", ["Sim", "Não"]),
+      row({ op: "equals", singleValue: "sim_a1b2" }),
+      target("multiple_choice", [
+        { code: "sim_a1b2", label: "Sim" },
+        { code: "nao_c3d4", label: "Não" },
+      ]),
     );
-    expect(cond.value).toBe("Sim");
+    expect(cond.value).toBe("sim_a1b2");
   });
 
-  it("emits the selected-label array for `in`", () => {
+  it("emits the selected-code array for `in`", () => {
     const cond = toCondition(
-      row({ op: "in", multiValue: ["Sim", "Talvez"] }),
-      target("checkbox", ["Sim", "Não", "Talvez"]),
+      row({ op: "in", multiValue: ["sim_a1b2", "talvez_e5f6"] }),
+      target("checkbox", [
+        { code: "sim_a1b2", label: "Sim" },
+        { code: "nao_c3d4", label: "Não" },
+        { code: "talvez_e5f6", label: "Talvez" },
+      ]),
     );
-    expect(cond.value).toEqual(["Sim", "Talvez"]);
+    expect(cond.value).toEqual(["sim_a1b2", "talvez_e5f6"]);
   });
 
   it("round-trips a number condition through toDrafts (JSON number → input string)", () => {

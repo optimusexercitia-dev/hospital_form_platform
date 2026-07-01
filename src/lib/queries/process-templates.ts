@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import {
   CHOICE_ITEM_TYPES,
   getVersionTree,
+  type ConditionTargetOption,
   type InputItemType,
 } from '@/lib/queries/forms'
 import type { RecommendRule, ResultRuleset } from '@/lib/queries/conditions'
@@ -313,11 +314,17 @@ export async function getProcessTemplate(
  * options for the value picker. `free_text` is EXCLUDED — the same codified
  * UI value-picker contract as `conditionTargets` (memory: conditionTargets is
  * choice-types only).
+ *
+ * form-model-normalization (contract item #2): the recommend_when / result_ruleset
+ * answer conditions now STORE the option **code** (the clone-stable identity the
+ * code-keyed answer_map evaluates), not the label — so the picker needs BOTH, the
+ * `code` to store and the `label` to show. `options` is `ConditionTargetOption[]`
+ * (`{ code, label }`), mirroring `conditionTargets`.
  */
 export interface PhaseConditionTarget {
   questionKey: string
   label: string
-  options: string[]
+  options: ConditionTargetOption[]
 }
 
 /**
@@ -362,10 +369,16 @@ export async function phaseConditionTargets(
       .map((item) => ({
         questionKey: item.questionKey as string,
         label: item.label ?? '',
-        // Item.options is now ItemOption[] (form-builder-enhancements); the
-        // recommend_when picker still works in label strings (the answer stores
-        // the label), so project to labels here.
-        options: (item.options ?? []).map((o) => o.label),
+        // form-model-normalization: project each option's { code, label }. The
+        // condition STORES the code (clone-stable identity the code-keyed
+        // answer_map evaluates); the picker SHOWS the label. Item.options is the
+        // normalized ItemOption[] (code + label both present). The deep
+        // code-existence validation now lives server-side (BE-5): the template
+        // validators (validate_template_recommend_when / _result_ruleset) assert a
+        // referenced value code exists on the choice question at add/update/publish.
+        options: (item.options ?? []).map(
+          (o): ConditionTargetOption => ({ code: o.code, label: o.label }),
+        ),
       })),
   )
 }

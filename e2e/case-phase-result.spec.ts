@@ -147,6 +147,42 @@ async function svcInsert<T>(
   return rows[0]
 }
 
+/**
+ * form-model-normalization: option `code` = lowercase ASCII slug of the label
+ * (Sim→sim, Não→nao). Mirrors the seed/pgTAP convention so a result_ruleset /
+ * condition keyed on the code resolves.
+ */
+function slug(label: string): string {
+  return label
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+/**
+ * Insert the `form_item_options` ROWS for a choice item (the `options` jsonb
+ * column is gone). `itemFields` must already have been inserted; pass the item's
+ * id + form_version_id (from the insert representation) and the option labels.
+ */
+async function insertChoiceOptions(
+  req: APIRequestContext,
+  itemId: string,
+  formVersionId: string,
+  labels: string[],
+): Promise<void> {
+  for (let i = 0; i < labels.length; i++) {
+    await svcInsert(req, 'form_item_options', {
+      item_id: itemId,
+      form_version_id: formVersionId,
+      position: i,
+      code: slug(labels[i]),
+      label: labels[i],
+    })
+  }
+}
+
 /** PostgREST service-role GET. */
 async function svcGet<T>(req: APIRequestContext, path: string): Promise<T[]> {
   const resp = await req.get(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -280,17 +316,22 @@ test.beforeAll(async ({ request }) => {
   })
   specSectionId = sectionRow.id
 
-  // Single required multiple_choice item: "cpr_check"
-  const itemRow = await svcInsert<{ id: string }>(request, 'form_items', {
-    section_id: specSectionId,
-    position: 0,
-    item_type: 'multiple_choice',
-    question_key: 'cpr_check',
-    label: 'Resultado da inspeção?',
-    options: ['Sim', 'Não'],
-    required: true,
-  })
+  // Single required multiple_choice item: "cpr_check". form-model-normalization:
+  // options are normalized rows now — insert the item, then its option rows.
+  const itemRow = await svcInsert<{ id: string; form_version_id: string }>(
+    request,
+    'form_items',
+    {
+      section_id: specSectionId,
+      position: 0,
+      item_type: 'multiple_choice',
+      question_key: 'cpr_check',
+      label: 'Resultado da inspeção?',
+      required: true,
+    },
+  )
   specItemId = itemRow.id
+  await insertChoiceOptions(request, specItemId, itemRow.form_version_id, ['Sim', 'Não'])
 
   // 3. Publish the form (chefe.ccih is authenticated, member of CCIH).
   const chefeToken = await getToken(request, 'chefe.ccih@test.local')
@@ -343,7 +384,9 @@ test.beforeAll(async ({ request }) => {
   const ruleset = {
     rules: [
       {
-        when: { question_key: 'cpr_check', op: 'equals', value: 'Sim' },
+        // form-model-normalization: rulesets store the option CODE (slug), not
+        // the label — cpr_check "Sim" → "sim".
+        when: { question_key: 'cpr_check', op: 'equals', value: 'sim' },
         result_id: conformeId,
       },
     ],
@@ -450,10 +493,13 @@ test.beforeAll(async ({ request }) => {
   }
 
   async function saveAnswer(responseId: string, value: 'Sim' | 'Não'): Promise<void> {
+    // form-model-normalization: a multiple_choice selection goes through
+    // p_selections as the option CODE (slug), not p_answers with the label.
     const r = await rpc(request, 'save_section_answers', staff1Token, {
       p_response_id: responseId,
       p_section_id: specSectionId,
-      p_answers: { [specItemId]: value },
+      p_answers: {},
+      p_selections: { [specItemId]: [slug(value)] },
     })
     expect(r.ok(), `beforeAll: save_section_answers failed: ${await r.text()}`).toBeTruthy()
   }

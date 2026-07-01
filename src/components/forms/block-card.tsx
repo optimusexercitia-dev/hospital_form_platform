@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
 import {
+  buildOptionLabelMap,
   buildQuestionLabelMap,
   describeVisibility,
 } from "@/components/forms/describe-visibility";
@@ -267,7 +268,12 @@ function BlockConditionNote({
   sections: Section[];
 }) {
   const summary = useMemo(
-    () => describeVisibility(item.visibleWhen, buildQuestionLabelMap(sections)),
+    () =>
+      describeVisibility(
+        item.visibleWhen,
+        buildQuestionLabelMap(sections),
+        buildOptionLabelMap(sections),
+      ),
     [item.visibleWhen, sections],
   );
   if (!summary) return null;
@@ -304,6 +310,11 @@ function BlockConditionNote({
   );
 }
 
+/** A pt-BR number for an option's score (drops the trailing ".0" of an integer). */
+function formatScore(score: number): string {
+  return new Intl.NumberFormat("pt-BR").format(score);
+}
+
 /** A compact, faithful preview of the block's content. */
 function BlockPreview({
   item,
@@ -330,21 +341,34 @@ function BlockPreview({
           </p>
         )}
         <ul className="flex flex-wrap gap-1.5">
-          {item.options.map((opt, i) => (
-            <li
-              key={i}
-              className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-0.5 text-xs text-muted-foreground"
-            >
-              {opt.color && (
-                <span
-                  aria-hidden="true"
-                  className="size-2 shrink-0 rounded-full"
-                  style={{ backgroundColor: TOKEN_COLOR_VAR[opt.color] }}
-                />
-              )}
-              {opt.label}
-            </li>
-          ))}
+          {item.options.map((opt, i) => {
+            // Surface the optional analytics metadata (score / analytics_code)
+            // only when set, so the common label-only option stays uncluttered.
+            const meta = [
+              opt.score !== null ? `${formatScore(opt.score)} pt` : null,
+              opt.analyticsCode,
+            ].filter(Boolean) as string[];
+            return (
+              <li
+                key={i}
+                className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-0.5 text-xs text-muted-foreground"
+              >
+                {opt.color && (
+                  <span
+                    aria-hidden="true"
+                    className="size-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: TOKEN_COLOR_VAR[opt.color] }}
+                  />
+                )}
+                {opt.label}
+                {meta.length > 0 && (
+                  <span className="text-muted-foreground/70">
+                    · {meta.join(" · ")}
+                  </span>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
     );

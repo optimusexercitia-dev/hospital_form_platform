@@ -37,13 +37,24 @@ import type { ResponseStatus } from '@/lib/queries/responses'
 /** Charted question kinds. `free_text` is excluded from distributions. */
 export type ChartableInputType = Exclude<InputItemType, 'free_text'>
 
-/** One option's tally within a question's distribution. */
+/**
+ * One option's tally within a question's distribution.
+ *
+ * form-model-normalization (BE-1 contract): distributions now key on the stable
+ * option **code** (`form_item_options.code`), not the label — so a renamed label
+ * no longer fragments historical analytics. The `label` is resolved SERVER-SIDE
+ * to the CURRENT (latest published version's) wording for that code, for display
+ * only; aggregation/identity is `code`. Counts join
+ * `answer_selected_options → form_item_options` and `GROUP BY code`.
+ */
 export interface DistributionOption {
-  /** The option label exactly as authored (the answer value). */
-  value: string
-  /** How many submitted responses selected this option. For `checkbox`,
-   * values are unnested (`jsonb_array_elements_text`) so each selected option
-   * counts individually; a single response may contribute to several options. */
+  /** The stable option code — the aggregation/identity key. */
+  code: string
+  /** The option's current display label (latest published version), for the UI. */
+  label: string
+  /** How many submitted responses selected this option. For `checkbox`, each
+   * selected option counts individually; a single response may contribute to
+   * several options. */
   count: number
 }
 
@@ -240,7 +251,13 @@ export async function getFormDashboard(
   const formRow = formRes.data
   if (!formRow) return null
 
-  const distributions = pivotDistributions(dist.data ?? [])
+  // form-model-normalization (BE-2 wiring point): `dashboard_distributions` will
+  // emit `option_code`/`option_label` (replacing `option_value`). The cast keeps
+  // this compiling against the CURRENT generated RPC row type until BE-2
+  // regenerates database.ts; `pivotDistributions` already reads the new columns.
+  const distributions = pivotDistributions(
+    (dist.data ?? []) as unknown as Parameters<typeof pivotDistributions>[0],
+  )
   const freeTextSamples = pivotFreeText(freeText.data ?? [])
   const submissionsOverTime: SubmissionsOverTimePoint[] = (overTime.data ?? []).map(
     (p) => ({ day: p.day, count: Number(p.count) }),
@@ -279,7 +296,11 @@ function pivotDistributions(
     section_position: number
     item_position: number
     item_type: string
-    option_value: string
+    // form-model-normalization: the distribution RPC now emits the stable option
+    // CODE plus its current LABEL (resolved from the latest published version),
+    // replacing the old label-only `option_value`.
+    option_code: string
+    option_label: string
     option_count: number
     denominator: number
     n: number
@@ -303,7 +324,11 @@ function pivotDistributions(
       }
       byKey.set(r.question_key, dist)
     }
-    dist.options.push({ value: r.option_value, count: Number(r.option_count) })
+    dist.options.push({
+      code: r.option_code,
+      label: r.option_label,
+      count: Number(r.option_count),
+    })
   }
   return Array.from(byKey.values())
 }

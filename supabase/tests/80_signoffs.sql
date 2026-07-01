@@ -26,10 +26,18 @@ insert into public.responses (id, form_version_id, commission_id, created_by, st
 select r.id, (c.v->>'ver_s')::uuid, (c.v->>'comm_x')::uuid, (c.v->>'st_x')::uuid, 'in_progress'
 from r, ctx c;
 
-insert into public.answers (response_id, item_id, question_key, value)
-select (select id from r), (c.v->>'it_gate')::uuid, 's_gate', '"Não"'::jsonb from ctx c;
-insert into public.answers (response_id, item_id, question_key, value)
-select (select id from r), (c.v->>'it_req')::uuid, 's_req', '"Sim"'::jsonb from ctx c;
+-- form-model-normalization: s_gate + s_req are choice items; their answers are
+-- now selection rows keyed by option CODE ('nao'/'sim'), not answers.value.
+insert into public.answer_selected_options (response_id, item_id, option_id)
+select (select id from r), (c.v->>'it_gate')::uuid, o.id
+from ctx c
+join public.form_item_options o
+  on o.item_id = (c.v->>'it_gate')::uuid and o.code = 'nao';
+insert into public.answer_selected_options (response_id, item_id, option_id)
+select (select id from r), (c.v->>'it_req')::uuid, o.id
+from ctx c
+join public.form_item_options o
+  on o.item_id = (c.v->>'it_req')::uuid and o.code = 'sim';
 
 -- ---- 1) the response creator signs their own RESPONDENT section -> succeeds ----
 select test_helpers.claims_for((select (v->>'st_x')::uuid from ctx), false);
@@ -131,19 +139,26 @@ begin
     values (sec_p0, ver_p, 0, true);
   insert into public.form_sections (id, form_version_id, position, title)
     values (sec_pgate, ver_p, 1, 'Gate P');
-  insert into public.form_items (id, section_id, position, item_type, question_key, label, options, required)
-    values (it_pgate, sec_pgate, 0, 'multiple_choice', 'p_gate', 'Gate?', '["Sim","Não"]'::jsonb, true);
-  -- Conditional respondent sign-off: visible only when p_gate = 'Sim'.
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+    values (it_pgate, sec_pgate, 0, 'multiple_choice', 'p_gate', 'Gate?', true);
+  -- form-model-normalization: normalized option rows; code = slug(label).
+  insert into public.form_item_options (item_id, position, code, label) values
+    (it_pgate, 0, 'sim', 'Sim'),
+    (it_pgate, 1, 'nao', 'Não');
+  -- Conditional respondent sign-off: visible only when p_gate = 'sim' (CODE).
   insert into public.form_sections (id, form_version_id, position, title, requires_signoff, signoff_role, visible_when)
     values (sec_psign, ver_p, 2, 'Cond signoff P', true, 'respondent',
-            jsonb_build_object('question_key','p_gate','op','equals','value','Sim'));
+            jsonb_build_object('question_key','p_gate','op','equals','value','sim'));
   perform public.publish_form_version(ver_p);
 
   -- A response that answers the gate 'Não' -> the sign-off section is hidden.
   insert into public.responses (id, form_version_id, commission_id, created_by, status)
     values ('dddddddd-0000-0000-0000-0000000000d1', ver_p, (c->>'comm_x')::uuid, (c->>'st_x')::uuid, 'in_progress');
-  insert into public.answers (response_id, item_id, question_key, value)
-    values ('dddddddd-0000-0000-0000-0000000000d1', it_pgate, 'p_gate', '"Não"'::jsonb);
+  -- Choice answer is a selection row (code 'nao') -> the sign-off section is hidden.
+  insert into public.answer_selected_options (response_id, item_id, option_id)
+    select 'dddddddd-0000-0000-0000-0000000000d1', it_pgate, o.id
+    from public.form_item_options o
+    where o.item_id = it_pgate and o.code = 'nao';
   -- Stash the hidden section id for the assertion.
   perform set_config('test.sec_psign', sec_psign::text, true);
 end $$;
@@ -189,12 +204,22 @@ grant select on r2 to authenticated;
 insert into public.responses (id, form_version_id, commission_id, created_by, status)
 select r2.id, (c.v->>'ver_s')::uuid, (c.v->>'comm_x')::uuid, (c.v->>'st_x2')::uuid, 'in_progress'
 from r2, ctx c;
-insert into public.answers (response_id, item_id, question_key, value)
-select (select id from r2), (c.v->>'it_gate')::uuid, 's_gate', '"Não"'::jsonb from ctx c;
--- BE-8: attach an observation to it_req so the get_response_for_signoff read
--- below proves observations_by_item is projected.
-insert into public.answers (response_id, item_id, question_key, value, observation)
-select (select id from r2), (c.v->>'it_req')::uuid, 's_req', '"Sim"'::jsonb, 'nota do revisor' from ctx c;
+-- s_gate + s_req are choice items: the answers are selection rows (codes
+-- 'nao'/'sim'); choice answers.value is null under form-model-normalization.
+insert into public.answer_selected_options (response_id, item_id, option_id)
+select (select id from r2), (c.v->>'it_gate')::uuid, o.id
+from ctx c
+join public.form_item_options o
+  on o.item_id = (c.v->>'it_gate')::uuid and o.code = 'nao';
+insert into public.answer_selected_options (response_id, item_id, option_id)
+select (select id from r2), (c.v->>'it_req')::uuid, o.id
+from ctx c
+join public.form_item_options o
+  on o.item_id = (c.v->>'it_req')::uuid and o.code = 'sim';
+-- BE-8: the per-item observation lives on an answers row (value null for a choice
+-- item); get_response_for_signoff projects observations_by_item from answers.observation.
+insert into public.answers (response_id, item_id, question_key, observation)
+select (select id from r2), (c.v->>'it_req')::uuid, 's_req', 'nota do revisor' from ctx c;
 
 -- Sign only the respondent section, leaving the staff_admin section unsigned.
 select test_helpers.claims_for((select (v->>'st_x2')::uuid from ctx), false);
@@ -242,9 +267,12 @@ grant select on r3 to authenticated;
 insert into public.responses (id, form_version_id, commission_id, created_by, status)
 select r3.id, (c.v->>'ver_s')::uuid, (c.v->>'comm_x')::uuid, (c.v->>'st_x')::uuid, 'in_progress'
 from r3, ctx c;
--- Answer the gate ('Não') but NOT the required s_req item -> not submit-ready.
-insert into public.answers (response_id, item_id, question_key, value)
-select (select id from r3), (c.v->>'it_gate')::uuid, 's_gate', '"Não"'::jsonb from ctx c;
+-- Answer the gate ('nao' selection) but NOT the required s_req item -> not submit-ready.
+insert into public.answer_selected_options (response_id, item_id, option_id)
+select (select id from r3), (c.v->>'it_gate')::uuid, o.id
+from ctx c
+join public.form_item_options o
+  on o.item_id = (c.v->>'it_gate')::uuid and o.code = 'nao';
 
 select test_helpers.claims_for((select (v->>'sa_x')::uuid from ctx), false);
 set local role authenticated;
