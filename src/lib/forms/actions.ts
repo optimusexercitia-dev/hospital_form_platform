@@ -61,6 +61,7 @@ const MESSAGES = {
   configInvalid: 'Valores de mínimo/máximo inválidos.',
   configRangeInvalid: 'O valor mínimo não pode ser maior que o máximo.',
   conditionShapeInvalid: 'Condição de aparência inválida.',
+  defaultValueInvalid: 'Valor padrão inválido para este tipo de pergunta.',
   markdownRequired: 'Informe o texto a ser exibido.',
   altRequired: 'Informe um texto alternativo para a imagem.',
   imagePathRequired: 'Envie uma imagem antes de salvar.',
@@ -590,6 +591,18 @@ type ItemColumns = {
   visible_when: Json
   required: boolean
   content: Json
+  /**
+   * answer-model-v2 (BE-0 contract, ADR 0046 / P2.4): the parsed per-input
+   * default value (scalar, or option code / code[] for choice; `null` for
+   * display items). Parsed + shape-validated here from the `defaultValue`
+   * FormData field; type-vs-item + choice-code-exists validation is the
+   * publish-time authority (BE-4). Held on the columns object so addItem/
+   * updateItem can persist it into `form_items.default_value`.
+   * TODO(answer-model-v2 BE-1): the `default_value` column does not exist yet, so
+   * addItem/updateItem do NOT write this field until BE-1 lands the column and
+   * BE-5 regenerates the typed Insert/Update. Parsing now is inert + forward-safe.
+   */
+  default_value: Json
 }
 
 /** The result of parsing an item's fields: the form_items columns + (for choice
@@ -776,6 +789,53 @@ function parseVisibleWhen(
   return { visibleWhen: parsed as Json }
 }
 
+/**
+ * answer-model-v2 (BE-0 contract, ADR 0046 / P2.4): parse the optional
+ * `defaultValue` FormData field into the `default_value` jsonb. The field is a
+ * JSON-encoded scalar (free_text/short_text/number/date/time) or option code /
+ * code[] (choice). Absent/blank → `null` (no default). Only the SHAPE is checked
+ * here (parseable JSON; a string/number/boolean scalar, or an array of strings
+ * for a choice code-set); the type-vs-item and choice-code-existence checks are
+ * the publish-time `publish_form_version` authority (BE-4). Display items never
+ * reach this (parseItemFields calls it only for input types).
+ */
+function parseDefaultValue(
+  itemType: string,
+  formData: FormData,
+): { error: ActionState } | { defaultValue: Json } {
+  const raw = String(formData.get('defaultValue') ?? '').trim()
+  if (!raw) return { defaultValue: null }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { error: { ok: false, error: MESSAGES.defaultValueInvalid } }
+  }
+  if (parsed === null) return { defaultValue: null }
+
+  if (CHOICE_TYPES.includes(itemType)) {
+    // Choice defaults store option code(s): a single code (multiple_choice/
+    // dropdown) or an array of codes (checkbox). Accept either shape here; the
+    // deep item-vs-shape check is the publish validator's job (BE-4).
+    if (typeof parsed === 'string') return { defaultValue: parsed }
+    if (Array.isArray(parsed) && parsed.every((c) => typeof c === 'string')) {
+      return { defaultValue: parsed as Json }
+    }
+    return { error: { ok: false, error: MESSAGES.defaultValueInvalid } }
+  }
+
+  // Scalar inputs: a JSON scalar (string/number/boolean).
+  if (
+    typeof parsed === 'string' ||
+    typeof parsed === 'number' ||
+    typeof parsed === 'boolean'
+  ) {
+    return { defaultValue: parsed }
+  }
+  return { error: { ok: false, error: MESSAGES.defaultValueInvalid } }
+}
+
 function parseItemFields(
   itemType: string,
   formData: FormData,
@@ -803,6 +863,10 @@ function parseItemFields(
     const parsedVisible = parseVisibleWhen(formData)
     if ('error' in parsedVisible) return { error: parsedVisible.error }
 
+    // answer-model-v2 (BE-0): parse the optional per-input default value.
+    const parsedDefault = parseDefaultValue(itemType, formData)
+    if ('error' in parsedDefault) return { error: parsedDefault.error }
+
     // A conditional question can NEVER be required (decision #9): clear the
     // `required` flag whenever a visibility condition is present — defence for
     // the form_items_conditional_not_required CHECK (BE-2).
@@ -818,6 +882,7 @@ function parseItemFields(
         visible_when: parsedVisible.visibleWhen,
         required,
         content: null,
+        default_value: parsedDefault.defaultValue,
       },
       options,
     }
@@ -836,6 +901,7 @@ function parseItemFields(
         visible_when: null,
         required: false,
         content: { markdown },
+        default_value: null,
       },
       options: null,
     }
@@ -859,6 +925,7 @@ function parseItemFields(
         visible_when: null,
         required: false,
         content: { storage_path: storagePath, alt, caption: caption || null },
+        default_value: null,
       },
       options: null,
     }
@@ -1039,6 +1106,9 @@ export async function addItem(
         visible_when: columns.visible_when,
         required: columns.required,
         content: columns.content,
+        // TODO(answer-model-v2 BE-1): add `default_value: columns.default_value`
+        // once BE-1 lands the column and BE-5 regenerates the typed Insert. The
+        // value is parsed (parseDefaultValue) but not yet persisted.
       })
       .select('id')
       .maybeSingle<{ id: string }>()
@@ -1112,6 +1182,9 @@ export async function updateItem(
       visible_when: columns.visible_when,
       required: columns.required,
       content: columns.content,
+      // TODO(answer-model-v2 BE-1): add `default_value: columns.default_value`
+      // once BE-1 lands the column and BE-5 regenerates the typed Update. The
+      // value is parsed (parseDefaultValue) but not yet persisted.
     })
     .eq('id', itemId)
 

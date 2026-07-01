@@ -38,7 +38,7 @@
 | result-rec | **Result-based phase recommendation** — `recommend_when` becomes a combinable answer/result group; recommend a phase from an EARLIER phase's result (specific option or `adverse`), mixed freely under TODAS/QUALQUER. Suggestion-only; zero `eval_condition` drift. ADR [0043](docs/decisions/0043-phase-result-based-recommendation.md). Detail: [docs/progress/result-rec.md](docs/progress/result-rec.md). | ✅ complete | ✅ | ✅ pgTAP **1122/1122** + Vitest **164/164** + full E2E **431/0** (4 known skips) | ✅ **APPROVED** 2026-06-26 [review](docs/reviews/result-rec-review.md) | ✅ 2026-06-26 | 2026-06-26 | branch `feat/result-based-recommendation` (`6c5baeb…`) · ⚠ remote `db push` pending |
 | processless-cases | **"Sem processo" (process-less cases)** — coordinator mints a template-less case (`template_id` NULL, zero phases; ad-hoc phases grown later) with an OPTIONAL hand-picked offered-outcome set + OPTIONAL patient identifiers. Two coordinator-gated DEFINER RPCs (`create_case`, `set_case_offered_outcomes`); no new RLS shape; one intentional ADR-0024-D15 divergence (process-less offered sets mutable while non-terminal). ADR [0044](docs/decisions/0044-processless-cases.md). Detail: [processless-cases.md](docs/progress/processless-cases.md). | ✅ complete | ✅ | ✅ pgTAP **1153/1153** (+31 new) + feature E2E **8/8** + full E2E **439/0** (dev, 4 known skips) | ✅ **APPROVED** 2026-06-30 [review](docs/reviews/processless-cases-review.md) (0 BLOCKER · 0 MAJOR · 1 MINOR informational) | ✅ 2026-06-30 | 2026-06-30 | branch `feat/processless-cases` (`cdf26d0`) · ⚠ remote `db push` pending |
 | form-model-norm | **Form data-model normalization** — pull `form_items.options` JSONB into a normalized `form_item_options` table (stable hidden `code`, label, color, nullable `score`, free-text `analytics_code`, ordering; version-scoped + cloned), and normalize answer selections into `answer_selected_options` (hard FK to option row). `answers.value` → scalars only. Evaluator + shared vectors stay byte-for-byte unchanged via an `app.answer_map` rewrite. Pre-launch **squash-to-clean-baseline + full reset** (no users, no feature flag). Plan: `~/.claude/plans/snappy-juggling-duckling.md`; decisions memory `form-model-normalization-decisions`. | ✅ complete | ✅ | ✅ T-1 green (evidence) | ✅ APPROVED 2026-07-01 ([review](docs/reviews/form-model-normalization-review.md)) | ✅ 2026-07-01 | 2026-07-01 | squash `ffc0ea5`; baseline `20260620000000`; merged → main |
-| answer-model-v2 | **Answer-Model v2 + form-definition forward-compat** — uniform answer row (choice items get a parent `answers` row; selections → `answer_id`), typed scalar cols (`value_number/date/time`, trigger-derived; `value` stays the canonical evaluator input), instance-ready answer key (`answers.group_instance_id` + `response_group_instances` + `form_items.parent_item_id`) **scaffolding only — NO repeating-group / new-block UX**, `answered_at` + reserved `confidentiality_level`, and question **default values**. Evaluator byte-for-byte unchanged (Rule 3). ADRs [0045](docs/decisions/0045-answer-model-v2.md) · [0046](docs/decisions/0046-forward-compat-form-capabilities.md); plan [docs/plans/answer-model-v2.md](docs/plans/answer-model-v2.md). | 🔜 not started (planned 2026-07-01) | – | – | – | – | – | – |
+| answer-model-v2 | **Answer-Model v2 + form-definition forward-compat** — uniform answer row (choice items get a parent `answers` row; selections → `answer_id`), typed scalar cols (`value_number/date/time`, trigger-derived; `value` stays the canonical evaluator input), instance-ready answer key (`answers.group_instance_id` + `response_group_instances` + `form_items.parent_item_id`) **scaffolding only — NO repeating-group / new-block UX**, `answered_at` + reserved `confidentiality_level`, and question **default values**. Evaluator byte-for-byte unchanged (Rule 3). ADRs [0045](docs/decisions/0045-answer-model-v2.md) · [0046](docs/decisions/0046-forward-compat-form-capabilities.md); plan [docs/plans/answer-model-v2.md](docs/plans/answer-model-v2.md). | 🏗️ in progress (BE-0 contract stubs done 2026-07-01) | – | – | – | – | – | branch `feat/answer-model-v2` |
 
 > **Accreditation & Quality-Governance Track (13–21)** — planned 2026-06-17; specs in
 > [PHASES.md](PHASES.md) (§ Accreditation track), rationale in ADR
@@ -55,6 +55,24 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 <!-- Lead recreates this table at the start of each phase. At the §6 Record step the
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
+
+### Answer-Model v2 + form-definition forward-compat (🏗️ IN PROGRESS — branch `feat/answer-model-v2`)
+
+> Pre-launch schema-shape hardening (no users, no backfill). Plan
+> [docs/plans/answer-model-v2.md](docs/plans/answer-model-v2.md); ADRs
+> [0045](docs/decisions/0045-answer-model-v2.md) · [0046](docs/decisions/0046-forward-compat-form-capabilities.md).
+> BE-2/BE-3 require **full lead plan review** (immutability triggers + evaluator rehydration inputs).
+
+Backend (`backend`):
+
+| # | Task | Status |
+| - | ---- | ------ |
+| BE-0 | **Contract-first** typed stubs (posted for `frontend`). `Item` += `defaultValue: Json \| null` + `parentItemId: string \| null` (mapper reads new cols with safe `null` defaults, TODO BE-1/BE-5); `responses.ts` += exported `AnswerRecord` read shape with `answeredAt` (+ optional `answered_at` on the internal `AnswerRow`); `forms/actions.ts` `addItem`/`updateItem` parse+shape-validate a new `defaultValue` FormData field (`parseDefaultValue`; scalar or option code/code[]) held on `ItemColumns.default_value` but NOT yet persisted (column lands in BE-1). `saveSection` shape UNCHANGED. Typecheck + lint (0 err) green; affected Vitest 21/21. | ✅ done |
+| BE-1 | Definition migration (additive): `form_items.parent_item_id` + `default_value` + display CHECK; `response_group_instances` table + RLS. **Light plan review.** | 🔜 pending |
+| BE-2 | Answer migration (core; typed trigger, partial indexes, selections→`answer_id`, RLS). **FULL plan review.** | 🔜 pending |
+| BE-3 | Rehydration + write RPCs (`answer_map` twins, `save_section_answers`, `submit_response`) — output byte-for-byte unchanged. **FULL plan review.** | 🔜 pending |
+| BE-4 | Dashboards/export join → `answer_id`; `clone_form_version` copies `default_value`/`parent_item_id`; `publish_form_version` default-value validation → new `HC0xx`. | 🔜 pending |
+| BE-5 | Regen `database.ts`; query-layer readers (`getResponseForFill`/`getSubmissionDetail`/`buildAnswerMaps` twin) — output unchanged. | 🔜 pending |
 
 ### Form data-model normalization (✅ COMPLETE 2026-07-01)
 

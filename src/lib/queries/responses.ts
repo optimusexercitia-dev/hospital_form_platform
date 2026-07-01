@@ -111,6 +111,27 @@ interface AnswerRow {
   question_key: string
   value: Json | null
   observation: string | null
+  // answer-model-v2 (BE-0): the uniform-answer contemporaneous timestamp.
+  // Optional here so the mapper is safe before BE-2 adds the column; selected
+  // once BE-2/BE-5 land it.
+  answered_at?: string
+}
+
+/**
+ * answer-model-v2 (BE-0 contract, ADR 0045): the public read shape for one saved
+ * answer as the frontend consumes it. `value` stays the CANONICAL scalar the
+ * evaluator reads (single→option code, checkbox→ordered code array, scalars→raw);
+ * the typed columns (`value_number`/`value_date`/`value_time`) are read-only
+ * analytics denormalizations and are intentionally NOT surfaced in fill.
+ * `answeredAt` is the contemporaneous per-answer timestamp (ALCOA+), sourced from
+ * the new `answers.answered_at`.
+ */
+export interface AnswerRecord {
+  itemId: string
+  questionKey: string
+  value: Json | null
+  observation: string | null
+  answeredAt: string
 }
 
 // ---------------------------------------------------------------------------

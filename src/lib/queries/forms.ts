@@ -176,6 +176,28 @@ export interface Item {
   config: ItemConfig | null
   visibleWhen: Visibility | null
   required: boolean
+  /**
+   * answer-model-v2 (BE-0 contract, ADR 0046 / P2.4): the per-input **default
+   * value** used to pre-fill an unanswered VISIBLE item in the wizard.
+   *   - scalar inputs (`free_text`/`short_text`/`number`/`date`/`time`) → the raw
+   *     scalar (`"texto"`, `12`, `"2026-01-01"`, `"08:30"`);
+   *   - single-select (`multiple_choice`/`dropdown`) → the option **code**
+   *     (scalar string — mirroring the `answer_map` shape);
+   *   - `checkbox` → an ARRAY of option codes;
+   *   - display items (`section_text`/`image`) → always `null` (DB CHECK).
+   * `null` = no default. Copied verbatim by `clone_form_version` and validated by
+   * `publish_form_version` (BE-4). Persisted in the new `form_items.default_value`
+   * jsonb; until BE-1 lands the column this reads `null`.
+   */
+  defaultValue: Json | null
+  /**
+   * answer-model-v2 (BE-0 contract, ADR 0046): the future `repeating_group`
+   * container item that OWNS this item. **Always `null` now** — every form is
+   * flat; the column exists only so the definition model is coherent with the
+   * instance-ready answer model (`answers.group_instance_id`). `clone_form_version`
+   * remaps it to the new item id when repeating groups ship.
+   */
+  parentItemId: string | null
   // display-only
   content: SectionTextContent | ImageContent | null
 }
@@ -317,6 +339,10 @@ interface ItemRow {
   visible_when: Json | null
   required: boolean
   content: Json | null
+  // answer-model-v2 (BE-0): new columns, selected by VERSION_TREE_SELECT once
+  // BE-1 lands them. Optional here so the mapper is safe before the migration.
+  default_value?: Json | null
+  parent_item_id?: string | null
 }
 
 interface SectionRow {
@@ -412,6 +438,12 @@ function toItem(row: ItemRow): Item {
     // visible_when is the stored legacy-single OR AND/OR group shape.
     visibleWhen: (row.visible_when as Visibility | null) ?? null,
     required: row.required,
+    // answer-model-v2 (BE-0): default_value / parent_item_id.
+    // TODO(answer-model-v2 BE-1/BE-5): the columns land in BE-1 and are added to
+    // VERSION_TREE_SELECT in BE-5; until then `row.default_value`/`parent_item_id`
+    // are undefined and these safely default to null (no behavior change).
+    defaultValue: row.default_value ?? null,
+    parentItemId: row.parent_item_id ?? null,
     // content is a plain jsonb object for display items, null for inputs.
     content: (row.content as Item['content']) ?? null,
   }

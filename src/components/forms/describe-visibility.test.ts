@@ -28,6 +28,8 @@ function item(over: Partial<Item>): Item {
     config: null,
     visibleWhen: null,
     required: false,
+    defaultValue: null,
+    parentItemId: null,
     content: null,
     ...over,
   };

@@ -33,6 +33,8 @@ function inputItem(over: Partial<Item> & Pick<Item, "id" | "sectionId">): Item {
     config: null,
     visibleWhen: null,
     required: false,
+    defaultValue: null,
+    parentItemId: null,
     content: null,
     ...over,
   };
