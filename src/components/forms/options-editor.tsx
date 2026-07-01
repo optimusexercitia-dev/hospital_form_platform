@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import {
   TOKEN_COLOR_VAR,
 } from "@/components/cases/case-status-badge";
+import { generateOptionCode } from "@/lib/forms/option-code";
 
 /**
  * Controlled editor for the discrete option list of a choice-type input
@@ -62,10 +63,16 @@ const TOKEN_NAME: Record<ColorToken, string> = {
 };
 
 /**
- * A blank option row for a freshly-added option. `id`/`code` are empty — the
- * backend `addItem`/`updateItem` action assigns the stable code (slug+suffix) and
- * the row id on insert; `position` is by index and is recomputed by the parent on
- * reorder/serialize, so the value held here is only a placeholder.
+ * A blank option row for a freshly-added option. `id` is empty — the backend
+ * `addItem`/`updateItem` action assigns the row id on insert; `position` is by
+ * index and is recomputed by the parent on reorder/serialize, so the value
+ * held here is only a placeholder. `code` is ALSO empty at creation, but is
+ * minted client-side (see {@link OptionsEditor}'s `updateLabelAt`) as soon as
+ * the author types a non-empty label — BUG-AMV2-002: a choice-type "Valor
+ * padrão" set while adding a brand-new item needs a real code to reference
+ * (the code minted only server-side, on insert, arrived too late for the
+ * in-dialog default-value picker). The server still falls back to minting its
+ * own code if a row somehow arrives with `code === ""`.
  */
 export function blankOption(position: number): ItemOption {
   return {
@@ -95,9 +102,29 @@ export function OptionsEditor({
 }) {
   const groupId = useId();
 
+  // BUG-AMV2-002: mint a real, stable `code` for a brand-new row (code === "")
+  // as soon as its label becomes non-empty, so a choice-type default picked
+  // in the SAME add-item session references a real code — not the empty-
+  // string placeholder — from the moment it's chosen. Rows loaded from the
+  // server (code already set) are left untouched, and once minted here a
+  // row's code stays stable across a later label rename (mirrors the
+  // existing "code stable across rename" contract for edit-mode rows).
   function updateLabelAt(index: number, label: string) {
     const next = options.slice();
-    next[index] = { ...next[index], label };
+    const current = next[index];
+    const needsCode = current.code === "" && label.trim().length > 0;
+    const code = needsCode
+      ? generateOptionCode(
+          label,
+          new Set(
+            options
+              .filter((_, i) => i !== index)
+              .map((o) => o.code)
+              .filter((c) => c !== ""),
+          ),
+        )
+      : current.code;
+    next[index] = { ...current, label, code };
     onChange(next);
   }
 

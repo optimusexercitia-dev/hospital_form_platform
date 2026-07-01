@@ -264,10 +264,14 @@ export function ItemEditorDialog(props: Props) {
                   EXISTING option carries its stable `code` back so `updateItem`
                   matches the submitted row to its existing row BY CODE and
                   PRESERVES it — keeping analytics + any condition referencing the
-                  code stable across a label rename. A NEW row (blankOption) sends
-                  `code === ""` so the backend mints a fresh one; `addItem` ignores
-                  it entirely. Score is the raw number string ("" = none);
-                  analytics-code the free-text tag ("" = none). */}
+                  code stable across a label rename. A NEW row (blankOption)
+                  starts with `code === ""`, but `OptionsEditor` mints a real
+                  code (BUG-AMV2-002) as soon as the author types a label, so by
+                  submit time every option — new or existing — carries a real
+                  code; `addItem`/`updateItem` still fall back to minting one
+                  server-side if a row somehow arrives with `code === ""`.
+                  Score is the raw number string ("" = none); analytics-code the
+                  free-text tag ("" = none). */}
               {cleanOptions.map((opt, i) => (
                 <span key={i} className="contents">
                   <input type="hidden" name="optionCode" value={opt.code ?? ""} />
