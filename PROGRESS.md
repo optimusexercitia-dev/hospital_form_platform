@@ -74,6 +74,15 @@ Backend (`backend`):
 | BE-4 | Dashboards/export join → `answer_id`; `clone_form_version` copies `default_value`/`parent_item_id`; `publish_form_version` default-value validation → new `HC0xx`. | 🔜 pending |
 | BE-5 | Regen `database.ts`; query-layer readers (`getResponseForFill`/`getSubmissionDetail`/`buildAnswerMaps` twin) — output unchanged. | 🔜 pending |
 
+Frontend (`frontend`) — built against BE-0's posted contracts, ahead of BE-1/BE-5 persistence:
+
+| # | Task | Status |
+| - | ---- | ------ |
+| FE-1 | Builder "Valor padrão" control (new `src/components/forms/default-value-editor.tsx`; wired into `item-editor-dialog.tsx`): scalar input for free_text/short_text/number/date/time; single option-picker (multiple_choice/dropdown, by code) or multi-select checkbox-set (checkbox, by code[]); none for display items. Submits via the existing `defaultValue` FormData field (JSON scalar or code/code[]); a derived (not effect-driven) prune drops a default option code removed from `options` in the same editing session. Verified in-browser (dev server, staff_admin login): single-select + multi-select controls render, wire the hidden field with the exact JSON shape (`"sim"` / `["mascara"]`), match design tokens. | ✅ done |
+| FE-2 | Wizard default prefill (`use-wizard.ts`'s new `withDefaults`): seeds the initial answer state from each VISIBLE (via `computeEffectiveVisibility`, saved-answers-only pass), unanswered item's `defaultValue`, once at mount; never touches hidden items; a kept default saves as an ordinary answer; user can freely change/clear it. `input-item.tsx`/save payload untouched. 6 new Vitest cases (scalar seed, choice seed, hidden-item non-seed, no-overwrite-of-saved-answer, user-can-clear, no-default-value no-op) — 19/19 wizard tests green. | ✅ done |
+
+Both: `npm run lint && npm run typecheck` clean (0 errors). End-to-end prefill round-trip (defaultValue actually persisting/reading from the DB) depends on BE-1 (column) + BE-5 (regen types/query layer) — the tester validates the full flow once those land.
+
 ### Form data-model normalization (✅ COMPLETE 2026-07-01)
 
 > Full task detail, gate record, bug log (BUG-FMN-001/002 + QA MAJOR-1), and the BE-7 squash note
