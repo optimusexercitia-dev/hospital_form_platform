@@ -22,6 +22,7 @@ import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
 import { CaseTabs } from "@/components/cases/case-tabs";
 import { formatCaseNumber, formatDate } from "@/components/cases/format";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
+import { listNarrativeTypes } from "@/lib/queries/case-narratives";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { loadCasePatientForNotify } from "@/lib/cases/actions";
@@ -100,11 +101,17 @@ export default async function CaseDetailLayout({
   // narratives left empty. Non-blocking — surfaced in the conclude dialog so the
   // coordinator notices, but `close_case` is untouched. Flag-gated.
   let expectedEmptyNarrativeLabels: string[] = [];
+  // Narrative feature state + the commission's type vocabulary seed the ad-hoc
+  // "Adicionar narrativa" dialog (button gated on `narrativesOn`; the picker gets
+  // the non-archived types, `[]` being valid — inline "Criar novo tipo" covers it).
+  let narrativesOn = false;
+  let narrativeTypes: { id: string; label: string }[] = [];
   if (isOpen) {
-    const [forms, narrativesOn] = await Promise.all([
+    const [forms, narrativesEnabledResult] = await Promise.all([
       listForms(access.commission.id),
       narrativesEnabled(),
     ]);
+    narrativesOn = narrativesEnabledResult;
     assignees = sortedMembers.map((m) => ({
       userId: m.userId,
       name: m.fullName ?? m.email ?? "Membro",
@@ -116,6 +123,9 @@ export default async function CaseDetailLayout({
       expectedEmptyNarrativeLabels = detail.narratives
         .filter((n) => n.isExpected && (n.bodyMd ?? "").trim().length === 0)
         .map((n) => n.title || n.typeLabel);
+      narrativeTypes = (await listNarrativeTypes(access.commission.id)).map(
+        (t) => ({ id: t.id, label: t.label }),
+      );
     }
   }
 
@@ -196,6 +206,8 @@ export default async function CaseDetailLayout({
                   phases={detail.phases}
                   assignees={assignees}
                   expectedEmptyNarrativeLabels={expectedEmptyNarrativeLabels}
+                  narrativeTypes={narrativeTypes}
+                  narrativesEnabled={narrativesOn}
                 />
               )}
             </div>

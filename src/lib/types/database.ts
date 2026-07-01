@@ -1207,6 +1207,7 @@ export type Database = {
           display_position: number
           id: string
           instructions: string | null
+          is_ad_hoc: boolean
           is_expected: boolean
           narrative_type_id: string | null
           status: string
@@ -1226,6 +1227,7 @@ export type Database = {
           display_position: number
           id?: string
           instructions?: string | null
+          is_ad_hoc?: boolean
           is_expected?: boolean
           narrative_type_id?: string | null
           status?: string
@@ -1245,6 +1247,7 @@ export type Database = {
           display_position?: number
           id?: string
           instructions?: string | null
+          is_ad_hoc?: boolean
           is_expected?: boolean
           narrative_type_id?: string | null
           status?: string
@@ -4747,6 +4750,42 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_phases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_ad_hoc_narrative: {
+        Args: {
+          p_assigned_to?: string
+          p_case_id: string
+          p_instructions?: string
+          p_narrative_type_id?: string
+          p_new_type_label?: string
+          p_title?: string
+        }
+        Returns: {
+          assigned_to: string | null
+          body_md: string | null
+          case_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          display_position: number
+          id: string
+          instructions: string | null
+          is_ad_hoc: boolean
+          is_expected: boolean
+          narrative_type_id: string | null
+          status: string
+          title: string | null
+          type_label: string
+          updated_at: string
+          updated_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_narratives"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -8269,6 +8308,7 @@ export type Database = {
           display_position: number
           id: string
           instructions: string | null
+          is_ad_hoc: boolean
           is_expected: boolean
           narrative_type_id: string | null
           status: string

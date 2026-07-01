@@ -31,6 +31,7 @@ import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useCaseAction } from "@/components/cases/use-case-action";
 import { AddAdHocPhaseDialog } from "@/components/cases/add-ad-hoc-phase-dialog";
+import { AddAdHocNarrativeDialog } from "@/components/cases/add-ad-hoc-narrative-dialog";
 import { CaseStatusBadge } from "@/components/cases/case-status-badge";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 import type { SlotForm } from "@/components/process-templates/template-builder-shell";
@@ -58,6 +59,8 @@ export function CaseLifecycleActions({
   phases,
   assignees,
   expectedEmptyNarrativeLabels = [],
+  narrativeTypes = [],
+  narrativesEnabled = false,
 }: {
   caseId: string;
   /** The case's FROZEN offered outcomes (D15); `[]` = process offers none. */
@@ -73,8 +76,18 @@ export function CaseLifecycleActions({
    * dialog renders no warning then. Conclusion is never gated on this.
    */
   expectedEmptyNarrativeLabels?: string[];
+  /**
+   * The commission's non-archived narrative-type vocabulary — seeds the ad-hoc
+   * narrative dialog's type picker. `[]` is a valid state: the dialog's inline
+   * "Criar novo tipo" covers an empty vocabulary, so the button is NOT disabled
+   * on `[]` (only hidden when the feature is off).
+   */
+  narrativeTypes?: { id: string; label: string }[];
+  /** Whether the `case_narratives` feature is on — gates the "Adicionar narrativa" button. */
+  narrativesEnabled?: boolean;
 }) {
   const [adHocOpen, setAdHocOpen] = useState(false);
+  const [narrativeOpen, setNarrativeOpen] = useState(false);
   const [concludeOpen, setConcludeOpen] = useState(false);
 
   const hasOpenPhases = phases.some(
@@ -95,6 +108,18 @@ export function CaseLifecycleActions({
           Adicionar fase
         </Button>
 
+        {narrativesEnabled && (
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={() => setNarrativeOpen(true)}
+          >
+            <Plus aria-hidden="true" />
+            Adicionar narrativa
+          </Button>
+        )}
+
         <Button type="button" size="lg" onClick={() => setConcludeOpen(true)}>
           <CheckCircle2 aria-hidden="true" />
           Concluir
@@ -110,6 +135,16 @@ export function CaseLifecycleActions({
         forms={forms}
         assignees={assignees}
       />
+
+      {narrativesEnabled && (
+        <AddAdHocNarrativeDialog
+          open={narrativeOpen}
+          onOpenChange={setNarrativeOpen}
+          caseId={caseId}
+          narrativeTypes={narrativeTypes}
+          assignees={assignees}
+        />
+      )}
 
       <ConcludeCaseDialog
         open={concludeOpen}

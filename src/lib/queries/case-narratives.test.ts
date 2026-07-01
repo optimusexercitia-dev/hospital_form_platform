@@ -64,6 +64,7 @@ function narrative(
     title: null,
     instructions: null,
     isExpected: false,
+    isAdHoc: false,
     bodyMd: null,
     assignedTo: null,
     assigneeName: null,

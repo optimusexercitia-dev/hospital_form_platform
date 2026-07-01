@@ -205,6 +205,11 @@ export function CaseNarrativeCard({
               <FileText aria-hidden="true" className="size-3.5" />
               Narrativa
             </span>
+            {narrative.isAdHoc && (
+              <span className="rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-muted-foreground uppercase">
+                adicional
+              </span>
+            )}
             {showLifecycle && <NarrativeStatusPill status={narrative.status} />}
             {((showLifecycle && isConcluded) || showLegacyLocked) && (
               <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[0.7rem] font-medium text-muted-foreground">

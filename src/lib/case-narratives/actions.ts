@@ -48,6 +48,15 @@ export interface AddTemplateNarrativeState extends ActionState {
   narrativeId?: string
 }
 
+/**
+ * The result of appending an ad-hoc narrative to an OPEN case (ADR 0032 v2);
+ * returns the new `case_narratives` row id on success so the caller can scroll to
+ * / focus it. Mirrors {@link import('@/lib/cases/actions').AddAdHocPhaseState}.
+ */
+export interface AddAdHocNarrativeState extends ActionState {
+  narrativeId?: string
+}
+
 // ---------------------------------------------------------------------------
 // Input shapes (camelCase; the forms bind to these)
 // ---------------------------------------------------------------------------
@@ -95,6 +104,7 @@ const MESSAGES = {
   typeReordered: 'Ordem das narrativas atualizada.',
   typeArchived: 'Narrativa arquivada.',
   slotAdded: 'Narrativa adicionada ao processo.',
+  narrativeAdded: 'Narrativa adicionada ao caso.',
   slotUpdated: 'Narrativa do processo atualizada.',
   slotRemoved: 'Narrativa removida do processo.',
   layoutReordered: 'Ordem do processo atualizada.',
@@ -165,6 +175,20 @@ async function commissionOfNarrative(
     .eq('id', narrativeId)
     .maybeSingle<{ cases: { commission_id: string } | null }>()
   return data?.cases?.commission_id ?? null
+}
+
+/** Resolve a case's commission via the RLS-scoped client (local mirror of the
+ * unexported helper in `@/lib/cases/actions`, used by {@link addAdHocNarrative}). */
+async function commissionOfCase(
+  supabase: SupabaseClient<Database>,
+  caseId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('cases')
+    .select('commission_id')
+    .eq('id', caseId)
+    .maybeSingle()
+  return data?.commission_id ?? null
 }
 
 async function commissionOfType(
@@ -581,6 +605,68 @@ export async function reorderCaseLayout(
 
   revalidateTemplate()
   return { ok: true, error: MESSAGES.layoutReordered }
+}
+
+// ---------------------------------------------------------------------------
+// Ad-hoc per-case narrative (ADR 0032 v2) — the narrative analogue of addAdHocPhase
+// ---------------------------------------------------------------------------
+
+/**
+ * Append an ad-hoc narrative to an OPEN case (ADR 0032 v2; the narrative analogue
+ * of `addAdHocPhase`). The coordinator picks EITHER an existing narrative type
+ * (`narrativeTypeId`) OR inline-creates one by non-blank `newTypeLabel`
+ * (create-or-reuse of the commission vocabulary — works even when the vocabulary is
+ * empty, essential for process-less cases). Optional `title` override,
+ * `instructions`, and initial `assignedTo`. `is_expected` is always `false` (a
+ * mid-case addition is not a pre-declared template expectation).
+ *
+ * Routed through `add_ad_hoc_narrative`, which gates the `case_narratives` flag,
+ * re-checks coordinator authz (→ 42501), rejects a terminal case (HC020), a
+ * cross-commission type (HC054), and a non-member assignee (HC021), and lands the
+ * new row at `max(display_position)+1` over the merged phases+narratives interleave.
+ * `FormData`-shaped: `caseId`, `narrativeTypeId?`, `newTypeLabel?`, `title?`,
+ * `instructions?`, `assignedTo?`.
+ */
+export async function addAdHocNarrative(
+  _prev: AddAdHocNarrativeState | undefined,
+  formData: FormData,
+): Promise<AddAdHocNarrativeState> {
+  const caseId = String(formData.get('caseId') ?? '')
+  const narrativeTypeId = String(formData.get('narrativeTypeId') ?? '').trim()
+  const newTypeLabel = String(formData.get('newTypeLabel') ?? '').trim()
+  const title = String(formData.get('title') ?? '').trim()
+  const instructions = String(formData.get('instructions') ?? '').trim()
+  const assignedTo = String(formData.get('assignedTo') ?? '').trim()
+
+  if (!caseId) return { ok: false, error: MESSAGES.missingCase }
+  // Exactly one type source is required: an existing type id OR a new-type label.
+  if (!narrativeTypeId && !newTypeLabel) {
+    return { ok: false, fieldErrors: { narrativeTypeId: MESSAGES.typeRequired } }
+  }
+  if (!(await narrativesEnabled())) {
+    return { ok: false, error: MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const commissionId = await commissionOfCase(supabase, caseId)
+  if (!commissionId) return { ok: false, error: MESSAGES.missingCase }
+  if (!(await authorizeCommission(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { data, error } = await supabase.rpc('add_ad_hoc_narrative', {
+    p_case_id: caseId,
+    p_narrative_type_id: narrativeTypeId || undefined,
+    p_new_type_label: newTypeLabel || undefined,
+    p_title: title || undefined,
+    p_instructions: instructions || undefined,
+    p_assigned_to: assignedTo || undefined,
+  })
+
+  if (error || !data) return { ok: false, error: mapNarrativeError(error) }
+
+  revalidateCase()
+  return { ok: true, error: MESSAGES.narrativeAdded, narrativeId: data.id }
 }
 
 // ---------------------------------------------------------------------------

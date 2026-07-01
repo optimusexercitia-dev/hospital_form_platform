@@ -88,6 +88,13 @@ excluded from the audit body, and edited inline. We mirror it.
    write `case_events` (they are not timeline events), but the audit trail still
    records `case_narrative.created/.updated` (body excluded).
 
+   > **Superseded in part (v2, ADR [0047](0047-ad-hoc-case-narratives.md),
+   > 2026-07-01):** a coordinator may now **add an ad-hoc narrative to an OPEN case**
+   > (`add_ad_hoc_narrative`, `case_narratives.is_ad_hoc`), mirroring
+   > `add_ad_hoc_phase`. The "no per-case **add**" of this decision is reversed for
+   > open cases; per-case **remove/reorder** remain out of scope (still
+   > template-authored).
+
 8. **New SQLSTATE `HC054`.** The Case-Narratives error: a template/type commission
    mismatch (the `guard_template_narrative_type` INSERT guard), a frozen-case body
    write, and an incomplete reorder set. HC043–HC053 are consumed/reserved by Phase

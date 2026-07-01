@@ -198,6 +198,12 @@ export interface CaseNarrative {
   instructions: string | null
   /** Advisory close flag (decision 7): a soft warning if left empty at conclude. */
   isExpected: boolean
+  /**
+   * True when the narrative was appended mid-case via `add_ad_hoc_narrative`
+   * (ADR 0032 v2) rather than materialized from the process template at creation.
+   * Mirrors {@link CasePhase.isAdHoc}; drives the "Ad-hoc" provenance chip.
+   */
+  isAdHoc: boolean
   /** The authored de-identified Markdown body (Rule 7); `null`/empty when unwritten. */
   bodyMd: string | null
   /**
@@ -605,6 +611,8 @@ interface DetailNarrativeJson {
   title: string | null
   instructions: string | null
   is_expected: boolean
+  /** Ad-hoc provenance (ADR 0032 v2), added to `get_case_detail`. */
+  is_ad_hoc?: boolean
   body_md: string | null
   /**
    * Narrative attribution + lifecycle (ADR 0033 D5), added to `get_case_detail` in
@@ -630,6 +638,7 @@ function mapNarrativeJson(n: DetailNarrativeJson, caseId: string): CaseNarrative
     title: n.title,
     instructions: n.instructions,
     isExpected: n.is_expected,
+    isAdHoc: n.is_ad_hoc ?? false,
     bodyMd: n.body_md,
     // Attribution + lifecycle (ADR 0033). Pre-BE-4 the RPC omits these → un-assigned
     // / aberta, which is exactly the state of an existing narrative row.
