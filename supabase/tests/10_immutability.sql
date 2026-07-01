@@ -2,7 +2,7 @@
 -- here — these are the DB-level guards that hold regardless of role).
 
 begin;
-select plan(14);
+select plan(17);
 
 -- Build fixture; capture ids in a temp table so we can reference across calls.
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
@@ -118,6 +118,40 @@ select throws_ok(
   '23514',
   null,
   'cannot DELETE a selection of a submitted response'
+);
+
+-- answer-model-v2 new surfaces (co-located from 61_answer_model_v2.sql per QA
+-- MINOR-1): the same submitted-freeze intent must hold for the three tables the
+-- v2 answer model added. `resp` is submitted with a parent answers row + a
+-- selection on item_mc (via add_selection above).
+--   1) answers new columns ride the whole-row guard: any UPDATE blocked.
+select throws_ok(
+  $$ update public.answers set answered_at = now()
+     where response_id = (select id from resp) $$,
+  '23514',
+  null,
+  'cannot UPDATE an answer (incl. new typed columns) of a submitted response'
+);
+
+--   2) response_group_instances: INSERT blocked once the response is submitted.
+select throws_ok(
+  $$ insert into public.response_group_instances (response_id, group_item_id, position)
+     select (select id from resp), (c.v->>'item_mc')::uuid, 0 from ctx c $$,
+  '23514',
+  null,
+  'cannot INSERT a response_group_instance on a submitted response'
+);
+
+--   3) selection DELETE via answer_id -> answers (the re-keyed selection surface).
+--   Same freeze intent as the DELETE above but expressed through the answer_id
+--   join the v2 model uses, matching 61's coverage exactly.
+select throws_ok(
+  $$ delete from public.answer_selected_options s
+     using public.answers a
+     where s.answer_id = a.id and a.response_id = (select id from resp) $$,
+  '23514',
+  null,
+  'submitted: DELETE on selection (via answer_id) blocked'
 );
 
 select throws_ok(
