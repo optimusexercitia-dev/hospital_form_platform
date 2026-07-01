@@ -24,16 +24,48 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    - `form_sections(id, form_version_id, position, title, description,`
      `  is_default boolean, visible_when jsonb,`
      `  requires_signoff boolean, signoff_role ∈ {respondent, staff_admin})`
-   - `form_items(id, section_id → form_sections, position, item_type,`
+   - `form_items(id, section_id → form_sections, form_version_id, position, item_type,`
      `  -- input items only:`
-     `  question_key, label, question_explanation, options jsonb, required,`
+     `  question_key, label, question_explanation, required,`
+     `  default_value jsonb,          -- answer-model-v2 (ADR 0046): optional prefill`
+     `  parent_item_id → form_items,  -- answer-model-v2 scaffolding, always NULL (no repeating-group UX)`
      `  -- display items only:`
      `  content jsonb)`
      with `item_type ∈ {multiple_choice, dropdown, checkbox, free_text, section_text, image}`
+   - `form_item_options(id, item_id → form_items, form_version_id, position, code,`
+     `  label, color_token, score numeric, analytics_code)` — the choice options,
+     normalized out of the former `form_items.options jsonb` (form-model-normalization).
+     `code` is a STABLE hidden slug (`slug(label)_suffix`) minted once and preserved
+     across label renames + version clones; `unique(item_id, code)`. `analytics_code`
+     is the free-text dashboard tag; `score` is nullable. Answers reference the option
+     ROW (see `answer_selected_options`), and `visible_when` / `default_value` reference
+     the `code`.
    - `responses(id, form_version_id, commission_id, created_by,`
      `  status ∈ {in_progress, submitted}, last_section_id,`
      `  started_at, updated_at, submitted_at)`
-   - `answers(id, response_id, item_id → form_items, question_key, value jsonb)`
+   - `answers(id, response_id, item_id → form_items, question_key,`
+     `  value jsonb,                       -- the CANONICAL evaluator input (Rule 3); scalars only`
+     `  value_number, value_date, value_time,  -- answer-model-v2: typed shadow cols, trigger-derived, NEVER read by the evaluator`
+     `  answered_at, confidentiality_level,    -- answer-model-v2; confidentiality_level RESERVED + unenforced (ADR 0045)`
+     `  group_instance_id → response_group_instances)` — answer-model-v2 (ADR 0045)
+     makes the answer row **uniform**: every answered input — including choice items —
+     gets a parent `answers` row (choice selections then hang off it via
+     `answer_selected_options.answer_id`). `value` stays scalars-only and is the sole
+     input the condition evaluator reads; `app.sync_answer_typed_values` (BEFORE INS/UPD,
+     exception-guarded — a bad cast leaves the typed col NULL and NEVER fails a save)
+     derives the typed shadow columns. Uniqueness: two partial-unique indexes —
+     top-level `(response_id, item_id) where group_instance_id is null` and per-instance
+     `(response_id, item_id, group_instance_id) where group_instance_id is not null`.
+   - `answer_selected_options(answer_id → answers, option_id → form_item_options,`
+     `  PK(answer_id, option_id))` — choice selections, a hard FK to the option row
+     (form-model-normalization), **re-keyed to `answer_id`** by answer-model-v2 (was
+     `response_id`+`item_id`). RLS + the submitted-immutability guard resolve the
+     response via `answer_id → answers`.
+   - `response_group_instances(id, response_id → responses, item_id → form_items, position, ...)`
+     — answer-model-v2 (ADR 0045) **inert scaffolding** for a future repeating-group /
+     new-answer-block feature; the answer key is instance-ready but NO repeating-group UX
+     ships in this package. RLS mirrors the inline `answers` predicate; submitted responses
+     freeze it.
    - `response_section_signoffs(id, response_id, section_id, signed_by → profiles,`
      `  signed_at, note, unique(response_id, section_id))`
 
