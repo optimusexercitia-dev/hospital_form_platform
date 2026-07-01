@@ -931,72 +931,44 @@ async function insertOptionRows(
 async function reconcileOptionRows(
   supabase: SupabaseClient<Database>,
   itemId: string,
-  versionId: string,
   options: ParsedOption[],
 ): Promise<{ ok: boolean }> {
+  // Resolve which submitted rows are KEPT (code already on the item) vs NEW, so
+  // new rows get an app-generated code (Decision 2) while kept rows preserve
+  // theirs (the code is DB-frozen). The whole set is then reconciled ATOMICALLY
+  // by the reconcile_item_options RPC in ONE transaction — the per-row position
+  // UPDATE loop is gone (it ran in separate transactions, so a reorder into an
+  // occupied slot violated the DEFERRABLE unique(item_id, position); QA MAJOR-1).
   const { data: existing } = await supabase
     .from('form_item_options')
-    .select('id, code')
+    .select('code')
     .eq('item_id', itemId)
-    .returns<{ id: string; code: string }[]>()
+    .returns<{ code: string }[]>()
 
-  const existingByCode = new Map<string, string>() // code -> id
-  for (const e of existing ?? []) existingByCode.set(e.code, e.id)
+  const existingCodes = new Set<string>((existing ?? []).map((e) => e.code))
+  const taken = new Set<string>(existingCodes)
 
-  const taken = new Set<string>(existingByCode.keys())
-  const keptCodes = new Set<string>()
-
-  // Upsert each submitted row (UPDATE kept, INSERT new).
-  for (let i = 0; i < options.length; i++) {
-    const o = options[i]
+  // Build the ordered payload; every element carries a code (kept or generated).
+  const payload = options.map((o) => {
     const submittedCode = o.code.trim()
-    const existingId =
-      submittedCode && existingByCode.has(submittedCode)
-        ? existingByCode.get(submittedCode)!
-        : null
-
-    if (existingId) {
-      keptCodes.add(submittedCode)
-      const { error } = await supabase
-        .from('form_item_options')
-        .update({
-          label: o.label,
-          color_token: o.color,
-          score: o.score,
-          analytics_code: o.analyticsCode,
-          position: i,
-        })
-        .eq('id', existingId)
-      if (error) return { ok: false }
-    } else {
-      const code = generateOptionCode(o.label, taken)
-      keptCodes.add(code)
-      const { error } = await supabase.from('form_item_options').insert({
-        item_id: itemId,
-        // Trigger-overwritten; passed only to satisfy the NOT NULL Insert type.
-        form_version_id: versionId,
-        position: i,
-        code,
-        label: o.label,
-        color_token: o.color,
-        score: o.score,
-        analytics_code: o.analyticsCode,
-      })
-      if (error) return { ok: false }
+    const code =
+      submittedCode && existingCodes.has(submittedCode)
+        ? submittedCode
+        : generateOptionCode(o.label, taken)
+    return {
+      code,
+      label: o.label,
+      color_token: o.color,
+      score: o.score,
+      analytics_code: o.analyticsCode,
     }
-  }
+  })
 
-  // Delete existing rows the author removed (code no longer present).
-  const toDelete = (existing ?? [])
-    .filter((e) => !keptCodes.has(e.code))
-    .map((e) => e.id)
-  if (toDelete.length > 0) {
-    const { error } = await supabase
-      .from('form_item_options')
-      .delete()
-      .in('id', toDelete)
-    if (error) return { ok: false }
-  }
+  const { error } = await supabase.rpc('reconcile_item_options', {
+    p_item_id: itemId,
+    p_options: payload as unknown as Json,
+  })
+  if (error) return { ok: false }
 
   return { ok: true }
 }
@@ -1122,9 +1094,9 @@ export async function updateItem(
 
   const { data: existing } = await supabase
     .from('form_items')
-    .select('item_type, form_version_id')
+    .select('item_type')
     .eq('id', itemId)
-    .maybeSingle<{ item_type: string; form_version_id: string }>()
+    .maybeSingle<{ item_type: string }>()
   if (!existing) return { ok: false, error: MESSAGES.missingItem }
 
   const parsed = parseItemFields(existing.item_type, formData)
@@ -1149,12 +1121,7 @@ export async function updateItem(
   // rows (kept rows updated by code; new rows generate a code; removed rows
   // deleted) — codes stay stable across the edit.
   if (options) {
-    const res = await reconcileOptionRows(
-      supabase,
-      itemId,
-      existing.form_version_id,
-      options,
-    )
+    const res = await reconcileOptionRows(supabase, itemId, options)
     if (!res.ok) return { ok: false, error: MESSAGES.generic }
   }
 

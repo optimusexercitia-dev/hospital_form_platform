@@ -7051,6 +7051,10 @@ export type Database = {
         Args: { p_case_id: string }
         Returns: undefined
       }
+      reconcile_item_options: {
+        Args: { p_item_id: string; p_options: Json }
+        Returns: undefined
+      }
       record_capa_effectiveness: {
         Args: { p_capa_id: string; p_method_md?: string; p_verdict: string }
         Returns: {
