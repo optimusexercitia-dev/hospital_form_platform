@@ -228,14 +228,18 @@ export function ItemEditorDialog(props: Props) {
           {isChoice && (
             <>
               {/* Sync the options array into parallel hidden fields at the SAME
-                  index (option / optionColor / optionScore / optionAnalyticsCode).
-                  The author never edits `code`; the backend addItem/updateItem
-                  action generates a stable code from the label and assigns the
-                  option-row id on insert (form-model-normalization). Score is sent
-                  as the raw number string (or "" for none); analytics-code as the
-                  free-text tag (or "" for none). */}
+                  index (optionCode / option / optionColor / optionScore /
+                  optionAnalyticsCode). The author never EDITS `code`, but an
+                  EXISTING option carries its stable `code` back so `updateItem`
+                  matches the submitted row to its existing row BY CODE and
+                  PRESERVES it — keeping analytics + any condition referencing the
+                  code stable across a label rename. A NEW row (blankOption) sends
+                  `code === ""` so the backend mints a fresh one; `addItem` ignores
+                  it entirely. Score is the raw number string ("" = none);
+                  analytics-code the free-text tag ("" = none). */}
               {cleanOptions.map((opt, i) => (
                 <span key={i} className="contents">
+                  <input type="hidden" name="optionCode" value={opt.code ?? ""} />
                   <input type="hidden" name="option" value={opt.label.trim()} />
                   <input
                     type="hidden"

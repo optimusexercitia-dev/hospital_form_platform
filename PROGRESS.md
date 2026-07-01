@@ -73,10 +73,10 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 | BE-5 | backend | `clone_form_version` copies option rows (codes verbatim, item-id remap); publish-time "≥1 option" + condition/rule code-existence validation. | BE-2 | ✅ applied + smoke 4/4 (clone-preserves-codes, publish ≥1-option, publish rejects bad code, valid passes); `validate_template_*` now code-based (replaces `5f4de89` TODO). |
 | BE-6 | backend | Dashboards/export RPCs (GROUP BY `option.code`, resolve current label) + `dashboard.ts` + export route; regen `database.ts`; update `seed.sql` (option rows + selection rows) **+ rewrite the ~14 pgTAP fixtures to the normalized tables → full pgTAP green**. | BE-4 | ✅ **DONE-BAR GREEN**: full pgTAP **1168/1168** (43 files), Vitest **170/170**, lint 0 errors, tsc 0 errors in owned src/lib (14 = FE `distribution-chart` FE-4 + pre-existing dep-missing), clean `db reset` (migrations+seed). |
 | BE-7 | backend | **[STOP for lead]** Squash → single clean baseline via schema dump of the validated local DB (absorbs the 4 pending-remote migrations); `db reset` local; pre/post schema diff proving no object lost; hand lead the exact **human-run** remote re-baseline sequence. | BE-6, T-1✓ | 🔜 |
-| FE-1 | frontend | **Builder UI** (components only): `OptionsEditor` gains score + analytics_code fields; `item-editor-dialog`/`block-card` render & edit option rows; build the FormData the backend actions expect. | BE-1 | ✅ compiles vs contract (lint+tsc+vitest green); ⚠ FormData-field assumption flagged (see FE note) |
+| FE-1 | frontend | **Builder UI** (components only): `OptionsEditor` gains score + analytics_code fields; `item-editor-dialog`/`block-card` render & edit option rows; build the FormData the backend actions expect. | BE-1 | ✅ DONE — score/analytics_code fields + FormData (`61ef52c`); + **`optionCode` hidden field** so `updateItem` preserves stable codes on edit (BE-6 follow-up); tsc 0-in-my-files, lint+vitest green |
 | FE-2 | frontend | **Wizard** (components only): `input-item` renders option rows + emits selected **codes**; the client-side live answer-map (`question_key → code(s)`) MUST mirror the SQL `answer_map` shape (single→scalar code, checkbox→array) or live show/skip diverges from submit; `answer-summary` resolves label/color by code; `validation` required accounts for selections. | BE-1 | ✅ compiles vs contract; answer-map mirror Vitest added (green); ⚠ rehydration `ResponseForFill` gap flagged |
 | FE-3 | frontend | **Conditions/rulesets pickers** (components only): `condition-targets`, recommend-when + result-ruleset editors show **labels**, store **codes**. | BE-1 | ✅ DONE — `condition-targets`+`condition-builder`+`describe-visibility` (`61ef52c`) + recommend-when/result-ruleset editors flipped after `PhaseConditionTarget` landed (`5f4de89`); tsc+lint+vitest 170/170 green |
-| FE-4 | frontend | **Dashboard components** (`distribution-chart`/`dashboard-charts`) consume `{ code, label, count }`. | BE-6 | 🔜 (waiting on BE-6) |
+| FE-4 | frontend | **Dashboard components** (`distribution-chart`/`dashboard-charts`) consume `{ code, label, count }`. | BE-6 | ✅ DONE — `distribution-chart` renders `label` (chart nameKey/YAxis + table cell), keys by stable `code`; `dashboard-charts` needed no change (operates at question level). tsc 0-in-my-files, lint+vitest 170/170 green. All FE tasks complete. |
 | T-1 | tester | **[gate]** E2E: builder (colors/scores/analytics_code/reorder), wizard (single+multi, option-driven show/skip, bounds), submit+immutability, clone preserves codes, dashboard+CSV resolve current labels, sign-off. Prod-build gate, workers=1. | FE-*, BE-6 | 🔜 |
 | QA-1 | qa | Requirements audit (wishlist delivered; translations deferred by design) + RLS review of 2 new tables + evaluator-non-drift confirmation. | T-1✓ | 🔜 |
 
@@ -99,12 +99,11 @@ stubs committed so FE compiles against real types now; bodies land BE-2…BE-6.
 
 **FE note (2026-06-30, frontend) — FE-1…FE-3 built against the contract; tsc+lint+vitest GREEN for
 all FE-owned files except FE-4 (deferred). Three contract items need lead → backend routing:**
-1. **FormData field names for score/analytics_code (FE-1, ASSUMED — please confirm).** The contract
-   posted the `ItemOption` domain type but NOT the `addItem`/`updateItem` FormData field names for the
-   two new per-option fields. I extended the existing index-parallel repeated-field pattern
-   (`option`/`optionColor`) with **`optionScore`** (raw number string, "" = none) and
-   **`optionAnalyticsCode`** (free text, "" = none) at the same index. BE-4's `parseOptions` rewrite
-   must read these exact names. Flag if backend prefers different names.
+1. **FormData field names for score/analytics_code (FE-1) — ✅ CONFIRMED by backend + `optionCode`
+   added.** BE-4 `parseOptions` reads the index-parallel `option`/`optionColor`/`optionScore`/
+   `optionAnalyticsCode` exactly as emitted. BE-6 follow-up: added **`optionCode`** hidden field per
+   row so `updateItem` matches a submitted option to its existing row BY CODE and preserves it (stable
+   analytics + conditions across a label rename); new rows send `""` so the backend mints a fresh code.
 2. **`PhaseConditionTarget` → `{ code, label }[]` — ✅ RESOLVED (backend `5f4de89`; FE flip done).**
    `recommend-when-editor.tsx` + `result-ruleset-editor.tsx` now show the option label / store the
    option code (equals + `in` arrays + the live-preview answer selects), mirroring the form

@@ -32,6 +32,10 @@ const CHART_COLORS = [
  * a small single-select (`multiple_choice`/`dropdown` with ≤4 options).
  * `checkbox` is always a bar (multi-select, values unnested per option).
  *
+ * form-model-normalization: each option is `{ code, label, count }`. The chart
+ * and table DISPLAY the `label` (backend resolves it to the current published
+ * version's wording); the stable `code` is the React key / aggregation identity.
+ *
  * Each card renders its OWN denominator: "{n} de {N} respostas em que a pergunta
  * era aplicável" — so a question in a conditional section shows the smaller N.
  */
@@ -76,7 +80,7 @@ export function DistributionChart({
                   <Pie
                     data={options}
                     dataKey="count"
-                    nameKey="value"
+                    nameKey="label"
                     cx="50%"
                     cy="50%"
                     outerRadius="80%"
@@ -85,9 +89,9 @@ export function DistributionChart({
                       `${entry.name}: ${entry.value}`
                     }
                   >
-                    {options.map((_, i) => (
+                    {options.map((opt, i) => (
                       <Cell
-                        key={i}
+                        key={opt.code}
                         fill={CHART_COLORS[i % CHART_COLORS.length]}
                       />
                     ))}
@@ -102,7 +106,7 @@ export function DistributionChart({
                   <XAxis type="number" hide allowDecimals={false} />
                   <YAxis
                     type="category"
-                    dataKey="value"
+                    dataKey="label"
                     width={120}
                     tickLine={false}
                     axisLine={false}
@@ -113,9 +117,9 @@ export function DistributionChart({
                     radius={[0, 6, 6, 0]}
                     isAnimationActive={!reduced}
                   >
-                    {options.map((_, i) => (
+                    {options.map((opt, i) => (
                       <Cell
-                        key={i}
+                        key={opt.code}
                         fill={CHART_COLORS[i % CHART_COLORS.length]}
                       />
                     ))}
@@ -186,14 +190,14 @@ function DistributionTable({
               : 0;
           return (
             <tr
-              key={opt.value}
+              key={opt.code}
               className="border-b border-border/60 last:border-b-0"
             >
               <th
                 scope="row"
                 className="py-1.5 pr-2 font-normal text-foreground/90"
               >
-                {opt.value}
+                {opt.label}
               </th>
               <td className="py-1.5 px-2 text-right tabular-nums">
                 {opt.count}
