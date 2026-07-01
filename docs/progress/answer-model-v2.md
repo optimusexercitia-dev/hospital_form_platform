@@ -87,7 +87,7 @@ confirmed by re-running both files each on a fresh reset: `phase5-wizard` 12/12 
   MINOR-2 (defensive-only PGRST201 hint) no action; MINOR-3 (doc-sync) done at Record.
 - **Record:** ARCHITECTURE.md Rule 2 + `docs/backend-state.md` updated; migrations re-squashed 2→1
   into the single baseline `20260620000000_baseline.sql` (empty sorted pre/post pg_dump diff). ⚠
-  **Remote `db push` / re-baseline is human-run — PENDING** (everything validated local-only).
+  **Remote re-baseline concluded 2026-07-01** (the single squashed baseline applied to remote).
 
 ## Commits (branch `feat/answer-model-v2`)
 
