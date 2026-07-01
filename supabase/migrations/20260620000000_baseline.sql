@@ -1,16 +1,28 @@
 -- ============================================================================
--- CONSOLIDATED BASELINE (form-model-normalization squash, 2026-07-01)
+-- CONSOLIDATED BASELINE (answer-model-v2 re-squash, 2026-07-01)
 -- ============================================================================
--- Schema-only dump (public + app) of the fully-migrated local DB (all 53 prior
--- migrations incl. the 4 previously-pending-remote 20260630000004/5/6/7 and the
--- form-model-normalization refactor 20260630010000-20260630017000). Replaces the
--- entire prior migration set. Carried below (dump excludes these; from the live DB)
--- so the squashed baseline is PRIVILEGE-+SCHEMA-identical to the pre-squash history
--- (empty sorted pg_dump diff): (1) storage buckets+object policies, (2) app config
--- feature_flags+app_secrets, (3) global config vocabularies, (4) auth.users triggers,
--- (5) the hardened privilege posture. Demo rows the old migrations seeded into
--- public.* are NOT carried; seed.sql is the canonical demo data.
+-- Schema-only dump (public + app) of the fully-migrated local DB. This is a
+-- RE-SQUASH of the prior form-model-normalization baseline (2026-07-01) that now
+-- also folds in the two answer-model-v2 migrations (20260701000000_answer_model_v2_
+-- definition + 20260701000010_answer_model_v2_answers), which are deleted. Net new
+-- vs the prior baseline: answers typed scalar columns (value_number/date/time,
+-- trigger-derived by app.sync_answer_typed_values; value stays canonical), answers
+-- answered_at + reserved confidentiality_level, re-keyed answer_selected_options
+-- (selections hang off answer_id, not response_id/item_id; guard_submitted_selections
+-- + re-keyed reject_invalid_selection), instance-ready answer key
+-- (answers.group_instance_id + public.response_group_instances + form_items.
+-- parent_item_id), form_items.default_value, and HC080 default-value validation in
+-- publish_form_version. Replaces the entire prior migration set. Carried below
+-- (dump excludes these; from the live DB) so the squashed baseline is PRIVILEGE-+
+-- SCHEMA-identical to the pre-squash history (empty sorted pg_dump diff):
+-- (1) storage buckets+object policies, (2) app config feature_flags+app_secrets,
+-- (3) global config vocabularies, (4) auth.users triggers, (5) the hardened
+-- privilege posture. answer-model-v2 did NOT touch any of the five carried
+-- sections, so they are copied verbatim from the prior baseline. Demo rows the old
+-- migrations seeded into public.* are NOT carried; seed.sql is the canonical demo
+-- data.
 -- ============================================================================
+
 
 
 
@@ -311,21 +323,22 @@ CREATE OR REPLACE FUNCTION "app"."answer_map"("p_response_id" "uuid") RETURNS "j
       and a.value is not null
       and i.item_type = any (array['free_text','short_text','number','date','time'])
   ),
-  -- The selected option codes of this response, with the parent item's
-  -- question_key + type, ordered by option.position for the checkbox array.
+  -- The selected option codes of this response, sourced through the parent answer
+  -- (answer_id -> answers), with the item's question_key + type, ordered by
+  -- option.position for the checkbox array.
   selected as (
     select i.question_key,
            i.item_type,
            o.code,
            o.position
     from public.answer_selected_options s
-    join public.form_items i on i.id = s.item_id
+    join public.answers a on a.id = s.answer_id
+    join public.form_items i on i.id = a.item_id
     join public.form_item_options o on o.id = s.option_id
-    where s.response_id = p_response_id
+    where a.response_id = p_response_id
       and i.item_type = any (array['multiple_choice','dropdown','checkbox'])
   ),
-  -- (b) Single-select — exactly one code per question_key as a jsonb string. (A
-  -- well-formed single-select has one selection; min() is a defensive tiebreak.)
+  -- (b) Single-select — exactly one code per question_key as a jsonb string.
   single as (
     select question_key, to_jsonb(min(code)) as value
     from selected
@@ -363,7 +376,6 @@ CREATE OR REPLACE FUNCTION "app"."answer_map_by_item"("p_response_id" "uuid") RE
     SET "search_path" TO 'app', 'public', 'pg_catalog'
     AS $$
   with
-  -- Scalar answers — non-choice input items only.
   scalars as (
     select a.item_id, a.value
     from public.answers a
@@ -373,11 +385,12 @@ CREATE OR REPLACE FUNCTION "app"."answer_map_by_item"("p_response_id" "uuid") RE
       and i.item_type = any (array['free_text','short_text','number','date','time'])
   ),
   selected as (
-    select s.item_id, i.item_type, o.code, o.position
+    select a.item_id, i.item_type, o.code, o.position
     from public.answer_selected_options s
-    join public.form_items i on i.id = s.item_id
+    join public.answers a on a.id = s.answer_id
+    join public.form_items i on i.id = a.item_id
     join public.form_item_options o on o.id = s.option_id
-    where s.response_id = p_response_id
+    where a.response_id = p_response_id
       and i.item_type = any (array['multiple_choice','dropdown','checkbox'])
   ),
   single as (
@@ -1582,8 +1595,9 @@ CREATE OR REPLACE FUNCTION "app"."case_phase_answer_map"("p_case_phase_id" "uuid
   selected as (
     select i.question_key, i.item_type, o.code, o.position
     from public.answer_selected_options s
-    join resp on resp.id = s.response_id
-    join public.form_items i on i.id = s.item_id
+    join public.answers a on a.id = s.answer_id
+    join resp on resp.id = a.response_id
+    join public.form_items i on i.id = a.item_id
     join public.form_item_options o on o.id = s.option_id
     where i.item_type = any (array['multiple_choice','dropdown','checkbox'])
   ),
@@ -3000,6 +3014,40 @@ $$;
 ALTER FUNCTION "app"."guard_referral_status"() OWNER TO "postgres";
 
 
+CREATE OR REPLACE FUNCTION "app"."guard_submitted_selections"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    SET "search_path" TO 'public', 'pg_catalog'
+    AS $$
+declare
+  v_answer_id uuid;
+  v_response_id uuid;
+  v_status text;
+begin
+  v_answer_id := case when tg_op = 'DELETE' then old.answer_id else new.answer_id end;
+
+  select a.response_id into v_response_id
+  from public.answers a where a.id = v_answer_id;
+
+  select status into v_status from public.responses where id = v_response_id;
+
+  if v_status = 'submitted'
+     and coalesce(current_setting('app.in_submit_rpc', true), 'off') <> 'on' then
+    raise exception '% on a submitted response is blocked (immutable)', tg_op
+      using errcode = 'check_violation';
+  end if;
+
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+
+
+ALTER FUNCTION "app"."guard_submitted_selections"() OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "app"."guard_submitted_selections"() IS 'answer-model-v2 (ADR 0045): submitted-immutability for answer_selected_options — resolves the response via answer_id -> answers (the table no longer carries response_id). Twin of guard_submitted_children.';
+
+
+
 CREATE OR REPLACE FUNCTION "app"."guard_template_narrative_type"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     SET "search_path" TO 'app', 'public', 'pg_catalog'
@@ -3924,9 +3972,11 @@ begin
             and a.value <> 'null'::jsonb
         )
         or exists (
-          select 1 from public.answer_selected_options s
-          where s.response_id = p_response_id
-            and s.item_id = i.id
+          select 1
+          from public.answer_selected_options s
+          join public.answers a on a.id = s.answer_id
+          where a.response_id = p_response_id
+            and a.item_id = i.id
         )
       );
 
@@ -4042,6 +4092,53 @@ $$;
 
 
 ALTER FUNCTION "app"."submitted_form_responses"("p_form_id" "uuid") OWNER TO "postgres";
+
+
+CREATE OR REPLACE FUNCTION "app"."sync_answer_typed_values"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    SET "search_path" TO 'public', 'pg_catalog'
+    AS $$
+declare
+  v_type text;
+begin
+  select item_type into v_type from public.form_items where id = new.item_id;
+
+  new.value_number := null;
+  new.value_date   := null;
+  new.value_time   := null;
+
+  if new.value is not null and jsonb_typeof(new.value) is distinct from 'null' then
+    if v_type = 'number' and jsonb_typeof(new.value) = 'number' then
+      begin
+        new.value_number := (new.value #>> '{}')::numeric;
+      exception when others then
+        new.value_number := null;
+      end;
+    elsif v_type = 'date' and jsonb_typeof(new.value) = 'string' then
+      begin
+        new.value_date := (new.value #>> '{}')::date;
+      exception when others then
+        new.value_date := null;
+      end;
+    elsif v_type = 'time' and jsonb_typeof(new.value) = 'string' then
+      begin
+        new.value_time := (new.value #>> '{}')::time;
+      exception when others then
+        new.value_time := null;
+      end;
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+
+ALTER FUNCTION "app"."sync_answer_typed_values"() OWNER TO "postgres";
+
+
+COMMENT ON FUNCTION "app"."sync_answer_typed_values"() IS 'answer-model-v2 (ADR 0045): BEFORE INS/UPD on answers — derives value_number/value_date/value_time from (value, item_type). Every cast is exception-guarded so a malformed scalar leaves the typed column NULL and NEVER blocks the save (value jsonb stays canonical).';
+
 
 
 CREATE OR REPLACE FUNCTION "app"."touch_case_narrative_updated_at"() RETURNS "trigger"
@@ -7980,13 +8077,15 @@ begin
   join ins on ins.position = src.position;
 
   -- Copy items into the remapped sections, capturing the old->new item id map
-  -- (keyed by the remapped section + position, which is unique per version) so
-  -- the option copy can rewrite item_id. config + visible_when copy verbatim
-  -- (visible_when references question_key + option code, both preserved).
+  -- (keyed by the remapped section + position, unique per version) so the option
+  -- copy can rewrite item_id and the parent_item_id remap can run. config +
+  -- visible_when + default_value copy verbatim (all reference clone-stable ids:
+  -- question_key + option code, both preserved). parent_item_id is copied here as
+  -- the OLD id, then remapped below.
   with src as (
     select i.id, m.new_id as new_section_id, i.position, i.item_type,
            i.question_key, i.label, i.question_explanation, i.config,
-           i.visible_when, i.required, i.content
+           i.visible_when, i.required, i.content, i.default_value, i.parent_item_id
     from public.form_items i
     join public.form_sections s on s.id = i.section_id
     join _clone_section_map m on m.old_id = i.section_id
@@ -7996,11 +8095,11 @@ begin
     insert into public.form_items (
       section_id, position, item_type,
       question_key, label, question_explanation, config, visible_when,
-      required, content
+      required, content, default_value
     )
     select new_section_id, position, item_type,
            question_key, label, question_explanation, config, visible_when,
-           required, content
+           required, content, default_value
     from src
     returning id, section_id, position
   )
@@ -8009,9 +8108,20 @@ begin
   from src
   join ins on ins.section_id = src.new_section_id and ins.position = src.position;
 
+  -- Remap parent_item_id from the source item id to the newly-cloned item id.
+  -- All values are NULL today, so this is inert but keeps the model coherent for
+  -- when repeating groups ship.
+  update public.form_items c
+  set parent_item_id = pm.new_id
+  from public.form_items src
+  join _clone_item_map im on im.old_id = src.id
+  join _clone_item_map pm on pm.old_id = src.parent_item_id
+  where c.id = im.new_id
+    and src.parent_item_id is not null;
+
   -- Copy option rows into the remapped items, preserving code/label/color_token/
-  -- score/analytics_code/position VERBATIM (the code is the cross-version
-  -- analytics identity; the sync trigger refills form_version_id from the item).
+  -- score/analytics_code/position VERBATIM (the sync trigger refills
+  -- form_version_id from the item).
   insert into public.form_item_options (
     item_id, position, code, label, color_token, score, analytics_code
   )
@@ -9663,30 +9773,27 @@ begin
 
   return query
   with
-  -- In-scope (submitted, standalone, date-bounded) responses.
   resp as (
     select sr.id, sr.form_version_id
     from app.submitted_form_responses(p_form_id) sr
     where (p_from is null or sr.submitted_at::date >= p_from)
       and (p_to   is null or sr.submitted_at::date <= p_to)
   ),
-  -- Every CHOICE selection of those responses, joined to its authoring item (for
-  -- the section/denominator) and the selected option (for code + version-local
-  -- label). question_key carries cross-version; code carries cross-version too.
+  -- Every CHOICE selection of those responses, sourced through the parent answer
+  -- (answer_id -> answers), joined to its authoring item + selected option.
   sel as (
-    select s.response_id,
+    select a.response_id,
            fi.question_key,
            fi.item_type,
            fi.section_id,
            o.code as option_code
     from public.answer_selected_options s
-    join resp on resp.id = s.response_id
-    join public.form_items fi on fi.id = s.item_id
+    join public.answers a on a.id = s.answer_id
+    join resp on resp.id = a.response_id
+    join public.form_items fi on fi.id = a.item_id
     join public.form_item_options o on o.id = s.option_id
     where fi.item_type in ('multiple_choice', 'dropdown', 'checkbox')
   ),
-  -- Per-question denominator: distinct responses with ANY selection in the SAME
-  -- section (smaller applicability base for conditional-section questions).
   section_answered as (
     select distinct response_id, section_id from sel
   ),
@@ -9704,8 +9811,6 @@ begin
     join section_answered sa on sa.section_id = ks.section_id
     group by ks.question_key
   ),
-  -- Tally selections per (question_key, code). Each selected option counts once
-  -- per response (checkbox contributes several codes for one response).
   tally as (
     select e.question_key,
            e.option_code,
@@ -9718,9 +9823,6 @@ begin
     from sel
     group by sel.question_key
   ),
-  -- Current-wording metadata from the latest published version: the question
-  -- label/section + the CURRENT label of each code (a renamed option resolves to
-  -- its new label; a code absent from the latest version falls back to the code).
   meta as (
     select fi.question_key,
            fi.label,
@@ -9787,10 +9889,6 @@ begin
          pr.full_name as member_name,
          r.submitted_at,
          fv.version_number,
-         -- answers: question_key -> display text. Scalars take answers.value as
-         -- text; CHOICE answers resolve each selected code to its CURRENT label
-         -- (from the latest published version, falling back to the response's own
-         -- version, then the code) and join checkbox labels with '; '.
          (
            select coalesce(jsonb_object_agg(qk, txt), '{}'::jsonb)
            from (
@@ -9801,14 +9899,16 @@ begin
              where a.response_id = r.id and a.value is not null
                and fi.item_type in ('free_text','short_text','number','date','time')
              union all
-             -- choice answers: join selected codes -> current label, agg per key
+             -- choice answers: selections sourced via answer_id -> answers; each
+             -- selected code -> current label, aggregated per key.
              select fi.question_key as qk,
                     string_agg(
                       coalesce(cur.label, own.label, o.code), '; '
                       order by o.position
                     ) as txt
              from public.answer_selected_options s
-             join public.form_items fi on fi.id = s.item_id
+             join public.answers a on a.id = s.answer_id
+             join public.form_items fi on fi.id = a.item_id
              join public.form_item_options o on o.id = s.option_id
              -- current label from the latest published version (by code)
              left join public.form_items cfi
@@ -9817,7 +9917,7 @@ begin
                on cur.item_id = cfi.id and cur.code = o.code
              -- own-version label (the option row itself)
              left join public.form_item_options own on own.id = s.option_id
-             where s.response_id = r.id
+             where a.response_id = r.id
                and fi.item_type in ('multiple_choice','dropdown','checkbox')
              group by fi.question_key
            ) m
@@ -12326,6 +12426,7 @@ declare
   v_status text;
   v_result public.form_versions;
   v_bad_item text;
+  v_bad_default text;
 begin
   select form_id, status into v_form_id, v_status
   from public.form_versions
@@ -12344,8 +12445,7 @@ begin
 
   perform public.validate_visible_when(p_form_version_id);
 
-  -- form-model-normalization: every CHOICE item must carry >= 1 option (the
-  -- invariant moved from the dropped jsonb-shape CHECK to publish time).
+  -- form-model-normalization: every CHOICE item must carry >= 1 option.
   select coalesce(i.label, i.question_key) into v_bad_item
   from public.form_items i
   where i.form_version_id = p_form_version_id
@@ -12359,6 +12459,45 @@ begin
     raise exception
       'a pergunta "%" precisa de ao menos uma opção de resposta', v_bad_item
       using errcode = 'check_violation';
+  end if;
+
+  -- answer-model-v2 (HC080): validate each item's default_value against its type.
+  --   * choice (multiple_choice/dropdown): a single string code that exists;
+  --   * checkbox: an array of string codes, each existing;
+  --   * number: a JSON number; date/time/short_text/free_text: a JSON string;
+  --   * display items already blocked from carrying a default by CHECK.
+  -- A code that does not exist on the item, or a type mismatch, is HC080.
+  select coalesce(i.label, i.question_key) into v_bad_default
+  from public.form_items i
+  where i.form_version_id = p_form_version_id
+    and i.default_value is not null
+    and (
+      case
+        when i.item_type in ('multiple_choice','dropdown') then
+          jsonb_typeof(i.default_value) <> 'string'
+          or not app.version_has_option_code(
+               p_form_version_id, i.question_key, i.default_value #>> '{}')
+        when i.item_type = 'checkbox' then
+          jsonb_typeof(i.default_value) <> 'array'
+          or exists (
+            select 1
+            from jsonb_array_elements(i.default_value) c
+            where jsonb_typeof(c) <> 'string'
+               or not app.version_has_option_code(
+                    p_form_version_id, i.question_key, c #>> '{}')
+          )
+        when i.item_type = 'number' then
+          jsonb_typeof(i.default_value) <> 'number'
+        when i.item_type in ('date','time','short_text','free_text') then
+          jsonb_typeof(i.default_value) <> 'string'
+        else true   -- any other type must not carry a default
+      end
+    )
+  limit 1;
+
+  if v_bad_default is not null then
+    raise exception 'o valor padrão da pergunta "%" é inválido', v_bad_default
+      using errcode = 'HC080';
   end if;
 
   perform set_config('app.in_publish_rpc', 'on', true);
@@ -12895,31 +13034,39 @@ CREATE OR REPLACE FUNCTION "public"."reject_invalid_selection"() RETURNS "trigge
     SET "search_path" TO 'public', 'pg_catalog'
     AS $$
 declare
+  v_item_id uuid;
   v_item_type text;
   v_option_item uuid;
 begin
+  select a.item_id into v_item_id
+  from public.answers a where a.id = new.answer_id;
+
+  if v_item_id is null then
+    raise exception 'answer_selected_options.answer_id % has no answers row', new.answer_id;
+  end if;
+
   select item_type into v_item_type
   from public.form_items
-  where id = new.item_id;
+  where id = v_item_id;
 
   if v_item_type is null then
-    raise exception 'answer_selected_options.item_id % does not exist', new.item_id;
+    raise exception 'answer % references item % which does not exist', new.answer_id, v_item_id;
   end if;
 
   if v_item_type = any (array['section_text','image']) then
     raise exception 'cannot record a selection for display item % (type %)',
-      new.item_id, v_item_type
+      v_item_id, v_item_type
       using errcode = 'check_violation';
   end if;
 
   -- The selected option must belong to THIS item (defence; the FK only proves the
-  -- option exists, not that it belongs to item_id).
+  -- option exists, not that it belongs to the answer's item).
   select item_id into v_option_item
   from public.form_item_options
   where id = new.option_id;
 
-  if v_option_item is distinct from new.item_id then
-    raise exception 'a opção % não pertence ao item %', new.option_id, new.item_id
+  if v_option_item is distinct from v_item_id then
+    raise exception 'a opção % não pertence ao item %', new.option_id, v_item_id
       using errcode = 'check_violation';
   end if;
 
@@ -14260,11 +14407,8 @@ begin
       using errcode = 'HC013';
   end if;
 
-  -- ---- Scalar answers (free_text/short_text/number/date/time). Choice items
-  -- no longer ride here (their value is null); the wizard sends scalars in
-  -- p_answers and choice selections in p_selections. A choice item passed in
-  -- p_answers is harmless (its value upsert is overwritten/ignored by answer_map),
-  -- but the cross-version guard still applies to every key. ----
+  -- ---- Scalar answers. The answers upsert targets the top-level partial-unique
+  -- (group_instance_id is null). answered_at refreshed on change. ----
   if p_answers is not null and p_answers <> '{}'::jsonb then
     select (e.key)::uuid into v_bad_item
     from jsonb_each(p_answers) e
@@ -14280,22 +14424,21 @@ begin
         using errcode = 'HC013';
     end if;
 
-    insert into public.answers (response_id, item_id, question_key, value)
-    select p_response_id, i.id, i.question_key, e.value
+    insert into public.answers (response_id, item_id, question_key, value, group_instance_id, answered_at)
+    select p_response_id, i.id, i.question_key, e.value, null, now()
     from jsonb_each(p_answers) e
     join public.form_items i on i.id = (e.key)::uuid
-    on conflict (response_id, item_id)
+    on conflict (response_id, item_id) where group_instance_id is null
     do update set value = excluded.value,
-                  question_key = excluded.question_key;
+                  question_key = excluded.question_key,
+                  answered_at = now();
   end if;
 
-  -- ---- Choice selections (REPLACE semantics). p_selections is
-  -- { item_id: [code, ...] }. For each item: delete its existing selection rows,
-  -- then insert one row per code resolved to the option row of THAT item. An
-  -- empty array clears the item's selections. Cross-version + code-existence are
-  -- HC013. ----
+  -- ---- Choice selections (REPLACE semantics). For each item: upsert the PARENT
+  -- answers row, delete its existing selection rows (via answer_id), then insert
+  -- one row per code resolved to the option row of THAT item. Cross-version +
+  -- code-existence are HC013. ----
   if p_selections is not null and p_selections <> '{}'::jsonb then
-    -- Cross-version guard: every keyed item must belong to this version.
     select (e.key)::uuid into v_bad_item
     from jsonb_each(p_selections) e
     where not exists (
@@ -14310,7 +14453,6 @@ begin
         using errcode = 'HC013';
     end if;
 
-    -- Code-existence guard: every code must resolve to an option of its item.
     select sel.code into v_bad_code
     from (
       select (e.key)::uuid as item_id, c.value #>> '{}' as code
@@ -14328,20 +14470,34 @@ begin
         using errcode = 'HC013';
     end if;
 
-    -- Replace: delete every keyed item's existing selections, then re-insert.
-    delete from public.answer_selected_options s
-    where s.response_id = p_response_id
-      and s.item_id in (
-        select (e.key)::uuid from jsonb_each(p_selections) e
-      );
+    -- Upsert the parent answers row for every choice item (value stays null;
+    -- answered_at refreshed) so each selection has an answer_id to hang off.
+    insert into public.answers (response_id, item_id, question_key, value, group_instance_id, answered_at)
+    select p_response_id, i.id, i.question_key, null, null, now()
+    from jsonb_each(p_selections) e
+    join public.form_items i on i.id = (e.key)::uuid
+    on conflict (response_id, item_id) where group_instance_id is null
+    do update set answered_at = now();
 
-    insert into public.answer_selected_options (response_id, item_id, option_id)
-    select p_response_id, sel.item_id, o.id
+    -- Replace: delete every keyed item's existing selections (via answer_id).
+    delete from public.answer_selected_options s
+    using public.answers a
+    where s.answer_id = a.id
+      and a.response_id = p_response_id
+      and a.group_instance_id is null
+      and a.item_id in (select (e.key)::uuid from jsonb_each(p_selections) e);
+
+    insert into public.answer_selected_options (answer_id, option_id)
+    select a.id, o.id
     from (
       select (e.key)::uuid as item_id, c.value #>> '{}' as code
       from jsonb_each(p_selections) e
       cross join lateral jsonb_array_elements(e.value) c
     ) sel
+    join public.answers a
+      on a.response_id = p_response_id
+     and a.group_instance_id is null
+     and a.item_id = sel.item_id
     join public.form_item_options o
       on o.item_id = sel.item_id and o.code = sel.code;
   end if;
@@ -14362,22 +14518,18 @@ begin
         using errcode = 'HC013';
     end if;
 
-    insert into public.answers (response_id, item_id, question_key, observation)
+    insert into public.answers (response_id, item_id, question_key, observation, group_instance_id)
     select p_response_id, i.id, i.question_key,
-           nullif(btrim(e.value #>> '{}'), '')
+           nullif(btrim(e.value #>> '{}'), ''), null
     from jsonb_each(p_observations) e
     join public.form_items i on i.id = (e.key)::uuid
-    on conflict (response_id, item_id)
+    on conflict (response_id, item_id) where group_instance_id is null
     do update set observation = excluded.observation;
   end if;
 
-  -- ---- Orphan-clear (warn-and-clear): delete answers AND selections of items
-  -- the wizard reported as now-hidden. ----
+  -- ---- Orphan-clear: delete answers of now-hidden items (selections cascade). ----
   if p_clear_item_ids is not null and array_length(p_clear_item_ids, 1) is not null then
     delete from public.answers
-    where response_id = p_response_id
-      and item_id = any (p_clear_item_ids);
-    delete from public.answer_selected_options
     where response_id = p_response_id
       and item_id = any (p_clear_item_ids);
   end if;
@@ -15859,7 +16011,7 @@ begin
   for update;
 
   -- Effective map starts from the saved answers (rebuilt by the normalized
-  -- app.answer_map — single→code, checkbox→array of codes, scalars→raw); we DROP
+  -- app.answer_map — single->code, checkbox->array of codes, scalars->raw); we DROP
   -- hidden items'/sections' keys as we walk in document order.
   v_eff := app.answer_map(p_response_id);
 
@@ -15874,17 +16026,18 @@ begin
     v_visible := app.eval_visibility(r_section.visible_when, v_eff);
 
     if not v_visible then
-      -- Stray cleanup for the whole section (answers + selections) + drop its keys.
+      -- Stray cleanup for the whole section: delete the answers rows (selections
+      -- cascade via answer_id FK) + any group instances, then drop its keys.
       delete from public.answers a
       using public.form_items i
       where a.response_id = p_response_id
         and a.item_id = i.id
         and i.section_id = r_section.id;
 
-      delete from public.answer_selected_options s
+      delete from public.response_group_instances gi
       using public.form_items i
-      where s.response_id = p_response_id
-        and s.item_id = i.id
+      where gi.response_id = p_response_id
+        and gi.group_item_id = i.id
         and i.section_id = r_section.id;
 
       v_eff := v_eff - (
@@ -15905,11 +16058,12 @@ begin
       order by i.position
     loop
       if not app.eval_visibility(r_item.visible_when, v_eff) then
-        -- Hidden item: clear its answer + selections + drop its key.
+        -- Hidden item: clear its answer (selections cascade) + group instances +
+        -- drop its key.
         delete from public.answers a
         where a.response_id = p_response_id and a.item_id = r_item.id;
-        delete from public.answer_selected_options s
-        where s.response_id = p_response_id and s.item_id = r_item.id;
+        delete from public.response_group_instances gi
+        where gi.response_id = p_response_id and gi.group_item_id = r_item.id;
         v_eff := v_eff - r_item.question_key;
         continue;
       end if;
@@ -15925,9 +16079,11 @@ begin
               and a.value <> 'null'::jsonb
           )
           or exists (
-            select 1 from public.answer_selected_options s
-            where s.response_id = p_response_id
-              and s.item_id = r_item.id
+            select 1
+            from public.answer_selected_options s
+            join public.answers a on a.id = s.answer_id
+            where a.response_id = p_response_id
+              and a.item_id = r_item.id
           )
         ) into v_missing;
 
@@ -17721,16 +17877,15 @@ ALTER TABLE "app"."feature_flags" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."answer_selected_options" (
-    "response_id" "uuid" NOT NULL,
-    "item_id" "uuid" NOT NULL,
-    "option_id" "uuid" NOT NULL
+    "option_id" "uuid" NOT NULL,
+    "answer_id" "uuid" NOT NULL
 );
 
 
 ALTER TABLE "public"."answer_selected_options" OWNER TO "postgres";
 
 
-COMMENT ON TABLE "public"."answer_selected_options" IS 'Normalized choice-answer selections (form-model-normalization): one row per selected option, hard FK to form_item_options. Order resolved by option.position (no stored order). Single-select items have one row; checkbox zero-or-more. answers.value stays NULL for choice items. RLS mirrors answers.';
+COMMENT ON TABLE "public"."answer_selected_options" IS 'answer-model-v2 (ADR 0045): choice-answer selections hang off the parent answers row (answer_id -> answers). Response / item / instance are inherited via answer_id; PK (answer_id, option_id) — the nullable-key trap is avoided by construction. RLS + submitted-immutability re-derive the response through answer_id.';
 
 
 
@@ -17740,11 +17895,41 @@ CREATE TABLE IF NOT EXISTS "public"."answers" (
     "item_id" "uuid" NOT NULL,
     "question_key" "text" NOT NULL,
     "value" "jsonb",
-    "observation" "text"
+    "observation" "text",
+    "group_instance_id" "uuid",
+    "value_number" numeric,
+    "value_date" "date",
+    "value_time" time without time zone,
+    "answered_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "confidentiality_level" "text" DEFAULT 'standard'::"text" NOT NULL
 );
 
 
 ALTER TABLE "public"."answers" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."answers"."group_instance_id" IS 'answer-model-v2 (ADR 0045): repeating-group instance this answer belongs to (NULL = top-level; the ONLY value written until repeating groups ship).';
+
+
+
+COMMENT ON COLUMN "public"."answers"."value_number" IS 'answer-model-v2 (ADR 0045): typed denormalization of value for number items, derived by app.sync_answer_typed_values. value jsonb stays the CANONICAL evaluator input; this is analytics/indexing only.';
+
+
+
+COMMENT ON COLUMN "public"."answers"."value_date" IS 'answer-model-v2 (ADR 0045): typed denormalization of value for date items (trigger-derived; analytics only).';
+
+
+
+COMMENT ON COLUMN "public"."answers"."value_time" IS 'answer-model-v2 (ADR 0045): typed denormalization of value for time items (trigger-derived; analytics only).';
+
+
+
+COMMENT ON COLUMN "public"."answers"."answered_at" IS 'answer-model-v2 (ADR 0045): contemporaneous per-answer timestamp (ALCOA+); set on insert, refreshed by save_section_answers when the answer changes.';
+
+
+
+COMMENT ON COLUMN "public"."answers"."confidentiality_level" IS 'answer-model-v2 (ADR 0045/0046): RESERVED + UNENFORCED field-level confidentiality hook; default ''standard''. No RLS predicate keys on it yet.';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."audit_log" (
@@ -18071,8 +18256,11 @@ CREATE TABLE IF NOT EXISTS "public"."form_items" (
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "config" "jsonb",
     "visible_when" "jsonb",
+    "parent_item_id" "uuid",
+    "default_value" "jsonb",
     CONSTRAINT "form_items_conditional_not_required" CHECK ((("visible_when" IS NULL) OR ("required" = false))),
     CONSTRAINT "form_items_config_shape" CHECK ((("config" IS NULL) OR ("jsonb_typeof"("config") = 'object'::"text"))),
+    CONSTRAINT "form_items_default_value_display_null" CHECK ((("default_value" IS NULL) OR ("item_type" <> ALL (ARRAY['section_text'::"text", 'image'::"text"])))),
     CONSTRAINT "form_items_input_vs_display" CHECK (
 CASE
     WHEN ("item_type" = ANY (ARRAY['multiple_choice'::"text", 'dropdown'::"text", 'checkbox'::"text", 'free_text'::"text", 'short_text'::"text", 'number'::"text", 'date'::"text", 'time'::"text"])) THEN (("question_key" IS NOT NULL) AND ("label" IS NOT NULL) AND ("content" IS NULL))
@@ -18085,6 +18273,14 @@ END),
 
 
 ALTER TABLE "public"."form_items" OWNER TO "postgres";
+
+
+COMMENT ON COLUMN "public"."form_items"."parent_item_id" IS 'answer-model-v2 (ADR 0046): future repeating_group container owning this item. ALWAYS NULL now (all forms flat); exists so the definition model is coherent with the instance-ready answer model (answers.group_instance_id). clone_form_version remaps it. Same-section/version consistency CHECK deferred while all values are NULL.';
+
+
+
+COMMENT ON COLUMN "public"."form_items"."default_value" IS 'answer-model-v2 (ADR 0046 / P2.4): per-input default value used to pre-fill an unanswered VISIBLE item in the wizard. Scalar for free_text/short_text/number/date/time; option code (single) or code array (checkbox) for choice; NULL for display items (CHECK). clone_form_version copies it verbatim; publish_form_version validates it (HC080).';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."form_sections" (
@@ -18379,6 +18575,23 @@ COMMENT ON TABLE "public"."reply_outcomes" IS 'Configurable structured-reply dis
 
 
 
+CREATE TABLE IF NOT EXISTS "public"."response_group_instances" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "response_id" "uuid" NOT NULL,
+    "group_item_id" "uuid" NOT NULL,
+    "parent_instance_id" "uuid",
+    "position" integer NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL
+);
+
+
+ALTER TABLE "public"."response_group_instances" OWNER TO "postgres";
+
+
+COMMENT ON TABLE "public"."response_group_instances" IS 'answer-model-v2 (ADR 0045/0046): repeating-group instance scaffold. INERT until repeating groups ship — no row is written while every answer stays top-level (answers.group_instance_id NULL). RLS mirrors answers (member read; creator write while in_progress); immutability-guarded via guard_submitted_children.';
+
+
+
 ALTER TABLE ONLY "app"."app_secrets"
     ADD CONSTRAINT "app_secrets_pkey" PRIMARY KEY ("key");
 
@@ -18390,17 +18603,12 @@ ALTER TABLE ONLY "app"."feature_flags"
 
 
 ALTER TABLE ONLY "public"."answer_selected_options"
-    ADD CONSTRAINT "answer_selected_options_pkey" PRIMARY KEY ("response_id", "item_id", "option_id");
+    ADD CONSTRAINT "answer_selected_options_pkey" PRIMARY KEY ("answer_id", "option_id");
 
 
 
 ALTER TABLE ONLY "public"."answers"
     ADD CONSTRAINT "answers_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."answers"
-    ADD CONSTRAINT "answers_response_id_item_id_key" UNIQUE ("response_id", "item_id");
 
 
 
@@ -19024,6 +19232,11 @@ ALTER TABLE ONLY "public"."reply_outcomes"
 
 
 
+ALTER TABLE ONLY "public"."response_group_instances"
+    ADD CONSTRAINT "response_group_instances_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."response_section_signoffs"
     ADD CONSTRAINT "response_section_signoffs_pkey" PRIMARY KEY ("id");
 
@@ -19039,11 +19252,11 @@ ALTER TABLE ONLY "public"."responses"
 
 
 
+CREATE INDEX "answer_selected_options_answer_idx" ON "public"."answer_selected_options" USING "btree" ("answer_id");
+
+
+
 CREATE INDEX "answer_selected_options_option_idx" ON "public"."answer_selected_options" USING "btree" ("option_id");
-
-
-
-CREATE INDEX "answer_selected_options_response_idx" ON "public"."answer_selected_options" USING "btree" ("response_id");
 
 
 
@@ -19056,6 +19269,14 @@ CREATE INDEX "answers_question_key_idx" ON "public"."answers" USING "btree" ("qu
 
 
 CREATE INDEX "answers_response_idx" ON "public"."answers" USING "btree" ("response_id");
+
+
+
+CREATE UNIQUE INDEX "answers_uq_inst" ON "public"."answers" USING "btree" ("response_id", "item_id", "group_instance_id") WHERE ("group_instance_id" IS NOT NULL);
+
+
+
+CREATE UNIQUE INDEX "answers_uq_top" ON "public"."answers" USING "btree" ("response_id", "item_id") WHERE ("group_instance_id" IS NULL);
 
 
 
@@ -19551,6 +19772,10 @@ CREATE INDEX "referral_shared_item_storage_path_idx" ON "public"."referral_share
 
 
 
+CREATE INDEX "response_group_instances_response_idx" ON "public"."response_group_instances" USING "btree" ("response_id");
+
+
+
 CREATE INDEX "responses_case_phase_idx" ON "public"."responses" USING "btree" ("case_phase_id");
 
 
@@ -19867,11 +20092,15 @@ CREATE OR REPLACE TRIGGER "guard_submitted_answers_trg" BEFORE INSERT OR DELETE 
 
 
 
+CREATE OR REPLACE TRIGGER "guard_submitted_group_instances_trg" BEFORE INSERT OR DELETE OR UPDATE ON "public"."response_group_instances" FOR EACH ROW EXECUTE FUNCTION "public"."guard_submitted_children"();
+
+
+
 CREATE OR REPLACE TRIGGER "guard_submitted_response_trg" BEFORE DELETE OR UPDATE ON "public"."responses" FOR EACH ROW EXECUTE FUNCTION "public"."guard_submitted_response"();
 
 
 
-CREATE OR REPLACE TRIGGER "guard_submitted_selections_trg" BEFORE INSERT OR DELETE OR UPDATE ON "public"."answer_selected_options" FOR EACH ROW EXECUTE FUNCTION "public"."guard_submitted_children"();
+CREATE OR REPLACE TRIGGER "guard_submitted_selections_trg" BEFORE INSERT OR DELETE OR UPDATE ON "public"."answer_selected_options" FOR EACH ROW EXECUTE FUNCTION "app"."guard_submitted_selections"();
 
 
 
@@ -19924,6 +20153,10 @@ CREATE OR REPLACE TRIGGER "reject_invalid_selection_trg" BEFORE INSERT OR UPDATE
 
 
 CREATE OR REPLACE TRIGGER "seed_meetings_on_commission_insert_trg" AFTER INSERT ON "public"."commissions" FOR EACH ROW EXECUTE FUNCTION "app"."seed_meetings_on_commission_insert"();
+
+
+
+CREATE OR REPLACE TRIGGER "sync_answer_typed_values_trg" BEFORE INSERT OR UPDATE ON "public"."answers" FOR EACH ROW EXECUTE FUNCTION "app"."sync_answer_typed_values"();
 
 
 
@@ -20004,7 +20237,7 @@ CREATE OR REPLACE TRIGGER "trg_xref_maintain_aiud" AFTER INSERT OR DELETE OR UPD
 
 
 ALTER TABLE ONLY "public"."answer_selected_options"
-    ADD CONSTRAINT "answer_selected_options_item_id_fkey" FOREIGN KEY ("item_id") REFERENCES "public"."form_items"("id");
+    ADD CONSTRAINT "answer_selected_options_answer_id_fkey" FOREIGN KEY ("answer_id") REFERENCES "public"."answers"("id") ON DELETE CASCADE;
 
 
 
@@ -20013,8 +20246,8 @@ ALTER TABLE ONLY "public"."answer_selected_options"
 
 
 
-ALTER TABLE ONLY "public"."answer_selected_options"
-    ADD CONSTRAINT "answer_selected_options_response_id_fkey" FOREIGN KEY ("response_id") REFERENCES "public"."responses"("id") ON DELETE CASCADE;
+ALTER TABLE ONLY "public"."answers"
+    ADD CONSTRAINT "answers_group_instance_id_fkey" FOREIGN KEY ("group_instance_id") REFERENCES "public"."response_group_instances"("id") ON DELETE CASCADE;
 
 
 
@@ -20524,6 +20757,11 @@ ALTER TABLE ONLY "public"."form_items"
 
 
 ALTER TABLE ONLY "public"."form_items"
+    ADD CONSTRAINT "form_items_parent_item_id_fkey" FOREIGN KEY ("parent_item_id") REFERENCES "public"."form_items"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."form_items"
     ADD CONSTRAINT "form_items_section_id_fkey" FOREIGN KEY ("section_id") REFERENCES "public"."form_sections"("id") ON DELETE CASCADE;
 
 
@@ -20933,6 +21171,21 @@ ALTER TABLE ONLY "public"."referral_shared_item"
 
 
 
+ALTER TABLE ONLY "public"."response_group_instances"
+    ADD CONSTRAINT "response_group_instances_group_item_id_fkey" FOREIGN KEY ("group_item_id") REFERENCES "public"."form_items"("id");
+
+
+
+ALTER TABLE ONLY "public"."response_group_instances"
+    ADD CONSTRAINT "response_group_instances_parent_instance_id_fkey" FOREIGN KEY ("parent_instance_id") REFERENCES "public"."response_group_instances"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."response_group_instances"
+    ADD CONSTRAINT "response_group_instances_response_id_fkey" FOREIGN KEY ("response_id") REFERENCES "public"."responses"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."response_section_signoffs"
     ADD CONSTRAINT "response_section_signoffs_response_id_fkey" FOREIGN KEY ("response_id") REFERENCES "public"."responses"("id") ON DELETE CASCADE;
 
@@ -20977,16 +21230,19 @@ ALTER TABLE "public"."answer_selected_options" ENABLE ROW LEVEL SECURITY;
 
 
 CREATE POLICY "answer_selected_options_select" ON "public"."answer_selected_options" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
-   FROM "public"."responses" "r"
-  WHERE (("r"."id" = "answer_selected_options"."response_id") AND (("r"."created_by" = "auth"."uid"()) OR "app"."is_org_admin_of_commission"("r"."commission_id") OR (("r"."status" = 'submitted'::"text") AND "app"."is_staff_admin_of"("r"."commission_id")))))));
+   FROM ("public"."answers" "a"
+     JOIN "public"."responses" "r" ON (("r"."id" = "a"."response_id")))
+  WHERE (("a"."id" = "answer_selected_options"."answer_id") AND (("r"."created_by" = "auth"."uid"()) OR "app"."is_org_admin_of_commission"("r"."commission_id") OR (("r"."status" = 'submitted'::"text") AND "app"."is_staff_admin_of"("r"."commission_id")))))));
 
 
 
 CREATE POLICY "answer_selected_options_write_own_draft" ON "public"."answer_selected_options" TO "authenticated" USING ((EXISTS ( SELECT 1
-   FROM "public"."responses" "r"
-  WHERE (("r"."id" = "answer_selected_options"."response_id") AND ("r"."created_by" = "auth"."uid"()) AND ("r"."status" = 'in_progress'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
-   FROM "public"."responses" "r"
-  WHERE (("r"."id" = "answer_selected_options"."response_id") AND ("r"."created_by" = "auth"."uid"()) AND ("r"."status" = 'in_progress'::"text")))));
+   FROM ("public"."answers" "a"
+     JOIN "public"."responses" "r" ON (("r"."id" = "a"."response_id")))
+  WHERE (("a"."id" = "answer_selected_options"."answer_id") AND ("r"."created_by" = "auth"."uid"()) AND ("r"."status" = 'in_progress'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM ("public"."answers" "a"
+     JOIN "public"."responses" "r" ON (("r"."id" = "a"."response_id")))
+  WHERE (("a"."id" = "answer_selected_options"."answer_id") AND ("r"."created_by" = "auth"."uid"()) AND ("r"."status" = 'in_progress'::"text")))));
 
 
 
@@ -21859,6 +22115,23 @@ CREATE POLICY "reply_outcomes_write_admin" ON "public"."reply_outcomes" TO "auth
 
 
 
+ALTER TABLE "public"."response_group_instances" ENABLE ROW LEVEL SECURITY;
+
+
+CREATE POLICY "response_group_instances_select" ON "public"."response_group_instances" FOR SELECT TO "authenticated" USING ((EXISTS ( SELECT 1
+   FROM "public"."responses" "r"
+  WHERE (("r"."id" = "response_group_instances"."response_id") AND (("r"."created_by" = "auth"."uid"()) OR "app"."is_org_admin_of_commission"("r"."commission_id") OR (("r"."status" = 'submitted'::"text") AND "app"."is_staff_admin_of"("r"."commission_id")))))));
+
+
+
+CREATE POLICY "response_group_instances_write_own_draft" ON "public"."response_group_instances" TO "authenticated" USING ((EXISTS ( SELECT 1
+   FROM "public"."responses" "r"
+  WHERE (("r"."id" = "response_group_instances"."response_id") AND ("r"."created_by" = "auth"."uid"()) AND ("r"."status" = 'in_progress'::"text"))))) WITH CHECK ((EXISTS ( SELECT 1
+   FROM "public"."responses" "r"
+  WHERE (("r"."id" = "response_group_instances"."response_id") AND ("r"."created_by" = "auth"."uid"()) AND ("r"."status" = 'in_progress'::"text")))));
+
+
+
 ALTER TABLE "public"."response_section_signoffs" ENABLE ROW LEVEL SECURITY;
 
 
@@ -21889,16 +22162,8 @@ CREATE POLICY "signoffs_select" ON "public"."response_section_signoffs" FOR SELE
 
 
 
-
-
-ALTER PUBLICATION "supabase_realtime" OWNER TO "postgres";
-
-
 GRANT USAGE ON SCHEMA "app" TO "authenticated";
 GRANT USAGE ON SCHEMA "app" TO "service_role";
-
-
-
 
 
 
@@ -21907,27 +22172,6 @@ GRANT USAGE ON SCHEMA "public" TO "anon";
 GRANT USAGE ON SCHEMA "public" TO "authenticated";
 GRANT USAGE ON SCHEMA "public" TO "service_role";
 GRANT USAGE ON SCHEMA "public" TO "supabase_auth_admin";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -22071,8 +22315,8 @@ GRANT ALL ON FUNCTION "app"."assert_rca_writable"("p_rca_id" "uuid") TO "service
 
 
 
-GRANT INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE "public"."case_referral" TO "authenticated";
 GRANT ALL ON TABLE "public"."case_referral" TO "service_role";
+GRANT INSERT,REFERENCES,DELETE,TRIGGER,TRUNCATE,MAINTAIN,UPDATE ON TABLE "public"."case_referral" TO "authenticated";
 
 
 
@@ -22438,6 +22682,12 @@ REVOKE ALL ON FUNCTION "app"."guard_referral_status"() FROM PUBLIC;
 
 
 
+REVOKE ALL ON FUNCTION "app"."guard_submitted_selections"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "app"."guard_submitted_selections"() TO "authenticated";
+GRANT ALL ON FUNCTION "app"."guard_submitted_selections"() TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "app"."is_admin"() TO "authenticated";
 GRANT ALL ON FUNCTION "app"."is_admin"() TO "service_role";
 
@@ -22646,6 +22896,12 @@ GRANT ALL ON FUNCTION "app"."submitted_form_responses"("p_form_id" "uuid") TO "s
 
 
 
+REVOKE ALL ON FUNCTION "app"."sync_answer_typed_values"() FROM PUBLIC;
+GRANT ALL ON FUNCTION "app"."sync_answer_typed_values"() TO "authenticated";
+GRANT ALL ON FUNCTION "app"."sync_answer_typed_values"() TO "service_role";
+
+
+
 REVOKE ALL ON FUNCTION "app"."trg_audit_case_patient"() FROM PUBLIC;
 
 
@@ -22687,273 +22943,6 @@ GRANT ALL ON FUNCTION "app"."version_has_input_key"("p_version_id" "uuid", "p_qu
 REVOKE ALL ON FUNCTION "app"."version_has_option_code"("p_version_id" "uuid", "p_question_key" "text", "p_code" "text") FROM PUBLIC;
 GRANT ALL ON FUNCTION "app"."version_has_option_code"("p_version_id" "uuid", "p_question_key" "text", "p_code" "text") TO "authenticated";
 GRANT ALL ON FUNCTION "app"."version_has_option_code"("p_version_id" "uuid", "p_question_key" "text", "p_code" "text") TO "service_role";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -24773,28 +24762,7 @@ GRANT ALL ON FUNCTION "public"."withdraw_referral"("p_referral_id" "uuid") TO "s
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 GRANT SELECT ON TABLE "app"."app_secrets" TO "service_role";
-
-
-
-
-
-
 
 
 
@@ -24950,9 +24918,8 @@ GRANT ALL ON TABLE "public"."reply_outcomes" TO "service_role";
 
 
 
-
-
-
+GRANT ALL ON TABLE "public"."response_group_instances" TO "authenticated";
+GRANT ALL ON TABLE "public"."response_group_instances" TO "service_role";
 
 
 
@@ -24977,31 +24944,6 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON FUN
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "postgres";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "authenticated";
 ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TABLES TO "service_role";
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
