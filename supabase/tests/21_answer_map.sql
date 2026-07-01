@@ -8,7 +8,7 @@
 -- vectors). Self-contained fixture (does not depend on the shared bootstrap).
 
 begin;
-select plan(8);
+select plan(11);
 
 -- ---- Build a hermetic form: 1 MC, 1 dropdown, 1 checkbox, 1 free_text, 1 number.
 do $$
@@ -91,6 +91,10 @@ begin
 
   -- Stash the response id for the assertions below.
   perform set_config('test.answer_map_resp', v_resp::text, false);
+  -- Stash item ids so the by-item_id map assertions can key on them.
+  perform set_config('test.am_mc', v_mc::text, false);
+  perform set_config('test.am_cb', v_cb::text, false);
+  perform set_config('test.am_ft', v_ft::text, false);
 end $$;
 
 -- ---- Assertions against the rebuilt map.
@@ -151,6 +155,31 @@ select is(
     app.answer_map(current_setting('test.answer_map_resp')::uuid)),
   true,
   'eval_condition `in` matches a selected checkbox code (no drift)'
+);
+
+-- ---- app.answer_map_by_item (BUG-FMN-002): same value shapes, keyed by item_id.
+-- (9) single-select MC -> scalar code under its item_id.
+select is(
+  (app.answer_map_by_item(current_setting('test.answer_map_resp')::uuid))
+    -> current_setting('test.am_mc'),
+  to_jsonb('mc_b'::text),
+  'answer_map_by_item: single-select MC -> scalar code keyed by item_id'
+);
+
+-- (10) checkbox -> ordered code array under its item_id.
+select is(
+  (app.answer_map_by_item(current_setting('test.answer_map_resp')::uuid))
+    -> current_setting('test.am_cb'),
+  '["cb_x","cb_z"]'::jsonb,
+  'answer_map_by_item: checkbox -> array of codes by position keyed by item_id'
+);
+
+-- (11) scalar free_text -> raw value under its item_id.
+select is(
+  (app.answer_map_by_item(current_setting('test.answer_map_resp')::uuid))
+    -> current_setting('test.am_ft'),
+  to_jsonb('hello'::text),
+  'answer_map_by_item: free_text -> raw value keyed by item_id'
 );
 
 select * from finish();
