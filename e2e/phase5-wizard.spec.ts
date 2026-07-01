@@ -446,7 +446,9 @@ test('AC3 — Resume: save-and-exit, re-sign-in, land at last section with answe
 
   // Step 5: both saved answers restored.
   await expect(page.getByRole('radio', { name: 'Sim' }).first()).toBeChecked({ timeout: 10_000 })
-  await expect(page.getByLabel(/Turno em que a auditoria/i)).toHaveValue('Tarde')
+  // form-model-normalization: the dropdown <option> VALUE is now the option CODE
+  // (slug), not the label — "Tarde" is stored/selected as "tarde".
+  await expect(page.getByLabel(/Turno em que a auditoria/i)).toHaveValue('tarde')
 })
 
 // ---------------------------------------------------------------------------
@@ -693,9 +695,28 @@ test('AC6 — Server-rejection: submit_response rejects missing required answer 
     page.getByRole('heading', { name: /Revise suas respostas/i }),
   ).toBeVisible({ timeout: 15_000 })
 
-  // DELETE the required answer via service-role API (bypasses RLS).
+  // DELETE the required answer via service-role API (bypasses RLS) to simulate a
+  // "second tab" blanking it after save. form-model-normalization: the required
+  // MC "dispensador_disponivel" is now stored as a row in answer_selected_options
+  // (FK to the option), NOT in answers.value — so we must clear the selection.
+  // Resolve the item_id for the question in this response's version first.
+  const [{ form_version_id: fvId }] = await (async () => {
+    const r = await page.request.get(
+      `${SUPABASE_URL}/rest/v1/responses?id=eq.${responseId}&select=form_version_id`,
+      { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    )
+    return (await r.json()) as { form_version_id: string }[]
+  })()
+  const [{ id: dispItemId }] = await (async () => {
+    const r = await page.request.get(
+      `${SUPABASE_URL}/rest/v1/form_items?form_version_id=eq.${fvId}` +
+        `&question_key=eq.dispensador_disponivel&select=id`,
+      { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    )
+    return (await r.json()) as { id: string }[]
+  })()
   const deleteResp = await page.request.delete(
-    `${SUPABASE_URL}/rest/v1/answers?response_id=eq.${responseId}&question_key=eq.dispensador_disponivel`,
+    `${SUPABASE_URL}/rest/v1/answer_selected_options?response_id=eq.${responseId}&item_id=eq.${dispItemId}`,
     {
       headers: {
         apikey: SUPABASE_SERVICE_KEY,
@@ -704,7 +725,7 @@ test('AC6 — Server-rejection: submit_response rejects missing required answer 
       },
     },
   )
-  // 204 = row deleted.
+  // 204 = selection row(s) deleted (the required answer is now blank).
   expect(deleteResp.status()).toBe(204)
 
   // Submit — server must reject with P0011.
