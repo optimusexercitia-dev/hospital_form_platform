@@ -1085,16 +1085,23 @@ test('AC-10 (submit): an answered-then-hidden conditional answer is cleared on s
     'orphaned conditional answer must be cleared on submit',
   ).toBe(0)
 
-  // The controller answer (Não) persisted. form-model-normalization: a
-  // multiple_choice selection now lives in answer_selected_options (FK to the
-  // option row), not answers.value — assert exactly the "nao" option is selected.
-  const ctrlSel = await svcGet<{ form_item_options: { code: string } | null }>(
+  // The controller answer (Não) persisted. answer-model-v2 re-keyed
+  // answer_selected_options to hang off answer_id (the response_id/item_id
+  // columns are gone), and every choice item now carries a PARENT answers row.
+  // Resolve the selection via the answers row (response_id + item_id), embedding
+  // the selected option through answer_id → assert exactly "nao" is selected.
+  const ctrlSel = await svcGet<{
+    answer_selected_options: { form_item_options: { code: string } | null }[]
+  }>(
     request,
-    `answer_selected_options?response_id=eq.${responseId}&item_id=eq.${fillCtrlId}` +
-      `&select=form_item_options!answer_selected_options_option_id_fkey(code)`,
+    `answers?response_id=eq.${responseId}&item_id=eq.${fillCtrlId}` +
+      `&select=answer_selected_options(form_item_options!answer_selected_options_option_id_fkey(code))`,
   )
   expect(ctrlSel.length).toBe(1)
-  expect(ctrlSel[0].form_item_options?.code).toBe('nao')
+  const ctrlCodes = ctrlSel[0].answer_selected_options.map(
+    (s) => s.form_item_options?.code,
+  )
+  expect(ctrlCodes).toEqual(['nao'])
 })
 
 // AC-11 — number/date min/max blocks submit with a pt-BR error (HC061).
@@ -1446,7 +1453,10 @@ test('AC-15 (number-condition regression guard): number gt condition evaluates n
 
   // Value: type 5 into the number <Input>. The value control for ordered targets
   // is a native <input type="number"> identified by the id-suffix "-value".
-  await d.locator('input[id$="-value"]').fill('5')
+  // answer-model-v2 added the "Valor padrão" control, whose input is also
+  // `id="default-value"` (ends in "-value") — exclude it so the selector resolves
+  // uniquely to the condition-value input (its id carries "-cond-").
+  await d.locator('input[id$="-value"]:not(#default-value)').fill('5')
 
   await addSubmit(d)
   await expect(

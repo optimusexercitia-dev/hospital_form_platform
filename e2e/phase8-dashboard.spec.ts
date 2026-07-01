@@ -306,8 +306,15 @@ test('AC-4: Date filter narrows dashboard results', async ({ page, request }) =>
   // Query the two most recent Form-A submitted responses to get the actual
   // submission date range, then filter to just the most-recent day (to get ≤2
   // but at least 1 result, confirming the filter narrows relative to 6 total).
+  // IMPORTANT: exclude case-phase responses (`case_phase_id=is.null`). The
+  // standalone dashboard counts only NON-case-phase responses (the canonical
+  // `app.submitted_form_responses` filter, dashboard.ts), and the seed places a
+  // case-phase response one day AFTER the newest dashboard-countable one. Anchor
+  // on the raw responses table and the single-day filter lands on a day the
+  // dashboard legitimately shows as empty (the picker doesn't render) — a stale
+  // test-data assumption, not a regression.
   const resp = await request.get(
-    `${SUPABASE_URL}/rest/v1/responses?form_version_id=eq.50000000-0000-0000-0000-00000000a001&status=eq.submitted&select=submitted_at&order=submitted_at.desc&limit=2`,
+    `${SUPABASE_URL}/rest/v1/responses?form_version_id=eq.50000000-0000-0000-0000-00000000a001&status=eq.submitted&case_phase_id=is.null&select=submitted_at&order=submitted_at.desc&limit=2`,
     {
       headers: {
         apikey: SUPABASE_SERVICE_KEY,

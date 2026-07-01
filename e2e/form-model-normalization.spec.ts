@@ -554,12 +554,16 @@ test('NORM-3 (dashboard): distribution counts by stable code and shows the CURRE
   await submitOne('aprovado')
   await submitOne('reprovado')
 
-  // --- DB truth: the selections landed in answer_selected_options by option row
-  const selRows = await serviceQuery<{ option_id: string }>(
+  // --- DB truth: the selections landed in answer_selected_options by option row.
+  // answer-model-v2 re-keyed the table to answer_id (item_id column is gone) and
+  // every choice item now has a parent answers row — resolve selections via the
+  // answers rows for this item, one selection per submitted response.
+  const selRows = await serviceQuery<{ answer_selected_options: { option_id: string }[] }>(
     page,
-    `answer_selected_options?item_id=eq.${itemId}&select=option_id`,
+    `answers?item_id=eq.${itemId}&select=answer_selected_options(option_id)`,
   )
-  expect(selRows.length).toBe(3)
+  const totalSel = selRows.reduce((n, a) => n + a.answer_selected_options.length, 0)
+  expect(totalSel).toBe(3)
 
   // --- Dashboard v1: Aprovado = 2, Reprovado = 1 -----------------------------
   await signInAs(page, 'chefe.ccih@test.local')

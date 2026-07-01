@@ -715,8 +715,20 @@ test('AC6 — Server-rejection: submit_response rejects missing required answer 
     )
     return (await r.json()) as { id: string }[]
   })()
+  // answer-model-v2 re-keyed answer_selected_options to answer_id (the
+  // response_id/item_id columns are gone); every choice item now has a PARENT
+  // answers row. Resolve that answers.id for (response, item), then delete the
+  // selection(s) by answer_id to blank out the required answer.
+  const [{ id: dispAnswerId }] = await (async () => {
+    const r = await page.request.get(
+      `${SUPABASE_URL}/rest/v1/answers?response_id=eq.${responseId}` +
+        `&item_id=eq.${dispItemId}&select=id`,
+      { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    )
+    return (await r.json()) as { id: string }[]
+  })()
   const deleteResp = await page.request.delete(
-    `${SUPABASE_URL}/rest/v1/answer_selected_options?response_id=eq.${responseId}&item_id=eq.${dispItemId}`,
+    `${SUPABASE_URL}/rest/v1/answer_selected_options?answer_id=eq.${dispAnswerId}`,
     {
       headers: {
         apikey: SUPABASE_SERVICE_KEY,

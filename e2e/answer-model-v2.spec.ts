@@ -543,7 +543,9 @@ test('DV-4 (kept default → ordinary answer): shows on submission detail and co
   // --- Staff fills WITHOUT touching the defaulted field (keeps "Conforme") ----
   await signInAs(page, 'staff1.ccih@test.local')
   await enterWizardByTitle(page, 'ccih', title)
-  await expect(page.getByRole('radio', { name: 'Conforme' })).toBeChecked()
+  // `exact: true` — "Conforme" is a substring of "Não conforme", so a loose
+  // name match resolves to BOTH radios (strict-mode violation).
+  await expect(page.getByRole('radio', { name: 'Conforme', exact: true })).toBeChecked()
 
   await page.getByRole('button', { name: /revisar/i }).click()
   await expect(page.getByRole('heading', { name: /Revise suas respostas/i })).toBeVisible({
