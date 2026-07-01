@@ -517,3 +517,132 @@ describe("answer-map shape mirrors app.answer_map (FE-2)", () => {
     expect(result.current.answerMap.txt).toBe("olá");
   });
 });
+
+describe("useWizard default-value prefill (answer-model-v2 FE-2)", () => {
+  it("seeds a visible, unanswered scalar item from its defaultValue", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [
+          inputItem({
+            id: "txt",
+            sectionId: "s0",
+            itemType: "short_text",
+            questionKey: "txt",
+            options: null,
+            defaultValue: "valor padrão",
+          }),
+        ],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    expect(result.current.answers.txt?.value).toBe("valor padrão");
+    expect(result.current.answerMap.txt).toBe("valor padrão");
+  });
+
+  it("seeds a choice item's defaultValue as the option code", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [inputItem({ id: "mc", sectionId: "s0", defaultValue: "sim" })],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    expect(result.current.answers.mc?.value).toBe("sim");
+  });
+
+  it("never seeds a default into an item hidden by a condition", () => {
+    const controlling = inputItem({
+      id: "ctrl",
+      sectionId: "s0",
+      questionKey: "ctrl",
+    });
+    const hidden = inputItem({
+      id: "hidden",
+      sectionId: "s0",
+      itemType: "short_text",
+      questionKey: "hidden",
+      options: null,
+      visibleWhen: { question_key: "ctrl", op: "equals", value: "sim" },
+      defaultValue: "nunca deveria aparecer",
+    });
+    const t = tree([
+      section({ id: "s0", isDefault: true, items: [controlling, hidden] }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+
+    // The controlling question is unanswered → `hidden` stays hidden → no seed.
+    expect(result.current.answers.hidden).toBeUndefined();
+    expect(result.current.visibleItemIds.has("hidden")).toBe(false);
+  });
+
+  it("never overwrites an existing saved answer with the default", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [
+          inputItem({
+            id: "txt",
+            sectionId: "s0",
+            itemType: "short_text",
+            questionKey: "txt",
+            options: null,
+            defaultValue: "valor padrão",
+          }),
+        ],
+      }),
+    ]);
+    const initialAnswers: AnswerState = {
+      txt: { itemId: "txt", questionKey: "txt", value: "resposta salva" },
+    };
+    const { result } = renderHook(() => useWizard(data(t, initialAnswers)));
+    expect(result.current.answers.txt?.value).toBe("resposta salva");
+  });
+
+  it("lets the user clear a prefilled default (defaults never re-apply after edit)", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [
+          inputItem({
+            id: "txt",
+            sectionId: "s0",
+            itemType: "short_text",
+            questionKey: "txt",
+            options: null,
+            defaultValue: "valor padrão",
+          }),
+        ],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    expect(result.current.answers.txt?.value).toBe("valor padrão");
+
+    act(() => {
+      result.current.setAnswer({ id: "txt", questionKey: "txt" }, "");
+    });
+    expect(result.current.answers.txt?.value).toBe("");
+  });
+
+  it("does not seed a display item or an item with no defaultValue", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [
+          inputItem({
+            id: "mc",
+            sectionId: "s0",
+            defaultValue: null,
+          }),
+        ],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    expect(result.current.answers.mc).toBeUndefined();
+  });
+});

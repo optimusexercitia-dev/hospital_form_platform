@@ -167,11 +167,48 @@ export function isEmptyValue(value: Json): boolean {
   return false;
 }
 
+/**
+ * answer-model-v2 (FE-2, ADR 0046 / P2.4): seed the initial answer state with
+ * each VISIBLE, unanswered input item's `defaultValue`. Visibility is computed
+ * from the SAVED answers only (mirrors `computeEffectiveVisibility`), so a
+ * default is never applied to an item hidden by a condition — a hidden item's
+ * question_key is dropped from the effective map before any later item is
+ * evaluated, so this can never leak a default into a controlling answer either.
+ * Runs once, at wizard mount (the initializer of the `answers` state): a kept
+ * default then saves like any ordinary answer on the next section save; the
+ * user is always free to change or clear it.
+ */
+function withDefaults(sections: Section[], initialAnswers: AnswerState): AnswerState {
+  const initialMap = toAnswerMap(initialAnswers);
+  const { visibleItemIds } = computeEffectiveVisibility(sections, initialMap);
+
+  let next: AnswerState | null = null;
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (!isInputItem(item.itemType)) continue;
+      if (!visibleItemIds.has(item.id)) continue;
+      if (item.id in initialAnswers) continue; // already has a saved answer
+      if (item.questionKey == null) continue;
+      if (item.defaultValue === null || item.defaultValue === undefined) continue;
+
+      if (next === null) next = { ...initialAnswers };
+      next[item.id] = {
+        itemId: item.id,
+        questionKey: item.questionKey,
+        value: item.defaultValue,
+      };
+    }
+  }
+  return next ?? initialAnswers;
+}
+
 export function useWizard(data: WizardData): WizardState {
   const sections = data.tree.sections;
   const isFlat = sections.length === 1 && sections[0].isDefault;
 
-  const [answers, setAnswers] = useState<AnswerState>(data.initialAnswers);
+  const [answers, setAnswers] = useState<AnswerState>(() =>
+    withDefaults(sections, data.initialAnswers),
+  );
 
   // Resolve the initial step from where the user left off, clamped to what's
   // currently visible (a section may have become hidden since last save).
