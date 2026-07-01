@@ -450,13 +450,20 @@ function toVersionTree(row: VersionRow): VersionTree {
 // the related `form_item_options` rows (PostgREST nested select). The rows are
 // sorted by `position` in `toOptions` (PostgREST nested ordering is not relied
 // on). Every option column the domain shape needs is selected here.
+//
+// PGRST201 DISAMBIGUATION (BUG-FMN-001): `answer_selected_options` adds a SECOND
+// relationship path between form_items and form_item_options (the direct FK plus
+// an inferred M2M through answer_selected_options), so a bare
+// `form_item_options(...)` embed is ambiguous. Pin it to the direct FK with the
+// `!form_item_options_item_id_fkey` hint so PostgREST resolves the item→options
+// path unambiguously.
 const VERSION_TREE_SELECT =
   'id, form_id, version_number, status, published_at, ' +
   'form_sections(id, position, title, description, is_default, visible_when, ' +
   'requires_signoff, signoff_role, ' +
   'form_items(id, section_id, position, item_type, question_key, label, ' +
   'question_explanation, config, visible_when, required, content, ' +
-  'form_item_options(id, code, label, color_token, score, analytics_code, position)))'
+  'form_item_options!form_item_options_item_id_fkey(id, code, label, color_token, score, analytics_code, position)))'
 
 // ---------------------------------------------------------------------------
 // Queries
