@@ -82,7 +82,7 @@ select public.add_template_phase(
   jsonb_build_object(
     'rules', jsonb_build_array(
       jsonb_build_object(
-        'when', jsonb_build_object('question_key','u_q1','op','equals','value','Sim'),
+        'when', jsonb_build_object('question_key','u_q1','op','equals','value','sim'),
         'result_id', (select conforme_id from vocab)::text)),
     'default_result_id', (select nao_conforme_id from vocab)::text),
   true,
@@ -105,7 +105,7 @@ select public.add_template_phase(
   (select tid from tpl), (select form_u from k), 'Fase 4',
   jsonb_build_object('match','any','conditions', jsonb_build_array(
     jsonb_build_object('source','result','from_phase',1,'op','equals','value',(select nao_conforme_id from vocab)::text),
-    jsonb_build_object('source','answer','from_phase',1,'question_key','u_q1','op','equals','value','Sim'))));
+    jsonb_build_object('source','answer','from_phase',1,'question_key','u_q1','op','equals','value','sim'))));
 
 -- Phase 5: recommend when phase-1 RESULT not_equals Conforme (the no-result footgun).
 select public.add_template_phase(
@@ -190,7 +190,8 @@ create temp table rspA on commit drop as
   select (public.start_or_resume_phase((select id from cpA where position = 1))).id as rid;
 grant select on rspA to authenticated;
 select public.save_section_answers((select rid from rspA), (select sec_u from k),
-  jsonb_build_object((select item_mc from k)::text, to_jsonb('Sim'::text)));
+  '{}'::jsonb, null, null,
+  jsonb_build_object((select item_mc from k)::text, jsonb_build_array('sim')));
 select public.submit_response((select rid from rspA));
 reset role;
 
@@ -243,7 +244,8 @@ create temp table rspB on commit drop as
   select (public.start_or_resume_phase((select id from cpB where position = 1))).id as rid;
 grant select on rspB to authenticated;
 select public.save_section_answers((select rid from rspB), (select sec_u from k),
-  jsonb_build_object((select item_mc from k)::text, to_jsonb('Não'::text)));
+  '{}'::jsonb, null, null,
+  jsonb_build_object((select item_mc from k)::text, jsonb_build_array('nao')));
 select public.submit_response((select rid from rspB));
 reset role;
 

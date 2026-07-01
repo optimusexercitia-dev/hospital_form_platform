@@ -24,12 +24,17 @@ select ver_id, form_id, 1, 'draft' from d;
 insert into public.form_sections (id, form_version_id, position, is_default)
 select s0, ver_id, 0, true from d;
 
-insert into public.form_items (id, section_id, position, item_type, question_key, label, options, required)
-select i_gate, s0, 0, 'multiple_choice', 'iv_gate', 'Gate?', '["Sim","Não"]'::jsonb, true from d;
--- Conditional item (visible only when iv_gate = Sim); cannot be required.
+insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+select i_gate, s0, 0, 'multiple_choice', 'iv_gate', 'Gate?', true from d;
+-- form-model-normalization: choice options are normalized rows; code = slug(label).
+insert into public.form_item_options (item_id, position, code, label)
+select i_gate, 0, 'sim', 'Sim' from d
+union all
+select i_gate, 1, 'nao', 'Não' from d;
+-- Conditional item (visible only when iv_gate = 'sim' CODE); cannot be required.
 insert into public.form_items (id, section_id, position, item_type, question_key, label, required, visible_when)
 select i_detail, s0, 1, 'free_text', 'iv_detail', 'Detalhe', false,
-       jsonb_build_object('question_key','iv_gate','op','equals','value','Sim')
+       jsonb_build_object('question_key','iv_gate','op','equals','value','sim')
 from d;
 -- Number with bounds 1..10.
 insert into public.form_items (id, section_id, position, item_type, question_key, label, required, config)
@@ -55,10 +60,12 @@ insert into public.responses (id, form_version_id, commission_id, created_by, st
 select r.id, (select ver_id from d), (c.v->>'comm_x')::uuid, (c.v->>'st_x')::uuid, 'in_progress'
 from r, ctx c;
 
--- Gate=Não (hides iv_detail), but a STRAY iv_detail answer was saved earlier;
--- count within bounds.
-insert into public.answers (response_id, item_id, question_key, value)
-select (select id from r), (select i_gate from d), 'iv_gate', '"Não"'::jsonb;
+-- Gate=Não (hides iv_detail) — choice answer is now a selection row (code 'nao');
+-- a STRAY iv_detail answer was saved earlier; count within bounds (scalar).
+insert into public.answer_selected_options (response_id, item_id, option_id)
+select (select id from r), (select i_gate from d), o.id
+from public.form_item_options o
+where o.item_id = (select i_gate from d) and o.code = 'nao';
 insert into public.answers (response_id, item_id, question_key, value)
 select (select id from r), (select i_detail from d), 'iv_detail', '"stray detail"'::jsonb;
 insert into public.answers (response_id, item_id, question_key, value)
@@ -80,12 +87,19 @@ select is(
   'hidden conditional item answer is cleared on submit'
 );
 
--- Gate + count survive.
-select is(
-  (select count(*)::int from public.answers
-     where response_id = (select id from r) and question_key in ('iv_gate','iv_count')),
-  2,
-  'visible item answers (gate + count) are preserved'
+-- Gate (choice selection) + count (scalar) survive. The gate answer now lives in
+-- answer_selected_options (code 'nao'); the number stays in answers.value.
+select ok(
+  exists (
+    select 1 from public.answer_selected_options s
+    where s.response_id = (select id from r)
+      and s.item_id = (select i_gate from d)
+      and s.option_id = (select id from public.form_item_options
+                         where item_id = (select i_gate from d) and code = 'nao')
+  )
+  and (select count(*)::int from public.answers
+         where response_id = (select id from r) and question_key = 'iv_count') = 1,
+  'visible item answers (gate selection + count) are preserved'
 );
 
 -- ---- A second response: number BELOW min must block submit with HC061. ----
@@ -94,8 +108,10 @@ grant select on r2 to authenticated;
 insert into public.responses (id, form_version_id, commission_id, created_by, status)
 select r2.id, (select ver_id from d), (c.v->>'comm_x')::uuid, (c.v->>'st_x2')::uuid, 'in_progress'
 from r2, ctx c;
-insert into public.answers (response_id, item_id, question_key, value)
-select (select id from r2), (select i_gate from d), 'iv_gate', '"Não"'::jsonb;
+insert into public.answer_selected_options (response_id, item_id, option_id)
+select (select id from r2), (select i_gate from d), o.id
+from public.form_item_options o
+where o.item_id = (select i_gate from d) and o.code = 'nao';
 insert into public.answers (response_id, item_id, question_key, value)
 select (select id from r2), (select i_count from d), 'iv_count', '0'::jsonb;  -- below min=1
 

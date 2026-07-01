@@ -77,7 +77,7 @@ set local role authenticated;
 select public.add_template_phase((select tid from tpl), (select form_u from k), 'Fase 1');
 select public.add_template_phase(
   (select tid from tpl), (select form_u from k), 'Fase 2',
-  jsonb_build_object('from_phase',1,'question_key','u_q1','op','equals','value','Sim'));
+  jsonb_build_object('from_phase',1,'question_key','u_q1','op','equals','value','sim'));
 reset role;
 
 -- ---- 1) recommend_when referencing a NON-EARLIER phase is rejected (P0016) --
@@ -85,7 +85,7 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.add_template_phase(%L,%L,'Bad',
-            jsonb_build_object('from_phase',5,'question_key','u_q1','op','equals','value','Sim')) $$,
+            jsonb_build_object('from_phase',5,'question_key','u_q1','op','equals','value','sim')) $$,
           (select tid from tpl), (select form_u from k)),
   'HC016',
   null,
@@ -98,7 +98,7 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.add_template_phase(%L,%L,'Bad2',
-            jsonb_build_object('from_phase',1,'question_key','nope','op','equals','value','Sim')) $$,
+            jsonb_build_object('from_phase',1,'question_key','nope','op','equals','value','sim')) $$,
           (select tid from tpl), (select form_u from k)),
   'HC016',
   null,
@@ -339,12 +339,14 @@ reset role;
 -- =========================================================================
 -- THE PHASE-7 INVARIANT: case_phase_answer_map is SUBMITTED-ONLY.
 -- =========================================================================
--- Answer the required item (u_q1 = 'Sim') but DO NOT submit yet.
+-- Answer the required item (u_q1 -> option code 'sim') but DO NOT submit yet.
+-- form-model-normalization: choice answers go through p_selections (item -> codes).
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select public.save_section_answers(
   (select rid from rsp), (select sec_u from k),
-  jsonb_build_object((select item_mc from k)::text, to_jsonb('Sim'::text)));
+  '{}'::jsonb, null, null,
+  jsonb_build_object((select item_mc from k)::text, jsonb_build_array('sim')));
 reset role;
 
 -- ---- 15) in-progress source phase -> answer_map is '{}' (THE INVARIANT) ----
@@ -383,8 +385,8 @@ select is(
 -- ---- 18) now answer_map is POPULATED (submitted) ----
 select is(
   app.case_phase_answer_map((select id from cp where position = 1)) ->> 'u_q1',
-  'Sim',
-  'case_phase_answer_map returns the answers once the source phase is submitted'
+  'sim',
+  'case_phase_answer_map returns the answers (option code) once the source phase is submitted'
 );
 
 -- ---- 19) recompute flagged phase 2 recommended (gate = Sim) ----

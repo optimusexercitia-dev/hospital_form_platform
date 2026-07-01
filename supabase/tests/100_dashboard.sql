@@ -50,19 +50,30 @@ select i.ver_d, i.form_d, 1, 'draft' from ids i;
 -- Flat (default) section with mc + cb.
 insert into public.form_sections (id, form_version_id, position, is_default)
 select i.sec_flat, i.ver_d, 0, true from ids i;
-insert into public.form_items (id, section_id, position, item_type, question_key, label, options, required)
-select i.it_mc, i.sec_flat, 0, 'multiple_choice', 'd_mc', 'MC?', '["Sim","Não"]'::jsonb, true from ids i;
-insert into public.form_items (id, section_id, position, item_type, question_key, label, options, required)
-select i.it_cb, i.sec_flat, 1, 'checkbox', 'd_cb', 'CB?', '["A","B","C"]'::jsonb, false from ids i;
+-- form-model-normalization: options are normalized rows (code = slug of label).
+insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+select i.it_mc, i.sec_flat, 0, 'multiple_choice', 'd_mc', 'MC?', true from ids i;
+insert into public.form_item_options (item_id, position, code, label)
+select i.it_mc, 0, 'sim', 'Sim' from ids i
+union all select i.it_mc, 1, 'nao', 'Não' from ids i;
+insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+select i.it_cb, i.sec_flat, 1, 'checkbox', 'd_cb', 'CB?', false from ids i;
+insert into public.form_item_options (item_id, position, code, label)
+select i.it_cb, 0, 'a', 'A' from ids i
+union all select i.it_cb, 1, 'b', 'B' from ids i
+union all select i.it_cb, 2, 'c', 'C' from ids i;
 
--- Conditional section (visible only when d_mc = 'Sim') with a multiple_choice,
--- so it gets the SMALLER denominator.
+-- Conditional section (visible only when d_mc = code 'sim') with a
+-- multiple_choice, so it gets the SMALLER denominator.
 insert into public.form_sections (id, form_version_id, position, title, visible_when)
 select i.sec_cond, i.ver_d, 1, 'Conditional',
-       jsonb_build_object('question_key','d_mc','op','equals','value','Sim')
+       jsonb_build_object('question_key','d_mc','op','equals','value','sim')
 from ids i;
-insert into public.form_items (id, section_id, position, item_type, question_key, label, options, required)
-select i.it_cond, i.sec_cond, 0, 'multiple_choice', 'd_cond', 'Cond?', '["X","Y"]'::jsonb, true from ids i;
+insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+select i.it_cond, i.sec_cond, 0, 'multiple_choice', 'd_cond', 'Cond?', true from ids i;
+insert into public.form_item_options (item_id, position, code, label)
+select i.it_cond, 0, 'x', 'X' from ids i
+union all select i.it_cond, 1, 'y', 'Y' from ids i;
 
 select public.publish_form_version((select ver_d from ids));
 
@@ -90,17 +101,25 @@ union all select rs.r2, i.ver_d, k.comm_x, k.st_x2, 'submitted', now() - interva
 union all select rs.r3, i.ver_d, k.comm_x, k.st_x,  'submitted', now() - interval '3 days' from rs, ids i, k
 union all select rs.r4, i.ver_d, k.comm_x, k.st_x2, 'submitted', now() - interval '4 days' from rs, ids i, k;
 
-insert into public.answers (response_id, item_id, question_key, value)
-select rs.r1, i.it_mc, 'd_mc', '"Sim"'::jsonb from rs, ids i
-union all select rs.r1, i.it_cb,   'd_cb',   '["A","B"]'::jsonb from rs, ids i
-union all select rs.r1, i.it_cond, 'd_cond', '"X"'::jsonb        from rs, ids i
-union all select rs.r2, i.it_mc,   'd_mc',   '"Sim"'::jsonb      from rs, ids i
-union all select rs.r2, i.it_cb,   'd_cb',   '["A"]'::jsonb      from rs, ids i
-union all select rs.r2, i.it_cond, 'd_cond', '"Y"'::jsonb        from rs, ids i
-union all select rs.r3, i.it_mc,   'd_mc',   '"Não"'::jsonb      from rs, ids i
-union all select rs.r3, i.it_cb,   'd_cb',   '["B","C"]'::jsonb  from rs, ids i
-union all select rs.r4, i.it_mc,   'd_mc',   '"Não"'::jsonb      from rs, ids i
-union all select rs.r4, i.it_cb,   'd_cb',   '["C"]'::jsonb      from rs, ids i;
+-- form-model-normalization: choice answers are selection rows (by option code).
+-- Build (response, item, code) tuples, then join to form_item_options for the id.
+insert into public.answer_selected_options (response_id, item_id, option_id)
+select t.rid, t.iid, o.id
+from (
+  select rs.r1 as rid, i.it_mc as iid, 'sim'::text as code from rs, ids i
+  union all select rs.r1, i.it_cb,   'a' from rs, ids i
+  union all select rs.r1, i.it_cb,   'b' from rs, ids i
+  union all select rs.r1, i.it_cond, 'x' from rs, ids i
+  union all select rs.r2, i.it_mc,   'sim' from rs, ids i
+  union all select rs.r2, i.it_cb,   'a' from rs, ids i
+  union all select rs.r2, i.it_cond, 'y' from rs, ids i
+  union all select rs.r3, i.it_mc,   'nao' from rs, ids i
+  union all select rs.r3, i.it_cb,   'b' from rs, ids i
+  union all select rs.r3, i.it_cb,   'c' from rs, ids i
+  union all select rs.r4, i.it_mc,   'nao' from rs, ids i
+  union all select rs.r4, i.it_cb,   'c' from rs, ids i
+) t
+join public.form_item_options o on o.item_id = t.iid and o.code = t.code;
 
 select set_config('app.in_submit_rpc', 'off', true);
 
@@ -120,7 +139,7 @@ select is(
 
 -- ---- 2) d_mc distribution: Sim 2 / Não 2, denom 4, n 4 ----
 select set_eq(
-  format($$ select option_value, option_count, denominator, n
+  format($$ select option_label, option_count, denominator, n
             from public.dashboard_distributions(%L) where question_key='d_mc' $$,
          (select form_d from ids)),
   $$ values ('Sim',2::bigint,4::bigint,4::bigint),
@@ -130,7 +149,7 @@ select set_eq(
 
 -- ---- 3) checkbox unnest: A 2, B 2, C 2 (each selected option counts) ----
 select set_eq(
-  format($$ select option_value, option_count from public.dashboard_distributions(%L)
+  format($$ select option_label, option_count from public.dashboard_distributions(%L)
             where question_key='d_cb' $$, (select form_d from ids)),
   $$ values ('A',2::bigint), ('B',2::bigint), ('C',2::bigint) $$,
   'd_cb checkbox values are unnested — each option counts individually'
@@ -154,7 +173,7 @@ select is(
 
 -- ---- 6) conditional distribution values + n ----
 select set_eq(
-  format($$ select option_value, option_count, n from public.dashboard_distributions(%L)
+  format($$ select option_label, option_count, n from public.dashboard_distributions(%L)
             where question_key='d_cond' $$, (select form_d from ids)),
   $$ values ('X',1::bigint,2::bigint), ('Y',1::bigint,2::bigint) $$,
   'd_cond distribution: X 1 / Y 1, n 2'

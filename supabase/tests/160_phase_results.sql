@@ -98,7 +98,7 @@ select public.add_template_phase(
   jsonb_build_object(
     'rules', jsonb_build_array(
       jsonb_build_object(
-        'when', jsonb_build_object('question_key','u_q1','op','equals','value','Sim'),
+        'when', jsonb_build_object('question_key','u_q1','op','equals','value','sim'),
         'result_id', (select conforme_id from vocab)::text
       )
     ),
@@ -154,7 +154,8 @@ grant select on rsp1 to authenticated;
 select public.save_section_answers(
   (select rid from rsp1),
   (select sec_u from k),
-  jsonb_build_object((select item_mc from k)::text, to_jsonb('Sim'::text))
+  '{}'::jsonb, null, null,
+  jsonb_build_object((select item_mc from k)::text, jsonb_build_array('sim'))
 );
 select public.submit_response((select rid from rsp1));
 reset role;
@@ -249,7 +250,8 @@ grant select on rsp3 to authenticated;
 select public.save_section_answers(
   (select rid from rsp3),
   (select sec_u from k),
-  jsonb_build_object((select item_mc from k)::text, to_jsonb('Sim'::text))
+  '{}'::jsonb, null, null,
+  jsonb_build_object((select item_mc from k)::text, jsonb_build_array('sim'))
 );
 select public.submit_response((select rid from rsp3));
 reset role;
@@ -311,7 +313,7 @@ begin
     set result_ruleset = jsonb_build_object(
       'rules', jsonb_build_array(
         jsonb_build_object(
-          'when', jsonb_build_object('question_key','u_q1','op','equals','value','Sim'),
+          'when', jsonb_build_object('question_key','u_q1','op','equals','value','sim'),
           'result_id', (select conforme_id from vocab)::text
         )
       ),
@@ -334,8 +336,10 @@ begin
   returning id into v_resp_id;
   perform set_config('app.in_submit_rpc', 'off', true);
 
-  insert into public.answers (response_id, item_id, question_key, value)
-    values (v_resp_id, v_item, 'u_q1', to_jsonb('Sim'::text));
+  -- form-model-normalization: choice answer -> selection (by code 'sim').
+  insert into public.answer_selected_options (response_id, item_id, option_id)
+  select v_resp_id, v_item, o.id from public.form_item_options o
+  where o.item_id = v_item and o.code = 'sim';
 
   -- Flip to submitted under the RPC flag so the immutability guard is satisfied.
   perform set_config('app.in_submit_rpc', 'on', true);
@@ -410,7 +414,8 @@ grant select on rsp_ov to authenticated;
 select public.save_section_answers(
   (select rid from rsp_ov),
   (select sec_u from k),
-  jsonb_build_object((select item_mc from k)::text, to_jsonb('Sim'::text))
+  '{}'::jsonb, null, null,
+  jsonb_build_object((select item_mc from k)::text, jsonb_build_array('sim'))
 );
 select public.submit_response((select rid from rsp_ov));
 reset role;
@@ -663,7 +668,7 @@ select throws_ok(
     jsonb_build_object(
       'rules', jsonb_build_array(
         jsonb_build_object(
-          'when', jsonb_build_object('question_key','u_q1','op','equals','value','Sim'),
+          'when', jsonb_build_object('question_key','u_q1','op','equals','value','sim'),
           'result_id', %L::text
         )
       ),
@@ -768,8 +773,11 @@ begin
     values (v_ver, v_fid, 1, 'draft');
   insert into public.form_sections (form_version_id, position, is_default)
     values (v_ver, 0, true);
-  insert into public.form_items (section_id, position, item_type, question_key, label, options, required)
-    select id, 0, 'multiple_choice', 'draft_q1', 'Draft Q', '["A","B"]'::jsonb, true
+  -- form-model-normalization: options are rows now; this draft item never
+  -- publishes (the HC017 test fails on the missing published version), so no
+  -- option rows are needed.
+  insert into public.form_items (section_id, position, item_type, question_key, label, required)
+    select id, 0, 'multiple_choice', 'draft_q1', 'Draft Q', true
     from public.form_sections where form_version_id = v_ver limit 1;
 
   create temp table form_unpub (fid uuid) on commit drop;

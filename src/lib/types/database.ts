@@ -6448,8 +6448,9 @@ export type Database = {
           item_type: string
           label: string
           n: number
+          option_code: string
           option_count: number
-          option_value: string
+          option_label: string
           question_key: string
           section_position: number
           section_title: string
