@@ -101,24 +101,35 @@ union all select rs.r2, i.ver_d, k.comm_x, k.st_x2, 'submitted', now() - interva
 union all select rs.r3, i.ver_d, k.comm_x, k.st_x,  'submitted', now() - interval '3 days' from rs, ids i, k
 union all select rs.r4, i.ver_d, k.comm_x, k.st_x2, 'submitted', now() - interval '4 days' from rs, ids i, k;
 
--- form-model-normalization: choice answers are selection rows (by option code).
--- Build (response, item, code) tuples, then join to form_item_options for the id.
-insert into public.answer_selected_options (response_id, item_id, option_id)
-select t.rid, t.iid, o.id
-from (
-  select rs.r1 as rid, i.it_mc as iid, 'sim'::text as code from rs, ids i
-  union all select rs.r1, i.it_cb,   'a' from rs, ids i
-  union all select rs.r1, i.it_cb,   'b' from rs, ids i
-  union all select rs.r1, i.it_cond, 'x' from rs, ids i
-  union all select rs.r2, i.it_mc,   'sim' from rs, ids i
-  union all select rs.r2, i.it_cb,   'a' from rs, ids i
-  union all select rs.r2, i.it_cond, 'y' from rs, ids i
-  union all select rs.r3, i.it_mc,   'nao' from rs, ids i
-  union all select rs.r3, i.it_cb,   'b' from rs, ids i
-  union all select rs.r3, i.it_cb,   'c' from rs, ids i
-  union all select rs.r4, i.it_mc,   'nao' from rs, ids i
-  union all select rs.r4, i.it_cb,   'c' from rs, ids i
-) t
+-- answer-model-v2: choice answers are a parent answers row + selections (by code).
+-- Build (response, item, code) tuples; create parent answers for each distinct
+-- (response,item), then insert selections joined to the parent answer + option.
+create temp table _sel_tuples on commit drop as
+  select t.rid, t.iid, t.code from (
+    select rs.r1 as rid, i.it_mc as iid, 'sim'::text as code from rs, ids i
+    union all select rs.r1, i.it_cb,   'a' from rs, ids i
+    union all select rs.r1, i.it_cb,   'b' from rs, ids i
+    union all select rs.r1, i.it_cond, 'x' from rs, ids i
+    union all select rs.r2, i.it_mc,   'sim' from rs, ids i
+    union all select rs.r2, i.it_cb,   'a' from rs, ids i
+    union all select rs.r2, i.it_cond, 'y' from rs, ids i
+    union all select rs.r3, i.it_mc,   'nao' from rs, ids i
+    union all select rs.r3, i.it_cb,   'b' from rs, ids i
+    union all select rs.r3, i.it_cb,   'c' from rs, ids i
+    union all select rs.r4, i.it_mc,   'nao' from rs, ids i
+    union all select rs.r4, i.it_cb,   'c' from rs, ids i
+  ) t;
+
+insert into public.answers (response_id, item_id, question_key, value, group_instance_id)
+select distinct d.rid, d.iid, fi.question_key, null::jsonb, null::uuid
+from _sel_tuples d
+join public.form_items fi on fi.id = d.iid
+on conflict (response_id, item_id) where group_instance_id is null do nothing;
+
+insert into public.answer_selected_options (answer_id, option_id)
+select a.id, o.id
+from _sel_tuples t
+join public.answers a on a.response_id = t.rid and a.item_id = t.iid and a.group_instance_id is null
 join public.form_item_options o on o.item_id = t.iid and o.code = t.code;
 
 select set_config('app.in_submit_rpc', 'off', true);

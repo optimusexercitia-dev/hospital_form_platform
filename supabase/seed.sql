@@ -26,6 +26,34 @@
 set search_path = public, extensions;
 
 -- ---------------------------------------------------------------------------
+-- answer-model-v2 seed helper: choice selections now hang off a parent answers
+-- row (answer_selected_options.answer_id). This helper upserts the parent answer
+-- (value null, top-level) and inserts one selection per code — mirroring
+-- save_section_answers. Dropped at the end of the seed. Runs under the caller's
+-- app.in_submit_rpc setting so it works for submitted responses too.
+-- ---------------------------------------------------------------------------
+create or replace function app.seed_select(p_response uuid, p_item uuid, p_codes text[])
+returns void language plpgsql as $seed_select$
+declare
+  v_answer_id uuid;
+  v_qk text;
+begin
+  select question_key into v_qk from public.form_items where id = p_item;
+
+  insert into public.answers (response_id, item_id, question_key, value, group_instance_id)
+  values (p_response, p_item, v_qk, null, null)
+  on conflict (response_id, item_id) where group_instance_id is null
+  do update set question_key = excluded.question_key
+  returning id into v_answer_id;
+
+  insert into public.answer_selected_options (answer_id, option_id)
+  select v_answer_id, o.id
+  from public.form_item_options o
+  where o.item_id = p_item and o.code = any (p_codes);
+end;
+$seed_select$;
+
+-- ---------------------------------------------------------------------------
 -- Auth users. We insert directly into auth.users; the on_auth_user_created
 -- trigger creates the matching profiles row. We then patch full_name/is_admin.
 -- A confirmed email + bcrypt password lets these users log in locally.
@@ -390,20 +418,14 @@ begin
     -- Scalar answer (free_text) stays in answers.value.
     insert into public.answers (response_id, item_id, question_key, value) values
       (v_resp, ia_obs, 'observacoes_gerais', to_jsonb('Auditoria de rotina nº ' || i || '.'));
-    -- Choice selections -> answer_selected_options (by option code).
+    -- Choice selections -> answers row + answer_selected_options (by option code).
     -- mc: cycle sim/nao/parcialmente; dropdown: manha/tarde/noite.
-    insert into public.answer_selected_options (response_id, item_id, option_id)
-    select v_resp, ia_disp, o.id from public.form_item_options o
-    where o.item_id = ia_disp and o.code = (array['sim','nao','parcialmente'])[1 + (i % 3)];
-    insert into public.answer_selected_options (response_id, item_id, option_id)
-    select v_resp, ia_turno, o.id from public.form_item_options o
-    where o.item_id = ia_turno and o.code = (array['manha','tarde','noite'])[1 + (i % 3)];
+    perform app.seed_select(v_resp, ia_disp, array[(array['sim','nao','parcialmente'])[1 + (i % 3)]]);
+    perform app.seed_select(v_resp, ia_turno, array[(array['manha','tarde','noite'])[1 + (i % 3)]]);
     -- checkbox: even -> {luvas,avental}; odd -> {luvas,mascara,touca}.
-    insert into public.answer_selected_options (response_id, item_id, option_id)
-    select v_resp, ia_epis, o.id from public.form_item_options o
-    where o.item_id = ia_epis
-      and o.code = any (case when i % 2 = 0 then array['luvas','avental']
-                             else array['luvas','mascara','touca'] end);
+    perform app.seed_select(v_resp, ia_epis,
+      case when i % 2 = 0 then array['luvas','avental']
+           else array['luvas','mascara','touca'] end);
   end loop;
 
   -- ----- Form B: 4 submitted responses — 2 take the conditional branch
@@ -420,21 +442,13 @@ begin
     insert into public.answers (response_id, item_id, question_key, value) values
       (v_resp, ib_parecer, 'parecer_chefia', to_jsonb('Inspeção dentro do esperado.'::text));
     -- Choice selections by code: org='sim', venc='sim', termo='sim' (i<=2) else 'nao'.
-    insert into public.answer_selected_options (response_id, item_id, option_id)
-    select v_resp, ib_org, o.id from public.form_item_options o
-    where o.item_id = ib_org and o.code = 'sim';
-    insert into public.answer_selected_options (response_id, item_id, option_id)
-    select v_resp, ib_venc, o.id from public.form_item_options o
-    where o.item_id = ib_venc and o.code = 'sim';
-    insert into public.answer_selected_options (response_id, item_id, option_id)
-    select v_resp, ib_termo, o.id from public.form_item_options o
-    where o.item_id = ib_termo and o.code = (case when i <= 2 then 'sim' else 'nao' end);
+    perform app.seed_select(v_resp, ib_org, array['sim']);
+    perform app.seed_select(v_resp, ib_venc, array['sim']);
+    perform app.seed_select(v_resp, ib_termo, array[(case when i <= 2 then 'sim' else 'nao' end)]);
 
     -- Conditional-section answers only for the 'sim' branch.
     if i <= 2 then
-      insert into public.answer_selected_options (response_id, item_id, option_id)
-      select v_resp, ib_temp, o.id from public.form_item_options o
-      where o.item_id = ib_temp and o.code = 'sim';
+      perform app.seed_select(v_resp, ib_temp, array['sim']);
       insert into public.answers (response_id, item_id, question_key, value) values
         (v_resp, ib_tempreg, 'temperatura_registrada', to_jsonb(('' || (4 + i) || ' °C'))::jsonb);
     end if;
@@ -457,9 +471,7 @@ begin
   insert into public.responses (id, form_version_id, commission_id, created_by, status, last_section_id, started_at)
   values (v_resp, v_form_a, v_comm_a, v_staff_a1, 'in_progress',
           'c0000000-0000-0000-0000-00000000a001', now());
-  insert into public.answer_selected_options (response_id, item_id, option_id)
-  select v_resp, ia_disp, o.id from public.form_item_options o
-  where o.item_id = ia_disp and o.code = 'sim';
+  perform app.seed_select(v_resp, ia_disp, array['sim']);
 
   -- ----- Phase 6: 1 in_progress response on Form B (Farmácia) by staff1.farm,
   -- SUBMIT-READY and AWAITING the staff_admin sign-off, so the E2E exercises BOTH
@@ -480,15 +492,9 @@ begin
              where form_version_id = v_form_b and signoff_role = 'staff_admin'),
           now(), now());
 
-  insert into public.answer_selected_options (response_id, item_id, option_id)
-  select v_resp, ib_org, o.id from public.form_item_options o
-  where o.item_id = ib_org and o.code = 'sim';
-  insert into public.answer_selected_options (response_id, item_id, option_id)
-  select v_resp, ib_termo, o.id from public.form_item_options o
-  where o.item_id = ib_termo and o.code = 'nao';
-  insert into public.answer_selected_options (response_id, item_id, option_id)
-  select v_resp, ib_venc, o.id from public.form_item_options o
-  where o.item_id = ib_venc and o.code = 'sim';
+  perform app.seed_select(v_resp, ib_org, array['sim']);
+  perform app.seed_select(v_resp, ib_termo, array['nao']);
+  perform app.seed_select(v_resp, ib_venc, array['sim']);
 
   -- Respondent sign-off already recorded (signed_by the respondent themselves).
   insert into public.response_section_signoffs (response_id, section_id, signed_by)
@@ -596,14 +602,11 @@ begin
     (id, form_version_id, commission_id, created_by, status, case_phase_id, started_at, updated_at, submitted_at)
   values
     (v_resp, v_ver_a, v_comm_a, v_staff_a1, 'submitted', v_cp1, now(), now(), now());
-  -- Choice answers -> selections (by code). in_submit_rpc is on, so the
-  -- submitted-children guard permits these inserts (same path as submit_response).
-  insert into public.answer_selected_options (response_id, item_id, option_id)
-  select v_resp, ia_disp, o.id from public.form_item_options o
-  where o.item_id = ia_disp and o.code = 'sim';
-  insert into public.answer_selected_options (response_id, item_id, option_id)
-  select v_resp, ia_turno, o.id from public.form_item_options o
-  where o.item_id = ia_turno and o.code = 'manha';
+  -- Choice answers -> parent answers row + selections (by code). in_submit_rpc is
+  -- on, so the submitted-children guard permits these inserts (same path as
+  -- submit_response); app.seed_select upserts the parent answer + selections.
+  perform app.seed_select(v_resp, ia_disp, array['sim']);
+  perform app.seed_select(v_resp, ia_turno, array['manha']);
   perform set_config('app.in_submit_rpc', 'off', true);
 end $$;
 
@@ -1428,3 +1431,6 @@ begin
   -- patient_xref insert is needed (and the rede-a synthetic PRT-0099123 from
   -- section 10 stays a rede-a-only set).
 end $$;
+
+-- answer-model-v2: drop the seed-only selection helper.
+drop function if exists app.seed_select(uuid, uuid, text[]);

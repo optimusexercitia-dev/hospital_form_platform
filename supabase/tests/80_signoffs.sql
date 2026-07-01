@@ -26,18 +26,10 @@ insert into public.responses (id, form_version_id, commission_id, created_by, st
 select r.id, (c.v->>'ver_s')::uuid, (c.v->>'comm_x')::uuid, (c.v->>'st_x')::uuid, 'in_progress'
 from r, ctx c;
 
--- form-model-normalization: s_gate + s_req are choice items; their answers are
--- now selection rows keyed by option CODE ('nao'/'sim'), not answers.value.
-insert into public.answer_selected_options (response_id, item_id, option_id)
-select (select id from r), (c.v->>'it_gate')::uuid, o.id
-from ctx c
-join public.form_item_options o
-  on o.item_id = (c.v->>'it_gate')::uuid and o.code = 'nao';
-insert into public.answer_selected_options (response_id, item_id, option_id)
-select (select id from r), (c.v->>'it_req')::uuid, o.id
-from ctx c
-join public.form_item_options o
-  on o.item_id = (c.v->>'it_req')::uuid and o.code = 'sim';
+-- answer-model-v2: s_gate + s_req are choice items; their answers are a parent
+-- answers row + a selection keyed by option CODE ('nao'/'sim'), via the helper.
+select test_helpers.add_selection((select id from r), (select (v->>'it_gate')::uuid from ctx), array['nao']);
+select test_helpers.add_selection((select id from r), (select (v->>'it_req')::uuid from ctx), array['sim']);
 
 -- ---- 1) the response creator signs their own RESPONDENT section -> succeeds ----
 select test_helpers.claims_for((select (v->>'st_x')::uuid from ctx), false);
@@ -154,11 +146,8 @@ begin
   -- A response that answers the gate 'Não' -> the sign-off section is hidden.
   insert into public.responses (id, form_version_id, commission_id, created_by, status)
     values ('dddddddd-0000-0000-0000-0000000000d1', ver_p, (c->>'comm_x')::uuid, (c->>'st_x')::uuid, 'in_progress');
-  -- Choice answer is a selection row (code 'nao') -> the sign-off section is hidden.
-  insert into public.answer_selected_options (response_id, item_id, option_id)
-    select 'dddddddd-0000-0000-0000-0000000000d1', it_pgate, o.id
-    from public.form_item_options o
-    where o.item_id = it_pgate and o.code = 'nao';
+  -- Choice answer is a parent answer + selection (code 'nao') -> section hidden.
+  perform test_helpers.add_selection('dddddddd-0000-0000-0000-0000000000d1'::uuid, it_pgate, array['nao']);
   -- Stash the hidden section id for the assertion.
   perform set_config('test.sec_psign', sec_psign::text, true);
 end $$;
@@ -206,20 +195,16 @@ select r2.id, (c.v->>'ver_s')::uuid, (c.v->>'comm_x')::uuid, (c.v->>'st_x2')::uu
 from r2, ctx c;
 -- s_gate + s_req are choice items: the answers are selection rows (codes
 -- 'nao'/'sim'); choice answers.value is null under form-model-normalization.
-insert into public.answer_selected_options (response_id, item_id, option_id)
-select (select id from r2), (c.v->>'it_gate')::uuid, o.id
-from ctx c
-join public.form_item_options o
-  on o.item_id = (c.v->>'it_gate')::uuid and o.code = 'nao';
-insert into public.answer_selected_options (response_id, item_id, option_id)
-select (select id from r2), (c.v->>'it_req')::uuid, o.id
-from ctx c
-join public.form_item_options o
-  on o.item_id = (c.v->>'it_req')::uuid and o.code = 'sim';
+select test_helpers.add_selection((select id from r2), (select (v->>'it_gate')::uuid from ctx), array['nao']);
+select test_helpers.add_selection((select id from r2), (select (v->>'it_req')::uuid from ctx), array['sim']);
 -- BE-8: the per-item observation lives on an answers row (value null for a choice
 -- item); get_response_for_signoff projects observations_by_item from answers.observation.
-insert into public.answers (response_id, item_id, question_key, observation)
-select (select id from r2), (c.v->>'it_req')::uuid, 's_req', 'nota do revisor' from ctx c;
+-- answer-model-v2: it_req already has a parent answers row (from add_selection),
+-- so upsert the observation onto it.
+insert into public.answers (response_id, item_id, question_key, observation, group_instance_id)
+select (select id from r2), (c.v->>'it_req')::uuid, 's_req', 'nota do revisor', null from ctx c
+on conflict (response_id, item_id) where group_instance_id is null
+do update set observation = excluded.observation;
 
 -- Sign only the respondent section, leaving the staff_admin section unsigned.
 select test_helpers.claims_for((select (v->>'st_x2')::uuid from ctx), false);
@@ -268,11 +253,7 @@ insert into public.responses (id, form_version_id, commission_id, created_by, st
 select r3.id, (c.v->>'ver_s')::uuid, (c.v->>'comm_x')::uuid, (c.v->>'st_x')::uuid, 'in_progress'
 from r3, ctx c;
 -- Answer the gate ('nao' selection) but NOT the required s_req item -> not submit-ready.
-insert into public.answer_selected_options (response_id, item_id, option_id)
-select (select id from r3), (c.v->>'it_gate')::uuid, o.id
-from ctx c
-join public.form_item_options o
-  on o.item_id = (c.v->>'it_gate')::uuid and o.code = 'nao';
+select test_helpers.add_selection((select id from r3), (select (v->>'it_gate')::uuid from ctx), array['nao']);
 
 select test_helpers.claims_for((select (v->>'sa_x')::uuid from ctx), false);
 set local role authenticated;

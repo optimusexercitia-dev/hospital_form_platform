@@ -76,13 +76,13 @@ begin
   insert into public.responses (id, form_version_id, commission_id, created_by, status)
     values (v_resp, v_ver, v_comm, v_user, 'in_progress');
 
+  -- answer-model-v2: selections hang off a parent answers row (answer_id).
   -- Single-select MC -> code 'mc_b'.
-  insert into public.answer_selected_options (response_id, item_id, option_id) values (v_resp, v_mc, o_mc_b);
+  perform test_helpers.add_selection(v_resp, v_mc, array['mc_b']);
   -- Single-select dropdown -> code 'dd_p'.
-  insert into public.answer_selected_options (response_id, item_id, option_id) values (v_resp, v_dd, o_dd_p);
-  -- Checkbox -> codes z + x selected (inserted z first); array must come out [x,y? no] ordered by position: x(0), z(2).
-  insert into public.answer_selected_options (response_id, item_id, option_id) values
-    (v_resp, v_cb, o_cb_z), (v_resp, v_cb, o_cb_x);
+  perform test_helpers.add_selection(v_resp, v_dd, array['dd_p']);
+  -- Checkbox -> codes z + x; array must come out ordered by position: x(0), z(2).
+  perform test_helpers.add_selection(v_resp, v_cb, array['cb_z','cb_x']);
   -- Scalars.
   insert into public.answers (response_id, item_id, question_key, value) values
     (v_resp, v_ft, 'ft', to_jsonb('hello'::text)),

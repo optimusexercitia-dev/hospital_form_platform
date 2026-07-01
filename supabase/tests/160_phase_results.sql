@@ -336,10 +336,8 @@ begin
   returning id into v_resp_id;
   perform set_config('app.in_submit_rpc', 'off', true);
 
-  -- form-model-normalization: choice answer -> selection (by code 'sim').
-  insert into public.answer_selected_options (response_id, item_id, option_id)
-  select v_resp_id, v_item, o.id from public.form_item_options o
-  where o.item_id = v_item and o.code = 'sim';
+  -- answer-model-v2: choice answer -> parent answer + selection (by code 'sim').
+  perform test_helpers.add_selection(v_resp_id, v_item, array['sim']);
 
   -- Flip to submitted under the RPC flag so the immutability guard is satisfied.
   perform set_config('app.in_submit_rpc', 'on', true);

@@ -195,6 +195,36 @@ begin
 end;
 $$;
 
+-- answer-model-v2 test helper: choice selections now hang off a parent answers
+-- row (answer_selected_options.answer_id). Mirrors save_section_answers: upsert
+-- the top-level parent answer (value null), then insert one selection per code.
+-- Returns the parent answer id. Used by the fixture test files that previously
+-- inserted answer_selected_options(response_id,item_id,option_id) directly.
+create or replace function test_helpers.add_selection(p_response uuid, p_item uuid, p_codes text[])
+returns uuid
+language plpgsql
+as $$
+declare
+  v_answer_id uuid;
+  v_qk text;
+begin
+  select question_key into v_qk from public.form_items where id = p_item;
+
+  insert into public.answers (response_id, item_id, question_key, value, group_instance_id)
+  values (p_response, p_item, v_qk, null, null)
+  on conflict (response_id, item_id) where group_instance_id is null
+  do update set question_key = excluded.question_key
+  returning id into v_answer_id;
+
+  insert into public.answer_selected_options (answer_id, option_id)
+  select v_answer_id, o.id
+  from public.form_item_options o
+  where o.item_id = p_item and o.code = any (p_codes);
+
+  return v_answer_id;
+end;
+$$;
+
 -- Set the JWT claims PostgREST would set for a given user (sub + is_admin).
 -- The test itself issues `set local role authenticated` / `reset role` around
 -- the assertion — role switching is done with bare SQL because a non-superuser

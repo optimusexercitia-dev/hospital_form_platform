@@ -1106,9 +1106,9 @@ export async function addItem(
         visible_when: columns.visible_when,
         required: columns.required,
         content: columns.content,
-        // TODO(answer-model-v2 BE-1): add `default_value: columns.default_value`
-        // once BE-1 lands the column and BE-5 regenerates the typed Insert. The
-        // value is parsed (parseDefaultValue) but not yet persisted.
+        // answer-model-v2: the per-input default value (scalar or option code/
+        // code[]); null for display items. Validated at publish time (HC080).
+        default_value: columns.default_value,
       })
       .select('id')
       .maybeSingle<{ id: string }>()
@@ -1182,9 +1182,9 @@ export async function updateItem(
       visible_when: columns.visible_when,
       required: columns.required,
       content: columns.content,
-      // TODO(answer-model-v2 BE-1): add `default_value: columns.default_value`
-      // once BE-1 lands the column and BE-5 regenerates the typed Update. The
-      // value is parsed (parseDefaultValue) but not yet persisted.
+      // answer-model-v2: the per-input default value (scalar or option code/
+      // code[]); null for display items. Validated at publish time (HC080).
+      default_value: columns.default_value,
     })
     .eq('id', itemId)
 

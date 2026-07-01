@@ -286,7 +286,10 @@ export async function getSubmissionDetail(
   // answers_select returns answers only for responses the caller may read; for a
   // submitted response that's the structure-complete answer set. (No row leaks
   // for in_progress foreign responses — `response` above would already be null.)
-  const [{ data: answers }, { data: selections }] = await Promise.all([
+  // answer-model-v2: selections hang off the parent answers row (answer_id); embed
+  // the parent answer to recover item_id, then flatten to the twin's unchanged
+  // { item_id, option_id } input shape.
+  const [{ data: answers }, { data: selectionRows }] = await Promise.all([
     supabase
       .from('answers')
       .select('item_id, question_key, value, observation')
@@ -294,17 +297,22 @@ export async function getSubmissionDetail(
       .returns<DetailAnswerRow[]>(),
     supabase
       .from('answer_selected_options')
-      .select('item_id, option_id')
-      .eq('response_id', responseId)
-      .returns<SelectionRow[]>(),
+      .select('option_id, answers!inner(item_id, response_id)')
+      .eq('answers.response_id', responseId)
+      .returns<{ option_id: string; answers: { item_id: string; response_id: string } }[]>(),
   ])
+
+  const selections: SelectionRow[] = (selectionRows ?? []).map((s) => ({
+    item_id: s.answers.item_id,
+    option_id: s.option_id,
+  }))
 
   // form-model-normalization: canonical maps (single→scalar code, checkbox→code
   // array, scalars→raw) via the shared app.answer_map sibling.
   const { answersByItemId, answersByKey } = buildAnswerMaps(
     tree,
     answers ?? [],
-    selections ?? [],
+    selections,
   )
 
   const observationsByItemId: Record<string, string> = {}

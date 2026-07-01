@@ -495,6 +495,7 @@ const VERSION_TREE_SELECT =
   'requires_signoff, signoff_role, ' +
   'form_items(id, section_id, position, item_type, question_key, label, ' +
   'question_explanation, config, visible_when, required, content, ' +
+  'default_value, parent_item_id, ' +
   'form_item_options!form_item_options_item_id_fkey(id, code, label, color_token, score, analytics_code, position)))'
 
 // ---------------------------------------------------------------------------

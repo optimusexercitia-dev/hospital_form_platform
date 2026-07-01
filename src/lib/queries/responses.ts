@@ -222,10 +222,23 @@ interface ResponseRow {
   }
 }
 
-/** One `answer_selected_options` row (item_id + the selected option id). */
+/** One selection as `buildAnswerMaps` consumes it (item_id + selected option id).
+ * This is the twin's INPUT contract and is intentionally UNCHANGED by
+ * answer-model-v2 — the query flattens the new answer_id embed to this shape. */
 export interface SelectionRow {
   item_id: string
   option_id: string
+}
+
+/**
+ * answer-model-v2: the read shape from `answer_selected_options` after the
+ * re-key. Selections carry `answer_id` (not item_id/response_id); we embed the
+ * parent answer to recover `item_id` + the response scope, then flatten to
+ * {@link SelectionRow} for the twin.
+ */
+interface SelectionEmbedRow {
+  option_id: string
+  answers: { item_id: string; response_id: string }
 }
 
 /**
@@ -343,7 +356,11 @@ export async function getResponseForFill(
   if (!tree) return null
 
   // Scalar answers (+ observations) and choice selections in parallel.
-  const [{ data: answers }, { data: selections }] = await Promise.all([
+  // answer-model-v2: selections now hang off the parent answers row (answer_id),
+  // so resolve each selection's item_id/response scope through the embedded
+  // answer. buildAnswerMaps still consumes the { item_id, option_id } shape (its
+  // input contract is UNCHANGED) — we flatten the embed to that shape below.
+  const [{ data: answers }, { data: selectionRows }] = await Promise.all([
     supabase
       .from('answers')
       .select('item_id, question_key, value, observation')
@@ -351,17 +368,23 @@ export async function getResponseForFill(
       .returns<AnswerRow[]>(),
     supabase
       .from('answer_selected_options')
-      .select('item_id, option_id')
-      .eq('response_id', responseId)
-      .returns<SelectionRow[]>(),
+      .select('option_id, answers!inner(item_id, response_id)')
+      .eq('answers.response_id', responseId)
+      .returns<SelectionEmbedRow[]>(),
   ])
+
+  // Flatten the answer_id embed to the twin's { item_id, option_id } input shape.
+  const selections: SelectionRow[] = (selectionRows ?? []).map((s) => ({
+    item_id: s.answers.item_id,
+    option_id: s.option_id,
+  }))
 
   // form-model-normalization: rebuild the canonical maps (single→scalar code,
   // checkbox→code array, scalars→raw) — the TS sibling of app.answer_map.
   const { answersByItemId, answersByKey } = buildAnswerMaps(
     tree,
     answers ?? [],
-    selections ?? [],
+    selections,
   )
 
   // Observations are collected independently of the value guard (an observation

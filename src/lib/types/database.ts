@@ -36,26 +36,23 @@ export type Database = {
     Tables: {
       answer_selected_options: {
         Row: {
-          item_id: string
+          answer_id: string
           option_id: string
-          response_id: string
         }
         Insert: {
-          item_id: string
+          answer_id: string
           option_id: string
-          response_id: string
         }
         Update: {
-          item_id?: string
+          answer_id?: string
           option_id?: string
-          response_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "answer_selected_options_item_id_fkey"
-            columns: ["item_id"]
+            foreignKeyName: "answer_selected_options_answer_id_fkey"
+            columns: ["answer_id"]
             isOneToOne: false
-            referencedRelation: "form_items"
+            referencedRelation: "answers"
             referencedColumns: ["id"]
           },
           {
@@ -65,41 +62,59 @@ export type Database = {
             referencedRelation: "form_item_options"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "answer_selected_options_response_id_fkey"
-            columns: ["response_id"]
-            isOneToOne: false
-            referencedRelation: "responses"
-            referencedColumns: ["id"]
-          },
         ]
       }
       answers: {
         Row: {
+          answered_at: string
+          confidentiality_level: string
+          group_instance_id: string | null
           id: string
           item_id: string
           observation: string | null
           question_key: string
           response_id: string
           value: Json | null
+          value_date: string | null
+          value_number: number | null
+          value_time: string | null
         }
         Insert: {
+          answered_at?: string
+          confidentiality_level?: string
+          group_instance_id?: string | null
           id?: string
           item_id: string
           observation?: string | null
           question_key: string
           response_id: string
           value?: Json | null
+          value_date?: string | null
+          value_number?: number | null
+          value_time?: string | null
         }
         Update: {
+          answered_at?: string
+          confidentiality_level?: string
+          group_instance_id?: string | null
           id?: string
           item_id?: string
           observation?: string | null
           question_key?: string
           response_id?: string
           value?: Json | null
+          value_date?: string | null
+          value_number?: number | null
+          value_time?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "answers_group_instance_id_fkey"
+            columns: ["group_instance_id"]
+            isOneToOne: false
+            referencedRelation: "response_group_instances"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "answers_item_id_fkey"
             columns: ["item_id"]
@@ -2340,10 +2355,12 @@ export type Database = {
           config: Json | null
           content: Json | null
           created_at: string
+          default_value: Json | null
           form_version_id: string
           id: string
           item_type: string
           label: string | null
+          parent_item_id: string | null
           position: number
           question_explanation: string | null
           question_key: string | null
@@ -2355,10 +2372,12 @@ export type Database = {
           config?: Json | null
           content?: Json | null
           created_at?: string
+          default_value?: Json | null
           form_version_id: string
           id?: string
           item_type: string
           label?: string | null
+          parent_item_id?: string | null
           position: number
           question_explanation?: string | null
           question_key?: string | null
@@ -2370,10 +2389,12 @@ export type Database = {
           config?: Json | null
           content?: Json | null
           created_at?: string
+          default_value?: Json | null
           form_version_id?: string
           id?: string
           item_type?: string
           label?: string | null
+          parent_item_id?: string | null
           position?: number
           question_explanation?: string | null
           question_key?: string | null
@@ -2387,6 +2408,13 @@ export type Database = {
             columns: ["form_version_id"]
             isOneToOne: false
             referencedRelation: "form_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_items_parent_item_id_fkey"
+            columns: ["parent_item_id"]
+            isOneToOne: false
+            referencedRelation: "form_items"
             referencedColumns: ["id"]
           },
           {
@@ -4423,6 +4451,55 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      response_group_instances: {
+        Row: {
+          created_at: string
+          group_item_id: string
+          id: string
+          parent_instance_id: string | null
+          position: number
+          response_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_item_id: string
+          id?: string
+          parent_instance_id?: string | null
+          position: number
+          response_id: string
+        }
+        Update: {
+          created_at?: string
+          group_item_id?: string
+          id?: string
+          parent_instance_id?: string | null
+          position?: number
+          response_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "response_group_instances_group_item_id_fkey"
+            columns: ["group_item_id"]
+            isOneToOne: false
+            referencedRelation: "form_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "response_group_instances_parent_instance_id_fkey"
+            columns: ["parent_instance_id"]
+            isOneToOne: false
+            referencedRelation: "response_group_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "response_group_instances_response_id_fkey"
+            columns: ["response_id"]
+            isOneToOne: false
+            referencedRelation: "responses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       response_section_signoffs: {
         Row: {

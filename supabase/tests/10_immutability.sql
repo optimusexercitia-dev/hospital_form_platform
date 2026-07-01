@@ -82,12 +82,9 @@ select throws_ok(
 
 -- ----- Submitted-response immutability -----
 -- Submit the response (answer the required item first), then prove freeze.
--- form-model-normalization: the choice answer is a selection row (code 'sim').
-insert into public.answer_selected_options (response_id, item_id, option_id)
-select r.id, (c.v->>'item_mc')::uuid, o.id
-from resp r, ctx c
-join public.form_item_options o
-  on o.item_id = (c.v->>'item_mc')::uuid and o.code = 'sim';
+-- answer-model-v2: the choice answer is a parent answers row + a selection (code
+-- 'sim'), created via the test helper.
+select test_helpers.add_selection((select id from resp), (select (v->>'item_mc')::uuid from ctx), array['sim']);
 
 -- Drive submission directly (act_as not needed; we test the guard, not RLS).
 select set_config('app.in_submit_rpc','on', true);
@@ -102,19 +99,22 @@ select throws_ok(
   'cannot UPDATE a submitted response'
 );
 
--- form-model-normalization: the choice answer lives in answer_selected_options
--- now (guarded by guard_submitted_children like answers). Prove that table is
--- frozen on a submitted response — same immutability intent.
+-- answer-model-v2: the choice answer's selection hangs off answer_id and is
+-- guarded (via answer_id -> answers) by guard_submitted_selections. Prove the
+-- table is frozen on a submitted response — same immutability intent.
 select throws_ok(
-  $$ update public.answer_selected_options set item_id = item_id
-     where response_id = (select id from resp) $$,
+  $$ update public.answer_selected_options s set option_id = s.option_id
+     from public.answers a
+     where s.answer_id = a.id and a.response_id = (select id from resp) $$,
   '23514',
   null,
   'cannot UPDATE a selection of a submitted response'
 );
 
 select throws_ok(
-  $$ delete from public.answer_selected_options where response_id = (select id from resp) $$,
+  $$ delete from public.answer_selected_options s
+     using public.answers a
+     where s.answer_id = a.id and a.response_id = (select id from resp) $$,
   '23514',
   null,
   'cannot DELETE a selection of a submitted response'
@@ -154,12 +154,8 @@ insert into public.response_section_signoffs (id, response_id, section_id, signe
 select (select id from so2), (select id from resp2), (c.v->>'sec_u')::uuid, (c.v->>'st_x')::uuid, 'antes'
 from ctx c;
 
--- Answer the required item (choice -> selection, code 'sim') and submit.
-insert into public.answer_selected_options (response_id, item_id, option_id)
-select (select id from resp2), (c.v->>'item_mc')::uuid, o.id
-from ctx c
-join public.form_item_options o
-  on o.item_id = (c.v->>'item_mc')::uuid and o.code = 'sim';
+-- Answer the required item (choice -> parent answer + selection, code 'sim') and submit.
+select test_helpers.add_selection((select id from resp2), (select (v->>'item_mc')::uuid from ctx), array['sim']);
 select set_config('app.in_submit_rpc','on', true);
 update public.responses set status='submitted', submitted_at=now() where id = (select id from resp2);
 select set_config('app.in_submit_rpc','off', true);
