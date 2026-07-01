@@ -6,6 +6,7 @@ import { getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
+import { generateOptionCode, slugifyLabel, shortSuffix } from '@/lib/forms/option-code'
 
 /**
  * Form-builder server actions (Architecture Rules 9 & 10): form metadata +
@@ -116,30 +117,6 @@ const CONDITION_OPS = ['equals', 'not_equals', 'in', 'gt', 'gte', 'lt', 'lte']
 const ORDERED_OPS = ['gt', 'gte', 'lt', 'lte']
 const DISPLAY_TYPES = ['section_text', 'image']
 const ALL_ITEM_TYPES = [...INPUT_TYPES, ...DISPLAY_TYPES]
-
-/**
- * Derive a stable, URL-safe slug base from a question label. question_keys are
- * auto-generated (hidden from the user) and unique per VERSION; a short random
- * suffix (added at insert) disambiguates collisions. Empty/diacritic-only
- * labels fall back to 'pergunta'.
- */
-function slugifyLabel(label: string): string {
-  // NFD decomposes accented letters into base + combining mark; lowercasing
-  // then collapsing any non-[a-z0-9] run (which includes the now-separate
-  // combining marks and all punctuation/whitespace) to '_' yields an ASCII slug.
-  const base = label
-    .normalize('NFD')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 40)
-  return base || 'pergunta'
-}
-
-/** A short random suffix for question_key disambiguation. */
-function shortSuffix(): string {
-  return Math.random().toString(36).slice(2, 8)
-}
 
 /** The builder route family — revalidated as dynamic-segment pages. */
 const BUILDER_FORM_PATH = '/c/[slug]/manage/forms/[formId]'
@@ -935,27 +912,6 @@ function parseItemFields(
 }
 
 /**
- * Generate a unique option code for a NEW option row of an item: `slug(label)`
- * + a short suffix, retried against the existing codes (in-memory uniqueness is
- * enough — the DB `unique(item_id, code)` is the backstop). Mirrors the
- * question_key generation (slugifyLabel + shortSuffix).
- */
-function generateOptionCode(label: string, taken: Set<string>): string {
-  const base = slugifyLabel(label)
-  for (let attempt = 0; attempt < 10; attempt++) {
-    const code = `${base}_${shortSuffix()}`
-    if (!taken.has(code)) {
-      taken.add(code)
-      return code
-    }
-  }
-  // Astronomically unlikely; fall back to a longer suffix.
-  const code = `${base}_${shortSuffix()}${shortSuffix()}`
-  taken.add(code)
-  return code
-}
-
-/**
  * Insert option rows for a freshly-created choice item (addItem). Generates a
  * stable code per row; position is the array index. The DB triggers fill
  * form_version_id (from the item) and enforce parent-is-choice + unique code.
@@ -1388,9 +1344,12 @@ export async function publishVersion(versionId: string): Promise<ActionState> {
 
   if (error) {
     // validate_visible_when raises check_violation with a descriptive pt-BR
-    // message; the lifecycle "not a draft" check too. Prefer the DB message when
-    // it is the user-facing pt-BR text (it always is here), else a safe default.
-    if (error.code === PG_CHECK_VIOLATION) {
+    // message; the lifecycle "not a draft" check too. answer-model-v2's
+    // default_value validation raises the application code HC080 (not
+    // check_violation) with its own descriptive pt-BR message (BUG-AMV2-001).
+    // Prefer the DB message for either — it is always user-facing pt-BR text
+    // here — else a safe default.
+    if (error.code === PG_CHECK_VIOLATION || error.code === 'HC080') {
       return { ok: false, error: error.message || MESSAGES.publishConditionError }
     }
     return { ok: false, error: MESSAGES.generic }
