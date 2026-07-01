@@ -173,12 +173,27 @@ async function publishForm(page: Page) {
   })
 }
 
-/** Enter a form's wizard from the commission's "Formulários" list, by title. */
+/**
+ * Enter a form's wizard from the commission's "Formulários" list, by title.
+ * Scoped to `article` only (FillableFormCard's root element) — the previous
+ * `article,li,div` selector also matched the page's own outer wrapper `div`
+ * (which contains every card's text), so `.first()` landed on the wrapper
+ * and the click target resolved against the FIRST card on the whole page
+ * instead of the one for `title`.
+ *
+ * "Preencher" (first-time fill — the common case, no existing in_progress
+ * response) renders as a `<button>` (role `button`, `StartFillButton`);
+ * "Continuar preenchimento" (resume) renders as an `<a>` (role `link`). Match
+ * both roles rather than assuming `link`.
+ */
 async function enterWizardByTitle(page: Page, commission: string, title: string) {
   await page.goto(`/o/rede-a/c/${commission}/forms`)
-  const card = page.locator('article,li,div').filter({ hasText: title }).first()
+  const card = page.locator('article').filter({ hasText: title }).first()
   await card.scrollIntoViewIfNeeded()
-  const preencherBtn = card.getByRole('link', { name: /preencher|continuar preenchimento/i })
+  const nameRe = /preencher|continuar preenchimento/i
+  const preencherBtn = card
+    .getByRole('button', { name: nameRe })
+    .or(card.getByRole('link', { name: nameRe }))
   await preencherBtn.first().click()
   await page.waitForURL(/\/responder\//, { timeout: 20_000 })
 }
@@ -541,27 +556,18 @@ test('DV-4 (kept default → ordinary answer): shows on submission detail and co
     timeout: 20_000,
   })
 
-  const responseId = (
-    await serviceQuery<{ id: string }>(
-      page,
-      `responses?form_version_id=in.(select id from form_versions where form_id=eq.${formId})&status=eq.submitted&select=id&order=submitted_at.desc&limit=1`,
-    ).catch(() => [])
-  )[0]?.id
-  // (PostgREST can't do subselects via the querystring; resolve via version id.)
   const versionId = (
     await serviceQuery<{ id: string }>(
       page,
       `form_versions?form_id=eq.${formId}&status=eq.published&select=id`,
     )
   )[0].id
-  const resolvedResponseId =
-    responseId ??
-    (
-      await serviceQuery<{ id: string }>(
-        page,
-        `responses?form_version_id=eq.${versionId}&status=eq.submitted&select=id&order=submitted_at.desc&limit=1`,
-      )
-    )[0].id
+  const resolvedResponseId = (
+    await serviceQuery<{ id: string }>(
+      page,
+      `responses?form_version_id=eq.${versionId}&status=eq.submitted&select=id&order=submitted_at.desc&limit=1`,
+    )
+  )[0].id
 
   // --- DB truth: the kept default persisted as a normal answers row with a
   // selection, indistinguishable from a manually-selected answer -------------
@@ -657,8 +663,14 @@ test('DV-5 (keyboard-only): set a default via keyboard in the builder; fill and 
   const wizardInput = page.getByLabel('Responsável pela vistoria')
   await expect(wizardInput).toHaveValue('Equipe CCIH')
   await wizardInput.focus()
-  // Keyboard-only edit: select-all + retype.
-  await page.keyboard.press('Control+A')
+  // Keyboard-only edit: select-all + retype. `Control+A` is NOT a portable
+  // select-all here — on macOS Chromium it's the Emacs-style "move to line
+  // start" binding (Cmd+A is select-all), so it silently moved the caret
+  // instead of selecting, and the typed text got prepended to the existing
+  // default rather than replacing it. `Home` + `Shift+End` selects the whole
+  // single-line value on every platform/OS keybinding convention.
+  await page.keyboard.press('Home')
+  await page.keyboard.press('Shift+End')
   await page.keyboard.type('Ana Paula (CCIH)')
   await expect(wizardInput).toHaveValue('Ana Paula (CCIH)')
 
