@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import { test, expect, type Page, type Locator } from '@playwright/test'
 
 /**
@@ -66,7 +67,6 @@ const DB_CONTAINER = 'supabase_db_azkbbhskturikxpgmafq'
 
 const COMM_A = 'a0000000-0000-0000-0000-0000000000a1' // CCIH (seeded)
 const UID_CHEFE_A = '00000000-0000-0000-0000-000000000002'
-const UID_STAFF1_A = '00000000-0000-0000-0000-000000000003'
 
 const SPEC_TAG = 'NORM-SPEC'
 
@@ -143,7 +143,6 @@ async function rpcAs<T>(
  */
 function sql(query: string): string {
   const escaped = query.replace(/"/g, '\\"')
-  const { execSync } = require('node:child_process') as typeof import('node:child_process')
   return execSync(
     `docker exec ${DB_CONTAINER} psql -U postgres -d postgres -tA -c "${escaped}"`,
     { encoding: 'utf8' },
@@ -376,7 +375,7 @@ test('NORM-2 (clone): option codes survive a clone; a section condition on an op
   await page.getByRole('button', { name: 'Adicionar seção' }).click()
   const unnamed = page.getByRole('region', { name: 'Seção sem título' })
   await unnamed.getByRole('button', { name: 'Renomear seção' }).click()
-  let rd = page.getByRole('dialog')
+  const rd = page.getByRole('dialog')
   await rd.getByLabel('Título da seção').fill('Detalhes')
   await rd.getByRole('button', { name: 'Salvar' }).click()
   await expect(rd).toBeHidden()
@@ -710,4 +709,162 @@ test('NORM-4 (keyboard-only): reorder options via keyboard and persist the new o
     `form_item_options?item_id=eq.${itemRow.id}&select=label,position&order=position.asc`,
   )
   expect(opts.map((o) => o.label)).toEqual(['Luvas', 'Máscara', 'Avental'])
+})
+
+// ===========================================================================
+// NORM-5 — edit-dialog reorder of EXISTING (already-persisted) options.
+//
+// The QA MAJOR-1 gap: reordering options that already have DB rows goes through
+// updateItem → reconcileOptionRows → the atomic reconcile_item_options RPC.
+// Before the fix, moving a lower option UP into an OCCUPIED slot silently failed
+// with a duplicate-key on the DEFERRABLE unique(item_id, position) (the old
+// per-row position UPDATE loop ran in separate transactions). This exercises the
+// exact repro: create ≥3 options, SAVE, re-open the editor, move a lower option
+// up into an occupied slot, save — and assert the new order PERSISTS after a
+// reload, with every option CODE preserved (stability through the reorder), and
+// a section condition keyed on a reordered option still resolving.
+// ===========================================================================
+
+test('NORM-5 (edit reorder): reordering EXISTING options into an occupied slot persists and preserves codes (QA MAJOR-1)', async ({
+  page,
+}) => {
+  test.setTimeout(180_000)
+  const title = `EditReorder ${SPEC_TAG} ${Date.now()}`
+  await signInAs(page, 'chefe.ccih@test.local')
+  const formId = await createForm(page, title)
+
+  // --- Step 1: create a multiple_choice question with FOUR options and SAVE ---
+  // Saving persists the option rows (positions 0..3), so a subsequent edit
+  // reconciles EXISTING rows (the path that carried the bug), not all-new ones.
+  const d = await openAddBlock(page, page.locator('body'), /Múltipla escolha/)
+  await d.getByLabel('Enunciado da pergunta').fill('Categoria do achado?')
+  await d.getByLabel('Opção 1', { exact: true }).fill('Estrutura')
+  await d.getByRole('button', { name: 'Adicionar opção' }).click()
+  await d.getByLabel('Opção 2', { exact: true }).fill('Processo')
+  await d.getByRole('button', { name: 'Adicionar opção' }).click()
+  await d.getByLabel('Opção 3', { exact: true }).fill('Resultado')
+  await d.getByRole('button', { name: 'Adicionar opção' }).click()
+  await d.getByLabel('Opção 4', { exact: true }).fill('Documentação')
+  await submitAddDialog(d)
+  await expect(page.getByText('Categoria do achado?')).toBeVisible()
+
+  // --- Capture the persisted rows: labels, positions, and stable codes --------
+  type OptRow = { code: string; label: string; position: number }
+  const versionId = (
+    await serviceQuery<{ id: string }>(
+      page,
+      `form_versions?form_id=eq.${formId}&status=eq.draft&select=id`,
+    )
+  )[0].id
+  const itemRow = (
+    await serviceQuery<{ id: string }>(
+      page,
+      `form_items?form_version_id=eq.${versionId}&item_type=eq.multiple_choice&select=id`,
+    )
+  )[0]
+  const before = await serviceQuery<OptRow>(
+    page,
+    `form_item_options?item_id=eq.${itemRow.id}&select=code,label,position&order=position.asc`,
+  )
+  expect(before.map((o) => o.label)).toEqual([
+    'Estrutura',
+    'Processo',
+    'Resultado',
+    'Documentação',
+  ])
+  // Map each label to its DB-frozen code (must survive the reorder verbatim).
+  const codeByLabel = Object.fromEntries(before.map((o) => [o.label, o.code]))
+  const codesBefore = before.map((o) => o.code).sort()
+  // The code we key a condition on — "Documentação", the row we're about to move.
+  const docCode = codeByLabel['Documentação']
+  expect(docCode.trim().length).toBeGreaterThan(0)
+
+  // --- Step 2: re-open the item editor and MOVE "Documentação" (row 4) UP twice
+  // so it lands in slot 2 — an OCCUPIED position (this is the exact repro that
+  // violated the deferred unique(item_id, position) before the atomic RPC). New
+  // order: Estrutura, Documentação, Processo, Resultado.
+  await page.getByRole('button', { name: 'Editar bloco' }).first().click()
+  const ed = page.getByRole('dialog')
+  await expect(ed).toBeVisible({ timeout: 10_000 })
+  await expect(ed.getByLabel('Opção 4', { exact: true })).toHaveValue('Documentação')
+  await ed.getByRole('button', { name: /Mover a opção 4 para cima/i }).click()
+  // Now "Documentação" is at row 3; move it up once more into slot 2.
+  await ed.getByRole('button', { name: /Mover a opção 3 para cima/i }).click()
+  await expect(ed.getByLabel('Opção 2', { exact: true })).toHaveValue('Documentação')
+  await expect(ed.getByLabel('Opção 3', { exact: true })).toHaveValue('Processo')
+  await ed.getByRole('button', { name: 'Salvar' }).click()
+  // Before the fix this Salvar silently failed (duplicate-key) and the dialog
+  // stayed open; with the atomic RPC it closes and the reorder persists.
+  await expect(ed).toBeHidden({ timeout: 30_000 })
+
+  // --- Step 3: assert the new order PERSISTED and codes are byte-for-byte kept
+  const after = await serviceQuery<OptRow>(
+    page,
+    `form_item_options?item_id=eq.${itemRow.id}&select=code,label,position&order=position.asc`,
+  )
+  expect(after.map((o) => o.label)).toEqual([
+    'Estrutura',
+    'Documentação',
+    'Processo',
+    'Resultado',
+  ])
+  // No option was dropped or regenerated — still exactly the four original codes.
+  expect(after.map((o) => o.code).sort()).toEqual(codesBefore)
+  // Each label still carries its ORIGINAL code (stability through the reorder).
+  for (const o of after) expect(o.code).toBe(codeByLabel[o.label])
+  // Positions are a clean 0..3 with no collision.
+  expect(after.map((o) => o.position)).toEqual([0, 1, 2, 3])
+
+  // --- Step 4: the reorder survives a builder RELOAD (persisted, not client-only)
+  await page.reload()
+  await expect(
+    page.getByRole('heading', { level: 1, name: title }),
+  ).toBeVisible({ timeout: 20_000 })
+  await page.getByRole('button', { name: 'Editar bloco' }).first().click()
+  const ed2 = page.getByRole('dialog')
+  await expect(ed2).toBeVisible({ timeout: 10_000 })
+  await expect(ed2.getByLabel('Opção 1', { exact: true })).toHaveValue('Estrutura')
+  await expect(ed2.getByLabel('Opção 2', { exact: true })).toHaveValue('Documentação')
+  await expect(ed2.getByLabel('Opção 3', { exact: true })).toHaveValue('Processo')
+  await expect(ed2.getByLabel('Opção 4', { exact: true })).toHaveValue('Resultado')
+  await ed2.getByRole('button', { name: 'Cancelar' }).click()
+  await expect(ed2).toBeHidden()
+
+  // --- Step 5 (stability): a section condition keyed on the REORDERED option's
+  // code still resolves — add a conditional section shown when "Categoria do
+  // achado?" = "Documentação", publish, and confirm publish-time code-existence
+  // validation passes (the code survived the reorder, so the condition is valid).
+  await page.getByRole('button', { name: 'Adicionar seção' }).click()
+  const unnamed = page.getByRole('region', { name: 'Seção sem título' })
+  await unnamed.getByRole('button', { name: 'Renomear seção' }).click()
+  const rd = page.getByRole('dialog')
+  await rd.getByLabel('Título da seção').fill('Detalhes do achado')
+  await rd.getByRole('button', { name: 'Salvar' }).click()
+  await expect(rd).toBeHidden()
+
+  const detalhes = page.getByRole('region', { name: 'Detalhes do achado' })
+  const dt = await openAddBlock(page, detalhes, /Resposta longa/)
+  await dt.getByLabel('Enunciado da pergunta').fill('Descreva o achado')
+  await submitAddDialog(dt)
+
+  await detalhes
+    .getByRole('button', { name: 'Configurações da seção (condição e assinatura)' })
+    .click()
+  const s = page.getByRole('dialog')
+  await s.getByRole('checkbox', { name: /Exibir somente sob condições/i }).check()
+  await s.locator('select[id$="-target"]').selectOption({ label: 'Categoria do achado?' })
+  await s.locator('select[id$="-value"]').selectOption({ label: 'Documentação' })
+  await s.getByRole('button', { name: 'Salvar' }).click()
+  await expect(s).toBeHidden()
+
+  // The stored condition references the reordered option's CODE (not the label).
+  const cond = await serviceQuery<{ visible_when: unknown }>(
+    page,
+    `form_sections?form_version_id=eq.${versionId}&is_default=eq.false&select=visible_when`,
+  )
+  expect(JSON.stringify(cond)).toContain(docCode)
+
+  // Publish must succeed — the condition's code still resolves to a live option
+  // after the reorder (publish-time code-existence validation is the authority).
+  await publishForm(page)
 })
