@@ -3826,6 +3826,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_admin: boolean
+          must_change_password: boolean
           professional_category_id: string | null
           suspended_until: string | null
         }
@@ -3840,6 +3841,7 @@ export type Database = {
           id: string
           is_active?: boolean
           is_admin?: boolean
+          must_change_password?: boolean
           professional_category_id?: string | null
           suspended_until?: string | null
         }
@@ -3854,6 +3856,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_admin?: boolean
+          must_change_password?: boolean
           professional_category_id?: string | null
           suspended_until?: string | null
         }

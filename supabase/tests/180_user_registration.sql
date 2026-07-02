@@ -23,7 +23,7 @@
 -- The two intentionally differ on the email_confirmed_at dimension.
 
 begin;
-select plan(38);
+select plan(41);
 
 -- Seed persona ids (see supabase/seed.sql).
 create temp table ids on commit drop as select
@@ -50,6 +50,9 @@ select has_column('public', 'profiles', 'hospital_employee_id', 'profiles.hospit
 select has_column('public', 'profiles', 'professional_category_id', 'profiles.professional_category_id exists');
 select has_column('public', 'profiles', 'email_confirmed_at', 'profiles.email_confirmed_at exists');
 select has_column('public', 'profiles', 'suspended_until', 'profiles.suspended_until exists');
+-- Forced initial-password change (migration 20260703000000; ADR 0049).
+select has_column('public', 'profiles', 'must_change_password', 'profiles.must_change_password exists');
+select col_default_is('public', 'profiles', 'must_change_password', 'false', 'profiles.must_change_password defaults false');
 select has_table('public', 'professional_categories', 'professional_categories table exists');
 select has_table('public', 'professional_credentials', 'professional_credentials table exists');
 
@@ -293,6 +296,17 @@ select throws_ok(
 select lives_ok(
   format($$ update public.profiles set full_name = 'Alterado' where id = %L $$, (select u_suspended from ids)),
   'a signed-in user may still edit their own full_name'
+);
+-- must_change_password is service-role-only (ADR 0049): a signed-in user must not
+-- be able to self-mutate it (setting a DIFFERENT value than the seeded false, so
+-- the guard's is-distinct check actually fires — the real skip-attack is a clear,
+-- but the seed persona already has it false; asserting on a genuine change proves
+-- the lock, and a self-clear on a truly-flagged row is the same code path).
+select throws_ok(
+  format($$ update public.profiles set must_change_password = true where id = %L $$, (select u_suspended from ids)),
+  '23514',
+  null,
+  'a signed-in user cannot self-mutate must_change_password'
 );
 reset role;
 

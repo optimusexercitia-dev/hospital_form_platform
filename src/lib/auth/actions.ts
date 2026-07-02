@@ -5,6 +5,7 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { commissionHref, orgHref } from '@/lib/routing'
 import type { Database } from '@/lib/types/database'
 import { deriveUserStatus } from '@/lib/users/types'
@@ -188,7 +189,7 @@ export async function signIn(
   // round trip) to read the lifecycle columns.
   const { data: lifecycle } = await supabase
     .from('profiles')
-    .select('is_active, suspended_until, email_confirmed_at')
+    .select('is_active, suspended_until, email_confirmed_at, must_change_password')
     .eq('id', data.user.id)
     .maybeSingle()
   if (lifecycle) {
@@ -200,6 +201,13 @@ export async function signIn(
     if (status === 'suspended' || status === 'deactivated') {
       await supabase.auth.signOut()
       return { ok: false, error: MESSAGES.accountInactive }
+    }
+    // Forced initial-password change (ADR 0049): the account is active/pending
+    // (inactive already returned above), so KEEP the session and send the user
+    // to rotate the admin-set password before any landing. Precedence mirrors
+    // requireUser: inactive > must-change > normal.
+    if (lifecycle.must_change_password) {
+      redirect('/primeiro-acesso')
     }
   }
 
@@ -287,6 +295,17 @@ export async function updatePassword(
   if (error) {
     return { ok: false, error: MESSAGES.generic }
   }
+
+  // Clear the forced-change flag (ADR 0049). Service-role write scoped to the
+  // caller's own row — consistent with users/actions.ts and independent of the
+  // profiles self-update policy; the column is service-role-only writable
+  // (guard_profile_privileged_columns). Idempotent/harmless for the recovery +
+  // invite flows that also call this action (their flag is already false).
+  const admin = createAdminClient()
+  await admin
+    .from('profiles')
+    .update({ must_change_password: false })
+    .eq('id', user.id)
 
   redirect('/')
 }

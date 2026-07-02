@@ -42,11 +42,19 @@ export function RegisterUserForm({
   categories,
   hospitals,
   commissions,
+  emailVerificationEnabled,
 }: {
   organizationId: string;
   categories: ProfessionalCategory[];
   hospitals: HospitalSummary[];
   commissions: OrgCommissionSummary[];
+  /**
+   * Server-resolved onboarding flag (see `@/lib/config/auth`). When `false`
+   * (default), the admin sets an initial password here and the account is
+   * created active; when `true`, the invite-email flow owns password setup and
+   * this form must NOT collect (or send) a password.
+   */
+  emailVerificationEnabled: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -55,6 +63,7 @@ export function RegisterUserForm({
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [hospitalId, setHospitalId] = useState("");
   const [employeeId, setEmployeeId] = useState("");
@@ -66,6 +75,10 @@ export function RegisterUserForm({
   });
   const emailField = useFieldIds("email", {
     hasError: Boolean(fieldErrors.email),
+  });
+  const passwordField = useFieldIds("password", {
+    hasError: Boolean(fieldErrors.password),
+    hasDescription: true,
   });
   const categoryField = useFieldIds("professionalCategoryId", {
     hasError: Boolean(fieldErrors.professionalCategoryId),
@@ -87,6 +100,9 @@ export function RegisterUserForm({
       professionalCategoryId: categoryId,
       homeHospitalId: hospitalId || null,
       hospitalEmployeeId: employeeId.trim() || null,
+      // Only carry an initial password when the invite-email flow is disabled;
+      // when verification is ON the action ignores it, so we omit it entirely.
+      password: emailVerificationEnabled ? undefined : password,
       credentials: credentials.length > 0 ? credentials : undefined,
       committees:
         committees.length > 0
@@ -156,6 +172,31 @@ export function RegisterUserForm({
           />
           <FieldError id={emailField.errorId}>{fieldErrors.email}</FieldError>
         </Field>
+
+        {!emailVerificationEnabled ? (
+          <Field>
+            <FieldLabel htmlFor={passwordField.controlProps.id}>
+              Senha inicial
+            </FieldLabel>
+            <Input
+              {...passwordField.controlProps}
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <FieldDescription id={passwordField.descriptionId}>
+              Repasse esta senha à pessoa com segurança. A conta é ativada
+              imediatamente e a pessoa poderá alterá-la depois. Mínimo de 8
+              caracteres.
+            </FieldDescription>
+            <FieldError id={passwordField.errorId}>
+              {fieldErrors.password}
+            </FieldError>
+          </Field>
+        ) : null}
 
         <Field>
           <FieldLabel htmlFor={categoryField.controlProps.id}>

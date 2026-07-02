@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isEmailVerificationEnabled } from '@/lib/config/auth'
 
 /**
  * User Registration & Identity Management — server actions.
@@ -67,6 +68,15 @@ export interface RegisterUserInput {
   hospitalEmployeeId?: string | null
   credentials?: CredentialInput[]
   committees?: CommitteeAssignmentInput[]
+  /**
+   * Initial password set by the org admin at registration. REQUIRED only when
+   * email verification is OFF (the default admin-sets-initial-password path;
+   * see `@/lib/config/auth`) — the account is then created ACTIVE and the
+   * credential is relayed to the user out-of-band. IGNORED when email
+   * verification is ON (the user sets their own password via the invite link).
+   * Minimum length 8.
+   */
+  password?: string
 }
 
 /** Editable profile fields on the per-user page (identity email is immutable here). */
@@ -96,13 +106,20 @@ const MESSAGES = {
   emailRequired: 'Informe o e-mail.',
   emailInvalid: 'Informe um e-mail válido.',
   categoryRequired: 'Selecione a categoria profissional.',
+  passwordRequired: 'Informe a senha inicial.',
+  passwordTooShort: 'A senha deve ter pelo menos 8 caracteres.',
   emailCollision: 'Este e-mail já está cadastrado na plataforma.',
   credentialCollision:
     'Este registro profissional já está cadastrado (órgão, UF e número).',
   missingUser: 'Usuário não encontrado.',
   missingCommission: 'Comissão não encontrada.',
-  registered:
+  // ON (email-verification) path: the user activates via an emailed link.
+  registeredInvited:
     'Pessoa registrada. Um e-mail foi enviado para ativar a conta.',
+  // OFF (default) path: the account is created ACTIVE with the admin-set initial
+  // password, relayed to the user out-of-band.
+  registeredActive:
+    'Pessoa registrada e ativada. Informe a senha inicial ao usuário.',
   profileUpdated: 'Dados atualizados com sucesso.',
   credentialSaved: 'Registro profissional salvo.',
   credentialRemoved: 'Registro profissional removido.',
@@ -185,12 +202,20 @@ function revalidateDirectory(): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Register a new user: invite (with `full_name` + `home_organization_id` in
- * user_metadata so handle_new_user anchors the profile at creation), then write
- * the profile fields + credential rows + committee memberships — all on the
- * service-role client. Blocks an email collision with a clear pt-BR error (never
- * absorbs/overwrites another identity). A write failure after the invite is
- * surfaced, never swallowed.
+ * Register a new user, then write the profile fields + credential rows +
+ * committee memberships — all on the service-role client. Blocks an email
+ * collision with a clear pt-BR error (never absorbs/overwrites another
+ * identity). A write failure after user creation is surfaced, never swallowed.
+ *
+ * The user-creation step branches on the email-verification flag
+ * (`isEmailVerificationEnabled`, default OFF):
+ *   - OFF — `createUser` with the admin-supplied initial `password` and
+ *     `email_confirm: true`, so the account is ACTIVE immediately (the denorm
+ *     trigger propagates email_confirmed_at → status `active`).
+ *   - ON — the historical `inviteUserByEmail` path (user sets their own password
+ *     via the emailed link).
+ * Both paths seed `full_name` + `home_organization_id` in user_metadata, which
+ * `handle_new_user` reads identically to anchor the profile at creation.
  */
 export async function registerUser(
   input: RegisterUserInput,
@@ -202,12 +227,20 @@ export async function registerUser(
     return { ok: false, error: MESSAGES.forbidden }
   }
 
+  const emailVerification = isEmailVerificationEnabled()
+
   const fieldErrors: Record<string, string> = {}
   if (!fullName) fieldErrors.fullName = MESSAGES.nameRequired
   if (!email) fieldErrors.email = MESSAGES.emailRequired
   else if (!EMAIL_PATTERN.test(email)) fieldErrors.email = MESSAGES.emailInvalid
   if (!input.professionalCategoryId)
     fieldErrors.professionalCategoryId = MESSAGES.categoryRequired
+  // When email verification is OFF, the admin sets the initial password now.
+  if (!emailVerification) {
+    if (!input.password) fieldErrors.password = MESSAGES.passwordRequired
+    else if (input.password.length < 8)
+      fieldErrors.password = MESSAGES.passwordTooShort
+  }
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, fieldErrors }
   }
@@ -228,30 +261,54 @@ export async function registerUser(
     return { ok: false, fieldErrors: { email: MESSAGES.emailCollision } }
   }
 
-  const origin = await appOrigin()
-
-  // Invite: metadata seeds full_name + the org anchor (service-role-set-once;
-  // handle_new_user reads it — NOT an authz input). The invite mail links to
-  // /auth/confirm → /convite (the existing activation flow).
-  const { data: invite, error: inviteError } =
-    await admin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: `${origin}/auth/confirm`,
-      data: {
-        full_name: fullName,
-        home_organization_id: input.homeOrganizationId,
-      },
-    })
-  if (inviteError || !invite?.user) {
-    // A duplicate-email race surfaces here too — treat as collision when the
-    // admin API reports the user already exists, else generic.
-    const msg = inviteError?.message?.toLowerCase() ?? ''
-    if (msg.includes('already') || msg.includes('registered')) {
-      return { ok: false, fieldErrors: { email: MESSAGES.emailCollision } }
-    }
-    return { ok: false, error: MESSAGES.generic }
+  // metadata seeds full_name + the org anchor (service-role-set-once;
+  // handle_new_user reads both keys identically for createUser and
+  // inviteUserByEmail — NOT an authz input). A duplicate-email race surfaces
+  // from either admin call; treat "already"/"registered" as a collision.
+  const metadata = {
+    full_name: fullName,
+    home_organization_id: input.homeOrganizationId,
   }
 
-  const userId = invite.user.id
+  let userId: string
+  if (emailVerification) {
+    // ON: invite mail links to /auth/confirm → /convite (the activation flow;
+    // the user sets their own password there).
+    const origin = await appOrigin()
+    const { data: invite, error: inviteError } =
+      await admin.auth.admin.inviteUserByEmail(email, {
+        redirectTo: `${origin}/auth/confirm`,
+        data: metadata,
+      })
+    if (inviteError || !invite?.user) {
+      const msg = inviteError?.message?.toLowerCase() ?? ''
+      if (msg.includes('already') || msg.includes('registered')) {
+        return { ok: false, fieldErrors: { email: MESSAGES.emailCollision } }
+      }
+      return { ok: false, error: MESSAGES.generic }
+    }
+    userId = invite.user.id
+  } else {
+    // OFF (default): create the user ACTIVE with the admin-set initial password.
+    // email_confirm:true stamps auth.users.email_confirmed_at, which the denorm
+    // trigger propagates to profiles → status derives to `active`.
+    const { data: created, error: createError } =
+      await admin.auth.admin.createUser({
+        email,
+        // Validated non-empty (min 8) above when the flag is OFF.
+        password: input.password!,
+        email_confirm: true,
+        user_metadata: metadata,
+      })
+    if (createError || !created?.user) {
+      const msg = createError?.message?.toLowerCase() ?? ''
+      if (msg.includes('already') || msg.includes('registered')) {
+        return { ok: false, fieldErrors: { email: MESSAGES.emailCollision } }
+      }
+      return { ok: false, error: MESSAGES.generic }
+    }
+    userId = created.user.id
+  }
 
   // Patch the profile fields the trigger did not set (category / hospital /
   // matrícula). full_name + home_organization_id already landed via metadata.
@@ -262,6 +319,10 @@ export async function registerUser(
       professional_category_id: input.professionalCategoryId,
       home_hospital_id: input.homeHospitalId ?? null,
       hospital_employee_id: input.hospitalEmployeeId ?? null,
+      // Flag-OFF path only: the admin set the initial password, so force the user
+      // to rotate it at /primeiro-acesso before using the app (ADR 0049). The
+      // flag-ON invite path leaves it false (the user sets their own at /convite).
+      must_change_password: !emailVerification,
     })
     .eq('id', userId)
   if (profileError) {
@@ -317,7 +378,12 @@ export async function registerUser(
   }
 
   revalidateDirectory()
-  return { ok: true, error: MESSAGES.registered }
+  return {
+    ok: true,
+    error: emailVerification
+      ? MESSAGES.registeredInvited
+      : MESSAGES.registeredActive,
+  }
 }
 
 /** Edit an existing user's profile fields (name / category / hospital / matrícula). */

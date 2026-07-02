@@ -16,6 +16,12 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      // The real `server-only` package throws when imported from Vitest's
+      // client-module context; stub it so server-only helpers can be unit-tested
+      // without weakening the runtime guard in app code.
+      'server-only': fileURLToPath(
+        new URL('./test/stubs/server-only.ts', import.meta.url),
+      ),
     },
   },
 })

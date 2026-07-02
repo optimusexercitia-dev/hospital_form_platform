@@ -61,6 +61,13 @@ export interface SessionContext {
   status: UserStatus
   /** Convenience: `status` is `suspended` or `deactivated`. */
   isInactive: boolean
+  /**
+   * True when the user must set a new password before using the app — the
+   * flag-OFF (admin-set-initial-password) registration path (ADR 0049). Gated by
+   * `requireUser()` (→ `/primeiro-acesso`) AFTER the inactive check, so precedence
+   * is `inactive` > `must-change` > normal. Cleared by `updatePassword`.
+   */
+  mustChangePassword: boolean
   /** Sorted by commission.name (pt-BR locale). */
   memberships: Membership[]
   /**
@@ -99,7 +106,9 @@ export async function getSessionContext(): Promise<SessionContext | null> {
   const [profileResult, membershipResult, orgAdminResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('full_name, is_active, suspended_until, email_confirmed_at')
+      .select(
+        'full_name, is_active, suspended_until, email_confirmed_at, must_change_password',
+      )
       .eq('id', userId)
       .maybeSingle(),
     // The nested `organization:organizations(...)` select resolves the parent org
@@ -164,6 +173,9 @@ export async function getSessionContext(): Promise<SessionContext | null> {
       )
     : 'active'
   const isInactive = status === 'suspended' || status === 'deactivated'
+  // Default false on a profile read miss (same rationale as `status`): never trap
+  // a valid session on an anomalous read. The real column defaults false anyway.
+  const mustChangePassword = profile?.must_change_password ?? false
 
   return {
     userId,
@@ -172,15 +184,18 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     isAdmin,
     status,
     isInactive,
+    mustChangePassword,
     memberships,
     orgAdminOf,
   }
 }
 
 /**
- * Returns the session context, redirecting to `/login` when unauthenticated and
- * to `/conta-inativa` when the account is suspended/deactivated (BE-6). For
- * protected Server Components that need the user but not a specific commission.
+ * Returns the session context, redirecting to `/login` when unauthenticated, to
+ * `/conta-inativa` when the account is suspended/deactivated (BE-6), and to
+ * `/primeiro-acesso` when the user must rotate an admin-set initial password
+ * (ADR 0049; checked AFTER inactive, so precedence is inactive > must-change).
+ * For protected Server Components that need the user but not a specific commission.
  * Middleware is the coarse gate; this is the defensive server-side check for
  * components rendered behind it — and, for a user deactivated/suspended
  * MID-SESSION (still holding a valid JWT), the effective lock-out point on any
@@ -193,6 +208,12 @@ export async function requireUser(): Promise<SessionContext> {
   }
   if (context.isInactive) {
     redirect('/conta-inativa')
+  }
+  // Precedence: inactive > must-change > normal. A user on the admin-set-initial-
+  // password path (ADR 0049) is pulled to /primeiro-acesso until they rotate it.
+  // The page itself reads getSessionContext() (not requireUser) to avoid a loop.
+  if (context.mustChangePassword) {
+    redirect('/primeiro-acesso')
   }
   return context
 }

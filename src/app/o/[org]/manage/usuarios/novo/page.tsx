@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { getSessionContext } from "@/lib/queries/session";
 import { listHospitalsForOrg, listCommissionsForOrg } from "@/lib/queries/org";
 import { listProfessionalCategories } from "@/lib/queries/org-users";
+import { isEmailVerificationEnabled } from "@/lib/config/auth";
 import { orgHref } from "@/lib/routing";
 import { RegisterUserForm } from "@/components/users/register-user-form";
 
@@ -43,6 +44,12 @@ export default async function OrgRegisterUserPage({
     listCommissionsForOrg(organization.id),
   ]);
 
+  // Server-only onboarding flag: when email verification is OFF (default), the
+  // admin sets an initial password and the account is created active; when ON,
+  // the invite-email flow returns. Read here so the helper never leaks into the
+  // client bundle.
+  const emailVerificationEnabled = isEmailVerificationEnabled();
+
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-3">
@@ -59,8 +66,9 @@ export default async function OrgRegisterUserPage({
           </p>
           <h1 className="text-3xl text-balance">Registrar pessoa</h1>
           <p className="max-w-prose text-muted-foreground text-pretty">
-            A pessoa recebe um convite por e-mail para verificar o endereço e
-            definir uma senha. O status começa como pendente até a ativação.
+            {emailVerificationEnabled
+              ? "A pessoa recebe um convite por e-mail para verificar o endereço e definir uma senha. O status começa como pendente até a ativação."
+              : "Defina uma senha inicial para a pessoa. A conta é ativada imediatamente e o acesso deve ser repassado com segurança — a pessoa pode alterar a senha depois."}
           </p>
         </div>
       </header>
@@ -71,6 +79,7 @@ export default async function OrgRegisterUserPage({
           categories={categories}
           hospitals={hospitals}
           commissions={commissions}
+          emailVerificationEnabled={emailVerificationEnabled}
         />
       </div>
     </div>
