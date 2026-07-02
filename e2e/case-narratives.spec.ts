@@ -5,7 +5,7 @@ import { test, expect, type Page } from '@playwright/test'
  *
  * Test contract: translates every bullet in the §7.3 acceptance criteria into
  * Playwright assertions. Covers:
- *   1. Coordinator defines a narrative TYPE in Configurações → Narrativas.
+ *   1. Coordinator defines a narrative TYPE in Construtor → Narrativas.
  *   2. Builder: add narrative slot + mark `is_expected`; reorder so a narrative
  *      sits between two phase-slots; publish.
  *   3. Case detail interleave: fase / narrativa / fase by display_position.
@@ -248,16 +248,19 @@ async function createDraftTemplate(page: Page, token: string, title: string): Pr
 }
 
 // ---------------------------------------------------------------------------
-// AC-1 — Define a narrative type in Configurações → Narrativas
+// AC-1 — Define a narrative type in Construtor → Narrativas
+//        NOTE: the narrative-type vocabulary manager moved from Configurações to
+//        the Construtor page as the "Narrativas" tab (commit 6a20327). The route
+//        is now `manage/forms/narrativas` with a "Construtor" heading.
 // ---------------------------------------------------------------------------
 
-test('AC-1: coordinator creates a narrative type in Configurações → Narrativas', async ({ page }) => {
+test('AC-1: coordinator creates a narrative type in Construtor → Narrativas', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`${BASE}/manage/settings/narrativas`)
-  await page.waitForURL(`**/settings/narrativas`, { timeout: 15_000 })
+  await page.goto(`${BASE}/manage/forms/narrativas`)
+  await page.waitForURL(`**/forms/narrativas`, { timeout: 15_000 })
 
   // The page must render (flag ON). The vocabulary manager is present.
-  await expect(page.getByRole('heading', { name: /Configurações/i })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: /Construtor/i })).toBeVisible({ timeout: 10_000 })
 
   // The seeded types should already be listed. Use exact:true to avoid strict-mode
   // violations from the description text that contains the label as a substring.
@@ -302,11 +305,11 @@ test('AC-1: coordinator creates a narrative type in Configurações → Narrativ
 
 test('AC-1b: rename a narrative type — new label persists in list and after reload', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`${BASE}/manage/settings/narrativas`)
-  await page.waitForURL(`**/settings/narrativas`, { timeout: 15_000 })
+  await page.goto(`${BASE}/manage/forms/narrativas`)
+  await page.waitForURL(`**/forms/narrativas`, { timeout: 15_000 })
 
   // Wait for the manager to render.
-  await expect(page.getByRole('heading', { name: /Configurações/i })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: /Construtor/i })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('Resumo Clínico', { exact: true })).toBeVisible()
 
   // Click the edit (Pencil) button for "Resumo Clínico".
@@ -341,7 +344,7 @@ test('AC-1b: rename a narrative type — new label persists in list and after re
 
   // Reload to confirm the rename survived a server round-trip (not just local state).
   await page.reload()
-  await page.waitForURL(`**/settings/narrativas`, { timeout: 10_000 })
+  await page.waitForURL(`**/forms/narrativas`, { timeout: 10_000 })
   await expect(page.getByText(renamedLabel, { exact: true })).toBeVisible({ timeout: 10_000 })
   await expect(page.getByText('Resumo Clínico', { exact: true })).not.toBeVisible()
 
@@ -813,12 +816,12 @@ test('AC-8: keyboard-only fill of a narrative card', async ({ page }) => {
 })
 
 // ---------------------------------------------------------------------------
-// AC-FLAG — Flag-gating: the Narrativas settings route returns 200 with flag ON
+// AC-FLAG — Flag-gating: the Narrativas Construtor route returns 200 with flag ON
 // ---------------------------------------------------------------------------
 
-test('AC-FLAG: narrativas settings route is accessible with flag ON', async ({ page }) => {
+test('AC-FLAG: narrativas Construtor route is accessible with flag ON', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`${BASE}/manage/settings/narrativas`)
+  await page.goto(`${BASE}/manage/forms/narrativas`)
   // The page must load without 404/redirect.
   await expect(page).not.toHaveURL(/login|not-found/i)
   // The NarrativeTypeManager component renders.
@@ -829,10 +832,10 @@ test('AC-FLAG: narrativas settings route is accessible with flag ON', async ({ p
 // AC-SECURITY — Foreign coordinator cannot access another commission's narratives
 // ---------------------------------------------------------------------------
 
-test('AC-SECURITY: foreign coordinator cannot reach CCIH narratives settings', async ({ page }) => {
+test('AC-SECURITY: foreign coordinator cannot reach CCIH narratives Construtor', async ({ page }) => {
   // chefe.farm is staff_admin of Farmácia (commission B), not CCIH.
   await signInAs(page, 'chefe.farm@test.local')
-  await page.goto(`${BASE}/manage/settings/narrativas`)
+  await page.goto(`${BASE}/manage/forms/narrativas`)
   // The route should 404 (notFound() in the page server component).
   // Either the URL changes to a not-found path or the heading is absent.
   // We assert the NarrativeTypeManager is NOT rendered.
