@@ -14,6 +14,7 @@ import {
   Layers,
   LayoutDashboard,
   ListChecks,
+  ListTodo,
   Menu,
   PencilLine,
   PenLine,
@@ -66,6 +67,12 @@ interface NavItem {
   /** When set, the item only renders if this feature flag is on (Phase 10+). */
   requiresFeature?: "meetings" | "audit" | "patient_safety" | "case_referrals";
   /**
+   * When true, the item renders only if `actionItemsEnabled` is on — the composite
+   * flag `cases_extras OR meetings` resolved by the layout (the two action-item
+   * sources). Not a single `requiresFeature` key because it's an OR of two flags.
+   */
+  requiresActionItems?: boolean;
+  /**
    * Gates this item on the `case_access` flag (Case Access Control, ADR 0033):
    *  - `"on"`  → render only when the flag is ON ("Meus Casos").
    *  - `"off"` → render only when the flag is OFF ("Minhas fases", today's item).
@@ -111,6 +118,14 @@ const NAV_GROUPS: NavGroup[] = [
         href: "respostas",
         icon: ListChecks,
         roles: ["staff", "staff_admin"],
+      },
+      {
+        // Shown when either action-item source is on (`cases_extras` OR `meetings`).
+        label: "Meus itens de ação",
+        href: "meus-itens-de-acao",
+        icon: ListTodo,
+        roles: ["staff", "staff_admin"],
+        requiresActionItems: true,
       },
       {
         // Flag `case_access` OFF → today's "Minhas fases" (active assigned phases).
@@ -221,6 +236,7 @@ export function AppSidebar({
   patientSafetyEnabled = false,
   referralsEnabled = false,
   caseAccessEnabled = false,
+  actionItemsEnabled = false,
   isNspCoordinator = false,
   isPqsMember = false,
 }: {
@@ -251,6 +267,11 @@ export function AppSidebar({
    * (OFF) ↔ "Meus Casos" (ON) inverse swap; default `false` keeps today's nav.
    */
   caseAccessEnabled?: boolean;
+  /**
+   * Whether the "Meus itens de ação" item shows — the composite `cases_extras OR
+   * meetings` flag resolved by the layout (its two action-item sources).
+   */
+  actionItemsEnabled?: boolean;
   /** Whether the current user is the org's NSP coordinator (curates the PQS roster). */
   isNspCoordinator?: boolean;
   /** Whether the current user is enrolled as a PQS member (may read PHI in the console). */
@@ -272,6 +293,7 @@ export function AppSidebar({
       return false;
     if (item.requiresFeature === "case_referrals" && !referralsEnabled)
       return false;
+    if (item.requiresActionItems && !actionItemsEnabled) return false;
     // The "Minhas fases" / "Meus Casos" inverse pair: one shows per the flag.
     if (item.caseAccess === "on" && !caseAccessEnabled) return false;
     if (item.caseAccess === "off" && caseAccessEnabled) return false;

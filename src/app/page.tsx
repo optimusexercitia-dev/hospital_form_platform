@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { signOut } from "@/lib/auth/actions";
 import { getSessionContext } from "@/lib/queries/session";
 import { commissionHref, orgHref } from "@/lib/routing";
 
@@ -73,13 +74,18 @@ function NoAccess({ email }: { email: string }) {
         Sua conta ({email}) ainda não está vinculada a nenhuma comissão. Fale
         com o administrador da sua instituição para receber acesso.
       </p>
-      {/* Escape hatch so the user isn't stuck — go to login to switch accounts. */}
-      <a
-        href="/login"
-        className="rounded-lg px-4 py-2 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-      >
-        Entrar com outra conta
-      </a>
+      {/* Escape hatch so the user isn't stuck — sign out first (a plain link to
+          /login would be bounced straight back here: the proxy redirects any
+          still-authenticated session away from /login, per AUTHED_REDIRECT_AWAY
+          in src/proxy.ts) then land on login to switch accounts. */}
+      <form action={signOut}>
+        <button
+          type="submit"
+          className="rounded-lg px-4 py-2 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+        >
+          Entrar com outra conta
+        </button>
+      </form>
     </main>
   );
 }

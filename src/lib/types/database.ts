@@ -6849,6 +6849,7 @@ export type Database = {
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_case_patient: { Args: { p_case_id: string }; Returns: Json }
       get_event_patient: { Args: { p_event_id: string }; Returns: Json }
+      get_member_overview: { Args: { p_commission: string }; Returns: Json }
       get_patient_trajectory_for_entity: {
         Args: { p_entity_id: string; p_module: string }
         Returns: Json
@@ -6967,6 +6968,7 @@ export type Database = {
           status: string
         }[]
       }
+      list_my_action_items: { Args: { p_commission: string }; Returns: Json }
       list_my_cases: { Args: { p_commission: string }; Returns: Json }
       list_org_eligible_users_for_pqs: {
         Args: { p_org_id: string }

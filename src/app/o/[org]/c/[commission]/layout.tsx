@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg, getNspAccessByOrg } from "@/lib/queries/session";
 import {
+  casesExtrasEnabled,
   listCasesBoard,
   listMyAssignedPhases,
   listMyCases,
@@ -67,15 +68,27 @@ export default async function CommissionLayout({
   // The case_access flag swaps the "Minhas fases" badge for "Meus Casos" (ADR 0033).
   // The case_referrals flag gates the "Encaminhamentos" nav item + its actionable
   // badge. When off, skip the actionable-count read entirely.
-  const [meetingsOn, auditOn, patientSafetyOn, caseAccessOn, referralsOn, nspAccess] =
-    await Promise.all([
-      meetingsEnabled(),
-      auditTrailEnabled(),
-      patientSafetyEnabled(),
-      caseAccessEnabled(),
-      referralsEnabled(),
-      getNspAccessByOrg(org),
-    ]);
+  const [
+    meetingsOn,
+    auditOn,
+    patientSafetyOn,
+    caseAccessOn,
+    referralsOn,
+    casesExtrasOn,
+    nspAccess,
+  ] = await Promise.all([
+    meetingsEnabled(),
+    auditTrailEnabled(),
+    patientSafetyEnabled(),
+    caseAccessEnabled(),
+    referralsEnabled(),
+    casesExtrasEnabled(),
+    getNspAccessByOrg(org),
+  ]);
+
+  // "Meus itens de ação" surfaces items from the case + meeting sources, so its
+  // nav item shows when EITHER source flag is on.
+  const actionItemsOn = casesExtrasOn || meetingsOn;
 
   // The "my work" count is the badge for whichever nav item the flag selects:
   // OFF → "Minhas fases" (active assigned phases, today's read); ON → "Meus Casos"
@@ -138,6 +151,7 @@ export default async function CommissionLayout({
         patientSafetyEnabled={patientSafetyOn}
         referralsEnabled={referralsOn}
         caseAccessEnabled={caseAccessOn}
+        actionItemsEnabled={actionItemsOn}
         isNspCoordinator={nspAccess?.isCoordinator ?? false}
         isPqsMember={nspAccess?.isPqsMember ?? false}
       />
