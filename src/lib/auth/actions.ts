@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { commissionHref, orgHref } from '@/lib/routing'
 import type { Database } from '@/lib/types/database'
+import { deriveUserStatus } from '@/lib/users/types'
 
 /**
  * Auth server actions (Architecture Rules 9 & 10). All supabase-js for auth
@@ -38,6 +39,12 @@ const MESSAGES = {
   // account exists for the given e-mail (account-enumeration guard).
   resetSent:
     'Se houver uma conta com esse e-mail, enviamos as instruções para redefinir a senha.',
+  // Shown when a valid credential belongs to a suspended/deactivated account.
+  // The session is signed out immediately so no session is established (the
+  // primary gate; BE-6). Wording is the same for both states so it does not leak
+  // which lifecycle state the account is in.
+  accountInactive:
+    'Sua conta está suspensa/desativada. Contate o administrador da sua organização.',
 } as const
 
 const MIN_PASSWORD_LENGTH = 8
@@ -171,6 +178,29 @@ export async function signIn(
         ? MESSAGES.invalidCredentials
         : MESSAGES.generic
     return { ok: false, error: message }
+  }
+
+  // Primary inactive-account gate (BE-6). Credentials are valid, but a
+  // suspended/deactivated account must NOT get a session — sign out immediately
+  // and return the pt-BR notice. Doing it here (no session established) avoids the
+  // redirect loop a bare-null getSessionContext would cause against the
+  // login-bounce middleware. Uses the SAME authenticated client (no extra GoTrue
+  // round trip) to read the lifecycle columns.
+  const { data: lifecycle } = await supabase
+    .from('profiles')
+    .select('is_active, suspended_until, email_confirmed_at')
+    .eq('id', data.user.id)
+    .maybeSingle()
+  if (lifecycle) {
+    const status = deriveUserStatus(
+      lifecycle.is_active,
+      lifecycle.suspended_until,
+      lifecycle.email_confirmed_at,
+    )
+    if (status === 'suspended' || status === 'deactivated') {
+      await supabase.auth.signOut()
+      return { ok: false, error: MESSAGES.accountInactive }
+    }
   }
 
   // Resolve the landing on the authenticated client we already hold (no extra

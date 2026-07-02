@@ -1,0 +1,48 @@
+<!--
+  Password-recovery email (pt-BR). Links to the server-side /auth/confirm handler
+  with the token_hash + type=recovery query shape (the canonical @supabase/ssr
+  pattern), NOT the default confirmation-URL, which without PKCE emits an
+  implicit-flow hash fragment the server route cannot read (BUG-UREG-002).
+  /auth/confirm calls verifyOtp(token_hash, type) and forwards to
+  /redefinir-senha for the new-password set.
+
+  IMPORTANT: do NOT put Go template actions (the double-brace TokenHash/SiteURL
+  syntax) inside an HTML comment — html/template parses them in a comment context
+  and fails to send ("ends in a non-text context"). Keep them in the body only.
+
+  PROD NOTE (Phase-9 deploy dependency): self-hosted config templates are NOT
+  auto-applied to Supabase Cloud — paste this into Dashboard -> Auth -> Email
+  Templates, keeping the TokenHash + type=recovery link shape.
+-->
+<h2>Redefinir sua senha</h2>
+
+<p>Recebemos um pedido para redefinir a senha da sua conta.</p>
+
+<p>Para escolher uma nova senha, clique no botão abaixo:</p>
+
+<p>
+  <a
+    href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery"
+    style="display:inline-block;padding:12px 20px;background-color:#1f2937;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;"
+  >
+    Redefinir senha
+  </a>
+</p>
+
+<p>
+  Se o botão não funcionar, copie e cole este endereço no seu navegador:<br />
+  <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery">
+    {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery
+  </a>
+</p>
+
+<!--
+  Expiry copy is intentionally GENERIC (see invite.html) so it does not drift from
+  config.toml [auth.email] otp_expiry (currently 3600s = 1h). Kept ABOVE the final
+  <p> so the template ENDS in a text context (html/template rejects a template that
+  ends inside a comment: "ends in a non-text context").
+-->
+<p style="color:#6b7280;font-size:13px;">
+  Se você não pediu para redefinir sua senha, ignore este e-mail — sua senha
+  permanecerá inalterada. O link expira por segurança.
+</p>

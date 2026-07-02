@@ -249,11 +249,24 @@ export async function assignStaffAdmin(
   const admin = createAdminClient()
   const origin = await appOrigin()
 
+  // The commission's denormalized (non-drifting) org anchors a freshly-invited
+  // tenant user's profile — the deferred anchor invariant requires it.
+  const { data: commission } = await admin
+    .from('commissions')
+    .select('organization_id')
+    .eq('id', commissionId)
+    .maybeSingle()
+  const orgId = commission?.organization_id
+  if (!orgId) {
+    return { ok: false, error: MESSAGES.missingCommission }
+  }
+
   try {
     const { userId } = await resolveOrInviteUser(
       admin,
       email,
       `${origin}/auth/confirm`,
+      orgId,
     )
 
     // Hard-coded role: 'staff_admin'. Upsert is idempotent on the

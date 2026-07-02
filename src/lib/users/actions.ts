@@ -1,0 +1,551 @@
+'use server'
+
+import { headers } from 'next/headers'
+import { revalidatePath } from 'next/cache'
+
+import { getSessionContext } from '@/lib/queries/session'
+import { createAdminClient } from '@/lib/supabase/admin'
+
+/**
+ * User Registration & Identity Management — server actions.
+ *
+ * All writes run on the SERVICE-ROLE client (`createAdminClient()`), because
+ * registering a user (invite + cross-user profile/credential/committee write) and
+ * managing another user's lifecycle inherently require bypassing RLS. Each action
+ * therefore re-verifies, server-side and ORG-SCOPED, that the caller is an
+ * `org_admin` of the target's `home_organization_id` BEFORE any write — the
+ * service-role path has no RLS backstop, so this TS check is the only authority
+ * (mirrors `@/lib/members/actions`). The platform_admin (`isAdmin`) is NOT
+ * authorized here — it is walled off from tenant data (ADR 0041).
+ *
+ * All user-facing strings are pt-BR; raw Supabase/Postgres errors NEVER reach the
+ * UI (CLAUDE.md §8). Mutations are audit-logged by the DB triggers (Rule 11).
+ *
+ * Signatures + input types are STABLE (frontend built against them).
+ */
+
+export interface ActionState {
+  ok: boolean
+  error?: string
+  fieldErrors?: Record<string, string>
+}
+
+// ---------------------------------------------------------------------------
+// Input DTOs — the shapes the frontend forms build and submit.
+// ---------------------------------------------------------------------------
+
+/** A single professional-credential row as entered in the register/edit form. */
+export interface CredentialInput {
+  issuingCountry: string
+  issuingState: string
+  issuingAuthority: string
+  registrationNumber: string
+  /** Optional expiry. */
+  expiresOn?: string | null
+}
+
+/** One committee + role assignment (0..N per user; plan Q8). */
+export interface CommitteeAssignmentInput {
+  commissionId: string
+  role: 'staff' | 'staff_admin'
+}
+
+/**
+ * Register-user payload. Required: `fullName`, `email`, `professionalCategoryId`
+ * (plan Q10). Everything else optional. `homeOrganizationId` anchors the user and
+ * scopes the caller's authorization. The whole write (invite + profile +
+ * credentials + committees) is ATOMIC in one action; an email collision BLOCKS
+ * with a clear pt-BR error (plan Q11); a failed write is never swallowed
+ * ([[phi-write-atomic-with-create]]).
+ */
+export interface RegisterUserInput {
+  homeOrganizationId: string
+  fullName: string
+  email: string
+  professionalCategoryId: string
+  homeHospitalId?: string | null
+  hospitalEmployeeId?: string | null
+  credentials?: CredentialInput[]
+  committees?: CommitteeAssignmentInput[]
+}
+
+/** Editable profile fields on the per-user page (identity email is immutable here). */
+export interface UpdateUserProfileInput {
+  userId: string
+  fullName: string
+  professionalCategoryId: string | null
+  homeHospitalId?: string | null
+  hospitalEmployeeId?: string | null
+}
+
+/** Create-or-update a single credential. `id` present ⇒ update (which CLEARS `verified_at`). */
+export interface UpsertCredentialInput extends CredentialInput {
+  userId: string
+  /** Present when editing an existing credential; absent when adding a new one. */
+  id?: string
+}
+
+// ---------------------------------------------------------------------------
+// pt-BR copy + shared helpers.
+// ---------------------------------------------------------------------------
+
+const MESSAGES = {
+  forbidden: 'Você não tem permissão para esta ação.',
+  generic: 'Não foi possível concluir. Tente novamente.',
+  nameRequired: 'Informe o nome completo.',
+  emailRequired: 'Informe o e-mail.',
+  emailInvalid: 'Informe um e-mail válido.',
+  categoryRequired: 'Selecione a categoria profissional.',
+  emailCollision: 'Este e-mail já está cadastrado na plataforma.',
+  credentialCollision:
+    'Este registro profissional já está cadastrado (órgão, UF e número).',
+  missingUser: 'Usuário não encontrado.',
+  missingCommission: 'Comissão não encontrada.',
+  registered:
+    'Pessoa registrada. Um e-mail foi enviado para ativar a conta.',
+  profileUpdated: 'Dados atualizados com sucesso.',
+  credentialSaved: 'Registro profissional salvo.',
+  credentialRemoved: 'Registro profissional removido.',
+  committeeAssigned: 'Comissão atribuída com sucesso.',
+  committeeRemoved: 'Comissão removida com sucesso.',
+  deactivated: 'Conta desativada.',
+  reactivated: 'Conta reativada.',
+  suspended: 'Conta suspensa.',
+  inviteResent: 'Convite reenviado.',
+} as const
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+const USUARIOS_PATH = '/o/[org]/manage/usuarios'
+
+async function appOrigin(): Promise<string> {
+  const h = await headers()
+  const origin = h.get('origin')
+  if (origin) return origin
+  const host = h.get('host') ?? '127.0.0.1:3000'
+  const proto = h.get('x-forwarded-proto') ?? 'http'
+  return `${proto}://${host}`
+}
+
+/**
+ * Authorize an org-scoped user-management action: the caller must be an
+ * `org_admin` of `orgId`. Returns false (deny) otherwise. The platform_admin is
+ * DELIBERATELY not admitted (vendor isolation; ADR 0041). This is the ONLY
+ * authority on the service-role path — the client is never trusted.
+ */
+async function authorizeOrgOps(orgId: string): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context) return false
+  if (context.isInactive) return false
+  return context.orgAdminOf.some((o) => o.organization.id === orgId)
+}
+
+/**
+ * Resolve the target user's home org, then authorize the caller as its org_admin.
+ * Used by the per-user lifecycle/credential/committee actions, which take a
+ * `userId` rather than an org id. Reads the profile on the service-role client so
+ * a foreign caller (who could not SELECT the row) still gets a correct deny.
+ */
+async function authorizeForUser(
+  userId: string,
+): Promise<{ ok: boolean; orgId?: string }> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('profiles')
+    .select('home_organization_id')
+    .eq('id', userId)
+    .maybeSingle()
+  const orgId = data?.home_organization_id ?? undefined
+  if (!orgId) return { ok: false }
+  return { ok: await authorizeOrgOps(orgId), orgId }
+}
+
+/** Resolve the target commission's org, then authorize the caller as its org_admin. */
+async function authorizeForCommission(
+  commissionId: string,
+): Promise<boolean> {
+  const admin = createAdminClient()
+  const { data } = await admin
+    .from('commissions')
+    .select('organization_id')
+    .eq('id', commissionId)
+    .maybeSingle()
+  const orgId = data?.organization_id ?? undefined
+  if (!orgId) return false
+  return authorizeOrgOps(orgId)
+}
+
+function revalidateDirectory(): void {
+  revalidatePath(USUARIOS_PATH, 'page')
+  revalidatePath(`${USUARIOS_PATH}/[userId]`, 'page')
+}
+
+// ---------------------------------------------------------------------------
+// Actions.
+// ---------------------------------------------------------------------------
+
+/**
+ * Register a new user: invite (with `full_name` + `home_organization_id` in
+ * user_metadata so handle_new_user anchors the profile at creation), then write
+ * the profile fields + credential rows + committee memberships — all on the
+ * service-role client. Blocks an email collision with a clear pt-BR error (never
+ * absorbs/overwrites another identity). A write failure after the invite is
+ * surfaced, never swallowed.
+ */
+export async function registerUser(
+  input: RegisterUserInput,
+): Promise<ActionState> {
+  const fullName = input.fullName.trim()
+  const email = input.email.trim().toLowerCase()
+
+  if (!(await authorizeOrgOps(input.homeOrganizationId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const fieldErrors: Record<string, string> = {}
+  if (!fullName) fieldErrors.fullName = MESSAGES.nameRequired
+  if (!email) fieldErrors.email = MESSAGES.emailRequired
+  else if (!EMAIL_PATTERN.test(email)) fieldErrors.email = MESSAGES.emailInvalid
+  if (!input.professionalCategoryId)
+    fieldErrors.professionalCategoryId = MESSAGES.categoryRequired
+  if (Object.keys(fieldErrors).length > 0) {
+    return { ok: false, fieldErrors }
+  }
+
+  const admin = createAdminClient()
+
+  // Email is a global identity — a collision must BLOCK (never overwrite). Check
+  // the denormalized profiles.email (citext, exact case-insensitive match).
+  const { data: existing, error: lookupError } = await admin
+    .from('profiles')
+    .select('id')
+    .eq('email', email)
+    .maybeSingle()
+  if (lookupError) {
+    return { ok: false, error: MESSAGES.generic }
+  }
+  if (existing) {
+    return { ok: false, fieldErrors: { email: MESSAGES.emailCollision } }
+  }
+
+  const origin = await appOrigin()
+
+  // Invite: metadata seeds full_name + the org anchor (service-role-set-once;
+  // handle_new_user reads it — NOT an authz input). The invite mail links to
+  // /auth/confirm → /convite (the existing activation flow).
+  const { data: invite, error: inviteError } =
+    await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo: `${origin}/auth/confirm`,
+      data: {
+        full_name: fullName,
+        home_organization_id: input.homeOrganizationId,
+      },
+    })
+  if (inviteError || !invite?.user) {
+    // A duplicate-email race surfaces here too — treat as collision when the
+    // admin API reports the user already exists, else generic.
+    const msg = inviteError?.message?.toLowerCase() ?? ''
+    if (msg.includes('already') || msg.includes('registered')) {
+      return { ok: false, fieldErrors: { email: MESSAGES.emailCollision } }
+    }
+    return { ok: false, error: MESSAGES.generic }
+  }
+
+  const userId = invite.user.id
+
+  // Patch the profile fields the trigger did not set (category / hospital /
+  // matrícula). full_name + home_organization_id already landed via metadata.
+  const { error: profileError } = await admin
+    .from('profiles')
+    .update({
+      full_name: fullName,
+      professional_category_id: input.professionalCategoryId,
+      home_hospital_id: input.homeHospitalId ?? null,
+      hospital_employee_id: input.hospitalEmployeeId ?? null,
+    })
+    .eq('id', userId)
+  if (profileError) {
+    // Do NOT swallow: the invite happened, but the profile write failed. Surface
+    // it so the operator retries (the pending profile exists and is anchored).
+    return { ok: false, error: MESSAGES.generic }
+  }
+
+  // Credentials (optional). A duplicate 4-tuple (23505) is reported, not hidden.
+  const credentials = (input.credentials ?? []).filter(
+    (c) => c.registrationNumber.trim() !== '',
+  )
+  if (credentials.length > 0) {
+    const { error: credError } = await admin
+      .from('professional_credentials')
+      .insert(
+        credentials.map((c) => ({
+          user_id: userId,
+          issuing_country: c.issuingCountry.trim(),
+          issuing_state: c.issuingState.trim(),
+          issuing_authority: c.issuingAuthority.trim(),
+          registration_number: c.registrationNumber.trim(),
+          expires_on: c.expiresOn ?? null,
+        })),
+      )
+    if (credError) {
+      return {
+        ok: false,
+        error:
+          credError.code === '23505'
+            ? MESSAGES.credentialCollision
+            : MESSAGES.generic,
+      }
+    }
+  }
+
+  // Committee memberships (optional). Idempotent per (commission, user).
+  const committees = input.committees ?? []
+  if (committees.length > 0) {
+    const { error: memberError } = await admin
+      .from('commission_members')
+      .upsert(
+        committees.map((c) => ({
+          commission_id: c.commissionId,
+          user_id: userId,
+          role: c.role,
+        })),
+        { onConflict: 'commission_id,user_id' },
+      )
+    if (memberError) {
+      return { ok: false, error: MESSAGES.generic }
+    }
+  }
+
+  revalidateDirectory()
+  return { ok: true, error: MESSAGES.registered }
+}
+
+/** Edit an existing user's profile fields (name / category / hospital / matrícula). */
+export async function updateUserProfile(
+  input: UpdateUserProfileInput,
+): Promise<ActionState> {
+  const auth = await authorizeForUser(input.userId)
+  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+
+  const fullName = input.fullName.trim()
+  if (!fullName) {
+    return { ok: false, fieldErrors: { fullName: MESSAGES.nameRequired } }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('profiles')
+    .update({
+      full_name: fullName,
+      professional_category_id: input.professionalCategoryId,
+      home_hospital_id: input.homeHospitalId ?? null,
+      hospital_employee_id: input.hospitalEmployeeId ?? null,
+    })
+    .eq('id', input.userId)
+  if (error) return { ok: false, error: MESSAGES.generic }
+
+  revalidateDirectory()
+  return { ok: true, error: MESSAGES.profileUpdated }
+}
+
+/** Add or edit a professional credential. Editing ALWAYS clears `verified_at`. */
+export async function upsertCredential(
+  input: UpsertCredentialInput,
+): Promise<ActionState> {
+  const auth = await authorizeForUser(input.userId)
+  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+
+  const row = {
+    user_id: input.userId,
+    issuing_country: input.issuingCountry.trim(),
+    issuing_state: input.issuingState.trim(),
+    issuing_authority: input.issuingAuthority.trim(),
+    registration_number: input.registrationNumber.trim(),
+    expires_on: input.expiresOn ?? null,
+  }
+  if (!row.registration_number) {
+    return { ok: false, error: MESSAGES.generic }
+  }
+
+  const admin = createAdminClient()
+  if (input.id) {
+    // Editing clears verified_at (tamper-visible) + stamps updated_at.
+    const { error } = await admin
+      .from('professional_credentials')
+      .update({ ...row, verified_at: null, updated_at: new Date().toISOString() })
+      .eq('id', input.id)
+      .eq('user_id', input.userId)
+    if (error) {
+      return {
+        ok: false,
+        error:
+          error.code === '23505'
+            ? MESSAGES.credentialCollision
+            : MESSAGES.generic,
+      }
+    }
+  } else {
+    const { error } = await admin
+      .from('professional_credentials')
+      .insert(row)
+    if (error) {
+      return {
+        ok: false,
+        error:
+          error.code === '23505'
+            ? MESSAGES.credentialCollision
+            : MESSAGES.generic,
+      }
+    }
+  }
+
+  revalidateDirectory()
+  return { ok: true, error: MESSAGES.credentialSaved }
+}
+
+/** Remove a professional credential. */
+export async function removeCredential(
+  credentialId: string,
+): Promise<ActionState> {
+  const admin = createAdminClient()
+  const { data: cred } = await admin
+    .from('professional_credentials')
+    .select('user_id')
+    .eq('id', credentialId)
+    .maybeSingle()
+  if (!cred) return { ok: false, error: MESSAGES.generic }
+
+  const auth = await authorizeForUser(cred.user_id)
+  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+
+  const { error } = await admin
+    .from('professional_credentials')
+    .delete()
+    .eq('id', credentialId)
+  if (error) return { ok: false, error: MESSAGES.generic }
+
+  revalidateDirectory()
+  return { ok: true, error: MESSAGES.credentialRemoved }
+}
+
+/** Assign a committee + role to a user (idempotent on the membership PK; updates role). */
+export async function assignCommitteeRole(
+  userId: string,
+  input: CommitteeAssignmentInput,
+): Promise<ActionState> {
+  // The caller must administer BOTH the user's org AND the target commission's
+  // org (they are the same org in practice; check both for safety).
+  const userAuth = await authorizeForUser(userId)
+  if (!userAuth.ok) return { ok: false, error: MESSAGES.forbidden }
+  if (!(await authorizeForCommission(input.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const admin = createAdminClient()
+  const { error } = await admin.from('commission_members').upsert(
+    { commission_id: input.commissionId, user_id: userId, role: input.role },
+    { onConflict: 'commission_id,user_id' },
+  )
+  if (error) return { ok: false, error: MESSAGES.generic }
+
+  revalidateDirectory()
+  return { ok: true, error: MESSAGES.committeeAssigned }
+}
+
+/** Remove a user from a committee. */
+export async function removeCommittee(
+  userId: string,
+  commissionId: string,
+): Promise<ActionState> {
+  const userAuth = await authorizeForUser(userId)
+  if (!userAuth.ok) return { ok: false, error: MESSAGES.forbidden }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('commission_members')
+    .delete()
+    .eq('commission_id', commissionId)
+    .eq('user_id', userId)
+  if (error) return { ok: false, error: MESSAGES.generic }
+
+  revalidateDirectory()
+  return { ok: true, error: MESSAGES.committeeRemoved }
+}
+
+/** Deactivate a user (master switch off). Next-request logout via the gate. */
+export async function deactivateUser(userId: string): Promise<ActionState> {
+  const auth = await authorizeForUser(userId)
+  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('profiles')
+    .update({ is_active: false })
+    .eq('id', userId)
+  if (error) return { ok: false, error: MESSAGES.generic }
+
+  revalidateDirectory()
+  return { ok: true, error: MESSAGES.deactivated }
+}
+
+/** Reactivate a deactivated user (is_active=true; also clears any residual suspension). */
+export async function reactivateUser(userId: string): Promise<ActionState> {
+  const auth = await authorizeForUser(userId)
+  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('profiles')
+    .update({ is_active: true, suspended_until: null })
+    .eq('id', userId)
+  if (error) return { ok: false, error: MESSAGES.generic }
+
+  revalidateDirectory()
+  return { ok: true, error: MESSAGES.reactivated }
+}
+
+/**
+ * Suspend a user until `suspendedUntil` (temporary, auto-reinstating). `null`
+ * means an indefinite suspension. A past instant reads as active again
+ * immediately (the derivation handles it) — the DB stores exactly what is given.
+ */
+export async function suspendUser(
+  userId: string,
+  suspendedUntil: string | null,
+): Promise<ActionState> {
+  const auth = await authorizeForUser(userId)
+  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+
+  const admin = createAdminClient()
+  const { error } = await admin
+    .from('profiles')
+    .update({ suspended_until: suspendedUntil })
+    .eq('id', userId)
+  if (error) return { ok: false, error: MESSAGES.generic }
+
+  revalidateDirectory()
+  return { ok: true, error: MESSAGES.suspended }
+}
+
+/** Resend the invite/activation email for a still-`pending` user (expired-link recovery). */
+export async function resendInvite(userId: string): Promise<ActionState> {
+  const auth = await authorizeForUser(userId)
+  if (!auth.ok) return { ok: false, error: MESSAGES.forbidden }
+
+  const admin = createAdminClient()
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('email')
+    .eq('id', userId)
+    .maybeSingle()
+  const email = profile?.email
+  if (!email) return { ok: false, error: MESSAGES.missingUser }
+
+  const origin = await appOrigin()
+  const { error } = await admin.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${origin}/auth/confirm`,
+  })
+  if (error) return { ok: false, error: MESSAGES.generic }
+
+  return { ok: true, error: MESSAGES.inviteResent }
+}

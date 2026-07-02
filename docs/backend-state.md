@@ -463,6 +463,32 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
   RLS is the authority — org-scoped hospital/commission/staff management). **Rule of the phase:** a
   `platform_admin` claim is never an authorization grant on a tenant path — most critically in the
   service-role actions where RLS is not a backstop (the TS gate is the sole control).
+- **User Registration & Identity (ADR 0048):** Queries `src/lib/queries/org-users.ts`
+  (`listOrgUsers(orgId, search, {page,pageSize})` → `{rows,total}` with derived status +
+  committee count + home hospital; `getOrgUser(userId)` → profile + `credentials[]` +
+  `committees[]` w/ role; `listProfessionalCategories()` — all RLS-scoped cookie client, the
+  `profiles` `is_org_admin_of(home_organization_id)` SELECT path admits a committee-less pending
+  user). Actions `src/lib/users/actions.ts` (**service-role**, each `app.is_org_admin_of()`-gated
+  BEFORE any write — the platform_admin is NOT admitted): `registerUser` (atomic invite +
+  profile/credential/committee write, **email-collision block**, never swallows a write failure),
+  `updateUserProfile`, `upsertCredential` (edit clears `verified_at`), `removeCredential`,
+  `assignCommitteeRole`/`removeCommittee`, `deactivateUser`, `reactivateUser` (clears
+  `suspended_until`), `suspendUser`, `resendInvite`. **`src/lib/users/types.ts` is the import-free,
+  client-safe contract** — `UserStatus` + the pure **`deriveUserStatus(isActive, suspendedUntil,
+  emailConfirmedAt, now?)`** (the SINGLE SQL↔TS status authority; parity-tested via
+  `__fixtures__/status-vectors.json` in both Vitest + pgTAP) + the DTOs. **`app.is_active(uid)` is
+  folded into every membership SD-helper** (deactivation/suspension enforce platform-wide via RLS;
+  NOT into `app.is_admin*` — vendor must not be lockable). **`signIn` gate + `getSessionContext`
+  `isInactive` → `/conta-inativa`** (loop-free; the residual ADR-0009 ≤~1h self-data window is
+  accepted). **Anchor invariant:** deferred `profiles_tenant_has_org_trg` (non-admin ⇒
+  `home_organization_id` set), populated via invite `user_metadata` (service-role-set-once, NOT
+  authz); org-less vendor via `bootstrap_admin` (`app_metadata`). The shared `resolveOrInviteUser`
+  (`src/lib/members/invite.ts`) now takes a **required** `homeOrganizationId` (BUG-UREG-003) — every
+  new-invite caller (`inviteStaff`, assign-staff_admin, `assignOrgAdmin`) threads the target org.
+  **PROD DEPLOY DEPENDENCY (Phase 9):** the pt-BR `token_hash` invite + recovery email templates
+  (`supabase/templates/{invite,recovery}.html`, wired via `config.toml [auth.email.template.*]`) are
+  NOT applied to Supabase Cloud — upload them to Dashboard → Auth → Email Templates (keeping the
+  `{{ .TokenHash }}` + `?type=` shape), alongside custom SMTP. Migration `20260702000000_user_registration.sql`.
 - Service-role client: `src/lib/supabase/admin.ts` (`import 'server-only'`), invite path only.
 
 ## ADR index (decisions that shape the backend)
@@ -494,4 +520,5 @@ Architecture Rule 11). ·
 0038 **case patient identifiers** (THIRD PHI module; optional `case_patient` on the isolated-table + audited-`get_case_patient` pattern; per-template `collects_patient` → `cases.patient_enabled` snapshot; **broad** `can_read_case_patient` read [assignees need the MRN] vs coordinators-only writes; `dispose_case_phi`; flag `case_patient`). ·
 0039 **patient identity & cross-committee linkage** (Phase 23; extends Rules 11/12 — a non-identifying HMAC `patient_key`/`encounter_key` derived by **always-on** BEFORE/AFTER triggers on all three PHI tables [`event_patient`/`referral_patient`/`case_patient`], conservative normalization, `extensions.hmac` + pepper in locked-down **`app.app_secrets`** [not Vault/GUC — both infeasible on Supabase; hard-fail if absent]; QPS-only key-only **`patient_xref`** [REVOKE authenticated, `is_pqs_member` SELECT, partial indexes]; DEFINER doors `search_patient_xref`/`get_patient_trajectory_for_entity`/`patient_access_audit`/`patient_xref_count`/`patient_index_enabled` [flag-asserted, PQS- or `can_read_referral_phi`-gated, PHI-free]; `patient.searched`/`patient.viewed` audit on the GLOBAL chain via `audit_write` [key-only, never raw MRN; `patient_key_to_uuid` for the NOT-NULL `entity_id`]; additive referral key transmission + count-only hint; disposal retain-marked-disposed via `app.phi_dispose_reason` GUC, referrals cascade-only [`dispose_referral_phi` follow-up]; helpers `normalize_identifier`/`derive_patient_key`/`backfill_patient_keys` [repair-tool]; flag `patient_index` OFF gates RPCs+UI only). ·
 0041 **multi-tenancy** (organizations → hospitals above commissions; pooled single-DB + silo-by-exception; vendor `platform_admin` provisioning-only/walled-off vs customer `org_admin`; org membership a live DB read not a JWT claim; the ~60 `is_admin` tenant/PHI OR-terms → `is_org_admin_of_commission` with `is_admin` surviving only on the platform-management surface; `commission_overview` + 6 dashboard DEFINER RPCs re-scoped; commission slug uniqueness global → per-org; **audit 3-tier** platform/org/commission hash chains; routes `/c/[slug]` → `/o/[org]/c/[commission]`; **§Implementation amendments** — the global-PQS/QPS roster goes inert in multi-org [`is_multi_org()` at the `is_pqs_member` chokepoint] making the entire NSP + referral PHI surface absent until **NSP-per-org** ships; `platform_admin` claim never an authorization grant [commission-shell wall + service-role escalation fixes]; `is_org_member` lets a member read their own org row). ·
-0047 **ad-hoc case narratives** (coordinator adds a narrative to an OPEN case via DEFINER `add_ad_hoc_narrative` + `case_narratives.is_ad_hoc`, mirroring `add_ad_hoc_phase`; type from the vocabulary or atomic inline create-or-reuse [un-archives]; **partially reverses 0032 D7's** "no per-case add" for open cases only [remove/reorder stay template-authored]; gated by the existing `case_narratives` flag; HC020/HC021/HC054).
+0047 **ad-hoc case narratives** (coordinator adds a narrative to an OPEN case via DEFINER `add_ad_hoc_narrative` + `case_narratives.is_ad_hoc`, mirroring `add_ad_hoc_phase`; type from the vocabulary or atomic inline create-or-reuse [un-archives]; **partially reverses 0032 D7's** "no per-case add" for open cases only [remove/reorder stay template-authored]; gated by the existing `case_narratives` flag; HC020/HC021/HC054). ·
+0048 **user registration & identity** (`org_admin` registers per-org, vendor stays isolated; combined verify+activate reusing invite→`/auth/confirm`→`/convite`; status DERIVED via `deriveUserStatus` [`email_confirmed_at`+`is_active`+`suspended_until`, parity-tested SQL↔TS]; **`app.is_active()` folded into every membership SD-helper** [EXCLUDING `is_admin*`] + `signIn` gate + `getSessionContext.isInactive`→`/conta-inativa` [loop-free; ADR-0009 residual accepted]; `professional_credentials` [multi, global-unique] + `professional_categories` lookup; **`home_organization_id` anchor via a DEFERRED constraint trigger** [not a CHECK — breaks the multi-step `handle_new_user` insert], populated by invite `user_metadata` [NOT authz], vendor org-less via `bootstrap_admin`/`app_metadata`; nullable descriptive `home_hospital_id`+matrícula; 0..N committees w/ per-committee role; **email collision blocked**; no `date_of_birth` [LGPD]; widened `guard_profile_privileged_columns` self-mutation lock; **BUG-UREG-002** `token_hash` pt-BR invite+recovery templates [**Phase-9 prod dep:** upload to Dashboard email templates + SMTP]; **BUG-UREG-003** shared `resolveOrInviteUser` now requires `homeOrganizationId`; migration `20260702000000`).

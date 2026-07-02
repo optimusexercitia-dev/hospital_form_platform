@@ -250,10 +250,20 @@ otp_expiry = 3600
 # admin_email = "admin@email.com"
 # sender_name = "Admin"
 
-# Uncomment to customize email template
-# [auth.email.template.invite]
-# subject = "You have been invited"
-# content_path = "./supabase/templates/invite.html"
+# Custom pt-BR templates (BUG-UREG-002): the default templates render
+# {{ .ConfirmationURL }}, which without PKCE emits an implicit-flow hash-fragment
+# link the server-side /auth/confirm route cannot read. These templates instead
+# link to /auth/confirm?token_hash={{ .TokenHash }}&type=... — the shape the
+# handler already verifies via verifyOtp. PROD: upload these to Dashboard → Auth →
+# Email Templates (self-hosted config templates are not applied to Cloud) — a
+# Phase-9 deploy dependency.
+[auth.email.template.invite]
+subject = "Ative sua conta — Comissões Hospitalares"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.recovery]
+subject = "Redefinir sua senha — Comissões Hospitalares"
+content_path = "./supabase/templates/recovery.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]

@@ -3734,32 +3734,152 @@ export type Database = {
           },
         ]
       }
+      professional_categories: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          issuing_authority: string | null
+          key: string
+          label_pt: string
+          position: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          issuing_authority?: string | null
+          key: string
+          label_pt: string
+          position?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          issuing_authority?: string | null
+          key?: string
+          label_pt?: string
+          position?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      professional_credentials: {
+        Row: {
+          created_at: string
+          expires_on: string | null
+          id: string
+          issuing_authority: string
+          issuing_country: string
+          issuing_state: string
+          registration_number: string
+          updated_at: string
+          user_id: string
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_on?: string | null
+          id?: string
+          issuing_authority: string
+          issuing_country: string
+          issuing_state: string
+          registration_number: string
+          updated_at?: string
+          user_id: string
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_on?: string | null
+          id?: string
+          issuing_authority?: string
+          issuing_country?: string
+          issuing_state?: string
+          registration_number?: string
+          updated_at?: string
+          user_id?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_credentials_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
           email: string | null
+          email_confirmed_at: string | null
           full_name: string
+          home_hospital_id: string | null
+          home_organization_id: string | null
+          hospital_employee_id: string | null
           id: string
           is_active: boolean
           is_admin: boolean
+          professional_category_id: string | null
+          suspended_until: string | null
         }
         Insert: {
           created_at?: string
           email?: string | null
+          email_confirmed_at?: string | null
           full_name?: string
+          home_hospital_id?: string | null
+          home_organization_id?: string | null
+          hospital_employee_id?: string | null
           id: string
           is_active?: boolean
           is_admin?: boolean
+          professional_category_id?: string | null
+          suspended_until?: string | null
         }
         Update: {
           created_at?: string
           email?: string | null
+          email_confirmed_at?: string | null
           full_name?: string
+          home_hospital_id?: string | null
+          home_organization_id?: string | null
+          hospital_employee_id?: string | null
           id?: string
           is_active?: boolean
           is_admin?: boolean
+          professional_category_id?: string | null
+          suspended_until?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_home_hospital_id_fkey"
+            columns: ["home_hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_home_organization_id_fkey"
+            columns: ["home_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_professional_category_id_fkey"
+            columns: ["professional_category_id"]
+            isOneToOne: false
+            referencedRelation: "professional_categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       rca: {
         Row: {

@@ -19,12 +19,19 @@ const PUBLIC_PATHS = [
   '/recuperar-senha',
   '/redefinir-senha',
   '/convite',
+  // Inactive-account notice. Reachable both with a still-valid JWT (a user
+  // deactivated/suspended mid-session, before their token expires) and after the
+  // page's sign-out clears the session — so it must be public AND excluded from
+  // AUTHED_REDIRECT_AWAY below (the anti-loop fix; see requireUser + BE-6).
+  '/conta-inativa',
 ] as const
 
 // Authenticated users are bounced AWAY from these to home — a logged-in user
 // has no business on the login or reset-request screens. `/redefinir-senha` and
 // `/convite` are deliberately NOT here: a recovery/invite session IS
-// authenticated and must reach the set-password UI.
+// authenticated and must reach the set-password UI. `/conta-inativa` is NOT here
+// either: an inactive user still holds a valid JWT, so bouncing them to `/` would
+// loop them straight back here via requireUser — they must be allowed to stay.
 const AUTHED_REDIRECT_AWAY = ['/login', '/recuperar-senha'] as const
 
 function isPublicPath(pathname: string): boolean {

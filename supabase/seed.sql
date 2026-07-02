@@ -54,44 +54,76 @@ end;
 $seed_select$;
 
 -- ---------------------------------------------------------------------------
+-- User-registration: organizations + hospitals are created FIRST (before the
+-- auth.users loop) so each tenant user's profiles.home_organization_id FK is
+-- satisfiable at handle_new_user trigger time (the trigger reads the org from
+-- user_metadata, mirroring the real invite path). created_by is set to NULL here
+-- and patched to the vendor after it exists (breaks the users<->orgs FK cycle;
+-- organizations.created_by is nullable + cosmetic). commissions/memberships stay
+-- below (they depend on the users). Org/hospital ids are UNCHANGED.
+-- ---------------------------------------------------------------------------
+insert into public.organizations (id, name, slug, created_by) values
+  ('0c000000-0000-0000-0000-00000000000a', 'Rede Hospitalar A', 'rede-a', null),
+  ('0c000000-0000-0000-0000-00000000000b', 'Rede Hospitalar B', 'rede-b', null);
+
+insert into public.hospitals (id, organization_id, name, slug) values
+  ('05000000-0000-0000-0000-00000000000a', '0c000000-0000-0000-0000-00000000000a', 'Hospital Central A', 'central-a'),
+  ('05000000-0000-0000-0000-00000000000b', '0c000000-0000-0000-0000-00000000000b', 'Hospital Central B', 'central-b');
+
+-- ---------------------------------------------------------------------------
 -- Auth users. We insert directly into auth.users; the on_auth_user_created
 -- trigger creates the matching profiles row. We then patch full_name/is_admin.
 -- A confirmed email + bcrypt password lets these users log in locally.
 -- ---------------------------------------------------------------------------
 do $$
 declare
+  -- User-registration: `org` anchors each TENANT user's profiles.home_organization_id
+  -- (threaded into user_metadata → set by handle_new_user, exactly like the real
+  -- invite path). The vendor carries `admin=true` (→ app_metadata bootstrap_admin,
+  -- the service-role-only channel) and NO org — it is legitimately org-less.
+  --   org-a = 0c000000-…-00a  (CCIH + Farmácia)   org-b = 0c000000-…-00b
+  v_org_a_lit text := '0c000000-0000-0000-0000-00000000000a';
+  v_org_b_lit text := '0c000000-0000-0000-0000-00000000000b';
   v_users jsonb := jsonb_build_array(
-    jsonb_build_object('id', '00000000-0000-0000-0000-000000000001', 'email', 'admin@test.local',       'name', 'Administradora Geral'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-000000000002', 'email', 'chefe.ccih@test.local',  'name', 'Chefe CCIH'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-000000000003', 'email', 'staff1.ccih@test.local', 'name', 'Enfermeiro CCIH Um'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-000000000004', 'email', 'staff2.ccih@test.local', 'name', 'Enfermeira CCIH Dois'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-000000000005', 'email', 'chefe.farm@test.local',  'name', 'Chefe Farmácia'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-000000000006', 'email', 'staff1.farm@test.local', 'name', 'Farmacêutico Um'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-000000000007', 'email', 'staff2.farm@test.local', 'name', 'Farmacêutica Dois'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-000000000008', 'email', 'multi@test.local',       'name', 'Coordenadora Multi'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-000000000001', 'email', 'admin@test.local',       'name', 'Administradora Geral',   'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-000000000002', 'email', 'chefe.ccih@test.local',  'name', 'Chefe CCIH',              'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-000000000003', 'email', 'staff1.ccih@test.local', 'name', 'Enfermeiro CCIH Um',      'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-000000000004', 'email', 'staff2.ccih@test.local', 'name', 'Enfermeira CCIH Dois',    'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-000000000005', 'email', 'chefe.farm@test.local',  'name', 'Chefe Farmácia',          'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-000000000006', 'email', 'staff1.farm@test.local', 'name', 'Farmacêutico Um',         'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-000000000007', 'email', 'staff2.farm@test.local', 'name', 'Farmacêutica Dois',       'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-000000000008', 'email', 'multi@test.local',       'name', 'Coordenadora Multi',      'org', '0c000000-0000-0000-0000-00000000000a'),
     -- Case Access Control (ADR 0033) personas — plain staff of CCIH used to
     -- exercise the §5 acceptance access paths (grant read, grant write, and the
     -- "gets nothing" boundary). staff3 = write-grantee; staff4 = unrelated boundary.
-    jsonb_build_object('id', '00000000-0000-0000-0000-000000000009', 'email', 'staff3.ccih@test.local', 'name', 'Técnico CCIH Três'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-00000000000a', 'email', 'staff4.ccih@test.local', 'name', 'Técnica CCIH Quatro'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-000000000009', 'email', 'staff3.ccih@test.local', 'name', 'Técnico CCIH Três',       'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-00000000000a', 'email', 'staff4.ccih@test.local', 'name', 'Técnica CCIH Quatro',     'org', '0c000000-0000-0000-0000-00000000000a'),
     -- Multi-tenancy (Phase C) personas:
     --   platform@test.local  = vendor platform_admin (is_admin); NO tenant access
     --                          (walled off — holds NO commission/org membership).
     --   orgadmin.a@test.local = org_admin of org-a (CCIH + Farmácia live here).
     --   orgadmin.b@test.local = org_admin of org-b (the cross-org boundary org).
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b0', 'email', 'platform@test.local',     'name', 'Plataforma (Vendor)'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b1', 'email', 'orgadmin.a@test.local',   'name', 'Admin Rede A'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b2', 'email', 'orgadmin.b@test.local',   'name', 'Admin Rede B'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b0', 'email', 'platform@test.local',     'name', 'Plataforma (Vendor)',    'admin', true),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b1', 'email', 'orgadmin.a@test.local',   'name', 'Admin Rede A',           'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b2', 'email', 'orgadmin.b@test.local',   'name', 'Admin Rede B',           'org', '0c000000-0000-0000-0000-00000000000b'),
     -- A plain staff persona in org-b's commission, for cross-org isolation tests.
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b3', 'email', 'staff1.qual.b@test.local', 'name', 'Analista Qualidade B'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b3', 'email', 'staff1.qual.b@test.local', 'name', 'Analista Qualidade B',  'org', '0c000000-0000-0000-0000-00000000000b'),
     -- NSP-per-org (ADR 0042) personas. Per-org NSP coordinators (CURATE their org's
     -- roster, NOT implicitly readers) + enrolled PQS readers, for both orgs. The
     -- coordinators are deliberately left UNENROLLED below so pgTAP proves "curate ≠
     -- read until enrolled" (duty separation).
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c1', 'email', 'nspcoord.a@test.local', 'name', 'Coordenador NSP A'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c2', 'email', 'pqs.a@test.local',      'name', 'NSP Rede A'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c3', 'email', 'nspcoord.b@test.local', 'name', 'Coordenador NSP B'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c4', 'email', 'pqs.b@test.local',      'name', 'NSP Rede B')
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c1', 'email', 'nspcoord.a@test.local', 'name', 'Coordenador NSP A',       'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c2', 'email', 'pqs.a@test.local',      'name', 'NSP Rede A',              'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c3', 'email', 'nspcoord.b@test.local', 'name', 'Coordenador NSP B',       'org', '0c000000-0000-0000-0000-00000000000b'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c4', 'email', 'pqs.b@test.local',      'name', 'NSP Rede B',              'org', '0c000000-0000-0000-0000-00000000000b'),
+    -- User-registration lifecycle personas (org-a), for the directory + status
+    -- badges + enforcement E2E. Their derived status is set by the status-patch
+    -- block below (pending = clear email_confirmed_at; suspended = future
+    -- suspended_until; deactivated = is_active false). `active` needs no patch.
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000d1', 'email', 'novato.pendente@test.local', 'name', 'Novato Pendente',   'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000d2', 'email', 'ativo.registro@test.local',  'name', 'Ativo Registrado',  'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000d3', 'email', 'suspenso.temp@test.local',   'name', 'Suspenso Temporário','org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000d4', 'email', 'desativado.conta@test.local','name', 'Desativado Conta',  'org', '0c000000-0000-0000-0000-00000000000a')
   );
   u jsonb;
 begin
@@ -110,8 +142,16 @@ begin
       u ->> 'email',
       crypt('Test1234!', gen_salt('bf')),
       now(), now(), now(),
-      '{"provider":"email","providers":["email"]}'::jsonb,
-      jsonb_build_object('full_name', u ->> 'name'),
+      -- app_metadata carries the vendor admin bootstrap (service-role-only channel).
+      case when coalesce((u ->> 'admin')::boolean, false)
+        then '{"provider":"email","providers":["email"],"bootstrap_admin":true}'::jsonb
+        else '{"provider":"email","providers":["email"]}'::jsonb
+      end,
+      -- user_metadata carries full_name + (for tenant users) the home org anchor.
+      jsonb_strip_nulls(jsonb_build_object(
+        'full_name', u ->> 'name',
+        'home_organization_id', u ->> 'org'
+      )),
       now(), now(), '', '', '', ''
     );
 
@@ -143,20 +183,14 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- Multi-tenancy hierarchy (Phase C): organizations -> hospitals -> commissions.
--- Deterministic org/hospital UUIDs; the existing CCIH/Farmácia commission ids are
--- PRESERVED. org-a holds BOTH CCIH and Farmácia (so multi@test.local's existing
--- two-commission bridge is "two commissions within ONE org"); org-b is the
--- cross-org boundary with its own commission. commissions.organization_id is
--- auto-derived from hospital_id by the trigger — we set hospital_id only.
+-- Multi-tenancy hierarchy (Phase C): organizations + hospitals were inserted
+-- ABOVE the users loop (see the user-registration note). Now that the vendor
+-- exists, patch organizations.created_by to it; then commissions + memberships.
+-- org-a holds BOTH CCIH and Farmácia; org-b is the cross-org boundary.
+-- commissions.organization_id is auto-derived from hospital_id by the trigger.
 -- ---------------------------------------------------------------------------
-insert into public.organizations (id, name, slug, created_by) values
-  ('0c000000-0000-0000-0000-00000000000a', 'Rede Hospitalar A', 'rede-a', '00000000-0000-0000-0000-0000000000b0'),
-  ('0c000000-0000-0000-0000-00000000000b', 'Rede Hospitalar B', 'rede-b', '00000000-0000-0000-0000-0000000000b0');
-
-insert into public.hospitals (id, organization_id, name, slug) values
-  ('05000000-0000-0000-0000-00000000000a', '0c000000-0000-0000-0000-00000000000a', 'Hospital Central A', 'central-a'),
-  ('05000000-0000-0000-0000-00000000000b', '0c000000-0000-0000-0000-00000000000b', 'Hospital Central B', 'central-b');
+update public.organizations set created_by = '00000000-0000-0000-0000-0000000000b0'
+where id in ('0c000000-0000-0000-0000-00000000000a', '0c000000-0000-0000-0000-00000000000b');
 
 insert into public.organization_members (organization_id, user_id, role) values
   -- admin@test.local re-homed as org_admin of org-a; orgadmin.a as well (so both
@@ -206,7 +240,45 @@ insert into public.commission_members (commission_id, user_id, role) values
   -- NSP-per-org: Farmácia B (org-b) staff_admin so the intra-rede-b referral has a
   -- target coordinator; orgadmin.b coordinates Qualidade B (source) — already a
   -- staff_admin there (above). staff1.qual.b is the Farmácia B coordinator here.
-  ('c0000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-0000000000b3', 'staff_admin');
+  ('c0000000-0000-0000-0000-0000000000c2', '00000000-0000-0000-0000-0000000000b3', 'staff_admin'),
+  -- User-registration lifecycle personas: the active + suspended ones also hold a
+  -- CCIH committee (exercises the directory committeeCount + the enforcement path —
+  -- a suspended member must be denied by app.is_member_of). Pending + deactivated
+  -- stay committee-less (a common "no committee yet" state).
+  ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d2', 'staff'),
+  ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000d3', 'staff');
+
+-- ---------------------------------------------------------------------------
+-- User-registration: professional-category assignment + credentials + the
+-- derived-status patch for the lifecycle personas.
+-- ---------------------------------------------------------------------------
+-- Assign a professional category to a few personas (physician/nurse/pharmacist).
+update public.profiles set professional_category_id = 'd1000000-0000-0000-0000-000000000001' -- physician
+  where id = '00000000-0000-0000-0000-0000000000d2';
+update public.profiles set professional_category_id = 'd1000000-0000-0000-0000-000000000002' -- nurse
+  where id in ('00000000-0000-0000-0000-000000000003', '00000000-0000-0000-0000-0000000000d3');
+update public.profiles set professional_category_id = 'd1000000-0000-0000-0000-000000000003' -- pharmacist
+  where id = '00000000-0000-0000-0000-000000000005';
+
+-- A professional credential for the active persona (CRM, verified) + one nurse
+-- (COREN, unverified) — exercises the credentials read path + verified badge.
+insert into public.professional_credentials
+  (user_id, issuing_country, issuing_state, issuing_authority, registration_number, verified_at, expires_on) values
+  ('00000000-0000-0000-0000-0000000000d2', 'BR', 'SP', 'CRM',   '123456-SP', now(),  null),
+  ('00000000-0000-0000-0000-0000000000d3', 'BR', 'SP', 'COREN', '654321-SP', null,   '2027-12-31');
+
+-- Derived-status patch (see UserStatus derivation). These are the ONLY writes to
+-- the guarded lifecycle columns outside the action path; the seed runs as the
+-- superuser (auth.uid() null) so guard_profile_privileged_columns permits them.
+--   d1 = pending      : clear the trigger-set email_confirmed_at.
+--   d3 = suspended    : suspended_until in the future (auto-reinstating).
+--   d4 = deactivated  : is_active false.
+update public.profiles set email_confirmed_at = null
+  where id = '00000000-0000-0000-0000-0000000000d1';
+update public.profiles set suspended_until = now() + interval '30 days'
+  where id = '00000000-0000-0000-0000-0000000000d3';
+update public.profiles set is_active = false
+  where id = '00000000-0000-0000-0000-0000000000d4';
 
 -- ===========================================================================
 -- FORM A (commission CCIH): UNSECTIONED — default section only.

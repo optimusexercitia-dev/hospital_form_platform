@@ -16,6 +16,7 @@ interface OrgNavItem {
 
 const ORG_NAV_ITEMS: OrgNavItem[] = [
   { label: "Visão geral", segments: [] },
+  { label: "Usuários", segments: ["usuarios"] },
   { label: "Comissões", segments: ["comissoes"] },
   { label: "Hospitais", segments: ["hospitais"] },
   { label: "Painel", segments: ["painel"] },

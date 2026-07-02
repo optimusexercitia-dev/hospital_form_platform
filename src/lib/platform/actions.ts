@@ -178,10 +178,13 @@ export async function assignOrgAdmin(
   const origin = await appOrigin()
 
   try {
+    // The invited org_admin is a tenant user → anchor their profile to the
+    // target org (the deferred anchor invariant requires a home org).
     const { userId } = await resolveOrInviteUser(
       admin,
       email,
       `${origin}/auth/confirm`,
+      organizationId,
     )
 
     // Hard-coded role: 'org_admin'. Upsert is idempotent on

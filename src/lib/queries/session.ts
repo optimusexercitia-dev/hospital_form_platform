@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
 import { isPqsMemberOfSelf, isNspCoordinatorOfSelf } from '@/lib/queries/pqs'
+import { deriveUserStatus, type UserStatus } from '@/lib/users/types'
 
 /**
  * Session & membership data-access (Architecture Rule 9 — all reads go through
@@ -50,6 +51,16 @@ export interface SessionContext {
   email: string
   fullName: string | null
   isAdmin: boolean
+  /**
+   * Derived account status (BE-6). `active`/`pending` may use the app normally;
+   * `suspended`/`deactivated` are gated out by `requireUser()` (→ `/conta-inativa`).
+   * Exposed as an EXPLICIT signal — not a bare-null context — so consumers can act
+   * on it without conflating "inactive" with "unauthenticated" (which would loop a
+   * still-JWT'd inactive user against the login-bounce middleware).
+   */
+  status: UserStatus
+  /** Convenience: `status` is `suspended` or `deactivated`. */
+  isInactive: boolean
   /** Sorted by commission.name (pt-BR locale). */
   memberships: Membership[]
   /**
@@ -88,7 +99,7 @@ export async function getSessionContext(): Promise<SessionContext | null> {
   const [profileResult, membershipResult, orgAdminResult] = await Promise.all([
     supabase
       .from('profiles')
-      .select('full_name')
+      .select('full_name, is_active, suspended_until, email_confirmed_at')
       .eq('id', userId)
       .maybeSingle(),
     // The nested `organization:organizations(...)` select resolves the parent org
@@ -140,26 +151,48 @@ export async function getSessionContext(): Promise<SessionContext | null> {
       a.organization.name.localeCompare(b.organization.name, 'pt-BR'),
     )
 
+  // Derived account status (BE-6). When the profile row is missing (an anomaly —
+  // the JWT already authenticated the user), default to `active`: RLS is the real
+  // data backstop, and we must not hard-lock a valid session on a read miss.
+  // platform_admin is never gated here (their profile is is_active=true anyway).
+  const profile = profileResult.data
+  const status: UserStatus = profile
+    ? deriveUserStatus(
+        profile.is_active,
+        profile.suspended_until,
+        profile.email_confirmed_at,
+      )
+    : 'active'
+  const isInactive = status === 'suspended' || status === 'deactivated'
+
   return {
     userId,
     email: typeof claims.email === 'string' ? claims.email : '',
-    fullName: profileResult.data?.full_name ?? null,
+    fullName: profile?.full_name ?? null,
     isAdmin,
+    status,
+    isInactive,
     memberships,
     orgAdminOf,
   }
 }
 
 /**
- * Returns the session context, redirecting to `/login` when unauthenticated.
- * For protected Server Components that need the user but not a specific
- * commission. Middleware is the coarse gate; this is the defensive server-side
- * check for components rendered behind it.
+ * Returns the session context, redirecting to `/login` when unauthenticated and
+ * to `/conta-inativa` when the account is suspended/deactivated (BE-6). For
+ * protected Server Components that need the user but not a specific commission.
+ * Middleware is the coarse gate; this is the defensive server-side check for
+ * components rendered behind it — and, for a user deactivated/suspended
+ * MID-SESSION (still holding a valid JWT), the effective lock-out point on any
+ * page render (RLS remains the data backstop; ADR 0009 ≤~1h JWT residual).
  */
 export async function requireUser(): Promise<SessionContext> {
   const context = await getSessionContext()
   if (!context) {
     redirect('/login')
+  }
+  if (context.isInactive) {
+    redirect('/conta-inativa')
   }
   return context
 }

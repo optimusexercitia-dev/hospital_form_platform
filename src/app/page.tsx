@@ -28,6 +28,14 @@ export default async function Home() {
     redirect("/login");
   }
 
+  // A mid-session-deactivated or currently-suspended user must land on the
+  // inactive-account page, not the "sem acesso" fallback — backend exposes
+  // `context.isInactive` (derived from the same lifecycle signals as
+  // `deriveUserStatus`) for exactly this gate.
+  if (context.isInactive) {
+    redirect("/conta-inativa");
+  }
+
   if (context.isAdmin) {
     redirect("/admin");
   }

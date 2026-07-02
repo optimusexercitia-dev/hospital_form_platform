@@ -94,6 +94,12 @@ begin
   insert into public.hospitals (id, organization_id, name, slug)
     values (hosp_b, org_b, 'Hosp Bootstrap', 'hosp-' || substr(hosp_b::text,1,8));
 
+  -- User-registration: every non-admin profile must be org-anchored (the deferred
+  -- profiles_tenant_has_org_trg checks this at COMMIT). Anchor the bootstrap's
+  -- tenant users to this fixture org now that it exists; the admin stays org-less.
+  update public.profiles set home_organization_id = org_b
+    where id in (sa_x, st_x, st_x2, sa_y, st_y);
+
   insert into public.commissions (id, name, slug, created_by, hospital_id) values
     (comm_x, 'Comissão X', 'comm-x-' || substr(comm_x::text,1,8), admin_id, hosp_b),
     (comm_y, 'Comissão Y', 'comm-y-' || substr(comm_y::text,1,8), admin_id, hosp_b);

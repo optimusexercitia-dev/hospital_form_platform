@@ -1,0 +1,69 @@
+{
+  "_comment": "Vectors for the TS-ONLY deriveUserStatus (4-way DISPLAY status), asserted in Vitest (src/lib/users/status-vectors.test.ts). There is NO SQL twin: the DB uses the separate access boolean app.is_active(), which intentionally differs on the email_confirmed_at dimension (a pending user is app-active for RLS but display-'pending'). `now` is the fixed evaluation instant; timestamps are ISO-8601. Derivation order: deactivated > suspended > pending > active.",
+  "now": "2026-07-01T12:00:00.000Z",
+  "cases": [
+    {
+      "name": "active: confirmed, not suspended, active",
+      "is_active": true,
+      "suspended_until": null,
+      "email_confirmed_at": "2026-06-01T00:00:00.000Z",
+      "expected": "active"
+    },
+    {
+      "name": "pending: not yet confirmed",
+      "is_active": true,
+      "suspended_until": null,
+      "email_confirmed_at": null,
+      "expected": "pending"
+    },
+    {
+      "name": "suspended: suspension in the future",
+      "is_active": true,
+      "suspended_until": "2026-08-01T00:00:00.000Z",
+      "email_confirmed_at": "2026-06-01T00:00:00.000Z",
+      "expected": "suspended"
+    },
+    {
+      "name": "active: suspension already lapsed (auto-reinstated)",
+      "is_active": true,
+      "suspended_until": "2026-06-01T00:00:00.000Z",
+      "email_confirmed_at": "2026-06-01T00:00:00.000Z",
+      "expected": "active"
+    },
+    {
+      "name": "suspended dominates pending: suspended AND unconfirmed",
+      "is_active": true,
+      "suspended_until": "2026-08-01T00:00:00.000Z",
+      "email_confirmed_at": null,
+      "expected": "suspended"
+    },
+    {
+      "name": "deactivated: master switch off (confirmed)",
+      "is_active": false,
+      "suspended_until": null,
+      "email_confirmed_at": "2026-06-01T00:00:00.000Z",
+      "expected": "deactivated"
+    },
+    {
+      "name": "deactivated dominates suspended",
+      "is_active": false,
+      "suspended_until": "2026-08-01T00:00:00.000Z",
+      "email_confirmed_at": "2026-06-01T00:00:00.000Z",
+      "expected": "deactivated"
+    },
+    {
+      "name": "deactivated dominates pending",
+      "is_active": false,
+      "suspended_until": null,
+      "email_confirmed_at": null,
+      "expected": "deactivated"
+    },
+    {
+      "name": "boundary: suspension exactly at now => reinstated (now >= suspended_until)",
+      "is_active": true,
+      "suspended_until": "2026-07-01T12:00:00.000Z",
+      "email_confirmed_at": "2026-06-01T00:00:00.000Z",
+      "expected": "active"
+    }
+  ]
+}

@@ -30,6 +30,14 @@ export interface ResolvedUser {
  * app's `/auth/confirm` route so the invitee lands on the existing
  * `/auth/confirm` → `/convite` first-password flow.
  *
+ * `homeOrganizationId` MUST be supplied when inviting a NEW user (any tenant
+ * user): `handle_new_user` reads it from `user_metadata` and anchors the profile,
+ * satisfying the deferred `profiles_tenant_has_org_trg` invariant (a non-admin
+ * profile must be org-anchored). Without it the profile insert is rejected at
+ * COMMIT (23514) and the invite fails. The existing-user branch does NOT need it
+ * (that profile is already anchored). It is set as `user_metadata` — a descriptive
+ * anchor only, NOT an authorization input (authz flows through memberships + RLS).
+ *
  * Throws on an unexpected Supabase admin error; the calling action maps that to
  * a generic pt-BR message (raw errors never reach the UI).
  */
@@ -37,6 +45,7 @@ export async function resolveOrInviteUser(
   admin: SupabaseClient<Database>,
   email: string,
   redirectTo: string,
+  homeOrganizationId: string,
 ): Promise<ResolvedUser> {
   const { data: existing, error: lookupError } = await admin
     .from('profiles')
@@ -52,7 +61,10 @@ export async function resolveOrInviteUser(
   }
 
   const { data: invite, error: inviteError } =
-    await admin.auth.admin.inviteUserByEmail(email, { redirectTo })
+    await admin.auth.admin.inviteUserByEmail(email, {
+      redirectTo,
+      data: { home_organization_id: homeOrganizationId },
+    })
 
   if (inviteError || !invite?.user) {
     throw inviteError ?? new Error('invite did not return a user')

@@ -125,12 +125,25 @@ export async function inviteStaff(
   const admin = createAdminClient()
   const origin = await appOrigin()
 
+  // The commission's denormalized (non-drifting) org anchors a freshly-invited
+  // tenant user's profile — the deferred anchor invariant requires it.
+  const { data: commission } = await admin
+    .from('commissions')
+    .select('organization_id')
+    .eq('id', commissionId)
+    .maybeSingle()
+  const orgId = commission?.organization_id
+  if (!orgId) {
+    return { ok: false, error: MESSAGES.missingCommission }
+  }
+
   let invited = false
   try {
     const resolved = await resolveOrInviteUser(
       admin,
       email,
       `${origin}/auth/confirm`,
+      orgId,
     )
     invited = resolved.invited
 

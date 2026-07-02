@@ -128,6 +128,10 @@ async function rpc(
   })
 }
 
+// rede-a — the org every probe commission below is attached to (see
+// makeProbeCommission). A tenant user must be anchored to it.
+const ORG_A = '0c000000-0000-0000-0000-00000000000a'
+
 /**
  * Create a fresh throwaway auth user via the Supabase admin API. The profile
  * auto-creates via the on-signup trigger. Returns `{ userId, email }`.
@@ -137,6 +141,14 @@ async function rpc(
  * staff2.ccih, etc.) have single-commission assertions in phase2/phase3 that
  * break the moment a seeded user is added to ANY extra commission. Throwaway
  * users have no such assertions, so adding them to probe commissions is safe.
+ *
+ * TENANT-ANCHOR (user-registration migration): a non-admin profile must carry a
+ * `home_organization_id` — the deferred `profiles_tenant_has_org_trg` invariant
+ * rejects a null anchor at commit (`23514`, "a non-admin profile must have
+ * home_organization_id"). `handle_new_user` reads it from `user_metadata`, so we
+ * thread the org here exactly like the real invite/registration path. Probe
+ * users are all members of rede-a probe commissions, so rede-a is the correct
+ * anchor. Without this, `POST /auth/v1/admin/users` returns 500.
  */
 async function makeProbeUser(
   req: APIRequestContext,
@@ -149,7 +161,12 @@ async function makeProbeUser(
       Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
       'Content-Type': 'application/json',
     },
-    data: { email, password: 'Test1234!', email_confirm: true },
+    data: {
+      email,
+      password: 'Test1234!',
+      email_confirm: true,
+      user_metadata: { home_organization_id: ORG_A },
+    },
   })
   expect(resp.status()).toBe(200)
   const body = (await resp.json()) as { id: string }
