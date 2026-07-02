@@ -34,6 +34,347 @@ export type Database = {
   }
   public: {
     Tables: {
+      action_item_assignments: {
+        Row: {
+          action_item_id: string
+          assigned_at: string
+          assigned_by: string | null
+          completed_at: string | null
+          created_at: string
+          id: string
+          note: string | null
+          role: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          action_item_id: string
+          assigned_at?: string
+          assigned_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          role: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          action_item_id?: string
+          assigned_at?: string
+          assigned_by?: string | null
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          role?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_item_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_item_assignments_item_fkey"
+            columns: ["action_item_id"]
+            isOneToOne: false
+            referencedRelation: "action_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_item_assignments_user_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      action_item_status_history: {
+        Row: {
+          action_item_id: string
+          changed_at: string
+          changed_by: string | null
+          comment: string | null
+          from_status_id: string | null
+          id: string
+          metadata: Json
+          to_status_id: string
+        }
+        Insert: {
+          action_item_id: string
+          changed_at?: string
+          changed_by?: string | null
+          comment?: string | null
+          from_status_id?: string | null
+          id?: string
+          metadata?: Json
+          to_status_id: string
+        }
+        Update: {
+          action_item_id?: string
+          changed_at?: string
+          changed_by?: string | null
+          comment?: string | null
+          from_status_id?: string | null
+          id?: string
+          metadata?: Json
+          to_status_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_item_status_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_item_status_history_from_fkey"
+            columns: ["from_status_id"]
+            isOneToOne: false
+            referencedRelation: "action_item_statuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_item_status_history_item_fkey"
+            columns: ["action_item_id"]
+            isOneToOne: false
+            referencedRelation: "action_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_item_status_history_to_fkey"
+            columns: ["to_status_id"]
+            isOneToOne: false
+            referencedRelation: "action_item_statuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      action_item_statuses: {
+        Row: {
+          archived: boolean
+          category: string
+          commission_id: string | null
+          created_at: string
+          id: string
+          is_initial: boolean
+          is_terminal: boolean
+          key: string
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          category: string
+          commission_id?: string | null
+          created_at?: string
+          id?: string
+          is_initial?: boolean
+          is_terminal?: boolean
+          key: string
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          category?: string
+          commission_id?: string | null
+          created_at?: string
+          id?: string
+          is_initial?: boolean
+          is_terminal?: boolean
+          key?: string
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_item_statuses_commission_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      action_item_urgency_levels: {
+        Row: {
+          archived: boolean
+          commission_id: string | null
+          created_at: string
+          id: string
+          key: string
+          label: string
+          rank: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          commission_id?: string | null
+          created_at?: string
+          id?: string
+          key: string
+          label: string
+          rank?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          commission_id?: string | null
+          created_at?: string
+          id?: string
+          key?: string
+          label?: string
+          rank?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_item_urgency_levels_commission_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      action_items: {
+        Row: {
+          assigned_to: string | null
+          case_id: string | null
+          commission_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          source_agenda_item_id: string | null
+          source_meeting_id: string | null
+          source_type: string
+          status_id: string
+          title: string
+          updated_at: string
+          urgency_id: string | null
+        }
+        Insert: {
+          assigned_to?: string | null
+          case_id?: string | null
+          commission_id: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          source_agenda_item_id?: string | null
+          source_meeting_id?: string | null
+          source_type: string
+          status_id: string
+          title: string
+          updated_at?: string
+          urgency_id?: string | null
+        }
+        Update: {
+          assigned_to?: string | null
+          case_id?: string | null
+          commission_id?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          source_agenda_item_id?: string | null
+          source_meeting_id?: string | null
+          source_type?: string
+          status_id?: string
+          title?: string
+          updated_at?: string
+          urgency_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_items_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_items_case_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_items_commission_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_items_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_items_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_items_source_agenda_item_fkey"
+            columns: ["source_agenda_item_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_agenda_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_items_source_meeting_fkey"
+            columns: ["source_meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_items_status_fkey"
+            columns: ["status_id"]
+            isOneToOne: false
+            referencedRelation: "action_item_statuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_items_urgency_fkey"
+            columns: ["urgency_id"]
+            isOneToOne: false
+            referencedRelation: "action_item_urgency_levels"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       answer_selected_options: {
         Row: {
           answer_id: string
@@ -2592,110 +2933,6 @@ export type Database = {
           },
         ]
       }
-      meeting_action_items: {
-        Row: {
-          assigned_to: string | null
-          case_id: string | null
-          commission_id: string
-          completed_at: string | null
-          completed_by: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          due_date: string | null
-          id: string
-          meeting_id: string
-          source_agenda_item_id: string | null
-          status: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          assigned_to?: string | null
-          case_id?: string | null
-          commission_id: string
-          completed_at?: string | null
-          completed_by?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          meeting_id: string
-          source_agenda_item_id?: string | null
-          status?: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          assigned_to?: string | null
-          case_id?: string | null
-          commission_id?: string
-          completed_at?: string | null
-          completed_by?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          meeting_id?: string
-          source_agenda_item_id?: string | null
-          status?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "meeting_action_items_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "meeting_action_items_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "meeting_action_items_commission_id_fkey"
-            columns: ["commission_id"]
-            isOneToOne: false
-            referencedRelation: "commissions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "meeting_action_items_completed_by_fkey"
-            columns: ["completed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "meeting_action_items_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "meeting_action_items_meeting_id_fkey"
-            columns: ["meeting_id"]
-            isOneToOne: false
-            referencedRelation: "meetings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "meeting_action_items_source_agenda_item_id_fkey"
-            columns: ["source_agenda_item_id"]
-            isOneToOne: false
-            referencedRelation: "meeting_agenda_items"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       meeting_agenda_items: {
         Row: {
           created_at: string
@@ -4832,6 +5069,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      action_items_enabled: { Args: never; Returns: boolean }
       activate_phase: {
         Args: {
           p_assigned_to: string
@@ -5503,8 +5741,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      advance_meeting_action_item: {
-        Args: { p_action_item_id: string; p_status: string }
+      advance_committee_action_item: {
+        Args: { p_comment?: string; p_id: string; p_to_status_id: string }
         Returns: {
           assigned_to: string | null
           case_id: string | null
@@ -5516,15 +5754,17 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
-          meeting_id: string
           source_agenda_item_id: string | null
-          status: string
+          source_meeting_id: string | null
+          source_type: string
+          status_id: string
           title: string
           updated_at: string
+          urgency_id: string | null
         }
         SetofOptions: {
           from: "*"
-          to: "meeting_action_items"
+          to: "action_items"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -6002,8 +6242,8 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      complete_meeting_action_item: {
-        Args: { p_action_item_id: string }
+      complete_committee_action_item: {
+        Args: { p_id: string }
         Returns: {
           assigned_to: string | null
           case_id: string | null
@@ -6015,15 +6255,17 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
-          meeting_id: string
           source_agenda_item_id: string | null
-          status: string
+          source_meeting_id: string | null
+          source_type: string
+          status_id: string
           title: string
           updated_at: string
+          urgency_id: string | null
         }
         SetofOptions: {
           from: "*"
-          to: "meeting_action_items"
+          to: "action_items"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -6355,6 +6597,45 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_committee_action_item: {
+        Args: {
+          p_agenda_item_id?: string
+          p_assigned_to?: string
+          p_case_id?: string
+          p_commission: string
+          p_description?: string
+          p_due_date?: string
+          p_meeting_id?: string
+          p_source_type: string
+          p_title?: string
+          p_urgency_id?: string
+        }
+        Returns: {
+          assigned_to: string | null
+          case_id: string | null
+          commission_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          source_agenda_item_id: string | null
+          source_meeting_id: string | null
+          source_type: string
+          status_id: string
+          title: string
+          updated_at: string
+          urgency_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_event_type: {
         Args: { p_description?: string; p_key: string; p_label: string }
         Returns: {
@@ -6467,40 +6748,6 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "meetings"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      create_meeting_action_item: {
-        Args: {
-          p_assigned_to?: string
-          p_case_id?: string
-          p_description?: string
-          p_due_date?: string
-          p_meeting_id: string
-          p_source_agenda_item_id?: string
-          p_title: string
-        }
-        Returns: {
-          assigned_to: string | null
-          case_id: string | null
-          commission_id: string
-          completed_at: string | null
-          completed_by: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          due_date: string | null
-          id: string
-          meeting_id: string
-          source_agenda_item_id: string | null
-          status: string
-          title: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "meeting_action_items"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -6783,6 +7030,10 @@ export type Database = {
         Args: { p_evidence_id: string }
         Returns: undefined
       }
+      delete_committee_action_item: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
       delete_interview_attachment: {
         Args: { p_attachment_id: string }
         Returns: undefined
@@ -6950,9 +7201,9 @@ export type Database = {
       list_addable_commission_members: {
         Args: { p_commission_id: string; p_search?: string }
         Returns: {
-          user_id: string
+          email: string
           full_name: string
-          email: string | null
+          user_id: string
         }[]
       }
       list_case_access: {
@@ -8507,6 +8758,41 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_committee_action_item: {
+        Args: {
+          p_assigned_to?: string
+          p_description?: string
+          p_due_date?: string
+          p_id: string
+          p_title: string
+          p_urgency_id?: string
+        }
+        Returns: {
+          assigned_to: string | null
+          case_id: string | null
+          commission_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          source_agenda_item_id: string | null
+          source_meeting_id: string | null
+          source_type: string
+          status_id: string
+          title: string
+          updated_at: string
+          urgency_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       update_event: {
         Args: {
           p_description_md?: string
@@ -8738,38 +9024,6 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "meetings"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      update_meeting_action_item: {
-        Args: {
-          p_action_item_id: string
-          p_assigned_to?: string
-          p_description?: string
-          p_due_date?: string
-          p_title: string
-        }
-        Returns: {
-          assigned_to: string | null
-          case_id: string | null
-          commission_id: string
-          completed_at: string | null
-          completed_by: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          due_date: string | null
-          id: string
-          meeting_id: string
-          source_agenda_item_id: string | null
-          status: string
-          title: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "meeting_action_items"
           isOneToOne: true
           isSetofReturn: false
         }

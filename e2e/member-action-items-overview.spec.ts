@@ -129,6 +129,44 @@ async function svcInsert<T>(
   return rows[0]
 }
 
+/** GET rows matching a PostgREST filter (service-role; bypasses RLS). */
+async function svcSelect<T>(
+  req: APIRequestContext,
+  table: string,
+  filter: string,
+): Promise<T[]> {
+  const resp = await req.get(`${SUPABASE_URL}/rest/v1/${table}?${filter}`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+    },
+  })
+  expect(
+    resp.ok(),
+    `svcSelect(${table}) failed ${resp.status()}: ${await resp.text()}`,
+  ).toBeTruthy()
+  return (await resp.json()) as T[]
+}
+
+/**
+ * The GLOBAL (commission_id NULL) shared-hub status id for a lifecycle key
+ * (open/in_progress/done/cancelled) — the shared `action_items` hub keys status
+ * by id, so meeting/manual fixture rows must carry a `status_id`, not a text
+ * `status`. Resolved once per beforeAll via the service REST endpoint.
+ */
+async function globalStatusId(
+  req: APIRequestContext,
+  key: string,
+): Promise<string> {
+  const rows = await svcSelect<{ id: string }>(
+    req,
+    'action_item_statuses',
+    `key=eq.${key}&commission_id=is.null&select=id`,
+  )
+  expect(rows.length, `global status "${key}" must be seeded`).toBe(1)
+  return rows[0].id
+}
+
 /** DELETE rows matching a PostgREST filter (e.g. `title=like.*${TAG}*`). */
 async function svcDelete(
   req: APIRequestContext,
@@ -173,6 +211,7 @@ const T_CASE_ACTIVE = `${TAG} Caso ativo sem prazo (staff1)`
 const T_CASE_DONE = `${TAG} Caso concluído (staff1)`
 const T_MEETING_ACTIVE = `${TAG} Reunião com prazo (staff1)`
 const T_MEETING_CANCELLED = `${TAG} Reunião cancelada (staff1)`
+const T_MANUAL_ACTIVE = `${TAG} Avulso ativo (staff1)`
 const T_OTHER_ASSIGNEE = `${TAG} Item de outro usuário (staff2)`
 const T_OTHER_COMMISSION = `${TAG} Item de outra comissão (staff1 Farmácia)`
 
@@ -217,35 +256,56 @@ test.beforeAll(async ({ request }) => {
     created_by: CHEFE_CCIH,
   })
 
-  // --- MEETING action items on the seeded meeting (commission A) → staff1 ---
-  // (d) active, future deadline (not overdue) — mixes case + meeting sources.
-  await svcInsert(request, 'meeting_action_items', {
-    meeting_id: SEEDED_MEETING_ID,
+  // --- SHARED-HUB action items (source_type meeting|manual) on commission A →
+  // staff1. Post Option-A unification these live on public.action_items and key
+  // status by `status_id` (a shared-hub status id), not a text `status`. ---
+  const openId = await globalStatusId(request, 'open')
+  const cancelledId = await globalStatusId(request, 'cancelled')
+
+  // (d) MEETING-source, active, future deadline (not overdue) — mixes case +
+  // meeting sources. Guard requires source_meeting_id in the same commission.
+  await svcInsert(request, 'action_items', {
     commission_id: COMM_CCIH_ID,
+    source_type: 'meeting',
+    source_meeting_id: SEEDED_MEETING_ID,
     title: T_MEETING_ACTIVE,
     description: 'Prévia da descrição do item de reunião.',
-    status: 'open',
+    status_id: openId,
     assigned_to: STAFF1_CCIH,
     due_date: isoDate(20),
     created_by: CHEFE_CCIH,
   })
-  // (e) cancelled → hidden by default, revealed by the toggle.
-  await svcInsert(request, 'meeting_action_items', {
-    meeting_id: SEEDED_MEETING_ID,
+  // (e) MEETING-source, cancelled → hidden by default, revealed by the toggle.
+  await svcInsert(request, 'action_items', {
     commission_id: COMM_CCIH_ID,
+    source_type: 'meeting',
+    source_meeting_id: SEEDED_MEETING_ID,
     title: T_MEETING_CANCELLED,
-    status: 'cancelled',
+    status_id: cancelledId,
     assigned_to: STAFF1_CCIH,
     due_date: null,
     created_by: CHEFE_CCIH,
   })
+  // (f) MANUAL-source, active, future deadline — a standalone committee task with
+  // NO parent meeting/case: renders the "Avulso" badge with no source link.
+  await svcInsert(request, 'action_items', {
+    commission_id: COMM_CCIH_ID,
+    source_type: 'manual',
+    title: T_MANUAL_ACTIVE,
+    description: 'Tarefa autônoma da comissão.',
+    status_id: openId,
+    assigned_to: STAFF1_CCIH,
+    due_date: isoDate(12),
+    created_by: CHEFE_CCIH,
+  })
 
   // --- ISOLATION: item assigned to a DIFFERENT user (staff2) same commission --
-  await svcInsert(request, 'meeting_action_items', {
-    meeting_id: SEEDED_MEETING_ID,
+  await svcInsert(request, 'action_items', {
     commission_id: COMM_CCIH_ID,
+    source_type: 'meeting',
+    source_meeting_id: SEEDED_MEETING_ID,
     title: T_OTHER_ASSIGNEE,
-    status: 'open',
+    status_id: openId,
     assigned_to: STAFF2_CCIH,
     due_date: isoDate(5),
     created_by: CHEFE_CCIH,
@@ -256,9 +316,9 @@ test.beforeAll(async ({ request }) => {
   // items derive their commission from the parent case (no denormalized column),
   // so there is no meeting/commission CHECK to violate. The RPC scopes by
   // c.commission_id = p_commission, so this row must NOT appear on the CCIH page.
-  // (A meeting_action_items row can't stand in here — its commission_id is
-  // CHECK-tied to its meeting's commission, so hanging it on the CCIH meeting
-  // would force a CCIH commission_id and reject the mismatch: 23514.)
+  // (A shared-hub meeting-source row can't stand in here — its guard ties the
+  // source_meeting_id to its own commission, so hanging it on the CCIH meeting
+  // would force a CCIH commission_id and reject the mismatch.)
   const farmCase = await svcInsert<{ id: string }>(request, 'cases', {
     commission_id: COMM_FARM_ID,
     label: `${TAG} Caso Farmácia (isolamento)`,
@@ -301,9 +361,10 @@ test.afterAll(async ({ request }) => {
 
 async function teardownFixtures(request: APIRequestContext) {
   // Action items first (children), then their parents. case_action_items match by
-  // title; the isolation item's parent Farmácia case matches by label.
+  // title; the shared-hub (meeting|manual) rows likewise; the isolation item's
+  // parent Farmácia case matches by label.
   await svcDelete(request, 'case_action_items', `title=like.*${TAG}*`)
-  await svcDelete(request, 'meeting_action_items', `title=like.*${TAG}*`)
+  await svcDelete(request, 'action_items', `title=like.*${TAG}*`)
   // The TAG-named Farmácia case created for the cross-commission isolation row.
   await svcDelete(request, 'cases', `label=like.*${TAG}*`)
   // Attendees on our future meeting cascade with the meeting; delete the meeting
@@ -364,18 +425,24 @@ test('AC-2/3: lists only own items in this commission, mixed case+meeting source
     ).toBeVisible()
   }
 
-  // Own active items are present (a case + a meeting → mixed sources).
+  // Own active items are present (case + meeting + manual → three sources).
   await expect(page.getByRole('cell', { name: T_CASE_OVERDUE })).toBeVisible()
   await expect(page.getByRole('cell', { name: T_CASE_ACTIVE })).toBeVisible()
   await expect(page.getByRole('cell', { name: T_MEETING_ACTIVE })).toBeVisible()
+  await expect(page.getByRole('cell', { name: T_MANUAL_ACTIVE })).toBeVisible()
 
-  // Both source badges appear (Caso + Reunião).
+  // All three source badges appear (Caso + Reunião + Avulso).
   await expect(
     page.getByRole('cell').filter({ hasText: 'Caso' }).first(),
   ).toBeVisible()
   await expect(
     page.getByRole('cell').filter({ hasText: 'Reunião' }).first(),
   ).toBeVisible()
+  // The manual item renders the "Avulso" badge and — being a standalone task —
+  // carries NO source link in its "Gerado de" cell.
+  const manualRow = page.getByRole('row').filter({ hasText: T_MANUAL_ACTIVE })
+  await expect(manualRow).toContainText('Avulso')
+  await expect(manualRow.getByRole('link')).toHaveCount(0)
 
   // "Atribuído por" resolves the creator display name (Chefe CCIH).
   const overdueRow = page.getByRole('row').filter({ hasText: T_CASE_OVERDUE })
@@ -429,7 +496,7 @@ test('AC-4: default shows active only; toggle reveals resolved', async ({
   await expect(page.getByRole('cell', { name: T_CASE_OVERDUE })).toBeVisible()
 })
 
-// AC-5: source-type filter (Caso / Reunião / Ambos).
+// AC-5: source-type filter (Todos / Caso / Reunião / Avulso).
 test('AC-5: source-type filter restricts rows to the chosen source', async ({
   page,
 }) => {
@@ -438,23 +505,34 @@ test('AC-5: source-type filter restricts rows to the chosen source', async ({
 
   const group = page.getByRole('radiogroup', { name: /filtrar por origem/i })
 
-  // Filter to Caso: meeting item disappears, case items remain.
+  // Filter to Caso: meeting + manual items disappear, case items remain.
   await group.getByRole('radio', { name: 'Caso' }).click()
   await expect(page.getByRole('cell', { name: T_CASE_OVERDUE })).toBeVisible()
   await expect(page.getByRole('cell', { name: T_CASE_ACTIVE })).toBeVisible()
   await expect(
     page.getByRole('cell', { name: T_MEETING_ACTIVE }),
   ).toHaveCount(0)
+  await expect(
+    page.getByRole('cell', { name: T_MANUAL_ACTIVE }),
+  ).toHaveCount(0)
 
-  // Filter to Reunião: case items disappear, meeting item remains.
+  // Filter to Reunião: case + manual items disappear, meeting item remains.
   await group.getByRole('radio', { name: 'Reunião' }).click()
   await expect(page.getByRole('cell', { name: T_MEETING_ACTIVE })).toBeVisible()
   await expect(page.getByRole('cell', { name: T_CASE_OVERDUE })).toHaveCount(0)
+  await expect(page.getByRole('cell', { name: T_MANUAL_ACTIVE })).toHaveCount(0)
 
-  // Back to Ambos: both sources return.
-  await group.getByRole('radio', { name: 'Ambos' }).click()
+  // Filter to Avulso: only the standalone manual item remains.
+  await group.getByRole('radio', { name: 'Avulso' }).click()
+  await expect(page.getByRole('cell', { name: T_MANUAL_ACTIVE })).toBeVisible()
+  await expect(page.getByRole('cell', { name: T_MEETING_ACTIVE })).toHaveCount(0)
+  await expect(page.getByRole('cell', { name: T_CASE_OVERDUE })).toHaveCount(0)
+
+  // Back to Todos: all three sources return.
+  await group.getByRole('radio', { name: 'Todos' }).click()
   await expect(page.getByRole('cell', { name: T_CASE_OVERDUE })).toBeVisible()
   await expect(page.getByRole('cell', { name: T_MEETING_ACTIVE })).toBeVisible()
+  await expect(page.getByRole('cell', { name: T_MANUAL_ACTIVE })).toBeVisible()
 })
 
 // AC-6: sort = overdue-first then earliest Prazo; a past-due active item shows
@@ -691,13 +769,13 @@ test('AC-12: cards reflect the known fixture data (contamination-safe bounds)', 
   await signInAs(page, 'staff1.ccih@test.local')
   await page.goto(`/o/${ORG_A}/c/${COMM_CCIH}`)
 
-  // Pending action items: this spec assigns staff1 THREE active items (open case
-  // [overdue], in_progress case, open meeting [future]) on top of the seed's one
-  // meeting item — so the active count is at least 4. done/cancelled are excluded
-  // (proven by the exact-active behaviour in AC-4), so extra resolved items never
-  // inflate this. Lower bound is contamination-immune.
+  // Pending action items: this spec assigns staff1 FOUR active items (open case
+  // [overdue], in_progress case, open meeting [future], open manual [future]) on
+  // top of the seed's one meeting item — so the active count is at least 5.
+  // done/cancelled are excluded (proven by the exact-active behaviour in AC-4),
+  // so extra resolved items never inflate this. Lower bound is contamination-immune.
   const staff1Pending = await cardValue('Itens de ação pendentes')
-  expect(staff1Pending).toBeGreaterThanOrEqual(4)
+  expect(staff1Pending).toBeGreaterThanOrEqual(5)
 
   // Respostas em andamento: the seeded Form-A draft guarantees at least 1.
   expect(await cardValue('Respostas em andamento')).toBeGreaterThanOrEqual(1)
@@ -824,14 +902,25 @@ test('AC-15: keyboard-only — operate the toggle + source filter + reach a link
   await casoRadio.focus()
   await expect(casoRadio).toBeFocused()
   await page.keyboard.press('Enter')
-  // Case items remain, meeting item filtered out.
+  // Case items remain, meeting + manual items filtered out.
   await expect(page.getByRole('cell', { name: T_CASE_OVERDUE })).toBeVisible()
   await expect(
     page.getByRole('cell', { name: T_MEETING_ACTIVE }),
   ).toHaveCount(0)
-  // Reset to Ambos by keyboard.
-  const ambosRadio = page.getByRole('radio', { name: 'Ambos' })
-  await ambosRadio.focus()
+  await expect(
+    page.getByRole('cell', { name: T_MANUAL_ACTIVE }),
+  ).toHaveCount(0)
+  // Focus + activate the new "Avulso" (manual) radio by keyboard: only the
+  // standalone manual item remains.
+  const avulsoRadio = page.getByRole('radio', { name: 'Avulso' })
+  await avulsoRadio.focus()
+  await expect(avulsoRadio).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('cell', { name: T_MANUAL_ACTIVE })).toBeVisible()
+  await expect(page.getByRole('cell', { name: T_CASE_OVERDUE })).toHaveCount(0)
+  // Reset to Todos by keyboard.
+  const todosRadio = page.getByRole('radio', { name: 'Todos' })
+  await todosRadio.focus()
   await page.keyboard.press('Enter')
   await expect(page.getByRole('cell', { name: T_MEETING_ACTIVE })).toBeVisible()
 

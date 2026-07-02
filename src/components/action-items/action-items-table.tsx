@@ -25,7 +25,7 @@ import { formatDateTime, formatDueDate, isOverdue } from "./format";
  * Client behaviors:
  *  - default filter = ACTIVE only (open + in_progress), a toggle reveals
  *    done + cancelled;
- *  - a source-type filter (Caso / Reunião / ambos);
+ *  - a source-type filter (Caso / Reunião / Avulso / todos);
  *  - default sort = due date ASC with overdue first and no-deadline last, then
  *    createdAt DESC — computed here, independent of the server's ordering.
  *
@@ -149,9 +149,10 @@ function compareItems(a: MyActionItem, b: MyActionItem): number {
 // ---------------------------------------------------------------------------
 
 const SOURCE_OPTIONS: { value: "all" | ActionItemSource; label: string }[] = [
-  { value: "all", label: "Ambos" },
+  { value: "all", label: "Todos" },
   { value: "case", label: "Caso" },
   { value: "meeting", label: "Reunião" },
+  { value: "manual", label: "Avulso" },
 ];
 
 function Filters({
@@ -290,9 +291,12 @@ function ItemRow({
 }
 
 /**
- * The "Gerado de" cell: the neutral Caso/Reunião badge followed by a link to the
- * source detail. Case → `casos/{caseId}` (member-reachable) when linkable; else
- * plain text. Meeting → `meetings/{meetingId}` (member-reachable).
+ * The "Gerado de" cell: the neutral Caso/Reunião/Avulso badge followed (for linked
+ * sources) by a link to the source detail. Case → `casos/{caseId}`
+ * (member-reachable) when linkable; else plain text. Meeting →
+ * `meetings/{meetingId}` (member-reachable). Manual (`Avulso`) is a standalone
+ * committee task with NO parent detail page — the badge stands alone, never a dead
+ * link.
  */
 function SourceCell({
   org,
@@ -324,6 +328,16 @@ function SourceCell({
         ) : (
           <span className="text-sm text-foreground">{text}</span>
         )}
+      </div>
+    );
+  }
+
+  if (item.source === "manual") {
+    // Standalone task — no case/meeting parent, so just the badge (no link, no
+    // dead `<a>`). The title column already carries the item's own name.
+    return (
+      <div className="flex flex-col gap-1">
+        <ActionItemSourceBadge source="manual" />
       </div>
     );
   }
@@ -423,7 +437,7 @@ function EmptyState({ hasAnyItems }: { hasAnyItems: boolean }) {
       <p className="max-w-prose text-sm text-muted-foreground text-pretty">
         {hasAnyItems
           ? "Ajuste a origem ou mostre os itens concluídos e cancelados para ver mais."
-          : "Quando a coordenação atribuir uma tarefa a você em um caso ou reunião, ela aparecerá aqui."}
+          : "Quando a coordenação atribuir uma tarefa a você — em um caso, em uma reunião ou avulsa —, ela aparecerá aqui."}
       </p>
     </div>
   );

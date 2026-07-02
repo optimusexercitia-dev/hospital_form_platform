@@ -953,13 +953,15 @@ begin
           'Caso em investigação revisado pelo comitê.',
           'Encaminhar para a próxima fase.');
 
-  -- One action item assigned to staff1 (sourced from agenda item 2).
-  insert into public.meeting_action_items
-    (meeting_id, commission_id, source_agenda_item_id, title, description, status,
-     assigned_to, due_date, created_by)
+  -- One action item assigned to staff1 (sourced from agenda item 2), on the
+  -- shared action_items hub (meeting source). Status = the global `open` default.
+  insert into public.action_items
+    (commission_id, source_type, source_meeting_id, source_agenda_item_id,
+     title, description, status_id, assigned_to, due_date, created_by)
   values
-    (v_mtg, v_comm_a, v_ag2, 'Atualizar protocolo de higienização',
-     'Revisar e redistribuir o protocolo às equipes.', 'open',
+    (v_comm_a, 'meeting', v_mtg, v_ag2, 'Atualizar protocolo de higienização',
+     'Revisar e redistribuir o protocolo às equipes.',
+     (select id from public.action_item_statuses where key = 'open' and commission_id is null),
      v_staff_a1, current_date + 14, v_chefe_a);
 end $$;
 

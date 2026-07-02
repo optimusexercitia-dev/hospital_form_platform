@@ -12,6 +12,7 @@ import { listSignoffQueue } from "@/lib/queries/signoffs";
 import { myPendingMeetingSignatures } from "@/lib/queries/meetings";
 import { meetingsEnabled } from "@/lib/meetings/actions";
 import { auditTrailEnabled } from "@/lib/queries/audit";
+import { actionItemsEnabled } from "@/lib/queries/action-items";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
 import {
@@ -75,6 +76,7 @@ export default async function CommissionLayout({
     caseAccessOn,
     referralsOn,
     casesExtrasOn,
+    sharedActionItemsOn,
     nspAccess,
   ] = await Promise.all([
     meetingsEnabled(),
@@ -83,12 +85,15 @@ export default async function CommissionLayout({
     caseAccessEnabled(),
     referralsEnabled(),
     casesExtrasEnabled(),
+    actionItemsEnabled(),
     getNspAccessByOrg(org),
   ]);
 
-  // "Meus itens de ação" surfaces items from the case + meeting sources, so its
-  // nav item shows when EITHER source flag is on.
-  const actionItemsOn = casesExtrasOn || meetingsOn;
+  // "Meus itens de ação" surfaces items from three sources: case_action_items
+  // (`cases_extras`), and the shared action_items hub's meeting-sourced
+  // (`meetings`) and manual-sourced (`action_items`) rows. Its nav item shows when
+  // ANY of those source flags is on.
+  const actionItemsOn = casesExtrasOn || meetingsOn || sharedActionItemsOn;
 
   // The "my work" count is the badge for whichever nav item the flag selects:
   // OFF → "Minhas fases" (active assigned phases, today's read); ON → "Meus Casos"

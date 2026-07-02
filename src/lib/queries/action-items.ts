@@ -4,9 +4,10 @@ import { createClient } from '@/lib/supabase/server'
  * "Meus itens de ação" data-access (Architecture Rule 9 — all reads go through
  * `src/lib/queries/`). Backs the current user's unified action-item list at
  * `/o/[org]/c/[commission]/` — a read-only union of the items ASSIGNED TO the
- * caller across exactly TWO sources:
- *   - `case_action_items`    (gated by the `cases_extras` flag)
- *   - `meeting_action_items` (gated by the `meetings` flag)
+ * caller across these sources:
+ *   - `case_action_items`      (gated by the `cases_extras` flag)
+ *   - shared `action_items`    (gated by the `action_items` flag) — both the
+ *     `meeting`-sourced and `manual` rows of the unified hub.
  *
  * CAPA action items are intentionally NOT included (they live under the NSP/PHI
  * safeguards and are surfaced elsewhere). A source whose feature flag is OFF is
@@ -30,8 +31,12 @@ import { createClient } from '@/lib/supabase/server'
 // Domain types
 // ---------------------------------------------------------------------------
 
-/** Which table a unified action item came from. */
-export type ActionItemSource = 'case' | 'meeting'
+/**
+ * Which source a unified action item came from. `case` is `case_action_items`;
+ * `meeting` and `manual` are both the shared `action_items` hub (discriminated
+ * by its `source_type`).
+ */
+export type ActionItemSource = 'case' | 'meeting' | 'manual'
 
 /** Shared lifecycle status (identical CHECK on both source tables). */
 export type MyActionItemStatus = 'open' | 'in_progress' | 'done' | 'cancelled'
@@ -98,16 +103,33 @@ interface MyActionItemJson {
 }
 
 // ---------------------------------------------------------------------------
+// Feature-flag reader
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether the shared `action_items` feature flag is ON (probes the public
+ * `action_items_enabled` flag-reader RPC; mirrors `casesExtrasEnabled` /
+ * `meetingsEnabled`). Gates the shared action-items surface — e.g. the sidebar
+ * "Meus itens de ação" item. `false` on any error (fail-closed).
+ */
+export async function actionItemsEnabled(): Promise<boolean> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('action_items_enabled')
+  if (error) return false
+  return data === true
+}
+
+// ---------------------------------------------------------------------------
 // Query
 // ---------------------------------------------------------------------------
 
 /**
- * The current user's action items across the case + meeting sources for one
- * commission (`assigned_to = auth.uid()`), ALL statuses. A source whose feature
- * flag is OFF is omitted from the union (never an error). Ordered by the RPC
- * (due_date asc, nulls last, then created_at desc) as a stable default; the page
- * re-sorts/filters client-side. Returns `[]` when unauthenticated or nothing is
- * assigned.
+ * The current user's action items across the case + shared (meeting|manual)
+ * sources for one commission (`assigned_to = auth.uid()`), ALL statuses. A source
+ * whose feature flag is OFF is omitted from the union (never an error). Ordered
+ * by the RPC (due_date asc, nulls last, then created_at desc) as a stable
+ * default; the page re-sorts/filters client-side. Returns `[]` when
+ * unauthenticated or nothing is assigned.
  */
 export async function listMyActionItems(
   commissionId: string,

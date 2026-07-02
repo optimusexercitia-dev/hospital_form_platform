@@ -68,8 +68,9 @@ interface NavItem {
   requiresFeature?: "meetings" | "audit" | "patient_safety" | "case_referrals";
   /**
    * When true, the item renders only if `actionItemsEnabled` is on — the composite
-   * flag `cases_extras OR meetings` resolved by the layout (the two action-item
-   * sources). Not a single `requiresFeature` key because it's an OR of two flags.
+   * flag `cases_extras OR meetings OR action_items` resolved by the layout (the
+   * three action-item sources: case items, meeting items, and standalone/manual
+   * items). Not a single `requiresFeature` key because it's an OR of three flags.
    */
   requiresActionItems?: boolean;
   /**
@@ -120,7 +121,8 @@ const NAV_GROUPS: NavGroup[] = [
         roles: ["staff", "staff_admin"],
       },
       {
-        // Shown when either action-item source is on (`cases_extras` OR `meetings`).
+        // Shown when any action-item source is on
+        // (`cases_extras` OR `meetings` OR `action_items`).
         label: "Meus itens de ação",
         href: "meus-itens-de-acao",
         icon: ListTodo,
@@ -269,7 +271,8 @@ export function AppSidebar({
   caseAccessEnabled?: boolean;
   /**
    * Whether the "Meus itens de ação" item shows — the composite `cases_extras OR
-   * meetings` flag resolved by the layout (its two action-item sources).
+   * meetings OR action_items` flag resolved by the layout (its three action-item
+   * sources: case, meeting, and standalone/manual items).
    */
   actionItemsEnabled?: boolean;
   /** Whether the current user is the org's NSP coordinator (curates the PQS roster). */

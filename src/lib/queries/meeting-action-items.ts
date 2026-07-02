@@ -2,16 +2,19 @@ import { createClient } from '@/lib/supabase/server'
 
 /**
  * Meeting ACTION ITEMS data-access (Phase 10 — Meetings; Architecture Rule 9 —
- * reads through `src/lib/queries/`). Mirrors `case_action_items`: a meeting's
- * action plan is a set of follow-up items with a light status lifecycle
+ * reads through `src/lib/queries/`). A meeting's action plan is a set of
+ * follow-up items with a light status lifecycle
  * (`open`/`in_progress`/`done`/`cancelled`), an optional assignee + due date, an
  * optional `source_agenda_item_id` (the agenda item that generated it,
- * `ON DELETE SET NULL`), and an optional `case_id` cross-link to a case. Unlike
- * the case variant, `commission_id` is DENORMALIZED on the row (for a direct RLS
- * predicate). RLS is member-read / staff_admin-write; assignees advance their
- * OWN items via a narrow RPC. Strings are pt-BR, resolved in the UI.
+ * `ON DELETE SET NULL`), and an optional `case_id` cross-link to a case.
+ * `commission_id` is DENORMALIZED on the row (for a direct RLS predicate).
+ * RLS is member-read / staff_admin-write; assignees advance their OWN items via
+ * a narrow RPC. Strings are pt-BR, resolved in the UI.
  *
- * CONTRACT STATUS (task B0): the body is a placeholder until the migrations land.
+ * Backed by the SHARED `public.action_items` hub (Option A unification): this
+ * reads the `source_type='meeting'` rows and maps the joined status KEY into the
+ * historical `MeetingActionItemStatus` union so the meetings UI is unchanged. The
+ * exported types are stable; only the underlying table + status column changed.
  */
 
 /** Action-item lifecycle status (shared shape with cases). */
@@ -52,13 +55,13 @@ export interface MeetingActionItem {
 
 interface MeetingActionItemRow {
   id: string
-  meeting_id: string
+  source_meeting_id: string | null
   commission_id: string
   source_agenda_item_id: string | null
   case_id: string | null
   title: string
   description: string | null
-  status: MeetingActionItemStatus
+  status: { key: string } | null
   assigned_to: string | null
   due_date: string | null
   created_by: string | null
@@ -69,10 +72,26 @@ interface MeetingActionItemRow {
   profiles: { full_name: string | null } | null
 }
 
+/** The four historical statuses; anything else falls back to `open`. */
+const MEETING_ACTION_ITEM_STATUSES: readonly MeetingActionItemStatus[] = [
+  'open',
+  'in_progress',
+  'done',
+  'cancelled',
+]
+
+function toMeetingActionItemStatus(key: string | undefined): MeetingActionItemStatus {
+  return (MEETING_ACTION_ITEM_STATUSES as readonly string[]).includes(key ?? '')
+    ? (key as MeetingActionItemStatus)
+    : 'open'
+}
+
 /**
- * The action items of one meeting (the per-meeting panel). RLS-scoped (members
- * read); `[]` when unreadable. Ordered: by due date (soonest first, nulls last),
- * then newest. The assignee's name is joined via the member-readable `profiles`.
+ * The action items of one meeting (the per-meeting panel). Reads the shared
+ * `action_items` hub filtered to this meeting's `source_type='meeting'` rows.
+ * RLS-scoped (members read); `[]` when unreadable. Ordered: by due date (soonest
+ * first, nulls last), then newest. The assignee's name is joined via the
+ * member-readable `profiles`; the lifecycle status is the joined status KEY.
  */
 export async function listMeetingActionItems(
   meetingId: string,
@@ -80,14 +99,16 @@ export async function listMeetingActionItems(
   const supabase = await createClient()
 
   const { data, error } = await supabase
-    .from('meeting_action_items')
+    .from('action_items')
     .select(
-      `id, meeting_id, commission_id, source_agenda_item_id, case_id, title,
-       description, status, assigned_to, due_date, created_by, created_at,
+      `id, source_meeting_id, commission_id, source_agenda_item_id, case_id, title,
+       description, assigned_to, due_date, created_by, created_at,
        updated_at, completed_at, completed_by,
+       status:status_id ( key ),
        profiles:assigned_to ( full_name )`,
     )
-    .eq('meeting_id', meetingId)
+    .eq('source_type', 'meeting')
+    .eq('source_meeting_id', meetingId)
     .order('due_date', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false })
     .returns<MeetingActionItemRow[]>()
@@ -96,13 +117,13 @@ export async function listMeetingActionItems(
 
   return data.map((r) => ({
     id: r.id,
-    meetingId: r.meeting_id,
+    meetingId: r.source_meeting_id ?? meetingId,
     commissionId: r.commission_id,
     sourceAgendaItemId: r.source_agenda_item_id,
     caseId: r.case_id,
     title: r.title,
     description: r.description,
-    status: r.status,
+    status: toMeetingActionItemStatus(r.status?.key),
     assignedTo: r.assigned_to,
     assignedToName: r.profiles?.full_name ?? null,
     dueDate: r.due_date,

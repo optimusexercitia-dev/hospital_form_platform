@@ -1,4 +1,4 @@
-import { FolderOpen, CalendarDays } from "lucide-react";
+import { FolderOpen, CalendarDays, CircleDot } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type {
@@ -73,13 +73,18 @@ const SOURCE_META: Record<
 > = {
   case: { label: "Caso", icon: FolderOpen },
   meeting: { label: "Reunião", icon: CalendarDays },
+  // Standalone committee task, not tied to a case or meeting — hence no source
+  // detail to link to. "Avulso" (pt-BR: standalone) + a single-dot glyph.
+  manual: { label: "Avulso", icon: CircleDot },
 };
 
 /**
- * The "Gerado de" TYPE discriminator (Caso / Reunião). Neutral outline chip with a
- * leading icon — visually distinct from the colored status pill so the two never
- * blur together. The label alongside is the clickable link to the source detail
- * (rendered by the caller); this badge is the icon+word prefix.
+ * The "Gerado de" TYPE discriminator (Caso / Reunião / Avulso). Neutral outline
+ * chip with a leading icon — visually distinct from the colored status pill so the
+ * two never blur together. For linked sources (case/meeting) the label alongside
+ * is the clickable link to the source detail (rendered by the caller); a `manual`
+ * item has no detail page, so the caller renders it as the badge alone. This badge
+ * is the icon+word prefix.
  */
 export function ActionItemSourceBadge({
   source,

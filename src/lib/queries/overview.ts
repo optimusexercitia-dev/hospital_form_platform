@@ -37,9 +37,10 @@ export interface MemberOverview {
    */
   casesNotConcluded: number
   /**
-   * Action items assigned to the caller with status ∈ {open, in_progress} — the
-   * "Meus itens de ação" union count. 0 when both source flags
-   * (`cases_extras` + `meetings`) are off.
+   * Action items assigned to the caller that are still pending — the "Meus itens
+   * de ação" union count. Case items count while status ∈ {open, in_progress};
+   * shared `action_items` (meeting + manual) count while their status is
+   * non-terminal. 0 when both source flags (`cases_extras` + `action_items`) are off.
    */
   pendingActionItems: number
   /** Of {@link pendingActionItems}, how many are overdue (`due_date < today`). Secondary hint. */

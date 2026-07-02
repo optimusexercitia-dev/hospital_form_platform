@@ -7,7 +7,7 @@
 -- case link; cross-commission RLS isolation.
 
 begin;
-select plan(30);
+select plan(32);
 
 -- Enable the meetings feature flag for the whole test.
 update app.feature_flags set enabled = true where key = 'meetings';
@@ -262,29 +262,55 @@ select is(
 
 -- =========================================================================
 -- HC037: a non-assignee non-admin cannot advance an action item.
+-- Meeting action items now live on the shared `action_items` hub (source_type
+-- 'meeting') and go through the committee_* RPCs. The meetings UI still speaks
+-- in status KEYS, so advance resolves key -> the shared status id first.
 -- =========================================================================
+-- The shared `in_progress` status id (global default; comm_x has no override).
+create temp table st_ip on commit drop as
+  select id as sid from public.action_item_statuses
+  where key = 'in_progress' and commission_id is null;
+grant select on st_ip to authenticated;
+
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table ai on commit drop as
-  select * from public.create_meeting_action_item((select id from m1), 'Tarefa', null, (select st_x from k), null, null, null);
+  select * from public.create_committee_action_item(
+    p_commission  => (select comm_x from k),
+    p_source_type => 'meeting',
+    p_meeting_id  => (select id from m1),
+    p_title       => 'Tarefa',
+    p_assigned_to => (select st_x from k));
 reset role;
 grant select on ai to authenticated;
+
+-- create wrote the meeting-sourced row on the shared hub AND mirrored assigned_to
+-- as the single active `owner` assignment.
+select is(
+  (select source_type from public.action_items where id = (select id from ai)),
+  'meeting', 'meeting action item lands on the shared hub with source_type meeting');
+select is(
+  (select count(*)::int from public.action_item_assignments
+   where action_item_id = (select id from ai) and role = 'owner' and completed_at is null),
+  1, 'create mirrors assigned_to as one active owner assignment');
 
 -- st_x2 (not the assignee, not staff_admin) -> HC037.
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
 select throws_ok(
-  $$ select public.advance_meeting_action_item((select id from ai), 'in_progress') $$,
+  $$ select public.advance_committee_action_item((select id from ai), (select sid from st_ip), null) $$,
   'HC037', null, 'non-assignee non-admin cannot advance an action item (HC037)');
 reset role;
 
 -- st_x (the assignee) can advance.
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
-select public.advance_meeting_action_item((select id from ai), 'in_progress');
+select public.advance_committee_action_item((select id from ai), (select sid from st_ip), null);
 reset role;
 select is(
-  (select status from public.meeting_action_items where id = (select id from ai)),
+  (select st.key from public.action_items ai
+     join public.action_item_statuses st on st.id = ai.status_id
+   where ai.id = (select id from ai)),
   'in_progress', 'assignee advances their own action item');
 
 -- =========================================================================

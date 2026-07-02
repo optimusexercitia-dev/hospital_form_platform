@@ -25,7 +25,7 @@
 -- pending); it is NOT parked by this file and is excluded from the green bar.
 
 begin;
-select plan(74);
+select plan(76);
 
 -- All feature flags are ON in the seeded DB (20260624130000_feature_flags_default_on.sql).
 
@@ -94,8 +94,12 @@ select is((select count(*)::int from public.meeting_attendees), 0,
   'WALL: platform sees 0 meeting_attendees');
 select is((select count(*)::int from public.meeting_cases), 0,
   'WALL: platform sees 0 meeting_cases');
-select is((select count(*)::int from public.meeting_action_items), 0,
-  'WALL: platform sees 0 meeting_action_items');
+select is((select count(*)::int from public.action_items), 0,
+  'WALL: platform sees 0 action_items (shared hub — meeting + manual)');
+select is((select count(*)::int from public.action_item_assignments), 0,
+  'WALL: platform sees 0 action_item_assignments (satellite RLS)');
+select is((select count(*)::int from public.action_item_status_history), 0,
+  'WALL: platform sees 0 action_item_status_history (satellite RLS)');
 select is((select count(*)::int from public.case_interviews), 0,
   'WALL: platform sees 0 case_interviews');
 

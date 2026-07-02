@@ -85,9 +85,9 @@ export interface MeetingListItem {
   /** Secretary's quorum verdict (computed at conclusion, overridable); `null` before conclusion. */
   quorumMet: boolean | null
   /**
-   * Count of this meeting's OPEN action items — `meeting_action_items` with
-   * `status ∈ {open, in_progress}` (excludes `done` / `cancelled`). Always a
-   * number (0 when none); drives the "Ações pendentes" column.
+   * Count of this meeting's OPEN action items — the shared `action_items` hub
+   * (meeting source) with a NON-TERMINAL status (excludes `done` / `cancelled`).
+   * Always a number (0 when none); drives the "Ações pendentes" column.
    */
   pendingActionItems: number
   /**
@@ -474,18 +474,21 @@ export async function listMeetings(
     .filter((m) => m.status === 'em_assinatura')
     .map((m) => m.id)
 
-  // (1) Open action items per meeting (status open/in_progress).
+  // (1) Open action items per meeting — the shared action_items hub, meeting
+  // source, non-terminal status (the inner-joined status carries is_terminal).
   const pendingActionsByMeeting = new Map<string, number>()
   const { data: actionRows } = await supabase
-    .from('meeting_action_items')
-    .select('meeting_id')
-    .in('meeting_id', meetingIds)
-    .in('status', ['open', 'in_progress'])
-    .returns<{ meeting_id: string }[]>()
+    .from('action_items')
+    .select('source_meeting_id, status:status_id!inner ( is_terminal )')
+    .eq('source_type', 'meeting')
+    .in('source_meeting_id', meetingIds)
+    .eq('status.is_terminal', false)
+    .returns<{ source_meeting_id: string | null }[]>()
   for (const r of actionRows ?? []) {
+    if (!r.source_meeting_id) continue
     pendingActionsByMeeting.set(
-      r.meeting_id,
-      (pendingActionsByMeeting.get(r.meeting_id) ?? 0) + 1,
+      r.source_meeting_id,
+      (pendingActionsByMeeting.get(r.source_meeting_id) ?? 0) + 1,
     )
   }
 

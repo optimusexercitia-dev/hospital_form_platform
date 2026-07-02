@@ -917,14 +917,16 @@ export async function createMeetingActionItem(
     return { ok: false, error: MEETING_MESSAGES.forbidden }
   }
 
-  const { data, error } = await supabase.rpc('create_meeting_action_item', {
+  const { data, error } = await supabase.rpc('create_committee_action_item', {
+    p_commission: commissionId,
+    p_source_type: 'meeting',
     p_meeting_id: meetingId,
+    p_agenda_item_id: input.sourceAgendaItemId ?? undefined,
+    p_case_id: input.caseId ?? undefined,
     p_title: input.title.trim(),
     p_description: input.description ?? undefined,
     p_assigned_to: input.assignedTo ?? undefined,
     p_due_date: dueDate ?? undefined,
-    p_source_agenda_item_id: input.sourceAgendaItemId ?? undefined,
-    p_case_id: input.caseId ?? undefined,
   })
 
   if (error || !data) return { ok: false, error: mapMeetingError(error) }
@@ -960,8 +962,8 @@ export async function updateMeetingActionItem(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc('update_meeting_action_item', {
-    p_action_item_id: actionItemId,
+  const { error } = await supabase.rpc('update_committee_action_item', {
+    p_id: actionItemId,
     p_title: input.title.trim(),
     p_description: input.description ?? undefined,
     p_assigned_to: input.assignedTo ?? undefined,
@@ -975,10 +977,46 @@ export async function updateMeetingActionItem(
 }
 
 /**
+ * Resolve the shared `action_items` status id for a lifecycle KEY, preferring a
+ * per-commission override then the global default. The meetings UI still speaks
+ * in status keys (`open`/`in_progress`/`done`/`cancelled`); the shared hub keys
+ * status by id, so the advance action translates key -> id here. `null` when the
+ * key is unknown (never happens for the four seeded keys).
+ */
+async function resolveActionItemStatusId(
+  supabase: SupabaseClient<Database>,
+  actionItemId: string,
+  statusKey: MeetingActionItemStatus,
+): Promise<string | null> {
+  const { data: item } = await supabase
+    .from('action_items')
+    .select('commission_id')
+    .eq('id', actionItemId)
+    .maybeSingle()
+
+  const { data: statuses } = await supabase
+    .from('action_item_statuses')
+    .select('id, commission_id')
+    .eq('key', statusKey)
+    .eq('archived', false)
+
+  if (!statuses || statuses.length === 0) return null
+
+  // Prefer this item's per-commission override; else the global default.
+  const commissionId = item?.commission_id ?? null
+  const override = commissionId
+    ? statuses.find((s) => s.commission_id === commissionId)
+    : undefined
+  const global = statuses.find((s) => s.commission_id === null)
+  return (override ?? global ?? statuses[0]).id
+}
+
+/**
  * Advance an action item to another lifecycle `status`. Routed through
- * `advance_meeting_action_item`: the caller must be the assignee OR a staff_admin
- * of the meeting's commission (HC037 otherwise). No commission-scoped pre-check
- * here — a plain assignee must be allowed through (mirrors `advanceActionItem`).
+ * `advance_committee_action_item` (resolving the status KEY -> the shared hub's
+ * `status_id`): the caller must be the assignee OR a staff_admin of the meeting's
+ * commission (HC037 otherwise). No commission-scoped pre-check here — a plain
+ * assignee must be allowed through (mirrors `advanceActionItem`).
  */
 export async function advanceMeetingActionItem(
   actionItemId: string,
@@ -990,9 +1028,12 @@ export async function advanceMeetingActionItem(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc('advance_meeting_action_item', {
-    p_action_item_id: actionItemId,
-    p_status: status,
+  const statusId = await resolveActionItemStatusId(supabase, actionItemId, status)
+  if (!statusId) return { ok: false, error: MEETING_MESSAGES.missingActionItem }
+
+  const { error } = await supabase.rpc('advance_committee_action_item', {
+    p_id: actionItemId,
+    p_to_status_id: statusId,
   })
 
   if (error) return { ok: false, error: mapMeetingError(error) }
@@ -1011,8 +1052,8 @@ export async function completeMeetingActionItem(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc('complete_meeting_action_item', {
-    p_action_item_id: actionItemId,
+  const { error } = await supabase.rpc('complete_committee_action_item', {
+    p_id: actionItemId,
   })
 
   if (error) return { ok: false, error: mapMeetingError(error) }
@@ -1023,8 +1064,9 @@ export async function completeMeetingActionItem(
 
 /**
  * HARD-delete an action item (remove a mistakenly-created row). staff_admin-only
- * — authorized by the staff_admin-write RLS policy + an explicit authz check. To
- * CANCEL (keep the row), use `advanceMeetingActionItem(id, 'cancelled')`.
+ * — routed through `delete_committee_action_item`, which re-checks staff_admin/
+ * org_admin authority, cascades to assignments + status history, and audits the
+ * delete. To CANCEL (keep the row), use `advanceMeetingActionItem(id, 'cancelled')`.
  */
 export async function deleteMeetingActionItem(
   actionItemId: string,
@@ -1035,25 +1077,11 @@ export async function deleteMeetingActionItem(
   }
 
   const supabase = await createClient()
-  const { data: item } = await supabase
-    .from('meeting_action_items')
-    .select('commission_id')
-    .eq('id', actionItemId)
-    .maybeSingle()
-  const commissionId = item?.commission_id
-  if (!commissionId) {
-    return { ok: false, error: MEETING_MESSAGES.missingActionItem }
-  }
-  if (!(await authorizeCommission(commissionId))) {
-    return { ok: false, error: MEETING_MESSAGES.forbidden }
-  }
+  const { error } = await supabase.rpc('delete_committee_action_item', {
+    p_id: actionItemId,
+  })
 
-  const { error } = await supabase
-    .from('meeting_action_items')
-    .delete()
-    .eq('id', actionItemId)
-
-  if (error) return { ok: false, error: MEETING_MESSAGES.generic }
+  if (error) return { ok: false, error: mapMeetingError(error) }
 
   revalidateMeetings()
   return { ok: true, error: MEETING_MESSAGES.actionItemRemoved }

@@ -1,10 +1,13 @@
 -- Member overview + unified "my action items" —
 -- migration 20260704000000_member_overview_action_items.sql.
 --
--- Proves the two self-scoped SECURITY DEFINER read RPCs:
---   public.list_my_action_items(p_commission)  — the caller's case + meeting
---     action items (assigned_to = auth.uid()), ALL statuses, each source
---     flag-gated (cases_extras / meetings) and OMITTED when off;
+-- Proves the two self-scoped SECURITY DEFINER read RPCs (post shared-hub
+-- unification: the meeting arm now reads public.action_items, emitting
+-- source='meeting' + source='manual'):
+--   public.list_my_action_items(p_commission)  — the caller's case + shared
+--     (meeting|manual) action items (assigned_to = auth.uid()), ALL statuses,
+--     each source flag-gated (case arm: cases_extras; shared arm: action_items)
+--     and OMITTED when off;
 --   public.get_member_overview(p_commission)   — 5 self-scoped counts + 2 hints,
 --     flag-dependent counts return 0/null when off (never raise).
 --
@@ -23,7 +26,7 @@
 --     minhas-fases reality), while the grant leg drops.
 
 begin;
-select plan(17);
+select plan(19);
 
 update app.feature_flags set enabled = true
   where key in ('cases_extras', 'cases_multi_phase', 'meetings');
@@ -89,10 +92,29 @@ create temp table att on commit drop as
 grant select on att to authenticated;
 
 create temp table mai on commit drop as
-  select (public.create_meeting_action_item(
-            (select mid from mtg), 'Item de reunião', 'desc reuniao',
-            (select st_x from k), (current_date - 2), null)).id as maid;
+  select (public.create_committee_action_item(
+            p_commission  => (select comm_x from k),
+            p_source_type => 'meeting',
+            p_meeting_id  => (select mid from mtg),
+            p_title       => 'Item de reunião',
+            p_description => 'desc reuniao',
+            p_assigned_to => (select st_x from k),
+            p_due_date    => (current_date - 2))).id as maid;
 grant select on mai to authenticated;
+
+-- A MANUAL-source shared action item assigned to st_x (open, future deadline).
+-- Exercises the new manual arm of list_my_action_items / get_member_overview:
+-- it must appear with source='manual' and NULL meeting labels, and count toward
+-- pending_action_items (non-terminal), but NOT toward overdue (future due).
+create temp table man on commit drop as
+  select (public.create_committee_action_item(
+            p_commission  => (select comm_x from k),
+            p_source_type => 'manual',
+            p_title       => 'Item avulso',
+            p_description => 'tarefa autônoma',
+            p_assigned_to => (select st_x from k),
+            p_due_date    => (current_date + 7))).id as manid;
+grant select on man to authenticated;
 
 -- Conclude the meeting (agendada -> realizada -> em_assinatura) via the
 -- lifecycle RPC — direct status UPDATEs are guarded (guard_meeting_status). With
@@ -139,8 +161,8 @@ grant select on items to authenticated;
 
 select is(
   (select count(*)::int from items),
-  2,
-  'st_x sees exactly 2 assigned action items (1 case + 1 meeting)');
+  3,
+  'st_x sees exactly 3 assigned action items (1 case + 1 meeting + 1 manual)');
 
 select is(
   (select count(*)::int from items where it->>'source' = 'case'),
@@ -150,6 +172,21 @@ select is(
   (select count(*)::int from items where it->>'source' = 'meeting'),
   1,
   'one item has source = meeting');
+select is(
+  (select count(*)::int from items where it->>'source' = 'manual'),
+  1,
+  'one item has source = manual (shared hub)');
+
+-- The manual item carries NO meeting/case label material (all null) and its own
+-- title — proving the manual arm returns null labels.
+select ok(
+  (select (it->>'meeting_id') is null
+     and (it->>'meeting_number') is null
+     and (it->>'meeting_scheduled_start') is null
+     and (it->>'case_id') is null
+     and (it->>'title') = 'Item avulso'
+     from items where it->>'source' = 'manual'),
+  'the manual item carries null meeting+case labels and its own title');
 
 -- The case item carries case number/label + created_by name; no meeting fields.
 select is(
@@ -173,9 +210,12 @@ reset role;
 
 -- ===========================================================================
 -- list_my_action_items — a source whose flag is OFF is OMITTED (no error).
--- Turn `meetings` OFF: only the case item remains.
+-- The SHARED arm (meeting + manual) is gated by `action_items` (NOT `meetings`
+-- anymore — the meeting arm reads the shared hub post-unification). Turn
+-- `action_items` OFF: BOTH the meeting AND manual shared rows drop, leaving only
+-- the case item.
 -- ===========================================================================
-update app.feature_flags set enabled = false where key = 'meetings';
+update app.feature_flags set enabled = false where key = 'action_items';
 
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
@@ -183,10 +223,10 @@ select is(
   (select jsonb_array_length(
             public.list_my_action_items((select comm_x from k)))),
   1,
-  'with `meetings` OFF the union omits meeting items (case item remains)');
+  'with `action_items` OFF the union omits the shared meeting+manual items (case item remains)');
 reset role;
 
-update app.feature_flags set enabled = true where key = 'meetings';
+update app.feature_flags set enabled = true where key = 'action_items';
 
 -- ===========================================================================
 -- get_member_overview — the five counts + hints for st_x.
@@ -200,12 +240,12 @@ grant select on ov to authenticated;
 
 select is(
   ((select o from ov)->>'pending_action_items')::int,
-  2,
-  'pending_action_items counts both open items');
+  3,
+  'pending_action_items counts all three non-terminal items (case + meeting + manual)');
 select is(
   ((select o from ov)->>'pending_action_items_overdue')::int,
   1,
-  'pending_action_items_overdue counts the one past-due item');
+  'pending_action_items_overdue counts the one past-due item (the meeting item, due -2)');
 select is(
   ((select o from ov)->>'meetings_not_concluded')::int,
   1,

@@ -68,6 +68,31 @@ begin
   -- the persisted seed. Tests that WANT multi-org (e.g. 173) add a 2nd org after.
   truncate table public.organizations cascade;
 
+  -- The shared action_items hub ships GLOBAL default status/urgency vocabularies
+  -- (commission_id NULL), seeded in migration 20260706000000. TRUNCATE cascades at
+  -- the TABLE level: `truncate organizations cascade` flushes commissions, which
+  -- FK-cascades into action_item_statuses / action_item_urgency_levels and wipes
+  -- the globals too (NULL-commission rows included). Re-seed them here so the
+  -- committee_* RPCs resolve an initial/done status inside the hermetic fixture —
+  -- keeping the tests aligned with the exact keys the app ships (open/in_progress/
+  -- done/cancelled; low/normal/high/critical).
+  insert into public.action_item_statuses
+    (commission_id, key, label, category, is_initial, is_terminal, sort_order)
+  values
+    (null, 'open',        'Aberto',       'open',        true,  false, 1),
+    (null, 'in_progress', 'Em andamento', 'in_progress', false, false, 2),
+    (null, 'done',        'Concluído',    'completed',   false, true,  3),
+    (null, 'cancelled',   'Cancelado',    'cancelled',   false, true,  4)
+  on conflict do nothing;
+  insert into public.action_item_urgency_levels
+    (commission_id, key, label, rank, sort_order)
+  values
+    (null, 'low',      'Baixa',   1, 1),
+    (null, 'normal',   'Normal',  2, 2),
+    (null, 'high',     'Alta',    3, 3),
+    (null, 'critical', 'Crítica', 4, 4)
+  on conflict do nothing;
+
   -- profiles.id references auth.users, so create the auth users first; the
   -- on_auth_user_created trigger inserts the matching profiles rows. We then
   -- patch names + the admin flag.
