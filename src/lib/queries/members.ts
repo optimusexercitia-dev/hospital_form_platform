@@ -64,6 +64,37 @@ export async function listMembers(
   return sortMembers(members)
 }
 
+/** A registered platform user a coordinator may ADD to a commission. */
+export interface AddableUser {
+  userId: string
+  fullName: string | null
+  email: string | null
+}
+
+/**
+ * The registered users a coordinator may ADD to this commission: ACTIVE profiles
+ * anchored to the commission's ORGANIZATION who are not already members. Backed by
+ * the coordinator-gated SECURITY DEFINER `list_addable_commission_members` RPC —
+ * a staff_admin has no blanket `profiles` SELECT under RLS, so this single door is
+ * how they read the org roster (org-scoped, minimum-necessary). Returns `[]` for a
+ * non-coordinator (the RPC yields no rows).
+ */
+export async function listAddableMembers(
+  commissionId: string,
+): Promise<AddableUser[]> {
+  const supabase = await createClient()
+
+  const { data } = await supabase.rpc('list_addable_commission_members', {
+    p_commission_id: commissionId,
+  })
+
+  return (data ?? []).map((row) => ({
+    userId: row.user_id,
+    fullName: row.full_name || null,
+    email: row.email,
+  }))
+}
+
 /**
  * Canonical member ordering: staff_admins first, then by full name (falling back
  * to email so unnamed rows still sort deterministically), pt-BR locale.

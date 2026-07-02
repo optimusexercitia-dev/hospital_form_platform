@@ -245,6 +245,9 @@ function FreeTextItem({
       )}
       <Textarea
         {...controlProps}
+        // Long free-text answers get twice the default starting height (still
+        // auto-grows via `field-sizing-content`) so multi-line answers have room.
+        className="min-h-40"
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />

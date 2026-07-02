@@ -4,8 +4,10 @@ import { FileText } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { listForms } from "@/lib/queries/forms";
+import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { FormCard } from "@/components/forms/form-card";
 import { CreateFormDialog } from "@/components/forms/create-form-dialog";
+import { ConstrutorTabs } from "@/components/forms/construtor-tabs";
 
 export const metadata: Metadata = {
   title: "Construtor de formulários",
@@ -33,16 +35,19 @@ export default async function FormsListPage({
     notFound();
   }
 
-  const forms = await listForms(access.commission.id);
+  const [forms, narrativesOn] = await Promise.all([
+    listForms(access.commission.id),
+    narrativesEnabled(),
+  ]);
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
             {access.commission.name}
           </p>
-          <h1 className="text-3xl text-balance">Formulários</h1>
+          <h1 className="text-3xl text-balance">Construtor</h1>
           <p className="max-w-prose text-muted-foreground text-pretty">
             Construa, versione e publique os checklists e formulários da
             comissão.
@@ -50,6 +55,8 @@ export default async function FormsListPage({
         </div>
         <CreateFormDialog commissionId={access.commission.id} />
       </header>
+
+      <ConstrutorTabs org={org} slug={slug} narrativesEnabled={narrativesOn} />
 
       {forms.length === 0 ? (
         <section

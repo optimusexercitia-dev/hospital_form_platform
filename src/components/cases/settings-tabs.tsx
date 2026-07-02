@@ -8,27 +8,25 @@ import { cn } from "@/lib/utils";
 
 /**
  * Sub-navigation for the commission settings area: switch between the outcome
- * vocabulary ("Desfechos"), the tag vocabulary ("Etiquetas"), — when the
- * `case_narratives` feature is on — the narrative vocabulary ("Narrativas"), and
- * — when the `case_phase_results` feature is on — the per-phase result vocabulary
+ * vocabulary ("Desfechos"), the tag vocabulary ("Etiquetas"), and — when the
+ * `case_phase_results` feature is on — the per-phase result vocabulary
  * ("Resultados"). The configurable status vocabulary is gone (D12 — statuses are
- * now fixed/computed), so its tab is dropped. Keyboard-operable links with
+ * now fixed/computed), so its tab is dropped; the narrative vocabulary moved to
+ * the Construtor page ("Narrativas" tab). Keyboard-operable links with
  * `aria-current` on the active tab.
  *
- * `narrativesEnabled` / `phaseResultsEnabled` are resolved on the server by each
- * settings page (the flags live in the locked-down `app` schema) and passed in, so
- * those tabs are hidden everywhere until their increment ships.
+ * `phaseResultsEnabled` is resolved on the server by each settings page (the flag
+ * lives in the locked-down `app` schema) and passed in, so that tab is hidden
+ * everywhere until its increment ships.
  */
 export function SettingsTabs({
   org,
   slug,
-  narrativesEnabled = false,
   phaseResultsEnabled = false,
 }: {
   /** Org slug for hrefs. */
   org: string;
   slug: string;
-  narrativesEnabled?: boolean;
   phaseResultsEnabled?: boolean;
 }) {
   const pathname = usePathname();
@@ -38,9 +36,6 @@ export function SettingsTabs({
       ? [{ href: commissionHref(org, slug, "manage", "settings", "resultados"), label: "Resultados" }]
       : []),
     { href: commissionHref(org, slug, "manage", "settings", "etiquetas"), label: "Etiquetas" },
-    ...(narrativesEnabled
-      ? [{ href: commissionHref(org, slug, "manage", "settings", "narrativas"), label: "Narrativas" }]
-      : []),
   ];
 
   return (

@@ -46,7 +46,10 @@ export default async function MyResponsesPage({
       {responses.length === 0 ? (
         <EmptyState />
       ) : (
-        <section aria-label="Histórico de respostas" className="flex flex-col gap-3">
+        <ul
+          aria-label="Histórico de respostas"
+          className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-xs"
+        >
           {responses.map((response, index) => (
             <MyResponseCard
               key={response.id}
@@ -55,7 +58,7 @@ export default async function MyResponsesPage({
               index={index}
             />
           ))}
-        </section>
+        </ul>
       )}
     </div>
   );

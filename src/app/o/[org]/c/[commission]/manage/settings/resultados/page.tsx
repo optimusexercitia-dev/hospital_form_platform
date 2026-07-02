@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { listPhaseResults, phaseResultsEnabled } from "@/lib/queries/phase-results";
-import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { SettingsTabs } from "@/components/cases/settings-tabs";
 import { ResultVocabManager } from "@/components/cases/result-vocab-manager";
 
@@ -43,10 +42,7 @@ export default async function PhaseResultsSettingsPage({
 
   // Mirror the outcomes manager: show the NON-archived working set (archive hides
   // from the picker; archived results stay snapshotted/referenced on cases).
-  const [results, narrativesOn] = await Promise.all([
-    listPhaseResults(access.commission.id),
-    narrativesEnabled(),
-  ]);
+  const results = await listPhaseResults(access.commission.id);
 
   return (
     <div className="flex flex-col gap-8">
@@ -61,7 +57,7 @@ export default async function PhaseResultsSettingsPage({
         </p>
       </header>
 
-      <SettingsTabs org={org} slug={slug} narrativesEnabled={narrativesOn} phaseResultsEnabled />
+      <SettingsTabs org={org} slug={slug} phaseResultsEnabled />
 
       <ResultVocabManager
         commissionId={access.commission.id}

@@ -137,11 +137,13 @@ const HC_NARRATIVE_STATE = 'HC055' // narrative wrong lifecycle state
 
 const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
 const CASES_LIST_PATH = '/c/[slug]/manage/cases'
-const NARRATIVE_SETTINGS_PATH = '/c/[slug]/manage/settings/narrativas'
+// The narrative-type vocabulary manager now lives under the Construtor page
+// (Construtor → Narrativas tab), not Configurações.
+const NARRATIVE_BUILDER_PATH = '/c/[slug]/manage/forms/narrativas'
 const TEMPLATE_PATH = '/c/[slug]/manage/process-templates/[templateId]'
 
 function revalidateNarrativeVocabulary(): void {
-  revalidatePath(NARRATIVE_SETTINGS_PATH, 'page')
+  revalidatePath(NARRATIVE_BUILDER_PATH, 'page')
   revalidatePath(TEMPLATE_PATH, 'page')
   revalidatePath(CASE_PATH, 'page')
 }

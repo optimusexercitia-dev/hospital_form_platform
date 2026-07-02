@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { listMembers } from "@/lib/queries/members";
-import { InviteStaffForm } from "@/components/members/invite-staff-form";
+import { listMembers, listAddableMembers } from "@/lib/queries/members";
+import { AddMemberPicker } from "@/components/members/add-member-picker";
 import { MemberList } from "@/components/members/member-list";
 
 export const metadata: Metadata = {
@@ -11,8 +11,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * Commission member management (coordinator area). Lists members, invites staff
- * by e-mail, and removes staff.
+ * Commission member management (coordinator area). Lists members, adds staff from
+ * the org's already-registered users (no invite-by-e-mail — new people are
+ * registered by an org_admin), and removes staff.
  *
  * Access is gated HERE on the server in addition to RLS: only a `staff_admin` of
  * this commission OR a global admin may reach it. Everyone else (staff of this
@@ -33,7 +34,10 @@ export default async function ManageMembersPage({
     notFound();
   }
 
-  const members = await listMembers(access.commission.id);
+  const [members, addable] = await Promise.all([
+    listMembers(access.commission.id),
+    listAddableMembers(access.commission.id),
+  ]);
 
   return (
     <div className="flex flex-col gap-10">
@@ -43,22 +47,26 @@ export default async function ManageMembersPage({
         </p>
         <h1 className="text-3xl text-balance">Membros</h1>
         <p className="max-w-prose text-muted-foreground text-pretty">
-          Convide pessoas para preencher os formulários desta comissão e
+          Adicione pessoas já cadastradas na plataforma a esta comissão e
           gerencie quem tem acesso.
         </p>
       </header>
 
       <section
-        aria-labelledby="convidar-heading"
+        aria-labelledby="adicionar-heading"
         className="animate-rise-in rounded-2xl border border-border bg-card p-6 sm:p-7"
       >
-        <h2 id="convidar-heading" className="text-lg font-semibold">
-          Convidar membro
+        <h2 id="adicionar-heading" className="text-lg font-semibold">
+          Adicionar membro
         </h2>
         <p className="mt-1 mb-5 max-w-prose text-sm text-muted-foreground">
-          Membros podem preencher os formulários publicados da comissão.
+          Escolha uma pessoa já cadastrada na organização. Membros podem preencher
+          os formulários publicados da comissão.
         </p>
-        <InviteStaffForm commissionId={access.commission.id} />
+        <AddMemberPicker
+          commissionId={access.commission.id}
+          candidates={addable}
+        />
       </section>
 
       <section

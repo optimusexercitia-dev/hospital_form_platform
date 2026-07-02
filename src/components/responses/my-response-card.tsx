@@ -1,19 +1,22 @@
 import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
-import { ArrowRight, CheckCircle2, Clock } from "lucide-react";
+import { CheckCircle2, ChevronRight, Clock } from "lucide-react";
 
 import type { MyResponse } from "@/lib/queries/responses";
-import { Button } from "@/components/ui/button";
+import { TOKEN_STYLES } from "@/components/cases/case-status-badge";
+import { cn } from "@/lib/utils";
 
 /**
- * One row in "minhas respostas" (F6). Shows a response's form, status, and the
- * relevant timestamp, with the matching action:
- *  - in_progress → "Continuar" (back into the wizard);
- *  - submitted → "Ver" (read-only detail — the full read-only viewer is Phase 7;
- *    for now this links to the same route, which redirects submitted responses
- *    to this history; the Phase-7 submissions viewer will replace the target).
+ * One row in "minhas respostas" (F6) — a divider-separated list row (mirrors the
+ * Casos board's scannable rows rather than a standalone card). The WHOLE row is a
+ * single link:
+ *  - in_progress → back into the wizard to resume;
+ *  - submitted → the read-only detail (same target as before — the Phase-7
+ *    viewer replaces it; submitted rows currently redirect back here).
  *
- * Status is conveyed by an icon + text label, not colour alone (a11y).
+ * Status is a pill badge — icon + text, never colour alone (a11y): blue
+ * ("accent") for "Em andamento", green ("success") for "Enviada". Renders an
+ * `<li>`; the parent supplies the bordered `<ul>` container.
  */
 export function MyResponseCard({
   org,
@@ -31,53 +34,64 @@ export function MyResponseCard({
   const stamp = inProgress
     ? formatDate(response.updatedAt)
     : formatDate(response.submittedAt ?? response.updatedAt);
+  const href = commissionHref(
+    org,
+    slug,
+    "forms",
+    response.formId,
+    "responder",
+    response.id,
+  );
 
   return (
-    <article
-      style={{ ["--rise-delay" as string]: `${index * 50}ms` }}
-      className="animate-rise-in flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs"
+    <li
+      style={{ ["--rise-delay" as string]: `${index * 40}ms` }}
+      className="animate-rise-in"
     >
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <h2 className="truncate text-base font-semibold">{response.formTitle}</h2>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-          {inProgress ? (
-            <span className="inline-flex items-center gap-1 font-medium text-accent-foreground">
-              <Clock aria-hidden="true" className="size-3.5" />
-              Em andamento
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1 font-medium text-primary">
-              <CheckCircle2 aria-hidden="true" className="size-3.5" />
-              Enviada
-            </span>
-          )}
-          <span>
-            {inProgress ? "Atualizada em " : "Enviada em "}
-            {stamp}
+      <Link
+        href={href}
+        className="group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-muted/40 focus-visible:bg-muted/40 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none focus-visible:ring-inset"
+      >
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          <span className="truncate text-base font-semibold text-foreground">
+            {response.formTitle}
           </span>
-          <span>Versão {response.versionNumber}</span>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <ResponseStatusBadge inProgress={inProgress} />
+            <span>
+              {inProgress ? "Atualizada em " : "Enviada em "}
+              {stamp}
+            </span>
+            <span>Versão {response.versionNumber}</span>
+          </div>
         </div>
-      </div>
+        <ChevronRight
+          aria-hidden="true"
+          className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+        />
+      </Link>
+    </li>
+  );
+}
 
-      {inProgress ? (
-        <Button asChild size="sm" className="shrink-0">
-          <Link
-            href={commissionHref(org, slug, "forms", response.formId, "responder", response.id)}
-          >
-            Continuar
-            <ArrowRight aria-hidden="true" />
-          </Link>
-        </Button>
-      ) : (
-        <Button asChild variant="outline" size="sm" className="shrink-0">
-          <Link
-            href={commissionHref(org, slug, "forms", response.formId, "responder", response.id)}
-          >
-            Ver
-          </Link>
-        </Button>
+/**
+ * Submission-status pill for a response row. Reuses the shared palette
+ * `TOKEN_STYLES` so "blue"/"green" resolve to the exact same tokens the case
+ * badges use (blue = accent, green = success) — one source of truth for the
+ * token → class mapping. Icon + label, not colour alone.
+ */
+function ResponseStatusBadge({ inProgress }: { inProgress: boolean }) {
+  const Icon = inProgress ? Clock : CheckCircle2;
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[0.7rem] font-medium",
+        TOKEN_STYLES[inProgress ? "blue" : "green"],
       )}
-    </article>
+    >
+      <Icon aria-hidden="true" className="size-3" />
+      {inProgress ? "Em andamento" : "Enviada"}
+    </span>
   );
 }
 

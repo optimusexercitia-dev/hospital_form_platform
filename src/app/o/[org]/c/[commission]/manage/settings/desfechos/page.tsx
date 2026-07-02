@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
-import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { phaseResultsEnabled } from "@/lib/queries/phase-results";
 import { SettingsTabs } from "@/components/cases/settings-tabs";
 import { OutcomeManager } from "@/components/cases/outcome-manager";
@@ -35,9 +34,8 @@ export default async function CaseOutcomesSettingsPage({
     notFound();
   }
 
-  const [outcomes, narrativesOn, phaseResultsOn] = await Promise.all([
+  const [outcomes, phaseResultsOn] = await Promise.all([
     listCaseOutcomes(access.commission.id),
-    narrativesEnabled(),
     phaseResultsEnabled(),
   ]);
 
@@ -55,7 +53,6 @@ export default async function CaseOutcomesSettingsPage({
 
       <SettingsTabs
         org={org} slug={slug}
-        narrativesEnabled={narrativesOn}
         phaseResultsEnabled={phaseResultsOn}
       />
 

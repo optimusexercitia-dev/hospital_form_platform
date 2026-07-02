@@ -4,19 +4,18 @@ import { notFound } from "next/navigation";
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { listNarrativeTypes } from "@/lib/queries/case-narratives";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
-import { phaseResultsEnabled } from "@/lib/queries/phase-results";
-import { SettingsTabs } from "@/components/cases/settings-tabs";
+import { ConstrutorTabs } from "@/components/forms/construtor-tabs";
 import { NarrativeTypeManager } from "@/components/cases/narrative-type-manager";
 
 export const metadata: Metadata = {
-  title: "Narrativas dos casos",
+  title: "Construtor — Narrativas",
 };
 
 /**
  * Narrative-type vocabulary manager (coordinator area; ADR 0032): create /
- * rename / reorder / archive the commission's narrative TYPES. Clones the
- * `desfechos` settings route — an already-approved coordinator-gated pattern —
- * minus the colour token.
+ * rename / reorder / archive the commission's narrative TYPES. Lives under the
+ * Construtor page as the "Narrativas" tab (moved here from Configurações), beside
+ * the form builder.
  *
  * Coordinator-gated here (only a staff_admin of this commission OR a global admin
  * may reach it; everyone else gets `notFound()`); the CRUD actions are themselves
@@ -24,7 +23,7 @@ export const metadata: Metadata = {
  * is off the route 404s (and the Narrativas tab is hidden), so it is invisible
  * until the increment ships.
  */
-export default async function CaseNarrativesSettingsPage({
+export default async function CaseNarrativesBuilderPage({
   params,
 }: {
   params: Promise<{ org: string; commission: string }>;
@@ -41,13 +40,9 @@ export default async function CaseNarrativesSettingsPage({
     notFound();
   }
 
-  // The settings manager shows the full vocabulary incl. archived? No — mirror
-  // the outcomes manager and show the NON-archived working set (archive hides
-  // from the picker; archived types stay snapshotted on existing slots/cases).
-  const [narrativeTypes, phaseResultsOn] = await Promise.all([
-    listNarrativeTypes(access.commission.id),
-    phaseResultsEnabled(),
-  ]);
+  // Mirror the outcomes manager and show the NON-archived working set (archive
+  // hides from the picker; archived types stay snapshotted on existing slots/cases).
+  const narrativeTypes = await listNarrativeTypes(access.commission.id);
 
   return (
     <div className="flex flex-col gap-8">
@@ -55,18 +50,13 @@ export default async function CaseNarrativesSettingsPage({
         <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
           {access.commission.name}
         </p>
-        <h1 className="text-3xl text-balance">Configurações</h1>
+        <h1 className="text-3xl text-balance">Construtor</h1>
         <p className="max-w-prose text-muted-foreground text-pretty">
-          Personalize os desfechos, as etiquetas e as narrativas usados nos casos
-          desta comissão.
+          Defina as narrativas usadas para documentar os casos desta comissão.
         </p>
       </header>
 
-      <SettingsTabs
-        org={org} slug={slug}
-        narrativesEnabled
-        phaseResultsEnabled={phaseResultsOn}
-      />
+      <ConstrutorTabs org={org} slug={slug} narrativesEnabled />
 
       <NarrativeTypeManager
         commissionId={access.commission.id}

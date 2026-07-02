@@ -6947,6 +6947,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      list_addable_commission_members: {
+        Args: { p_commission_id: string; p_search?: string }
+        Returns: {
+          user_id: string
+          full_name: string
+          email: string | null
+        }[]
+      }
       list_case_access: {
         Args: { p_case: string }
         Returns: {
