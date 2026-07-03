@@ -202,18 +202,26 @@ password_requirements = ""
 # rp_origins = ["http://127.0.0.1:3000"]
 
 [auth.rate_limit]
+# NOTE: these limits are raised WELL above GoTrue's defaults for LOCAL E2E only.
+# The full Playwright suite (`--workers=1`) drives ~600 password grants + many
+# session refreshes and invite emails from a single IP over one 40-min run, which
+# trips the stock limits and surfaces as "Não foi possível concluir" sign-in
+# failures / stuck "Entrando…" logins in the later specs (see the e2e auth
+# rate-limit note). This file configures the LOCAL stack only — production runs on
+# Supabase Cloud, whose rate limits are set in the dashboard, so raising them here
+# has no bearing on prod safety.
 # Number of emails that can be sent per hour. Requires auth.email.smtp to be enabled.
-email_sent = 2
+email_sent = 1000
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30
 # Number of anonymous sign-ins that can be made per hour per IP address. Requires enable_anonymous_sign_ins = true.
 anonymous_users = 30
 # Number of sessions that can be refreshed in a 5 minute interval per IP address.
-token_refresh = 150
+token_refresh = 100000
 # Number of sign up and sign-in requests that can be made in a 5 minute interval per IP address (excludes anonymous users).
-sign_in_sign_ups = 30
+sign_in_sign_ups = 100000
 # Number of OTP / Magic link verifications that can be made in a 5 minute interval per IP address.
-token_verifications = 30
+token_verifications = 10000
 # Number of Web3 logins that can be made in a 5 minute interval per IP address.
 web3 = 30
 
@@ -240,9 +248,16 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Use a production-ready SMTP server
+# SMTP is DISABLED for local dev so GoTrue delivers invite/confirmation/recovery
+# emails to the local inbucket (Mailpit, :54324) — which the E2E suite polls via
+# `waitForMailpitMessage`. With a real SMTP host enabled here, those emails leave
+# the machine (or fail when RESEND_API_KEY is unset for the CLI) and never reach
+# Mailpit, so every invite/registration spec fails on a fresh `supabase start`.
+# Production SMTP is configured separately in the Supabase Dashboard at deploy
+# (see docs/progress/user-registration.md) — do NOT rely on `config push` of this
+# section for prod, and do NOT flip this back to `true` for local runs.
 [auth.email.smtp]
-enabled = true
+enabled = false
 host = "smtp.resend.com"
 port = 587
 user = "resend"
