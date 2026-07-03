@@ -16,6 +16,7 @@ import {
 } from "@/lib/meetings/actions";
 import { Button } from "@/components/ui/button";
 import { AssigneeAvatar } from "@/components/cases/assignee-avatar";
+import { TitleBadge } from "@/components/commissions/title-badge";
 import { AttendanceBadge } from "./meeting-badges";
 import {
   ATTENDEE_ROLE_LABEL,
@@ -25,12 +26,22 @@ import { AttendeeForm, type AttendeeMemberOption } from "./attendee-form";
 import { ConfirmDeleteButton } from "./confirm-delete-button";
 import { useMeetingAction } from "./use-meeting-action";
 
+/**
+ * A `MeetingAttendee` extended with its committee-title assignment (ADR 0051
+ * Decision 6). `titleName` is NOT YET on the canonical {@link MeetingAttendee}
+ * (it would be resolved by joining the attendee's `userId` to
+ * `commission_members.title_id` for the meeting's commission) — this extends it
+ * defensively so the badge renders the moment the backend read adds it; absent
+ * the field, the row simply shows no title badge (guests never have one either).
+ */
+export type AttendeeWithTitle = MeetingAttendee & { titleName?: string | null };
+
 function AttendeeRow({
   attendee,
   members,
   canEdit,
 }: {
-  attendee: MeetingAttendee;
+  attendee: AttendeeWithTitle;
   members: AttendeeMemberOption[];
   canEdit: boolean;
 }) {
@@ -49,13 +60,16 @@ function AttendeeRow({
       <div className="flex min-w-0 items-center gap-3">
         <AssigneeAvatar name={name} />
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate text-sm font-medium text-foreground">
-            {name}
+          <span className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground">
+            <span className="truncate">{name}</span>
             {isGuest && (
-              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[0.6rem] font-medium tracking-wide text-muted-foreground uppercase">
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[0.6rem] font-medium tracking-wide text-muted-foreground uppercase">
                 Convidado
               </span>
             )}
+            {!isGuest && attendee.titleName ? (
+              <TitleBadge name={attendee.titleName} />
+            ) : null}
           </span>
           <span className="truncate text-xs text-muted-foreground">
             {ATTENDEE_ROLE_LABEL[attendee.role]}
@@ -238,7 +252,7 @@ export function AttendeesPanel({
   canEdit,
 }: {
   meeting: MeetingDetail;
-  attendees: MeetingAttendee[];
+  attendees: AttendeeWithTitle[];
   /** Commission roster for the member picker. */
   members: AttendeeMemberOption[];
   settings: CommissionMeetingSettings | null;

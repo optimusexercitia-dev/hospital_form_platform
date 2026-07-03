@@ -36,6 +36,8 @@ export function SettingsTabs({
       ? [{ href: commissionHref(org, slug, "manage", "settings", "resultados"), label: "Resultados" }]
       : []),
     { href: commissionHref(org, slug, "manage", "settings", "etiquetas"), label: "Etiquetas" },
+    // Committee member titles (ADR 0051 Decision 6) — always on, no feature flag.
+    { href: commissionHref(org, slug, "manage", "settings", "titulos"), label: "Títulos" },
   ];
 
   return (

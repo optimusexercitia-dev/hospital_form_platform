@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { listMembers, listAddableMembers } from "@/lib/queries/members";
+import { listMemberTitles } from "@/lib/commissions/titles";
 import { AddMemberPicker } from "@/components/members/add-member-picker";
 import { MemberList } from "@/components/members/member-list";
 
@@ -34,9 +35,10 @@ export default async function ManageMembersPage({
     notFound();
   }
 
-  const [members, addable] = await Promise.all([
+  const [members, addable, titles] = await Promise.all([
     listMembers(access.commission.id),
     listAddableMembers(access.commission.id),
+    listMemberTitles(access.commission.id),
   ]);
 
   return (
@@ -86,6 +88,7 @@ export default async function ManageMembersPage({
           commissionId={access.commission.id}
           members={members}
           currentUserId={access.context.userId}
+          titles={titles}
         />
       </section>
     </div>

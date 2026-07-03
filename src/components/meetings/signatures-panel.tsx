@@ -1,18 +1,19 @@
 import { CircleDashed, PenLine } from "lucide-react";
 
 import type {
-  MeetingAttendee,
   MeetingDetail,
   MeetingSignature,
 } from "@/lib/queries/meetings";
 import { AssigneeAvatar } from "@/components/cases/assignee-avatar";
+import { TitleBadge } from "@/components/commissions/title-badge";
 import { SignatureBadge } from "./meeting-badges";
 import { SignButton } from "./sign-dialog";
 import { formatDateTime } from "./format";
+import type { AttendeeWithTitle } from "./attendees-panel";
 
 /** One roster row: a present platform attendee + their (possibly absent) signature. */
 interface RosterEntry {
-  attendee: MeetingAttendee;
+  attendee: AttendeeWithTitle;
   signature: MeetingSignature | null;
 }
 
@@ -32,7 +33,7 @@ export function SignaturesPanel({
   currentUserId,
 }: {
   meeting: MeetingDetail;
-  attendees: MeetingAttendee[];
+  attendees: AttendeeWithTitle[];
   signatures: MeetingSignature[];
   /** The viewer's user id, or null — gates the "Assinar" action to their own row. */
   currentUserId: string | null;
@@ -108,13 +109,16 @@ export function SignaturesPanel({
                 <div className="flex min-w-0 items-center gap-3">
                   <AssigneeAvatar name={name} />
                   <div className="flex min-w-0 flex-col gap-0.5">
-                    <span className="truncate text-sm font-medium text-foreground">
-                      {name}
+                    <span className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground">
+                      <span className="truncate">{name}</span>
                       {isMine && (
-                        <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                        <span className="text-xs font-normal text-muted-foreground">
                           (você)
                         </span>
                       )}
+                      {attendee.titleName ? (
+                        <TitleBadge name={attendee.titleName} />
+                      ) : null}
                     </span>
                     {signature?.status === "signed" && signature.signedAt ? (
                       <span className="truncate text-xs text-muted-foreground tabular-nums">
