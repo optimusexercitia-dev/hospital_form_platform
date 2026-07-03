@@ -26,7 +26,7 @@ import {
 
 /** The profile columns the directory + detail reads share. */
 const PROFILE_SELECT =
-  'id, full_name, email, home_organization_id, home_hospital_id, hospital_employee_id, professional_category_id, is_active, suspended_until, email_confirmed_at, created_at, hospital:hospitals(name), category:professional_categories(label_pt)'
+  'id, full_name, email, home_organization_id, home_hospital_id, hospital_employee_id, professional_category_id, is_active, suspended_until, email_confirmed_at, created_at, hospital:hospitals!profiles_home_hospital_id_fkey(name), category:professional_categories(label_pt)'
 
 interface ProfileRow {
   id: string
