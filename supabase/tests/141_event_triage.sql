@@ -36,11 +36,11 @@ grant select on k to authenticated;
 -- NSP-per-org (ADR 0042): pqs_members now has composite PK (organization_id, user_id).
 -- Enroll admin into the bootstrap org's PQS roster + seed a pqs_department row for
 -- set_pqs_rca_due_window(org, days) assertions below.
-insert into public.pqs_members (organization_id, user_id, added_by)
-  select (v->>'org_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
-insert into public.pqs_department (organization_id, name, rca_default_due_days)
-  select (v->>'org_b')::uuid, 'NSP Bootstrap', 45 from ctx
-  on conflict (organization_id) do nothing;
+insert into public.pqs_members (hospital_id, user_id, added_by)
+  select (v->>'hosp_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
+insert into public.pqs_department (hospital_id, name, rca_default_due_days)
+  select (v->>'hosp_b')::uuid, 'NSP Bootstrap', 45 from ctx
+  on conflict (hospital_id) do nothing;
 
 -- ===========================================================================
 -- Config vocab: defaults seeded; any-authenticated READ; is_pqs_member CRUD.
@@ -321,23 +321,23 @@ select ok(
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
-  format($$ select public.set_pqs_rca_due_window(%L::uuid, 30) $$, (select (v->>'org_b')::uuid from ctx)),
+  format($$ select public.set_pqs_rca_due_window(%L::uuid, 30) $$, (select (v->>'hosp_b')::uuid from ctx)),
   '42501', null, 'a non-PQS, non-coordinator user cannot set the RCA due-window (42501)');
 reset role;
 
 select test_helpers.claims_for((select admin from k), true);
 set local role authenticated;
 select throws_ok(
-  format($$ select public.set_pqs_rca_due_window(%L::uuid, 0) $$, (select (v->>'org_b')::uuid from ctx)),
+  format($$ select public.set_pqs_rca_due_window(%L::uuid, 0) $$, (select (v->>'hosp_b')::uuid from ctx)),
   'HC046', null, 'an out-of-range RCA due-window is rejected (HC046)');
 select throws_ok(
-  format($$ select public.set_pqs_rca_due_window(%L::uuid, 400) $$, (select (v->>'org_b')::uuid from ctx)),
+  format($$ select public.set_pqs_rca_due_window(%L::uuid, 400) $$, (select (v->>'hosp_b')::uuid from ctx)),
   'HC046', null, 'an over-range RCA due-window is rejected (HC046)');
-select public.set_pqs_rca_due_window((select (v->>'org_b')::uuid from ctx), 60);
+select public.set_pqs_rca_due_window((select (v->>'hosp_b')::uuid from ctx), 60);
 reset role;
 select is(
   (select rca_default_due_days from public.pqs_department
-   where organization_id = (select (v->>'org_b')::uuid from ctx)),
+   where hospital_id = (select (v->>'hosp_b')::uuid from ctx)),
   60, 'PQS sets the RCA due-window to 60 days (per-org)');
 
 select * from finish();

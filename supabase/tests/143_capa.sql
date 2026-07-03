@@ -35,11 +35,11 @@ create temp table k on commit drop as
 grant select on k to authenticated;
 
 -- NSP-per-org (ADR 0042): pqs_members has composite PK (organization_id, user_id).
-insert into public.pqs_members (organization_id, user_id, added_by)
-  select (v->>'org_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
-insert into public.pqs_department (organization_id, name, rca_default_due_days)
-  select (v->>'org_b')::uuid, 'NSP Bootstrap', 30 from ctx
-  on conflict (organization_id) do nothing;
+insert into public.pqs_members (hospital_id, user_id, added_by)
+  select (v->>'hosp_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
+insert into public.pqs_department (hospital_id, name, rca_default_due_days)
+  select (v->>'hosp_b')::uuid, 'NSP Bootstrap', 30 from ctx
+  on conflict (hospital_id) do nothing;
 
 -- =========================================================================
 -- Drive an event -> triage(sentinel) -> RCA(completed with a root cause) so we can
@@ -398,9 +398,9 @@ insert into public.capa_plan (id, source, source_event_id, classification, statu
 insert into public.capa_action (id, capa_id, title, position, due_date, status)
   values ((select action_other from m3), (select capa_other from m3), 'Ação rede-other', 0,
           current_date - 1, 'pendente');
--- Enroll st_y as a PQS member of the 2nd org (so it sees ITS org's KPIs).
-insert into public.pqs_members (organization_id, user_id, added_by)
-  values ((select org_other from m3), (select st_y from k), (select admin from k));
+-- Enroll st_y as a PQS member of the 2nd org's hospital (so it sees ITS hospital's KPIs).
+insert into public.pqs_members (hospital_id, user_id, added_by)
+  values ((select hosp_other from m3), (select st_y from k), (select admin from k));
 
 -- (M3a) admin (org_b PQS) headline is UNCHANGED by the org_other plan — org-scoped.
 select test_helpers.claims_for((select admin from k), false);

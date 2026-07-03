@@ -47,11 +47,11 @@ grant select on k to authenticated;
 
 -- NSP-per-org (ADR 0042): pqs_members has composite PK (organization_id, user_id).
 -- case_patient predicate does not require PQS, but admin must still read broadly.
-insert into public.pqs_members (organization_id, user_id, added_by)
-  select (v->>'org_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
-insert into public.pqs_department (organization_id, name, rca_default_due_days)
-  select (v->>'org_b')::uuid, 'NSP Bootstrap', 30 from ctx
-  on conflict (organization_id) do nothing;
+insert into public.pqs_members (hospital_id, user_id, added_by)
+  select (v->>'hosp_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
+insert into public.pqs_department (hospital_id, name, rca_default_due_days)
+  select (v->>'hosp_b')::uuid, 'NSP Bootstrap', 30 from ctx
+  on conflict (hospital_id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- One case in X with: patient_enabled = true, 1 phase (assigned st_x → the broad

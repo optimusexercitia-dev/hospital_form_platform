@@ -1911,6 +1911,9 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
@@ -1942,6 +1945,9 @@ export type Database = {
           description_md?: string | null
           has_patient?: boolean
           id?: string
+          phi_disposed_at?: string | null
+          phi_disposed_by?: string | null
+          phi_disposed_reason?: string | null
           received_at?: string | null
           received_by?: string | null
           referral_type_id?: string | null
@@ -1973,6 +1979,9 @@ export type Database = {
           description_md?: string | null
           has_patient?: boolean
           id?: string
+          phi_disposed_at?: string | null
+          phi_disposed_by?: string | null
+          phi_disposed_reason?: string | null
           received_at?: string | null
           received_by?: string | null
           referral_type_id?: string | null
@@ -1996,6 +2005,13 @@ export type Database = {
           {
             foreignKeyName: "case_referral_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_referral_phi_disposed_by_fkey"
+            columns: ["phi_disposed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -3635,34 +3651,34 @@ export type Database = {
       pqs_department: {
         Row: {
           created_at: string
+          hospital_id: string
           id: string
           name: string
-          organization_id: string
           rca_default_due_days: number
           updated_at: string
         }
         Insert: {
           created_at?: string
+          hospital_id: string
           id?: string
           name?: string
-          organization_id: string
           rca_default_due_days?: number
           updated_at?: string
         }
         Update: {
           created_at?: string
+          hospital_id?: string
           id?: string
           name?: string
-          organization_id?: string
           rca_default_due_days?: number
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "pqs_department_organization_id_fkey"
-            columns: ["organization_id"]
+            foreignKeyName: "pqs_department_hospital_id_fkey"
+            columns: ["hospital_id"]
             isOneToOne: true
-            referencedRelation: "organizations"
+            referencedRelation: "hospitals"
             referencedColumns: ["id"]
           },
         ]
@@ -3704,19 +3720,19 @@ export type Database = {
         Row: {
           added_at: string
           added_by: string | null
-          organization_id: string
+          hospital_id: string
           user_id: string
         }
         Insert: {
           added_at?: string
           added_by?: string | null
-          organization_id: string
+          hospital_id: string
           user_id: string
         }
         Update: {
           added_at?: string
           added_by?: string | null
-          organization_id?: string
+          hospital_id?: string
           user_id?: string
         }
         Relationships: [
@@ -3728,10 +3744,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "pqs_members_organization_id_fkey"
-            columns: ["organization_id"]
+            foreignKeyName: "pqs_members_hospital_id_fkey"
+            columns: ["hospital_id"]
             isOneToOne: false
-            referencedRelation: "organizations"
+            referencedRelation: "hospitals"
             referencedColumns: ["id"]
           },
           {
@@ -5010,6 +5026,9 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
@@ -5450,11 +5469,11 @@ export type Database = {
         }
       }
       add_pqs_member: {
-        Args: { p_org_id: string; p_user_id: string }
+        Args: { p_hospital_id: string; p_user_id: string }
         Returns: {
           added_at: string
           added_by: string | null
-          organization_id: string
+          hospital_id: string
           user_id: string
         }
         SetofOptions: {
@@ -5921,6 +5940,10 @@ export type Database = {
         Args: { p_assignee: string; p_narrative: string }
         Returns: undefined
       }
+      assign_nsp_coordinator: {
+        Args: { p_hospital: string; p_user: string }
+        Returns: undefined
+      }
       assign_nsp_org_admin: {
         Args: { p_org: string; p_user: string }
         Returns: undefined
@@ -6359,6 +6382,9 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
@@ -6836,6 +6862,9 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
@@ -6964,6 +6993,9 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
@@ -7025,6 +7057,10 @@ export type Database = {
       }
       dispose_event_phi: {
         Args: { p_event_id: string; p_reason: string }
+        Returns: undefined
+      }
+      dispose_referral_phi: {
+        Args: { p_reason: string; p_referral_id: string }
         Returns: undefined
       }
       distribute_meeting: {
@@ -7100,10 +7136,14 @@ export type Database = {
       }
       interviews_enabled: { Args: never; Returns: boolean }
       is_nsp_coordinator_of_self: {
-        Args: { p_org_id: string }
+        Args: { p_hospital_id: string }
         Returns: boolean
       }
-      is_pqs_member_of_self: { Args: { p_org_id: string }; Returns: boolean }
+      is_nsp_org_admin_of_self: { Args: { p_org_id: string }; Returns: boolean }
+      is_pqs_member_of_self: {
+        Args: { p_hospital_id: string }
+        Returns: boolean
+      }
       is_pqs_member_self: { Args: never; Returns: boolean }
       link_meeting_case: {
         Args: {
@@ -7143,6 +7183,9 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
@@ -7201,13 +7244,15 @@ export type Database = {
           status: string
         }[]
       }
-      list_my_action_items: { Args: { p_commission: string }; Returns: Json }
-      list_my_cases: { Args: { p_commission: string }; Returns: Json }
-      list_org_eligible_users_for_pqs: {
-        Args: { p_org_id: string }
+      list_hospital_eligible_users_for_pqs: {
+        Args: { p_hospital_id: string }
         Returns: Json
       }
-      list_pqs_members: { Args: { p_org_id: string }; Returns: Json }
+      list_my_action_items: { Args: { p_commission: string }; Returns: Json }
+      list_my_cases: { Args: { p_commission: string }; Returns: Json }
+      list_my_nsp_hospitals: { Args: never; Returns: Json }
+      list_org_eligible_users: { Args: { p_org_id: string }; Returns: Json }
+      list_pqs_members: { Args: { p_hospital_id: string }; Returns: Json }
       list_referral_target_commissions: {
         Args: { p_source_commission_id: string }
         Returns: {
@@ -7333,6 +7378,9 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      nsp_org_capa_rollup: { Args: { p_org_id: string }; Returns: Json }
+      nsp_org_event_rollup: { Args: { p_org_id: string }; Returns: Json }
+      nsp_org_roster: { Args: { p_org_id: string }; Returns: Json }
       open_capa_plan: {
         Args: {
           p_classification?: string
@@ -7365,7 +7413,7 @@ export type Database = {
         }
       }
       patient_access_audit: {
-        Args: { p_encounter?: string; p_mrn?: string; p_org_id?: string }
+        Args: { p_encounter?: string; p_hospital_id?: string; p_mrn?: string }
         Returns: Json
       }
       patient_index_enabled: { Args: never; Returns: boolean }
@@ -7495,6 +7543,9 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
@@ -7593,7 +7644,7 @@ export type Database = {
         Returns: undefined
       }
       remove_pqs_member: {
-        Args: { p_org_id: string; p_user_id: string }
+        Args: { p_hospital_id: string; p_user_id: string }
         Returns: undefined
       }
       remove_rca_factor: { Args: { p_factor_id: string }; Returns: undefined }
@@ -7875,6 +7926,10 @@ export type Database = {
         Args: { p_hospital: string; p_user: string }
         Returns: undefined
       }
+      revoke_nsp_coordinator: {
+        Args: { p_hospital: string; p_user: string }
+        Returns: undefined
+      }
       revoke_nsp_org_admin: {
         Args: { p_org: string; p_user: string }
         Returns: undefined
@@ -7983,7 +8038,7 @@ export type Database = {
         }
       }
       search_patient_xref: {
-        Args: { p_encounter?: string; p_mrn?: string; p_org_id?: string }
+        Args: { p_encounter?: string; p_hospital_id?: string; p_mrn?: string }
         Returns: Json
       }
       seed_expected_meeting_attendees: {
@@ -8004,6 +8059,9 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
@@ -8151,7 +8209,7 @@ export type Database = {
         }
       }
       set_pqs_rca_due_window: {
-        Args: { p_days: number; p_org_id: string }
+        Args: { p_days: number; p_hospital_id: string }
         Returns: number
       }
       set_process_outcomes: {
@@ -8427,6 +8485,9 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
@@ -9278,6 +9339,9 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
@@ -9417,6 +9481,9 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null

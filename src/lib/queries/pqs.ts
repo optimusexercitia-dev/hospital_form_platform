@@ -254,6 +254,31 @@ export async function listHospitalEligibleUsersForPqs(
 }
 
 /**
+ * The ORG-WIDE eligible-user pool for `orgId` — DISTINCT users with ANY membership in
+ * the org (org-level ∪ commission members of ANY hospital's commissions), name-sorted
+ * (pt-BR). This is the picker pool for appointing ORG-LEVEL roles (nsp_org_admin,
+ * hospital_admin) on the `manage/administradores` page — it INCLUDES org-level-only
+ * users (no commission membership), which {@link listHospitalEligibleUsersForPqs}
+ * (a per-hospital roster pool) would miss. Backed by the `list_org_eligible_users(
+ * p_org_id)` DEFINER RPC (assembles the union DEFINER-side), gated to org_admin OR
+ * nsp_org_admin of the org. A caller with neither role gets `[]`. PHI-free.
+ */
+export async function listOrgEligibleUsers(
+  orgId: string,
+): Promise<PqsEligibleUser[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('list_org_eligible_users', {
+    p_org_id: orgId,
+  })
+  if (error || !data) return []
+  return (data as unknown as PqsEligibleUser[]).map((u) => ({
+    userId: u.userId,
+    fullName: u.fullName,
+    email: u.email,
+  }))
+}
+
+/**
  * The CURRENT `nsp_coordinator`s of `orgId`, keyed by hospital (for the appoint
  * surface, so the appointer sees who is coordinator of which hospital + can revoke).
  * Reads `organization_members` filtered to `role = 'nsp_coordinator'` joined to
