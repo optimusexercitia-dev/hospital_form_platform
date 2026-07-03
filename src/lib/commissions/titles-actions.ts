@@ -36,7 +36,6 @@ const MESSAGES = {
  * settings tab + member list + meeting attendee lists that show the badge). */
 function revalidateManage(): void {
   revalidatePath('/o/[org]/c/[commission]/manage', 'layout')
-  revalidatePath('/c/[slug]/manage', 'layout')
 }
 
 /** Create a title (`name`) in `commissionId`, appended at the end of the list. */

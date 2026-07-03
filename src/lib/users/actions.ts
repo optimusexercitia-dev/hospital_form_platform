@@ -541,13 +541,35 @@ export async function updateUserProfile(
     return { ok: false, fieldErrors: { fullName: MESSAGES.nameRequired } }
   }
 
+  // Home-hospital validation (amendment 11, mirrors registerUser). For an
+  // org_admin of the target's org the client value is trusted (they legitimately
+  // choose any hospital in scope). For a hospital_admin caller the new
+  // home_hospital_id MUST be one the caller administers — never trust the client
+  // value on the service-role path (no RLS backstop).
+  const effectiveHomeHospitalId: string | null = input.homeHospitalId ?? null
+  const context = await getSessionContext()
+  if (!context || context.isInactive) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+  const isOrgAdminCaller =
+    auth.orgId !== undefined &&
+    context.orgAdminOf.some((o) => o.organization.id === auth.orgId)
+  if (!isOrgAdminCaller && effectiveHomeHospitalId !== null) {
+    const administersRequested = context.hospitalAdminOf.some(
+      (h) => h.hospital.id === effectiveHomeHospitalId,
+    )
+    if (!administersRequested) {
+      return { ok: false, error: MESSAGES.forbidden }
+    }
+  }
+
   const admin = createAdminClient()
   const { error } = await admin
     .from('profiles')
     .update({
       full_name: fullName,
       professional_category_id: input.professionalCategoryId,
-      home_hospital_id: input.homeHospitalId ?? null,
+      home_hospital_id: effectiveHomeHospitalId,
       hospital_employee_id: input.hospitalEmployeeId ?? null,
     })
     .eq('id', input.userId)
@@ -666,8 +688,17 @@ export async function removeCommittee(
   userId: string,
   commissionId: string,
 ): Promise<ActionState> {
+  // The caller must administer BOTH the user's org AND the target commission's
+  // org/hospital — mirror assignCommitteeRole exactly. Without the commission
+  // check, a hospital_admin acting on a user who is a member of both an admined
+  // commission AND a sibling (same-org, other-hospital) commission could delete
+  // the sibling membership — a write to a commission the caller doesn't
+  // administer, on the service-role client with no RLS backstop.
   const userAuth = await authorizeForUser(userId)
   if (!userAuth.ok) return { ok: false, error: MESSAGES.forbidden }
+  if (!(await authorizeForCommission(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
 
   const admin = createAdminClient()
   const { error } = await admin

@@ -770,7 +770,12 @@ export async function setTemplateCollectsPatient(
   if (error) return { ok: false, error: mapCasePatientError(error) }
 
   // The builder lives under a different route; revalidate the template pages.
-  revalidatePath('/c/[slug]/manage/process-templates', 'page')
-  revalidatePath('/c/[slug]/manage/process-templates/[templateId]', 'page')
+  // Post-multi-tenancy the manage area is /o/[org]/c/[commission]/manage/...
+  // (the old /c/[slug]/... pattern no longer exists → was a silent no-op).
+  revalidatePath('/o/[org]/c/[commission]/manage/process-templates', 'page')
+  revalidatePath(
+    '/o/[org]/c/[commission]/manage/process-templates/[templateId]',
+    'page',
+  )
   return { ok: true, error: MESSAGES.templateCollectsPatientSaved }
 }

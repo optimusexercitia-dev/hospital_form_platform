@@ -9,7 +9,7 @@
 -- Personas: hospitaladmin.a1 (e1, central-a ONLY), hospitaladmin.dual (e3, both
 -- org-a hospitals), orgadmin.a (b1), staff1.qual.b (b3, org-b).
 begin;
-select plan(17);
+select plan(18);
 
 create temp table p on commit drop as select
   '00000000-0000-0000-0000-0000000000e1'::uuid as ha1,
@@ -162,6 +162,34 @@ select is(
    where id in ((select hosp_central_a from p), (select hosp_secundario_a from p))),
   2,
   'HAT-003: hospitaladmin.dual reads BOTH its hospitals'' rows (both grants populate)');
+reset role;
+
+-- ============================================================================
+-- §7: MAJOR-2 (QA hospital-admin-tier review) — removeCommittee cross-hospital
+--     write guard. removeCommittee(userId, commissionId) is a TS/service-role
+--     action whose authz mirrors assignCommitteeRole: it now ALSO requires
+--     authorizeForCommission(commissionId), i.e. authorizeHospitalOps(
+--     commission.hospital_id) — the caller must administer the commission's
+--     hospital. Prove the RLS-backed predicate that gate reads DENIES an A-only
+--     hospital_admin for a secundario-a (sibling-hospital) commission: the
+--     Ética commission's hospital_id is NOT in ha1's admined-hospital set
+--     (from its OWN organization_members self-read grant). Without this the
+--     caller could delete a shared user's sibling-hospital membership on the
+--     service-role client (no RLS backstop).
+-- ============================================================================
+select test_helpers.claims_for((select ha1 from p), false);
+set local role authenticated;
+select ok(
+  not exists(
+    select 1
+    from public.commissions c
+    join public.organization_members om
+      on om.hospital_id = c.hospital_id
+     and om.user_id = (select ha1 from p)
+     and om.role = 'hospital_admin'
+    where c.id = 'e0000000-0000-0000-0000-0000000000e1'  -- Ética (secundario-a)
+  ),
+  'MAJOR-2: A-only hospital_admin resolves NO hospital-admin grant for a secundario-a commission — removeCommittee''s authorizeForCommission denies the cross-hospital membership delete');
 reset role;
 
 select * from finish();
