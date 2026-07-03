@@ -124,6 +124,17 @@ create index if not exists pqs_members_user_id_idx on public.pqs_members (user_i
 -- stay org-level (NULL). hospital_admin unchanged. Any pre-existing nsp_coordinator
 -- rows (Phase-A seed, hospital_id NULL) are repointed to the org's sole (pre-reseed)
 -- hospital so the new CHECK validates; the reseed supplies per-hospital rows directly.
+--
+-- ORDER MATTERS: DROP the old Phase-A check FIRST, then repoint, then ADD the new
+-- check. The old check requires nsp_coordinator -> hospital_id IS NULL, so on an
+-- incremental remote `db push` over LIVE Phase-A data the repoint UPDATE (sets
+-- hospital_id NOT NULL) would violate the still-active old check (23514) if it ran
+-- first. A fresh local `db reset` replays against an empty table (seed runs after),
+-- so the UPDATE hits 0 rows and order is invisible there — but the remote path needs
+-- drop-first. End-state is identical either way.
+alter table public.organization_members
+  drop constraint if exists organization_members_hospital_scope;
+
 update public.organization_members om
 set hospital_id = (
   select h.id from public.hospitals h
@@ -133,8 +144,6 @@ set hospital_id = (
 )
 where om.role = 'nsp_coordinator' and om.hospital_id is null;
 
-alter table public.organization_members
-  drop constraint if exists organization_members_hospital_scope;
 alter table public.organization_members
   add constraint organization_members_hospital_scope check (
     (role in ('hospital_admin', 'nsp_coordinator') and hospital_id is not null)
