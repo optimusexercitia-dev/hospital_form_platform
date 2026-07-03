@@ -228,11 +228,17 @@ export async function appointNspCoordinator(
     return { ok: false, error: COORD_MESSAGES.isOrgAdmin }
   }
 
+  // Phase-A fix (ADR 0051): the unique moved to the composite
+  // (organization_id, user_id, role, hospital_id) NULLS NOT DISTINCT, so the old
+  // onConflict:'organization_id,user_id' no longer names a constraint. Target the
+  // new key columns; nsp_coordinator stays org-level (hospital_id NULL) this phase
+  // (Q1), so hospital_id is explicitly null. The org_admin-demotion guard above is
+  // still valid; full per-hospital coordinator is Phase B (rewrites this action).
   const { error } = await supabase
     .from('organization_members')
     .upsert(
-      { organization_id: orgId, user_id: userId, role: 'nsp_coordinator' },
-      { onConflict: 'organization_id,user_id' },
+      { organization_id: orgId, user_id: userId, role: 'nsp_coordinator', hospital_id: null },
+      { onConflict: 'organization_id,user_id,role,hospital_id' },
     )
 
   if (error) {
@@ -255,51 +261,160 @@ export async function appointNspCoordinator(
 // the signatures so FE (A7) builds the appointment UI against real types.
 // ===========================================================================
 
+const APPOINT_MESSAGES = {
+  forbidden: 'Apenas um administrador da organização pode gerenciar esta função.',
+  generic: 'Não foi possível concluir. Tente novamente.',
+  self: 'Não é possível nomear a si mesmo.',
+  hospitalAdminGranted: 'Administrador(a) de hospital nomeado(a).',
+  hospitalAdminRevoked: 'Administração de hospital removida.',
+  nspOrgAdminGranted: 'Administrador(a) de NSP da organização nomeado(a).',
+  nspOrgAdminRevoked: 'Administração de NSP da organização removida.',
+} as const
+
 /**
- * Appoint `userId` as a `hospital_admin` of `hospitalId` (ADR 0051). Gated
- * `is_org_admin_of(org-of-hospital)`; no self-delegation. Idempotent. Emits a
- * hospital-tier audit row. A0 stub — impl in A4.
+ * Revalidate the org-manage area after an appointment write, resolving the org
+ * slug from the caller's org_admin memberships.
+ */
+async function revalidateOrgManage(orgId: string): Promise<void> {
+  const context = await getSessionContext()
+  const orgSlug = context?.orgAdminOf.find(
+    (o) => o.organization.id === orgId,
+  )?.organization.slug
+  if (orgSlug) revalidatePath(orgHref(orgSlug, 'manage'))
+}
+
+/**
+ * Appoint `userId` as a `hospital_admin` of `hospitalId` (ADR 0051). The
+ * `assign_hospital_admin` DEFINER RPC is the authority (gated
+ * `is_org_admin_of(org-of-hospital)`, no self-delegation, idempotent; the
+ * hospital-tier audit row is emitted by the A3 trigger). We resolve the hospital's
+ * org to re-check org_admin server-side (defense in depth) + reject self-delegation
+ * with a friendly pt-BR message before the RPC.
  */
 export async function assignHospitalAdmin(
-  _hospitalId: string,
-  _userId: string,
+  hospitalId: string,
+  userId: string,
 ): Promise<MutationActionState> {
-  throw new Error('not implemented')
+  if (!hospitalId || !userId) {
+    return { ok: false, error: APPOINT_MESSAGES.generic }
+  }
+  const context = await getSessionContext()
+  if (!context) return { ok: false, error: APPOINT_MESSAGES.forbidden }
+  if (context.userId === userId) {
+    return { ok: false, error: APPOINT_MESSAGES.self }
+  }
+
+  const supabase = await createClient()
+  // Resolve the hospital's org (RLS lets an org_admin read its hospitals) to
+  // authorize + revalidate. A foreign/unknown hospital yields no row → forbidden.
+  const { data: hospital } = await supabase
+    .from('hospitals')
+    .select('organization_id')
+    .eq('id', hospitalId)
+    .maybeSingle<{ organization_id: string }>()
+  if (!hospital || !(await authorizeOrgAdmin(hospital.organization_id))) {
+    return { ok: false, error: APPOINT_MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('assign_hospital_admin', {
+    p_hospital: hospitalId,
+    p_user: userId,
+  })
+  if (error) return { ok: false, error: APPOINT_MESSAGES.generic }
+
+  await revalidateOrgManage(hospital.organization_id)
+  return { ok: true, message: APPOINT_MESSAGES.hospitalAdminGranted }
 }
 
 /**
- * Revoke `userId`'s `hospital_admin` role on `hospitalId` (ADR 0051). Gated
- * `is_org_admin_of(org-of-hospital)`; idempotent. Emits a hospital-tier audit
- * row. A0 stub — impl in A4.
+ * Revoke `userId`'s `hospital_admin` role on `hospitalId` (ADR 0051). Backed by
+ * the `revoke_hospital_admin` DEFINER RPC (org_admin-gated, idempotent; the
+ * hospital-tier audit row is emitted by the A3 DELETE trigger).
  */
 export async function revokeHospitalAdmin(
-  _hospitalId: string,
-  _userId: string,
+  hospitalId: string,
+  userId: string,
 ): Promise<MutationActionState> {
-  throw new Error('not implemented')
+  if (!hospitalId || !userId) {
+    return { ok: false, error: APPOINT_MESSAGES.generic }
+  }
+  const supabase = await createClient()
+  const { data: hospital } = await supabase
+    .from('hospitals')
+    .select('organization_id')
+    .eq('id', hospitalId)
+    .maybeSingle<{ organization_id: string }>()
+  if (!hospital || !(await authorizeOrgAdmin(hospital.organization_id))) {
+    return { ok: false, error: APPOINT_MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('revoke_hospital_admin', {
+    p_hospital: hospitalId,
+    p_user: userId,
+  })
+  if (error) return { ok: false, error: APPOINT_MESSAGES.generic }
+
+  await revalidateOrgManage(hospital.organization_id)
+  return { ok: true, message: APPOINT_MESSAGES.hospitalAdminRevoked }
 }
 
 /**
- * Appoint `userId` as an `nsp_org_admin` of `orgId` (ADR 0051). Gated
- * `is_org_admin_of(orgId)`; no self-delegation. The role row exists in Phase A
- * but is INERT (its behavior ships in Phase B). A0 stub — impl in A4.
+ * Appoint `userId` as an `nsp_org_admin` of `orgId` (ADR 0051). Backed by the
+ * `assign_nsp_org_admin` DEFINER RPC (org_admin-gated, no self-delegation,
+ * idempotent). The role row exists in Phase A but is INERT — its behavior ships
+ * in Phase B.
  */
 export async function assignNspOrgAdmin(
-  _orgId: string,
-  _userId: string,
+  orgId: string,
+  userId: string,
 ): Promise<MutationActionState> {
-  throw new Error('not implemented')
+  if (!orgId || !userId) {
+    return { ok: false, error: APPOINT_MESSAGES.generic }
+  }
+  const context = await getSessionContext()
+  if (!context) return { ok: false, error: APPOINT_MESSAGES.forbidden }
+  if (context.userId === userId) {
+    return { ok: false, error: APPOINT_MESSAGES.self }
+  }
+  if (!(await authorizeOrgAdmin(orgId))) {
+    return { ok: false, error: APPOINT_MESSAGES.forbidden }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('assign_nsp_org_admin', {
+    p_org: orgId,
+    p_user: userId,
+  })
+  if (error) return { ok: false, error: APPOINT_MESSAGES.generic }
+
+  await revalidateOrgManage(orgId)
+  return { ok: true, message: APPOINT_MESSAGES.nspOrgAdminGranted }
 }
 
 /**
- * Revoke `userId`'s `nsp_org_admin` role in `orgId` (ADR 0051). Gated
- * `is_org_admin_of(orgId)`; idempotent. A0 stub — impl in A4.
+ * Revoke `userId`'s `nsp_org_admin` role in `orgId` (ADR 0051). Backed by the
+ * `revoke_nsp_org_admin` DEFINER RPC (org_admin-gated, idempotent).
  */
 export async function revokeNspOrgAdmin(
-  _orgId: string,
-  _userId: string,
+  orgId: string,
+  userId: string,
 ): Promise<MutationActionState> {
-  throw new Error('not implemented')
+  if (!orgId || !userId) {
+    return { ok: false, error: APPOINT_MESSAGES.generic }
+  }
+  if (!(await authorizeOrgAdmin(orgId))) {
+    return { ok: false, error: APPOINT_MESSAGES.forbidden }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('revoke_nsp_org_admin', {
+    p_org: orgId,
+    p_user: userId,
+  })
+  if (error) return { ok: false, error: APPOINT_MESSAGES.generic }
+
+  await revalidateOrgManage(orgId)
+  return { ok: true, message: APPOINT_MESSAGES.nspOrgAdminRevoked }
 }
 
 /**
