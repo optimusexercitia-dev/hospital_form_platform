@@ -4,6 +4,10 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { isPqsMemberOfSelf, isNspCoordinatorOfSelf } from '@/lib/queries/pqs'
 import { deriveUserStatus, type UserStatus } from '@/lib/users/types'
+// The TS mirror of `is_commission_admin_of` (ADR 0051): org_admin-of-org OR
+// hospital_admin-of-hospital. access.ts imports ONLY types from this module, so
+// this value import is not a runtime cycle (the back-edge is type-only, erased).
+import { isCommissionAdmin } from '@/lib/auth/access'
 
 /**
  * Session & membership data-access (Architecture Rule 9 — all reads go through
@@ -373,10 +377,12 @@ async function getCommissionAccessByOrgUncached(
   // its organization, scoping on the org's slug — the commission SELECT policy
   // (member or admin) is the access authority, and the nested org comes back via
   // the denormalized FK regardless of the org-table policy.
+  // `hospital_id` is selected so the commission-admin mirror can resolve a
+  // hospital_admin of THIS commission's hospital (ADR 0051 Decision 1; BUG-HAT-002).
   const { data: commissionRow } = await supabase
     .from('commissions')
     .select(
-      'id, name, slug, organization:organizations!inner(id, slug, name)',
+      'id, name, slug, hospital_id, organization:organizations!inner(id, slug, name)',
     )
     .eq('slug', commissionSlug)
     .eq('organization.slug', orgSlug)
@@ -393,16 +399,23 @@ async function getCommissionAccessByOrgUncached(
     slug: commissionRow.slug,
   }
 
-  // Member role first; else org_admin-of-this-org maps to the coordinator
-  // (staff_admin) branch; else null (platform admin without a held role).
+  // Member role first; else a COMMISSION-ADMIN of this commission (org_admin of
+  // its org OR hospital_admin of its hospital — ADR 0051 Decision 1) maps to the
+  // coordinator (staff_admin) branch; else null (platform admin without a held
+  // role). BUG-HAT-002: the prior org_admin-only check 404'd a hospital_admin on
+  // every `/o/[org]/c/[commission]/manage/**` page. The hospital_admin mirrors
+  // org_admin here, so 'staff_admin'-equivalent is correct — no downstream page
+  // distinguishes the two (same as org_admin already resolves). RLS is the real
+  // authority; this TS seam only gates the notFound()/coordinator-UI branch.
   const memberRole =
     context.memberships.find((m) => m.commission.id === commission.id)?.role ??
     null
-  const isOrgAdmin = context.orgAdminOf.some(
-    (o) => o.organization.id === organization.id,
-  )
+  const isCommAdmin = isCommissionAdmin(context, {
+    organizationId: organization.id,
+    hospitalId: commissionRow.hospital_id,
+  })
   const role: CommissionRole | null =
-    memberRole ?? (isOrgAdmin ? 'staff_admin' : null)
+    memberRole ?? (isCommAdmin ? 'staff_admin' : null)
 
   return { context, organization, commission, role }
 }
