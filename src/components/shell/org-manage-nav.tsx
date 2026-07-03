@@ -19,7 +19,9 @@ interface OrgNavItem {
 
 const ORG_NAV_ITEMS: OrgNavItem[] = [
   { label: "Visão geral", segments: [] },
-  { label: "Usuários", segments: ["usuarios"], orgAdminOnly: true },
+  // Usuários is available to a hospital_admin too — it manages its own hospital's
+  // staff there (ADR 0051 Decision 7 / Q2), scoped to its hospital by the page.
+  { label: "Usuários", segments: ["usuarios"] },
   { label: "Comissões", segments: ["comissoes"] },
   { label: "Hospitais", segments: ["hospitais"], orgAdminOnly: true },
   { label: "Painel", segments: ["painel"] },
@@ -40,10 +42,11 @@ const ORG_NAV_ITEMS: OrgNavItem[] = [
  * Top navigation for the org-management area. Visibility here is convenience
  * only — every route still enforces its own server-side gate (the layout gate +
  * RLS). Active state is a prefix match so detail pages keep their parent item
- * highlighted. `isOrgAdmin = false` hides org-level-only entries (hospitals
- * registry, org user directory, role appointment) for a `hospital_admin` caller
- * (ADR 0051 Decision 1) — the audit entry stays visible either way, since a
- * hospital_admin gets its own hospital-tier chain at the same route.
+ * highlighted. `isOrgAdmin = false` hides ORG-LEVEL-ONLY entries (hospitals
+ * registry, role appointment) for a `hospital_admin` caller (ADR 0051 Decision
+ * 1); Usuários stays visible for both (a hospital_admin manages its own hospital's
+ * staff — Decision 7), and the audit entry stays visible either way (a
+ * hospital_admin gets its own hospital-tier chain at the same route).
  */
 export function OrgManageNav({
   org,

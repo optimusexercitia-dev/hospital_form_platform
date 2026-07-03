@@ -46,7 +46,6 @@ const AREAS: ManageArea[] = [
     description: "Registre pessoas e gerencie o acesso à plataforma.",
     segments: ["usuarios"],
     icon: Users,
-    orgAdminOnly: true,
   },
   {
     title: "Hospitais",

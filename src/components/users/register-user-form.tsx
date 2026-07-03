@@ -43,6 +43,7 @@ export function RegisterUserForm({
   hospitals,
   commissions,
   emailVerificationEnabled,
+  lockedHospital,
 }: {
   organizationId: string;
   categories: ProfessionalCategory[];
@@ -55,6 +56,14 @@ export function RegisterUserForm({
    * this form must NOT collect (or send) a password.
    */
   emailVerificationEnabled: boolean;
+  /**
+   * When set (a `hospital_admin` caller, ADR 0051 Decision 7 / Q2), the home
+   * hospital is LOCKED to this hospital — rendered as a read-only display, not a
+   * chooser — so the UI never implies a choice. The backend hard-sets the home
+   * hospital to the admin's hospital server-side regardless; this keeps the UI
+   * honest. An org_admin passes `undefined` and gets the free hospital picker.
+   */
+  lockedHospital?: { id: string; name: string };
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -65,7 +74,7 @@ export function RegisterUserForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [categoryId, setCategoryId] = useState("");
-  const [hospitalId, setHospitalId] = useState("");
+  const [hospitalId, setHospitalId] = useState(lockedHospital?.id ?? "");
   const [employeeId, setEmployeeId] = useState("");
   const [credentials, setCredentials] = useState<CredentialInput[]>([]);
   const [committees, setCommittees] = useState<CommitteeAssignmentRow[]>([]);
@@ -222,23 +231,46 @@ export function RegisterUserForm({
           </FieldError>
         </Field>
 
-        <Field>
-          <FieldLabel htmlFor={hospitalField.controlProps.id}>
-            Hospital de origem (opcional)
-          </FieldLabel>
-          <NativeSelect
-            {...hospitalField.controlProps}
-            value={hospitalId}
-            onChange={(e) => setHospitalId(e.target.value)}
-          >
-            <option value="">Nenhum</option>
-            {hospitals.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.name}
-              </option>
-            ))}
-          </NativeSelect>
-        </Field>
+        {lockedHospital ? (
+          <Field>
+            <FieldLabel htmlFor={hospitalField.controlProps.id}>
+              Hospital de origem
+            </FieldLabel>
+            {/* Locked to the hospital_admin's hospital — a read-only display, not
+                a chooser (ADR 0051 Decision 7 / Q2). The value is carried by the
+                fixed `hospitalId` state; the backend hard-sets it server-side. */}
+            <Input
+              {...hospitalField.controlProps}
+              type="text"
+              value={lockedHospital.name}
+              readOnly
+              aria-readonly="true"
+              tabIndex={-1}
+              className="bg-muted/50 text-muted-foreground"
+            />
+            <FieldDescription id={`${hospitalField.controlProps.id}-locked`}>
+              As pessoas registradas aqui pertencem ao seu hospital.
+            </FieldDescription>
+          </Field>
+        ) : (
+          <Field>
+            <FieldLabel htmlFor={hospitalField.controlProps.id}>
+              Hospital de origem (opcional)
+            </FieldLabel>
+            <NativeSelect
+              {...hospitalField.controlProps}
+              value={hospitalId}
+              onChange={(e) => setHospitalId(e.target.value)}
+            >
+              <option value="">Nenhum</option>
+              {hospitals.map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name}
+                </option>
+              ))}
+            </NativeSelect>
+          </Field>
+        )}
 
         <Field>
           <FieldLabel htmlFor={employeeIdField.controlProps.id}>

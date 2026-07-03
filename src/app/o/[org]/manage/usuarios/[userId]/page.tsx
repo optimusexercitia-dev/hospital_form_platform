@@ -4,8 +4,13 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { getSessionContext } from "@/lib/queries/session";
+import { adminedHospitals } from "@/lib/auth/access";
 import { getOrgUser, listProfessionalCategories } from "@/lib/queries/org-users";
-import { listHospitalsForOrg, listCommissionsForOrg } from "@/lib/queries/org";
+import {
+  listHospitalsForOrg,
+  listCommissionsForOrg,
+  listManagedCommissions,
+} from "@/lib/queries/org";
 import { orgHref } from "@/lib/routing";
 import { UserStatusBadge } from "@/components/users/user-status-badge";
 import { UserProfileEditForm } from "@/components/users/user-profile-edit-form";
@@ -24,13 +29,16 @@ export async function generateMetadata({
 }
 
 /**
- * Per-user management page (FE-3). Access is enforced by the
- * `/o/[org]/manage` layout (`is_org_admin_of(org)`); `getOrgUser` is itself
- * RLS-scoped (org_admin of the user's home org / the user themselves /
+ * Per-user management page (FE-3). Access is enforced by the `/o/[org]/manage`
+ * layout (`is_org_admin_of(org)` OR hospital_admin-of-some-hospital-here);
+ * `getOrgUser` is itself RLS-scoped (org_admin of the user's home org / a
+ * hospital_admin of the user's home hospital / the user themselves /
  * platform_admin), so a foreign user id 404s here without leaking existence.
  * Full management surface: profile + credentials editor, committee/role
  * manager (the shared `CommitteeRoleAssigner`, `mode="live"`), and lifecycle
- * controls (deactivate/reactivate/suspend/resend invite).
+ * controls. For a `hospital_admin` (ADR 0051 Decision 7) the profile-form
+ * hospital list + committee options are scoped to its hospital(s); the write
+ * actions are themselves hospital-scoped server-side (RLS is the authority).
  */
 export default async function OrgUserDetailPage({
   params,
@@ -39,20 +47,42 @@ export default async function OrgUserDetailPage({
 }) {
   const { org, userId } = await params;
   const context = await getSessionContext();
-  const organization = context?.orgAdminOf.find(
+  const orgAdminEntry = context?.orgAdminOf.find(
     (o) => o.organization.slug === org,
-  )?.organization;
+  );
+  const organization =
+    orgAdminEntry?.organization ??
+    context?.hospitalAdminOf.find((h) => h.organization.slug === org)
+      ?.organization;
 
   // The layout already guarantees access; defensive (never expected).
-  if (!organization) {
+  if (!organization || !context) {
     notFound();
   }
+
+  const isOrgAdmin = Boolean(orgAdminEntry);
+  // A hospital_admin's editable hospital list + commission options are scoped to
+  // the hospital(s) it administers; an org_admin gets the org-wide lists.
+  const adminHospitals = isOrgAdmin
+    ? []
+    : adminedHospitals(context, organization.id);
 
   const [user, categories, hospitals, commissions] = await Promise.all([
     getOrgUser(userId),
     listProfessionalCategories(),
-    listHospitalsForOrg(organization.id),
-    listCommissionsForOrg(organization.id),
+    isOrgAdmin
+      ? listHospitalsForOrg(organization.id)
+      : Promise.resolve(
+          adminHospitals.map((h) => ({
+            id: h.id,
+            name: h.name,
+            slug: h.slug,
+            commissionCount: 0,
+          })),
+        ),
+    isOrgAdmin
+      ? listCommissionsForOrg(organization.id)
+      : listManagedCommissions(organization.id, adminHospitals[0]?.id ?? null),
   ]);
 
   if (!user) {
