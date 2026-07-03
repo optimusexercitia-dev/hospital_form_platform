@@ -30,9 +30,13 @@
 --   ref_b  (efa…b1): central-b ENC-0003 referral
 
 begin;
-select plan(42);
+select plan(43);
 
 update app.feature_flags set enabled = true where key = 'patient_index';
+-- dispose_referral_phi (§11) calls assert_referrals_enabled() first, so the
+-- case_referrals flag must be ON for those tests to reach their real gate
+-- (mirrors 150_referrals.sql:27; app/E2E/prod have it enabled by baseline seed).
+update app.feature_flags set enabled = true where key = 'case_referrals';
 
 create temp table personas on commit drop as select
   '00000000-0000-0000-0000-0000000000c2'::uuid as pqs_a,
@@ -287,6 +291,16 @@ select is(
   null,
   'DISPOSAL PROOF: get_referral_patient(cross-hosp ref) = NULL after disposal');
 reset role;
+
+-- N-2: LGPD erasure is surgical — the referral's governance skeleton (the row +
+-- its code) survives disposal; only the patient linkage is erased. Superuser read
+-- (governance metadata is PHI-FREE): code preserved, has_patient=false, stamp set.
+select is(
+  (select r.code is not null and r.has_patient = false and r.phi_disposed_at is not null
+     from public.case_referral r
+    where r.id = (select ref_x from personas)),
+  true,
+  'DISPOSAL SKELETON: case_referral row + code survive; has_patient=false, phi_disposed_at set');
 
 -- ============================================================================
 -- §12: per-hospital EV sequences are independent (central-a EV-0001 + secundário-a
