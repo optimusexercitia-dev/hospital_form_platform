@@ -58,19 +58,16 @@ const CONFIRM_PHRASE = "APAGAR";
  * confirmation phrase before the destructive button arms. Copy is unambiguous that
  * the erasure cannot be undone. Fully keyboard-operable; pt-BR throughout.
  *
- * Rendered only when the referral has isolated PHI (`hasPatient`) and the viewer is
- * a plausibly-entitled actor (`entitled`); a no-op otherwise.
+ * The PAGE decides whether to render this at all — it mounts the component only
+ * when the authoritative `canDisposeReferralPhi` probe returns true (a PHI record
+ * exists AND the viewer passes the exact RPC gate: admin / source commission-admin /
+ * PQS operator of either endpoint hospital; BUG-NPH-002). So this component assumes
+ * it is entitled and holds no gate of its own.
  */
 export function ReferralDisposeDialog({
   referralId,
-  hasPatient,
-  entitled,
 }: {
   referralId: string;
-  /** Whether the referral has an isolated PHI record to erase. */
-  hasPatient: boolean;
-  /** Page-known entitlement (defense-in-depth; the server RPC is authoritative). */
-  entitled: boolean;
 }) {
   const router = useRouter();
   const reasonId = useId();
@@ -80,9 +77,6 @@ export function ReferralDisposeDialog({
   const [confirmText, setConfirmText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  // Nothing to erase, or the viewer is not a plausible disposer → render nothing.
-  if (!hasPatient || !entitled) return null;
 
   const confirmed = confirmText.trim().toUpperCase() === CONFIRM_PHRASE;
   const armed = reason !== "" && confirmed;
