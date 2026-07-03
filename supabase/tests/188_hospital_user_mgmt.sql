@@ -9,7 +9,7 @@
 -- Personas: hospitaladmin.a1 (e1, central-a ONLY), hospitaladmin.dual (e3, both
 -- org-a hospitals), orgadmin.a (b1), staff1.qual.b (b3, org-b).
 begin;
-select plan(11);
+select plan(17);
 
 create temp table p on commit drop as select
   '00000000-0000-0000-0000-0000000000e1'::uuid as ha1,
@@ -18,7 +18,11 @@ create temp table p on commit drop as select
   '00000000-0000-0000-0000-0000000000b3'::uuid as staff_b,
   '00000000-0000-0000-0000-000000000002'::uuid as chefe_ccih,   -- CCIH (central-a) member
   '00000000-0000-0000-0000-000000000005'::uuid as chefe_farm,   -- Farmácia (central-a) member
-  '05000000-0000-0000-0000-00000000000a'::uuid as hosp_central_a;
+  '05000000-0000-0000-0000-00000000000a'::uuid as hosp_central_a,
+  '05000000-0000-0000-0000-0000000000a2'::uuid as hosp_secundario_a,  -- sibling (org-a)
+  '05000000-0000-0000-0000-00000000000b'::uuid as hosp_central_b,     -- org-b
+  '0c000000-0000-0000-0000-00000000000a'::uuid as org_a,
+  '0c000000-0000-0000-0000-00000000000b'::uuid as org_b;
 grant select on p to authenticated;
 
 -- ============================================================================
@@ -119,6 +123,45 @@ select isnt(
   (select hospital_employee_id from public.profiles where id = (select chefe_ccih from p)),
   'X-HACK',
   'WRITE GUARD: a hospital_admin''s direct RLS UPDATE of a user profile is a no-op (no WRITE arm; the service-role action is the only path)');
+reset role;
+
+-- ============================================================================
+-- §6: BUG-HAT-003 — organizations + hospitals READ arms (migration …000800).
+--     getSessionContext embeds organizations + hospitals off the hospital_admin
+--     grant; those embeds were NULL because neither policy admitted a
+--     hospital_admin reading its OWN org/hospital, starving hospitalAdminOf. The
+--     new arms must populate the context WITHOUT leaking a sibling hospital / org-b.
+-- ============================================================================
+select test_helpers.claims_for((select ha1 from p), false);
+set local role authenticated;
+-- a1 reads its OWN hospital + org row (the embeds now resolve → context populates).
+select ok(
+  exists(select 1 from public.hospitals where id = (select hosp_central_a from p)),
+  'HAT-003: a1 reads its OWN hospital row (central-a) — hospital embed resolves');
+select ok(
+  exists(select 1 from public.organizations where id = (select org_a from p)),
+  'HAT-003: a1 reads its OWN org row (rede-a) — org embed resolves');
+-- Isolation: the new arms are PER-HOSPITAL, not org-wide — a1 (central-a only)
+-- reads NEITHER the sibling hospital nor org-b's hospital/org.
+select ok(
+  not exists(select 1 from public.hospitals where id = (select hosp_secundario_a from p)),
+  'HAT-003 ISOLATION: a1 reads ZERO of the SIBLING hospital''s row (secundario-a)');
+select ok(
+  not exists(select 1 from public.hospitals where id = (select hosp_central_b from p)),
+  'HAT-003 ISOLATION: a1 reads ZERO of org-b''s hospital row');
+select ok(
+  not exists(select 1 from public.organizations where id = (select org_b from p)),
+  'HAT-003 ISOLATION: a1 reads ZERO of org-b''s organization row');
+reset role;
+
+-- dual reads BOTH its hospitals' rows (both embeds resolve → both grants populate).
+select test_helpers.claims_for((select ha_dual from p), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.hospitals
+   where id in ((select hosp_central_a from p), (select hosp_secundario_a from p))),
+  2,
+  'HAT-003: hospitaladmin.dual reads BOTH its hospitals'' rows (both grants populate)');
 reset role;
 
 select * from finish();
