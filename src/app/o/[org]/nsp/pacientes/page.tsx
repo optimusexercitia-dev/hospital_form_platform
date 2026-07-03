@@ -12,6 +12,7 @@ import {
 import type { PatientXrefModule } from "@/lib/patient-index/types";
 import { PatientSearchView } from "@/components/patient-index/patient-search-view";
 import { TrajectoryResult } from "@/components/patient-index/trajectory-result";
+import { resolveNspHospital } from "@/components/shell/nsp-hospital-scope";
 
 export const metadata: Metadata = {
   title: "NSP — pacientes",
@@ -43,19 +44,20 @@ export const metadata: Metadata = {
  * notes that the audit is available via search rather than faking an entity-keyed
  * read.
  *
- * Org-scoping (NSP-per-org, ADR 0042): the typed-search path passes `access.orgId`
- * into `PatientSearchView`, whose `searchPatientAction(orgId, …)` /
- * `loadPatientAccessAudit(orgId, …)` route through `searchPatientForOrg` /
- * `getPatientAccessAuditForOrg` — gated on enrollment in THIS org, scoped to its
- * xref rows. The deep-link path (`getPatientTrajectoryForEntity`) resolves the
- * entity's org server-side and needs no `orgId`.
+ * Hospital-scoping (NSP-per-hospital, ADR 0052): the typed-search path passes the
+ * SELECTED `hospitalId` (from the `?hospital=` switcher) into `PatientSearchView`,
+ * whose `searchPatientAction(hospitalId, …)` / `loadPatientAccessAudit(hospitalId, …)`
+ * route through `searchPatientForHospital` / `getPatientAccessAuditForHospital` —
+ * gated on OPERATING that hospital's NSP, scoped to its xref rows. The deep-link
+ * path (`getPatientTrajectoryForEntity`) resolves the entity's hospital server-side
+ * and needs no `hospitalId`.
  */
 export default async function NspPatientsPage({
   params,
   searchParams,
 }: {
   params: Promise<{ org: string }>;
-  searchParams: Promise<{ entity?: string }>;
+  searchParams: Promise<{ entity?: string; hospital?: string }>;
 }) {
   const { org } = await params;
   const access = await getNspAccessByOrg(org);
@@ -67,6 +69,13 @@ export default async function NspPatientsPage({
   }
 
   const sp = await searchParams;
+  // Resolve the selected hospital from `?hospital=` (defaults to the first grant).
+  // The layout already established the caller operates ≥1 hospital, so this is
+  // non-null; the search/audit doors re-gate on operating it server-side.
+  const hospital = resolveNspHospital(access.hospitals, sp.hospital);
+  if (!hospital) {
+    notFound();
+  }
   // Parse the `?entity=<module>:<id>` deep-link param. A present-but-malformed or
   // unknown-module value yields `null` here → we silently fall back to the search
   // view (defensive; no crash). Only resolve the trajectory when the param parses.
@@ -140,7 +149,7 @@ export default async function NspPatientsPage({
         </div>
       )}
 
-      <PatientSearchView org={org} orgId={access.orgId} />
+      <PatientSearchView org={org} hospitalId={hospital.hospitalId} />
     </div>
   );
 }

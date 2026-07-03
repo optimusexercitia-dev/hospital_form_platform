@@ -31,6 +31,7 @@ import {
   type LinkableTargetCase,
 } from "@/components/referrals/referral-actions";
 import { ReferralPatientPanel } from "@/components/referrals/referral-patient-panel";
+import { ReferralDisposeDialog } from "@/components/referrals/referral-dispose-dialog";
 import {
   formatCaseNumber,
   formatDateTime,
@@ -283,6 +284,20 @@ export default async function ReferralDetailPage({
               appearsInCount={appearsInCount}
             />
           </div>
+
+          {/* LGPD-erasure control (ADR 0052 §6). Server-authoritative gate:
+              admin / source commission-admin / referral-hospital PQS operator.
+              The UI gate (source/target commission-admin here) is defense-in-depth
+              so an unentitled viewer never sees a dangling destructive control. */}
+          {detail.hasPatient && (canManageSource || canManageTarget) && (
+            <div data-rise>
+              <ReferralDisposeDialog
+                referralId={detail.id}
+                hasPatient={detail.hasPatient}
+                entitled={canManageSource || canManageTarget}
+              />
+            </div>
+          )}
         </div>
       </div>
     </SafetyMotion>
