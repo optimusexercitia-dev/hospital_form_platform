@@ -583,14 +583,22 @@ test('A1 — granting then revoking a member updates the badge live', async ({
   await expect(row.getByText(/^Leitura$/i)).toHaveCount(0)
   await expect(row.getByText(/^Edição$/i)).toHaveCount(0)
 
-  // Grant read → "Leitura" appears.
-  await row.getByRole('button', { name: /Acesso/i }).click()
-  await page.getByRole('menuitem', { name: /Conceder leitura/i }).click()
+  // Grant read → "Leitura" appears. REBUILT UI (case-access-panel.tsx, commit
+  // 2507e77): the per-member GrantMenu dropdown was removed in favor of a
+  // GrantDialog — the row's "Conceder acesso" button opens a dialog with a
+  // "Nível de acesso" fieldset (Leitura default), submitted via its own
+  // "Conceder acesso" button. Mirrors case-access.spec.ts AC-3c/AC-3d.
+  await row.getByRole('button', { name: /conceder acesso|editar acesso/i }).click()
+  const grantDialog = page.getByRole('dialog', { name: /conceder acesso|editar acesso/i })
+  await expect(grantDialog).toBeVisible({ timeout: 5_000 })
+  // "Leitura" is the default level — submit directly.
+  await grantDialog.getByRole('button', { name: /^conceder acesso$/i }).click()
+  await expect(grantDialog).toHaveCount(0, { timeout: 10_000 })
   await expect(row.getByText(/^Leitura$/i)).toBeVisible({ timeout: 10_000 })
 
-  // Revoke → badge disappears.
-  await row.getByRole('button', { name: /Acesso/i }).click()
-  await page.getByRole('menuitem', { name: /Remover acesso/i }).click()
+  // Revoke → badge disappears (the granted row now carries a "Remover acesso de
+  // {name}" X button beside the grant; no dropdown).
+  await row.getByRole('button', { name: /remover acesso de/i }).click()
   await expect(row.getByText(/^Leitura$/i)).toHaveCount(0, { timeout: 10_000 })
 })
 
@@ -617,20 +625,30 @@ test('A1 — keyboard-only: open access dialog and grant read via keyboard', asy
   const row = dialog.locator('li').filter({ hasText: /Técnica CCIH Quatro/i })
   await expect(row).toBeVisible({ timeout: 10_000 })
 
-  // Open the per-member "Acesso" menu and grant read using the keyboard only.
-  const menuTrigger = row.getByRole('button', { name: /Acesso/i })
-  await menuTrigger.focus()
-  await expect(menuTrigger).toBeFocused()
+  // Open the row's grant DIALOG using the keyboard only (REBUILT UI, commit
+  // 2507e77: GrantDialog replaced the GrantMenu dropdown). Mirrors
+  // case-access.spec.ts AC-3g: focus the "Conceder acesso" button → Enter →
+  // the dialog opens; "Leitura" is the default level → focus the submit button
+  // → Enter to grant.
+  const grantBtn = row.getByRole('button', { name: /conceder acesso|editar acesso/i })
+  await grantBtn.focus()
+  await expect(grantBtn).toBeFocused()
   await page.keyboard.press('Enter')
-  const grantItem = page.getByRole('menuitem', { name: /Conceder leitura/i })
-  await expect(grantItem).toBeVisible({ timeout: 5_000 })
+
+  const grantDialog = page.getByRole('dialog', { name: /conceder acesso|editar acesso/i })
+  await expect(grantDialog).toBeVisible({ timeout: 5_000 })
+
+  const submit = grantDialog.getByRole('button', { name: /^conceder acesso$/i })
+  await submit.focus()
+  await expect(submit).toBeFocused()
   await page.keyboard.press('Enter')
+  await expect(grantDialog).toHaveCount(0, { timeout: 10_000 })
 
   await expect(row.getByText(/^Leitura$/i)).toBeVisible({ timeout: 10_000 })
 
-  // Cleanup: revoke so the seed-relative state is restored for re-runs.
-  await menuTrigger.click()
-  await page.getByRole('menuitem', { name: /Remover acesso/i }).click()
+  // Cleanup: revoke so the seed-relative state is restored for re-runs (the
+  // granted row's "Remover acesso de {name}" X button).
+  await row.getByRole('button', { name: /remover acesso de/i }).click()
   await expect(row.getByText(/^Leitura$/i)).toHaveCount(0, { timeout: 10_000 })
 })
 
