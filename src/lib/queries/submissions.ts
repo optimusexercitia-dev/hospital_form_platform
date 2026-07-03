@@ -204,12 +204,16 @@ export async function listSubmissions(
 ): Promise<SubmissionRow[]> {
   const supabase = await createClient()
 
+  // `!inner` on the version/form embeds: a response whose form_version (or its
+  // form) is no longer readable — e.g. the form was deleted, orphaning the
+  // version — cannot render a title and is dropped here rather than resolving to
+  // a null embed that would crash the whole page. Keeps the embed types non-null.
   let query = supabase
     .from('responses')
     .select(
       'id, form_version_id, status, started_at, updated_at, submitted_at, ' +
         'case_phase_id, created_by, profiles:created_by(full_name), ' +
-        'form_versions(form_id, version_number, forms(title))',
+        'form_versions!inner(form_id, version_number, forms!inner(title))',
     )
     .eq('commission_id', commissionId)
 
@@ -272,7 +276,9 @@ export async function getSubmissionDetail(
     .select(
       'id, form_version_id, commission_id, status, started_at, submitted_at, ' +
         'case_phase_id, created_by, profiles:created_by(full_name), ' +
-        'form_versions(form_id, version_number, forms(title))',
+        // `!inner`: an orphaned response (its form deleted) resolves to no row
+        // here → clean null → friendly 404, never a null-embed crash.
+        'form_versions!inner(form_id, version_number, forms!inner(title))',
     )
     .eq('id', responseId)
     .maybeSingle<DetailResponseRow>()
@@ -399,7 +405,9 @@ export async function listSubmissionFilterForms(
   const supabase = await createClient()
   const { data } = await supabase
     .from('responses')
-    .select('form_versions(form_id, forms(title))')
+    // `!inner` drops responses whose form/version is no longer readable (e.g. an
+    // orphaned response left by a deleted form) so the filter never crashes.
+    .select('form_versions!inner(form_id, forms!inner(title))')
     .eq('commission_id', commissionId)
     .eq('status', 'submitted')
     .returns<{ form_versions: { form_id: string; forms: { title: string } } }[]>()

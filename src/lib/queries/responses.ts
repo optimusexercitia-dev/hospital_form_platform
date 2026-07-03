@@ -344,7 +344,9 @@ export async function getResponseForFill(
     .from('responses')
     .select(
       'id, form_version_id, commission_id, status, last_section_id, ' +
-        'form_versions(form_id, forms(title))',
+        // `!inner`: an orphaned response (form deleted) resolves to no row → null
+        // → friendly 404, never a null-embed crash.
+        'form_versions!inner(form_id, forms!inner(title))',
     )
     .eq('id', responseId)
     .maybeSingle<ResponseRow>()
@@ -437,11 +439,14 @@ export async function listMyResponses(
 ): Promise<MyResponse[]> {
   const supabase = await createClient()
 
+  // `!inner` on the version/form embeds: a response whose form was deleted
+  // (orphaning its version) can't render a title and is dropped here rather than
+  // resolving to a null embed that would crash the "minhas respostas" page.
   const { data } = await supabase
     .from('responses')
     .select(
       'id, form_version_id, status, started_at, updated_at, submitted_at, ' +
-        'form_versions(form_id, version_number, forms(commission_id, title))',
+        'form_versions!inner(form_id, version_number, forms!inner(commission_id, title))',
     )
     .eq('commission_id', commissionId)
     .order('updated_at', { ascending: false })
