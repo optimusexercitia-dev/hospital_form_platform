@@ -2235,6 +2235,28 @@ grant execute on function public.list_org_eligible_users(uuid) to authenticated,
 grant execute on function public.assign_nsp_coordinator(uuid, uuid) to authenticated, service_role;
 grant execute on function public.revoke_nsp_coordinator(uuid, uuid) to authenticated, service_role;
 
+-- t19 GUARD (MEMORY: every public.* RPC must REVOKE ALL FROM PUBLIC before GRANT).
+-- The roster / config / probe / patient_index RPCs recreated above via DROP+CREATE
+-- (param rename org->hospital) or CREATE OR REPLACE reset their grants to the default
+-- (PUBLIC gets EXECUTE → anon-executable), which the 100_dashboard t19 assertion
+-- catches. Re-assert authenticated/service_role-only (their pre-migration posture).
+revoke all on function public.add_pqs_member(uuid, uuid) from public;
+revoke all on function public.remove_pqs_member(uuid, uuid) from public;
+revoke all on function public.list_pqs_members(uuid) from public;
+revoke all on function public.set_pqs_rca_due_window(uuid, integer) from public;
+revoke all on function public.is_pqs_member_of_self(uuid) from public;
+revoke all on function public.is_nsp_coordinator_of_self(uuid) from public;
+revoke all on function public.search_patient_xref(text, text, uuid) from public;
+revoke all on function public.patient_access_audit(text, text, uuid) from public;
+grant execute on function public.add_pqs_member(uuid, uuid) to authenticated, service_role;
+grant execute on function public.remove_pqs_member(uuid, uuid) to authenticated, service_role;
+grant execute on function public.list_pqs_members(uuid) to authenticated, service_role;
+grant execute on function public.set_pqs_rca_due_window(uuid, integer) to authenticated, service_role;
+grant execute on function public.is_pqs_member_of_self(uuid) to authenticated, service_role;
+grant execute on function public.is_nsp_coordinator_of_self(uuid) to authenticated, service_role;
+grant execute on function public.search_patient_xref(text, text, uuid) to authenticated, service_role;
+grant execute on function public.patient_access_audit(text, text, uuid) to authenticated, service_role;
+
 -- ============================================================================
 -- SECTION 10 — dispose_referral_phi (ADR 0052 §6). The referral module's LGPD-
 -- erasure door, mirroring dispose_event_phi / dispose_case_phi. Gate: platform
