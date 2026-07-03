@@ -6,11 +6,15 @@ import { test, expect } from '@playwright/test'
  * Test contract: translates the plan's decided design
  * (~/.claude/plans/i-would-like-to-sorted-fog.md) into Playwright assertions.
  *
- *   AC1 — org_admin registers a user (name/email/category + optional
- *         credentials/hospital/matrícula/committees); new user shows PENDING
- *         in the directory (email_confirmed_at null).
- *   AC2 — activation: invite email (Mailpit) → /auth/confirm → /convite
- *         set-password → user becomes ACTIVE; can sign in.
+ *   AC1 — org_admin registers a user (name/email/category + INITIAL PASSWORD +
+ *         optional credentials/hospital/matrícula/committees); in password mode
+ *         (the default) the account is created ACTIVE immediately and the new
+ *         user shows ATIVO in the directory.
+ *   AC2 — password-mode activation: the just-registered user can SIGN IN
+ *         immediately with the admin-set initial password (no invite email /
+ *         /convite step by default). The invite-email flow only runs when the
+ *         server is started with AUTH_EMAIL_VERIFICATION=on — that variant is
+ *         kept as a test.skip below (server-env-gated, not per-test toggleable).
  *   AC3 — deactivate → signIn refuses with a pt-BR message; a mid-session user
  *         is redirected to /conta-inativa.
  *   AC4 — suspend with a future suspended_until → blocked; past suspended_until
@@ -116,8 +120,8 @@ async function extractInviteLink(messageId: string): Promise<string | null> {
   return chosen.replace('127.0.0.1:3000', 'localhost:3000')
 }
 
-test.describe('AC1 — org_admin registers a user; appears PENDING in the directory', () => {
-  test('registers a user with category + credential + hospital + committee; shows pending', async ({ page }) => {
+test.describe('AC1 — org_admin registers a user; appears ATIVO in the directory (password mode)', () => {
+  test('registers a user with password + category + credential + hospital + committee; shows active', async ({ page }) => {
     await signInAs(page, 'orgadmin.a@test.local')
     await page.goto('/o/rede-a/manage/usuarios/novo')
     await page.waitForURL('**/o/rede-a/manage/usuarios/novo', { timeout: 10_000 })
@@ -128,6 +132,9 @@ test.describe('AC1 — org_admin registers a user; appears PENDING in the direct
 
     await page.getByLabel('Nome completo').fill(fullName)
     await page.getByLabel('E-mail').fill(email)
+    // Password mode (default): "Senha inicial" is required; the account is created
+    // ACTIVE (no invite/pending step).
+    await page.getByLabel('Senha inicial').fill('Test1234!')
     await page.getByLabel('Categoria profissional').selectOption({ label: 'Médico(a)' }).catch(async () => {
       // Fall back to selecting the first non-placeholder option if the exact
       // pt-BR label differs from what's seeded.
@@ -160,14 +167,15 @@ test.describe('AC1 — org_admin registers a user; appears PENDING in the direct
     // Navigates back to the directory on success.
     await page.waitForURL('**/o/rede-a/manage/usuarios', { timeout: 15_000 })
 
-    // The new user must appear, PENDING. Scope to the EXACT user via the
-    // server-side directory filter (?search=<email>) so predecessor specs that
-    // fill the rede-a directory (and push a fresh user off page 1 in the shared
-    // full-suite reset) can't hide it. Assert on the filtered card, not totals.
+    // The new user must appear, ATIVO (password mode → created active, not
+    // pending). Scope to the EXACT user via the server-side directory filter
+    // (?search=<email>) so predecessor specs that fill the rede-a directory (and
+    // push a fresh user off page 1 in the shared full-suite reset) can't hide it.
+    // Assert on the filtered card, not totals.
     await page.goto(`/o/rede-a/manage/usuarios?search=${encodeURIComponent(email)}`)
     const card = page.locator('li').filter({ hasText: fullName })
     await expect(card).toBeVisible({ timeout: 10_000 })
-    await expect(card.getByText('Pendente', { exact: true })).toBeVisible()
+    await expect(card.getByText('Ativo', { exact: true })).toBeVisible()
 
     // Open the per-user page and confirm the committee/role landed. Scope the
     // role label to the assignment row (the <li> holding the commission name),
@@ -186,8 +194,8 @@ test.describe('AC1 — org_admin registers a user; appears PENDING in the direct
   })
 })
 
-test.describe('AC2 — activation via invite (Mailpit) → /convite → active; can sign in', () => {
-  test('a freshly-registered user activates via the invite link and can sign in', async ({ page }) => {
+test.describe('AC2 — password-mode activation: registered user can sign in immediately', () => {
+  test('a freshly-registered user can sign in with the admin-set initial password', async ({ page }) => {
     await signInAs(page, 'orgadmin.a@test.local')
     await page.goto('/o/rede-a/manage/usuarios/novo')
     await page.waitForURL('**/o/rede-a/manage/usuarios/novo', { timeout: 10_000 })
@@ -195,6 +203,52 @@ test.describe('AC2 — activation via invite (Mailpit) → /convite → active; 
     const token = uniqueToken()
     const email = `ativar.${token}@test.local`
     const fullName = `Pessoa Ativar ${token}`
+    const initialPassword = 'Inicial@123'
+
+    await page.getByLabel('Nome completo').fill(fullName)
+    await page.getByLabel('E-mail').fill(email)
+    // Password mode (default): the admin sets the initial password; the account is
+    // created ACTIVE, so the person can sign in right away with no invite step.
+    await page.getByLabel('Senha inicial').fill(initialPassword)
+    const categorySelect = page.getByLabel('Categoria profissional')
+    const opts = await categorySelect.locator('option').all()
+    if (opts.length > 1) {
+      const value = await opts[1].getAttribute('value')
+      if (value) await categorySelect.selectOption(value)
+    }
+    await page.getByRole('button', { name: /registrar pessoa/i }).click()
+    await page.waitForURL('**/o/rede-a/manage/usuarios', { timeout: 15_000 })
+
+    // The person can sign in IMMEDIATELY with the admin-set password — no invite
+    // email / /convite set-password round-trip.
+    await page.context().clearCookies()
+    await page.goto('/login')
+    await page.getByLabel('E-mail').fill(email)
+    await page.getByLabel('Senha').fill(initialPassword)
+    await page.getByRole('button', { name: /entrar/i }).click()
+    await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 })
+
+    // The directory must show this user as ACTIVE (created active in password mode).
+    await signInAs(page, 'orgadmin.a@test.local')
+    await page.goto(`/o/rede-a/manage/usuarios?search=${encodeURIComponent(email)}`)
+    const card = page.locator('li').filter({ hasText: fullName })
+    await expect(card.getByText('Ativo', { exact: true })).toBeVisible({ timeout: 10_000 })
+  })
+
+  // Invite-mode activation (Mailpit → /auth/confirm → /convite set-password →
+  // active) only runs when the dev server is started with AUTH_EMAIL_VERIFICATION=on.
+  // That is a SERVER env, not per-test toggleable, and the default suite does not
+  // set it, so the register form shows no "Senha inicial" field and no invite email
+  // is sent. Kept (not deleted) so the coverage is recoverable: run the dev server
+  // with AUTH_EMAIL_VERIFICATION=on to exercise it.
+  test.skip('invite-mode: a freshly-registered user activates via the invite link and can sign in', async ({ page }) => {
+    await signInAs(page, 'orgadmin.a@test.local')
+    await page.goto('/o/rede-a/manage/usuarios/novo')
+    await page.waitForURL('**/o/rede-a/manage/usuarios/novo', { timeout: 10_000 })
+
+    const token = uniqueToken()
+    const email = `ativar.invite.${token}@test.local`
+    const fullName = `Pessoa Ativar Invite ${token}`
 
     await page.getByLabel('Nome completo').fill(fullName)
     await page.getByLabel('E-mail').fill(email)
@@ -220,20 +274,13 @@ test.describe('AC2 — activation via invite (Mailpit) → /convite → active; 
     await page.waitForURL('**/convite**', { timeout: 15_000 })
     await expect(page.getByRole('heading', { name: /ativar sua conta/i })).toBeVisible()
 
-    // PasswordSetForm has two labelled fields: "Nova senha" and "Confirme a
-    // nova senha" — use exact match on the first to avoid the substring clash.
     const newPassword = 'NovaSenh@123'
     await page.getByLabel('Nova senha', { exact: true }).fill(newPassword)
     await page.getByLabel('Confirme a nova senha').fill(newPassword)
     await page.getByRole('button', { name: /ativar conta/i }).click()
 
-    // On success `updatePassword` redirects away from /convite (role-aware
-    // landing). WAIT for that navigation before proceeding — it confirms the
-    // password was actually persisted; navigating away too early races the
-    // server action and the new password would never take.
     await page.waitForURL((u) => !u.pathname.startsWith('/convite'), { timeout: 15_000 })
 
-    // Now sign in with the new password.
     await page.context().clearCookies()
     await page.goto('/login')
     await page.getByLabel('E-mail').fill(email)
@@ -241,7 +288,6 @@ test.describe('AC2 — activation via invite (Mailpit) → /convite → active; 
     await page.getByRole('button', { name: /entrar/i }).click()
     await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 })
 
-    // The directory must now show this user as ACTIVE.
     await signInAs(page, 'orgadmin.a@test.local')
     await page.goto(`/o/rede-a/manage/usuarios?search=${encodeURIComponent(email)}`)
     const card = page.locator('li').filter({ hasText: fullName })
@@ -380,6 +426,9 @@ test.describe('AC5 — email collision blocks with a clear pt-BR error', () => {
 
     await page.getByLabel('Nome completo').fill('Colisão De Teste')
     await page.getByLabel('E-mail').fill('ativo.registro@test.local') // already exists (d2)
+    // Password mode: fill the required initial password so submission reaches the
+    // server-side collision check (the form is noValidate, but mirror the real flow).
+    await page.getByLabel('Senha inicial').fill('Test1234!')
     const categorySelect = page.getByLabel('Categoria profissional')
     const opts = await categorySelect.locator('option').all()
     if (opts.length > 1) {
@@ -482,6 +531,13 @@ test.describe('AC7 — keyboard-only flow', () => {
     await expect(emailInput).toBeFocused()
     await page.keyboard.type(email)
 
+    // Password mode: the next control after E-mail is the required "Senha inicial"
+    // field (DOM-adjacent). Tab to it and type via the keyboard.
+    await page.keyboard.press('Tab')
+    const passwordInput = page.getByLabel('Senha inicial')
+    await expect(passwordInput).toBeFocused()
+    await page.keyboard.type('Test1234!')
+
     // Category is the required native <select>. Assert it is keyboard-focusable
     // (the a11y contract), then select an option. A native <select>'s option
     // menu is a browser-native popup that headless Chromium does not drive
@@ -510,7 +566,8 @@ test.describe('AC7 — keyboard-only flow', () => {
     await page.goto(`/o/rede-a/manage/usuarios?search=${encodeURIComponent(email)}`)
     const kbCard = page.locator('li').filter({ hasText: fullName })
     await expect(kbCard).toBeVisible({ timeout: 10_000 })
-    await expect(kbCard.getByText('Pendente', { exact: true })).toBeVisible()
+    // Password mode → created ACTIVE (not pending).
+    await expect(kbCard.getByText('Ativo', { exact: true })).toBeVisible()
   })
 })
 

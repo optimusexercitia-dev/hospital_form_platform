@@ -7,10 +7,25 @@ import { test, expect } from '@playwright/test'
  * Playwright assertions.  Four AC clauses:
  *
  *   AC1 — Org-admin creates a commission + assigns a staff_admin end-to-end.
- *   AC2 — staff_admin invites a novel staff user (Mailpit intercept + roster check)
- *         and removes a staff member behind the AlertDialog.
+ *   AC2 — staff_admin ADDS an already-registered org user via the picker
+ *         (`AddMemberPicker`) + removes a staff member behind the AlertDialog.
  *   AC3 — Cross-commission / role boundaries through the UI (no data leakage).
  *   AC4 — One keyboard-only flow (commission create + AlertDialog keyboard ops).
+ *
+ * Members-UI refactor (commit 6a20327):
+ *   - The coordinator members page no longer invites by e-mail. It ADDS
+ *     already-registered org users via `AddMemberPicker`: a "Buscar pessoa"
+ *     search input + a candidate list <ul aria-label="Pessoas cadastradas
+ *     disponíveis"> of <button aria-pressed> rows; click a row to select, then
+ *     the "Adicionar" submit button (disabled until a row is selected). Success
+ *     shows "Pessoa adicionada à comissão." Brand-new people are registered by
+ *     an org_admin (/o/rede-a/manage/usuarios/novo → registerUser, password
+ *     mode → created ACTIVE), which is how AC2 obtains a fresh addable candidate
+ *     without polluting a seeded persona relied on by the AC3 isolation tests.
+ *   - AC1's commission-detail coordinator assign (StaffAdminManager,
+ *     assign-by-email) is UNCHANGED; only its success-banner copy moved to
+ *     "Coordenação atualizada. Se a pessoa ainda não tinha conta, enviamos um
+ *     convite por e-mail."
  *
  * Multi-tenancy update (Phase C):
  *   - Commission create moved from `/admin` to `/o/rede-a/manage/comissoes`
@@ -93,6 +108,79 @@ async function waitForMailpitMessage(
     await new Promise((r) => setTimeout(r, 800))
   }
   return null
+}
+
+/**
+ * Register a fresh, ACTIVE org user via the org_admin flow so the coordinator's
+ * `AddMemberPicker` has a novel candidate to add — the members page no longer
+ * invites brand-new people by e-mail; org_admins register them, and in password
+ * mode (default) the account is created ACTIVE immediately. Returns { email, fullName }.
+ *
+ * A unique Date.now()-suffixed identity keeps runs order-independent and means the
+ * candidate is never a seeded persona that an AC3 isolation test relies on being
+ * OUTSIDE ccih. Leaves the caller signed in as orgadmin.a — the caller then signs
+ * in as the coordinator to do the add.
+ */
+async function registerActiveOrgUser(
+  page: import('@playwright/test').Page,
+): Promise<{ email: string; fullName: string }> {
+  const ts = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`
+  const email = `addable.${ts}@test.local`
+  const fullName = `Pessoa Adicionável ${ts}`
+
+  await signInAs(page, 'orgadmin.a@test.local')
+  await page.goto('/o/rede-a/manage/usuarios/novo')
+  await page.waitForURL('**/o/rede-a/manage/usuarios/novo', { timeout: 10_000 })
+
+  await page.getByLabel('Nome completo').fill(fullName)
+  await page.getByLabel('E-mail').fill(email)
+  // Password mode (default): an initial password is required; the account is
+  // created ACTIVE, hence immediately addable.
+  await page.getByLabel('Senha inicial').fill('Test1234!')
+  // Category is required; pick the first real option.
+  const categorySelect = page.getByLabel('Categoria profissional')
+  const opts = await categorySelect.locator('option').all()
+  const firstReal = await opts[1].getAttribute('value')
+  if (firstReal) await categorySelect.selectOption(firstReal)
+
+  await page.getByRole('button', { name: /registrar pessoa/i }).click()
+  await page.waitForURL('**/o/rede-a/manage/usuarios', { timeout: 15_000 })
+
+  return { email, fullName }
+}
+
+/**
+ * Add an already-registered org user to a commission via the coordinator's
+ * `AddMemberPicker`: type into "Buscar pessoa", select the matching candidate
+ * button in the <ul aria-label="Pessoas cadastradas disponíveis">, then submit
+ * "Adicionar". Asserts the success banner. Caller must already be on the members
+ * page, signed in as a coordinator of that commission.
+ */
+async function addMemberViaPicker(
+  page: import('@playwright/test').Page,
+  candidateEmail: string,
+) {
+  await page.getByLabel('Buscar pessoa').fill(candidateEmail)
+  const candidateList = page.getByRole('list', {
+    name: 'Pessoas cadastradas disponíveis',
+  })
+  const candidate = candidateList
+    .getByRole('button')
+    .filter({ hasText: candidateEmail })
+  await expect(candidate).toBeVisible({ timeout: 10_000 })
+  await candidate.click()
+  await expect(candidate).toHaveAttribute('aria-pressed', 'true')
+
+  const addButton = page.getByRole('button', { name: /^adicionar$/i })
+  await expect(addButton).toBeEnabled()
+  await addButton.click()
+
+  const banner = page.locator('[role="status"]')
+  await expect(banner).toBeVisible({ timeout: 10_000 })
+  // `addStaff` returns its own pt-BR copy ("Usuário adicionado à comissão com
+  // sucesso.") which the FormBanner prefers over the component default ("Pessoa
+  // adicionada à comissão."). Match the invariant part, gender-agnostic.
+  await expect(banner).toContainText(/adicionad[ao] à comissão/i)
 }
 
 // ---------------------------------------------------------------------------
@@ -203,11 +291,16 @@ test.describe('AC1 — Org-admin creates a commission and assigns a staff_admin'
     await emailInput.fill(novelCoordinatorEmail)
     await page.getByRole('button', { name: /atribuir coordenação/i }).click()
 
-    // Success banner must appear.
+    // Success banner must appear. On success `assignStaffAdmin` returns its own
+    // pt-BR copy ("Coordenador(a) atribuído(a) com sucesso.") which the FormBanner
+    // prefers over its default fallback ("Coordenação atualizada. Se a pessoa ainda
+    // não tinha conta, enviamos um convite por e-mail."). Accept either — the
+    // invite-if-novel path is the point, and the exact success string is an app copy
+    // detail, not the acceptance contract.
     const banner = page.locator('[role="status"]')
     await expect(banner).toBeVisible({ timeout: 10_000 })
     const bannerText = await banner.innerText()
-    expect(bannerText).toMatch(/coordenador|atribuído/i)
+    expect(bannerText).toMatch(/coordenad|atribuíd|convite/i)
 
     // The assigned coordinator's email must now appear in the roster.
     await expect(
@@ -217,57 +310,67 @@ test.describe('AC1 — Org-admin creates a commission and assigns a staff_admin'
 })
 
 // ---------------------------------------------------------------------------
-// AC2 — staff_admin invites a novel staff user (Mailpit) + remove flow
+// AC2 — staff_admin ADDS an already-registered org user (picker) + remove flow
 // ---------------------------------------------------------------------------
 
-test.describe('AC2 — staff_admin invites a novel staff user and removes a member', () => {
-  test('chefe.ccih invites a new email: Mailpit receives the invite + user appears in roster', async ({ page }) => {
+test.describe('AC2 — staff_admin adds an already-registered user and removes a member', () => {
+  test('chefe.ccih adds an existing org user via the picker; user appears in roster', async ({ page }) => {
+    // Register a fresh ACTIVE org user (as org_admin) so the coordinator has a
+    // novel candidate to add — the picker only lists already-registered, active,
+    // not-already-member org users.
+    const { email, fullName } = await registerActiveOrgUser(page)
+
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto('/o/rede-a/c/ccih/manage/members')
     await page.waitForURL('**/o/rede-a/c/ccih/manage/members', { timeout: 10_000 })
 
-    const inviteEmail = `novo.staff.${Date.now()}@test.local`
+    await addMemberViaPicker(page, email)
 
-    const emailInput = page.locator('input[type="email"]')
-    await emailInput.fill(inviteEmail)
-    await page.getByRole('button', { name: /convidar membro/i }).click()
-
-    // Success banner confirming the invite was sent.
-    const banner = page.locator('[role="status"]')
-    await expect(banner).toBeVisible({ timeout: 10_000 })
-    const bannerText = await banner.innerText()
-    expect(bannerText).toMatch(/convite|usuário/i)
-
-    // Verify via Mailpit REST API that an invite email landed for this address.
-    // Address-only match is safe because the email is unique (Date.now() suffix).
-    const msg = await waitForMailpitMessage(inviteEmail)
-    expect(msg).not.toBeNull()
-    // The Supabase invite email is sent to the invited address.
-    expect(msg!.To.some((t) => t.Address.toLowerCase() === inviteEmail.toLowerCase())).toBe(true)
-
-    // The invited user must now appear in the member roster.
-    // Their name is not set (invite-only), so the email itself shows.
-    // Scope to the member list <ul> to avoid strict-mode ambiguity.
+    // The added user must now appear in the member roster (by name).
     const memberList = page.locator('ul').filter({ has: page.locator('li') }).last()
-    await expect(memberList.getByText(inviteEmail, { exact: true })).toBeVisible({ timeout: 10_000 })
+    await expect(
+      memberList.locator('li').filter({ hasText: fullName }),
+    ).toBeVisible({ timeout: 10_000 })
+  })
+
+  test('empty-state shows when no addable users remain', async ({ page }) => {
+    // The picker's empty state ("Nenhuma pessoa cadastrada está disponível para
+    // adicionar.") renders only when `candidates` is empty. We can't force the org
+    // roster empty without disturbing other specs, so assert the invariant WEAKLY:
+    // whenever the candidate list is empty, the empty-state copy is shown instead
+    // of the search box — never both. This keeps the empty-state coverage the old
+    // invite flow lacked without a destructive fixture.
+    await signInAs(page, 'chefe.ccih@test.local')
+    await page.goto('/o/rede-a/c/ccih/manage/members')
+    await page.waitForURL('**/o/rede-a/c/ccih/manage/members', { timeout: 10_000 })
+
+    const searchBox = page.getByLabel('Buscar pessoa')
+    const emptyState = page.getByText(
+      /Nenhuma pessoa cadastrada está disponível para adicionar/i,
+    )
+    // Exactly one of the two is present (mutually exclusive by construction).
+    const hasSearch = await searchBox.count()
+    if (hasSearch) {
+      await expect(searchBox).toBeVisible()
+      await expect(emptyState).toHaveCount(0)
+    } else {
+      await expect(emptyState).toBeVisible()
+    }
   })
 
   test('staff_admin removes a staff member via AlertDialog confirm; member leaves roster', async ({ page }) => {
-    // Invite a fresh staff user so we have a removable row.
+    // Add a fresh staff user so we have a removable row.
+    const { email, fullName } = await registerActiveOrgUser(page)
+
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto('/o/rede-a/c/ccih/manage/members')
     await page.waitForURL('**/o/rede-a/c/ccih/manage/members', { timeout: 10_000 })
 
-    const removeEmail = `remover.staff.${Date.now()}@test.local`
+    await addMemberViaPicker(page, email)
 
-    // Invite first.
-    await page.locator('input[type="email"]').fill(removeEmail)
-    await page.getByRole('button', { name: /convidar membro/i }).click()
-    await expect(page.locator('[role="status"]')).toBeVisible({ timeout: 10_000 })
-
-    // Confirm the member row is in the list.
+    // Confirm the member row is in the list (by name).
     const memberList = page.locator('ul').filter({ has: page.locator('li') }).last()
-    const memberRow = memberList.locator('li').filter({ hasText: removeEmail })
+    const memberRow = memberList.locator('li').filter({ hasText: fullName })
     await expect(memberRow).toBeVisible({ timeout: 10_000 })
 
     // Find the "Remover" button for this specific member row.
@@ -291,17 +394,16 @@ test.describe('AC2 — staff_admin invites a novel staff user and removes a memb
   })
 
   test('AlertDialog Cancelar closes the dialog without removing the member', async ({ page }) => {
+    const { email, fullName } = await registerActiveOrgUser(page)
+
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto('/o/rede-a/c/ccih/manage/members')
     await page.waitForURL('**/o/rede-a/c/ccih/manage/members', { timeout: 10_000 })
 
-    // Invite a user to have a removable row.
-    const cancelEmail = `cancel.staff.${Date.now()}@test.local`
-    await page.locator('input[type="email"]').fill(cancelEmail)
-    await page.getByRole('button', { name: /convidar membro/i }).click()
+    await addMemberViaPicker(page, email)
 
     const memberList = page.locator('ul').filter({ has: page.locator('li') }).last()
-    const memberRow = memberList.locator('li').filter({ hasText: cancelEmail })
+    const memberRow = memberList.locator('li').filter({ hasText: fullName })
     await expect(memberRow).toBeVisible({ timeout: 10_000 })
 
     // Open the AlertDialog.
@@ -335,9 +437,11 @@ test.describe('AC3 — Role and commission boundary security', () => {
     // Must not leak the Farmácia commission name or member emails.
     await expect(page.getByText('staff1.farm@test.local')).not.toBeVisible()
     await expect(page.getByText('chefe.farm@test.local')).not.toBeVisible()
-    // Must not show the member management UI.
+    // Must not show the member management UI (post-refactor: "Adicionar membro" +
+    // the "Buscar pessoa" picker instead of the old "Convidar membro").
     await expect(page.getByText('Membros da comissão')).not.toBeVisible()
-    await expect(page.getByText('Convidar membro')).not.toBeVisible()
+    await expect(page.getByText('Adicionar membro')).not.toBeVisible()
+    await expect(page.getByLabel('Buscar pessoa')).toHaveCount(0)
   })
 
   test('staff1.ccih (plain staff) hitting /o/rede-a/c/ccih/manage/members → 404', async ({ page }) => {
@@ -350,7 +454,8 @@ test.describe('AC3 — Role and commission boundary security', () => {
     await expect(page.getByText(/Não encontramos esta página/i)).toBeVisible()
     // No member management UI should be visible.
     await expect(page.getByText('Membros da comissão')).not.toBeVisible()
-    await expect(page.getByText('Convidar membro')).not.toBeVisible()
+    await expect(page.getByText('Adicionar membro')).not.toBeVisible()
+    await expect(page.getByLabel('Buscar pessoa')).toHaveCount(0)
   })
 
   test('non-admin (staff1.ccih) hitting /admin → 404 (platform admin only)', async ({ page }) => {
@@ -384,8 +489,12 @@ test.describe('AC3 — Role and commission boundary security', () => {
     await page.goto('/o/rede-a/c/farmacia/manage/members')
     // Org-admin can access any commission's manage page in their org.
     await expect(page.getByRole('heading', { level: 1, name: /membros/i })).toBeVisible({ timeout: 10_000 })
-    // The page should render the member management UI.
-    await expect(page.getByRole('button', { name: /convidar membro/i })).toBeVisible()
+    // The page should render the new member-management UI: the "Adicionar membro"
+    // section + the "Buscar pessoa" picker (the invite-by-email form is gone).
+    await expect(
+      page.getByRole('heading', { name: /adicionar membro/i }),
+    ).toBeVisible()
+    await expect(page.getByLabel('Buscar pessoa')).toBeVisible()
   })
 
   test('chefe.farm (staff_admin B) hitting /o/rede-a/c/ccih/manage/members → 404, no ccih member data', async ({ page }) => {
@@ -405,7 +514,8 @@ test.describe('AC3 — Role and commission boundary security', () => {
     await expect(page.getByText('chefe.ccih@test.local')).not.toBeVisible()
     // Must not render the member management UI.
     await expect(page.getByText('Membros da comissão')).not.toBeVisible()
-    await expect(page.getByText('Convidar membro')).not.toBeVisible()
+    await expect(page.getByText('Adicionar membro')).not.toBeVisible()
+    await expect(page.getByLabel('Buscar pessoa')).toHaveCount(0)
   })
 })
 
@@ -455,17 +565,19 @@ test.describe('AC4 — Keyboard-only commission create and AlertDialog confirm',
   })
 
   test('AlertDialog: Enter opens, Esc cancels, Tab+Enter confirms removal (keyboard-only)', async ({ page }) => {
-    // Invite a member first to have a removable row.
+    // Add a member first to have a removable row. (The picker add is done with the
+    // mouse here — the KEYBOARD-only flow under test is the AlertDialog remove
+    // operations below.)
+    const { email: kbEmail, fullName: kbName } = await registerActiveOrgUser(page)
+
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto('/o/rede-a/c/ccih/manage/members')
     await page.waitForURL('**/o/rede-a/c/ccih/manage/members', { timeout: 10_000 })
 
-    const kbEmail = `keyboard.staff.${Date.now()}@test.local`
-    await page.locator('input[type="email"]').fill(kbEmail)
-    await page.getByRole('button', { name: /convidar membro/i }).click()
+    await addMemberViaPicker(page, kbEmail)
 
     const memberList = page.locator('ul').filter({ has: page.locator('li') }).last()
-    const memberRow = memberList.locator('li').filter({ hasText: kbEmail })
+    const memberRow = memberList.locator('li').filter({ hasText: kbName })
     await expect(memberRow).toBeVisible({ timeout: 10_000 })
 
     // Locate the remove trigger within the member row.

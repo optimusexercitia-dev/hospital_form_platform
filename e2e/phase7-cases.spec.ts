@@ -784,9 +784,12 @@ test('AC-BlockerGuard: Phase 2 with blocks=[1] is disabled until Phase 1 is sett
   // The PhaseBlocksEditor renders a fieldset with legend "Bloqueios" + checkboxes.
   const bloqueiosFieldset = slotDialog2.locator('fieldset', { hasText: /Bloqueios/i })
   await expect(bloqueiosFieldset).toBeVisible({ timeout: 10_000 })
-  // The checkbox for "Fase 1" is the only earlier phase.
+  // The checkbox for "Fase 1" is the only earlier phase. Under full-suite load the
+  // earlier-phases list can take longer to render than in isolation, so give it the
+  // same generous window as the sibling waits in this test (was 5s → intermittent
+  // full-suite timeout).
   const fase1Checkbox = bloqueiosFieldset.locator('label', { hasText: /Fase 1/i })
-  await expect(fase1Checkbox).toBeVisible({ timeout: 5_000 })
+  await expect(fase1Checkbox).toBeVisible({ timeout: 15_000 })
   await fase1Checkbox.getByRole('checkbox').check()
 
   await slotDialog2.getByRole('button', { name: /Adicionar fase/i }).click()
