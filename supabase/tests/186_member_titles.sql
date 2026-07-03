@@ -8,7 +8,7 @@
 --   staff1.ccih (03): plain staff of CCIH — display target; NO management rights.
 --   ha1         (e1): hospital_admin of central-a — inherits title management.
 begin;
-select plan(14);
+select plan(17);
 
 create temp table p on commit drop as select
   '00000000-0000-0000-0000-000000000002'::uuid as chefe_ccih,
@@ -141,6 +141,39 @@ select is(
   (select title_id from public.commission_members where id = current_setting('test186.member')::uuid),
   null,
   'ON DELETE SET NULL: the member''s title_id is cleared after the title is deleted');
+
+-- ============================================================================
+-- §4: the reconciliation reads (ADR 0051 Gaps #1/#2) resolve under RLS.
+--   listMembers: the commission_member_titles embed is a single unambiguous FK
+--   (title_id -> commission_member_titles.id), so the LEFT-JOIN read is valid.
+--   listHospitalAdmins: organization_members -> profiles, org_admin-gated.
+-- ============================================================================
+-- (a) exactly one FK backs the members->titles embed (PostgREST unambiguous).
+select is(
+  (select count(*)::int from pg_constraint
+   where conrelid = 'public.commission_members'::regclass and contype = 'f'
+     and confrelid = 'public.commission_member_titles'::regclass),
+  1,
+  'READ (Gap#2): a single FK title_id->commission_member_titles backs the members-title embed');
+
+-- (b) listHospitalAdmins RLS: an org_admin of org-a reads the hospital_admin
+-- roster of central-a (2 seeded holders: a1 + dual); an org-b staff reads none.
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b1'::uuid, false);  -- orgadmin.a
+set local role authenticated;
+select is(
+  (select count(*)::int from public.organization_members om
+   where om.role = 'hospital_admin' and om.hospital_id = '05000000-0000-0000-0000-00000000000a'),
+  2,
+  'READ (Gap#1): org_admin.a reads the central-a hospital_admin roster (a1 + dual)');
+reset role;
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b3'::uuid, false);  -- org-b staff
+set local role authenticated;
+select is(
+  (select count(*)::int from public.organization_members om
+   where om.role = 'hospital_admin' and om.hospital_id = '05000000-0000-0000-0000-00000000000a'),
+  0,
+  'READ (Gap#1) ISOLATION: an org-b staff reads ZERO of org-a''s hospital_admin roster');
+reset role;
 
 select * from finish();
 rollback;

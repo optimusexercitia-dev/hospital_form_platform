@@ -162,6 +162,14 @@ export interface MeetingAttendee {
    * member's profile is unresolved.
    */
   displayName: string | null
+  /**
+   * The attendee's DISPLAY-ONLY committee title in THIS meeting's commission
+   * (ADR 0051), for the badge on attendee lists + signature blocks / atas.
+   * `null` for external guests and for members without a title. `titleName` is
+   * the resolved label; `titleId` identifies it.
+   */
+  titleId: string | null
+  titleName: string | null
 }
 
 /** A case discussed at the meeting (junction to an existing commission case). */
@@ -637,17 +645,64 @@ export async function listMeetingAttendees(
 
   if (error || !data) return []
 
-  return data.map((r) => ({
-    id: r.id,
-    meetingId: r.meeting_id,
-    userId: r.user_id,
-    externalName: r.external_name,
-    externalOrg: r.external_org,
-    role: r.role,
-    attendance: r.attendance,
-    note: r.note,
-    displayName: r.profiles?.full_name ?? r.external_name ?? null,
-  }))
+  // ADR 0051 committee titles (display-only): a title lives on the member's
+  // `commission_members` row for THIS meeting's commission, not on the attendee
+  // row — so resolve them in one extra RLS-scoped read keyed by the member
+  // attendees' user_ids, then merge in TS (PostgREST can't hop attendee →
+  // commission_members → title conditionally). External guests carry no title.
+  const memberUserIds = data
+    .map((r) => r.user_id)
+    .filter((id): id is string => id !== null)
+
+  const titlesByUser = new Map<string, { id: string; name: string }>()
+  if (memberUserIds.length > 0) {
+    const { data: meeting } = await supabase
+      .from('meetings')
+      .select('commission_id')
+      .eq('id', meetingId)
+      .maybeSingle<{ commission_id: string }>()
+
+    if (meeting) {
+      const { data: memberTitles } = await supabase
+        .from('commission_members')
+        .select('user_id, title_id, commission_member_titles(name)')
+        .eq('commission_id', meeting.commission_id)
+        .in('user_id', memberUserIds)
+        .not('title_id', 'is', null)
+        .returns<
+          {
+            user_id: string
+            title_id: string | null
+            commission_member_titles: { name: string } | null
+          }[]
+        >()
+      for (const m of memberTitles ?? []) {
+        if (m.title_id && m.commission_member_titles) {
+          titlesByUser.set(m.user_id, {
+            id: m.title_id,
+            name: m.commission_member_titles.name,
+          })
+        }
+      }
+    }
+  }
+
+  return data.map((r) => {
+    const title = r.user_id ? titlesByUser.get(r.user_id) : undefined
+    return {
+      id: r.id,
+      meetingId: r.meeting_id,
+      userId: r.user_id,
+      externalName: r.external_name,
+      externalOrg: r.external_org,
+      role: r.role,
+      attendance: r.attendance,
+      note: r.note,
+      displayName: r.profiles?.full_name ?? r.external_name ?? null,
+      titleId: title?.id ?? null,
+      titleName: title?.name ?? null,
+    }
+  })
 }
 
 /** The cases discussed at the meeting (junction rows joined to their case header). */

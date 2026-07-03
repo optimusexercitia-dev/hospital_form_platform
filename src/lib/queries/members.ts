@@ -15,20 +15,34 @@ import { createClient } from '@/lib/supabase/server'
 export type CommissionRole = 'staff' | 'staff_admin'
 
 export interface MemberListItem {
+  /**
+   * The `commission_members.id` (NOT the user id) — the membership row's PK.
+   * Required by `assignMemberTitle(memberId, …)` (ADR 0051): a user may hold
+   * memberships in several commissions, so `userId` alone cannot identify the row.
+   */
+  memberId: string
   userId: string
   fullName: string | null
   email: string | null
   role: CommissionRole
   joinedAt: string
+  /** The member's optional DISPLAY-ONLY committee title (ADR 0051). `null` when
+   * unset. `titleName` is the resolved label for the badge; `titleId` is what
+   * the assignment control writes back. */
+  titleId: string | null
+  titleName: string | null
 }
 
-// Shape of a commission_members row joined to its profile. PostgREST returns the
-// embedded `profiles` relation as an object (or null if RLS hid it).
+// Shape of a commission_members row joined to its profile + optional title.
+// PostgREST returns each embedded relation as an object (or null if unset/RLS-hid).
 interface MemberRow {
+  id: string
   user_id: string
   role: string
   created_at: string
+  title_id: string | null
   profiles: { full_name: string | null; email: string | null } | null
+  commission_member_titles: { name: string } | null
 }
 
 /**
@@ -44,7 +58,9 @@ export async function listMembers(
 
   const { data } = await supabase
     .from('commission_members')
-    .select('user_id, role, created_at, profiles(full_name, email)')
+    .select(
+      'id, user_id, role, created_at, title_id, profiles(full_name, email), commission_member_titles(name)',
+    )
     .eq('commission_id', commissionId)
     .returns<MemberRow[]>()
 
@@ -54,11 +70,14 @@ export async function listMembers(
         row.role === 'staff' || row.role === 'staff_admin',
     )
     .map((row) => ({
+      memberId: row.id,
       userId: row.user_id,
       fullName: row.profiles?.full_name ?? null,
       email: row.profiles?.email ?? null,
       role: row.role,
       joinedAt: row.created_at,
+      titleId: row.title_id,
+      titleName: row.commission_member_titles?.name ?? null,
     }))
 
   return sortMembers(members)

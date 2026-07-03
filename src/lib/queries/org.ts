@@ -169,20 +169,113 @@ export async function listCommissionsForOrg(
 
 // ---------------------------------------------------------------------------
 // Hospital-admin tier reads (ADR 0051) — the hospital switcher + hospital-scoped
-// commission list behind `/o/[org]/manage`. Empty for a caller lacking standing.
+// commission list + appointment rosters behind `/o/[org]/manage`. Empty for a
+// caller lacking standing.
 // ---------------------------------------------------------------------------
+
+/**
+ * A current holder of an appointable org-level role (hospital_admin /
+ * nsp_org_admin), for the "administradores atuais" roster on
+ * `/o/[org]/manage/administradores` (ADR 0051 Decision 4).
+ */
+export interface RoleHolder {
+  userId: string
+  fullName: string
+  email: string
+  /** When the grant was made (`organization_members.created_at`). */
+  grantedAt: string
+}
+
+interface RoleHolderRow {
+  user_id: string
+  created_at: string
+  profiles: { full_name: string | null; email: string | null } | null
+}
+
+/** Map + sort role-holder rows (drop rows whose profile RLS hid; name asc pt-BR). */
+function mapRoleHolders(rows: RoleHolderRow[]): RoleHolder[] {
+  return rows
+    .filter(
+      (r): r is RoleHolderRow & { profiles: NonNullable<RoleHolderRow['profiles']> } =>
+        r.profiles !== null,
+    )
+    .map((r) => ({
+      userId: r.user_id,
+      fullName: r.profiles.full_name ?? '',
+      email: r.profiles.email ?? '',
+      grantedAt: r.created_at,
+    }))
+    .sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR'))
+}
+
+/**
+ * The current `hospital_admin` holders of `hospitalId` (ADR 0051). Joins
+ * `organization_members → profiles`. RLS-scoped: `organization_members_select`
+ * (`is_admin() OR is_org_admin_of(organization_id)`) returns rows only to an
+ * org_admin of the hospital's org (or platform_admin); `[]` otherwise. Sorted by
+ * name (pt-BR). `grantedAt` = `organization_members.created_at`.
+ */
+export async function listHospitalAdmins(hospitalId: string): Promise<RoleHolder[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('organization_members')
+    .select('user_id, created_at, profiles:user_id(full_name, email)')
+    .eq('role', 'hospital_admin')
+    .eq('hospital_id', hospitalId)
+    .returns<RoleHolderRow[]>()
+
+  if (error || !data) return []
+  return mapRoleHolders(data)
+}
+
+/**
+ * The current `nsp_org_admin` holders of `orgId` (ADR 0051; the role exists in
+ * Phase A but is inert until Phase B — the roster is still shown for management).
+ * Same RLS + shape as {@link listHospitalAdmins}. Org-level rows (hospital_id
+ * NULL), so keyed on `organization_id`.
+ */
+export async function listNspOrgAdmins(orgId: string): Promise<RoleHolder[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('organization_members')
+    .select('user_id, created_at, profiles:user_id(full_name, email)')
+    .eq('role', 'nsp_org_admin')
+    .eq('organization_id', orgId)
+    .returns<RoleHolderRow[]>()
+
+  if (error || !data) return []
+  return mapRoleHolders(data)
+}
 
 /**
  * Hospitals under `orgId` as {@link HospitalRef}, the source for the
  * `/o/[org]/manage` hospital switcher (ADR 0051 Decision 7). Sorted by name
- * (pt-BR). RLS-scoped: returns only the hospitals the caller may read (org_admin
- * of the org sees all; a hospital_admin sees the hospitals it administers;
- * platform_admin sees all). Empty when none are readable.
- *
- * A0 stub — real read lands in A4/A5 once the hospital-admin RLS path exists.
+ * (pt-BR). RLS-scoped: `hospitals_select` returns the hospitals the caller may
+ * read (org_admin of the org sees all; a hospital_admin sees the hospitals it
+ * administers via the ADR-0051 read path; platform_admin sees all). Empty when
+ * none are readable.
  */
-export async function listOrgHospitals(_orgId: string): Promise<HospitalRef[]> {
-  throw new Error('not implemented')
+export async function listOrgHospitals(orgId: string): Promise<HospitalRef[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('hospitals')
+    .select('id, slug, name, organization_id')
+    .eq('organization_id', orgId)
+    .order('name', { ascending: true })
+    .returns<
+      { id: string; slug: string; name: string; organization_id: string }[]
+    >()
+
+  if (error || !data) return []
+  return data.map((h) => ({
+    id: h.id,
+    slug: h.slug,
+    name: h.name,
+    organizationId: h.organization_id,
+  }))
 }
 
 /**
@@ -191,15 +284,43 @@ export async function listOrgHospitals(_orgId: string): Promise<HospitalRef[]> {
  * {@link listCommissionsForOrg} for the manage area under a selected hospital
  * (ADR 0051). Pass `hospitalId = null` for the org-wide manage list (org_admin);
  * pass a hospital id to scope to that hospital (a hospital_admin's landing set).
- * Reuses {@link OrgCommissionSummary}. Sorted by name (pt-BR). RLS-scoped.
- *
- * A0 stub — real read lands in A4/A5.
+ * Reuses {@link OrgCommissionSummary}. Sorted by name (pt-BR). RLS-scoped: the
+ * `commissions_select` policy (member / org_admin / hospital_admin / PQS /
+ * coordinator) is the authority — a hospital_admin only reads its hospital's
+ * commissions even without the `hospitalId` filter.
  */
 export async function listManagedCommissions(
-  _orgId: string,
-  _hospitalId: string | null,
+  orgId: string,
+  hospitalId: string | null,
 ): Promise<OrgCommissionSummary[]> {
-  throw new Error('not implemented')
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('commissions')
+    .select('id, name, slug, hospital_id, hospitals:hospital_id(name)')
+    .eq('organization_id', orgId)
+  if (hospitalId) query = query.eq('hospital_id', hospitalId)
+
+  const { data, error } = await query
+    .order('name', { ascending: true })
+    .returns<
+      {
+        id: string
+        name: string
+        slug: string
+        hospital_id: string | null
+        hospitals: { name: string } | null
+      }[]
+    >()
+
+  if (error || !data) return []
+  return data.map((c) => ({
+    id: c.id,
+    name: c.name,
+    slug: c.slug,
+    hospitalId: c.hospital_id,
+    hospitalName: c.hospitals?.name ?? null,
+  }))
 }
 
 /**
