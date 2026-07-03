@@ -27,14 +27,8 @@ import { cn } from "@/lib/utils";
  *  - `organizationId` → that org's chain (the `/o/[org]/manage/audit` caller).
  *  - `hospitalId` → that hospital's chain (a `hospital_admin` at `/o/[org]/manage/audit`).
  *  - neither → the platform chain (the `/admin` caller).
- * `commissionId` takes precedence when both are somehow passed (never expected).
- *
- * KNOWN GAP (flagged to the lead): `verifyAuditChainAction`'s scope union
- * (`@/lib/audit/actions.ts`) has not yet been widened with `hospitalId` — only
- * the underlying `verifyAuditChain` query (`@/lib/queries/audit.ts`, A0) has.
- * Until that action is widened, passing `hospitalId` here shows a disabled
- * control with an explanatory message rather than silently mis-scoping to the
- * platform chain.
+ * `commissionId` takes precedence, then `hospitalId`, then `organizationId`
+ * (only one is ever passed in practice).
  */
 export function AuditIntegrityCheck({
   commissionId,
@@ -48,21 +42,18 @@ export function AuditIntegrityCheck({
   const [state, setState] = useState<VerifyChainState | null>(null);
   const [pending, startTransition] = useTransition();
 
-  // See the KNOWN GAP note above — the action wrapper doesn't accept a hospital
-  // scope yet, so we refuse to silently verify the wrong (platform) chain.
-  const blockedByMissingHospitalSupport = Boolean(hospitalId);
-
   function run() {
-    if (blockedByMissingHospitalSupport) return;
     startTransition(async () => {
       try {
         // Resolve the tier scope: commission (bare string, legacy form) wins;
-        // else the org object; else undefined (platform chain).
+        // else the hospital chain; else the org chain; else undefined (platform).
         const scope = commissionId
           ? commissionId
-          : organizationId
-            ? { organizationId }
-            : undefined;
+          : hospitalId
+            ? { hospitalId }
+            : organizationId
+              ? { organizationId }
+              : undefined;
         const next = await verifyAuditChainAction(scope);
         setState(next);
       } catch {
@@ -84,18 +75,12 @@ export function AuditIntegrityCheck({
         variant="outline"
         size="sm"
         onClick={run}
-        disabled={pending || blockedByMissingHospitalSupport}
+        disabled={pending}
         aria-busy={pending}
       >
         <ShieldCheck aria-hidden="true" />
         {pending ? "Verificando…" : "Verificar integridade"}
       </Button>
-
-      {blockedByMissingHospitalSupport ? (
-        <p className="text-sm text-muted-foreground">
-          A verificação de integridade por hospital estará disponível em breve.
-        </p>
-      ) : null}
 
       {state ? (
         <p
