@@ -26,8 +26,9 @@ export interface VerifyChainState {
 
 /**
  * Run the chain-integrity check for one TIER and return a UI-ready verdict
- * (multi-tenancy Phase B — the audit log is a 3-tier chain). Pass:
- *  - `{ commissionId }` for a commission chain (staff_admin / org_admin gated),
+ * (ADR 0051 — the audit log is now a 4-tier chain). Pass:
+ *  - `{ commissionId }` for a commission chain (staff_admin / org_admin / hospital_admin gated),
+ *  - `{ hospitalId }` for the hospital chain (hospital_admin / org_admin gated — `/o/[org]/manage`),
  *  - `{ organizationId }` for the org chain (org_admin gated — `/o/[org]/manage`),
  *  - nothing for the platform chain (platform_admin gated — `/admin`).
  * The `verify_audit_chain` RPC is authz-gated INTERNALLY per tier (the DB is the
@@ -36,7 +37,9 @@ export interface VerifyChainState {
  * `{ ok: false, brokenSeq: -1 }` sentinel. Never throws.
  */
 export async function verifyAuditChainAction(
-  scope?: string | { commissionId?: string; organizationId?: string },
+  scope?:
+    | string
+    | { commissionId?: string; organizationId?: string; hospitalId?: string },
 ): Promise<VerifyChainState> {
   const result = await verifyAuditChain(scope)
 
