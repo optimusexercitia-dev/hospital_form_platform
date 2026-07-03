@@ -25,11 +25,10 @@ const ORG_NAV_ITEMS: OrgNavItem[] = [
   { label: "Comissões", segments: ["comissoes"] },
   { label: "Hospitais", segments: ["hospitais"], orgAdminOnly: true },
   { label: "Painel", segments: ["painel"] },
-  {
-    label: "Coordenação do NSP",
-    segments: ["equipe-nsp"],
-    requiresFeature: "patientSafety",
-  },
+  // "Coordenação do NSP" retired under NSP-per-hospital (ADR 0052, decision 3):
+  // org_admin no longer appoints coordinators. The org appoints the nsp_org_admin
+  // on "Administradores"; the nsp_org_admin curates per-hospital coordinators from
+  // the dedicated `/o/[org]/nsp-org` console.
   {
     label: "Administradores",
     segments: ["administradores"],

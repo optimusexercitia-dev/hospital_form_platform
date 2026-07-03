@@ -3,29 +3,24 @@ import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 
 import { getSessionContext } from "@/lib/queries/session";
-import {
-  listNspCoordinators,
-  listOrgEligibleUsersForPqs,
-} from "@/lib/queries/pqs";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
-import { NspCoordinatorManager } from "@/components/admin/nsp-coordinator-manager";
 
 export const metadata: Metadata = {
   title: "Coordenação do NSP",
 };
 
 /**
- * The focused "Coordenação do NSP" surface (NSP-per-org, ADR 0042) — where an
- * `org_admin` appoints / revokes the per-org `nsp_coordinator` grant. Access is
- * enforced by the `/o/[org]/manage` layout (`is_org_admin_of(org)`); we re-resolve
- * the org from `context.orgAdminOf` (RLS-scoped) for its id. Gated behind
- * `patient_safety` → 404 when off (no NSP, no coordination).
+ * "Coordenação do NSP" — RETIRED under NSP-per-hospital (ADR 0052, decision 3).
  *
- * Deliberately NARROW — this toggles ONE role, not a general org-member UI. It is
- * the first of the three-way duty separation: org_admin → appoints the
- * coordinator → who curates the NSP roster → whose members read PHI. Appointing a
- * coordinator does NOT grant PHI access (they must enroll into the roster).
- * PHI-FREE: only names/emails of org members + the role grant.
+ * The per-org `org_admin` no longer appoints NSP coordinators. The new three-tier
+ * chain is: `org_admin` appoints the org's `nsp_org_admin` (on "Administradores"),
+ * and the `nsp_org_admin` appoints PER-HOSPITAL coordinators + curates rosters from
+ * the dedicated org NSP-admin console (`/o/[org]/nsp-org`). This page is kept as a
+ * calm pointer so any bookmarked link resolves instead of 404-ing; the actual
+ * appointment UI lives in those two places.
+ *
+ * Access: the `/o/[org]/manage` layout guarantees admin standing; we require
+ * org_admin of this org (org-level surface) + the `patient_safety` flag.
  */
 export default async function OrgNspCoordinationPage({
   params,
@@ -38,7 +33,6 @@ export default async function OrgNspCoordinationPage({
     (o) => o.organization.slug === org,
   )?.organization;
 
-  // The layout already guarantees org_admin access; defensive (never expected).
   if (!organization) {
     notFound();
   }
@@ -46,13 +40,8 @@ export default async function OrgNspCoordinationPage({
     notFound();
   }
 
-  const [coordinators, eligibleUsers] = await Promise.all([
-    listNspCoordinators(organization.id),
-    listOrgEligibleUsersForPqs(organization.id),
-  ]);
-
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
         <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
           {organization.name}
@@ -61,27 +50,18 @@ export default async function OrgNspCoordinationPage({
           <ShieldCheck aria-hidden="true" className="size-7 text-primary" />
           Coordenação do NSP
         </h1>
-        <p className="max-w-prose text-muted-foreground text-pretty">
-          Nomeie quem coordena o Núcleo de Segurança do Paciente desta
-          organização. O(a) coordenador(a) gerencia a equipe do NSP — quem tem
-          acesso aos dados de segurança do paciente. Nomear a coordenação não
-          concede, por si só, acesso aos dados sensíveis.
-        </p>
       </header>
 
-      <section
-        aria-labelledby="nsp-coordination-heading"
-        className="animate-rise-in flex max-w-3xl flex-col gap-5"
-      >
-        <h2 id="nsp-coordination-heading" className="sr-only">
-          Gerenciar a coordenação do NSP
-        </h2>
-        <NspCoordinatorManager
-          orgId={organization.id}
-          coordinators={coordinators}
-          eligibleUsers={eligibleUsers}
-        />
-      </section>
+      <div className="max-w-prose rounded-2xl border border-primary/25 bg-accent/50 p-6 text-sm text-accent-foreground text-pretty">
+        <p>
+          A nomeação de coordenadores do Núcleo de Segurança do Paciente agora é
+          feita por hospital. Primeiro, nomeie a{" "}
+          <strong>administração do NSP da organização</strong> em
+          &ldquo;Administradores&rdquo;. A administração do NSP passa a nomear a
+          coordenação de cada hospital e a gerenciar as equipes no console de
+          administração do NSP.
+        </p>
+      </div>
     </div>
   );
 }

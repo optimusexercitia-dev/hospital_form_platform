@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, request as playwrightRequest } from '@playwright/test'
 
 /**
  * Phase A — Hospital-admin tier, 4-tier audit & committee titles — E2E suite.
@@ -40,6 +40,44 @@ import { test, expect } from '@playwright/test'
  */
 
 const BASE = 'http://localhost:3000'
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321'
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? ''
+if (!SUPABASE_SERVICE_KEY) {
+  throw new Error('SUPABASE_SERVICE_ROLE_KEY ausente — defina-o em .env.local.')
+}
+
+// Seeded identifiers used by the HA-2 appointment-cleanup (see afterAll below).
+const ORG_A = '0c000000-0000-0000-0000-00000000000a'
+const STAFF1_CCIH_UID = '00000000-0000-0000-0000-000000000003'
+const HOSP_SECUNDARIO_A = '05000000-0000-0000-0000-0000000000a2'
+
+/**
+ * Service-role DELETE of any leaked `hospital_admin` grant of staff1.ccih over
+ * Hospital Secundário A. The HA-2 appoint test revokes via the UI in its body,
+ * but a mid-test failure/flake would leave the grant in place — and the
+ * `audit_log` `is_hospital_admin_of(hospital_id)` RLS arm would then let staff1
+ * read secundario-a hospital-tier rows, breaking downstream specs
+ * (phase13-audit AC-3c, phase3-admin-members AC3). This guarantees no leak even
+ * on failure; idempotent (no-op when the UI revoke already succeeded).
+ */
+async function revokeStaff1HospitalAdminLeak(
+  request: import('@playwright/test').APIRequestContext,
+): Promise<void> {
+  await request.delete(
+    `${SUPABASE_URL}/rest/v1/organization_members` +
+      `?organization_id=eq.${ORG_A}` +
+      `&user_id=eq.${STAFF1_CCIH_UID}` +
+      `&role=eq.hospital_admin` +
+      `&hospital_id=eq.${HOSP_SECUNDARIO_A}`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      },
+    },
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -164,6 +202,20 @@ test.describe('HA-1: hospital_admin authority + cross-hospital/cross-org isolati
 // ---------------------------------------------------------------------------
 
 test.describe('HA-2: Appointment — org_admin grants/revokes hospital_admin + nsp_org_admin', () => {
+  // Test-isolation guarantee: the appoint test below grants staff1.ccih a
+  // hospital_admin row over Secundário A and revokes it via the UI in-body. If
+  // that in-body revoke never runs (a mid-test failure/flake), the grant leaks
+  // and downstream specs that assume the seed's role topology break. Delete any
+  // residual grant with the service role so it runs regardless of test outcome.
+  test.afterAll(async () => {
+    const ctx = await playwrightRequest.newContext()
+    try {
+      await revokeStaff1HospitalAdminLeak(ctx)
+    } finally {
+      await ctx.dispose()
+    }
+  })
+
   test('orgadmin.a sees the Administradores page with both manager sections', async ({ page }) => {
     await signInAs(page, 'orgadmin.a@test.local')
     await page.goto('/o/rede-a/manage/administradores')

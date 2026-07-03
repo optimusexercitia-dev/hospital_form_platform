@@ -171,83 +171,78 @@ export async function createCommission(
 }
 
 // ===========================================================================
-// NSP-coordinator appointment (NSP-per-org, ADR 0042) — the org_admin's BOOTSTRAP of
-// the per-org roster curator (three-way duty separation: org_admin APPOINTS the
-// coordinator; the coordinator CURATES pqs_members; enrollment grants PHI read).
+// NSP-coordinator appointment (NSP-per-hospital, ADR 0052) — the `nsp_org_admin`'s
+// appointment of a PER-HOSPITAL NSP head. Three-tier chain: org_admin APPOINTS the
+// nsp_org_admin; the nsp_org_admin APPOINTS a hospital's nsp_coordinator; the
+// coordinator (a full local operator) curates that hospital's pqs_members + reads
+// PHI. `hospital_admin` has NO NSP appointment power (decision 3). Backed by the
+// `assign_nsp_coordinator` / `revoke_nsp_coordinator` DEFINER RPCs (gated
+// `is_nsp_org_admin_of(org_of_hospital)`, no self-delegation).
 // ===========================================================================
 
 const COORD_MESSAGES = {
-  forbidden: 'Apenas um administrador da organização pode nomear o coordenador do NSP.',
+  forbidden:
+    'Apenas o administrador de NSP da organização pode nomear o coordenador do NSP de um hospital.',
   generic: 'Não foi possível concluir. Tente novamente.',
+  self: 'Não é possível nomear a si mesmo.',
   appointed: 'Coordenador(a) do NSP nomeado(a).',
   revoked: 'Coordenação do NSP removida.',
-  isOrgAdmin:
-    'Este usuário é administrador da organização; um usuário tem um único papel. Não é possível torná-lo coordenador do NSP.',
 } as const
 
 /**
- * Appoint `userId` as the `nsp_coordinator` of `orgId`. Writes the `organization_members`
- * role; gated `is_org_admin_of(orgId)` — the org_admin's bootstrap action. RLS
- * (`organization_members_write` = `is_admin OR is_org_admin_of`) is the DB authority;
- * we ALSO re-check `is_org_admin_of` server-side (defense in depth — ADR 0041 amd-11:
- * never trust the client on a tenant write). Idempotent on the `(org, user)` row
- * (UNIQUE) → upserts the role to `nsp_coordinator`.
- *
- * REFUSES if the target is currently an `org_admin` of the org: `organization_members`
- * is one-row-per-(org,user) with a single role, so overwriting it would DEMOTE the
- * admin → coordinator — appoint the org's last admin and the org has zero admins
- * (only a walled-off platform_admin could recover it). Refusing makes `org_admin` and
- * `nsp_coordinator` MUTUALLY EXCLUSIVE per user, which reinforces the ADR 0042 duty
- * separation (distinct people: org_admin appoints, coordinator curates) and removes
- * the orphan-the-org footgun. (Revoke is already role-filtered, so it never touches an
- * admin row.)
+ * Authorize: the caller is `nsp_org_admin` of `orgId` (or a platform admin — the
+ * documented erasure/administration exception). The `assign_nsp_coordinator` RPC's
+ * `is_nsp_org_admin_of` gate is the DB authority; this is the defense-in-depth
+ * re-check for a friendly forbidden message.
  */
-export async function appointNspCoordinator(
-  orgId: string,
+async function authorizeNspOrgAdmin(orgId: string): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context) return false
+  if (context.isAdmin) return true
+  return context.nspOrgAdminOf.some((o) => o.organization.id === orgId)
+}
+
+/**
+ * Appoint `userId` as the `nsp_coordinator` of `hospitalId` (ADR 0052, decision 12).
+ * Backed by the `assign_nsp_coordinator(p_hospital, p_user)` DEFINER RPC — gated
+ * `is_nsp_org_admin_of(org_of_hospital(hospitalId))`, no self-delegation, idempotent
+ * on the `(org, user, 'nsp_coordinator', hospital)` identity. We resolve the
+ * hospital's org to re-check `nsp_org_admin` server-side (defense in depth) + reject
+ * self-delegation with a friendly pt-BR message before the RPC.
+ */
+export async function assignNspCoordinator(
+  hospitalId: string,
   userId: string,
 ): Promise<MutationActionState> {
-  if (!orgId || !userId) {
+  if (!hospitalId || !userId) {
     return { ok: false, error: COORD_MESSAGES.generic }
   }
-  if (!(await authorizeOrgAdmin(orgId))) {
-    return { ok: false, error: COORD_MESSAGES.forbidden }
+  const context = await getSessionContext()
+  if (!context) return { ok: false, error: COORD_MESSAGES.forbidden }
+  if (context.userId === userId) {
+    return { ok: false, error: COORD_MESSAGES.self }
   }
 
   const supabase = await createClient()
-
-  // Refuse to demote a current org_admin (the orphan-the-org guard). RLS lets the
-  // org_admin caller read its org's organization_members rows.
-  const { data: existing } = await supabase
-    .from('organization_members')
-    .select('role')
-    .eq('organization_id', orgId)
-    .eq('user_id', userId)
-    .maybeSingle<{ role: string }>()
-
-  if (existing?.role === 'org_admin') {
-    return { ok: false, error: COORD_MESSAGES.isOrgAdmin }
+  // Resolve the hospital's org (RLS lets an nsp_org_admin read its org's hospitals)
+  // to authorize + revalidate. A foreign/unknown hospital yields no row → forbidden.
+  const { data: hospital } = await supabase
+    .from('hospitals')
+    .select('organization_id')
+    .eq('id', hospitalId)
+    .maybeSingle<{ organization_id: string }>()
+  if (!hospital || !(await authorizeNspOrgAdmin(hospital.organization_id))) {
+    return { ok: false, error: COORD_MESSAGES.forbidden }
   }
 
-  // Phase-A fix (ADR 0051): the unique moved to the composite
-  // (organization_id, user_id, role, hospital_id) NULLS NOT DISTINCT, so the old
-  // onConflict:'organization_id,user_id' no longer names a constraint. Target the
-  // new key columns; nsp_coordinator stays org-level (hospital_id NULL) this phase
-  // (Q1), so hospital_id is explicitly null. The org_admin-demotion guard above is
-  // still valid; full per-hospital coordinator is Phase B (rewrites this action).
-  const { error } = await supabase
-    .from('organization_members')
-    .upsert(
-      { organization_id: orgId, user_id: userId, role: 'nsp_coordinator', hospital_id: null },
-      { onConflict: 'organization_id,user_id,role,hospital_id' },
-    )
+  const { error } = await supabase.rpc('assign_nsp_coordinator', {
+    p_hospital: hospitalId,
+    p_user: userId,
+  })
+  if (error) return { ok: false, error: COORD_MESSAGES.generic }
 
-  if (error) {
-    return { ok: false, error: COORD_MESSAGES.generic }
-  }
-
-  const context = await getSessionContext()
-  const orgSlug = context?.orgAdminOf.find(
-    (o) => o.organization.id === orgId,
+  const orgSlug = context.nspOrgAdminOf.find(
+    (o) => o.organization.id === hospital.organization_id,
   )?.organization.slug
   if (orgSlug) revalidatePath(orgHref(orgSlug, 'manage'))
   return { ok: true, message: COORD_MESSAGES.appointed }
@@ -418,40 +413,42 @@ export async function revokeNspOrgAdmin(
 }
 
 /**
- * Revoke `userId`'s `nsp_coordinator` role in `orgId`. Deletes ONLY a coordinator
- * membership row (the `role = 'nsp_coordinator'` filter protects an org_admin's row
- * from accidental deletion). Gated + re-checked `is_org_admin_of(orgId)`. Idempotent
- * (a no-op if the user isn't a coordinator). Note: this does NOT touch the user's
+ * Revoke `userId`'s `nsp_coordinator` role on `hospitalId` (ADR 0052). Backed by the
+ * `revoke_nsp_coordinator(p_hospital, p_user)` DEFINER RPC — gated
+ * `is_nsp_org_admin_of(org_of_hospital(hospitalId))`, deletes ONLY the
+ * `(org, user, 'nsp_coordinator', hospital)` row. Idempotent (a no-op if the user
+ * isn't the hospital's coordinator). Note: this does NOT touch the user's
  * `pqs_members` enrollment — a coordinator who self-enrolled stays a PHI reader until
- * removed from the roster (separate concern; the coordinator role only governs
- * curation rights).
+ * removed from that hospital's roster (separate concern; the coordinator role governs
+ * the local-operator grant + curation rights).
  */
 export async function revokeNspCoordinator(
-  orgId: string,
+  hospitalId: string,
   userId: string,
 ): Promise<MutationActionState> {
-  if (!orgId || !userId) {
+  if (!hospitalId || !userId) {
     return { ok: false, error: COORD_MESSAGES.generic }
-  }
-  if (!(await authorizeOrgAdmin(orgId))) {
-    return { ok: false, error: COORD_MESSAGES.forbidden }
   }
 
   const supabase = await createClient()
-  const { error } = await supabase
-    .from('organization_members')
-    .delete()
-    .eq('organization_id', orgId)
-    .eq('user_id', userId)
-    .eq('role', 'nsp_coordinator')
-
-  if (error) {
-    return { ok: false, error: COORD_MESSAGES.generic }
+  const { data: hospital } = await supabase
+    .from('hospitals')
+    .select('organization_id')
+    .eq('id', hospitalId)
+    .maybeSingle<{ organization_id: string }>()
+  if (!hospital || !(await authorizeNspOrgAdmin(hospital.organization_id))) {
+    return { ok: false, error: COORD_MESSAGES.forbidden }
   }
 
+  const { error } = await supabase.rpc('revoke_nsp_coordinator', {
+    p_hospital: hospitalId,
+    p_user: userId,
+  })
+  if (error) return { ok: false, error: COORD_MESSAGES.generic }
+
   const context = await getSessionContext()
-  const orgSlug = context?.orgAdminOf.find(
-    (o) => o.organization.id === orgId,
+  const orgSlug = context?.nspOrgAdminOf.find(
+    (o) => o.organization.id === hospital.organization_id,
   )?.organization.slug
   if (orgSlug) revalidatePath(orgHref(orgSlug, 'manage'))
   return { ok: true, message: COORD_MESSAGES.revoked }

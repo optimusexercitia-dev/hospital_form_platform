@@ -9,6 +9,7 @@ import {
   getReferralPatient,
 } from '@/lib/queries/referrals'
 import type { CaseSafetyPrefill } from '@/lib/queries/referrals'
+import type { PhiDisposeReason } from '@/lib/cases/types'
 import type {
   AddReplyAttachmentInput,
   AddSharedItemInput,
@@ -446,4 +447,39 @@ export async function loadCaseSafetyPrefill(
 ): Promise<CaseSafetyPrefill | null> {
   if (!caseId) return null
   return getCaseSafetyEventPatientPrefill(caseId)
+}
+
+// ---------------------------------------------------------------------------
+// PHI disposal (LGPD Art. 18 erasure) — NSP-per-hospital (ADR 0052 §6)
+// ---------------------------------------------------------------------------
+
+/**
+ * Dispose the referral's PHI (LGPD Art. 18 erasure). Destructively deletes the
+ * isolated `referral_patient` row and NULLs/redacts every PHI free-text column across
+ * the referral + its reply + shared items, PRESERVING the governance skeleton
+ * (`ENC-NNNN` code, structural fields, status, provenance, audit chain). Mirrors
+ * `dispose_event_phi` / `dispose_case_phi` — the referral module's third disposal
+ * door. The `dispose_referral_phi` DEFINER is the authority: gated
+ * `is_admin() OR is_commission_admin_of(source) OR is_pqs_operator_of(referral
+ * hospital)` (42501 otherwise; one-shot → HC056), audited at the HOSPITAL tier via the
+ * source commission. `reason` is a CONSTRAINED category ({@link PhiDisposeReason}),
+ * never free text. Backed by migration `20260710000000_nsp_per_hospital.sql`.
+ */
+export async function disposeReferralPhi(
+  referralId: string,
+  reason: PhiDisposeReason,
+): Promise<ReferralActionState> {
+  if (!referralId) {
+    return { ok: false, error: REFERRAL_MESSAGES.missingReferral }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('dispose_referral_phi', {
+    p_referral_id: referralId,
+    p_reason: reason,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.phiDisposed }
 }

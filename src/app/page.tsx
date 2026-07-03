@@ -15,6 +15,7 @@ import { commissionHref, orgHref } from "@/lib/routing";
  *  - org_admin of more than one org     → /o            (org picker)
  *  - hospital_admin of one org's hosp.  → /o/<org>/manage  (its hospital-scoped area)
  *  - hospital_admin across >1 org       → /o            (org picker)
+ *  - nsp_org_admin of ≥1 org            → /o/<org>/nsp-org  (org NSP-admin console)
  *  - exactly one commission membership  → /o/<org>/c/<commission>
  *  - more than one membership           → /c            (grouped picker)
  *  - none of the above                  → friendly "sem acesso" screen
@@ -29,6 +30,14 @@ import { commissionHref, orgHref } from "@/lib/routing";
  * hospital_admin resolves via the org_admin branch above (unchanged), so this only
  * fires for a hospital_admin-only persona (e.g. `hospitaladmin.a1@`), which the
  * previous logic dropped into the "sem acesso" dead end (BUG-HAT-001).
+ *
+ * An `nsp_org_admin` (NSP-per-hospital, ADR 0052) is an org-level, PHI-free NSP
+ * governance role — a super-user of its org's NSP administration. It lands on the
+ * org NSP-admin console (`/o/<org>/nsp-org`), taking precedence over plain
+ * commission membership, so an `nsp_org_admin`-only persona reaches its console
+ * instead of the "sem acesso" dead end (the BUG-HAT-001 pattern). A user who is
+ * ALSO org_admin/hospital_admin resolves via those branches above first (the manage
+ * area is their primary home; the NSP-admin console is reachable from there).
  */
 export default async function Home() {
   const context = await getSessionContext();
@@ -71,6 +80,16 @@ export default async function Home() {
       redirect(orgHref(context.hospitalAdminOf[0].organization.slug, "manage"));
     }
     redirect("/o");
+  }
+
+  // nsp_org_admin landing (NSP-per-hospital, ADR 0052): an org-level, PHI-free NSP
+  // governance role. Lands on its org's NSP-admin console. `nspOrgAdminOf` is
+  // name-sorted, so the first entry is a stable pick when the caller administers the
+  // NSP of more than one org (rare); the console itself re-gates server-side. This
+  // takes precedence over plain commission membership — the console is this persona's
+  // super-user home, and it rescues an nsp_org_admin-only user from "sem acesso".
+  if (context.nspOrgAdminOf.length > 0) {
+    redirect(orgHref(context.nspOrgAdminOf[0].organization.slug, "nsp-org"));
   }
 
   if (context.memberships.length === 1) {

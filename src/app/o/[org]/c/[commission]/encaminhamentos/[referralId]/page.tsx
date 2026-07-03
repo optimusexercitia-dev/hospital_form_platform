@@ -6,6 +6,7 @@ import { ArrowLeft, Building2, FolderOpen } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
+  canDisposeReferralPhi,
   getReferralAttachmentUrl,
   getReferralDetail,
   getReferralDocumentUrl,
@@ -31,6 +32,7 @@ import {
   type LinkableTargetCase,
 } from "@/components/referrals/referral-actions";
 import { ReferralPatientPanel } from "@/components/referrals/referral-patient-panel";
+import { ReferralDisposeDialog } from "@/components/referrals/referral-dispose-dialog";
 import {
   formatCaseNumber,
   formatDateTime,
@@ -160,6 +162,16 @@ export default async function ReferralDetailPage({
     ? await patientXrefCount("referral", detail.id)
     : 0;
 
+  // LGPD-erasure affordance gate (BUG-NPH-002): the authoritative disposer probe,
+  // mirroring the `dispose_referral_phi` RPC gate exactly (admin / source
+  // commission-admin / PQS operator of EITHER endpoint hospital). Only asked when a
+  // PHI record exists (nothing to erase otherwise). PHI-free; safe-defaults false —
+  // so the destructive control renders only for a caller the RPC would accept, never
+  // dangling for e.g. a plain source-commission staff_admin.
+  const canDisposePhi = detail.hasPatient
+    ? await canDisposeReferralPhi(detail.id)
+    : false;
+
   const inFlight = !RESOLVED_REFERRAL_STATUSES.has(detail.status);
   const backHref = commissionHref(org, commission, "encaminhamentos");
 
@@ -283,6 +295,18 @@ export default async function ReferralDetailPage({
               appearsInCount={appearsInCount}
             />
           </div>
+
+          {/* LGPD-erasure control (ADR 0052 §6). Rendered only when the
+              `canDisposeReferralPhi` probe (which mirrors the RPC gate exactly:
+              admin / source commission-admin / PQS operator of either endpoint
+              hospital) returns true — so the destructive affordance never dangles
+              for a caller the RPC would reject (BUG-NPH-002). The RPC stays the
+              authoritative control. */}
+          {canDisposePhi && (
+            <div data-rise>
+              <ReferralDisposeDialog referralId={detail.id} />
+            </div>
+          )}
         </div>
       </div>
     </SafetyMotion>

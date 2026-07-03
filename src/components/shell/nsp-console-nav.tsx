@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { nspHref } from "@/lib/routing";
@@ -40,15 +40,18 @@ const NSP_NAV_ITEMS: NspNavItem[] = [
 ];
 
 /**
- * Top navigation for the per-org NSP console. Visibility here is convenience
- * only — every route still enforces access server-side (the layout gate
- * `getNspAccessByOrg` + the per-org DEFINER doors + RLS). The PHI surfaces show
- * only to an enrolled PQS member (`isPqsMember`); the roster-curation entry
- * ("Equipe do NSP") shows only to the org's `nsp_coordinator` (`isCoordinator`)
- * — three-way duty separation (NSP-per-org, ADR 0042). A coordinator who is not
- * also enrolled sees only the roster entry, so they are never shown dead PHI
- * links. Active state is a prefix match so detail pages keep their parent item
- * highlighted.
+ * Top navigation for the hospital-scoped NSP console (NSP-per-hospital, ADR 0052).
+ * Visibility here is convenience only — every route still enforces access
+ * server-side (the layout gate `getNspAccessByOrg` + the per-HOSPITAL DEFINER
+ * doors + RLS). The PHI surfaces show while the caller operates ≥1 hospital's NSP
+ * (`isPqsMember`); the roster-curation entry ("Equipe do NSP") shows while they
+ * coordinate ≥1 hospital (`isCoordinator`) — the local coordinator curates their
+ * own hospital's roster from here (the org-level `nsp_org_admin` curates from the
+ * separate `/o/[org]/nsp-org` console). Active state is a prefix match so detail
+ * pages keep their parent item highlighted.
+ *
+ * Every link PRESERVES the current `?hospital=` selection, so navigating the nav
+ * keeps the console pinned to the same hospital (the switcher changes it).
  */
 export function NspConsoleNav({
   org,
@@ -64,7 +67,15 @@ export function NspConsoleNav({
   patientIndexEnabled?: boolean;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const consoleBase = nspHref(org);
+
+  // Preserve the active `?hospital=` selection on every nav link so the scope
+  // survives navigation (the switcher is what changes it).
+  const hospital = searchParams.get("hospital");
+  const hospitalQuery = hospital
+    ? `?hospital=${encodeURIComponent(hospital)}`
+    : "";
 
   const items = NSP_NAV_ITEMS.filter((item) => {
     if (item.scope === "phi" && !isPqsMember) return false;
@@ -83,11 +94,12 @@ export function NspConsoleNav({
       className="ml-4 hidden items-center gap-1 sm:flex"
     >
       {items.map((item) => {
-        const href = nspHref(org, ...item.segments);
+        const path = nspHref(org, ...item.segments);
+        const href = `${path}${hospitalQuery}`;
         const isLanding = item.segments.length === 0;
         const isActive = isLanding
           ? pathname === consoleBase
-          : pathname === href || pathname.startsWith(`${href}/`);
+          : pathname === path || pathname.startsWith(`${path}/`);
         return (
           <Link
             key={item.label}

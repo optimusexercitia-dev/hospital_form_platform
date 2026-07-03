@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ShieldCheck } from "lucide-react";
 
 import { getSessionContext } from "@/lib/queries/session";
 import {
@@ -9,7 +10,9 @@ import {
   listOrgHospitals,
   type RoleHolder,
 } from "@/lib/queries/org";
-import { listOrgEligibleUsersForPqs } from "@/lib/queries/pqs";
+import { listOrgEligibleUsers } from "@/lib/queries/pqs";
+import { isNspOrgAdmin } from "@/lib/pqs/org-admin";
+import { orgHref } from "@/lib/routing";
 import { HospitalAdminManager } from "@/components/org/hospital-admin-manager";
 import { NspOrgAdminManager } from "@/components/org/nsp-org-admin-manager";
 
@@ -24,10 +27,13 @@ export const metadata: Metadata = {
  * 1) in addition to the `/o/[org]/manage` layout gate and the actions'
  * server-side `is_org_admin_of` re-check.
  *
- * The person picker reuses `listOrgEligibleUsersForPqs` (the org's registered
- * users, DEFINER-scoped) — the same "who belongs to this org" set the NSP
- * coordinator picker uses. Current holders come from the reconciled A9 reads
- * `listHospitalAdmins(hospitalId)` (one per hospital) and `listNspOrgAdmins(orgId)`.
+ * The person picker uses the ORG-WIDE eligible-users pool `listOrgEligibleUsers(orgId)`
+ * (org-level members ∪ commission members of ANY hospital, INCLUDING org-level-only
+ * users), since both roles here are appointed org-wide: `hospital_admin` (any hospital
+ * in the org) and `nsp_org_admin` (org-level). The per-hospital
+ * `listHospitalEligibleUsersForPqs` is NOT used here — it would miss org-level-only
+ * users. Current holders come from `listHospitalAdmins(hospitalId)` (one per hospital)
+ * and `listNspOrgAdmins(orgId)`.
  */
 export default async function OrgAdministratorsPage({
   params,
@@ -46,11 +52,16 @@ export default async function OrgAdministratorsPage({
     notFound();
   }
 
-  const [hospitals, eligibleUsers, nspOrgAdmins] = await Promise.all([
-    listOrgHospitals(organization.id),
-    listOrgEligibleUsersForPqs(organization.id),
-    listNspOrgAdmins(organization.id),
-  ]);
+  const [hospitals, eligibleUsers, nspOrgAdmins, viewerIsNspOrgAdmin] =
+    await Promise.all([
+      listOrgHospitals(organization.id),
+      listOrgEligibleUsers(organization.id),
+      listNspOrgAdmins(organization.id),
+      // Is the VIEWER themselves an nsp_org_admin of this org? Gates the
+      // discoverability link to the PHI-free org NSP-admin console (ADR 0052) — an
+      // org_admin who ALSO holds the role can jump there from here.
+      isNspOrgAdmin(organization.id),
+    ]);
 
   // Current hospital_admin holders, one read per hospital, assembled into the
   // map the manager consumes (hospitalId → holders).
@@ -108,15 +119,24 @@ export default async function OrgAdministratorsPage({
           Administração do NSP da organização
         </h2>
         <p className="max-w-prose text-sm text-muted-foreground text-pretty">
-          A administração do NSP da organização nomeia coordenadores do Núcleo
-          de Segurança do Paciente em qualquer hospital. Este papel ainda não
-          concede acesso a dados de segurança do paciente nesta fase.
+          A administração do NSP da organização nomeia a coordenação do Núcleo de
+          Segurança do Paciente em cada hospital e acompanha indicadores agregados
+          por hospital. Não tem acesso à identificação de pacientes.
         </p>
         <NspOrgAdminManager
           orgId={organization.id}
           eligibleUsers={eligibleUsers}
           currentAdmins={nspOrgAdmins}
         />
+        {viewerIsNspOrgAdmin ? (
+          <Link
+            href={orgHref(org, "nsp-org")}
+            className="inline-flex w-fit items-center gap-1.5 rounded-lg text-sm font-medium text-primary transition-colors hover:text-primary/80 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+          >
+            Abrir o console de administração do NSP
+            <ArrowRight aria-hidden="true" className="size-4" />
+          </Link>
+        ) : null}
       </section>
     </div>
   );

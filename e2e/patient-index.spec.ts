@@ -21,19 +21,21 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  *   (CCIH + Farmácia, both in rede-a). QPS search for `ENC-2026-4471` must return
  *   ≥2 entities (event + referral).
  *
- * **NSP-per-org (ADR 0042).** The cross-committee patient index moved from
- * /admin/nsp/pacientes to /o/rede-a/nsp/pacientes; the console is gated on PQS
- * membership of THAT org, and the search/count RPCs are org-scoped + fail-closed:
- *   - `search_patient_xref(p_mrn, p_encounter, p_org_id)` returns the EMPTY bundle
- *     (and emits NO audit row) unless `p_org_id` is passed AND the caller is a PQS
- *     member of it. Direct-RPC tests MUST pass `p_org_id = REDE_A_ORG`. The UI path
- *     pins the org via the URL, so UI-driven tests need only the route + persona.
+ * **NSP-per-HOSPITAL (ADR 0052; re-keys the ADR-0042 per-org form one hop).** The
+ * cross-committee patient index lives at /o/rede-a/nsp/pacientes; the console is
+ * gated on PQS membership of the selected HOSPITAL, and the search/count RPCs are
+ * hospital-scoped + fail-closed:
+ *   - `search_patient_xref(p_mrn, p_encounter, p_hospital_id)` returns the EMPTY bundle
+ *     (and emits NO audit row) unless `p_hospital_id` is passed AND the caller is a PQS
+ *     member of it. Direct-RPC tests MUST pass `p_hospital_id = HOSP_CENTRAL_A` (the
+ *     hospital of CCIH, home of the synthetic patient). The UI path pins the hospital
+ *     via the URL/switcher, so UI-driven tests need only the route + persona.
  *   - A `patient.searched`/`patient.viewed` audit row now carries
- *     `commission_id = null` (still the cross-committee chain) with the org in
- *     `organization_id` — so the existing `commission_id === null` checks hold.
+ *     `commission_id = null` (still the cross-committee chain) with the hospital in
+ *     `hospital_id` — so the existing `commission_id === null` checks hold.
  *   - `patient_xref_count(p_module, p_entity_id)` and the deep-link
- *     `get_patient_trajectory_for_entity` resolve the org server-side from the
- *     entity, so they take no org param.
+ *     `get_patient_trajectory_for_entity` resolve the hospital server-side from the
+ *     entity, so they take no hospital param (UNCHANGED signatures).
  *
  * **PQS persona:** pqs.a@test.local (00…0c2) is enrolled in rede-a's PQS roster
  * (seed) — the NSP-console/patient-index UI actor. admin@test.local (00…001) is
@@ -68,9 +70,12 @@ if (!SUPABASE_SERVICE_KEY) {
 const COMM_A = 'a0000000-0000-0000-0000-0000000000a1' // CCIH (source)
 const COMM_B = 'b0000000-0000-0000-0000-0000000000b1' // Farmácia (target)
 
-// Org (NSP-per-org, ADR 0042) — rede-a hosts the whole cross-committee fixture.
-// search_patient_xref is fail-closed unless p_org_id is this AND caller is a rede-a PQS member.
-const REDE_A_ORG = '0c000000-0000-0000-0000-00000000000a'
+// Hospital (NSP-per-HOSPITAL, ADR 0052) — the cross-committee fixture's synthetic
+// patient lives under CCIH, whose hospital is central-a. search_patient_xref /
+// patient_access_audit are fail-closed unless p_hospital_id is this AND the caller
+// is enrolled in central-a's PQS roster. (Re-keyed from the per-org REDE_A_ORG:
+// the RPCs now take p_hospital_id, per the org→hospital re-key.)
+const HOSP_CENTRAL_A = '05000000-0000-0000-0000-00000000000a'
 
 // Personas (UUIDs). The UI/RPC actors are driven by email via signInAs/getToken;
 // these UUIDs are only for service-role data-setup (e.g. cases.created_by).
@@ -374,10 +379,10 @@ test('AC-3: referral ENC-0001 detail shows count-only "aparece em N outros regis
 // the cross-committee chain (commission_id = null; org in organization_id) with
 // key-only metadata (NO raw MRN). A ZERO-match search emits no audit row.
 //
-// NSP-per-org (ADR 0042): search_patient_xref is fail-closed — it returns the
-// empty bundle (and emits NO audit row) unless p_org_id is passed AND the caller
-// is a PQS member of it. admin@ is a rede-a PQS member, so the truth-read works
-// once p_org_id = REDE_A_ORG is supplied.
+// NSP-per-hospital (ADR 0052): search_patient_xref is fail-closed — it returns the
+// empty bundle (and emits NO audit row) unless p_hospital_id is passed AND the caller
+// is a PQS member of that hospital. admin@ is a central-a PQS member, so the truth-read
+// works once p_hospital_id = HOSP_CENTRAL_A is supplied.
 // ---------------------------------------------------------------------------
 
 test('AC-4a: matching search for PRT-0099123 → exactly one patient.searched audit row (cross-committee chain, no MRN)', async ({
@@ -387,11 +392,11 @@ test('AC-4a: matching search for PRT-0099123 → exactly one patient.searched au
   const before = await auditRowsForAction(request, 'patient.searched')
 
   // Run the search via the RPC directly (same path the server action calls).
-  // p_org_id is REQUIRED now (org-scoped, fail-closed) — admin@ is a rede-a PQS member.
+  // p_hospital_id is REQUIRED now (hospital-scoped, fail-closed) — admin@ is a central-a PQS member.
   const adminToken = await getToken(request, 'admin@test.local')
   const searchResp = await rpc(request, 'search_patient_xref', adminToken, {
     p_mrn: TEST_MRN,
-    p_org_id: REDE_A_ORG,
+    p_hospital_id: HOSP_CENTRAL_A,
   })
   expect(searchResp.ok(), `search_patient_xref failed: ${await searchResp.text()}`).toBeTruthy()
   const searchBody = await searchResp.json() as { matchCount?: number } | null
@@ -425,13 +430,13 @@ test('AC-4b: zero-match search emits NO audit row', async ({
 }) => {
   const before = await auditRowsForAction(request, 'patient.searched')
 
-  // p_org_id supplied + caller is a PQS member, so an empty result here is a TRUE
-  // zero-match (not a fail-closed empty from a missing org) — the audit-suppression
+  // p_hospital_id supplied + caller is a PQS member, so an empty result here is a TRUE
+  // zero-match (not a fail-closed empty from a missing hospital) — the audit-suppression
   // assertion below is therefore meaningful.
   const adminToken = await getToken(request, 'admin@test.local')
   const searchResp = await rpc(request, 'search_patient_xref', adminToken, {
     p_mrn: NONEXISTENT_MRN,
-    p_org_id: REDE_A_ORG,
+    p_hospital_id: HOSP_CENTRAL_A,
   })
   // The RPC may return a 200 with empty result or a 404 — both are acceptable
   // (zero-match = empty entries, not an error)
@@ -636,12 +641,12 @@ test('AC-7: flag OFF → /o/rede-a/nsp/pacientes → 404, search RPC denies/empt
     expect(is404 || isRedirected, 'Flag-OFF: page should 404 or redirect').toBeTruthy()
 
     // RPC: search_patient_xref must deny or return empty when flag is OFF
-    // (assert_patient_index_enabled() fires before the org check; p_org_id is
-    // supplied so the empty/raise is unambiguously flag-driven, not org-gated.)
+    // (assert_patient_index_enabled() fires before the hospital check; p_hospital_id is
+    // supplied so the empty/raise is unambiguously flag-driven, not hospital-gated.)
     const adminToken = await getToken(request, 'admin@test.local')
     const searchResp = await rpc(request, 'search_patient_xref', adminToken, {
       p_mrn: TEST_MRN,
-      p_org_id: REDE_A_ORG,
+      p_hospital_id: HOSP_CENTRAL_A,
     })
     // When flag is OFF the RPC raises 23514 or returns null
     if (searchResp.ok()) {
@@ -683,12 +688,12 @@ test('AC-8a: non-PQS admin (chefe.ccih) search_patient_xref → null/empty resul
   request,
 }) => {
   // chefe.ccih is a staff_admin (not in pqs_members) — must get nothing from the RPC.
-  // p_org_id = REDE_A_ORG is supplied so the denial is attributable to the ROSTER
+  // p_hospital_id = HOSP_CENTRAL_A is supplied so the denial is attributable to the ROSTER
   // gate (is_pqs_member_of(rede-a) = false for chefe.ccih), not a missing org.
   const chefaToken = await getToken(request, 'chefe.ccih@test.local')
   const resp = await rpc(request, 'search_patient_xref', chefaToken, {
     p_mrn: TEST_MRN,
-    p_org_id: REDE_A_ORG,
+    p_hospital_id: HOSP_CENTRAL_A,
   })
   if (resp.ok()) {
     const body = await resp.json() as { matchCount?: number; entries?: unknown[] } | null

@@ -1,8 +1,8 @@
 'use server'
 
 import {
-  getPatientAccessAuditForOrg,
-  searchPatientForOrg,
+  getPatientAccessAuditForHospital,
+  searchPatientForHospital,
 } from '@/lib/queries/patient-index'
 import type {
   PatientAccessAuditRow,
@@ -25,10 +25,10 @@ import type {
  * codes / commission names / dates only). The audit (`patient.searched`, global
  * chain, key-only metadata) fires INSIDE `search_patient_xref` on matches ≥ 1.
  *
- * Authority is the DEFINER RPC's own PQS gate (`app.is_pqs_member`) + RLS — these
- * actions add only the client-side field validation that shapes a friendly error.
- * All user-facing strings are pt-BR (CLAUDE.md Rule 10); raw Supabase/Postgres
- * errors NEVER reach the UI (§8).
+ * Authority is the DEFINER RPC's own NSP gate (`app.is_pqs_operator_of(hospital)`) +
+ * RLS — these actions add only the client-side field validation that shapes a
+ * friendly error. All user-facing strings are pt-BR (CLAUDE.md Rule 10); raw
+ * Supabase/Postgres errors NEVER reach the UI (§8).
  */
 
 const MESSAGES = {
@@ -48,7 +48,7 @@ const MESSAGES = {
  * deployment fails closed here, the DEFINER RPC having returned nothing).
  */
 export async function searchPatientAction(
-  orgId: string,
+  hospitalId: string,
   input: PatientSearchInput,
 ): Promise<PatientSearchState> {
   const mrn = input.mrn?.trim() || null
@@ -62,10 +62,11 @@ export async function searchPatientAction(
     }
   }
 
-  // NSP-per-org (ADR 0042): scoped to the route's org — the DEFINER RPC gates on
-  // enrollment in `orgId` + filters the trajectory to that org. A non-enrolled caller
-  // (incl. a member of a DIFFERENT org passing this orgId) gets null → fail closed.
-  const result = await searchPatientForOrg(orgId, mrn, encounter)
+  // NSP-per-hospital (ADR 0052): scoped to the route's hospital — the DEFINER RPC
+  // gates on operating `hospitalId`'s NSP + filters the trajectory to that hospital. A
+  // non-operator (incl. an operator of a DIFFERENT hospital passing this hospitalId)
+  // gets null → fail closed.
+  const result = await searchPatientForHospital(hospitalId, mrn, encounter)
   if (!result) {
     return { ok: false, error: MESSAGES.searchUnavailable }
   }
@@ -76,17 +77,18 @@ export async function searchPatientAction(
 /**
  * On-demand patient-scoped ACCESS AUDIT for the QPS view (the page composes
  * "trajectory + access audit"). A thin `"use server"` wrapper over the server-only
- * {@link getPatientAccessAuditForOrg} query (Rule 9), so the `"use client"` audit
- * table can request it after a search. PHI-FREE; org-scoped + enrollment-gated inside
- * the DEFINER RPC (returns `[]` to a non-member). Reading the audit is not re-audited.
+ * {@link getPatientAccessAuditForHospital} query (Rule 9), so the `"use client"` audit
+ * table can request it after a search. PHI-FREE; hospital-scoped + operator-gated
+ * inside the DEFINER RPC (returns `[]` to a non-operator). Reading the audit is not
+ * re-audited.
  */
 export async function loadPatientAccessAudit(
-  orgId: string,
+  hospitalId: string,
   input: PatientSearchInput,
 ): Promise<PatientAccessAuditRow[]> {
   const mrn = input.mrn?.trim() || null
   const encounter = input.encounter?.trim() || null
   if (!mrn && !encounter) return []
-  // NSP-per-org: org-scoped (enrollment gate + org-filtered audit rows).
-  return getPatientAccessAuditForOrg(orgId, mrn, encounter)
+  // NSP-per-hospital: hospital-scoped (operator gate + hospital-filtered audit rows).
+  return getPatientAccessAuditForHospital(hospitalId, mrn, encounter)
 }

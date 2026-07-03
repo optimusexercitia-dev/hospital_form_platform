@@ -55,14 +55,20 @@ if (!SUPABASE_SERVICE_KEY) {
 //   admin@test.local — rede-a org_admin ALSO enrolled in rede-a's PQS roster →
 //                      used for direct triage-RPC data-setup.
 const PQS_A_EMAIL = 'pqs.a@test.local'
+// NSP-per-hospital (ADR 0052): editing the RCA due-window is COORDINATOR-gated
+// per-hospital. nspcoord.a@ is the nsp_coordinator of central-a; a plain roster
+// member (pqs.a@) sees the read-only note instead of the editable input.
+const NSPCOORD_A_EMAIL = 'nspcoord.a@test.local'
 
 // Seeded events
 const EV1_ID = 'e1000000-0000-0000-0000-0000000000a1'
 const EV2_ID = 'e2000000-0000-0000-0000-0000000000a2'
 const EV3_ID = 'e3000000-0000-0000-0000-0000000000a3'
 
-// NSP-per-org: pqs_department + set_pqs_rca_due_window are now per-org. rede-a's org.
-const REDE_A_ORG = '0c000000-0000-0000-0000-00000000000a'
+// NSP-per-HOSPITAL (ADR 0052): pqs_department + set_pqs_rca_due_window are now
+// PER-HOSPITAL (re-keyed from the ADR-0042 per-org form). central-a is CCIH's
+// hospital and admin@ is enrolled in its PQS roster.
+const HOSP_CENTRAL_A = '05000000-0000-0000-0000-00000000000a'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -414,7 +420,11 @@ test('T6c: save_triage with reach=sentinel keeps harm=death (higher than floor)'
 test('T7a: /o/rede-a/nsp/configuracoes loads the sentinel checklist and event types', async ({
   page,
 }) => {
-  await signInAs(page, PQS_A_EMAIL)
+  // Sign in as the central-a COORDINATOR: NSP-per-hospital (ADR 0052) gates the
+  // RCA due-window EDITOR to the hospital's nsp_coordinator, so the editable
+  // "Prazo padrão da RCA" input renders only for the coordinator (a plain roster
+  // member sees a read-only note). The vocab sections are visible to any operator.
+  await signInAs(page, NSPCOORD_A_EMAIL)
   await page.goto('/o/rede-a/nsp/configuracoes')
   await page.waitForLoadState('networkidle')
 
@@ -445,9 +455,9 @@ test('T7b: set_pqs_rca_due_window updates the due-window; triage_disposition ref
   // admin@ is enrolled in rede-a's PQS roster → may set rede-a's RCA window.
   const adminToken = await getOwnerToken(request, 'admin@test.local')
 
-  // Change the RCA due-window to 30 days. NSP-per-org: the RPC is now (p_org_id, p_days).
+  // Change the RCA due-window to 30 days. NSP-per-hospital: the RPC is now (p_hospital_id, p_days).
   const setResp = await rpc(request, 'set_pqs_rca_due_window', adminToken, {
-    p_org_id: REDE_A_ORG,
+    p_hospital_id: HOSP_CENTRAL_A,
     p_days: 30,
   })
   expect(setResp.ok()).toBeTruthy()
@@ -459,10 +469,10 @@ test('T7b: set_pqs_rca_due_window updates the due-window; triage_disposition ref
   // However, the seeded RCA shell already has due_date minted at 45 days.
   // We verify set_pqs_rca_due_window by calling the function and confirming it writes a new
   // pqs_department.rca_default_due_days — verified via the direct DB read.
-  // NSP-per-org: pqs_department is PER-ORG (one row per org) — scope to rede-a's row.
+  // NSP-per-hospital: pqs_department is PER-HOSPITAL (one row per hospital) — scope to central-a's row.
   const deptRows = await restGet<{ rca_default_due_days: number }>(
     request,
-    `pqs_department?select=rca_default_due_days&organization_id=eq.${REDE_A_ORG}`,
+    `pqs_department?select=rca_default_due_days&hospital_id=eq.${HOSP_CENTRAL_A}`,
     SUPABASE_SERVICE_KEY,
   )
   expect(deptRows.length).toBe(1)
@@ -479,7 +489,7 @@ test('T7b: set_pqs_rca_due_window updates the due-window; triage_disposition ref
 
   // Restore to 45 days (so other tests remain consistent)
   const restoreResp = await rpc(request, 'set_pqs_rca_due_window', adminToken, {
-    p_org_id: REDE_A_ORG,
+    p_hospital_id: HOSP_CENTRAL_A,
     p_days: 45,
   })
   expect(restoreResp.ok()).toBeTruthy()

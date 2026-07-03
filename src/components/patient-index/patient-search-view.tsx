@@ -40,21 +40,24 @@ import { AccessAuditTable } from "./access-audit-table";
  * wired help/error ids, visible focus rings, and `role="status"`/`role="alert"`
  * regions so a screen reader hears the outcome. Empty state on a zero-match.
  *
- * Org-scoping (NSP-per-org, ADR 0042): the search + access-audit actions take the
- * route's `orgId` so they route through `searchPatientForOrg(orgId, …)` /
- * `getPatientAccessAuditForOrg(orgId, …)` — gated on enrollment in THAT org and
- * scoped to its xref rows. The `org` SLUG is also threaded to the trajectory table
- * for per-org entity hrefs (the entity deep-link path resolves its own org).
+ * Hospital-scoping (NSP-per-hospital, ADR 0052): the search + access-audit actions
+ * take the selected `hospitalId` (from the `?hospital=` switcher) so they route
+ * through `searchPatientForHospital(hospitalId, …)` /
+ * `getPatientAccessAuditForHospital(hospitalId, …)` — gated on OPERATING that
+ * hospital's NSP and scoped to its xref rows (an operator of a different hospital in
+ * the same org gets nothing). The `org` SLUG is also threaded to the trajectory
+ * table for entity hrefs (the entity deep-link path resolves its own hospital).
  *
- * @param org    the org slug whose NSP console this is (entity hrefs).
- * @param orgId  the organization id (the search/audit actions' enrollment + scope).
+ * @param org        the org slug whose NSP console this is (entity hrefs).
+ * @param hospitalId the selected hospital id (the search/audit actions' operator
+ *                   gate + xref scope; the UI knows it from the `?hospital=` switcher).
  */
 export function PatientSearchView({
   org,
-  orgId,
+  hospitalId,
 }: {
   org: string;
-  orgId: string;
+  hospitalId: string;
 }) {
   const [isPending, startTransition] = useTransition();
   const [mrn, setMrn] = useState("");
@@ -85,9 +88,10 @@ export function PatientSearchView({
     };
 
     startTransition(async () => {
-      // NSP-per-org (ADR 0042): the route's `orgId` scopes the search to THIS org's
-      // committees (gated on enrollment) → searchPatientForOrg(orgId, …).
-      const state = await searchPatientAction(orgId, input);
+      // NSP-per-hospital (ADR 0052): the selected `hospitalId` scopes the search to
+      // THIS hospital's committees (gated on operating its NSP) →
+      // searchPatientForHospital(hospitalId, …).
+      const state = await searchPatientAction(hospitalId, input);
       if (!state.ok) {
         setResult(null);
         setSearched(null);
@@ -188,7 +192,7 @@ export function PatientSearchView({
                 MRN-keyed — ADR 0039). */}
             {result.matchCount > 0 && (
               <AccessAuditTable
-                onLoad={() => loadPatientAccessAudit(orgId, searched)}
+                onLoad={() => loadPatientAccessAudit(hospitalId, searched)}
               />
             )}
           </TrajectoryResult>

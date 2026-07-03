@@ -40,11 +40,11 @@ grant select on k to authenticated;
 -- NSP-per-org (ADR 0042): pqs_members now has a composite PK (organization_id, user_id).
 -- Enroll admin into the bootstrap org's PQS roster. Also seed a pqs_department row so
 -- the singleton-reader assertions and set_pqs_rca_due_window(org, days) work.
-insert into public.pqs_members (organization_id, user_id, added_by)
-  select (v->>'org_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
-insert into public.pqs_department (organization_id, name, rca_default_due_days)
-  select (v->>'org_b')::uuid, 'NSP Bootstrap', 30 from ctx
-  on conflict (organization_id) do nothing;
+insert into public.pqs_members (hospital_id, user_id, added_by)
+  select (v->>'hosp_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
+insert into public.pqs_department (hospital_id, name, rca_default_due_days)
+  select (v->>'hosp_b')::uuid, 'NSP Bootstrap', 30 from ctx
+  on conflict (hospital_id) do nothing;
 
 -- A case in comm_x (for the case-linked notify path + the case_events assertion).
 create temp table cs on commit drop as select gen_random_uuid() as case_x;
@@ -336,7 +336,7 @@ select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select is(
   (select count(*)::int from public.pqs_department
-   where organization_id = (select (v->>'org_b')::uuid from ctx)),
+   where hospital_id = (select (v->>'hosp_b')::uuid from ctx)),
   1, 'an authenticated member reads their org pqs_department row (per-org, scoped)');
 reset role;
 -- (c) anon CANNOT read pqs_department (no base GRANT — denied before RLS; the

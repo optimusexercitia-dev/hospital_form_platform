@@ -61,17 +61,17 @@ create temp table k on commit drop as
          (v->>'st_y')::uuid    as st_y,    -- foreign member (no PHI entitlement)
          (v->>'comm_x')::uuid  as comm_x,
          (v->>'comm_y')::uuid  as comm_y,
-         (v->>'org_b')::uuid   as org_b    -- NSP-per-org: bootstrap org for search scope
+         (v->>'hosp_b')::uuid  as hosp_b   -- NSP-per-hospital: bootstrap hospital for search scope
   from ctx;
 grant select on k to authenticated;
 
 -- NSP-per-org (ADR 0042): pqs_members has composite PK (organization_id, user_id).
 -- admin = the PQS roster. Only PQS may reassemble a trajectory.
-insert into public.pqs_members (organization_id, user_id, added_by)
-  select (v->>'org_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
-insert into public.pqs_department (organization_id, name, rca_default_due_days)
-  select (v->>'org_b')::uuid, 'NSP Bootstrap', 30 from ctx
-  on conflict (organization_id) do nothing;
+insert into public.pqs_members (hospital_id, user_id, added_by)
+  select (v->>'hosp_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
+insert into public.pqs_department (hospital_id, name, rca_default_due_days)
+  select (v->>'hosp_b')::uuid, 'NSP Bootstrap', 30 from ctx
+  on conflict (hospital_id) do nothing;
 
 -- ---------------------------------------------------------------------------
 -- Fixture: the SYNTHETIC CROSS-COMMITTEE TEST PATIENT (MRN 'PRT-9'), touching
@@ -198,7 +198,7 @@ select test_helpers.claims_for((select admin from k), false);
 set local role authenticated;
 -- NSP-per-org (ADR 0042): new 3-arg signature (mrn, encounter, org_id).
 select throws_ok(
-  format($$ select public.search_patient_xref('PRT-9', null, %L::uuid) $$, (select org_b from k)),
+  format($$ select public.search_patient_xref('PRT-9', null, %L::uuid) $$, (select hosp_b from k)),
   '23514', null, 'search_patient_xref raises while patient_index is OFF (exposure gate)');
 reset role;
 
@@ -214,7 +214,7 @@ update app.feature_flags set enabled = true where key = 'patient_index';
 select test_helpers.claims_for((select admin from k), false);
 set local role authenticated;
 create temp table sr on commit drop as
-  select public.search_patient_xref('PRT-9', null, (select org_b from k)) as j;
+  select public.search_patient_xref('PRT-9', null, (select hosp_b from k)) as j;
 reset role;
 grant select on sr to authenticated;
 
@@ -235,7 +235,7 @@ select ok((select j::text from sr) like '%ENC-T001%',
 select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 create temp table sr_np on commit drop as
-  select public.search_patient_xref('PRT-9', null, (select org_b from k)) as j;
+  select public.search_patient_xref('PRT-9', null, (select hosp_b from k)) as j;
 reset role;
 grant select on sr_np to authenticated;
 select is((select (j->>'matchCount')::int from sr_np), 0,
@@ -245,7 +245,7 @@ select is((select (j->>'matchCount')::int from sr_np), 0,
 select test_helpers.claims_for((select admin from k), false);
 set local role authenticated;
 create temp table sr_enc on commit drop as
-  select public.search_patient_xref(null, 'ENC-9', (select org_b from k)) as j;
+  select public.search_patient_xref(null, 'ENC-9', (select hosp_b from k)) as j;
 reset role;
 grant select on sr_enc to authenticated;
 select is((select (j->>'matchCount')::int from sr_enc), 1,
@@ -262,7 +262,7 @@ grant select on ab to authenticated;
 -- result is discarded into a temp table to keep the statement tidy.)
 select test_helpers.claims_for((select admin from k), false);
 set local role authenticated;
-create temp table _s1 on commit drop as select public.search_patient_xref('PRT-9', null, (select org_b from k)) as j;
+create temp table _s1 on commit drop as select public.search_patient_xref('PRT-9', null, (select hosp_b from k)) as j;
 reset role;
 select is(
   (select count(*) from public.audit_log where action = 'patient.searched') - (select before from ab),
@@ -286,7 +286,7 @@ create temp table ab0 on commit drop as
 grant select on ab0 to authenticated;
 select test_helpers.claims_for((select admin from k), false);
 set local role authenticated;
-create temp table _s0 on commit drop as select public.search_patient_xref('NO-SUCH-MRN', null, (select org_b from k)) as j;
+create temp table _s0 on commit drop as select public.search_patient_xref('NO-SUCH-MRN', null, (select hosp_b from k)) as j;
 reset role;
 select is(
   (select count(*) from public.audit_log where action = 'patient.searched') - (select before from ab0),
@@ -391,7 +391,7 @@ select is(
 select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 select throws_ok(
-  format($$ select app.patient_trajectory_bundle('any-key', null, %L::uuid) $$, (select org_b from k)),
+  format($$ select app.patient_trajectory_bundle('any-key', null, %L::uuid) $$, (select hosp_b from k)),
   '42501', null,
   'M1 GUARD: a non-PQS persona calling app.patient_trajectory_bundle directly is denied (42501)');
 reset role;
@@ -402,7 +402,7 @@ reset role;
 select test_helpers.claims_for((select admin from k), false);
 set local role authenticated;
 create temp table _m1door on commit drop as
-  select public.search_patient_xref('PRT-9', null, (select org_b from k)) as j;
+  select public.search_patient_xref('PRT-9', null, (select hosp_b from k)) as j;
 reset role;
 grant select on _m1door to authenticated;
 select ok(

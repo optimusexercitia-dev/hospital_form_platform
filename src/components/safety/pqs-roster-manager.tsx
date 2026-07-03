@@ -34,27 +34,28 @@ function personLabel(p: {
 }
 
 /**
- * The per-org PQS roster manager ("Equipe do NSP" — NSP-per-org, ADR 0042).
- * Coordinator-only (the page gates on `isNspCoordinatorOfSelf`; the
- * `add`/`remove` RPCs re-gate server-side with 42501). Enrollment in this roster
- * is what grants the org's PHI **read** — so this is the single door that admits
- * a reader. Three-way duty separation: the org_admin appoints the coordinator,
- * the coordinator curates this roster, an enrolled member reads PHI.
+ * The per-HOSPITAL PQS roster manager ("Equipe do NSP" — NSP-per-hospital, ADR
+ * 0052). Curated by the hospital's `nsp_coordinator` OR the org's `nsp_org_admin`
+ * (the page gates; the `add`/`remove` RPCs re-gate server-side with 42501).
+ * Enrollment in this roster is what grants THIS HOSPITAL's PHI **read** — so this
+ * is the single door that admits a reader. Three-tier chain: the org_admin
+ * appoints the nsp_org_admin, the nsp_org_admin (or the local coordinator) curates
+ * this roster, an enrolled member reads that hospital's PHI.
  *
- * Enroll is a picker over the org's eligible users (those not already enrolled);
- * remove is guarded by a confirm dialog. Both mutations are the direct-call
- * (`orgId, userId`) server actions, run in a transition; on success we
- * `router.refresh()` so the server-loaded roster + picker re-resolve.
+ * Enroll is a picker over the hospital's eligible users (those not already
+ * enrolled); remove is guarded by a confirm dialog. Both mutations are the
+ * direct-call (`hospitalId, userId`) server actions, run in a transition; on
+ * success we `router.refresh()` so the server-loaded roster + picker re-resolve.
  *
  * Fully keyboard-operable: a labeled native `<select>` + buttons, visible focus
  * rings, `role="status"`/`role="alert"` regions. All copy pt-BR.
  */
 export function PqsRosterManager({
-  orgId,
+  hospitalId,
   members,
   eligibleUsers,
 }: {
-  orgId: string;
+  hospitalId: string;
   members: PqsRosterMember[];
   eligibleUsers: PqsEligibleUser[];
 }) {
@@ -84,7 +85,7 @@ export function PqsRosterManager({
     setError(null);
     setSuccess(null);
     startTransition(async () => {
-      const result = await addPqsMember(orgId, selected);
+      const result = await addPqsMember(hospitalId, selected);
       if (!result.ok) {
         setError(result.error ?? "Não foi possível adicionar à equipe.");
         return;
@@ -112,7 +113,7 @@ export function PqsRosterManager({
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor={selectId} className="text-sm font-medium">
-            Pessoa da organização
+            Pessoa do hospital
           </label>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <NativeSelect
@@ -146,7 +147,7 @@ export function PqsRosterManager({
           </div>
           <p id={`${selectId}-help`} className="text-xs text-muted-foreground text-pretty">
             Quem entra na equipe passa a ler os dados sensíveis de segurança do
-            paciente desta organização. O acesso é registrado em trilha de
+            paciente deste hospital. O acesso é registrado em trilha de
             auditoria.
           </p>
         </div>
@@ -166,8 +167,8 @@ export function PqsRosterManager({
 
         {members.length === 0 ? (
           <p className="rounded-xl border border-dashed border-border bg-muted/40 px-4 py-8 text-center text-sm text-muted-foreground text-pretty">
-            A equipe do NSP ainda não tem membros. Adicione pessoas acima para
-            conceder acesso aos dados de segurança do paciente.
+            A equipe do NSP deste hospital ainda não tem membros. Adicione pessoas
+            acima para conceder acesso aos dados de segurança do paciente.
           </p>
         ) : (
           <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
@@ -193,7 +194,7 @@ export function PqsRosterManager({
                     ) : null}
                   </div>
                   <RemoveMemberButton
-                    orgId={orgId}
+                    hospitalId={hospitalId}
                     userId={person.userId}
                     label={label}
                   />
@@ -209,16 +210,16 @@ export function PqsRosterManager({
 
 /**
  * A guarded "remover" control for one roster member, wired to the direct-call
- * `removePqsMember(orgId, userId)` action. The dialog stays open on error (so the
- * pt-BR message shows) and closes on success (the page revalidates, the row
+ * `removePqsMember(hospitalId, userId)` action. The dialog stays open on error (so
+ * the pt-BR message shows) and closes on success (the page revalidates, the row
  * disappears).
  */
 function RemoveMemberButton({
-  orgId,
+  hospitalId,
   userId,
   label,
 }: {
-  orgId: string;
+  hospitalId: string;
   userId: string;
   label: string;
 }) {
@@ -230,7 +231,7 @@ function RemoveMemberButton({
   function handleRemove() {
     setError(null);
     startTransition(async () => {
-      const result = await removePqsMember(orgId, userId);
+      const result = await removePqsMember(hospitalId, userId);
       if (!result.ok) {
         setError(result.error ?? "Não foi possível remover da equipe.");
         return;
@@ -257,7 +258,7 @@ function RemoveMemberButton({
           <AlertDialogTitle>Remover da equipe do NSP?</AlertDialogTitle>
           <AlertDialogDescription>
             {label} deixará de ter acesso aos dados de segurança do paciente
-            desta organização. Esta ação pode ser refeita adicionando a pessoa
+            deste hospital. Esta ação pode ser refeita adicionando a pessoa
             novamente.
           </AlertDialogDescription>
         </AlertDialogHeader>

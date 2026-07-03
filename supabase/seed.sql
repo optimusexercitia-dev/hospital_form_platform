@@ -113,14 +113,28 @@ declare
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b2', 'email', 'orgadmin.b@test.local',   'name', 'Admin Rede B',           'org', '0c000000-0000-0000-0000-00000000000b'),
     -- A plain staff persona in org-b's commission, for cross-org isolation tests.
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000b3', 'email', 'staff1.qual.b@test.local', 'name', 'Analista Qualidade B',  'org', '0c000000-0000-0000-0000-00000000000b'),
-    -- NSP-per-org (ADR 0042) personas. Per-org NSP coordinators (CURATE their org's
-    -- roster, NOT implicitly readers) + enrolled PQS readers, for both orgs. The
-    -- coordinators are deliberately left UNENROLLED below so pgTAP proves "curate ≠
-    -- read until enrolled" (duty separation).
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c1', 'email', 'nspcoord.a@test.local', 'name', 'Coordenador NSP A',       'org', '0c000000-0000-0000-0000-00000000000a'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c2', 'email', 'pqs.a@test.local',      'name', 'NSP Rede A',              'org', '0c000000-0000-0000-0000-00000000000a'),
+    -- NSP-per-HOSPITAL (ADR 0052) personas. The roster + coordinator are PER-HOSPITAL.
+    -- nspcoord.a / pqs.a map to org-a's FIRST hospital (central-a) so the pre-existing
+    -- single-hospital suites (14a-d, 173) keep valid persona references. nspcoord.a2 /
+    -- pqs.a2 are NEW, for org-a's SECOND hospital (secundario-a) — proving per-hospital
+    -- isolation WITHIN one org. The coordinators are the local NSP heads (full
+    -- operators, decision 12); nspcoord.a is left UNENROLLED in its own roster to prove
+    -- a coordinator reads via the coordinator arm even without membership.
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c1', 'email', 'nspcoord.a@test.local', 'name', 'Coordenador NSP A1',      'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c2', 'email', 'pqs.a@test.local',      'name', 'NSP Central A',           'org', '0c000000-0000-0000-0000-00000000000a'),
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c3', 'email', 'nspcoord.b@test.local', 'name', 'Coordenador NSP B',       'org', '0c000000-0000-0000-0000-00000000000b'),
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c4', 'email', 'pqs.b@test.local',      'name', 'NSP Rede B',              'org', '0c000000-0000-0000-0000-00000000000b'),
+    -- org-a SECOND hospital (secundario-a) NSP personas (ADR 0052 §C):
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c5', 'email', 'nspcoord.a2@test.local', 'name', 'Coordenador NSP A2',     'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c6', 'email', 'pqs.a2@test.local',      'name', 'NSP Secundário A',       'org', '0c000000-0000-0000-0000-00000000000a'),
+    -- DUAL-HOSPITAL NSP operator who is ALSO a commission member (ADR 0052; closes two
+    -- E2E persona gaps): enrolled in BOTH central-a AND secundário-a rosters → the
+    -- multi-hospital NSP switcher (grants.length > 1 / resolveNspHospital >1 path); AND
+    -- a member of CCIH (central-a) → the "PQS operator reveals PHI via a source-endpoint
+    -- commission UI" arm. Does NOT touch any exact count assertion (roster/member counts
+    -- are per-persona or hospital-row counts; 189's pqs.a-not-in-secundário keystone is
+    -- a DIFFERENT persona).
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c7', 'email', 'pqsdual.a@test.local',   'name', 'NSP Dual A',             'org', '0c000000-0000-0000-0000-00000000000a'),
     -- User-registration lifecycle personas (org-a), for the directory + status
     -- badges + enforcement E2E. Their derived status is set by the status-patch
     -- block below (pending = clear email_confirmed_at; suspended = future
@@ -212,20 +226,24 @@ end $$;
 update public.organizations set created_by = '00000000-0000-0000-0000-0000000000b0'
 where id in ('0c000000-0000-0000-0000-00000000000a', '0c000000-0000-0000-0000-00000000000b');
 
-insert into public.organization_members (organization_id, user_id, role) values
+insert into public.organization_members (organization_id, user_id, role, hospital_id) values
   -- admin@test.local re-homed as org_admin of org-a; orgadmin.a as well (so both
   -- a legacy id and the named persona administer org-a). orgadmin.b runs org-b.
-  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000001', 'org_admin'),
-  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000b1', 'org_admin'),
-  ('0c000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000b2', 'org_admin'),
-  -- NSP-per-org (ADR 0042): a per-org nsp_coordinator for each org (CURATES the PQS
-  -- roster via add/remove_pqs_member; appointed by the org_admin). They are NOT
-  -- enrolled in pqs_members below — proving curate ≠ read (three-way duty separation).
-  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000c1', 'nsp_coordinator'),
-  ('0c000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000c3', 'nsp_coordinator'),
-  -- Hospital-admin tier (ADR 0051): nsp_org_admin of org-a (org-level, INERT this
-  -- phase — hospital_id defaults NULL, satisfying the Phase-A iff-CHECK).
-  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e2', 'nsp_org_admin');
+  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000001', 'org_admin', null),
+  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000b1', 'org_admin', null),
+  ('0c000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000b2', 'org_admin', null),
+  -- NSP-per-HOSPITAL (ADR 0052): the nsp_coordinator is now the LOCAL hospital NSP head
+  -- (full operator, decision 12), so the role row carries hospital_id. Appointed by the
+  -- org's nsp_org_admin. nspcoord.a heads central-a; nspcoord.a2 heads secundario-a;
+  -- nspcoord.b heads central-b. nspcoord.a is left UNENROLLED in central-a's roster
+  -- below — proving a coordinator reads via the coordinator arm even without membership.
+  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000c1', 'nsp_coordinator', '05000000-0000-0000-0000-00000000000a'),
+  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000c5', 'nsp_coordinator', '05000000-0000-0000-0000-0000000000a2'),
+  ('0c000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000c3', 'nsp_coordinator', '05000000-0000-0000-0000-00000000000b'),
+  -- NSP-per-hospital (ADR 0052): nsp_org_admin of org-a (org-level, ACTIVE now —
+  -- curates any hospital's roster + appoints coordinators + reads PHI-free aggregates;
+  -- enrolled in NO roster below, proving zero-PHI). hospital_id NULL (org-level).
+  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e2', 'nsp_org_admin', null);
 
 -- Hospital-admin rows carry hospital_id (the Phase-A iff-CHECK requires it).
 --   a1   -> central-a ONLY (isolation subject).
@@ -259,7 +277,12 @@ insert into public.commissions (id, name, slug, created_by, hospital_id) values
   -- Hospital-admin tier (ADR 0051): a commission under org-a's SECOND hospital
   -- (secundario-a). A hospital_admin of central-a ONLY must see ZERO rows of this
   -- commission (184 cross-hospital isolation keystone). Created by orgadmin.a.
-  ('e0000000-0000-0000-0000-0000000000e1', 'Comissão de Ética',                           'etica', '00000000-0000-0000-0000-0000000000b1', '05000000-0000-0000-0000-0000000000a2');
+  ('e0000000-0000-0000-0000-0000000000e1', 'Comissão de Ética',                           'etica', '00000000-0000-0000-0000-0000000000b1', '05000000-0000-0000-0000-0000000000a2'),
+  -- NSP-per-hospital (ADR 0052): a SECOND commission under secundario-a to HOST the
+  -- hospital-2 NSP fixtures (an event + the target of an intra-org CROSS-hospital
+  -- referral). A central-a NSP operator must get NOTHING on this hospital's PHI; the
+  -- secundario-a operator (pqs.a2 / nspcoord.a2) reads it (189 isolation keystone).
+  ('e0000000-0000-0000-0000-0000000000e2', 'Comissão de Segurança do Paciente A2',        'seguranca-a2', '00000000-0000-0000-0000-0000000000b1', '05000000-0000-0000-0000-0000000000a2');
 
 insert into public.commission_members (commission_id, user_id, role) values
   -- org-b commission staff_admin + staff (cross-org isolation personas).
@@ -268,6 +291,10 @@ insert into public.commission_members (commission_id, user_id, role) values
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000002', 'staff_admin'),
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000003', 'staff'),
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000004', 'staff'),
+  -- pqsdual.a: a plain CCIH (central-a) staff member who is ALSO a dual-hospital NSP
+  -- operator (enrolled in both central-a + secundário-a rosters below) — closes the
+  -- "PQS operator who is a commission member" + multi-hospital-switcher E2E gaps.
+  ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000c7', 'staff'),
   ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000005', 'staff_admin'),
   ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000006', 'staff'),
   ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000007', 'staff'),
@@ -1088,7 +1115,12 @@ declare
   v_comm_a   uuid := 'a0000000-0000-0000-0000-0000000000a1';  -- CCIH
   v_org_a    uuid := '0c000000-0000-0000-0000-00000000000a';  -- Rede A (CCIH's org)
   v_org_b    uuid := '0c000000-0000-0000-0000-00000000000b';  -- Rede B
-  v_pqs_a    uuid := '00000000-0000-0000-0000-0000000000c2';  -- pqs.a (enrolled, rede-a)
+  v_hosp_a1  uuid := '05000000-0000-0000-0000-00000000000a';  -- central-a (org-a hospital 1)
+  v_hosp_a2  uuid := '05000000-0000-0000-0000-0000000000a2';  -- secundario-a (org-a hospital 2)
+  v_hosp_b   uuid := '05000000-0000-0000-0000-00000000000b';  -- central-b (org-b hospital)
+  v_pqs_a    uuid := '00000000-0000-0000-0000-0000000000c2';  -- pqs.a (enrolled, central-a)
+  v_pqs_a2   uuid := '00000000-0000-0000-0000-0000000000c6';  -- pqs.a2 (enrolled, secundario-a)
+  v_pqs_dual uuid := '00000000-0000-0000-0000-0000000000c7';  -- pqsdual.a (both hospitals + CCIH member)
   v_pqs_b    uuid := '00000000-0000-0000-0000-0000000000c4';  -- pqs.b (enrolled, rede-b)
   v_comm_b_qual uuid := 'c0000000-0000-0000-0000-0000000000c1'; -- Qualidade B (rede-b)
   v_chefe_b_qual uuid := '00000000-0000-0000-0000-0000000000b2'; -- orgadmin.b (staff_admin Qualidade B)
@@ -1108,23 +1140,32 @@ declare
   v_capa_act uuid := 'caa00000-0000-0000-0000-0000000000a1';  -- a corrective action
   v_capa_meas uuid := 'cab00000-0000-0000-0000-0000000000a1'; -- a measure (hex-only)
 begin
-  -- NSP-per-org (ADR 0042): ONE pqs_department row PER ORG, with DELIBERATELY
-  -- DIFFERENT RCA due-windows (rede-a=45d, rede-b=30d) so pgTAP proves per-org config.
-  insert into public.pqs_department (organization_id, name, rca_default_due_days) values
-    (v_org_a, 'Núcleo de Segurança do Paciente — Rede A', 45),
-    (v_org_b, 'Núcleo de Segurança do Paciente — Rede B', 30);
+  -- NSP-per-HOSPITAL (ADR 0052): ONE pqs_department row PER HOSPITAL, with
+  -- DELIBERATELY DIFFERENT RCA due-windows so pgTAP proves per-hospital config
+  -- (central-a=45d, secundario-a=20d, central-b=30d).
+  insert into public.pqs_department (hospital_id, name, rca_default_due_days) values
+    (v_hosp_a1, 'Núcleo de Segurança do Paciente — Central A', 45),
+    (v_hosp_a2, 'Núcleo de Segurança do Paciente — Secundário A', 20),
+    (v_hosp_b,  'Núcleo de Segurança do Paciente — Central B', 30);
 
-  -- PER-ORG PQS rosters. Enrollment grants THAT org's PHI read.
-  --   rede-a: pqs.a (the named reader) + admin (so dev/E2E keep NSP access on org-a).
-  --   rede-b: pqs.b.
-  -- The per-org coordinators (nspcoord.a / nspcoord.b) are DELIBERATELY NOT enrolled
-  -- here — they can curate the roster but cannot read PHI until they enroll
-  -- themselves (duty separation; pgTAP asserts this).
-  insert into public.pqs_members (organization_id, user_id, added_by) values
-    (v_org_a, v_pqs_a, v_admin),
-    (v_org_a, v_admin, v_admin),
-    (v_org_b, v_pqs_b, v_admin)
-  on conflict (organization_id, user_id) do nothing;
+  -- PER-HOSPITAL PQS rosters. Enrollment grants THAT hospital's PHI read.
+  --   central-a: pqs.a (the named reader) + admin (so dev/E2E keep NSP access on
+  --     central-a). nspcoord.a (central-a's coordinator) is DELIBERATELY NOT enrolled
+  --     — it reads via the coordinator arm (full operator, decision 12), proving a
+  --     coordinator reads without membership.
+  --   secundario-a: pqs.a2 (the isolation subject — reads ONLY secundario-a's PHI).
+  --   central-b: pqs.b.
+  --   pqsdual.a: enrolled in BOTH central-a AND secundario-a → a dual-hospital operator
+  --     (the NSP switcher >1-grant path) who is ALSO a CCIH commission member.
+  -- nsporg.a (the org NSP-admin) is enrolled in NO roster — proving it reads ZERO PHI.
+  insert into public.pqs_members (hospital_id, user_id, added_by) values
+    (v_hosp_a1, v_pqs_a, v_admin),
+    (v_hosp_a1, v_admin, v_admin),
+    (v_hosp_a2, v_pqs_a2, v_admin),
+    (v_hosp_a1, v_pqs_dual, v_admin),
+    (v_hosp_a2, v_pqs_dual, v_admin),
+    (v_hosp_b,  v_pqs_b, v_admin)
+  on conflict (hospital_id, user_id) do nothing;
 
   -- Event 1 — CASE-LINKED, reported by a PLAIN staff member (just-culture),
   -- acknowledged by the NSP. Held by the NSP.
@@ -1335,6 +1376,39 @@ begin
     (v_evb, 'Paciente Rede B', 'PRT-B-0001', '1972-09-02', 'female',
      'ENC-B-2026-0007', 'Enfermaria B', 'Dra. Beatriz Lima');
   update public.patient_safety_event set has_patient = true where id = v_evb;
+
+  -- ── HOSPITAL-A2 event + isolated PHI (NSP-per-HOSPITAL isolation fixture) ───────
+  -- A stand-alone event reported by a SECUNDÁRIO-A commission (Segurança A2), held by
+  -- the NSP, with its own event_patient (distinct MRN 'PRT-A2-0001'). This is what a
+  -- CENTRAL-A NSP member (pqs.a) must get NOTHING on — the cross-HOSPITAL, SAME-ORG
+  -- PHI-isolation keystone — while a secundario-a operator (pqs.a2 / nspcoord.a2)
+  -- reads it. Its code mints per-hospital (secundario-a's own EV sequence → EV-0001).
+  -- reported_by = orgadmin.a (an org-a member).
+  insert into public.patient_safety_event
+    (id, reporting_commission_id, case_id, discovered_at, location, reported_by,
+     suspected_harm_level, title, description_md, status,
+     current_owner_kind, current_owner_commission_id, acknowledged_by, acknowledged_at)
+  values
+    ('e5000000-0000-0000-0000-0000000000a2', 'e0000000-0000-0000-0000-0000000000e2', null,
+     current_date - 2, 'Bloco Cirúrgico Secundário A', '00000000-0000-0000-0000-0000000000b1',
+     'moderate', 'Contagem cirúrgica divergente (Secundário A)',
+     E'## Descrição\n\nDivergência na contagem de compressas ao final do procedimento; '
+     || E'resolvida com radiografia. Notificado ao NSP do Hospital Secundário A.',
+     'acknowledged', 'pqs', null, '00000000-0000-0000-0000-0000000000b1', now() - interval '1 day');
+
+  insert into public.event_custody
+    (event_id, owner_kind, owner_commission_id, assigned_by, note)
+  values
+    ('e5000000-0000-0000-0000-0000000000a2', 'pqs', null,
+     '00000000-0000-0000-0000-0000000000b1', 'Notificação inicial ao NSP do Secundário A');
+
+  insert into public.event_patient
+    (event_id, name, mrn, date_of_birth, sex, encounter_ref, unit, attending)
+  values
+    ('e5000000-0000-0000-0000-0000000000a2', 'Paciente Secundário A', 'PRT-A2-0001',
+     '1965-04-18', 'male', 'ENC-A2-2026-0031', 'Bloco Cirúrgico', 'Dr. Otávio Nunes');
+  update public.patient_safety_event set has_patient = true
+    where id = 'e5000000-0000-0000-0000-0000000000a2';
 end $$;
 
 -- ===========================================================================
@@ -1546,6 +1620,62 @@ begin
   -- commission_id resolved to the rede-b commissions -> rede-b org. No manual
   -- patient_xref insert is needed (and the rede-a synthetic PRT-0099123 from
   -- section 10 stays a rede-a-only set).
+end $$;
+
+-- ===========================================================================
+-- 11b. INTRA-ORG CROSS-HOSPITAL REFERRAL (NSP-per-hospital, ADR 0052 dec. 14)
+-- ===========================================================================
+-- A referral from CENTRAL-A's CCIH (source) to SECUNDÁRIO-A's Segurança A2 (target)
+-- — SAME org, DIFFERENT hospitals (legal: create_referral_draft forbids only
+-- CROSS-ORG). Isolated referral_patient PHI (distinct MRN 'PRT-A2-0002'). The
+-- DUAL-HOSPITAL keystone: BOTH the source hospital's NSP (central-a: pqs.a /
+-- nspcoord.a) AND the target hospital's NSP (secundario-a: pqs.a2 / nspcoord.a2)
+-- read this referral's PHI; an org-B NSP member gets NOTHING. Mints ENC-0004 on the
+-- GLOBAL sequence. Direct superuser inserts (RPCs gate on auth.uid()).
+do $$
+declare
+  v_comm_src  uuid := 'a0000000-0000-0000-0000-0000000000a1';  -- CCIH (central-a, source)
+  v_comm_tgt  uuid := 'e0000000-0000-0000-0000-0000000000e2';  -- Segurança A2 (secundario-a, target)
+  v_coord_src uuid := '00000000-0000-0000-0000-000000000002';  -- chefe.ccih (staff_admin CCIH)
+  v_src_case  uuid := 'dc000000-0000-0000-0000-0000000000a2';  -- an org-a source case (CCIH)
+  v_narr_a2   uuid := 'a2200000-0000-0000-0000-0000000000a2';  -- a narrative to snapshot
+  v_type_par  uuid;                                            -- 'parecer' (reply-expected)
+  v_ref_x     uuid := 'efa00000-0000-0000-0000-0000000000a4';  -- ENC-0004 (cross-hospital)
+begin
+  select id into v_type_par from public.referral_types where key = 'parecer';
+
+  insert into public.cases (id, commission_id, case_number, label, status, created_by)
+  values (v_src_case, v_comm_src, 9201, 'Análise de incidente — Central A', 'nao_iniciado', v_coord_src);
+
+  insert into public.case_narratives
+    (id, case_id, type_label, display_position, title, body_md, created_by, assigned_to, status)
+  values (v_narr_a2, v_src_case, 'Resumo', 1, 'Resumo do incidente',
+          E'Resumo do incidente de infecção para parecer da Segurança do Paciente A2.',
+          v_coord_src, v_coord_src, 'aberta');
+
+  perform set_config('app.in_referral_rpc', 'on', true);
+  insert into public.case_referral
+    (id, source_case_id, source_commission_id, target_commission_id, referral_type_id,
+     type_label, subject, response_expected, created_by, status, sent_at, sent_by)
+  values
+    (v_ref_x, v_src_case, v_comm_src, v_comm_tgt, v_type_par, 'Parecer',
+     'Parecer sobre protocolo entre hospitais — Rede A', true, v_coord_src,
+     'enviada', now() - interval '1 day', v_coord_src);
+
+  insert into public.referral_shared_item
+    (referral_id, kind, source_narrative_id, frozen_title, frozen_body_md, position)
+  values
+    (v_ref_x, 'narrative', v_narr_a2, 'Resumo do incidente',
+     E'Resumo do incidente de infecção para parecer entre hospitais.', 0);
+
+  -- Isolated referral_patient PHI (distinct MRN). Read by BOTH endpoint hospitals' NSPs.
+  insert into public.referral_patient
+    (referral_id, name, mrn, age_years, sex, encounter_ref, unit, attending)
+  values
+    (v_ref_x, 'Paciente Entre-Hospitais A', 'PRT-A2-0002', 63, 'male', 'ENC-A2-2026-0044',
+     'Clínica Médica', 'Dr. Otávio Nunes');
+  update public.case_referral set has_patient = true where id = v_ref_x;
+  perform set_config('app.in_referral_rpc', 'off', true);
 end $$;
 
 -- answer-model-v2: drop the seed-only selection helper.

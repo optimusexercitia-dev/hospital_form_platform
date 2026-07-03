@@ -7,23 +7,27 @@ import { referralsEnabled } from "@/lib/queries/referrals";
 import { patientIndexEnabled } from "@/lib/queries/patient-index";
 import { UserMenu } from "@/components/shell/user-menu";
 import { NspConsoleNav } from "@/components/shell/nsp-console-nav";
+import { NspHospitalSwitcher } from "@/components/shell/nsp-hospital-switcher";
 
 /**
- * Per-org NSP (Núcleo de Segurança do Paciente) console shell. Server Component.
+ * Hospital-scoped NSP (Núcleo de Segurança do Paciente) console shell (NSP-per-
+ * hospital, ADR 0052). Server Component.
  *
  * Access is enforced HERE on the server, not by hiding the menu. The gate is
- * `getNspAccessByOrg(org)` = the caller is an enrolled PQS member of THIS org
- * OR its `nsp_coordinator` (NSP-per-org, ADR 0042). A platform admin and an
- * unenrolled, non-coordinator org_admin both get `notFound()` — the NSP console
- * is duty-separated from org administration. RLS + the per-org DEFINER doors
- * remain the ultimate data boundary; this gate keeps non-members out of the UI
- * and resolves the org's display name + slug for the shell.
+ * `getNspAccessByOrg(org)` = the caller OPERATES the NSP of ≥1 hospital in THIS
+ * org — an enrolled `pqs_member` OR appointed `nsp_coordinator` of some hospital
+ * (the resolver reports `access.hospitals`, the caller's per-hospital grants). A
+ * platform admin and an unenrolled, non-coordinator org_admin both get
+ * `notFound()` — the NSP console is duty-separated from org administration. RLS +
+ * the per-HOSPITAL DEFINER doors remain the ultimate data boundary; each page
+ * re-resolves the specific `?hospital=` and passes that hospital id to the doors.
  *
- * The two returned booleans drive the nav (the data doors are the real
- * boundary): the PHI surfaces show only to an enrolled `isPqsMember`; the
- * roster-curation entry only to the `isCoordinator`. A coordinator who is not
- * also enrolled reaches the console but sees only the roster entry — they curate
- * the roster (and may enroll themselves to read).
+ * When the caller operates more than one hospital's NSP, a hospital switcher
+ * (`?hospital=` deep link) appears in the header. The org-level `isPqsMember` /
+ * `isCoordinator` booleans drive the nav (the data doors are the real boundary):
+ * the PHI surfaces show while the caller operates ≥1 hospital; the roster-curation
+ * entry shows while they coordinate ≥1 hospital. The switcher/nav select which
+ * hospital the surfaces act on.
  */
 export default async function NspConsoleLayout({
   children,
@@ -36,12 +40,14 @@ export default async function NspConsoleLayout({
   const access = await getNspAccessByOrg(org);
 
   if (!access) {
-    // Unknown org OR not a PQS member/coordinator of it — indistinguishable by
-    // design, both 404 and leak nothing about which organizations exist.
+    // Unknown org OR the caller operates no hospital's NSP in it —
+    // indistinguishable by design, both 404 and leak nothing about which
+    // organizations exist.
     notFound();
   }
 
-  const { context, organization, isPqsMember, isCoordinator } = access;
+  const { context, organization, isPqsMember, isCoordinator, hospitals } =
+    access;
 
   // Feature flags gate the flag-dependent nav entries (Encaminhamentos /
   // Pacientes). PHI-free reads; fail-closed to `false`.
@@ -75,6 +81,9 @@ export default async function NspConsoleLayout({
           >
             NSP
           </span>
+          {hospitals.length > 1 ? (
+            <NspHospitalSwitcher grants={hospitals} />
+          ) : null}
           <NspConsoleNav
             org={organization.slug}
             isPqsMember={isPqsMember}
