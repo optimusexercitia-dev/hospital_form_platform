@@ -5914,7 +5914,7 @@ export type Database = {
         Returns: undefined
       }
       assign_member_title: {
-        Args: { p_member_id: string; p_title_id: string }
+        Args: { p_member_id: string; p_title_id?: string }
         Returns: undefined
       }
       assign_narrative: {

@@ -137,7 +137,13 @@ export async function getSessionContext(): Promise<SessionContext | null> {
   // full_name + memberships in two RLS-scoped DB reads (PostgREST verifies the
   // JWT locally — no GoTrue call). `profiles` is readable for self;
   // `commission_members` is joined to `commissions` and filtered to the caller.
-  const [profileResult, membershipResult, orgAdminResult] = await Promise.all([
+  const [
+    profileResult,
+    membershipResult,
+    orgAdminResult,
+    hospitalAdminResult,
+    nspOrgAdminResult,
+  ] = await Promise.all([
     supabase
       .from('profiles')
       .select(
@@ -159,6 +165,23 @@ export async function getSessionContext(): Promise<SessionContext | null> {
       .select('organization:organizations(id, slug, name)')
       .eq('user_id', userId)
       .eq('role', 'org_admin'),
+    // Hospitals the caller is hospital_admin of (ADR 0051). The self-read RLS arm
+    // (20260709000500) lets the caller read its OWN grant rows; each carries the
+    // org + hospital so `adminedHospitals`/`isHospitalAdmin` resolve without a
+    // second hop. hospital_admin rows always have hospital_id set (the iff-CHECK).
+    supabase
+      .from('organization_members')
+      .select(
+        'organization:organizations(id, slug, name), hospital:hospitals(id, slug, name, organization_id)',
+      )
+      .eq('user_id', userId)
+      .eq('role', 'hospital_admin'),
+    // Orgs the caller is nsp_org_admin of (ADR 0051; inert until Phase B, shape now).
+    supabase
+      .from('organization_members')
+      .select('organization:organizations(id, slug, name)')
+      .eq('user_id', userId)
+      .eq('role', 'nsp_org_admin'),
   ])
 
   const memberships: Membership[] = (membershipResult.data ?? [])
@@ -185,6 +208,45 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     )
 
   const orgAdminOf: OrgAdminMembership[] = (orgAdminResult.data ?? [])
+    .filter(
+      (row): row is { organization: OrganizationRef } =>
+        row.organization !== null,
+    )
+    .map((row) => ({ organization: row.organization }))
+    .sort((a, b) =>
+      a.organization.name.localeCompare(b.organization.name, 'pt-BR'),
+    )
+
+  // The embedded `hospital` comes back snake_cased (organization_id); map it to
+  // the camelCase HospitalRef the SessionContext exposes.
+  const hospitalAdminOf: HospitalAdminMembership[] = (
+    hospitalAdminResult.data ?? []
+  )
+    .filter(
+      (
+        row,
+      ): row is {
+        organization: OrganizationRef
+        hospital: {
+          id: string
+          slug: string
+          name: string
+          organization_id: string
+        }
+      } => row.organization !== null && row.hospital !== null,
+    )
+    .map((row) => ({
+      organization: row.organization,
+      hospital: {
+        id: row.hospital.id,
+        slug: row.hospital.slug,
+        name: row.hospital.name,
+        organizationId: row.hospital.organization_id,
+      },
+    }))
+    .sort((a, b) => a.hospital.name.localeCompare(b.hospital.name, 'pt-BR'))
+
+  const nspOrgAdminOf: OrgAdminMembership[] = (nspOrgAdminResult.data ?? [])
     .filter(
       (row): row is { organization: OrganizationRef } =>
         row.organization !== null,
@@ -221,12 +283,8 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     mustChangePassword,
     memberships,
     orgAdminOf,
-    // A0 seam: the real hospital_admin / nsp_org_admin reads (parallel
-    // `organization_members` reads keyed on the new `role`/`hospital_id`) land in
-    // A4/A5 once the schema exists. Default to `[]` so every existing caller
-    // typechecks and `getSessionContext` still returns a valid object.
-    hospitalAdminOf: [],
-    nspOrgAdminOf: [],
+    hospitalAdminOf,
+    nspOrgAdminOf,
   }
 }
 

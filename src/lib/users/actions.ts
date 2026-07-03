@@ -113,6 +113,7 @@ const MESSAGES = {
     'Este registro profissional já está cadastrado (órgão, UF e número).',
   missingUser: 'Usuário não encontrado.',
   missingCommission: 'Comissão não encontrada.',
+  missingHospital: 'Selecione o hospital do novo usuário.',
   // ON (email-verification) path: the user activates via an emailed link.
   registeredInvited:
     'Pessoa registrada. Um e-mail foi enviado para ativar a conta.',
@@ -158,10 +159,66 @@ async function authorizeOrgOps(orgId: string): Promise<boolean> {
 }
 
 /**
- * Resolve the target user's home org, then authorize the caller as its org_admin.
- * Used by the per-user lifecycle/credential/committee actions, which take a
- * `userId` rather than an org id. Reads the profile on the service-role client so
- * a foreign caller (who could not SELECT the row) still gets a correct deny.
+ * Authorize a HOSPITAL-scoped user-management action (ADR 0051 Decision 7): the
+ * caller must be a `hospital_admin` of `hospitalId`. Returns false otherwise.
+ * Amendment 11: the service-role path has NO RLS backstop, so this TS check is
+ * the only authority — the client is never trusted.
+ */
+async function authorizeHospitalOps(hospitalId: string): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context) return false
+  if (context.isInactive) return false
+  return context.hospitalAdminOf.some((h) => h.hospital.id === hospitalId)
+}
+
+/**
+ * Whether the caller (as a `hospital_admin`) may manage `userId` — i.e. the user
+ * belongs to a hospital the caller administers. "Belongs to a hospital" =
+ * `home_hospital_id` matches, OR the user is a member of any commission under
+ * that hospital (Decision 7 / Q2 scope: home hospital + commission membership).
+ * All reads run on the service-role client (a foreign caller could not SELECT
+ * these rows under RLS, so the DB is not the authority here — this TS scope IS).
+ */
+async function callerHospitalAdminMayManageUser(
+  userId: string,
+): Promise<boolean> {
+  const context = await getSessionContext()
+  if (!context || context.isInactive) return false
+  const adminedHospitalIds = new Set(
+    context.hospitalAdminOf.map((h) => h.hospital.id),
+  )
+  if (adminedHospitalIds.size === 0) return false
+
+  const admin = createAdminClient()
+
+  // (a) home_hospital_id match.
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('home_hospital_id')
+    .eq('id', userId)
+    .maybeSingle()
+  if (profile?.home_hospital_id && adminedHospitalIds.has(profile.home_hospital_id)) {
+    return true
+  }
+
+  // (b) membership in any commission under an admined hospital.
+  const { data: memberships } = await admin
+    .from('commission_members')
+    .select('commissions:commission_id(hospital_id)')
+    .eq('user_id', userId)
+    .returns<{ commissions: { hospital_id: string } | null }[]>()
+  return (memberships ?? []).some(
+    (m) => m.commissions && adminedHospitalIds.has(m.commissions.hospital_id),
+  )
+}
+
+/**
+ * Resolve the target user's home org, then authorize the caller — as an
+ * `org_admin` of that org OR (ADR 0051) as a `hospital_admin` who may manage the
+ * user (its home hospital / a commission of that hospital). Used by the per-user
+ * lifecycle/credential/committee actions, which take a `userId` rather than an
+ * org id. Reads the profile on the service-role client so a foreign caller (who
+ * could not SELECT the row) still gets a correct deny.
  */
 async function authorizeForUser(
   userId: string,
@@ -174,22 +231,34 @@ async function authorizeForUser(
     .maybeSingle()
   const orgId = data?.home_organization_id ?? undefined
   if (!orgId) return { ok: false }
-  return { ok: await authorizeOrgOps(orgId), orgId }
+  if (await authorizeOrgOps(orgId)) return { ok: true, orgId }
+  // ADR 0051 hospital arm: a hospital_admin may manage its own hospital's users.
+  if (await callerHospitalAdminMayManageUser(userId)) return { ok: true, orgId }
+  return { ok: false, orgId }
 }
 
-/** Resolve the target commission's org, then authorize the caller as its org_admin. */
+/**
+ * Resolve the target commission's org + hospital, then authorize the caller as an
+ * `org_admin` of the org OR (ADR 0051) a `hospital_admin` of the commission's
+ * hospital — the TS mirror of `is_commission_admin_of`. A hospital_admin may thus
+ * assign staff only to commissions of ITS OWN hospital; a sibling hospital's
+ * commission resolves to a different hospital_id and denies.
+ */
 async function authorizeForCommission(
   commissionId: string,
 ): Promise<boolean> {
   const admin = createAdminClient()
   const { data } = await admin
     .from('commissions')
-    .select('organization_id')
+    .select('organization_id, hospital_id')
     .eq('id', commissionId)
     .maybeSingle()
   const orgId = data?.organization_id ?? undefined
+  const hospitalId = data?.hospital_id ?? undefined
   if (!orgId) return false
-  return authorizeOrgOps(orgId)
+  if (await authorizeOrgOps(orgId)) return true
+  if (hospitalId && (await authorizeHospitalOps(hospitalId))) return true
+  return false
 }
 
 function revalidateDirectory(): void {
@@ -223,8 +292,51 @@ export async function registerUser(
   const fullName = input.fullName.trim()
   const email = input.email.trim().toLowerCase()
 
-  if (!(await authorizeOrgOps(input.homeOrganizationId))) {
+  // Authorize the caller as EITHER an org_admin of the target org OR (ADR 0051
+  // Decision 7) a hospital_admin onboarding into ITS OWN hospital. Amendment 11:
+  // the service-role path has no RLS backstop — this TS gate is the sole
+  // authority, and the client is never trusted for the home-hospital anchor.
+  const context = await getSessionContext()
+  if (!context || context.isInactive) {
     return { ok: false, error: MESSAGES.forbidden }
+  }
+  const isOrgAdminCaller = context.orgAdminOf.some(
+    (o) => o.organization.id === input.homeOrganizationId,
+  )
+
+  // effectiveHomeHospitalId is what we WILL write. For an org_admin it is the
+  // (client-supplied) input value; for a hospital_admin it is HARD-SET server-side
+  // to the caller's administered hospital — never trusted from formData.
+  let effectiveHomeHospitalId: string | null = input.homeHospitalId ?? null
+
+  if (!isOrgAdminCaller) {
+    // Hospital-admin path. The caller must administer a hospital IN the target org.
+    const orgHospitals = context.hospitalAdminOf.filter(
+      (h) => h.organization.id === input.homeOrganizationId,
+    )
+    if (orgHospitals.length === 0) {
+      return { ok: false, error: MESSAGES.forbidden }
+    }
+    // Resolve the ONE target hospital. If the client supplied a home hospital, it
+    // MUST be one the caller administers (reject a different hospital — amendment
+    // 11). If omitted, only a single-hospital admin is unambiguous.
+    if (input.homeHospitalId) {
+      const administersRequested = orgHospitals.some(
+        (h) => h.hospital.id === input.homeHospitalId,
+      )
+      if (!administersRequested) {
+        return { ok: false, error: MESSAGES.forbidden }
+      }
+      effectiveHomeHospitalId = input.homeHospitalId
+    } else if (orgHospitals.length === 1) {
+      effectiveHomeHospitalId = orgHospitals[0].hospital.id
+    } else {
+      // Ambiguous: a multi-hospital admin must name which hospital to onboard into.
+      return { ok: false, fieldErrors: { homeHospitalId: MESSAGES.missingHospital } }
+    }
+    // A hospital_admin may only seed committees of ITS OWN hospital (checked below,
+    // per committee). It cannot grant org roles — this path never writes
+    // organization_members.
   }
 
   const emailVerification = isEmailVerificationEnabled()
@@ -317,7 +429,10 @@ export async function registerUser(
     .update({
       full_name: fullName,
       professional_category_id: input.professionalCategoryId,
-      home_hospital_id: input.homeHospitalId ?? null,
+      // effectiveHomeHospitalId: for a hospital_admin this is the SERVER-SET
+      // administered hospital (never the raw formData value); for an org_admin it
+      // is the client-supplied input (amendment 11).
+      home_hospital_id: effectiveHomeHospitalId,
       hospital_employee_id: input.hospitalEmployeeId ?? null,
       // Flag-OFF path only: the admin set the initial password, so force the user
       // to rotate it at /primeiro-acesso before using the app (ADR 0049). The
@@ -362,6 +477,34 @@ export async function registerUser(
   // Committee memberships (optional). Idempotent per (commission, user).
   const committees = input.committees ?? []
   if (committees.length > 0) {
+    // A hospital_admin may only seed committees of ITS OWN hospital (amendment
+    // 11 — a sibling hospital's / other org's commission is rejected). An
+    // org_admin may seed any commission in its org (existing behavior). Verify
+    // every requested commission's hospital server-side against the admined set.
+    if (!isOrgAdminCaller) {
+      const adminedHospitalIds = new Set(
+        context.hospitalAdminOf.map((h) => h.hospital.id),
+      )
+      const { data: commRows } = await admin
+        .from('commissions')
+        .select('id, hospital_id')
+        .in(
+          'id',
+          committees.map((c) => c.commissionId),
+        )
+        .returns<{ id: string; hospital_id: string }[]>()
+      const hospitalByCommission = new Map(
+        (commRows ?? []).map((r) => [r.id, r.hospital_id]),
+      )
+      const allWithinHospital = committees.every((c) => {
+        const h = hospitalByCommission.get(c.commissionId)
+        return h !== undefined && adminedHospitalIds.has(h)
+      })
+      if (!allWithinHospital) {
+        return { ok: false, error: MESSAGES.forbidden }
+      }
+    }
+
     const { error: memberError } = await admin
       .from('commission_members')
       .upsert(

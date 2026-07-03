@@ -13,23 +13,28 @@ import type {
  * negative here can never grant access the DB denies, and a false positive here
  * is caught at every data door by RLS.
  *
- * They are PURE functions over the already-resolved context (no I/O), so they
- * return harmless defaults (`false` / `[]`) as A0 stubs and do NOT throw.
+ * They are PURE functions over the already-resolved context (no I/O): they read
+ * the `orgAdminOf` / `hospitalAdminOf` grants that `getSessionContext` resolved
+ * (ADR 0051) and never throw.
  */
 
 /**
  * Whether the caller is an ADMIN of the given commission — the TS mirror of
  * `app.is_commission_admin_of(commission)` = `org_admin` of the commission's org
- * OR `hospital_admin` of the commission's hospital (ADR 0051 Decision 3). Platform
- * admins are admins of every commission. The commission is identified by its
- * denormalized `organizationId` + `hospitalId` (both NOT NULL on `commissions`).
+ * OR `hospital_admin` of the commission's hospital (ADR 0051 Decision 3). The
+ * commission is identified by its denormalized `organizationId` + `hospitalId`
+ * (both NOT NULL on `commissions`). NOTE: platform admins are NOT treated as
+ * commission admins here (vendor isolation, ADR 0041) — `ctx.isAdmin` is a
+ * separate signal; the DB predicate likewise has no is_admin fallback.
  */
 export function isCommissionAdmin(
-  _ctx: SessionContext,
-  _commission: { organizationId: string; hospitalId: string },
+  ctx: SessionContext,
+  commission: { organizationId: string; hospitalId: string },
 ): boolean {
-  // A0 stub — real derivation lands with the session wiring in A4/A5.
-  return false
+  return (
+    ctx.orgAdminOf.some((o) => o.organization.id === commission.organizationId) ||
+    ctx.hospitalAdminOf.some((h) => h.hospital.id === commission.hospitalId)
+  )
 }
 
 /**
@@ -38,24 +43,25 @@ export function isCommissionAdmin(
  * hospital_admins here (admin standing is surfaced via `ctx.isAdmin` separately).
  */
 export function isHospitalAdmin(
-  _ctx: SessionContext,
-  _hospitalId: string,
+  ctx: SessionContext,
+  hospitalId: string,
 ): boolean {
-  // A0 stub — real derivation lands with the session wiring in A4/A5.
-  return false
+  return ctx.hospitalAdminOf.some((h) => h.hospital.id === hospitalId)
 }
 
 /**
  * The hospitals under `orgId` that the caller administers as `hospital_admin`,
  * for the `/o/[org]/manage` hospital switcher (ADR 0051 Decision 7). Sorted by
- * hospital.name (pt-BR). Empty when the caller administers none in that org.
+ * hospital.name (pt-BR) — `hospitalAdminOf` is already so sorted. Empty when the
+ * caller administers none in that org.
  */
 export function adminedHospitals(
-  _ctx: SessionContext,
-  _orgId: string,
+  ctx: SessionContext,
+  orgId: string,
 ): HospitalRef[] {
-  // A0 stub — real derivation lands with the session wiring in A4/A5.
-  return []
+  return ctx.hospitalAdminOf
+    .filter((h) => h.organization.id === orgId)
+    .map((h) => h.hospital)
 }
 
 // Re-exported for co-located consumers that only import from this module.

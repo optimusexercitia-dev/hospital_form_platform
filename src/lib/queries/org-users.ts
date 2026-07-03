@@ -127,11 +127,88 @@ export async function listOrgUsers(
  * `home_hospital_id`) lands in A4/A5 once the hospital-admin RLS path exists.
  */
 export async function listHospitalUsers(
-  _hospitalId: string,
-  _search: string,
-  _paging: Paging,
+  hospitalId: string,
+  search: string,
+  paging: Paging,
 ): Promise<OrgUserPage> {
-  throw new Error('not implemented')
+  const supabase = await createClient()
+
+  // The hospital's user set = home-anchored to the hospital ∪ members of any
+  // commission under the hospital (Q2 scope). Resolve the commission-membership
+  // arm's user ids first (RLS-scoped: a hospital_admin reads its hospital's
+  // commissions + their members), then page `profiles` filtered to
+  // home_hospital_id = hospitalId OR id IN that set — all under the profiles RLS
+  // hospital_admin arm (migration 20260709000600), so a non-admin gets empty.
+  const { data: commRows } = await supabase
+    .from('commissions')
+    .select('id')
+    .eq('hospital_id', hospitalId)
+    .returns<{ id: string }[]>()
+  const commissionIds = (commRows ?? []).map((c) => c.id)
+
+  const memberUserIds = new Set<string>()
+  if (commissionIds.length > 0) {
+    const { data: memberRows } = await supabase
+      .from('commission_members')
+      .select('user_id')
+      .in('commission_id', commissionIds)
+      .returns<{ user_id: string }[]>()
+    for (const m of memberRows ?? []) memberUserIds.add(m.user_id)
+  }
+
+  const from = paging.page * paging.pageSize
+  const to = from + paging.pageSize - 1
+
+  // home_hospital match OR membership in the hospital's commissions. `.or` on the
+  // id-set is built only when the set is non-empty (an empty in.() is invalid).
+  let query = supabase.from('profiles').select(PROFILE_SELECT, { count: 'exact' })
+  if (memberUserIds.size > 0) {
+    const idList = Array.from(memberUserIds).join(',')
+    query = query.or(`home_hospital_id.eq.${hospitalId},id.in.(${idList})`)
+  } else {
+    query = query.eq('home_hospital_id', hospitalId)
+  }
+
+  const term = search.trim()
+  if (term) {
+    const escaped = term.replace(/[%,()]/g, '')
+    // Combine with the hospital-scope filter via an AND-ed .or on name/email.
+    query = query.or(`full_name.ilike.%${escaped}%,email.ilike.%${escaped}%`)
+  }
+
+  const { data, count, error } = await query
+    .order('full_name', { ascending: true, nullsFirst: false })
+    .range(from, to)
+
+  if (error) throw error
+
+  const rows = (data ?? []) as unknown as ProfileRow[]
+
+  // Committee counts for the page's users (one RLS-scoped read, grouped in TS).
+  const ids = rows.map((r) => r.id)
+  const counts = new Map<string, number>()
+  if (ids.length > 0) {
+    const { data: memberships, error: mErr } = await supabase
+      .from('commission_members')
+      .select('user_id')
+      .in('user_id', ids)
+    if (mErr) throw mErr
+    for (const m of memberships ?? []) {
+      counts.set(m.user_id, (counts.get(m.user_id) ?? 0) + 1)
+    }
+  }
+
+  const items: OrgUserListItem[] = rows.map((r) => ({
+    id: r.id,
+    fullName: r.full_name,
+    email: r.email,
+    categoryLabel: r.category?.label_pt ?? null,
+    status: deriveUserStatus(r.is_active, r.suspended_until, r.email_confirmed_at),
+    homeHospitalName: r.hospital?.name ?? null,
+    committeeCount: counts.get(r.id) ?? 0,
+  }))
+
+  return { rows: items, total: count ?? items.length }
 }
 
 /**

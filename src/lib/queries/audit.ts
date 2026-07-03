@@ -494,13 +494,40 @@ export async function listAuditForOrg(
  * empty for a caller who is not a hospital_admin of `hospitalId` (nor org_admin of
  * its org). Same shape/pagination as {@link listAudit} / {@link listAuditForOrg}.
  *
- * A0 stub — impl in A3/A5 once the hospital-tier `audit_log_select` path exists.
  */
 export async function listAuditForHospital(
-  _hospitalId: string,
-  _filters: AuditFilters,
+  hospitalId: string,
+  filters: AuditFilters,
 ): Promise<AuditPage> {
-  throw new Error('not implemented')
+  const supabase = await createClient()
+
+  const page = Math.max(1, filters.page ?? 1)
+  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, filters.pageSize ?? DEFAULT_PAGE_SIZE))
+  const offset = (page - 1) * pageSize
+
+  let query = supabase
+    .from('audit_log')
+    .select(AUDIT_SELECT, { count: 'exact' })
+    .eq('hospital_id', hospitalId)
+
+  if (filters.actorId) query = query.eq('actor_id', filters.actorId)
+  if (filters.action) query = query.eq('action', filters.action)
+  if (filters.entityType) query = query.eq('entity_type', filters.entityType)
+  if (filters.from) query = query.gte('occurred_at', filters.from)
+  if (filters.to) query = query.lte('occurred_at', `${filters.to}T23:59:59.999Z`)
+
+  const { data, count } = await query
+    .order('occurred_at', { ascending: false })
+    .order('seq', { ascending: false })
+    .range(offset, offset + pageSize - 1)
+    .returns<AuditListRow[]>()
+
+  return {
+    entries: (data ?? []).map(mapAuditRow),
+    total: count ?? 0,
+    page,
+    pageSize,
+  }
 }
 
 /**
