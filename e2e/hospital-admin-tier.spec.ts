@@ -502,20 +502,31 @@ test.describe('HA-5: Hospital-tier audit — hospital_admin reads its chain only
     await expect(page.getByText(/Comissão de Ética/i)).not.toBeVisible()
   })
 
-  test('the "Verificar integridade" control is present but SAFELY DISABLED for hospital scope (documented KNOWN GAP — never mis-scopes to the platform chain)', async ({ page }) => {
+  test('the "Verificar integridade" control is ENABLED for hospital scope and returns an OK verdict for the hospital chain (MAJOR-1)', async ({ page }) => {
     await signInAs(page, 'hospitaladmin.a1@test.local')
     await page.goto('/o/rede-a/manage/audit', { waitUntil: 'networkidle' })
 
+    // MAJOR-1 (frontend `189ead7`): the stale `blockedByMissingHospitalSupport`
+    // guard was removed and `run()` now threads `{ hospitalId }` to the wired
+    // `verifyAuditChainAction`. So the control is ENABLED (not "…disponível em
+    // breve") and verifies the HOSPITAL chain. Assert enabled → click → OK
+    // verdict, mirroring phase13-audit AC-7b's success-state assertion.
     const button = page.getByRole('button', { name: /verificar integridade/i })
     await expect(button).toBeVisible({ timeout: 10_000 })
-    // KNOWN GAP (documented in AuditIntegrityCheck): `verifyAuditChainAction`'s
-    // scope union has NOT been widened to accept a `hospitalId`. Rather than
-    // silently verify the WRONG (platform) chain, the component deliberately
-    // renders the control DISABLED when a `hospitalId` scope is passed
-    // (`blockedByMissingHospitalSupport`). That is the correct, safe behavior for
-    // the hospital tier this phase — so assert the control is present but disabled
-    // (it never fires a mis-scoped verification), not that it returns a verdict.
-    await expect(button).toBeDisabled()
+    await expect(button).toBeEnabled()
+
+    await button.click()
+
+    // Success verdict: role="status" (OK chain; escalates to role="alert" only on
+    // a detected tamper), announcing `AUDIT_MESSAGES.chainOk`.
+    const status = page
+      .getByRole('status')
+      .filter({ hasText: /integridade verificada/i })
+    await expect(status).toBeVisible({ timeout: 10_000 })
+    await expect(status).toContainText(/trilha está intacta/i)
+    // No tamper/failure verdict, and no "disabled/coming-soon" affordance remains.
+    await expect(page.getByText(/falha de integridade/i)).toHaveCount(0)
+    await expect(page.getByText(/dispon[íi]vel em breve/i)).toHaveCount(0)
   })
 
   test('hospitaladmin.a1 does NOT see rede-b entries on its audit page (cross-org)', async ({ page }) => {
