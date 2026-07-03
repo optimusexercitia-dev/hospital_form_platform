@@ -148,6 +148,24 @@ gate — per-hospital PHI isolation proven in SQL) **then frontend**. Design →
   (`src/app/**`, `src/components/**`) are intermixed. **Plan:** each teammate commits ONLY its own paths
   (explicit list, NOT `git add -A`) so ownership stays clean — backend commits its set on B1–B5 report;
   frontend commits its set after the union-drop. Lead commits PROGRESS.md separately.
+- **B1–B4 landed + security core PROVEN (backend) 2026-07-03.** Migration `20260710000000` applies
+  clean; **catalog sweep = zero residual per-org PQS symbols**. **`189_nsp_per_hospital_isolation`
+  PASSES — 42 keystones**: cross-hospital same-org PHI isolation (A1 op gets null on A2 PHI across
+  every door), coordinator-as-operator (unenrolled), **`nsp_org_admin` ZERO-PHI on every door +
+  PHI-free aggregate SELECT lists asserted**, dual-hospital referral read by both endpoints (cross-org
+  denied), disposal + `get_referral_patient`→null after, per-hospital EV + config. **7 single-hospital
+  suites re-keyed + green (274 subtests, byte-identical).** Whole-repo `tsc`/`eslint` = 0.
+  **Follow-ups both RESOLVED:** org-wide reader `listOrgEligibleUsers(orgId)` (RPC
+  `list_org_eligible_users`, gated `is_org_admin_of OR is_nsp_org_admin_of`, incl. org-level-only
+  users) landed → relayed to FE to drop the union; dispose enum confirmed = shared `PhiDisposeReason`.
+  **B5 finishing:** `145`+`176` re-key + full-suite green declaration + `backend-state.md`.
+- **DISPOSE-GATE RULING (lead) — dual-hospital dispose ACCEPTED (ADR 0052 §6 amended).** Backend
+  widened `dispose_referral_phi` from source-only (my original ADR wording) to **either endpoint
+  hospital's operator**, symmetric with the dual-hospital READ (decision 14). Accepted: LGPD erasure
+  follows custody (either custodian hospital may honor an erasure request over PHI in its custody);
+  low-risk because the door erases only the PHI graph and **preserves the non-PHI referral record**
+  (ENC/structural/audit) → CFM 20-yr retention intact; audited at hospital tier; cross-org still
+  forbidden so "either endpoint" is always intra-org. Surfaced to human for veto.
 - **Plan gate:** B0 was a **full** plan review (security-critical re-key touching RLS + PHI doors),
   spawned `acceptEdits` + plan-first-in-text (not `mode:plan`).
 - **Contract-first:** B0 signatures (typed stubs) land before B1–B5 implementations so frontend

@@ -87,9 +87,22 @@ Locked decisions 11–15 from the design doc, plus `dispose_referral_phi`:
 6. **`dispose_referral_phi` lands here (design "open items folded in").** The referral module's
    LGPD-erasure door, mirroring `dispose_event_phi` / `dispose_case_phi`: gated on the
    **commission-admin** arm (`is_commission_admin_of` of the referral's source commission — the
-   Phase-A hospital-scoped mirror) **plus** the referral's hospital PQS, `is_admin` kept only as
-   the ADR-documented platform erasure exception scoped through the commission. Same
-   vendor-walled, hospital-scoped posture as the other two disposal doors.
+   Phase-A hospital-scoped mirror) **plus the operator of *either* endpoint hospital's NSP**
+   (`is_pqs_operator_of(hospital_of_commission(source))` OR `…(target)`), `is_admin` kept only as
+   the ADR-documented platform erasure exception. Same vendor-walled, hospital-scoped posture as
+   the other two disposal doors.
+
+   **Amendment (build, 2026-07-03) — dual-hospital dispose (lead-accepted deviation from the
+   original source-only wording).** The referral shares a **single** frozen PHI snapshot between
+   the source and target hospital NSPs, and decision 14 makes it **readable by both**. LGPD
+   erasure follows custody: either custodian hospital must be able to honor a valid erasure
+   request over PHI in its custody, so the disposal gate is symmetric with the read (either
+   endpoint's operator), not source-only. This is low-risk because the door **erases only the PHI
+   graph** (deletes `referral_patient` + nulls the referral/reply/shared-item free-text PHI
+   columns) while **preserving the non-PHI referral record** (ENC code, structural fields, audit)
+   — so CFM 20-yr retention of the referral *event* is intact; only the LGPD-erasable patient
+   snapshot is removed, and every disposal is audited at the hospital tier. Cross-**org** referrals
+   remain forbidden, so "either endpoint" is always within one org.
 
 **Delivery split, backend-core first (mirrors Phase 14 / ADR 0042).** **(Core)** backend
 security core — schema re-key + predicate/door re-bind + `nsp_org_admin` gates + PHI-free
