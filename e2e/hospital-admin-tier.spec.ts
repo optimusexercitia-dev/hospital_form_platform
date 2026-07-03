@@ -166,7 +166,10 @@ test.describe('HA-2: Appointment — org_admin grants/revokes hospital_admin + n
     await hospitalField.selectOption({ label: 'Hospital Secundário A' })
 
     const personField = appointForm.getByLabel('Pessoa da organização')
-    await personField.selectOption({ label: /Enfermeiro CCIH Um/i })
+    // Select by option VALUE (the userId) — the option label carries the email
+    // suffix ("Enfermeiro CCIH Um · staff1.ccih@…") so no exact string label
+    // matches, and `selectOption`'s `label` must be a string (not a RegExp).
+    await personField.selectOption('00000000-0000-0000-0000-000000000003')
 
     await appointForm.getByRole('button', { name: /^Nomear$/ }).click()
 
