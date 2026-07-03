@@ -13,6 +13,8 @@ import { commissionHref, orgHref } from "@/lib/routing";
  *  - platform_admin (vendor)            → /admin        (provisioning registry)
  *  - org_admin of exactly one org       → /o/<org>/manage
  *  - org_admin of more than one org     → /o            (org picker)
+ *  - hospital_admin of one org's hosp.  → /o/<org>/manage  (its hospital-scoped area)
+ *  - hospital_admin across >1 org       → /o            (org picker)
  *  - exactly one commission membership  → /o/<org>/c/<commission>
  *  - more than one membership           → /c            (grouped picker)
  *  - none of the above                  → friendly "sem acesso" screen
@@ -20,7 +22,13 @@ import { commissionHref, orgHref } from "@/lib/routing";
  * platform_admin is walled off from tenant data (it holds no memberships), so it
  * lands on its own provisioning area. An org_admin — even one who also belongs to
  * commissions — lands on their org's manage area first (their super-user home);
- * they navigate into commissions from there.
+ * they navigate into commissions from there. A `hospital_admin` (ADR 0051) is a
+ * local super-user of its hospital(s): it lands on its org's manage area (which
+ * renders hospital-scoped content from its grants), taking precedence over plain
+ * commission membership — same as org_admin does. A user who is BOTH org_admin and
+ * hospital_admin resolves via the org_admin branch above (unchanged), so this only
+ * fires for a hospital_admin-only persona (e.g. `hospitaladmin.a1@`), which the
+ * previous logic dropped into the "sem acesso" dead end (BUG-HAT-001).
  */
 export default async function Home() {
   const context = await getSessionContext();
@@ -46,6 +54,22 @@ export default async function Home() {
   }
 
   if (context.orgAdminOf.length > 1) {
+    redirect("/o");
+  }
+
+  // hospital_admin-only landing (ADR 0051): route to the manage area of the org
+  // its hospital(s) belong to — the manage area itself scopes to the hospital(s)
+  // from the caller's grants. Disambiguate on DISTINCT orgs (a caller may admin
+  // several hospitals within one org, or hospitals across orgs), mirroring the
+  // org_admin branch: one org → straight to its manage area; several → the org
+  // picker at /o.
+  if (context.hospitalAdminOf.length > 0) {
+    const orgSlugs = new Set(
+      context.hospitalAdminOf.map((h) => h.organization.slug),
+    );
+    if (orgSlugs.size === 1) {
+      redirect(orgHref(context.hospitalAdminOf[0].organization.slug, "manage"));
+    }
     redirect("/o");
   }
 

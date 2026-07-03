@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, Building2 } from "lucide-react";
 
+import type { OrganizationRef } from "@/lib/queries/session";
 import { requireUser } from "@/lib/queries/session";
 import { orgHref } from "@/lib/routing";
 
@@ -11,20 +12,33 @@ export const metadata: Metadata = {
 };
 
 /**
- * Organization picker for org_admins who administer more than one organization.
- * Reached from the root role-landing when `orgAdminOf.length > 1`. Each card
- * opens that org's management area. Defensive shortcuts keep the page coherent
- * if entered directly: a single org jumps straight in, and a user who is not an
- * org_admin of anything is sent back to the root landing to resolve elsewhere.
+ * Organization picker for admins who manage more than one organization.
+ * Reached from the root role-landing when the caller administers several orgs —
+ * as an `org_admin` (`orgAdminOf`) AND/OR a `hospital_admin` of hospitals across
+ * more than one org (`hospitalAdminOf`, ADR 0051). The list is the DISTINCT union
+ * of both, so a hospital_admin-only multi-org persona sees its orgs here instead
+ * of bouncing back to `/` in a loop (BUG-HAT-001 sibling). Each card opens that
+ * org's management area (which scopes to the caller's grants). Defensive
+ * shortcuts: a single org jumps straight in, and a caller who administers none is
+ * sent back to the root landing to resolve elsewhere.
  */
 export default async function OrgPickerPage() {
   const context = await requireUser();
-  const { orgAdminOf } = context;
 
-  if (orgAdminOf.length === 1) {
-    redirect(orgHref(orgAdminOf[0].organization.slug, "manage"));
+  // Distinct orgs the caller administers, org_admin ∪ hospital_admin (by slug).
+  const byId = new Map<string, OrganizationRef>();
+  for (const o of context.orgAdminOf) byId.set(o.organization.id, o.organization);
+  for (const h of context.hospitalAdminOf) {
+    if (!byId.has(h.organization.id)) byId.set(h.organization.id, h.organization);
   }
-  if (orgAdminOf.length === 0) {
+  const organizations = [...byId.values()].sort((a, b) =>
+    a.name.localeCompare(b.name, "pt-BR"),
+  );
+
+  if (organizations.length === 1) {
+    redirect(orgHref(organizations[0].slug, "manage"));
+  }
+  if (organizations.length === 0) {
     redirect("/");
   }
 
@@ -45,14 +59,14 @@ export default async function OrgPickerPage() {
       </header>
 
       <ul className="flex flex-col gap-3">
-        {orgAdminOf.map((o, i) => (
+        {organizations.map((organization, i) => (
           <li
-            key={o.organization.id}
+            key={organization.id}
             className="animate-rise-in"
             style={{ ["--rise-delay" as string]: `${80 + i * 60}ms` }}
           >
             <Link
-              href={orgHref(o.organization.slug, "manage")}
+              href={orgHref(organization.slug, "manage")}
               className="group flex items-center gap-4 rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/40 hover:bg-accent/40 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
             >
               <span
@@ -62,9 +76,9 @@ export default async function OrgPickerPage() {
                 <Building2 className="size-5" />
               </span>
               <span className="flex flex-1 flex-col">
-                <span className="font-medium">{o.organization.name}</span>
+                <span className="font-medium">{organization.name}</span>
                 <span className="font-mono text-xs text-muted-foreground">
-                  /{o.organization.slug}
+                  /{organization.slug}
                 </span>
               </span>
               <ArrowRight
