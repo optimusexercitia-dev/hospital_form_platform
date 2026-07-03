@@ -9,16 +9,19 @@ import { UserMenu } from "@/components/shell/user-menu";
 import { OrgManageNav } from "@/components/shell/org-manage-nav";
 
 /**
- * Organization management area shell (org_admin — the customer super-user).
- * Server Component.
+ * Organization management area shell — the customer super-user area, now
+ * admitting BOTH `org_admin` (org-wide) and `hospital_admin` (own hospital(s)
+ * only, ADR 0051). Server Component.
  *
  * Access is enforced HERE on the server, not by hiding the menu. The gate is
- * `is_org_admin_of(org)`: the caller must hold an `org_admin` row for THIS
- * organization (resolved from `context.orgAdminOf`, an RLS-scoped read). A
- * platform admin is NOT an org_admin (the vendor is walled off from tenant data),
- * so it gets `notFound()` here too — consistent with the org/PHI separation. RLS
- * remains the ultimate data boundary; this gate keeps non-admins out of the UI
- * and resolves the org's display name + slug for the shell.
+ * `is_org_admin_of(org)` OR "administers at least one hospital in this org"
+ * (resolved from `context.orgAdminOf` / `context.hospitalAdminOf`, both
+ * RLS-scoped reads). A platform admin is NOT an org_admin (the vendor is walled
+ * off from tenant data), so it gets `notFound()` here too — consistent with the
+ * org/PHI separation. RLS remains the ultimate data boundary; this gate keeps
+ * non-admins out of the UI and resolves the org's display name + slug for the
+ * shell. Org-level-only surfaces (hospitals registry, org role appointment, org
+ * audit chain) additionally gate on `isOrgAdmin` at their own page.
  */
 export default async function OrgManageLayout({
   children,
@@ -34,18 +37,22 @@ export default async function OrgManageLayout({
     notFound();
   }
 
-  // The caller must be an org_admin of THIS org. `orgAdminOf` is the live,
-  // RLS-scoped set of orgs the caller administers (never a stale claim).
+  // The caller must be an org_admin OF THIS ORG, or a hospital_admin of at
+  // least one hospital IN this org. Both are live, RLS-scoped reads (never a
+  // stale claim).
   const orgAdmin = context.orgAdminOf.find(
     (o) => o.organization.slug === org,
   );
-  if (!orgAdmin) {
-    // Unknown org OR not an org_admin of it — indistinguishable by design, both
-    // 404 and leak nothing about which organizations exist.
+  const hospitalAdminHere = context.hospitalAdminOf.filter(
+    (h) => h.organization.slug === org,
+  );
+  if (!orgAdmin && hospitalAdminHere.length === 0) {
+    // Unknown org OR no admin standing in it — indistinguishable by design,
+    // both 404 and leak nothing about which organizations exist.
     notFound();
   }
 
-  const organization = orgAdmin.organization;
+  const organization = orgAdmin?.organization ?? hospitalAdminHere[0]!.organization;
 
   // The audit_trail flag gates the "Trilha de auditoria" nav entry; the
   // patient_safety flag gates the "Coordenação do NSP" entry.
@@ -83,6 +90,7 @@ export default async function OrgManageLayout({
             org={organization.slug}
             auditEnabled={auditOn}
             patientSafetyEnabled={patientSafetyOn}
+            isOrgAdmin={Boolean(orgAdmin)}
           />
           <div className="ml-auto">
             <UserMenu fullName={context.fullName} email={context.email} />

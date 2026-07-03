@@ -12,41 +12,55 @@ interface OrgNavItem {
   segments: string[];
   /** When set, render only if this feature flag is on. */
   requiresFeature?: "audit" | "patientSafety";
+  /** When true, render ONLY for an `org_admin` — hidden for a hospital-scoped
+   * `hospital_admin` (ADR 0051 Decision 1: org-level-only surfaces). */
+  orgAdminOnly?: boolean;
 }
 
 const ORG_NAV_ITEMS: OrgNavItem[] = [
   { label: "Visão geral", segments: [] },
-  { label: "Usuários", segments: ["usuarios"] },
+  { label: "Usuários", segments: ["usuarios"], orgAdminOnly: true },
   { label: "Comissões", segments: ["comissoes"] },
-  { label: "Hospitais", segments: ["hospitais"] },
+  { label: "Hospitais", segments: ["hospitais"], orgAdminOnly: true },
   { label: "Painel", segments: ["painel"] },
   {
     label: "Coordenação do NSP",
     segments: ["equipe-nsp"],
     requiresFeature: "patientSafety",
   },
+  {
+    label: "Administradores",
+    segments: ["administradores"],
+    orgAdminOnly: true,
+  },
   { label: "Trilha de auditoria", segments: ["audit"], requiresFeature: "audit" },
 ];
 
 /**
  * Top navigation for the org-management area. Visibility here is convenience
- * only — every route still enforces `is_org_admin_of(org)` server-side (the
- * layout gate + RLS). Active state is a prefix match so detail pages keep their
- * parent item highlighted.
+ * only — every route still enforces its own server-side gate (the layout gate +
+ * RLS). Active state is a prefix match so detail pages keep their parent item
+ * highlighted. `isOrgAdmin = false` hides org-level-only entries (hospitals
+ * registry, org user directory, role appointment) for a `hospital_admin` caller
+ * (ADR 0051 Decision 1) — the audit entry stays visible either way, since a
+ * hospital_admin gets its own hospital-tier chain at the same route.
  */
 export function OrgManageNav({
   org,
   auditEnabled = false,
   patientSafetyEnabled = false,
+  isOrgAdmin = true,
 }: {
   org: string;
   auditEnabled?: boolean;
   patientSafetyEnabled?: boolean;
+  isOrgAdmin?: boolean;
 }) {
   const pathname = usePathname();
   const manageBase = orgHref(org, "manage");
 
   const items = ORG_NAV_ITEMS.filter((item) => {
+    if (item.orgAdminOnly && !isOrgAdmin) return false;
     if (item.requiresFeature === "audit") return auditEnabled;
     if (item.requiresFeature === "patientSafety") return patientSafetyEnabled;
     return true;

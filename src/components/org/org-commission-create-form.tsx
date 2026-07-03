@@ -3,7 +3,6 @@
 import { useActionState, useState } from "react";
 
 import { createCommission } from "@/lib/org/actions";
-import type { HospitalSummary } from "@/lib/queries/org";
 import { Button } from "@/components/ui/button";
 import {
   Field,
@@ -24,10 +23,19 @@ import { FormBanner } from "@/components/auth/form-banner";
  * to create one first. Slug is auto-suggested from the name until edited; the
  * server re-validates (unique per org) and is the authority.
  */
+/** The subset of hospital fields this form needs — accepts both
+ * {@link HospitalSummary} (org_admin's full registry read) and
+ * {@link HospitalRef} (a hospital_admin's narrower session-derived list, ADR
+ * 0051), so the same picker works for both callers of `/o/[org]/manage/comissoes`. */
+interface HospitalOption {
+  id: string;
+  name: string;
+}
+
 export function OrgCommissionCreateForm({
   hospitals,
 }: {
-  hospitals: HospitalSummary[];
+  hospitals: HospitalOption[];
 }) {
   const [state, formAction, isPending] = useActionState(
     createCommission,

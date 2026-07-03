@@ -7,12 +7,15 @@ import {
   Building2,
   FolderKanban,
   ScrollText,
+  Users,
 } from "lucide-react";
 
 import { getSessionContext } from "@/lib/queries/session";
+import { adminedHospitals } from "@/lib/auth/access";
 import { orgHref } from "@/lib/routing";
 import { auditTrailEnabled } from "@/lib/queries/audit";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
+import { HospitalSwitcher } from "@/components/shell/hospital-switcher";
 import { ShieldCheck } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -25,6 +28,9 @@ interface ManageArea {
   segments: string[];
   icon: typeof Building2;
   requiresFeature?: "audit" | "patientSafety";
+  /** Org-level-only surface — hidden for a hospital-scoped `hospital_admin`
+   * (ADR 0051 Decision 1). */
+  orgAdminOnly?: boolean;
 }
 
 const AREAS: ManageArea[] = [
@@ -36,11 +42,19 @@ const AREAS: ManageArea[] = [
     icon: FolderKanban,
   },
   {
+    title: "Usuários",
+    description: "Registre pessoas e gerencie o acesso à plataforma.",
+    segments: ["usuarios"],
+    icon: Users,
+    orgAdminOnly: true,
+  },
+  {
     title: "Hospitais",
     description:
       "Cadastre e organize os hospitais da sua organização.",
     segments: ["hospitais"],
     icon: Building2,
+    orgAdminOnly: true,
   },
   {
     title: "Painel",
@@ -58,6 +72,14 @@ const AREAS: ManageArea[] = [
     requiresFeature: "patientSafety",
   },
   {
+    title: "Administradores",
+    description:
+      "Nomeie administradores de hospital e a administração do NSP da organização.",
+    segments: ["administradores"],
+    icon: Users,
+    orgAdminOnly: true,
+  },
+  {
     title: "Trilha de auditoria",
     description:
       "Reveja o registro das ações de administração da organização.",
@@ -69,31 +91,49 @@ const AREAS: ManageArea[] = [
 
 /**
  * Organization-management landing. Server Component — the area gate lives in the
- * layout (`is_org_admin_of(org)`); this resolves the org's display name for the
- * greeting and lists the management areas as cards. The audit card only renders
- * when the `audit_trail` flag is on.
+ * layout (`is_org_admin_of(org)` OR hospital_admin-of-some-hospital-here); this
+ * resolves the org's display name for the greeting and lists the management
+ * areas as cards. The audit card only renders when the `audit_trail` flag is
+ * on; org-level-only cards (`orgAdminOnly`) are hidden for a hospital-scoped
+ * caller. A caller who administers more than one hospital gets the hospital
+ * switcher (ADR 0051 Decision 7).
  */
 export default async function OrgManageHomePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ org: string }>;
+  searchParams: Promise<{ hospital?: string }>;
 }) {
   const { org } = await params;
   const context = await getSessionContext();
-  const organization = context?.orgAdminOf.find(
+  const orgAdminEntry = context?.orgAdminOf.find(
     (o) => o.organization.slug === org,
-  )?.organization;
+  );
+  const organization =
+    orgAdminEntry?.organization ??
+    context?.hospitalAdminOf.find((h) => h.organization.slug === org)
+      ?.organization;
 
   // The layout already guarantees access; defensive (never expected).
-  if (!organization) {
+  if (!organization || !context) {
     notFound();
   }
+
+  const isOrgAdmin = Boolean(orgAdminEntry);
+  const hospitals = isOrgAdmin
+    ? [] // org_admin sees the org-wide view; the switcher scope is decided per sub-page.
+    : adminedHospitals(context, organization.id);
+
+  const sp = await searchParams;
+  const currentHospitalId = sp.hospital ?? null;
 
   const [auditOn, patientSafetyOn] = await Promise.all([
     auditTrailEnabled(),
     patientSafetyEnabled(),
   ]);
   const areas = AREAS.filter((area) => {
+    if (area.orgAdminOnly && !isOrgAdmin) return false;
     if (area.requiresFeature === "audit") return auditOn;
     if (area.requiresFeature === "patientSafety") return patientSafetyOn;
     return true;
@@ -102,13 +142,23 @@ export default async function OrgManageHomePage({
   return (
     <div className="flex flex-col gap-10">
       <header className="flex flex-col gap-2">
-        <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
-          Administração da organização
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
+            Administração da organização
+          </p>
+          {!isOrgAdmin && hospitals.length > 1 ? (
+            <HospitalSwitcher
+              hospitals={hospitals}
+              currentHospitalId={currentHospitalId ?? hospitals[0]?.id ?? null}
+              allowAll={false}
+            />
+          ) : null}
+        </div>
         <h1 className="text-3xl text-balance">{organization.name}</h1>
         <p className="max-w-prose text-muted-foreground text-pretty">
-          Administre as comissões, os hospitais e os acessos da sua organização.
-          Abra uma comissão para gerenciar sua coordenação.
+          {isOrgAdmin
+            ? "Administre as comissões, os hospitais e os acessos da sua organização. Abra uma comissão para gerenciar sua coordenação."
+            : "Administre as comissões do seu hospital. Abra uma comissão para gerenciar sua coordenação."}
         </p>
       </header>
 
@@ -118,10 +168,18 @@ export default async function OrgManageHomePage({
       >
         {areas.map((area, index) => {
           const Icon = area.icon;
+          // Preserve the hospital scope across the card link so a hospital_admin
+          // stays on their selected hospital's commissions on the destination page.
+          const effectiveHospitalId = !isOrgAdmin
+            ? (currentHospitalId ?? hospitals[0]?.id ?? null)
+            : null;
+          const href = effectiveHospitalId
+            ? `${orgHref(org, "manage", ...area.segments)}?hospital=${encodeURIComponent(effectiveHospitalId)}`
+            : orgHref(org, "manage", ...area.segments);
           return (
             <Link
               key={area.title}
-              href={orgHref(org, "manage", ...area.segments)}
+              href={href}
               style={{ ["--rise-delay" as string]: `${index * 50}ms` }}
               className="animate-rise-in group flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
             >
