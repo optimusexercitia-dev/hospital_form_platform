@@ -3,12 +3,9 @@
 import { useId, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-import type { MemberTitle } from "@/lib/commissions/titles";
-// Value-import the mutation from the `'use server'` actions module directly
-// (NOT the `titles.ts` re-export path) — `titles.ts` also holds the server-only
-// `listMemberTitles` read (a plain `createClient` import, not `'use server'`),
-// so a client component importing a VALUE through it drags `next/headers` into
-// the client bundle (breaks the build). Type-only imports stay safe either way.
+// Type from the client-safe canonical path (`titles.ts` is now `server-only`);
+// the mutation from the `'use server'` actions module.
+import type { MemberTitle } from "@/lib/commissions/titles-types";
 import { assignMemberTitle } from "@/lib/commissions/titles-actions";
 import { NativeSelect } from "@/components/ui/native-select";
 

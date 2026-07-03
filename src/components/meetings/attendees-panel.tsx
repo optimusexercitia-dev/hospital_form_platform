@@ -26,22 +26,12 @@ import { AttendeeForm, type AttendeeMemberOption } from "./attendee-form";
 import { ConfirmDeleteButton } from "./confirm-delete-button";
 import { useMeetingAction } from "./use-meeting-action";
 
-/**
- * A `MeetingAttendee` extended with its committee-title assignment (ADR 0051
- * Decision 6). `titleName` is NOT YET on the canonical {@link MeetingAttendee}
- * (it would be resolved by joining the attendee's `userId` to
- * `commission_members.title_id` for the meeting's commission) — this extends it
- * defensively so the badge renders the moment the backend read adds it; absent
- * the field, the row simply shows no title badge (guests never have one either).
- */
-export type AttendeeWithTitle = MeetingAttendee & { titleName?: string | null };
-
 function AttendeeRow({
   attendee,
   members,
   canEdit,
 }: {
-  attendee: AttendeeWithTitle;
+  attendee: MeetingAttendee;
   members: AttendeeMemberOption[];
   canEdit: boolean;
 }) {
@@ -252,7 +242,7 @@ export function AttendeesPanel({
   canEdit,
 }: {
   meeting: MeetingDetail;
-  attendees: AttendeeWithTitle[];
+  attendees: MeetingAttendee[];
   /** Commission roster for the member picker. */
   members: AttendeeMemberOption[];
   settings: CommissionMeetingSettings | null;

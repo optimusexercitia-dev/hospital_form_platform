@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { ArrowDown, ArrowUp, Pencil, Plus } from "lucide-react";
 
-import type { MemberTitle } from "@/lib/commissions/titles";
-// Value-import from the `'use server'` actions module directly, not the
-// `titles.ts` re-export path — see the note in `title-assign-control.tsx`.
+// Type from the client-safe canonical path; mutations from the `'use server'`
+// actions module (`titles.ts` is now `server-only`).
+import type { MemberTitle } from "@/lib/commissions/titles-types";
 import { deleteMemberTitle, reorderMemberTitles } from "@/lib/commissions/titles-actions";
 import { Button } from "@/components/ui/button";
 import {

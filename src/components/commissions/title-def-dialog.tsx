@@ -3,9 +3,9 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
-import type { MemberTitle } from "@/lib/commissions/titles";
-// Value-import from the `'use server'` actions module directly, not the
-// `titles.ts` re-export path — see the note in `title-assign-control.tsx`.
+// Type from the client-safe canonical path; mutations from the `'use server'`
+// actions module (`titles.ts` is now `server-only`).
+import type { MemberTitle } from "@/lib/commissions/titles-types";
 import {
   createMemberTitle,
   renameMemberTitle,

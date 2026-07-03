@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ShieldCheck, UserCog } from "lucide-react";
 
 import type { PqsEligibleUser } from "@/lib/pqs/roster-types";
+import type { RoleHolder } from "@/lib/queries/org";
 import { assignNspOrgAdmin, revokeNspOrgAdmin } from "@/lib/org/actions";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
@@ -28,14 +29,8 @@ function personLabel(p: { fullName: string | null; email: string | null }): stri
  * The org_admin's `nsp_org_admin` appointment manager (ADR 0051 Decision 4).
  * Mirrors {@link NspCoordinatorManager}'s shape exactly — appoint is a picker
  * over the org's eligible users, revoke is a guarded confirm, both call the
- * direct `(orgId, userId)` server actions in a transition.
- *
- * KNOWN GAP (flagged to the lead): there is no A0 read yet for "current
- * `nsp_org_admin`s of this org" — `context.nspOrgAdminOf` only exposes the
- * CALLER's own memberships, not the org's full roster. Until A4/A5 add a
- * dedicated list read, this renders an empty current-roster panel; appoint/
- * revoke still function against the real actions once implemented. The prop
- * is typed to accept the roster the moment that read exists.
+ * direct `(orgId, userId)` server actions in a transition. Current holders come
+ * from the reconciled `listNspOrgAdmins(orgId)` read (A9).
  */
 export function NspOrgAdminManager({
   orgId,
@@ -44,9 +39,8 @@ export function NspOrgAdminManager({
 }: {
   orgId: string;
   eligibleUsers: PqsEligibleUser[];
-  /** Current `nsp_org_admin`s of this org. Empty until a dedicated backend
-   * read lands (see the doc comment above). */
-  currentAdmins?: PqsEligibleUser[];
+  /** Current `nsp_org_admin`s of this org (from `listNspOrgAdmins`). */
+  currentAdmins?: RoleHolder[];
 }) {
   const router = useRouter();
   const selectId = useId();

@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import { ShieldCheck } from "lucide-react";
 
 import { getSessionContext } from "@/lib/queries/session";
-import { listOrgHospitals } from "@/lib/queries/org";
+import {
+  listHospitalAdmins,
+  listNspOrgAdmins,
+  listOrgHospitals,
+  type RoleHolder,
+} from "@/lib/queries/org";
 import { listOrgEligibleUsersForPqs } from "@/lib/queries/pqs";
 import { HospitalAdminManager } from "@/components/org/hospital-admin-manager";
 import { NspOrgAdminManager } from "@/components/org/nsp-org-admin-manager";
@@ -21,11 +26,8 @@ export const metadata: Metadata = {
  *
  * The person picker reuses `listOrgEligibleUsersForPqs` (the org's registered
  * users, DEFINER-scoped) — the same "who belongs to this org" set the NSP
- * coordinator picker uses; there is no dedicated eligible-users read for this
- * appointment yet, and reusing an existing org-scoped picker avoids inventing an
- * inline query. See the component's doc comment for the open backend gap (no
- * read yet for "current hospital_admin/nsp_org_admin holders" — the managers
- * render an empty roster until A4/A5 land that read).
+ * coordinator picker uses. Current holders come from the reconciled A9 reads
+ * `listHospitalAdmins(hospitalId)` (one per hospital) and `listNspOrgAdmins(orgId)`.
  */
 export default async function OrgAdministratorsPage({
   params,
@@ -44,10 +46,21 @@ export default async function OrgAdministratorsPage({
     notFound();
   }
 
-  const [hospitals, eligibleUsers] = await Promise.all([
+  const [hospitals, eligibleUsers, nspOrgAdmins] = await Promise.all([
     listOrgHospitals(organization.id),
     listOrgEligibleUsersForPqs(organization.id),
+    listNspOrgAdmins(organization.id),
   ]);
+
+  // Current hospital_admin holders, one read per hospital, assembled into the
+  // map the manager consumes (hospitalId → holders).
+  const hospitalAdminEntries = await Promise.all(
+    hospitals.map(
+      async (h) => [h.id, await listHospitalAdmins(h.id)] as const,
+    ),
+  );
+  const hospitalAdminsByHospital: Record<string, RoleHolder[]> =
+    Object.fromEntries(hospitalAdminEntries);
 
   return (
     <div className="flex flex-col gap-10">
@@ -79,7 +92,11 @@ export default async function OrgAdministratorsPage({
           permissões de um administrador da organização, mas restritas a esse
           hospital.
         </p>
-        <HospitalAdminManager hospitals={hospitals} eligibleUsers={eligibleUsers} />
+        <HospitalAdminManager
+          hospitals={hospitals}
+          eligibleUsers={eligibleUsers}
+          currentAdminsByHospital={hospitalAdminsByHospital}
+        />
       </section>
 
       <section
@@ -95,7 +112,11 @@ export default async function OrgAdministratorsPage({
           de Segurança do Paciente em qualquer hospital. Este papel ainda não
           concede acesso a dados de segurança do paciente nesta fase.
         </p>
-        <NspOrgAdminManager orgId={organization.id} eligibleUsers={eligibleUsers} />
+        <NspOrgAdminManager
+          orgId={organization.id}
+          eligibleUsers={eligibleUsers}
+          currentAdmins={nspOrgAdmins}
+        />
       </section>
     </div>
   );

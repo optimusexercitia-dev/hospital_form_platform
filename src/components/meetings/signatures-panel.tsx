@@ -1,6 +1,7 @@
 import { CircleDashed, PenLine } from "lucide-react";
 
 import type {
+  MeetingAttendee,
   MeetingDetail,
   MeetingSignature,
 } from "@/lib/queries/meetings";
@@ -9,11 +10,10 @@ import { TitleBadge } from "@/components/commissions/title-badge";
 import { SignatureBadge } from "./meeting-badges";
 import { SignButton } from "./sign-dialog";
 import { formatDateTime } from "./format";
-import type { AttendeeWithTitle } from "./attendees-panel";
 
 /** One roster row: a present platform attendee + their (possibly absent) signature. */
 interface RosterEntry {
-  attendee: AttendeeWithTitle;
+  attendee: MeetingAttendee;
   signature: MeetingSignature | null;
 }
 
@@ -33,7 +33,7 @@ export function SignaturesPanel({
   currentUserId,
 }: {
   meeting: MeetingDetail;
-  attendees: AttendeeWithTitle[];
+  attendees: MeetingAttendee[];
   signatures: MeetingSignature[];
   /** The viewer's user id, or null — gates the "Assinar" action to their own row. */
   currentUserId: string | null;

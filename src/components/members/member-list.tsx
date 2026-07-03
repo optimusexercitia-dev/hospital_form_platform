@@ -1,5 +1,5 @@
 import type { MemberListItem } from "@/lib/queries/members";
-import type { MemberTitle } from "@/lib/commissions/titles";
+import type { MemberTitle } from "@/lib/commissions/titles-types";
 import { removeStaff } from "@/lib/members/actions";
 import { ConfirmRemoveButton } from "@/components/admin/confirm-remove-button";
 import { TitleBadge } from "@/components/commissions/title-badge";
@@ -8,30 +8,17 @@ import { TitleAssignControl } from "@/components/commissions/title-assign-contro
 import { RoleBadge } from "./role-badge";
 
 /**
- * A member row extended with its committee-title assignment (ADR 0051 Decision
- * 6). `memberId`/`titleId`/`titleName` are NOT YET on the canonical
- * {@link MemberListItem} — this extends it defensively so the title UI is wired
- * and ready the moment the backend read (`listMembers`, A4/A5) adds them.
- * `memberId` is the `commission_members.id` row the assignment action needs
- * (distinct from `userId`); until it exists, `TitleAssignControl` is simply not
- * rendered for that row (its badge still shows if `titleName` is present).
- */
-export type MemberWithTitle = MemberListItem & {
-  memberId?: string;
-  titleId?: string | null;
-  titleName?: string | null;
-};
-
-/**
  * Commission member roster (name, e-mail, role, title) with a guarded "remover"
  * control per removable row. Server Component — the client islands are the
  * removal confirm and the title-assignment select.
  *
- * Removal is offered ONLY for `staff` rows, and never for the current user's own
- * row (`currentUserId`) — coordinators are managed from the admin area, and you
+ * The title badge + assignment control (ADR 0051 Decision 6) bind to the
+ * canonical {@link MemberListItem} fields (`memberId`/`titleId`/`titleName`);
+ * the assignment select renders whenever `titles` is non-empty. Removal is
+ * offered ONLY for `staff` rows, and never for the current user's own row
+ * (`currentUserId`) — coordinators are managed from the admin area, and you
  * can't remove yourself here. RLS + the `removeStaff` action remain the
- * authority regardless of what the UI offers. The title select renders only
- * when `titles` is non-empty AND the row carries a resolved `memberId`.
+ * authority regardless of what the UI offers.
  */
 export function MemberList({
   commissionId,
@@ -40,7 +27,7 @@ export function MemberList({
   titles = [],
 }: {
   commissionId: string;
-  members: MemberWithTitle[];
+  members: MemberListItem[];
   currentUserId: string;
   /** The commission's title vocabulary, for the per-row assignment select. */
   titles?: MemberTitle[];
@@ -87,10 +74,10 @@ export function MemberList({
             </div>
 
             <div className="flex shrink-0 items-center gap-3">
-              {titles.length > 0 && member.memberId ? (
+              {titles.length > 0 ? (
                 <TitleAssignControl
                   memberId={member.memberId}
-                  currentTitleId={member.titleId ?? null}
+                  currentTitleId={member.titleId}
                   titles={titles}
                   memberName={displayName}
                 />

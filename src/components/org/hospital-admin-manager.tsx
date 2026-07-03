@@ -6,6 +6,7 @@ import { Building2, UserCog } from "lucide-react";
 
 import type { HospitalRef } from "@/lib/queries/session";
 import type { PqsEligibleUser } from "@/lib/pqs/roster-types";
+import type { RoleHolder } from "@/lib/queries/org";
 import { assignHospitalAdmin, revokeHospitalAdmin } from "@/lib/org/actions";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
@@ -30,15 +31,8 @@ function personLabel(p: { fullName: string | null; email: string | null }): stri
  * Appoint picks BOTH a hospital and a person (a hospital_admin grant is per
  * hospital); revoke is scoped to one `(hospital, user)` pair. Mirrors
  * {@link NspCoordinatorManager}'s interaction shape, extended with the hospital
- * dimension.
- *
- * KNOWN GAP (flagged to the lead): there is no A0 read yet for "current
- * `hospital_admin`s of hospital X" — only the CALLER's own `hospitalAdminOf` is
- * exposed on the session, not the full per-hospital roster an org_admin needs
- * here. `currentAdminsByHospital` is typed to accept that roster the moment a
- * dedicated read lands (A4/A5); until then it defaults to empty and the
- * "administradores atuais" list reads as empty for every hospital, while
- * appoint/revoke already call the real actions.
+ * dimension. Current holders per hospital come from the reconciled
+ * `listHospitalAdmins(hospitalId)` read (A9), assembled by the page into a map.
  */
 export function HospitalAdminManager({
   hospitals,
@@ -47,9 +41,8 @@ export function HospitalAdminManager({
 }: {
   hospitals: HospitalRef[];
   eligibleUsers: PqsEligibleUser[];
-  /** Map of hospitalId → its current hospital_admins. Empty until a dedicated
-   * backend read lands (see the doc comment above). */
-  currentAdminsByHospital?: Record<string, PqsEligibleUser[]>;
+  /** Map of hospitalId → its current hospital_admins (from `listHospitalAdmins`). */
+  currentAdminsByHospital?: Record<string, RoleHolder[]>;
 }) {
   const router = useRouter();
   const hospitalFieldId = useId();
