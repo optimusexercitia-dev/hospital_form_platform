@@ -112,6 +112,16 @@ gate — per-hospital PHI isolation proven in SQL) **then frontend**. Design →
      why. Add a pgTAP keystone: a foreign-hospital operator gets ZERO rows.
 - **Contract stubs FIRST:** backend commits the typed stubs (safe-default reads / throwing
   mutations) as its first implementation step so frontend (B6–B8) builds against frozen types.
+- **FE plan ack'd 2026-07-03 (2 new patterns approved):** (i) **B8 org console lives at a new
+  `/o/[org]/nsp-org/**` group** gated `isNspOrgAdmin(orgId)` → 404 — structurally separate from the
+  hospital-scoped `/o/[org]/nsp` and from `/o/[org]/manage` (honors NSP-chain independence). (ii)
+  **`ReferralDisposeDialog`** — destructive `AlertDialog` + reason-select + typed-confirm, affordance
+  gated to entitled callers (server RPC is authoritative), unambiguous "PHI permanently erased" copy.
+- **Seam resolution — `getNspAccessByOrg` → `listMyNspHospitals()`:** the frozen `listMyNspHospitals()`
+  is the page-level replacement for the per-org NSP access seam. Frontend re-keys the NSP *pages* off
+  `getNspAccessByOrg`; **backend** re-keys/deprecates the seam in `session.ts` + any backend caller
+  (coordination note sent to backend; will relay if the shape differs). Frontend does NOT touch
+  `session.ts`.
 - **Plan gate:** B0 was a **full** plan review (security-critical re-key touching RLS + PHI doors),
   spawned `acceptEdits` + plan-first-in-text (not `mode:plan`).
 - **Contract-first:** B0 signatures (typed stubs) land before B1–B5 implementations so frontend
