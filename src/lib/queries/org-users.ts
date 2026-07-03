@@ -116,6 +116,25 @@ export async function listOrgUsers(
 }
 
 /**
+ * A page of ONE HOSPITAL's user directory, for a `hospital_admin` (ADR 0051
+ * Decision 4 / Q2 — hospital-scoped directory, NO org-wide `profiles` read for a
+ * hospital_admin). Scoped to users whose `home_hospital_id = hospitalId`, filtered
+ * by `search` and windowed by `paging`. Same {@link OrgUserPage} shape as
+ * {@link listOrgUsers}. RLS-scoped: empty for a caller who is not a
+ * `hospital_admin` of `hospitalId` (nor org_admin of its org / platform_admin).
+ *
+ * A0 stub — the real read (mirroring `listOrgUsers` but keyed on
+ * `home_hospital_id`) lands in A4/A5 once the hospital-admin RLS path exists.
+ */
+export async function listHospitalUsers(
+  _hospitalId: string,
+  _search: string,
+  _paging: Paging,
+): Promise<OrgUserPage> {
+  throw new Error('not implemented')
+}
+
+/**
  * Full detail for one user (profile + credentials[] + committee memberships[] with
  * role). Returns `null` when the user does not exist or is not visible to the
  * caller (RLS-scoped: org_admin of the user's home org / the user themselves /

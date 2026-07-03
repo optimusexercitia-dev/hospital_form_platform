@@ -486,33 +486,61 @@ export async function listAuditForOrg(
 }
 
 /**
- * Recompute the hash chain and report integrity, per TIER (multi-tenancy Phase B
- * — the audit log is now a 3-tier chain). Pass exactly one scope:
+ * One page of audit entries for a HOSPITAL (ADR 0051 — the hospital audit tier),
+ * for the `/o/[org]/manage` hospital-tier audit viewed by a `hospital_admin`.
+ * Filters to `hospital_id = hospitalId` — the union of the hospital chain
+ * (`commission_id IS NULL`) AND every commission chain under the hospital (each
+ * commission-tier row carries the trigger-derived `hospital_id`). RLS-scoped:
+ * empty for a caller who is not a hospital_admin of `hospitalId` (nor org_admin of
+ * its org). Same shape/pagination as {@link listAudit} / {@link listAuditForOrg}.
+ *
+ * A0 stub — impl in A3/A5 once the hospital-tier `audit_log_select` path exists.
+ */
+export async function listAuditForHospital(
+  _hospitalId: string,
+  _filters: AuditFilters,
+): Promise<AuditPage> {
+  throw new Error('not implemented')
+}
+
+/**
+ * Recompute the hash chain and report integrity, per TIER (ADR 0051 — the audit
+ * log is now a 4-tier chain: platform / org / hospital / commission). Pass exactly
+ * one scope:
  *  - `{ commissionId }` → that commission's chain (authz: staff_admin OR
- *    org_admin of the commission's org).
- *  - `{ organizationId }` → that org's chain, `commission_id IS NULL` (authz:
- *    org_admin of the org).
+ *    org_admin of the commission's org OR hospital_admin of its hospital).
+ *  - `{ hospitalId }` → that hospital's chain, `commission_id IS NULL` (authz:
+ *    hospital_admin of the hospital OR org_admin of its org).
+ *  - `{ organizationId }` → that org's chain, `hospital_id IS NULL AND
+ *    commission_id IS NULL` (authz: org_admin of the org).
  *  - neither → the PLATFORM chain only (authz: platform_admin).
- * Backed by the `verify_audit_chain(p_commission, p_organization)` DEFINER RPC.
- * Returns `{ ok: true }` when intact, else the first broken `seq`. A
- * forbidden/failed call surfaces as `{ ok: false, brokenSeq: -1 }`.
+ * Backed by the `verify_audit_chain(p_commission, p_organization, p_hospital)`
+ * DEFINER RPC (the `p_hospital` param is threaded in A3). Returns `{ ok: true }`
+ * when intact, else the first broken `seq`. A forbidden/failed call surfaces as
+ * `{ ok: false, brokenSeq: -1 }`.
  */
 export async function verifyAuditChain(
-  scope?: string | { commissionId?: string; organizationId?: string },
+  scope?:
+    | string
+    | { commissionId?: string; organizationId?: string; hospitalId?: string },
 ): Promise<AuditChainResult> {
   const supabase = await createClient()
 
   // Backward-compatible: a bare string is the legacy commission-id form (the
-  // existing `/c/.../manage/audit` caller); the object form adds the org tier.
+  // existing `/c/.../manage/audit` caller); the object form adds the org +
+  // hospital tiers.
   const commissionId =
     typeof scope === 'string' ? scope : scope?.commissionId
   const organizationId =
     typeof scope === 'string' ? undefined : scope?.organizationId
+  const hospitalId =
+    typeof scope === 'string' ? undefined : scope?.hospitalId
 
   const { data, error } = await supabase
     .rpc('verify_audit_chain', {
       p_commission: commissionId ?? undefined,
       p_organization: organizationId ?? undefined,
+      p_hospital: hospitalId ?? undefined,
     })
     .returns<{ ok: boolean; broken_seq: number | null }[]>()
 

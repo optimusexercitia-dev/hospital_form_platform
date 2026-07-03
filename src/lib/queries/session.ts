@@ -46,6 +46,27 @@ export interface OrgAdminMembership {
   organization: OrganizationRef
 }
 
+/**
+ * A hospital reference carried in the session context for the hospital-admin tier
+ * (ADR 0051). `organizationId` lets FE co-locate a hospital under its org for the
+ * switcher / deep-link without a second read.
+ */
+export interface HospitalRef {
+  id: string
+  slug: string
+  name: string
+  organizationId: string
+}
+
+/**
+ * A hospital the caller administers (`hospital_admin`, ADR 0051), independent of any
+ * commission membership. Carries the parent org so FE can group hospitals under it.
+ */
+export interface HospitalAdminMembership {
+  organization: OrganizationRef
+  hospital: HospitalRef
+}
+
 export interface SessionContext {
   userId: string
   email: string
@@ -75,6 +96,19 @@ export interface SessionContext {
    * read). Empty for non-org-admins. Sorted by organization.name (pt-BR locale).
    */
   orgAdminOf: OrgAdminMembership[]
+  /**
+   * Hospitals the caller is a `hospital_admin` of (ADR 0051; parallel
+   * `organization_members` read where `role = 'hospital_admin'`). Empty for
+   * non-hospital-admins. Sorted by hospital.name (pt-BR locale). The real read
+   * wiring lands in A4/A5; A0 defaults it to `[]`.
+   */
+  hospitalAdminOf: HospitalAdminMembership[]
+  /**
+   * Organizations the caller is an `nsp_org_admin` of (ADR 0051; the role row is
+   * admitted to the CHECK in Phase A but its BEHAVIOR ships in Phase B — this is
+   * the shape-now/inert-now seam). Empty in Phase A.
+   */
+  nspOrgAdminOf: OrgAdminMembership[]
 }
 
 /**
@@ -187,6 +221,12 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     mustChangePassword,
     memberships,
     orgAdminOf,
+    // A0 seam: the real hospital_admin / nsp_org_admin reads (parallel
+    // `organization_members` reads keyed on the new `role`/`hospital_id`) land in
+    // A4/A5 once the schema exists. Default to `[]` so every existing caller
+    // typechecks and `getSessionContext` still returns a valid object.
+    hospitalAdminOf: [],
+    nspOrgAdminOf: [],
   }
 }
 

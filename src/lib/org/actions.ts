@@ -247,6 +247,61 @@ export async function appointNspCoordinator(
   return { ok: true, message: COORD_MESSAGES.appointed }
 }
 
+// ===========================================================================
+// Hospital-admin + nsp_org_admin appointment (ADR 0051 Decision 4) — org_admin
+// ONLY grants/revokes these roles (no self-delegation: appointer ≠ holder). The
+// DB authority is the A4 appointment RPCs (`assign_hospital_admin` etc.); these
+// server actions call them and shape the result. Behavior lands in A4; A0 posts
+// the signatures so FE (A7) builds the appointment UI against real types.
+// ===========================================================================
+
+/**
+ * Appoint `userId` as a `hospital_admin` of `hospitalId` (ADR 0051). Gated
+ * `is_org_admin_of(org-of-hospital)`; no self-delegation. Idempotent. Emits a
+ * hospital-tier audit row. A0 stub — impl in A4.
+ */
+export async function assignHospitalAdmin(
+  _hospitalId: string,
+  _userId: string,
+): Promise<MutationActionState> {
+  throw new Error('not implemented')
+}
+
+/**
+ * Revoke `userId`'s `hospital_admin` role on `hospitalId` (ADR 0051). Gated
+ * `is_org_admin_of(org-of-hospital)`; idempotent. Emits a hospital-tier audit
+ * row. A0 stub — impl in A4.
+ */
+export async function revokeHospitalAdmin(
+  _hospitalId: string,
+  _userId: string,
+): Promise<MutationActionState> {
+  throw new Error('not implemented')
+}
+
+/**
+ * Appoint `userId` as an `nsp_org_admin` of `orgId` (ADR 0051). Gated
+ * `is_org_admin_of(orgId)`; no self-delegation. The role row exists in Phase A
+ * but is INERT (its behavior ships in Phase B). A0 stub — impl in A4.
+ */
+export async function assignNspOrgAdmin(
+  _orgId: string,
+  _userId: string,
+): Promise<MutationActionState> {
+  throw new Error('not implemented')
+}
+
+/**
+ * Revoke `userId`'s `nsp_org_admin` role in `orgId` (ADR 0051). Gated
+ * `is_org_admin_of(orgId)`; idempotent. A0 stub — impl in A4.
+ */
+export async function revokeNspOrgAdmin(
+  _orgId: string,
+  _userId: string,
+): Promise<MutationActionState> {
+  throw new Error('not implemented')
+}
+
 /**
  * Revoke `userId`'s `nsp_coordinator` role in `orgId`. Deletes ONLY a coordinator
  * membership row (the `role = 'nsp_coordinator'` filter protects an org_admin's row

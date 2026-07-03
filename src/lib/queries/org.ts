@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import type { HospitalRef } from '@/lib/queries/session'
 
 /**
  * Organization-scoped read data-access (multi-tenancy Phase C; Architecture Rule
@@ -164,6 +165,41 @@ export async function listCommissionsForOrg(
     hospitalId: c.hospital_id,
     hospitalName: c.hospitals?.name ?? null,
   }))
+}
+
+// ---------------------------------------------------------------------------
+// Hospital-admin tier reads (ADR 0051) — the hospital switcher + hospital-scoped
+// commission list behind `/o/[org]/manage`. Empty for a caller lacking standing.
+// ---------------------------------------------------------------------------
+
+/**
+ * Hospitals under `orgId` as {@link HospitalRef}, the source for the
+ * `/o/[org]/manage` hospital switcher (ADR 0051 Decision 7). Sorted by name
+ * (pt-BR). RLS-scoped: returns only the hospitals the caller may read (org_admin
+ * of the org sees all; a hospital_admin sees the hospitals it administers;
+ * platform_admin sees all). Empty when none are readable.
+ *
+ * A0 stub — real read lands in A4/A5 once the hospital-admin RLS path exists.
+ */
+export async function listOrgHospitals(_orgId: string): Promise<HospitalRef[]> {
+  throw new Error('not implemented')
+}
+
+/**
+ * Commissions the caller manages within `orgId`, optionally narrowed to one
+ * hospital (`hospitalId`) — the hospital-scoped variant of
+ * {@link listCommissionsForOrg} for the manage area under a selected hospital
+ * (ADR 0051). Pass `hospitalId = null` for the org-wide manage list (org_admin);
+ * pass a hospital id to scope to that hospital (a hospital_admin's landing set).
+ * Reuses {@link OrgCommissionSummary}. Sorted by name (pt-BR). RLS-scoped.
+ *
+ * A0 stub — real read lands in A4/A5.
+ */
+export async function listManagedCommissions(
+  _orgId: string,
+  _hospitalId: string | null,
+): Promise<OrgCommissionSummary[]> {
+  throw new Error('not implemented')
 }
 
 /**
