@@ -1,0 +1,107 @@
+# ADR 0051 — Hospital-admin tier, 4-tier audit chain & committee member titles
+
+**Status:** Accepted (design locked 2026-07-03 via /grilling; Phase A of a two-phase plan) ·
+**Date:** 2026-07-03 · **Feature:** A hospital-local admin role, a hospital audit-chain tier, and
+per-committee member titles. Builds on ADR [0041](./0041-multi-tenancy-organizations-hospitals.md)
+(the org→hospital→commission hierarchy + the `organization_members.role` widening seam it explicitly
+reserved) and ADR [0042](./0042-nsp-per-org.md) (whose `nsp_coordinator` seam this reuses).
+Full rationale + the 16 interview decisions: `docs/progress/hospital-roles-nsp-titles-design.md`.
+**Phase B (ADR 0052, forthcoming) — NSP-per-hospital + `nsp_org_admin` behavior — is out of scope
+here** and partially supersedes ADR 0042; this ADR only lays the schema seam it needs.
+
+## Context
+
+Brazilian hospitals within one organization are usually independent and decentralized, but today
+the only admin above a commission is the org-wide `org_admin`. Networks need an admin **local to one
+hospital** that mirrors org_admin authority but only over that hospital's commissions. Separately,
+committees carry formal titles (Presidente, Vice-Presidente, Secretário…) that are display roles,
+unrelated to access — and must be customizable per committee.
+
+## Decision
+
+1. **`hospital_admin` = `org_admin` mirrored, hospital-scoped.** Every commission-scoped site where
+   the `org_admin` OR-term grants access, `hospital_admin` gets the same for commissions whose
+   `hospital_id` matches — **including** the LGPD disposal arms (`dispose_event_phi`/
+   `dispose_case_phi`) and hospital-wide response/answer reads. It does **not** gain PHI-module
+   *reads* (those stay NSP-enrollment-only for everyone, org_admin included). Org-level-only surfaces
+   (create/edit hospitals, appoint org roles, org audit chain) stay `org_admin`-only.
+
+2. **`organization_members` widens on the ADR-0041 seam.** Role CHECK becomes
+   `{org_admin, nsp_org_admin, hospital_admin, nsp_coordinator}`; a nullable `hospital_id` FK is
+   added. The uniqueness constraint moves to `UNIQUE NULLS NOT DISTINCT (organization_id, user_id,
+   role, hospital_id)` (PG17) so one user may hold multiple roles and administer multiple hospitals —
+   matching decentralized networks (shared admins) and single-hospital orgs (one person, many hats).
+   **Phasing of the `hospital_id`-iff-role CHECK:** in **Phase A** the CHECK binds `hospital_id` iff
+   `role = 'hospital_admin'` — `nsp_coordinator` stays **org-level** (`hospital_id` NULL), exactly as
+   ADR 0042 left it, so the NSP module and its E2E specs stay green through this gate. **Phase B**
+   (ADR 0052) re-keys `nsp_coordinator` per-hospital and widens the CHECK to
+   `role IN ('hospital_admin','nsp_coordinator')` at the same time it migrates the coordinator rows.
+   `nsp_org_admin` is admitted to the CHECK now (org-level, NULL `hospital_id`); its **behavior**
+   ships in Phase B — the row simply exists and is inert in Phase A.
+
+3. **One combined predicate, swapped in once.** New `app.is_commission_admin_of(commission)` (+ `_for`)
+   = `is_org_admin_of(org-of-commission)` OR `is_hospital_admin_of(hospital-of-commission)`; both arms
+   single-hop via the denormalized keys on `commissions`. The ~60 `is_org_admin_of_commission`
+   OR-term sites are mechanically swapped to it (same class as ADR 0041's rewrite), so future admin
+   tiers edit one function body, not 60 policies. Service-role TS gates keyed on `is_org_admin_of`
+   are widened identically (ADR 0041 amendment 11 — the TS gate is the only control there). The grep
+   inventory **plus a live `pg_proc`/`pg_policies` catalog sweep** for residual references is the
+   spec and the post-change assertion (ADR 0042 lessons M2/M3).
+
+4. **Appointment chain.** `org_admin` (only) grants/revokes `hospital_admin` and `nsp_org_admin` (no
+   self-delegation — appointer ≠ holder). A `hospital_admin` then manages everything *inside* its
+   hospital (create/rename commissions, invite users, assign staff/staff_admin) but cannot touch the
+   hospitals registry, org roles, other hospitals, or other hospital_admins. The NSP appointment
+   chain (Phase B) is deliberately independent of hospital administration.
+
+5. **Audit gains a 4th HOSPITAL tier.** The chain key becomes `(organization_id, hospital_id,
+   commission_id)` with four shapes: platform / org / hospital / commission. Commission-tier rows
+   carry a **trigger-derived `hospital_id`** in the hashed tuple (each row still chains to exactly one
+   predecessor; the hospital column enables hospital-level read/reporting over its commissions' rows).
+   `audit_canonical` + `audit_write` + `verify_audit_chain` change **in lockstep in one migration**
+   with new partial unique indexes and per-tier verification pgTAP. Hospital-level emitters (hospital
+   edits, hospital_admin grant/revoke, commission lifecycle) pass the hospital explicitly; everyday
+   commission-scoped emitters are unchanged (hospital derived from the commission). Read access:
+   `hospital_admin` → its hospital chain + its hospital's commission chains; `org_admin` → org chain;
+   `platform_admin` → platform chain only.
+
+6. **Committee titles = a fifth per-commission vocabulary.** New `commission_member_titles`
+   (`id, commission_id, name, position, timestamps`) copying the existing vocab pattern
+   (`commission_meeting_types` et al.), plus a nullable `title_id` on `commission_members`
+   (FK `ON DELETE SET NULL`, same-commission integrity CHECK). **Display-only — zero RLS semantics.**
+   One title per member; **no** uniqueness per title (co-held titles and leadership transitions stay
+   a human matter). The commission's `staff_admin` manages the list and assigns titles (admins inherit
+   via the Decision-1 mirror); new commissions auto-seed "Presidente", "Vice-Presidente",
+   "Secretário(a)" (editable/deletable). Rendered on the member-management page, member overview,
+   meeting attendee lists, and meeting signature blocks / exported atas.
+
+7. **Hospital stays un-routed** (ADR 0041 Decision 8 upheld). `/o/[org]/manage` renders
+   hospital-scoped content from the caller's grants with a hospital switcher when they hold several;
+   `?hospital=` for deep links. No route migration.
+
+## Alternatives rejected
+
+- **Management-only `hospital_admin` (no blanket data read/disposal).** Rejected — a weaker fit for
+  "independent, decentralized hospitals" where this person *is* the local authority; the mirror is
+  the clean mental model ("the org_admin of one hospital").
+- **Second OR-term per site / widening `is_org_admin_of_commission`'s body in place.** Rejected —
+  doubling the churn now and forever, or a name that lies while grep inventories of predicate names
+  are treated as security specs. A new, honestly-named combined predicate is the single seam.
+- **No new audit tier (hospital_admin reads only its commission chains).** Considered and recommended
+  by the lead for its surgical migration; **human chose the 4th tier** for a first-class hospital
+  audit view. Accepted with the single-predecessor-chaining clarification above.
+- **Free-text title column / org-level title vocabulary.** Rejected — free text loses the managed
+  list; org-level contradicts "customizable per committee."
+- **Enforcing title uniqueness ("exactly one Presidente").** Rejected — turns every leadership
+  transition into a constraint fight for display-only data.
+
+## Consequences
+
+- **Security-critical mechanical edit** (the ~60-site swap) and **the codebase's most dangerous edit**
+  (the audit hash-chain rewrite) land in one phase → full plan-review (§4); the grep inventory +
+  catalog sweep is the spec, and the cross-hospital-isolation pgTAP keystone (hospital-A admin sees
+  **zero** rows of hospital-B commissions) plus per-tier chain-verification pgTAP are the gate.
+- **Greenfield reseed** (pre-production): org A gains a second hospital; personas `hospitaladmin.a1@`,
+  `nsporg.a@`; existing commission UUIDs preserved for fixtures.
+- **Seam for Phase B:** `nsp_org_admin` in the role CHECK and the `hospital_id` role column are exactly
+  what NSP-per-hospital (ADR 0052) needs; the combined-predicate pattern is reused for the PHI doors.
