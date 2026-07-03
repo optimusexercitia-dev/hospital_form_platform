@@ -56,6 +56,7 @@ export function AuditFilters({
   exportBasePath,
   commissionId,
   organizationId,
+  hospitalId,
   commissions,
   commission,
 }: {
@@ -79,6 +80,15 @@ export function AuditFilters({
    * the "Verificar integridade" control.
    */
   organizationId?: string;
+  /**
+   * The hospital to verify (hospital-tier chain, ADR 0051), for a
+   * `hospital_admin` at `/o/[org]/manage/audit`. Mutually exclusive with
+   * `commissionId`/`organizationId` in practice. NOTE: the underlying
+   * "Verificar integridade" control does not yet support this scope end-to-end
+   * (see {@link AuditIntegrityCheck}'s KNOWN GAP doc comment) — passed through
+   * so the wiring is ready the moment it does.
+   */
+  hospitalId?: string;
   /** Admin cross-commission view: the commission-filter options. */
   commissions?: AuditCommissionOption[];
   /** The selected commission (admin view). */
@@ -232,6 +242,7 @@ export function AuditFilters({
         <AuditIntegrityCheck
           commissionId={commissionId}
           organizationId={organizationId}
+          hospitalId={hospitalId}
         />
 
         <div className="flex flex-wrap items-center gap-2">

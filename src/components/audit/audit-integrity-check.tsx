@@ -22,23 +22,38 @@ import { cn } from "@/lib/utils";
  * the verdict; a failure (`brokenSeq`) escalates to `role="alert"` so it is read
  * assertively. The button is keyboard-operable with the project focus ring.
  *
- * Scope (multi-tenancy Phase C — the audit log is a 3-tier chain):
+ * Scope (ADR 0051 — the audit log is a 4-tier chain: platform/org/hospital/commission):
  *  - `commissionId` → that commission's chain (the `/c/.../manage/audit` caller).
  *  - `organizationId` → that org's chain (the `/o/[org]/manage/audit` caller).
+ *  - `hospitalId` → that hospital's chain (a `hospital_admin` at `/o/[org]/manage/audit`).
  *  - neither → the platform chain (the `/admin` caller).
  * `commissionId` takes precedence when both are somehow passed (never expected).
+ *
+ * KNOWN GAP (flagged to the lead): `verifyAuditChainAction`'s scope union
+ * (`@/lib/audit/actions.ts`) has not yet been widened with `hospitalId` — only
+ * the underlying `verifyAuditChain` query (`@/lib/queries/audit.ts`, A0) has.
+ * Until that action is widened, passing `hospitalId` here shows a disabled
+ * control with an explanatory message rather than silently mis-scoping to the
+ * platform chain.
  */
 export function AuditIntegrityCheck({
   commissionId,
   organizationId,
+  hospitalId,
 }: {
   commissionId?: string;
   organizationId?: string;
+  hospitalId?: string;
 }) {
   const [state, setState] = useState<VerifyChainState | null>(null);
   const [pending, startTransition] = useTransition();
 
+  // See the KNOWN GAP note above — the action wrapper doesn't accept a hospital
+  // scope yet, so we refuse to silently verify the wrong (platform) chain.
+  const blockedByMissingHospitalSupport = Boolean(hospitalId);
+
   function run() {
+    if (blockedByMissingHospitalSupport) return;
     startTransition(async () => {
       try {
         // Resolve the tier scope: commission (bare string, legacy form) wins;
@@ -69,12 +84,18 @@ export function AuditIntegrityCheck({
         variant="outline"
         size="sm"
         onClick={run}
-        disabled={pending}
+        disabled={pending || blockedByMissingHospitalSupport}
         aria-busy={pending}
       >
         <ShieldCheck aria-hidden="true" />
         {pending ? "Verificando…" : "Verificar integridade"}
       </Button>
+
+      {blockedByMissingHospitalSupport ? (
+        <p className="text-sm text-muted-foreground">
+          A verificação de integridade por hospital estará disponível em breve.
+        </p>
+      ) : null}
 
       {state ? (
         <p

@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getSessionContext } from "@/lib/queries/session";
+import { adminedHospitals } from "@/lib/auth/access";
 import {
   listAuditForOrg,
+  listAuditForHospital,
   listAuditFilterActors,
   auditTrailEnabled,
   AUDIT_ACTION_LABELS,
@@ -11,7 +13,9 @@ import {
   type AuditAction,
   type AuditEntityType,
   type AuditFilters as AuditQueryFilters,
+  type AuditPage,
 } from "@/lib/queries/audit";
+import { HospitalSwitcher } from "@/components/shell/hospital-switcher";
 import { AuditFilters } from "@/components/audit/audit-filters";
 import { AuditFeed } from "@/components/audit/audit-feed";
 import { AuditPagination } from "@/components/audit/audit-pagination";
@@ -24,15 +28,21 @@ export const metadata: Metadata = {
 const PAGE_SIZE = 25;
 
 /**
- * Org-tier audit trail (multi-tenancy Phase C). The org-scoped variant of the
- * audit timeline: the union of the org chain (`commission_id IS NULL`) AND every
- * commission chain under the org. Access is enforced by the `/o/[org]/manage`
- * layout (`is_org_admin_of(org)`); we re-resolve the org from
- * `context.orgAdminOf` to get its id for the org-scoped read. `listAuditForOrg`
- * is RLS-scoped (the `audit_log_select` org-tier term), so RLS remains the
+ * Org/hospital-tier audit trail (ADR 0051 — the audit log is a 4-tier chain:
+ * platform/org/hospital/commission). Access is enforced by the
+ * `/o/[org]/manage` layout (`is_org_admin_of(org)` OR hospital_admin-of-some-
+ * hospital-here).
+ *
+ * An `org_admin` sees the ORG chain — the union of the org chain
+ * (`commission_id IS NULL`) AND every commission chain under the org
+ * (`listAuditForOrg`). A `hospital_admin` sees its HOSPITAL chain instead — the
+ * union of the hospital chain AND every commission chain under that hospital
+ * (`listAuditForHospital`, ADR 0051 Decision 10) — with a hospital switcher
+ * when it administers more than one (`?hospital=`). Both reads are RLS-scoped
+ * (the `audit_log_select` org-tier / hospital-tier terms), so RLS remains the
  * boundary. All filters + pagination are URL-driven. Gated behind the
- * `audit_trail` flag (404 when off). The commission column is shown so each row's
- * commission (or "—" for an org-tier action) is visible.
+ * `audit_trail` flag (404 when off). The commission column is shown so each
+ * row's commission (or "—" for an org/hospital-tier action) is visible.
  */
 export default async function OrgAuditPage({
   params,
@@ -46,24 +56,36 @@ export default async function OrgAuditPage({
     from?: string;
     to?: string;
     page?: string;
+    hospital?: string;
   }>;
 }) {
   const { org } = await params;
   const context = await getSessionContext();
-  const organization = context?.orgAdminOf.find(
+  const orgAdminEntry = context?.orgAdminOf.find(
     (o) => o.organization.slug === org,
-  )?.organization;
+  );
+  const organization =
+    orgAdminEntry?.organization ??
+    context?.hospitalAdminOf.find((h) => h.organization.slug === org)
+      ?.organization;
 
   // The layout already guarantees access; defensive (never expected).
-  if (!organization) {
+  if (!organization || !context) {
     notFound();
   }
   if (!(await auditTrailEnabled())) {
     notFound();
   }
 
+  const isOrgAdmin = Boolean(orgAdminEntry);
+  const hospitals = isOrgAdmin ? [] : adminedHospitals(context, organization.id);
+
   const sp = await searchParams;
   const pageNum = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
+  // A hospital_admin MUST have a selected hospital (defaults to the first).
+  const selectedHospitalId = isOrgAdmin
+    ? null
+    : (sp.hospital ?? hospitals[0]?.id ?? null);
 
   const filters: AuditQueryFilters = {
     actorId: sp.actor || undefined,
@@ -75,10 +97,18 @@ export default async function OrgAuditPage({
     pageSize: PAGE_SIZE,
   };
 
-  const [pageData, actors] = await Promise.all([
-    listAuditForOrg(organization.id, filters),
-    listAuditFilterActors(null),
-  ]);
+  let pageData: AuditPage;
+  if (isOrgAdmin) {
+    pageData = await listAuditForOrg(organization.id, filters);
+  } else if (selectedHospitalId) {
+    pageData = await listAuditForHospital(selectedHospitalId, filters);
+  } else {
+    // No hospital standing at all — defensive; the layout gate should prevent
+    // reaching this page without at least org_admin or hospital_admin here.
+    pageData = { entries: [], total: 0, page: pageNum, pageSize: PAGE_SIZE };
+  }
+
+  const actors = await listAuditFilterActors(null);
 
   const hasFilters = Boolean(
     sp.actor || sp.action || sp.entity || sp.from || sp.to,
@@ -87,14 +117,23 @@ export default async function OrgAuditPage({
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
-        <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
-          {organization.name}
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
+            {organization.name}
+          </p>
+          {!isOrgAdmin && hospitals.length > 1 ? (
+            <HospitalSwitcher
+              hospitals={hospitals}
+              currentHospitalId={selectedHospitalId}
+              allowAll={false}
+            />
+          ) : null}
+        </div>
         <h1 className="text-3xl text-balance">Trilha de auditoria</h1>
         <p className="max-w-prose text-muted-foreground text-pretty">
-          Registro de quem fez o quê, em qual entidade e quando, em toda a sua
-          organização. Os registros são apenas de leitura e não podem ser
-          alterados nem excluídos.
+          {isOrgAdmin
+            ? "Registro de quem fez o quê, em qual entidade e quando, em toda a sua organização. Os registros são apenas de leitura e não podem ser alterados nem excluídos."
+            : "Registro de quem fez o quê, em qual entidade e quando, no seu hospital. Os registros são apenas de leitura e não podem ser alterados nem excluídos."}
         </p>
       </header>
 
@@ -108,7 +147,8 @@ export default async function OrgAuditPage({
         from={sp.from ?? null}
         to={sp.to ?? null}
         exportBasePath={null}
-        organizationId={organization.id}
+        organizationId={isOrgAdmin ? organization.id : undefined}
+        hospitalId={!isOrgAdmin && selectedHospitalId ? selectedHospitalId : undefined}
       />
 
       {pageData.entries.length === 0 ? (
