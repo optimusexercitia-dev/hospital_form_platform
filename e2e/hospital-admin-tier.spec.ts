@@ -424,12 +424,18 @@ test.describe('HA-4: Committee titles — CRUD, assignment, badges, display-only
     const items = page.locator('li[data-flip-id]')
     const firstBefore = await items.first().textContent()
     await page.getByRole('button', { name: 'Mover Presidente para baixo' }).click()
-    await page.waitForTimeout(500) // FLIP animation settle
-    const firstAfter = await items.first().textContent()
-    expect(firstAfter).not.toEqual(firstBefore)
+    // Reorder reflects after the server action + router.refresh() round-trip,
+    // which on `next dev` can exceed a fixed 500ms wait — poll until it changes
+    // (canonical retrying pattern, cf. form-model-normalization reorder assertions).
+    await expect
+      .poll(async () => await items.first().textContent(), { timeout: 10_000 })
+      .not.toEqual(firstBefore)
 
-    // Move it back up to restore original order (test hygiene).
+    // Move it back up to restore original order (test hygiene); wait for it to settle.
     await page.getByRole('button', { name: 'Mover Presidente para cima' }).click()
+    await expect
+      .poll(async () => await items.first().textContent(), { timeout: 10_000 })
+      .toEqual(firstBefore)
   })
 
   test('staff_admin deletes the throwaway title (cleanup) — display-only delete never blocked by usage', async ({ page }) => {
