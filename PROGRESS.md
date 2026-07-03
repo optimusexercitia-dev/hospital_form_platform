@@ -73,7 +73,7 @@ gate — per-hospital PHI isolation proven in SQL) **then frontend**. Design →
 
 | # | Owner | Task | Depends | Status |
 | - | ----- | ---- | ------- | ------ |
-| B0 | backend | **PLAN + contract-first signatures** — re-derive the **live-catalog** per-door inventory (every ADR 0042 §A door + §N net-new), `nsp_org_admin` aggregate-door list with proven-PHI-free SELECT lists, migration order + catalog-sweep assertion; post typed query/action **signatures** the FE depends on (NSP hospital switcher, coordinator/roster curation, org NSP-admin console). Full plan review. [gate:plan] | – | 🔜 not started |
+| B0 | backend | **PLAN + contract-first signatures** — re-derive the **live-catalog** per-door inventory (every ADR 0042 §A door + §N net-new), `nsp_org_admin` aggregate-door list with proven-PHI-free SELECT lists, migration order + catalog-sweep assertion; post typed query/action **signatures** the FE depends on (NSP hospital switcher, coordinator/roster curation, org NSP-admin console). Full plan review. [gate:plan] | – | ✅ **APPROVED (lead) 2026-07-03** — live-catalog inventory complete (55 fns + 48 policies swept; §R (a)–(d) confirmed); 3 PHI-free aggregate doors; contract signatures frozen; migration `20260710000000` + pgTAP `189`. 5 open Qs decided (see B-decisions). |
 | B1 | backend | **Schema re-key** — `pqs_department` per-hospital (`hospital_id` FK + `UNIQUE(hospital_id)`); `pqs_members` PK `(organization_id,user_id)` → `(hospital_id,user_id)` (non-additive); predicate primitives + `hospital_of_*` resolution helpers before callers. | B0 | 🔜 not started |
 | B2 | backend | **Door re-key + catalog sweep** — apply the `org → hospital` transform (§T) to every read predicate, write gate/policy (8 CAPA `*_write` via `can_write_capa`), NSP lifecycle RPC, DEFINER door, storage + patient_index door; coordinator = full local operator (OR-term / `is_pqs_operator_of`). Live `pg_proc`/`pg_policies` sweep = ZERO residual per-org PQS terms. | B1 | 🔜 not started |
 | B3 | backend | **`nsp_org_admin` gates + PHI-free aggregate doors** (§N.1) — `is_nsp_org_admin_of(org)` primitive; per-hospital rollup DEFINER doors (event/CAPA/roster) with **provably PHI-free** SELECT lists, result set scoped to org's hospitals (M3). ZERO PHI read for the role. | B1 | 🔜 not started |
@@ -84,10 +84,36 @@ gate — per-hospital PHI isolation proven in SQL) **then frontend**. Design →
 | B8 | frontend | **Org NSP-admin console (PHI-free)** — org-level view of per-hospital event/CAPA/roster rollups + coordinator management; **zero PHI surfaced** (counts/status only); `dispose_referral_phi` action wired into the referral admin surface. | B0 (stubs) | 🔜 not started |
 
 **Lead notes (B):**
-- **Plan gate:** B0 is a **full** plan review (security-critical re-key touching RLS + PHI doors).
-  Spawn backend with `acceptEdits` + plan-first-in-text (NOT `mode:plan` — that blocks lead
-  approval). Backend posts the live-catalog inventory + signatures as text; lead approves before
-  any migration.
+- **B0 plan APPROVED 2026-07-03.** Live-catalog inventory sound (10 read preds, write gates via
+  `can_write_capa` consolidation, DEFINER doors, patient_index; only 2 RLS policies carry a direct
+  per-org term, the other 46 ride rebound predicates + the catalog sweep). Bonus live-catalog
+  finds: **Phase A already shipped `assign_nsp_org_admin`/`revoke_nsp_org_admin`** (org_admin-gated,
+  no self-deleg) and **org-A's 2nd hospital** ("Hospital Secundário A"); `case_referral.{source,
+  target}_commission_id` + `commissions.hospital_id` all NOT NULL (dual-referral needs no
+  draft-null guard).
+- **B-decisions (lead answers to backend's 5 open Qs):**
+  1. **`is_pqs_operator_of(hospital)` helper — YES.** DRY across ~20 doors, clean sweep, one pgTAP
+     primitive. `is_pqs_writer_of = is_pqs_operator_of` (coordinator OR member).
+  2. **Add a fresh commission** ("Comissão de Segurança do Paciente A2" or similar) under the
+     existing Hospital Secundário A to host the A2 event/referral — leave "Comissão de Ética"
+     untouched (avoids disturbing existing fixtures; semantically correct PS home).
+  3. **`nsp_org_admin` rollup doors = `nsp_org_admin`-gated ONLY** (not the local operator — they
+     have `pqs_inbox`/`capa_kpis` for their own hospital). Keeps the zero-PHI keystone single-role
+     and preserves NSP-chain independence from org administration.
+  4. **`dispose_referral_phi` nulls the FULL PHI graph** (LGPD completeness) — delete
+     `referral_patient` + null the referral/reply/shared-item free-text PHI columns, derived
+     EXACTLY from the columns the referral module's `*_select_phi` policies / PHI-classification
+     already treat as PHI-bearing (don't invent the set). Mirror `dispose_event_phi`'s reason enum +
+     audit shape; keep the referral record + non-PHI provenance.
+  5. **`patient_access_audit`: tighten the audit-row filter to HOSPITAL tier** (`audit_log.hospital_id
+     = p_hospital_id`) to match per-hospital isolation + the Phase-A 4-tier chain, not just the
+     entity-join. IF backend finds any legit PHI-access row for the hospital is stamped org-tier
+     (hospital_id null), fall back to the hospital-scoped entity subquery as the control + document
+     why. Add a pgTAP keystone: a foreign-hospital operator gets ZERO rows.
+- **Contract stubs FIRST:** backend commits the typed stubs (safe-default reads / throwing
+  mutations) as its first implementation step so frontend (B6–B8) builds against frozen types.
+- **Plan gate:** B0 was a **full** plan review (security-critical re-key touching RLS + PHI doors),
+  spawned `acceptEdits` + plan-first-in-text (not `mode:plan`).
 - **Contract-first:** B0 signatures (typed stubs) land before B1–B5 implementations so frontend
   (B6–B8) builds against real types in parallel.
 - **Backend surface reference:** [docs/backend-state.md](docs/backend-state.md) (NSP-per-org
