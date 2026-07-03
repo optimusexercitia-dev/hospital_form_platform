@@ -73,15 +73,15 @@ gate — per-hospital PHI isolation proven in SQL) **then frontend**. Design →
 
 | # | Owner | Task | Depends | Status |
 | - | ----- | ---- | ------- | ------ |
-| B0 | backend | **PLAN + contract-first signatures** — re-derive the **live-catalog** per-door inventory (every ADR 0042 §A door + §N net-new), `nsp_org_admin` aggregate-door list with proven-PHI-free SELECT lists, migration order + catalog-sweep assertion; post typed query/action **signatures** the FE depends on (NSP hospital switcher, coordinator/roster curation, org NSP-admin console). Full plan review. [gate:plan] | – | ✅ **APPROVED (lead) 2026-07-03** — live-catalog inventory complete (55 fns + 48 policies swept; §R (a)–(d) confirmed); 3 PHI-free aggregate doors; contract signatures frozen; migration `20260710000000` + pgTAP `189`. 5 open Qs decided (see B-decisions). |
-| B1 | backend | **Schema re-key** — `pqs_department` per-hospital (`hospital_id` FK + `UNIQUE(hospital_id)`); `pqs_members` PK `(organization_id,user_id)` → `(hospital_id,user_id)` (non-additive); predicate primitives + `hospital_of_*` resolution helpers before callers. | B0 | 🔜 not started |
+| B0 | backend | **PLAN + contract-first signatures** — re-derive the **live-catalog** per-door inventory (every ADR 0042 §A door + §N net-new), `nsp_org_admin` aggregate-door list with proven-PHI-free SELECT lists, migration order + catalog-sweep assertion; post typed query/action **signatures** the FE depends on (NSP hospital switcher, coordinator/roster curation, org NSP-admin console). Full plan review. [gate:plan] | – | ✅ **APPROVED (lead) 2026-07-03** — live-catalog inventory complete (55 fns + 48 policies swept; §R (a)–(d) confirmed); 3 PHI-free aggregate doors; contract signatures frozen; migration `20260710000000` + pgTAP `189`. 5 open Qs decided (see B-decisions). **Contract stubs committed @ 7de6caf** (10 backend files re-keyed org→hospital + new `pqs/org-admin.ts` + `disposeReferralPhi` + `listMyNspHospitals`; eslint clean; typecheck red vs current gen types until B1 regen — expected contract-first). |
+| B1 | backend | **Schema re-key** — `pqs_department` per-hospital (`hospital_id` FK + `UNIQUE(hospital_id)`); `pqs_members` PK `(organization_id,user_id)` → `(hospital_id,user_id)` (non-additive); predicate primitives + `hospital_of_*` resolution helpers before callers. | B0 | 🏗️ in progress (writing `20260710000000_nsp_per_hospital.sql`) |
 | B2 | backend | **Door re-key + catalog sweep** — apply the `org → hospital` transform (§T) to every read predicate, write gate/policy (8 CAPA `*_write` via `can_write_capa`), NSP lifecycle RPC, DEFINER door, storage + patient_index door; coordinator = full local operator (OR-term / `is_pqs_operator_of`). Live `pg_proc`/`pg_policies` sweep = ZERO residual per-org PQS terms. | B1 | 🔜 not started |
 | B3 | backend | **`nsp_org_admin` gates + PHI-free aggregate doors** (§N.1) — `is_nsp_org_admin_of(org)` primitive; per-hospital rollup DEFINER doors (event/CAPA/roster) with **provably PHI-free** SELECT lists, result set scoped to org's hospitals (M3). ZERO PHI read for the role. | B1 | 🔜 not started |
 | B4 | backend | **Appointment/roster/config RPCs + dual-referral + disposal** (§N.2/§N.3/§T) — three-tier chain (org_admin→nsp_org_admin→nsp_coordinator, no self-delegation); roster/config RPCs re-gated `nsp_org_admin OR coordinator`; `pqs_members` RLS curator policy; dual-hospital `can_read_referral_phi`; new `dispose_referral_phi` mirroring `dispose_event_phi`. | B2,B3 | 🔜 not started |
 | B5 | backend | **Seed + pgTAP + types** — org-A 2nd hospital + commission + cross-hospital event/referral PHI fixtures; personas `nsporg.a@`/`nspcoord.a1@`/`.a2@`/`pqs.a1@`/`.a2@`; new `nsp_per_hospital_isolation` suite (10 keystones incl. nsp_org_admin zero-PHI + dual-referral + disposal); types regen. [gate] | B1–B4 | 🔜 not started |
-| B6 | frontend | **NSP hospital switcher + local console** — `/o/[org]/nsp` renders **hospital-scoped** NSP content from grants; hospital switcher when the user's NSP roles span several; `?hospital=` deep link; coordinator = full operator UI (read + write). Builds against B0 stubs. | B0 (stubs) | 🔜 not started |
-| B7 | frontend | **Coordinator appointment + per-hospital roster curation UI** — nsp_org_admin/coordinator add/remove roster members + set RCA due-window per hospital; org_admin appoints nsp_org_admin; nsp_org_admin appoints per-hospital coordinators. | B0 (stubs) | 🔜 not started |
-| B8 | frontend | **Org NSP-admin console (PHI-free)** — org-level view of per-hospital event/CAPA/roster rollups + coordinator management; **zero PHI surfaced** (counts/status only); `dispose_referral_phi` action wired into the referral admin surface. | B0 (stubs) | 🔜 not started |
+| B6 | frontend | **NSP hospital switcher + local console** — `/o/[org]/nsp` renders **hospital-scoped** NSP content from grants; hospital switcher when the user's NSP roles span several; `?hospital=` deep link; coordinator = full operator UI (read + write). Builds against B0 stubs. | B0 (stubs) | 🏗️ in progress — switcher (`shell/nsp-hospital-switcher.tsx`) + pure `?hospital=` resolver (`shell/nsp-hospital-scope.ts`) built; layout/nav rewired hospital-scoped (switcher when >1 grant; nav threads `?hospital=`); `pacientes` page + `PatientSearchView` re-keyed orgId→hospitalId. Uses backend's re-keyed `getNspAccessByOrg` (now returns `hospitals: NspHospitalGrant[]`). |
+| B7 | frontend | **Coordinator appointment + per-hospital roster curation UI** — nsp_org_admin/coordinator add/remove roster members + set RCA due-window per hospital; org_admin appoints nsp_org_admin; nsp_org_admin appoints per-hospital coordinators. | B0 (stubs) | 🏗️ in progress |
+| B8 | frontend | **Org NSP-admin console (PHI-free)** — org-level view of per-hospital event/CAPA/roster rollups + coordinator management; **zero PHI surfaced** (counts/status only); `dispose_referral_phi` action wired into the referral admin surface. | B0 (stubs) | 🏗️ in progress |
 
 **Lead notes (B):**
 - **B0 plan APPROVED 2026-07-03.** Live-catalog inventory sound (10 read preds, write gates via
@@ -117,11 +117,15 @@ gate — per-hospital PHI isolation proven in SQL) **then frontend**. Design →
   hospital-scoped `/o/[org]/nsp` and from `/o/[org]/manage` (honors NSP-chain independence). (ii)
   **`ReferralDisposeDialog`** — destructive `AlertDialog` + reason-select + typed-confirm, affordance
   gated to entitled callers (server RPC is authoritative), unambiguous "PHI permanently erased" copy.
-- **Seam resolution — `getNspAccessByOrg` → `listMyNspHospitals()`:** the frozen `listMyNspHospitals()`
-  is the page-level replacement for the per-org NSP access seam. Frontend re-keys the NSP *pages* off
-  `getNspAccessByOrg`; **backend** re-keys/deprecates the seam in `session.ts` + any backend caller
-  (coordination note sent to backend; will relay if the shape differs). Frontend does NOT touch
-  `session.ts`.
+- **Seam resolution — `getNspAccessByOrg` KEPT + hospital-aware (backend, stubs @ `7de6caf`):** rather
+  than drop it, backend re-keyed `getNspAccessByOrg(orgSlug)` in `src/lib/queries/session.ts` to return
+  `{ context, organization, orgId, isPqsMember, isCoordinator, hospitals: NspHospitalGrant[] } | null`.
+  Frontend keeps calling it (low churn) + consumes `.hospitals` for the switcher; selected-hospital
+  operator status derives from the grant's `role`. **Zero backend callers** gate NSP access per-org now.
+  **Renamed exports FE re-points in `src/app/**` (B6–B8):** `listOrgEligibleUsersForPqs→…ForPqs(hospitalId)`,
+  `getPqsDepartmentForOrg→…ForHospital`, `appointNspCoordinator→assignNspCoordinator(hospitalId,…)`,
+  `searchPatientForOrg→…ForHospital`, `getPatientAccessAuditForOrg→…ForHospital`, `<PatientSearchView>`
+  prop `orgId→hospitalId`. Expected typecheck-red on `src/app/**` until FE re-points. Relayed to frontend.
 - **Plan gate:** B0 was a **full** plan review (security-critical re-key touching RLS + PHI doors),
   spawned `acceptEdits` + plan-first-in-text (not `mode:plan`).
 - **Contract-first:** B0 signatures (typed stubs) land before B1–B5 implementations so frontend
