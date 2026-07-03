@@ -42,7 +42,7 @@
 | ad-hoc-narratives | **Ad-hoc Case Narratives** — coordinator adds a narrative to an OPEN case (`add_ad_hoc_narrative` DEFINER RPC + `case_narratives.is_ad_hoc`); reverses ADR 0032 D7 for open cases. ADR [0047](docs/decisions/0047-ad-hoc-case-narratives.md) → [ad-hoc-narratives.md](docs/progress/ad-hoc-narratives.md). | ✅ complete | ✅ | ✅ pgTAP 1219 · Vitest 176 · E2E 5/5 + 461p (0 reg) | ✅ APPROVED 2026-07-01 [review](docs/reviews/ad-hoc-narratives-review.md) | ✅ 2026-07-01 | 2026-07-01 | branch `feat/ad-hoc-case-narratives` |
 | user-reg | **User Registration & Identity Management** — org_admin registers users (professional category + optional council credentials + home hospital/matrícula), verify+activate via invite, searchable org directory + full per-user management (committees/roles, deactivate/suspend/reactivate/resend); **real `is_active` enforcement**; drops DOB (LGPD). Detail → [user-registration.md](docs/progress/user-registration.md); ADR [0048](docs/decisions/0048-user-registration-identity.md). | ✅ complete | ✅ | ✅ feat 12/12 · pgTAP 1257 · full 467p/10-contam (0 reg) | ✅ APPROVED | ✅ 2026-07-02 | 2026-07-02 | `117319d` |
 | hospital-admin | **Phase A — Hospital-admin tier, 4-tier audit & committee titles** — `hospital_admin` (org_admin mirrored, hospital-scoped, incl. disposal + response reads); `organization_members` role widen + `hospital_id` + `NULLS NOT DISTINCT` cardinality; new `app.is_commission_admin_of()` swapped into ~60 sites; audit gains a **hospital tier** (chain key org/hospital/commission, lockstep `audit_canonical`/`audit_write`/`verify_audit_chain`); per-commission `commission_member_titles` vocab + `title_id`. Design [hospital-roles-nsp-titles-design.md](docs/progress/hospital-roles-nsp-titles-design.md). | ✅ complete | ✅ | ✅ feature spec 38/38 · pgTAP 1454 · full regr 497p/26f (0 Phase-A reg) | ✅ APPROVED (CHANGES REQ→all fixed) [review](docs/reviews/hospital-admin-tier-review.md) | ✅ 2026-07-03 | 2026-07-03 | `99e2d09` |
-| nsp-per-hospital | **Phase B — NSP-per-hospital + `nsp_org_admin`** — re-key the PQS roster + **every PHI door** org→hospital (`is_pqs_member_of(hospital)`; resolution `org_of_* → hospital_of_*`); `nsp_org_admin` (org-level, **zero-PHI** aggregate rollups + roster curation + coordinator appointment); `nsp_coordinator` = full **local** operator (implicit PHI read + write); dual-hospital same-org referral reads; `dispose_referral_phi`. Backend core first, then FE. Design [nsp-per-hospital-design.md](docs/progress/nsp-per-hospital-design.md); ADR [0052](docs/decisions/0052-nsp-per-hospital.md). | 🧪 testing (full regr) | ✅ pgTAP 1445/1445 · Vitest 193 · tsc 0 · eslint 0 · build ✓ | ✅ feature **32/32** (NPH-001/002 RESOLVED); full regr running | – | – | – | BE `4ab7618`+`7a4ffa6`+`12888b1` · FE `ccb6bc3`+`6eab3d1` · E2E `8ddc3b9` |
+| nsp-per-hospital | **Phase B — NSP-per-hospital + `nsp_org_admin`** — re-key the PQS roster + **every PHI door** org→hospital (`is_pqs_member_of(hospital)`; resolution `org_of_* → hospital_of_*`); `nsp_org_admin` (org-level, **zero-PHI** aggregate rollups + roster curation + coordinator appointment); `nsp_coordinator` = full **local** operator (implicit PHI read + write); dual-hospital same-org referral reads; `dispose_referral_phi`. Backend core first, then FE. Design [nsp-per-hospital-design.md](docs/progress/nsp-per-hospital-design.md); ADR [0052](docs/decisions/0052-nsp-per-hospital.md). | 🧪 testing (E2E-spec fix-loop) | ✅ pgTAP 1445/1445 · Vitest 193 · tsc 0 · eslint 0 · build ✓ | ✅ feature **32/32**; full regr triaged → **0 app/security regressions** (3 E2E-spec fixes in progress) | – | – | – | BE `4ab7618`+`7a4ffa6`+`12888b1` · FE `ccb6bc3`+`6eab3d1` · E2E `8ddc3b9` |
 
 > **Accreditation & Quality-Governance Track (13–21)** — planned 2026-06-17; specs in
 > [PHASES.md](PHASES.md) (§ Accreditation track), rationale in ADR
@@ -148,6 +148,22 @@ gate — per-hospital PHI isolation proven in SQL) **then frontend**. Design →
   (`src/app/**`, `src/components/**`) are intermixed. **Plan:** each teammate commits ONLY its own paths
   (explicit list, NOT `git add -A`) so ownership stays clean — backend commits its set on B1–B5 report;
   frontend commits its set after the union-drop. Lead commits PROGRESS.md separately.
+- **FULL-REGRESSION TRIAGE (lead, 2026-07-03) — 0 Phase-B app/security regressions.** Full suite (fresh
+  reset, dev, w=1): run1 522p/37f; targeted fresh re-run of the 14 failed files 218p/18f. **Root-caused
+  every persistent failure to E2E-spec issues, NOT app/backend/security** (app has zero stale callers;
+  `audit_log` SELECT RLS unchanged + correct; catalog sweep clean). **`nsp-per-hospital` +
+  `nsp-cross-org-isolation` PASSED on the fresh re-run** — Phase-B code clean. The failures decompose:
+  (1) **2 stale-sig specs** — `patient-index.spec.ts` + `phase14b-triage.spec.ts` call re-keyed RPCs with
+  the OLD `p_org_id` arg (PGRST202); new sigs `search_patient_xref/patient_access_audit(…,p_hospital_id)`,
+  `set_pqs_rca_due_window(p_hospital_id,p_days)`. (2) **1 test-isolation leak** — a spec (candidate:
+  hospital-admin-tier appointment test, runs before phase13 alphabetically) appoints `staff1.ccih`
+  hospital_admin of secundario-a **without cleanup**; the audit `is_hospital_admin_of` arm then lets the
+  "plain staff" read 9 hospital-tier rows → breaks `phase13-audit AC-3c` + `phase3-admin AC3`. **Verified
+  seed is correct** (fresh reset: staff1 = plain staff); **Phase B only EXPOSED a pre-existing leak**
+  (secundario-a had no audit activity pre-B). (3) **Environmental** — `user-registration`/`HA-6`/broad
+  phase4/5/7/8/11 timeouts = local GoTrue auth rate-limit (4 resets/90min) + dev-server `ECONNRESET` over
+  53-min serial runs. **All 3 handed to tester (specs-only fixes).** Lead runs the definitive full regr
+  on a restarted stack (clears rate-limit) with `--retries=2` (absorbs ECONNRESET) for the green declare.
 - **B1–B4 landed + security core PROVEN (backend) 2026-07-03.** Migration `20260710000000` applies
   clean; **catalog sweep = zero residual per-org PQS symbols**. **`189_nsp_per_hospital_isolation`
   PASSES — 42 keystones**: cross-hospital same-org PHI isolation (A1 op gets null on A2 PHI across
