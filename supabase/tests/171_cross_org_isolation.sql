@@ -166,12 +166,13 @@ reset role;
 select test_helpers.claims_for((select orgadmin_a from personas), false);
 set local role authenticated;
 
--- Sees rede-a commissions (2: CCIH + Farmácia), not rede-b (Qualidade).
+-- Sees rede-a commissions (3: CCIH + Farmácia under central-a + Ética under the
+-- ADR-0051 second hospital secundario-a), not rede-b (Qualidade).
 select is(
   (select count(*)::int from public.commissions
    where organization_id = (select org_a from personas)),
-  2,
-  'org_admin A: sees 2 rede-a commissions (CCIH + Farmácia)');
+  3,
+  'org_admin A: sees 3 rede-a commissions (CCIH + Farmácia + Ética)');
 select is(
   (select count(*)::int from public.commissions
    where organization_id = (select org_b from personas)),

@@ -163,16 +163,18 @@ select is(
 --     (equipe-nsp E2E); here we prove the DB allows the org_admin to write the
 --     coordinator role onto a plain member, and the role CHECK accepts it.
 -- ============================================================================
--- The role CHECK on organization_members admits nsp_coordinator (the appointment seam).
-select is(
+-- The role CHECK on organization_members admits nsp_coordinator (the appointment
+-- seam). ADR 0051 (A1) added a SECOND constraint on `role` — the hospital-scope
+-- iff-CHECK — whose NULL arm also names nsp_coordinator, so >=1 constraint clause
+-- references it (was exactly 1 before A1). >=1 keeps the "admits it" intent stable.
+select ok(
   (select count(*)::int
    from information_schema.check_constraints cc
    join information_schema.constraint_column_usage ccu
      on cc.constraint_name = ccu.constraint_name
    where ccu.table_name = 'organization_members'
      and ccu.column_name = 'role'
-     and cc.check_clause like '%nsp_coordinator%'),
-  1,
+     and cc.check_clause like '%nsp_coordinator%') >= 1,
   'C1: organization_members.role CHECK admits nsp_coordinator (appointment seam)');
 
 -- An org_admin of rede-a CAN insert a nsp_coordinator row for a plain member
@@ -263,8 +265,8 @@ select test_helpers.claims_for((select pqs_a from personas), false);
 set local role authenticated;
 select is(
   (select count(*)::int from public.commissions where organization_id = (select org_a from personas)),
-  2,
-  'D1: pqs.a (PQS-only) reads BOTH rede-a commissions via the broadened policy (was 0 pre-fix)');
+  3,
+  'D1: pqs.a (PQS-only) reads ALL rede-a commissions via the broadened policy (3 since ADR 0051 added Ética; was 0 pre-fix)');
 select is(
   (select count(*)::int from public.commissions where organization_id = (select org_b from personas)),
   0,
@@ -277,8 +279,8 @@ select test_helpers.claims_for((select nspcoord_a from personas), false);
 set local role authenticated;
 select is(
   (select count(*)::int from public.commissions where organization_id = (select org_a from personas)),
-  2,
-  'D2: nspcoord.a (coordinator) reads rede-a commissions via the broadened policy');
+  3,
+  'D2: nspcoord.a (coordinator) reads ALL rede-a commissions via the broadened policy (3 since ADR 0051 added Ética)');
 select is(
   (select count(*)::int from public.commissions where organization_id = (select org_b from personas)),
   0,

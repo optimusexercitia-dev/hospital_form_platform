@@ -503,6 +503,7 @@ export type Database = {
           commission_id: string | null
           entity_id: string
           entity_type: string
+          hospital_id: string | null
           id: string
           metadata: Json
           occurred_at: string
@@ -519,6 +520,7 @@ export type Database = {
           commission_id?: string | null
           entity_id: string
           entity_type: string
+          hospital_id?: string | null
           id?: string
           metadata?: Json
           occurred_at?: string
@@ -535,6 +537,7 @@ export type Database = {
           commission_id?: string | null
           entity_id?: string
           entity_type?: string
+          hospital_id?: string | null
           id?: string
           metadata?: Json
           occurred_at?: string
@@ -2275,12 +2278,48 @@ export type Database = {
           },
         ]
       }
+      commission_member_titles: {
+        Row: {
+          commission_id: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          commission_id: string
+          created_at?: string
+          id?: string
+          name: string
+          position: number
+          updated_at?: string
+        }
+        Update: {
+          commission_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_member_titles_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commission_members: {
         Row: {
           commission_id: string
           created_at: string
           id: string
           role: string
+          title_id: string | null
           user_id: string
         }
         Insert: {
@@ -2288,6 +2327,7 @@ export type Database = {
           created_at?: string
           id?: string
           role: string
+          title_id?: string | null
           user_id: string
         }
         Update: {
@@ -2295,6 +2335,7 @@ export type Database = {
           created_at?: string
           id?: string
           role?: string
+          title_id?: string | null
           user_id?: string
         }
         Relationships: [
@@ -2303,6 +2344,13 @@ export type Database = {
             columns: ["commission_id"]
             isOneToOne: false
             referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_members_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "commission_member_titles"
             referencedColumns: ["id"]
           },
           {
@@ -3288,6 +3336,7 @@ export type Database = {
       organization_members: {
         Row: {
           created_at: string
+          hospital_id: string | null
           id: string
           organization_id: string
           role: string
@@ -3295,6 +3344,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          hospital_id?: string | null
           id?: string
           organization_id: string
           role: string
@@ -3302,12 +3352,20 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          hospital_id?: string | null
           id?: string
           organization_id?: string
           role?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "organization_members_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "organization_members_organization_id_fkey"
             columns: ["organization_id"]
@@ -5851,8 +5909,20 @@ export type Database = {
         Args: { p_case_id: string; p_tag_id: string }
         Returns: undefined
       }
+      assign_hospital_admin: {
+        Args: { p_hospital: string; p_user: string }
+        Returns: undefined
+      }
+      assign_member_title: {
+        Args: { p_member_id: string; p_title_id: string }
+        Returns: undefined
+      }
       assign_narrative: {
         Args: { p_assignee: string; p_narrative: string }
+        Returns: undefined
+      }
+      assign_nsp_org_admin: {
+        Args: { p_org: string; p_user: string }
         Returns: undefined
       }
       audit_trail_enabled: { Args: never; Returns: boolean }
@@ -6679,6 +6749,23 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_member_title: {
+        Args: { p_commission_id: string; p_name: string }
+        Returns: {
+          commission_id: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "commission_member_titles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_phase_result: {
         Args: {
           p_color_token?: string
@@ -6923,6 +7010,7 @@ export type Database = {
         Args: { p_attachment_id: string }
         Returns: undefined
       }
+      delete_member_title: { Args: { p_title_id: string }; Returns: undefined }
       delete_rca_evidence: {
         Args: { p_evidence_id: string }
         Returns: undefined
@@ -7566,6 +7654,23 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      rename_member_title: {
+        Args: { p_name: string; p_title_id: string }
+        Returns: {
+          commission_id: string
+          created_at: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "commission_member_titles"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reopen_capa_plan: {
         Args: { p_capa_id: string }
         Returns: {
@@ -7738,6 +7843,10 @@ export type Database = {
         Args: { p_agenda_item_id: string; p_direction: string }
         Returns: undefined
       }
+      reorder_member_titles: {
+        Args: { p_commission_id: string; p_ordered_ids: string[] }
+        Returns: undefined
+      }
       reorder_phase_results: {
         Args: { p_commission_id: string; p_ordered_ids: string[] }
         Returns: undefined
@@ -7760,6 +7869,14 @@ export type Database = {
       }
       revoke_case_access: {
         Args: { p_case: string; p_user: string }
+        Returns: undefined
+      }
+      revoke_hospital_admin: {
+        Args: { p_hospital: string; p_user: string }
+        Returns: undefined
+      }
+      revoke_nsp_org_admin: {
+        Args: { p_org: string; p_user: string }
         Returns: undefined
       }
       save_narrative_body: {
@@ -9276,7 +9393,11 @@ export type Database = {
         Returns: boolean
       }
       verify_audit_chain: {
-        Args: { p_commission?: string; p_organization?: string }
+        Args: {
+          p_commission?: string
+          p_hospital?: string
+          p_organization?: string
+        }
         Returns: {
           broken_seq: number
           ok: boolean

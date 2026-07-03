@@ -315,6 +315,13 @@ alter function public.verify_audit_chain(uuid, uuid, uuid) owner to postgres;
 -- defaulted p_hospital; drop it so the signature is unambiguous for PostgREST.
 drop function if exists public.verify_audit_chain(uuid, uuid);
 
+-- CREATE OR REPLACE with a NEW signature resets the ACL to default (PUBLIC
+-- EXECUTE). Re-apply the baseline's lockdown so the anon-executability guard
+-- (100_dashboard) stays green: authenticated + service_role only.
+revoke all on function public.verify_audit_chain(uuid, uuid, uuid) from public;
+grant execute on function public.verify_audit_chain(uuid, uuid, uuid) to authenticated;
+grant execute on function public.verify_audit_chain(uuid, uuid, uuid) to service_role;
+
 -- 6. Read policy — 4 tiers (ADR 0051 Decision 5 / design decision 10). Gives
 --    hospital_admin BOTH its hospital-tier rows AND (via is_commission_admin_of)
 --    its hospital's commission-tier rows.

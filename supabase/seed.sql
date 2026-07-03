@@ -68,7 +68,12 @@ insert into public.organizations (id, name, slug, created_by) values
 
 insert into public.hospitals (id, organization_id, name, slug) values
   ('05000000-0000-0000-0000-00000000000a', '0c000000-0000-0000-0000-00000000000a', 'Hospital Central A', 'central-a'),
-  ('05000000-0000-0000-0000-00000000000b', '0c000000-0000-0000-0000-00000000000b', 'Hospital Central B', 'central-b');
+  ('05000000-0000-0000-0000-00000000000b', '0c000000-0000-0000-0000-00000000000b', 'Hospital Central B', 'central-b'),
+  -- Hospital-admin tier (ADR 0051): a SECOND hospital under org-a, so cross-
+  -- hospital isolation WITHIN one org is testable (a hospital_admin of central-a
+  -- must see NOTHING of this hospital's commissions). It gets its own commission
+  -- (Comissão de Ética) below.
+  ('05000000-0000-0000-0000-0000000000a2', '0c000000-0000-0000-0000-00000000000a', 'Hospital Secundário A', 'secundario-a');
 
 -- ---------------------------------------------------------------------------
 -- Auth users. We insert directly into auth.users; the on_auth_user_created
@@ -123,7 +128,22 @@ declare
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000d1', 'email', 'novato.pendente@test.local', 'name', 'Novato Pendente',   'org', '0c000000-0000-0000-0000-00000000000a'),
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000d2', 'email', 'ativo.registro@test.local',  'name', 'Ativo Registrado',  'org', '0c000000-0000-0000-0000-00000000000a'),
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000d3', 'email', 'suspenso.temp@test.local',   'name', 'Suspenso Temporário','org', '0c000000-0000-0000-0000-00000000000a'),
-    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000d4', 'email', 'desativado.conta@test.local','name', 'Desativado Conta',  'org', '0c000000-0000-0000-0000-00000000000a')
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000d4', 'email', 'desativado.conta@test.local','name', 'Desativado Conta',  'org', '0c000000-0000-0000-0000-00000000000a'),
+    -- Hospital-admin tier (ADR 0051) personas (org-a):
+    --   hospitaladmin.a1 = hospital_admin of central-a ONLY — the cross-hospital
+    --     ISOLATION subject (184): sees CCIH + Farmácia but ZERO of secundario-a's
+    --     Comissão de Ética and ZERO of org-b. home_hospital_id → central-a (Q2).
+    --   hospitaladmin.dual = hospital_admin of BOTH central-a and secundario-a —
+    --     the Note-2 COEXISTENCE proof: two organization_members rows for one
+    --     (org,user), which the OLD (org,user) unique rejected and the new
+    --     composite NULLS-NOT-DISTINCT key admits. (Split from a1 so the isolation
+    --     subject stays single-hospital — the plan's 184 needs a single-hospital
+    --     admin AND a positive coexistence row; one persona can't be both.)
+    --   nsporg.a = nsp_org_admin of org-a (row admitted to the CHECK now; INERT
+    --     until Phase B).
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000e1', 'email', 'hospitaladmin.a1@test.local',   'name', 'Admin Hospital A1',   'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000e3', 'email', 'hospitaladmin.dual@test.local', 'name', 'Admin Hospital Dual', 'org', '0c000000-0000-0000-0000-00000000000a'),
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000e2', 'email', 'nsporg.a@test.local',           'name', 'Admin NSP Rede A',    'org', '0c000000-0000-0000-0000-00000000000a')
   );
   u jsonb;
 begin
@@ -202,7 +222,25 @@ insert into public.organization_members (organization_id, user_id, role) values
   -- roster via add/remove_pqs_member; appointed by the org_admin). They are NOT
   -- enrolled in pqs_members below — proving curate ≠ read (three-way duty separation).
   ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000c1', 'nsp_coordinator'),
-  ('0c000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000c3', 'nsp_coordinator');
+  ('0c000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000c3', 'nsp_coordinator'),
+  -- Hospital-admin tier (ADR 0051): nsp_org_admin of org-a (org-level, INERT this
+  -- phase — hospital_id defaults NULL, satisfying the Phase-A iff-CHECK).
+  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e2', 'nsp_org_admin');
+
+-- Hospital-admin rows carry hospital_id (the Phase-A iff-CHECK requires it).
+--   a1   -> central-a ONLY (isolation subject).
+--   dual -> BOTH central-a and secundario-a (Note-2 coexistence: two rows for one
+--           (org,user), which the OLD (org,user) unique rejected and the new
+--           composite NULLS-NOT-DISTINCT key admits; 184 asserts BOTH resolve).
+insert into public.organization_members (organization_id, user_id, role, hospital_id) values
+  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e1', 'hospital_admin', '05000000-0000-0000-0000-00000000000a'),
+  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e3', 'hospital_admin', '05000000-0000-0000-0000-00000000000a'),
+  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e3', 'hospital_admin', '05000000-0000-0000-0000-0000000000a2');
+
+-- Q2 hospital-scoped directory: anchor the hospital_admin's home hospital to
+-- central-a. The dual + nsporg personas stay hospital-less at home.
+update public.profiles set home_hospital_id = '05000000-0000-0000-0000-00000000000a'
+where id = '00000000-0000-0000-0000-0000000000e1';
 
 -- ---------------------------------------------------------------------------
 -- Commissions + memberships. CCIH + Farmácia under org-a's hospital (ids kept);
@@ -217,7 +255,11 @@ insert into public.commissions (id, name, slug, created_by, hospital_id) values
   -- NSP-per-org (ADR 0042): a SECOND org-b commission so an INTRA-rede-b referral
   -- (Qualidade B → Farmácia B) exists — referrals are forbidden across orgs, so the
   -- rede-b referral fixture needs two rede-b commissions.
-  ('c0000000-0000-0000-0000-0000000000c2', 'Comissão de Farmácia B',                      'farmacia-b', '00000000-0000-0000-0000-0000000000b2', '05000000-0000-0000-0000-00000000000b');
+  ('c0000000-0000-0000-0000-0000000000c2', 'Comissão de Farmácia B',                      'farmacia-b', '00000000-0000-0000-0000-0000000000b2', '05000000-0000-0000-0000-00000000000b'),
+  -- Hospital-admin tier (ADR 0051): a commission under org-a's SECOND hospital
+  -- (secundario-a). A hospital_admin of central-a ONLY must see ZERO rows of this
+  -- commission (184 cross-hospital isolation keystone). Created by orgadmin.a.
+  ('e0000000-0000-0000-0000-0000000000e1', 'Comissão de Ética',                           'etica', '00000000-0000-0000-0000-0000000000b1', '05000000-0000-0000-0000-0000000000a2');
 
 insert into public.commission_members (commission_id, user_id, role) values
   -- org-b commission staff_admin + staff (cross-org isolation personas).
