@@ -114,6 +114,7 @@ export const REFERRAL_MESSAGES = {
   sharedItemRemoved: 'Item removido do encaminhamento.',
   patientSaved: 'Dados do paciente registrados.',
   attachmentAdded: 'Anexo adicionado.',
+  phiDisposed: 'Dados do paciente do encaminhamento descartados.',
 } as const
 
 /**

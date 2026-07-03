@@ -2,7 +2,8 @@ import { cache } from 'react'
 import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
-import { isPqsMemberOfSelf, isNspCoordinatorOfSelf } from '@/lib/queries/pqs'
+import { listMyNspHospitals } from '@/lib/queries/pqs'
+import type { NspHospitalGrant } from '@/lib/pqs/roster-types'
 import { deriveUserStatus, type UserStatus } from '@/lib/users/types'
 // The TS mirror of `is_commission_admin_of` (ADR 0051): org_admin-of-org OR
 // hospital_admin-of-hospital. access.ts imports ONLY types from this module, so
@@ -421,24 +422,24 @@ async function getCommissionAccessByOrgUncached(
 }
 
 /**
- * The per-org NSP-console access resolver (NSP-per-org, ADR 0042) — the seam behind
+ * The NSP-console access resolver (NSP-per-hospital, ADR 0052) — the seam behind
  * `/o/[org]/nsp/**`, mirroring {@link getCommissionAccessByOrg}. Resolves the org by
- * slug (RLS-scoped: the `organizations_select` policy now admits an enrolled
- * `pqs_member` / `nsp_coordinator` of the org, §A2.5b) and reports both NSP roles:
+ * slug (RLS-scoped: the `organizations_select` policy admits an enrolled `pqs_member`
+ * / `nsp_coordinator` of any hospital in the org) and reports ORG-LEVEL NSP standing
+ * plus the per-hospital operator grants that drive the hospital switcher (B6):
  *
- *   - `isPqsMember`   — enrolled in the org's PQS roster ⇒ may READ that org's PHI
- *                       (the PHI nav lights up). Enforced again at every data door.
- *   - `isCoordinator` — the org's `nsp_coordinator` ⇒ may CURATE the roster (the
- *                       roster nav lights up). NOT implicitly a PHI reader.
+ *   - `hospitals`     — the hospitals of THIS org whose NSP the caller operates
+ *                       (enrolled member OR coordinator), from {@link listMyNspHospitals}
+ *                       filtered to `orgId`. The switcher + the default-hospital pick.
+ *   - `isCoordinator` — the caller coordinates ≥1 hospital in this org (curation nav).
+ *   - `isPqsMember`   — the caller operates (member OR coordinator) ≥1 hospital in this
+ *                       org (PHI nav lights up; per-hospital reads are re-gated at the
+ *                       data doors, which resolve the specific hospital).
  *
- * Returns `null` ONLY when BOTH are false (no NSP standing in this org → 404). An
- * UNENROLLED coordinator (curate-but-not-read) MUST be able to enter the console to
- * manage the roster, so a `isCoordinator && !isPqsMember` caller is admitted — PHI is
- * still denied at the data doors (which gate on enrollment), so this is safe.
- *
- * The booleans come from the org-scoped DEFINER probes (`is_pqs_member_of_self` /
- * `is_nsp_coordinator_of_self`); a platform admin without enrollment gets `null`
- * (duty separation — admin standing is not NSP standing).
+ * Returns `null` when the caller operates NO hospital in this org (no NSP standing →
+ * 404). A platform admin without enrollment gets `null` (duty separation — admin
+ * standing is not NSP standing). The specific hospital view is gated per-hospital by
+ * the data doors + the B6 `?hospital=` resolver against `hospitals` below.
  */
 export const getNspAccessByOrg = cache(
   async (
@@ -449,6 +450,7 @@ export const getNspAccessByOrg = cache(
     orgId: string
     isPqsMember: boolean
     isCoordinator: boolean
+    hospitals: NspHospitalGrant[]
   } | null> => {
     return getNspAccessByOrgUncached(orgSlug)
   },
@@ -460,6 +462,7 @@ async function getNspAccessByOrgUncached(orgSlug: string): Promise<{
   orgId: string
   isPqsMember: boolean
   isCoordinator: boolean
+  hospitals: NspHospitalGrant[]
 } | null> {
   const context = await getSessionContext()
   if (!context) {
@@ -468,10 +471,9 @@ async function getNspAccessByOrgUncached(orgSlug: string): Promise<{
 
   const supabase = await createClient()
 
-  // Resolve the org by slug. RLS (`organizations_select`, broadened in §A2.5b) returns
-  // the row for a platform admin, an org_admin/member, OR an enrolled PQS
-  // member/coordinator of this org — so a bare PQS member (no commission membership)
-  // resolves their org here. A foreign org's slug yields no row → null.
+  // Resolve the org by slug. RLS (`organizations_select`) returns the row for a
+  // platform admin, an org_admin/member, OR an enrolled PQS member/coordinator of any
+  // hospital in this org. A foreign org's slug yields no row → null.
   const { data: orgRow } = await supabase
     .from('organizations')
     .select('id, slug, name')
@@ -483,21 +485,25 @@ async function getNspAccessByOrgUncached(orgSlug: string): Promise<{
     return null
   }
 
-  const [isPqsMember, isCoordinator] = await Promise.all([
-    isPqsMemberOfSelf(orgRow.id),
-    isNspCoordinatorOfSelf(orgRow.id),
-  ])
+  // The caller's operator hospitals, filtered to THIS org. Per-hospital PHI reads are
+  // re-gated at the data doors; this only decides console entry + the switcher set.
+  const hospitals = (await listMyNspHospitals()).filter(
+    (h) => h.orgId === orgRow.id,
+  )
 
-  // No NSP standing in this org → no console access.
-  if (!isPqsMember && !isCoordinator) {
+  // No NSP standing in any hospital of this org → no console access.
+  if (hospitals.length === 0) {
     return null
   }
+
+  const isCoordinator = hospitals.some((h) => h.role === 'coordinator')
 
   return {
     context,
     organization: orgRow,
     orgId: orgRow.id,
-    isPqsMember,
+    isPqsMember: true, // operates ≥1 hospital → PHI nav lights up (per-hospital re-gated)
     isCoordinator,
+    hospitals,
   }
 }
