@@ -5949,6 +5949,10 @@ export type Database = {
         Returns: undefined
       }
       audit_trail_enabled: { Args: never; Returns: boolean }
+      can_dispose_referral_phi: {
+        Args: { p_referral_id: string }
+        Returns: boolean
+      }
       cancel_capa_plan: {
         Args: { p_capa_id: string }
         Returns: {

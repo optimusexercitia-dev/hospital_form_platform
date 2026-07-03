@@ -127,6 +127,14 @@ declare
     -- org-a SECOND hospital (secundario-a) NSP personas (ADR 0052 §C):
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c5', 'email', 'nspcoord.a2@test.local', 'name', 'Coordenador NSP A2',     'org', '0c000000-0000-0000-0000-00000000000a'),
     jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c6', 'email', 'pqs.a2@test.local',      'name', 'NSP Secundário A',       'org', '0c000000-0000-0000-0000-00000000000a'),
+    -- DUAL-HOSPITAL NSP operator who is ALSO a commission member (ADR 0052; closes two
+    -- E2E persona gaps): enrolled in BOTH central-a AND secundário-a rosters → the
+    -- multi-hospital NSP switcher (grants.length > 1 / resolveNspHospital >1 path); AND
+    -- a member of CCIH (central-a) → the "PQS operator reveals PHI via a source-endpoint
+    -- commission UI" arm. Does NOT touch any exact count assertion (roster/member counts
+    -- are per-persona or hospital-row counts; 189's pqs.a-not-in-secundário keystone is
+    -- a DIFFERENT persona).
+    jsonb_build_object('id', '00000000-0000-0000-0000-0000000000c7', 'email', 'pqsdual.a@test.local',   'name', 'NSP Dual A',             'org', '0c000000-0000-0000-0000-00000000000a'),
     -- User-registration lifecycle personas (org-a), for the directory + status
     -- badges + enforcement E2E. Their derived status is set by the status-patch
     -- block below (pending = clear email_confirmed_at; suspended = future
@@ -283,6 +291,10 @@ insert into public.commission_members (commission_id, user_id, role) values
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000002', 'staff_admin'),
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000003', 'staff'),
   ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-000000000004', 'staff'),
+  -- pqsdual.a: a plain CCIH (central-a) staff member who is ALSO a dual-hospital NSP
+  -- operator (enrolled in both central-a + secundário-a rosters below) — closes the
+  -- "PQS operator who is a commission member" + multi-hospital-switcher E2E gaps.
+  ('a0000000-0000-0000-0000-0000000000a1', '00000000-0000-0000-0000-0000000000c7', 'staff'),
   ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000005', 'staff_admin'),
   ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000006', 'staff'),
   ('b0000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-000000000007', 'staff'),
@@ -1108,6 +1120,7 @@ declare
   v_hosp_b   uuid := '05000000-0000-0000-0000-00000000000b';  -- central-b (org-b hospital)
   v_pqs_a    uuid := '00000000-0000-0000-0000-0000000000c2';  -- pqs.a (enrolled, central-a)
   v_pqs_a2   uuid := '00000000-0000-0000-0000-0000000000c6';  -- pqs.a2 (enrolled, secundario-a)
+  v_pqs_dual uuid := '00000000-0000-0000-0000-0000000000c7';  -- pqsdual.a (both hospitals + CCIH member)
   v_pqs_b    uuid := '00000000-0000-0000-0000-0000000000c4';  -- pqs.b (enrolled, rede-b)
   v_comm_b_qual uuid := 'c0000000-0000-0000-0000-0000000000c1'; -- Qualidade B (rede-b)
   v_chefe_b_qual uuid := '00000000-0000-0000-0000-0000000000b2'; -- orgadmin.b (staff_admin Qualidade B)
@@ -1142,11 +1155,15 @@ begin
   --     coordinator reads without membership.
   --   secundario-a: pqs.a2 (the isolation subject — reads ONLY secundario-a's PHI).
   --   central-b: pqs.b.
+  --   pqsdual.a: enrolled in BOTH central-a AND secundario-a → a dual-hospital operator
+  --     (the NSP switcher >1-grant path) who is ALSO a CCIH commission member.
   -- nsporg.a (the org NSP-admin) is enrolled in NO roster — proving it reads ZERO PHI.
   insert into public.pqs_members (hospital_id, user_id, added_by) values
     (v_hosp_a1, v_pqs_a, v_admin),
     (v_hosp_a1, v_admin, v_admin),
     (v_hosp_a2, v_pqs_a2, v_admin),
+    (v_hosp_a1, v_pqs_dual, v_admin),
+    (v_hosp_a2, v_pqs_dual, v_admin),
     (v_hosp_b,  v_pqs_b, v_admin)
   on conflict (hospital_id, user_id) do nothing;
 

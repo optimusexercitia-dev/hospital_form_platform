@@ -804,3 +804,23 @@ export async function referralFlowMetrics(): Promise<ReferralFlowMetrics> {
     withdrawn: rows.filter((r) => r.status === 'retirada').length,
   }
 }
+
+/**
+ * Whether the CURRENT caller is entitled to invoke {@link disposeReferralPhi} for
+ * `referralId` — i.e. the FE gates the destructive "descartar dados do paciente"
+ * affordance to entitled callers only, instead of dangling a control the RPC rejects
+ * (BUG-NPH-002; ADR 0052 §6). Mirrors the `dispose_referral_phi` gate EXACTLY:
+ * `is_admin() OR is_commission_admin_of(source) OR is_pqs_operator_of(either endpoint
+ * hospital)`. A plain commission `staff_admin` is intentionally NOT entitled — PHI
+ * erasure is an org-admin / NSP-operator action. Backed by the read-only DEFINER probe
+ * `can_dispose_referral_phi(referral)` (reads/mutates NO PHI); safe-default `false`
+ * (called at render time, never throws). */
+export async function canDisposeReferralPhi(referralId: string): Promise<boolean> {
+  if (!referralId) return false
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('can_dispose_referral_phi', {
+    p_referral_id: referralId,
+  })
+  if (error) return false
+  return data === true
+}
