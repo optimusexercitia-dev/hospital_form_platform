@@ -33,7 +33,7 @@
 --                 audit_trail is ON.
 
 begin;
-select plan(48);
+select plan(54);
 
 -- Feature flags this file exercises. audit_trail ON for the audit assertions.
 update app.feature_flags set enabled = true
@@ -66,10 +66,10 @@ grant select on st to authenticated;
 -- (1) GRANTS — anon must NOT execute; authenticated must (t19-style).
 -- ===========================================================================
 select is(
-  has_function_privilege('anon', 'public.create_committee_action_item(uuid,text,uuid,uuid,uuid,text,text,uuid,uuid,date)', 'EXECUTE'),
+  has_function_privilege('anon', 'public.create_committee_action_item(uuid,text,uuid,uuid,uuid,text,text,uuid,uuid,date,uuid,text)', 'EXECUTE'),
   false, 'anon cannot EXECUTE create_committee_action_item');
 select is(
-  has_function_privilege('anon', 'public.update_committee_action_item(uuid,text,text,uuid,uuid,date)', 'EXECUTE'),
+  has_function_privilege('anon', 'public.update_committee_action_item(uuid,text,text,uuid,uuid,date,text)', 'EXECUTE'),
   false, 'anon cannot EXECUTE update_committee_action_item');
 select is(
   has_function_privilege('anon', 'public.advance_committee_action_item(uuid,uuid,text)', 'EXECUTE'),
@@ -85,10 +85,10 @@ select is(
   false, 'anon cannot EXECUTE action_items_enabled');
 
 select is(
-  has_function_privilege('authenticated', 'public.create_committee_action_item(uuid,text,uuid,uuid,uuid,text,text,uuid,uuid,date)', 'EXECUTE'),
+  has_function_privilege('authenticated', 'public.create_committee_action_item(uuid,text,uuid,uuid,uuid,text,text,uuid,uuid,date,uuid,text)', 'EXECUTE'),
   true, 'authenticated can EXECUTE create_committee_action_item');
 select is(
-  has_function_privilege('authenticated', 'public.update_committee_action_item(uuid,text,text,uuid,uuid,date)', 'EXECUTE'),
+  has_function_privilege('authenticated', 'public.update_committee_action_item(uuid,text,text,uuid,uuid,date,text)', 'EXECUTE'),
   true, 'authenticated can EXECUTE update_committee_action_item');
 select is(
   has_function_privilege('authenticated', 'public.advance_committee_action_item(uuid,uuid,text)', 'EXECUTE'),
@@ -483,6 +483,37 @@ select is(
    where entity_type = 'action_item' and entity_id = (select id from ai_m)
      and commission_id <> (select comm_x from k)),
   0, 'audit: action_item rows are stamped with the item''s own commission');
+
+-- ===========================================================================
+-- (10) FOLD DROP-INVARIANTS — the OLD case-action-item surface is GONE.
+-- Migration 20260707 dropped the parallel case_action_items table, its 4 RPCs,
+-- and app.advance_action_item_core (folded into the hub). A CATALOG sweep makes
+-- the "dropped-symbol dangling caller" class impossible to reintroduce silently.
+-- ===========================================================================
+select is(
+  (select count(*)::int from pg_class
+   where relname = 'case_action_items' and relnamespace = 'public'::regnamespace),
+  0, 'drop: the parallel public.case_action_items table is GONE');
+select is(
+  (select count(*)::int from pg_proc
+   where pronamespace = 'public'::regnamespace and proname = 'create_action_item'),
+  0, 'drop: the old public.create_action_item RPC is GONE');
+select is(
+  (select count(*)::int from pg_proc
+   where pronamespace = 'public'::regnamespace and proname = 'update_action_item'),
+  0, 'drop: the old public.update_action_item RPC is GONE');
+select is(
+  (select count(*)::int from pg_proc
+   where pronamespace = 'public'::regnamespace and proname = 'advance_action_item'),
+  0, 'drop: the old public.advance_action_item RPC is GONE');
+select is(
+  (select count(*)::int from pg_proc
+   where pronamespace = 'public'::regnamespace and proname = 'complete_action_item'),
+  0, 'drop: the old public.complete_action_item RPC is GONE');
+select is(
+  (select count(*)::int from pg_proc
+   where pronamespace = 'app'::regnamespace and proname = 'advance_action_item_core'),
+  0, 'drop: app.advance_action_item_core is GONE (folded into advance_committee_action_item)');
 
 select * from finish();
 rollback;

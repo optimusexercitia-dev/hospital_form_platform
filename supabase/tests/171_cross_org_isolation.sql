@@ -80,8 +80,11 @@ select is((select count(*)::int from public.case_narratives), 0,
   'WALL: platform sees 0 case_narratives');
 select is((select count(*)::int from public.case_access), 0,
   'WALL: platform sees 0 case_access');
-select is((select count(*)::int from public.case_action_items), 0,
-  'WALL: platform sees 0 case_action_items');
+-- Case action items were folded into the shared action_items hub (migration
+-- 20260707; source_type='case'). The old case_action_items table is dropped, so
+-- assert the WALL over the hub's case-sourced rows instead (same intent).
+select is((select count(*)::int from public.action_items where source_type = 'case'), 0,
+  'WALL: platform sees 0 case-sourced action_items');
 select is((select count(*)::int from public.case_tags), 0,
   'WALL: platform sees 0 case_tags');
 

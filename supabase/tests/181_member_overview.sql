@@ -68,11 +68,18 @@ create temp table ph on commit drop as
             p_assigned_to  => (select st_x from k))).id as pid;
 grant select on ph to authenticated;
 
--- A case action item assigned to st_x (open).
+-- A case action item assigned to st_x (open). Case action items were folded into
+-- the shared action_items hub (migration 20260707; source_type='case'): the old
+-- create_action_item RPC is dropped, so author it via create_committee_action_item.
 create temp table cai on commit drop as
-  select (public.create_action_item(
-            (select cid from cse), 'Item de caso', 'desc caso',
-            (select st_x from k), (current_date + 5))).id as aid;
+  select (public.create_committee_action_item(
+            p_commission  => (select comm_x from k),
+            p_source_type => 'case',
+            p_case_id     => (select cid from cse),
+            p_title       => 'Item de caso',
+            p_description => 'desc caso',
+            p_assigned_to => (select st_x from k),
+            p_due_date    => (current_date + 5))).id as aid;
 grant select on cai to authenticated;
 
 -- A meeting in commission X with st_x as a PRESENTE attendee, one action item

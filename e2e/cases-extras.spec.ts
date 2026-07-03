@@ -503,12 +503,17 @@ test('AC-ActionItems: coordinator creates action item assigned to staff1; staff1
 
   await signOut(page)
 
-  // ── staff1.ccih completes the action item via the RPC ──
+  // ── staff1.ccih completes the action item via the HUB RPC ──
+  // Case action items were folded into the shared action_items hub (migration
+  // 20260707; source_type='case', linked via source_case_id). The old
+  // case_action_items table + complete_action_item RPC are dropped; completion now
+  // routes through complete_committee_action_item, and status is read from
+  // public.action_items joined to action_item_statuses for the status KEY.
   await signInAs(page, 'staff1.ccih@test.local')
   const staff1Token = await getOwnerToken(page, 'staff1.ccih@test.local')
 
   const aiListResp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/case_action_items?case_id=eq.${SEEDED_CASE_ID}&title=eq.${encodeURIComponent(aiTitle)}&select=id`,
+    `${SUPABASE_URL}/rest/v1/action_items?source_type=eq.case&source_case_id=eq.${SEEDED_CASE_ID}&title=eq.${encodeURIComponent(aiTitle)}&select=id`,
     {
       headers: {
         apikey: SUPABASE_SERVICE_KEY,
@@ -521,20 +526,21 @@ test('AC-ActionItems: coordinator creates action item assigned to staff1; staff1
   const aiId = aiList[0].id
 
   const completeResp = await page.request.post(
-    `${SUPABASE_URL}/rest/v1/rpc/complete_action_item`,
+    `${SUPABASE_URL}/rest/v1/rpc/complete_committee_action_item`,
     {
       headers: {
         apikey: SUPABASE_SERVICE_KEY,
         Authorization: `Bearer ${staff1Token}`,
         'Content-Type': 'application/json',
       },
-      data: { p_action_item_id: aiId },
+      data: { p_id: aiId },
     },
   )
   expect(completeResp.ok()).toBeTruthy()
 
+  // Read the status KEY from the hub (status_id → action_item_statuses.key).
   const doneResp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/case_action_items?id=eq.${aiId}&select=status`,
+    `${SUPABASE_URL}/rest/v1/action_items?id=eq.${aiId}&select=status:action_item_statuses!action_items_status_fkey(key)`,
     {
       headers: {
         apikey: SUPABASE_SERVICE_KEY,
@@ -542,8 +548,8 @@ test('AC-ActionItems: coordinator creates action item assigned to staff1; staff1
       },
     },
   )
-  const doneRows = (await doneResp.json()) as Array<{ status: string }>
-  expect(doneRows[0]?.status).toBe('done')
+  const doneRows = (await doneResp.json()) as Array<{ status: { key: string } | null }>
+  expect(doneRows[0]?.status?.key).toBe('done')
 
   await signOut(page)
 
@@ -555,8 +561,9 @@ test('AC-ActionItems: coordinator creates action item assigned to staff1; staff1
   pastDate.setDate(pastDate.getDate() - 5)
   const pastIso = `${pastDate.getFullYear()}-${String(pastDate.getMonth() + 1).padStart(2, '0')}-${String(pastDate.getDate()).padStart(2, '0')}`
 
+  // Author the overdue item through the folded hub RPC (source_type='case').
   await page.request.post(
-    `${SUPABASE_URL}/rest/v1/rpc/create_action_item`,
+    `${SUPABASE_URL}/rest/v1/rpc/create_committee_action_item`,
     {
       headers: {
         apikey: SUPABASE_SERVICE_KEY,
@@ -564,12 +571,11 @@ test('AC-ActionItems: coordinator creates action item assigned to staff1; staff1
         'Content-Type': 'application/json',
       },
       data: {
+        p_commission: COMM_CCIH_ID,
+        p_source_type: 'case',
         p_case_id: SEEDED_CASE_ID,
         p_title: `Item vencido E2E ${Date.now()}`,
-        p_description: null,
-        p_assigned_to: null,
         p_due_date: pastIso,
-        p_source_case_phase_id: null,
       },
     },
   )

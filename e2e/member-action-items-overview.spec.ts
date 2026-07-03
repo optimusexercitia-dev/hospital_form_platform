@@ -225,42 +225,52 @@ test.beforeAll(async ({ request }) => {
   // Idempotent cleanup of any leftover rows from a prior aborted run.
   await teardownFixtures(request)
 
-  // --- CASE action items on Caso 0001 (commission A) assigned to staff1 ---
+  // Global hub status ids (the hub keys status by id, not text). Case action
+  // items were folded into the shared action_items hub (migration 20260707;
+  // source_type='case', linked via source_case_id, hard-forced case_restricted by
+  // the guard). All three sources now live on public.action_items with a status_id.
+  const openId = await globalStatusId(request, 'open')
+  const inProgressId = await globalStatusId(request, 'in_progress')
+  const doneId = await globalStatusId(request, 'done')
+  const cancelledId = await globalStatusId(request, 'cancelled')
+
+  // --- CASE action items on Caso 0001 (commission A) assigned to staff1, now on
+  // the shared hub (source_type='case', source_case_id) ---
   // (a) overdue + active → shows the overdue flag, sorts first.
-  await svcInsert(request, 'case_action_items', {
-    case_id: SEEDED_CASE_ID,
+  await svcInsert(request, 'action_items', {
+    commission_id: COMM_CCIH_ID,
+    source_type: 'case',
+    source_case_id: SEEDED_CASE_ID,
     title: T_CASE_OVERDUE,
     description: 'Prévia da descrição do item vencido.',
-    status: 'open',
+    status_id: openId,
     assigned_to: STAFF1_CCIH,
     due_date: isoDate(-3),
     created_by: CHEFE_CCIH,
   })
   // (b) active, NO deadline → sorts last among active.
-  await svcInsert(request, 'case_action_items', {
-    case_id: SEEDED_CASE_ID,
+  await svcInsert(request, 'action_items', {
+    commission_id: COMM_CCIH_ID,
+    source_type: 'case',
+    source_case_id: SEEDED_CASE_ID,
     title: T_CASE_ACTIVE,
     description: null,
-    status: 'in_progress',
+    status_id: inProgressId,
     assigned_to: STAFF1_CCIH,
     due_date: null,
     created_by: CHEFE_CCIH,
   })
   // (c) done → hidden by default, revealed by the toggle.
-  await svcInsert(request, 'case_action_items', {
-    case_id: SEEDED_CASE_ID,
+  await svcInsert(request, 'action_items', {
+    commission_id: COMM_CCIH_ID,
+    source_type: 'case',
+    source_case_id: SEEDED_CASE_ID,
     title: T_CASE_DONE,
-    status: 'done',
+    status_id: doneId,
     assigned_to: STAFF1_CCIH,
     due_date: isoDate(-10),
     created_by: CHEFE_CCIH,
   })
-
-  // --- SHARED-HUB action items (source_type meeting|manual) on commission A →
-  // staff1. Post Option-A unification these live on public.action_items and key
-  // status by `status_id` (a shared-hub status id), not a text `status`. ---
-  const openId = await globalStatusId(request, 'open')
-  const cancelledId = await globalStatusId(request, 'cancelled')
 
   // (d) MEETING-source, active, future deadline (not overdue) — mixes case +
   // meeting sources. Guard requires source_meeting_id in the same commission.
@@ -312,23 +322,23 @@ test.beforeAll(async ({ request }) => {
   })
 
   // --- ISOLATION: item assigned to staff1 but in ANOTHER commission (Farmácia).
-  // Modeled as a case_action_items row on a TAG-named Farmácia case: case action
-  // items derive their commission from the parent case (no denormalized column),
-  // so there is no meeting/commission CHECK to violate. The RPC scopes by
-  // c.commission_id = p_commission, so this row must NOT appear on the CCIH page.
-  // (A shared-hub meeting-source row can't stand in here — its guard ties the
-  // source_meeting_id to its own commission, so hanging it on the CCIH meeting
-  // would force a CCIH commission_id and reject the mismatch.)
+  // Modeled as a case-sourced hub row on a TAG-named Farmácia case. The row's
+  // commission_id must match the case's commission (guard: HC032), so use
+  // COMM_FARM_ID. The reader RPC scopes by commission_id = p_commission, so this
+  // row must NOT appear on the CCIH page. (A meeting-source row can't stand in
+  // here — its guard ties source_meeting_id to its own commission.)
   const farmCase = await svcInsert<{ id: string }>(request, 'cases', {
     commission_id: COMM_FARM_ID,
     label: `${TAG} Caso Farmácia (isolamento)`,
     status: 'pendente',
     created_by: CHEFE_CCIH,
   })
-  await svcInsert(request, 'case_action_items', {
-    case_id: farmCase.id,
+  await svcInsert(request, 'action_items', {
+    commission_id: COMM_FARM_ID,
+    source_type: 'case',
+    source_case_id: farmCase.id,
     title: T_OTHER_COMMISSION,
-    status: 'open',
+    status_id: openId,
     assigned_to: STAFF1_CCIH,
     due_date: isoDate(5),
     created_by: CHEFE_CCIH,
@@ -360,10 +370,9 @@ test.afterAll(async ({ request }) => {
 })
 
 async function teardownFixtures(request: APIRequestContext) {
-  // Action items first (children), then their parents. case_action_items match by
-  // title; the shared-hub (meeting|manual) rows likewise; the isolation item's
-  // parent Farmácia case matches by label.
-  await svcDelete(request, 'case_action_items', `title=like.*${TAG}*`)
+  // Action items first (children), then their parents. ALL action items (case +
+  // meeting + manual sources) now live on the shared public.action_items hub and
+  // match by title; the isolation item's parent Farmácia case matches by label.
   await svcDelete(request, 'action_items', `title=like.*${TAG}*`)
   // The TAG-named Farmácia case created for the cross-commission isolation row.
   await svcDelete(request, 'cases', `label=like.*${TAG}*`)

@@ -89,10 +89,10 @@ export default async function CommissionLayout({
     getNspAccessByOrg(org),
   ]);
 
-  // "Meus itens de ação" surfaces items from three sources: case_action_items
-  // (`cases_extras`), and the shared action_items hub's meeting-sourced
-  // (`meetings`) and manual-sourced (`action_items`) rows. Its nav item shows when
-  // ANY of those source flags is on.
+  // "Meus itens de ação" surfaces items from the shared action_items hub across
+  // its three sources: case-sourced (`cases_extras`), meeting-sourced (`meetings`)
+  // and manual-sourced (`action_items`) rows. Its nav item shows when ANY of those
+  // source flags is on.
   const actionItemsOn = casesExtrasOn || meetingsOn || sharedActionItemsOn;
 
   // The "my work" count is the badge for whichever nav item the flag selects:

@@ -4,10 +4,10 @@ import { createClient } from '@/lib/supabase/server'
  * "Meus itens de ação" data-access (Architecture Rule 9 — all reads go through
  * `src/lib/queries/`). Backs the current user's unified action-item list at
  * `/o/[org]/c/[commission]/` — a read-only union of the items ASSIGNED TO the
- * caller across these sources:
- *   - `case_action_items`      (gated by the `cases_extras` flag)
- *   - shared `action_items`    (gated by the `action_items` flag) — both the
- *     `meeting`-sourced and `manual` rows of the unified hub.
+ * caller across these sources — ALL now on the shared `action_items` hub,
+ * discriminated by `source_type`:
+ *   - `source_type='case'`             (gated by the `cases_extras` flag)
+ *   - `source_type in (meeting,manual)` (gated by the `action_items` flag)
  *
  * CAPA action items are intentionally NOT included (they live under the NSP/PHI
  * safeguards and are surfaced elsewhere). A source whose feature flag is OFF is
@@ -32,13 +32,13 @@ import { createClient } from '@/lib/supabase/server'
 // ---------------------------------------------------------------------------
 
 /**
- * Which source a unified action item came from. `case` is `case_action_items`;
- * `meeting` and `manual` are both the shared `action_items` hub (discriminated
- * by its `source_type`).
+ * Which source a unified action item came from. All three (`case`, `meeting`,
+ * `manual`) are rows of the shared `action_items` hub, discriminated by its
+ * `source_type`.
  */
 export type ActionItemSource = 'case' | 'meeting' | 'manual'
 
-/** Shared lifecycle status (identical CHECK on both source tables). */
+/** Shared lifecycle status (the hub status KEY). */
 export type MyActionItemStatus = 'open' | 'in_progress' | 'done' | 'cancelled'
 
 /**

@@ -1205,12 +1205,21 @@ export async function listMyAssignedPhases(
 export interface CaseAccessGrant {
   userId: string
   level: 'read' | 'write'
+  /** When the grant was made (ISO timestamptz). */
+  grantedAt: string
+  /** Grant expiry (ISO timestamptz); `null` = no expiry. Past = "Expirada". */
+  expiresAt: string | null
+  /** Optional pt-BR justification (LGPD / accreditation evidence); `null` if none. */
+  reason: string | null
 }
 
 /** One row of the `list_case_access` result set. */
 interface CaseAccessGrantRow {
   user_id: string
   level: 'read' | 'write'
+  granted_at: string
+  expires_at: string | null
+  reason: string | null
 }
 
 /**
@@ -1220,6 +1229,8 @@ interface CaseAccessGrantRow {
  * flag and is gated to a coordinator (staff_admin / org-admin of the case's
  * commission). The RPC raises for a non-coordinator (or when the flag is off),
  * surfaced here as `[]` — never a leak. Returns `[]` when the case has no grants.
+ * Each row now carries `grantedAt`, `expiresAt` (nullable) and `reason` (nullable)
+ * — a row with `expiresAt` in the past is an EXPIRED grant (shown as "Expirada").
  */
 export async function listCaseAccessGrants(
   caseId: string,
@@ -1235,6 +1246,9 @@ export async function listCaseAccessGrants(
   return (data as unknown as CaseAccessGrantRow[]).map((r) => ({
     userId: r.user_id,
     level: r.level,
+    grantedAt: r.granted_at,
+    expiresAt: r.expires_at,
+    reason: r.reason,
   }))
 }
 

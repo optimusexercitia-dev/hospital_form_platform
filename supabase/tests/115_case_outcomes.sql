@@ -329,9 +329,13 @@ reset role;
 
 -- D10 (non-gating) is demonstrated by test 10: the concluded case (cse) used an
 -- outcome with requires_action_plan=true and concluded with ZERO action items —
--- the flag is advisory, never a gate. Assert that explicitly here.
+-- the flag is advisory, never a gate. Assert that explicitly here. Case action
+-- items now live on the shared action_items hub (migration 20260707;
+-- source_type='case', linked via source_case_id) — the old case_action_items
+-- table is dropped.
 select is(
-  (select count(*)::int from public.case_action_items where case_id = (select cid from cse)),
+  (select count(*)::int from public.action_items
+   where source_type = 'case' and source_case_id = (select cid from cse)),
   0,
   'D10: a requires_action_plan outcome concluded with no action items (flag is advisory, not a gate)'
 );

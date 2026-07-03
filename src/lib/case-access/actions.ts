@@ -54,6 +54,7 @@ const MESSAGES = {
   invalidLevel: 'Nível de acesso inválido.',
   // HC021 — the grant target must be a current member of the case's commission.
   notMember: 'O responsável deve ser membro da comissão.',
+  invalidExpiry: 'A data de expiração deve ser futura.',
   granted: 'Acesso concedido.',
   revoked: 'Acesso removido.',
 } as const
@@ -62,8 +63,8 @@ const PG_CHECK_VIOLATION = '23514'
 const PG_FORBIDDEN = '42501'
 const HC_NOT_MEMBER = 'HC021'
 
-const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
-const STAFF_CASE_PATH = '/c/[slug]/casos/[caseId]'
+const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
+const STAFF_CASE_PATH = '/o/[org]/c/[commission]/casos/[caseId]'
 
 function revalidateCase(): void {
   revalidatePath(CASE_PATH, 'page')
@@ -131,20 +132,37 @@ async function commissionOfCase(
 
 /**
  * Grant a commission member read or write access to a case (upsert — re-granting
- * at a new level updates it; `write` implies `read`). Coordinator-only; the target
- * must be a current member of the case's commission (`HC021`). Routed through the
- * DEFINER `grant_case_access`.
+ * updates level/expiry/reason; `write` implies `read`). Coordinator-only; the
+ * target must be a current member of the case's commission (`HC021`). Routed
+ * through the DEFINER `grant_case_access`.
+ *
+ * @param expiresAt Optional ISO timestamptz; the grant is DENIED once past. `null`
+ *   / omitted = no expiry ("sem prazo"). Must be in the future when provided.
+ * @param reason Optional pt-BR justification (LGPD / accreditation evidence).
  */
 export async function grantCaseAccess(
   caseId: string,
   userId: string,
   level: CaseAccessLevel,
+  expiresAt?: string | null,
+  reason?: string | null,
 ): Promise<ActionState> {
   if (!caseId) return { ok: false, error: MESSAGES.missingCase }
   if (!userId) return { ok: false, fieldErrors: { userId: MESSAGES.missingUser } }
   if (level !== 'read' && level !== 'write') {
     return { ok: false, error: MESSAGES.invalidLevel }
   }
+
+  // Validate an expiry client-side for a clean field error (the RPC re-checks).
+  const expiry = expiresAt?.trim() || null
+  if (expiry !== null) {
+    const d = new Date(expiry)
+    if (Number.isNaN(d.getTime()) || d.getTime() <= Date.now()) {
+      return { ok: false, fieldErrors: { expiresAt: MESSAGES.invalidExpiry } }
+    }
+  }
+  const reasonText = reason?.trim() || null
+
   if (!(await caseAccessEnabled())) {
     return { ok: false, error: MESSAGES.unavailable }
   }
@@ -160,6 +178,8 @@ export async function grantCaseAccess(
     p_case: caseId,
     p_user: userId,
     p_level: level,
+    p_expires_at: expiry ?? undefined,
+    p_reason: reasonText ?? undefined,
   })
 
   if (error) return { ok: false, error: mapError(error) }

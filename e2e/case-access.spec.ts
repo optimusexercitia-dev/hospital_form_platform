@@ -169,6 +169,65 @@ async function caseOpenedCount(): Promise<number> {
 }
 
 /**
+ * Directly upsert a case_access grant row via the service role (bypasses the
+ * grant_case_access RPC's future-expiry validation so we can seed an EXPIRED
+ * grant). `expiresAt` is an ISO timestamptz or null. Used by the expiry ACs.
+ */
+async function upsertGrant(
+  caseId: string,
+  userId: string,
+  level: 'read' | 'write',
+  expiresAt: string | null,
+  reason: string | null = null,
+): Promise<void> {
+  // Delete any prior row for this (case,user), then insert the new one.
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/case_access?case_id=eq.${caseId}&user_id=eq.${userId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      },
+    },
+  )
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/case_access`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({
+      case_id: caseId,
+      user_id: userId,
+      level,
+      granted_by: UID_CHEFE,
+      expires_at: expiresAt,
+      reason,
+    }),
+  })
+  if (!res.ok) {
+    throw new Error(`upsertGrant failed ${res.status}: ${await res.text()}`)
+  }
+}
+
+/** Delete any case_access grant for (case,user) via the service role. */
+async function clearGrant(caseId: string, userId: string): Promise<void> {
+  await fetch(
+    `${SUPABASE_URL}/rest/v1/case_access?case_id=eq.${caseId}&user_id=eq.${userId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      },
+    },
+  )
+}
+
+/**
  * Helper: open the "Acesso ao caso" dialog on the coordinator manage page.
  * After this call the dialog is open and scoped to the returned locator.
  * The caller must already be on the correct manage/cases/[caseId] page.
@@ -333,10 +392,12 @@ test('AC-3b grant-write (staff3): collaborator can access case; sees content-wri
   await signOut(page)
 })
 
-test('AC-3c revoke: coordinator revokes multi via dialog; multi gets notFound()', async ({
+test('AC-3c revoke: coordinator revokes multi via the roster X button; multi gets notFound()', async ({
   page,
 }) => {
-  // Coordinator revokes via the "Acesso ao caso" dialog (NEW UI).
+  // Coordinator revokes via the "Acesso ao caso" dialog roster (REBUILT UI: each
+  // granted row carries a "Remover acesso de {name}" X button beside the grant
+  // edit button — no more nested GrantMenu dropdown).
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`${BASE}/manage/cases/${CASE_ID}`)
   await page.waitForURL(`**/manage/cases/${CASE_ID}`)
@@ -356,14 +417,12 @@ test('AC-3c revoke: coordinator revokes multi via dialog; multi gets notFound()'
   const multiRow = dialog.locator('li').filter({ hasText: /Coordenadora Multi/i })
   await expect(multiRow).toBeVisible({ timeout: 10_000 })
 
-  // The GrantMenu for multi: click the "Acesso" dropdown trigger.
-  const grantTrigger = multiRow.getByRole('button', { name: /acesso/i })
-  await grantTrigger.click()
-
-  // Click "Remover acesso" option.
-  const revokeItem = page.getByRole('menuitem', { name: /remover acesso/i })
-  await expect(revokeItem).toBeVisible({ timeout: 5_000 })
-  await revokeItem.click()
+  // multi holds a seeded READ grant → the row shows the "Leitura" pill and a
+  // "Remover acesso de …" X button. Click it to revoke.
+  await expect(multiRow.getByText('Leitura', { exact: true })).toBeVisible()
+  const revokeBtn = multiRow.getByRole('button', { name: /remover acesso de/i })
+  await expect(revokeBtn).toBeVisible({ timeout: 5_000 })
+  await revokeBtn.click()
 
   // Brief wait for server action to complete.
   await page.waitForTimeout(1_500)
@@ -386,18 +445,20 @@ test('AC-3c revoke: coordinator revokes multi via dialog; multi gets notFound()'
 
   await signOut(page)
 
-  // Restore multi's grant for other tests.
+  // Restore multi's grant for other tests — via the REBUILT grant dialog (Leitura,
+  // Sem prazo). Open the dialog, pick Leitura, submit.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`${BASE}/manage/cases/${CASE_ID}`)
   const dialog2 = await openAccessDialog(page)
   const multiRow2 = dialog2.locator('li').filter({ hasText: /Coordenadora Multi/i })
   await expect(multiRow2).toBeVisible({ timeout: 10_000 })
-  const grantTrigger2 = multiRow2.getByRole('button', { name: /acesso/i })
-  await grantTrigger2.click()
-  const readItem = page.getByRole('menuitem', { name: /conceder leitura/i })
-  await expect(readItem).toBeVisible({ timeout: 5_000 })
-  await readItem.click()
-  await page.waitForTimeout(1_500)
+  await multiRow2.getByRole('button', { name: /conceder acesso/i }).click()
+  const grantDialog = page.getByRole('dialog', { name: /conceder acesso/i })
+  await expect(grantDialog).toBeVisible({ timeout: 5_000 })
+  // "Leitura" is the default level; submit directly.
+  await grantDialog.getByRole('button', { name: /^conceder acesso$/i }).click()
+  await expect(grantDialog).toHaveCount(0, { timeout: 10_000 })
+  await page.waitForTimeout(1_000)
   await signOut(page)
 })
 
@@ -406,7 +467,7 @@ test('AC-3c revoke: coordinator revokes multi via dialog; multi gets notFound()'
 // (ADR 0033 D6 — read grants allowed on terminal cases; write grants are not)
 // ---------------------------------------------------------------------------
 
-test('AC-3d terminal case: "Acesso ao caso" button present; "Conceder edição" disabled; "Conceder leitura" enabled', async ({
+test('AC-3d terminal case: "Acesso ao caso" button present; grant dialog "Edição" disabled, "Leitura" enabled', async ({
   page,
 }) => {
   // Caso 0002 ("Óbito UTI leito 3") is seeded as status=concluido (terminal).
@@ -427,7 +488,7 @@ test('AC-3d terminal case: "Acesso ao caso" button present; "Conceder edição" 
   await expect(page.getByRole('button', { name: /^Concluir$/i })).toHaveCount(0)
   await expect(page.getByRole('button', { name: /^Cancelar$/i })).toHaveCount(0)
 
-  // Open the dialog and verify write grant is disabled, read grant is enabled.
+  // Open the roster dialog.
   const dialog = await openAccessDialog(page)
 
   // LOCK: coordinator (Chefe CCIH) must be ABSENT from the roster even on a terminal case.
@@ -437,28 +498,217 @@ test('AC-3d terminal case: "Acesso ao caso" button present; "Conceder edição" 
     dialog.locator('li').filter({ hasText: /Chefe CCIH/i })
   ).toHaveCount(0)
 
-  // Pick any non-coordinator member row to test the GrantMenu — use the first `li`.
-  // (After the coordinator-exclusion change, the first row is now a regular staff member.)
-  // Click "Acesso" on the first member row to open the dropdown.
+  // Open the grant dialog for the first non-coordinator member row (REBUILT UI:
+  // the row's "Conceder acesso" button opens the GrantDialog with level radios).
   const firstMemberRow = dialog.locator('li').first()
   await expect(firstMemberRow).toBeVisible({ timeout: 5_000 })
-  const grantTrigger = firstMemberRow.getByRole('button', { name: /acesso/i })
-  await grantTrigger.click()
+  await firstMemberRow.getByRole('button', { name: /conceder acesso|editar acesso/i }).click()
 
-  // "Conceder leitura" must be enabled (read grants allowed on terminal cases).
-  const readItem = page.getByRole('menuitem', { name: /conceder leitura/i })
-  await expect(readItem).toBeVisible({ timeout: 5_000 })
-  await expect(readItem).not.toBeDisabled()
+  const grantDialog = page.getByRole('dialog', { name: /conceder acesso|editar acesso/i })
+  await expect(grantDialog).toBeVisible({ timeout: 5_000 })
 
-  // "Conceder edição" must be DISABLED (write grants blocked on terminal cases — D6).
-  const writeItem = page.getByRole('menuitem', { name: /conceder edição/i })
-  await expect(writeItem).toBeVisible({ timeout: 5_000 })
-  await expect(writeItem).toBeDisabled()
+  // The "Nível de acesso" fieldset offers Leitura (enabled) + Edição (DISABLED on a
+  // terminal case — read grants allowed, write grants blocked; ADR 0033 D6). The
+  // levels are radios; assert the underlying inputs' enabled/disabled state.
+  const readRadio = grantDialog.locator('input[name="grant-level"]').first()
+  const writeRadio = grantDialog.locator('input[name="grant-level"]').nth(1)
+  await expect(readRadio).toBeEnabled()
+  await expect(writeRadio).toBeDisabled()
+  // The disabled Edição option is labelled "Indisponível (encerrado)".
+  await expect(grantDialog.getByText(/indisponível \(encerrado\)/i)).toBeVisible()
 
-  // Close the menu without acting (press Escape).
+  // Close without acting.
   await page.keyboard.press('Escape')
 
   await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// AC-3e — Grant expiry (ADR 0050): coordinator grants a 30-day expiry via the
+// dialog; the roster row shows "Expira em dd/mm/aaaa".
+// ---------------------------------------------------------------------------
+
+test('AC-3e grant with expiry: coordinator grants staff4 read + 30-dias via the dialog; row shows "Expira em …"', async ({
+  page,
+}) => {
+  // Start clean: staff4 has no grant (the boundary persona).
+  await clearGrant(CASE_ID, UID_STAFF4)
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`${BASE}/manage/cases/${CASE_ID}`)
+  await page.waitForURL(`**/manage/cases/${CASE_ID}`)
+
+  const dialog = await openAccessDialog(page)
+
+  // staff4's display name is "Enfermeiro CCIH Quatro" (seed full_name patch); scope
+  // the row by that. Open the grant dialog.
+  const staff4Row = dialog.locator('li').filter({ hasText: /CCIH Quatro/i })
+  await expect(staff4Row).toBeVisible({ timeout: 10_000 })
+  await staff4Row.getByRole('button', { name: /conceder acesso|editar acesso/i }).click()
+
+  const grantDialog = page.getByRole('dialog', { name: /conceder acesso|editar acesso/i })
+  await expect(grantDialog).toBeVisible({ timeout: 5_000 })
+
+  // Assert the level radios + expiry presets + Motivo are present. The "Nível de
+  // acesso" text appears both as the fieldset <legend> and inside the dialog
+  // description sentence, so match the legend exactly to avoid a strict-mode clash.
+  await expect(grantDialog.getByText('Nível de acesso', { exact: true })).toBeVisible()
+  await expect(grantDialog.getByText('Leitura', { exact: true })).toBeVisible()
+  await expect(grantDialog.getByText('Edição', { exact: true })).toBeVisible()
+  const expirySelect = grantDialog.locator('#grant-expiry')
+  await expect(expirySelect).toBeVisible()
+  // The four presets are present.
+  for (const opt of ['Sem prazo', '30 dias', '90 dias', 'Data específica']) {
+    await expect(expirySelect.locator('option', { hasText: opt })).toHaveCount(1)
+  }
+  // Motivo textarea present.
+  await expect(grantDialog.locator('textarea[name="reason"]')).toBeVisible()
+
+  // Pick the 30-dias preset + a reason, keep Leitura (default), submit.
+  await expirySelect.selectOption('30')
+  await grantDialog
+    .locator('textarea[name="reason"]')
+    .fill('Apoio à análise da fase de investigação.')
+  await grantDialog.getByRole('button', { name: /^conceder acesso$/i }).click()
+  // The nested grant dialog closes; the roster dialog stays open and its row
+  // updates live via router.refresh().
+  await expect(grantDialog).toHaveCount(0, { timeout: 10_000 })
+
+  // The roster row now shows the expiry ("Expira em dd/mm/aaaa") + the reason,
+  // scoped to the still-open roster dialog.
+  const staff4RowAfter = dialog.locator('li').filter({ hasText: /CCIH Quatro/i })
+  await expect(staff4RowAfter.getByText(/expira em \d{2}\/\d{2}\/\d{4}/i)).toBeVisible({
+    timeout: 10_000,
+  })
+  await expect(staff4RowAfter.getByText(/motivo: apoio à análise/i)).toBeVisible()
+
+  // Close the roster dialog (its overlay would otherwise intercept the account menu).
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0, { timeout: 5_000 })
+
+  await signOut(page)
+
+  // Cleanup: remove the grant so the boundary persona stays clean for other specs.
+  await clearGrant(CASE_ID, UID_STAFF4)
+})
+
+// ---------------------------------------------------------------------------
+// AC-3f — Expired grant (ADR 0050): a past-dated grant renders "Expirada" in the
+// roster AND no longer grants case read (the member is bounced to notFound()).
+// ---------------------------------------------------------------------------
+
+test('AC-3f expired grant: past-dated grant shows "Expirada" and denies case read (member bounced)', async ({
+  page,
+}) => {
+  // Seed staff4 a grant that expired yesterday (direct upsert — the RPC would
+  // reject a past expiry, which is exactly why we bypass it here).
+  const yesterday = new Date(Date.now() - 24 * 3600 * 1000).toISOString()
+  await upsertGrant(CASE_ID, UID_STAFF4, 'read', yesterday, 'Grant vencido de teste')
+
+  // Coordinator sees the "Expirada" badge on staff4's row.
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`${BASE}/manage/cases/${CASE_ID}`)
+  await page.waitForURL(`**/manage/cases/${CASE_ID}`)
+  const dialog = await openAccessDialog(page)
+  const staff4Row = dialog.locator('li').filter({ hasText: /CCIH Quatro/i })
+  await expect(staff4Row).toBeVisible({ timeout: 10_000 })
+  await expect(staff4Row.getByText(/expirada/i)).toBeVisible({ timeout: 5_000 })
+  // Close the roster dialog before the account menu (overlay would intercept it).
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0, { timeout: 5_000 })
+  await signOut(page)
+
+  // staff4 with ONLY an expired grant is DENIED the case (notFound boundary) — the
+  // expiry filter drops the grant from can_read_case. No data leak.
+  await signInAs(page, 'staff4.ccih@test.local')
+  await page.goto(`${BASE}/casos/${CASE_ID}`)
+  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toHaveCount(0)
+  await expect(page.getByText(/Óbito UTI leito 7/i)).toHaveCount(0)
+
+  // Meus Casos: the case must NOT appear for staff4 (expired grant drops both arms).
+  await page.goto(`${BASE}/meus-casos`)
+  await page.waitForLoadState('networkidle', { timeout: 10_000 })
+  await expect(
+    page.locator('article').filter({ hasText: /Óbito UTI leito 7/i }),
+  ).toHaveCount(0)
+
+  await signOut(page)
+
+  // Cleanup.
+  await clearGrant(CASE_ID, UID_STAFF4)
+})
+
+// ---------------------------------------------------------------------------
+// AC-3g — Keyboard-only grant dialog (CLAUDE.md §8): open the dialog, operate the
+// level radios + expiry select + reason via keyboard, and submit with Enter.
+// ---------------------------------------------------------------------------
+
+test('AC-3g keyboard-only: grant dialog is fully keyboard-operable (level → expiry → reason → submit)', async ({
+  page,
+}) => {
+  await clearGrant(CASE_ID, UID_STAFF4)
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`${BASE}/manage/cases/${CASE_ID}`)
+  await page.waitForURL(`**/manage/cases/${CASE_ID}`)
+
+  const dialog = await openAccessDialog(page)
+  const staff4Row = dialog.locator('li').filter({ hasText: /CCIH Quatro/i })
+  await expect(staff4Row).toBeVisible({ timeout: 10_000 })
+
+  // Open the grant dialog by keyboard: focus the row's grant button + Enter.
+  const grantBtn = staff4Row.getByRole('button', { name: /conceder acesso|editar acesso/i })
+  await grantBtn.focus()
+  await expect(grantBtn).toBeFocused()
+  await page.keyboard.press('Enter')
+
+  const grantDialog = page.getByRole('dialog', { name: /conceder acesso|editar acesso/i })
+  await expect(grantDialog).toBeVisible({ timeout: 5_000 })
+
+  // Level — focus the "Edição" (write) radio and select it via keyboard (Space).
+  const writeRadio = grantDialog.locator('input[name="grant-level"]').nth(1)
+  await writeRadio.focus()
+  await expect(writeRadio).toBeFocused()
+  await page.keyboard.press('Space')
+  await expect(writeRadio).toBeChecked()
+
+  // Expiry — focus the preset select, pick "90 dias" by keyboard.
+  const expirySelect = grantDialog.locator('#grant-expiry')
+  await expirySelect.focus()
+  await expect(expirySelect).toBeFocused()
+  await expirySelect.selectOption('90')
+
+  // Reason — focus the textarea and type a justification (keyboard-only).
+  const reason = grantDialog.locator('textarea[name="reason"]')
+  await reason.focus()
+  await expect(reason).toBeFocused()
+  await page.keyboard.type('Colaboração na fase de análise.')
+
+  // Submit — focus the "Conceder acesso" submit button + Enter.
+  const submit = grantDialog.getByRole('button', { name: /^conceder acesso$/i })
+  await submit.focus()
+  await expect(submit).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(grantDialog).toHaveCount(0, { timeout: 10_000 })
+
+  // DB truth: staff4 now holds a WRITE grant with a future expiry + the reason.
+  await page.waitForTimeout(1_000)
+  const rows = await dbQuery<{ level: string; expires_at: string | null; reason: string | null }>(
+    'case_access',
+    { case_id: `eq.${CASE_ID}`, user_id: `eq.${UID_STAFF4}` },
+  )
+  expect(rows[0]?.level).toBe('write')
+  expect(rows[0]?.expires_at).toBeTruthy()
+  expect(rows[0]?.reason).toContain('Colaboração')
+
+  // Close the roster dialog before the account menu (overlay would intercept it).
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0, { timeout: 5_000 })
+  await signOut(page)
+
+  // Cleanup: keep staff4 the clean boundary persona for other specs.
+  await clearGrant(CASE_ID, UID_STAFF4)
 })
 
 // ---------------------------------------------------------------------------

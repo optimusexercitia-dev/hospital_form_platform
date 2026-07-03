@@ -10,23 +10,29 @@ import { casesExtrasEnabled } from '@/lib/cases/extras-gate'
 import type { ActionItemStatus } from '@/lib/queries/case-action-items'
 
 /**
- * Case ACTION ITEM server actions (Cases-Extras batch, R4).
+ * Case ACTION ITEM server actions.
  *
- * Architecture Rules 9 & 10. staff_admin authors (create/update/delete);
- * ASSIGNEES advance their OWN items through the narrow `advance_action_item` /
- * `complete_action_item` RPCs (internal `assigned_to = auth.uid() or
- * is_staff_admin_of` gate, HC027 otherwise) — column control + the "mutations go
- * through vetted RPCs" ethos, not a broad UPDATE policy. Strings pt-BR; raw
- * Postgres errors never reach the UI. Writes gate the `cases_extras` flag.
+ * As of the case-fold migration (20260707), case action items are `source_type =
+ * 'case'` rows on the SHARED `public.action_items` hub (the old `case_action_items`
+ * table + its 4 RPCs are dropped). These actions route through the unified
+ * `committee_*` RPCs with `p_source_type = 'case'`; the RPCs preserve the OLD
+ * case authority model exactly:
+ *   - create / update  -> app.can_write_case_content (ADR 0033 D4);
+ *   - advance / complete -> the ASSIGNEE or a content-writer of the case (HC027);
+ *   - delete -> staff_admin/org_admin of the commission.
+ * The case-source branch is additionally gated by the `cases_extras` flag (Q8).
  *
- * NAMING NOTE (kept to honour the posted stub signatures): `deleteActionItem` is
- * a HARD delete (authorized by the staff_admin-write RLS) for removing a
- * mistakenly-created item. To CANCEL an item (keep the audit row, status →
- * cancelled), use `advanceActionItem(id, 'cancelled')` — there is no separate
- * cancel action.
+ * The exported signatures are UNCHANGED so the panel/form keep working. The hub
+ * keys status by id (not the KEY string), so {@link advanceActionItem} translates
+ * the KEY -> the commission/global status id before calling the RPC (mirrors the
+ * meetings action's resolver).
  *
- * New SQLSTATE mapped to pt-BR:
- *   HC027 not entitled to update this action item.
+ * NAMING NOTE: `deleteActionItem` is a HARD delete (removes a mistakenly-created
+ * item). To CANCEL (keep the audit row, status -> cancelled), use
+ * `advanceActionItem(id, 'cancelled')` — there is no separate cancel action.
+ *
+ * SQLSTATE mapped to pt-BR: HC027 not entitled to update this action item.
+ * Strings pt-BR; raw Postgres errors never reach the UI. Writes gate `cases_extras`.
  */
 
 export interface ActionState {
@@ -69,9 +75,9 @@ const ACTION_ITEM_STATUSES: ActionItemStatus[] = [
   'cancelled',
 ]
 
-const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
-const CASES_LIST_PATH = '/c/[slug]/manage/cases'
-const DASHBOARD_PATH = '/c/[slug]/dashboard'
+const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
+const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
+const DASHBOARD_PATH = '/o/[org]/c/[commission]/dashboard'
 
 function revalidateActionItems(): void {
   revalidatePath(CASE_PATH, 'page')
@@ -100,22 +106,55 @@ async function commissionOfCase(
   return data?.commission_id ?? null
 }
 
-/** Resolve {commissionId, caseId} for an action item via the RLS-scoped client. */
+/**
+ * Resolve {commissionId, caseId} for a CASE-sourced hub action item via the
+ * RLS-scoped client (`source_case_id` is the case link). `null` if unreadable/
+ * absent or not a case-sourced row.
+ */
 async function contextOfItem(
   supabase: SupabaseClient<Database>,
   actionItemId: string,
 ): Promise<{ commissionId: string; caseId: string } | null> {
   const { data } = await supabase
-    .from('case_action_items')
-    .select('case_id, cases(commission_id)')
+    .from('action_items')
+    .select('commission_id, source_case_id')
     .eq('id', actionItemId)
-    .maybeSingle<{
-      case_id: string
-      cases: { commission_id: string } | null
-    }>()
-  const commissionId = data?.cases?.commission_id
-  if (!commissionId || !data) return null
-  return { commissionId, caseId: data.case_id }
+    .eq('source_type', 'case')
+    .maybeSingle<{ commission_id: string; source_case_id: string | null }>()
+  if (!data || !data.source_case_id) return null
+  return { commissionId: data.commission_id, caseId: data.source_case_id }
+}
+
+/**
+ * Translate a lifecycle KEY -> the shared `action_items` status id (per-commission
+ * override preferred, else global default). The hub keys status by id; the panel
+ * still speaks in keys. `null` when the key is unknown (never for the 4 seeded keys).
+ */
+async function resolveStatusId(
+  supabase: SupabaseClient<Database>,
+  actionItemId: string,
+  statusKey: ActionItemStatus,
+): Promise<string | null> {
+  const { data: item } = await supabase
+    .from('action_items')
+    .select('commission_id')
+    .eq('id', actionItemId)
+    .maybeSingle()
+
+  const { data: statuses } = await supabase
+    .from('action_item_statuses')
+    .select('id, commission_id')
+    .eq('key', statusKey)
+    .eq('archived', false)
+
+  if (!statuses || statuses.length === 0) return null
+
+  const commissionId = item?.commission_id ?? null
+  const override = commissionId
+    ? statuses.find((s) => s.commission_id === commissionId)
+    : undefined
+  const global = statuses.find((s) => s.commission_id === null)
+  return (override ?? global ?? statuses[0]).id
 }
 
 function parseDate(raw: string): string | undefined | null {
@@ -145,13 +184,15 @@ function mapItemError(error: { code?: string; message?: string } | null): string
 }
 
 // ---------------------------------------------------------------------------
-// staff_admin authoring
+// Authoring (content-writers of the case — RPC-enforced)
 // ---------------------------------------------------------------------------
 
 /**
  * Create an action item on a case. `useActionState`-shaped. Fields: `caseId`,
  * `title`, `description?`, `assignedTo?`, `dueDate?`, `sourceCasePhaseId?`.
- * staff_admin-only. Returns the new `actionItemId`.
+ * Routed through `create_committee_action_item` (`source_type='case'`), whose
+ * authority is a content-writer of the case (ADR 0033 D4). Returns the new
+ * `actionItemId`.
  */
 export async function createActionItem(
   _prev: CreateActionItemState | undefined,
@@ -179,11 +220,14 @@ export async function createActionItem(
   const supabase = await createClient()
   const commissionId = await commissionOfCase(supabase, caseId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingCase }
-  if (!(await authorizeCommission(commissionId))) {
-    return { ok: false, error: MESSAGES.forbidden }
-  }
 
-  const { data, error } = await supabase.rpc('create_action_item', {
+  // NB: no staff_admin pre-check — a case-write GRANTEE (not staff_admin) must be
+  // allowed through, so the RPC's app.can_write_case_content gate is the sole
+  // authority (mirrors the meetings-assignee pattern).
+
+  const { data, error } = await supabase.rpc('create_committee_action_item', {
+    p_commission: commissionId,
+    p_source_type: 'case',
     p_case_id: caseId,
     p_title: title,
     p_description: description || undefined,
@@ -200,8 +244,9 @@ export async function createActionItem(
 
 /**
  * Edit an action item (`title` / `description` / `assignedTo` / `dueDate`).
- * `useActionState`-shaped; expects `actionItemId`. staff_admin-only. (Status
- * changes go through advance/complete, not here.)
+ * `useActionState`-shaped; expects `actionItemId`. Routed through
+ * `update_committee_action_item`; authority is a content-writer of the case
+ * (ADR 0033 D4). (Status changes go through advance/complete, not here.)
  */
 export async function updateActionItem(
   _prev: ActionState | undefined,
@@ -226,14 +271,11 @@ export async function updateActionItem(
   }
 
   const supabase = await createClient()
-  const ctx = await contextOfItem(supabase, actionItemId)
-  if (!ctx) return { ok: false, error: MESSAGES.missingItem }
-  if (!(await authorizeCommission(ctx.commissionId))) {
-    return { ok: false, error: MESSAGES.forbidden }
-  }
 
-  const { error } = await supabase.rpc('update_action_item', {
-    p_action_item_id: actionItemId,
+  // No staff_admin pre-check — a case-write grantee must be allowed through; the
+  // RPC's can_write_case_content gate is the authority.
+  const { error } = await supabase.rpc('update_committee_action_item', {
+    p_id: actionItemId,
     p_title: title,
     p_description: description || undefined,
     p_assigned_to: assignedTo || undefined,
@@ -247,9 +289,10 @@ export async function updateActionItem(
 }
 
 /**
- * HARD-delete an action item (remove a mistakenly-created row). staff_admin-only
- * — authorized by the staff_admin-write RLS policy + an explicit authz check. To
- * CANCEL (keep the row), use `advanceActionItem(id, 'cancelled')`.
+ * HARD-delete an action item (remove a mistakenly-created row). staff_admin/
+ * org_admin-only — routed through `delete_committee_action_item`, which re-checks
+ * the authority, cascades to assignments + status history, and audits the delete.
+ * To CANCEL (keep the row), use `advanceActionItem(id, 'cancelled')`.
  */
 export async function deleteActionItem(
   actionItemId: string,
@@ -267,27 +310,26 @@ export async function deleteActionItem(
     return { ok: false, error: MESSAGES.forbidden }
   }
 
-  const { error } = await supabase
-    .from('case_action_items')
-    .delete()
-    .eq('id', actionItemId)
+  const { error } = await supabase.rpc('delete_committee_action_item', {
+    p_id: actionItemId,
+  })
 
-  if (error) return { ok: false, error: MESSAGES.generic }
+  if (error) return { ok: false, error: mapItemError(error) }
 
   revalidateActionItems()
   return { ok: true, error: MESSAGES.deleted }
 }
 
 // ---------------------------------------------------------------------------
-// Assignee / staff_admin lifecycle (narrow RPC route)
+// Assignee / content-writer lifecycle (narrow RPC route)
 // ---------------------------------------------------------------------------
 
 /**
  * Advance an action item to another lifecycle `status`. Routed through
- * `advance_action_item`: the caller must be the assignee OR a staff_admin of the
- * case's commission (HC027 otherwise). No commission-scoped authz pre-check here
- * — a plain assignee (not staff_admin) must be allowed through, so the RPC's
- * internal gate is the sole authority (mirrors `startOrResumePhase`).
+ * `advance_committee_action_item` (resolving the KEY -> the hub status id): the
+ * caller must be the assignee OR a content-writer of the case (HC027 otherwise).
+ * No commission-scoped pre-check here — a plain assignee (not staff_admin) must be
+ * allowed through, so the RPC's internal gate is the sole authority.
  */
 export async function advanceActionItem(
   actionItemId: string,
@@ -303,9 +345,12 @@ export async function advanceActionItem(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc('advance_action_item', {
-    p_action_item_id: actionItemId,
-    p_status: status,
+  const statusId = await resolveStatusId(supabase, actionItemId, status)
+  if (!statusId) return { ok: false, error: MESSAGES.missingItem }
+
+  const { error } = await supabase.rpc('advance_committee_action_item', {
+    p_id: actionItemId,
+    p_to_status_id: statusId,
   })
 
   if (error) return { ok: false, error: mapItemError(error) }
@@ -316,7 +361,8 @@ export async function advanceActionItem(
 
 /**
  * Mark an action item `done` (stamps `completed_at`/`completed_by`). Convenience
- * over {@link advanceActionItem}; same assignee-or-staff_admin gate (HC027).
+ * over {@link advanceActionItem}; same assignee-or-content-writer gate (HC027).
+ * Routed through `complete_committee_action_item`.
  */
 export async function completeActionItem(
   actionItemId: string,
@@ -328,8 +374,8 @@ export async function completeActionItem(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc('complete_action_item', {
-    p_action_item_id: actionItemId,
+  const { error } = await supabase.rpc('complete_committee_action_item', {
+    p_id: actionItemId,
   })
 
   if (error) return { ok: false, error: mapItemError(error) }

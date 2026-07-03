@@ -39,7 +39,7 @@
  *   - `interview`    — a `case_interviews` row.
  *   - `meeting`      — a `meetings` row linked via `meeting_cases`.
  *   - `document`     — a `case_documents` row.
- *   - `action`       — a `case_action_items` row.
+ *   - `action`       — a case-sourced `action_items` hub row (`source_type = 'case'`).
  *   - `safety_event` — a `patient_safety_event` raised from this case (Phase 14a).
  *                      STRICTLY PHI-FREE on the timeline: code/title/status/date/
  *                      owner only — never `event_patient` identifiers or

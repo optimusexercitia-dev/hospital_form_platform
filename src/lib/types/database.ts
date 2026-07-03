@@ -264,12 +264,15 @@ export type Database = {
           due_date: string | null
           id: string
           source_agenda_item_id: string | null
+          source_case_id: string | null
+          source_case_phase_id: string | null
           source_meeting_id: string | null
           source_type: string
           status_id: string
           title: string
           updated_at: string
           urgency_id: string | null
+          visibility_scope: string
         }
         Insert: {
           assigned_to?: string | null
@@ -283,12 +286,15 @@ export type Database = {
           due_date?: string | null
           id?: string
           source_agenda_item_id?: string | null
+          source_case_id?: string | null
+          source_case_phase_id?: string | null
           source_meeting_id?: string | null
           source_type: string
           status_id: string
           title: string
           updated_at?: string
           urgency_id?: string | null
+          visibility_scope?: string
         }
         Update: {
           assigned_to?: string | null
@@ -302,12 +308,15 @@ export type Database = {
           due_date?: string | null
           id?: string
           source_agenda_item_id?: string | null
+          source_case_id?: string | null
+          source_case_phase_id?: string | null
           source_meeting_id?: string | null
           source_type?: string
           status_id?: string
           title?: string
           updated_at?: string
           urgency_id?: string | null
+          visibility_scope?: string
         }
         Relationships: [
           {
@@ -350,6 +359,20 @@ export type Database = {
             columns: ["source_agenda_item_id"]
             isOneToOne: false
             referencedRelation: "meeting_agenda_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_items_source_case_fkey"
+            columns: ["source_case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_items_source_case_phase_fkey"
+            columns: ["source_case_phase_id"]
+            isOneToOne: false
+            referencedRelation: "case_phases"
             referencedColumns: ["id"]
           },
           {
@@ -950,23 +973,29 @@ export type Database = {
       case_access: {
         Row: {
           case_id: string
+          expires_at: string | null
           granted_at: string
           granted_by: string | null
           level: string
+          reason: string | null
           user_id: string
         }
         Insert: {
           case_id: string
+          expires_at?: string | null
           granted_at?: string
           granted_by?: string | null
           level: string
+          reason?: string | null
           user_id: string
         }
         Update: {
           case_id?: string
+          expires_at?: string | null
           granted_at?: string
           granted_by?: string | null
           level?: string
+          reason?: string | null
           user_id?: string
         }
         Relationships: [
@@ -989,90 +1018,6 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      case_action_items: {
-        Row: {
-          assigned_to: string | null
-          case_id: string
-          completed_at: string | null
-          completed_by: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          due_date: string | null
-          id: string
-          source_case_phase_id: string | null
-          status: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          assigned_to?: string | null
-          case_id: string
-          completed_at?: string | null
-          completed_by?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          source_case_phase_id?: string | null
-          status?: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          assigned_to?: string | null
-          case_id?: string
-          completed_at?: string | null
-          completed_by?: string | null
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          source_case_phase_id?: string | null
-          status?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "case_action_items_assigned_to_fkey"
-            columns: ["assigned_to"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "case_action_items_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "case_action_items_completed_by_fkey"
-            columns: ["completed_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "case_action_items_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "case_action_items_source_case_phase_id_fkey"
-            columns: ["source_case_phase_id"]
-            isOneToOne: false
-            referencedRelation: "case_phases"
             referencedColumns: ["id"]
           },
         ]
@@ -5691,30 +5636,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      advance_action_item: {
-        Args: { p_action_item_id: string; p_status: string }
-        Returns: {
-          assigned_to: string | null
-          case_id: string
-          completed_at: string | null
-          completed_by: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          due_date: string | null
-          id: string
-          source_case_phase_id: string | null
-          status: string
-          title: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "case_action_items"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       advance_capa_action: {
         Args: { p_action_id: string; p_status: string }
         Returns: {
@@ -5755,12 +5676,15 @@ export type Database = {
           due_date: string | null
           id: string
           source_agenda_item_id: string | null
+          source_case_id: string | null
+          source_case_phase_id: string | null
           source_meeting_id: string | null
           source_type: string
           status_id: string
           title: string
           updated_at: string
           urgency_id: string | null
+          visibility_scope: string
         }
         SetofOptions: {
           from: "*"
@@ -6192,30 +6116,6 @@ export type Database = {
           submitted_last_30_days: number
         }[]
       }
-      complete_action_item: {
-        Args: { p_action_item_id: string }
-        Returns: {
-          assigned_to: string | null
-          case_id: string
-          completed_at: string | null
-          completed_by: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          due_date: string | null
-          id: string
-          source_case_phase_id: string | null
-          status: string
-          title: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "case_action_items"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       complete_capa_action: {
         Args: { p_action_id: string }
         Returns: {
@@ -6256,12 +6156,15 @@ export type Database = {
           due_date: string | null
           id: string
           source_agenda_item_id: string | null
+          source_case_id: string | null
+          source_case_phase_id: string | null
           source_meeting_id: string | null
           source_type: string
           status_id: string
           title: string
           updated_at: string
           urgency_id: string | null
+          visibility_scope: string
         }
         SetofOptions: {
           from: "*"
@@ -6436,37 +6339,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      create_action_item: {
-        Args: {
-          p_assigned_to?: string
-          p_case_id: string
-          p_description?: string
-          p_due_date?: string
-          p_source_case_phase_id?: string
-          p_title: string
-        }
-        Returns: {
-          assigned_to: string | null
-          case_id: string
-          completed_at: string | null
-          completed_by: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          due_date: string | null
-          id: string
-          source_case_phase_id: string | null
-          status: string
-          title: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "case_action_items"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       create_case: {
         Args: {
           p_commission_id: string
@@ -6606,9 +6478,11 @@ export type Database = {
           p_description?: string
           p_due_date?: string
           p_meeting_id?: string
+          p_source_case_phase_id?: string
           p_source_type: string
           p_title?: string
           p_urgency_id?: string
+          p_visibility_scope?: string
         }
         Returns: {
           assigned_to: string | null
@@ -6622,12 +6496,15 @@ export type Database = {
           due_date: string | null
           id: string
           source_agenda_item_id: string | null
+          source_case_id: string | null
+          source_case_phase_id: string | null
           source_meeting_id: string | null
           source_type: string
           status_id: string
           title: string
           updated_at: string
           urgency_id: string | null
+          visibility_scope: string
         }
         SetofOptions: {
           from: "*"
@@ -7120,7 +6997,13 @@ export type Database = {
         Returns: Json
       }
       grant_case_access: {
-        Args: { p_case: string; p_level: string; p_user: string }
+        Args: {
+          p_case: string
+          p_expires_at?: string
+          p_level: string
+          p_reason?: string
+          p_user: string
+        }
         Returns: undefined
       }
       interview_viewer_can_write: {
@@ -7209,7 +7092,10 @@ export type Database = {
       list_case_access: {
         Args: { p_case: string }
         Returns: {
+          expires_at: string
+          granted_at: string
           level: string
+          reason: string
           user_id: string
         }[]
       }
@@ -8562,36 +8448,6 @@ export type Database = {
         Args: { p_case_link_id: string }
         Returns: undefined
       }
-      update_action_item: {
-        Args: {
-          p_action_item_id: string
-          p_assigned_to?: string
-          p_description?: string
-          p_due_date?: string
-          p_title: string
-        }
-        Returns: {
-          assigned_to: string | null
-          case_id: string
-          completed_at: string | null
-          completed_by: string | null
-          created_at: string
-          created_by: string | null
-          description: string | null
-          due_date: string | null
-          id: string
-          source_case_phase_id: string | null
-          status: string
-          title: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "case_action_items"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       update_capa_action: {
         Args: {
           p_action_id: string
@@ -8766,6 +8622,7 @@ export type Database = {
           p_id: string
           p_title: string
           p_urgency_id?: string
+          p_visibility_scope?: string
         }
         Returns: {
           assigned_to: string | null
@@ -8779,12 +8636,15 @@ export type Database = {
           due_date: string | null
           id: string
           source_agenda_item_id: string | null
+          source_case_id: string | null
+          source_case_phase_id: string | null
           source_meeting_id: string | null
           source_type: string
           status_id: string
           title: string
           updated_at: string
           urgency_id: string | null
+          visibility_scope: string
         }
         SetofOptions: {
           from: "*"
