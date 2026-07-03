@@ -42,6 +42,7 @@
 | ad-hoc-narratives | **Ad-hoc Case Narratives** — coordinator adds a narrative to an OPEN case (`add_ad_hoc_narrative` DEFINER RPC + `case_narratives.is_ad_hoc`); reverses ADR 0032 D7 for open cases. ADR [0047](docs/decisions/0047-ad-hoc-case-narratives.md) → [ad-hoc-narratives.md](docs/progress/ad-hoc-narratives.md). | ✅ complete | ✅ | ✅ pgTAP 1219 · Vitest 176 · E2E 5/5 + 461p (0 reg) | ✅ APPROVED 2026-07-01 [review](docs/reviews/ad-hoc-narratives-review.md) | ✅ 2026-07-01 | 2026-07-01 | branch `feat/ad-hoc-case-narratives` |
 | user-reg | **User Registration & Identity Management** — org_admin registers users (professional category + optional council credentials + home hospital/matrícula), verify+activate via invite, searchable org directory + full per-user management (committees/roles, deactivate/suspend/reactivate/resend); **real `is_active` enforcement**; drops DOB (LGPD). Detail → [user-registration.md](docs/progress/user-registration.md); ADR [0048](docs/decisions/0048-user-registration-identity.md). | ✅ complete | ✅ | ✅ feat 12/12 · pgTAP 1257 · full 467p/10-contam (0 reg) | ✅ APPROVED | ✅ 2026-07-02 | 2026-07-02 | `117319d` |
 | hospital-admin | **Phase A — Hospital-admin tier, 4-tier audit & committee titles** — `hospital_admin` (org_admin mirrored, hospital-scoped, incl. disposal + response reads); `organization_members` role widen + `hospital_id` + `NULLS NOT DISTINCT` cardinality; new `app.is_commission_admin_of()` swapped into ~60 sites; audit gains a **hospital tier** (chain key org/hospital/commission, lockstep `audit_canonical`/`audit_write`/`verify_audit_chain`); per-commission `commission_member_titles` vocab + `title_id`. Design [hospital-roles-nsp-titles-design.md](docs/progress/hospital-roles-nsp-titles-design.md). | ✅ complete | ✅ | ✅ feature spec 38/38 · pgTAP 1454 · full regr 497p/26f (0 Phase-A reg) | ✅ APPROVED (CHANGES REQ→all fixed) [review](docs/reviews/hospital-admin-tier-review.md) | ✅ 2026-07-03 | 2026-07-03 | `99e2d09` |
+| nsp-per-hospital | **Phase B — NSP-per-hospital + `nsp_org_admin`** — re-key the PQS roster + **every PHI door** org→hospital (`is_pqs_member_of(hospital)`; resolution `org_of_* → hospital_of_*`); `nsp_org_admin` (org-level, **zero-PHI** aggregate rollups + roster curation + coordinator appointment); `nsp_coordinator` = full **local** operator (implicit PHI read + write); dual-hospital same-org referral reads; `dispose_referral_phi`. Backend core first, then FE. Design [nsp-per-hospital-design.md](docs/progress/nsp-per-hospital-design.md); ADR [0052](docs/decisions/0052-nsp-per-hospital.md). | 🏗️ in progress (backend core) | – | – | – | – | – | – |
 
 > **Accreditation & Quality-Governance Track (13–21)** — planned 2026-06-17; specs in
 > [PHASES.md](PHASES.md) (§ Accreditation track), rationale in ADR
@@ -59,10 +60,44 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-**No active phase.** Phase A (Hospital-admin tier, 4-tier audit & committee titles) ✅
-**COMPLETE + APPROVED 2026-07-03** — detail archived → [hospital-admin-tier.md](docs/progress/hospital-admin-tier.md).
-Next up: **Phase B** — NSP-per-hospital + `nsp_org_admin` behavior + dual-hospital referrals +
-`dispose_referral_phi` (ADR 0052 forthcoming; `nsp_org_admin` is in the role CHECK now but inert).
+**ACTIVE: Phase B — NSP-per-hospital + `nsp_org_admin`** (branch `feat/nsp-per-hospital`, off
+Phase-A merge `8d22a32`). Security-critical re-key of the PQS roster + every PHI door from
+**per-org → per-hospital**, mirroring the proven ADR 0042 per-door inventory one hop further
+(`org_of_* → hospital_of_*`), **plus** net-new: `nsp_org_admin` (org-level zero-PHI aggregates +
+roster curation + coordinator appointment), full-operator local `nsp_coordinator`, dual-hospital
+same-org referral reads, `dispose_referral_phi`. **Backend core first** (must pass its own pgTAP
+gate — per-hospital PHI isolation proven in SQL) **then frontend**. Design →
+[nsp-per-hospital-design.md](docs/progress/nsp-per-hospital-design.md); ADR
+[0052](docs/decisions/0052-nsp-per-hospital.md); locked decisions 11–15 →
+[hospital-roles-nsp-titles-design.md](docs/progress/hospital-roles-nsp-titles-design.md).
+
+| # | Owner | Task | Depends | Status |
+| - | ----- | ---- | ------- | ------ |
+| B0 | backend | **PLAN + contract-first signatures** — re-derive the **live-catalog** per-door inventory (every ADR 0042 §A door + §N net-new), `nsp_org_admin` aggregate-door list with proven-PHI-free SELECT lists, migration order + catalog-sweep assertion; post typed query/action **signatures** the FE depends on (NSP hospital switcher, coordinator/roster curation, org NSP-admin console). Full plan review. [gate:plan] | – | 🔜 not started |
+| B1 | backend | **Schema re-key** — `pqs_department` per-hospital (`hospital_id` FK + `UNIQUE(hospital_id)`); `pqs_members` PK `(organization_id,user_id)` → `(hospital_id,user_id)` (non-additive); predicate primitives + `hospital_of_*` resolution helpers before callers. | B0 | 🔜 not started |
+| B2 | backend | **Door re-key + catalog sweep** — apply the `org → hospital` transform (§T) to every read predicate, write gate/policy (8 CAPA `*_write` via `can_write_capa`), NSP lifecycle RPC, DEFINER door, storage + patient_index door; coordinator = full local operator (OR-term / `is_pqs_operator_of`). Live `pg_proc`/`pg_policies` sweep = ZERO residual per-org PQS terms. | B1 | 🔜 not started |
+| B3 | backend | **`nsp_org_admin` gates + PHI-free aggregate doors** (§N.1) — `is_nsp_org_admin_of(org)` primitive; per-hospital rollup DEFINER doors (event/CAPA/roster) with **provably PHI-free** SELECT lists, result set scoped to org's hospitals (M3). ZERO PHI read for the role. | B1 | 🔜 not started |
+| B4 | backend | **Appointment/roster/config RPCs + dual-referral + disposal** (§N.2/§N.3/§T) — three-tier chain (org_admin→nsp_org_admin→nsp_coordinator, no self-delegation); roster/config RPCs re-gated `nsp_org_admin OR coordinator`; `pqs_members` RLS curator policy; dual-hospital `can_read_referral_phi`; new `dispose_referral_phi` mirroring `dispose_event_phi`. | B2,B3 | 🔜 not started |
+| B5 | backend | **Seed + pgTAP + types** — org-A 2nd hospital + commission + cross-hospital event/referral PHI fixtures; personas `nsporg.a@`/`nspcoord.a1@`/`.a2@`/`pqs.a1@`/`.a2@`; new `nsp_per_hospital_isolation` suite (10 keystones incl. nsp_org_admin zero-PHI + dual-referral + disposal); types regen. [gate] | B1–B4 | 🔜 not started |
+| B6 | frontend | **NSP hospital switcher + local console** — `/o/[org]/nsp` renders **hospital-scoped** NSP content from grants; hospital switcher when the user's NSP roles span several; `?hospital=` deep link; coordinator = full operator UI (read + write). Builds against B0 stubs. | B0 (stubs) | 🔜 not started |
+| B7 | frontend | **Coordinator appointment + per-hospital roster curation UI** — nsp_org_admin/coordinator add/remove roster members + set RCA due-window per hospital; org_admin appoints nsp_org_admin; nsp_org_admin appoints per-hospital coordinators. | B0 (stubs) | 🔜 not started |
+| B8 | frontend | **Org NSP-admin console (PHI-free)** — org-level view of per-hospital event/CAPA/roster rollups + coordinator management; **zero PHI surfaced** (counts/status only); `dispose_referral_phi` action wired into the referral admin surface. | B0 (stubs) | 🔜 not started |
+
+**Lead notes (B):**
+- **Plan gate:** B0 is a **full** plan review (security-critical re-key touching RLS + PHI doors).
+  Spawn backend with `acceptEdits` + plan-first-in-text (NOT `mode:plan` — that blocks lead
+  approval). Backend posts the live-catalog inventory + signatures as text; lead approves before
+  any migration.
+- **Contract-first:** B0 signatures (typed stubs) land before B1–B5 implementations so frontend
+  (B6–B8) builds against real types in parallel.
+- **Backend surface reference:** [docs/backend-state.md](docs/backend-state.md) (NSP-per-org
+  door set = the base being re-keyed). The per-door **method** (catalog sweep = assertion) is the
+  ADR 0042 M2/M3 standing rule — a file grep is NOT sufficient.
+- **Byte-identical single-hospital** — existing 14a–d / referral / patient-index suites MUST stay
+  green (one hospital per org ⇒ per-hospital term collapses to per-org). Reseed only ADDS org-A's
+  2nd hospital.
+- **Backend core gates FIRST** (own pgTAP pass, keystones proven) before spawning tester on the
+  whole phase; frontend builds against stubs in parallel but the security proof is SQL-layer.
 
 ### Completed work (archived to docs/progress/)
 
