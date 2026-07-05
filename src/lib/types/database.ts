@@ -5948,6 +5948,10 @@ export type Database = {
         Args: { p_org: string; p_user: string }
         Returns: undefined
       }
+      assign_org_admin: {
+        Args: { p_org: string; p_user: string }
+        Returns: undefined
+      }
       audit_trail_enabled: { Args: never; Returns: boolean }
       can_dispose_referral_phi: {
         Args: { p_referral_id: string }
@@ -7935,6 +7939,10 @@ export type Database = {
         Returns: undefined
       }
       revoke_nsp_org_admin: {
+        Args: { p_org: string; p_user: string }
+        Returns: undefined
+      }
+      revoke_org_admin: {
         Args: { p_org: string; p_user: string }
         Returns: undefined
       }

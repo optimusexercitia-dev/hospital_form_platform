@@ -264,6 +264,12 @@ const APPOINT_MESSAGES = {
   hospitalAdminRevoked: 'Administração de hospital removida.',
   nspOrgAdminGranted: 'Administrador(a) de NSP da organização nomeado(a).',
   nspOrgAdminRevoked: 'Administração de NSP da organização removida.',
+  // WS-1 anti-lockout: revoke_org_admin raises SQLSTATE HC081 when removing the
+  // org's LAST org_admin (org_admin is the org's root authority). The future
+  // org-member-management UI's revokeOrgAdmin action maps error.code === 'HC081'
+  // to this string. The RPC also carries the pt-BR text on the exception, but the
+  // action layer should surface this friendly message rather than the raw error.
+  lastOrgAdmin: 'Não é possível remover o último administrador da organização.',
 } as const
 
 /**
