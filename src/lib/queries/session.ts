@@ -120,7 +120,11 @@ export interface SessionContext {
  * The authenticated user's full session context, or `null` when unauthenticated.
  * One round trip resolves the profile and memberships (joined to commissions).
  */
-export async function getSessionContext(): Promise<SessionContext | null> {
+// WS-5 P1: React `cache()`-wrapped so a single render tree resolves the session
+// context ONCE (deduped across Server Components) instead of re-running the profile +
+// 3-way membership reads per call. Mirrors the already-cached siblings below
+// (getCommissionAccessByOrg / getNspAccessByOrg), which call this internally.
+export const getSessionContext = cache(async (): Promise<SessionContext | null> => {
   const supabase = await createClient()
 
   // getSession() drives refresh-if-expired (only path that may touch GoTrue, and
@@ -291,7 +295,7 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     hospitalAdminOf,
     nspOrgAdminOf,
   }
-}
+})
 
 /**
  * Returns the session context, redirecting to `/login` when unauthenticated, to
