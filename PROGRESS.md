@@ -42,6 +42,7 @@
 | ad-hoc-narratives | **Ad-hoc Case Narratives** — coordinator adds a narrative to an OPEN case (`add_ad_hoc_narrative` DEFINER RPC + `case_narratives.is_ad_hoc`); reverses ADR 0032 D7 for open cases. ADR [0047](docs/decisions/0047-ad-hoc-case-narratives.md) → [ad-hoc-narratives.md](docs/progress/ad-hoc-narratives.md). | ✅ complete | ✅ | ✅ pgTAP 1219 · Vitest 176 · E2E 5/5 + 461p (0 reg) | ✅ APPROVED 2026-07-01 [review](docs/reviews/ad-hoc-narratives-review.md) | ✅ 2026-07-01 | 2026-07-01 | branch `feat/ad-hoc-case-narratives` |
 | user-reg | **User Registration & Identity Management** — org_admin registers users (professional category + optional council credentials + home hospital/matrícula), verify+activate via invite, searchable org directory + full per-user management (committees/roles, deactivate/suspend/reactivate/resend); **real `is_active` enforcement**; drops DOB (LGPD). Detail → [user-registration.md](docs/progress/user-registration.md); ADR [0048](docs/decisions/0048-user-registration-identity.md). | ✅ complete | ✅ | ✅ feat 12/12 · pgTAP 1257 · full 467p/10-contam (0 reg) | ✅ APPROVED | ✅ 2026-07-02 | 2026-07-02 | `117319d` |
 | hospital-admin | **Phase A — Hospital-admin tier, 4-tier audit & committee titles** — `hospital_admin` (org_admin mirrored, hospital-scoped, incl. disposal + response reads); `organization_members` role widen + `hospital_id` + `NULLS NOT DISTINCT` cardinality; new `app.is_commission_admin_of()` swapped into ~60 sites; audit gains a **hospital tier** (chain key org/hospital/commission, lockstep `audit_canonical`/`audit_write`/`verify_audit_chain`); per-commission `commission_member_titles` vocab + `title_id`. Design [hospital-roles-nsp-titles-design.md](docs/progress/hospital-roles-nsp-titles-design.md). | ✅ complete | ✅ | ✅ feature spec 38/38 · pgTAP 1454 · full regr 497p/26f (0 Phase-A reg) | ✅ APPROVED (CHANGES REQ→all fixed) [review](docs/reviews/hospital-admin-tier-review.md) | ✅ 2026-07-03 | 2026-07-03 | `99e2d09` |
+| DB-hardening | **Pre-pilot DB hardening (Waves 1+2)** — consolidated remediation of the 2026-07 external DB audit: critical set (C-1…C-6, H-8) + §4/§5 perf/data-model (P1–P10, D1–D4/D6-flip/D7/D9). One gated Wave-1 push (WS-1…WS-5) + Wave-2 perf sweep (WS-6). Structural, no flag, pre-pilot reset-OK. Plan: [pre-pilot-db-hardening-program](docs/plans/pre-pilot-db-hardening-program.md). | 🏗️ in progress (started 2026-07-04) | – | – | – | – | – | branch `feat/pre-pilot-hardening` |
 | nsp-per-hospital | **Phase B — NSP-per-hospital + `nsp_org_admin`** — re-key the PQS roster + **every PHI door** org→hospital (`is_pqs_member_of(hospital)`); `nsp_org_admin` (org-level, **zero-PHI** rollups + roster curation + coordinator appointment); `nsp_coordinator` = full **local** operator; dual-hospital same-org referral reads; `dispose_referral_phi`. Detail → [nsp-per-hospital.md](docs/progress/nsp-per-hospital.md); design [nsp-per-hospital-design.md](docs/progress/nsp-per-hospital-design.md); ADR [0052](docs/decisions/0052-nsp-per-hospital.md). | ✅ complete | ✅ pgTAP **1446** · Vitest 193 · tsc 0 · eslint 0 · build ✓ | ✅ feature **32/32** · prod-PHI **86/86** · full regr **0 Phase-B reg** (NPH-003 fixed; 10 residual non-Phase-B — 3 base-proven pre-existing) | ✅ APPROVED (CHANGES→APPROVED same day) [review](docs/reviews/nsp-per-hospital-review.md) | ✅ 2026-07-03 | 2026-07-03 | BE `4ab7618`+`7a4ffa6`+`12888b1`+`c186954`+`693ea60` · FE `ccb6bc3`+`6eab3d1` · E2E `8ddc3b9`+`a323750` |
 
 > **Accreditation & Quality-Governance Track (13–21)** — planned 2026-06-17; specs in
@@ -60,6 +61,27 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
+### Pre-Pilot DB Hardening — Waves 1+2 (started 2026-07-04)
+
+Sources: [program plan](docs/plans/pre-pilot-db-hardening-program.md) · [WS-1 detail](docs/plans/membership-write-path-lockdown.md) · [triage](docs/reviews/external-db-audit-2026-07-evaluation.md) · [§4/§5 analysis](docs/reviews/external-db-audit-2026-07-perf-datamodel-analysis.md).
+Human decisions (2026-07-04): scope = **Waves 1+2**; C-6 = **narrow the erasure claim (ADR)** — keep Rule-6 storage immutability, dispose all DB-side PHI, retain encrypted-at-rest blobs under retention.
+
+| ID | WS | Items | Owner | Review | Status |
+| -- | -- | ----- | ----- | ------ | ------ |
+| W1-T1 | WS-1 | C-3 (+H-6,H-7) membership write-path lockdown — migration #1, RPCs, blanket audit, pgTAP `[gate]` | backend | 🔴 full | 🔜 |
+| W1-T2 | WS-2 | C-1 (audit_log REVOKE+TRUNCATE guard), C-2 (default-priv flip), C-4 (entitlement guard, **not** revoke) + ADR | backend | 🔴 C-4 / 🟢 rest | 🔜 |
+| W1-T3 | WS-3a | C-5 `answers.form_version_id` + composite FK/unique | backend | 🔴 | 🔜 |
+| W1-T4 | WS-3b | D1 (delete-path), D2 (tenant composite FK + guard) + ADR, D3 (junction tables), D6-flip (`ELSE false`), D7 (dual-scope vocab), D9 (lifecycle CHECKs) | backend | 🔴 D2/D3 / 🟢 rest | 🔜 |
+| W1-T5 | WS-3c | D4/H-8 + P8 — `capa_plan.hospital_id`, scoped `can_write_capa`, per-hospital code/lock + ADR | backend | 🔴 | 🔜 |
+| W1-T6 | WS-4 | C-6 disposal closure (3× `dispose_*` + meeting-minutes path) + §6.4 `frozen_storage_path` leak + narrow-claim ADR | backend | 🔴 | 🔜 |
+| W1-T7 | WS-5 | P7 (partition `audit_log` while empty), P9 (composite indexes + `(select auth.uid())` wraps), P10 (unindexed FKs); P1 session `cache()` app-side | backend | 🟢 / 🔴 P7,P9-preds | 🔜 |
+| W1-G | gate | regen types → local full pgTAP green → **lead** full E2E (standalone prod) → qa → human ✓ → user remote deploy | lead | — | 🔜 |
+| W2-T1 | WS-6 | P2 (audit-actors RPC), P3 (keyset pagination queries), P4 (count RPC + cached flags), P5 (submissions form filter) — `src/lib/queries` | backend | 🟢 | 🔜 |
+| W2-T2 | WS-6 | P3/P4 UI wiring (pagination controls, count badges) — `src/app`, `src/components` | frontend | 🟢 | 🔜 |
+
+**ADRs to write:** C-4 entitlement guard · C-6 disposal-closure + narrow-the-claim · D2 tenant composite FK · D4 CAPA tenant anchor.
+
+**Lead notes:** Land **WS-1 first** — its DEFINER-RPC + blanket-audit patterns are the templates WS-2/WS-4 reuse. D4+P8 share the `mint_capa_code` change (one commit). P9 indexes + P10 in one migration. Backend works local (`supabase migration up`); remote deploy is user-authorized at the gate (memory `remote-db-push-needs-user-auth`). Lead runs the full E2E suite (subagents can't — memory `subagent-cannot-run-full-e2e`) against a standalone prod build (memory `e2e-standalone-server-not-next-start`), triaged vs the flaky baseline. Reset-OK (memory `prelaunch-db-reset-ok`) — design the correct shape, no back-compat.
 
 ### Completed work (archived to docs/progress/)
 
