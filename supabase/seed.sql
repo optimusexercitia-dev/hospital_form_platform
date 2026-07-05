@@ -1316,6 +1316,9 @@ begin
   -- (em_execucao) so the close-flow stays demoable: one corrective action with a
   -- task, a measure with a result, and a recorded effectiveness verdict — but NOT
   -- closed (closing requires every action settled, which the open action blocks).
+  -- capa_plan.hospital_id (WS-3c D4/H-8) is auto-derived from the source RCA by the
+  -- derive_capa_hospital BEFORE INSERT trigger (rca -> event -> hospital), so this
+  -- direct seed insert needs no explicit hospital_id.
   insert into public.capa_plan (id, source, source_rca_id, classification, status, opened_by)
   values (v_capa3, 'rca', v_rca3, 'corretiva', 'em_execucao', v_chefe_a);
 

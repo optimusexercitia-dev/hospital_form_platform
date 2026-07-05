@@ -56,6 +56,9 @@ export function PqsInboxFiltersBar({
     } else {
       next.delete(key);
     }
+    // Any filter change invalidates the keyset cursor (it encodes a position in
+    // the OLD result set), so reset to the first page (WS-6 P3).
+    next.delete("cursor");
     router.replace(`${pathname}?${next.toString()}`, { scroll: false });
   }
 

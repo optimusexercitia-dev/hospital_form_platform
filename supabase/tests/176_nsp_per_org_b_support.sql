@@ -37,7 +37,7 @@
 --   staff1.ccih (03): staff of CCIH (central-a)
 
 begin;
-select plan(31);
+select plan(33);
 
 -- Fixed-UUID personas + org/hospital constants (from seed.sql).
 create temp table personas on commit drop as select
@@ -217,38 +217,58 @@ select ok(
      and cc.check_clause like '%nsp_coordinator%') >= 1,
   'C1: organization_members.role CHECK admits nsp_coordinator (appointment seam)');
 
--- An org_admin of rede-a CAN insert a HOSPITAL-scoped nsp_coordinator row for a plain
--- member (staff1.ccih) — the appoint happy path at the RLS layer. The role is now
--- hospital-scoped, so the row carries hospital_id = central-a (the CHECK requires it).
-select test_helpers.claims_for((select orgadmin_a from personas), false);
+-- Appoint happy path — now via the guarded RPC (WS-1, 20260711000000): the
+-- nsp_coordinator organization_members row is no longer directly writable by
+-- authenticated (revoked DML + dropped organization_members_write policy). Per
+-- decision 3 (ADR 0052) the appointer is the org's NSP-ORG-ADMIN, NOT a plain
+-- org_admin: the org_admin appoints the nsp_org_admin; the nsp_org_admin appoints
+-- the per-hospital coordinator. nsporg.a (nsp_org_admin of rede-a) appoints a plain
+-- member (staff1.ccih; <> nsporg.a so the self-guard passes) as coordinator of
+-- central-a; the RPC writes the hospital-scoped row.
+select test_helpers.claims_for((select nsporg_a from personas), false);
 set local role authenticated;
 select lives_ok(
-  format($$ insert into public.organization_members (organization_id, user_id, role, hospital_id)
-            values (%L::uuid, %L::uuid, 'nsp_coordinator', %L::uuid) $$,
-         (select org_a from personas), (select staff_ccih from personas), (select hosp_central_a from personas)),
-  'C2: an org_admin CAN insert a hospital-scoped nsp_coordinator row for a plain member (appoint happy path, RLS allows)');
+  format($$ select public.assign_nsp_coordinator(%L::uuid, %L::uuid) $$,
+         (select hosp_central_a from personas), (select staff_ccih from personas)),
+  'C2: the org nsp_org_admin CAN appoint a per-hospital nsp_coordinator via assign_nsp_coordinator (appoint happy path; direct write revoked by WS-1)');
 select ok(
   app.is_nsp_coordinator_of_for((select hosp_central_a from personas), (select staff_ccih from personas)),
   'C2b: the newly-appointed user is recognized by is_nsp_coordinator_of_for(central-a)');
 reset role;
 
--- A FOREIGN org_admin (orgadmin.a) CANNOT appoint a coordinator in rede-b. The denial
--- is DENIAL-AGNOSTIC: under RLS the rede-a org_admin cannot SELECT central-b's hospital
--- row, so the guard_org_member_hospital_org belongs-to lookup finds nothing and raises
--- 23514 BEFORE the RLS with-check (42501) — either way the cross-org write is denied.
+-- Duty separation (decision 3): a plain org_admin (orgadmin.a) — who is NOT the org's
+-- nsp_org_admin — CANNOT appoint a coordinator. This is the C-3a self-escalation
+-- vector WS-1 closed: previously orgadmin.a could directly INSERT the coordinator row.
 select test_helpers.claims_for((select orgadmin_a from personas), false);
 set local role authenticated;
 select throws_ok(
-  format($$ insert into public.organization_members (organization_id, user_id, role, hospital_id)
-            values (%L::uuid, %L::uuid, 'nsp_coordinator', %L::uuid) $$,
-         (select org_b from personas), (select staff_ccih from personas), (select hosp_central_b from personas)),
-  null, null,
-  'C3 ISOLATION: a rede-a org_admin CANNOT appoint a coordinator in rede-b (cross-org write denied — guard or RLS)');
+  format($$ select public.assign_nsp_coordinator(%L::uuid, %L::uuid) $$,
+         (select hosp_central_a from personas), (select staff_ccih from personas)),
+  '42501', null,
+  'C2c: a plain org_admin (NOT nsp_org_admin) CANNOT appoint a coordinator (decision 3 — assign_nsp_coordinator authority denies; C-3a closed)');
 reset role;
 
--- The hospital coordinator is the roster writer: a plain member (even an org_admin)
--- cannot directly INSERT into pqs_members. orgadmin.a is org_admin of rede-a but NOT a
--- coordinator NOR nsp_org_admin → the pqs_members_curator_all policy denies the write.
+-- A FOREIGN nsp_org_admin CANNOT appoint a coordinator in the OTHER org. nsporg.a is
+-- rede-a's nsp_org_admin, so it has no authority over rede-b's central-b hospital →
+-- the RPC's is_nsp_org_admin_of(org_of_hospital) check denies it (42501).
+select test_helpers.claims_for((select nsporg_a from personas), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.assign_nsp_coordinator(%L::uuid, %L::uuid) $$,
+         (select hosp_central_b from personas), (select staff_ccih from personas)),
+  '42501', null,
+  'C3 ISOLATION: a rede-a nsp_org_admin CANNOT appoint a coordinator in rede-b (cross-org authority denied)');
+reset role;
+
+-- The roster is written ONLY through add_pqs_member (WS-1: pqs_members has no direct
+-- write grant and NO policy at all — RPC-only door, like case_access). These negative
+-- controls prove no direct-write escape hatch survives; the reason is now "no grant /
+-- no policy" (42501 permission-denied) rather than a curator-policy WITH CHECK, but the
+-- guarantee is identical and stronger. 190_membership_lockdown covers the org_admin /
+-- nsp_org_admin direct-write vectors canonically; these add the enrolled-member and
+-- cross-hospital-coordinator vectors 190 does not.
+--
+-- C4: orgadmin.a (org_admin, not coordinator/nsp_org_admin) cannot directly write.
 select test_helpers.claims_for((select orgadmin_a from personas), false);
 set local role authenticated;
 select throws_ok(
@@ -256,10 +276,10 @@ select throws_ok(
             values (%L::uuid, %L::uuid, %L::uuid) $$,
          (select hosp_central_a from personas), (select staff_ccih from personas), (select orgadmin_a from personas)),
   '42501', null,
-  'C4: an org_admin (not coordinator/nsp_org_admin) CANNOT directly write pqs_members (no escape hatch; duty separation)');
+  'C4: an org_admin CANNOT directly write pqs_members (no grant, no policy — RPC-only door)');
 reset role;
 
--- The enrolled member (pqs.a) is NOT a coordinator → also cannot write the roster.
+-- C5: the enrolled member (pqs.a) is NOT a coordinator → also cannot write directly.
 select test_helpers.claims_for((select pqs_a from personas), false);
 set local role authenticated;
 select throws_ok(
@@ -267,29 +287,31 @@ select throws_ok(
             values (%L::uuid, %L::uuid, %L::uuid) $$,
          (select hosp_central_a from personas), (select staff_ccih from personas), (select pqs_a from personas)),
   '42501', null,
-  'C5: an enrolled PQS member (not coordinator) CANNOT directly write pqs_members (curation ≠ enrollment)');
+  'C5: an enrolled PQS member CANNOT directly write pqs_members (curation ≠ enrollment; no direct-write escape hatch)');
 reset role;
 
--- The coordinator (nspcoord.a) CAN write its HOSPITAL's roster (the positive control).
+-- C6: the coordinator (nspcoord.a) CAN enroll into its HOSPITAL's roster via the RPC
+-- (the positive control) — staff1.ccih <> nspcoord.a so the self-enrollment guard passes.
 select test_helpers.claims_for((select nspcoord_a from personas), false);
 set local role authenticated;
 select lives_ok(
-  format($$ insert into public.pqs_members (hospital_id, user_id, added_by)
-            values (%L::uuid, %L::uuid, %L::uuid) $$,
-         (select hosp_central_a from personas), (select staff_ccih from personas), (select nspcoord_a from personas)),
-  'C6: the hospital coordinator CAN write its hospital roster (positive control for the curator policy)');
+  format($$ select public.add_pqs_member(%L::uuid, %L::uuid) $$,
+         (select hosp_central_a from personas), (select staff_ccih from personas)),
+  'C6: the hospital coordinator CAN enroll its hospital roster via add_pqs_member (positive control; direct write revoked by WS-1)');
+select ok(
+  app.is_pqs_member_of_for((select hosp_central_a from personas), (select staff_ccih from personas)),
+  'C6b: the enrolled user is recognized by is_pqs_member_of_for(central-a) (PHI read now resolves)');
 reset role;
 
--- Cross-hospital: central-a's coordinator CANNOT write central-b's roster (a hospital
--- it is not the coordinator/nsp_org_admin of).
+-- C7: cross-hospital — central-a's coordinator CANNOT enroll into central-b's roster
+-- (a hospital it is not the coordinator/nsp_org_admin of → add_pqs_member authority denies).
 select test_helpers.claims_for((select nspcoord_a from personas), false);
 set local role authenticated;
 select throws_ok(
-  format($$ insert into public.pqs_members (hospital_id, user_id, added_by)
-            values (%L::uuid, %L::uuid, %L::uuid) $$,
-         (select hosp_central_b from personas), (select staff_ccih from personas), (select nspcoord_a from personas)),
+  format($$ select public.add_pqs_member(%L::uuid, %L::uuid) $$,
+         (select hosp_central_b from personas), (select staff_ccih from personas)),
   '42501', null,
-  'C7 ISOLATION: central-a coordinator CANNOT write central-b roster (cross-hospital write denied)');
+  'C7 ISOLATION: central-a coordinator CANNOT enroll central-b roster (cross-hospital authority denied)');
 reset role;
 
 -- ============================================================================

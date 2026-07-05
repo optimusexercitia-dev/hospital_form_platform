@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
+import { featureEnabled } from '@/lib/queries/feature-flags'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
@@ -123,10 +124,8 @@ function parseDate(raw: string): string | undefined | null {
  * locked-down `app` schema). Fails closed.
  */
 export async function meetingsEnabled(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('meetings_enabled')
-  if (error) return false
-  return data === true
+  // P4 (WS-6): delegate to the consolidated, request-memoized flag read.
+  return featureEnabled('meetings')
 }
 
 // ---------------------------------------------------------------------------

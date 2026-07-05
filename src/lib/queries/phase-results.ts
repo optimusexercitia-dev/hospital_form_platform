@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { featureEnabled } from '@/lib/queries/feature-flags'
 import type { CaseStatusColorToken } from '@/lib/cases/case-status'
 
 /**
@@ -132,8 +133,6 @@ export async function listPhaseResults(
  * `false` when the flag is off or unreadable — the UI hides the result surfaces.
  */
 export async function phaseResultsEnabled(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('case_phase_results_enabled')
-  if (error) return false
-  return data === true
+  // P4 (WS-6): delegate to the consolidated, request-memoized flag read.
+  return featureEnabled('case_phase_results')
 }

@@ -221,8 +221,10 @@ grant select on cse to authenticated;
 -- removed by the 093000–093003 batch). A direct INSERT is not guarded
 -- (guard_case_status fires only on UPDATE/DELETE), so any CHECK-valid status is
 -- fine; 'concluido' is coherent with the concluida phase below.
-insert into public.cases (id, commission_id, case_number, status, created_by)
-select cse.case_id, k.comm_x, 9999, 'concluido', k.sa_x from cse, k;
+-- WS-3b D9: a terminal case (concluido/cancelado) must carry closed_at
+-- (cases_closed_at_paired CHECK); set it so this fixture row is lifecycle-consistent.
+insert into public.cases (id, commission_id, case_number, status, closed_at, created_by)
+select cse.case_id, k.comm_x, 9999, 'concluido', now(), k.sa_x from cse, k;
 insert into public.case_phases (id, case_id, position, title, form_id, form_version_id, status)
 select cse.phase_id, cse.case_id, 1, 'P1', i.form_d, i.ver_d, 'concluida' from cse, ids i;
 insert into public.responses (id, form_version_id, commission_id, created_by, status, submitted_at, case_phase_id)
@@ -382,7 +384,7 @@ select ok(
   and not has_function_privilege('anon', 'public.create_case_from_template(uuid,text)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.add_template_phase(uuid,uuid,text,jsonb,integer,integer[],jsonb,boolean,jsonb)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.update_template_phase(uuid,uuid,text,jsonb,boolean,integer,boolean,integer[],boolean,jsonb,boolean,boolean,jsonb,boolean)', 'EXECUTE')
-  and not has_function_privilege('anon', 'public.list_cases_board(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.list_cases_board(uuid,integer)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.get_case_detail(uuid)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.set_case_outcome(uuid,uuid)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.close_case(uuid)', 'EXECUTE'),

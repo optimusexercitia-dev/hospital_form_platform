@@ -3,11 +3,10 @@ import { notFound } from "next/navigation";
 import { getCommissionAccessByOrg, getNspAccessByOrg } from "@/lib/queries/session";
 import {
   casesExtrasEnabled,
-  listCasesBoard,
+  countOpenCasesForBoard,
   listMyAssignedPhases,
   listMyCases,
 } from "@/lib/queries/cases";
-import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { listSignoffQueue } from "@/lib/queries/signoffs";
 import { myPendingMeetingSignatures } from "@/lib/queries/meetings";
 import { meetingsEnabled } from "@/lib/meetings/actions";
@@ -102,14 +101,21 @@ export default async function CommissionLayout({
   const [
     myPhases,
     myCases,
-    board,
+    openCasesCount,
     signoffQueue,
     pendingSignatures,
     referralsActionable,
   ] = await Promise.all([
     caseAccessOn ? Promise.resolve([]) : listMyAssignedPhases(commissionId),
     caseAccessOn ? listMyCases(commissionId) : Promise.resolve([]),
-    isCoordinator ? listCasesBoard(commissionId) : Promise.resolve([]),
+    // P4: count open cases via the dedicated `count_open_cases_for_board` RPC
+    // (mirrors the board's `is_staff_admin_of` gate) instead of fetching the
+    // capped-200 board with its phase JSON just to badge a number. The other four
+    // badges below are counted from their user-scoped reads because those lists
+    // are inherently small.
+    isCoordinator
+      ? countOpenCasesForBoard(commissionId)
+      : Promise.resolve(0),
     isCoordinator ? listSignoffQueue(commissionId) : Promise.resolve([]),
     meetingsOn ? myPendingMeetingSignatures() : Promise.resolve([]),
     referralsOn
@@ -120,9 +126,10 @@ export default async function CommissionLayout({
   const counts: SidebarCounts = {
     minhasFases: myPhases.length,
     meusCasos: myCases.length,
-    // "Open" cases = those NOT in a terminal status (the FIXED computed enum:
-    // nao_iniciado / em_revisao / pendente are open; concluido / cancelado closed).
-    casos: board.filter((row) => !isTerminalCaseStatus(row.case.status)).length,
+    // "Open" cases = those NOT in a terminal status (nao_iniciado / em_revisao /
+    // pendente open; concluido / cancelado closed), counted server-side by the
+    // `count_open_cases_for_board` RPC (P4) rather than derived from the board.
+    casos: openCasesCount,
     assinaturas: signoffQueue.length,
     // Meetings awaiting THIS user's signature (any member; derived read).
     reunioesPendentes: pendingSignatures.length,

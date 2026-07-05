@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { featureEnabled } from '@/lib/queries/feature-flags'
 
 /**
  * "Meus itens de ação" data-access (Architecture Rule 9 — all reads go through
@@ -113,10 +114,8 @@ interface MyActionItemJson {
  * "Meus itens de ação" item. `false` on any error (fail-closed).
  */
 export async function actionItemsEnabled(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('action_items_enabled')
-  if (error) return false
-  return data === true
+  // P4 (WS-6): delegate to the consolidated, request-memoized flag read.
+  return featureEnabled('action_items')
 }
 
 // ---------------------------------------------------------------------------

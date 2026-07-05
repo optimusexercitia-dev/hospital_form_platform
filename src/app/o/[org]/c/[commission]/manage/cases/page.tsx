@@ -50,7 +50,9 @@ export default async function CasesBoardPage({
   }
 
   const [
-    rows,
+    // The board is CAPPED, not cursor-paginated (`nextCursor` is always null),
+    // so we take `.rows` and render no pagination control (WS-6 P3).
+    { rows },
     templates,
     actionItemKpis,
     casePatientOn,

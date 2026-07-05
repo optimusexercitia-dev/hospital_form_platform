@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { featureEnabled } from '@/lib/queries/feature-flags'
 import type { Json } from '@/lib/types/database'
 
 /**
@@ -584,10 +585,10 @@ export async function verifyAuditChain(
  * `meetingsEnabled`/`interviewsEnabled`). Backed by the `audit_trail_enabled`
  * DEFINER read; defaults to `false` on any error. */
 export async function auditTrailEnabled(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('audit_trail_enabled')
-  if (error) return false
-  return data === true
+  // P4 (WS-6): delegate to the consolidated, request-memoized flag read so many
+  // *_enabled() calls in one render collapse to a single round trip. Signature +
+  // safe-default (false) preserved so existing callers are unaffected.
+  return featureEnabled('audit_trail')
 }
 
 /** Distinct actor options for the actor filter (actors with ≥1 readable audit
@@ -598,30 +599,27 @@ export async function listAuditFilterActors(
 ): Promise<AuditFilterActor[]> {
   const supabase = await createClient()
 
-  let query = supabase
-    .from('audit_log')
-    .select('actor_id, profiles:actor_id(full_name)')
-  if (commissionId) query = query.eq('commission_id', commissionId)
+  // P2 (WS-6): distinct actors are resolved IN THE DB via the SECURITY INVOKER
+  // `list_audit_filter_actors` RPC (SELECT DISTINCT ON), not by fetching every
+  // audit row and de-duping in JS. The RPC runs under the caller's RLS, so the
+  // visible actor set is identical to the former client-side scan's.
+  const { data } = await supabase
+    .rpc('list_audit_filter_actors', {
+      p_commission: commissionId ?? undefined,
+    })
+    .returns<{ actor_id: string | null; full_name: string | null }[]>()
 
-  const { data } = await query.returns<
-    { actor_id: string | null; profiles: { full_name: string | null } | null }[]
-  >()
-
-  const byId = new Map<string, AuditFilterActor>()
+  const actors: AuditFilterActor[] = []
   let hasSystem = false
   for (const r of data ?? []) {
     if (r.actor_id === null) {
       hasSystem = true
       continue
     }
-    if (!byId.has(r.actor_id)) {
-      byId.set(r.actor_id, { actorId: r.actor_id, name: r.profiles?.full_name ?? null })
-    }
+    actors.push({ actorId: r.actor_id, name: r.full_name })
   }
-  const out = Array.from(byId.values()).sort((a, b) =>
-    (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR'),
-  )
+  actors.sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'pt-BR'))
   // Surface the system actor as a selectable option when present.
-  if (hasSystem) out.push({ actorId: null, name: null })
-  return out
+  if (hasSystem) actors.push({ actorId: null, name: null })
+  return actors
 }

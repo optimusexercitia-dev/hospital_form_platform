@@ -205,18 +205,24 @@ select throws_ok(
   'org_admin A CANNOT create an organization (provisioning is vendor-only)');
 
 -- org_admin A CAN add an org member to A, CANNOT to B.
-prepare oa_add_member_a as
-  insert into public.organization_members (organization_id, user_id, role)
-  values ((select org_a from h), (select st_x from h), 'org_admin');
-select lives_ok('execute oa_add_member_a', 'org_admin A CAN add an org member to org A');
-deallocate oa_add_member_a;
+-- WS-1 (20260711000000): organization_members is no longer directly writable by
+-- authenticated (revoked DML + dropped write policy) — grants flow through the
+-- guarded assign_org_admin DEFINER RPC. org_admin A appoints another org_admin of
+-- ITS org (authority = is_org_admin_of(org_a); st_x <> sa_x so the self-guard passes)
+-- ...
+select lives_ok(
+  format($$ select public.assign_org_admin(%L::uuid, %L::uuid) $$,
+         (select org_a from h), (select st_x from h)),
+  'org_admin A CAN add an org member to org A (via assign_org_admin RPC — direct write revoked by WS-1)');
 
+-- ... but CANNOT appoint into org B (no authority over org B → 42501). The RPC is
+-- the sole door, so cross-org is denied at the authority check, not a WITH CHECK.
 select throws_ok(
-  format($$ insert into public.organization_members (organization_id, user_id, role) values (%L, %L, 'org_admin') $$,
+  format($$ select public.assign_org_admin(%L::uuid, %L::uuid) $$,
          (select org_b from h), (select st_x from h)),
   '42501',
   null,
-  'org_admin A CANNOT add an org member to org B (WITH CHECK blocks)');
+  'org_admin A CANNOT add an org member to org B (assign_org_admin authority denies cross-org)');
 
 reset role;
 

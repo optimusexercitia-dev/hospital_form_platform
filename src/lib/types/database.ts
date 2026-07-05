@@ -432,6 +432,7 @@ export type Database = {
         Row: {
           answered_at: string
           confidentiality_level: string
+          form_version_id: string
           group_instance_id: string | null
           id: string
           item_id: string
@@ -446,6 +447,7 @@ export type Database = {
         Insert: {
           answered_at?: string
           confidentiality_level?: string
+          form_version_id: string
           group_instance_id?: string | null
           id?: string
           item_id: string
@@ -460,6 +462,7 @@ export type Database = {
         Update: {
           answered_at?: string
           confidentiality_level?: string
+          form_version_id?: string
           group_instance_id?: string | null
           id?: string
           item_id?: string
@@ -485,6 +488,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "form_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answers_item_version_key_fkey"
+            columns: ["item_id", "form_version_id", "question_key"]
+            isOneToOne: false
+            referencedRelation: "form_items"
+            referencedColumns: ["id", "form_version_id", "question_key"]
           },
           {
             foreignKeyName: "answers_response_id_fkey"
@@ -887,6 +897,7 @@ export type Database = {
           closed_by: string | null
           code: string
           created_at: string
+          hospital_id: string
           id: string
           lessons_learned_md: string | null
           opened_by: string | null
@@ -905,6 +916,7 @@ export type Database = {
           closed_by?: string | null
           code: string
           created_at?: string
+          hospital_id: string
           id?: string
           lessons_learned_md?: string | null
           opened_by?: string | null
@@ -923,6 +935,7 @@ export type Database = {
           closed_by?: string | null
           code?: string
           created_at?: string
+          hospital_id?: string
           id?: string
           lessons_learned_md?: string | null
           opened_by?: string | null
@@ -941,6 +954,13 @@ export type Database = {
             columns: ["closed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_plan_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
             referencedColumns: ["id"]
           },
           {
@@ -2422,6 +2442,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "commissions_hospital_org_fkey"
+            columns: ["hospital_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
             foreignKeyName: "commissions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -3256,6 +3283,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -3282,6 +3312,9 @@ export type Database = {
           meeting_url?: string | null
           minutes_md?: string | null
           modality?: string
+          phi_disposed_at?: string | null
+          phi_disposed_by?: string | null
+          phi_disposed_reason?: string | null
           present_count?: number | null
           quorum_met?: boolean | null
           quorum_rule_type?: string | null
@@ -3308,6 +3341,9 @@ export type Database = {
           meeting_url?: string | null
           minutes_md?: string | null
           modality?: string
+          phi_disposed_at?: string | null
+          phi_disposed_by?: string | null
+          phi_disposed_reason?: string | null
           present_count?: number | null
           quorum_met?: boolean | null
           quorum_rule_type?: string | null
@@ -3345,6 +3381,13 @@ export type Database = {
             columns: ["meeting_type_id"]
             isOneToOne: false
             referencedRelation: "commission_meeting_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_phi_disposed_by_fkey"
+            columns: ["phi_disposed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3687,6 +3730,7 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -3697,6 +3741,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          hospital_id?: string | null
           id?: string
           is_active?: boolean
           key: string
@@ -3707,6 +3752,7 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          hospital_id?: string | null
           id?: string
           is_active?: boolean
           key?: string
@@ -3714,7 +3760,15 @@ export type Database = {
           position?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pqs_event_types_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pqs_members: {
         Row: {
@@ -3763,6 +3817,7 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -3773,6 +3828,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          hospital_id?: string | null
           id?: string
           is_active?: boolean
           key: string
@@ -3783,6 +3839,7 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          hospital_id?: string | null
           id?: string
           is_active?: boolean
           key?: string
@@ -3790,7 +3847,15 @@ export type Database = {
           position?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pqs_sentinel_criteria_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       process_template_narratives: {
         Row: {
@@ -5832,6 +5897,7 @@ export type Database = {
         Returns: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -5910,6 +5976,7 @@ export type Database = {
         Returns: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -5948,6 +6015,10 @@ export type Database = {
         Args: { p_org: string; p_user: string }
         Returns: undefined
       }
+      assign_org_admin: {
+        Args: { p_org: string; p_user: string }
+        Returns: undefined
+      }
       audit_trail_enabled: { Args: never; Returns: boolean }
       can_dispose_referral_phi: {
         Args: { p_referral_id: string }
@@ -5961,6 +6032,7 @@ export type Database = {
           closed_by: string | null
           code: string
           created_at: string
+          hospital_id: string
           id: string
           lessons_learned_md: string | null
           opened_by: string | null
@@ -6094,6 +6166,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -6156,6 +6231,7 @@ export type Database = {
           closed_by: string | null
           code: string
           created_at: string
+          hospital_id: string
           id: string
           lessons_learned_md: string | null
           opened_by: string | null
@@ -6349,6 +6425,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -6438,6 +6517,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      count_open_cases_for_board: {
+        Args: { p_commission_id: string }
+        Returns: number
       }
       create_case: {
         Args: {
@@ -6614,10 +6697,16 @@ export type Database = {
         }
       }
       create_event_type: {
-        Args: { p_description?: string; p_key: string; p_label: string }
+        Args: {
+          p_description?: string
+          p_hospital_id?: string
+          p_key: string
+          p_label: string
+        }
         Returns: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -6712,6 +6801,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -6896,10 +6988,16 @@ export type Database = {
         }
       }
       create_sentinel_criterion: {
-        Args: { p_description?: string; p_key: string; p_label: string }
+        Args: {
+          p_description?: string
+          p_hospital_id?: string
+          p_key: string
+          p_label: string
+        }
         Returns: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -7063,6 +7161,10 @@ export type Database = {
         Args: { p_event_id: string; p_reason: string }
         Returns: undefined
       }
+      dispose_meeting_minutes: {
+        Args: { p_meeting_id: string; p_reason: string }
+        Returns: undefined
+      }
       dispose_referral_phi: {
         Args: { p_reason: string; p_referral_id: string }
         Returns: undefined
@@ -7085,6 +7187,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -7105,6 +7210,7 @@ export type Database = {
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_case_patient: { Args: { p_case_id: string }; Returns: Json }
       get_event_patient: { Args: { p_event_id: string }; Returns: Json }
+      get_feature_flags: { Args: never; Returns: Json }
       get_member_overview: { Args: { p_commission: string }; Returns: Json }
       get_patient_trajectory_for_entity: {
         Args: { p_entity_id: string; p_module: string }
@@ -7224,6 +7330,13 @@ export type Database = {
           user_id: string
         }[]
       }
+      list_audit_filter_actors: {
+        Args: { p_commission?: string }
+        Returns: {
+          actor_id: string
+          full_name: string
+        }[]
+      }
       list_case_access: {
         Args: { p_case: string }
         Returns: {
@@ -7235,7 +7348,7 @@ export type Database = {
         }[]
       }
       list_cases_board: {
-        Args: { p_commission_id: string }
+        Args: { p_commission_id: string; p_limit?: number }
         Returns: {
           case_id: string
           case_number: number
@@ -7309,6 +7422,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -7388,6 +7504,7 @@ export type Database = {
       open_capa_plan: {
         Args: {
           p_classification?: string
+          p_hospital_id?: string
           p_source: string
           p_source_id?: string
         }
@@ -7397,6 +7514,7 @@ export type Database = {
           closed_by: string | null
           code: string
           created_at: string
+          hospital_id: string
           id: string
           lessons_learned_md: string | null
           opened_by: string | null
@@ -7428,6 +7546,9 @@ export type Database = {
       }
       pqs_inbox: {
         Args: {
+          p_cursor_id?: string
+          p_cursor_reported_at?: string
+          p_limit?: number
           p_reporting_commission_id?: string
           p_status?: string
           p_suspected_harm_level?: string
@@ -7734,6 +7855,7 @@ export type Database = {
           closed_by: string | null
           code: string
           created_at: string
+          hospital_id: string
           id: string
           lessons_learned_md: string | null
           opened_by: string | null
@@ -7804,6 +7926,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -7887,7 +8012,7 @@ export type Database = {
         Returns: undefined
       }
       reorder_event_types: {
-        Args: { p_ordered_ids: string[] }
+        Args: { p_hospital_id?: string; p_ordered_ids: string[] }
         Returns: undefined
       }
       reorder_item: {
@@ -7915,7 +8040,7 @@ export type Database = {
         Returns: undefined
       }
       reorder_sentinel_criteria: {
-        Args: { p_ordered_ids: string[] }
+        Args: { p_hospital_id?: string; p_ordered_ids: string[] }
         Returns: undefined
       }
       reorder_template_phase: {
@@ -7935,6 +8060,10 @@ export type Database = {
         Returns: undefined
       }
       revoke_nsp_org_admin: {
+        Args: { p_org: string; p_user: string }
+        Returns: undefined
+      }
+      revoke_org_admin: {
         Args: { p_org: string; p_user: string }
         Returns: undefined
       }
@@ -8195,6 +8324,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -8698,6 +8830,7 @@ export type Database = {
           closed_by: string | null
           code: string
           created_at: string
+          hospital_id: string
           id: string
           lessons_learned_md: string | null
           opened_by: string | null
@@ -8884,6 +9017,7 @@ export type Database = {
         Returns: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -9053,6 +9187,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -9143,6 +9280,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -9377,6 +9517,7 @@ export type Database = {
         Returns: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string

@@ -7,6 +7,7 @@ import { listMeetings, listMeetingTypes } from "@/lib/queries/meetings";
 import { meetingsEnabled } from "@/lib/meetings/actions";
 import { MeetingsList } from "@/components/meetings/meetings-list";
 import { NewMeetingButton } from "@/components/meetings/meeting-form-dialog";
+import { CursorPagination } from "@/components/shared/cursor-pagination";
 
 export const metadata: Metadata = {
   title: "Reuniões",
@@ -23,11 +24,14 @@ export const metadata: Metadata = {
  */
 export default async function MeetingsListPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ org: string; commission: string }>;
+  searchParams: Promise<{ cursor?: string }>;
 }) {
   const { org, commission } = await params;
   const slug = commission;
+  const { cursor } = await searchParams;
 
   if (!(await meetingsEnabled())) {
     notFound();
@@ -41,8 +45,8 @@ export default async function MeetingsListPage({
   const isCoordinator =
     access.role === "staff_admin";
 
-  const [meetings, meetingTypes] = await Promise.all([
-    listMeetings(access.commission.id),
+  const [{ rows: meetings, nextCursor }, meetingTypes] = await Promise.all([
+    listMeetings(access.commission.id, { cursor }),
     listMeetingTypes(access.commission.id),
   ]);
 
@@ -95,12 +99,15 @@ export default async function MeetingsListPage({
           )}
         </section>
       ) : (
-        <MeetingsList
-          meetings={meetings}
-          meetingTypes={meetingTypes}
-          org={org}
-          slug={slug}
-        />
+        <>
+          <MeetingsList
+            meetings={meetings}
+            meetingTypes={meetingTypes}
+            org={org}
+            slug={slug}
+          />
+          <CursorPagination nextCursor={nextCursor} />
+        </>
       )}
     </div>
   );

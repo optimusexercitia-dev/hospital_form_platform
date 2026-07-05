@@ -41,6 +41,7 @@
 import 'server-only'
 
 import { createClient } from '@/lib/supabase/server'
+import { featureEnabled } from '@/lib/queries/feature-flags'
 import type {
   PatientAccessAuditRow,
   PatientSearchResult,
@@ -145,10 +146,8 @@ function mapAccessAuditRow(r: PatientAccessAuditJson): PatientAccessAuditRow {
  * Gates the QPS page + the referral hint; `false` on any error (fail-closed).
  */
 export async function patientIndexEnabled(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('patient_index_enabled')
-  if (error) return false
-  return data === true
+  // P4 (WS-6): delegate to the consolidated, request-memoized flag read.
+  return featureEnabled('patient_index')
 }
 
 // ---------------------------------------------------------------------------

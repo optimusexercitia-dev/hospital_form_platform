@@ -108,9 +108,13 @@ reset role;
 -- Source CHECK: exactly one source column matches `source` (probe a bad direct insert
 -- as the table owner — RLS aside, the CHECK must fire).
 -- =========================================================================
+-- WS-3c: supply a valid hospital_id so the ONLY violation under test is the source
+-- shape CHECK (23514), not the new NOT NULL hospital_id (the random event UUID would
+-- otherwise make the derive trigger leave hospital_id NULL).
 select throws_ok(
-  $$ insert into public.capa_plan (source, source_event_id, source_rca_id)
-     values ('event', gen_random_uuid(), gen_random_uuid()) $$,
+  format($$ insert into public.capa_plan (source, source_event_id, source_rca_id, hospital_id)
+     values ('event', gen_random_uuid(), gen_random_uuid(), %L::uuid) $$,
+     (select (v->>'hosp_b')::uuid from ctx)),
   '23514', null, 'a plan with two source columns set violates the source CHECK');
 
 -- source_indicator_id accepts NULL + is FK-LESS (no FK constraint references indicators).

@@ -1,5 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { logAuditAccess } from '@/lib/audit/access'
+import type { Page, PageParams, CursorSchema } from '@/lib/types/pagination'
+import {
+  DEFAULT_PAGE_SIZE,
+  decodeCursor,
+  encodeCursor,
+} from '@/lib/types/pagination'
 
 /**
  * Meetings data-access (Phase 10 — Meetings; Architecture Rule 9 — all reads go
@@ -463,22 +469,58 @@ export const MEETING_LIST_COLUMNS = `
  * schema object. `pendingSignatures` is `null` for any non-`em_assinatura`
  * meeting (the column renders `—`).
  */
+/** The keyset sort-tuple encoded in a `listMeetings` cursor. Private; opaque. */
+interface MeetingCursor {
+  /** `scheduled_start` of the last row. */
+  s: string
+  /** `id` of the last row (tie-breaker). */
+  id: string
+}
+
+/** Validation schema for the cursor fields (WS-6 QA hardening): timestamp + uuid,
+ * structurally excluding the `.or()` metacharacters. Tampered → cursor rejected. */
+const MEETING_CURSOR_SCHEMA: CursorSchema<MeetingCursor> = {
+  s: 'timestamp',
+  id: 'uuid',
+}
+
 export async function listMeetings(
   commissionId: string,
-): Promise<MeetingListItem[]> {
+  page?: PageParams,
+): Promise<Page<MeetingListItem>> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  const limit = page?.limit ?? DEFAULT_PAGE_SIZE
+  const cursor = decodeCursor<MeetingCursor>(page?.cursor, MEETING_CURSOR_SCHEMA)
+
+  // Keyset (WS-6 P3): (scheduled_start DESC, id DESC). Over-fetch by one to detect
+  // a next page. The two per-meeting aggregate reads below are scoped to THIS page's
+  // meetingIds, so they stay correct and bounded.
+  let query = supabase
     .from('meetings')
     .select(MEETING_LIST_COLUMNS)
     .eq('commission_id', commissionId)
+
+  if (cursor) {
+    query = query.or(
+      `scheduled_start.lt.${cursor.s},` +
+        `and(scheduled_start.eq.${cursor.s},id.lt.${cursor.id})`,
+    )
+  }
+
+  const { data, error } = await query
     .order('scheduled_start', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit + 1)
     .returns<MeetingRow[]>()
 
-  if (error || !data || data.length === 0) return []
+  if (error || !data || data.length === 0) return { rows: [], nextCursor: null }
 
-  const meetingIds = data.map((m) => m.id)
-  const signatureMeetingIds = data
+  const hasMore = data.length > limit
+  const pageData = hasMore ? data.slice(0, limit) : data
+
+  const meetingIds = pageData.map((m) => m.id)
+  const signatureMeetingIds = pageData
     .filter((m) => m.status === 'em_assinatura')
     .map((m) => m.id)
 
@@ -534,7 +576,7 @@ export async function listMeetings(
     }
   }
 
-  return data.map((m) => {
+  const rows = pageData.map((m) => {
     const base = mapListItem(m)
     const pendingSignatures =
       m.status === 'em_assinatura'
@@ -550,6 +592,17 @@ export async function listMeetings(
       pendingSignatures,
     }
   })
+
+  const last = pageData[pageData.length - 1]
+  const nextCursor =
+    hasMore && last
+      ? encodeCursor({
+          s: last.scheduled_start,
+          id: last.id,
+        } satisfies MeetingCursor)
+      : null
+
+  return { rows, nextCursor }
 }
 
 /** Full detail for one meeting (the registry hub), or `null` if unreadable/absent. */

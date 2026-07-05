@@ -13,6 +13,7 @@ import {
 } from "@/lib/queries/submissions";
 import { SubmissionsFilters } from "@/components/dashboard/submissions-filters";
 import { SubmissionRow } from "@/components/dashboard/submission-row";
+import { CursorPagination } from "@/components/shared/cursor-pagination";
 
 export const metadata: Metadata = {
   title: "Respostas enviadas",
@@ -39,6 +40,7 @@ export default async function SubmissionsPage({
     from?: string;
     to?: string;
     inProgress?: string;
+    cursor?: string;
   }>;
 }) {
   const { org, commission } = await params;
@@ -59,8 +61,8 @@ export default async function SubmissionsPage({
     includeInProgress,
   };
 
-  const [rows, members, forms] = await Promise.all([
-    listSubmissions(access.commission.id, filters),
+  const [{ rows, nextCursor }, members, forms] = await Promise.all([
+    listSubmissions(access.commission.id, filters, { cursor: sp.cursor }),
     listSubmissionFilterMembers(access.commission.id),
     listSubmissionFilterForms(access.commission.id),
   ]);
@@ -100,16 +102,19 @@ export default async function SubmissionsPage({
       {rows.length === 0 ? (
         <EmptyState />
       ) : (
-        <ul aria-label="Respostas" className="flex flex-col gap-3">
-          {rows.map((row, index) => (
-            <SubmissionRow
-              key={row.responseId}
-              org={org} slug={slug}
-              row={row}
-              index={index}
-            />
-          ))}
-        </ul>
+        <>
+          <ul aria-label="Respostas" className="flex flex-col gap-3">
+            {rows.map((row, index) => (
+              <SubmissionRow
+                key={row.responseId}
+                org={org} slug={slug}
+                row={row}
+                index={index}
+              />
+            ))}
+          </ul>
+          <CursorPagination nextCursor={nextCursor} />
+        </>
       )}
     </div>
   );
