@@ -897,6 +897,7 @@ export type Database = {
           closed_by: string | null
           code: string
           created_at: string
+          hospital_id: string
           id: string
           lessons_learned_md: string | null
           opened_by: string | null
@@ -915,6 +916,7 @@ export type Database = {
           closed_by?: string | null
           code: string
           created_at?: string
+          hospital_id: string
           id?: string
           lessons_learned_md?: string | null
           opened_by?: string | null
@@ -933,6 +935,7 @@ export type Database = {
           closed_by?: string | null
           code?: string
           created_at?: string
+          hospital_id?: string
           id?: string
           lessons_learned_md?: string | null
           opened_by?: string | null
@@ -951,6 +954,13 @@ export type Database = {
             columns: ["closed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_plan_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
             referencedColumns: ["id"]
           },
           {
@@ -6006,6 +6016,7 @@ export type Database = {
           closed_by: string | null
           code: string
           created_at: string
+          hospital_id: string
           id: string
           lessons_learned_md: string | null
           opened_by: string | null
@@ -6201,6 +6212,7 @@ export type Database = {
           closed_by: string | null
           code: string
           created_at: string
+          hospital_id: string
           id: string
           lessons_learned_md: string | null
           opened_by: string | null
@@ -7445,6 +7457,7 @@ export type Database = {
       open_capa_plan: {
         Args: {
           p_classification?: string
+          p_hospital_id?: string
           p_source: string
           p_source_id?: string
         }
@@ -7454,6 +7467,7 @@ export type Database = {
           closed_by: string | null
           code: string
           created_at: string
+          hospital_id: string
           id: string
           lessons_learned_md: string | null
           opened_by: string | null
@@ -7791,6 +7805,7 @@ export type Database = {
           closed_by: string | null
           code: string
           created_at: string
+          hospital_id: string
           id: string
           lessons_learned_md: string | null
           opened_by: string | null
@@ -8759,6 +8774,7 @@ export type Database = {
           closed_by: string | null
           code: string
           created_at: string
+          hospital_id: string
           id: string
           lessons_learned_md: string | null
           opened_by: string | null
