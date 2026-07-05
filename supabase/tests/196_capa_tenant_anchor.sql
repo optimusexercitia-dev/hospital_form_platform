@@ -17,7 +17,7 @@
 --      the caller isn't an operator of raises; HC083 when it can't be resolved.
 
 begin;
-select plan(16);
+select plan(19);
 
 update app.feature_flags set enabled = true where key = 'patient_safety';
 update app.feature_flags set enabled = true where key = 'audit_trail';
@@ -173,6 +173,19 @@ grant select on opened to authenticated;
 select is(
   (select h from opened), (select hosp2 from t),
   '6.1: a single-hospital operator''s manual open_capa_plan auto-derives its hospital');
+
+-- ============================================================================
+-- §7: READ-ISOLATION LOCK (WS-3c can_read_capa change) — a MANUAL CAPA (no event)
+-- resolves its scope via hospital_id, NOT event_of_capa. The own-hospital operator
+-- CAN read it; a cross-hospital operator CANNOT. Locks the changed PHI read predicate
+-- so a future edit can't silently broaden it (added in the WS-4 test pass).
+-- ============================================================================
+select ok(app.can_read_capa((select capa_2 from c), (select op_2 from k)),
+  '7.1: the hosp2 operator CAN read the hosp2 manual CAPA (can_read_capa via hospital_id)');
+select ok(not app.can_read_capa((select capa_2 from c), (select op_b from k)),
+  '7.2: a hosp_b operator CANNOT read the hosp2 manual CAPA (read isolation across hospitals)');
+select ok(not app.can_read_capa((select capa_2 from c), (select plain from k)),
+  '7.3: a non-operator CANNOT read a manual CAPA at all');
 
 select * from finish();
 rollback;

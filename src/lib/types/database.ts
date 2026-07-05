@@ -3283,6 +3283,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -3309,6 +3312,9 @@ export type Database = {
           meeting_url?: string | null
           minutes_md?: string | null
           modality?: string
+          phi_disposed_at?: string | null
+          phi_disposed_by?: string | null
+          phi_disposed_reason?: string | null
           present_count?: number | null
           quorum_met?: boolean | null
           quorum_rule_type?: string | null
@@ -3335,6 +3341,9 @@ export type Database = {
           meeting_url?: string | null
           minutes_md?: string | null
           modality?: string
+          phi_disposed_at?: string | null
+          phi_disposed_by?: string | null
+          phi_disposed_reason?: string | null
           present_count?: number | null
           quorum_met?: boolean | null
           quorum_rule_type?: string | null
@@ -3372,6 +3381,13 @@ export type Database = {
             columns: ["meeting_type_id"]
             isOneToOne: false
             referencedRelation: "commission_meeting_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meetings_phi_disposed_by_fkey"
+            columns: ["phi_disposed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -6150,6 +6166,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -6406,6 +6425,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -6775,6 +6797,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -7132,6 +7157,10 @@ export type Database = {
         Args: { p_event_id: string; p_reason: string }
         Returns: undefined
       }
+      dispose_meeting_minutes: {
+        Args: { p_meeting_id: string; p_reason: string }
+        Returns: undefined
+      }
       dispose_referral_phi: {
         Args: { p_reason: string; p_referral_id: string }
         Returns: undefined
@@ -7154,6 +7183,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -7378,6 +7410,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -7876,6 +7911,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -8271,6 +8309,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -9131,6 +9172,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
@@ -9221,6 +9265,9 @@ export type Database = {
           meeting_url: string | null
           minutes_md: string | null
           modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
           present_count: number | null
           quorum_met: boolean | null
           quorum_rule_type: string | null
