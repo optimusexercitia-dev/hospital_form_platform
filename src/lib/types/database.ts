@@ -432,6 +432,7 @@ export type Database = {
         Row: {
           answered_at: string
           confidentiality_level: string
+          form_version_id: string
           group_instance_id: string | null
           id: string
           item_id: string
@@ -446,6 +447,7 @@ export type Database = {
         Insert: {
           answered_at?: string
           confidentiality_level?: string
+          form_version_id: string
           group_instance_id?: string | null
           id?: string
           item_id: string
@@ -460,6 +462,7 @@ export type Database = {
         Update: {
           answered_at?: string
           confidentiality_level?: string
+          form_version_id?: string
           group_instance_id?: string | null
           id?: string
           item_id?: string
@@ -485,6 +488,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "form_items"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answers_item_version_key_fkey"
+            columns: ["item_id", "form_version_id", "question_key"]
+            isOneToOne: false
+            referencedRelation: "form_items"
+            referencedColumns: ["id", "form_version_id", "question_key"]
           },
           {
             foreignKeyName: "answers_response_id_fkey"
