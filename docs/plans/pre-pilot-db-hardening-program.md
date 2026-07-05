@@ -1,8 +1,11 @@
 # Pre-Pilot DB Hardening Program — Consolidated Remediation Plan
 
-**Status:** **Wave 1 ✅ COMPLETE + deployed 2026-07-05** (WS-1…WS-5 = C-1…C-6 + H-8 + D1/D2/D4/D6-flip/D7/D9 +
-P1/P9/P10; QA APPROVED, remote `db reset --linked`; detail → [../progress/pre-pilot-hardening-wave1.md](../progress/pre-pilot-hardening-wave1.md)) ·
-**Wave 2 (WS-6 perf sweep P2/P3/P4/P5/P8) HELD** (user 2026-07-05: conclude Wave 1, do not proceed) ·
+**Status:** **Waves 1+2 ✅ COMPLETE + deployed 2026-07-05.**
+**Wave 1** (WS-1…WS-5 = C-1…C-6 + H-8 + D1/D2/D4/D6-flip/D7/D9 + P1/P9/P10; QA APPROVED, remote `db reset --linked`;
+detail → [../progress/pre-pilot-hardening-wave1.md](../progress/pre-pilot-hardening-wave1.md)) ·
+**Wave 2** (WS-6 perf sweep = **P2/P3/P4/P5** — **P8 shipped in Wave 1** folded into D4; migration `…000900`, pgTAP `199`,
+QA APPROVED [1 MAJOR cursor-injection found+fixed pre-deploy], remote `db reset --linked`; detail →
+[../progress/pre-pilot-hardening-wave2.md](../progress/pre-pilot-hardening-wave2.md)) ·
 **Wave 3/4 (D3, P7, §6.1/§6.2/§6.3 refactors) DEFERRED** · **Date:** 2026-07-04 · **Owner:** platform lead →
 `backend` (+ `frontend` for P1/P3/P4 app-side).
 **Posture:** pre-launch, **reset-OK** — no live data, so we fix the *correct* shape, not back-compat
