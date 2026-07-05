@@ -2432,6 +2432,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "commissions_hospital_org_fkey"
+            columns: ["hospital_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
             foreignKeyName: "commissions_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
@@ -3697,6 +3704,7 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -3707,6 +3715,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          hospital_id?: string | null
           id?: string
           is_active?: boolean
           key: string
@@ -3717,6 +3726,7 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          hospital_id?: string | null
           id?: string
           is_active?: boolean
           key?: string
@@ -3724,7 +3734,15 @@ export type Database = {
           position?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pqs_event_types_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pqs_members: {
         Row: {
@@ -3773,6 +3791,7 @@ export type Database = {
         Row: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -3783,6 +3802,7 @@ export type Database = {
         Insert: {
           created_at?: string
           description?: string | null
+          hospital_id?: string | null
           id?: string
           is_active?: boolean
           key: string
@@ -3793,6 +3813,7 @@ export type Database = {
         Update: {
           created_at?: string
           description?: string | null
+          hospital_id?: string | null
           id?: string
           is_active?: boolean
           key?: string
@@ -3800,7 +3821,15 @@ export type Database = {
           position?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "pqs_sentinel_criteria_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       process_template_narratives: {
         Row: {
@@ -5842,6 +5871,7 @@ export type Database = {
         Returns: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -5920,6 +5950,7 @@ export type Database = {
         Returns: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -6628,10 +6659,16 @@ export type Database = {
         }
       }
       create_event_type: {
-        Args: { p_description?: string; p_key: string; p_label: string }
+        Args: {
+          p_description?: string
+          p_hospital_id?: string
+          p_key: string
+          p_label: string
+        }
         Returns: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -6910,10 +6947,16 @@ export type Database = {
         }
       }
       create_sentinel_criterion: {
-        Args: { p_description?: string; p_key: string; p_label: string }
+        Args: {
+          p_description?: string
+          p_hospital_id?: string
+          p_key: string
+          p_label: string
+        }
         Returns: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -7901,7 +7944,7 @@ export type Database = {
         Returns: undefined
       }
       reorder_event_types: {
-        Args: { p_ordered_ids: string[] }
+        Args: { p_hospital_id?: string; p_ordered_ids: string[] }
         Returns: undefined
       }
       reorder_item: {
@@ -7929,7 +7972,7 @@ export type Database = {
         Returns: undefined
       }
       reorder_sentinel_criteria: {
-        Args: { p_ordered_ids: string[] }
+        Args: { p_hospital_id?: string; p_ordered_ids: string[] }
         Returns: undefined
       }
       reorder_template_phase: {
@@ -8902,6 +8945,7 @@ export type Database = {
         Returns: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string
@@ -9395,6 +9439,7 @@ export type Database = {
         Returns: {
           created_at: string
           description: string | null
+          hospital_id: string | null
           id: string
           is_active: boolean
           key: string

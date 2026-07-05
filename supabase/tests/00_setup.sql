@@ -101,6 +101,28 @@ begin
     (null, 'critical', 'Crítica', 4, 4)
   on conflict do nothing;
 
+  -- WS-3b D7: pqs_event_types / pqs_sentinel_criteria gained a hospital_id FK to
+  -- hospitals (ON DELETE CASCADE, dual-scope). `truncate organizations cascade` above
+  -- now transitively TRUNCATE-CASCADEs into these two vocab tables (it didn't before —
+  -- they had no FK to a truncated table), wiping the baseline-seeded GLOBAL defaults.
+  -- Re-seed a global default set here (all hospital_id NULL), mirroring the
+  -- action_item_statuses re-seed precedent, so the flag-guarded triage tests (141 needs
+  -- >= 5 event types + >= 10 sentinel criteria) still see platform vocab.
+  insert into public.pqs_event_types (key, label, position, hospital_id) values
+    ('fall','Queda',1,null), ('medication','Erro de medicação',2,null),
+    ('hai','IRAS',3,null), ('patient_id','Identificação',4,null),
+    ('surgical','Cirúrgico',5,null), ('device','Dispositivo',6,null),
+    ('transfusion','Transfusional',7,null), ('diagnostic','Diagnóstico',8,null)
+  on conflict do nothing;
+  insert into public.pqs_sentinel_criteria (key, label, position, hospital_id) values
+    ('wrong_site','Cirurgia em local errado',1,null), ('retained_object','Objeto retido',2,null),
+    ('wrong_patient','Procedimento no paciente errado',3,null), ('suicide','Suicídio',4,null),
+    ('infant_discharge','Alta de bebê para pessoa errada',5,null), ('rape','Violência sexual',6,null),
+    ('hemolytic','Reação hemolítica',7,null), ('med_error_death','Óbito por erro de medicação',8,null),
+    ('maternal_death','Morte materna',9,null), ('fall_death','Óbito por queda',10,null),
+    ('fire','Incêndio/queimadura',11,null), ('gas_mixup','Troca de gás/linha',12,null)
+  on conflict do nothing;
+
   -- profiles.id references auth.users, so create the auth users first; the
   -- on_auth_user_created trigger inserts the matching profiles rows. We then
   -- patch names + the admin flag.
