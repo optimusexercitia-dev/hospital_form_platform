@@ -81,20 +81,21 @@ export default async function MeetingDetailPage({
   // Coordinator-only authoring data: the roster (member picker, assignees), the
   // meeting types (edit dialog), the quorum settings, and linkable cases. Members
   // never see the authoring controls, so we skip these reads for them.
-  const [members, meetingTypes, settings, caseRows] = await Promise.all([
-    isCoordinator
-      ? listMembers(access.commission.id)
-      : Promise.resolve([]),
-    isCoordinator
-      ? listMeetingTypes(access.commission.id)
-      : Promise.resolve([]),
-    isCoordinator
-      ? getMeetingSettings(access.commission.id)
-      : Promise.resolve(null),
-    isCoordinator
-      ? listCasesBoard(access.commission.id)
-      : Promise.resolve([]),
-  ]);
+  const [members, meetingTypes, settings, { rows: caseRows }] =
+    await Promise.all([
+      isCoordinator
+        ? listMembers(access.commission.id)
+        : Promise.resolve([]),
+      isCoordinator
+        ? listMeetingTypes(access.commission.id)
+        : Promise.resolve([]),
+      isCoordinator
+        ? getMeetingSettings(access.commission.id)
+        : Promise.resolve(null),
+      isCoordinator
+        ? listCasesBoard(access.commission.id)
+        : Promise.resolve({ rows: [], nextCursor: null }),
+    ]);
 
   const memberOptions = sortMembers(members).map((m) => ({
     userId: m.userId,

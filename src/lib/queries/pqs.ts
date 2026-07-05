@@ -16,6 +16,13 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { featureEnabled } from '@/lib/queries/feature-flags'
+import type { Page, PageParams } from '@/lib/types/pagination'
+import {
+  DEFAULT_PAGE_SIZE,
+  decodeCursor,
+  encodeCursor,
+} from '@/lib/types/pagination'
 import type {
   EventStatus,
   OwnerKind,
@@ -58,25 +65,47 @@ interface PqsInboxRow {
   acknowledged_at: string | null
 }
 
+/** The keyset sort-tuple encoded in a `pqsInbox` cursor. Private; opaque to callers. */
+interface PqsInboxCursor {
+  /** `reported_at` of the last row. */
+  r: string
+  /** `id` of the last row (tie-breaker). */
+  id: string
+}
+
 /**
- * The NSP triage queue, newest-first. Backed by the `pqs_inbox` DEFINER RPC
- * (`is_pqs_member`-gated, PHI-free). A non-PQS caller gets `[]`.
+ * The NSP triage queue, newest-first, keyset-paginated (WS-6 P3). Backed by the
+ * `pqs_inbox` DEFINER RPC (`is_pqs_member`-gated, PHI-free). A non-PQS caller gets
+ * an empty page. Sort/keyset (reported_at DESC, id DESC); the RPC's org-scope gate
+ * is unchanged — the cursor filters WITHIN the visible set, never widens it.
  */
 export async function pqsInbox(
   filters: PqsInboxFilters = {},
-): Promise<PqsInboxItem[]> {
+  page?: PageParams,
+): Promise<Page<PqsInboxItem>> {
   const supabase = await createClient()
+
+  const limit = page?.limit ?? DEFAULT_PAGE_SIZE
+  const cursor = decodeCursor<PqsInboxCursor>(page?.cursor)
+
+  // Over-fetch by one to detect a next page (the RPC returns up to p_limit rows).
   const { data, error } = await supabase
     .rpc('pqs_inbox', {
       p_status: filters.status ?? undefined,
       p_suspected_harm_level: filters.suspectedHarmLevel ?? undefined,
       p_reporting_commission_id: filters.reportingCommissionId ?? undefined,
+      p_cursor_reported_at: cursor?.r ?? undefined,
+      p_cursor_id: cursor?.id ?? undefined,
+      p_limit: limit + 1,
     })
     .returns<PqsInboxRow[]>()
 
-  if (error || !data) return []
+  if (error || !data) return { rows: [], nextCursor: null }
 
-  return data.map((r) => ({
+  const hasMore = data.length > limit
+  const pageRows = hasMore ? data.slice(0, limit) : data
+
+  const rows = pageRows.map((r) => ({
     id: r.id,
     code: r.code,
     title: r.title,
@@ -91,6 +120,14 @@ export async function pqsInbox(
     reportedAt: r.reported_at,
     acknowledgedAt: r.acknowledged_at,
   }))
+
+  const last = pageRows[pageRows.length - 1]
+  const nextCursor =
+    hasMore && last
+      ? encodeCursor({ r: last.reported_at, id: last.id } satisfies PqsInboxCursor)
+      : null
+
+  return { rows, nextCursor }
 }
 
 /** Whether the `patient_safety` feature flag is ON (TS-layer gate; mirrors
@@ -99,10 +136,8 @@ export async function pqsInbox(
  * so it can never throw. Backed by the `patient_safety_enabled` DEFINER read;
  * returns `false` on any error (exactly mirroring `auditTrailEnabled()`). */
 export async function patientSafetyEnabled(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('patient_safety_enabled')
-  if (error) return false
-  return data === true
+  // P4 (WS-6): delegate to the consolidated, request-memoized flag read.
+  return featureEnabled('patient_safety')
 }
 
 // ===========================================================================

@@ -384,7 +384,7 @@ select ok(
   and not has_function_privilege('anon', 'public.create_case_from_template(uuid,text)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.add_template_phase(uuid,uuid,text,jsonb,integer,integer[],jsonb,boolean,jsonb)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.update_template_phase(uuid,uuid,text,jsonb,boolean,integer,boolean,integer[],boolean,jsonb,boolean,boolean,jsonb,boolean)', 'EXECUTE')
-  and not has_function_privilege('anon', 'public.list_cases_board(uuid)', 'EXECUTE')
+  and not has_function_privilege('anon', 'public.list_cases_board(uuid,integer)', 'EXECUTE')
   and not has_function_privilege('anon', 'public.get_case_detail(uuid)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.set_case_outcome(uuid,uuid)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.close_case(uuid)', 'EXECUTE'),

@@ -61,8 +61,17 @@ export default async function NspTriagePage({
 
   const sp = await searchParams;
 
-  const [items, commissions] = await Promise.all([
-    pqsInbox({}),
+  // The workstation is a full-backlog operational triage surface: it loads the
+  // WHOLE queue (capped, not cursor-paginated) so the topbar aggregate counts
+  // (awaiting / sentinel / rca) stay truthful over the entire backlog rather than
+  // one keyset page. The cap mirrors the cases board's CASES_BOARD_CAP=200; a
+  // hospital exceeding 200 open triage items would need a dedicated count RPC —
+  // out of pilot scope. The paginated `?cursor=` list lives on `/o/[org]/nsp`
+  // (the real inbox, where WS-6 P3 lands), not here.
+  const TRIAGE_QUEUE_CAP = 200;
+
+  const [{ rows: items }, commissions] = await Promise.all([
+    pqsInbox({}, { limit: TRIAGE_QUEUE_CAP }),
     listCommissionsForOrg(access.orgId),
   ]);
 
@@ -84,7 +93,8 @@ export default async function NspTriagePage({
     items[0]?.id ??
     null;
 
-  // Queue stat readouts.
+  // Queue stat readouts — accurate over the full (capped) backlog loaded above,
+  // not a single page, so the operational triage totals are truthful.
   const awaitingCount = awaiting.length;
   const sentinelCount = items.filter((it) => it.status === "triaged").length;
   const rcaCount = sentinelCount;

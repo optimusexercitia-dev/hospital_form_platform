@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
+import { featureEnabled } from '@/lib/queries/feature-flags'
 import { createClient } from '@/lib/supabase/server'
 import { caseAccessEnabled } from '@/lib/case-access/actions'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -265,10 +266,8 @@ function mapNarrativeError(
  * closed.
  */
 export async function narrativesEnabled(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('case_narratives_enabled')
-  if (error) return false
-  return data === true
+  // P4 (WS-6): delegate to the consolidated, request-memoized flag read.
+  return featureEnabled('case_narratives')
 }
 
 // ---------------------------------------------------------------------------

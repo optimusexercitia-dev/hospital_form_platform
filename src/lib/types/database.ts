@@ -6518,6 +6518,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      count_open_cases_for_board: {
+        Args: { p_commission_id: string }
+        Returns: number
+      }
       create_case: {
         Args: {
           p_commission_id: string
@@ -7206,6 +7210,7 @@ export type Database = {
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_case_patient: { Args: { p_case_id: string }; Returns: Json }
       get_event_patient: { Args: { p_event_id: string }; Returns: Json }
+      get_feature_flags: { Args: never; Returns: Json }
       get_member_overview: { Args: { p_commission: string }; Returns: Json }
       get_patient_trajectory_for_entity: {
         Args: { p_entity_id: string; p_module: string }
@@ -7325,6 +7330,13 @@ export type Database = {
           user_id: string
         }[]
       }
+      list_audit_filter_actors: {
+        Args: { p_commission?: string }
+        Returns: {
+          actor_id: string
+          full_name: string
+        }[]
+      }
       list_case_access: {
         Args: { p_case: string }
         Returns: {
@@ -7336,7 +7348,7 @@ export type Database = {
         }[]
       }
       list_cases_board: {
-        Args: { p_commission_id: string }
+        Args: { p_commission_id: string; p_limit?: number }
         Returns: {
           case_id: string
           case_number: number
@@ -7534,6 +7546,9 @@ export type Database = {
       }
       pqs_inbox: {
         Args: {
+          p_cursor_id?: string
+          p_cursor_reported_at?: string
+          p_limit?: number
           p_reporting_commission_id?: string
           p_status?: string
           p_suspected_harm_level?: string

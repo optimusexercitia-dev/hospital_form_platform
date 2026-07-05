@@ -36,6 +36,13 @@ import 'server-only'
 import { createClient } from '@/lib/supabase/server'
 import { getEventPatient } from '@/lib/queries/safety-events'
 import { getCasePatient } from '@/lib/queries/cases'
+import { featureEnabled } from '@/lib/queries/feature-flags'
+import type { Page, PageParams, CursorSchema } from '@/lib/types/pagination'
+import {
+  DEFAULT_PAGE_SIZE,
+  decodeCursor,
+  encodeCursor,
+} from '@/lib/types/pagination'
 import type {
   ReferralDashboardFilters,
   ReferralDetail,
@@ -166,10 +173,9 @@ function mapReferralListItem(
 /** Whether the `case_referrals` feature flag is ON (probes `referrals_enabled`).
  * Gates every referral surface; `false` on any error (fail-closed). */
 export async function referralsEnabled(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('referrals_enabled')
-  if (error) return false
-  return data === true
+  // P4 (WS-6): delegate to the consolidated, request-memoized flag read. NB the
+  // flag KEY is `case_referrals` (the RPC was `referrals_enabled`).
+  return featureEnabled('case_referrals')
 }
 
 // ---------------------------------------------------------------------------
@@ -183,17 +189,51 @@ export async function referralsEnabled(): Promise<boolean> {
  * bound to the source/target commission so a QPS member browsing a commission hub
  * sees that commission's referrals, not the whole org. PHI-free.
  */
+/** The keyset sort-tuple encoded in a `listCommissionReferrals` cursor. Private; opaque. */
+interface ReferralCursor {
+  /** `created_at` of the last row. */
+  c: string
+  /** `id` of the last row (tie-breaker). */
+  id: string
+}
+
+/** Validation schema for the cursor fields (WS-6 QA hardening): timestamp + uuid,
+ * structurally excluding the `.or()` metacharacters. Tampered → cursor rejected. */
+const REFERRAL_CURSOR_SCHEMA: CursorSchema<ReferralCursor> = {
+  c: 'timestamp',
+  id: 'uuid',
+}
+
 export async function listCommissionReferrals(
   commissionId: string,
-): Promise<ReferralListItem[]> {
+  page?: PageParams,
+): Promise<Page<ReferralListItem>> {
   const supabase = await createClient()
-  const { data, error } = await supabase
+
+  const limit = page?.limit ?? DEFAULT_PAGE_SIZE
+  const cursor = decodeCursor<ReferralCursor>(page?.cursor, REFERRAL_CURSOR_SCHEMA)
+
+  // Keyset (WS-6 P3): (created_at DESC, id DESC). The commission-membership OR-group
+  // and the cursor OR-group are two separate `.or()` calls → PostgREST ANDs them, so
+  // the result is (source OR target) AND (after-cursor) — the intended semantics.
+  let query = supabase
     .from('case_referral')
     .select(REFERRAL_LIST_SELECT)
     .or(
       `source_commission_id.eq.${commissionId},target_commission_id.eq.${commissionId}`,
     )
+
+  if (cursor) {
+    query = query.or(
+      `created_at.lt.${cursor.c},` +
+        `and(created_at.eq.${cursor.c},id.lt.${cursor.id})`,
+    )
+  }
+
+  const { data, error } = await query
     .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit + 1)
     .returns<ReferralListRow[]>()
 
   if (error) {
@@ -202,9 +242,22 @@ export async function listCommissionReferrals(
       code: error.code,
       message: error.message,
     })
+    return { rows: [], nextCursor: null }
   }
 
-  return (data ?? []).map((r) => mapReferralListItem(r, commissionId))
+  const fetched = data ?? []
+  const hasMore = fetched.length > limit
+  const pageRows = hasMore ? fetched.slice(0, limit) : fetched
+
+  const rows = pageRows.map((r) => mapReferralListItem(r, commissionId))
+
+  const last = pageRows[pageRows.length - 1]
+  const nextCursor =
+    hasMore && last
+      ? encodeCursor({ c: last.created_at, id: last.id } satisfies ReferralCursor)
+      : null
+
+  return { rows, nextCursor }
 }
 
 /**

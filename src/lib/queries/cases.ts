@@ -1,6 +1,8 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { getSessionContext } from '@/lib/queries/session'
+import { featureEnabled } from '@/lib/queries/feature-flags'
+import type { Page, PageParams } from '@/lib/types/pagination'
 import type { RecommendWhen, ResultRuleset } from '@/lib/queries/conditions'
 import type {
   CaseStatus,
@@ -685,24 +687,39 @@ interface CaseDetailJson {
   } | null
 }
 
+/** The board CAP (WS-6 P3). The cases board is a kanban (column-per-status), which
+ * a flat keyset cursor cannot page without emptying columns — so it is CAPPED to
+ * the most-recent-N cases (by case_number desc) and returned as a single
+ * non-cursored page (`nextCursor: null`). N is well above any real pre-pilot
+ * per-commission case count. */
+const CASES_BOARD_CAP = 200
+
 /**
  * The cases board for a commission: one row per case + each case's phases'
  * STATUS summary (no answers). Backed by the SECURITY DEFINER
- * `list_cases_board`, internally gated by `is_staff_admin_of`, so it returns
- * `[]` for non-staff_admins (no leak). Ordered by the RPC (most recent first).
+ * `list_cases_board`, internally gated by `is_staff_admin_of`, so it returns an
+ * empty page for non-staff_admins (no leak). Ordered by the RPC (most recent
+ * first).
+ *
+ * CAPPED, NOT keyset-cursored (WS-6 P3 condition-b): the board UI is column-per-
+ * status, which a flat cursor can't page. Returns a `Page` for shape uniformity
+ * with `nextCursor: null` always. `page.limit` may lower the cap; the RPC hard-caps
+ * at whatever is passed (default {@link CASES_BOARD_CAP}).
  */
 export async function listCasesBoard(
   commissionId: string,
-): Promise<CaseBoardRow[]> {
+  page?: PageParams,
+): Promise<Page<CaseBoardRow>> {
   const supabase = await createClient()
 
   const { data, error } = await supabase.rpc('list_cases_board', {
     p_commission_id: commissionId,
+    p_limit: page?.limit ?? CASES_BOARD_CAP,
   })
 
-  if (error || !data) return []
+  if (error || !data) return { rows: [], nextCursor: null }
 
-  return (data as unknown as BoardRowJson[]).map((r) => ({
+  const rows = (data as unknown as BoardRowJson[]).map((r) => ({
     case: {
       id: r.case_id,
       commissionId,
@@ -732,6 +749,26 @@ export async function listCasesBoard(
       result: mapPhaseResultJson(p.result ?? null),
     })),
   }))
+
+  return { rows, nextCursor: null }
+}
+
+/**
+ * The OPEN-cases count for the coordinator sidebar badge (WS-6 P4). Backed by the
+ * SECURITY DEFINER `count_open_cases_for_board`, which reproduces the board's EXACT
+ * visibility (same `is_staff_admin_of` gate + commission scope) and counts only the
+ * non-terminal statuses the badge shows — WITHOUT pulling the board rows + phase JSON.
+ * Returns 0 for a non-staff_admin (the gate returns before counting) or on any error.
+ */
+export async function countOpenCasesForBoard(
+  commissionId: string,
+): Promise<number> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('count_open_cases_for_board', {
+    p_commission_id: commissionId,
+  })
+  if (error || data == null) return 0
+  return data
 }
 
 /**
@@ -899,10 +936,8 @@ export async function getCasePatient(
  * Gates the create-dialog PHI block, the detail reveal panel, and the builder
  * toggle; `false` on any error (fail-closed). */
 export async function casePatientEnabled(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('case_patient_enabled')
-  if (error) return false
-  return data === true
+  // P4 (WS-6): delegate to the consolidated, request-memoized flag read.
+  return featureEnabled('case_patient')
 }
 
 /** Whether the `processless_cases` feature flag is ON (probes
@@ -910,20 +945,16 @@ export async function casePatientEnabled(): Promise<boolean> {
  * the `create_case` RPC, and the case-detail offered-outcome editor; `false` on
  * any error (fail-closed). */
 export async function processlessCasesEnabled(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('processless_cases_enabled')
-  if (error) return false
-  return data === true
+  // P4 (WS-6): delegate to the consolidated, request-memoized flag read.
+  return featureEnabled('processless_cases')
 }
 
 /** Whether the `cases_extras` feature flag is ON (probes `cases_extras_enabled`).
  * Gates the optional outcome sub-step of the process-less create dialog and the
  * offered-outcome editor; `false` on any error (fail-closed). */
 export async function casesExtrasEnabled(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('cases_extras_enabled')
-  if (error) return false
-  return data === true
+  // P4 (WS-6): delegate to the consolidated, request-memoized flag read.
+  return featureEnabled('cases_extras')
 }
 
 // ---------------------------------------------------------------------------

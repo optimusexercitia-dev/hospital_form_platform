@@ -8,6 +8,7 @@ import {
   referralsEnabled,
 } from "@/lib/queries/referrals";
 import { ReferralsHubSections } from "@/components/referrals/referrals-list";
+import { CursorPagination } from "@/components/shared/cursor-pagination";
 
 export const metadata: Metadata = {
   title: "Encaminhamentos",
@@ -30,11 +31,14 @@ export const metadata: Metadata = {
  */
 export default async function CommissionReferralsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ org: string; commission: string }>;
+  searchParams: Promise<{ cursor?: string }>;
 }) {
   const { org, commission } = await params;
   const slug = commission;
+  const { cursor } = await searchParams;
 
   if (!(await referralsEnabled())) {
     notFound();
@@ -45,7 +49,10 @@ export default async function CommissionReferralsPage({
     notFound();
   }
 
-  const referrals = await listCommissionReferrals(access.commission.id);
+  const { rows: referrals, nextCursor } = await listCommissionReferrals(
+    access.commission.id,
+    { cursor },
+  );
   const incoming = referrals.filter((r) => r.direction === "incoming");
   const outgoing = referrals.filter((r) => r.direction === "outgoing");
 
@@ -74,6 +81,8 @@ export default async function CommissionReferralsPage({
         incoming={incoming}
         outgoing={outgoing}
       />
+
+      <CursorPagination nextCursor={nextCursor} />
     </div>
   );
 }

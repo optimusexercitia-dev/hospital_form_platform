@@ -21,6 +21,7 @@ import {
 } from "@/lib/queries/safety-events";
 import { PqsInboxList } from "@/components/safety/pqs-inbox-list";
 import { PqsInboxFiltersBar } from "@/components/safety/pqs-inbox-filters";
+import { CursorPagination } from "@/components/shared/cursor-pagination";
 
 export const metadata: Metadata = {
   title: "NSP — fila de eventos",
@@ -51,6 +52,7 @@ export default async function NspInboxPage({
     status?: string;
     priority?: string;
     commission?: string;
+    cursor?: string;
   }>;
 }) {
   const { org } = await params;
@@ -81,12 +83,13 @@ export default async function NspInboxPage({
     reportingCommissionId: sp.commission || undefined,
   };
 
-  const [items, commissions, referralsOn, patientIndexOn] = await Promise.all([
-    pqsInbox(filters),
-    listCommissionsForOrg(access.orgId),
-    referralsEnabled(),
-    patientIndexEnabled(),
-  ]);
+  const [{ rows: items, nextCursor }, commissions, referralsOn, patientIndexOn] =
+    await Promise.all([
+      pqsInbox(filters, { cursor: sp.cursor }),
+      listCommissionsForOrg(access.orgId),
+      referralsEnabled(),
+      patientIndexEnabled(),
+    ]);
 
   const commissionNames = Object.fromEntries(
     commissions.map((c) => [c.id, c.name]),
@@ -162,6 +165,8 @@ export default async function NspInboxPage({
         commissionNames={commissionNames}
         runKey={runKey}
       />
+
+      <CursorPagination nextCursor={nextCursor} />
     </div>
   );
 }

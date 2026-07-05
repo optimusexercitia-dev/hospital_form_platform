@@ -4,6 +4,12 @@ import { getResponseSignoffs } from '@/lib/queries/signoffs'
 import { getSessionContext } from '@/lib/queries/session'
 import { logAuditAccess } from '@/lib/audit/access'
 import type { Json } from '@/lib/types/database'
+import type { Page, PageParams, CursorSchema } from '@/lib/types/pagination'
+import {
+  DEFAULT_PAGE_SIZE,
+  decodeCursor,
+  encodeCursor,
+} from '@/lib/types/pagination'
 import type { VersionTree } from '@/lib/queries/forms'
 import { buildAnswerMaps } from '@/lib/queries/responses'
 import type { ResponseStatus, SelectionRow } from '@/lib/queries/responses'
@@ -198,11 +204,38 @@ interface DetailAnswerRow {
  * they may read (their own), so the metadata-only list cannot expose another
  * member's draft — and never its answers regardless.
  */
+/** The keyset sort-tuple encoded in a `listSubmissions` cursor. Private to this
+ * function; callers treat the cursor as opaque. */
+interface SubmissionCursor {
+  /** `submitted_at` of the last row (null for an in_progress row). */
+  s: string | null
+  /** `updated_at` of the last row. */
+  u: string
+  /** `id` of the last row (final tie-breaker). */
+  id: string
+}
+
+/** Validation schema for the cursor fields (WS-6 QA hardening): every field is an
+ * ISO timestamp or a UUID, structurally excluding the `.or()` metacharacters. A
+ * tampered value → the cursor is rejected (→ page 1). */
+const SUBMISSION_CURSOR_SCHEMA: CursorSchema<SubmissionCursor> = {
+  s: 'timestamp',
+  u: 'timestamp',
+  id: 'uuid',
+}
+
 export async function listSubmissions(
   commissionId: string,
   filters: SubmissionFilters,
-): Promise<SubmissionRow[]> {
+  page?: PageParams,
+): Promise<Page<SubmissionRow>> {
   const supabase = await createClient()
+
+  const limit = page?.limit ?? DEFAULT_PAGE_SIZE
+  const cursor = decodeCursor<SubmissionCursor>(
+    page?.cursor,
+    SUBMISSION_CURSOR_SCHEMA,
+  )
 
   // `!inner` on the version/form embeds: a response whose form_version (or its
   // form) is no longer readable — e.g. the form was deleted, orphaning the
@@ -222,16 +255,43 @@ export async function listSubmissions(
     : query.eq('status', 'submitted')
 
   if (filters.memberId) query = query.eq('created_by', filters.memberId)
-  // The form filter resolves through the version's form_id.
+  // P5 (WS-6): the form filter is pushed to the DB through the `!inner` version
+  // embed — filtering an embedded column via the dotted `.eq` path (the embed is
+  // already `!inner`, so this is a real join filter, not a null-embed drop). The
+  // former "not filterable inline" comment + client-side `.filter` were wrong.
+  if (filters.formId) query = query.eq('form_versions.form_id', filters.formId)
   if (filters.from) query = query.gte('submitted_at', filters.from)
   if (filters.to) query = query.lte('submitted_at', `${filters.to}T23:59:59.999Z`)
 
+  // Keyset (WS-6 P3): rows strictly AFTER the cursor in
+  // (submitted_at DESC NULLS LAST, updated_at DESC, id DESC) order. Applied only
+  // to `submitted` rows (they always carry submitted_at); the opt-in in_progress
+  // rows (submitted_at null, nullsFirst:false → they sort last) are a bounded tail
+  // the caller reaches on the final page — this list is dominated by submitted rows,
+  // so a submitted-anchored cursor is the correct keyset. `.or` expresses the
+  // 3-column tuple comparison PostgREST cannot do as a row-value.
+  if (cursor && cursor.s !== null) {
+    const s = cursor.s
+    query = query.or(
+      `submitted_at.lt.${s},` +
+        `and(submitted_at.eq.${s},updated_at.lt.${cursor.u}),` +
+        `and(submitted_at.eq.${s},updated_at.eq.${cursor.u},id.lt.${cursor.id})`,
+    )
+  }
+
+  // Over-fetch by one to detect a next page without a separate count.
   const { data } = await query
     .order('submitted_at', { ascending: false, nullsFirst: false })
     .order('updated_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(limit + 1)
     .returns<SubmissionListRow[]>()
 
-  let rows = (data ?? []).map(
+  const fetched = data ?? []
+  const hasMore = fetched.length > limit
+  const pageRows = hasMore ? fetched.slice(0, limit) : fetched
+
+  const rows = pageRows.map(
     (r): SubmissionRow => ({
       responseId: r.id,
       formId: r.form_versions.form_id,
@@ -248,11 +308,17 @@ export async function listSubmissions(
     }),
   )
 
-  // Form filter is applied client-side on the resolved form_id (the column lives
-  // on the embedded version, not filterable inline via PostgREST `.eq`).
-  if (filters.formId) rows = rows.filter((r) => r.formId === filters.formId)
+  const last = pageRows[pageRows.length - 1]
+  const nextCursor =
+    hasMore && last
+      ? encodeCursor({
+          s: last.submitted_at,
+          u: last.updated_at,
+          id: last.id,
+        } satisfies SubmissionCursor)
+      : null
 
-  return rows
+  return { rows, nextCursor }
 }
 
 /**
