@@ -66,7 +66,15 @@ begin
   -- events/... ) and let bootstrap rebuild a clean single-org world below. This
   -- runs inside each test's transaction and is rolled back, so it never touches
   -- the persisted seed. Tests that WANT multi-org (e.g. 173) add a 2nd org after.
+  --
+  -- WS-2 C-1 (20260711000100): audit_log now carries a BEFORE TRUNCATE guard (HC042).
+  -- This cascade reaches audit_log (audit_log FKs commissions), so opt into the
+  -- deliberate-maintenance escape for the teardown only. Not a client bypass —
+  -- authenticated has no TRUNCATE grant regardless of the GUC. `set local` keeps it
+  -- scoped to this transaction (rolled back with the rest of the fixture).
+  set local app.allow_audit_teardown = 'on';
   truncate table public.organizations cascade;
+  set local app.allow_audit_teardown = 'off';
 
   -- The shared action_items hub ships GLOBAL default status/urgency vocabularies
   -- (commission_id NULL), seeded in migration 20260706000000. TRUNCATE cascades at
