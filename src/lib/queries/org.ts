@@ -117,7 +117,7 @@ export async function listHospitalsForOrg(orgId: string): Promise<HospitalSummar
 
   const { data, error } = await supabase
     .from('hospitals')
-    .select('id, name, slug, commissions(count)')
+    .select('id, name, slug, commissions!commissions_hospital_id_fkey(count)')
     .eq('organization_id', orgId)
     .order('name', { ascending: true })
     .returns<

@@ -259,12 +259,18 @@ test('T4: create_sentinel_criterion + flag on save_triage → sentinel_determina
   request,
 }) => {
   const adminToken = await getOwnerToken(request, 'admin@test.local')
+  // WS-3b D7 (dual-scope PQS vocab): a GLOBAL criterion (hospital_id NULL) is now
+  // is_admin()-only via app.can_curate_pqs_vocab — admin@ is rede-a's org_admin and
+  // a PQS member, but NOT a platform super-admin, so it can no longer create global
+  // vocab. platform@test.local is the seeded platform super-admin (profiles.is_admin
+  // = true) and is used here for the create/archive calls only.
+  const platformToken = await getOwnerToken(request, 'platform@test.local')
 
   // Use a timestamp-based key to avoid conflicts across test runs (key is unique-indexed)
   const uniqueKey = `e2e_criterion_${Date.now()}`
 
-  // Create a custom criterion
-  const createResp = await rpc(request, 'create_sentinel_criterion', adminToken, {
+  // Create a custom GLOBAL criterion (no p_hospital_id) as the platform super-admin.
+  const createResp = await rpc(request, 'create_sentinel_criterion', platformToken, {
     p_key: uniqueKey,
     p_label: 'Critério sentinela personalizado E2E',
   })
@@ -274,6 +280,9 @@ test('T4: create_sentinel_criterion + flag on save_triage → sentinel_determina
 
   // EV-0001 is 'acknowledged' (seeded) — we can triage it.
   // Save triage WITHOUT a sentinel reach but WITH the custom designated flag.
+  // save_triage reads global ∪ the event's hospital, so a global criterion is
+  // selectable here even though the triage itself is run by admin@ (the NSP
+  // operator of EV-0001's hospital) — triaging is unrelated to vocab curation.
   const saveResp = await rpc(request, 'save_triage', adminToken, {
     p_event_id: EV1_ID,
     p_is_pse: true,
@@ -287,8 +296,10 @@ test('T4: create_sentinel_criterion + flag on save_triage → sentinel_determina
   // The designated flag alone makes it sentinel regardless of reach/harm.
   expect(triage.sentinel_determination).toBe(true)
 
-  // Clean up: archive the custom criterion
-  const archResp = await rpc(request, 'archive_sentinel_criterion', adminToken, { p_id: critId })
+  // Clean up: archive the custom criterion. archive_sentinel_criterion resolves the
+  // row's scope and gates on the same can_curate_pqs_vocab authority, so a global
+  // row still requires the platform super-admin caller.
+  const archResp = await rpc(request, 'archive_sentinel_criterion', platformToken, { p_id: critId })
   expect(archResp.ok()).toBeTruthy()
 })
 
