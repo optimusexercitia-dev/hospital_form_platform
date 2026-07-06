@@ -248,14 +248,16 @@ rationale in ADR [0017](docs/decisions/0017-multi-phase-cases.md).
 
 ### Phase 9 — Deployment
 > **Recommended trigger: deploy a pilot once the P0 accreditation core (Phases
-> 13–16) is complete** — audit trail, CAPA, indicators, and the standards
-> crosswalk are what make the platform worth piloting at a hospital, so a hospital
-> sees the differentiating features rather than a bare committee tool. Phase 9 also
-> **validates the known prod-auth gap** (ADR 0009 — production needs asymmetric JWT
-> signing keys; the local JWT-verification path in middleware has never run against
-> Supabase Cloud). Phases 17–21 are then sequenced *after* the pilot so they're
-> informed by real-user feedback. Rationale: ADR
-> [0028](docs/decisions/0028-accreditation-governance-roadmap.md).
+> 13–17, built in order 15 → 17 → 16) is complete** — audit trail, CAPA, indicators,
+> document control, and the standards crosswalk are what make the platform worth
+> piloting at a hospital, so a hospital sees the differentiating features rather than
+> a bare committee tool. Phase 9 also **validates the known prod-auth gap** (ADR 0009 —
+> production needs asymmetric JWT signing keys; the local JWT-verification path in
+> middleware has never run against Supabase Cloud). Phases 18–21 are then sequenced
+> *after* the pilot so they're informed by real-user feedback. Rationale: ADR
+> [0028](docs/decisions/0028-accreditation-governance-roadmap.md); re-sequencing +
+> Phase 15/17 revision: ADR
+> [0057](docs/decisions/0057-indicators-doc-control-replan.md).
 - Multi-stage Dockerfile (Next.js standalone), docker-compose with Caddy
   (auto-HTTPS), `.env` documentation, production Supabase config checklist
   (URL config, redirect URLs, email templates in pt-BR).
@@ -375,9 +377,12 @@ adding what surveyors score — a tamper-evident audit trail, a closed PDCA/CAPA
 loop, managed quality indicators — plus the standards-crosswalk engine, while
 keeping the governance/quality-layer positioning, with PHI confined to the
 patient-safety module (ADR 0030). Same Phase
-Gate (CLAUDE.md §6) and ordering hard-rule as the core track. **Deployment plan:
-pilot after Phase 16** (the P0 core), then sequence 17–21 on pilot feedback — see
-ADR [0028](docs/decisions/0028-accreditation-governance-roadmap.md).
+Gate (CLAUDE.md §6) and ordering hard-rule as the core track. **Deployment plan
+(revised 2026-07-05, ADR [0057](docs/decisions/0057-indicators-doc-control-replan.md)):
+remaining pre-pilot phases build in order 15 → 17 → 16, pilot after Phase 16** (the P0
+core now includes document control), then sequence 18–21 on pilot feedback — see ADR
+[0028](docs/decisions/0028-accreditation-governance-roadmap.md). Phase numbers are
+stable identifiers; only the build order changed.
 
 | Phase | Name | Feature flag |
 | ----- | ---- | ------------ |

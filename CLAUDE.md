@@ -329,10 +329,11 @@ its phase.
 Phases 13–21 are the **accreditation-readiness track**: they make the platform
 provably useful to hospitals pursuing ONA / JCI accreditation while keeping its
 governance/quality-layer positioning, with PHI confined to the patient-safety module (ADR 0030). They follow the same
-Phase Gate (§6) and ordering hard-rule. **Deployment plan: ship a pilot after
-Phase 16** (the P0 core — audit trail, CAPA, indicators, standards crosswalk),
-which also validates the prod-auth gap (ADR 0009); Phases 17–21 follow, informed
-by pilot feedback. See **docs/phases/accreditation-track.md** for the
+Phase Gate (§6) and ordering hard-rule. **Deployment plan (revised 2026-07-05, ADR
+0057): remaining pre-pilot phases build in order 15 → 17 → 16; ship a pilot after
+Phase 16** (the P0 core — audit trail, CAPA, indicators, document control, standards
+crosswalk), which also validates the prod-auth gap (ADR 0009); Phases 18–21 follow,
+informed by pilot feedback. See **docs/phases/accreditation-track.md** for the
 authoritative detail of these phases, **docs/quality-track-context.md** for the
 track context, and ADR 0028 for the track's rationale and sequencing.
 

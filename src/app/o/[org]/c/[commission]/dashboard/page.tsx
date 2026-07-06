@@ -8,8 +8,12 @@ import {
   getFormDashboard,
 } from "@/lib/queries/dashboard";
 import { getCaseTagReport } from "@/lib/queries/case-tags";
+import { getIndicatorKpis } from "@/lib/queries/indicators";
+import { qualityIndicatorsEnabled } from "@/lib/queries/feature-flags";
 import { DashboardForms } from "@/components/dashboard/dashboard-forms";
 import { TagReportCard } from "@/components/dashboard/tag-report-card";
+import { IndicatorsPanel } from "@/components/indicators/indicators-panel";
+import { commissionHref } from "@/lib/routing";
 import { formatDueDate } from "@/components/cases/format";
 
 export const metadata: Metadata = {
@@ -54,10 +58,17 @@ export default async function DashboardPage({
   // Pass the active date window so the form-picker tab badges reflect the same
   // ?from/?to filter as the body headline (no all-time/filtered mismatch). The
   // case tag report (R3) honours the same window (bounded on `cases.created_at`).
-  const [forms, tagReport] = await Promise.all([
+  // The Indicadores panel (Phase 15, F6) shows only when the flag is on; its KPIs
+  // are all-time (a metric's latest status is period-independent).
+  const [forms, tagReport, indicatorsOn] = await Promise.all([
     listDashboardForms(access.commission.id, range),
     getCaseTagReport(access.commission.id, range),
+    qualityIndicatorsEnabled(),
   ]);
+
+  const indicatorKpis = indicatorsOn
+    ? await getIndicatorKpis(access.commission.id)
+    : null;
 
   const rangeLabel =
     from && to
@@ -102,6 +113,18 @@ export default async function DashboardPage({
           dashboard={dashboard}
         />
       )}
+
+      {indicatorKpis ? (
+        <IndicatorsPanel
+          kpis={indicatorKpis}
+          indicatorsHref={commissionHref(
+            org,
+            slug,
+            "manage",
+            "indicadores",
+          )}
+        />
+      ) : null}
 
       <TagReportCard rows={tagReport} rangeLabel={rangeLabel} />
     </div>

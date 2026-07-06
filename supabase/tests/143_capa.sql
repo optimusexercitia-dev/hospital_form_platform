@@ -117,12 +117,13 @@ select throws_ok(
      (select (v->>'hosp_b')::uuid from ctx)),
   '23514', null, 'a plan with two source columns set violates the source CHECK');
 
--- source_indicator_id accepts NULL + is FK-LESS (no FK constraint references indicators).
+-- source_indicator_id accepts NULL + (Phase 15, migration 20260712000300) now has a
+-- REAL FK to public.indicators (ON DELETE SET NULL — the FK-less forward hook is wired
+-- up now that the indicators table exists).
 select is(
-  (select count(*)::int from pg_constraint
-   where conrelid = 'public.capa_plan'::regclass and contype = 'f'
-     and pg_get_constraintdef(oid) like '%source_indicator_id%'),
-  0, 'source_indicator_id is FK-LESS (deferred-safe for the Phase-15 wiring)');
+  (select confrelid::regclass::text from pg_constraint
+   where conname = 'capa_plan_source_indicator_id_fkey'),
+  'indicators', 'source_indicator_id has a real FK → public.indicators (Phase 15 wiring)');
 
 -- =========================================================================
 -- Add an action assigned to a plain-staff member; assignee-or-PQS advance gate.

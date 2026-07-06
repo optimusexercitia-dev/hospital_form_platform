@@ -11,6 +11,7 @@ import {
   CalendarDays,
   ClipboardList,
   FolderOpen,
+  Gauge,
   Layers,
   LayoutDashboard,
   ListChecks,
@@ -65,7 +66,12 @@ interface NavItem {
   roles: CommissionRole[];
   countKey?: CountKey;
   /** When set, the item only renders if this feature flag is on (Phase 10+). */
-  requiresFeature?: "meetings" | "audit" | "patient_safety" | "case_referrals";
+  requiresFeature?:
+    | "meetings"
+    | "audit"
+    | "patient_safety"
+    | "case_referrals"
+    | "quality_indicators";
   /**
    * When true, the item renders only if `actionItemsEnabled` is on — the composite
    * flag `cases_extras OR meetings OR action_items` resolved by the layout (the
@@ -198,6 +204,13 @@ const NAV_GROUPS: NavGroup[] = [
       },
       { label: "Painel", href: "dashboard", icon: BarChart3, roles: ["staff_admin"] },
       {
+        label: "Indicadores",
+        href: "manage/indicadores",
+        icon: Gauge,
+        roles: ["staff_admin"],
+        requiresFeature: "quality_indicators",
+      },
+      {
         label: "Trilha de auditoria",
         href: "manage/audit",
         icon: ScrollText,
@@ -239,6 +252,7 @@ export function AppSidebar({
   referralsEnabled = false,
   caseAccessEnabled = false,
   actionItemsEnabled = false,
+  qualityIndicatorsEnabled = false,
   isNspCoordinator = false,
   isPqsMember = false,
 }: {
@@ -275,6 +289,8 @@ export function AppSidebar({
    * sources: case, meeting, and standalone/manual items).
    */
   actionItemsEnabled?: boolean;
+  /** Whether the `quality_indicators` flag is on (gates the "Indicadores" item, Phase 15). */
+  qualityIndicatorsEnabled?: boolean;
   /** Whether the current user is the org's NSP coordinator (curates the PQS roster). */
   isNspCoordinator?: boolean;
   /** Whether the current user is enrolled as a PQS member (may read PHI in the console). */
@@ -295,6 +311,11 @@ export function AppSidebar({
     if (item.requiresFeature === "patient_safety" && !patientSafetyEnabled)
       return false;
     if (item.requiresFeature === "case_referrals" && !referralsEnabled)
+      return false;
+    if (
+      item.requiresFeature === "quality_indicators" &&
+      !qualityIndicatorsEnabled
+    )
       return false;
     if (item.requiresActionItems && !actionItemsEnabled) return false;
     // The "Minhas fases" / "Meus Casos" inverse pair: one shows per the flag.

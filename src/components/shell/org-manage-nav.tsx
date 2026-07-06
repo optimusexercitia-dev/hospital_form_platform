@@ -11,7 +11,7 @@ interface OrgNavItem {
   /** Relative segments under `/o/[org]/manage` ("" = the manage landing). */
   segments: string[];
   /** When set, render only if this feature flag is on. */
-  requiresFeature?: "audit" | "patientSafety";
+  requiresFeature?: "audit" | "patientSafety" | "qualityIndicators";
   /** When true, render ONLY for an `org_admin` — hidden for a hospital-scoped
    * `hospital_admin` (ADR 0051 Decision 1: org-level-only surfaces). */
   orgAdminOnly?: boolean;
@@ -25,6 +25,14 @@ const ORG_NAV_ITEMS: OrgNavItem[] = [
   { label: "Comissões", segments: ["comissoes"] },
   { label: "Hospitais", segments: ["hospitais"], orgAdminOnly: true },
   { label: "Painel", segments: ["painel"] },
+  // Indicadores — the hospital indicator scorecard (Phase 15, F6). Visible to
+  // both org_admin and hospital_admin (each sees the rollup of the hospitals it
+  // administers); the DEFINER rollup re-gates per hospital.
+  {
+    label: "Indicadores",
+    segments: ["indicadores"],
+    requiresFeature: "qualityIndicators",
+  },
   // "Coordenação do NSP" retired under NSP-per-hospital (ADR 0052, decision 3):
   // org_admin no longer appoints coordinators. The org appoints the nsp_org_admin
   // on "Administradores"; the nsp_org_admin curates per-hospital coordinators from
@@ -51,11 +59,13 @@ export function OrgManageNav({
   org,
   auditEnabled = false,
   patientSafetyEnabled = false,
+  qualityIndicatorsEnabled = false,
   isOrgAdmin = true,
 }: {
   org: string;
   auditEnabled?: boolean;
   patientSafetyEnabled?: boolean;
+  qualityIndicatorsEnabled?: boolean;
   isOrgAdmin?: boolean;
 }) {
   const pathname = usePathname();
@@ -65,6 +75,8 @@ export function OrgManageNav({
     if (item.orgAdminOnly && !isOrgAdmin) return false;
     if (item.requiresFeature === "audit") return auditEnabled;
     if (item.requiresFeature === "patientSafety") return patientSafetyEnabled;
+    if (item.requiresFeature === "qualityIndicators")
+      return qualityIndicatorsEnabled;
     return true;
   });
 

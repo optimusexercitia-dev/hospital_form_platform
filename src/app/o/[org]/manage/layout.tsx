@@ -5,6 +5,7 @@ import { getSessionContext } from "@/lib/queries/session";
 import { orgHref } from "@/lib/routing";
 import { auditTrailEnabled } from "@/lib/queries/audit";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
+import { qualityIndicatorsEnabled } from "@/lib/queries/feature-flags";
 import { UserMenu } from "@/components/shell/user-menu";
 import { OrgManageNav } from "@/components/shell/org-manage-nav";
 
@@ -56,9 +57,10 @@ export default async function OrgManageLayout({
 
   // The audit_trail flag gates the "Trilha de auditoria" nav entry; the
   // patient_safety flag gates the "Coordenação do NSP" entry.
-  const [auditOn, patientSafetyOn] = await Promise.all([
+  const [auditOn, patientSafetyOn, qualityIndicatorsOn] = await Promise.all([
     auditTrailEnabled(),
     patientSafetyEnabled(),
+    qualityIndicatorsEnabled(),
   ]);
 
   return (
@@ -90,6 +92,7 @@ export default async function OrgManageLayout({
             org={organization.slug}
             auditEnabled={auditOn}
             patientSafetyEnabled={patientSafetyOn}
+            qualityIndicatorsEnabled={qualityIndicatorsOn}
             isOrgAdmin={Boolean(orgAdmin)}
           />
           <div className="ml-auto">

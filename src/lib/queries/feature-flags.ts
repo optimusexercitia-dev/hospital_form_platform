@@ -33,6 +33,7 @@ export interface FeatureFlags {
   case_referrals: boolean
   signoff_enforcement: boolean
   action_items: boolean
+  quality_indicators: boolean
 }
 
 /** A flag key. */
@@ -60,4 +61,14 @@ export const getFeatureFlags = cache(async (): Promise<Record<string, boolean>> 
 export async function featureEnabled(key: FeatureFlagKey): Promise<boolean> {
   const flags = await getFeatureFlags()
   return flags[key] === true
+}
+
+/**
+ * Whether the Phase-15 Quality Indicators feature is ON. Thin per-flag wrapper
+ * over {@link featureEnabled} (consistent with the other per-flag `*Enabled()`
+ * readers), so callers avoid an `as FeatureFlagKey` cast. Request-memoized via
+ * {@link getFeatureFlags}. Seeded OFF in B2; flips ON at the end of Phase 15 (B6).
+ */
+export async function qualityIndicatorsEnabled(): Promise<boolean> {
+  return featureEnabled('quality_indicators')
 }

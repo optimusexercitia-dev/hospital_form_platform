@@ -48,8 +48,12 @@ from `HC042` upward; all writes go through RLS as the authority with narrow
 all explanatory/free text is **sanitized Markdown, never raw HTML** (Rule 7); every
 mutation **emits an audit row** once Phase 13 lands (Architecture Rule 11); one
 keyboard-only flow per phase; types regenerated after every migration. Built ahead
-of Phase 9 (Deployment) — with the agreed plan to **deploy a pilot after Phase 16**
-(the P0 accreditation core), then sequence Phases 17–21 on pilot feedback.
+of Phase 9 (Deployment) — with the agreed plan (revised 2026-07-05, ADR
+[0057](../decisions/0057-indicators-doc-control-replan.md)) to build the remaining
+pre-pilot phases in order **15 → 17 → 16** (documents pulled PRE-pilot so the Phase-16
+evidence picker ships with real controlled documents) and **deploy a pilot after
+Phase 16**, then sequence Phases 18–21 on pilot feedback. Phase numbers are stable
+identifiers — only the build order changed.
 
 ---
 
@@ -280,50 +284,100 @@ The closed PDCA/CAPA loop — `capa_plan` kept as the **reusable primitive** so 
 ### Phase 15 — Quality Indicators (Indicadores de Qualidade)
 Formal, managed quality indicators with **numerator/denominator definitions, targets,
 periodicity, and trend-vs-target** — the heart of ONA Nível 3 and JCI `QPS` data
-management, and the payoff of the platform's stable cross-version `question_key` spine.
-Indicators can be entered **manually** or **derived** from existing submitted-form
-aggregates. Off-target measurements wire the Phase-14 hook: "open a CAPA"; a CAPA's
-effectiveness can then cite a later measurement to **close the improvement loop**.
-**No patient data** — indicators are aggregate process/quality metrics. Feature-flagged
-behind `quality_indicators`.
-- **Schema** (migrations `…122000–122001`): `public.indicators`
-  (`id`, `commission_id`, `code`, `name`, `description_md`, `kind ∈ {percentual, taxa,
-  contagem, tempo_medio}`, `numerator_label`, `denominator_label`, `unit`,
-  `direction ∈ {maior_melhor, menor_melhor}`, `target_value numeric`,
-  `target_comparator ∈ {>=, <=, =, >, <}`, `lower_warn?`/`upper_warn?` (control/warning band),
-  `frequency ∈ {mensal, bimestral, trimestral, semestral, anual}`, `data_source ∈ {manual, derived}`,
-  `derived_config jsonb` (`{form_id, numerator: {question_key, option?}, denominator: {...}}` when
-  derived), `status ∈ {ativo, arquivado}`); `public.indicator_measurements`
-  (`id`, `indicator_id`, `period_label` (e.g. `'2026-06'`), `period_start`/`period_end`,
-  `numerator numeric`, `denominator numeric`, `value numeric`, `source ∈ {manual, derived}`,
-  `entered_by`/`entered_at`, `note`, `unique(indicator_id, period_label)`). Measurements are
-  **editable by staff_admin but every change is audited** (Phase 13) — corrections are
-  contemporaneous + attributable rather than silently overwritten. New SQLSTATEs from `HC054`.
+management, and the payoff of the platform's stable cross-version `question_key` +
+**option-`code`** spine (form-model normalization). Indicators are entered **manually**
+or **derived** from submitted-form aggregates; the classic per-1000 **taxa** is a
+**hybrid** (derived numerator + manually supplied denominator). Off-target measurements
+wire the Phase-14 hook via **two-tier escalation** (the CAPA remains an NSP instrument);
+a CAPA's effectiveness can then cite a later measurement to **close the improvement
+loop**. **Commission-owned with a read-only hospital rollup** (multi-tenancy). **No
+patient data** — indicators are aggregate process/quality metrics. Feature-flagged
+behind `quality_indicators`. *(Revised 2026-07-05, ADR
+[0057](../decisions/0057-indicators-doc-control-replan.md) — re-based on multi-tenancy +
+the hospital_admin tier, NSP-per-hospital, the normalized option model, answer-model v2,
+and the hardened CAPA write surface.)*
+- **Schema** (next-dated migrations): `public.indicators`
+  (`id`, `commission_id` NOT NULL, `code` (per-commission mint, existing pattern), `name`,
+  `description_md`, `kind ∈ {percentual, taxa, contagem, tempo_medio}`, `numerator_label`,
+  `denominator_label`, `unit`, `direction ∈ {maior_melhor, menor_melhor}`,
+  `target_value numeric`, `target_comparator ∈ {>=, <=, =, >, <}`, `lower_warn?`/`upper_warn?`
+  (warning band), `frequency ∈ {mensal, bimestral, trimestral, semestral, anual}`,
+  `data_source ∈ {manual, derivado, hibrido}` (`hibrido` = taxa's derived-numerator /
+  manual-denominator mode), `derived_config jsonb`, `status ∈ {ativo, arquivado}`);
+  `public.indicator_measurements` (`id`, `indicator_id`, `period_label` (e.g. `'2026-06'`),
+  `period_start`/`period_end`, `numerator numeric`, `denominator numeric`, `value numeric`,
+  `source ∈ {manual, derivado}`, `entered_by`/`entered_at`, `note`,
+  `unique(indicator_id, period_label)`). **`derived_config` references option `code`s**
+  (never labels or option-row ids — the normalized cross-version identity):
+  percentual/contagem = `{form_id, numerator: {question_key, option_codes[]},
+  denominator: {question_key} | 'respondentes'}`; tempo_medio = `{form_id,
+  value: {question_key}}` over a `number` item (avg of answer-model-v2
+  `answers.value_number`); hibrido = the percentual numerator shape with a manual
+  denominator. Codes are validated on save against the form's published version (mirror
+  `app.version_has_option_code`). Measurements are **editable by staff_admin but every
+  change is audited** (Phase 13) — corrections are contemporaneous + attributable rather
+  than silently overwritten. Audit AFTER-triggers with non-sensitive column allow-lists
+  (never `description_md`). New SQLSTATEs from **`HC084`** (the spec'd `HC054+` range is
+  long consumed): invalid/unknown derived config or option code · compute on a manual
+  indicator · hybrid denominator required · zero/invalid denominator.
 - **RPCs** (gate `quality_indicators`): indicator CRUD `create/update/archive_indicator`,
   `set_indicator_target`; `record_indicator_measurement(indicator, period, num, den, note)`
-  (computes `value`; off-target detection); `compute_derived_measurement(indicator, period)`
-  **DEFINER** — reads the submitted-only aggregate via the **existing Phase-8 spine**
-  (`app.submitted_form_responses` + the `dashboard_distributions` logic) so a derived value
-  **equals** the dashboard for the same window; `indicator_series(indicator, from?, to?)`
-  **DEFINER** (trend points + the target line); `indicator_kpis(commission)` **DEFINER**
-  (`is_staff_admin_of`/admin: na-meta / fora-da-meta / sem-dados counts).
-- **RLS**: `indicators` + `indicator_measurements` member-READ / staff_admin-WRITE, commission-scoped.
-- **UI**: `manage/indicators/**` — indicator builder (definition, target/comparator, frequency,
-  data source: manual entry vs derived-from-a-form's-`question_key`), measurement entry grid, and an
-  indicator detail with a **run chart / trend-vs-target** (Recharts) + warning bands + a status chip
-  (`na meta` / `fora da meta` / `sem dados`). An off-target measurement surfaces **"Abrir plano de ação
-  (CAPA)"** pre-linking `source_indicator_id` (Phase 14). An **Indicadores** panel on
-  `/c/[slug]/dashboard` shows the commission's indicator scorecard.
-- **Acceptance**: E2E: a **manual** indicator (target ≥ 90%) with monthly measurements renders a trend
-  whose on/off-target classification matches the seeded numbers **exactly** (assert values, not just
-  rendering); a **derived** indicator bound to a form's `question_key` → `compute_derived_measurement`
-  equals the Phase-8 dashboard aggregate for that period (assert equality); an off-target measurement
-  exposes "Abrir CAPA" and the created CAPA carries `source_indicator_id`; a CAPA effectiveness row can
-  cite the indicator + a later (improved) measurement — the **loop closes end-to-end across Phases 14+15**;
-  editing a measurement writes an audit row (Phase 13); `staff` cannot edit indicators; a foreign-commission
-  user gets no read; one keyboard-only pass. pgTAP: derived-compute equals the canonical aggregate; RLS
-  scoping; off-target detection across both `direction` values; KPI counts; the CAPA `source_indicator_id`
-  FK resolves.
+  (computes `value`; off-target detection); `compute_derived_measurement(indicator, period,
+  p_denominator := null)` **DEFINER** — derived kinds compute fully; **hybrid taxa is
+  one-step** (denominator passed in the same call; the measurement row is born complete; a
+  recompute re-derives the numerator and **preserves the stored denominator** unless
+  re-passed — no partial-measurement state; `sem dados` stays the only empty state). Reads
+  the submitted-only aggregate via the **existing Phase-8 spine**
+  (`app.submitted_form_responses` + option-`code` grouping, the `dashboard_distributions`
+  logic) so a derived value **equals** the dashboard for the same window;
+  `indicator_series(indicator, from?, to?)` **DEFINER** (trend points + target line);
+  `indicator_kpis(commission)` **DEFINER** (`is_staff_admin_of OR is_commission_admin_of`:
+  na-meta / fora-da-meta / sem-dados counts); `hospital_indicator_rollup(hospital)`
+  **DEFINER** (`is_hospital_admin_of`/org-admin-gated) — a PHI-free per-commission
+  scorecard (counts + status only; mirror the `nsp_org_*` rollup pattern) giving the
+  hospital tier read-only visibility without a new write surface.
+- **RLS**: `indicators` + `indicator_measurements` member-READ / staff_admin-WRITE
+  (`is_staff_admin_of OR is_commission_admin_of` — the post-ADR-0051 combined predicate),
+  commission-scoped; the hospital tier reads ONLY via the rollup DEFINER (no table grant).
+- **CAPA hook (two-tier escalation — ADR 0057)**: the existing FK-less forward hooks
+  `capa_plan.source_indicator_id` + `capa_measure.indicator_id` gain **real FKs**;
+  `open_capa_plan`'s indicator arm derives the mandatory `hospital_id` **from the
+  indicator's commission** (no manual `p_hospital_id` for this source); CAPA **write stays
+  PQS-operator-gated** (`can_write_capa` untouched — the WS-3c hardened posture);
+  `can_read_capa` gains an indicator arm so the **indicator's commission members read**
+  the resulting plan (mirror of the event-source reporting-committee rule). An off-target
+  measurement shows **"Abrir plano de ação (CAPA)"** ONLY to PQS operators of the
+  hospital (capability-gated); non-operator staff_admins get **"Criar item de ação"**
+  pre-filled into the shared Action-Items Hub (no schema change) — the same
+  committees-escalate-to-NSP two-tier model Phase 14 established.
+- **UI**: `manage/indicators/**` — indicator builder (definition, target/comparator,
+  frequency, data source manual / derivado-por-`question_key` / híbrido) with **"Criar a
+  partir de modelo"** — a static in-app pt-BR template catalog (ANVISA/NSP obligatory +
+  common CCIH/quality indicators) that prefills the builder (code-level, no schema);
+  measurement entry grid (the hybrid compute dialog shows the derived numerator and asks
+  for the denominator); indicator detail with a **run chart / trend-vs-target** (Recharts)
+  + warning bands + a status chip (`na meta` / `fora da meta` / `sem dados`); an
+  **Indicadores** panel on the commission dashboard; the hospital scorecard on the
+  hospital-admin surface.
+- **Acceptance**: E2E: a **manual** indicator (target ≥ 90%) with monthly measurements
+  renders a trend whose on/off-target classification matches the seeded numbers
+  **exactly** (assert values, not just rendering); a **derived** indicator bound to option
+  `code`s → `compute_derived_measurement` **equals** the Phase-8 dashboard aggregate for
+  that period (assert equality); a **tempo_medio** indicator equals the average of the
+  seeded `value_number` answers; a **hybrid taxa** computes in one step (derived numerator
+  + typed denominator) and a recompute preserves the stored denominator; an off-target
+  measurement shows **"Abrir CAPA" to a PQS operator** (the created plan carries
+  `source_indicator_id` + the derived `hospital_id`, and the indicator's commission
+  members can read it) and **only the action-item fallback to a non-operator staff_admin**;
+  a CAPA effectiveness row cites the indicator + a later (improved) measurement — the
+  **loop closes end-to-end across Phases 14+15**; editing a measurement writes an audit
+  row (Phase 13); `staff` cannot edit indicators; a foreign-commission user gets no read;
+  `hospital_admin` sees the rollup across its commissions and a foreign hospital_admin
+  sees nothing; one keyboard-only pass. pgTAP: derived-compute equals the canonical
+  aggregate (parity lock); an unknown option `code` is rejected at save; hybrid
+  denominator-required + preserve-on-recompute; RLS scoping + rollup scope and PHI-free
+  SELECT-list; off-target detection across both `direction` values; KPI counts; the
+  `source_indicator_id` / `capa_measure.indicator_id` FKs resolve.
 
 ### Phase 16 — Standards Crosswalk & Readiness/Gap Engine (Mapa de Padrões & Prontidão)
 The **strategic differentiator**: make the platform *aware of accreditation standards* and
@@ -334,6 +388,8 @@ partial / missing"). This is what turns "we run committees" into "we are prepare
 survey" and directly serves *facilitating accreditation for hospitals that don't yet have it*.
 Frameworks are admin-curated reference packs (ONA + a JCI chapter skeleton seeded);
 hospitals may add custom frameworks. **No patient data.** Feature-flagged behind `accreditation`.
+*(Build order 15 → 17 → 16 — ADR 0057 — so indicators AND controlled documents exist when the
+evidence picker ships; no dead `artifact_kind`.)*
 - **Schema** (migrations `…123000–123001`): `public.accreditation_frameworks`
   (`id`, `key` (`'ona'`/`'jci'`/custom), `name`, `version`, `description`, `owner_commission_id`
   nullable (NULL = global/admin-curated), `status ∈ {ativo, arquivado}`);
@@ -370,44 +426,84 @@ hospitals may add custom frameworks. **No patient data.** Feature-flagged behind
 
 ### Phase 17 — Controlled-Document Lifecycle (Gestão de Documentos Controlados)
 Policy/procedure documents (políticas, POPs, protocolos, regimentos, manuais) under a
-**controlled-document lifecycle**: named-approver workflow, effective/expiry dates, a
-**scheduled review cycle**, and a controlled-document register — the core of JCI `MOI`
-document control. Reuses the immutable-storage pattern (`form-assets`/`case-documents`)
-and the meetings e-signature primitive for approvals. Form publishing is extended with
-the same approver + review-due metadata (a published form IS a controlled document).
-**No patient data.** Feature-flagged behind `controlled_docs`.
-- **Schema** (migrations `…124000–124002`): `public.controlled_documents`
-  (`id`, `commission_id`, `code`, `title`, `doc_type ∈ {politica, pop, protocolo, regimento,
-  manual, outro}`, `status ∈ {rascunho → em_aprovacao → vigente → em_revisao → obsoleto}`,
-  `current_version_id`); `public.controlled_document_versions` (`id`, `document_id`,
-  `version_number`, `storage_path` (immutable, new path per upload — Rule 6),
-  `summary_of_changes`, `effective_date`, `review_due_date`, `expiry_date?`, `status`);
-  `public.document_approvals` (`id`, `document_version_id`, `approver_id`, `approver_title`,
-  `decision ∈ {aprovado, rejeitado}`, `decided_at`, `note`, `signature_hash` — sha256 of the
-  object + decision, mirroring `meeting_signatures.content_hash`). Additive on `form_versions`:
-  `approved_by`, `approved_at`, `review_due_date`, `effective_date`. State machine via
-  `app.guard_controlled_document_status`. New SQLSTATEs from `HC058`.
-- **RPCs** (gate `controlled_docs`): document CRUD + `add_document_version` (immutable upload),
-  `submit_document_for_approval`, `approve_document` / `reject_document` (sign-own-approval, computes
-  `signature_hash`; mirror `app.can_sign_meeting`), `publish_document` (`→ vigente`, sets effective +
-  review-due), `supersede_document` (new version replaces, prior → obsolete-but-retained),
-  `mark_document_obsolete`; `documents_due_for_review(commission)` **DEFINER**. Form publish gains an
-  approver + review-due capture.
-- **RLS**: documents + versions member-READ / staff_admin-WRITE; approvers **sign their own approval row**
-  (no broad write); new immutable `controlled-documents` Storage bucket (members read, staff_admin INSERT,
-  NO update/delete; path `{commission_id}/{document_id}/{uuid}.{ext}`; signed-URL reads).
-- **UI**: `manage/documents/**` — controlled-document **register** (filter type/status/review-due), a
-  detail page (versions, approvals, effective/expiry, download), an **approval queue** ("pendentes de
-  aprovação"), and a **review-due list** (drives Phase-20 reminders). The publish-form flow gains
-  approver + review-due fields.
-- **Acceptance**: E2E: full lifecycle — draft → submit-for-approval → a **named approver e-signs**
-  (`aprovado`) → publish (`vigente`, effective date set) → a new version **supersedes** it (prior version
-  retained but flagged obsolete) → a past-due `review_due_date` surfaces the doc in the review-due list;
-  approval **requires** a named approver signature (unsigned publish rejected); the storage object gets a
-  **new path per version** (immutability, Rule 6) and the old version still downloads; documents are
-  audited (Phase 13); a foreign-commission user gets no read; one keyboard-only pass. pgTAP: status-machine
-  guard; sign-own-approval RLS; immutable-storage (no update/delete); review-due computation; review-due +
-  approver metadata on `form_versions`.
+**controlled-document lifecycle**: named-approver e-signature workflow, effective/expiry
+dates, a **scheduled review cycle**, and a controlled-document register — the core of
+JCI `MOI` document control. Reuses the immutable-storage pattern (Rule 6) and the
+meetings e-signature primitive. **Commission-owned with a hospital-wide register
+rollup**; approvers may be **any active user of the document's hospital** (a pending
+approval row grants read — the `case_access`-style arm), so institutional signers
+(technical director, quality office) sign without joining the committee. Form publishing
+gains the same approver + review-due **metadata** (capture-only — no e-sign workflow on
+the form lifecycle). **No patient data.** Feature-flagged behind `controlled_docs`.
+*(Revised 2026-07-05, ADR [0057](../decisions/0057-indicators-doc-control-replan.md) —
+pulled PRE-pilot; build order 15 → 17 → 16 so Phase 16 links real documents as evidence
+from day one.)*
+- **Schema** (next-dated migrations): `public.controlled_documents`
+  (`id`, `commission_id` NOT NULL, `code` (per-commission mint), `title`, `doc_type ∈
+  {politica, pop, protocolo, regimento, manual, outro}`, `review_cycle_months?`,
+  `status ∈ {rascunho → em_aprovacao → vigente → obsoleto}` (derived from the current
+  version), `current_version_id`); `public.controlled_document_versions` (`id`,
+  `document_id`, `version_number`, `storage_path` (immutable, new path per upload —
+  Rule 6), `summary_of_changes`, `effective_date`, `review_due_date` (computed
+  `effective_date + review_cycle_months` at publish, manually overridable),
+  `expiry_date?`, `status ∈ {rascunho, em_aprovacao, vigente, obsoleto}` — version-level,
+  so superseded versions stay retained + downloadable); `public.document_approvals`
+  (`id`, `document_version_id`, `approver_id` (**any active same-hospital user**, named
+  per version at submit; the set is frozen while `em_aprovacao` — changing it means
+  resubmitting), `approver_title`, `decision ∈ {aprovado, rejeitado}` (NULL while
+  pending), `decided_at`, `note`, `signature_hash` — sha256 of the storage object +
+  decision, mirroring `meeting_signatures.content_hash`). Additive on `form_versions`:
+  `approved_by`, `approved_at`, `effective_date`, `review_due_date` — **metadata-only,
+  captured inside `publish_form_version`** (compatible with post-publish immutability).
+  State machine via `app.guard_controlled_document_status` + child locks. Audit
+  AFTER-triggers (allow-listed; never document bodies). New SQLSTATEs continuing after
+  Phase 15's `HC084+` block: wrong-state · publish with pending/rejected approvals ·
+  approver not entitled (foreign-hospital/inactive) · duplicate approver · frozen
+  approver set.
+- **RPCs** (gate `controlled_docs`): document CRUD + `add_document_version` (immutable
+  upload); `submit_document_for_approval(version, approvers[1..n])` (→ `em_aprovacao`;
+  creates the pending approval rows — which **grant read**); `approve_document` /
+  `reject_document` (**sign-own-approval-row**, computes `signature_hash`; a `rejeitado`
+  returns the version to `rascunho` with the note); `publish_document` (**requires ALL
+  named approvers `aprovado`** → `vigente`, sets effective + review-due);
+  `supersede_document` (new version replaces; prior → `obsoleto` but retained +
+  downloadable); `mark_document_obsolete`; `documents_due_for_review(commission)`
+  **DEFINER** (documents + **overdue published form versions**);
+  `hospital_document_register(hospital, filters)` **DEFINER**
+  (`is_hospital_admin_of`/org-admin-gated) — the institution-wide register
+  (type/status/review-due filters) that document control is actually scored on. Form
+  publish gains optional approver + review-due capture.
+- **RLS**: documents + versions member-READ / staff_admin-WRITE (`is_staff_admin_of OR
+  is_commission_admin_of`) **plus an approver read arm** (holding an approval row on a
+  version grants read of that document/version — precedented by `case_access`);
+  approvals **sign-own-row** (no broad write); new immutable **`controlled-documents`**
+  Storage bucket (members + entitled approvers read via a DEFINER predicate, staff_admin
+  INSERT, NO update/delete; path `{commission_id}/{document_id}/{uuid}.{ext}`;
+  signed-URL reads); the hospital tier reads ONLY via the register DEFINER.
+- **UI**: `manage/documents/**` — controlled-document **register** (filter
+  type/status/review-due), a detail page (versions, approvals + signature state,
+  effective/expiry, download), an **approval queue** ("pendentes de aprovação" —
+  per-user, including approvers from outside the commission), and a **review-due list**
+  (drives Phase-20 reminders; includes overdue forms). The publish-form flow gains
+  optional approver + review-due fields; the hospital-wide register renders on the
+  hospital-admin surface.
+- **Acceptance**: E2E: full lifecycle — draft → submit naming **two approvers, one an
+  active same-hospital user who is NOT a commission member** → that approver sees ONLY
+  this document (opens + downloads it; no other commission data) → both **e-sign**
+  (`aprovado`) → publish (`vigente`, dates set) → a new version **supersedes** it (prior
+  retained, flagged obsolete, still downloads) → a past-due `review_due_date` surfaces
+  the doc in the review-due list AND the hospital register; publish is **rejected**
+  while any approval is pending or `rejeitado` (pt-BR error); a rejection returns the
+  version to `rascunho`; the storage object gets a **new path per version** (Rule 6);
+  publishing a form captures approver + review-due metadata and an overdue form version
+  joins the review-due list; a foreign-hospital user cannot be named approver; documents
+  are audited (Phase 13); a foreign-commission user gets no read; `hospital_admin` sees
+  the register across its commissions; one keyboard-only pass. pgTAP: status-machine +
+  frozen-approver-set guards; all-must-approve publish gate; approver read arm
+  (version-scoped, no broad grant); sign-own-approval RLS; immutable storage (no
+  update/delete); review-due computation (`effective + review_cycle_months`, override
+  wins); register rollup scope; review-due + approver metadata on `form_versions`
+  (settable only via the publish RPC).
 
 ### Phase 18 — Self-Assessment, Internal Audit & Mock Tracer (Autoavaliação & Auditoria Interna)
 **Scored** internal-audit checklists mapped to accreditation standards (Phase 16), with
