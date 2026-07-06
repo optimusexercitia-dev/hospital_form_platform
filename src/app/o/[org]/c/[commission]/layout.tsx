@@ -18,6 +18,7 @@ import {
   countCommissionReferralActionable,
   referralsEnabled,
 } from "@/lib/queries/referrals";
+import { qualityIndicatorsEnabled } from "@/lib/queries/feature-flags";
 import { AppSidebar, type SidebarCounts } from "@/components/shell/app-sidebar";
 
 /**
@@ -76,6 +77,7 @@ export default async function CommissionLayout({
     referralsOn,
     casesExtrasOn,
     sharedActionItemsOn,
+    qualityIndicatorsOn,
     nspAccess,
   ] = await Promise.all([
     meetingsEnabled(),
@@ -85,6 +87,7 @@ export default async function CommissionLayout({
     referralsEnabled(),
     casesExtrasEnabled(),
     actionItemsEnabled(),
+    qualityIndicatorsEnabled(),
     getNspAccessByOrg(org),
   ]);
 
@@ -164,6 +167,7 @@ export default async function CommissionLayout({
         referralsEnabled={referralsOn}
         caseAccessEnabled={caseAccessOn}
         actionItemsEnabled={actionItemsOn}
+        qualityIndicatorsEnabled={qualityIndicatorsOn}
         isNspCoordinator={nspAccess?.isCoordinator ?? false}
         isPqsMember={nspAccess?.isPqsMember ?? false}
       />

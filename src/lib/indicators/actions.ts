@@ -86,12 +86,32 @@ const MESSAGES = {
 const PG_CHECK_VIOLATION = '23514'
 const PG_FORBIDDEN = '42501'
 
-/** Map an indicator RPC error (SQLSTATE HC084–HC088 + generic) to a pt-BR string. */
+// The exact pt-BR messages our RPCs RAISE (so we can surface a specific one
+// without ever echoing an UNKNOWN — e.g. raw — Postgres message; §8, Rule 10).
+// The HC084 "código de opção desconhecido: <code>" message is dynamic, so match
+// its stable prefix rather than the whole string.
+const KNOWN_PT_BR_HC084 = new Set<string>([
+  'configuração derivada inválida',
+  'um indicador manual não tem configuração derivada',
+  'o formulário não possui versão publicada',
+])
+const HC084_UNKNOWN_CODE_PREFIX = 'código de opção desconhecido:'
+
+/**
+ * Map an indicator RPC error (SQLSTATE HC084–HC088 + generic) to a pt-BR string.
+ * NEVER returns a raw `error.message` unless it is one we KNOW our own RPC set in
+ * pt-BR — an unrecognized message (or any CHECK-violation message) falls back to
+ * the generic pt-BR string so a raw Postgres error can never reach the UI (§8).
+ */
 function mapIndicatorError(error: { code?: string; message?: string } | null): string {
   if (!error) return MESSAGES.generic
   switch (error.code) {
-    case 'HC084':
-      return error.message || MESSAGES.configInvalid
+    case 'HC084': {
+      const msg = error.message ?? ''
+      if (msg.startsWith(HC084_UNKNOWN_CODE_PREFIX)) return msg // dynamic, pt-BR, safe
+      if (KNOWN_PT_BR_HC084.has(msg)) return msg
+      return MESSAGES.configInvalid // unknown message → generic pt-BR (no leak)
+    }
     case 'HC085':
       return MESSAGES.isManual
     case 'HC086':
@@ -102,8 +122,10 @@ function mapIndicatorError(error: { code?: string; message?: string } | null): s
       return MESSAGES.denomRequired
     case PG_FORBIDDEN:
       return MESSAGES.forbidden
+    // A CHECK-violation (23514) message may be a raw Postgres string — NEVER echo
+    // it; always fall back to the generic pt-BR string.
     case PG_CHECK_VIOLATION:
-      return error.message || MESSAGES.generic
+      return MESSAGES.generic
     default:
       return MESSAGES.generic
   }
@@ -407,13 +429,16 @@ export async function computeDerivedMeasurement(
  * should use the Action-Items fallback (F5 gates the button on the caller's
  * operator hospitals via `Indicator.hospitalId`).
  *
- * `_measurementId` is accepted for the UI's context (the off-target measurement
- * that triggered the escalation); the plan links to the indicator, not a specific
- * measurement, so it is not passed to the RPC.
+ * `measurementId` is part of the posted F5 contract — the off-target measurement
+ * that triggered the escalation — but `open_capa_plan` links the plan to the
+ * INDICATOR, not a specific measurement, so it is intentionally not forwarded to
+ * the RPC. Kept in the signature (not dropped) so the FE call site stays stable;
+ * the eslint-disable documents the deliberate non-use.
  */
 export async function openCapaFromIndicator(
   indicatorId: string,
-  _measurementId: string,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- F5 context only; the plan links to the indicator, not a measurement
+  measurementId: string,
 ): Promise<ActionState> {
   if (!indicatorId) return { ok: false, error: MESSAGES.notFound }
 
