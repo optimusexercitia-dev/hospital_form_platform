@@ -71,14 +71,21 @@ updated_at         timestamptz NOT NULL default now()
 unique (commission_id, code)
 -- data_source/config coherence: manual ⇒ config null; derivado/hibrido ⇒ config not null
 check ((data_source = 'manual') = (derived_config is null))
--- taxa ⇔ hibrido, and hibrido ⇔ taxa (the rate is the only hybrid mode)
-check ((kind = 'taxa') = (data_source = 'hibrido'))
+-- kind ↔ data_source coherence (LEAD FIX 2026-07-05 — allow a fully MANUAL taxa; the
+-- former biconditional `(kind='taxa')=(data_source='hibrido')` was too strict and
+-- eliminated a hand-tabulated rate, a common hospital case). Two one-way implications:
+--   hibrido ⇒ taxa (the rate is the only hybrid mode)
+--   derivado ⇒ non-taxa (a taxa is never fully derived — its denominator is manual)
+-- Net: taxa ∈ {manual, hibrido}; percentual/contagem/tempo_medio ∈ {manual, derivado}.
+check (data_source <> 'hibrido'  or kind = 'taxa')
+check (data_source <> 'derivado' or kind in ('percentual','contagem','tempo_medio'))
 ```
 
 `derived_config` **shape is validated in the RPC layer** (against the published version via
 `version_has_option_code`), not by a CHECK — the same discipline as `visible_when`/`recommend_when`
-(a CHECK cannot cross-reference `form_item_options`). A raw insert is blocked anyway: RLS write is
-member-gated but the columns are only writable through the DEFINER RPCs (see §1.4 grant posture).
+(a CHECK cannot cross-reference `form_item_options`). Raw writes are blocked at the grant level: with
+posture **(b)** (§1.5) no `authenticated` role holds direct INSERT/UPDATE/DELETE — every write flows
+through a DEFINER RPC that validates the config + computes `value`/`status`.
 
 ### 1.2 `public.indicator_measurements`
 
@@ -124,29 +131,31 @@ Plus `app.assert_quality_indicators_enabled()` (raises when off, mirrors
 `assert_meetings_enabled`) — every RPC calls it first. TS `FeatureFlags` gains `quality_indicators:
 boolean` (`src/lib/queries/feature-flags.ts`). Flag flips **ON in B6** (last backend task).
 
-### 1.5 RLS (Rule 1)
+### 1.5 RLS (Rule 1) — **posture (b): DEFINER-RPC-only writes (LEAD DECISION 2026-07-05)**
 
-Both tables `enable row level security`. Policies:
+Both tables `enable row level security`. The write authority (staff_admin OR commission_admin) lives
+in the DEFINER RPCs, NOT in a direct-write policy — the post-hardening least-privilege posture for a
+greenfield table (mirrors WS-1). This is **deliberate** (record for QA): it (1) removes an unused
+`authenticated` direct-write surface that a grant-hygiene reviewer would flag; (2) **guarantees
+`value`/`status` are always RPC-computed** — no arithmetically-incoherent measurement can be written;
+(3) still honors the spec's write authority, just in the RPC gate. Additive-wideable later if the
+pilot needs inline writes (ADR 0057 dec. 2 philosophy).
 
 - **SELECT** (`indicators` + `indicator_measurements`): `app.is_member_of(commission_id) OR
-  app.is_org_admin_of_commission(commission_id)` (the exact member-read shape used by `forms_select` /
-  `meetings_select`) — for measurements, resolve the commission via the parent indicator (subselect).
-  Members read; foreign-commission users read nothing.
-- **INSERT/UPDATE/DELETE**: `app.is_staff_admin_of(commission_id) OR
-  app.is_commission_admin_of(commission_id)` (the post-ADR-0051 combined predicate). `staff` cannot
-  write.
+  app.is_commission_admin_of(commission_id)` — the EXACT live `forms_select` / `meetings_select`
+  shape (verified against the running DB; the ADR-0051 swap dropped `is_org_admin_of_commission` and
+  put `is_commission_admin_of` = org_admin OR hospital_admin-of-the-commission's-hospital in its
+  place across ~145 objects). For measurements, resolve the commission via the parent indicator
+  (subselect). Plus `grant select on public.indicators, public.indicator_measurements to
+  authenticated`. Members read; foreign-commission users read nothing.
+- **NO INSERT/UPDATE/DELETE policy and NO direct write grant** to `authenticated`. Every write flows
+  through a `SECURITY DEFINER` RPC (§2) that enforces `is_staff_admin_of OR is_commission_admin_of`
+  and computes `value`/`status`. `staff` (and a direct-PostgREST write attempt by anyone) cannot
+  write. The tables are CREATEd as `postgres` so the C-2 revoke-default posture applies (no re-inherited
+  `authenticated` grant); assert it in the migration (`revoke insert, update, delete on … from
+  authenticated`) as a belt.
 - **The hospital tier gets NO table grant** — it reads ONLY via `hospital_indicator_rollup` DEFINER
   (§2.4). This is the whole multi-tenancy story: no dual-scope ownership (ADR 0057 dec. 2).
-
-Even with member-write RLS, the write columns flow through the DEFINER RPCs (which enforce the
-staff_admin/commission_admin gate + validate `derived_config`); direct table INSERT by a member is
-additionally shut by revoking table-level INSERT/UPDATE/DELETE from `authenticated` and routing all
-writes through the RPCs (the membership-write-lockdown posture, WS-1). **Decision point for the
-lead:** either (a) RLS write-policy + table grant (members with staff_admin can write directly), or
-(b) zero-write-policy + DEFINER-only door (matches the hardened WS-1 posture). I recommend **(a)**
-— the spec says "member-read / staff_admin-write" as an RLS shape and there is no PHI here; the
-DEFINER RPCs remain the app's only write path but a raw authenticated write by a staff_admin of the
-commission is not a security hole (unlike the membership tables). Flag which you want.
 
 ### 1.6 Audit AFTER-triggers (Rule 11 — non-sensitive allow-list, **never `description_md`**)
 
@@ -196,25 +205,33 @@ null, p_period_start default null, p_period_end default null)`. Gate; compute
 `value := app.compute_value(kind, numerator, denominator)` (§3.1) — for `percentual` = num/den×100,
 `contagem`/`tempo_medio`-manual = num, `taxa` = num/den×1000; `status := app.classify_measurement(
 value, target, comparator, direction)`. **Upsert on `(indicator_id, period_label)`**, `source =
-'manual'`. HC086 if the indicator is not manual (manual RPC on a derived indicator). HC087 on
-zero/invalid denominator when the kind needs one.
+'manual'`. **HC086 keys on `data_source`, NOT `kind`** (LEAD FIX — a **manual `taxa`** is valid and
+MUST route here; only `derivado`/`hibrido` indicators are rejected): raise HC086 when
+`data_source <> 'manual'`. HC087 on zero/invalid denominator when the kind needs one (percentual /
+taxa). A manual `taxa` computes `num/den×1000` exactly like the hybrid, just with a hand-entered
+numerator.
 
 ### 2.3 `compute_derived_measurement` (B4 — the ADR 0058 path) — see §3
 
 ### 2.4 Reads (B5)
 
 - **`indicator_series(p_indicator, p_from text default null, p_to text default null)`** DEFINER —
-  gate `is_member_of OR is_org_admin_of_commission` (members see their own indicators' trend); returns
+  gate `is_member_of OR is_commission_admin_of` (members see their own indicators' trend); returns
   `(period_label, period_start, value, target, status)` ordered by `period_start nulls last,
   period_label`, windowed by `period_label` bounds. `target` echoes the indicator target.
 - **`indicator_kpis(p_commission)`** DEFINER — gate `is_staff_admin_of OR is_commission_admin_of`;
   returns `(total, na_meta, fora_da_meta, sem_dados)` counting **active** indicators by their LATEST
   measurement's `status` (indicators with no measurement → `sem_dados`). Zeros for a non-privileged
   caller (return empty → mapped to zeros in TS, mirrors `capa_kpis`).
-- **`hospital_indicator_rollup(p_hospital)`** DEFINER — gate `app.is_hospital_admin_of(p_hospital) OR
-  app.is_org_level_admin_within(app.org_of_hospital(p_hospital))`; returns
-  `(commission_id, commission_name, total, na_meta, fora_da_meta, sem_dados)` for **each commission of
-  the hospital** (`hospital_of_commission = p_hospital`). **PHI-free + minimum-necessary SELECT list:
+- **`hospital_indicator_rollup(p_hospital)`** DEFINER — gate (LEAD DECISION Q3)
+  `app.is_admin() OR app.is_hospital_admin_of(p_hospital) OR
+  app.is_org_admin_of(app.org_of_hospital(p_hospital))`. **NB:** uses `is_org_admin_of` (pure
+  "org_admin of the org", no membership caveat — confirmed body: `role='org_admin'` on
+  `organization_members`), NOT `is_org_level_admin_within` (that one restricts to
+  hospital_admin/nsp_org_admin roles and would wrongly exclude an org_admin who also sits on a
+  committee). Returns `(commission_id, commission_name, total, na_meta, fora_da_meta, sem_dados)` for
+  **each commission of the hospital** (`hospital_of_commission = p_hospital`). **PHI-free +
+  minimum-necessary SELECT list:
   counts + names only — NO indicator name/definition/value/`description_md`.** Mirrors `nsp_org_*`
   aggregate doors. `[]` for a foreign hospital_admin.
 
@@ -284,8 +301,10 @@ p_period_start default null, p_period_end default null)`:
 3. `value := num/den*1000`; classify; **upsert** `source='derivado'`. There is no partial-measurement
    status — `sem_dados` stays the only empty state.
 
-For **non-hybrid derived** kinds, `p_denominator` is ignored (HC085 if passed for a manual
-indicator; for derivado it is simply unused).
+`compute_derived_measurement` gates on `data_source` (LEAD FIX — key on `data_source`, not `kind`):
+raise **HC085** when `data_source = 'manual'` (a manual indicator — incl. a manual `taxa` — must use
+`record_indicator_measurement`). For a `derivado` (non-hybrid) indicator, `p_denominator` is unused;
+for `hibrido` it drives the preserve rule above.
 
 ### 3.5 `derived_config` validation (on save — `create/update_indicator`)
 
@@ -382,8 +401,8 @@ documents this pointer; there is **no** indicator-specific action-item RPC.
 | Code | Condition | pt-BR message |
 | ---- | --------- | ------------- |
 | `HC084` | invalid/unknown derived config or option code (save-time) | `'configuração derivada inválida'` / `'código de opção desconhecido: %'` |
-| `HC085` | `compute_derived_measurement` / a `p_denominator` passed on a **manual** indicator | `'este indicador é manual; use o lançamento manual'` |
-| `HC086` | `record_indicator_measurement` (manual) called on a **derived** indicator | `'este indicador é derivado; use o cálculo automático'` |
+| `HC085` | `compute_derived_measurement` called on a **manual** indicator (`data_source='manual'`, incl. a manual `taxa`) | `'este indicador é manual; use o lançamento manual'` |
+| `HC086` | `record_indicator_measurement` called on a **derived/hybrid** indicator (`data_source <> 'manual'`) | `'este indicador é derivado; use o cálculo automático'` |
 | `HC087` | zero/invalid denominator for a kind that needs one | `'o denominador deve ser diferente de zero'` |
 | `HC088` | hybrid `taxa` compute with no denominator (and none stored to reuse) | `'informe o denominador'` |
 

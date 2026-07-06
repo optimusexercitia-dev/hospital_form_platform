@@ -2969,6 +2969,142 @@ export type Database = {
           },
         ]
       }
+      indicator_measurements: {
+        Row: {
+          denominator: number | null
+          entered_at: string
+          entered_by: string | null
+          id: string
+          indicator_id: string
+          note: string | null
+          numerator: number | null
+          period_end: string | null
+          period_label: string
+          period_start: string | null
+          source: string
+          status: string
+          value: number | null
+        }
+        Insert: {
+          denominator?: number | null
+          entered_at?: string
+          entered_by?: string | null
+          id?: string
+          indicator_id: string
+          note?: string | null
+          numerator?: number | null
+          period_end?: string | null
+          period_label: string
+          period_start?: string | null
+          source: string
+          status?: string
+          value?: number | null
+        }
+        Update: {
+          denominator?: number | null
+          entered_at?: string
+          entered_by?: string | null
+          id?: string
+          indicator_id?: string
+          note?: string | null
+          numerator?: number | null
+          period_end?: string | null
+          period_label?: string
+          period_start?: string | null
+          source?: string
+          status?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "indicator_measurements_indicator_id_fkey"
+            columns: ["indicator_id"]
+            isOneToOne: false
+            referencedRelation: "indicators"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      indicators: {
+        Row: {
+          code: string
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          data_source: string
+          denominator_label: string | null
+          derived_config: Json | null
+          description_md: string | null
+          direction: string
+          frequency: string
+          id: string
+          kind: string
+          lower_warn: number | null
+          name: string
+          numerator_label: string | null
+          status: string
+          target_comparator: string
+          target_value: number | null
+          unit: string | null
+          updated_at: string
+          upper_warn: number | null
+        }
+        Insert: {
+          code: string
+          commission_id: string
+          created_at?: string
+          created_by?: string | null
+          data_source?: string
+          denominator_label?: string | null
+          derived_config?: Json | null
+          description_md?: string | null
+          direction?: string
+          frequency?: string
+          id?: string
+          kind: string
+          lower_warn?: number | null
+          name: string
+          numerator_label?: string | null
+          status?: string
+          target_comparator?: string
+          target_value?: number | null
+          unit?: string | null
+          updated_at?: string
+          upper_warn?: number | null
+        }
+        Update: {
+          code?: string
+          commission_id?: string
+          created_at?: string
+          created_by?: string | null
+          data_source?: string
+          denominator_label?: string | null
+          derived_config?: Json | null
+          description_md?: string | null
+          direction?: string
+          frequency?: string
+          id?: string
+          kind?: string
+          lower_warn?: number | null
+          name?: string
+          numerator_label?: string | null
+          status?: string
+          target_comparator?: string
+          target_value?: number | null
+          unit?: string | null
+          updated_at?: string
+          upper_warn?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "indicators_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_agenda_items: {
         Row: {
           created_at: string

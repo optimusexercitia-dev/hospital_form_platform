@@ -59,6 +59,14 @@ construction**, not by a fragile "keep two queries in sync" convention.
    - `value := numerator/denominator*1000`; classify; **upsert** `source='derivado'`.
    `sem_dados` remains the ONLY empty state.
 
+   **A `taxa` may also be fully MANUAL** (LEAD FIX 2026-07-05 — the biconditional forcing every
+   `taxa` to be hybrid was dropped; a hand-tabulated rate is common). A manual `taxa`
+   (`data_source='manual'`) routes through `record_indicator_measurement` (hand-entered numerator +
+   denominator; the same `num/den×1000` value), NOT this compute path. The `compute_*` /`record_*`
+   split keys on **`data_source`** (HC085/HC086), not on `kind`, so manual/hibrido taxa each reach
+   the right RPC. `hibrido` is reserved for taxa; `derivado` is reserved for non-taxa (two one-way
+   table CHECKs).
+
 6. **`derived_config` is validated at SAVE, against the latest published version.**
    `app.validate_indicator_derived_config` checks shape-per-kind and that every referenced option
    `code` (and the denominator `question_key`) exists in `app.latest_published_version(form_id)` via
