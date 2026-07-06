@@ -1,7 +1,7 @@
 # Phase 17 — Controlled-Document Lifecycle (Gestão de Documentos Controlados)
 
 **Status:** ✅ COMPLETE — 2026-07-06 · QA **APPROVED** (0 BLOCKER · 0 MAJOR · 3 MINOR all
-cleared · 4 INFO) · branch `feat/phase-17-controlled-documents`.
+cleared · 4 INFO) · branch `feat/phase-17-controlled-documents` · record commit `cc7a003`.
 Spec: `docs/phases/accreditation-track.md:427-506`. Decisions: ADR
 [0057](../decisions/0057-indicators-doc-control-replan.md) (esp. decisions 5 & 6).
 Review: [phase-17-review.md](../reviews/phase-17-review.md). PHI-free by design (Rule 12 N/A).
