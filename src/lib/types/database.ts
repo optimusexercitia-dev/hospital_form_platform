@@ -843,6 +843,13 @@ export type Database = {
             referencedRelation: "capa_plan"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "capa_measure_indicator_id_fkey"
+            columns: ["indicator_id"]
+            isOneToOne: false
+            referencedRelation: "indicators"
+            referencedColumns: ["id"]
+          },
         ]
       }
       capa_measure_result: {
@@ -975,6 +982,13 @@ export type Database = {
             columns: ["source_event_id"]
             isOneToOne: false
             referencedRelation: "patient_safety_event"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "capa_plan_source_indicator_id_fkey"
+            columns: ["source_indicator_id"]
+            isOneToOne: false
+            referencedRelation: "indicators"
             referencedColumns: ["id"]
           },
           {
