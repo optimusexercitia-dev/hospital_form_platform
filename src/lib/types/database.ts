@@ -3017,6 +3017,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "indicator_measurements_entered_by_fkey"
+            columns: ["entered_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "indicator_measurements_indicator_id_fkey"
             columns: ["indicator_id"]
             isOneToOne: false
@@ -7485,6 +7492,36 @@ export type Database = {
           p_user: string
         }
         Returns: undefined
+      }
+      hospital_indicator_rollup: {
+        Args: { p_hospital: string }
+        Returns: {
+          commission_id: string
+          commission_name: string
+          fora_da_meta: number
+          na_meta: number
+          sem_dados: number
+          total: number
+        }[]
+      }
+      indicator_kpis: {
+        Args: { p_commission: string }
+        Returns: {
+          fora_da_meta: number
+          na_meta: number
+          sem_dados: number
+          total: number
+        }[]
+      }
+      indicator_series: {
+        Args: { p_from?: string; p_indicator: string; p_to?: string }
+        Returns: {
+          period_label: string
+          period_start: string
+          status: string
+          target: number
+          value: number
+        }[]
       }
       interview_viewer_can_write: {
         Args: { p_interview_id: string }
