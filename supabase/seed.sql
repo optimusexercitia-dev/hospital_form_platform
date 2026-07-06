@@ -1683,3 +1683,150 @@ end $$;
 
 -- answer-model-v2: drop the seed-only selection helper.
 drop function if exists app.seed_select(uuid, uuid, text[]);
+
+-- ---------------------------------------------------------------------------
+-- Phase 15 — Quality Indicators (Indicadores de Qualidade). Representative data
+-- under commission A (CCIH; chefe.ccih persona) so the E2E acceptance flows have
+-- something to render: a MANUAL percentual with monthly measurements (two
+-- OFF-TARGET, to exercise the two-tier CAPA affordance), a DERIVED percentual
+-- bound to the hand-hygiene form's real option codes, a HYBRID taxa, and a
+-- TEMPO_MEDIO. Inserted directly as postgres (RLS bypassed); value/status computed
+-- via the app helpers so they are self-consistent. The quality_indicators flag is
+-- ON (migration 20260712000300).
+-- ---------------------------------------------------------------------------
+do $ind$
+declare
+  v_comm_a  uuid := 'a0000000-0000-0000-0000-0000000000a1';
+  v_form_hh uuid := 'f0000000-0000-0000-0000-00000000a001';  -- Checklist de Higienização das Mãos
+  v_chefe   uuid := '00000000-0000-0000-0000-000000000002';  -- chefe.ccih (staff_admin of A)
+  v_ind_manual  uuid;
+  v_ind_derived uuid;
+  v_ind_hybrid  uuid;
+  v_ind_tempo   uuid;
+  v_num numeric;
+  v_den numeric;
+begin
+  -- attribute the audit rows to chefe.ccih
+  perform set_config('request.jwt.claims',
+    jsonb_build_object('sub', v_chefe, 'role', 'authenticated')::text, true);
+
+  -- 1) MANUAL percentual — "Adesão à higienização das mãos" (target >= 90, maior_melhor).
+  insert into public.indicators
+    (commission_id, name, description_md, kind, numerator_label, denominator_label,
+     unit, direction, target_value, target_comparator, frequency, data_source, created_by)
+  values
+    (v_comm_a, 'Adesão à higienização das mãos',
+     'Percentual de oportunidades de higienização das mãos executadas corretamente (observação direta).',
+     'percentual', 'Higienizações corretas', 'Oportunidades observadas', '%',
+     'maior_melhor', 90, '>=', 'mensal', 'manual', v_chefe)
+  returning id into v_ind_manual;
+
+  insert into public.indicator_measurements
+    (indicator_id, period_label, period_start, period_end, numerator, denominator, value, status, source, entered_by)
+  select v_ind_manual, m.period, m.pstart, m.pend, m.num, m.den,
+         app.indicator_compute_value('percentual', m.num, m.den),
+         app.indicator_classify(app.indicator_compute_value('percentual', m.num, m.den), 90, '>='),
+         'manual', v_chefe
+  from (values
+    ('2026-03', date '2026-03-01', date '2026-03-31', 84::numeric, 100::numeric),  -- 84% OFF-TARGET
+    ('2026-04', date '2026-04-01', date '2026-04-30', 88::numeric, 100::numeric),  -- 88% OFF-TARGET
+    ('2026-05', date '2026-05-01', date '2026-05-31', 91::numeric, 100::numeric),  -- 91% on
+    ('2026-06', date '2026-06-01', date '2026-06-30', 93::numeric, 100::numeric)   -- 93% on
+  ) as m(period, pstart, pend, num, den);
+
+  -- 2) DERIVED percentual — "Dispensadores de álcool disponíveis (%)" bound to the
+  --    hand-hygiene form's option code 'sim' over the section-answered denominator.
+  --    Seed a pre-computed measurement matching the dashboard aggregate.
+  insert into public.indicators
+    (commission_id, name, description_md, kind, numerator_label, denominator_label,
+     unit, direction, target_value, target_comparator, frequency, data_source, derived_config, created_by)
+  values
+    (v_comm_a, 'Dispensadores de álcool disponíveis (%)',
+     'Percentual de auditorias em que o dispensador de álcool em gel estava disponível e abastecido. Derivado do Checklist de Higienização das Mãos.',
+     'percentual', 'Auditorias com dispensador disponível', 'Auditorias realizadas', '%',
+     'maior_melhor', 95, '>=', 'mensal', 'derivado',
+     jsonb_build_object('form_id', v_form_hh::text,
+       'numerator', jsonb_build_object('question_key', 'dispensador_disponivel', 'option_codes', jsonb_build_array('sim')),
+       'denominator', jsonb_build_object('question_key', 'dispensador_disponivel')),
+     v_chefe)
+  returning id into v_ind_derived;
+
+  select count(*) into v_num
+  from app.submitted_form_responses(v_form_hh) sr
+  join public.answers a on a.response_id = sr.id
+  join public.form_items fi on fi.id = a.item_id
+  join public.answer_selected_options s on s.answer_id = a.id
+  join public.form_item_options o on o.id = s.option_id
+  where fi.question_key = 'dispensador_disponivel' and o.code = 'sim';
+
+  select count(distinct sr.id) into v_den
+  from app.submitted_form_responses(v_form_hh) sr
+  join public.answers a on a.response_id = sr.id
+  join public.form_items fi on fi.id = a.item_id
+  where fi.item_type in ('multiple_choice','dropdown','checkbox')
+    and fi.section_id = (select section_id from public.form_items
+                         where form_version_id = app.latest_published_version(v_form_hh)
+                           and question_key = 'dispensador_disponivel' limit 1)
+    and exists (select 1 from public.answer_selected_options s2 where s2.answer_id = a.id);
+
+  insert into public.indicator_measurements
+    (indicator_id, period_label, period_start, period_end, numerator, denominator, value, status, source, entered_by)
+  values
+    (v_ind_derived, '2026-06', date '2026-06-01', date '2026-06-30', v_num, v_den,
+     app.indicator_compute_value('percentual', v_num, v_den),
+     app.indicator_classify(app.indicator_compute_value('percentual', v_num, v_den), 95, '>='),
+     'derivado', v_chefe);
+
+  -- 3) HYBRID taxa — "Densidade de IRAS" (per 1000 pacientes-dia). Numerator derived
+  --    (option code 'nao'), denominator (pacientes-dia) manual.
+  insert into public.indicators
+    (commission_id, name, description_md, kind, numerator_label, denominator_label,
+     unit, direction, target_value, target_comparator, frequency, data_source, derived_config, created_by)
+  values
+    (v_comm_a, 'Densidade de IRAS (por 1000 pacientes-dia)',
+     'Taxa de infecções relacionadas à assistência à saúde por 1000 pacientes-dia. Numerador derivado; denominador (pacientes-dia) informado manualmente.',
+     'taxa', 'Casos de IRAS', 'Pacientes-dia', '/1000 pac-dia',
+     'menor_melhor', 5, '<=', 'mensal', 'hibrido',
+     jsonb_build_object('form_id', v_form_hh::text,
+       'numerator', jsonb_build_object('question_key', 'dispensador_disponivel', 'option_codes', jsonb_build_array('nao'))),
+     v_chefe)
+  returning id into v_ind_hybrid;
+
+  select count(*) into v_num
+  from app.submitted_form_responses(v_form_hh) sr
+  join public.answers a on a.response_id = sr.id
+  join public.form_items fi on fi.id = a.item_id
+  join public.answer_selected_options s on s.answer_id = a.id
+  join public.form_item_options o on o.id = s.option_id
+  where fi.question_key = 'dispensador_disponivel' and o.code = 'nao';
+
+  insert into public.indicator_measurements
+    (indicator_id, period_label, period_start, period_end, numerator, denominator, value, status, source, entered_by)
+  values
+    (v_ind_hybrid, '2026-06', date '2026-06-01', date '2026-06-30', v_num, 900,
+     app.indicator_compute_value('taxa', v_num, 900),
+     app.indicator_classify(app.indicator_compute_value('taxa', v_num, 900), 5, '<='),
+     'derivado', v_chefe);
+
+  -- 4) TEMPO_MEDIO (manual) — "Tempo médio de resposta a alertas" (menor melhor).
+  insert into public.indicators
+    (commission_id, name, description_md, kind, numerator_label,
+     unit, direction, target_value, target_comparator, frequency, data_source, created_by)
+  values
+    (v_comm_a, 'Tempo médio de resposta a alertas de higienização',
+     'Tempo médio (horas) entre um alerta de não conformidade e a ação corretiva.',
+     'tempo_medio', 'Tempo médio', 'h',
+     'menor_melhor', 24, '<=', 'mensal', 'manual', v_chefe)
+  returning id into v_ind_tempo;
+
+  insert into public.indicator_measurements
+    (indicator_id, period_label, period_start, period_end, numerator, denominator, value, status, source, entered_by)
+  select v_ind_tempo, m.period, m.pstart, m.pend, m.avg, m.n,
+         m.avg, app.indicator_classify(m.avg, 24, '<='), 'manual', v_chefe
+  from (values
+    ('2026-05', date '2026-05-01', date '2026-05-31', 30::numeric, 8::numeric),  -- 30h OFF-TARGET
+    ('2026-06', date '2026-06-01', date '2026-06-30', 18::numeric, 9::numeric)   -- 18h on
+  ) as m(period, pstart, pend, avg, n);
+
+  perform set_config('request.jwt.claims', '', true);
+end $ind$;

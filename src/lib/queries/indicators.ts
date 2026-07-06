@@ -32,6 +32,7 @@ import type {
   IndicatorFrequency,
   IndicatorKind,
   IndicatorKpis,
+  IndicatorListItem,
   IndicatorMeasurement,
   IndicatorSeriesPoint,
   IndicatorStatus,
@@ -54,6 +55,7 @@ export type {
   IndicatorFrequency,
   IndicatorKind,
   IndicatorKpis,
+  IndicatorListItem,
   IndicatorMeasurement,
   IndicatorSeriesPoint,
   IndicatorStatus,
@@ -102,6 +104,22 @@ const INDICATOR_SELECT =
   'denominator_label, unit, direction, target_value, target_comparator, ' +
   'lower_warn, upper_warn, frequency, data_source, derived_config, status, ' +
   'created_at, updated_at, commission:commissions!indicators_commission_id_fkey(hospital_id)'
+
+// List select: the same columns PLUS the embedded measurements (status/value/
+// period, newest first) so the list can derive each indicator's latest-measurement
+// summary in ONE query — no per-row getIndicatorSeries N+1.
+const INDICATOR_LIST_SELECT =
+  INDICATOR_SELECT +
+  ', indicator_measurements(status, value, period_label, period_start)'
+
+interface IndicatorListRow extends IndicatorRow {
+  indicator_measurements?: {
+    status: string
+    value: number | null
+    period_label: string
+    period_start: string | null
+  }[]
+}
 
 /**
  * Map the stored (snake_case) `derived_config` jsonb to the camelCase
@@ -180,20 +198,37 @@ function mapIndicator(r: IndicatorRow): Indicator {
 // ---------------------------------------------------------------------------
 
 /**
- * All indicators of a commission, newest-first. `[]` when out of scope.
- * `hospitalId` comes from the commission → hospital embed (display-only, for the
- * F5 "Abrir CAPA" button-visibility gate).
+ * All indicators of a commission, newest-first, each with its LATEST-measurement
+ * summary (`latestStatus`/`latestValue`/`latestPeriodLabel`) so the list renders
+ * the status chip WITHOUT a per-row `getIndicatorSeries` call. `[]` when out of
+ * scope. `hospitalId` comes from the commission → hospital embed (display-only).
+ * One query: the measurements are embedded and the latest is picked per row.
  */
-export async function listIndicators(commissionId: string): Promise<Indicator[]> {
+export async function listIndicators(commissionId: string): Promise<IndicatorListItem[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('indicators')
-    .select(INDICATOR_SELECT)
+    .select(INDICATOR_LIST_SELECT)
     .eq('commission_id', commissionId)
     .order('created_at', { ascending: false })
-    .returns<IndicatorRow[]>()
+    .returns<IndicatorListRow[]>()
 
-  return (data ?? []).map(mapIndicator)
+  return (data ?? []).map((r) => {
+    // Pick the latest measurement: highest period_start (nulls last), then
+    // period_label — the same order indicator_series / the KPIs RPC use.
+    const latest = [...(r.indicator_measurements ?? [])].sort((a, b) => {
+      const sa = a.period_start ?? ''
+      const sb = b.period_start ?? ''
+      if (sa !== sb) return sb.localeCompare(sa)
+      return b.period_label.localeCompare(a.period_label)
+    })[0]
+    return {
+      ...mapIndicator(r),
+      latestStatus: (latest?.status as MeasurementStatus) ?? 'sem_dados',
+      latestValue: latest?.value ?? null,
+      latestPeriodLabel: latest?.period_label ?? null,
+    }
+  })
 }
 
 /**

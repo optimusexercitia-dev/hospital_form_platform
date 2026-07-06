@@ -179,6 +179,19 @@ export interface Indicator {
 }
 
 /**
+ * An indicator plus its LATEST-measurement summary, for the list view. Lets the
+ * F1 list render the status chip + current value WITHOUT a per-row
+ * `getIndicatorSeries` round trip (a lateral "latest measurement per indicator"
+ * join in `listIndicators`). `latestStatus` is `sem_dados` when the indicator has
+ * no measurement yet.
+ */
+export interface IndicatorListItem extends Indicator {
+  latestStatus: MeasurementStatus
+  latestValue: number | null
+  latestPeriodLabel: string | null
+}
+
+/**
  * A single measurement of an indicator for one period. `value` is computed from
  * `numerator`/`denominator` per the indicator kind. `status` is the target
  * classification at this value (`sem_dados` when `value` is null).
