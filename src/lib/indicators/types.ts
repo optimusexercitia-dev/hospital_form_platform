@@ -151,6 +151,13 @@ export type DerivedConfig =
 export interface Indicator {
   id: string
   commissionId: string
+  /**
+   * The hospital the indicator's commission belongs to (`hospital_of_commission`).
+   * DISPLAY-ONLY — lets the UI decide whether to render the "Abrir CAPA" button
+   * (match against the caller's PQS-operator hospitals) without provoking a 42501.
+   * The real authority boundary stays the `open_capa_plan` operator check.
+   */
+  hospitalId: string
   code: string
   name: string
   descriptionMd: string | null

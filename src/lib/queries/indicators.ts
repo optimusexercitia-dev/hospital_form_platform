@@ -61,12 +61,20 @@ export {
 
 const NOT_IMPLEMENTED = 'not implemented — B3/B5'
 
-/** All indicators of a commission, newest-first. `[]` when out of scope. */
+/**
+ * All indicators of a commission, newest-first. `[]` when out of scope.
+ * Populates `hospitalId` by joining the commission → its hospital
+ * (`commissions.hospital_id` / `hospital_of_commission`) — display-only, for the
+ * F5 "Abrir CAPA" button-visibility gate.
+ */
 export async function listIndicators(_commissionId: string): Promise<Indicator[]> {
   throw new Error(NOT_IMPLEMENTED)
 }
 
-/** One indicator by id (with its `derivedConfig`). `null` when out of scope. */
+/**
+ * One indicator by id (with its `derivedConfig` + `hospitalId`). `null` when out
+ * of scope. `hospitalId` from the commission → hospital join (display-only).
+ */
 export async function getIndicator(_id: string): Promise<Indicator | null> {
   throw new Error(NOT_IMPLEMENTED)
 }
