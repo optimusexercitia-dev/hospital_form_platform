@@ -99,9 +99,14 @@ reads or extends committee-track data:
   ADR 0030 + Rule 12. Built as sub-phases **14a–14d**.
 - **Quality indicators (15)** — *derived* indicators read the **Phase-8 dashboard
   spine** (`app.submitted_form_responses` + `dashboard_distributions`) keyed by the
-  stable cross-version **`question_key`**, so a derived value **equals** the
-  dashboard for the same window. Off-target → opens a CAPA; a later measurement can
-  close the CAPA loop.
+  stable cross-version **`question_key`** and the normalized **option `code`s**, so a
+  derived value **equals** the dashboard for the same window; `tempo_medio` averages
+  the answer-model-v2 `answers.value_number`; `taxa` is hybrid (derived numerator +
+  manual denominator, one-step compute). Off-target → **two-tier escalation** (ADR
+  0057): "Abrir CAPA" for PQS operators only (CAPA stays NSP-owned; `hospital_id`
+  derived from the indicator's commission), Action-Items-Hub fallback for other
+  staff_admins; a later measurement can close the CAPA loop. Commission-owned + a
+  read-only hospital rollup.
 - **Standards crosswalk (16)** — `evidence_links.artifact_kind ∈ {form,
   form_version, meeting, case, indicator, capa_plan, controlled_document,
   action_item}`; an `app.artifact_belongs_to_commission` guard rejects linking a
@@ -109,8 +114,11 @@ reads or extends committee-track data:
 - **Controlled documents (17)** — reuse the immutable-storage pattern
   (`form-assets` / `case-documents`, Rule 6) and the **meetings e-signature
   primitive** (`meeting_signatures.content_hash` → `document_approvals.signature_hash`,
-  `app.can_sign_meeting` → sign-own-approval). Form publish (`form_versions`) gains
-  approver + review-due metadata.
+  `app.can_sign_meeting` → sign-own-approval). Approvers = any active same-hospital
+  user via a `case_access`-style **approval-row read arm**; ALL named approvers must
+  sign before publish. Form publish (`form_versions`) gains approver + review-due
+  **metadata** (capture-only inside `publish_form_version`). Commission-owned + a
+  hospital-wide register rollup. **Built pre-pilot, before Phase 16** (ADR 0057).
 - **Internal audit (18)** — a `nao_conforme` finding **opens a CAPA**
   (`source_audit_finding_id`) *and* writes a Phase-16 `standard_assessment`; per-round
   auditor write-grant mirrors the **interview participant-write** shape.
@@ -150,14 +158,21 @@ reads or extends committee-track data:
 - [0030 — Patient-safety PHI posture & PQS/NSP architecture](decisions/0030-patient-safety-phi-and-pqs-architecture.md)
   — the PHI/HIPAA reversal (supersedes 0028's no-patient-data stance) + the event → triage →
   RCA → CAPA model and its 14a–14d phasing.
+- [0057 — Indicators + document-control re-plan](decisions/0057-indicators-doc-control-replan.md)
+  — the 2026-07-05 revision of Phases 15/17: build order 15 → 17 → 16 (documents pulled
+  pre-pilot), two-tier off-target→CAPA escalation, hybrid taxa, approver read arm,
+  hospital rollups, forms metadata-only.
 - *(future)* per-phase ADRs as each lands (CAPA state machine, indicator derived-compute,
   surveyor external-access shape, etc.), continuing the existing numbering.
 
 ## 6. Deployment note
 
 Built **ahead of Phase 9 (Deployment)**, which remains pending. The agreed plan
-is to **deploy a pilot after Phase 16** (the P0 accreditation core: audit trail,
-CAPA, indicators, standards crosswalk) — that also validates the known prod-auth
-gap (ADR [0009](decisions/0009-jwt-local-verification-gate.md)) — then sequence
-Phases 17–21 informed by pilot feedback (ADR
+(revised 2026-07-05, ADR
+[0057](decisions/0057-indicators-doc-control-replan.md)) is to build the remaining
+pre-pilot phases in order **15 → 17 → 16** and **deploy a pilot after Phase 16**
+(the P0 accreditation core: audit trail, CAPA, indicators, document control,
+standards crosswalk) — that also validates the known prod-auth gap (ADR
+[0009](decisions/0009-jwt-local-verification-gate.md)) — then sequence Phases
+18–21 informed by pilot feedback (ADR
 [0028](decisions/0028-accreditation-governance-roadmap.md)).

@@ -2,8 +2,10 @@
 
 **Status:** Accepted — its **no-patient-data stance is superseded by ADR
 [0030](./0030-patient-safety-phi-and-pqs-architecture.md)** (2026-06-18); the 9-phase
-track structure and sequencing below still stand. · **Date:** 2026-06-17 ·
-**Phases:** 13–21 (planning)
+track structure below still stands, but the **pre-pilot sequencing is amended by ADR
+[0057](./0057-indicators-doc-control-replan.md)** (2026-07-05: build order **15 → 17 → 16**,
+Phase 17 pulled pre-pilot; pilot still after Phase 16; 18–21 post-pilot). ·
+**Date:** 2026-06-17 · **Phases:** 13–21 (planning)
 
 ## Context
 
@@ -112,3 +114,8 @@ gated by CLAUDE.md §6.
   phases. Doing it first was considered and rejected: deploying a pre-accreditation-feature
   build would undersell the product, and there is no production audit history to lose
   while the system is local-only.
+  **Amended 2026-07-05 (ADR [0057](./0057-indicators-doc-control-replan.md)):** Phase 17
+  (Controlled Documents) is pulled **pre-pilot** — the remaining pre-pilot phases build in
+  order **15 → 17 → 16**, so the P0 core a pilot hospital sees includes document control and
+  Phase 16's evidence picker ships with real documents linkable. The pilot trigger remains
+  "after Phase 16"; Phases **18–21** are the ones sequenced on pilot feedback.
