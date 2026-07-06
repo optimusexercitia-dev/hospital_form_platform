@@ -6,6 +6,7 @@ import Link from "next/link";
 import { History, Plus, Settings2 } from "lucide-react";
 
 import type { VersionTree } from "@/lib/queries/forms";
+import type { ApproverCandidate } from "@/lib/queries/documents";
 import { addSection } from "@/lib/forms/actions";
 import { Button } from "@/components/ui/button";
 import { FormBanner } from "@/components/auth/form-banner";
@@ -40,6 +41,8 @@ export function BuilderShell({
   commissionName,
   tree,
   imageUrls,
+  controlledDocsEnabled = false,
+  approverCandidates = [],
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -51,6 +54,10 @@ export function BuilderShell({
   commissionName: string;
   tree: VersionTree;
   imageUrls: Record<string, string>;
+  /** Phase 17, F7 — whether the publish dialog offers document-control metadata. */
+  controlledDocsEnabled?: boolean;
+  /** Approver candidates for the optional publish-metadata approver (F7). */
+  approverCandidates?: ApproverCandidate[];
 }) {
   const { run, isPending, error } = useBuilderAction();
   const { containerRef, captureBeforeReorder } =
@@ -77,6 +84,8 @@ export function BuilderShell({
         commissionName={commissionName}
         versionNumber={tree.versionNumber}
         versionId={tree.id}
+        controlledDocsEnabled={controlledDocsEnabled}
+        approverCandidates={approverCandidates}
       />
 
       {error && <FormBanner tone="error">{error}</FormBanner>}
@@ -124,6 +133,8 @@ function BuilderHeader({
   commissionName,
   versionNumber,
   versionId,
+  controlledDocsEnabled,
+  approverCandidates,
 }: {
   org: string;
   slug: string;
@@ -133,6 +144,8 @@ function BuilderHeader({
   commissionName: string;
   versionNumber: number;
   versionId: string;
+  controlledDocsEnabled: boolean;
+  approverCandidates: ApproverCandidate[];
 }) {
   const [metaOpen, setMetaOpen] = useState(false);
 
@@ -183,7 +196,11 @@ function BuilderHeader({
             slug={slug}
             formId={formId}
           />
-          <PublishButton versionId={versionId} />
+          <PublishButton
+            versionId={versionId}
+            controlledDocsEnabled={controlledDocsEnabled}
+            approverCandidates={approverCandidates}
+          />
         </div>
       </div>
 

@@ -34,6 +34,7 @@ export interface FeatureFlags {
   signoff_enforcement: boolean
   action_items: boolean
   quality_indicators: boolean
+  controlled_docs: boolean
 }
 
 /** A flag key. */
@@ -71,4 +72,14 @@ export async function featureEnabled(key: FeatureFlagKey): Promise<boolean> {
  */
 export async function qualityIndicatorsEnabled(): Promise<boolean> {
   return featureEnabled('quality_indicators')
+}
+
+/**
+ * Whether the Phase-17 Controlled Documents feature is ON. Thin per-flag wrapper
+ * over {@link featureEnabled} (consistent with the other per-flag `*Enabled()`
+ * readers), so callers avoid an `as FeatureFlagKey` cast. Request-memoized via
+ * {@link getFeatureFlags}. Seeded OFF in B1; flips ON at the end of Phase 17 (B-final).
+ */
+export async function controlledDocsEnabled(): Promise<boolean> {
+  return featureEnabled('controlled_docs')
 }

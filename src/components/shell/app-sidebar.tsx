@@ -9,7 +9,9 @@ import {
   BarChart3,
   Briefcase,
   CalendarDays,
+  ClipboardCheck,
   ClipboardList,
+  FileText,
   FolderOpen,
   Gauge,
   Layers,
@@ -30,7 +32,7 @@ import {
 
 import type { CommissionRole, Membership } from "@/lib/queries/session";
 import { cn } from "@/lib/utils";
-import { nspHref } from "@/lib/routing";
+import { nspHref, orgHref } from "@/lib/routing";
 import { CommissionSwitcher } from "./commission-switcher";
 import { UserMenu } from "./user-menu";
 
@@ -71,7 +73,8 @@ interface NavItem {
     | "audit"
     | "patient_safety"
     | "case_referrals"
-    | "quality_indicators";
+    | "quality_indicators"
+    | "controlled_docs";
   /**
    * When true, the item renders only if `actionItemsEnabled` is on — the composite
    * flag `cases_extras OR meetings OR action_items` resolved by the layout (the
@@ -211,6 +214,13 @@ const NAV_GROUPS: NavGroup[] = [
         requiresFeature: "quality_indicators",
       },
       {
+        label: "Documentos",
+        href: "manage/documentos",
+        icon: FileText,
+        roles: ["staff_admin"],
+        requiresFeature: "controlled_docs",
+      },
+      {
         label: "Trilha de auditoria",
         href: "manage/audit",
         icon: ScrollText,
@@ -253,6 +263,7 @@ export function AppSidebar({
   caseAccessEnabled = false,
   actionItemsEnabled = false,
   qualityIndicatorsEnabled = false,
+  controlledDocsEnabled = false,
   isNspCoordinator = false,
   isPqsMember = false,
 }: {
@@ -291,6 +302,8 @@ export function AppSidebar({
   actionItemsEnabled?: boolean;
   /** Whether the `quality_indicators` flag is on (gates the "Indicadores" item, Phase 15). */
   qualityIndicatorsEnabled?: boolean;
+  /** Whether the `controlled_docs` flag is on (gates the "Documentos" item, Phase 17). */
+  controlledDocsEnabled?: boolean;
   /** Whether the current user is the org's NSP coordinator (curates the PQS roster). */
   isNspCoordinator?: boolean;
   /** Whether the current user is enrolled as a PQS member (may read PHI in the console). */
@@ -316,6 +329,8 @@ export function AppSidebar({
       item.requiresFeature === "quality_indicators" &&
       !qualityIndicatorsEnabled
     )
+      return false;
+    if (item.requiresFeature === "controlled_docs" && !controlledDocsEnabled)
       return false;
     if (item.requiresActionItems && !actionItemsEnabled) return false;
     // The "Minhas fases" / "Meus Casos" inverse pair: one shows per the flag.
@@ -519,6 +534,49 @@ export function AppSidebar({
                         )}
                       />
                       <span className="flex-1 truncate">Núcleo de Segurança</span>
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+            );
+          })()}
+
+          {/* Per-user document-approval queue — shown to any member when the
+              controlled-documents feature is on, since an approver may be named
+              from OUTSIDE their own commission (Phase 17, F4). Org-level href. */}
+          {controlledDocsEnabled && (() => {
+            const href = orgHref(org, "documentos-pendentes");
+            const isActive = pathname.startsWith(href);
+            return (
+              <div className="mb-4">
+                <p className="px-2 pb-1.5 text-[0.65rem] font-semibold tracking-[0.08em] text-sidebar-foreground/45 uppercase">
+                  Organização
+                </p>
+                <ul className="flex flex-col gap-0.5">
+                  <li>
+                    <Link
+                      href={href}
+                      onClick={closeDrawer}
+                      aria-current={isActive ? "page" : undefined}
+                      className={cn(
+                        "group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+                        isActive
+                          ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
+                          : "font-medium text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
+                      )}
+                    >
+                      <ClipboardCheck
+                        aria-hidden="true"
+                        className={cn(
+                          "size-[1.05rem] shrink-0 transition-colors",
+                          isActive
+                            ? "text-sidebar-accent-foreground"
+                            : "text-sidebar-foreground/55 group-hover:text-sidebar-foreground",
+                        )}
+                      />
+                      <span className="flex-1 truncate">
+                        Aprovações pendentes
+                      </span>
                     </Link>
                   </li>
                 </ul>

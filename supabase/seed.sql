@@ -1830,3 +1830,112 @@ begin
 
   perform set_config('request.jwt.claims', '', true);
 end $ind$;
+
+-- ===========================================================================
+-- Phase 17 — Controlled Documents (Documentos Controlados). Representative data
+-- under commission A (CCIH; chefe.ccih persona) so the E2E acceptance flows have
+-- something to render:
+--   1) A VIGENTE document (published v1) with a PAST-DUE review_due_date — surfaces
+--      in the review-due list AND the hospital register.
+--   2) A document EM_APROVACAO whose approver set includes chefe.farm (0005) — an
+--      ACTIVE same-hospital user who is NOT a CCIH member (the outside-commission
+--      approver persona), so the E2E can sign in as 0005 and confirm the approver-
+--      read arm (sees ONLY this document) + the approval controls.
+-- Inserted directly as postgres (RLS bypassed); status writes wrapped in the
+-- app.in_controlled_docs_rpc flag so the state-machine + frozen-approver-set guards
+-- permit the direct transitions.
+--
+-- BUG-DOC-002 (storage_path is NULL on purpose): a SQL seed CANNOT put real object
+-- BYTES into the controlled-documents bucket — the local storage-api serves from its
+-- own file backend (container /mnt volume), unreachable from Postgres — and a
+-- storage.objects row with no bytes 404s on download (worse than an honest empty
+-- state). So the seed leaves storage_path NULL and the detail page shows "Sem arquivo"
+-- truthfully. This matches the whole existing seed convention (form-assets, meetings,
+-- interviews, cases all reference paths WITHOUT backing objects). Download coverage is
+-- provided by AC-1's REAL upload flow, not seed data. signature_hash below is computed
+-- over the EMPTY path (coalesce(storage_path,'')) so it matches exactly what
+-- approve_document would produce for a null-path version (self-consistent seed).
+--
+-- LOCAL-ONLY FLAG FLIP: the migration keeps controlled_docs default OFF (so PROD
+-- stays OFF until the deliberate Record-step flip the lead owns at phase close).
+-- seed.sql runs ONLY on `supabase db reset` (never in prod), so flipping it ON HERE
+-- yields a flag-ON LOCAL/E2E env — the tester + preview need the `documentos` surface
+-- live (with it OFF the layout 404s and the seeded DOC-0001/0002 are unreachable).
+-- (Phase 15 flipped quality_indicators via a MIGRATION because that WAS its ship
+--  state — prod ON intended. Phase 17 is not shipping yet, so we use the seed instead.)
+update app.feature_flags set enabled = true where key = 'controlled_docs';
+-- ---------------------------------------------------------------------------
+do $cd$
+declare
+  v_comm_a  uuid := 'a0000000-0000-0000-0000-0000000000a1';  -- CCIH (hospital 05..0a)
+  v_chefe   uuid := '00000000-0000-0000-0000-000000000002';  -- chefe.ccih (staff_admin of A)
+  v_farm    uuid := '00000000-0000-0000-0000-000000000005';  -- chefe.farm (same hospital, NOT a CCIH member) — the E2E outside-commission approver
+  v_farm2   uuid := '00000000-0000-0000-0000-000000000006';  -- Farmacêutico Um (same hospital, NOT a CCIH member) — DOC-0001's outside approver
+  v_staff1  uuid := '00000000-0000-0000-0000-000000000003';  -- staff of A (in-commission approver)
+  v_doc_vig uuid;
+  v_ver_vig uuid;
+  v_doc_apr uuid;
+  v_ver_apr uuid;
+begin
+  perform set_config('request.jwt.claims',
+    jsonb_build_object('sub', v_chefe, 'role', 'authenticated')::text, true);
+  perform set_config('app.in_controlled_docs_rpc', 'on', true);
+
+  -- 1) VIGENTE document with a PAST-DUE review_due_date.
+  insert into public.controlled_documents
+    (commission_id, code, title, doc_type, review_cycle_months, status, created_by)
+  values
+    (v_comm_a, 'DOC-0001', 'Política de Higienização das Mãos', 'politica', 12, 'vigente', v_chefe)
+  returning id into v_doc_vig;
+
+  insert into public.controlled_document_versions
+    (document_id, version_number, storage_path, summary_of_changes_md,
+     effective_date, review_due_date, status, created_by)
+  -- storage_path NULL on purpose (BUG-DOC-002 — no real bytes seedable; see header).
+  values
+    (v_doc_vig, 1, null,
+     'Versão inicial da política.', date '2025-01-15', date '2026-01-15',  -- review_due IN THE PAST
+     'vigente', v_chefe)
+  returning id into v_ver_vig;
+
+  update public.controlled_documents set current_version_id = v_ver_vig where id = v_doc_vig;
+
+  -- Its two named approvers (both already aprovado, so it published). signature_hash is
+  -- computed over the EMPTY path (coalesce(storage_path,'')) exactly as approve_document
+  -- would for this null-path version — a self-consistent seed.
+  insert into public.document_approvals
+    (document_version_id, approver_id, approver_title, decision, decided_at, note, signature_hash)
+  values
+    (v_ver_vig, v_staff1, 'Enfermeira CCIH', 'aprovado', now() - interval '18 months', null,
+     encode(extensions.digest('' || ':' || v_staff1::text || ':aprovado', 'sha256'), 'hex')),
+    (v_ver_vig, v_farm2, 'Diretor Técnico', 'aprovado', now() - interval '18 months', null,
+     encode(extensions.digest('' || ':' || v_farm2::text || ':aprovado', 'sha256'), 'hex'));
+
+  -- 2) EM_APROVACAO document naming the OUTSIDE-commission approver 0005 (pending).
+  insert into public.controlled_documents
+    (commission_id, code, title, doc_type, review_cycle_months, status, created_by)
+  values
+    (v_comm_a, 'DOC-0002', 'POP de Isolamento de Contato', 'pop', 24, 'em_aprovacao', v_chefe)
+  returning id into v_doc_apr;
+
+  insert into public.controlled_document_versions
+    (document_id, version_number, storage_path, summary_of_changes_md, status, created_by)
+  values
+    -- storage_path NULL on purpose (BUG-DOC-002 — no real bytes seedable; see header).
+    (v_doc_apr, 1, null,
+     'Primeira versão para aprovação.', 'em_aprovacao', v_chefe)
+  returning id into v_ver_apr;
+
+  update public.controlled_documents set current_version_id = v_ver_apr where id = v_doc_apr;
+
+  -- Pending approvals: one in-commission (staff1), one OUTSIDE-commission same-hospital (chefe.farm).
+  -- The pending rows GRANT chefe.farm read of ONLY this document (the approver-read arm).
+  insert into public.document_approvals
+    (document_version_id, approver_id, approver_title)
+  values
+    (v_ver_apr, v_staff1, 'Enfermeira CCIH'),
+    (v_ver_apr, v_farm, 'Diretor Técnico');
+
+  perform set_config('app.in_controlled_docs_rpc', 'off', true);
+  perform set_config('request.jwt.claims', '', true);
+end $cd$;

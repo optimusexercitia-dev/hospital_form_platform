@@ -1321,14 +1321,41 @@ export async function createForm(
 }
 
 /**
+ * Optional controlled-document metadata captured at publish (Phase 17, F7). All
+ * OPTIONAL and pure pass-through — omitting them publishes byte-for-byte as before
+ * (a form not treated as a controlled document acquires no effective/review date).
+ * When present, `publish_form_version` stamps `approved_by`/`effective_date` and
+ * computes `review_due_date = effective + reviewCycleMonths` (an explicit
+ * `reviewDueDate` override wins). These columns are then immutable (settable only via
+ * this RPC).
+ */
+export interface PublishVersionOptions {
+  /** Named approver captured at publish (metadata only — forms have no e-sign). */
+  approverId?: string
+  /** Effective date (YYYY-MM-DD), stored verbatim; NULL when omitted. */
+  effectiveDate?: string
+  /** Review cycle in months — drives `review_due_date` (effective-base + cycle). */
+  reviewCycleMonths?: number
+  /** Explicit review-due-date override (YYYY-MM-DD) — wins over the cycle math. */
+  reviewDueDate?: string
+}
+
+/**
  * Publish a draft version via publish_form_version (validates conditions,
  * archives the prior published version, flips to published). Maps the RPC's
  * failures to clear pt-BR: forward/missing/first-section condition errors and
  * the "only drafts may be published" lifecycle error. The RPC raises pt-BR text
  * itself, so we surface its message when present and fall back to our copy
  * otherwise.
+ *
+ * Phase 17 (F7): accepts optional controlled-document metadata ({@link
+ * PublishVersionOptions}) forwarded to the widened RPC. Backward-compatible — the
+ * existing `publishVersion(versionId)` call sites pass nothing and behave unchanged.
  */
-export async function publishVersion(versionId: string): Promise<ActionState> {
+export async function publishVersion(
+  versionId: string,
+  options?: PublishVersionOptions,
+): Promise<ActionState> {
   if (!versionId) return { ok: false, error: MESSAGES.missingVersion }
 
   const supabase = await createClient()
@@ -1340,6 +1367,10 @@ export async function publishVersion(versionId: string): Promise<ActionState> {
 
   const { error } = await supabase.rpc('publish_form_version', {
     p_form_version_id: versionId,
+    p_approved_by: options?.approverId || undefined,
+    p_effective_date: options?.effectiveDate || undefined,
+    p_review_cycle_months: options?.reviewCycleMonths ?? undefined,
+    p_review_due_date: options?.reviewDueDate || undefined,
   })
 
   if (error) {

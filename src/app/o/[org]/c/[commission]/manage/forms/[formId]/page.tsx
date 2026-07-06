@@ -9,6 +9,8 @@ import {
   listVersions,
   getSignedAssetUrl,
 } from "@/lib/queries/forms";
+import { controlledDocsEnabled } from "@/lib/queries/feature-flags";
+import { listApproverCandidates } from "@/lib/queries/documents";
 import { BuilderShell } from "@/components/forms/builder-shell";
 import { PublishedReadOnly } from "@/components/forms/published-read-only";
 
@@ -54,6 +56,16 @@ export default async function BuilderPage({
     // Pre-resolve signed URLs for any image blocks so the builder can show
     // previews without a client round trip per image.
     const imageUrls = await resolveImageUrls(draft);
+
+    // Phase 17, F7 — when controlled-documents is on, the publish dialog offers
+    // optional document-control metadata (approver + effective date + review
+    // cycle). Resolve the approver candidates only then (flag off → empty, and the
+    // metadata section is hidden, so publishing behaves exactly as before).
+    const controlledDocsOn = await controlledDocsEnabled();
+    const approverCandidates = controlledDocsOn
+      ? await listApproverCandidates(access.commission.id)
+      : [];
+
     return (
       <BuilderShell
         org={org} slug={slug}
@@ -64,6 +76,8 @@ export default async function BuilderPage({
         commissionName={access.commission.name}
         tree={draft}
         imageUrls={imageUrls}
+        controlledDocsEnabled={controlledDocsOn}
+        approverCandidates={approverCandidates}
       />
     );
   }

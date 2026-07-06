@@ -2471,6 +2471,174 @@ export type Database = {
           },
         ]
       }
+      controlled_document_versions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          document_id: string
+          effective_date: string | null
+          expiry_date: string | null
+          id: string
+          review_due_date: string | null
+          status: string
+          storage_path: string | null
+          summary_of_changes_md: string | null
+          updated_at: string
+          version_number: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          document_id: string
+          effective_date?: string | null
+          expiry_date?: string | null
+          id?: string
+          review_due_date?: string | null
+          status?: string
+          storage_path?: string | null
+          summary_of_changes_md?: string | null
+          updated_at?: string
+          version_number: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          document_id?: string
+          effective_date?: string | null
+          expiry_date?: string | null
+          id?: string
+          review_due_date?: string | null
+          status?: string
+          storage_path?: string | null
+          summary_of_changes_md?: string | null
+          updated_at?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "controlled_document_versions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "controlled_document_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "controlled_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      controlled_documents: {
+        Row: {
+          code: string
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          current_version_id: string | null
+          doc_type: string
+          id: string
+          review_cycle_months: number | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          commission_id: string
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          doc_type: string
+          id?: string
+          review_cycle_months?: number | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          commission_id?: string
+          created_at?: string
+          created_by?: string | null
+          current_version_id?: string | null
+          doc_type?: string
+          id?: string
+          review_cycle_months?: number | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "controlled_documents_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "controlled_documents_current_version_fkey"
+            columns: ["current_version_id"]
+            isOneToOne: false
+            referencedRelation: "controlled_document_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_approvals: {
+        Row: {
+          approver_id: string
+          approver_title: string | null
+          created_at: string
+          decided_at: string | null
+          decision: string | null
+          document_version_id: string
+          id: string
+          note: string | null
+          signature_hash: string | null
+        }
+        Insert: {
+          approver_id: string
+          approver_title?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decision?: string | null
+          document_version_id: string
+          id?: string
+          note?: string | null
+          signature_hash?: string | null
+        }
+        Update: {
+          approver_id?: string
+          approver_title?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decision?: string | null
+          document_version_id?: string
+          id?: string
+          note?: string | null
+          signature_hash?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_approvals_approver_id_fkey"
+            columns: ["approver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_approvals_document_version_id_fkey"
+            columns: ["document_version_id"]
+            isOneToOne: false
+            referencedRelation: "controlled_document_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_custody: {
         Row: {
           assigned_by: string | null
@@ -2866,33 +3034,52 @@ export type Database = {
       }
       form_versions: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           created_at: string
           created_by: string | null
+          effective_date: string | null
           form_id: string
           id: string
           published_at: string | null
+          review_due_date: string | null
           status: string
           version_number: number
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           created_by?: string | null
+          effective_date?: string | null
           form_id: string
           id?: string
           published_at?: string | null
+          review_due_date?: string | null
           status?: string
           version_number: number
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           created_at?: string
           created_by?: string | null
+          effective_date?: string | null
           form_id?: string
           id?: string
           published_at?: string | null
+          review_due_date?: string | null
           status?: string
           version_number?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "form_versions_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "form_versions_created_by_fkey"
             columns: ["created_by"]
@@ -5992,6 +6179,26 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      approve_document: {
+        Args: { p_note?: string; p_version_id: string }
+        Returns: {
+          approver_id: string
+          approver_title: string | null
+          created_at: string
+          decided_at: string | null
+          decision: string | null
+          document_version_id: string
+          id: string
+          note: string | null
+          signature_hash: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "document_approvals"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       archive_case_narrative_type: {
         Args: { p_narrative_type_id: string }
         Returns: {
@@ -6915,6 +7122,33 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_controlled_document: {
+        Args: {
+          p_commission: string
+          p_doc_type: string
+          p_review_cycle_months?: number
+          p_title: string
+        }
+        Returns: {
+          code: string
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          current_version_id: string | null
+          doc_type: string
+          id: string
+          review_cycle_months: number | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "controlled_documents"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_event_type: {
         Args: {
           p_description?: string
@@ -7474,6 +7708,20 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      documents_due_for_review: {
+        Args: { p_commission: string }
+        Returns: {
+          code: string
+          commission_id: string
+          commission_name: string
+          document_id: string
+          form_version_id: string
+          is_overdue: boolean
+          review_due_date: string
+          source_kind: string
+          title: string
+        }[]
+      }
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_case_patient: { Args: { p_case_id: string }; Returns: Json }
       get_event_patient: { Args: { p_event_id: string }; Returns: Json }
@@ -7506,6 +7754,27 @@ export type Database = {
           p_user: string
         }
         Returns: undefined
+      }
+      hospital_document_register: {
+        Args: {
+          p_doc_type?: string
+          p_hospital: string
+          p_review_overdue_only?: boolean
+          p_status?: string
+        }
+        Returns: {
+          code: string
+          commission_id: string
+          commission_name: string
+          current_version_number: number
+          doc_type: string
+          document_id: string
+          effective_date: string
+          is_review_overdue: boolean
+          review_due_date: string
+          status: string
+          title: string
+        }[]
       }
       hospital_indicator_rollup: {
         Args: { p_hospital: string }
@@ -7627,6 +7896,14 @@ export type Database = {
           user_id: string
         }[]
       }
+      list_approver_candidates: {
+        Args: { p_commission: string }
+        Returns: {
+          id: string
+          name: string
+          title: string
+        }[]
+      }
       list_audit_filter_actors: {
         Args: { p_commission?: string }
         Returns: {
@@ -7700,6 +7977,28 @@ export type Database = {
           p_summary: string
         }
         Returns: undefined
+      }
+      mark_document_obsolete: {
+        Args: { p_document_id: string }
+        Returns: {
+          code: string
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          current_version_id: string | null
+          doc_type: string
+          id: string
+          review_cycle_months: number | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "controlled_documents"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       mark_meeting_held: {
         Args: { p_meeting_id: string }
@@ -7867,14 +8166,52 @@ export type Database = {
         }[]
       }
       processless_cases_enabled: { Args: never; Returns: boolean }
-      publish_form_version: {
-        Args: { p_form_version_id: string }
+      publish_document: {
+        Args: {
+          p_effective_date?: string
+          p_expiry_date?: string
+          p_review_due_date?: string
+          p_version_id: string
+        }
         Returns: {
           created_at: string
           created_by: string | null
+          document_id: string
+          effective_date: string | null
+          expiry_date: string | null
+          id: string
+          review_due_date: string | null
+          status: string
+          storage_path: string | null
+          summary_of_changes_md: string | null
+          updated_at: string
+          version_number: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "controlled_document_versions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      publish_form_version: {
+        Args: {
+          p_approved_by?: string
+          p_effective_date?: string
+          p_form_version_id: string
+          p_review_cycle_months?: number
+          p_review_due_date?: string
+        }
+        Returns: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string | null
+          effective_date: string | null
           form_id: string
           id: string
           published_at: string | null
+          review_due_date: string | null
           status: string
           version_number: number
         }
@@ -8076,6 +8413,26 @@ export type Database = {
         }
       }
       referrals_enabled: { Args: never; Returns: boolean }
+      reject_document: {
+        Args: { p_note?: string; p_version_id: string }
+        Returns: {
+          approver_id: string
+          approver_title: string | null
+          created_at: string
+          decided_at: string | null
+          decision: string | null
+          document_version_id: string
+          id: string
+          note: string | null
+          signature_hash: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "document_approvals"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       remove_capa_action: { Args: { p_action_id: string }; Returns: undefined }
       remove_capa_action_task: {
         Args: { p_task_id: string }
@@ -8621,6 +8978,34 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_document_version_file: {
+        Args: {
+          p_expiry_date?: string
+          p_storage_path: string
+          p_summary_of_changes_md?: string
+          p_version_id: string
+        }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          document_id: string
+          effective_date: string | null
+          expiry_date: string | null
+          id: string
+          review_due_date: string | null
+          status: string
+          storage_path: string | null
+          summary_of_changes_md: string | null
+          updated_at: string
+          version_number: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "controlled_document_versions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_event_patient: {
         Args: {
           p_age_years?: number
@@ -9017,6 +9402,29 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      submit_document_for_approval: {
+        Args: { p_approvers: Json; p_version_id: string }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          document_id: string
+          effective_date: string | null
+          expiry_date: string | null
+          id: string
+          review_due_date: string | null
+          status: string
+          storage_path: string | null
+          summary_of_changes_md: string | null
+          updated_at: string
+          version_number: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "controlled_document_versions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       submit_rca_for_review: {
         Args: { p_rca_id: string }
         Returns: {
@@ -9062,6 +9470,29 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "responses"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      supersede_document: {
+        Args: { p_document_id: string }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          document_id: string
+          effective_date: string | null
+          expiry_date: string | null
+          id: string
+          review_due_date: string | null
+          status: string
+          storage_path: string | null
+          summary_of_changes_md: string | null
+          updated_at: string
+          version_number: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "controlled_document_versions"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -9331,6 +9762,33 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_controlled_document: {
+        Args: {
+          p_doc_type: string
+          p_id: string
+          p_review_cycle_months?: number
+          p_title: string
+        }
+        Returns: {
+          code: string
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          current_version_id: string | null
+          doc_type: string
+          id: string
+          review_cycle_months: number | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "controlled_documents"
           isOneToOne: true
           isSetofReturn: false
         }

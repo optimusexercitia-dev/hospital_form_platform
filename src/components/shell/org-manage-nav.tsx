@@ -11,7 +11,11 @@ interface OrgNavItem {
   /** Relative segments under `/o/[org]/manage` ("" = the manage landing). */
   segments: string[];
   /** When set, render only if this feature flag is on. */
-  requiresFeature?: "audit" | "patientSafety" | "qualityIndicators";
+  requiresFeature?:
+    | "audit"
+    | "patientSafety"
+    | "qualityIndicators"
+    | "controlledDocs";
   /** When true, render ONLY for an `org_admin` — hidden for a hospital-scoped
    * `hospital_admin` (ADR 0051 Decision 1: org-level-only surfaces). */
   orgAdminOnly?: boolean;
@@ -32,6 +36,14 @@ const ORG_NAV_ITEMS: OrgNavItem[] = [
     label: "Indicadores",
     segments: ["indicadores"],
     requiresFeature: "qualityIndicators",
+  },
+  // Documentos — the hospital-wide controlled-document register (Phase 17, F6).
+  // Visible to both org_admin and hospital_admin; the DEFINER rollup re-gates per
+  // hospital.
+  {
+    label: "Documentos",
+    segments: ["documentos"],
+    requiresFeature: "controlledDocs",
   },
   // "Coordenação do NSP" retired under NSP-per-hospital (ADR 0052, decision 3):
   // org_admin no longer appoints coordinators. The org appoints the nsp_org_admin
@@ -60,12 +72,14 @@ export function OrgManageNav({
   auditEnabled = false,
   patientSafetyEnabled = false,
   qualityIndicatorsEnabled = false,
+  controlledDocsEnabled = false,
   isOrgAdmin = true,
 }: {
   org: string;
   auditEnabled?: boolean;
   patientSafetyEnabled?: boolean;
   qualityIndicatorsEnabled?: boolean;
+  controlledDocsEnabled?: boolean;
   isOrgAdmin?: boolean;
 }) {
   const pathname = usePathname();
@@ -77,6 +91,8 @@ export function OrgManageNav({
     if (item.requiresFeature === "patientSafety") return patientSafetyEnabled;
     if (item.requiresFeature === "qualityIndicators")
       return qualityIndicatorsEnabled;
+    if (item.requiresFeature === "controlledDocs")
+      return controlledDocsEnabled;
     return true;
   });
 
