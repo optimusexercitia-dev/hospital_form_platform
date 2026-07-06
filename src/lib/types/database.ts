@@ -6542,6 +6542,36 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      compute_derived_measurement: {
+        Args: {
+          p_denominator?: number
+          p_indicator: string
+          p_period_end?: string
+          p_period_label: string
+          p_period_start?: string
+        }
+        Returns: {
+          denominator: number | null
+          entered_at: string
+          entered_by: string | null
+          id: string
+          indicator_id: string
+          note: string | null
+          numerator: number | null
+          period_end: string | null
+          period_label: string
+          period_start: string | null
+          source: string
+          status: string
+          value: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "indicator_measurements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       conclude_interview: {
         Args: { p_interview_id: string }
         Returns: {
