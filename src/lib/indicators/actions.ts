@@ -1,32 +1,9 @@
 'use server'
 
-/**
- * Quality-indicator server actions (Phase 15; Architecture Rules 9, 10, 11).
- *
- * Every write routes through a SECURITY DEFINER RPC (filled in B3/B4/B6). Indicator
- * authoring is `is_staff_admin_of OR is_commission_admin_of` (the post-ADR-0051
- * combined predicate), enforced in the RPC — the sole authority. Measurement edits
- * are staff_admin-write and AUDITED (Rule 11) — corrections are contemporaneous +
- * attributable, never silently overwritten.
- *
- * Off-target → CAPA is TWO-TIER escalation (ADR 0057):
- *  - {@link openCapaFromIndicator} — PQS operators only. Routes to `open_capa_plan`
- *    with `p_source='indicator'`; the RPC DERIVES `hospital_id` from the indicator's
- *    commission (no manual hospital). CAPA write stays PQS-operator-gated
- *    (`can_write_capa` untouched, the WS-3c posture).
- *  - Non-operator staff_admins get NO CAPA affordance; they call the SHARED
- *    Action-Items Hub instead — {@link createActionItem} from
- *    `@/lib/cases/action-items-actions` (there is NO indicator-specific action).
- *    F5 wires the "Criar item de ação" button to that existing action; this module
- *    intentionally does NOT re-implement it.
- *
- * `useActionState`-shaped `{ ok, error?, fieldErrors? }` (the action-items-hub
- * convention). All user-facing strings are pt-BR (Rule 10); raw Postgres errors
- * never reach the UI (§8). SQLSTATEs are mapped from `HC084`+ (B3/B4).
- *
- * ⚠ STUBS — signatures are the FROZEN contract (task B1); bodies land in B3/B4/B6.
- */
+import { revalidatePath } from 'next/cache'
 
+import { createClient } from '@/lib/supabase/server'
+import type { Json } from '@/lib/types/database'
 import type {
   DataSource,
   IndicatorDirection,
@@ -34,6 +11,28 @@ import type {
   IndicatorKind,
   TargetComparator,
 } from '@/lib/indicators/types'
+
+/**
+ * Quality-indicator server actions (Phase 15; Architecture Rules 9, 10, 11).
+ *
+ * Every write routes through a SECURITY DEFINER RPC. Indicator authoring is
+ * `is_staff_admin_of OR is_commission_admin_of` (the post-ADR-0051 combined
+ * predicate), enforced in the RPC — the sole authority (no client pre-check).
+ * Measurement writes are AUDITED (Rule 11) — corrections are contemporaneous +
+ * attributable.
+ *
+ * Off-target → CAPA is TWO-TIER escalation (ADR 0057):
+ *  - {@link openCapaFromIndicator} — PQS operators only. Routes to `open_capa_plan`
+ *    with `p_source='indicator'`; the RPC DERIVES `hospital_id` from the indicator's
+ *    commission (no manual hospital). CAPA write stays PQS-operator-gated
+ *    (`can_write_capa` untouched, the WS-3c posture).
+ *  - Non-operator staff_admins get NO CAPA affordance; F5 calls the SHARED
+ *    Action-Items Hub `createManualActionItem` (`@/lib/action-items/actions`)
+ *    instead. There is NO indicator-specific action-item action.
+ *
+ * `useActionState`-shaped `{ ok, error?, fieldErrors? }`. pt-BR strings (Rule 10);
+ * raw Postgres errors never reach the UI (§8). SQLSTATEs HC084–HC088 mapped below.
+ */
 
 /** `useActionState`-shaped result (the action-items-hub convention). */
 export interface ActionState {
@@ -48,8 +47,8 @@ export interface CreateIndicatorState extends ActionState {
 }
 
 /**
- * Compute returns the resulting measurement id + the derived numerator so the
- * hybrid dialog can echo it back before the denominator is confirmed.
+ * Compute returns the resulting measurement's derived numerator/denominator/value
+ * so the hybrid dialog can echo them back.
  */
 export interface ComputeMeasurementState extends ActionState {
   measurementId?: string
@@ -58,7 +57,106 @@ export interface ComputeMeasurementState extends ActionState {
   value?: number
 }
 
-const NOT_IMPLEMENTED = 'not implemented — B3/B4/B6'
+const MESSAGES = {
+  forbidden: 'Você não tem permissão para esta ação.',
+  unavailable: 'O recurso de indicadores de qualidade não está disponível.',
+  generic: 'Não foi possível concluir. Tente novamente.',
+  notFound: 'Indicador não encontrado.',
+  nameRequired: 'Informe o nome do indicador.',
+  commissionRequired: 'Comissão não encontrada.',
+  periodRequired: 'Informe o período (ex.: 2026-06).',
+  numeratorRequired: 'Informe o numerador.',
+  numberInvalid: 'Informe um valor numérico válido.',
+  dateInvalid: 'Informe uma data válida.',
+  configInvalid: 'Configuração derivada inválida ou código de opção desconhecido.',
+  isManual: 'Este indicador é manual; use o lançamento manual.',
+  isDerived: 'Este indicador é derivado; use o cálculo automático.',
+  denomZero: 'O denominador deve ser diferente de zero.',
+  denomRequired: 'Informe o denominador.',
+  createdIndicator: 'Indicador criado.',
+  updatedIndicator: 'Indicador atualizado.',
+  archivedIndicator: 'Indicador arquivado.',
+  targetSet: 'Meta atualizada.',
+  measurementRecorded: 'Medição registrada.',
+  measurementComputed: 'Medição calculada.',
+  capaOpened: 'Plano de ação (CAPA) aberto.',
+  capaForbidden: 'Apenas o NSP pode abrir planos de ação.',
+} as const
+
+const PG_CHECK_VIOLATION = '23514'
+const PG_FORBIDDEN = '42501'
+
+/** Map an indicator RPC error (SQLSTATE HC084–HC088 + generic) to a pt-BR string. */
+function mapIndicatorError(error: { code?: string; message?: string } | null): string {
+  if (!error) return MESSAGES.generic
+  switch (error.code) {
+    case 'HC084':
+      return error.message || MESSAGES.configInvalid
+    case 'HC085':
+      return MESSAGES.isManual
+    case 'HC086':
+      return MESSAGES.isDerived
+    case 'HC087':
+      return MESSAGES.denomZero
+    case 'HC088':
+      return MESSAGES.denomRequired
+    case PG_FORBIDDEN:
+      return MESSAGES.forbidden
+    case PG_CHECK_VIOLATION:
+      return error.message || MESSAGES.generic
+    default:
+      return MESSAGES.generic
+  }
+}
+
+// --- form-field parsing helpers -------------------------------------------
+
+/** Parse a required numeric field. Returns null on empty/invalid. */
+function parseNumber(raw: FormDataEntryValue | null): number | null {
+  const s = String(raw ?? '').trim().replace(',', '.')
+  if (!s) return null
+  const n = Number(s)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Parse an optional numeric field. `undefined` when empty, `null` when invalid. */
+function parseOptionalNumber(raw: FormDataEntryValue | null): number | null | undefined {
+  const s = String(raw ?? '').trim()
+  if (!s) return undefined
+  const n = Number(s.replace(',', '.'))
+  return Number.isFinite(n) ? n : null
+}
+
+/** Parse an optional ISO date (YYYY-MM-DD). `undefined` empty, `null` invalid. */
+function parseDate(raw: FormDataEntryValue | null): string | undefined | null {
+  const t = String(raw ?? '').trim()
+  if (!t) return undefined
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return null
+  const d = new Date(`${t}T00:00:00Z`)
+  if (Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== t) return null
+  return t
+}
+
+/** Parse the optional `derivedConfig` JSON blob from a form field. */
+function parseDerivedConfig(raw: FormDataEntryValue | null): Json | undefined {
+  const s = String(raw ?? '').trim()
+  if (!s) return undefined
+  try {
+    return JSON.parse(s) as Json
+  } catch {
+    return undefined
+  }
+}
+
+const INDICATORS_PATH = '/o/[org]/c/[commission]/manage/indicators'
+const INDICATOR_DETAIL_PATH = '/o/[org]/c/[commission]/manage/indicators/[indicatorId]'
+const DASHBOARD_PATH = '/o/[org]/c/[commission]/dashboard'
+
+function revalidateIndicators(): void {
+  revalidatePath(INDICATORS_PATH, 'page')
+  revalidatePath(INDICATOR_DETAIL_PATH, 'page')
+  revalidatePath(DASHBOARD_PATH, 'page')
+}
 
 // ---------------------------------------------------------------------------
 // Indicator CRUD (staff_admin OR commission_admin — RPC-enforced)
@@ -67,113 +165,275 @@ const NOT_IMPLEMENTED = 'not implemented — B3/B4/B6'
 /**
  * Create an indicator. `useActionState`-shaped. Fields: `commissionId`, `name`,
  * `kind`, `direction`, `dataSource`, `frequency`, `targetComparator`,
- * `targetValue`, and (for derived/hybrid) the `derivedConfig` fields
- * (`formId`, numerator `questionKey` + `optionCodes[]`, denominator ref).
- * Routes to `create_indicator`; option `code`s are validated against the form's
- * latest published version (HC084 on an unknown code). Returns `indicatorId`.
+ * `targetValue`, optional labels/unit/`descriptionMd`/warning band, and (for
+ * derived/hybrid) a `derivedConfig` JSON field. Routes to `create_indicator`;
+ * option `code`s validated against the latest published version (HC084). Returns
+ * `indicatorId`.
  */
 export async function createIndicator(
   _prev: CreateIndicatorState | undefined,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<CreateIndicatorState> {
-  throw new Error(NOT_IMPLEMENTED)
+  const commissionId = String(formData.get('commissionId') ?? '')
+  const name = String(formData.get('name') ?? '').trim()
+  const kind = String(formData.get('kind') ?? 'percentual') as IndicatorKind
+  const direction = String(formData.get('direction') ?? 'maior_melhor') as IndicatorDirection
+  const dataSource = String(formData.get('dataSource') ?? 'manual') as DataSource
+  const frequency = String(formData.get('frequency') ?? 'mensal') as IndicatorFrequency
+  const targetComparator = String(formData.get('targetComparator') ?? '>=') as TargetComparator
+  const targetValue = parseOptionalNumber(formData.get('targetValue'))
+  const derivedConfig = parseDerivedConfig(formData.get('derivedConfig'))
+
+  if (!commissionId) return { ok: false, error: MESSAGES.commissionRequired }
+  if (!name) return { ok: false, fieldErrors: { name: MESSAGES.nameRequired } }
+  if (targetValue === null) return { ok: false, fieldErrors: { targetValue: MESSAGES.numberInvalid } }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('create_indicator', {
+    p_commission: commissionId,
+    p_name: name,
+    p_kind: kind,
+    p_direction: direction,
+    p_data_source: dataSource,
+    p_frequency: frequency,
+    p_target_comparator: targetComparator,
+    p_target_value: targetValue ?? undefined,
+    p_numerator_label: String(formData.get('numeratorLabel') ?? '').trim() || undefined,
+    p_denominator_label: String(formData.get('denominatorLabel') ?? '').trim() || undefined,
+    p_unit: String(formData.get('unit') ?? '').trim() || undefined,
+    p_description_md: String(formData.get('descriptionMd') ?? '').trim() || undefined,
+    p_lower_warn: parseOptionalNumber(formData.get('lowerWarn')) ?? undefined,
+    p_upper_warn: parseOptionalNumber(formData.get('upperWarn')) ?? undefined,
+    p_derived_config: derivedConfig ?? undefined,
+  })
+
+  if (error || !data) return { ok: false, error: mapIndicatorError(error) }
+
+  revalidateIndicators()
+  return { ok: true, error: MESSAGES.createdIndicator, indicatorId: data.id }
 }
 
 /**
- * Edit an indicator's definition (`name`/`descriptionMd`/labels/`unit`/
- * `derivedConfig`/`direction`/`frequency`/warning band). `useActionState`-shaped;
- * expects `indicatorId`. Routes to `update_indicator`. (The target is set via
- * {@link setIndicatorTarget}.)
+ * Edit an indicator's definition. `useActionState`-shaped; expects `indicatorId`
+ * plus the same definition fields as create. Routes to `update_indicator` (which
+ * re-classifies existing measurements). The target is set via
+ * {@link setIndicatorTarget}.
  */
 export async function updateIndicator(
   _prev: ActionState | undefined,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<ActionState> {
-  throw new Error(NOT_IMPLEMENTED)
+  const id = String(formData.get('indicatorId') ?? '')
+  const name = String(formData.get('name') ?? '').trim()
+  const targetValue = parseOptionalNumber(formData.get('targetValue'))
+
+  if (!id) return { ok: false, error: MESSAGES.notFound }
+  if (!name) return { ok: false, fieldErrors: { name: MESSAGES.nameRequired } }
+  if (targetValue === null) return { ok: false, fieldErrors: { targetValue: MESSAGES.numberInvalid } }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('update_indicator', {
+    p_id: id,
+    p_name: name,
+    p_kind: String(formData.get('kind') ?? 'percentual'),
+    p_direction: String(formData.get('direction') ?? 'maior_melhor'),
+    p_data_source: String(formData.get('dataSource') ?? 'manual'),
+    p_frequency: String(formData.get('frequency') ?? 'mensal'),
+    p_target_comparator: String(formData.get('targetComparator') ?? '>='),
+    p_target_value: targetValue ?? undefined,
+    p_numerator_label: String(formData.get('numeratorLabel') ?? '').trim() || undefined,
+    p_denominator_label: String(formData.get('denominatorLabel') ?? '').trim() || undefined,
+    p_unit: String(formData.get('unit') ?? '').trim() || undefined,
+    p_description_md: String(formData.get('descriptionMd') ?? '').trim() || undefined,
+    p_lower_warn: parseOptionalNumber(formData.get('lowerWarn')) ?? undefined,
+    p_upper_warn: parseOptionalNumber(formData.get('upperWarn')) ?? undefined,
+    p_derived_config: parseDerivedConfig(formData.get('derivedConfig')) ?? undefined,
+  })
+
+  if (error) return { ok: false, error: mapIndicatorError(error) }
+
+  revalidateIndicators()
+  return { ok: true, error: MESSAGES.updatedIndicator }
 }
 
-/** Archive an indicator (`ativo` → `arquivado`, read-only). Routes to `archive_indicator`. */
-export async function archiveIndicator(_indicatorId: string): Promise<ActionState> {
-  throw new Error(NOT_IMPLEMENTED)
+/** Archive an indicator (`ativo` → `arquivado`). Routes to `archive_indicator`. */
+export async function archiveIndicator(indicatorId: string): Promise<ActionState> {
+  if (!indicatorId) return { ok: false, error: MESSAGES.notFound }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('archive_indicator', { p_id: indicatorId })
+  if (error) return { ok: false, error: mapIndicatorError(error) }
+
+  revalidateIndicators()
+  return { ok: true, error: MESSAGES.archivedIndicator }
 }
 
 /**
- * Set/replace an indicator's target (`targetValue` + `targetComparator`,
- * optionally the warning band). Routes to `set_indicator_target`; re-classifies
- * existing measurements against the new target (across both `direction`s).
+ * Set/replace an indicator's target (`targetValue` + `targetComparator`, optional
+ * warning band). Routes to `set_indicator_target`; re-classifies existing
+ * measurements against the new target (both `direction`s).
  */
 export async function setIndicatorTarget(
   _prev: ActionState | undefined,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<ActionState> {
-  throw new Error(NOT_IMPLEMENTED)
+  const id = String(formData.get('indicatorId') ?? '')
+  const targetValue = parseNumber(formData.get('targetValue'))
+  const targetComparator = String(formData.get('targetComparator') ?? '>=') as TargetComparator
+
+  if (!id) return { ok: false, error: MESSAGES.notFound }
+  if (targetValue === null) {
+    return { ok: false, fieldErrors: { targetValue: MESSAGES.numberInvalid } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('set_indicator_target', {
+    p_id: id,
+    p_target_value: targetValue,
+    p_target_comparator: targetComparator,
+    p_lower_warn: parseOptionalNumber(formData.get('lowerWarn')) ?? undefined,
+    p_upper_warn: parseOptionalNumber(formData.get('upperWarn')) ?? undefined,
+  })
+
+  if (error) return { ok: false, error: mapIndicatorError(error) }
+
+  revalidateIndicators()
+  return { ok: true, error: MESSAGES.targetSet }
 }
 
 // ---------------------------------------------------------------------------
-// Measurements (staff_admin-write; every change audited)
+// Measurements (audited)
 // ---------------------------------------------------------------------------
 
 /**
  * Record (or correct) a MANUAL measurement for a period. Fields: `indicatorId`,
- * `periodLabel`, `numerator`, `denominator`, `note?`. Routes to
- * `record_indicator_measurement`, which computes `value` + off-target detection.
- * Upserts on `(indicatorId, periodLabel)`; every change is audited (Rule 11).
+ * `periodLabel`, `numerator`, `denominator?`, `note?`, `periodStart?`,
+ * `periodEnd?`. Routes to `record_indicator_measurement` (computes value +
+ * off-target). Upserts on `(indicatorId, periodLabel)`; audited (Rule 11).
  */
 export async function recordIndicatorMeasurement(
   _prev: ActionState | undefined,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<ActionState> {
-  throw new Error(NOT_IMPLEMENTED)
+  const id = String(formData.get('indicatorId') ?? '')
+  const periodLabel = String(formData.get('periodLabel') ?? '').trim()
+  const numerator = parseNumber(formData.get('numerator'))
+  const denominator = parseOptionalNumber(formData.get('denominator'))
+  const periodStart = parseDate(formData.get('periodStart'))
+  const periodEnd = parseDate(formData.get('periodEnd'))
+
+  if (!id) return { ok: false, error: MESSAGES.notFound }
+  if (!periodLabel) return { ok: false, fieldErrors: { periodLabel: MESSAGES.periodRequired } }
+  if (numerator === null) return { ok: false, fieldErrors: { numerator: MESSAGES.numeratorRequired } }
+  if (denominator === null) return { ok: false, fieldErrors: { denominator: MESSAGES.numberInvalid } }
+  if (periodStart === null) return { ok: false, fieldErrors: { periodStart: MESSAGES.dateInvalid } }
+  if (periodEnd === null) return { ok: false, fieldErrors: { periodEnd: MESSAGES.dateInvalid } }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('record_indicator_measurement', {
+    p_indicator: id,
+    p_period_label: periodLabel,
+    p_numerator: numerator,
+    p_denominator: denominator ?? undefined,
+    p_note: String(formData.get('note') ?? '').trim() || undefined,
+    p_period_start: periodStart ?? undefined,
+    p_period_end: periodEnd ?? undefined,
+  })
+
+  if (error) return { ok: false, error: mapIndicatorError(error) }
+
+  revalidateIndicators()
+  return { ok: true, error: MESSAGES.measurementRecorded }
 }
 
 /**
  * Compute a DERIVED (or HYBRID) measurement for a period from submitted-form
  * aggregates. Fields: `indicatorId`, `periodLabel`, and — for a HYBRID `taxa` —
- * the manually supplied `denominator`. Routes to `compute_derived_measurement`
- * (DEFINER); the derived value EQUALS the Phase-8 dashboard aggregate for the
- * same window (the parity lock). Hybrid is ONE-STEP (denominator inline; the row
- * is born complete); a recompute re-derives the numerator and PRESERVES the
- * stored denominator unless `denominator` is re-passed. Returns the numerator +
- * value so the hybrid dialog can echo them.
+ * the manually supplied `denominator` (`periodStart?`/`periodEnd?` window the
+ * aggregate). Routes to `compute_derived_measurement` (DEFINER); the value EQUALS
+ * the Phase-8 dashboard aggregate (parity lock). Hybrid is ONE-STEP + born
+ * complete; a recompute preserves the stored denominator unless `denominator` is
+ * re-passed. Returns the numerator/denominator/value so the hybrid dialog can
+ * echo them.
  */
 export async function computeDerivedMeasurement(
   _prev: ComputeMeasurementState | undefined,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<ComputeMeasurementState> {
-  throw new Error(NOT_IMPLEMENTED)
+  const id = String(formData.get('indicatorId') ?? '')
+  const periodLabel = String(formData.get('periodLabel') ?? '').trim()
+  const denominator = parseOptionalNumber(formData.get('denominator'))
+  const periodStart = parseDate(formData.get('periodStart'))
+  const periodEnd = parseDate(formData.get('periodEnd'))
+
+  if (!id) return { ok: false, error: MESSAGES.notFound }
+  if (!periodLabel) return { ok: false, fieldErrors: { periodLabel: MESSAGES.periodRequired } }
+  if (denominator === null) return { ok: false, fieldErrors: { denominator: MESSAGES.numberInvalid } }
+  if (periodStart === null) return { ok: false, fieldErrors: { periodStart: MESSAGES.dateInvalid } }
+  if (periodEnd === null) return { ok: false, fieldErrors: { periodEnd: MESSAGES.dateInvalid } }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('compute_derived_measurement', {
+    p_indicator: id,
+    p_period_label: periodLabel,
+    p_denominator: denominator ?? undefined,
+    p_period_start: periodStart ?? undefined,
+    p_period_end: periodEnd ?? undefined,
+  })
+
+  if (error || !data) return { ok: false, error: mapIndicatorError(error) }
+
+  revalidateIndicators()
+  return {
+    ok: true,
+    error: MESSAGES.measurementComputed,
+    measurementId: data.id,
+    numerator: data.numerator ?? undefined,
+    denominator: data.denominator ?? undefined,
+    value: data.value ?? undefined,
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Two-tier off-target escalation
+// Two-tier off-target escalation (PQS-operator arm)
 // ---------------------------------------------------------------------------
 
 /**
- * PQS-OPERATOR path: open a CAPA plan from an off-target indicator measurement.
- * Routes to `open_capa_plan` with `p_source='indicator'` + `p_source_id` = the
- * indicator id; the RPC DERIVES `hospital_id` from the indicator's commission
- * (B6 — no manual `p_hospital_id` for this source). CAPA write stays
- * PQS-operator-gated (`can_write_capa` untouched); a non-operator gets 42501
- * mapped to a pt-BR "apenas o NSP…" message and should use the Action-Items
- * fallback instead.
+ * PQS-OPERATOR path: open a CAPA plan from an off-target indicator. Routes to
+ * `open_capa_plan` with `p_source='indicator'` + `p_source_id` = the indicator id;
+ * the RPC DERIVES `hospital_id` from the indicator's commission (B6 — no manual
+ * `p_hospital_id`). CAPA write stays PQS-operator-gated (`can_write_capa`
+ * untouched); a non-operator gets 42501 → the pt-BR "apenas o NSP…" message and
+ * should use the Action-Items fallback (F5 gates the button on the caller's
+ * operator hospitals via `Indicator.hospitalId`).
  *
- * NOTE for F5 (non-operator fallback): there is NO indicator-specific action for
- * "Criar item de ação" — call the SHARED
- * `createActionItem` from `@/lib/cases/action-items-actions` with the indicator
- * context pre-filled (ADR 0057; no schema change). This action is PQS-only.
+ * `_measurementId` is accepted for the UI's context (the off-target measurement
+ * that triggered the escalation); the plan links to the indicator, not a specific
+ * measurement, so it is not passed to the RPC.
  */
 export async function openCapaFromIndicator(
-  _indicatorId: string,
+  indicatorId: string,
   _measurementId: string,
 ): Promise<ActionState> {
-  throw new Error(NOT_IMPLEMENTED)
+  if (!indicatorId) return { ok: false, error: MESSAGES.notFound }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('open_capa_plan', {
+    p_source: 'indicator',
+    p_classification: 'corretiva',
+    p_source_id: indicatorId,
+  })
+
+  if (error) {
+    if (error.code === PG_FORBIDDEN) return { ok: false, error: MESSAGES.capaForbidden }
+    return { ok: false, error: mapIndicatorError(error) }
+  }
+
+  revalidateIndicators()
+  return { ok: true, error: MESSAGES.capaOpened }
 }
 
-// Re-export the field-value unions the builder form binds to, so F1 imports its
-// select-option vocabulary from one place.
-export type {
-  DataSource,
-  IndicatorDirection,
-  IndicatorFrequency,
-  IndicatorKind,
-  TargetComparator,
-}
+// NOTE: no type re-exports here — a `'use server'` module may export ONLY async
+// server functions (the RSC action compiler rejects `export type { … }`). Consumers
+// import the field-value unions (DataSource / IndicatorKind / …) directly from the
+// pure `@/lib/indicators/types`.
