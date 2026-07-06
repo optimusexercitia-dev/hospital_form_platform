@@ -6048,6 +6048,38 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      archive_indicator: {
+        Args: { p_id: string }
+        Returns: {
+          code: string
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          data_source: string
+          denominator_label: string | null
+          derived_config: Json | null
+          description_md: string | null
+          direction: string
+          frequency: string
+          id: string
+          kind: string
+          lower_warn: number | null
+          name: string
+          numerator_label: string | null
+          status: string
+          target_comparator: string
+          target_value: number | null
+          unit: string | null
+          updated_at: string
+          upper_warn: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "indicators"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       archive_meeting_type: {
         Args: { p_type_id: string }
         Returns: {
@@ -6867,6 +6899,54 @@ export type Database = {
           form_id: string
           version_id: string
         }[]
+      }
+      create_indicator: {
+        Args: {
+          p_commission: string
+          p_data_source?: string
+          p_denominator_label?: string
+          p_derived_config?: Json
+          p_description_md?: string
+          p_direction?: string
+          p_frequency?: string
+          p_kind: string
+          p_lower_warn?: number
+          p_name: string
+          p_numerator_label?: string
+          p_target_comparator?: string
+          p_target_value?: number
+          p_unit?: string
+          p_upper_warn?: number
+        }
+        Returns: {
+          code: string
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          data_source: string
+          denominator_label: string | null
+          derived_config: Json | null
+          description_md: string | null
+          direction: string
+          frequency: string
+          id: string
+          kind: string
+          lower_warn: number | null
+          name: string
+          numerator_label: string | null
+          status: string
+          target_comparator: string
+          target_value: number | null
+          unit: string | null
+          updated_at: string
+          upper_warn: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "indicators"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_interview: {
         Args: {
@@ -7882,6 +7962,38 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      record_indicator_measurement: {
+        Args: {
+          p_denominator?: number
+          p_indicator: string
+          p_note?: string
+          p_numerator: number
+          p_period_end?: string
+          p_period_label: string
+          p_period_start?: string
+        }
+        Returns: {
+          denominator: number | null
+          entered_at: string
+          entered_by: string | null
+          id: string
+          indicator_id: string
+          note: string | null
+          numerator: number | null
+          period_end: string | null
+          period_label: string
+          period_start: string | null
+          source: string
+          status: string
+          value: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "indicator_measurements"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       referrals_enabled: { Args: never; Returns: boolean }
       remove_capa_action: { Args: { p_action_id: string }; Returns: undefined }
       remove_capa_action_task: {
@@ -8441,6 +8553,44 @@ export type Database = {
           p_unit?: string
         }
         Returns: undefined
+      }
+      set_indicator_target: {
+        Args: {
+          p_id: string
+          p_lower_warn?: number
+          p_target_comparator: string
+          p_target_value: number
+          p_upper_warn?: number
+        }
+        Returns: {
+          code: string
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          data_source: string
+          denominator_label: string | null
+          derived_config: Json | null
+          description_md: string | null
+          direction: string
+          frequency: string
+          id: string
+          kind: string
+          lower_warn: number | null
+          name: string
+          numerator_label: string | null
+          status: string
+          target_comparator: string
+          target_value: number | null
+          unit: string | null
+          updated_at: string
+          upper_warn: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "indicators"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       set_meeting_quorum_met: {
         Args: { p_meeting_id: string; p_quorum_met: boolean }
@@ -9164,6 +9314,54 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "pqs_event_types"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_indicator: {
+        Args: {
+          p_data_source: string
+          p_denominator_label?: string
+          p_derived_config?: Json
+          p_description_md?: string
+          p_direction: string
+          p_frequency: string
+          p_id: string
+          p_kind: string
+          p_lower_warn?: number
+          p_name: string
+          p_numerator_label?: string
+          p_target_comparator: string
+          p_target_value?: number
+          p_unit?: string
+          p_upper_warn?: number
+        }
+        Returns: {
+          code: string
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          data_source: string
+          denominator_label: string | null
+          derived_config: Json | null
+          description_md: string | null
+          direction: string
+          frequency: string
+          id: string
+          kind: string
+          lower_warn: number | null
+          name: string
+          numerator_label: string | null
+          status: string
+          target_comparator: string
+          target_value: number | null
+          unit: string | null
+          updated_at: string
+          upper_warn: number | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "indicators"
           isOneToOne: true
           isSetofReturn: false
         }
