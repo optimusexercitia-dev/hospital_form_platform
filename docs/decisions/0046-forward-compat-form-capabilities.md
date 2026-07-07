@@ -1,8 +1,11 @@
 # 0046 — Forward-compatible form capabilities (repeating groups, answer blocks, field confidentiality) + default values
 
-- **Status:** Proposed (2026-07-01) — **planned, not yet implemented.** Execution detail in the
-  plan [../plans/answer-model-v2.md](../plans/answer-model-v2.md); discovery pointer in
-  [../../PROGRESS.md](../../PROGRESS.md).
+- **Status:** accepted — **implemented & shipped 2026-07-01** (the forward-compat hooks are
+  in baseline `20260620000000`; `default_value` is live). Record:
+  [../progress/answer-model-v2.md](../progress/answer-model-v2.md); Phase-Status row
+  `answer-model-v2` in [../../PROGRESS.md](../../PROGRESS.md). The deferred capabilities in
+  this ADR's "left for later" contract are dispositioned in ADR
+  [0060](0060-flexible-forms-foundation.md).
 - **Pairs with:** ADR [0045](0045-answer-model-v2.md) (Answer-Model v2 — lands the *answer-side*
   hooks: `group_instance_id`, `response_group_instances`, the uniform `answers.id`, the reserved
   `confidentiality_level`).

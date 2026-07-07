@@ -1,8 +1,11 @@
 # 0045 — Answer-Model v2 (uniform answer entity, typed scalar columns, instance-ready keys)
 
-- **Status:** Proposed (2026-07-01) — **planned, not yet implemented.** Execution detail
-  in the plan [../plans/answer-model-v2.md](../plans/answer-model-v2.md); discovery pointer
-  in [../../PROGRESS.md](../../PROGRESS.md) (Phase-Status row `answer-model-v2`).
+- **Status:** accepted — **implemented & shipped 2026-07-01** (baseline
+  `20260620000000`; remote re-baselined 2026-07-01). Record:
+  [../progress/answer-model-v2.md](../progress/answer-model-v2.md); Phase-Status row
+  `answer-model-v2` in [../../PROGRESS.md](../../PROGRESS.md). Referenced as landed reality
+  by ADR [0057](0057-indicators-doc-control-replan.md) and ADR
+  [0060](0060-flexible-forms-foundation.md).
 - **Extends:** ADR [0040](0040-form-builder-enhancements-condition-engine.md)
   (number/date/time item types, `config`, per-item `visible_when`) and the
   `form-model-normalization` work (`form_item_options` + `answer_selected_options`;
