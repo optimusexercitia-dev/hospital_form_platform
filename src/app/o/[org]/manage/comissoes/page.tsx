@@ -31,8 +31,7 @@ export default async function OrgCommissionsPage({
   params: Promise<{ org: string }>;
   searchParams: Promise<{ hospital?: string }>;
 }) {
-  const { org } = await params;
-  const context = await getSessionContext();
+  const [{ org }, context] = await Promise.all([params, getSessionContext()]);
   const orgAdminEntry = context?.orgAdminOf.find(
     (o) => o.organization.slug === org,
   );
@@ -47,18 +46,21 @@ export default async function OrgCommissionsPage({
   }
 
   const isOrgAdmin = Boolean(orgAdminEntry);
+  // The org-admin hospital list only needs `organization.id` — independent of
+  // `searchParams` — so fetch it alongside the params unwrap.
+  const [hospitalsRaw, sp] = await Promise.all([
+    isOrgAdmin ? listHospitalsForOrg(organization.id) : Promise.resolve(null),
+    searchParams,
+  ]);
   const hospitals = isOrgAdmin
-    ? await listHospitalsForOrg(organization.id).then((rows) =>
-        rows.map((h) => ({
-          id: h.id,
-          slug: h.slug,
-          name: h.name,
-          organizationId: organization.id,
-        })),
-      )
+    ? (hospitalsRaw ?? []).map((h) => ({
+        id: h.id,
+        slug: h.slug,
+        name: h.name,
+        organizationId: organization.id,
+      }))
     : adminedHospitals(context, organization.id);
 
-  const sp = await searchParams;
   // A hospital_admin MUST have a selected hospital (defaults to the first);
   // an org_admin's selection is optional (null = org-wide).
   const selectedHospitalId = isOrgAdmin

@@ -35,12 +35,15 @@ export default async function NarrativeEditorPage({
   params: Promise<{ org: string; commission: string; caseId: string; narrativeId: string }>;
 }) {
   const { org, commission, caseId, narrativeId } = await params;
-  const access = await getCommissionAccessByOrg(org, commission);
+
+  // All three reads depend only on path params, not on each other's results.
+  const [access, flagOn, detail] = await Promise.all([
+    getCommissionAccessByOrg(org, commission),
+    caseAccessEnabled(),
+    getCaseDetail(caseId),
+  ]);
   if (!access || access.role === null) notFound();
-
-  if (!(await caseAccessEnabled())) notFound();
-
-  const detail = await getCaseDetail(caseId);
+  if (!flagOn) notFound();
   if (!detail || detail.case.commissionId !== access.commission.id) {
     notFound();
   }

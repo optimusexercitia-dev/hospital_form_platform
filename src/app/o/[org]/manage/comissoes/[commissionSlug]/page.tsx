@@ -40,14 +40,15 @@ export default async function OrgCommissionDetailPage({
 }) {
   const { org, commissionSlug } = await params;
 
-  // Org-scoped resolve: confirms the commission is in this org (or 404).
-  const access = await getCommissionAccessByOrg(org, commissionSlug);
+  // Org-scoped resolve + the roster read both depend only on `commissionSlug`
+  // (org-scoped internally via RLS), not on each other's results.
+  const [access, commission] = await Promise.all([
+    getCommissionAccessByOrg(org, commissionSlug),
+    getCommissionForAdmin(commissionSlug),
+  ]);
   if (!access) {
     notFound();
   }
-
-  // Roster + created-at for the detail (RLS-scoped to the org_admin's org).
-  const commission = await getCommissionForAdmin(commissionSlug);
   if (!commission) {
     notFound();
   }

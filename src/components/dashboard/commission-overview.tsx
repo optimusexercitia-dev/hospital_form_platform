@@ -15,7 +15,7 @@ import { ArrowUpRight } from "lucide-react";
 
 import type { CommissionOverviewRow } from "@/lib/queries/dashboard";
 
-import { useReducedMotion } from "./use-reduced-motion";
+import { useReducedMotion } from "@/components/motion/use-reduced-motion";
 
 const CHART_COLORS = [
   "var(--color-chart-1)",

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 
 import { getSessionContext } from "@/lib/queries/session";
@@ -6,7 +7,6 @@ import { adminedHospitals } from "@/lib/auth/access";
 import {
   listAuditForOrg,
   listAuditForHospital,
-  listAuditFilterActors,
   auditTrailEnabled,
   AUDIT_ACTION_LABELS,
   AUDIT_ENTITY_LABELS,
@@ -16,10 +16,11 @@ import {
   type AuditPage,
 } from "@/lib/queries/audit";
 import { HospitalSwitcher } from "@/components/shell/hospital-switcher";
-import { AuditFilters } from "@/components/audit/audit-filters";
+import { AuditFiltersAsync } from "@/components/audit/audit-filters-async";
 import { AuditFeed } from "@/components/audit/audit-feed";
 import { AuditPagination } from "@/components/audit/audit-pagination";
 import { AuditEmptyState } from "@/components/audit/audit-empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
   title: "Trilha de auditoria",
@@ -60,7 +61,12 @@ export default async function OrgAuditPage({
   }>;
 }) {
   const { org } = await params;
-  const context = await getSessionContext();
+  // The flag check doesn't depend on the session context, so run them
+  // concurrently instead of paying two sequential round-trips.
+  const [context, trailEnabled] = await Promise.all([
+    getSessionContext(),
+    auditTrailEnabled(),
+  ]);
   const orgAdminEntry = context?.orgAdminOf.find(
     (o) => o.organization.slug === org,
   );
@@ -73,7 +79,7 @@ export default async function OrgAuditPage({
   if (!organization || !context) {
     notFound();
   }
-  if (!(await auditTrailEnabled())) {
+  if (!trailEnabled) {
     notFound();
   }
 
@@ -108,8 +114,6 @@ export default async function OrgAuditPage({
     pageData = { entries: [], total: 0, page: pageNum, pageSize: PAGE_SIZE };
   }
 
-  const actors = await listAuditFilterActors(null);
-
   const hasFilters = Boolean(
     sp.actor || sp.action || sp.entity || sp.from || sp.to,
   );
@@ -137,19 +141,21 @@ export default async function OrgAuditPage({
         </p>
       </header>
 
-      <AuditFilters
-        actors={actors}
-        actionOptions={Object.entries(AUDIT_ACTION_LABELS)}
-        entityOptions={Object.entries(AUDIT_ENTITY_LABELS)}
-        actor={sp.actor ?? null}
-        action={sp.action ?? null}
-        entity={sp.entity ?? null}
-        from={sp.from ?? null}
-        to={sp.to ?? null}
-        exportBasePath={null}
-        organizationId={isOrgAdmin ? organization.id : undefined}
-        hospitalId={!isOrgAdmin && selectedHospitalId ? selectedHospitalId : undefined}
-      />
+      <Suspense fallback={<Skeleton className="h-28 w-full rounded-2xl" />}>
+        <AuditFiltersAsync
+          commissionScopeId={null}
+          actor={sp.actor ?? null}
+          action={sp.action ?? null}
+          entity={sp.entity ?? null}
+          from={sp.from ?? null}
+          to={sp.to ?? null}
+          exportBasePath={null}
+          organizationId={isOrgAdmin ? organization.id : undefined}
+          hospitalId={
+            !isOrgAdmin && selectedHospitalId ? selectedHospitalId : undefined
+          }
+        />
+      </Suspense>
 
       {pageData.entries.length === 0 ? (
         <AuditEmptyState filtered={hasFilters} />

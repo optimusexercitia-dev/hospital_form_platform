@@ -43,22 +43,23 @@ export default async function HospitalDetailPage({
   // Must administer THIS hospital: org_admin of its org, or hospital_admin of it.
   if (!orgAdmin && !hospitalAdmin) notFound();
 
-  // Resolve the hospital's display name. An org_admin reads it from the org's
-  // hospital registry (RLS-scoped); a hospital_admin carries it in context.
+  // Resolve the hospital's display name (org_admin only — a hospital_admin
+  // already carries it in context) alongside the departments read: neither
+  // depends on the other's result, only on values already resolved above.
+  const [hospitals, departments] = await Promise.all([
+    orgAdmin ? listHospitalsForOrg(orgAdmin.organization.id) : Promise.resolve(null),
+    // Management view: include archived rows so they can be reactivated.
+    listDepartmentsForHospital(hospitalId, { includeArchived: true }),
+  ]);
+
   let hospitalName: string | null = hospitalAdmin?.hospital.name ?? null;
   if (orgAdmin) {
-    const hospitals = await listHospitalsForOrg(orgAdmin.organization.id);
-    const found = hospitals.find((h) => h.id === hospitalId);
+    const found = hospitals?.find((h) => h.id === hospitalId);
     // An org_admin URL pointing at a hospital outside their org resolves to
     // nothing → not found (never expected via the linked cards).
     if (!found) notFound();
     hospitalName = found.name;
   }
-
-  // Management view: include archived rows so they can be reactivated.
-  const departments = await listDepartmentsForHospital(hospitalId, {
-    includeArchived: true,
-  });
 
   return (
     <div className="flex flex-col gap-8">

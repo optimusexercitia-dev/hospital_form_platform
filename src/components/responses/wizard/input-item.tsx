@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Eraser, MessageSquarePlus } from "lucide-react";
 
 import type { Json } from "@/lib/types/database";
@@ -44,8 +44,14 @@ import { hasAnswer } from "./use-wizard";
  *    `<fieldset>`/`<legend>` so the group has an accessible name;
  *  - validation errors are surfaced via `aria-invalid` + a `role="alert"`
  *    `FieldError`, also referenced from `aria-describedby`.
+ *
+ * Wrapped in `memo` (frontend audit #10) so typing in one item doesn't
+ * re-render every other item in the section — cheap insurance for
+ * arbitrarily long staff_admin-built sections. Only holds if the props stay
+ * referentially stable across renders; see the caller (`SectionStep`, in
+ * `section-step.tsx`) for the current state of that.
  */
-export function InputItem({
+export const InputItem = memo(function InputItem({
   item,
   value,
   onChange,
@@ -137,7 +143,7 @@ export function InputItem({
       )}
     </div>
   );
-}
+});
 
 function renderControl({
   item,

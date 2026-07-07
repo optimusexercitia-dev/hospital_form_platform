@@ -1,11 +1,12 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 
 import type { DocStatus, DocType } from "@/lib/documents/types";
 import { DOC_STATUS_LABELS, DOC_TYPE_LABELS } from "@/lib/documents/types";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -48,6 +49,7 @@ export function DocumentFilterBar({
   const typeId = useId();
   const statusId = useId();
   const overdueId = useId();
+  const [isPending, startTransition] = useTransition();
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams.toString());
@@ -56,17 +58,27 @@ export function DocumentFilterBar({
     } else {
       next.delete(key);
     }
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    });
   }
 
   function clearAll() {
-    router.replace(pathname, { scroll: false });
+    startTransition(() => {
+      router.replace(pathname, { scroll: false });
+    });
   }
 
   const hasAnyFilter = Boolean(docType || status || reviewOverdue);
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-xs">
+    <div
+      className={cn(
+        "flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-xs transition-opacity duration-200",
+        isPending && "opacity-60",
+      )}
+      aria-busy={isPending}
+    >
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={typeId}>Tipo</Label>
@@ -74,6 +86,7 @@ export function DocumentFilterBar({
             id={typeId}
             value={docType ?? ""}
             onChange={(e) => setParam("docType", e.target.value)}
+            disabled={isPending}
             className="min-w-44"
           >
             <option value="">Todos os tipos</option>
@@ -91,6 +104,7 @@ export function DocumentFilterBar({
             id={statusId}
             value={status ?? ""}
             onChange={(e) => setParam("status", e.target.value)}
+            disabled={isPending}
             className="min-w-44"
           >
             <option value="">Todas as situações</option>
@@ -111,6 +125,7 @@ export function DocumentFilterBar({
             onCheckedChange={(checked) =>
               setParam("reviewOverdue", checked === true ? "1" : "")
             }
+            disabled={isPending}
           />
           <Label htmlFor={overdueId} className="cursor-pointer font-normal">
             Somente com revisão vencida
@@ -118,7 +133,13 @@ export function DocumentFilterBar({
         </div>
 
         {hasAnyFilter && (
-          <Button type="button" variant="ghost" size="sm" onClick={clearAll}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={clearAll}
+            disabled={isPending}
+          >
             <X aria-hidden="true" />
             Limpar filtros
           </Button>

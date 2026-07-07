@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 
@@ -8,6 +8,7 @@ import type {
   SubmissionFilterForm,
   SubmissionFilterMember,
 } from "@/lib/queries/submissions";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -49,6 +50,7 @@ export function SubmissionsFilters({
   const fromId = useId();
   const toId = useId();
   const inProgressId = useId();
+  const [isPending, startTransition] = useTransition();
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams.toString());
@@ -60,11 +62,15 @@ export function SubmissionsFilters({
     // Any filter change invalidates the keyset cursor (it encodes a position in
     // the OLD result set), so reset to the first page (WS-6 P3).
     next.delete("cursor");
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    });
   }
 
   function clearAll() {
-    router.replace(pathname, { scroll: false });
+    startTransition(() => {
+      router.replace(pathname, { scroll: false });
+    });
   }
 
   const hasAnyFilter = Boolean(
@@ -72,7 +78,13 @@ export function SubmissionsFilters({
   );
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-xs">
+    <div
+      className={cn(
+        "flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-xs transition-opacity duration-200",
+        isPending && "opacity-60",
+      )}
+      aria-busy={isPending}
+    >
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={memberId}>Membro</Label>
@@ -80,6 +92,7 @@ export function SubmissionsFilters({
             id={memberId}
             value={member ?? ""}
             onChange={(e) => setParam("member", e.target.value)}
+            disabled={isPending}
             className="min-w-44"
           >
             <option value="">Todos os membros</option>
@@ -97,6 +110,7 @@ export function SubmissionsFilters({
             id={formId}
             value={form ?? ""}
             onChange={(e) => setParam("form", e.target.value)}
+            disabled={isPending}
             className="min-w-44"
           >
             <option value="">Todos os formulários</option>
@@ -115,6 +129,7 @@ export function SubmissionsFilters({
             value={from ?? ""}
             onChange={(v) => setParam("from", v)}
             max={to ?? undefined}
+            disabled={isPending}
             className="w-auto"
           />
         </div>
@@ -126,6 +141,7 @@ export function SubmissionsFilters({
             value={to ?? ""}
             onChange={(v) => setParam("to", v)}
             min={from ?? undefined}
+            disabled={isPending}
             className="w-auto"
           />
         </div>
@@ -139,6 +155,7 @@ export function SubmissionsFilters({
             onCheckedChange={(checked) =>
               setParam("inProgress", checked === true ? "1" : "")
             }
+            disabled={isPending}
           />
           <Label htmlFor={inProgressId} className="cursor-pointer font-normal">
             Incluir respostas em andamento
@@ -146,7 +163,13 @@ export function SubmissionsFilters({
         </div>
 
         {hasAnyFilter && (
-          <Button type="button" variant="ghost" size="sm" onClick={clearAll}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={clearAll}
+            disabled={isPending}
+          >
             <X aria-hidden="true" />
             Limpar filtros
           </Button>
