@@ -51,8 +51,10 @@ export function encodeCursor(tuple: object): string {
 // STRUCTURALLY exclude those metacharacters — so we validate each decoded field
 // against its expected kind BEFORE it can reach a filter string. Any field that
 // fails → the whole cursor is rejected (→ page 1), preserving the "malformed →
-// null, never throws" contract. (`pqsInbox` is exempt: it binds cursor values as
-// typed RPC params, not into a string, so it needs no validation.)
+// null, never throws" contract. (`pqsInbox` does not need this for INJECTION
+// defence — it binds cursor values as typed RPC params, not into a string — but it
+// validates anyway with its own schema so a bad-value cursor degrades to page 1
+// rather than an empty page, matching the flat lists' contract.)
 // ---------------------------------------------------------------------------
 
 /** The kinds a cursor field may hold. Both forms exclude `,` `(` `)`. */

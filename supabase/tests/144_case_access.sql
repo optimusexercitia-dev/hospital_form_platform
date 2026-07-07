@@ -34,7 +34,7 @@
 --   admin  platform admin — sees everything
 
 begin;
-select plan(88);
+select plan(102);
 
 -- The feature ships ON in-increment; flip it ON for the truth-table + boundary
 -- sections (a hermetic test must not depend on migration order). The flag-OFF
@@ -124,6 +124,43 @@ insert into public.case_access (case_id, user_id, level, granted_by)
 values
   ((select case_x from cs), (select gx_r from p), 'read',  (select sa_x from k)),
   ((select case_x from cs), (select gx_w from p), 'write', (select sa_x from k));
+
+-- ---------------------------------------------------------------------------
+-- INFO-N1 (ADR 0033 D2 fast-follow, migration 20260713001200): an interview on
+-- case_x with one subject, one interviewer, one attachment — to prove the interview
+-- graph now case-scopes its SELECT to can_read_case (was is_member_of). Plus an
+-- ORG_ADMIN (oa) of the bootstrap org (org_b) who is NOT a commission member, to
+-- prove the preserved org-admin arm independent of membership.
+-- ---------------------------------------------------------------------------
+create temp table ivt on commit drop as
+  select gen_random_uuid() as iv, gen_random_uuid() as subj,
+         gen_random_uuid() as intr, gen_random_uuid() as att,
+         gen_random_uuid() as oa;
+grant select on ivt to authenticated;
+
+-- Org admin persona (org-level, no commission membership; profile auto-created by
+-- the auth.users trigger, then anchored to org_b).
+insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
+select '00000000-0000-0000-0000-000000000000', (select oa from ivt), 'authenticated',
+       'authenticated', (select oa from ivt) || '@test', now(), now();
+update public.profiles
+   set full_name = 'Org Admin', home_organization_id = (select (v->>'org_b')::uuid from ctx)
+ where id = (select oa from ivt);
+insert into public.organization_members (organization_id, user_id, role)
+  values ((select (v->>'org_b')::uuid from ctx), (select oa from ivt), 'org_admin');
+
+-- The interview graph (interview_number is minted by the BEFORE INSERT trigger).
+insert into public.case_interviews
+  (id, commission_id, case_id, interview_number, status)
+values ((select iv from ivt), (select comm_x from k), (select case_x from cs), 0, 'rascunho');
+insert into public.case_interview_subjects (id, interview_id, external_name, note)
+values ((select subj from ivt), (select iv from ivt), 'Sujeito Externo', 'nota');
+insert into public.case_interview_interviewers (id, interview_id, external_name, role)
+values ((select intr from ivt), (select iv from ivt), 'Entrevistador Externo', 'entrevistador');
+insert into public.case_interview_attachments
+  (id, interview_id, kind, title, external_url, uploaded_by)
+values ((select att from ivt), (select iv from ivt), 'outro', 'Anexo',
+        'https://example.test/a', (select sa_x from k));
 
 -- =========================================================================
 -- (a) PREDICATE TRUTH-TABLE — can_read_case (flag ON)
@@ -236,6 +273,61 @@ select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select is((select count(*)::int from public.cases where id = (select case_x from cs)),
   1, 'RLS: phase assignee reads the case (attribution)');
+reset role;
+
+-- =========================================================================
+-- (c′) INFO-N1 — the interview graph now case-scopes SELECT to can_read_case
+-- (parent + 3 children). Boundary: a bare member reads NOTHING; a case-worker
+-- (grant OR attribution) reads them; an org_admin reads them (preserved arm).
+-- =========================================================================
+-- (a) ux — a bare member with NO attribution/grant (not yet granted) — reads 0.
+select test_helpers.claims_for((select ux from p), false);
+set local role authenticated;
+select is((select count(*)::int from public.case_interviews where id = (select iv from ivt)),
+  0, 'INFO-N1 boundary: bare member reads 0 case_interviews rows');
+select is((select count(*)::int from public.case_interview_subjects where interview_id = (select iv from ivt)),
+  0, 'INFO-N1 boundary: bare member reads 0 case_interview_subjects rows');
+select is((select count(*)::int from public.case_interview_interviewers where interview_id = (select iv from ivt)),
+  0, 'INFO-N1 boundary: bare member reads 0 case_interview_interviewers rows');
+select is((select count(*)::int from public.case_interview_attachments where interview_id = (select iv from ivt)),
+  0, 'INFO-N1 boundary: bare member reads 0 case_interview_attachments rows');
+reset role;
+
+-- (b) gx_r — a granted-READ case-worker — reads the interview + every child.
+select test_helpers.claims_for((select gx_r from p), false);
+set local role authenticated;
+select is((select count(*)::int from public.case_interviews where id = (select iv from ivt)),
+  1, 'INFO-N1: granted-read case-worker reads the case_interviews row');
+select is((select count(*)::int from public.case_interview_subjects where interview_id = (select iv from ivt)),
+  1, 'INFO-N1: granted-read case-worker reads the interview subject');
+select is((select count(*)::int from public.case_interview_interviewers where interview_id = (select iv from ivt)),
+  1, 'INFO-N1: granted-read case-worker reads the interviewer');
+select is((select count(*)::int from public.case_interview_attachments where interview_id = (select iv from ivt)),
+  1, 'INFO-N1: granted-read case-worker reads the attachment');
+reset role;
+
+-- (b′) st_x — an ATTRIBUTION-derived case-worker (phase assignee) — reads the
+-- parent + a child (the child follows via app.case_of_interview → can_read_case).
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.case_interviews where id = (select iv from ivt)),
+  1, 'INFO-N1: attributed case-worker (phase assignee) reads the case_interviews row');
+select is((select count(*)::int from public.case_interview_subjects where interview_id = (select iv from ivt)),
+  1, 'INFO-N1: attributed case-worker reads the interview subject (child via case_of_interview)');
+reset role;
+
+-- (c) oa — an org_admin of the case''s org, NOT a commission member — reads the
+-- interview + every child via the preserved org-admin arm.
+select test_helpers.claims_for((select oa from ivt), false);
+set local role authenticated;
+select is((select count(*)::int from public.case_interviews where id = (select iv from ivt)),
+  1, 'INFO-N1: org_admin reads the case_interviews row (org-admin arm)');
+select is((select count(*)::int from public.case_interview_subjects where interview_id = (select iv from ivt)),
+  1, 'INFO-N1: org_admin reads the interview subject (org-admin arm)');
+select is((select count(*)::int from public.case_interview_interviewers where interview_id = (select iv from ivt)),
+  1, 'INFO-N1: org_admin reads the interviewer (org-admin arm)');
+select is((select count(*)::int from public.case_interview_attachments where interview_id = (select iv from ivt)),
+  1, 'INFO-N1: org_admin reads the attachment (org-admin arm)');
 reset role;
 
 -- =========================================================================

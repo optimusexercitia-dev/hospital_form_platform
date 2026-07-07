@@ -17,7 +17,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { featureEnabled } from '@/lib/queries/feature-flags'
-import type { Page, PageParams } from '@/lib/types/pagination'
+import type { Page, PageParams, CursorSchema } from '@/lib/types/pagination'
 import {
   DEFAULT_PAGE_SIZE,
   decodeCursor,
@@ -74,6 +74,20 @@ interface PqsInboxCursor {
 }
 
 /**
+ * Cursor-field schema for {@link pqsInbox} (WS-6 consistency fix). `pqsInbox` binds
+ * cursor values as TYPED RPC params (injection-safe by construction), so unlike the
+ * flat `.or()` lists it needs no schema for injection defence. It validates anyway to
+ * honour the SAME "malformed/semantically-invalid cursor → page 1" contract the flat
+ * lists guarantee: without validation a well-formed-shape-but-bad-value cursor (e.g. a
+ * non-timestamp `r` or non-uuid `id`) reaches the RPC cast and errors → degrades to an
+ * EMPTY page instead of page 1. Validating here rejects it → `null` → first page.
+ */
+const PQS_INBOX_CURSOR_SCHEMA: CursorSchema<PqsInboxCursor> = {
+  r: 'timestamp',
+  id: 'uuid',
+}
+
+/**
  * The NSP triage queue, newest-first, keyset-paginated (WS-6 P3). Backed by the
  * `pqs_inbox` DEFINER RPC (`is_pqs_member`-gated, PHI-free). A non-PQS caller gets
  * an empty page. Sort/keyset (reported_at DESC, id DESC); the RPC's org-scope gate
@@ -86,7 +100,7 @@ export async function pqsInbox(
   const supabase = await createClient()
 
   const limit = page?.limit ?? DEFAULT_PAGE_SIZE
-  const cursor = decodeCursor<PqsInboxCursor>(page?.cursor)
+  const cursor = decodeCursor<PqsInboxCursor>(page?.cursor, PQS_INBOX_CURSOR_SCHEMA)
 
   // Over-fetch by one to detect a next page (the RPC returns up to p_limit rows).
   const { data, error } = await supabase

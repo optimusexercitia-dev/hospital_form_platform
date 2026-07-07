@@ -45,6 +45,8 @@ export type AuditEntityType =
   | 'signoff'
   | 'case'
   | 'case_phase'
+  // case_patient — the THIRD PHI module (isolated identifiers; Rule 12; ADR 0038).
+  | 'case_patient'
   | 'meeting'
   | 'meeting_signature'
   | 'interview'
@@ -102,6 +104,12 @@ export type AuditAction =
   | 'case.created'
   | 'case.status_changed'
   | 'case_phase.status_changed'
+  // case_patient PHI (THIRD PHI module; Rule 12; ADR 0038) — the audited read door
+  // (get_case_patient), the mutation trigger, and the disposal. Reason-only /
+  // PHI-free metadata; mirrors the event_patient action set.
+  | 'case_patient.read'
+  | 'case_patient.updated'
+  | 'case_patient.disposed'
   // meetings
   | 'meeting.created'
   | 'meeting.status_changed'
@@ -157,6 +165,9 @@ export type AuditAction =
   | 'referral.status_changed'
   | 'referral_patient.updated'
   | 'referral_patient.read'
+  // referral PHI DISPOSAL — the mutation row dispose_referral_phi emits (reason-only
+  // metadata, PHI-free; mirrors event_patient.disposed).
+  | 'referral_patient.disposed'
   | 'referral.viewed'
   // patient identity & cross-committee linkage (Phase 23; ADR 0039) — the QPS
   // reassembly trail on the GLOBAL chain; KEY-ONLY metadata, never a raw MRN/name.
@@ -179,6 +190,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   signoff: 'Assinatura de seção',
   case: 'Caso',
   case_phase: 'Fase do caso',
+  case_patient: 'Dados do paciente (caso)',
   meeting: 'Reunião',
   meeting_signature: 'Assinatura de ata',
   interview: 'Entrevista',
@@ -219,6 +231,9 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'case.created': 'Caso criado',
   'case.status_changed': 'Status do caso alterado',
   'case_phase.status_changed': 'Status da fase alterado',
+  'case_patient.read': 'Dados do paciente (caso) acessados',
+  'case_patient.updated': 'Dados do paciente (caso) atualizados',
+  'case_patient.disposed': 'Dados do paciente (caso) descartados',
   'meeting.created': 'Reunião criada',
   'meeting.status_changed': 'Status da reunião alterado',
   'meeting.signed': 'Ata assinada',
@@ -257,6 +272,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'referral.status_changed': 'Status do encaminhamento alterado',
   'referral_patient.updated': 'Dados do paciente (encaminhamento) atualizados',
   'referral_patient.read': 'Dados do paciente (encaminhamento) visualizados',
+  'referral_patient.disposed': 'Dados do paciente (encaminhamento) descartados',
   'referral.viewed': 'Detalhe do encaminhamento visualizado',
   'patient.searched': 'Paciente pesquisado entre comissões',
   'patient.viewed': 'Trajetória do paciente visualizada',

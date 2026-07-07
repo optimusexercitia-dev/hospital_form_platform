@@ -115,3 +115,39 @@ describe('decodeCursor (schema validation)', () => {
     expect(decoded).toEqual({ x: 'anything,(' })
   })
 })
+
+/**
+ * `pqsInbox` cursor schema (WS-6 consistency fix). `pqsInbox` binds cursor values as
+ * typed RPC params (injection-safe), but now validates with this schema so a
+ * well-formed-shape-but-bad-value cursor degrades to page 1 (null) rather than to an
+ * empty page (RPC cast error). Mirrors the private `PQS_INBOX_CURSOR_SCHEMA`.
+ */
+interface PqsInboxCursor {
+  r: string
+  id: string
+}
+const PQS_SCHEMA: CursorSchema<PqsInboxCursor> = { r: 'timestamp', id: 'uuid' }
+
+describe('decodeCursor (pqsInbox schema — empty-vs-page-1 consistency)', () => {
+  it('accepts a real reported_at + uuid cursor', () => {
+    const original: PqsInboxCursor = { r: TS_PG, id: UUID }
+    expect(decodeCursor<PqsInboxCursor>(encodeCursor(original), PQS_SCHEMA)).toEqual(
+      original,
+    )
+  })
+
+  it('rejects a bad-value cursor (non-timestamp r) → null → page 1', () => {
+    const bad = encodeCursor({ r: 'not-a-date', id: UUID })
+    expect(decodeCursor<PqsInboxCursor>(bad, PQS_SCHEMA)).toBeNull()
+  })
+
+  it('rejects a bad-value cursor (non-uuid id) → null → page 1', () => {
+    const bad = encodeCursor({ r: TS, id: 'not-a-uuid' })
+    expect(decodeCursor<PqsInboxCursor>(bad, PQS_SCHEMA)).toBeNull()
+  })
+
+  it('rejects a null id tie-breaker → null → page 1', () => {
+    const bad = encodeCursor({ r: TS, id: null })
+    expect(decodeCursor<PqsInboxCursor>(bad, PQS_SCHEMA)).toBeNull()
+  })
+})
