@@ -20,7 +20,7 @@ const STATUS_STYLES: Record<FormVersionStatus, string> = {
   // a warm in-progress amber; archived is muted/neutral. Matches the pill
   // language already used across the shell (RoleBadge, "em breve" tags).
   published: "bg-accent text-accent-foreground",
-  draft: "bg-amber-100 text-amber-900 dark:bg-amber-400/15 dark:text-amber-200",
+  draft: "bg-warning/15 text-warning",
   archived: "bg-muted text-muted-foreground",
 };
 

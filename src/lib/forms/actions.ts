@@ -121,8 +121,8 @@ const DISPLAY_TYPES = ['section_text', 'image']
 const ALL_ITEM_TYPES = [...INPUT_TYPES, ...DISPLAY_TYPES]
 
 /** The builder route family — revalidated as dynamic-segment pages. */
-const BUILDER_FORM_PATH = '/c/[slug]/manage/forms/[formId]'
-const FORMS_LIST_PATH = '/c/[slug]/manage/forms'
+const BUILDER_FORM_PATH = '/o/[org]/c/[commission]/manage/forms/[formId]'
+const FORMS_LIST_PATH = '/o/[org]/c/[commission]/manage/forms'
 
 function revalidateBuilder(): void {
   // Intentional: [slug] and [formId] are literal Next.js dynamic-segment syntax,

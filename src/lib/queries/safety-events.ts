@@ -24,6 +24,8 @@
  *    dedicated, audited panel read loads it.
  */
 
+import 'server-only'
+
 import { createClient } from '@/lib/supabase/server'
 import { logAuditAccess } from '@/lib/audit/access'
 import type {

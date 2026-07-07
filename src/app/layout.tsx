@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans, IBM_Plex_Serif, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -37,6 +37,19 @@ export const metadata: Metadata = {
   applicationName: "Comissões Hospitalares",
   authors: [{ name: "Comissões Hospitalares" }],
   formatDetection: { telephone: false, email: false, address: false },
+};
+
+// Separate from `metadata` per Next 15 (viewport/themeColor moved out of the
+// Metadata object). User zoom stays enabled (accessibility — never disable
+// pinch-to-zoom). `themeColor` mirrors the porcelain background in light mode
+// and the deep slate background in dark mode (see globals.css `:root`/`.dark`).
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fbfaf8" },
+    { media: "(prefers-color-scheme: dark)", color: "#202832" },
+  ],
 };
 
 export default function RootLayout({

@@ -72,8 +72,8 @@ export interface CreateMeetingActionItemState extends ActionState {
   actionItemId?: string
 }
 
-const MEETINGS_LIST_PATH = '/c/[slug]/meetings'
-const MEETING_PATH = '/c/[slug]/meetings/[meetingId]'
+const MEETINGS_LIST_PATH = '/o/[org]/c/[commission]/meetings'
+const MEETING_PATH = '/o/[org]/c/[commission]/meetings/[meetingId]'
 
 function revalidateMeetings(): void {
   revalidatePath(MEETINGS_LIST_PATH, 'page')

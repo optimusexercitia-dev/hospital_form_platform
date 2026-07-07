@@ -18,7 +18,7 @@ const STATUS_LABEL: Record<ProcessTemplateStatus, string> = {
 
 const STATUS_STYLES: Record<ProcessTemplateStatus, string> = {
   active: "bg-accent text-accent-foreground",
-  draft: "bg-amber-100 text-amber-900 dark:bg-amber-400/15 dark:text-amber-200",
+  draft: "bg-warning/15 text-warning",
   archived: "bg-muted text-muted-foreground",
 };
 

@@ -20,8 +20,7 @@ const STATUS_LABEL: Record<UserStatus, string> = {
 const STATUS_STYLES: Record<UserStatus, string> = {
   pending: "bg-muted text-muted-foreground",
   active: "bg-accent text-accent-foreground",
-  suspended:
-    "bg-amber-100 text-amber-900 dark:bg-amber-400/15 dark:text-amber-200",
+  suspended: "bg-warning/15 text-warning",
   deactivated: "bg-destructive/10 text-destructive",
 };
 

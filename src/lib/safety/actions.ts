@@ -51,8 +51,8 @@ import type {
 // Actions (all route through the B4 SECURITY DEFINER RPCs)
 // ---------------------------------------------------------------------------
 
-const COMMISSION_EVENTS_PATH = '/c/[slug]/eventos'
-const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
+const COMMISSION_EVENTS_PATH = '/o/[org]/c/[commission]/eventos'
+const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
 // NSP-per-org (ADR 0042): console moved /admin/nsp → /o/[org]/nsp/**. The NSP path now
 // carries a dynamic [org] segment, so it revalidates as a LAYOUT (covers the layout +
 // every NSP page beneath it). The commission/case paths above are unchanged.

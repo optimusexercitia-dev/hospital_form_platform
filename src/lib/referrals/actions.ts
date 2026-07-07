@@ -35,9 +35,9 @@ import type {
 // Supabase/Postgres errors NEVER reach the UI (CLAUDE.md §8). The RPCs gate the
 // `case_referrals` flag via `assert_referrals_enabled`.
 
-const COMMISSION_REFERRALS_PATH = '/c/[slug]/encaminhamentos'
-const REFERRAL_DETAIL_PATH = '/c/[slug]/encaminhamentos/[referralId]'
-const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
+const COMMISSION_REFERRALS_PATH = '/o/[org]/c/[commission]/encaminhamentos'
+const REFERRAL_DETAIL_PATH = '/o/[org]/c/[commission]/encaminhamentos/[referralId]'
+const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
 // NSP-per-org (ADR 0042): the QPS referral dashboard moved /admin/nsp/encaminhamentos
 // → /o/[org]/nsp/encaminhamentos. Revalidate the per-org NSP LAYOUT across all [org]
 // values — 'layout' invalidates the layout AND every page beneath it (incl. the

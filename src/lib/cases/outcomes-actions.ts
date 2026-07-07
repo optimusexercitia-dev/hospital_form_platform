@@ -72,11 +72,11 @@ const HC_CASE_TERMINAL = 'HC025'
 const HC_OUTCOME_NOT_OFFERED = 'HC029'
 const HC_COMMISSION_MISMATCH = 'HC030'
 
-const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
-const CASES_LIST_PATH = '/c/[slug]/manage/cases'
-const OUTCOME_SETTINGS_PATH = '/c/[slug]/manage/settings/desfechos'
-const DASHBOARD_PATH = '/c/[slug]/dashboard'
-const TEMPLATE_PATH = '/c/[slug]/manage/process-templates/[templateId]'
+const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
+const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
+const OUTCOME_SETTINGS_PATH = '/o/[org]/c/[commission]/manage/settings/desfechos'
+const DASHBOARD_PATH = '/o/[org]/c/[commission]/dashboard'
+const TEMPLATE_PATH = '/o/[org]/c/[commission]/manage/process-templates/[templateId]'
 
 function revalidateOutcomeVocabulary(): void {
   revalidatePath(OUTCOME_SETTINGS_PATH, 'page')

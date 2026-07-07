@@ -114,8 +114,8 @@ export interface InterviewInterviewerInput {
   note: string | null
 }
 
-const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
-const INTERVIEW_PATH = '/c/[slug]/manage/cases/[caseId]/interviews/[interviewId]'
+const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
+const INTERVIEW_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]/interviews/[interviewId]'
 
 function revalidateInterviews(): void {
   revalidatePath(CASE_PATH, 'page')

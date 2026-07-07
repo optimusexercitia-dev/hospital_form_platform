@@ -79,11 +79,11 @@ const HC_RESULT_INVALID = 'HC058'
 const HC_CASE_TERMINAL = 'HC060'
 const HC_RESULT_MANDATORY = 'HC062'
 
-const RESULT_SETTINGS_PATH = '/c/[slug]/manage/settings/resultados'
-const TEMPLATE_PATH = '/c/[slug]/manage/process-templates/[templateId]'
-const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
-const CASES_LIST_PATH = '/c/[slug]/manage/cases'
-const DASHBOARD_PATH = '/c/[slug]/dashboard'
+const RESULT_SETTINGS_PATH = '/o/[org]/c/[commission]/manage/settings/resultados'
+const TEMPLATE_PATH = '/o/[org]/c/[commission]/manage/process-templates/[templateId]'
+const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
+const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
+const DASHBOARD_PATH = '/o/[org]/c/[commission]/dashboard'
 
 function revalidateResultVocabulary(): void {
   revalidatePath(RESULT_SETTINGS_PATH, 'page')

@@ -47,7 +47,7 @@ export function RespondentSignoff({
   const noteId = `respondent-signoff-note`;
 
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+    <div className="flex flex-col gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4">
       <div className="flex flex-col gap-1">
         <h3 className="text-sm font-semibold">Sua assinatura é necessária</h3>
         <p className="text-sm text-muted-foreground text-pretty">

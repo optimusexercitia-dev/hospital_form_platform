@@ -82,7 +82,7 @@ const ALLOWED_DOC_MIME = new Map<string, string>([
   ['text/plain', 'txt'],
 ])
 
-const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
+const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
 
 function revalidateCase(): void {
   revalidatePath(CASE_PATH, 'page')

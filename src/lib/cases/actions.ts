@@ -125,8 +125,8 @@ const HC_PHASES_UNSETTLED = 'HC031'
 // Process-less case creation — outcome/commission mismatch (create_case).
 const HC_COMMISSION_MISMATCH = 'HC030'
 
-const CASES_LIST_PATH = '/c/[slug]/manage/cases'
-const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
+const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
+const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
 
 function revalidateCases() {
   revalidatePath(CASES_LIST_PATH, 'page')

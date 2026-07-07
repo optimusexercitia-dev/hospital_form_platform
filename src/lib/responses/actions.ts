@@ -86,8 +86,8 @@ const SUBMIT_RESULT_REQUIRED = 'HC061'
 const OVERRIDE_RESULT_REQUIRED = 'HC062'
 
 /** The staff filling area — revalidated as dynamic-segment pages. */
-const FORMS_LIST_PATH = '/c/[slug]/forms'
-const RESPONDER_PATH = '/c/[slug]/forms/[formId]/responder/[responseId]'
+const FORMS_LIST_PATH = '/o/[org]/c/[commission]/forms'
+const RESPONDER_PATH = '/o/[org]/c/[commission]/forms/[formId]/responder/[responseId]'
 
 function revalidateFill(): void {
   // [slug]/[formId]/[responseId] are literal Next.js dynamic-segment syntax,
@@ -469,8 +469,8 @@ export async function submitCasePhaseResponse(
 // ---------------------------------------------------------------------------
 
 /** The sign-off queue + review-and-sign screens revalidate alongside the fill. */
-const SIGNOFF_QUEUE_PATH = '/c/[slug]/manage/assinaturas'
-const SIGNOFF_REVIEW_PATH = '/c/[slug]/manage/assinaturas/[responseId]'
+const SIGNOFF_QUEUE_PATH = '/o/[org]/c/[commission]/manage/assinaturas'
+const SIGNOFF_REVIEW_PATH = '/o/[org]/c/[commission]/manage/assinaturas/[responseId]'
 
 /**
  * Record a sign-off on a `requires_signoff` section of an in_progress response

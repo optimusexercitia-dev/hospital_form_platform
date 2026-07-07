@@ -88,8 +88,8 @@ const HC_NOT_ARCHIVABLE = 'HC023'
 /** Result ruleset references an invalid/archived result option (phase-results). */
 const HC_INVALID_RESULT_OPTION = 'HC059'
 
-const TEMPLATES_LIST_PATH = '/c/[slug]/manage/process-templates'
-const TEMPLATE_PATH = '/c/[slug]/manage/process-templates/[templateId]'
+const TEMPLATES_LIST_PATH = '/o/[org]/c/[commission]/manage/process-templates'
+const TEMPLATE_PATH = '/o/[org]/c/[commission]/manage/process-templates/[templateId]'
 
 function revalidateTemplates() {
   revalidatePath(TEMPLATES_LIST_PATH, 'page')

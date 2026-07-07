@@ -101,7 +101,7 @@ export function SignoffStatus({
   return (
     <p
       className={cn(
-        "flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-sm font-medium text-amber-700 dark:text-amber-400",
+        "flex items-center gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3.5 py-2.5 text-sm font-medium text-warning",
         className,
       )}
     >

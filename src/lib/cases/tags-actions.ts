@@ -46,10 +46,10 @@ const PG_UNIQUE_VIOLATION = '23505'
 const PG_FORBIDDEN = '42501'
 const HC_COMMISSION_MISMATCH = 'HC026'
 
-const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
-const CASES_LIST_PATH = '/c/[slug]/manage/cases'
-const TAG_SETTINGS_PATH = '/c/[slug]/manage/settings/tags'
-const DASHBOARD_PATH = '/c/[slug]/dashboard'
+const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
+const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
+const TAG_SETTINGS_PATH = '/o/[org]/c/[commission]/manage/settings/etiquetas'
+const DASHBOARD_PATH = '/o/[org]/c/[commission]/dashboard'
 
 function revalidateTagVocabulary(): void {
   revalidatePath(TAG_SETTINGS_PATH, 'page')

@@ -136,12 +136,12 @@ const HC_CASE_TERMINAL = 'HC020' // assign/conclude/reopen on a terminal case
 const HC_NOT_MEMBER = 'HC021' // assignee not a member of the commission
 const HC_NARRATIVE_STATE = 'HC055' // narrative wrong lifecycle state
 
-const CASE_PATH = '/c/[slug]/manage/cases/[caseId]'
-const CASES_LIST_PATH = '/c/[slug]/manage/cases'
+const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
+const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
 // The narrative-type vocabulary manager now lives under the Construtor page
 // (Construtor → Narrativas tab), not Configurações.
-const NARRATIVE_BUILDER_PATH = '/c/[slug]/manage/forms/narrativas'
-const TEMPLATE_PATH = '/c/[slug]/manage/process-templates/[templateId]'
+const NARRATIVE_BUILDER_PATH = '/o/[org]/c/[commission]/manage/forms/narrativas'
+const TEMPLATE_PATH = '/o/[org]/c/[commission]/manage/process-templates/[templateId]'
 
 function revalidateNarrativeVocabulary(): void {
   revalidatePath(NARRATIVE_BUILDER_PATH, 'page')
