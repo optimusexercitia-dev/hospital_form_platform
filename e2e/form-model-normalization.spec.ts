@@ -204,12 +204,35 @@ async function publishForm(page: Page) {
 }
 
 // The OptionsEditor score / analytics fields (label text, options-editor.tsx).
-function scoreInput(dialog: Locator, position: number): Locator {
-  // "Pontuação (opcional)" label wraps the score input; there is one per row, in
+// The form-builder-enhancements batch redesigned the option row: score /
+// Código de análise / colour / flagged now live behind a per-row progressive-
+// disclosure ("Opções") toggle (Settings2), collapsed by default. The score /
+// analytics inputs are only in the DOM while their row is expanded, so a helper
+// must open the row's disclosure before returning the field.
+//
+// `.nth(position - 1)` counts across the CURRENTLY-expanded rows (the panel is
+// `{isOpen && …}`), so we expand rows in ascending order and keep them open —
+// which NORM-1 does (it fills row 1, then adds+fills row 2, then row 3). Keeping
+// every lower-indexed row expanded keeps the nth() index aligned with `position`.
+async function ensureRowOptionsExpanded(dialog: Locator, position: number): Promise<void> {
+  // The toggle's accessible name is "Mostrar opções da opção N" (collapsed) /
+  // "Ocultar opções da opção N" (open); it carries aria-expanded. Idempotent:
+  // only click when the row is not already expanded.
+  const toggle = dialog.getByRole('button', { name: new RegExp(`opções da opção ${position}`, 'i') })
+  await expect(toggle).toBeVisible({ timeout: 10_000 })
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  }
+}
+async function scoreInput(dialog: Locator, position: number): Promise<Locator> {
+  await ensureRowOptionsExpanded(dialog, position)
+  // "Pontuação (opcional)" label wraps the score input; one per EXPANDED row, in
   // DOM order. Positions are 1-based.
   return dialog.getByLabel(/Pontuação/i).nth(position - 1)
 }
-function analyticsInput(dialog: Locator, position: number): Locator {
+async function analyticsInput(dialog: Locator, position: number): Promise<Locator> {
+  await ensureRowOptionsExpanded(dialog, position)
   return dialog.getByLabel(/Código de análise/i).nth(position - 1)
 }
 
@@ -243,8 +266,8 @@ test('NORM-1 (builder): options carry score + analytics_code; reorder persists; 
 
   // Row 1 — "Baixo", color Verde, score 1, analytics "conforme".
   await d.getByLabel('Opção 1', { exact: true }).fill('Baixo')
-  await scoreInput(d, 1).fill('1')
-  await analyticsInput(d, 1).fill('conforme')
+  await (await scoreInput(d, 1)).fill('1')
+  await (await analyticsInput(d, 1)).fill('conforme')
   // color: open the row-1 colour dropdown and pick Verde. The palette swatches
   // are plain buttons that PORTAL to <body> (DropdownMenuContent) — scope to the
   // page, not the dialog. Picking sets aria-pressed and closes the dropdown.
@@ -257,14 +280,14 @@ test('NORM-1 (builder): options carry score + analytics_code; reorder persists; 
   // Row 2 — "Médio", score 2, analytics "atencao".
   await d.getByRole('button', { name: 'Adicionar opção' }).click()
   await d.getByLabel('Opção 2', { exact: true }).fill('Médio')
-  await scoreInput(d, 2).fill('2')
-  await analyticsInput(d, 2).fill('atencao')
+  await (await scoreInput(d, 2)).fill('2')
+  await (await analyticsInput(d, 2)).fill('atencao')
 
   // Row 3 — "Alto", score 3, analytics "critico".
   await d.getByRole('button', { name: 'Adicionar opção' }).click()
   await d.getByLabel('Opção 3', { exact: true }).fill('Alto')
-  await scoreInput(d, 3).fill('3')
-  await analyticsInput(d, 3).fill('critico')
+  await (await scoreInput(d, 3)).fill('3')
+  await (await analyticsInput(d, 3)).fill('critico')
 
   // --- Reorder: move row 3 ("Alto") up once so order becomes Baixo, Alto, Médio
   await d.getByRole('button', { name: /Mover a opção 3 para cima/i }).click()

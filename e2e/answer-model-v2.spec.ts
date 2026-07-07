@@ -258,8 +258,9 @@ test('DV-1 (scalar defaults): builder sets short_text + number defaults; wizard 
   await signInAs(page, 'staff1.ccih@test.local')
   await enterWizardByTitle(page, 'ccih', title)
 
-  const shortTextInput = page.getByLabel('Local da inspeção')
-  const numberInput = page.getByLabel('Quantidade de leitos')
+  // getByRole('textbox') targets the actual controls, not their "Limpar" buttons.
+  const shortTextInput = page.getByRole('textbox', { name: 'Local da inspeção' })
+  const numberInput = page.getByRole('textbox', { name: 'Quantidade de leitos' })
   await expect(shortTextInput).toHaveValue('Ala Norte')
   await expect(numberInput).toHaveValue('5')
 
@@ -662,7 +663,9 @@ test('DV-5 (keyboard-only): set a default via keyboard in the builder; fill and 
   await signInAs(page, 'staff1.ccih@test.local')
   await enterWizardByTitle(page, 'ccih', title)
 
-  const wizardInput = page.getByLabel('Responsável pela vistoria')
+  // getByRole('textbox') targets the input, not the "Limpar a resposta de
+  // Responsável pela vistoria" Clear button that shares the question text.
+  const wizardInput = page.getByRole('textbox', { name: 'Responsável pela vistoria' })
   await expect(wizardInput).toHaveValue('Equipe CCIH')
   await wizardInput.focus()
   // Keyboard-only edit: select-all + retype. `Control+A` is NOT a portable

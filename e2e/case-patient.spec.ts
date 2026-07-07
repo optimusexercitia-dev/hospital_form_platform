@@ -1067,8 +1067,10 @@ test('AC-8b: case_patient flag OFF — Novo caso PHI block absent even for colle
         .or(page.getByRole('dialog').filter({ hasText: /novo caso/i }))
       await expect(dialog).toBeVisible({ timeout: 8_000 })
 
-      // Select the collecting template
-      const templateSelect = dialog.locator('select').or(dialog.getByRole('combobox'))
+      // Select the collecting template. Scope to the templateId select by name:
+      // the dialog now also carries the "Unidade / setor" department select
+      // (hospital-departments batch), so a bare `select` matches 2 elements.
+      const templateSelect = dialog.locator('select[name="templateId"]')
       const optText = await templateSelect.locator('option').filter({ hasText: /spec cp/i }).textContent()
       if (!optText) return
       await templateSelect.selectOption({ label: optText.trim() })

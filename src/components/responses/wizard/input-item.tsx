@@ -129,6 +129,7 @@ export function InputItem({
       {observationEnabled && (
         <ObservationField
           itemId={item.id}
+          questionLabel={label}
           answered={answered}
           observation={observation ?? ""}
           onChange={onObservationChange}
@@ -798,11 +799,16 @@ function OtherTextField({
  */
 function ObservationField({
   itemId,
+  questionLabel,
   answered,
   observation,
   onChange,
 }: {
   itemId: string;
+  /** The parent question's label — folded into the button's accessible name so
+   *  multiple "Adicionar observação" buttons on one page are distinguishable to
+   *  assistive tech (the visible text is identical on every input). */
+  questionLabel: string;
   answered: boolean;
   observation: string;
   onChange: (value: string) => void;
@@ -820,6 +826,9 @@ function ObservationField({
         onClick={() => setExpanded(true)}
         // Enabled once the question is at least partially answered.
         disabled={!answered}
+        // Distinguishing accessible name; the visible text stays "Adicionar
+        // observação" for every input, so scope it to the question for a11y.
+        aria-label={`Adicionar observação — ${questionLabel}`}
       >
         <MessageSquarePlus aria-hidden="true" />
         Adicionar observação

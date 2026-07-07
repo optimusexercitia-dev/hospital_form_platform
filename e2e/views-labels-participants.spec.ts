@@ -1,4 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
+import { setDateTimeField, fillTimeField, pickDate } from './helpers/date-pickers'
 
 /**
  * Form-builder-enhancements batch (ad-hoc 2026-07-06) — TASKS 8 + 9 + 10:
@@ -378,8 +379,8 @@ test('AC-4: Nova reunião — "Participantes" section defaults to "Convocar todo
 
   // Fill the required header + create.
   await dialog.getByRole('textbox').first().fill(`Reunião ${TAG} — Todos`)
-  // Início (DateTimePicker: date first, then the masked time).
-  await setDateTimeField(page, dialog, 'Início', '10:00')
+  // Início (DateTimePicker: date first, then the segmented time).
+  await setDateTimeField(page, dialog, 'Início', { time: '10:00' })
 
   await dialog.getByRole('button', { name: /Agendar reunião/i }).click()
   await page.waitForURL(/\/meetings\/[0-9a-f-]{36}$/, { timeout: 30_000 })
@@ -420,7 +421,7 @@ test('AC-5: Nova reunião — toggle OFF reveals a member checklist + live count
   await expect(dialog).toBeVisible({ timeout: 8_000 })
 
   await dialog.getByRole('textbox').first().fill(`Reunião ${TAG} — Subconjunto`)
-  await setDateTimeField(page, dialog, 'Início', '11:00')
+  await setDateTimeField(page, dialog, 'Início', { time: '11:00' })
 
   // Toggle OFF "Convocar todos" → the checklist appears with a live count.
   const convocarTodos = dialog.getByRole('checkbox', {
@@ -511,11 +512,11 @@ test('AC-K: keyboard-only — the Participantes toggle + member checklist are re
 })
 
 // ---------------------------------------------------------------------------
-// TASK 7 (masked time in meeting-create) — the "Início" time is a numeric mask.
-// Also proves the batch's TimeField replaces the native control everywhere.
+// TASK 7 (segmented time in meeting-create) — the "Início" time is the segmented
+// react-aria TimeField. Proves the TimeField replaces the native control here.
 // ---------------------------------------------------------------------------
 
-test('AC-6a: the meeting-create "Início" time is the numeric MASK (not native <input type=time>)', async ({
+test('AC-6a: the meeting-create "Início" time is the segmented TimeField (not native <input type=time> nor a masked text field); a 4-digit entry commits', async ({
   page,
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
@@ -529,105 +530,18 @@ test('AC-6a: the meeting-create "Início" time is the numeric MASK (not native <
   // No native time input exists (the whole app moved off <input type=time>).
   await expect(dialog.locator('input[type="time"]')).toHaveCount(0)
 
-  // The Início time control is the masked "Hora" text field (type=text, numeric).
+  // The Início time control is the segmented "Hora" group (hour/minute spinbuttons).
   const inicioLabel = dialog.locator('label').filter({ hasText: 'Início' }).first()
-  const hora = inicioLabel.getByLabel('Hora', { exact: true })
-  await expect(hora).toBeVisible({ timeout: 8_000 })
-  expect(await hora.getAttribute('type')).toBe('text')
-  expect(await hora.getAttribute('inputmode')).toBe('numeric')
+  const timeGroup = inicioLabel.getByRole('group', { name: /^Hora$/i })
+  await expect(timeGroup).toBeVisible({ timeout: 8_000 })
+  await expect(timeGroup.getByRole('spinbutton')).toHaveCount(2)
 
-  // A full 4-digit entry (with a date chosen first for the controlled DateTimePicker)
-  // commits correctly — this part of the mask works.
-  const dateTrigger = inicioLabel.locator('button[aria-haspopup="dialog"]').first()
-  await dateTrigger.click()
-  const grid = page.getByRole('grid')
-  await expect(grid).toBeVisible({ timeout: 5_000 })
-  const day = grid.getByRole('button').filter({ hasText: /^15$/ }).first()
-  if ((await day.count()) > 0 && (await day.isEnabled())) {
-    await day.click()
-  } else {
-    const buttons = grid.getByRole('button')
-    const n = await buttons.count()
-    for (let i = 0; i < n; i++) {
-      if (await buttons.nth(i).isEnabled()) {
-        await buttons.nth(i).click()
-        break
-      }
-    }
-  }
-  // The date pick pre-fills the time as 00:00 (controlled DateTimePicker); clear
-  // it before typing a full 4-digit entry so the mask starts empty.
-  await hora.click()
-  await hora.press('ControlOrMeta+a')
-  await hora.pressSequentially('0930')
-  await hora.blur()
-  await expect(hora).toHaveValue('09:30')
+  // Controlled DateTimePicker: pick the date first, then fill the segmented time.
+  await pickDate(inicioLabel, page)
+  await fillTimeField(timeGroup, page, '09:30')
+  await expect(timeGroup).toContainText('09')
+  await expect(timeGroup).toContainText('30')
 })
 
-// EXPECTED TO FAIL until BUG-FBE-007 is fixed. The batch acceptance says typing
-// `930` yields `09:30`, but the live mask turns 9-3-0 into `93:0` → blur clears it.
-// Kept asserting the CORRECT contract (tester never weakens a spec to a bug).
-test('AC-6b: masked time — typing "930" yields "09:30" (batch acceptance; BUG-FBE-007)', async ({
-  page,
-}) => {
-  await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/o/${ORG}/c/ccih/meetings`)
-  await page.waitForLoadState('networkidle')
-
-  await page.getByRole('button', { name: /Nova reunião/i }).click()
-  const dialog = page.getByRole('dialog', { name: /Nova reunião/i })
-  await expect(dialog).toBeVisible({ timeout: 8_000 })
-
-  const inicioLabel = dialog.locator('label').filter({ hasText: 'Início' }).first()
-  const hora = inicioLabel.getByLabel('Hora', { exact: true })
-  // Pick a date first (controlled DateTimePicker commits time only with a date).
-  const dateTrigger = inicioLabel.locator('button[aria-haspopup="dialog"]').first()
-  await dateTrigger.click()
-  const grid = page.getByRole('grid')
-  await expect(grid).toBeVisible({ timeout: 5_000 })
-  const day = grid.getByRole('button').filter({ hasText: /^15$/ }).first()
-  if ((await day.count()) > 0 && (await day.isEnabled())) await day.click()
-  await hora.click()
-  await hora.press('ControlOrMeta+a')
-  await hora.pressSequentially('930')
-  await hora.blur()
-  await expect(hora).toHaveValue('09:30')
-})
-
-// ---------------------------------------------------------------------------
-// Local helper — drive the DateTimePicker (date via calendar, time via mask).
-// ---------------------------------------------------------------------------
-
-async function setDateTimeField(
-  page: Page,
-  dialog: import('@playwright/test').Locator,
-  labelText: string,
-  time: string,
-) {
-  const field = dialog.locator('label').filter({ hasText: labelText }).first()
-  await expect(field).toBeVisible({ timeout: 5_000 })
-  // Date: open the calendar popover + click day 15 (always present + enabled).
-  const dateTrigger = field.locator('button[aria-haspopup="dialog"]').first()
-  await dateTrigger.click()
-  const grid = page.getByRole('grid')
-  await expect(grid).toBeVisible({ timeout: 5_000 })
-  const day = grid.getByRole('button').filter({ hasText: /^15$/ }).first()
-  if ((await day.count()) > 0 && (await day.isEnabled())) {
-    await day.click()
-  } else {
-    // Fall back to the first enabled day.
-    const buttons = grid.getByRole('button')
-    const n = await buttons.count()
-    for (let i = 0; i < n; i++) {
-      if (await buttons.nth(i).isEnabled()) {
-        await buttons.nth(i).click()
-        break
-      }
-    }
-  }
-  // Time: the masked "Hora" field inside this DateTimePicker.
-  const hora = field.getByLabel('Hora', { exact: true })
-  await hora.click()
-  await hora.pressSequentially(time.replace(':', ''))
-  await hora.blur()
-}
+// The DateTimePicker helper (date via calendar, time via the segmented TimeField)
+// is shared from ./helpers/date-pickers (`setDateTimeField`).

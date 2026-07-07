@@ -1,4 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
+import { fillTimeField } from './helpers/date-pickers'
 
 /**
  * Form Builder Enhancements — seven additive author/respondent capabilities.
@@ -83,11 +84,9 @@ let fillS0Id: string // default section
 let fillS1Id: string // "Detalhes"
 let fillCtrlId: string // controller MC (fill_ctrl)
 let fillSameId: string // same-section conditional short_text (fill_same)
-let fillColorId: string // coloured MC (fill_color)
 let fillNumId: string // number with min/max (fill_num)
-let fillDateId: string // date (fill_date)
-let fillTimeId: string // time (fill_time)
-let fillCrossId: string // cross-section conditional free_text (fill_cross)
+// fill_color / fill_date / fill_time / fill_cross items are created in beforeAll
+// for their side effect (the wizard renders them); their ids are not referenced.
 
 // AC-14 sign-off review form (FORM_SIGNOFF)
 let signoffFormId: string
@@ -97,8 +96,8 @@ let numCondFormId: string
 let signoffVersionId: string
 let signoffS0Id: string // default flat section (no signoff)
 let signoffS1Id: string // "Revisão" section — requires_signoff=true, staff_admin
-let signoffS0TxtId: string // short_text in S0 (fill before advancing)
-let signoffS1McId: string // MC in S1 (the item that carries an observation)
+// signoff S0 short_text / S1 MC items are created in beforeAll for their side
+// effect (driven via the wizard by label); their ids are not referenced.
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -380,7 +379,7 @@ test.beforeAll(async ({ request }) => {
     },
   })
   // Coloured MC (green/red).
-  fillColorId = await insertItem(request, {
+  await insertItem(request, {
     section_id: fillS0Id,
     position: 2,
     item_type: 'multiple_choice',
@@ -403,7 +402,7 @@ test.beforeAll(async ({ request }) => {
     config: { min: 1, max: 10 },
   })
   // Date.
-  fillDateId = await insertItem(request, {
+  await insertItem(request, {
     section_id: fillS0Id,
     position: 4,
     item_type: 'date',
@@ -412,7 +411,7 @@ test.beforeAll(async ({ request }) => {
     required: false,
   })
   // Time.
-  fillTimeId = await insertItem(request, {
+  await insertItem(request, {
     section_id: fillS0Id,
     position: 5,
     item_type: 'time',
@@ -422,7 +421,7 @@ test.beforeAll(async ({ request }) => {
   })
 
   // S1 item: cross-section conditional (shown when fill_ctrl = Sim).
-  fillCrossId = await insertItem(request, {
+  await insertItem(request, {
     section_id: fillS1Id,
     position: 0,
     item_type: 'free_text',
@@ -499,7 +498,7 @@ test.beforeAll(async ({ request }) => {
   signoffS1Id = signoffS1.id
 
   // S0: one short_text question (plain, always visible, no observation needed here).
-  signoffS0TxtId = await insertItem(request, {
+  await insertItem(request, {
     section_id: signoffS0Id,
     position: 0,
     item_type: 'short_text',
@@ -510,7 +509,7 @@ test.beforeAll(async ({ request }) => {
 
   // S1: one multiple_choice question — NOT free_text so the observation affordance
   // appears (decision #11). Staff1 will select an option and add an observation.
-  signoffS1McId = await insertItem(request, {
+  await insertItem(request, {
     section_id: signoffS1Id,
     position: 0,
     item_type: 'multiple_choice',
@@ -939,20 +938,29 @@ test('AC-7 (fill): short_text, number, date, time render with the right controls
   })
 
   // number: a text input with inputMode=decimal (pt-BR comma display) + bounds hint.
-  const numInput = page.getByLabel(/Nota de gravidade/i)
+  // .and(input) intersects to the control, excluding the "Limpar" <button> that
+  // shares the question text in its aria-label.
+  const numInput = page.getByLabel(/Nota de gravidade/i).and(page.locator('input'))
   await expect(numInput).toBeVisible()
   await expect(numInput).toHaveAttribute('inputmode', 'decimal')
   await expect(page.getByText(/Entre 1 e 10/i)).toBeVisible()
 
   // date: a native date input.
-  const dateInput = page.getByLabel(/Data da ocorrência/i)
+  const dateInput = page.getByLabel(/Data da ocorrência/i).and(page.locator('input'))
   await expect(dateInput).toBeVisible()
   await expect(dateInput).toHaveAttribute('type', 'date')
 
-  // time: a native time input.
-  const timeInput = page.getByLabel(/Horário da ocorrência/i)
-  await expect(timeInput).toBeVisible()
-  await expect(timeInput).toHaveAttribute('type', 'time')
+  // time: the segmented react-aria TimeField (role="group" "Hora" with hour/minute
+  // spinbutton segments) — NOT a native <input type=time>. There must be no native
+  // time input, and the segmented group must accept a typed HH:mm value.
+  await expect(page.locator('input[type="time"]')).toHaveCount(0)
+  const timeGroup = page.getByRole('group', { name: /Hora/i })
+  await expect(timeGroup).toBeVisible()
+  // Two segments (hour + minute); typing 09:30 fills them via the shared helper.
+  await expect(timeGroup.getByRole('spinbutton')).toHaveCount(2)
+  await fillTimeField(timeGroup, page, '09:30')
+  await expect(timeGroup).toContainText('09')
+  await expect(timeGroup).toContainText('30')
 
   // short_text only appears once the controller = Sim (AC-8 covers the live
   // toggle); the coloured MC is always visible.
@@ -973,7 +981,9 @@ test('AC-8 (fill): conditional questions show/hide live (same-section + cross-se
   await signInAs(page, 'staff1.ccih@test.local')
   await page.goto(fillUrl(responseId))
 
-  const sameSection = page.getByLabel(/Quem identificou a ocorrência/i)
+  // getByRole('textbox') targets the input, not the "Limpar a resposta de …"
+  // Clear button that shares the question text in its aria-label.
+  const sameSection = page.getByRole('textbox', { name: /Quem identificou a ocorrência/i })
   const ctrlSim = page.getByRole('radio', { name: 'Sim' })
   const ctrlNao = page.getByRole('radio', { name: 'Não' })
 
@@ -1020,13 +1030,17 @@ test('AC-9 (fill): observation affordance on a non-free-text question', async ({
   await page.goto(fillUrl(responseId))
 
   // Answer the coloured MC (non-free-text) → the "Adicionar observação"
-  // affordance appears (it only shows once the question is answered).
+  // affordance enables for THAT block (it only enables once the block is
+  // answered). Scope to the coloured MC's block by its per-item accessible name
+  // ("Adicionar observação — <pergunta>"): the unanswered controller MC
+  // (fill_ctrl, pos 0) also renders a — disabled — observação button, so a bare
+  // .first() would grab that one instead.
   await page.getByRole('radio', { name: 'Baixo' }).check()
 
-  const addObsBtn = page
-    .getByRole('button', { name: /Adicionar observação/i })
-    .first()
-  await expect(addObsBtn).toBeVisible({ timeout: 10_000 })
+  const addObsBtn = page.getByRole('button', {
+    name: /Adicionar observação — Classificação de risco/i,
+  })
+  await expect(addObsBtn).toBeEnabled({ timeout: 10_000 })
   await addObsBtn.click()
 
   // A 2-line textarea labelled "Observação" appears and accepts text.
@@ -1053,7 +1067,7 @@ test('AC-10 (submit): an answered-then-hidden conditional answer is cleared on s
 
   // Answer controller = Sim → same-section conditional appears → fill it.
   await page.getByRole('radio', { name: 'Sim' }).check()
-  const sameSection = page.getByLabel(/Quem identificou a ocorrência/i)
+  const sameSection = page.getByRole('textbox', { name: /Quem identificou a ocorrência/i })
   await expect(sameSection).toBeVisible({ timeout: 10_000 })
   await sameSection.fill('Equipe da noite')
 
@@ -1127,7 +1141,8 @@ test('AC-11 (submit): number out of bounds blocks submit with a pt-BR error (HC0
   // number OUT of bounds (max is 10 → enter 99). Use Não so the conditional
   // items stay hidden and don't add required gates.
   await page.getByRole('radio', { name: 'Não' }).check()
-  const numInput = page.getByLabel(/Nota de gravidade/i)
+  // getByRole('textbox') targets the number input, not its "Limpar" Clear button.
+  const numInput = page.getByRole('textbox', { name: /Nota de gravidade/i })
   await numInput.fill('99')
 
   // Click "Próximo" — the client interceptor (validateSection) fires before
@@ -1201,12 +1216,18 @@ test('AC-12/AC-13 (read): observation line + coloured chip on submission detail'
 
   await page.getByRole('radio', { name: 'Sim' }).check()
   // Fill the same-section conditional (now visible) so nothing is orphaned.
-  await page.getByLabel(/Quem identificou a ocorrência/i).fill('Auditor diurno')
+  await page
+    .getByRole('textbox', { name: /Quem identificou a ocorrência/i })
+    .fill('Auditor diurno')
   // Coloured MC = Alto (red).
   await page.getByRole('radio', { name: 'Alto' }).check()
-  // Add an observation on the coloured MC.
-  const addObsBtn = page.getByRole('button', { name: /Adicionar observação/i }).first()
-  await expect(addObsBtn).toBeVisible({ timeout: 10_000 })
+  // Add an observation on the coloured MC (scope by its per-item accessible name;
+  // the answered controller MC also has an enabled observação button, so .first()
+  // would target the wrong block).
+  const addObsBtn = page.getByRole('button', {
+    name: /Adicionar observação — Classificação de risco/i,
+  })
+  await expect(addObsBtn).toBeEnabled({ timeout: 10_000 })
   await addObsBtn.click()
   await page
     .getByLabel(/^Observação/i)
@@ -1215,7 +1236,7 @@ test('AC-12/AC-13 (read): observation line + coloured chip on submission detail'
   // Advance to "Detalhes" → fill the cross-section conditional → review → submit.
   await page.getByRole('button', { name: /Próximo|Avançar|Continuar/i }).first().click()
   await page
-    .getByLabel(/Descreva a ocorrência em detalhe/i)
+    .getByRole('textbox', { name: /Descreva a ocorrência em detalhe/i })
     .fill('Ocorrência detalhada para o teste de leitura.')
   await page.getByRole('button', { name: /Revisar/i }).first().click()
   await expect(
@@ -1283,7 +1304,7 @@ test('AC-K (keyboard-only): answer a question and reveal the observation with th
 
   // The same-section conditional appears once the controller is answered.
   await expect(
-    page.getByLabel(/Quem identificou a ocorrência/i),
+    page.getByRole('textbox', { name: /Quem identificou a ocorrência/i }),
   ).toBeVisible({ timeout: 10_000 })
 
   // Answer the coloured MC with the keyboard (focus "Baixo", Space to select).
@@ -1293,9 +1314,13 @@ test('AC-K (keyboard-only): answer a question and reveal the observation with th
   await page.keyboard.press('Space')
   await expect(baixo).toBeChecked()
 
-  // The "Adicionar observação" button is reachable + operable by keyboard.
-  const addObsBtn = page.getByRole('button', { name: /Adicionar observação/i }).first()
-  await expect(addObsBtn).toBeVisible({ timeout: 10_000 })
+  // The coloured MC's "Adicionar observação" button is reachable + operable by
+  // keyboard. Scope by its per-item accessible name (the answered controller MC
+  // also has an enabled observação button, so .first() would target the wrong one).
+  const addObsBtn = page.getByRole('button', {
+    name: /Adicionar observação — Classificação de risco/i,
+  })
+  await expect(addObsBtn).toBeEnabled({ timeout: 10_000 })
   await addObsBtn.focus()
   await expect(addObsBtn).toBeFocused()
   await page.keyboard.press('Enter')
@@ -1354,7 +1379,9 @@ test('AC-14 (sign-off review): observation line renders in the sign-off review (
   await page.goto(`/o/rede-a/c/ccih/forms/${signoffFormId}/responder/${responseId}`)
 
   // S0: fill the required short_text ("Nome do responsável").
-  await page.getByLabel(/Nome do responsável/i).fill('Enfermeiro Teste')
+  await page
+    .getByRole('textbox', { name: /Nome do responsável/i })
+    .fill('Enfermeiro Teste')
 
   // Advance to S1.
   await page.getByRole('button', { name: /Próximo|Avançar|Continuar/i }).first().click()
@@ -1363,10 +1390,13 @@ test('AC-14 (sign-off review): observation line renders in the sign-off review (
   // S1: answer the MC ("Aprovado").
   await page.getByRole('radio', { name: 'Aprovado' }).check()
 
-  // Add an observation on the MC (the first — and only — "Adicionar observação"
-  // button in S1, since it's the only answered non-free-text item).
-  const addObsBtn = page.getByRole('button', { name: /Adicionar observação/i }).first()
-  await expect(addObsBtn).toBeVisible({ timeout: 10_000 })
+  // Add an observation on the MC. Scope by its per-item accessible name
+  // ("Avaliação da revisão" is the only observação-capable item in S1, but
+  // scoping keeps this robust if S1 ever gains another).
+  const addObsBtn = page.getByRole('button', {
+    name: /Adicionar observação — Avaliação da revisão/i,
+  })
+  await expect(addObsBtn).toBeEnabled({ timeout: 10_000 })
   await addObsBtn.click()
   const obsFieldS1 = page.getByLabel(/^Observação/i)
   await expect(obsFieldS1).toBeVisible({ timeout: 5_000 })
@@ -1492,12 +1522,13 @@ test('AC-15 (number-condition regression guard): number gt condition evaluates n
   await expect(page.getByText('Pontuação').first()).toBeVisible({ timeout: 15_000 })
 
   // 4. Answer Pontuação = 3 → 3 is NOT greater than 5 → dependent HIDDEN.
-  const numInput = page.getByLabel('Pontuação')
+  // getByRole('textbox') targets the number input, not its "Limpar" Clear button.
+  const numInput = page.getByRole('textbox', { name: 'Pontuação' })
   await numInput.fill('3')
   // Trigger change event so the condition evaluator sees the new value.
   await numInput.press('Tab')
   await expect(
-    page.getByLabel(/Detalhes \(condição numérica\)/i),
+    page.getByRole('textbox', { name: /Detalhes \(condição numérica\)/i }),
   ).toHaveCount(0, { timeout: 8_000 })
 
   // 5. Change Pontuação = 10 → 10 IS greater than 5 (numerically; "10" < "5"
@@ -1505,6 +1536,6 @@ test('AC-15 (number-condition regression guard): number gt condition evaluates n
   await numInput.fill('10')
   await numInput.press('Tab')
   await expect(
-    page.getByLabel(/Detalhes \(condição numérica\)/i),
+    page.getByRole('textbox', { name: /Detalhes \(condição numérica\)/i }),
   ).toBeVisible({ timeout: 8_000 })
 })

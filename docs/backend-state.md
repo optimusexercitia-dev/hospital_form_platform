@@ -530,6 +530,35 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
   "Visão Geral" cards) — frontend owns the pages/cards. No new actions module (reads only).
 - Service-role client: `src/lib/supabase/admin.ts` (`import 'server-only'`), invite path only.
 
+### Form-Builder Enhancements batch (2026-07-07; no dedicated ADR — see [adjustments-batch.md](progress/adjustments-batch.md))
+
+Migrations `20260713000500…001000` (on remote). New backend surface:
+
+- **`hospital_departments`** — hospital-scoped unit/setor list (`hospital_id`, `name`, `sort_order`,
+  `archived_at`). RLS: hospital-member SELECT (`app.is_hospital_member_of(hospital_id)`, new helper),
+  admin (org/hospital) INSERT/UPDATE. Hardened `reorder_departments(p_hospital_id, p_ordered_ids[])`
+  DEFINER RPC (admin-gated, same-hospital assertion). `cases.department_id` (FK, nullable) +
+  `cases.department_other` (free text for the "Outros" department) — captured at case create.
+- **Flagged + aggregate result criteria** — `form_item_options.flagged` (bool); per-item
+  `config.flaggedWhen`. `app.compute_case_phase_result` injects two **synthetic answer-map keys** at
+  runtime — `__total_score__` (Σ option scores) and `__flagged_count__` (Σ flagged selections) — so
+  result rules can key on aggregates. **Evaluator (Rule 3) byte-for-byte unchanged** (synthetic keys ride
+  the existing `__phase_result__` reserved-key precedent). `app.validate_template_result_ruleset` whitelists
+  the two keys (mirrors `__phase_result__`) and skips option-code assertion for their **numeric** values;
+  unknown reserved keys still throw HC016. Client keys: `TOTAL_SCORE_KEY`/`FLAGGED_COUNT_KEY`
+  (`src/lib/queries/conditions.ts`).
+- **"Others" open option** — reserved option `code='__other__'` (`form_item_options.is_other`),
+  reconciled like a normal option; `answers.other_text` holds the free text. `save_section_answers` gains
+  `p_other_text jsonb` (item→text map). Submit validation honors per-item `config.minLength/maxLength`.
+  Client-safe constants live in **`src/lib/forms/option-constants.ts`** (`OTHER_OPTION_CODE`/`OTHER_OPTION_LABEL`,
+  re-exported from `queries/forms.ts`) — NEVER value-import them from `queries/forms.ts` in a client component
+  (drags `next/headers` into the bundle; see BUG-FBE-005).
+- **`seed_selected_meeting_attendees(p_meeting_id, p_user_ids[])`** DEFINER RPC — bulk-convoke a selected
+  member set at UI meeting create ("Convocar todos" default). To promote an already-convoked attendee use
+  the existing `update_meeting_attendee(p_attendee_id, p_role, p_attendance)` (do NOT re-`add` — unique
+  `(meeting_id,user_id)` index).
+- **`openNarrativeCount`** surfaced on the cases-board read (Etapas-pendentes support).
+
 ## ADR index (decisions that shape the backend)
 
 0002 admin claim hook · 0003 pgTAP · 0004 sign-off flag · 0005 visible_when shape ·

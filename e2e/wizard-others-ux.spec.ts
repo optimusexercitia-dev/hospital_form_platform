@@ -1,9 +1,10 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
+import { fillTimeField } from './helpers/date-pickers'
 
 /**
  * Form-builder-enhancements batch (ad-hoc 2026-07-06) — TASKS 5 + 6 + 7:
  * "Outros" open-option round-trip + wizard UX (Clear / always-rendered
- * observação) + the masked numeric TIME field.
+ * observação) + the segmented TIME field.
  *
  * Acceptance:
  *   5+6 "Outros":
@@ -15,12 +16,13 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  *       still submits);
  *     - the whole-block Clear (Limpar) wipes the answer + Outro text + observação;
  *     - on the submitted-response detail the answer shows "Outro: <valor>".
- *   7 Wizard UX + masked time:
+ *   7 Wizard UX + segmented time:
  *     - every question block has a Clear icon-button (top-right);
  *     - "Adicionar observação" is always rendered but DISABLED until the block is
  *       partially answered (and ABSENT for free_text);
- *     - the time input is an auto-formatting numeric mask: typing `930` → `09:30`;
- *       rejects out-of-range (`2560`, `9999`); it is a text mask, not <input type=time>.
+ *     - the time input is the segmented react-aria TimeField (role="group" "Hora"
+ *       with hour/minute spinbutton segments) — typing "0930" fills 09:30; it is
+ *       NOT a native <input type=time> and NOT a masked text field.
  *
  * Fixture (service role + persona JWT): a spec-owned unsectioned form in CCIH:
  *   sev  multiple_choice REQUIRED, allowOther (Grave / Leve + __other__)
@@ -271,7 +273,7 @@ test.beforeAll(async ({ request }) => {
   )
   await insertOptionsWithOther(request, epis.id, epis.form_version_id, ['Luvas', 'Avental'])
 
-  // hora — optional time item (masked field).
+  // hora — optional time item (segmented TimeField).
   await svcInsert(request, 'form_items', {
     section_id: sectionId,
     position: 2,
@@ -344,7 +346,7 @@ test('AC-1: every input block has a Clear button; observação is disabled until
   expect(obsCount).toBeGreaterThanOrEqual(1)
 })
 
-test('AC-2: the time field is a numeric MASK — typing 930 yields 09:30; not a native <input type=time>', async ({
+test('AC-2: the time field is the segmented TimeField — typing 0930 yields 09:30; not a native <input type=time> nor a masked text field', async ({
   page,
   request,
 }) => {
@@ -352,26 +354,26 @@ test('AC-2: the time field is a numeric MASK — typing 930 yields 09:30; not a 
   await signInAs(page, 'staff2.ccih@test.local')
   await enterWizard(page)
 
-  // The masked field has aria-label "Hora" and is a TEXT input (inputMode numeric),
-  // NOT type=time. Assert type + inputmode.
-  const hora = page.getByLabel('Hora', { exact: true })
-  await expect(hora).toBeVisible({ timeout: 10_000 })
-  expect(await hora.getAttribute('type')).toBe('text')
-  expect(await hora.getAttribute('inputmode')).toBe('numeric')
+  // The control is a react-aria segmented TimeField: a role="group" "Hora" with
+  // hour/minute spinbutton segments — NOT a native time input and NOT a masked
+  // text field.
+  await expect(page.locator('input[type="time"]')).toHaveCount(0)
+  const timeGroup = page.getByRole('group', { name: /^Hora$/i })
+  await expect(timeGroup).toBeVisible({ timeout: 10_000 })
+  const segments = timeGroup.getByRole('spinbutton')
+  await expect(segments).toHaveCount(2)
 
-  // Typing 930 auto-inserts the colon → 09:30 (colon appears on the 3rd digit),
-  // then blur normalizes "9:30" style entries. Type the 3 digits and blur.
-  await hora.click()
-  await hora.pressSequentially('930')
-  await hora.blur()
-  await expect(hora).toHaveValue('09:30')
+  // Typing the four digits fills hour then minute (24h) via the shared helper.
+  await fillTimeField(timeGroup, page, '09:30')
+  await expect(timeGroup).toContainText('09')
+  await expect(timeGroup).toContainText('30')
 
-  // A visible focus ring (accessibility) — the control is focusable.
-  await hora.focus()
-  await expect(hora).toBeFocused()
+  // A visible focus ring (accessibility) — the first segment is focusable.
+  await segments.first().focus()
+  await expect(segments.first()).toBeFocused()
 })
 
-test('AC-3: masked time rejects out-of-range entries (2560, 9999) → empty/invalid, no bad value', async ({
+test('AC-3: segmented time constrains each segment to its valid range — no out-of-range canonical value is possible', async ({
   page,
   request,
 }) => {
@@ -379,26 +381,35 @@ test('AC-3: masked time rejects out-of-range entries (2560, 9999) → empty/inva
   await signInAs(page, 'staff2.ccih@test.local')
   await enterWizard(page)
 
-  const hora = page.getByLabel('Hora', { exact: true })
-  await expect(hora).toBeVisible({ timeout: 10_000 })
+  const timeGroup = page.getByRole('group', { name: /^Hora$/i })
+  await expect(timeGroup).toBeVisible({ timeout: 10_000 })
+  const hourSeg = timeGroup.getByRole('spinbutton').first()
+  const minuteSeg = timeGroup.getByRole('spinbutton').nth(1)
 
-  // 2560 → minute 60 invalid → normalizes to "" on blur (never a canonical value).
-  await hora.click()
-  await hora.pressSequentially('2560')
-  await hora.blur()
-  await expect(hora).toHaveValue('')
+  // react-aria segments carry aria-valuemin/aria-valuemax that bound the segment.
+  // 24h hour = 0..23; minute = 0..59. The control cannot hold an out-of-range value.
+  await expect(hourSeg).toHaveAttribute('aria-valuemax', '23')
+  await expect(minuteSeg).toHaveAttribute('aria-valuemax', '59')
 
-  // 9999 → hour 99 invalid → "".
-  await hora.click()
-  await hora.pressSequentially('9999')
-  await hora.blur()
-  await expect(hora).toHaveValue('')
+  // Type a would-be out-of-range hour ("99"): the segment clamps to a valid hour,
+  // never 99. Then type a valid minute. Read the segments back and assert both
+  // hold in-range values (aria-valuenow within [min,max]).
+  await hourSeg.click()
+  await page.keyboard.type('99')
+  await minuteSeg.click()
+  await page.keyboard.type('60')
 
-  // A valid value still works after the invalid entries.
-  await hora.click()
-  await hora.pressSequentially('1445')
-  await hora.blur()
-  await expect(hora).toHaveValue('14:45')
+  const hourNow = Number(await hourSeg.getAttribute('aria-valuenow'))
+  const minuteNow = Number(await minuteSeg.getAttribute('aria-valuenow'))
+  expect(hourNow).toBeGreaterThanOrEqual(0)
+  expect(hourNow).toBeLessThanOrEqual(23)
+  expect(minuteNow).toBeGreaterThanOrEqual(0)
+  expect(minuteNow).toBeLessThanOrEqual(59)
+
+  // A valid full entry still commits cleanly after the over-range keystrokes.
+  await fillTimeField(timeGroup, page, '14:45')
+  await expect(timeGroup).toContainText('14')
+  await expect(timeGroup).toContainText('45')
 })
 
 // ---------------------------------------------------------------------------
@@ -471,11 +482,11 @@ test('AC-6: required MC with Outro selected + BLANK text still submits; detail s
 })
 
 // ---------------------------------------------------------------------------
-// KEYBOARD-ONLY: the masked time field accepts typed input with a visible focus
-// ring, and Tab reaches the wizard controls.
+// KEYBOARD-ONLY: the segmented time field accepts typed input with a visible focus
+// ring on its segments, reachable by keyboard.
 // ---------------------------------------------------------------------------
 
-test('AC-K: keyboard-only — Tab reaches the masked time field; typed digits format', async ({
+test('AC-K: keyboard-only — focus reaches the segmented time field; typed digits fill the segments', async ({
   page,
   request,
 }) => {
@@ -483,15 +494,17 @@ test('AC-K: keyboard-only — Tab reaches the masked time field; typed digits fo
   await signInAs(page, 'staff2.ccih@test.local')
   await enterWizard(page)
 
-  const hora = page.getByLabel('Hora', { exact: true })
-  await expect(hora).toBeVisible({ timeout: 10_000 })
-  await hora.focus()
-  await expect(hora).toBeFocused()
-  // Keyboard-only entry. Use a 4-digit value (0815) so this a11y check is NOT
-  // conflated with the 3-digit mask defect (BUG-FBE-007, covered by AC-2).
+  const timeGroup = page.getByRole('group', { name: /^Hora$/i })
+  await expect(timeGroup).toBeVisible({ timeout: 10_000 })
+  const hourSeg = timeGroup.getByRole('spinbutton').first()
+
+  // Keyboard-only entry: focus the hour segment (visible focus ring), type the
+  // four digits — react-aria advances hour → minute automatically.
+  await hourSeg.focus()
+  await expect(hourSeg).toBeFocused()
   await page.keyboard.type('0815')
-  await page.keyboard.press('Tab') // blur → normalize
-  await expect(hora).toHaveValue('08:15')
+  await expect(timeGroup).toContainText('08')
+  await expect(timeGroup).toContainText('15')
 })
 
 // ---------------------------------------------------------------------------

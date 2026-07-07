@@ -1149,15 +1149,41 @@ test('AC6 — keyboard-only: schedule meeting and Concluir via keyboard navigati
   const kbRow = await getMeetingRow(page, kbMeetingId)
   expect(kbRow?.status).toBe('realizada')
 
-  // The Concluir flow via keyboard requires a present attendee, so we add one via API
+  // The Concluir flow requires a PRESENT attendee. The meeting-create form now
+  // defaults "Convocar todos" ON, so creating the meeting auto-convokes every
+  // commission member — CHEFE_CCIH is ALREADY an attendee (attendance=convocado),
+  // and a bare add_meeting_attendee would hit the (meeting_id,user_id) unique
+  // index and fail. So: look up his existing attendee row and UPDATE it to
+  // presente (update_meeting_attendee); only add if he isn't already convoked.
   const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
-  const addAttResp = await callRPC(page, chefeToken, 'add_meeting_attendee', {
-    p_meeting_id: kbMeetingId,
-    p_user_id: CHEFE_CCIH_ID,
-    p_role: 'presidente',
-    p_attendance: 'presente',
-  })
-  expect(addAttResp.status).toBe(200)
+  const existingResp = await page.request.get(
+    `${SUPABASE_URL}/rest/v1/meeting_attendees?meeting_id=eq.${kbMeetingId}` +
+      `&user_id=eq.${CHEFE_CCIH_ID}&select=id,attendance`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      },
+    },
+  )
+  const existing = (await existingResp.json()) as { id: string; attendance: string }[]
+  if (existing.length > 0) {
+    // Already convoked by "Convocar todos" → promote to presente via the update RPC.
+    const updResp = await callRPC(page, chefeToken, 'update_meeting_attendee', {
+      p_attendee_id: existing[0].id,
+      p_role: 'presidente',
+      p_attendance: 'presente',
+    })
+    expect(updResp.status).toBe(200)
+  } else {
+    const addAttResp = await callRPC(page, chefeToken, 'add_meeting_attendee', {
+      p_meeting_id: kbMeetingId,
+      p_user_id: CHEFE_CCIH_ID,
+      p_role: 'presidente',
+      p_attendance: 'presente',
+    })
+    expect(addAttResp.status).toBe(200)
+  }
 
   // Reload to refresh state
   await page.reload()

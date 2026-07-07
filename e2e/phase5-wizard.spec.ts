@@ -176,12 +176,12 @@ test.describe('AC1 — Unsectioned form (flat render)', () => {
     await expect(
       page.getByText(/Há dispensador de álcool em gel disponível/i).first(),
     ).toBeVisible({ timeout: 10_000 })
-    // dropdown.
-    await expect(page.getByLabel(/Turno em que a auditoria/i)).toBeVisible()
+    // dropdown. (getByRole('combobox') targets the <select>, not the "Limpar" button.)
+    await expect(page.getByRole('combobox', { name: /Turno em que a auditoria/i })).toBeVisible()
     // checkbox legend.
     await expect(page.getByText(/Quais EPIs estavam disponíveis/i).first()).toBeVisible()
     // free_text.
-    await expect(page.getByLabel(/Observações gerais/i)).toBeVisible()
+    await expect(page.getByRole('textbox', { name: /Observações gerais/i })).toBeVisible()
 
     // section_text display block — rendered as h2 via Markdown.
     await expect(
@@ -232,9 +232,11 @@ test.describe('AC1 — Unsectioned form (flat render)', () => {
 
     // Fill all required fields.
     await page.getByRole('radio', { name: 'Sim' }).first().click()
-    await page.getByLabel(/Turno em que a auditoria/i).selectOption('Manhã')
+    await page.getByRole('combobox', { name: /Turno em que a auditoria/i }).selectOption('Manhã')
     await page.getByRole('checkbox', { name: 'Luvas' }).check()
-    await page.getByLabel(/Observações gerais/i).fill('Auditoria de rotina — teste E2E')
+    await page
+      .getByRole('textbox', { name: /Observações gerais/i })
+      .fill('Auditoria de rotina — teste E2E')
 
     // Go to review.
     await page.getByRole('button', { name: /revisar/i }).click()
@@ -422,7 +424,7 @@ test('AC3 — Resume: save-and-exit, re-sign-in, land at last section with answe
   await expect(page.getByRole('radio', { name: 'Sim' }).first()).toBeChecked({ timeout: 10_000 })
 
   // Step 2.
-  await page.getByLabel(/Turno em que a auditoria/i).selectOption('Tarde')
+  await page.getByRole('combobox', { name: /Turno em que a auditoria/i }).selectOption('Tarde')
   await page.getByRole('button', { name: /salvar e sair/i }).click()
   await page.waitForURL('**/o/rede-a/c/ccih/forms', { timeout: 20_000 })
 
@@ -448,7 +450,7 @@ test('AC3 — Resume: save-and-exit, re-sign-in, land at last section with answe
   await expect(page.getByRole('radio', { name: 'Sim' }).first()).toBeChecked({ timeout: 10_000 })
   // form-model-normalization: the dropdown <option> VALUE is now the option CODE
   // (slug), not the label — "Tarde" is stored/selected as "tarde".
-  await expect(page.getByLabel(/Turno em que a auditoria/i)).toHaveValue('tarde')
+  await expect(page.getByRole('combobox', { name: /Turno em que a auditoria/i })).toHaveValue('tarde')
 })
 
 // ---------------------------------------------------------------------------
@@ -626,7 +628,7 @@ test('AC5 — Keyboard-only: navigate and complete unsectioned form without mous
   await expect(firstRadio).toBeChecked()
 
   // Focus the dropdown, change with ArrowDown.
-  const turnoSelect = page.getByLabel(/Turno em que a auditoria/i)
+  const turnoSelect = page.getByRole('combobox', { name: /Turno em que a auditoria/i })
   await turnoSelect.focus()
   await expect(turnoSelect).toBeFocused()
   await page.keyboard.press('ArrowDown')
@@ -687,7 +689,7 @@ test('AC6 — Server-rejection: submit_response rejects missing required answer 
 
   // Fill all required fields.
   await page.getByRole('radio', { name: 'Sim' }).first().click()
-  await page.getByLabel(/Turno em que a auditoria/i).selectOption('Tarde')
+  await page.getByRole('combobox', { name: /Turno em que a auditoria/i }).selectOption('Tarde')
 
   // "Revisar" persists the section (handleNext validates + saveSection + goToReview).
   await page.getByRole('button', { name: /revisar/i }).click()

@@ -17,11 +17,11 @@
 import { render } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const saveSection = vi.fn(async () => ({ ok: true }));
-const saveAndExit = vi.fn(async () => ({ ok: true }));
-const submitResponse = vi.fn(async () => ({ ok: true }));
-const submitCasePhaseResponse = vi.fn(async () => ({ ok: true }));
-const signSection = vi.fn(async () => ({ ok: true }));
+const saveSection = vi.fn(async (..._args: unknown[]) => ({ ok: true }));
+const saveAndExit = vi.fn(async (..._args: unknown[]) => ({ ok: true }));
+const submitResponse = vi.fn(async (..._args: unknown[]) => ({ ok: true }));
+const submitCasePhaseResponse = vi.fn(async (..._args: unknown[]) => ({ ok: true }));
+const signSection = vi.fn(async (..._args: unknown[]) => ({ ok: true }));
 
 // The runner imports the `'use server'` actions module (pulls next/headers) —
 // stub it; we assert the adapter forwards to these spies.
