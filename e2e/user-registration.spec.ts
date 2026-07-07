@@ -62,7 +62,7 @@ async function signInAs(
   await page.context().clearCookies()
   await page.goto('/login')
   await page.getByLabel('E-mail').fill(email)
-  await page.getByLabel('Senha').fill(password)
+  await page.locator('input[name="password"]').fill(password)
   await page.getByRole('button', { name: /entrar/i }).click()
   // Wait for the post-login redirect to land before the caller navigates
   // again — signIn's server action performs a server-side redirect, which
@@ -224,7 +224,7 @@ test.describe('AC2 — password-mode activation: registered user can sign in imm
     await page.context().clearCookies()
     await page.goto('/login')
     await page.getByLabel('E-mail').fill(email)
-    await page.getByLabel('Senha').fill(initialPassword)
+    await page.locator('input[name="password"]').fill(initialPassword)
     await page.getByRole('button', { name: /entrar/i }).click()
     await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 })
 
@@ -284,7 +284,7 @@ test.describe('AC2 — password-mode activation: registered user can sign in imm
     await page.context().clearCookies()
     await page.goto('/login')
     await page.getByLabel('E-mail').fill(email)
-    await page.getByLabel('Senha').fill(newPassword)
+    await page.locator('input[name="password"]').fill(newPassword)
     await page.getByRole('button', { name: /entrar/i }).click()
     await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 })
 
@@ -299,7 +299,7 @@ test.describe('AC3 — deactivation enforcement', () => {
   test('signIn refuses a deactivated account with a pt-BR message', async ({ page }) => {
     await page.goto('/login')
     await page.getByLabel('E-mail').fill('desativado.conta@test.local')
-    await page.getByLabel('Senha').fill('Test1234!')
+    await page.locator('input[name="password"]').fill('Test1234!')
     await page.getByRole('button', { name: /entrar/i }).click()
 
     // Must NOT navigate away from /login; must show the pt-BR inactive message.
@@ -367,7 +367,7 @@ test.describe('AC4 — suspension: blocked while suspended_until is future; auto
   test('signIn refuses the seeded suspended persona (suspended_until +30d)', async ({ page }) => {
     await page.goto('/login')
     await page.getByLabel('E-mail').fill('suspenso.temp@test.local')
-    await page.getByLabel('Senha').fill('Test1234!')
+    await page.locator('input[name="password"]').fill('Test1234!')
     await page.getByRole('button', { name: /entrar/i }).click()
 
     await expect(page.getByText(/suspensa\/desativada|conta está suspensa/i)).toBeVisible({

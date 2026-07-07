@@ -176,9 +176,9 @@ export function CasesKpiStrip({
         tone: "plain",
       },
       {
-        label: "Fases pendentes",
+        label: "Etapas pendentes",
         value: kpis.fasesPendentes,
-        sub: "Aguardando início",
+        sub: "Fases e narrativas em aberto",
         tone: "warn",
       },
       {

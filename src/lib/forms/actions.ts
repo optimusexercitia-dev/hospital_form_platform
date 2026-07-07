@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
 import { generateOptionCode, slugifyLabel, shortSuffix } from '@/lib/forms/option-code'
+import { parseItemConfig } from '@/lib/forms/parse-config'
 
 /**
  * Form-builder server actions (Architecture Rules 9 & 10): form metadata +
@@ -59,8 +60,8 @@ const MESSAGES = {
   optionsRequired: 'Informe ao menos uma opção de resposta.',
   optionColorInvalid: 'Cor de opção inválida.',
   optionScoreInvalid: 'A pontuação da opção deve ser um número.',
-  configInvalid: 'Valores de mínimo/máximo inválidos.',
-  configRangeInvalid: 'O valor mínimo não pode ser maior que o máximo.',
+  // The config-parse pt-BR messages (min/max, length, flaggedWhen) live in
+  // ./parse-config now (parseItemConfig returns the string; parseConfig re-wraps).
   conditionShapeInvalid: 'Condição de aparência inválida.',
   defaultValueInvalid: 'Valor padrão inválido para este tipo de pergunta.',
   markdownRequired: 'Informe o texto a ser exibido.',
@@ -107,8 +108,9 @@ const CHOICE_TYPES = ['multiple_choice', 'dropdown', 'checkbox']
 /** Choice types that may carry per-option COLOURS (dropdown excluded — native
  * `<select>` can't render colour; decision #4). */
 const COLOR_OPTION_TYPES = ['multiple_choice', 'checkbox']
-/** Types that accept optional min/max bounds via `config`. */
-const BOUNDED_TYPES = ['number', 'date']
+// The per-type config sets (BOUNDED / TEXT_LENGTH / ALLOW_OTHER / FLAGGED_WHEN) +
+// their pt-BR messages moved into `./parse-config` (parseItemConfig) so the config
+// parse is unit-testable; parseConfig below is a thin ActionState wrapper.
 /** The valid colour tokens (mirrors ColorToken / the 7-token palette). */
 const COLOR_TOKENS = ['muted', 'slate', 'blue', 'amber', 'green', 'red', 'violet']
 /** The condition operators accepted in a `visible_when` sub-condition. */
@@ -599,6 +601,8 @@ interface ParsedOption {
   color: string | null
   score: number | null
   analyticsCode: string | null
+  /** Flagged-scoring: a selected flagged option contributes +1 to __flagged_count__. */
+  flagged: boolean
 }
 
 /**
@@ -619,6 +623,7 @@ function parseOptions(
   const colors = formData.getAll('optionColor').map((c) => String(c))
   const scores = formData.getAll('optionScore').map((s) => String(s))
   const analytics = formData.getAll('optionAnalyticsCode').map((a) => String(a))
+  const flags = formData.getAll('optionFlagged').map((f) => String(f))
   const colorsAllowed = COLOR_OPTION_TYPES.includes(itemType)
 
   const rows: ParsedOption[] = []
@@ -646,6 +651,9 @@ function parseOptions(
     }
 
     const analyticsCode = (analytics[i] ?? '').trim() || null
+    // Flagged is a truthy hidden field ('1' = flagged, '' = not); at the SAME
+    // index as the other option-* parallel fields.
+    const flagged = (flags[i] ?? '').trim() === '1'
 
     rows.push({
       code: (codes[i] ?? '').trim(),
@@ -653,6 +661,7 @@ function parseOptions(
       color,
       score,
       analyticsCode,
+      flagged,
     })
   }
   if (rows.length === 0) {
@@ -662,48 +671,28 @@ function parseOptions(
 }
 
 /**
- * Parse optional `configMin` / `configMax` into the `config` jsonb for a bounded
- * type (number/date). number bounds are stored as JSON numbers; date bounds as
- * ISO strings. Returns `{config: null}` when neither bound is set. min ≤ max is
- * enforced here (and again by `submit_response` + an optional CHECK).
+ * Parse the per-type `config` jsonb from the item form. Handles, per type:
+ *   - number/date  → `min`/`max` bounds (`configMin`/`configMax`);
+ *   - free_text/short_text → `minLength`/`maxLength` CHARACTER limits
+ *     (`configMinLength`/`configMaxLength`);
+ *   - multiple_choice/checkbox → `allowOther` ("Incluir opção 'Outros'",
+ *     `configAllowOther` = '1').
+ * Returns `{config: null}` when the type carries no config OR nothing is set.
+ * min ≤ max is enforced here (and again at submit by `assert_item_bounds`).
+ *   - number/date/time → `flaggedWhen` ("Flagged If"), read from the hidden
+ *     `configFlaggedWhen` field (a `JSON.stringify({op, value})` string; blank =
+ *     none). Shape-validated here (op in the ordered/equality set + `value`
+ *     present); the value-type-vs-item-type match is deferred to publish-time
+ *     `app.is_valid_flagged_when` (mirroring how `parseVisibleWhen` checks shape
+ *     only, not deep types).
  */
 function parseConfig(
   itemType: string,
   formData: FormData,
 ): { error: ActionState } | { config: Json } {
-  if (!BOUNDED_TYPES.includes(itemType)) return { config: null }
-  const rawMin = String(formData.get('configMin') ?? '').trim()
-  const rawMax = String(formData.get('configMax') ?? '').trim()
-  if (!rawMin && !rawMax) return { config: null }
-
-  const coerce = (raw: string): number | string | null => {
-    if (!raw) return null
-    if (itemType === 'number') {
-      const n = Number(raw)
-      return Number.isFinite(n) ? n : null
-    }
-    // date: ISO YYYY-MM-DD (shape only; submit RPC + client validate the value).
-    return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null
-  }
-
-  const min = coerce(rawMin)
-  const max = coerce(rawMax)
-  if ((rawMin && min === null) || (rawMax && max === null)) {
-    return { error: { ok: false, error: MESSAGES.configInvalid } }
-  }
-  if (
-    min !== null &&
-    max !== null &&
-    ((typeof min === 'number' && typeof max === 'number' && min > max) ||
-      (typeof min === 'string' && typeof max === 'string' && min > max))
-  ) {
-    return { error: { ok: false, error: MESSAGES.configRangeInvalid } }
-  }
-
-  const config: Record<string, Json> = {}
-  if (min !== null) config.min = min
-  if (max !== null) config.max = max
-  return { config }
+  const res = parseItemConfig(itemType, formData)
+  if ('error' in res) return { error: { ok: false, error: res.error } }
+  return { config: res.config }
 }
 
 /** Validate ONE sub-condition's shape (key string, op in set, value present). */
@@ -984,6 +973,7 @@ async function reconcileOptionRows(
       color_token: o.color,
       score: o.score,
       analytics_code: o.analyticsCode,
+      flagged: o.flagged,
     }
   })
 

@@ -29,6 +29,9 @@ export function BlockRenderer({
   error,
   observation,
   onObservationChange,
+  otherText,
+  onOtherTextChange,
+  onClear,
 }: {
   item: Item;
   imageUrls: Record<string, string>;
@@ -37,6 +40,11 @@ export function BlockRenderer({
   error?: string;
   observation?: string;
   onObservationChange?: (value: string) => void;
+  /** Current "Outros" free text ("Outros" open option); input items only. */
+  otherText?: string;
+  onOtherTextChange?: (value: string) => void;
+  /** Clear the whole input block (answer + observação + "Outros"); input items only. */
+  onClear?: () => void;
 }) {
   if (item.itemType === "section_text" && item.content) {
     return (
@@ -70,6 +78,9 @@ export function BlockRenderer({
         error={error}
         observation={observation}
         onObservationChange={onObservationChange}
+        otherText={otherText}
+        onOtherTextChange={onOtherTextChange}
+        onClear={onClear}
       />
     </div>
   );

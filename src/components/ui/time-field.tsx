@@ -1,30 +1,13 @@
 "use client";
 
 import * as React from "react";
-import {
-  TimeField as AriaTimeField,
-  DateInput,
-  DateSegment,
-} from "react-aria-components";
-import { Time } from "@internationalized/date";
 
 import { cn } from "@/lib/utils";
-
-/** Parse "HH:mm" → {@link Time}. Returns null for blank/invalid input. */
-function parseHhmm(value: string | undefined): Time | null {
-  if (!value) return null;
-  const match = value.match(/^(\d{1,2}):(\d{2})$/);
-  if (!match) return null;
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
-  return new Time(hours, minutes);
-}
-
-/** Format a {@link Time} → "HH:mm" string. */
-function formatHhmm(time: Time): string {
-  return `${String(time.hour).padStart(2, "0")}:${String(time.minute).padStart(2, "0")}`;
-}
+import {
+  isValidHhmm,
+  maskTimeInput,
+  normalizeHhmm,
+} from "@/components/ui/time-format";
 
 export interface TimeFieldProps {
   value?: string; // "HH:mm" or ""
@@ -41,12 +24,17 @@ export interface TimeFieldProps {
 }
 
 /**
- * Segmented time input using react-aria-components TimeField.
- * 24-hour format (hourCycle=24), locale pt-BR.
- * Styled to match the project's h-10 FIELD_CLASS pattern.
+ * 24-hour time input as an auto-formatting numeric mask: the user types digits
+ * and the colon is inserted automatically (`930` → `09:30`), `inputMode="numeric"`.
+ * Validated against `HH:mm` in 00:00–23:59 with inline invalid feedback; the entry
+ * is normalized on blur (e.g. `9` → `09:00`). Replaces the previous react-aria
+ * segmented control while keeping the SAME public contract, so every
+ * `DateTimePicker` consumer (meetings, interviews, RCA timeline) works unchanged:
  *
- * - Controlled: `value` ("HH:mm" | "") + `onChange(string)`.
- * - Uncontrolled: `name` + optional `defaultValue`; renders hidden input for FormData.
+ * - Controlled: `value` ("HH:mm" | "") + `onChange(string)` — emits a canonical
+ *   `"HH:mm"` once the entry is valid, or `""` when cleared/invalid.
+ * - Uncontrolled: `name` + optional `defaultValue`; a hidden input carries the
+ *   canonical value for FormData.
  * - Output format: "HH:mm" — same as needed by downstream server actions.
  */
 export function TimeField({
@@ -64,67 +52,116 @@ export function TimeField({
 }: TimeFieldProps) {
   const isControlled = onChange !== undefined || value !== undefined;
 
-  // Internal Time state for uncontrolled mode only.
-  // In controlled mode the selected time is derived directly from the `value` prop.
-  const [uncontrolledTime, setUncontrolledTime] = React.useState<Time | null>(() =>
-    parseHhmm(defaultValue),
+  // The canonical committed value ("HH:mm" | "") — the source of truth for
+  // downstream consumers and the hidden FormData input.
+  const committed = isControlled ? (value ?? "") : undefined;
+
+  // Uncontrolled canonical value (only used when not controlled).
+  const [uncontrolled, setUncontrolled] = React.useState<string>(
+    () => normalizeHhmm(defaultValue ?? ""),
   );
+  const canonical = isControlled ? (committed ?? "") : uncontrolled;
 
-  // Derive selected time: controlled → parse from prop; uncontrolled → internal state.
-  const selectedTime = isControlled ? parseHhmm(value) : uncontrolledTime;
+  // The visible text buffer, so the user can type a partial mask ("9", "09:3")
+  // without the canonical value snapping the caret. It is authoritative ONLY
+  // while the field is focused; when blurred, the displayed value is derived
+  // from the canonical value (so an external change reflects with no effect —
+  // the recommended no-`useEffect` sync). `buffer` holds nothing meaningful
+  // between edits.
+  const [buffer, setBuffer] = React.useState<string>(canonical);
+  const [focused, setFocused] = React.useState(false);
+  const [dirtyInvalid, setDirtyInvalid] = React.useState(false);
 
-  const hiddenValue = selectedTime ? formatHhmm(selectedTime) : "";
+  // Blurred → mirror the canonical value; focused → the live typing buffer.
+  const text = focused ? buffer : canonical;
+  const setText = setBuffer;
 
-  function handleChange(time: Time | null) {
+  function commit(next: string) {
     if (isControlled) {
-      onChange?.(time ? formatHhmm(time) : "");
+      onChange?.(next);
     } else {
-      setUncontrolledTime(time);
+      setUncontrolled(next);
     }
   }
 
-  const isInvalid = ariaInvalid === true || ariaInvalid === "true";
+  function handleChange(raw: string) {
+    const masked = maskTimeInput(raw);
+    setText(masked);
+    // Clearing the field emits "".
+    if (masked === "") {
+      setDirtyInvalid(false);
+      commit("");
+      return;
+    }
+    // Emit a canonical value as soon as the entry is a complete, valid HH:mm.
+    if (isValidHhmm(masked)) {
+      setDirtyInvalid(false);
+      commit(masked);
+      return;
+    }
+    // Not yet a complete HH:mm. Only flag INVALID when the entry is genuinely
+    // UNSALVAGEABLE — i.e. it would normalize to "" on blur (e.g. "25:60"). A
+    // salvageable partial (the mask's "93:0" for "930", which normalizes to
+    // "09:30") must NOT show a red error mid-type (FBE-007). Don't commit yet;
+    // the buffer holds it until blur normalizes.
+    setDirtyInvalid(normalizeHhmm(masked) === "");
+  }
+
+  function handleBlur() {
+    setFocused(false);
+    // Normalize friendly short forms ("9" → "09:00", "930" → "09:30") on blur.
+    const normalized = normalizeHhmm(text);
+    setText(normalized);
+    setDirtyInvalid(text.trim() !== "" && normalized === "");
+    commit(normalized);
+  }
+
+  const propInvalid = ariaInvalid === true || ariaInvalid === "true";
+  const isInvalid = propInvalid || dirtyInvalid;
+
+  const errorId = id ? `${id}-time-error` : undefined;
+  const describedBy =
+    [ariaDescribedBy, dirtyInvalid ? errorId : null].filter(Boolean).join(" ") ||
+    undefined;
 
   return (
-    <>
-      {name && <input type="hidden" name={name} value={hiddenValue} />}
-      <AriaTimeField
-        // react-aria TimeField is generic over TimeValue; null/undefined means unset.
-        value={selectedTime ?? undefined}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- react-aria onChange passes TimeValue which includes Time
-        onChange={(v: any) => handleChange(v as Time | null)}
-        hourCycle={24}
-        isDisabled={disabled}
-        isRequired={required}
+    <div className={cn("flex flex-col gap-1", className)}>
+      {name && <input type="hidden" name={name} value={canonical} />}
+      <input
+        type="text"
+        inputMode="numeric"
+        autoComplete="off"
         id={id}
+        value={text}
+        onChange={(e) => handleChange(e.target.value)}
+        onFocus={() => {
+          // Seed the live buffer from the canonical value so editing continues
+          // from what's shown, then hand authority to the buffer.
+          setBuffer(canonical);
+          setFocused(true);
+        }}
+        onBlur={handleBlur}
+        disabled={disabled}
+        required={required}
+        placeholder="hh:mm"
+        maxLength={5}
         aria-label={ariaLabel ?? "Hora"}
-        aria-describedby={ariaDescribedBy}
-        className={cn("flex flex-col gap-1", className)}
-      >
-        <DateInput
-          data-invalid={isInvalid ? "true" : undefined}
-          className={cn(
-            // Match FIELD_CLASS h-10 pattern
-            "flex h-10 w-full items-center rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color]",
-            "focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/40",
-            isInvalid && "border-destructive",
-            disabled && "cursor-not-allowed opacity-50",
-          )}
-        >
-          {(segment) => (
-            <DateSegment
-              segment={segment}
-              className={cn(
-                "inline rounded px-0.5 tabular-nums outline-none",
-                "data-[type=literal]:text-muted-foreground/60 data-[type=literal]:select-none",
-                "data-[placeholder]:text-muted-foreground",
-                "data-[focused]:bg-accent data-[focused]:text-accent-foreground",
-                "focus:bg-accent focus:text-accent-foreground",
-              )}
-            />
-          )}
-        </DateInput>
-      </AriaTimeField>
-    </>
+        aria-invalid={isInvalid ? true : undefined}
+        aria-describedby={describedBy}
+        className={cn(
+          "flex h-10 w-full items-center rounded-lg border border-input bg-card px-3 text-sm tabular-nums shadow-xs outline-none transition-[color,box-shadow,border-color]",
+          "placeholder:text-muted-foreground/70",
+          "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40",
+          isInvalid &&
+            "border-destructive focus-visible:border-destructive focus-visible:ring-destructive/20",
+          disabled && "cursor-not-allowed opacity-50",
+        )}
+      />
+      {dirtyInvalid && (
+        <p id={errorId} role="alert" className="text-xs font-medium text-destructive">
+          Informe uma hora válida (00:00–23:59).
+        </p>
+      )}
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import type { Json } from '@/lib/types/database'
-import type { Visibility } from '@/lib/queries/conditions'
+import type { Visibility, FlaggedWhen } from '@/lib/queries/conditions'
 import type { CaseStatusColorToken } from '@/lib/cases/case-status'
 
 // Re-export the condition shapes so the builder can import every form type from
@@ -10,6 +10,7 @@ export type {
   ConditionOp,
   ConditionGroup,
   Visibility,
+  FlaggedWhen,
 } from '@/lib/queries/conditions'
 
 /**
@@ -123,8 +124,26 @@ export interface ItemOption {
   color: ColorToken | null
   score: number | null
   analyticsCode: string | null
+  /** Flagged-scoring: a selected flagged option contributes +1 to __flagged_count__. */
+  flagged: boolean
+  /**
+   * "Outros" reserved option: true ONLY for the auto-managed `__other__` row
+   * (code {@link OTHER_OPTION_CODE}, always last). The OptionsEditor hides these
+   * from the editable list; the wizard reveals a text input when it is selected.
+   * Never author-editable — managed entirely by `reconcile_item_options`.
+   */
+  isOther: boolean
   position: number
 }
+
+// The reserved "Outros" open-option code + label live in a PURE, client-safe
+// module so Client Components can value-import them WITHOUT pulling forms.ts's
+// server supabase client into the client bundle (FBE-005). Re-exported here so
+// existing server-side importers keep the `@/lib/queries/forms` specifier.
+export {
+  OTHER_OPTION_CODE,
+  OTHER_OPTION_LABEL,
+} from '@/lib/forms/option-constants'
 
 /**
  * Per-type settings (form-builder-enhancements). Today: optional `min`/`max`
@@ -136,6 +155,24 @@ export interface ItemOption {
 export interface ItemConfig {
   min?: number | string | null
   max?: number | string | null
+  /**
+   * "Flagged If" (number/date/time only): a single self-referential condition; a
+   * satisfied `flaggedWhen` contributes +1 to the phase's `__flagged_count__`
+   * aggregate. `null`/absent = the item never flags via a threshold.
+   */
+  flaggedWhen?: FlaggedWhen | null
+  /**
+   * Character-length limits for `free_text`/`short_text` (integers ≥ 0). Validated
+   * live while filling AND at submit (`assert_item_bounds`). `null`/absent = no limit.
+   */
+  minLength?: number | null
+  maxLength?: number | null
+  /**
+   * "Outros" open option (multiple_choice/checkbox only): when true, the item offers
+   * a reserved `__other__` option (managed by `reconcile_item_options`) that reveals
+   * a free-text input in the wizard. `null`/absent = no "Outros" option.
+   */
+  allowOther?: boolean | null
 }
 
 export type VersionStatus = 'draft' | 'published' | 'archived'
@@ -319,6 +356,8 @@ interface OptionRow {
   color_token: string | null
   score: number | null
   analytics_code: string | null
+  flagged: boolean
+  is_other: boolean
   position: number
 }
 
@@ -403,8 +442,35 @@ export function toOptions(rows: OptionRow[] | null): ItemOption[] | null {
           : null,
       score: typeof r.score === 'number' ? r.score : null,
       analyticsCode: r.analytics_code,
+      flagged: r.flagged === true,
+      isOther: r.is_other === true,
       position: r.position,
     }))
+}
+
+const FLAGGED_WHEN_OPS = new Set<FlaggedWhen['op']>([
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'equals',
+  'not_equals',
+])
+
+/** Narrow `config.flaggedWhen` to {@link FlaggedWhen} (or null) — a single
+ * `{op, value}` with a known op and a scalar value; anything else → null. */
+function toFlaggedWhen(raw: Json | undefined): FlaggedWhen | null {
+  if (raw === null || raw === undefined || typeof raw !== 'object' || Array.isArray(raw)) {
+    return null
+  }
+  const rec = raw as Record<string, Json>
+  const op = rec.op
+  const value = rec.value
+  if (typeof op !== 'string' || !FLAGGED_WHEN_OPS.has(op as FlaggedWhen['op'])) {
+    return null
+  }
+  if (value === undefined || typeof value === 'object') return null
+  return { op: op as FlaggedWhen['op'], value }
 }
 
 /** Narrow the per-type `config` jsonb to {@link ItemConfig} (or null). */
@@ -413,9 +479,15 @@ function toConfig(raw: Json | null): ItemConfig | null {
   const rec = raw as Record<string, Json>
   const min = rec.min
   const max = rec.max
+  const minLength = rec.minLength
+  const maxLength = rec.maxLength
   return {
     min: typeof min === 'number' || typeof min === 'string' ? min : null,
     max: typeof max === 'number' || typeof max === 'string' ? max : null,
+    flaggedWhen: toFlaggedWhen(rec.flaggedWhen),
+    minLength: typeof minLength === 'number' ? minLength : null,
+    maxLength: typeof maxLength === 'number' ? maxLength : null,
+    allowOther: rec.allowOther === true ? true : null,
   }
 }
 
@@ -496,7 +568,7 @@ const VERSION_TREE_SELECT =
   'form_items(id, section_id, position, item_type, question_key, label, ' +
   'question_explanation, config, visible_when, required, content, ' +
   'default_value, parent_item_id, ' +
-  'form_item_options!form_item_options_item_id_fkey(id, code, label, color_token, score, analytics_code, position)))'
+  'form_item_options!form_item_options_item_id_fkey(id, code, label, color_token, score, analytics_code, flagged, is_other, position)))'
 
 // ---------------------------------------------------------------------------
 // Queries

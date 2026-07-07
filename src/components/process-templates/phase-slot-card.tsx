@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowUp,
   CalendarClock,
+  FileCheck,
   FileText,
   GitBranch,
   Lock,
@@ -134,6 +135,12 @@ export function PhaseSlotCard({
               <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-secondary-foreground uppercase">
                 <GitBranch aria-hidden="true" className="size-3" />
                 recomendação
+              </span>
+            )}
+            {phase.emitsResult && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-accent px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-accent-foreground uppercase">
+                <FileCheck aria-hidden="true" className="size-3" />
+                Emite resultado
               </span>
             )}
           </div>

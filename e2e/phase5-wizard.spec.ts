@@ -61,7 +61,7 @@ if (!SUPABASE_SERVICE_KEY) {
 async function signInAs(page: Page, email: string, password = 'Test1234!') {
   await page.goto('/login')
   await page.getByLabel('E-mail').fill(email)
-  await page.getByLabel('Senha').fill(password)
+  await page.locator('input[name="password"]').fill(password)
   await page.getByRole('button', { name: /entrar/i }).click()
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), {
     timeout: 20_000,

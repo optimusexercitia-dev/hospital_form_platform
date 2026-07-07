@@ -604,6 +604,39 @@ export async function seedExpectedAttendees(
 }
 
 /**
+ * Seed the meeting's attendees with a chosen SUBSET of commission members
+ * (`convocado`/`membro`, idempotent) — the "Participantes" picker path when a
+ * subset is selected instead of "all". staff_admin-only (the RPC's gate). A
+ * `userId` that is not a member of the meeting's commission is ignored by the RPC
+ * (its join to `commission_members`), so a stale/foreign id never leaks in.
+ */
+export async function seedSelectedAttendees(
+  meetingId: string,
+  userIds: string[],
+): Promise<ActionState> {
+  if (!(await meetingsEnabled())) {
+    return { ok: false, error: MEETING_MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const commissionId = await commissionOfMeeting(supabase, meetingId)
+  if (!commissionId) return { ok: false, error: MEETING_MESSAGES.missingMeeting }
+  if (!(await authorizeCommission(commissionId))) {
+    return { ok: false, error: MEETING_MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('seed_selected_meeting_attendees', {
+    p_meeting_id: meetingId,
+    p_user_ids: userIds,
+  })
+
+  if (error) return { ok: false, error: mapMeetingError(error) }
+
+  revalidateMeetings()
+  return { ok: true, error: MEETING_MESSAGES.attendeesSeeded }
+}
+
+/**
  * Override the computed quorum verdict (`quorum_met`) — the secretary's call.
  * Allowed while `em_assinatura`. staff_admin-only.
  */

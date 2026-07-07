@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquarePlus } from "lucide-react";
+import { Eraser, MessageSquarePlus } from "lucide-react";
 
 import type { Json } from "@/lib/types/database";
 import type { Item, ItemOption } from "@/lib/queries/forms";
+import { OTHER_OPTION_CODE } from "@/lib/forms/option-constants";
 import { cn } from "@/lib/utils";
 import {
   Field,
@@ -17,6 +18,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { TimeField } from "@/components/ui/time-field";
 import { TOKEN_COLOR_VAR } from "@/components/cases/case-status-badge";
 import { hasAnswer } from "./use-wizard";
 
@@ -50,6 +52,9 @@ export function InputItem({
   error,
   observation,
   onObservationChange,
+  otherText,
+  onOtherTextChange,
+  onClear,
 }: {
   item: Item;
   value: Json | undefined;
@@ -59,28 +64,72 @@ export function InputItem({
   observation?: string;
   /** Persist an observation note; absent for read-only contexts. */
   onObservationChange?: (value: string) => void;
+  /** Current "Outros" free text ("Outros" open option). */
+  otherText?: string;
+  /** Persist the "Outros" free text; absent for read-only contexts. */
+  onOtherTextChange?: (value: string) => void;
+  /**
+   * Clear the WHOLE block — the answer AND the observação AND the "Outro" text.
+   * Absent in read-only contexts. Rendered as a top-right ghost icon-button,
+   * enabled only while the block holds something to clear.
+   */
+  onClear?: () => void;
 }) {
   const label = item.label ?? "Pergunta";
   const required = item.required;
 
-  const control = renderControl({ item, label, required, value, onChange, error });
+  const control = renderControl({
+    item,
+    label,
+    required,
+    value,
+    onChange,
+    error,
+    otherText,
+    onOtherTextChange,
+  });
+
+  const answered = hasAnswer({
+    itemId: item.id,
+    questionKey: item.questionKey ?? item.id,
+    value: value ?? null,
+  });
 
   // Observation affordance: every non-free-text input (decision #11). Never on
   // free_text (it is already a free-text answer).
   const observationEnabled =
     item.itemType !== "free_text" && onObservationChange != null;
 
+  // The block has something to clear when it holds an answer, an observação, or
+  // an "Outros" free text.
+  const hasObservation = (observation ?? "").trim() !== "";
+  const hasOtherText = (otherText ?? "").trim() !== "";
+  const clearable =
+    Boolean(onClear) && (answered || hasObservation || hasOtherText);
+
   return (
     <div className="flex flex-col gap-2">
+      {onClear && (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={onClear}
+            disabled={!clearable}
+            aria-label={`Limpar a resposta de ${label}`}
+            title="Limpar"
+          >
+            <Eraser aria-hidden="true" />
+          </Button>
+        </div>
+      )}
       {control}
       {observationEnabled && (
         <ObservationField
           itemId={item.id}
-          answered={hasAnswer({
-            itemId: item.id,
-            questionKey: item.questionKey ?? item.id,
-            value: value ?? null,
-          })}
+          answered={answered}
           observation={observation ?? ""}
           onChange={onObservationChange}
         />
@@ -96,6 +145,8 @@ function renderControl({
   value,
   onChange,
   error,
+  otherText,
+  onOtherTextChange,
 }: {
   item: Item;
   label: string;
@@ -103,6 +154,8 @@ function renderControl({
   value: Json | undefined;
   onChange: (value: Json) => void;
   error?: string;
+  otherText?: string;
+  onOtherTextChange?: (value: string) => void;
 }) {
   switch (item.itemType) {
     case "free_text":
@@ -182,6 +235,8 @@ function renderControl({
           value={typeof value === "string" ? value : ""}
           onChange={onChange}
           error={error}
+          otherText={otherText}
+          onOtherTextChange={onOtherTextChange}
         />
       );
     case "checkbox":
@@ -193,6 +248,8 @@ function renderControl({
           value={Array.isArray(value) ? (value as string[]) : []}
           onChange={onChange}
           error={error}
+          otherText={otherText}
+          onOtherTextChange={onOtherTextChange}
         />
       );
     default:
@@ -428,15 +485,28 @@ function DateTimeItem({
           {item.questionExplanation}
         </FieldDescription>
       )}
-      <Input
-        {...controlProps}
-        type={inputType}
-        value={value}
-        min={min}
-        max={max}
-        onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
-        className="w-fit"
-      />
+      {inputType === "time" ? (
+        // 24h masked numeric field (type `930` → `09:30`), validated 00:00–23:59.
+        <div className="w-40">
+          <TimeField
+            id={controlProps.id}
+            aria-describedby={controlProps["aria-describedby"]}
+            aria-invalid={controlProps["aria-invalid"]}
+            value={value}
+            onChange={(next) => onChange(next === "" ? null : next)}
+          />
+        </div>
+      ) : (
+        <Input
+          {...controlProps}
+          type={inputType}
+          value={value}
+          min={min}
+          max={max}
+          onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
+          className="w-fit"
+        />
+      )}
       <FieldError id={errorId}>{error}</FieldError>
     </Field>
   );
@@ -506,6 +576,8 @@ function ChoiceGroup({
   value,
   onChange,
   error,
+  otherText,
+  onOtherTextChange,
 }: {
   item: Item;
   label: string;
@@ -513,6 +585,8 @@ function ChoiceGroup({
   value: string;
   onChange: (value: Json) => void;
   error?: string;
+  otherText?: string;
+  onOtherTextChange?: (value: string) => void;
 }) {
   const options = item.options ?? [];
   const descriptionId = `item-${item.id}-description`;
@@ -521,6 +595,10 @@ function ChoiceGroup({
     [item.questionExplanation ? descriptionId : null, error ? errorId : null]
       .filter(Boolean)
       .join(" ") || undefined;
+
+  // "Outros" open option: reveal the free-text input when the reserved __other__
+  // option is the current selection (form-builder-enhancements).
+  const otherSelected = value === OTHER_OPTION_CODE;
 
   return (
     <fieldset
@@ -565,6 +643,13 @@ function ChoiceGroup({
           );
         })}
       </div>
+      {otherSelected && onOtherTextChange && (
+        <OtherTextField
+          itemId={item.id}
+          value={otherText ?? ""}
+          onChange={onOtherTextChange}
+        />
+      )}
       <FieldError id={errorId}>{error}</FieldError>
     </fieldset>
   );
@@ -578,6 +663,8 @@ function CheckboxGroup({
   value,
   onChange,
   error,
+  otherText,
+  onOtherTextChange,
 }: {
   item: Item;
   label: string;
@@ -585,6 +672,8 @@ function CheckboxGroup({
   value: string[];
   onChange: (value: Json) => void;
   error?: string;
+  otherText?: string;
+  onOtherTextChange?: (value: string) => void;
 }) {
   const options = item.options ?? [];
   const descriptionId = `item-${item.id}-description`;
@@ -593,6 +682,10 @@ function CheckboxGroup({
     [item.questionExplanation ? descriptionId : null, error ? errorId : null]
       .filter(Boolean)
       .join(" ") || undefined;
+
+  // "Outros" open option: reveal the free-text input when the reserved __other__
+  // option is among the selections (form-builder-enhancements).
+  const otherSelected = value.includes(OTHER_OPTION_CODE);
 
   function toggle(code: string, checked: boolean) {
     const set = new Set(value);
@@ -644,15 +737,64 @@ function CheckboxGroup({
           );
         })}
       </div>
+      {otherSelected && onOtherTextChange && (
+        <OtherTextField
+          itemId={item.id}
+          value={otherText ?? ""}
+          onChange={onOtherTextChange}
+        />
+      )}
       <FieldError id={errorId}>{error}</FieldError>
     </fieldset>
   );
 }
 
 /**
+ * The "Outros" open-option free-text input, revealed when the reserved
+ * `__other__` option is selected (form-builder-enhancements). Blank is a VALID
+ * answer ("Outro" selected is enough), so it is optional/encouraged, never
+ * required. Accessible: an associated `<label>` + `aria-describedby`.
+ */
+function OtherTextField({
+  itemId,
+  value,
+  onChange,
+}: {
+  itemId: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const fieldId = `item-${itemId}-other`;
+  const hintId = `${fieldId}-hint`;
+  return (
+    <div className="mt-0.5 flex flex-col gap-1.5">
+      <label htmlFor={fieldId} className="text-sm font-medium">
+        Outro{" "}
+        <span className="font-normal text-muted-foreground">(opcional)</span>
+      </label>
+      <Input
+        id={fieldId}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Especifique…"
+        aria-describedby={hintId}
+        autoComplete="off"
+      />
+      <FieldDescription id={hintId}>
+        Descreva a opção escolhida em “Outro”.
+      </FieldDescription>
+    </div>
+  );
+}
+
+/**
  * The optional per-item observation note (decision #11): a collapsed
- * "Adicionar observação" button that reveals a 2-line textarea once the question
- * is answered; pre-expanded when an observation already exists. Never blocks.
+ * "Adicionar observação" button that reveals a 2-line textarea. The button is
+ * ALWAYS rendered but DISABLED (greyed) until the block is at least partially
+ * answered (`answered`), so the affordance is discoverable up front; it enables
+ * once there is an answer. Pre-expanded when an observation already exists (a
+ * resumed note stays visible + editable even before re-answering). Never blocks.
  */
 function ObservationField({
   itemId,
@@ -668,10 +810,6 @@ function ObservationField({
   const [expanded, setExpanded] = useState<boolean>(observation.trim() !== "");
   const fieldId = `item-${itemId}-observation`;
 
-  // The affordance only appears once the question is answered (or an
-  // observation already exists, keeping a resumed note visible).
-  if (!answered && observation.trim() === "") return null;
-
   if (!expanded) {
     return (
       <Button
@@ -680,6 +818,8 @@ function ObservationField({
         size="sm"
         className="w-fit text-muted-foreground"
         onClick={() => setExpanded(true)}
+        // Enabled once the question is at least partially answered.
+        disabled={!answered}
       >
         <MessageSquarePlus aria-hidden="true" />
         Adicionar observação

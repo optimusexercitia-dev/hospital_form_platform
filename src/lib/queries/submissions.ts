@@ -121,6 +121,10 @@ export interface SubmissionDetail {
    * enhancements, decision #11), non-null only. The read-only renderer shows
    * them as a muted secondary line under the answer. */
   observationsByItemId: Record<string, string>
+  /** Saved per-item "Outros" free text keyed by item_id ("Outros" open option),
+   * non-null only. The renderer shows it next to the selected "Outro" option
+   * ("Outro: <valor>"). */
+  otherTextByItemId: Record<string, string>
   /** Per-section sign-off rows (who/when/note), for the detail view. */
   signoffs: SignoffRecord[]
 }
@@ -182,6 +186,8 @@ interface DetailAnswerRow {
   question_key: string
   value: Json | null
   observation: string | null
+  /** "Outros" open option: the typed Outro value (null unless `__other__` selected). */
+  other_text: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -364,7 +370,7 @@ export async function getSubmissionDetail(
   const [{ data: answers }, { data: selectionRows }] = await Promise.all([
     supabase
       .from('answers')
-      .select('item_id, question_key, value, observation')
+      .select('item_id, question_key, value, observation, other_text')
       .eq('response_id', responseId)
       .returns<DetailAnswerRow[]>(),
     supabase
@@ -388,9 +394,13 @@ export async function getSubmissionDetail(
   )
 
   const observationsByItemId: Record<string, string> = {}
+  const otherTextByItemId: Record<string, string> = {}
   for (const a of answers ?? []) {
     if (a.observation !== null && a.observation !== '') {
       observationsByItemId[a.item_id] = a.observation
+    }
+    if (a.other_text != null && a.other_text !== '') {
+      otherTextByItemId[a.item_id] = a.other_text
     }
   }
 
@@ -434,6 +444,7 @@ export async function getSubmissionDetail(
     answersByItemId,
     answersByKey,
     observationsByItemId,
+    otherTextByItemId,
     signoffs,
   }
 }

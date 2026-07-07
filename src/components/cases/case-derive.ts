@@ -164,6 +164,9 @@ const ACTIVE_OR_PENDING: CasePhaseStatus[] = ["ativa", "pendente"];
  * Compute the overview KPIs across the full (unfiltered) row set. "Open" vs
  * "closed" is decided by {@link isTerminalCaseStatus} over the FIXED enum
  * (`nao_iniciado`/`em_revisao`/`pendente` = open; `concluido`/`cancelado` = closed).
+ *
+ * "Etapas pendentes" (`fasesPendentes`) counts pending PHASES plus not-concluded
+ * NARRATIVES (`openNarrativeCount`) — the two open-work kinds a case interleaves.
  */
 export function computeCaseKpis(rows: CaseBoardRow[]): CaseKpis {
   const now = new Date();
@@ -189,6 +192,10 @@ export function computeCaseKpis(rows: CaseBoardRow[]): CaseKpis {
         semResponsavel += 1;
       }
     }
+    // Open narratives (status `aberta`) are pending work too — fold them into
+    // "Etapas pendentes". `openNarrativeCount` is a per-row scalar from the
+    // `list_cases_board` RPC + mapper (backend task #10).
+    fasesPendentes += row.openNarrativeCount;
     if (rowHasActive) casosComFaseAtiva += 1;
   }
 

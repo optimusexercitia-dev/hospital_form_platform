@@ -11,6 +11,7 @@ import {
   type CreateCaseState,
 } from "@/lib/cases/actions";
 import type { CaseOutcome } from "@/lib/queries/case-outcomes";
+import type { Department } from "@/lib/hospitals/departments";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -37,6 +38,7 @@ import {
   type PatientDraft,
 } from "@/components/safety/patient-fields";
 import { OutcomeMultiselect } from "@/components/cases/outcome-multiselect";
+import { CaseDepartmentField } from "@/components/cases/case-department-field";
 
 
 /** The sentinel `templateId` value that switches the dialog into the process-less flow. */
@@ -115,6 +117,7 @@ export function CreateCaseDialog({
   slug,
   templates,
   commissionId,
+  departments = [],
   casePatientEnabled = false,
   processlessEnabled = false,
   casesExtrasEnabled = false,
@@ -126,6 +129,12 @@ export function CreateCaseDialog({
   templates: TemplateOption[];
   /** The commission id — required for the process-less `create_case` path. */
   commissionId: string;
+  /**
+   * The case's hospital ACTIVE departments (Hospital Departments) — the options
+   * for the case-level, NON-PHI "Unidade / setor" dropdown. `[]` → the field is
+   * still shown with only the "Outros" custom option (the field is optional).
+   */
+  departments?: Department[];
   /** Whether the `case_patient` flag is on (gates the optional PHI block + step). */
   casePatientEnabled?: boolean;
   /** Whether the `processless_cases` flag is on (gates the "Sem processo" option). */
@@ -283,6 +292,11 @@ export function CreateCaseDialog({
 
             <LabelPiiWarning />
 
+            {/* Case-level, NON-PHI department ("Unidade / setor"). Shown for BOTH
+                the templated and process-less flows (it is not gated by PHI). Emits
+                exactly one of departmentId / departmentOther; optional. */}
+            <CaseDepartmentField departments={departments} disabled={busy} />
+
             {/* Process-less OUTCOME configuration (cases_extras). The "emite
                 desfecho?" toggle mirrors into a hidden `emitsOutcome` input; when
                 on, a multiselect over the commission vocabulary drives the repeated
@@ -368,6 +382,7 @@ export function CreateCaseDialog({
                   onChange={setPatient}
                   disabled={busy}
                   idPrefix="create-case-patient"
+                  hideUnit
                 />
                 <PatientHiddenFields patient={patient} />
               </>
@@ -395,6 +410,7 @@ export function CreateCaseDialog({
                 onChange={setPatient}
                 disabled={busy}
                 idPrefix="create-case-processless-patient"
+                hideUnit
               />
               <PatientHiddenFields patient={patient} />
             </div>

@@ -29,13 +29,22 @@ export function AnswerSummary({
   item,
   value,
   observation,
+  otherText,
 }: {
   item: Item;
   value: Json | undefined;
   /** Optional observation note shown as a muted secondary line. */
   observation?: string | null;
+  /**
+   * Optional "Outros" free text ("Outros" open option), shown as "Outro: <valor>"
+   * beneath the answer when the reserved `__other__` option is selected. Only a
+   * NON-blank value renders (blank "Outro" is a valid answer but has nothing to
+   * show — the "Outro" chip itself already appears in the value).
+   */
+  otherText?: string | null;
 }) {
   const note = observation?.trim();
+  const other = otherText?.trim();
   return (
     <div className="flex flex-col gap-1 border-b border-border/60 py-2.5 last:border-b-0">
       <dt className="flex items-center gap-1 text-sm font-medium">
@@ -47,6 +56,12 @@ export function AnswerSummary({
         )}
       </dt>
       <dd className="text-sm text-foreground/90">{renderValue(item, value)}</dd>
+      {other && (
+        <dd className="text-xs text-muted-foreground">
+          <span className="font-medium">Outro:</span>{" "}
+          <span className="whitespace-pre-wrap">{other}</span>
+        </dd>
+      )}
       {note && (
         <dd className="text-xs text-muted-foreground">
           <span className="font-medium">Observação:</span>{" "}

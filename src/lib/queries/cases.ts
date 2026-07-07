@@ -85,6 +85,23 @@ export interface Case {
    * `false`.
    */
   patientEnabled: boolean
+  /**
+   * The case's department ("Unidade / setor") — a HOSPITAL-SCOPED, NON-PHI
+   * attribute (Hospital Departments). At most one of `departmentId` (a managed
+   * `hospital_departments` row) / `departmentOther` (the "Outro" custom value) is
+   * set; both `null` = unspecified. Case-level (never on the PHI `case_patient`).
+   * The board/phase-fill reads default these to `null` (only the detail page
+   * resolves the name).
+   */
+  departmentId: string | null
+  departmentOther: string | null
+  /**
+   * The chosen department's name resolved LIVE from `hospital_departments`
+   * (RLS-scoped supplementary read, so a rename propagates), or `departmentOther`
+   * when the "Outro" custom value was used, or `null` when unspecified / the
+   * department was archived-away. Display-only.
+   */
+  departmentName: string | null
 }
 
 /**
@@ -260,6 +277,14 @@ export interface CaseBoardRow {
       result: ResolvedPhaseResult | null
     }
   >
+  /**
+   * The count of this case's OPEN narratives (`case_narratives.status = 'aberta'`).
+   * SCALAR only — the board renders no narrative rows (minimum-necessary), so no
+   * `narratives[]` array is carried here. `0` when the case has none / the
+   * `case_narratives` feature is off. Feeds the "Etapas pendentes" KPI, which sums
+   * pending phases + open narratives.
+   */
+  openNarrativeCount: number
 }
 
 /**
@@ -547,6 +572,8 @@ interface BoardRowJson {
   created_at: string
   closed_at: string | null
   phases: BoardPhaseJson[]
+  /** Scalar count of the case's open narratives (status='aberta'). */
+  open_narrative_count: number
 }
 
 /**
@@ -736,6 +763,11 @@ export async function listCasesBoard(
       // detail page); default to false. The detail read carries the real values.
       hasPatient: false,
       patientEnabled: false,
+      // The department name is a detail-page concern (the board renders no setor
+      // column); default to null. The detail read resolves the real values.
+      departmentId: null,
+      departmentOther: null,
+      departmentName: null,
     },
     outcome: mapOutcomeJson(r.outcome ?? null),
     phases: (r.phases ?? []).map((p) => ({
@@ -748,6 +780,7 @@ export async function listCasesBoard(
       dueDate: p.due_date,
       result: mapPhaseResultJson(p.result ?? null),
     })),
+    openNarrativeCount: r.open_narrative_count ?? 0,
   }))
 
   return { rows, nextCursor: null }
@@ -820,6 +853,27 @@ async function getCaseDetailUncached(
     (modeRows ?? []).map((r) => [r.id, r] as const),
   )
 
+  // The case's department ("Unidade / setor") is NON-PHI + case-level, NOT carried by
+  // the `get_case_detail` envelope (which we don't touch). Read it RLS-scoped
+  // alongside the envelope, then resolve the name LIVE from `hospital_departments`
+  // (the SELECT policy admits any hospital member, so a case viewer resolves it). A
+  // department archived-away (or unreadable) simply yields a null name — the case
+  // still shows `departmentOther` when that was used instead.
+  const { data: deptRow } = await supabase
+    .from('cases')
+    .select('department_id, department_other')
+    .eq('id', caseId)
+    .maybeSingle()
+  let departmentName: string | null = deptRow?.department_other ?? null
+  if (deptRow?.department_id) {
+    const { data: dept } = await supabase
+      .from('hospital_departments')
+      .select('name')
+      .eq('id', deptRow.department_id)
+      .maybeSingle()
+    departmentName = dept?.name ?? null
+  }
+
   return {
     case: {
       id: env.id,
@@ -833,6 +887,9 @@ async function getCaseDetailUncached(
       closedAt: env.closed_at,
       hasPatient: env.has_patient ?? false,
       patientEnabled: env.patient_enabled ?? false,
+      departmentId: deptRow?.department_id ?? null,
+      departmentOther: deptRow?.department_other ?? null,
+      departmentName,
     },
     outcome: mapOutcomeJson(env.outcome ?? null),
     offeredOutcomes: (env.offered_outcomes ?? [])
@@ -1066,6 +1123,11 @@ export async function getCasePhaseForFill(
       closedAt: c.closed_at,
       hasPatient: c.has_patient,
       patientEnabled: c.patient_enabled,
+      // The phase-fill landing does not surface the case's department (setor); the
+      // detail read carries it. Default to null.
+      departmentId: null,
+      departmentOther: null,
+      departmentName: null,
     },
     // Result context for the end-of-wizard override panel: the phase's snapshotted
     // ruleset (live computed preview), the commission's active result options (the

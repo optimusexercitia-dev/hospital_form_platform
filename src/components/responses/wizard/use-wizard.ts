@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { Json } from "@/lib/types/database";
 import type { AnswerMap } from "@/lib/queries/conditions";
 import type { Section } from "@/lib/queries/forms";
+import { OTHER_OPTION_CODE } from "@/lib/forms/option-constants";
 
 import type { AnswerRecord, AnswerState, WizardData } from "./types";
 import {
@@ -70,6 +71,16 @@ export interface WizardState {
   answers: AnswerState;
   /** Derived question_key → value map for `evalCondition`. */
   answerMap: AnswerMap;
+  /**
+   * The LATEST committed answer state + its derived visible-item ids, read from a
+   * ref (not a render snapshot). The save-time collectors call this so a handler
+   * memoized before the final keystroke still serializes the final state
+   * (BUG-FBE-008 stale-closure fix). NOT for render — use `answers` there.
+   */
+  getLatestSnapshot: () => {
+    answers: AnswerState;
+    visibleItemIds: Set<string>;
+  };
 
   setAnswer: (item: { id: string; questionKey: string }, value: Json) => void;
   clearAnswer: (itemId: string) => void;
@@ -79,6 +90,18 @@ export interface WizardState {
    * record yet — an observation rides on an existing answer row.
    */
   setObservation: (itemId: string, observation: string) => void;
+  /**
+   * Set (or clear) the optional "Outros" free text on an item's answer record
+   * ("Outros" open option). UPSERTS the record (BUG-FBE-008): if the answer record
+   * isn't present yet (the selection's `setAnswer` hasn't landed), a minimal record
+   * for the reserved `__other__` selection is created so the text is never dropped;
+   * a following value commit preserves it via record spread. Takes the item's
+   * `{id, questionKey}` so an upserted record is well-formed for the evaluator.
+   */
+  setOtherText: (
+    item: { id: string; questionKey: string },
+    otherText: string,
+  ) => void;
   goToStep: (index: number) => void;
   next: () => void;
   back: () => void;
@@ -224,6 +247,37 @@ export function useWizard(data: WizardData): WizardState {
 
   const answerMap = useMemo(() => toAnswerMap(answers), [answers]);
 
+  // BUG-FBE-008: a live ref to the LATEST committed answers. The save-time
+  // collectors (`collectSection`/`observationsForSection`/`otherTextForSection`)
+  // read `getLatestSnapshot()` instead of a closed-over `answers` snapshot, so a
+  // handler instance that was memoized BEFORE the last keystroke committed still
+  // sees the final state — killing the stale-closure class for selections,
+  // observations AND otherText at once. The ref is synced in a commit-phase
+  // effect (after React applies state), so it holds the current answers by the
+  // time any user event handler runs.
+  const answersRef = useRef(answers);
+  useEffect(() => {
+    answersRef.current = answers;
+  }, [answers]);
+
+  /**
+   * The LATEST committed answer state + the visibility derived from it, computed
+   * on demand from the ref. Used only by the save-time collectors so they never
+   * read a stale render snapshot (never used for render — the memoized `answers`/
+   * `visibleItemIds` drive rendering).
+   */
+  const getLatestSnapshot = useCallback((): {
+    answers: AnswerState;
+    visibleItemIds: Set<string>;
+  } => {
+    const latest = answersRef.current;
+    const { visibleItemIds: latestVisible } = computeEffectiveVisibility(
+      sections,
+      toAnswerMap(latest),
+    );
+    return { answers: latest, visibleItemIds: latestVisible };
+  }, [sections]);
+
   // One document-order pass drives both section AND item visibility (mirror of
   // the submit RPC), recomputed live as answers change.
   const effective = useMemo(
@@ -300,6 +354,38 @@ export function useWizard(data: WizardData): WizardState {
         // An observation rides on an existing answer record; ignore if absent.
         if (!rec) return prev;
         return { ...prev, [itemId]: { ...rec, observation } };
+      });
+    },
+    [],
+  );
+
+  const setOtherText = useCallback(
+    (item: { id: string; questionKey: string }, otherText: string) => {
+      setAnswers((prev) => {
+        const rec = prev[item.id];
+        if (rec) {
+          // An existing record: set/clear the Outro text on it (preserves value +
+          // observation). This also handles the clear path (otherText === "").
+          return { ...prev, [item.id]: { ...rec, otherText } };
+        }
+        // BUG-FBE-008: no record yet. The old guard (`if (!rec) return prev`)
+        // silently DROPPED the first keystroke when the selection's `setAnswer`
+        // hadn't landed in `answers` yet (a select+type ordering the browser hit
+        // but unit tests couldn't reproduce). UPSERT a minimal record so the text
+        // survives — but ONLY for a NON-empty value, so clearing an already-absent
+        // item never resurrects it. The Outro field only shows when `__other__` is
+        // selected, so that is the well-formed value; a following value commit
+        // spreads `...prev[item.id]` and preserves this text.
+        if (otherText === "") return prev;
+        return {
+          ...prev,
+          [item.id]: {
+            itemId: item.id,
+            questionKey: item.questionKey,
+            value: OTHER_OPTION_CODE as Json,
+            otherText,
+          },
+        };
       });
     },
     [],
@@ -389,9 +475,11 @@ export function useWizard(data: WizardData): WizardState {
     isReview,
     answers,
     answerMap,
+    getLatestSnapshot,
     setAnswer,
     clearAnswer,
     setObservation,
+    setOtherText,
     goToStep,
     next,
     back,

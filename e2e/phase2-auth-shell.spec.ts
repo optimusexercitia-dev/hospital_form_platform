@@ -31,7 +31,7 @@ async function signInAs(
 ) {
   await page.goto('/login')
   await page.getByLabel('E-mail').fill(email)
-  await page.getByLabel('Senha').fill(password)
+  await page.locator('input[name="password"]').fill(password)
   await page.getByRole('button', { name: /entrar/i }).click()
   // Wait for navigation away from /login (role-landing redirect).
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), {
@@ -123,7 +123,7 @@ test.describe('Auth boundary and redirect round-trip', () => {
     await expect(page).toHaveURL(/\/login/)
     // Now sign in; the action should return the user to /o/rede-a/c/ccih.
     await page.getByLabel('E-mail').fill('staff1.ccih@test.local')
-    await page.getByLabel('Senha').fill('Test1234!')
+    await page.locator('input[name="password"]').fill('Test1234!')
     await page.getByRole('button', { name: /entrar/i }).click()
     await page.waitForURL(`${BASE}/o/rede-a/c/ccih`, { timeout: 15_000 })
     await expect(page).toHaveURL(`${BASE}/o/rede-a/c/ccih`)
@@ -276,7 +276,7 @@ test.describe('Auth pages UI behaviours', () => {
   test('/login shows pt-BR error for bad credentials (no field-specific leak)', async ({ page }) => {
     await page.goto('/login')
     await page.getByLabel('E-mail').fill('notauser@test.local')
-    await page.getByLabel('Senha').fill('WrongPassword!')
+    await page.locator('input[name="password"]').fill('WrongPassword!')
     await page.getByRole('button', { name: /entrar/i }).click()
     // FormBanner renders role="status" (aria-live), not role="alert".
     // Wait for the generic enumeration-safe error to appear.
@@ -340,7 +340,7 @@ test.describe('Keyboard-only flow (Phase 2)', () => {
     // Tab forward until we reach the password field (skipping any links).
     // The login form layout: email → "Esqueci minha senha" link → password → submit.
     // Use the password field directly after email to stay keyboard-only.
-    const passwordInput = page.getByLabel('Senha')
+    const passwordInput = page.locator('input[name="password"]')
     await passwordInput.fill('Test1234!')
 
     // Submit via keyboard: press Enter inside the password field.

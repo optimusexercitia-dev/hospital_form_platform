@@ -114,9 +114,9 @@ describe("describeVisibility", () => {
           questionKey: "terminal",
           label: "Caso terminal?",
           options: [
-            { id: "o1", code: "sim_a1b2", label: "Sim", color: null, score: null, analyticsCode: null, position: 0 },
-            { id: "o2", code: "nao_c3d4", label: "Não", color: null, score: null, analyticsCode: null, position: 1 },
-            { id: "o3", code: "na_e5f6", label: "Não Aplica", color: null, score: null, analyticsCode: null, position: 2 },
+            { id: "o1", code: "sim_a1b2", label: "Sim", color: null, score: null, analyticsCode: null, flagged: false, isOther: false, position: 0 },
+            { id: "o2", code: "nao_c3d4", label: "Não", color: null, score: null, analyticsCode: null, flagged: false, isOther: false, position: 1 },
+            { id: "o3", code: "na_e5f6", label: "Não Aplica", color: null, score: null, analyticsCode: null, flagged: false, isOther: false, position: 2 },
           ],
         }),
       ]),

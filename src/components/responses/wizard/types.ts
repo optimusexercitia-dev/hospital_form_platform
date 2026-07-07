@@ -36,6 +36,15 @@ export interface AnswerRecord {
    * `value`, so observations never affect conditions.
    */
   observation?: string;
+  /**
+   * Optional per-item "Outros" free text ("Outros" open option). Stored on the
+   * answer row (`answers.other_text`); persisted via `saveSection`'s
+   * `otherTextByItemId`, written server-side ONLY when the item's reserved
+   * `__other__` option is selected. The evaluator reads only the option CODE, so
+   * `otherText` never affects conditions. Blank is allowed ("Outro" selected is a
+   * valid answer; the text is optional).
+   */
+  otherText?: string;
 }
 
 /** The wizard's answer state: per-item answer records keyed by item id. */

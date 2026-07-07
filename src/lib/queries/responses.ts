@@ -87,6 +87,10 @@ export interface ResponseForFill {
    * enhancements, decision #11), non-null only. Drives the wizard's pre-filled
    * observation affordance on resume. */
   observationsByItemId: Record<string, string>
+  /** Saved per-item "Outros" free text keyed by item_id ("Outros" open option),
+   * non-null only. Drives the wizard's pre-filled Outro text input on resume (shown
+   * when the item's reserved `__other__` option is selected). */
+  otherTextByItemId: Record<string, string>
 }
 
 /** One row in the "minhas respostas" history (submitted + in_progress). */
@@ -111,6 +115,9 @@ interface AnswerRow {
   question_key: string
   value: Json | null
   observation: string | null
+  /** "Outros" open option: the typed Outro value, non-null only when the item's
+   * reserved `__other__` option is selected. */
+  other_text?: string | null
   // answer-model-v2 (BE-0): the uniform-answer contemporaneous timestamp.
   // Optional here so the mapper is safe before BE-2 adds the column; selected
   // once BE-2/BE-5 land it.
@@ -131,6 +138,8 @@ export interface AnswerRecord {
   questionKey: string
   value: Json | null
   observation: string | null
+  /** "Outros" open option: the typed Outro value (null unless `__other__` selected). */
+  otherText: string | null
   answeredAt: string
 }
 
@@ -365,7 +374,7 @@ export async function getResponseForFill(
   const [{ data: answers }, { data: selectionRows }] = await Promise.all([
     supabase
       .from('answers')
-      .select('item_id, question_key, value, observation')
+      .select('item_id, question_key, value, observation, other_text')
       .eq('response_id', responseId)
       .returns<AnswerRow[]>(),
     supabase
@@ -392,9 +401,13 @@ export async function getResponseForFill(
   // Observations are collected independently of the value guard (an observation
   // can accompany a null value via an observation-only upsert).
   const observationsByItemId: Record<string, string> = {}
+  const otherTextByItemId: Record<string, string> = {}
   for (const a of answers ?? []) {
     if (a.observation !== null && a.observation !== '') {
       observationsByItemId[a.item_id] = a.observation
+    }
+    if (a.other_text != null && a.other_text !== '') {
+      otherTextByItemId[a.item_id] = a.other_text
     }
   }
 
@@ -410,6 +423,7 @@ export async function getResponseForFill(
     answersByItemId,
     answersByKey,
     observationsByItemId,
+    otherTextByItemId,
   }
 }
 

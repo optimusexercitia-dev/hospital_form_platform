@@ -27,8 +27,8 @@ function inputItem(over: Partial<Item> & Pick<Item, "id" | "sectionId">): Item {
     // the answer-map identity, so codes are chosen to equal the condition values
     // these tests assert on ("sim"/"não").
     options: [
-      { id: "o-sim", code: "sim", label: "Sim", color: null, score: null, analyticsCode: null, position: 0 },
-      { id: "o-nao", code: "não", label: "Não", color: null, score: null, analyticsCode: null, position: 1 },
+      { id: "o-sim", code: "sim", label: "Sim", color: null, score: null, analyticsCode: null, flagged: false, isOther: false, position: 0 },
+      { id: "o-nao", code: "não", label: "Não", color: null, score: null, analyticsCode: null, flagged: false, isOther: false, position: 1 },
     ],
     config: null,
     visibleWhen: null,
@@ -644,5 +644,207 @@ describe("useWizard default-value prefill (answer-model-v2 FE-2)", () => {
     ]);
     const { result } = renderHook(() => useWizard(data(t)));
     expect(result.current.answers.mc).toBeUndefined();
+  });
+});
+
+describe("useWizard — setOtherText (Others open option, task #6)", () => {
+  it("rides on an existing answer record", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [inputItem({ id: "mc", sectionId: "s0" })],
+      }),
+    ]);
+    const { result } = renderHook(() =>
+      useWizard(
+        data(t, {
+          mc: { itemId: "mc", questionKey: "mc", value: "__other__" },
+        }),
+      ),
+    );
+    act(() =>
+      result.current.setOtherText(
+        { id: "mc", questionKey: "mc" },
+        "Reação alérgica",
+      ),
+    );
+    expect(result.current.answers.mc?.otherText).toBe("Reação alérgica");
+    // The answer value is preserved alongside the Outro text.
+    expect(result.current.answers.mc?.value).toBe("__other__");
+  });
+
+  it("UPSERTS a __other__ record when text arrives before the selection (FBE-008)", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [inputItem({ id: "mc", sectionId: "s0" })],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    // No record yet — a NON-empty Outro text creates a well-formed __other__ record
+    // so the text is never dropped (the old guard silently discarded it).
+    act(() =>
+      result.current.setOtherText({ id: "mc", questionKey: "mc" }, "texto"),
+    );
+    expect(result.current.answers.mc?.value).toBe("__other__");
+    expect(result.current.answers.mc?.otherText).toBe("texto");
+  });
+
+  it("does NOT resurrect an absent record when clearing (empty text)", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [inputItem({ id: "mc", sectionId: "s0" })],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    act(() => result.current.setOtherText({ id: "mc", questionKey: "mc" }, ""));
+    expect(result.current.answers.mc).toBeUndefined();
+  });
+
+  it("preserves otherText across a value change (setAnswer spreads the record)", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [inputItem({ id: "mc", sectionId: "s0" })],
+      }),
+    ]);
+    const { result } = renderHook(() =>
+      useWizard(
+        data(t, {
+          mc: {
+            itemId: "mc",
+            questionKey: "mc",
+            value: "__other__",
+            otherText: "nota",
+          },
+        }),
+      ),
+    );
+    act(() =>
+      result.current.setAnswer({ id: "mc", questionKey: "mc" }, "__other__"),
+    );
+    expect(result.current.answers.mc?.otherText).toBe("nota");
+  });
+
+  // BUG-FBE-008 regression: the REAL flow starts with NO answer record, then the
+  // user SELECTS __other__ (creating the record) and TYPES the Outro text in the
+  // same interaction. React batches both state updates, so `setOtherText` must not
+  // drop the text just because the selection's record isn't flushed to the render
+  // snapshot yet — the functional updaters run in sequence.
+  it("keeps the Outro text when selection + text land in the same batch (from empty)", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [inputItem({ id: "mc", sectionId: "s0" })],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    // Item starts unanswered.
+    expect(result.current.answers.mc).toBeUndefined();
+    // Select __other__ then type — BATCHED in one act() (mirrors the browser).
+    act(() => {
+      result.current.setAnswer({ id: "mc", questionKey: "mc" }, "__other__");
+      result.current.setOtherText(
+        { id: "mc", questionKey: "mc" },
+        "Reação alérgica",
+      );
+    });
+    expect(result.current.answers.mc?.value).toBe("__other__");
+    expect(result.current.answers.mc?.otherText).toBe("Reação alérgica");
+  });
+
+  it("keeps Outro text committed via the orphan-aware commit path then typed", () => {
+    // Mirrors wizard-client.onChange's no-orphan branch (setAnswer) + the first
+    // keystroke, batched — the exact FBE-008 sequence.
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [inputItem({ id: "mc", sectionId: "s0" })],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    act(() => {
+      result.current.commitAnswerChange(
+        { id: "mc", questionKey: "mc" },
+        "__other__",
+        [],
+      );
+      result.current.setOtherText({ id: "mc", questionKey: "mc" }, "detalhe");
+    });
+    expect(result.current.answers.mc?.otherText).toBe("detalhe");
+  });
+
+  it("survives the WORST ordering: text BEFORE the selection lands (FBE-008)", () => {
+    // The precise defect: `setOtherText` fires while the selection's record isn't
+    // in `answers` yet. The UPSERT keeps the text; the following `setAnswer`
+    // (spread) preserves it. Then it's collectable for save.
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [inputItem({ id: "mc", sectionId: "s0" })],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+    // Text arrives first (record absent) — upserts a __other__ record.
+    act(() =>
+      result.current.setOtherText({ id: "mc", questionKey: "mc" }, "detalhe"),
+    );
+    expect(result.current.answers.mc?.otherText).toBe("detalhe");
+    // The selection commits later — spread preserves the Outro text.
+    act(() =>
+      result.current.setAnswer({ id: "mc", questionKey: "mc" }, "__other__"),
+    );
+    expect(result.current.answers.mc?.value).toBe("__other__");
+    expect(result.current.answers.mc?.otherText).toBe("detalhe");
+  });
+});
+
+describe("useWizard — getLatestSnapshot (FBE-008 stale-closure fix)", () => {
+  // CONFIRMS THE MECHANISM: a save handler captures a getLatestSnapshot reference
+  // BEFORE the last keystroke commits. The RENDER-time `answers`/memo captured at
+  // that instant is STALE, but `getLatestSnapshot()` (a ref) must return the
+  // POST-commit state — proving the collectors read latest regardless of which
+  // handler instance fires.
+  it("a captured getLatestSnapshot reference reflects a LATER commit", () => {
+    const t = tree([
+      section({
+        id: "s0",
+        isDefault: true,
+        items: [inputItem({ id: "mc", sectionId: "s0" })],
+      }),
+    ]);
+    const { result } = renderHook(() => useWizard(data(t)));
+
+    // Simulate the selection committing at render N.
+    act(() =>
+      result.current.setAnswer({ id: "mc", questionKey: "mc" }, "__other__"),
+    );
+    // Capture the snapshot accessor + the render-N `answers` snapshot NOW (as a
+    // save handler memoized at render N would close over them).
+    const capturedGetLatest = result.current.getLatestSnapshot;
+    const staleAnswers = result.current.answers;
+    expect(staleAnswers.mc?.otherText).toBeUndefined();
+
+    // The last keystroke commits at render N+1.
+    act(() =>
+      result.current.setOtherText({ id: "mc", questionKey: "mc" }, "detalhe"),
+    );
+
+    // The captured RENDER snapshot is stale — it never saw the keystroke…
+    expect(staleAnswers.mc?.otherText).toBeUndefined();
+    // …but the captured accessor reads the LATEST committed state.
+    const latest = capturedGetLatest();
+    expect(latest.answers.mc?.value).toBe("__other__");
+    expect(latest.answers.mc?.otherText).toBe("detalhe");
+    // The item is visible in the latest snapshot (flat default section).
+    expect(latest.visibleItemIds.has("mc")).toBe(true);
   });
 });

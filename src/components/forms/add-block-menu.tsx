@@ -52,7 +52,11 @@ export function AddBlockMenu({
             Adicionar bloco
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-64">
+        <DropdownMenuContent
+          align="start"
+          collisionPadding={8}
+          className="max-h-[--radix-dropdown-menu-content-available-height] min-w-64 overflow-y-auto"
+        >
           <DropdownMenuLabel>Perguntas</DropdownMenuLabel>
           {INPUT_TYPES.map((type) => (
             <BlockTypeItem

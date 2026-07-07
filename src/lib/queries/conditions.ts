@@ -100,6 +100,99 @@ export const RECOMMEND_RESULT_KEY = '__phase_result__' as const
  */
 export const RECOMMEND_RESULT_ADVERSE_KEY = '__phase_result_adverse__' as const
 
+// ---------------------------------------------------------------------------
+// Flagged + aggregate result criteria (form-builder-enhancements) — reserved
+// synthetic keys for PHASE-RESULT ruleset conditions (NOT recommendations).
+// Rides the same synthetic-key precedent: the SQL compute + this TS preview each
+// inject these keys into the answer map BEFORE the UNCHANGED evaluator rule-walk,
+// so `walkResultRuleset`/`eval_condition` need no change. `__…__` can never
+// collide with an author question_key (auto-generated slugs strip leading/trailing
+// `_`), the same protection RECOMMEND_RESULT_KEY relies on.
+// ---------------------------------------------------------------------------
+
+/**
+ * Reserved synthetic question_key for the phase's TOTAL SCORE aggregate — Σ of the
+ * phase's selected options' `score` (null → 0). A result rule keyed on this with an
+ * ordered op (`> 5` etc.) fires against the injected number.
+ */
+export const TOTAL_SCORE_KEY = '__total_score__' as const
+
+/**
+ * Reserved synthetic question_key for the phase's FLAGGED COUNT aggregate — the
+ * combined tally of (selected flagged options, per-option across
+ * multiple_choice/dropdown/checkbox) + (number/date/time items whose `flaggedWhen`
+ * is satisfied). A result rule keyed on this with an ordered op fires against it.
+ */
+export const FLAGGED_COUNT_KEY = '__flagged_count__' as const
+
+/**
+ * A per-item "Flagged If" condition (number/date/time only): a single
+ * self-referential `{ op, value }` compared against the item's OWN answer. Stored
+ * in `form_items.config.flaggedWhen`. Reuses the ordered/equality ops; a satisfied
+ * flaggedWhen contributes +1 to {@link FLAGGED_COUNT_KEY}. Value type matches the
+ * item (number → number; date → ISO `YYYY-MM-DD`; time → `HH:mm`).
+ */
+export interface FlaggedWhen {
+  op: Extract<ConditionOp, 'gt' | 'gte' | 'lt' | 'lte' | 'equals' | 'not_equals'>
+  value: Json
+}
+
+/**
+ * One input to {@link computeAggregateKeys}: a number/date/time item's own answer +
+ * its optional `flaggedWhen` condition, so the preview can tally the flaggedWhen
+ * half against the SAME value the backend's normalized answer map uses.
+ */
+export interface FlaggedWhenInput {
+  /** The item's current (normalized) answer value, or `undefined`/`null` if empty. */
+  answer: Json | undefined
+  /** The item's `config.flaggedWhen`, or `null` when the item carries none. */
+  flaggedWhen: FlaggedWhen | null
+}
+
+/**
+ * Compute the two reserved aggregate keys the phase-result preview must inject into
+ * its answer map so the builder preview matches `app.compute_case_phase_result`
+ * EXACTLY (Rule 3 — no evaluator change; identical synthetic keys on both sides):
+ *   - `__total_score__` = Σ of the selected options' scores (null/absent → 0);
+ *   - `__flagged_count__` = (count of selected flagged options) + (count of
+ *     number/date/time items whose `flaggedWhen` holds against their own answer,
+ *     evaluated through the UNCHANGED {@link evalCondition} — the SAME single-key
+ *     synthetic map the SQL side builds, so value normalization is identical).
+ *
+ * `selectedOptionScores` are the scores of the currently-selected options (nulls
+ * skipped by the caller); `selectedFlaggedCount` is how many selected options are
+ * flagged; `flaggedWhenInputs` are the number/date/time items with a flaggedWhen.
+ * Returns a map to MERGE into `previewAnswers` before `walkResultRuleset`.
+ */
+export function computeAggregateKeys(input: {
+  selectedOptionScores: number[]
+  selectedFlaggedCount: number
+  flaggedWhenInputs: FlaggedWhenInput[]
+}): { [TOTAL_SCORE_KEY]: number; [FLAGGED_COUNT_KEY]: number } {
+  const totalScore = input.selectedOptionScores.reduce(
+    (sum, s) => sum + (Number.isFinite(s) ? s : 0),
+    0,
+  )
+  const flaggedConditions = input.flaggedWhenInputs.reduce((count, fi) => {
+    if (!fi.flaggedWhen) return count
+    // Feed the item's flaggedWhen to the UNCHANGED evaluator against a one-key map
+    // of its own answer — mirroring the SQL side's per-item eval over v_answers.
+    const hit = evalCondition(
+      {
+        question_key: '__flagged_when_self__',
+        op: fi.flaggedWhen.op,
+        value: fi.flaggedWhen.value,
+      },
+      { __flagged_when_self__: fi.answer },
+    )
+    return count + (hit ? 1 : 0)
+  }, 0)
+  return {
+    [TOTAL_SCORE_KEY]: totalScore,
+    [FLAGGED_COUNT_KEY]: input.selectedFlaggedCount + flaggedConditions,
+  }
+}
+
 /**
  * A cross-phase recommendation condition reading an EARLIER phase's ANSWER — the
  * legacy shape, now optionally tagged `source: 'answer'` for symmetry with the

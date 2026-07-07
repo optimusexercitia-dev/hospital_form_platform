@@ -220,6 +220,15 @@ interface SaveSectionInput {
    * affect conditions; per Rule 11 the audit log never copies the text.
    */
   observationsByItemId?: Record<string, string>
+  /**
+   * "Outros" open option (form-builder-enhancements): optional per-item free-text
+   * value typed when the item's reserved `__other__` option is selected, mapping a
+   * multiple_choice/checkbox item's id → the typed text. Written to
+   * `answers.other_text` by `save_section_answers` ONLY when that item's `__other__`
+   * option is among its current selections (otherwise forced null). NON-analytic:
+   * never fed to the evaluator, never aggregated. Optional and never blocks.
+   */
+  otherTextByItemId?: Record<string, string>
 }
 
 /**
@@ -228,7 +237,8 @@ interface SaveSectionInput {
  * to its jsonb value; `clearItemIds` (optional) is the warn-and-clear path — the
  * answered item ids of section(s) a controlling answer just hid, deleted in the
  * SAME call; `observationsByItemId` (optional) carries per-item observation
- * notes. `sectionId` is stored as `last_section_id` so resume lands here.
+ * notes; `otherTextByItemId` (optional) carries the "Outro" free text. `sectionId`
+ * is stored as `last_section_id` so resume lands here.
  *
  * Called on every section navigation, so it stays lean: authorize, then one RPC.
  */
@@ -240,6 +250,7 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     selectionsByItemId,
     clearItemIds,
     observationsByItemId,
+    otherTextByItemId,
   } = input
   if (!responseId || !sectionId) {
     return { ok: false, error: MESSAGES.missingResponse }
@@ -256,6 +267,8 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     observationsByItemId != null && Object.keys(observationsByItemId).length > 0
   const hasSelections =
     selectionsByItemId != null && Object.keys(selectionsByItemId).length > 0
+  const hasOtherText =
+    otherTextByItemId != null && Object.keys(otherTextByItemId).length > 0
 
   // form-model-normalization: `save_section_answers` carries `p_selections jsonb`
   // (item_id -> array of option codes, REPLACE semantics) alongside the scalar
@@ -271,6 +284,9 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     p_observations: hasObservations ? (observationsByItemId as Json) : undefined,
     // p_selections: choice selections by item id; omit when none.
     p_selections: hasSelections ? (selectionsByItemId as Json) : undefined,
+    // p_other_text: per-item "Outro" free text; written only when the item's
+    // __other__ option is selected. Omit when none.
+    p_other_text: hasOtherText ? (otherTextByItemId as Json) : undefined,
   })
 
   if (error) {

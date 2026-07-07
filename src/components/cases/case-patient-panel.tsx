@@ -137,7 +137,7 @@ export function CasePatientPanel({
           value: patient.ageYears != null ? `${patient.ageYears} anos` : null,
         },
         { label: "Sexo", value: CASE_PATIENT_SEX_LABELS[patient.sex] },
-        { label: "Atendimento / internação", value: patient.encounterRef },
+        { label: "Atendimento", value: patient.encounterRef },
         { label: "Unidade / setor", value: patient.unit },
         { label: "Profissional responsável", value: patient.attending },
       ].filter((f) => f.value)

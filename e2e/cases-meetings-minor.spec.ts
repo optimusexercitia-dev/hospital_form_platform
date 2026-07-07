@@ -87,7 +87,7 @@ const PW = 'Test1234!'
 async function signInAs(page: Page, email: string, password = PW) {
   await page.goto('/login')
   await page.getByLabel(/e-mail/i).fill(email)
-  await page.getByLabel(/senha/i).fill(password)
+  await page.locator('input[name="password"]').fill(password)
   await page.getByRole('button', { name: /entrar/i }).click()
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), {
     timeout: 20_000,

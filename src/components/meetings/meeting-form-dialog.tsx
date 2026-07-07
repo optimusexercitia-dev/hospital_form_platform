@@ -7,6 +7,8 @@ import { CalendarPlus } from "lucide-react";
 
 import {
   createMeeting,
+  seedExpectedAttendees,
+  seedSelectedAttendees,
   updateMeeting,
   type ActionState,
   type CreateMeetingState,
@@ -17,7 +19,9 @@ import type {
   MeetingDetail,
   MeetingModality,
 } from "@/lib/queries/meetings";
+import type { MemberListItem } from "@/lib/queries/members";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +35,11 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { MODALITY_LABEL, MODALITY_ORDER } from "./meeting-labels";
 import { toDateTimeLocalValue } from "./format";
+
+/** Label + fallback for a member in the participants checklist. */
+function memberLabel(m: MemberListItem): string {
+  return m.fullName?.trim() || m.email || "Membro sem nome";
+}
 
 const FIELD_CLASS =
   "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -60,6 +69,7 @@ export function MeetingFormDialog({
   slug,
   commissionId,
   meetingTypes,
+  members = [],
   meeting,
 }: {
   mode: "create" | "edit";
@@ -70,6 +80,12 @@ export function MeetingFormDialog({
   slug: string;
   commissionId: string;
   meetingTypes: CommissionMeetingType[];
+  /**
+   * The commission's members — the "Participantes" picker for CREATE mode (plan
+   * step H). Server-loaded and passed in (client can't call the server query).
+   * `[]` / omitted → the section is not shown (edit mode never shows it).
+   */
+  members?: MemberListItem[];
   /** Required for `edit`. */
   meeting?: MeetingDetail;
 }) {
@@ -78,6 +94,12 @@ export function MeetingFormDialog({
   const [state, setState] = useState<(CreateMeetingState & ActionState) | null>(
     null,
   );
+
+  // Participants (CREATE only): default = convocar TODOS os membros (zero-config).
+  // Toggling off reveals a checklist to pick a subset (the "Convocados").
+  const allUserIds = members.map((m) => m.userId);
+  const [convocarTodos, setConvocarTodos] = useState(true);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>(allUserIds);
 
   const [title, setTitle] = useState(meeting?.title ?? "");
   const [meetingTypeId, setMeetingTypeId] = useState(
@@ -108,6 +130,9 @@ export function MeetingFormDialog({
       setEnd(toDateTimeLocalValue(meeting?.scheduledEnd ?? null));
       setLocationText(meeting?.locationText ?? "");
       setMeetingUrl(meeting?.meetingUrl ?? "");
+      // Participants reset to the zero-config default (convocar todos).
+      setConvocarTodos(true);
+      setSelectedUserIds(allUserIds);
     }
   }
 
@@ -133,15 +158,39 @@ export function MeetingFormDialog({
       meetingUrl: meetingUrl.trim() || null,
     };
     startTransition(async () => {
-      const result =
-        mode === "create"
-          ? await createMeeting(commissionId, input)
-          : await updateMeeting(meeting!.id, input);
+      if (mode !== "create") {
+        setState(await updateMeeting(meeting!.id, input));
+        return;
+      }
+      const result = await createMeeting(commissionId, input);
+      // Seed the participants BEFORE navigating into the new meeting, so the
+      // detail page renders with its Convocados already present. A seed failure
+      // is NON-FATAL (the meeting exists; attendees can be added on the detail
+      // page), so we do not block navigation on it.
+      //
+      // "All" → `seedExpectedAttendees(meetingId)` (the RPC seeds every commission
+      // member server-side; no id list needed). Subset → `seedSelectedAttendees`
+      // with the chosen user ids (the RPC ignores non-members).
+      if (result.ok && result.meetingId && members.length > 0) {
+        if (convocarTodos) {
+          await seedExpectedAttendees(result.meetingId);
+        } else if (selectedUserIds.length > 0) {
+          await seedSelectedAttendees(result.meetingId, selectedUserIds);
+        }
+      }
       setState(result);
     });
   }
 
   const showRemoteFields = modality === "remoto" || modality === "hibrido";
+  // The Participantes picker is a CREATE-only affordance and needs a member list.
+  const showParticipants = mode === "create" && members.length > 0;
+
+  function toggleMember(userId: string, checked: boolean) {
+    setSelectedUserIds((prev) =>
+      checked ? [...prev, userId] : prev.filter((id) => id !== userId),
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -270,6 +319,74 @@ export function MeetingFormDialog({
             </div>
           </fieldset>
 
+          {showParticipants && (
+            <fieldset className="flex flex-col gap-2.5 rounded-xl border border-border bg-muted/30 p-4 text-sm">
+              <legend className="px-1 font-medium">Participantes</legend>
+
+              <label className="flex items-start gap-2.5">
+                <Checkbox
+                  checked={convocarTodos}
+                  onCheckedChange={(c) => setConvocarTodos(c === true)}
+                  className="mt-0.5"
+                />
+                <span className="flex flex-col">
+                  <span className="font-medium">
+                    Convocar todos os membros
+                  </span>
+                  <span className="text-xs text-muted-foreground text-pretty">
+                    Todos os {members.length}{" "}
+                    {members.length === 1 ? "membro" : "membros"} da comissão
+                    serão convocados. Desmarque para escolher quem convocar.
+                  </span>
+                </span>
+              </label>
+
+              {!convocarTodos && (
+                <div className="flex flex-col gap-2 border-t border-border pt-3">
+                  <p className="text-xs text-muted-foreground">
+                    {selectedUserIds.length}{" "}
+                    {selectedUserIds.length === 1
+                      ? "membro convocado"
+                      : "membros convocados"}
+                  </p>
+                  <ul className="flex flex-col gap-1.5">
+                    {members.map((m) => {
+                      const checked = selectedUserIds.includes(m.userId);
+                      return (
+                        <li key={m.userId}>
+                          <label className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-transparent px-2 py-1.5 transition-colors hover:bg-accent/40">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(c) =>
+                                toggleMember(m.userId, c === true)
+                              }
+                            />
+                            <span className="flex min-w-0 flex-col">
+                              <span className="truncate font-medium">
+                                {memberLabel(m)}
+                              </span>
+                              {m.titleName && (
+                                <span className="truncate text-xs text-muted-foreground">
+                                  {m.titleName}
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {selectedUserIds.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-pretty">
+                      Nenhum membro selecionado — a reunião será criada sem
+                      convocados. Você poderá adicioná-los depois.
+                    </p>
+                  )}
+                </div>
+              )}
+            </fieldset>
+          )}
+
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">
               Local{" "}
@@ -346,12 +463,15 @@ export function NewMeetingButton({
   slug,
   commissionId,
   meetingTypes,
+  members = [],
 }: {
   /** Org slug for hrefs. */
   org: string;
   slug: string;
   commissionId: string;
   meetingTypes: CommissionMeetingType[];
+  /** The commission's members for the "Participantes" picker (server-loaded). */
+  members?: MemberListItem[];
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -367,6 +487,7 @@ export function NewMeetingButton({
         org={org} slug={slug}
         commissionId={commissionId}
         meetingTypes={meetingTypes}
+        members={members}
       />
     </>
   );

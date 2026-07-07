@@ -67,7 +67,7 @@ export default async function OrgHospitalsPage({
         <h2 id="hospitais-heading" className="text-lg font-semibold">
           Todos os hospitais
         </h2>
-        <HospitalList hospitals={hospitals} />
+        <HospitalList org={org} hospitals={hospitals} />
       </section>
     </div>
   );

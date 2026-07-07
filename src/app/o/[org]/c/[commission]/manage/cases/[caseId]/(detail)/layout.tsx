@@ -1,7 +1,7 @@
 import { commissionHref } from "@/lib/routing";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MapPin } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
@@ -159,6 +159,12 @@ export default async function CaseDetailLayout({
             {c.label && (
               <p className="max-w-prose text-muted-foreground text-pretty">
                 {c.label}
+              </p>
+            )}
+            {c.departmentName && (
+              <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
+                <MapPin aria-hidden="true" className="size-3.5 shrink-0" />
+                {c.departmentName}
               </p>
             )}
             <p className="text-sm text-muted-foreground">

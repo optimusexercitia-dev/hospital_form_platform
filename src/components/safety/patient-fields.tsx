@@ -85,12 +85,20 @@ export function PatientFields({
   onChange,
   disabled = false,
   idPrefix,
+  hideUnit = false,
 }: {
   draft: PatientDraft;
   onChange: (next: PatientDraft) => void;
   disabled?: boolean;
   /** Namespaces the field ids so multiple instances stay accessible. */
   idPrefix: string;
+  /**
+   * Hide the PHI free-text "Unidade / setor" field. Set ONLY by the Novo-caso
+   * flow, which collects the unit as a case-level, NON-PHI department instead
+   * (Hospital Departments). Safety-event + referral flows keep the free-text
+   * unit (default `false`).
+   */
+  hideUnit?: boolean;
 }) {
   const set = <K extends keyof PatientDraft>(key: K, value: PatientDraft[K]) =>
     onChange({ ...draft, [key]: value });
@@ -179,7 +187,7 @@ export function PatientFields({
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium">Atendimento / internação</span>
+          <span className="font-medium">Atendimento</span>
           <input
             type="text"
             value={draft.encounterRef}
@@ -191,17 +199,19 @@ export function PatientFields({
           />
         </label>
 
-        <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium">Unidade / setor</span>
-          <input
-            type="text"
-            value={draft.unit}
-            onChange={(e) => set("unit", e.target.value)}
-            disabled={disabled}
-            className={FIELD_CLASS}
-            placeholder="Ex.: UTI Adulto"
-          />
-        </label>
+        {!hideUnit && (
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium">Unidade / setor</span>
+            <input
+              type="text"
+              value={draft.unit}
+              onChange={(e) => set("unit", e.target.value)}
+              disabled={disabled}
+              className={FIELD_CLASS}
+              placeholder="Ex.: UTI Adulto"
+            />
+          </label>
+        )}
 
         <label className="flex flex-col gap-1.5 text-sm">
           <span className="font-medium">Profissional responsável</span>

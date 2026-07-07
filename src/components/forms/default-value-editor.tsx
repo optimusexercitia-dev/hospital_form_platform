@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TimeField } from "@/components/ui/time-field";
 import { cn } from "@/lib/utils";
 
 /**
@@ -133,7 +134,6 @@ export function DefaultValueEditor({
       );
 
     case "date":
-    case "time":
       return (
         <Field>
           <FieldLabel htmlFor={field.controlProps.id}>
@@ -142,11 +142,35 @@ export function DefaultValueEditor({
           </FieldLabel>
           <Input
             {...field.controlProps}
-            type={itemType}
+            type="date"
             value={typeof value === "string" ? value : ""}
             onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)}
             className="w-fit"
           />
+          <FieldDescription id={field.descriptionId}>
+            Preenchido automaticamente enquanto a pergunta não for respondida; a
+            pessoa pode alterar livremente.
+          </FieldDescription>
+        </Field>
+      );
+
+    case "time":
+      return (
+        <Field>
+          <FieldLabel htmlFor={field.controlProps.id}>
+            Valor padrão{" "}
+            <span className="font-normal text-muted-foreground">(opcional)</span>
+          </FieldLabel>
+          {/* 24h masked numeric field (type `930` → `09:30`), matching the wizard. */}
+          <div className="w-40">
+            <TimeField
+              id={field.controlProps.id}
+              aria-describedby={field.controlProps["aria-describedby"]}
+              aria-invalid={field.controlProps["aria-invalid"]}
+              value={typeof value === "string" ? value : ""}
+              onChange={(next) => onChange(next === "" ? null : next)}
+            />
+          </div>
           <FieldDescription id={field.descriptionId}>
             Preenchido automaticamente enquanto a pergunta não for respondida; a
             pessoa pode alterar livremente.

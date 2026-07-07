@@ -25,6 +25,7 @@ import { PhaseSlotDialog } from "@/components/process-templates/phase-slot-dialo
 import { NarrativeSlotCard } from "@/components/process-templates/narrative-slot-card";
 import { NarrativeSlotDialog } from "@/components/process-templates/narrative-slot-dialog";
 import { ProcessOutcomesPicker } from "@/components/process-templates/process-outcomes-picker";
+import { PublishedOutcomesCard } from "@/components/process-templates/published-outcomes-card";
 import { CollectsPatientPicker } from "@/components/process-templates/collects-patient-picker";
 import { PublishTemplateButton } from "@/components/process-templates/publish-template-button";
 import { ArchiveTemplateButton } from "@/components/process-templates/archive-template-button";
@@ -349,6 +350,15 @@ export function TemplateBuilderShell({
         <ProcessOutcomesPicker
           commissionId={template.commissionId}
           templateId={template.id}
+          outcomes={outcomes}
+          offeredOutcomeIds={template.offeredOutcomeIds}
+        />
+      )}
+
+      {/* Published/archived process: the offered outcomes are frozen — show them
+          read-only (the editable picker only mounts for drafts). */}
+      {!isDraft && (
+        <PublishedOutcomesCard
           outcomes={outcomes}
           offeredOutcomeIds={template.offeredOutcomeIds}
         />

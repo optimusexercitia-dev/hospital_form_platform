@@ -1,10 +1,20 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ArrowDown, ArrowUp, Ban, Check, Plus, Trash2 } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Ban,
+  Check,
+  Flag,
+  Plus,
+  Settings2,
+  Trash2,
+} from "lucide-react";
 
 import type { ColorToken, ItemOption } from "@/lib/queries/forms";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,21 +33,32 @@ import { generateOptionCode } from "@/lib/forms/option-code";
  * (`multiple_choice` / `dropdown` / `checkbox`). Add, edit, remove, and reorder
  * (up/down — no drag-and-drop in v1) the options.
  *
- * form-model-normalization: each option is now a NORMALIZED {@link ItemOption}
- * row (`{ id, code, label, color, score, analyticsCode, position }`). The author
- * edits only `label`, `color`, `score` (a stored-only numeric weight) and
- * `analyticsCode` (a free-text cross-form tagging hook); `id`/`code`/`position`
- * are managed by the platform and never shown — `code` is the stable analytics /
- * condition identity, so renaming a `label` never breaks analytics. New rows are
- * created with an empty `id`/`code` (the backend assigns them on insert).
+ * form-model-normalization: each option is a NORMALIZED {@link ItemOption} row
+ * (`{ id, code, label, color, score, analyticsCode, flagged, isOther, position }`).
+ * The author edits `label`, `color`, `score`, `analyticsCode` and (task #4) the
+ * `flagged` toggle; `id`/`code`/`position` are platform-managed and never shown —
+ * `code` is the stable analytics / condition identity, so renaming a `label`
+ * never breaks analytics. New rows are created with an empty `id`/`code` (the
+ * backend assigns them on insert).
  *
- * When `colorable` is true (multiple_choice + checkbox only — a native
- * `<select>` can't render colour) a per-row colour picker is shown, defaulting to
- * "sem cor" (`color: null`).
+ * task #4 — the score + analytics-code + **Flagged** metadata are PROGRESSIVELY
+ * DISCLOSED behind a per-row "Opções" toggle (the user's deliberate divergence
+ * from the doc's section-level table): the common label-only row stays clean, and
+ * the per-option scoring/analytics/flag reveals only when that row's toggle is on.
+ * A row whose metadata is ALREADY set (score/analyticsCode/flagged) opens expanded
+ * so editing a configured option reveals it. Hiding the metadata NEVER drops it —
+ * it stays in `options` state and the parent keeps emitting the hidden fields.
+ *
+ * The reserved "Outros" row (`isOther`) is HIDDEN from this editable list — it is
+ * managed entirely by the backend's `reconcile_item_options`; the author only
+ * toggles `config.allowOther` (in the dialog), never authors the `__other__` row.
+ *
+ * When `colorable` is true (multiple_choice + checkbox only — a native `<select>`
+ * can't render colour) a per-row colour picker is shown, defaulting to "sem cor".
  *
  * Presentational + controlled: owns no persistence. The parent supplies
- * `options`/`onChange`; persistence happens when the parent item editor calls
- * its server action.
+ * `options`/`onChange`; persistence happens when the parent item editor calls its
+ * server action.
  */
 
 /** The selectable palette tokens, in a stable display order (mirrors the
@@ -82,8 +103,22 @@ export function blankOption(position: number): ItemOption {
     color: null,
     score: null,
     analyticsCode: null,
+    // task #4 owns the REAL per-row Flagged toggle; a new row starts un-flagged.
+    // isOther is NEVER authored via blankOption — the reserved __other__ row is
+    // backend-managed and hidden from this editor.
+    flagged: false,
+    isOther: false,
     position,
   };
+}
+
+/** Whether a row already carries metadata worth revealing on open (task #4). */
+function hasMetadata(option: ItemOption): boolean {
+  return (
+    option.score !== null ||
+    (option.analyticsCode ?? "") !== "" ||
+    option.flagged === true
+  );
 }
 
 export function OptionsEditor({
@@ -102,13 +137,39 @@ export function OptionsEditor({
 }) {
   const groupId = useId();
 
+  // The reserved "Outros" row is backend-managed and never author-editable — hide
+  // it entirely so it is never rendered, reordered, deleted, or emitted. All edit
+  // handlers below operate on the FULL `options` array by the ORIGINAL index, so
+  // hiding is a render-time filter only (indices stay stable for onChange).
+  const rows = options
+    .map((option, index) => ({ option, index }))
+    .filter(({ option }) => !option.isOther);
+
+  // Per-row "Opções" (metadata) disclosure. Keyed by the row's original index;
+  // a row whose metadata is already set opens expanded. Seeded lazily once.
+  const [expanded, setExpanded] = useState<Set<number>>(() => {
+    const initial = new Set<number>();
+    options.forEach((option, index) => {
+      if (!option.isOther && hasMetadata(option)) initial.add(index);
+    });
+    return initial;
+  });
+
+  function toggleExpanded(index: number) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
+  }
+
   // BUG-AMV2-002: mint a real, stable `code` for a brand-new row (code === "")
-  // as soon as its label becomes non-empty, so a choice-type default picked
-  // in the SAME add-item session references a real code — not the empty-
-  // string placeholder — from the moment it's chosen. Rows loaded from the
-  // server (code already set) are left untouched, and once minted here a
-  // row's code stays stable across a later label rename (mirrors the
-  // existing "code stable across rename" contract for edit-mode rows).
+  // as soon as its label becomes non-empty, so a choice-type default picked in
+  // the SAME add-item session references a real code — not the empty-string
+  // placeholder. Rows loaded from the server (code already set) are left
+  // untouched, and once minted here a row's code stays stable across a later
+  // label rename.
   function updateLabelAt(index: number, label: string) {
     const next = options.slice();
     const current = next[index];
@@ -154,15 +215,26 @@ export function OptionsEditor({
     onChange(next);
   }
 
+  function updateFlaggedAt(index: number, flagged: boolean) {
+    const next = options.slice();
+    next[index] = { ...next[index], flagged };
+    onChange(next);
+  }
+
   function removeAt(index: number) {
     onChange(options.filter((_, i) => i !== index));
   }
 
-  function move(index: number, direction: -1 | 1) {
-    const target = index + direction;
-    if (target < 0 || target >= options.length) return;
+  /** Move a row up/down among the NON-reserved rows. `visibleIndex` is the
+   *  position within `rows`; we translate to the real `options` indices so the
+   *  hidden `isOther` row (always last) is never disturbed. */
+  function move(visibleIndex: number, direction: -1 | 1) {
+    const target = visibleIndex + direction;
+    if (target < 0 || target >= rows.length) return;
+    const a = rows[visibleIndex].index;
+    const b = rows[target].index;
     const next = options.slice();
-    [next[index], next[target]] = [next[target], next[index]];
+    [next[a], next[b]] = [next[b], next[a]];
     onChange(next);
   }
 
@@ -176,17 +248,19 @@ export function OptionsEditor({
         {legend}
       </legend>
 
-      {options.length === 0 ? (
+      {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           Nenhuma opção ainda. Adicione pelo menos uma.
         </p>
       ) : (
-        <ul className="flex flex-col gap-3">
-          {options.map((option, index) => {
+        <ul className="flex flex-col gap-2">
+          {rows.map(({ option, index }, visibleIndex) => {
             const inputId = `${groupId}-option-${index}`;
             const scoreId = `${groupId}-option-${index}-score`;
             const analyticsId = `${groupId}-option-${index}-analytics`;
-            const position = index + 1;
+            const flaggedId = `${groupId}-option-${index}-flagged`;
+            const position = visibleIndex + 1;
+            const isOpen = expanded.has(index);
             return (
               <li
                 key={index}
@@ -211,12 +285,34 @@ export function OptionsEditor({
                         onChange={(color) => updateColorAt(index, color)}
                       />
                     )}
+                    {/* Per-row "Opções" (metadata) toggle — BETWEEN the colour
+                        button and the up-arrow, per the user's spec. Reveals
+                        Pontuação + Código + Flagged for this row. */}
                     <Button
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => move(index, -1)}
-                      disabled={index === 0}
+                      onClick={() => toggleExpanded(index)}
+                      aria-expanded={isOpen}
+                      aria-controls={`${inputId}-options`}
+                      aria-label={
+                        isOpen
+                          ? `Ocultar opções da opção ${position}`
+                          : `Mostrar opções da opção ${position}`
+                      }
+                      className={cn(
+                        option.flagged && "text-primary",
+                        isOpen && "bg-accent text-accent-foreground",
+                      )}
+                    >
+                      <Settings2 aria-hidden="true" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => move(visibleIndex, -1)}
+                      disabled={visibleIndex === 0}
                       aria-label={`Mover a opção ${position} para cima`}
                     >
                       <ArrowUp aria-hidden="true" />
@@ -225,8 +321,8 @@ export function OptionsEditor({
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => move(index, 1)}
-                      disabled={index === options.length - 1}
+                      onClick={() => move(visibleIndex, 1)}
+                      disabled={visibleIndex === rows.length - 1}
                       aria-label={`Mover a opção ${position} para baixo`}
                     >
                       <ArrowDown aria-hidden="true" />
@@ -236,6 +332,7 @@ export function OptionsEditor({
                       variant="ghost"
                       size="icon-sm"
                       onClick={() => removeAt(index)}
+                      disabled={rows.length === 1}
                       aria-label={`Remover a opção ${position}`}
                       className="text-muted-foreground hover:text-destructive"
                     >
@@ -244,46 +341,82 @@ export function OptionsEditor({
                   </div>
                 </div>
 
-                {/* Score + analytics-code: optional analytics metadata, paired in
-                    one compact row beneath the label. Both default to "no value"
-                    so the common (label-only) option stays uncluttered. */}
-                <div className="grid grid-cols-2 gap-2 pl-0.5">
-                  <label
-                    htmlFor={scoreId}
-                    className="flex flex-col gap-1 text-xs text-muted-foreground"
+                {/* Progressive disclosure: Pontuação + Código + Flagged. Hidden
+                    by default (label-only stays clean); the values persist in
+                    `options` state + still emit even while collapsed. */}
+                {isOpen && (
+                  <div
+                    id={`${inputId}-options`}
+                    className="flex flex-col gap-2.5 border-t border-border/60 pt-2.5 pl-0.5"
                   >
-                    <span>
-                      Pontuação{" "}
-                      <span className="font-normal">(opcional)</span>
-                    </span>
-                    <Input
-                      id={scoreId}
-                      type="text"
-                      inputMode="decimal"
-                      defaultValue={option.score === null ? "" : String(option.score)}
-                      onChange={(e) => updateScoreAt(index, e.target.value)}
-                      placeholder="Ex.: 2"
-                      className="h-8"
-                    />
-                  </label>
-                  <label
-                    htmlFor={analyticsId}
-                    className="flex flex-col gap-1 text-xs text-muted-foreground"
-                  >
-                    <span>
-                      Código de análise{" "}
-                      <span className="font-normal">(opcional)</span>
-                    </span>
-                    <Input
-                      id={analyticsId}
-                      type="text"
-                      defaultValue={option.analyticsCode ?? ""}
-                      onChange={(e) => updateAnalyticsCodeAt(index, e.target.value)}
-                      placeholder="Ex.: conforme"
-                      className="h-8"
-                    />
-                  </label>
-                </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label
+                        htmlFor={scoreId}
+                        className="flex flex-col gap-1 text-xs text-muted-foreground"
+                      >
+                        <span>
+                          Pontuação{" "}
+                          <span className="font-normal">(opcional)</span>
+                        </span>
+                        <Input
+                          id={scoreId}
+                          type="text"
+                          inputMode="decimal"
+                          defaultValue={
+                            option.score === null ? "" : String(option.score)
+                          }
+                          onChange={(e) => updateScoreAt(index, e.target.value)}
+                          placeholder="Ex.: 2"
+                          className="h-8"
+                        />
+                      </label>
+                      <label
+                        htmlFor={analyticsId}
+                        className="flex flex-col gap-1 text-xs text-muted-foreground"
+                      >
+                        <span>
+                          Código de análise{" "}
+                          <span className="font-normal">(opcional)</span>
+                        </span>
+                        <Input
+                          id={analyticsId}
+                          type="text"
+                          defaultValue={option.analyticsCode ?? ""}
+                          onChange={(e) =>
+                            updateAnalyticsCodeAt(index, e.target.value)
+                          }
+                          placeholder="Ex.: conforme"
+                          className="h-8"
+                        />
+                      </label>
+                    </div>
+
+                    {/* Flagged toggle (task #4) — drives opt.flagged; a selected
+                        flagged option contributes +1 to __flagged_count__. */}
+                    <label
+                      htmlFor={flaggedId}
+                      className="flex items-center gap-2.5 text-xs text-muted-foreground"
+                    >
+                      <Checkbox
+                        id={flaggedId}
+                        checked={option.flagged}
+                        onCheckedChange={(c) => updateFlaggedAt(index, c === true)}
+                      />
+                      <span className="inline-flex items-center gap-1.5 font-medium text-foreground">
+                        <Flag
+                          aria-hidden="true"
+                          className={cn(
+                            "size-3.5",
+                            option.flagged
+                              ? "text-primary"
+                              : "text-muted-foreground",
+                          )}
+                        />
+                        Marcar como sinalizado
+                      </span>
+                    </label>
+                  </div>
+                )}
               </li>
             );
           })}

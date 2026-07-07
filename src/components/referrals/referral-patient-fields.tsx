@@ -186,7 +186,7 @@ export function ReferralPatientFields({
         </label>
 
         <label className="flex flex-col gap-1.5 text-sm">
-          <span className="font-medium">Atendimento / internação</span>
+          <span className="font-medium">Atendimento</span>
           <input
             type="text"
             value={draft.encounterRef}

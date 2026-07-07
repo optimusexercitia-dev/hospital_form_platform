@@ -29,34 +29,31 @@ export function WizardRunner({
 }) {
   const actions: WizardActions = useMemo(
     () => ({
-      // The input types reuse `WizardActions`'s own member parameter types
-      // (`Parameters<...>`) rather than re-declaring a narrower literal here —
-      // that narrower literal is exactly what silently dropped
-      // `observationsByItemId` (BUG-FBE-004). Bound to the source of truth, any
-      // future field added to `WizardActions.saveSection`/`saveAndExit` is a
-      // compile error here until it's forwarded.
+      // RECURRENCE-PROOF FORWARDING (BUG-FBE-004 / BUG-FBE-008): forward the whole
+      // `input` via SPREAD, not a hand-listed literal. A hand-listed literal is
+      // exactly what silently dropped `observationsByItemId` (FBE-004) and then
+      // `otherTextByItemId` (FBE-008): because those fields are OPTIONAL on the
+      // server action's `SaveSectionInput`, omitting one from the literal is NOT a
+      // tsc error — it just becomes `undefined` and Next strips it from the wire.
+      // The spread makes every current AND future `WizardActions` field flow
+      // through automatically, so a new field can never be silently dropped again.
+      // (`Parameters<...>` on the arg only types the INPUT; it does nothing to force
+      // the FORWARDED literal to be complete — that was the FBE-004 comment's blind
+      // spot.) The server actions take exactly `SaveSectionInput`, a structural
+      // superset of both `WizardActions` inputs, so the spread type-checks.
       saveSection: (input: Parameters<WizardActions["saveSection"]>[0]) =>
-        saveSection({
-          responseId: data.responseId,
-          sectionId: input.sectionId,
-          answersByItemId: input.answersByItemId,
-          // form-model-normalization: forward the CHOICE selections (option-code
-          // arrays) alongside the scalar answers.
-          selectionsByItemId: input.selectionsByItemId,
-          clearItemIds: input.clearItemIds,
-          observationsByItemId: input.observationsByItemId,
-        }),
+        saveSection({ responseId: data.responseId, ...input }),
       saveAndExit: (input: Parameters<WizardActions["saveAndExit"]>[0]) => {
         // `saveAndExit` persists the current section; with no active section
         // (already on review) there's nothing to persist — resolve ok so the
-        // navigation proceeds.
+        // navigation proceeds. After the guard, `sectionId` is a non-null string.
         if (!input.sectionId) return Promise.resolve({ ok: true });
         return saveAndExit({
           responseId: data.responseId,
+          ...input,
+          // Narrow `sectionId` (WizardActions allows `string | null`; the server
+          // input requires `string`) — the guard above proved it non-null.
           sectionId: input.sectionId,
-          answersByItemId: input.answersByItemId,
-          selectionsByItemId: input.selectionsByItemId,
-          observationsByItemId: input.observationsByItemId,
         });
       },
       // Case-phase fills (phase-results feature) route to `submitCasePhaseResponse`

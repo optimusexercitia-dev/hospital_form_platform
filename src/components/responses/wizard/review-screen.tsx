@@ -167,6 +167,7 @@ function ReviewSection({
                 item={item}
                 value={answers[item.id]?.value}
                 observation={answers[item.id]?.observation}
+                otherText={answers[item.id]?.otherText}
               />
             ))}
           </dl>

@@ -22,6 +22,8 @@ export function SectionStep({
   onChange,
   visibleItemIds,
   onObservationChange,
+  onOtherTextChange,
+  onClear,
 }: {
   section: Section;
   index: number;
@@ -37,6 +39,14 @@ export function SectionStep({
   visibleItemIds?: Set<string>;
   /** Persist a per-item observation note (form-builder-enhancements). */
   onObservationChange?: (itemId: string, value: string) => void;
+  /** Persist a per-item "Outros" free text ("Outros" open option). Takes the
+   *  item identity so the wizard can UPSERT the record (BUG-FBE-008). */
+  onOtherTextChange?: (
+    item: { id: string; questionKey: string },
+    value: string,
+  ) => void;
+  /** Clear an input block (answer + observação + "Outros" text). */
+  onClear?: (item: { id: string; questionKey: string }) => void;
 }) {
   const headingId = `section-${section.id}-heading`;
   const heading =
@@ -99,6 +109,24 @@ export function SectionStep({
                 onObservationChange={
                   answerable && onObservationChange
                     ? (value) => onObservationChange(item.id, value)
+                    : undefined
+                }
+                otherText={
+                  answerable ? answers[item.id]?.otherText : undefined
+                }
+                onOtherTextChange={
+                  answerable && item.questionKey && onOtherTextChange
+                    ? (value) =>
+                        onOtherTextChange(
+                          { id: item.id, questionKey: item.questionKey! },
+                          value,
+                        )
+                    : undefined
+                }
+                onClear={
+                  answerable && item.questionKey && onClear
+                    ? () =>
+                        onClear({ id: item.id, questionKey: item.questionKey! })
                     : undefined
                 }
               />

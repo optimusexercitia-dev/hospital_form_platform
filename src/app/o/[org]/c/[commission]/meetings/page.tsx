@@ -4,6 +4,7 @@ import { CalendarDays } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { listMeetings, listMeetingTypes } from "@/lib/queries/meetings";
+import { listMembers } from "@/lib/queries/members";
 import { meetingsEnabled } from "@/lib/meetings/actions";
 import { MeetingsList } from "@/components/meetings/meetings-list";
 import { NewMeetingButton } from "@/components/meetings/meeting-form-dialog";
@@ -45,10 +46,16 @@ export default async function MeetingsListPage({
   const isCoordinator =
     access.role === "staff_admin";
 
-  const [{ rows: meetings, nextCursor }, meetingTypes] = await Promise.all([
-    listMeetings(access.commission.id, { cursor }),
-    listMeetingTypes(access.commission.id),
-  ]);
+  const [{ rows: meetings, nextCursor }, meetingTypes, members] =
+    await Promise.all([
+      listMeetings(access.commission.id, { cursor }),
+      listMeetingTypes(access.commission.id),
+      // The commission roster for the "Nova reunião" Participantes picker
+      // (coordinator-only affordance; RLS-scoped read).
+      isCoordinator
+        ? listMembers(access.commission.id)
+        : Promise.resolve([]),
+    ]);
 
   return (
     <div className="flex flex-col gap-8">
@@ -69,6 +76,7 @@ export default async function MeetingsListPage({
             slug={slug}
             commissionId={access.commission.id}
             meetingTypes={meetingTypes}
+            members={members}
           />
         )}
       </header>
@@ -94,6 +102,7 @@ export default async function MeetingsListPage({
                 slug={slug}
                 commissionId={access.commission.id}
                 meetingTypes={meetingTypes}
+                members={members}
               />
             </div>
           )}

@@ -29,12 +29,21 @@ export function toAnswerState(response: ResponseForFill): AnswerState {
       // An observation can exist on a saved answer (BE-7); rehydrate it so a
       // resumed fill keeps the note and shows it on the review screen.
       const observation = response.observationsByItemId[item.id];
-      if (value === undefined && observation === undefined) continue;
+      // The "Outros" free text likewise rides on a saved answer ("Outros" open
+      // option); rehydrate so a resumed fill keeps the typed Outro value.
+      const otherText = response.otherTextByItemId[item.id];
+      if (
+        value === undefined &&
+        observation === undefined &&
+        otherText === undefined
+      )
+        continue;
       state[item.id] = {
         itemId: item.id,
         questionKey: item.questionKey,
         value: value ?? null,
         ...(observation !== undefined ? { observation } : {}),
+        ...(otherText !== undefined ? { otherText } : {}),
       };
     }
   }

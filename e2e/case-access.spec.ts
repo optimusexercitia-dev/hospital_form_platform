@@ -91,7 +91,7 @@ const PW = 'Test1234!'
 async function signInAs(page: Page, email: string, pw = PW) {
   await page.goto('/login')
   await page.getByLabel(/e-mail/i).fill(email)
-  await page.getByLabel(/senha/i).fill(pw)
+  await page.locator('input[name="password"]').fill(pw)
   await page.getByRole('button', { name: /entrar/i }).click()
   // Wait for navigation away from /login. multi@test.local belongs to two commissions,
   // so login may land on the org-manage picker, a commission page, or the legacy /c picker.

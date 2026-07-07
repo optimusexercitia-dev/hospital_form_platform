@@ -52,13 +52,16 @@ export interface WizardActions {
    *  `selectionsByItemId` carries CHOICE selections as arrays of option CODEs
    *  (single-select → a one-element array; checkbox → zero-or-more) — the
    *  form-model-normalization split. `observationsByItemId` carries the optional
-   *  per-item observation notes (form-builder-enhancements). */
+   *  per-item observation notes; `otherTextByItemId` carries the optional per-item
+   *  "Outros" free text (written server-side only when the item's reserved
+   *  `__other__` option is selected — form-builder-enhancements). */
   saveSection: (input: {
     sectionId: string;
     answersByItemId: Record<string, Json>;
     selectionsByItemId?: Record<string, string[]>;
     clearItemIds?: string[];
     observationsByItemId?: Record<string, string>;
+    otherTextByItemId?: Record<string, string>;
   }) => Promise<{ ok: boolean; error?: string }>;
   /** Persist the current section + signal exit; F4. */
   saveAndExit: (input: {
@@ -66,6 +69,7 @@ export interface WizardActions {
     answersByItemId: Record<string, Json>;
     selectionsByItemId?: Record<string, string[]>;
     observationsByItemId?: Record<string, string>;
+    otherTextByItemId?: Record<string, string>;
   }) => Promise<{ ok: boolean; error?: string }>;
   /**
    * Submit through the server authority (`submit_response`); F5. For case-phase
@@ -143,8 +147,10 @@ export function WizardClient({
     isReview,
     answers,
     answerMap,
+    getLatestSnapshot,
     setAnswer,
     setObservation,
+    setOtherText,
     next,
     back,
     goToSection,
@@ -162,6 +168,11 @@ export function WizardClient({
    * one-element array; checkbox → the code array as-is). Only VISIBLE input items
    * are sent — hidden items collect no answer. A choice item with no/empty
    * selection sends an empty array (the RPC clears its selection rows).
+   *
+   * BUG-FBE-008: reads the LATEST committed answers/visibility via
+   * `getLatestSnapshot()` (a ref) rather than the closed-over render snapshot, so
+   * a save handler memoized BEFORE the final keystroke still serializes the final
+   * state (the stale-closure that dropped the last "Outro" keystroke at save).
    */
   const collectSection = useCallback(
     (
@@ -170,11 +181,12 @@ export function WizardClient({
       answersByItemId: Record<string, Json>;
       selectionsByItemId: Record<string, string[]>;
     } => {
+      const { answers: latest, visibleItemIds: visible } = getLatestSnapshot();
       const answersByItemId: Record<string, Json> = {};
       const selectionsByItemId: Record<string, string[]> = {};
       for (const item of section.items) {
-        if (!visibleItemIds.has(item.id)) continue;
-        const rec = answers[item.id];
+        if (!visible.has(item.id)) continue;
+        const rec = latest[item.id];
         if (!rec) continue;
         if (isChoiceItem(item.itemType)) {
           // Single-select stores a scalar code; checkbox stores a code array.
@@ -190,23 +202,45 @@ export function WizardClient({
       }
       return { answersByItemId, selectionsByItemId };
     },
-    [answers, visibleItemIds],
+    [getLatestSnapshot],
   );
 
   /** Collect a section's non-empty observation notes keyed by item_id
-   *  (form-builder-enhancements). Only for currently-visible items. */
+   *  (form-builder-enhancements). Only for currently-visible items. Reads the
+   *  latest committed state (BUG-FBE-008 — observations ride the same collector
+   *  path and had the same latent stale-closure). */
   const observationsForSection = useCallback(
     (section: Section): Record<string, string> => {
+      const { answers: latest, visibleItemIds: visible } = getLatestSnapshot();
       const out: Record<string, string> = {};
       for (const item of section.items) {
-        if (!visibleItemIds.has(item.id)) continue;
-        const rec = answers[item.id];
+        if (!visible.has(item.id)) continue;
+        const rec = latest[item.id];
         const note = rec?.observation?.trim();
         if (note) out[item.id] = note;
       }
       return out;
     },
-    [answers, visibleItemIds],
+    [getLatestSnapshot],
+  );
+
+  /** Collect a section's "Outros" free text keyed by item_id ("Outros" open
+   *  option). Only for currently-visible items; the value is sent RAW (blank is a
+   *  valid Outro answer, so we do NOT trim-drop it — the backend still stores it
+   *  only when the item's `__other__` option is selected). Reads the LATEST
+   *  committed state (BUG-FBE-008 — the last keystroke's commit must be seen). */
+  const otherTextForSection = useCallback(
+    (section: Section): Record<string, string> => {
+      const { answers: latest, visibleItemIds: visible } = getLatestSnapshot();
+      const out: Record<string, string> = {};
+      for (const item of section.items) {
+        if (!visible.has(item.id)) continue;
+        const rec = latest[item.id];
+        if (rec?.otherText != null) out[item.id] = rec.otherText;
+      }
+      return out;
+    },
+    [getLatestSnapshot],
   );
 
   /** Persist the current section before navigating away from it (F4). */
@@ -220,6 +254,7 @@ export function WizardClient({
         answersByItemId,
         selectionsByItemId,
         observationsByItemId: observationsForSection(section),
+        otherTextByItemId: otherTextForSection(section),
       });
       setSaving(false);
       if (!result.ok) {
@@ -228,7 +263,7 @@ export function WizardClient({
       }
       return true;
     },
-    [actions, collectSection, observationsForSection],
+    [actions, collectSection, observationsForSection, otherTextForSection],
   );
 
   /**
@@ -278,6 +313,24 @@ export function WizardClient({
     ],
   );
 
+  /**
+   * Clear a whole question block: the answer AND its observação AND its "Outro"
+   * free text (both ride on the answer record). Routes the answer-clear through
+   * `onChange` with an empty value so the controlling-answer warn-and-clear (F4)
+   * still fires if clearing this answer would hide a section.
+   */
+  const handleClearBlock = useCallback(
+    (item: { id: string; questionKey: string }) => {
+      // A null value clears the answer for every item type: `collectSection`
+      // normalizes a choice item's null → an empty selection array, and
+      // `hasAnswer`/`isEmptyValue` treat null as empty for orphan detection.
+      onChange(item, null);
+      setObservation(item.id, "");
+      setOtherText(item, "");
+    },
+    [onChange, setObservation, setOtherText],
+  );
+
   /** Confirm the warn-and-clear: commit the change + clear orphans (local + DB). */
   const confirmOrphanClear = useCallback(async () => {
     const pending = pendingOrphan;
@@ -316,6 +369,7 @@ export function WizardClient({
         selectionsByItemId,
         clearItemIds,
         observationsByItemId: observationsForSection(currentSection),
+        otherTextByItemId: otherTextForSection(currentSection),
       });
       setSaving(false);
       if (!result.ok) {
@@ -329,6 +383,7 @@ export function WizardClient({
     actions,
     collectSection,
     observationsForSection,
+    otherTextForSection,
   ]);
 
   /** Advance: validate the current section, persist, then move forward. */
@@ -381,6 +436,7 @@ export function WizardClient({
       answersByItemId: collected.answersByItemId,
       selectionsByItemId: collected.selectionsByItemId,
       observationsByItemId: section ? observationsForSection(section) : {},
+      otherTextByItemId: section ? otherTextForSection(section) : {},
     });
     setSaving(false);
     if (!result.ok) {
@@ -393,6 +449,7 @@ export function WizardClient({
     currentSection,
     collectSection,
     observationsForSection,
+    otherTextForSection,
     router,
     data.org,
     data.slug,
@@ -572,6 +629,8 @@ export function WizardClient({
           onChange={onChange}
           visibleItemIds={visibleItemIds}
           onObservationChange={setObservation}
+          onOtherTextChange={setOtherText}
+          onClear={handleClearBlock}
         />
         <WizardNav
           canGoBack={false}
@@ -628,6 +687,8 @@ export function WizardClient({
             onChange={onChange}
             visibleItemIds={visibleItemIds}
             onObservationChange={setObservation}
+            onOtherTextChange={setOtherText}
+            onClear={handleClearBlock}
           />
           <WizardNav
             canGoBack={currentStepIndex > 0}

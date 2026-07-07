@@ -99,6 +99,9 @@ const MESSAGES = {
   patientNotCollected: 'Este caso não coleta identificação do paciente.',
   templateNotDraft: 'Apenas processos em rascunho podem ser editados.',
   templateCollectsPatientSaved: 'Configuração de identificação do paciente atualizada.',
+  // Hospital Departments — the case's "Unidade / setor" (NON-PHI, case-level).
+  departmentBoth: "Selecione um setor da lista OU informe um valor em 'Outro', não ambos.",
+  departmentInvalid: 'Este setor não pertence ao hospital deste caso.',
 } as const
 
 const PG_CHECK_VIOLATION = '23514'
@@ -281,6 +284,25 @@ function patientInputFromForm(formData: FormData): SetCasePatientInput | null {
 }
 
 /**
+ * The case's department ("Unidade / setor") from the create-case form: EXACTLY one
+ * of `departmentId` (a managed `hospital_departments` id) / `departmentOther` (the
+ * "Outro" custom value) may be set; both blank = unspecified. NON-PHI, case-level.
+ * Returns the parsed pair, or `'invalid'` when BOTH are set (the UI shows a field
+ * error). The RPC re-validates (department belongs to the case's hospital + shape).
+ */
+function departmentFromForm(
+  formData: FormData,
+): { departmentId: string | null; departmentOther: string | null } | 'invalid' {
+  const departmentId = String(formData.get('departmentId') ?? '').trim()
+  const departmentOther = String(formData.get('departmentOther') ?? '').trim()
+  if (departmentId && departmentOther) return 'invalid'
+  return {
+    departmentId: departmentId || null,
+    departmentOther: departmentOther || null,
+  }
+}
+
+/**
  * Upsert the isolated patient PHI on a case via the `set_case_patient` DEFINER,
  * on a CALLER-PROVIDED (RLS-scoped) client so it can share the same request as
  * case creation. Returns a mapped pt-BR error (or null). The authority + the
@@ -332,6 +354,11 @@ export async function createCaseFromTemplate(
     return { ok: false, fieldErrors: { templateId: MESSAGES.templateRequired } }
   }
 
+  const department = departmentFromForm(formData)
+  if (department === 'invalid') {
+    return { ok: false, fieldErrors: { departmentId: MESSAGES.departmentBoth } }
+  }
+
   const supabase = await createClient()
   const commissionId = await commissionOfTemplate(supabase, templateId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingTemplate }
@@ -342,6 +369,8 @@ export async function createCaseFromTemplate(
   const { data, error } = await supabase.rpc('create_case_from_template', {
     p_template_id: templateId,
     p_label: label || undefined,
+    p_department_id: department.departmentId ?? undefined,
+    p_department_other: department.departmentOther ?? undefined,
   })
 
   if (error || !data) return { ok: false, error: mapCaseError(error) }
@@ -397,6 +426,11 @@ export async function createCase(
     return { ok: false, fieldErrors: { outcomeIds: MESSAGES.outcomeRequiredForCase } }
   }
 
+  const department = departmentFromForm(formData)
+  if (department === 'invalid') {
+    return { ok: false, fieldErrors: { departmentId: MESSAGES.departmentBoth } }
+  }
+
   if (!(await authorizeCommission(commissionId))) {
     return { ok: false, error: MESSAGES.forbidden }
   }
@@ -407,6 +441,8 @@ export async function createCase(
     p_label: label || undefined,
     p_patient_enabled: patientEnabled,
     p_outcome_ids: outcomeIds,
+    p_department_id: department.departmentId ?? undefined,
+    p_department_other: department.departmentOther ?? undefined,
   })
 
   if (error || !data) return { ok: false, error: mapCaseError(error) }

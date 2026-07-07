@@ -12,6 +12,7 @@ import {
 import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import { getCaseActionItemKpis } from "@/lib/queries/case-action-items";
 import { listProcessTemplates } from "@/lib/queries/process-templates";
+import { listDepartmentsForHospital } from "@/lib/hospitals/departments";
 import { CreateCaseDialog } from "@/components/cases/create-case-dialog";
 import { CasesKpiStrip } from "@/components/cases/cases-kpi-strip";
 import { CasesView, type CasesViewMode } from "@/components/cases/cases-view";
@@ -59,6 +60,10 @@ export default async function CasesBoardPage({
     processlessOn,
     casesExtrasOn,
     outcomes,
+    // The case's hospital ACTIVE departments (non-archived) for the Novo-caso
+    // "Unidade / setor" dropdown. A commission with no hospital → `[]` (the field
+    // still offers the "Outros" custom option). RLS-scoped (member-read).
+    departments,
   ] = await Promise.all([
     listCasesBoard(access.commission.id),
     listProcessTemplates(access.commission.id),
@@ -67,6 +72,12 @@ export default async function CasesBoardPage({
     processlessCasesEnabled(),
     casesExtrasEnabled(),
     listCaseOutcomes(access.commission.id),
+    // The case's hospital ACTIVE departments (non-archived) for the Novo-caso
+    // "Unidade / setor" dropdown. A commission with no hospital → `[]` (the field
+    // still offers the "Outros" custom option). RLS-scoped (member-read).
+    access.commission.hospitalId
+      ? listDepartmentsForHospital(access.commission.hospitalId)
+      : Promise.resolve([]),
   ]);
 
   // A case can only be minted from an ACTIVE template. Carry `collectsPatient` so
@@ -105,6 +116,7 @@ export default async function CasesBoardPage({
           org={org} slug={slug}
           templates={activeTemplates}
           commissionId={access.commission.id}
+          departments={departments}
           casePatientEnabled={casePatientOn}
           processlessEnabled={processlessOn}
           casesExtrasEnabled={casesExtrasOn}
@@ -134,6 +146,7 @@ export default async function CasesBoardPage({
                 org={org} slug={slug}
                 templates={activeTemplates}
                 commissionId={access.commission.id}
+                departments={departments}
                 casePatientEnabled={casePatientOn}
                 processlessEnabled={processlessOn}
                 casesExtrasEnabled={casesExtrasOn}

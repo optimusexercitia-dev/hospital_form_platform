@@ -353,7 +353,7 @@ export const getCommissionAccessByOrg = cache(
   ): Promise<{
     context: SessionContext
     organization: OrganizationRef
-    commission: { id: string; name: string; slug: string }
+    commission: { id: string; name: string; slug: string; hospitalId: string | null }
     role: CommissionRole | null
   } | null> => {
     return getCommissionAccessByOrgUncached(orgSlug, commissionSlug)
@@ -366,7 +366,7 @@ async function getCommissionAccessByOrgUncached(
 ): Promise<{
   context: SessionContext
   organization: OrganizationRef
-  commission: { id: string; name: string; slug: string }
+  commission: { id: string; name: string; slug: string; hospitalId: string | null }
   role: CommissionRole | null
 } | null> {
   const context = await getSessionContext()
@@ -402,6 +402,7 @@ async function getCommissionAccessByOrgUncached(
     id: commissionRow.id,
     name: commissionRow.name,
     slug: commissionRow.slug,
+    hospitalId: commissionRow.hospital_id,
   }
 
   // Member role first; else a COMMISSION-ADMIN of this commission (org_admin of

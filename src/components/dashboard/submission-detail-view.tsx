@@ -52,6 +52,7 @@ export function SubmissionDetailView({
   answersByItemId,
   answersByKey,
   observationsByItemId = {},
+  otherTextByItemId = {},
   signoffs,
   imageUrls,
 }: {
@@ -61,6 +62,9 @@ export function SubmissionDetailView({
   /** Per-item observation notes (form-builder-enhancements). Optional — empty
    *  until the query layer surfaces `answers.observation`. */
   observationsByItemId?: Record<string, string>;
+  /** Per-item "Outros" free text ("Outros" open option). Optional; shown as
+   *  "Outro: <valor>" beneath the answer where the reserved option was selected. */
+  otherTextByItemId?: Record<string, string>;
   signoffs: SignoffRecord[];
   imageUrls: Record<string, string>;
 }) {
@@ -81,6 +85,7 @@ export function SubmissionDetailView({
           section={sections[0]}
           answersByItemId={answersByItemId}
           observationsByItemId={observationsByItemId}
+          otherTextByItemId={otherTextByItemId}
           visibleItemIds={visibleItemIds}
           imageUrls={imageUrls}
         />
@@ -98,6 +103,7 @@ export function SubmissionDetailView({
           visible={visibleSectionIds.has(section.id)}
           answersByItemId={answersByItemId}
           observationsByItemId={observationsByItemId}
+          otherTextByItemId={otherTextByItemId}
           visibleItemIds={visibleItemIds}
           signoff={signoffsBySection.get(section.id) ?? null}
           imageUrls={imageUrls}
@@ -113,6 +119,7 @@ function DetailSection({
   visible,
   answersByItemId,
   observationsByItemId,
+  otherTextByItemId,
   visibleItemIds,
   signoff,
   imageUrls,
@@ -122,6 +129,7 @@ function DetailSection({
   visible: boolean;
   answersByItemId: Record<string, Json>;
   observationsByItemId: Record<string, string>;
+  otherTextByItemId: Record<string, string>;
   visibleItemIds: Set<string>;
   signoff: SignoffRecord | null;
   imageUrls: Record<string, string>;
@@ -172,6 +180,7 @@ function DetailSection({
             section={section}
             answersByItemId={answersByItemId}
             observationsByItemId={observationsByItemId}
+            otherTextByItemId={otherTextByItemId}
             visibleItemIds={visibleItemIds}
             imageUrls={imageUrls}
           />
@@ -195,12 +204,14 @@ function SectionBody({
   section,
   answersByItemId,
   observationsByItemId,
+  otherTextByItemId,
   visibleItemIds,
   imageUrls,
 }: {
   section: Section;
   answersByItemId: Record<string, Json>;
   observationsByItemId: Record<string, string>;
+  otherTextByItemId: Record<string, string>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
 }) {
@@ -226,6 +237,7 @@ function SectionBody({
           item={item}
           value={answersByItemId[item.id]}
           observation={observationsByItemId[item.id]}
+          otherText={otherTextByItemId[item.id]}
           imageUrls={imageUrls}
         />
       ))}
@@ -238,11 +250,13 @@ function DetailBlock({
   item,
   value,
   observation,
+  otherText,
   imageUrls,
 }: {
   item: Item;
   value: Json | undefined;
   observation?: string;
+  otherText?: string;
   imageUrls: Record<string, string>;
 }) {
   if (item.itemType === "section_text" && item.content) {
@@ -265,7 +279,12 @@ function DetailBlock({
         </p>
       )}
       <dl>
-        <AnswerSummary item={item} value={value} observation={observation} />
+        <AnswerSummary
+          item={item}
+          value={value}
+          observation={observation}
+          otherText={otherText}
+        />
       </dl>
     </article>
   );

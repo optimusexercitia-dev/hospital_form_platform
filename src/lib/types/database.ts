@@ -437,6 +437,7 @@ export type Database = {
           id: string
           item_id: string
           observation: string | null
+          other_text: string | null
           question_key: string
           response_id: string
           value: Json | null
@@ -452,6 +453,7 @@ export type Database = {
           id?: string
           item_id: string
           observation?: string | null
+          other_text?: string | null
           question_key: string
           response_id: string
           value?: Json | null
@@ -467,6 +469,7 @@ export type Database = {
           id?: string
           item_id?: string
           observation?: string | null
+          other_text?: string | null
           question_key?: string
           response_id?: string
           value?: Json | null
@@ -2173,6 +2176,8 @@ export type Database = {
           commission_id: string
           created_at: string
           created_by: string | null
+          department_id: string | null
+          department_other: string | null
           has_patient: boolean
           id: string
           label: string | null
@@ -2191,6 +2196,8 @@ export type Database = {
           commission_id: string
           created_at?: string
           created_by?: string | null
+          department_id?: string | null
+          department_other?: string | null
           has_patient?: boolean
           id?: string
           label?: string | null
@@ -2209,6 +2216,8 @@ export type Database = {
           commission_id?: string
           created_at?: string
           created_by?: string | null
+          department_id?: string | null
+          department_other?: string | null
           has_patient?: boolean
           id?: string
           label?: string | null
@@ -2240,6 +2249,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cases_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "hospital_departments"
             referencedColumns: ["id"]
           },
           {
@@ -2864,8 +2880,10 @@ export type Database = {
           code: string
           color_token: string | null
           created_at: string
+          flagged: boolean
           form_version_id: string
           id: string
+          is_other: boolean
           item_id: string
           label: string
           position: number
@@ -2876,8 +2894,10 @@ export type Database = {
           code: string
           color_token?: string | null
           created_at?: string
+          flagged?: boolean
           form_version_id: string
           id?: string
+          is_other?: boolean
           item_id: string
           label: string
           position: number
@@ -2888,8 +2908,10 @@ export type Database = {
           code?: string
           color_token?: string | null
           created_at?: string
+          flagged?: boolean
           form_version_id?: string
           id?: string
+          is_other?: boolean
           item_id?: string
           label?: string
           position?: number
@@ -3134,6 +3156,44 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      hospital_departments: {
+        Row: {
+          archived: boolean
+          created_at: string
+          hospital_id: string
+          id: string
+          name: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          created_at?: string
+          hospital_id: string
+          id?: string
+          name: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          created_at?: string
+          hospital_id?: string
+          id?: string
+          name?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hospital_departments_hospital_id_fkey"
+            columns: ["hospital_id"]
+            isOneToOne: false
+            referencedRelation: "hospitals"
             referencedColumns: ["id"]
           },
         ]
@@ -6457,6 +6517,8 @@ export type Database = {
           commission_id: string
           created_at: string
           created_by: string | null
+          department_id: string | null
+          department_other: string | null
           has_patient: boolean
           id: string
           label: string | null
@@ -6656,6 +6718,8 @@ export type Database = {
           commission_id: string
           created_at: string
           created_by: string | null
+          department_id: string | null
+          department_other: string | null
           has_patient: boolean
           id: string
           label: string | null
@@ -6951,6 +7015,8 @@ export type Database = {
       create_case: {
         Args: {
           p_commission_id: string
+          p_department_id?: string
+          p_department_other?: string
           p_label?: string
           p_outcome_ids?: string[]
           p_patient_enabled?: boolean
@@ -6962,6 +7028,8 @@ export type Database = {
           commission_id: string
           created_at: string
           created_by: string | null
+          department_id: string | null
+          department_other: string | null
           has_patient: boolean
           id: string
           label: string | null
@@ -6981,7 +7049,12 @@ export type Database = {
         }
       }
       create_case_from_template: {
-        Args: { p_label?: string; p_template_id: string }
+        Args: {
+          p_department_id?: string
+          p_department_other?: string
+          p_label?: string
+          p_template_id: string
+        }
         Returns: {
           case_number: number
           closed_at: string | null
@@ -6989,6 +7062,8 @@ export type Database = {
           commission_id: string
           created_at: string
           created_by: string | null
+          department_id: string | null
+          department_other: string | null
           has_patient: boolean
           id: string
           label: string | null
@@ -7929,6 +8004,7 @@ export type Database = {
           closed_at: string
           created_at: string
           label: string
+          open_narrative_count: number
           outcome: Json
           outcome_id: string
           phases: Json
@@ -8697,6 +8773,10 @@ export type Database = {
         Args: { p_commission_id: string; p_ordered_ids: string[] }
         Returns: undefined
       }
+      reorder_departments: {
+        Args: { p_hospital_id: string; p_ordered_ids: string[] }
+        Returns: undefined
+      }
       reorder_event_types: {
         Args: { p_hospital_id?: string; p_ordered_ids: string[] }
         Returns: undefined
@@ -8762,6 +8842,7 @@ export type Database = {
           p_answers?: Json
           p_clear_item_ids?: string[]
           p_observations?: Json
+          p_other_text?: Json
           p_response_id: string
           p_section_id: string
           p_selections?: Json
@@ -8864,6 +8945,10 @@ export type Database = {
         Args: { p_meeting_id: string }
         Returns: undefined
       }
+      seed_selected_meeting_attendees: {
+        Args: { p_meeting_id: string; p_user_ids: string[] }
+        Returns: undefined
+      }
       send_referral: {
         Args: { p_referral_id: string }
         Returns: {
@@ -8938,6 +9023,8 @@ export type Database = {
           commission_id: string
           created_at: string
           created_by: string | null
+          department_id: string | null
+          department_other: string | null
           has_patient: boolean
           id: string
           label: string | null
