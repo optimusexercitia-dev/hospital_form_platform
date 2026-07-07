@@ -3,7 +3,9 @@
 > **Status:** DESIGNED, not started. This is a machine-to-machine handoff — everything
 > needed to implement is here; no re-exploration required. Feature ships behind an
 > **OFF-by-default** flag (`administrativo`). Not yet gated by the Phase process; treat as
-> a self-contained feature phase. **Write an ADR** (next number is 0061) when work starts.
+> a self-contained feature phase. **ADR:
+> [0061](../decisions/0061-administrativo-delegated-role.md)** (proposed — advance to
+> accepted/implemented at the phase gate).
 >
 > **How to resume:** read §1–§3 for the *what/why*, §4 (Ground-truth object map) for the
 > exact code locations, then execute §5 (backend) → §6 (frontend) → §7 (tests) in the order
