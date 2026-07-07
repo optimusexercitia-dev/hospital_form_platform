@@ -22,6 +22,9 @@ export default async function LoginPage({
   return (
     <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
+        <p className="text-sm font-medium tracking-[0.14em] text-primary uppercase">
+          Bem-vindo de volta
+        </p>
         <h1 className="text-3xl">Entrar</h1>
         <p className="text-muted-foreground">
           Acesse a plataforma das comissões hospitalares.
