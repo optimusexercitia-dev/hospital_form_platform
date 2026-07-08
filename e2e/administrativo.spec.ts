@@ -5,13 +5,9 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  * docs/plans/administrativo-delegated-role.md §7). Translates the §2 locked behaviors
  * + §6 UI surfaces into Playwright assertions.
  *
- * FEATURE FLAG (production posture): the `administrativo` flag ships OFF. These specs
- * REQUIRE it ON, so `beforeAll` flips it ON against the LOCAL Postgres via
- * `npx supabase db query --local` (same mechanism as case-patient.spec) and `afterAll`
- * restores it OFF. `getFeatureFlags()` is only request-memoized (React `cache()`), not
- * cross-request cached, so the flip takes effect on the next request — no server
- * restart needed. Dark-flag is the default elsewhere, so restoring OFF keeps unrelated
- * regression specs unperturbed.
+ * FEATURE FLAG (production posture): the `administrativo` flag ships ON
+ * (…20260715000300_enable_administrativo.sql, mirroring the controlled_docs /
+ * quality_indicators go-live flips) — no per-spec toggle needed.
  *
  * Seeded personas (password Test1234!), all commission CCIH under org rede-a:
  *   chefe.ccih@test.local   staff_admin (coordinator)                 …02
@@ -72,18 +68,6 @@ const UID_STAFF2_FARM = '00000000-0000-0000-0000-000000000007'
 
 const PW = 'Test1234!'
 
-// ---------------------------------------------------------------------------
-// Feature-flag setup (local only)
-// ---------------------------------------------------------------------------
-
-async function setFeatureFlag(flagKey: string, enabled: boolean) {
-  const { execSync } = await import('child_process')
-  execSync(
-    `npx supabase db query --local "UPDATE app.feature_flags SET enabled = ${enabled} WHERE key = '${flagKey}'"`,
-    { cwd: process.cwd(), stdio: 'pipe' },
-  )
-}
-
 /** Service-role delete of an Administrativo appointment (cascades its capabilities). */
 async function clearAppointment(req: APIRequestContext, commissionId: string, userId: string) {
   await req.delete(
@@ -91,15 +75,6 @@ async function clearAppointment(req: APIRequestContext, commissionId: string, us
     { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
   )
 }
-
-test.beforeAll(async () => {
-  await setFeatureFlag('administrativo', true)
-})
-
-test.afterAll(async () => {
-  // Restore production posture so unrelated regression specs see the dark flag.
-  await setFeatureFlag('administrativo', false)
-})
 
 // ---------------------------------------------------------------------------
 // Helpers
