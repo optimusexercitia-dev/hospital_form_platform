@@ -69,6 +69,11 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 
 ### No phase in progress
 
+The **Meeting actual-occurrence time (`held_at`/`held_end`)** feature (ADR 0062, ad-hoc, out-of-phase)
+completed the Phase Gate 2026-07-08 — QA APPROVED, pgTAP 21/21 + meeting E2E 33 pass, human-approved,
+committed (`bfce6e8`; housekeeping `e427612`). Migration `20260715000100` **local-only — remote
+`supabase db push` deferred to the user**. Full detail archived → [meeting-held-time.md](docs/progress/meeting-held-time.md).
+
 The **Administrativo delegated-capability role** (ADR 0061, ad-hoc, out-of-phase) completed the
 Phase Gate 2026-07-08 — QA APPROVED, feature E2E 10/10 + full regr 574 pass (0 reg), human-approved,
 merged → main `1010f07` (4 migrations local-only; remote push deferred to deploy). Full detail
@@ -79,93 +84,6 @@ The **Form-Builder Enhancements batch** (ad-hoc, out-of-phase) completed the Pha
 pushed to remote. Full detail archived → [adjustments-batch.md](docs/progress/adjustments-batch.md).
 **Next pre-pilot phase: 16 — Standards Crosswalk & Readiness/Gap Engine** (builds 3rd per ADR 0057).
 
-#### ✅ COMPLETE (out-of-phase) — Meeting actual-occurrence time `held_at`/`held_end` (ADR [0062](docs/decisions/0062-meeting-actual-occurrence-time.md), branch `feat/meeting-held-time`)
-
-**Gate complete 2026-07-08:** pgTAP 21/21 · meeting E2E 33 pass · QA APPROVED ([review](docs/reviews/meeting-held-time-review.md)) · human-approved · committed. **Remote `supabase db push` DEFERRED to the user** (migration `20260715000100` is local-only). Product-owner calls: allow-null held_at (fill-later); edit gate `realizada`-only (reopen to edit after conclusion); future-schedule → blank occurrence default (extends ADR 0062); `MeetingListItem` deferred.
-
-- **Backend (this teammate) — ✅ QA MINOR cleared (HC084 end-without-start guard) + B1–B7 DONE (local; awaiting remote push).**
-  **QA MINOR (defense-in-depth, Rule 1):** added **HC084** — reject `p_held_end` non-null while `p_held_at`
-  is null (an end with no start) — to ALL THREE RPCs (`mark_meeting_held`, `conclude_meeting`,
-  `set_meeting_held_window`), pt-BR *"informe o início da realização antes do término da reunião"*. Amended
-  the SAME migration file in place (local-only, un-pushed — no deployed copy to conflict) + header errcode
-  block. pgTAP `206` extended with HC084 on the transition RPC + the edit RPC → now **21/21**. Types regen =
-  no signature change (errcodes never surface in generated types). **`mapMeetingError` left UNCHANGED:** HC084
-  is unreachable from the UI (picker can't produce end-without-start) and `messages.ts` (frontend-owned this
-  phase) already `default`s unmapped codes to the safe generic pt-BR — no §8 raw-SQL leak. **Optional FE
-  follow-up (trivial, non-blocking):** add HC084 → a friendly message in `src/lib/meetings/messages.ts` if ever
-  reachable. **Final errcode list: HC081/HC082/HC083/HC084.**
-  Plan approved; B1–B7 implemented. **Migration:** `supabase/migrations/20260715000100_meeting_held_time.sql`
-  (applied locally via `db reset`; **not** on remote — lead/user owns `db push`). **RPC signatures (final):**
-  `public.mark_meeting_held(p_meeting_id uuid, p_held_at timestamptz default null, p_held_end timestamptz default null)`,
-  `public.conclude_meeting(p_meeting_id uuid, p_held_at … default null, p_held_end … default null)`,
-  new `public.set_meeting_held_window(p_meeting_id uuid, p_held_at timestamptz, p_held_end timestamptz default null)`.
-  DROP-then-recreate on the two widened RPCs (no ambiguous overload — verified exactly 1 function each);
-  REVOKE ALL FROM PUBLIC + GRANT authenticated/service_role re-applied. `set_meeting_held_window` gated
-  `realizada`-ONLY (HC083), staff_admin via `assert_meeting_staff_admin`, sets `app.in_meeting_rpc`, writes
-  ONLY held_*. Validation HC081 (heldEnd<heldAt) / HC082 (heldAt in future) in all three; null held_at allowed.
-  **B5:** `app.trg_audit_meetings()` NON-EXCLUSIVE branches → a transition that also sets held emits BOTH
-  `meeting.status_changed` and `meeting.held_changed`. **B6:** `MeetingDetail.heldAt`/`heldEnd` + detail
-  select/mapper (`src/lib/queries/meetings.ts`); types regenerated (`src/lib/types/database.ts`, local; `held_*`
-  columns + RPC Args present). `MeetingListItem` untouched (decision 3). **B7:** `supabase/tests/206_meeting_held_time.sql`
-  **19/19**. **Tests:** 206 + 120 (32) + 204 green on a fresh reset; full-suite tsc **0**. **Overrides applied:**
-  edit RPC `realizada`-ONLY, null-held-at allowed, `MeetingDetail`-only. **Errcode note:** handoff's HC055/HC056
-  were already taken → used **HC081/HC082/HC083**. **CAUGHT + fixed:** the stale baseline body of `conclude_meeting`
-  referenced the DEAD `app.is_org_admin_of_commission` (renamed to `app.is_commission_admin_of` by ADR-0051
-  migration 20260709000200) — swapped to the live predicate. **Pre-existing failures (NOT mine):** full pgTAP shows
-  90_cases t33 (list_cases_board) + 184 t15 (hospital-admin titles) failing — reproduced WITHOUT this migration
-  (removed + re-reset), so out of scope. **actions.ts left as frozen contract stubs** (frontend owns F1 bodies).
-- **Frontend (this teammate) — ✅ F1–F5 built (component + actions), lint+typecheck green.**
-  Lead serialized `actions.ts` to frontend (backend froze its stubs). **F1:** broke
-  `markMeetingHeld`/`concludeMeeting` out of `runLifecycle` into a new `runHeldTransition`
-  helper passing `p_held_at`/`p_held_end`; wired `setMeetingHeldWindow` → `set_meeting_held_window`.
-  A cleared picker forwards SQL **`null`** (allow-null, decision 1) via a single contained
-  `heldArgs` cast + an inline cast on the `set_*` call — the generated Args model held params
-  as optional/required `string` (supabase-js emits no nullable RPC params) though the RPC accepts
-  NULL at runtime; justification comments inline (no `any`). **F2:** new `HeldTransitionButton`
-  in `meeting-lifecycle-actions.tsx` — the "Marcar como realizada"/"Concluir" dialogs now embed
-  a clearable start + optional end `DateTimePicker` defaulted to `scheduledStart`/`scheduledEnd`,
-  label "Data e hora em que a reunião efetivamente ocorreu." **F3:** header shows
-  "Agendada: …" + "Realizada em: …"; inline correction affordance (`meeting-held-edit.tsx`,
-  `setMeetingHeldWindow`) shown **ONLY when `isCoordinator` AND status===`realizada`** (decision 2)
-  — concluded meetings render a read-only "Realizada em" line, no edit button. **F4:** non-blocking
-  divergence hint (>~1 day from `scheduledStart`) in the shared `held-window-fields.tsx`. **F5:**
-  labelled/`useId`-wired date-time inputs, `aria-describedby` on the start field, keyboard-operable,
-  visible focus; all copy pt-BR. New files: `held-window-fields.tsx`, `meeting-held-edit.tsx`.
-  Live E2E verification left to tester T1 (needs local migration applied + seeded coordinator +
-  a `realizada` meeting). **Remaining:** none on FE; ready for tester.
-
-- **Tester T1 — spec GREEN (`e2e/meeting-held-time.spec.ts`, 5/5 T1.1–T1.5; chromium `--workers=1`,
-  fresh `supabase db reset`, 2026-07-08).** The 4 initial failures were **spec-side defects, NOT app
-  bugs** (feature verified-correct by the lead in-browser). Two classes, both fixed test-side:
-  **(1) date/time picker selectors** — the shared `date-pickers.ts` helpers (`setDateTimeField`,
-  `setDateTimeFieldKeyboard`) + the spec's `setHeldDateFutureMonth` / T1.5 inline field scoped the
-  DatePicker button & "Hora" TimeField as DESCENDANTS of the `<label>`, but `<label htmlFor={id}>` and
-  the picker are SIBLINGS (shared parent div; the DatePicker renders `<button id={id}>`). Fix: new
-  exported `fieldContainer()` helper scopes to the label's parent (`xpath=..`); the header edit-button
-  locators (T1.2/T1.4) rewritten to the outer `<span>` that actually carries the "Editar" button (it's
-  a sibling of the "Realizada em:" text span, not nested). **(2) future-date test data** — T1.1/T1.2
-  picked day-of-month 15/10 of the CURRENT month; today being the 8th, those are FUTURE dates → server
-  correctly rejected with HC082 and the dialog stayed open. Fix: added an optional `monthsBack` arg to
-  `pickDate`/`setDateTimeField` (react-day-picker "previous month" nav) and pick the same day in the
-  PRIOR month → a valid past `held_at`, same rendered day-of-month, still ≠ schedule. No app code
-  touched; `tsc` clean on the two files. **Owed to lead:** full-suite regression run to declare the
-  feature's gate green.
-
-- **Lead full-suite gate run + bug fixes (2026-07-08).** Full E2E (`--workers=1`, fresh reset): 586
-  passed; 20 failures = (a) **known local-GoTrue auth exhaustion** late in the 31-min serialized run
-  (proven — `phase5-wizard` failed in-suite but passed **12/12 in isolation**), plus (b) **3 REAL
-  meeting-transition bugs** the gate correctly caught (`phase10-meetings:200`, `cases-meetings-minor:223/267`).
-  **Root cause:** the "Marcar como realizada"/"Concluir" dialog pre-filled `held_at = scheduled_start`;
-  future-scheduled meetings → server correctly rejects (HC082), and the UI showed only the GENERIC
-  error. **Two FE fixes** (frontend teammate): (1) `useHeldWindowState` defaults the picker to BLANK
-  when `scheduledStart` is in the future (→ `held_at=null`, allowed; fill-later) — keeps `scheduledStart`
-  default for past meetings per ADR 0062; (2) `mapMeetingError` now maps HC081/82/83 → the RPC's
-  specific pt-BR reason (was falling through to generic). **Lead decision (extends ADR 0062):** future
-  schedule → blank occurrence time rather than a pre-filled invalid value (consistent with allow-null).
-  **Re-verified:** meeting-held-time + phase10-meetings + cases-meetings-minor = **33 passed, 0 failed**
-  (fresh reset), with NO spec edits needed. The other 4 full-suite failures (administrativo, case-access,
-  case-phase-result, hospital-departments) are outside the meetings blast radius — classifying in isolation.
-
 ---
 
 _Prior phase context:_ Phase 17 (Controlled-Document Lifecycle) completed 2026-07-06 — full detail archived to
@@ -175,6 +93,7 @@ docs/phases/accreditation-track.md before starting.
 
 ### Completed work (archived to docs/progress/)
 
+- **Meeting actual-occurrence time** (`held_at`/`held_end`; ADR [0062](docs/decisions/0062-meeting-actual-occurrence-time.md); nullable occurrence window separate from the schedule — captured at the `→ realizada`/Concluir transition, coordinator-correctable while `realizada` only, `meeting.held_changed` audit; schedule never overwritten) — ✅ **COMPLETE 2026-07-08**, QA APPROVED (0 BLOCKER · 0 MAJOR · 2 MINOR: HC084 cleared + 1 accepted) [review](docs/reviews/meeting-held-time-review.md). pgTAP `206` **21/21** · meeting E2E **33 pass** · committed `bfce6e8` (housekeeping `e427612`). Errcodes HC081–HC084; product-owner calls: allow-null (fill-later), `realizada`-only edit gate, future-schedule → blank default, `MeetingListItem` deferred. Migration `20260715000100` **local-only — remote `db push` deferred to the user**. Detail → [meeting-held-time.md](docs/progress/meeting-held-time.md).
 - **Administrativo delegated-capability role** (ADR [0061](docs/decisions/0061-administrativo-delegated-role.md); per-commission appointment + curated capability menu — `schedule_meetings`/`create_cases`/`assign_case_phases`/`view_signoffs`, no new role enum, flag `administrativo` OFF-by-default) — ✅ **COMPLETE 2026-07-08**, QA APPROVED (0 BLOCKER/MAJOR/MINOR · 3 INFO) [review](docs/reviews/administrativo-review.md). pgTAP **50/50** · feature E2E **10/10** · full regr E2E 574 pass (0 regressions). BUG-ADM-001 found+fixed+verified. Merged → main `1010f07`; 4 migrations `…000000–000300` local-only (remote push deferred to deploy). Detail → [administrativo.md](docs/progress/administrativo.md).
 - **Form-Builder Enhancements batch** (ad-hoc, out-of-phase — Departments · Flagged + aggregate result criteria · form-builder dialog redesign · "Others" open option · wizard UX + restored segmented time control · views/labels · meeting participants · openNarrativeCount) — ✅ **COMPLETE 2026-07-07**, QA APPROVED (0 BLOCKER/MAJOR/MINOR · 3 INFO) [review](docs/reviews/adjustments-batch-review.md). Batch E2E 29/29 + full-suite chunked 619p (0 app reg) on DEV. 5 bugs (BUG-FBE-005…009) found+fixed+verified. 6 migrations `…000500–001000` pushed to remote 2026-07-07. Detail → [adjustments-batch.md](docs/progress/adjustments-batch.md).
 - **Phase 17 — Controlled-Document Lifecycle** (`controlled_docs`; ADR [0057](docs/decisions/0057-indicators-doc-control-replan.md)) — ✅ **COMPLETE 2026-07-06**, QA APPROVED (0 BLOCKER/0 MAJOR · 3 MINOR cleared · 4 INFO) [review](docs/reviews/phase-17-review.md). pgTAP **47/47** (full 1717) · phase E2E **14/14** · full regr 588p (0 Phase-17 reg) · tsc/lint 0 · Vitest 206. 5 bugs (BUG-DOC-001…005) found+fixed+verified; flag flipped ON (`…013000400`). Detail → [phase-17.md](docs/progress/phase-17.md). **Next pre-pilot phase: 16 (Standards Crosswalk).**
@@ -218,9 +137,9 @@ docs/phases/accreditation-track.md before starting.
 
 | Date | Phase | Specs | Passed | Failed | Notes |
 | ---- | ----- | ----- | ------ | ------ | ----- |
-| 2026-07-08 | **Meeting `held_at`/`held_end` (ADR 0062) — `meeting-held-time.spec.ts` selector + test-data fix; `next dev`, fresh `supabase db reset`, chromium `--workers=1`** | 4/5 tests were RED on the first tester run; ALL were spec-side, NOT app bugs (feature verified-correct in-browser by the lead). Fixed test-side: (1) picker helpers scoped the DatePicker button / "Hora" TimeField as descendants of the `<label>` but they are SIBLINGS (shared parent) → new `fieldContainer()` (label's parent via `xpath=..`) in `date-pickers.ts`, header "Editar" locators rewritten to the outer span (T1.2/T1.4); (2) T1.1/T1.2 picked a current-month day (15/10) that is in the FUTURE (today=8th) → HC082 rejection → added `monthsBack` to `pickDate`/`setDateTimeField` and pick the same day in the prior month (valid past `held_at`, same day-of-month, still ≠ schedule). No app code changed; tsc clean. | **meeting-held-time 5/5** | **0** | ✅ **ALL GREEN** on fresh reset. Covers: T1.1 mark-realizada with changed held date (header "Realizada em", schedule unchanged, held_at persisted, minute 15), T1.2 inline header edit persists (minute 45, schedule untouched), T1.3 future held_at → readable pt-BR error (not raw PG), no status flip, T1.4 post-Concluir read-only (no edit button) + `set_meeting_held_window` HC083 while em_assinatura, T1.5 keyboard-only transition (minute 30). **Owed to lead:** full-suite regression to gate. |
+| 2026-07-08 | **Meeting `held_at`/`held_end` (ADR 0062) — `meeting-held-time.spec.ts` selector + test-data fix; `next dev`, fresh `supabase db reset`, chromium `--workers=1`** | 4/5 tests were RED on the first tester run; ALL were spec-side, NOT app bugs (feature verified-correct in-browser by the lead). Fixed test-side: (1) picker helpers scoped the DatePicker button / "Hora" TimeField as descendants of the `<label>` but they are SIBLINGS (shared parent) → new `fieldContainer()` (label's parent via `xpath=..`) in `date-pickers.ts`, header "Editar" locators rewritten to the outer span (T1.2/T1.4); (2) T1.1/T1.2 picked a current-month day (15/10) that is in the FUTURE (today=8th) → HC082 rejection → added `monthsBack` to `pickDate`/`setDateTimeField` and pick the same day in the prior month (valid past `held_at`, same day-of-month, still ≠ schedule). No app code changed; tsc clean. | **meeting-held-time 5/5** | **0** | ✅ **ALL GREEN** on fresh reset. Covers: T1.1 mark-realizada with changed held date (header "Realizada em", schedule unchanged, held_at persisted, minute 15), T1.2 inline header edit persists (minute 45, schedule untouched), T1.3 future held_at → readable pt-BR error (not raw PG), no status flip, T1.4 post-Concluir read-only (no edit button) + `set_meeting_held_window` HC083 while em_assinatura, T1.5 keyboard-only transition (minute 30). **Gate closed:** the lead full-suite run then caught **2 REAL transition bugs** (future-schedule pre-fill → HC082; unmapped HC08x → generic error), both FE-fixed; re-verified meeting-held-time + phase10-meetings + cases-meetings-minor = **33 pass, 0 fail** (no spec edits). pgTAP `206` **21/21** (HC084 added). QA APPROVED; committed `bfce6e8`. |
 
-> **Most recent CLOSED gate: Administrativo delegated-capability role (ADR 0061) — feature E2E 10/10 (`cases-meetings-minor` A1 1/1) + full regr E2E 574 pass (0 regressions). QA APPROVED (0 BLOCKER/MAJOR/MINOR · 3 INFO); BUG-ADM-001 fixed.** Meeting `held_at`/`held_end` (ADR 0062, above) is still in progress — owed a full-suite regression to gate. Full run-by-run history + prior gates → [test-run-archive.md](docs/progress/test-run-archive.md) · [administrativo.md](docs/progress/administrativo.md).
+> **Most recent CLOSED gate: Meeting `held_at`/`held_end` (ADR 0062, above) — pgTAP 21/21 + meeting E2E 33 pass; QA APPROVED; committed `bfce6e8` (remote `db push` deferred).** Prior closed gate: Administrativo delegated-capability role (ADR 0061) — feature E2E 10/10 + full regr 574 pass (0 reg), QA APPROVED, BUG-ADM-001 fixed. Full run-by-run history + prior gates → [test-run-archive.md](docs/progress/test-run-archive.md) · [meeting-held-time.md](docs/progress/meeting-held-time.md) · [administrativo.md](docs/progress/administrativo.md).
 
 ## QA Verdicts
 
