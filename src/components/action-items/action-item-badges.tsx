@@ -98,7 +98,7 @@ export function ActionItemSourceBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-transparent px-2 py-0.5 text-[0.7rem] font-medium text-muted-foreground",
+        "inline-flex w-fit shrink-0 items-center gap-1 rounded-full border border-border bg-transparent px-2 py-0.5 text-[0.7rem] font-medium text-muted-foreground",
         className,
       )}
     >

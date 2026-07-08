@@ -6,6 +6,7 @@ import { ArrowRight, FileText, PlayCircle } from "lucide-react";
 
 import type { FillableForm } from "@/lib/queries/responses";
 import { Button } from "@/components/ui/button";
+import { DiscardDraftButton } from "@/components/responses/discard-draft-button";
 
 /**
  * One row in the staff form list (F1). PUBLISHED forms only. The primary
@@ -68,14 +69,17 @@ export function FillableFormCard({
         )}
 
         {resuming && form.inProgressResponseId ? (
-          <Button asChild size="sm">
-            <Link
-              href={commissionHref(org, slug, "forms", form.formId, "responder", form.inProgressResponseId)}
-            >
-              Continuar preenchimento
-              <ArrowRight aria-hidden="true" />
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <DiscardDraftButton responseId={form.inProgressResponseId} />
+            <Button asChild size="sm">
+              <Link
+                href={commissionHref(org, slug, "forms", form.formId, "responder", form.inProgressResponseId)}
+              >
+                Continuar preenchimento
+                <ArrowRight aria-hidden="true" />
+              </Link>
+            </Button>
+          </div>
         ) : (
           (startSlot ?? null)
         )}

@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { listMemberTitles } from "@/lib/commissions/titles";
 import { phaseResultsEnabled } from "@/lib/queries/phase-results";
+import { meetingsEnabled } from "@/lib/meetings/actions";
 import { SettingsTabs } from "@/components/cases/settings-tabs";
 import { TitlesManager } from "@/components/commissions/titles-manager";
 
@@ -35,9 +36,10 @@ export default async function TitlesSettingsPage({
     notFound();
   }
 
-  const [titles, phaseResultsOn] = await Promise.all([
+  const [titles, phaseResultsOn, meetingsOn] = await Promise.all([
     listMemberTitles(access.commission.id),
     phaseResultsEnabled(),
+    meetingsEnabled(),
   ]);
 
   return (
@@ -53,7 +55,11 @@ export default async function TitlesSettingsPage({
         </p>
       </header>
 
-      <SettingsTabs org={org} slug={slug} phaseResultsEnabled={phaseResultsOn} />
+      <SettingsTabs
+        org={org} slug={slug}
+        phaseResultsEnabled={phaseResultsOn}
+        meetingsEnabled={meetingsOn}
+      />
 
       <TitlesManager commissionId={access.commission.id} titles={titles} />
     </div>

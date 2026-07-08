@@ -39,6 +39,10 @@ const MESSAGES = {
   missingVersion: 'Versão não encontrada.',
   missingResponse: 'Resposta não encontrada.',
   notPublished: 'Este formulário não está disponível para preenchimento.',
+  // discardResponse discriminated failures (standalone draft delete).
+  discardNotDraft: 'Apenas rascunhos podem ser descartados.',
+  discardCaseBound: 'Esta resposta pertence a um caso e não pode ser descartada aqui.',
+  discarded: 'Rascunho descartado.',
   // submit_response discriminated failures
   alreadySubmitted: 'Esta resposta já foi enviada.',
   missingRequired: 'Há perguntas obrigatórias sem resposta. Revise o formulário.',
@@ -84,6 +88,9 @@ const OVERRIDE_RESULT_INVALID = 'HC058'
 const SUBMIT_RESULT_REQUIRED = 'HC061'
 /** phase-result-manual-mode: MANUAL phase result cleared (set-override). */
 const OVERRIDE_RESULT_REQUIRED = 'HC062'
+/** discard_response discriminated failures (standalone draft delete). */
+const DISCARD_NOT_DRAFT = 'HC065'
+const DISCARD_CASE_BOUND = 'HC066'
 
 /** The staff filling area — revalidated as dynamic-segment pages. */
 const FORMS_LIST_PATH = '/o/[org]/c/[commission]/forms'
@@ -462,6 +469,58 @@ export async function submitCasePhaseResponse(
 
   revalidateFill()
   return { ok: true, error: MESSAGES.submitted }
+}
+
+// ---------------------------------------------------------------------------
+// discard draft (standalone forms only)
+// ---------------------------------------------------------------------------
+
+/**
+ * Permanently discard the caller's OWN in_progress draft response for a
+ * STANDALONE form (a response NOT linked to a case, i.e. `case_phase_id IS
+ * NULL`). Wraps the `discard_response` RPC — the single authority — which
+ * verifies ownership + in_progress + standalone, deletes the row (answers /
+ * selections / sign-offs cascade), and emits an audit row (Rule 11: records
+ * that a draft was discarded + who; never copies answer payloads).
+ *
+ * Submitted responses stay immutable (the `guard_submitted_response` BEFORE
+ * DELETE trigger blocks deleting a submitted row). Case-bound responses are
+ * refused here so a draft phase can't be discarded via the standalone path.
+ *
+ * Maps the RPC's discriminated SQLSTATEs to pt-BR: HC065 (not a draft), HC066
+ * (case-bound), no_data_found (not found / not owned / not visible under RLS),
+ * check_violation (submitted → immutable). A raw PG error never reaches the UI.
+ */
+export async function discardResponse(responseId: string): Promise<ActionState> {
+  if (!responseId) return { ok: false, error: MESSAGES.missingResponse }
+
+  const supabase = await createClient()
+
+  const { error } = await supabase.rpc('discard_response', {
+    p_response_id: responseId,
+  })
+
+  if (error) {
+    switch (error.code) {
+      case DISCARD_NOT_DRAFT:
+        return { ok: false, error: MESSAGES.discardNotDraft }
+      case DISCARD_CASE_BOUND:
+        return { ok: false, error: MESSAGES.discardCaseBound }
+      case PG_CHECK_VIOLATION:
+        // guard_submitted_response fired (submitted → immutable delete).
+        return { ok: false, error: MESSAGES.discardNotDraft }
+      case PG_NO_DATA_FOUND:
+        return { ok: false, error: MESSAGES.missingResponse }
+      case PG_RLS_VIOLATION:
+        return { ok: false, error: MESSAGES.forbidden }
+      default:
+        return { ok: false, error: MESSAGES.generic }
+    }
+  }
+
+  // The discarded draft leaves the standalone forms list; revalidate it.
+  revalidateFill()
+  return { ok: true, error: MESSAGES.discarded }
 }
 
 // ---------------------------------------------------------------------------

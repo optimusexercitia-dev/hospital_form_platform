@@ -901,37 +901,6 @@ function parseItemFields(
 }
 
 /**
- * Insert option rows for a freshly-created choice item (addItem). Generates a
- * stable code per row; position is the array index. The DB triggers fill
- * form_version_id (from the item) and enforce parent-is-choice + unique code.
- */
-async function insertOptionRows(
-  supabase: SupabaseClient<Database>,
-  itemId: string,
-  versionId: string,
-  options: ParsedOption[],
-): Promise<{ ok: boolean }> {
-  const taken = new Set<string>()
-  const rows = options.map((o, i) => ({
-    item_id: itemId,
-    // The form_item_options_sync_version trigger overwrites this from the item;
-    // we pass the resolved value only to satisfy the typed (NOT NULL) Insert.
-    form_version_id: versionId,
-    position: i,
-    code: o.code.trim() || generateOptionCode(o.label, taken),
-    label: o.label,
-    color_token: o.color,
-    score: o.score,
-    analytics_code: o.analyticsCode,
-  }))
-  // Reserve any kept codes so generated ones can't collide with them.
-  for (const r of rows) taken.add(r.code)
-
-  const { error } = await supabase.from('form_item_options').insert(rows)
-  return { ok: !error }
-}
-
-/**
  * Reconcile an existing choice item's option rows to the submitted set
  * (updateItem). Kept rows (those whose submitted `code` matches an existing row)
  * are UPDATEd (label/color/score/analytics_code/position — never the code, which
@@ -1060,14 +1029,15 @@ export async function addItem(
       .maybeSingle<{ id: string }>()
 
     if (!error && inserted) {
-      // Attach the choice options as normalized rows.
+      // Attach the choice options as normalized rows. Route through
+      // reconcile_item_options (NOT a raw insert) so the reserved "Outros"
+      // __other__ row is minted when config.allowOther is set — the item's
+      // config was just written above, so reconcile reads the correct flag. A
+      // raw insert here skipped that lifecycle, so a freshly-added allowOther
+      // item showed NO "Outro" choice until it happened to be edited (which ran
+      // reconcile). One option-write path for add + update fixes that.
       if (options && options.length > 0) {
-        const res = await insertOptionRows(
-          supabase,
-          inserted.id,
-          ctx.versionId,
-          options,
-        )
+        const res = await reconcileOptionRows(supabase, inserted.id, options)
         if (!res.ok) {
           // Roll back the orphaned item (no option rows) so the builder stays
           // consistent; the item is a draft row, freely deletable.

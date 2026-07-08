@@ -90,7 +90,7 @@ export default async function ApproverDocumentPage({
   const queueHref = orgHref(org, "documentos-pendentes");
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8 sm:px-6">
+    <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-4">
         <Link
           href={queueHref}
@@ -179,6 +179,6 @@ export default async function ApproverDocumentPage({
           Este documento não tem uma versão aguardando sua aprovação no momento.
         </p>
       )}
-    </main>
+    </div>
   );
 }

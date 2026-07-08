@@ -5,7 +5,7 @@ import { Briefcase } from "lucide-react";
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { listMyCases } from "@/lib/queries/cases";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
-import { MyCaseCard } from "@/components/cases/my-case-card";
+import { MyCasesFilter } from "@/components/cases/my-cases-filter";
 
 export const metadata: Metadata = {
   title: "Meus Casos",
@@ -61,16 +61,7 @@ export default async function MyCasesPage({
       {cases.length === 0 ? (
         <EmptyState />
       ) : (
-        <section aria-label="Casos acessíveis" className="flex flex-col gap-3">
-          {cases.map((myCase, index) => (
-            <MyCaseCard
-              key={myCase.caseId}
-              org={org} slug={slug}
-              myCase={myCase}
-              index={index}
-            />
-          ))}
-        </section>
+        <MyCasesFilter org={org} slug={slug} cases={cases} />
       )}
     </div>
   );

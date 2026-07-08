@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
+  Flag,
   MoveRight,
   Pencil,
   Split,
@@ -356,6 +357,12 @@ function BlockPreview({
                 key={opt.id || opt.code}
                 className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-0.5 text-xs text-muted-foreground"
               >
+                {opt.flagged && (
+                  <Flag
+                    aria-label="Sinalizada"
+                    className="size-3 shrink-0 fill-destructive text-destructive"
+                  />
+                )}
                 {opt.color && (
                   <span
                     aria-hidden="true"

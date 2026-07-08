@@ -462,7 +462,8 @@ test('T1.4 — after Concluir (em_assinatura), the held window is READ-ONLY with
 
   await signInAs(page, 'chefe.ccih@test.local')
   await goToMeeting(page, meetingId, /held-time T1\.4/i)
-  await expect(page.getByText(/Em assinatura/i).first()).toBeVisible({ timeout: 10_000 })
+  // Badge label renamed "Em assinatura" → "Assinatura" (meeting-labels map).
+  await expect(page.getByText('Assinatura', { exact: true }).first()).toBeVisible({ timeout: 10_000 })
 
   // The "Realizada em: …" line is still shown (read-only variant).
   await expect(page.getByText(/Realizada em:/i).first()).toBeVisible({ timeout: 10_000 })

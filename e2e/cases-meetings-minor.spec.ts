@@ -257,8 +257,9 @@ test('C2 — Concluir succeeds with a present committee member (no HC034, → Em
   // And the raw SQL code must never leak (messages.ts cleanup).
   await expect(page.getByText(/HC034/)).toHaveCount(0)
 
-  // Status flipped to em_assinatura (header chip + DB truth).
-  await expect(page.getByText(/Em assinatura/i).first()).toBeVisible({
+  // Status flipped to em_assinatura (header chip + DB truth). Badge label renamed
+  // "Em assinatura" → "Assinatura" (meeting-labels map).
+  await expect(page.getByText('Assinatura', { exact: true }).first()).toBeVisible({
     timeout: 10_000,
   })
   expect(await meetingStatus(page, meetingId)).toBe('em_assinatura')

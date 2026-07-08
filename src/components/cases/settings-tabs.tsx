@@ -15,19 +15,22 @@ import { cn } from "@/lib/utils";
  * the Construtor page ("Narrativas" tab). Keyboard-operable links with
  * `aria-current` on the active tab.
  *
- * `phaseResultsEnabled` is resolved on the server by each settings page (the flag
- * lives in the locked-down `app` schema) and passed in, so that tab is hidden
- * everywhere until its increment ships.
+ * `phaseResultsEnabled` and `meetingsEnabled` are resolved on the server by each
+ * settings page (the flags live in the locked-down `app` schema) and passed in, so
+ * those tabs are hidden everywhere until their increment ships / the flag is on.
  */
 export function SettingsTabs({
   org,
   slug,
   phaseResultsEnabled = false,
+  meetingsEnabled = false,
 }: {
   /** Org slug for hrefs. */
   org: string;
   slug: string;
   phaseResultsEnabled?: boolean;
+  /** Whether the `meetings` flag is on (gates the "Reuniões" tab). */
+  meetingsEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const tabs = [
@@ -38,6 +41,10 @@ export function SettingsTabs({
     { href: commissionHref(org, slug, "manage", "settings", "etiquetas"), label: "Etiquetas" },
     // Committee member titles (ADR 0051 Decision 6) — always on, no feature flag.
     { href: commissionHref(org, slug, "manage", "settings", "titulos"), label: "Títulos" },
+    // Meeting-type vocabulary + quorum rule (F8) — gated behind the `meetings` flag.
+    ...(meetingsEnabled
+      ? [{ href: commissionHref(org, slug, "manage", "settings", "reunioes"), label: "Reuniões" }]
+      : []),
   ];
 
   return (

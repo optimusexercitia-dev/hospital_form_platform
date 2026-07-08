@@ -124,7 +124,7 @@ export function MeetingLifecycleActions({
             </Button>
           }
           title="Concluir a reunião?"
-          description="A reunião passará para “Em assinatura”. O quórum será calculado e registrado, os casos vinculados serão lançados nas suas linhas do tempo, e a ata, a pauta e os participantes ficarão bloqueados para edição. É necessário ao menos um participante presente."
+          description="A reunião passará para “Assinatura”. O quórum será calculado e registrado, os casos vinculados serão lançados nas suas linhas do tempo, e a ata, a pauta e os participantes ficarão bloqueados para edição. É necessário ao menos um participante presente."
           confirmLabel="Concluir reunião"
           action={(held) => concludeMeeting(meeting.id, held)}
         />

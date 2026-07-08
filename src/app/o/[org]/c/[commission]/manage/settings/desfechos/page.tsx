@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import { phaseResultsEnabled } from "@/lib/queries/phase-results";
+import { meetingsEnabled } from "@/lib/meetings/actions";
 import { SettingsTabs } from "@/components/cases/settings-tabs";
 import { OutcomeManager } from "@/components/cases/outcome-manager";
 
@@ -34,9 +35,10 @@ export default async function CaseOutcomesSettingsPage({
     notFound();
   }
 
-  const [outcomes, phaseResultsOn] = await Promise.all([
+  const [outcomes, phaseResultsOn, meetingsOn] = await Promise.all([
     listCaseOutcomes(access.commission.id),
     phaseResultsEnabled(),
+    meetingsEnabled(),
   ]);
 
   return (
@@ -54,6 +56,7 @@ export default async function CaseOutcomesSettingsPage({
       <SettingsTabs
         org={org} slug={slug}
         phaseResultsEnabled={phaseResultsOn}
+        meetingsEnabled={meetingsOn}
       />
 
       <OutcomeManager commissionId={access.commission.id} outcomes={outcomes} />

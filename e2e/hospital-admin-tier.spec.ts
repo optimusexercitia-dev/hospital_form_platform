@@ -474,8 +474,15 @@ test.describe('HA-4: Committee titles — CRUD, assignment, badges, display-only
 
   test('title badge renders on the meeting attendee list once assigned', async ({ page }) => {
     await signInAs(page, 'chefe.ccih@test.local')
-    await page.goto('/o/rede-a/c/ccih/manage/meetings')
-    const meetingLink = page.getByRole('link').filter({ hasText: /./ }).first()
+    // The meeting ATTENDEE list lives on the meetings surface (a meeting detail
+    // page reached from the list), not the settings tab. The former
+    // `/manage/meetings` was the settings route (now redirected); the meetings
+    // list is at `/c/ccih/meetings`.
+    await page.goto('/o/rede-a/c/ccih/meetings')
+    const meetingLink = page
+      .getByRole('link')
+      .filter({ hasText: /Reuni|Ordinária|Extraordinária/i })
+      .first()
     if (await meetingLink.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await meetingLink.click()
       // Attendee with the assigned title should show the "Secretário(a)" badge

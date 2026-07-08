@@ -234,13 +234,6 @@ const NAV_GROUPS: NavGroup[] = [
         icon: Settings2,
         roles: ["staff_admin"],
       },
-      {
-        label: "Config. de reuniões",
-        href: "manage/meetings",
-        icon: CalendarDays,
-        roles: ["staff_admin"],
-        requiresFeature: "meetings",
-      },
     ],
   },
 ];

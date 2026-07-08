@@ -43,7 +43,7 @@ export function shortSuffix(): string {
  * enough — the DB `unique(item_id, code)` is the backstop). Mirrors the
  * question_key generation (slugifyLabel + shortSuffix).
  *
- * Used server-side (`insertOptionRows`/`reconcileOptionRows` in `actions.ts`)
+ * Used server-side (`reconcileOptionRows` in `actions.ts`)
  * AND client-side (the builder's option editor, so a newly-authored option
  * row's code — and any default value referencing it — is a real code from the
  * moment the label is typed, rather than the server-only-minted placeholder).

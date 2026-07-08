@@ -276,7 +276,7 @@ export function ConditionBuilder({
   }
 
   const toggleLabel =
-    context === "question" ? "Aparência condicional" : "Visibilidade condicional";
+    context === "question" ? "Aparência Condicional" : "Visibilidade condicional";
   const showWhenLabel =
     context === "question"
       ? "Mostrar a pergunta quando"
@@ -297,16 +297,13 @@ export function ConditionBuilder({
 
   return (
     <fieldset className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-3">
-        <legend className="text-sm font-semibold">{toggleLabel}</legend>
-        <label className="flex items-center gap-2.5 text-sm">
-          <Checkbox
-            checked={enabled}
-            onCheckedChange={(c) => toggleEnabled(c === true)}
-          />
-          <span>Exibir somente sob condições</span>
-        </label>
-      </div>
+      <label className="flex items-center gap-2.5 text-sm">
+        <Checkbox
+          checked={enabled}
+          onCheckedChange={(c) => toggleEnabled(c === true)}
+        />
+        {toggleLabel}
+      </label>
 
       {enabled && (
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3">

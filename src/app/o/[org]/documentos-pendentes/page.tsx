@@ -52,7 +52,7 @@ export default async function PendingApprovalsPage({
   const rows = await listPendingApprovalsForUser();
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8 sm:px-6">
+    <div className="flex flex-col gap-8">
       <header className="flex flex-col gap-2">
         <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
           Documentos controlados
@@ -64,6 +64,6 @@ export default async function PendingApprovalsPage({
       </header>
 
       <PendingApprovalsList rows={rows} org={org} />
-    </main>
+    </div>
   );
 }

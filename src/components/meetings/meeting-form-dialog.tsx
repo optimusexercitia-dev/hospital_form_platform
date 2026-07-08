@@ -248,7 +248,7 @@ export function MeetingFormDialog({
             </NativeSelect>
           </label>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4">
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Início</span>
               <DateTimePicker

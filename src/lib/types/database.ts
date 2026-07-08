@@ -7820,6 +7820,7 @@ export type Database = {
         Args: { p_section_id: string; p_target_section_id: string }
         Returns: undefined
       }
+      discard_response: { Args: { p_response_id: string }; Returns: undefined }
       dispose_case_phi: {
         Args: { p_case_id: string; p_reason: string }
         Returns: undefined

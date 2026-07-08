@@ -375,8 +375,10 @@ test('AC1 — happy path: schedule meeting, Marcar como realizada, add content, 
   // We need to check the meeting status in DB
   const rowAfterConclude = await getMeetingRow(page, newMeetingId)
   if (rowAfterConclude?.status === 'em_assinatura') {
-    // Success: status flipped to em_assinatura
-    await expect(page.getByText(/Em assinatura/i).first()).toBeVisible({ timeout: 15_000 })
+    // Success: status flipped to em_assinatura. Badge label renamed to "Assinatura".
+    await expect(page.getByText('Assinatura', { exact: true }).first()).toBeVisible({
+      timeout: 15_000,
+    })
 
     // Assert quorum panel shows present/eligible counts (if snapshot populated)
     if (rowAfterConclude.present_count !== null) {
@@ -420,12 +422,14 @@ test('AC1b — seeded meeting: Concluir → em_assinatura, quorum snapshot popul
 
   // Wait for the alertdialog to be unmounted (route refresh after success) and
   // THEN wait for the status chip text in the main page body.
-  // "Em assinatura" also appears in the dialog description; avoid matching it inside
-  // the open dialog by waiting for the dialog to close first.
   await expect(concluirDialog).not.toBeVisible({ timeout: 25_000 })
 
-  // Now assert the status chip in the header shows the new state
-  await expect(page.getByText(/Em assinatura/i).first()).toBeVisible({ timeout: 10_000 })
+  // Now assert the status chip in the header shows the new state. The badge label
+  // was renamed "Em assinatura" → "Assinatura" (meeting-labels map); match it
+  // exactly (the "Assinaturas pendentes" panel label is a different, longer text).
+  await expect(page.getByText('Assinatura', { exact: true }).first()).toBeVisible({
+    timeout: 10_000,
+  })
 
   // Verify DB: meeting status is now `em_assinatura` and quorum snapshot populated
   const row = await getMeetingRow(page, SEEDED_MEETING_ID)
@@ -484,7 +488,7 @@ test('AC2 — signing flow: pending badge, sign, badge clears, auto-flip to assi
   // Navigate to the meeting
   await page.goto(`/o/rede-a/c/ccih/meetings/${SEEDED_MEETING_ID}`)
   await page.waitForURL(`**/c/ccih/meetings/${SEEDED_MEETING_ID}`, { timeout: 15_000 })
-  await expect(page.getByText(/Em assinatura/i).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Assinatura', { exact: true }).first()).toBeVisible({ timeout: 10_000 })
 
   // The "Assinar" button should be visible for staff1 (they are a present attendee)
   const assinarBtn = page.getByRole('button', { name: /Assinar/i })
@@ -601,9 +605,12 @@ test('AC2 — signing flow: pending badge, sign, badge clears, auto-flip to assi
 test('AC3 — settings: create/rename/archive meeting type; change quorum rule', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
 
-  // Navigate to manage/meetings
-  await page.goto('/o/rede-a/c/ccih/manage/meetings')
-  await page.waitForURL('**/o/rede-a/c/ccih/manage/meetings', { timeout: 15_000 })
+  // Navigate to the meeting-settings tab of the Configurações hub. The old
+  // `/manage/meetings` route now redirect()s here; go straight to the canonical
+  // location. The MeetingSettingsView UET (Tipos de reunião / Regra de quórum)
+  // is unchanged — only its location moved.
+  await page.goto('/o/rede-a/c/ccih/manage/settings/reunioes')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/settings/reunioes', { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: /Tipos de reunião/i }).first()).toBeVisible({ timeout: 10_000 })
 
   // --- Create a new meeting type ---
@@ -650,9 +657,9 @@ test('AC3 — settings: create/rename/archive meeting type; change quorum rule',
     await expect(page.getByText('Tipo E2E Renomeado')).not.toBeVisible({ timeout: 10_000 })
   }
 
-  // Ensure we are still on manage/meetings (archive dialog may have navigated away)
-  await page.goto('/o/rede-a/c/ccih/manage/meetings')
-  await page.waitForURL('**/o/rede-a/c/ccih/manage/meetings', { timeout: 15_000 })
+  // Ensure we are still on the meeting-settings tab (archive dialog may have navigated away)
+  await page.goto('/o/rede-a/c/ccih/manage/settings/reunioes')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/settings/reunioes', { timeout: 15_000 })
 
   // --- Quorum rule: change to maioria_simples first (check it's the default) ---
   // The section uses aria-labelledby pointing to the h2; locate by the heading text
@@ -680,7 +687,7 @@ test('AC3 — settings: create/rename/archive meeting type; change quorum rule',
 
   // Reload and verify persistence
   await page.reload()
-  await page.waitForURL('**/o/rede-a/c/ccih/manage/meetings', { timeout: 15_000 })
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/settings/reunioes', { timeout: 15_000 })
   // Re-locate after reload using the section locator pattern
   const quorumHeadingAfter = page.getByRole('heading', { name: /Regra de quórum/i })
   await expect(quorumHeadingAfter).toBeVisible({ timeout: 10_000 })
@@ -928,7 +935,7 @@ test('AC4d — negative: editing minutes while em_assinatura is rejected (conten
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/meetings/${lockedMeetingId}`)
   await page.waitForURL(`**/c/ccih/meetings/${lockedMeetingId}`, { timeout: 15_000 })
-  await expect(page.getByText(/Em assinatura/i).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Assinatura', { exact: true }).first()).toBeVisible({ timeout: 10_000 })
 
   // The minutes textarea should be disabled/read-only (canEdit = false when em_assinatura)
   const minutesArea = page.locator('textarea').first()
@@ -966,7 +973,7 @@ test('AC4e — Reabrir revokes signatures and unlocks editing', async ({ page })
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/meetings/${reabrirMeetingId}`)
   await page.waitForURL(`**/c/ccih/meetings/${reabrirMeetingId}`, { timeout: 15_000 })
-  await expect(page.getByText(/Em assinatura/i).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Assinatura', { exact: true }).first()).toBeVisible({ timeout: 10_000 })
 
   // Click Reabrir
   const reabrirBtn = page.getByRole('button', { name: /Reabrir/i })
@@ -1055,10 +1062,12 @@ test('AC5b — foreign-commission user gets 404 on CCIH meeting (no data leakage
   expect(ccihMeetingVisible).toBe(false)
 })
 
-test('AC5c — manage/meetings settings page is staff_admin-only', async ({ page }) => {
-  // Plain staff cannot access settings
+test('AC5c — meeting-settings tab is staff_admin-only', async ({ page }) => {
+  // Plain staff cannot access settings. The meeting-type vocabulary + quorum rule
+  // moved into the Configurações hub; the coordinator (staff_admin) gate now lives
+  // on the destination page. Target the canonical location directly.
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto('/o/rede-a/c/ccih/manage/meetings')
+  await page.goto('/o/rede-a/c/ccih/manage/settings/reunioes')
   await page.waitForURL((url) => !url.toString().includes('/login'), { timeout: 15_000 })
 
   // Should get a 404/forbidden or redirect — NOT the settings UI
@@ -1070,8 +1079,8 @@ test('AC5c — manage/meetings settings page is staff_admin-only', async ({ page
 
   // Staff_admin CAN access settings
   await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/o/rede-a/c/ccih/manage/meetings')
-  await page.waitForURL('**/o/rede-a/c/ccih/manage/meetings', { timeout: 15_000 })
+  await page.goto('/o/rede-a/c/ccih/manage/settings/reunioes')
+  await page.waitForURL('**/o/rede-a/c/ccih/manage/settings/reunioes', { timeout: 15_000 })
   await expect(page.getByRole('heading', { name: /Tipos de reunião/i }).first()).toBeVisible({ timeout: 10_000 })
 })
 
@@ -1201,7 +1210,7 @@ test('AC6 — keyboard-only: schedule meeting and Concluir via keyboard navigati
 
   // Wait for the alertdialog to close (route refresh unmounts it on success)
   await expect(concluirDialog).not.toBeVisible({ timeout: 25_000 })
-  await expect(page.getByText(/Em assinatura/i).first()).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Assinatura', { exact: true }).first()).toBeVisible({ timeout: 10_000 })
 
   const kbRowFinal = await getMeetingRow(page, kbMeetingId)
   expect(kbRowFinal?.status).toBe('em_assinatura')

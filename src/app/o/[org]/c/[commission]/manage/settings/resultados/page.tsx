@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { listPhaseResults, phaseResultsEnabled } from "@/lib/queries/phase-results";
+import { meetingsEnabled } from "@/lib/meetings/actions";
 import { SettingsTabs } from "@/components/cases/settings-tabs";
 import { ResultVocabManager } from "@/components/cases/result-vocab-manager";
 
@@ -31,10 +32,11 @@ export default async function PhaseResultsSettingsPage({
   const { org, commission } = await params;
   const slug = commission;
 
-  // The flag check doesn't depend on `access`, so run them concurrently.
-  const [access, flagOn] = await Promise.all([
+  // The flag checks don't depend on `access`, so run them concurrently.
+  const [access, flagOn, meetingsOn] = await Promise.all([
     getCommissionAccessByOrg(org, commission),
     phaseResultsEnabled(),
+    meetingsEnabled(),
   ]);
 
   if (!access || access.role !== "staff_admin") {
@@ -61,7 +63,11 @@ export default async function PhaseResultsSettingsPage({
         </p>
       </header>
 
-      <SettingsTabs org={org} slug={slug} phaseResultsEnabled />
+      <SettingsTabs
+        org={org} slug={slug}
+        phaseResultsEnabled
+        meetingsEnabled={meetingsOn}
+      />
 
       <ResultVocabManager
         commissionId={access.commission.id}

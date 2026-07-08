@@ -138,7 +138,7 @@ const SLUG_OVERRIDE: Record<string, PillSpec> = {
 
   // Meeting lifecycle.
   realizada: { label: "Realizada", className: ACTIVE_PILL, dot: false },
-  em_assinatura: { label: "Em assinatura", className: WARNING_PILL, dot: false },
+  em_assinatura: { label: "Assinatura", className: WARNING_PILL, dot: false },
   assinada: { label: "Assinada", className: DONE_PILL, dot: false },
   distribuida: { label: "Distribuída", className: "bg-primary/12 text-primary", dot: false },
 

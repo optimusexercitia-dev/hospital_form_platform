@@ -26,7 +26,7 @@ import type { MeetingActionItemStatus } from "@/lib/queries/meeting-action-items
 export const MEETING_STATUS_LABEL: Record<MeetingStatus, string> = {
   agendada: "Agendada",
   realizada: "Realizada",
-  em_assinatura: "Em assinatura",
+  em_assinatura: "Assinatura",
   assinada: "Assinada",
   distribuida: "Distribuída",
   cancelada: "Cancelada",
