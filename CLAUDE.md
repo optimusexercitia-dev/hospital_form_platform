@@ -387,8 +387,10 @@ of the live file into `docs/progress/`, leaving a one-line pointer behind:
   `docs/progress/bug-log-archive.md`.
 - **Test Run Summary** → keep only the **most recent gate's** rows live; move the rest to
   `docs/progress/test-run-archive.md`.
-- **QA Verdicts** → a collapsed one-row-per-phase index (verdict + date + report link);
-  the full reviews already live in `docs/reviews/phase-N-review.md`.
+- **QA Verdicts** → **one line only**: verdict + date + link to `docs/reviews/phase-N-review.md`,
+  which already holds the full analysis. Do not restate rationale in the PROGRESS.md row, and
+  do not also copy it to `docs/progress/qa-verdicts-archive.md` — that file predates this rule
+  and is redundant with the review doc; don't grow it further.
 - **Decisions** → **one line per decision** + ADR link; rationale lives in
   `docs/decisions/` (verbose pre-collapse history in `docs/progress/decisions-log.md`).
 - **Follow-ups / Deferred** → keep only **OPEN** (`[ ]`/`[~]`) items live; move resolved
