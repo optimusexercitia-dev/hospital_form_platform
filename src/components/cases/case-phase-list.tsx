@@ -34,6 +34,7 @@ export function CasePhaseList({
   assignees,
   isOpen,
   caps,
+  canAssignPhases = false,
   viewerId,
   caseAccessEnabled = true,
   canCorrectResult = false,
@@ -48,6 +49,9 @@ export function CasePhaseList({
   isOpen: boolean;
   /** The viewer's capability descriptor for this case. */
   caps: CaseViewerCapabilities;
+  /** Whether the viewer may ACTIVATE / REASSIGN phases (coordinator OR an
+   * `assign_case_phases` Administrativo, ADR 0061). Default `false`. */
+  canAssignPhases?: boolean;
   /** The viewer's user id — for the per-narrative assignee check (Q14); `null` if unknown. */
   viewerId: string | null;
   /**
@@ -84,6 +88,7 @@ export function CasePhaseList({
               assignees={assignees}
               isOpen={isOpen}
               canManageLifecycle={caps.canManageLifecycle}
+              canAssignPhases={canAssignPhases}
               canCorrectResult={canCorrectResult}
               resultOptions={resultOptions}
             />

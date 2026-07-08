@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CalendarDays } from "lucide-react";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
 import { listMeetings, listMeetingTypes } from "@/lib/queries/meetings";
 import { listMembers } from "@/lib/queries/members";
 import { meetingsEnabled } from "@/lib/meetings/actions";
@@ -43,16 +43,17 @@ export default async function MeetingsListPage({
     notFound();
   }
 
-  const isCoordinator =
-    access.role === "staff_admin";
+  // Who may schedule meetings: a coordinator OR (ADR 0061) an Administrativo with
+  // `schedule_meetings`. Drives the "Nova reunião" affordance + the picker roster.
+  const canSchedule = canInCommission(access, "schedule_meetings");
 
   const [{ rows: meetings, nextCursor }, meetingTypes, members] =
     await Promise.all([
       listMeetings(access.commission.id, { cursor }),
       listMeetingTypes(access.commission.id),
       // The commission roster for the "Nova reunião" Participantes picker
-      // (coordinator-only affordance; RLS-scoped read).
-      isCoordinator
+      // (schedule-affordance-only; RLS-scoped read).
+      canSchedule
         ? listMembers(access.commission.id)
         : Promise.resolve([]),
     ]);
@@ -70,7 +71,7 @@ export default async function MeetingsListPage({
             colete assinaturas eletrônicas. Nunca registre dados de paciente.
           </p>
         </div>
-        {isCoordinator && (
+        {canSchedule && (
           <NewMeetingButton
             org={org}
             slug={slug}
@@ -91,11 +92,11 @@ export default async function MeetingsListPage({
           </span>
           <h2 className="text-lg font-semibold">Nenhuma reunião ainda</h2>
           <p className="max-w-sm text-sm text-muted-foreground text-pretty">
-            {isCoordinator
+            {canSchedule
               ? "Agende a primeira reunião desta comissão para começar a registrar atas e presenças."
               : "Quando a coordenação agendar reuniões, elas aparecerão aqui."}
           </p>
-          {isCoordinator && (
+          {canSchedule && (
             <div className="mt-2">
               <NewMeetingButton
                 org={org}

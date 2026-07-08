@@ -2,9 +2,12 @@ import { commissionHref } from "@/lib/routing";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
 import { getCaseDetail, casePatientEnabled } from "@/lib/queries/cases";
 import type { CaseViewerCapabilities, MyCaseRole } from "@/lib/queries/cases";
+import { isTerminalCaseStatus } from "@/lib/cases/case-status";
+import { listDepartmentsForHospital } from "@/lib/hospitals/departments";
+import type { Department } from "@/lib/hospitals/departments";
 import {
   listPhaseResults,
   phaseResultsEnabled,
@@ -107,6 +110,16 @@ export default async function StaffCaseDetailPage({
   // from data already loaded — no inline supabase-js (Rule 9; UI-prop assembly).
   const referralsModule = await buildCaseReferralsModule(detail, documents);
 
+  // Edit-meta affordance (ADR 0061): a `create_cases` Administrativo (or a coordinator)
+  // may edit an OPEN case's label + department here. Load the hospital's departments
+  // only when the affordance can actually show (create_cases holder + case open).
+  const canEditMeta = canInCommission(access, "create_cases");
+  const canEditMetaNow = canEditMeta && !isTerminalCaseStatus(detail.case.status);
+  const departments: Department[] =
+    canEditMetaNow && access.commission.hospitalId
+      ? await listDepartmentsForHospital(access.commission.hospitalId)
+      : [];
+
   return (
     <CaseDetailView
       org={org} slug={slug}
@@ -130,6 +143,9 @@ export default async function StaffCaseDetailPage({
       referralsModule={referralsModule}
       canManagePhaseResults={canManagePhaseResults}
       phaseResultOptions={phaseResultOptions}
+      canAssignPhases={canInCommission(access, "assign_case_phases")}
+      canEditMeta={canEditMeta}
+      departments={departments}
     />
   );
 }

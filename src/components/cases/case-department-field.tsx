@@ -32,15 +32,28 @@ export function CaseDepartmentField({
   departments,
   disabled = false,
   idPrefix = "case-department",
+  initialDepartmentId = null,
+  initialDepartmentOther = null,
 }: {
   /** The hospital's ACTIVE departments (archived ones are not selectable). */
   departments: Department[];
   disabled?: boolean;
   idPrefix?: string;
+  /**
+   * Prefill for the edit-meta flow (ADR 0061). At most one is set: a managed
+   * department id seeds the dropdown; a custom value opens the "Outros" branch.
+   * Both null (the create-case default) = "Não especificado".
+   */
+  initialDepartmentId?: string | null;
+  initialDepartmentOther?: string | null;
 }) {
   // "" = unspecified, OTHER = the custom-text branch, else a department id.
-  const [selection, setSelection] = useState<string>("");
-  const [otherText, setOtherText] = useState<string>("");
+  const [selection, setSelection] = useState<string>(() =>
+    initialDepartmentId ? initialDepartmentId : initialDepartmentOther ? OTHER : "",
+  );
+  const [otherText, setOtherText] = useState<string>(
+    () => initialDepartmentOther ?? "",
+  );
 
   const isOther = selection === OTHER;
   const departmentId = isOther || selection === "" ? "" : selection;

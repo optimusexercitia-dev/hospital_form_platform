@@ -2,7 +2,7 @@ import { commissionHref } from "@/lib/routing";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
 import {
   getCaseDetail,
   casePatientEnabled,
@@ -133,6 +133,7 @@ export default async function CaseDetailPage({
       phaseResultOptions={phaseResultOptions}
       outcomes={outcomes}
       casesExtrasEnabled={casesExtrasOn}
+      canAssignPhases={canInCommission(access, "assign_case_phases")}
     />
   );
 }

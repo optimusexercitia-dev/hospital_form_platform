@@ -1,7 +1,10 @@
 # 0061 — "Administrativo" delegated-capability role (per commission)
 
-**Date:** 2026-07-07 · **Status:** proposed *(design + handoff complete; not yet
-implemented — see the implementation handoff at
+**Date:** 2026-07-07 · **Status:** accepted / implemented *(2026-07-08 — built behind
+the off-by-default `administrativo` flag; pgTAP 45/45, Administrativo E2E 10/10, full
+regression clean, QA APPROVED — see
+[docs/reviews/administrativo-review.md](../reviews/administrativo-review.md) and the
+implementation handoff at
 [docs/plans/administrativo-delegated-role.md](../plans/administrativo-delegated-role.md))*.
 **Relates:** ADR [0033](0033-case-access-control.md) (per-case access ACL — reused for the
 assignment→access grant); the membership write-path lockdown + guarded-DEFINER-door posture

@@ -163,10 +163,11 @@ export async function createMeeting(
   if (!(await meetingsEnabled())) {
     return { ok: false, error: MEETING_MESSAGES.unavailable }
   }
-  if (!(await authorizeCommission(commissionId))) {
-    return { ok: false, error: MEETING_MESSAGES.forbidden }
-  }
-
+  // The `create_meeting` RPC is the SOLE authority (coordinator/commission-admin OR a
+  // `schedule_meetings` Administrativo, ADR 0061); a coordinator-only `authorizeCommission`
+  // pre-gate here shadowed the widened RPC and rejected Administrativos before it
+  // (BUG-ADM-001, meetings arm). Refusal still returns a clean pt-BR error — the RPC's
+  // `42501` maps to `MEETING_MESSAGES.forbidden` via `mapMeetingError` (PG_FORBIDDEN).
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('create_meeting', {
     p_commission_id: commissionId,

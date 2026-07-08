@@ -2,7 +2,15 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { listMembers, listAddableMembers } from "@/lib/queries/members";
+import {
+  listMembers,
+  listAddableMembers,
+  listAdministrativos,
+  listMemberCapabilities,
+  type MemberCapability,
+} from "@/lib/queries/members";
+import { featureEnabled } from "@/lib/queries/feature-flags";
+import { casePatientEnabled } from "@/lib/queries/cases";
 import { listMemberTitles } from "@/lib/commissions/titles";
 import { AddMemberPicker } from "@/components/members/add-member-picker";
 import { MemberList } from "@/components/members/member-list";
@@ -35,11 +43,29 @@ export default async function ManageMembersPage({
     notFound();
   }
 
-  const [members, addable, titles] = await Promise.all([
-    listMembers(access.commission.id),
-    listAddableMembers(access.commission.id),
-    listMemberTitles(access.commission.id),
-  ]);
+  const administrativoEnabled = await featureEnabled("administrativo");
+
+  const [members, addable, titles, appointments, capabilities, casePatientOn] =
+    await Promise.all([
+      listMembers(access.commission.id),
+      listAddableMembers(access.commission.id),
+      listMemberTitles(access.commission.id),
+      // Administrativo delegation (ADR 0061): only read when the feature is on.
+      administrativoEnabled
+        ? listAdministrativos(access.commission.id)
+        : Promise.resolve([]),
+      administrativoEnabled
+        ? listMemberCapabilities(access.commission.id)
+        : Promise.resolve([]),
+      administrativoEnabled ? casePatientEnabled() : Promise.resolve(false),
+    ]);
+
+  // Fold the capability rows into a per-user map for the checklist.
+  const capabilitiesByUser: Record<string, MemberCapability[]> = {};
+  for (const grant of capabilities) {
+    (capabilitiesByUser[grant.userId] ??= []).push(grant.capability);
+  }
+  const appointedUserIds = appointments.map((a) => a.userId);
 
   return (
     <div className="flex flex-col gap-10">
@@ -89,6 +115,10 @@ export default async function ManageMembersPage({
           members={members}
           currentUserId={access.context.userId}
           titles={titles}
+          administrativoEnabled={administrativoEnabled}
+          appointedUserIds={appointedUserIds}
+          capabilitiesByUser={capabilitiesByUser}
+          showPhiNotice={casePatientOn}
         />
       </section>
     </div>

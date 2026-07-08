@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 
 import { createClient } from '@/lib/supabase/server'
 import { listMyNspHospitals } from '@/lib/queries/pqs'
+import { featureEnabled } from '@/lib/queries/feature-flags'
+import type { MemberCapability } from '@/lib/queries/members'
 import type { NspHospitalGrant } from '@/lib/pqs/roster-types'
 import { deriveUserStatus, type UserStatus } from '@/lib/users/types'
 // The TS mirror of `is_commission_admin_of` (ADR 0051): org_admin-of-org OR
@@ -344,18 +346,36 @@ export async function requireUser(): Promise<SessionContext> {
  *     over every commission in their org without an explicit membership row), ELSE
  *   - `null` for a platform admin viewing a commission they don't otherwise hold.
  *
+ * `capabilities` / `isAdministrativo` report the CALLER's own Administrativo
+ * standing in THIS commission (ADR 0061): `isAdministrativo` = the caller holds a
+ * `commission_administrativos` row; `capabilities` = their granted capability keys.
+ * Both honor the `administrativo` feature flag's kill switch — when the flag is
+ * OFF they are `false` / `[]` (mirroring the flag-aware `app.member_can`), so a dark
+ * flag confers no effective capabilities. Affordance gating goes through
+ * {@link canInCommission} (coordinator OR holds the capability).
+ *
  * This is the canonical commission-access resolver.
  */
+export interface CommissionAccess {
+  context: SessionContext
+  organization: OrganizationRef
+  commission: { id: string; name: string; slug: string; hospitalId: string | null }
+  role: CommissionRole | null
+  /** The caller's granted Administrativo capabilities in this commission (ADR
+   * 0061). `[]` for a coordinator (they hold every capability implicitly — gate
+   * via {@link canInCommission}, not this array) and when the flag is OFF. */
+  capabilities: MemberCapability[]
+  /** Whether the caller is an appointed Administrativo of this commission (ADR
+   * 0061). `false` when the flag is OFF. Independent of `capabilities` — an
+   * Administrativo may hold zero capabilities. */
+  isAdministrativo: boolean
+}
+
 export const getCommissionAccessByOrg = cache(
   async (
     orgSlug: string,
     commissionSlug: string,
-  ): Promise<{
-    context: SessionContext
-    organization: OrganizationRef
-    commission: { id: string; name: string; slug: string; hospitalId: string | null }
-    role: CommissionRole | null
-  } | null> => {
+  ): Promise<CommissionAccess | null> => {
     return getCommissionAccessByOrgUncached(orgSlug, commissionSlug)
   },
 )
@@ -363,12 +383,7 @@ export const getCommissionAccessByOrg = cache(
 async function getCommissionAccessByOrgUncached(
   orgSlug: string,
   commissionSlug: string,
-): Promise<{
-  context: SessionContext
-  organization: OrganizationRef
-  commission: { id: string; name: string; slug: string; hospitalId: string | null }
-  role: CommissionRole | null
-} | null> {
+): Promise<CommissionAccess | null> {
   const context = await getSessionContext()
   if (!context) {
     return null
@@ -423,7 +438,46 @@ async function getCommissionAccessByOrgUncached(
   const role: CommissionRole | null =
     memberRole ?? (isCommAdmin ? 'staff_admin' : null)
 
-  return { context, organization, commission, role }
+  // Administrativo standing (ADR 0061), flag-aware. The self arm of the SELECT
+  // policies returns the caller's own rows; we still filter to (commission, self)
+  // explicitly. When the flag is OFF, the rows may exist but confer nothing (the
+  // kill switch), so short-circuit to false/[] — matching app.member_can.
+  let capabilities: MemberCapability[] = []
+  let isAdministrativo = false
+  if (await featureEnabled('administrativo')) {
+    const [{ data: apptRow }, { data: capRows }] = await Promise.all([
+      supabase
+        .from('commission_administrativos')
+        .select('user_id')
+        .eq('commission_id', commission.id)
+        .eq('user_id', context.userId)
+        .maybeSingle(),
+      supabase
+        .from('commission_administrativo_capabilities')
+        .select('capability')
+        .eq('commission_id', commission.id)
+        .eq('user_id', context.userId)
+        .returns<{ capability: MemberCapability }[]>(),
+    ])
+    isAdministrativo = apptRow !== null
+    capabilities = (capRows ?? []).map((r) => r.capability)
+  }
+
+  return { context, organization, commission, role, capabilities, isAdministrativo }
+}
+
+/**
+ * Whether the caller may perform an Administrativo-gated action in a commission
+ * (ADR 0061): a coordinator (staff_admin, which the resolver also assigns to
+ * commission-admins) implicitly holds every capability; otherwise the caller must
+ * hold the specific capability. The single seam the UI gates every delegated
+ * affordance through — mirrors the DB gate `is_staff_admin_of OR member_can`.
+ */
+export function canInCommission(
+  access: Pick<CommissionAccess, 'role' | 'capabilities'>,
+  capability: MemberCapability,
+): boolean {
+  return access.role === 'staff_admin' || access.capabilities.includes(capability)
 }
 
 /**

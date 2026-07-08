@@ -86,6 +86,7 @@ const MESSAGES = {
   outcomeRequired: 'Selecione um desfecho antes de concluir o caso.',
   phasesUnsettled: 'Conclua ou marque todas as fases antes de concluir o caso.',
   caseCreated: 'Caso criado com sucesso.',
+  caseMetaSaved: 'Caso atualizado com sucesso.',
   phaseActivated: 'Fase ativada e atribuída.',
   phaseSkipped: 'Fase marcada como não necessária.',
   adHocAdded: 'Fase adicional incluída.',
@@ -105,6 +106,7 @@ const MESSAGES = {
 } as const
 
 const PG_CHECK_VIOLATION = '23514'
+const PG_INSUFFICIENT_PRIVILEGE = '42501'
 // Custom SQLSTATE class HC0xx (Hospital Commission). Renumbered from P00xx in
 // migration 20260613090009 so PostgREST 14 returns 400 + JSON {code,message}
 // (an unknown class) rather than a 500 that drops the body for non-ASCII
@@ -216,6 +218,8 @@ function mapCaseError(error: { code?: string; message?: string } | null): string
       return error.message || MESSAGES.commissionMismatch
     case PG_CHECK_VIOLATION:
       return error.message || MESSAGES.generic
+    case PG_INSUFFICIENT_PRIVILEGE:
+      return MESSAGES.forbidden
     default:
       return MESSAGES.generic
   }
@@ -360,11 +364,13 @@ export async function createCaseFromTemplate(
   }
 
   const supabase = await createClient()
+  // Existence/readability check only. The `create_case_from_template` RPC is the SOLE
+  // authority (coordinator/commission-admin OR a `create_cases` Administrativo, ADR 0061);
+  // a coordinator-only `authorizeCommission` pre-gate here shadowed the widened RPC and
+  // rejected Administrativos before it (BUG-ADM-001). An unauthorized caller still gets a
+  // clean pt-BR error via the RPC's `42501` → `MESSAGES.forbidden` (mapCaseError).
   const commissionId = await commissionOfTemplate(supabase, templateId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingTemplate }
-  if (!(await authorizeCommission(commissionId))) {
-    return { ok: false, error: MESSAGES.forbidden }
-  }
 
   const { data, error } = await supabase.rpc('create_case_from_template', {
     p_template_id: templateId,
@@ -431,10 +437,10 @@ export async function createCase(
     return { ok: false, fieldErrors: { departmentId: MESSAGES.departmentBoth } }
   }
 
-  if (!(await authorizeCommission(commissionId))) {
-    return { ok: false, error: MESSAGES.forbidden }
-  }
-
+  // The `create_case` RPC is the SOLE authority (coordinator/commission-admin OR a
+  // `create_cases` Administrativo, ADR 0061); a coordinator-only `authorizeCommission`
+  // pre-gate here shadowed the widened RPC and rejected Administrativos before it
+  // (BUG-ADM-001). Refusal still returns a clean pt-BR error via `42501` → forbidden.
   const supabase = await createClient()
   const { data, error } = await supabase.rpc('create_case', {
     p_commission_id: commissionId,
@@ -463,6 +469,52 @@ export async function createCase(
 }
 
 /**
+ * Edit a case's META — its non-identifying `label` and its `department` (a managed
+ * department id OR the "Outro" custom value). The SINGLE audited edit path for both
+ * coordinators AND `create_cases` Administrativos (ADR 0061): it routes through the
+ * `update_case_meta` DEFINER RPC, which is the authority — it self-gates
+ * (coordinator/commission-admin, OR an Administrativo with `create_cases` behind the
+ * flag), blocks a terminal case (HC025 → pt-BR), re-validates department shape +
+ * hospital ownership, and touches ONLY `label`/`department_*` (never status / outcome
+ * / closed / PHI). We deliberately do NOT pre-check authority here (the coordinator
+ * `authorizeCommission` would wrongly reject the capability arm) — the RPC's 42501 is
+ * mapped to a clean pt-BR "forbidden".
+ *
+ * FULL-REPLACE semantics: the RPC SETS label + department unconditionally, so the
+ * dialog is PREFILLED with the current values and submits the complete desired state;
+ * an empty label / unspecified department clears that field. Fields: `caseId`,
+ * `label?`, and exactly one of `departmentId` / `departmentOther` (both empty = none).
+ */
+export async function updateCaseMeta(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const caseId = String(formData.get('caseId') ?? '')
+  const label = String(formData.get('label') ?? '').trim()
+
+  if (!caseId) return { ok: false, error: MESSAGES.missingCase }
+
+  const department = departmentFromForm(formData)
+  if (department === 'invalid') {
+    return { ok: false, fieldErrors: { departmentId: MESSAGES.departmentBoth } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('update_case_meta', {
+    p_case_id: caseId,
+    // Empty → undefined → the RPC clears it (nullif(btrim(null),'')). Non-empty sets it.
+    p_label: label || undefined,
+    p_department_id: department.departmentId ?? undefined,
+    p_department_other: department.departmentOther ?? undefined,
+  })
+
+  if (error) return { ok: false, error: mapCaseError(error) }
+
+  revalidateCases()
+  return { ok: true, error: MESSAGES.caseMetaSaved }
+}
+
+/**
  * Activate a pending phase and assign it. Fields: `casePhaseId`, `assignedTo`.
  * Guards (→ pt-BR): all earlier phases concluded/skipped (P0018), the phase is
  * pendente (P0019), the case is open (P0020), the assignee is a member (P0021).
@@ -484,11 +536,13 @@ export async function activatePhase(
   }
 
   const supabase = await createClient()
+  // Existence/readability check only. `activate_phase` is the SOLE authority
+  // (coordinator/commission-admin OR an `assign_case_phases` Administrativo, ADR 0061);
+  // a coordinator-only `authorizeCommission` pre-gate here shadowed the widened DEFINER
+  // RPC and rejected Administrativos before it (BUG-ADM-001). Refusal still returns a
+  // clean pt-BR error via `42501` → `MESSAGES.forbidden`.
   const ctx = await contextOfPhase(supabase, casePhaseId)
   if (!ctx) return { ok: false, error: MESSAGES.missingPhase }
-  if (!(await authorizeCommission(ctx.commissionId))) {
-    return { ok: false, error: MESSAGES.forbidden }
-  }
 
   const { error } = await supabase.rpc('activate_phase', {
     p_case_phase_id: casePhaseId,
@@ -596,11 +650,13 @@ export async function reassignPhase(
   }
 
   const supabase = await createClient()
+  // Existence/readability check only. `reassign_phase` is the SOLE authority
+  // (coordinator/commission-admin OR an `assign_case_phases` Administrativo, ADR 0061);
+  // a coordinator-only `authorizeCommission` pre-gate here shadowed the widened DEFINER
+  // RPC and rejected Administrativos before it (BUG-ADM-001). Refusal still returns a
+  // clean pt-BR error via `42501` → `MESSAGES.forbidden`.
   const ctx = await contextOfPhase(supabase, casePhaseId)
   if (!ctx) return { ok: false, error: MESSAGES.missingPhase }
-  if (!(await authorizeCommission(ctx.commissionId))) {
-    return { ok: false, error: MESSAGES.forbidden }
-  }
 
   const { error } = await supabase.rpc('reassign_phase', {
     p_case_phase_id: casePhaseId,

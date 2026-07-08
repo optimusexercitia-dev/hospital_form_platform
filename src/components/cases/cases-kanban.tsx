@@ -31,12 +31,15 @@ function CaseCard({
   org,
   slug,
   index,
+  staffCaseRoute,
 }: {
   row: CaseBoardRow;
   /** Org slug for hrefs. */
   org: string;
   slug: string;
   index: number;
+  /** Link to the staff case route (ADR 0061); see {@link CasesKanban}. */
+  staffCaseRoute: boolean;
 }) {
   const color = TOKEN_COLOR_VAR[CASE_STATUS_META[row.case.status].colorToken];
   const { done, total } = phaseProgress(row);
@@ -46,7 +49,11 @@ function CaseCard({
 
   return (
     <Link
-      href={commissionHref(org, slug, "manage", "cases", row.case.id)}
+      href={
+        staffCaseRoute
+          ? commissionHref(org, slug, "casos", row.case.id)
+          : commissionHref(org, slug, "manage", "cases", row.case.id)
+      }
       style={{
         borderLeftColor: color,
         ["--rise-delay" as string]: `${Math.min(index, 8) * 40}ms`,
@@ -132,11 +139,15 @@ export function CasesKanban({
   org,
   rows,
   slug,
+  staffCaseRoute = false,
 }: {
   /** Org slug for hrefs. */
   org: string;
   rows: CaseBoardRow[];
   slug: string;
+  /** Link cards to the staff case route (`casos/[id]`) for a non-coordinator
+   * `create_cases` Administrativo (ADR 0061). Default `false`. */
+  staffCaseRoute?: boolean;
 }) {
   const columns = useMemo(() => groupByFixedStatus(rows), [rows]);
 
@@ -171,7 +182,14 @@ export function CasesKanban({
                 </p>
               ) : (
                 items.map((row, i) => (
-                  <CaseCard key={row.case.id} row={row} org={org} slug={slug} index={i} />
+                  <CaseCard
+                    key={row.case.id}
+                    row={row}
+                    org={org}
+                    slug={slug}
+                    index={i}
+                    staffCaseRoute={staffCaseRoute}
+                  />
                 ))
               )}
             </div>

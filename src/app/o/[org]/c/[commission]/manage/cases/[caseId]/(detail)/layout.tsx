@@ -17,7 +17,10 @@ import {
   CaseStatusBadgeFixed,
 } from "@/components/cases/case-status-badge";
 import { CaseLifecycleActions } from "@/components/cases/case-lifecycle-actions";
+import { EditCaseMetaDialog } from "@/components/cases/edit-case-meta-dialog";
 import { CaseAccessButton } from "@/components/cases/case-access-button";
+import { listDepartmentsForHospital } from "@/lib/hospitals/departments";
+import type { Department } from "@/lib/hospitals/departments";
 import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
 import { CaseTabs } from "@/components/cases/case-tabs";
 import { formatCaseNumber, formatDate } from "@/components/cases/format";
@@ -106,11 +109,19 @@ export default async function CaseDetailLayout({
   // the non-archived types, `[]` being valid — inline "Criar novo tipo" covers it).
   let narrativesOn = false;
   let narrativeTypes: { id: string; label: string }[] = [];
+  // The hospital's ACTIVE departments seed the edit-meta dialog's "Unidade / setor"
+  // dropdown (ADR 0061); loaded only when the case is open (the affordance is
+  // open-only). A commission with no hospital → `[]` (the "Outros" value still works).
+  let departments: Department[] = [];
   if (isOpen) {
-    const [forms, narrativesEnabledResult] = await Promise.all([
+    const [forms, narrativesEnabledResult, deps] = await Promise.all([
       listForms(access.commission.id),
       narrativesEnabled(),
+      access.commission.hospitalId
+        ? listDepartmentsForHospital(access.commission.hospitalId)
+        : Promise.resolve<Department[]>([]),
     ]);
+    departments = deps;
     narrativesOn = narrativesEnabledResult;
     assignees = sortedMembers.map((m) => ({
       userId: m.userId,
@@ -201,6 +212,19 @@ export default async function CaseDetailLayout({
                   detail={detail}
                   grants={accessGrants}
                   caseOpen={isOpen}
+                />
+              )}
+              {/* Edit META (label + department) — the single audited edit door
+                  (ADR 0061). Open-only (a terminal case is frozen, HC025). Reachable
+                  today by coordinators; when the affordance-gating batch relaxes this
+                  route to admit `create_cases` Administrativos, they use the same RPC. */}
+              {isOpen && (
+                <EditCaseMetaDialog
+                  caseId={c.id}
+                  currentLabel={c.label}
+                  currentDepartmentId={c.departmentId}
+                  currentDepartmentOther={c.departmentOther}
+                  departments={departments}
                 />
               )}
               {isOpen && (

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
 import { listSignoffQueue } from "@/lib/queries/signoffs";
 import { SignoffQueueList } from "@/components/signoffs/signoff-queue-list";
 import type { SignoffQueueRow } from "@/components/signoffs/types";
@@ -11,16 +11,16 @@ export const metadata: Metadata = {
 };
 
 /**
- * The staff_admin "pendentes de assinatura" queue (F1): in_progress responses
- * of this commission that have a VISIBLE, unsigned, `staff_admin`-role sign-off
- * section awaiting the coordinator's signature.
+ * The "pendentes de assinatura" queue (F1): in_progress responses of this
+ * commission that have a VISIBLE, unsigned, `staff_admin`-role sign-off section
+ * awaiting the coordinator's signature.
  *
- * Access is gated HERE on the server in addition to RLS: only a `staff_admin` of
- * this commission OR a global admin may reach it. Everyone else (staff of this
- * commission, members of another commission, unknown slug) gets `notFound()` — a
- * 404 that reveals nothing, mirroring `manage/members`. The queue data itself is
- * served by a narrow, `is_staff_admin_of`-gated SECURITY DEFINER read (B1/B2),
- * so RLS remains the boundary for the rows.
+ * Access is gated HERE on the server in addition to RLS: a `staff_admin` of this
+ * commission / a global admin — OR (ADR 0061) an Administrativo holding
+ * `view_signoffs`, who sees the queue READ-ONLY (they observe; only a coordinator
+ * signs). Everyone else gets `notFound()` — a 404 that reveals nothing. The queue
+ * data is served by the narrow `list_signoff_queue` DEFINER read, which gained the
+ * matching `view_signoffs` arm, so RLS remains the boundary for the rows.
  */
 export default async function SignoffQueuePage({
   params,
@@ -31,10 +31,14 @@ export default async function SignoffQueuePage({
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  // Unknown/inaccessible slug, or a caller who is neither coordinator nor admin.
-  if (!access || access.role !== "staff_admin") {
+  // Unknown/inaccessible slug, or a caller who is neither coordinator, admin, nor a
+  // `view_signoffs` Administrativo.
+  if (!access || !canInCommission(access, "view_signoffs")) {
     notFound();
   }
+
+  // Only a coordinator may sign; a `view_signoffs` holder observes (drives copy).
+  const canSign = access.role === "staff_admin";
 
   // Adapter point: map B2's `SignoffQueueItem[]` to the client list's prop shape
   // (this is the single place that absorbs the queue contract). pt-BR fallbacks
@@ -61,9 +65,9 @@ export default async function SignoffQueuePage({
         </p>
         <h1 className="text-3xl text-balance">Assinaturas pendentes</h1>
         <p className="max-w-prose text-muted-foreground text-pretty">
-          Respostas em andamento que aguardam a sua assinatura para que possam
-          ser enviadas. Abra uma resposta para revisar o conteúdo e assinar as
-          seções sob sua responsabilidade.
+          {canSign
+            ? "Respostas em andamento que aguardam a sua assinatura para que possam ser enviadas. Abra uma resposta para revisar o conteúdo e assinar as seções sob sua responsabilidade."
+            : "Respostas em andamento que aguardam a assinatura da coordenação. Você pode acompanhar a fila; a assinatura é feita pela coordenação."}
         </p>
       </header>
 

@@ -108,11 +108,15 @@ export function CasesTable({
   rows,
   org,
   slug,
+  staffCaseRoute = false,
 }: {
   rows: CaseBoardRow[];
   /** Org slug for hrefs. */
   org: string;
   slug: string;
+  /** Link rows to the staff case route (`casos/[id]`) instead of `manage/cases/[id]`
+   * — for a non-coordinator `create_cases` Administrativo (ADR 0061). Default `false`. */
+  staffCaseRoute?: boolean;
 }) {
   const router = useRouter();
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
@@ -209,7 +213,9 @@ export function CasesTable({
             </tr>
           ) : (
             sorted.map((row) => {
-              const href = commissionHref(org, slug, "manage", "cases", row.case.id);
+              const href = staffCaseRoute
+                ? commissionHref(org, slug, "casos", row.case.id)
+                : commissionHref(org, slug, "manage", "cases", row.case.id);
               const cp = currentPhase(row);
               const actives = activePhases(row);
               return (

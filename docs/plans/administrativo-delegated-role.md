@@ -1,11 +1,12 @@
 # Plan / Handoff — "Administrativo" delegated-capability role (per commission)
 
-> **Status:** DESIGNED, not started. This is a machine-to-machine handoff — everything
-> needed to implement is here; no re-exploration required. Feature ships behind an
-> **OFF-by-default** flag (`administrativo`). Not yet gated by the Phase process; treat as
-> a self-contained feature phase. **ADR:
-> [0061](../decisions/0061-administrativo-delegated-role.md)** (proposed — advance to
-> accepted/implemented at the phase gate).
+> **Status:** ✅ IMPLEMENTED (2026-07-08) behind the OFF-by-default `administrativo`
+> flag — pgTAP 45/45, Administrativo E2E 10/10, full regression clean, QA APPROVED
+> ([review](../reviews/administrativo-review.md)). Migrations
+> `20260714000000–000300`; deferred items in §9 stand. Remote `supabase db push` is the
+> only remaining step (user-authorized). **ADR:
+> [0061](../decisions/0061-administrativo-delegated-role.md)** (accepted/implemented).
+> The rest of this doc is the original machine-to-machine handoff, retained for reference.
 >
 > **How to resume:** read §1–§3 for the *what/why*, §4 (Ground-truth object map) for the
 > exact code locations, then execute §5 (backend) → §6 (frontend) → §7 (tests) in the order

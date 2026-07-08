@@ -1939,3 +1939,27 @@ begin
   perform set_config('app.in_controlled_docs_rpc', 'off', true);
   perform set_config('request.jwt.claims', '', true);
 end $cd$;
+
+-- ---------------------------------------------------------------------------
+-- Administrativo delegation (ADR 0061). staff2.ccih (…04), a plain staff member
+-- of commission A (CCIH), is appointed Administrativo with ALL FOUR capabilities
+-- so the manager UI + E2E have a ready persona. Seeded via DIRECT INSERT (the seed
+-- runs as the RLS-exempt owner, bypassing the guarded DEFINER doors + the internal
+-- auth.uid() gates, which is null in seed context). The `administrativo` feature
+-- flag stays OFF (seeded false by the migration) — app.member_can is flag-aware, so
+-- these grants stay DORMANT until the flag is flipped ON for manual verification /
+-- E2E. The audit triggers fire and record the appointment + grants.
+-- ---------------------------------------------------------------------------
+insert into public.commission_administrativos (commission_id, user_id, appointed_by)
+values ('a0000000-0000-0000-0000-0000000000a1',   -- CCIH (commission A)
+        '00000000-0000-0000-0000-000000000004',   -- staff2.ccih (plain staff of A)
+        '00000000-0000-0000-0000-000000000002')   -- appointed by chefe.ccih (coordinator)
+on conflict (commission_id, user_id) do nothing;
+
+insert into public.commission_administrativo_capabilities (commission_id, user_id, capability, granted_by)
+select 'a0000000-0000-0000-0000-0000000000a1',
+       '00000000-0000-0000-0000-000000000004',
+       cap,
+       '00000000-0000-0000-0000-000000000002'
+from unnest(array['schedule_meetings', 'create_cases', 'assign_case_phases', 'view_signoffs']) as cap
+on conflict (commission_id, user_id, capability) do nothing;

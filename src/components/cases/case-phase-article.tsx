@@ -34,6 +34,7 @@ export function CasePhaseArticle({
   assignees,
   isOpen,
   canManageLifecycle = true,
+  canAssignPhases = false,
   canCorrectResult = false,
   resultOptions = [],
 }: {
@@ -45,8 +46,12 @@ export function CasePhaseArticle({
   allPhases: DetailPhase[];
   assignees: AssigneeOption[];
   isOpen: boolean;
-  /** Whether the viewer may run phase lifecycle (ADR 0033); default `true`. */
+  /** Whether the viewer may run coordinator lifecycle (skip + deep-link; ADR 0033);
+   * default `true`. */
   canManageLifecycle?: boolean;
+  /** Whether the viewer may ACTIVATE / REASSIGN a phase (coordinator OR an
+   * `assign_case_phases` Administrativo, ADR 0061). Default `false`. */
+  canAssignPhases?: boolean;
   /**
    * Whether the viewer may CORRECT this phase's result post-conclusion
    * (phase-results feature; task #10): resolved at the page level as
@@ -134,6 +139,7 @@ export function CasePhaseArticle({
         assignees={assignees}
         isOpen={isOpen}
         canManageLifecycle={canManageLifecycle}
+        canAssignPhases={canAssignPhases}
       />
 
       {showCorrect && (
