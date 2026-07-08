@@ -150,8 +150,13 @@ export default async function CaseDetailLayout({
           <ArrowLeft aria-hidden="true" className="size-4" />
           Casos
         </Link>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 flex-col gap-1.5">
+        {/* `sm:flex-wrap` + a title-block flex-basis keep the header from collapsing:
+            the action cluster is `shrink-0`, so without a basis the `min-w-0` title
+            column shrank to width 0 (title/label/department wrapped one word per line)
+            whenever the cluster's buttons filled the row. With a 16rem basis + grow the
+            title claims the row and the cluster wraps beneath it when space is tight. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+          <div className="flex min-w-0 flex-col gap-1.5 sm:grow sm:basis-64">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-3xl text-balance">
                 {formatCaseNumber(c.caseNumber)}

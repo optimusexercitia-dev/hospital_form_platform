@@ -538,13 +538,21 @@ select is(
 );
 reset role;
 
--- ---- 26) list_cases_board returns empty for a non-staff_admin (plain staff) --
-select test_helpers.claims_for((select st_x from k), false);
+-- ---- 26) list_cases_board leaks nothing across the commission read boundary --
+-- ADR 0061 widened list_cases_board from a coordinator-ONLY gate to a per-row
+-- app.can_read_case filter (a coordinator still sees the whole board; anyone else
+-- sees only cases they can already read). This file runs with case_access OFF, where
+-- can_read_case degrades to is_member_of, so a plain MEMBER of commission X (e.g.
+-- st_x, here also a phase assignee) now legitimately sees X's board — that is the
+-- documented flag-OFF "boundary does not bite" behavior, not a leak. The residual
+-- guard is the cross-commission boundary: a NON-member (st_y, commission Y) must
+-- still get an empty board from list_cases_board(comm_x).
+select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 select is(
   (select count(*)::int from public.list_cases_board((select comm_x from k))),
   0,
-  'list_cases_board (definer, is_staff_admin_of-gated) returns nothing to plain staff'
+  'list_cases_board (can_read_case-gated per ADR 0061) leaks nothing to a cross-commission non-member'
 );
 reset role;
 

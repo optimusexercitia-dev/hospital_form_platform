@@ -84,6 +84,40 @@ The **Form-Builder Enhancements batch** (ad-hoc, out-of-phase) completed the Pha
 pushed to remote. Full detail archived → [adjustments-batch.md](docs/progress/adjustments-batch.md).
 **Next pre-pilot phase: 16 — Standards Crosswalk & Readiness/Gap Engine** (builds 3rd per ADR 0057).
 
+**Base-branch failure triage (2026-07-08, lead)** — 6 tests inherited RED on `feat/meeting-held-time`
+(cut from `main` after the `feat/administrativo-role` merge `1010f07`), all UNRELATED to `held_at`
+(reproduced with the held_at working tree stashed out). Each reproduced in ISOLATION on a fresh
+`supabase db reset` (chromium, `--workers=1`); pgTAP on a fresh reset. Findings + fixes:
+- **`hospital-departments.spec.ts:252` (AC-3) — REAL app regression (frontend layout), FIXED.** The
+  coordinator case-detail header text column (`min-w-0`, no flex-basis) collapsed to **width 0** when
+  the `shrink-0` action cluster's buttons filled the row → title/label/department wrapped one word per
+  line (Playwright reads the 0-width box as `hidden`). Fix: `sm:flex-wrap` on the header container +
+  `sm:grow sm:basis-64` on the title block in `…/manage/cases/[caseId]/(detail)/layout.tsx`. Verified
+  live desktop+mobile; `hospital-departments` **6/6** green. (Latent from the departments/extra-buttons
+  work in the Form-Builder batch.)
+- **`case-phase-result.spec.ts:707` (AC-3) — test-locator fragility, FIXED (spec).** `getByText(/Manual/i)
+  .first()` matched case 3's header LABEL `Caso CPR-SPEC — Override (Manual)` (hidden by the same layout
+  collapse) instead of the result pill. Fix: `getByText('Manual', { exact: true })` targets the actual
+  `PhaseResultBadge`. App pill always rendered correctly; `case-phase-result` **9/9** green.
+- **`administrativo.spec.ts:680` (KBD) — environment/spec portability, FIXED (spec).** `Control+a` is the
+  macOS "move caret to line start" binding (not select-all), so the field wasn't cleared → new label
+  concatenated onto the old. Fix: `ControlOrMeta+a` (⌘A on darwin, Ctrl elsewhere). Passes.
+- **`case-access.spec.ts:297` (AC-2) — flaky/full-suite artifact, NO fix.** Passes **3/3** in isolation on
+  fresh reset; code review confirms no administrativo-role path grants staff4 read of Caso 0001 or a
+  Meus Casos row (no grant/attribution/appointment; `administrativo` flag OFF). Full-suite failure = the
+  known local-GoTrue reset/login rate-limit or cross-spec DB mutation.
+- **pgTAP `90_cases` t33 — NOT a regression, FIXED (test).** ADR-0061 widened `list_cases_board` from a
+  coordinator-only gate to a per-row `can_read_case` filter; this file runs with `case_access` OFF where
+  `can_read_case` degrades to `is_member_of`, so plain member `st_x` (also a phase-1 assignee) now sees
+  the board — the documented flag-OFF behavior, not a leak. Retargeted the assertion to a cross-commission
+  non-member (`st_y` → empty board), the residual boundary that still holds.
+- **pgTAP `184_hospital_admin_isolation` t15 — stale assertion, FIXED (test).** Commit `9e12ce8` expanded
+  default member titles 3→5 and updated pgTAP `186` but missed `184`'s `= 3`. Updated to `= 5`. Both
+  pgTAP files green (90_cases 35/35, 184 25/25).
+
+Net app change: 1 file (`(detail)/layout.tsx`, additive Tailwind only). Spec/test changes: `administrativo`,
+`case-phase-result`, `90_cases`, `184_hospital_admin_isolation`. `case-access` unchanged.
+
 ---
 
 _Prior phase context:_ Phase 17 (Controlled-Document Lifecycle) completed 2026-07-06 — full detail archived to

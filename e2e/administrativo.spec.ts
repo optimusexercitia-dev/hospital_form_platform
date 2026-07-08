@@ -700,10 +700,14 @@ test('KBD keyboard-only: edit-meta dialog is fully keyboard-operable for an Admi
   await expect(dialog).toBeVisible({ timeout: 5_000 })
 
   // Focus the Descrição field, clear + type a new value (keyboard-only).
+  // Use `ControlOrMeta` for select-all so this stays keyboard-only AND portable:
+  // on macOS a bare `Control+a` is the OS "move caret to line start" binding (not
+  // select-all), which left the old label partially intact; ControlOrMeta maps to
+  // Meta (⌘A) on darwin and Control elsewhere.
   const labelInput = dialog.locator('#edit-case-label')
   await labelInput.focus()
   await expect(labelInput).toBeFocused()
-  await labelInput.press('Control+a')
+  await labelInput.press('ControlOrMeta+a')
   await labelInput.press('Delete')
   const newLabel = `Editado por teclado ${Date.now()}`
   await page.keyboard.type(newLabel)

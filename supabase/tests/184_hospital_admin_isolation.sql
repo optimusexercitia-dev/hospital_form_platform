@@ -82,8 +82,8 @@ select is(
   0, 'RLS PROOF: ha1 reads ZERO cases of the other-org commission');
 -- member titles (the new vocab; display-only but still commission-scoped read)
 select ok(
-  (select count(*)::int from public.commission_member_titles where commission_id = (select comm_ccih from p)) = 3,
-  'RLS: ha1 reads CCIH member titles (3 auto-seeded)');
+  (select count(*)::int from public.commission_member_titles where commission_id = (select comm_ccih from p)) = 5,
+  'RLS: ha1 reads CCIH member titles (5 auto-seeded)');
 select is(
   (select count(*)::int from public.commission_member_titles where commission_id = (select comm_etica from p)),
   0, 'RLS PROOF: ha1 reads ZERO member titles of the sibling-hospital commission');

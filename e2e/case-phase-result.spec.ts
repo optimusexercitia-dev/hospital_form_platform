@@ -741,9 +741,12 @@ test('AC-3: pre-conclusion override → badge "Não-conforme" + "Manual" pill (c
       .first(),
   ).toBeVisible({ timeout: 12_000 })
 
-  // "Manual" pill must be visible
+  // "Manual" pill must be visible. Match the pill EXACTLY: case 3's label is
+  // "Caso CPR-SPEC — Override (Manual)", so a loose /Manual/i also matches the
+  // (hidden) case-title paragraph and `.first()` would resolve to it instead of
+  // the PhaseResultBadge pill, whose own span text is exactly "Manual".
   await expect(
-    page.getByText(/Manual/i).first(),
+    page.getByText('Manual', { exact: true }).first(),
   ).toBeVisible({ timeout: 8_000 })
 })
 
