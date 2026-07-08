@@ -693,10 +693,15 @@ test('RoleBadge renders "Coordenação" for a seeded staff_admin in the member r
   // Verify it is NOT the "Membro" badge text.
   await expect(coordBadge).not.toHaveText(/membro/i)
 
-  // staff1.ccih@test.local must be in the list with the "Membro" badge.
+  // staff1.ccih@test.local must be in the list, but — per the intentional
+  // product change — a plain-staff row shows NO role badge (the "Membro" pill
+  // was removed; only the coordinator keeps the "Coordenação" pill).
   const staffRow = memberList.locator('li').filter({ hasText: /staff1\.ccih/i })
   await expect(staffRow).toBeVisible()
-  const memberBadge = staffRow.locator('span').filter({ hasText: /membro/i })
-  await expect(memberBadge).toBeVisible()
-  await expect(memberBadge).not.toHaveText(/coordena[çc]ão/i)
+  // No "Membro" RoleBadge span. Anchor the matcher to the exact badge text
+  // "Membro" (the RoleBadge renders textContent "Membro", uppercased via CSS)
+  // so it does NOT accidentally match TitleBadge spans like "Membro Efetivo" /
+  // "Membro Consultivo".
+  const memberBadge = staffRow.locator('span').filter({ hasText: /^Membro$/ })
+  await expect(memberBadge).toHaveCount(0)
 })

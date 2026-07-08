@@ -99,7 +99,9 @@ export function MemberList({
                   memberName={displayName}
                 />
               ) : null}
-              <RoleBadge role={member.role} />
+              {member.role === "staff_admin" ? (
+                <RoleBadge role={member.role} />
+              ) : null}
               {administrativoEnabled && isAppointed ? (
                 <span className="inline-flex shrink-0 items-center rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                   Administrativo
