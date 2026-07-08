@@ -19,16 +19,17 @@ create temp table p on commit drop as select
 grant select on p to authenticated;
 
 -- ============================================================================
--- §1: auto-seed — every commission got Presidente/Vice-Presidente/Secretário(a)
+-- §1: auto-seed — every commission got Presidente/Vice-Presidente/Secretário(a)/
+--     Membro Efetivo/Membro Consultivo (five defaults)
 -- ============================================================================
 select is(
   (select count(*)::int from public.commission_member_titles where commission_id = (select comm_ccih from p)),
-  3, 'AUTO-SEED: CCIH has 3 default titles');
+  5, 'AUTO-SEED: CCIH has 5 default titles');
 select bag_eq(
   $$select name from public.commission_member_titles
     where commission_id = 'a0000000-0000-0000-0000-0000000000a1' order by position$$,
-  $$values ('Presidente'),('Vice-Presidente'),('Secretário(a)')$$,
-  'AUTO-SEED: the three default title names are Presidente/Vice-Presidente/Secretário(a)');
+  $$values ('Presidente'),('Vice-Presidente'),('Secretário(a)'),('Membro Efetivo'),('Membro Consultivo')$$,
+  'AUTO-SEED: the five default title names are Presidente/Vice-Presidente/Secretário(a)/Membro Efetivo/Membro Consultivo');
 
 -- A freshly-created commission auto-seeds too (the sibling AFTER-INSERT trigger).
 do $$
@@ -42,7 +43,7 @@ end $$;
 select is(
   (select count(*)::int from public.commission_member_titles
    where commission_id = current_setting('test186.new_comm')::uuid),
-  3, 'AUTO-SEED: a newly-created commission auto-seeds 3 titles');
+  5, 'AUTO-SEED: a newly-created commission auto-seeds 5 titles');
 
 -- ============================================================================
 -- §2: CRUD authz — staff_admin manages; plain staff cannot
