@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   CalendarCheck,
   CheckCircle2,
@@ -20,6 +20,8 @@ import {
   distributeMeeting,
   markMeetingHeld,
   reopenMeeting,
+  type ActionState,
+  type MeetingHeldWindow,
 } from "@/lib/meetings/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,6 +38,7 @@ import {
 import { useMeetingAction } from "./use-meeting-action";
 import { isEditableStatus, isTerminalMeetingStatus } from "./meeting-labels";
 import { MeetingFormDialog } from "./meeting-form-dialog";
+import { HeldWindowFields, useHeldWindowState } from "./held-window-fields";
 
 /**
  * Staff_admin lifecycle controls in the meeting detail header. Which actions
@@ -96,7 +99,8 @@ export function MeetingLifecycleActions({
       )}
 
       {canMarkHeld && (
-        <ConfirmActionButton
+        <HeldTransitionButton
+          meeting={meeting}
           trigger={
             <Button type="button" variant="outline" size="lg">
               <CalendarCheck aria-hidden="true" />
@@ -106,12 +110,13 @@ export function MeetingLifecycleActions({
           title="Marcar a reunião como realizada?"
           description="A reunião passará para “Realizada”. Você poderá registrar a ata, a pauta e a presença antes de enviá-la para assinatura. A reunião continua editável."
           confirmLabel="Marcar como realizada"
-          action={() => markMeetingHeld(meeting.id)}
+          action={(held) => markMeetingHeld(meeting.id, held)}
         />
       )}
 
       {canConclude && (
-        <ConfirmActionButton
+        <HeldTransitionButton
+          meeting={meeting}
           trigger={
             <Button type="button" size="lg">
               <CheckCircle2 aria-hidden="true" />
@@ -121,7 +126,7 @@ export function MeetingLifecycleActions({
           title="Concluir a reunião?"
           description="A reunião passará para “Em assinatura”. O quórum será calculado e registrado, os casos vinculados serão lançados nas suas linhas do tempo, e a ata, a pauta e os participantes ficarão bloqueados para edição. É necessário ao menos um participante presente."
           confirmLabel="Concluir reunião"
-          action={() => concludeMeeting(meeting.id)}
+          action={(held) => concludeMeeting(meeting.id, held)}
         />
       )}
 
@@ -185,6 +190,81 @@ export function MeetingLifecycleActions({
         meeting={meeting}
       />
     </div>
+  );
+}
+
+/**
+ * The "Marcar como realizada" / "Concluir" transition (F2, ADR 0062). Like
+ * {@link ConfirmActionButton} but the dialog body captures the actual-occurrence
+ * window (`held_at` / `held_end`), defaulted to the schedule and clearable. The
+ * captured window is passed to `action`; a cleared start sends `null`.
+ */
+function HeldTransitionButton({
+  meeting,
+  trigger,
+  title,
+  description,
+  confirmLabel,
+  action,
+}: {
+  meeting: MeetingDetail;
+  trigger: React.ReactNode;
+  title: string;
+  description: string;
+  confirmLabel: string;
+  action: (held: MeetingHeldWindow) => Promise<ActionState>;
+}) {
+  const { run, isPending, error } = useMeetingAction();
+  const { start, setStart, end, setEnd, held } = useHeldWindowState(meeting);
+  const fieldsetId = useId();
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+
+        <fieldset
+          aria-labelledby={fieldsetId}
+          className="rounded-xl border border-border bg-muted/30 p-4"
+        >
+          <legend id={fieldsetId} className="px-1 text-sm font-medium">
+            Realização
+          </legend>
+          <HeldWindowFields
+            start={start}
+            onStartChange={setStart}
+            end={end}
+            onEndChange={setEnd}
+            scheduledStart={meeting.scheduledStart}
+            disabled={isPending}
+          />
+        </fieldset>
+
+        {error && (
+          <p role="alert" className="text-sm font-medium text-destructive">
+            {error}
+          </p>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={isPending}>Voltar</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={isPending}
+            onClick={(e) => {
+              // Prevent the auto-close so a failed action keeps the error (and
+              // the entered window) visible; success unmounts this via refresh.
+              e.preventDefault();
+              run(() => action(held));
+            }}
+          >
+            {confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

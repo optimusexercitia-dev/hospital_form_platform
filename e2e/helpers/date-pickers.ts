@@ -39,7 +39,7 @@ import { expect, type Locator, type Page } from '@playwright/test'
 export async function pickDate(
   scope: Locator | Page,
   page: Page,
-  opts: { trigger?: Locator; day?: string } = {},
+  opts: { trigger?: Locator; day?: string; monthsBack?: number } = {},
 ): Promise<void> {
   // Both Locator and Page expose `.locator(...)`, so resolve the trigger uniformly.
   const trigger =
@@ -49,6 +49,25 @@ export async function pickDate(
 
   const grid = page.getByRole('grid')
   await expect(grid).toBeVisible({ timeout: 5_000 })
+
+  // Navigate to a prior month when the caller needs a day guaranteed to be in the
+  // PAST (e.g. a `held_at` that must not be in the future regardless of today's
+  // day-of-month). react-day-picker's "previous month" nav carries a pt-BR /
+  // English aria-label; try the accessible name first, then a fallback.
+  const monthsBack = opts.monthsBack ?? 0
+  for (let i = 0; i < monthsBack; i++) {
+    const prevBtn = page
+      .getByRole('button', { name: /mês anterior|previous month|anterior/i })
+      .first()
+    if (await prevBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      await prevBtn.click()
+    } else {
+      await page
+        .locator('button[aria-label*="previous" i], button[name="previous-month"]')
+        .first()
+        .click()
+    }
+  }
 
   const dayText = opts.day ?? '15'
   // Day cells are buttons whose visible text is the day-of-month. Match exactly.
@@ -155,6 +174,21 @@ export async function pickDateKeyboard(
 }
 
 /**
+ * Resolve the field CONTAINER for a `DateTimePicker` identified by its `<label>`
+ * text. The `<label htmlFor=…>` and the picker are SIBLINGS inside a wrapper
+ * <div>, so the DatePicker button + TimeField group are NOT descendants of the
+ * label — they share the label's parent. Scope to that parent (`xpath=..`) so
+ * `button[aria-haspopup="dialog"]` and the "Hora" group resolve unambiguously.
+ */
+export function fieldContainer(dialog: Locator, labelText: string): Locator {
+  return dialog
+    .locator('label')
+    .filter({ hasText: labelText })
+    .first()
+    .locator('xpath=..')
+}
+
+/**
  * Genuinely keyboard-only `DateTimePicker` fill (date via the calendar keyboard
  * model, time by typing the digits into the focused segments). For the keyboard
  * AC flows. Sets DATE first, then TIME (controlled-mode ordering).
@@ -165,7 +199,7 @@ export async function setDateTimeFieldKeyboard(
   labelText: string,
   opts: { time?: string } = {},
 ): Promise<void> {
-  const field = dialog.locator('label').filter({ hasText: labelText }).first()
+  const field = fieldContainer(dialog, labelText)
   await expect(field).toBeVisible({ timeout: 5_000 })
   const dateTrigger = field.locator('button[aria-haspopup="dialog"]').first()
   await pickDateKeyboard(dateTrigger, page)
@@ -192,16 +226,20 @@ export async function setDateTimeField(
   page: Page,
   dialog: Locator,
   labelText: string,
-  opts: { time?: string; day?: string } = {},
+  opts: { time?: string; day?: string; monthsBack?: number } = {},
 ): Promise<void> {
-  // The DateTimePicker lives inside a <label> whose first span is `labelText`.
-  // Scope to that label so the DatePicker button + TimeField group are unambiguous.
-  const field = dialog.locator('label').filter({ hasText: labelText }).first()
+  // The label and the DateTimePicker are SIBLINGS; scope to their shared parent
+  // so the DatePicker button + TimeField group are reachable and unambiguous.
+  const field = fieldContainer(dialog, labelText)
   await expect(field).toBeVisible({ timeout: 5_000 })
 
   // 1) Date via the DatePicker popover.
   const dateTrigger = field.locator('button[aria-haspopup="dialog"]').first()
-  await pickDate(field, page, { trigger: dateTrigger, day: opts.day })
+  await pickDate(field, page, {
+    trigger: dateTrigger,
+    day: opts.day,
+    monthsBack: opts.monthsBack,
+  })
 
   // 2) Time via the segmented TimeField (aria-label "Hora").
   const timeGroup = field.getByRole('group', { name: /^Hora$/i }).first()

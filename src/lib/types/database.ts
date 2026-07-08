@@ -3755,6 +3755,8 @@ export type Database = {
           created_by: string | null
           distributed_at: string | null
           eligible_member_count: number | null
+          held_at: string | null
+          held_end: string | null
           id: string
           location_text: string | null
           meeting_number: number
@@ -3784,6 +3786,8 @@ export type Database = {
           created_by?: string | null
           distributed_at?: string | null
           eligible_member_count?: number | null
+          held_at?: string | null
+          held_end?: string | null
           id?: string
           location_text?: string | null
           meeting_number: number
@@ -3813,6 +3817,8 @@ export type Database = {
           created_by?: string | null
           distributed_at?: string | null
           eligible_member_count?: number | null
+          held_at?: string | null
+          held_end?: string | null
           id?: string
           location_text?: string | null
           meeting_number?: number
@@ -6696,6 +6702,8 @@ export type Database = {
           created_by: string | null
           distributed_at: string | null
           eligible_member_count: number | null
+          held_at: string | null
+          held_end: string | null
           id: string
           location_text: string | null
           meeting_number: number
@@ -6977,7 +6985,7 @@ export type Database = {
         }
       }
       conclude_meeting: {
-        Args: { p_meeting_id: string }
+        Args: { p_held_at?: string; p_held_end?: string; p_meeting_id: string }
         Returns: {
           cancelled_at: string | null
           commission_id: string
@@ -6987,6 +6995,8 @@ export type Database = {
           created_by: string | null
           distributed_at: string | null
           eligible_member_count: number | null
+          held_at: string | null
+          held_end: string | null
           id: string
           location_text: string | null
           meeting_number: number
@@ -7449,6 +7459,8 @@ export type Database = {
           created_by: string | null
           distributed_at: string | null
           eligible_member_count: number | null
+          held_at: string | null
+          held_end: string | null
           id: string
           location_text: string | null
           meeting_number: number
@@ -7835,6 +7847,8 @@ export type Database = {
           created_by: string | null
           distributed_at: string | null
           eligible_member_count: number | null
+          held_at: string | null
+          held_end: string | null
           id: string
           location_text: string | null
           meeting_number: number
@@ -8164,7 +8178,7 @@ export type Database = {
         }
       }
       mark_meeting_held: {
-        Args: { p_meeting_id: string }
+        Args: { p_held_at?: string; p_held_end?: string; p_meeting_id: string }
         Returns: {
           cancelled_at: string | null
           commission_id: string
@@ -8174,6 +8188,8 @@ export type Database = {
           created_by: string | null
           distributed_at: string | null
           eligible_member_count: number | null
+          held_at: string | null
+          held_end: string | null
           id: string
           location_text: string | null
           meeting_number: number
@@ -8768,6 +8784,8 @@ export type Database = {
           created_by: string | null
           distributed_at: string | null
           eligible_member_count: number | null
+          held_at: string | null
+          held_end: string | null
           id: string
           location_text: string | null
           meeting_number: number
@@ -9244,6 +9262,46 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_meeting_held_window: {
+        Args: { p_held_at: string; p_held_end?: string; p_meeting_id: string }
+        Returns: {
+          cancelled_at: string | null
+          commission_id: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          distributed_at: string | null
+          eligible_member_count: number | null
+          held_at: string | null
+          held_end: string | null
+          id: string
+          location_text: string | null
+          meeting_number: number
+          meeting_type_id: string | null
+          meeting_url: string | null
+          minutes_md: string | null
+          modality: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
+          present_count: number | null
+          quorum_met: boolean | null
+          quorum_rule_type: string | null
+          quorum_value: number | null
+          scheduled_end: string | null
+          scheduled_start: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "meetings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_meeting_quorum_met: {
         Args: { p_meeting_id: string; p_quorum_met: boolean }
         Returns: {
@@ -9255,6 +9313,8 @@ export type Database = {
           created_by: string | null
           distributed_at: string | null
           eligible_member_count: number | null
+          held_at: string | null
+          held_end: string | null
           id: string
           location_text: string | null
           meeting_number: number
@@ -10273,6 +10333,8 @@ export type Database = {
           created_by: string | null
           distributed_at: string | null
           eligible_member_count: number | null
+          held_at: string | null
+          held_end: string | null
           id: string
           location_text: string | null
           meeting_number: number
@@ -10366,6 +10428,8 @@ export type Database = {
           created_by: string | null
           distributed_at: string | null
           eligible_member_count: number | null
+          held_at: string | null
+          held_end: string | null
           id: string
           location_text: string | null
           meeting_number: number

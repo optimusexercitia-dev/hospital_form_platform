@@ -2,6 +2,7 @@ import { commissionHref } from "@/lib/routing";
 import Link from "next/link";
 import {
   ArrowLeft,
+  CalendarCheck,
   CalendarClock,
   ExternalLink,
   MapPin,
@@ -14,6 +15,7 @@ import type {
 } from "@/lib/queries/meetings";
 import { MeetingStatusBadge, MeetingTypeChip } from "./meeting-badges";
 import { MeetingLifecycleActions } from "./meeting-lifecycle-actions";
+import { MeetingHeldEdit } from "./meeting-held-edit";
 import { MODALITY_LABEL } from "./meeting-labels";
 import { formatMeetingNumber, formatSchedule } from "./format";
 
@@ -41,6 +43,12 @@ export function MeetingHeader({
 }) {
   const remote =
     meeting.modality === "remoto" || meeting.modality === "hibrido";
+
+  // The occurrence window (ADR 0062) is CORRECTABLE only while `realizada` AND
+  // by a coordinator (product decision — the server rejects edits thereafter,
+  // requiring "Reabrir a reunião"). Once concluded it is read-only; we still
+  // surface it when recorded so the occurrence time stays visible.
+  const canEditHeld = isCoordinator && meeting.status === "realizada";
 
   return (
     <header className="flex flex-col gap-4">
@@ -71,8 +79,18 @@ export function MeetingHeader({
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
             <span className="inline-flex items-center gap-1.5 tabular-nums">
               <CalendarClock aria-hidden="true" className="size-4" />
-              {formatSchedule(meeting.scheduledStart, meeting.scheduledEnd)}
+              Agendada: {formatSchedule(meeting.scheduledStart, meeting.scheduledEnd)}
             </span>
+            {canEditHeld ? (
+              <MeetingHeldEdit meeting={meeting} />
+            ) : (
+              meeting.heldAt && (
+                <span className="inline-flex items-center gap-1.5 tabular-nums">
+                  <CalendarCheck aria-hidden="true" className="size-4" />
+                  Realizada em: {formatSchedule(meeting.heldAt, meeting.heldEnd)}
+                </span>
+              )
+            )}
             <span className="inline-flex items-center gap-1.5">
               {remote ? (
                 <Video aria-hidden="true" className="size-4" />

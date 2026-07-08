@@ -121,6 +121,15 @@ export interface MeetingDetail extends MeetingListItem {
   presentCount: number | null
   /** `count(commission_members)` SNAPSHOT at conclusion; `null` before. */
   eligibleMemberCount: number | null
+  /**
+   * ISO timestamp the meeting ACTUALLY occurred (start), captured at the
+   * `→ realizada` transition and correctable while `realizada` (ADR 0062).
+   * Distinct from the schedule (`scheduledStart`) and from `concludedAt`
+   * ("ata sent to signature"). `null` = not recorded (never backfilled).
+   */
+  heldAt: string | null
+  /** ISO timestamp the meeting actually ended (optional real-duration end); `null` if not recorded. */
+  heldEnd: string | null
   /** ISO timestamp the meeting was concluded (→ `em_assinatura`); `null` if not concluded. */
   concludedAt: string | null
   /** User who concluded the meeting; `null` if not concluded. */
@@ -317,6 +326,8 @@ interface MeetingDetailRow extends MeetingRow {
   quorum_value: number | null
   present_count: number | null
   eligible_member_count: number | null
+  held_at: string | null
+  held_end: string | null
   concluded_at: string | null
   concluded_by: string | null
   distributed_at: string | null
@@ -616,7 +627,8 @@ export async function getMeetingDetail(
     .select(
       `${MEETING_LIST_COLUMNS},
        minutes_md, quorum_rule_type, quorum_value, present_count,
-       eligible_member_count, concluded_at, concluded_by, distributed_at, cancelled_at`,
+       eligible_member_count, held_at, held_end, concluded_at, concluded_by,
+       distributed_at, cancelled_at`,
     )
     .eq('id', meetingId)
     .maybeSingle<MeetingDetailRow>()
@@ -640,6 +652,8 @@ export async function getMeetingDetail(
     quorumValue: data.quorum_value,
     presentCount: data.present_count,
     eligibleMemberCount: data.eligible_member_count,
+    heldAt: data.held_at,
+    heldEnd: data.held_end,
     concludedAt: data.concluded_at,
     concludedBy: data.concluded_by,
     distributedAt: data.distributed_at,

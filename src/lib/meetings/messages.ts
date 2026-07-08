@@ -22,6 +22,10 @@ export const HC_CANNOT_CONCLUDE = 'HC034'
 export const HC_ALREADY_SIGNED = 'HC035'
 export const HC_NOT_ENTITLED_TO_SIGN = 'HC036'
 export const HC_NOT_ENTITLED_ACTION_ITEM = 'HC037'
+// HC081–HC083 are NEW for the actual-occurrence window (ADR 0062).
+export const HC_HELD_END_BEFORE_START = 'HC081' // held_end < held_at
+export const HC_HELD_AT_IN_FUTURE = 'HC082' // held_at > now()
+export const HC_HELD_EDIT_WRONG_STATE = 'HC083' // set_meeting_held_window off `realizada`
 
 /** Generic Postgres SQLSTATEs the meetings RPCs/policies may surface. */
 export const PG_CHECK_VIOLATION = '23514'
@@ -85,10 +89,17 @@ export const MEETING_MESSAGES = {
   notEntitledActionItem: 'Você não pode alterar este item de ação.',
   assigneeNotMember: 'O responsável deve ser membro da comissão.',
 
+  // Actual-occurrence window (mapped from HC081–HC083, ADR 0062)
+  heldEndBeforeStart: 'O término da realização não pode ser anterior ao início.',
+  heldAtInFuture: 'A data e hora de realização não podem estar no futuro.',
+  heldEditWrongState:
+    'A data de realização só pode ser alterada enquanto a reunião está “Realizada”. Reabra a reunião para editá-la.',
+
   // Success
   meetingCreated: 'Reunião agendada com sucesso.',
   meetingUpdated: 'Reunião atualizada.',
   meetingHeld: 'Reunião marcada como realizada.',
+  heldWindowUpdated: 'Data/hora de realização atualizada.',
   meetingConcluded: 'Reunião concluída. A ata está pronta para assinatura.',
   meetingReopened: 'Reunião reaberta. As assinaturas foram revogadas.',
   meetingDistributed: 'Ata distribuída.',
@@ -141,6 +152,12 @@ export function mapMeetingError(
       return error.message || MEETING_MESSAGES.notEntitledActionItem
     case HC_ASSIGNEE_NOT_MEMBER:
       return error.message || MEETING_MESSAGES.assigneeNotMember
+    case HC_HELD_END_BEFORE_START:
+      return error.message || MEETING_MESSAGES.heldEndBeforeStart
+    case HC_HELD_AT_IN_FUTURE:
+      return error.message || MEETING_MESSAGES.heldAtInFuture
+    case HC_HELD_EDIT_WRONG_STATE:
+      return error.message || MEETING_MESSAGES.heldEditWrongState
     case PG_FORBIDDEN:
       return MEETING_MESSAGES.forbidden
     case PG_NO_DATA_FOUND:

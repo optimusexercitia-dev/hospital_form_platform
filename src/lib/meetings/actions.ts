@@ -256,16 +256,92 @@ async function runLifecycle(
 }
 
 /**
+ * The `held`-capturing lifecycle transitions (ADR 0062): `mark_meeting_held` and
+ * `conclude_meeting` are broken OUT of {@link runLifecycle} because they carry
+ * the actual-occurrence window as extra params (F1). Same staff_admin authz +
+ * flag + pt-BR mapping; `held` is optional (omit = legacy no-data), and a
+ * null/absent `heldAt` is forwarded as `null` (allow-null, fill-later).
+ */
+async function runHeldTransition(
+  meetingId: string,
+  rpc: 'mark_meeting_held' | 'conclude_meeting',
+  successMessage: string,
+  held?: MeetingHeldWindow,
+): Promise<ActionState> {
+  if (!meetingId) return { ok: false, error: MEETING_MESSAGES.missingMeeting }
+  if (!(await meetingsEnabled())) {
+    return { ok: false, error: MEETING_MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const commissionId = await commissionOfMeeting(supabase, meetingId)
+  if (!commissionId) return { ok: false, error: MEETING_MESSAGES.missingMeeting }
+  if (!(await authorizeCommission(commissionId))) {
+    return { ok: false, error: MEETING_MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc(
+    rpc,
+    heldArgs(meetingId, held?.heldAt ?? null, held?.heldEnd ?? null),
+  )
+  if (error) return { ok: false, error: mapMeetingError(error) }
+
+  revalidateMeetings()
+  return { ok: true, error: successMessage }
+}
+
+/**
+ * Build the RPC args for the held-window RPCs, forwarding an explicit JSON
+ * `null` when a value is cleared (allow-null, ADR 0062). The generated Args
+ * types model `p_held_at`/`p_held_end` as optional `string` (supabase-js does
+ * not emit nullable RPC params), but the RPCs accept SQL NULL at runtime; this
+ * cast is the single, contained place that reconciles that gap so callers stay
+ * clean and `p_meeting_id` keeps its exact type.
+ */
+function heldArgs(
+  meetingId: string,
+  heldAt: string | null,
+  heldEnd: string | null,
+): { p_meeting_id: string; p_held_at?: string; p_held_end?: string } {
+  return {
+    p_meeting_id: meetingId,
+    // `null` is intentional (not `undefined`): it CLEARS the stored value.
+    p_held_at: heldAt as string | undefined,
+    p_held_end: heldEnd as string | undefined,
+  }
+}
+
+/**
+ * Actual-occurrence window (ADR 0062). ISO 8601 strings (from a
+ * `datetime-local` input, serialized to timestamptz) or `null` = not recorded.
+ * `heldAt` may be null at the transition (allow-null, fill-later); the server
+ * validates `heldEnd >= heldAt` and `heldAt <= now()` (HC081 / HC082).
+ */
+export interface MeetingHeldWindow {
+  /** When the meeting actually started; `null` = not recorded now. */
+  heldAt: string | null
+  /** When the meeting actually ended (optional); `null` if not recorded. */
+  heldEnd?: string | null
+}
+
+/**
  * Mark a scheduled meeting as held (`agendada → realizada`), the explicit step
  * into the `realizada` resting state (e.g. to record discussion/attendance over
  * several sessions before sending the ata to signature). staff_admin-only.
  * `concludeMeeting` still accepts `agendada` directly as a one-step shortcut.
+ *
+ * ADR 0062: optionally captures the actual-occurrence window (`held`) in the
+ * same transition. Omit `held` to preserve the legacy no-data behaviour.
  */
-export async function markMeetingHeld(meetingId: string): Promise<ActionState> {
-  return runLifecycle(
+export async function markMeetingHeld(
+  meetingId: string,
+  held?: MeetingHeldWindow,
+): Promise<ActionState> {
+  return runHeldTransition(
     meetingId,
     'mark_meeting_held',
     MEETING_MESSAGES.meetingHeld,
+    held,
   )
 }
 
@@ -274,13 +350,59 @@ export async function markMeetingHeld(meetingId: string): Promise<ActionState> {
  * present attendee (HC034), snapshots the quorum rule + counts, writes a
  * `case_events` row per linked case, and locks the minutes/agenda/attendees/
  * case-links. staff_admin-only.
+ *
+ * ADR 0062: optionally captures the actual-occurrence window (`held`); `concluded_at`
+ * (ata → signature) stays `now()` and is unaffected.
  */
-export async function concludeMeeting(meetingId: string): Promise<ActionState> {
-  return runLifecycle(
+export async function concludeMeeting(
+  meetingId: string,
+  held?: MeetingHeldWindow,
+): Promise<ActionState> {
+  return runHeldTransition(
     meetingId,
     'conclude_meeting',
     MEETING_MESSAGES.meetingConcluded,
+    held,
   )
+}
+
+/**
+ * Correct the actual-occurrence window (`held_at` / `held_end`) of a meeting
+ * AFTER the transition. ADR 0062 + product decision: allowed ONLY while
+ * `status = 'realizada'`; a concluded meeting (`em_assinatura`+) is frozen and
+ * must be reopened (`reopenMeeting`) first. Writes ONLY `held_*` (never the
+ * schedule). staff_admin-only; validation HC081 (heldEnd < heldAt) / HC082
+ * (heldAt in future) / HC083 (wrong status). RPC `set_meeting_held_window`.
+ */
+export async function setMeetingHeldWindow(
+  meetingId: string,
+  held: MeetingHeldWindow,
+): Promise<ActionState> {
+  if (!meetingId) return { ok: false, error: MEETING_MESSAGES.missingMeeting }
+  if (!(await meetingsEnabled())) {
+    return { ok: false, error: MEETING_MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const commissionId = await commissionOfMeeting(supabase, meetingId)
+  if (!commissionId) return { ok: false, error: MEETING_MESSAGES.missingMeeting }
+  if (!(await authorizeCommission(commissionId))) {
+    return { ok: false, error: MEETING_MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('set_meeting_held_window', {
+    p_meeting_id: meetingId,
+    // `held_at` may be cleared to record "not held yet" (allow-null, ADR 0062).
+    // The generated Args type marks `p_held_at` required `string`, but the RPC
+    // accepts SQL NULL at runtime; forward `null` (never `undefined`, which
+    // would drop the param) via a contained cast.
+    p_held_at: (held.heldAt ?? null) as string,
+    p_held_end: (held.heldEnd ?? null) as string | undefined,
+  })
+  if (error) return { ok: false, error: mapMeetingError(error) }
+
+  revalidateMeetings()
+  return { ok: true, error: MEETING_MESSAGES.heldWindowUpdated }
 }
 
 /**
