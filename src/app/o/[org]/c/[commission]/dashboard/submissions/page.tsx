@@ -1,5 +1,6 @@
 import { commissionHref } from "@/lib/routing";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Inbox } from "lucide-react";
@@ -7,13 +8,12 @@ import { ArrowLeft, Inbox } from "lucide-react";
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
   listSubmissions,
-  listSubmissionFilterMembers,
-  listSubmissionFilterForms,
   type SubmissionFilters,
 } from "@/lib/queries/submissions";
-import { SubmissionsFilters } from "@/components/dashboard/submissions-filters";
+import { SubmissionsFiltersAsync } from "@/components/dashboard/submissions-filters-async";
 import { SubmissionRow } from "@/components/dashboard/submission-row";
 import { CursorPagination } from "@/components/shared/cursor-pagination";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
   title: "Respostas enviadas",
@@ -43,9 +43,8 @@ export default async function SubmissionsPage({
     cursor?: string;
   }>;
 }) {
-  const { org, commission } = await params;
+  const [{ org, commission }, sp] = await Promise.all([params, searchParams]);
   const slug = commission;
-  const sp = await searchParams;
   const access = await getCommissionAccessByOrg(org, commission);
 
   if (!access || access.role !== "staff_admin") {
@@ -61,11 +60,14 @@ export default async function SubmissionsPage({
     includeInProgress,
   };
 
-  const [{ rows, nextCursor }, members, forms] = await Promise.all([
-    listSubmissions(access.commission.id, filters, { cursor: sp.cursor }),
-    listSubmissionFilterMembers(access.commission.id),
-    listSubmissionFilterForms(access.commission.id),
-  ]);
+  // The row list is the primary content; the member/form dropdown population
+  // is a secondary read streamed independently below (Suspense) so it never
+  // blocks the list's first paint (frontend-audit-2026-07 #2).
+  const { rows, nextCursor } = await listSubmissions(
+    access.commission.id,
+    filters,
+    { cursor: sp.cursor },
+  );
 
   return (
     <div className="flex flex-col gap-8">
@@ -89,15 +91,16 @@ export default async function SubmissionsPage({
         </div>
       </header>
 
-      <SubmissionsFilters
-        members={members}
-        forms={forms}
-        member={sp.member ?? null}
-        form={sp.form ?? null}
-        from={sp.from ?? null}
-        to={sp.to ?? null}
-        includeInProgress={includeInProgress}
-      />
+      <Suspense fallback={<Skeleton className="h-28 w-full rounded-2xl" />}>
+        <SubmissionsFiltersAsync
+          commissionId={access.commission.id}
+          member={sp.member ?? null}
+          form={sp.form ?? null}
+          from={sp.from ?? null}
+          to={sp.to ?? null}
+          includeInProgress={includeInProgress}
+        />
+      </Suspense>
 
       {rows.length === 0 ? (
         <EmptyState />

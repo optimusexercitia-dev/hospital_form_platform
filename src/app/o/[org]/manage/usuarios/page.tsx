@@ -38,8 +38,11 @@ export default async function OrgUsersPage({
   params: Promise<{ org: string }>;
   searchParams: Promise<{ search?: string; page?: string; hospital?: string }>;
 }) {
-  const { org } = await params;
-  const context = await getSessionContext();
+  const [{ org }, context, sp] = await Promise.all([
+    params,
+    getSessionContext(),
+    searchParams,
+  ]);
   const orgAdminEntry = context?.orgAdminOf.find(
     (o) => o.organization.slug === org,
   );
@@ -56,7 +59,6 @@ export default async function OrgUsersPage({
   const isOrgAdmin = Boolean(orgAdminEntry);
   const hospitals = isOrgAdmin ? [] : adminedHospitals(context, organization.id);
 
-  const sp = await searchParams;
   const search = sp.search?.trim() ?? "";
   const pageNum = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
   // A hospital_admin MUST have a selected hospital (defaults to the first).

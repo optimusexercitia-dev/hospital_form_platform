@@ -137,6 +137,17 @@ export function OptionsEditor({
 }) {
   const groupId = useId();
 
+  // Stable, client-only row identity (frontend audit #8) — independent of the
+  // row's position in `options`, so `key` and the label/score/analytics/flagged
+  // input ids survive add/remove/reorder instead of being recycled across
+  // logical options. Kept as a parallel array (same length/order as `options`,
+  // synced by every mutation below); never spliced into `ItemOption` itself, so
+  // it can never leak into the DB payload (submission reads named fields off
+  // `cleanOptions`, not this array — see item-editor-dialog.tsx).
+  const [rowKeys, setRowKeys] = useState<string[]>(() =>
+    options.map(() => crypto.randomUUID()),
+  );
+
   // The reserved "Outros" row is backend-managed and never author-editable — hide
   // it entirely so it is never rendered, reordered, deleted, or emitted. All edit
   // handlers below operate on the FULL `options` array by the ORIGINAL index, so
@@ -145,21 +156,23 @@ export function OptionsEditor({
     .map((option, index) => ({ option, index }))
     .filter(({ option }) => !option.isOther);
 
-  // Per-row "Opções" (metadata) disclosure. Keyed by the row's original index;
-  // a row whose metadata is already set opens expanded. Seeded lazily once.
-  const [expanded, setExpanded] = useState<Set<number>>(() => {
-    const initial = new Set<number>();
+  // Per-row "Opções" (metadata) disclosure. Keyed by the row's stable client-side
+  // id (not its index — see `rowKeys` above) so the panel stays attached to the
+  // logical option across reorders; a row whose metadata is already set opens
+  // expanded. Seeded lazily once.
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
     options.forEach((option, index) => {
-      if (!option.isOther && hasMetadata(option)) initial.add(index);
+      if (!option.isOther && hasMetadata(option)) initial.add(rowKeys[index]);
     });
     return initial;
   });
 
-  function toggleExpanded(index: number) {
+  function toggleExpanded(rowKey: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
+      if (next.has(rowKey)) next.delete(rowKey);
+      else next.add(rowKey);
       return next;
     });
   }
@@ -223,6 +236,7 @@ export function OptionsEditor({
 
   function removeAt(index: number) {
     onChange(options.filter((_, i) => i !== index));
+    setRowKeys((prev) => prev.filter((_, i) => i !== index));
   }
 
   /** Move a row up/down among the NON-reserved rows. `visibleIndex` is the
@@ -236,10 +250,16 @@ export function OptionsEditor({
     const next = options.slice();
     [next[a], next[b]] = [next[b], next[a]];
     onChange(next);
+    setRowKeys((prev) => {
+      const nextKeys = prev.slice();
+      [nextKeys[a], nextKeys[b]] = [nextKeys[b], nextKeys[a]];
+      return nextKeys;
+    });
   }
 
   function add() {
     onChange([...options, blankOption(options.length)]);
+    setRowKeys((prev) => [...prev, crypto.randomUUID()]);
   }
 
   return (
@@ -255,15 +275,19 @@ export function OptionsEditor({
       ) : (
         <ul className="flex flex-col gap-2">
           {rows.map(({ option, index }, visibleIndex) => {
-            const inputId = `${groupId}-option-${index}`;
-            const scoreId = `${groupId}-option-${index}-score`;
-            const analyticsId = `${groupId}-option-${index}-analytics`;
-            const flaggedId = `${groupId}-option-${index}-flagged`;
+            // Stable client-side row identity (frontend audit #8) — not the
+            // array index, so focus/labels/the metadata panel stay attached to
+            // the logical option across add/remove/reorder.
+            const rowKey = rowKeys[index] ?? String(index);
+            const inputId = `${groupId}-option-${rowKey}`;
+            const scoreId = `${groupId}-option-${rowKey}-score`;
+            const analyticsId = `${groupId}-option-${rowKey}-analytics`;
+            const flaggedId = `${groupId}-option-${rowKey}-flagged`;
             const position = visibleIndex + 1;
-            const isOpen = expanded.has(index);
+            const isOpen = expanded.has(rowKey);
             return (
               <li
-                key={index}
+                key={rowKey}
                 className="flex flex-col gap-2 rounded-lg border border-border/70 bg-background/40 p-2.5"
               >
                 <div className="flex items-center gap-2">
@@ -292,7 +316,7 @@ export function OptionsEditor({
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => toggleExpanded(index)}
+                      onClick={() => toggleExpanded(rowKey)}
                       aria-expanded={isOpen}
                       aria-controls={`${inputId}-options`}
                       aria-label={

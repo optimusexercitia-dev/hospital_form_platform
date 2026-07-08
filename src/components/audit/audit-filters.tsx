@@ -1,10 +1,11 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Download, X } from "lucide-react";
 
 import type { AuditFilterActor } from "@/lib/queries/audit";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -103,6 +104,7 @@ export function AuditFilters({
   const fromId = useId();
   const toId = useId();
   const commissionFieldId = useId();
+  const [isPending, startTransition] = useTransition();
 
   // Any filter change resets pagination to page 1 (the old page may not exist
   // under the new, smaller result set).
@@ -114,11 +116,15 @@ export function AuditFilters({
       next.delete(key);
     }
     next.delete("page");
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    });
   }
 
   function clearAll() {
-    router.replace(pathname, { scroll: false });
+    startTransition(() => {
+      router.replace(pathname, { scroll: false });
+    });
   }
 
   const hasAnyFilter = Boolean(
@@ -140,7 +146,13 @@ export function AuditFilters({
   })();
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-xs">
+    <div
+      className={cn(
+        "flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-xs transition-opacity duration-200",
+        isPending && "opacity-60",
+      )}
+      aria-busy={isPending}
+    >
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={actorId}>Autor</Label>
@@ -148,6 +160,7 @@ export function AuditFilters({
             id={actorId}
             value={actor ?? ""}
             onChange={(e) => setParam("actor", e.target.value)}
+            disabled={isPending}
             className="min-w-44"
           >
             <option value="">Todos os autores</option>
@@ -168,6 +181,7 @@ export function AuditFilters({
             id={actionId}
             value={action ?? ""}
             onChange={(e) => setParam("action", e.target.value)}
+            disabled={isPending}
             className="min-w-44"
           >
             <option value="">Todas as ações</option>
@@ -185,6 +199,7 @@ export function AuditFilters({
             id={entityId}
             value={entity ?? ""}
             onChange={(e) => setParam("entity", e.target.value)}
+            disabled={isPending}
             className="min-w-44"
           >
             <option value="">Todos os tipos</option>
@@ -203,6 +218,7 @@ export function AuditFilters({
               id={commissionFieldId}
               value={commission ?? ""}
               onChange={(e) => setParam("commission", e.target.value)}
+              disabled={isPending}
               className="min-w-44"
             >
               <option value="">Todas as comissões</option>
@@ -222,6 +238,7 @@ export function AuditFilters({
             value={from ?? ""}
             onChange={(v) => setParam("from", v)}
             max={to ?? undefined}
+            disabled={isPending}
             className="w-auto"
           />
         </div>
@@ -233,6 +250,7 @@ export function AuditFilters({
             value={to ?? ""}
             onChange={(v) => setParam("to", v)}
             min={from ?? undefined}
+            disabled={isPending}
             className="w-auto"
           />
         </div>
@@ -247,7 +265,13 @@ export function AuditFilters({
 
         <div className="flex flex-wrap items-center gap-2">
           {hasAnyFilter && (
-            <Button type="button" variant="ghost" size="sm" onClick={clearAll}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={clearAll}
+              disabled={isPending}
+            >
               <X aria-hidden="true" />
               Limpar filtros
             </Button>

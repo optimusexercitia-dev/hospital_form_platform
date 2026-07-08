@@ -30,13 +30,17 @@ export default async function PhaseResultsSettingsPage({
 }) {
   const { org, commission } = await params;
   const slug = commission;
-  const access = await getCommissionAccessByOrg(org, commission);
+
+  // The flag check doesn't depend on `access`, so run them concurrently.
+  const [access, flagOn] = await Promise.all([
+    getCommissionAccessByOrg(org, commission),
+    phaseResultsEnabled(),
+  ]);
 
   if (!access || access.role !== "staff_admin") {
     notFound();
   }
-
-  if (!(await phaseResultsEnabled())) {
+  if (!flagOn) {
     notFound();
   }
 

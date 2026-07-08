@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
-import { useReducedMotion } from "@/components/dashboard/use-reduced-motion";
+import { useReducedMotion } from "@/components/motion/use-reduced-motion";
 import {
   PDCA_META,
   PDCA_ORDER,

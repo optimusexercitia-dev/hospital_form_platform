@@ -59,16 +59,19 @@ export default async function NspPatientsPage({
   params: Promise<{ org: string }>;
   searchParams: Promise<{ entity?: string; hospital?: string }>;
 }) {
-  const { org } = await params;
-  const access = await getNspAccessByOrg(org);
-  if (!access) {
-    notFound();
-  }
-  if (!(await patientIndexEnabled())) {
+  const [{ org }, flagOn] = await Promise.all([params, patientIndexEnabled()]);
+  if (!flagOn) {
     notFound();
   }
 
-  const sp = await searchParams;
+  const [access, sp] = await Promise.all([
+    getNspAccessByOrg(org),
+    searchParams,
+  ]);
+  if (!access) {
+    notFound();
+  }
+
   // Resolve the selected hospital from `?hospital=` (defaults to the first grant).
   // The layout already established the caller operates ≥1 hospital, so this is
   // non-null; the search/audit doors re-gate on operating it server-side.

@@ -31,13 +31,16 @@ export default async function PhaseAnswersPage({
   params: Promise<{ org: string; commission: string; caseId: string; phaseId: string }>;
 }) {
   const { org, commission, caseId, phaseId } = await params;
-  const access = await getCommissionAccessByOrg(org, commission);
+
+  // Both reads depend only on path params, not on each other's results.
+  const [access, detail] = await Promise.all([
+    getCommissionAccessByOrg(org, commission),
+    getCaseDetail(caseId),
+  ]);
 
   if (!access || access.role !== "staff_admin") {
     notFound();
   }
-
-  const detail = await getCaseDetail(caseId);
   if (!detail || detail.case.commissionId !== access.commission.id) {
     notFound();
   }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { BarChart3 } from "lucide-react";
 
@@ -7,14 +8,12 @@ import {
   listDashboardForms,
   getFormDashboard,
 } from "@/lib/queries/dashboard";
-import { getCaseTagReport } from "@/lib/queries/case-tags";
-import { getIndicatorKpis } from "@/lib/queries/indicators";
-import { qualityIndicatorsEnabled } from "@/lib/queries/feature-flags";
 import { DashboardForms } from "@/components/dashboard/dashboard-forms";
-import { TagReportCard } from "@/components/dashboard/tag-report-card";
-import { IndicatorsPanel } from "@/components/indicators/indicators-panel";
+import { TagReportCardAsync } from "@/components/dashboard/tag-report-card-async";
+import { IndicatorsPanelAsync } from "@/components/indicators/indicators-panel-async";
 import { commissionHref } from "@/lib/routing";
 import { formatDueDate } from "@/components/cases/format";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const metadata: Metadata = {
   title: "Painel",
@@ -43,9 +42,9 @@ export default async function DashboardPage({
   params: Promise<{ org: string; commission: string }>;
   searchParams: Promise<{ form?: string; from?: string; to?: string }>;
 }) {
-  const { org, commission } = await params;
+  const [{ org, commission }, { form: formParam, from, to }] =
+    await Promise.all([params, searchParams]);
   const slug = commission;
-  const { form: formParam, from, to } = await searchParams;
   const access = await getCommissionAccessByOrg(org, commission);
 
   if (!access || access.role !== "staff_admin") {
@@ -57,18 +56,10 @@ export default async function DashboardPage({
 
   // Pass the active date window so the form-picker tab badges reflect the same
   // ?from/?to filter as the body headline (no all-time/filtered mismatch). The
-  // case tag report (R3) honours the same window (bounded on `cases.created_at`).
-  // The Indicadores panel (Phase 15, F6) shows only when the flag is on; its KPIs
-  // are all-time (a metric's latest status is period-independent).
-  const [forms, tagReport, indicatorsOn] = await Promise.all([
-    listDashboardForms(access.commission.id, range),
-    getCaseTagReport(access.commission.id, range),
-    qualityIndicatorsEnabled(),
-  ]);
-
-  const indicatorKpis = indicatorsOn
-    ? await getIndicatorKpis(access.commission.id)
-    : null;
+  // case tag report (R3) and the Indicadores panel (Phase 15, F6) are secondary
+  // blocks streamed independently below (Suspense) so they never block the
+  // primary chart's first paint (frontend-audit-2026-07 #2).
+  const forms = await listDashboardForms(access.commission.id, range);
 
   const rangeLabel =
     from && to
@@ -114,9 +105,9 @@ export default async function DashboardPage({
         />
       )}
 
-      {indicatorKpis ? (
-        <IndicatorsPanel
-          kpis={indicatorKpis}
+      <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
+        <IndicatorsPanelAsync
+          commissionId={access.commission.id}
           indicatorsHref={commissionHref(
             org,
             slug,
@@ -124,9 +115,15 @@ export default async function DashboardPage({
             "indicadores",
           )}
         />
-      ) : null}
+      </Suspense>
 
-      <TagReportCard rows={tagReport} rangeLabel={rangeLabel} />
+      <Suspense fallback={<Skeleton className="h-40 w-full rounded-2xl" />}>
+        <TagReportCardAsync
+          commissionId={access.commission.id}
+          range={range}
+          rangeLabel={rangeLabel}
+        />
+      </Suspense>
     </div>
   );
 }

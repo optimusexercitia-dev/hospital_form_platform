@@ -26,11 +26,14 @@ export default async function PendingApprovalsPage({
 }) {
   const { org } = await params;
 
-  if (!(await controlledDocsEnabled())) {
+  // Neither the flag check nor the session read depends on the other.
+  const [flagOn, context] = await Promise.all([
+    controlledDocsEnabled(),
+    getSessionContext(),
+  ]);
+  if (!flagOn) {
     notFound();
   }
-
-  const context = await getSessionContext();
   if (!context) {
     notFound();
   }

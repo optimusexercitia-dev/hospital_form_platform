@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { useReducedMotion } from "@/components/dashboard/use-reduced-motion";
+import { useReducedMotion } from "@/components/motion/use-reduced-motion";
 import { MeasurementStatusChip } from "@/components/indicators/indicator-format";
 import { formatPeriodLabel } from "@/components/indicators/indicator-format";
 import type {

@@ -43,10 +43,16 @@ export default async function PhaseResponderPage({
 }) {
   const { org, commission, caseId, phaseId, responseId } = await params;
   const slug = commission;
-  const access = await getCommissionAccessByOrg(org, commission);
+
+  // The three reads below only depend on path params, not on each other's
+  // results — fetch them concurrently instead of three sequential RTTs.
+  const [access, response, fill] = await Promise.all([
+    getCommissionAccessByOrg(org, commission),
+    getResponseForFill(responseId),
+    getCasePhaseForFill(phaseId),
+  ]);
   if (!access || access.role === null) notFound();
 
-  const response = await getResponseForFill(responseId);
   // null = not found OR not the caller's (RLS). Either way: 404.
   if (!response) notFound();
 
@@ -56,7 +62,6 @@ export default async function PhaseResponderPage({
   // Defend the path: confirm the phase is readable, belongs to the path's case,
   // and binds the same form as the loaded response — so a tampered case/phase id
   // can't dress up an unrelated response with the wrong case context.
-  const fill = await getCasePhaseForFill(phaseId);
   if (
     !fill ||
     fill.phase.caseId !== caseId ||

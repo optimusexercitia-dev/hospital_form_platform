@@ -1,10 +1,11 @@
 "use client";
 
 import { commissionHref } from "@/lib/routing";
-import { useId } from "react";
+import { useId, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Download, X } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -42,6 +43,7 @@ export function DashboardFilters({
   const searchParams = useSearchParams();
   const fromId = useId();
   const toId = useId();
+  const [isPending, startTransition] = useTransition();
 
   function setParam(key: "from" | "to", value: string) {
     const next = new URLSearchParams(searchParams.toString());
@@ -50,14 +52,18 @@ export function DashboardFilters({
     } else {
       next.delete(key);
     }
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    });
   }
 
   function clearRange() {
     const next = new URLSearchParams(searchParams.toString());
     next.delete("from");
     next.delete("to");
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    });
   }
 
   const hasRange = Boolean(from || to);
@@ -71,7 +77,13 @@ export function DashboardFilters({
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-xs sm:flex-row sm:items-end sm:justify-between">
-      <div className="flex flex-wrap items-end gap-3">
+      <div
+        className={cn(
+          "flex flex-wrap items-end gap-3 transition-opacity duration-200",
+          isPending && "opacity-60",
+        )}
+        aria-busy={isPending}
+      >
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={fromId}>De</Label>
           <DatePicker
@@ -79,6 +91,7 @@ export function DashboardFilters({
             value={from ?? ""}
             onChange={(v) => setParam("from", v)}
             max={to ?? undefined}
+            disabled={isPending}
             className="w-auto"
           />
         </div>
@@ -89,6 +102,7 @@ export function DashboardFilters({
             value={to ?? ""}
             onChange={(v) => setParam("to", v)}
             min={from ?? undefined}
+            disabled={isPending}
             className="w-auto"
           />
         </div>
@@ -98,6 +112,7 @@ export function DashboardFilters({
             variant="ghost"
             size="sm"
             onClick={clearRange}
+            disabled={isPending}
           >
             <X aria-hidden="true" />
             Limpar período

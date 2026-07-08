@@ -1,23 +1,26 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback } from "react";
 
-import { useReducedMotion } from "@/components/dashboard/use-reduced-motion";
+import { getMotionDurations, MOTION_EASE, type Gsap } from "@/components/motion/motion-tokens";
+import { RiseInGroup } from "@/components/motion/rise-in-group";
 
 /**
- * Best-effort entrance choreography for a timeline layout. Mirrors
- * `case-detail-motion.tsx`: renders a plain wrapper and, on mount (and on every
- * `view` change — the crossfade between Feed/Duration), staggers its motion
- * targets in via a dynamically-imported GSAP timeline. Decorative ONLY — the
- * natural (visible) state is the no-JS baseline, it bails under reduced-motion,
- * and a load/animation failure never blocks render.
- *
- * Beyond the shared rise-in stagger it adds two timeline-specific touches:
+ * Entrance choreography for a timeline layout. Thin wrapper over the shared
+ * `RiseInGroup` (frontend audit #5 — this used to be a standalone
+ * hand-copied GSAP wrapper; behavior is unchanged, only the implementation
+ * moved) that layers two timeline-specific touches on top via `onAnimate`:
+ *   - the shared rise-in stagger over feed rows (`[data-rise]`) AND Gantt
+ *     pins (`[data-pin]`) together, in that combined order (matches the
+ *     original single `gsap.from` call over the concatenated array);
  *   - phase bars (`[data-bar]`) grow from zero width (scaleX 0 → 1, left origin);
  *   - the today/closed marker (`[data-marker]`) draws in (scaleY 0 → 1, top origin).
- * Both are layered after the rise so they read as "the timeline assembling".
  *
- * `view` is part of the key/dep so switching layouts re-runs the entrance, giving
+ * `RiseInGroup`'s own built-in rise is disabled (`selector={null}`) since the
+ * combined rows+pins stagger needs to run as one `gsap.from` call, not two
+ * separate ones keyed off different selectors.
+ *
+ * `view` is the `runKey` so switching layouts re-runs the entrance, giving
  * the crossfade. All targets are queried fresh each run (the active layout's DOM).
  */
 export function TimelineMotion({
@@ -29,83 +32,56 @@ export function TimelineMotion({
   className?: string;
   children: React.ReactNode;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const reduced = useReducedMotion();
+  const onAnimate = useCallback((gsap: Gsap, root: HTMLElement) => {
+    const rows = root.querySelectorAll<HTMLElement>("[data-rise]");
+    const pins = root.querySelectorAll<HTMLElement>("[data-pin]");
+    const bars = root.querySelectorAll<HTMLElement>("[data-bar]");
+    const marker = root.querySelector<HTMLElement>("[data-marker]");
+    const { durBase } = getMotionDurations();
 
-  useEffect(() => {
-    const root = ref.current;
-    if (!root) return;
-    if (reduced) return;
+    // Feed rows + Gantt pins: the shared rise-in stagger.
+    const riseTargets = [...(rows ? Array.from(rows) : []), ...(pins ? Array.from(pins) : [])];
+    if (riseTargets.length) {
+      gsap.from(riseTargets, {
+        opacity: 0,
+        y: 10,
+        duration: durBase,
+        ease: MOTION_EASE.outSoft,
+        stagger: 0.04,
+        clearProps: "opacity,transform",
+      });
+    }
 
-    let cancelled = false;
-    let ctx: { revert: () => void } | undefined;
+    // Phase bars grow from zero width.
+    if (bars && bars.length) {
+      gsap.from(bars, {
+        scaleX: 0,
+        transformOrigin: "left center",
+        opacity: 0,
+        duration: 0.42,
+        ease: "power3.out",
+        stagger: 0.05,
+        clearProps: "transform,opacity",
+      });
+    }
 
-    (async () => {
-      try {
-        const { gsap } = await import("gsap");
-        if (cancelled || !ref.current) return;
-        ctx = gsap.context(() => {
-          const rows = ref.current?.querySelectorAll<HTMLElement>("[data-rise]");
-          const bars = ref.current?.querySelectorAll<HTMLElement>("[data-bar]");
-          const pins = ref.current?.querySelectorAll<HTMLElement>("[data-pin]");
-          const marker = ref.current?.querySelector<HTMLElement>("[data-marker]");
-
-          // Feed rows + Gantt pins: the shared rise-in stagger.
-          const riseTargets = [
-            ...(rows ? Array.from(rows) : []),
-            ...(pins ? Array.from(pins) : []),
-          ];
-          if (riseTargets.length) {
-            gsap.from(riseTargets, {
-              opacity: 0,
-              y: 10,
-              duration: 0.32, // ≈ --dur-base
-              ease: "power3.out", // ≈ --ease-out-soft
-              stagger: 0.04,
-              clearProps: "opacity,transform",
-            });
-          }
-
-          // Phase bars grow from zero width.
-          if (bars && bars.length) {
-            gsap.from(bars, {
-              scaleX: 0,
-              transformOrigin: "left center",
-              opacity: 0,
-              duration: 0.42,
-              ease: "power3.out",
-              stagger: 0.05,
-              clearProps: "transform,opacity",
-            });
-          }
-
-          // Today / closed marker draws in.
-          if (marker) {
-            gsap.from(marker, {
-              scaleY: 0,
-              transformOrigin: "top center",
-              opacity: 0,
-              duration: 0.5,
-              ease: "power2.out",
-              delay: 0.1,
-              clearProps: "transform,opacity",
-            });
-          }
-        }, root);
-      } catch {
-        // best-effort; ignore load/animation failure
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      ctx?.revert();
-    };
-  }, [view, reduced]);
+    // Today / closed marker draws in.
+    if (marker) {
+      gsap.from(marker, {
+        scaleY: 0,
+        transformOrigin: "top center",
+        opacity: 0,
+        duration: 0.5,
+        ease: "power2.out",
+        delay: 0.1,
+        clearProps: "transform,opacity",
+      });
+    }
+  }, []);
 
   return (
-    <div ref={ref} className={className}>
+    <RiseInGroup runKey={view} className={className} selector={null} onAnimate={onAnimate}>
       {children}
-    </div>
+    </RiseInGroup>
   );
 }

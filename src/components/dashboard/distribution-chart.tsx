@@ -14,7 +14,7 @@ import {
 
 import type { QuestionDistribution } from "@/lib/queries/dashboard";
 
-import { useReducedMotion } from "./use-reduced-motion";
+import { useReducedMotion } from "@/components/motion/use-reduced-motion";
 
 /** The petrol-anchored chart ramp from globals.css (`--chart-1..5`). */
 const CHART_COLORS = [

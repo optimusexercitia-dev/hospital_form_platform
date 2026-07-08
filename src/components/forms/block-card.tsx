@@ -341,7 +341,7 @@ function BlockPreview({
           </p>
         )}
         <ul className="flex flex-wrap gap-1.5">
-          {item.options.map((opt, i) => {
+          {item.options.map((opt) => {
             // Surface the optional analytics metadata (score / analytics_code)
             // only when set, so the common label-only option stays uncluttered.
             const meta = [
@@ -350,7 +350,10 @@ function BlockPreview({
             ].filter(Boolean) as string[];
             return (
               <li
-                key={i}
+                // Frontend audit #8: this is a read-only preview of a persisted
+                // item's options (not reorderable here), so the stable DB `id`
+                // is the correct key — no client-side id needed.
+                key={opt.id || opt.code}
                 className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-0.5 text-xs text-muted-foreground"
               >
                 {opt.color && (

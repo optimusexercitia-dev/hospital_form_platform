@@ -1,11 +1,31 @@
 "use client";
 
+import { useMemo } from "react";
+
 import type { Json } from "@/lib/types/database";
 import type { Section } from "@/lib/queries/forms";
 
 import type { AnswerState } from "./types";
 import { BlockRenderer } from "./block-renderer";
 import { isInputItem } from "./use-wizard";
+
+/**
+ * Stable no-op for a display block's required `onChange` prop. Display items
+ * (`section_text` / `image`) never invoke it — `BlockRenderer` returns before
+ * wiring it — but the prop is required, and a single shared reference keeps
+ * every display block's `onChange` referentially stable across re-renders so
+ * `memo(InputItem)` isn't defeated for its input-item siblings (audit #10).
+ */
+const NO_OP: (value: Json) => void = () => {};
+
+/** The per-item callbacks handed to one `BlockRenderer`/`InputItem`, precomputed
+ *  once per item so they stay referentially stable across keystroke re-renders. */
+interface ItemHandlers {
+  onChange: (value: Json) => void;
+  onObservationChange?: (value: string) => void;
+  onOtherTextChange?: (value: string) => void;
+  onClear?: () => void;
+}
 
 /**
  * Renders one wizard section as a page (F2/F3): a semantic `<section>` labelled
@@ -52,6 +72,40 @@ export function SectionStep({
   const heading =
     section.title || (section.isDefault ? null : "Seção sem título");
 
+  // Precompute one stable set of callbacks per item (audit #10). The parent
+  // handlers (`onChange`/`onObservationChange`/`onOtherTextChange`/`onClear`)
+  // are all `useCallback`-stable and `section.items` is the immutable form
+  // structure, so this map is rebuilt only when the form (or a handler) changes
+  // — NEVER on a keystroke, which only mutates `answers`/`errors`. That keeps
+  // every input item's callback props referentially stable across keystrokes,
+  // so `memo(InputItem)` skips re-rendering the siblings of the item being
+  // edited (previously each render minted fresh per-item closures, defeating
+  // the memo). Behavior is identical to the former inline closures.
+  const itemHandlers = useMemo(() => {
+    const map = new Map<string, ItemHandlers>();
+    for (const item of section.items) {
+      if (!isInputItem(item.itemType)) continue;
+      const questionKey = item.questionKey;
+      map.set(item.id, {
+        onChange: questionKey
+          ? (value) => onChange({ id: item.id, questionKey }, value)
+          : NO_OP,
+        onObservationChange: onObservationChange
+          ? (value) => onObservationChange(item.id, value)
+          : undefined,
+        onOtherTextChange:
+          questionKey && onOtherTextChange
+            ? (value) => onOtherTextChange({ id: item.id, questionKey }, value)
+            : undefined,
+        onClear:
+          questionKey && onClear
+            ? () => onClear({ id: item.id, questionKey })
+            : undefined,
+      });
+    }
+    return map;
+  }, [section.items, onChange, onObservationChange, onOtherTextChange, onClear]);
+
   return (
     <section
       aria-labelledby={heading ? headingId : undefined}
@@ -91,6 +145,9 @@ export function SectionStep({
             ) {
               return null;
             }
+            // Stable per-item callbacks (see `itemHandlers` above); display
+            // items have none, so `onChange` falls back to the shared no-op.
+            const handlers = itemHandlers.get(item.id);
             return (
               <BlockRenderer
                 key={item.id}
@@ -98,37 +155,16 @@ export function SectionStep({
                 imageUrls={imageUrls}
                 value={answerable ? answers[item.id]?.value : undefined}
                 error={answerable ? errors[item.id] : undefined}
-                onChange={(value) =>
-                  answerable &&
-                  item.questionKey &&
-                  onChange({ id: item.id, questionKey: item.questionKey }, value)
-                }
+                onChange={handlers?.onChange ?? NO_OP}
                 observation={
                   answerable ? answers[item.id]?.observation : undefined
                 }
-                onObservationChange={
-                  answerable && onObservationChange
-                    ? (value) => onObservationChange(item.id, value)
-                    : undefined
-                }
+                onObservationChange={handlers?.onObservationChange}
                 otherText={
                   answerable ? answers[item.id]?.otherText : undefined
                 }
-                onOtherTextChange={
-                  answerable && item.questionKey && onOtherTextChange
-                    ? (value) =>
-                        onOtherTextChange(
-                          { id: item.id, questionKey: item.questionKey! },
-                          value,
-                        )
-                    : undefined
-                }
-                onClear={
-                  answerable && item.questionKey && onClear
-                    ? () =>
-                        onClear({ id: item.id, questionKey: item.questionKey! })
-                    : undefined
-                }
+                onOtherTextChange={handlers?.onOtherTextChange}
+                onClear={handlers?.onClear}
               />
             );
           })

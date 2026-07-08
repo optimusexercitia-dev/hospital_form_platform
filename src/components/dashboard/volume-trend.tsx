@@ -14,7 +14,7 @@ import type {
   CompletionByMember,
 } from "@/lib/queries/dashboard";
 
-import { useReducedMotion } from "./use-reduced-motion";
+import { useReducedMotion } from "@/components/motion/use-reduced-motion";
 
 /** Short pt-BR day label (e.g. "13 jun") from an ISO `YYYY-MM-DD`. */
 function shortDay(iso: string): string {

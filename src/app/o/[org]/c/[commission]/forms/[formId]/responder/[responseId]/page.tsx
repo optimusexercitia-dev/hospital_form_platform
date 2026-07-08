@@ -34,12 +34,16 @@ export default async function ResponderPage({
 }) {
   const { org, commission, formId, responseId } = await params;
   const slug = commission;
-  const access = await getCommissionAccessByOrg(org, commission);
+
+  // Both reads depend only on path params, not on each other's results.
+  const [access, response] = await Promise.all([
+    getCommissionAccessByOrg(org, commission),
+    getResponseForFill(responseId),
+  ]);
 
   // Any member (staff or staff_admin) or a global admin may fill.
   if (!access || access.role === null) notFound();
 
-  const response = await getResponseForFill(responseId);
   // null = not found OR not visible to the caller (RLS). Either way: 404.
   if (!response) notFound();
 

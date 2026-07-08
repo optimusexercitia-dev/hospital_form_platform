@@ -1,9 +1,10 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { X } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -53,6 +54,7 @@ export function ReferralDashboardFilters({
   const targetId = useId();
   const typeId = useId();
   const responseId = useId();
+  const [isPending, startTransition] = useTransition();
 
   function setParam(key: string, value: string) {
     const next = new URLSearchParams(searchParams.toString());
@@ -61,17 +63,27 @@ export function ReferralDashboardFilters({
     } else {
       next.delete(key);
     }
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    startTransition(() => {
+      router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    });
   }
 
   function clearAll() {
-    router.replace(pathname, { scroll: false });
+    startTransition(() => {
+      router.replace(pathname, { scroll: false });
+    });
   }
 
   const hasAnyFilter = Boolean(status || source || target || type || response);
 
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-xs">
+    <div
+      className={cn(
+        "flex flex-col gap-4 rounded-2xl border border-border bg-card p-4 shadow-xs transition-opacity duration-200",
+        isPending && "opacity-60",
+      )}
+      aria-busy={isPending}
+    >
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor={statusId}>Estado</Label>
@@ -79,6 +91,7 @@ export function ReferralDashboardFilters({
             id={statusId}
             value={status ?? ""}
             onChange={(e) => setParam("status", e.target.value)}
+            disabled={isPending}
             className="min-w-44"
           >
             <option value="">Todos</option>
@@ -96,6 +109,7 @@ export function ReferralDashboardFilters({
             id={sourceId}
             value={source ?? ""}
             onChange={(e) => setParam("source", e.target.value)}
+            disabled={isPending}
             className="min-w-44"
           >
             <option value="">Todas</option>
@@ -113,6 +127,7 @@ export function ReferralDashboardFilters({
             id={targetId}
             value={target ?? ""}
             onChange={(e) => setParam("target", e.target.value)}
+            disabled={isPending}
             className="min-w-44"
           >
             <option value="">Todas</option>
@@ -130,6 +145,7 @@ export function ReferralDashboardFilters({
             id={typeId}
             value={type ?? ""}
             onChange={(e) => setParam("type", e.target.value)}
+            disabled={isPending}
             className="min-w-44"
           >
             <option value="">Todos</option>
@@ -147,6 +163,7 @@ export function ReferralDashboardFilters({
             id={responseId}
             value={response ?? ""}
             onChange={(e) => setParam("response", e.target.value)}
+            disabled={isPending}
             className="min-w-44"
           >
             <option value="">Todas</option>
@@ -158,7 +175,13 @@ export function ReferralDashboardFilters({
 
       {hasAnyFilter && (
         <div className="flex justify-end border-t border-border/60 pt-3">
-          <Button type="button" variant="ghost" size="sm" onClick={clearAll}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={clearAll}
+            disabled={isPending}
+          >
             <X aria-hidden="true" />
             Limpar filtros
           </Button>

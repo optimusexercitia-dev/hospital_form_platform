@@ -30,12 +30,17 @@ export default async function MyCasesPage({
 }) {
   const { org, commission } = await params;
   const slug = commission;
-  const access = await getCommissionAccessByOrg(org, commission);
+
+  // The flag check doesn't depend on `access`, so run them concurrently.
+  const [access, flagOn] = await Promise.all([
+    getCommissionAccessByOrg(org, commission),
+    caseAccessEnabled(),
+  ]);
   if (!access || access.role === null) notFound();
 
   // Flag OFF → this surface does not exist yet (the redirect from /minhas-fases is
   // also gated on the flag, so OFF keeps the old page).
-  if (!(await caseAccessEnabled())) notFound();
+  if (!flagOn) notFound();
 
   const cases = await listMyCases(access.commission.id);
 

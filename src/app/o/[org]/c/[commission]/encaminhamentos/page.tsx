@@ -36,11 +36,14 @@ export default async function CommissionReferralsPage({
   params: Promise<{ org: string; commission: string }>;
   searchParams: Promise<{ cursor?: string }>;
 }) {
-  const { org, commission } = await params;
+  const [{ org, commission }, { cursor }, flagOn] = await Promise.all([
+    params,
+    searchParams,
+    referralsEnabled(),
+  ]);
   const slug = commission;
-  const { cursor } = await searchParams;
 
-  if (!(await referralsEnabled())) {
+  if (!flagOn) {
     notFound();
   }
 

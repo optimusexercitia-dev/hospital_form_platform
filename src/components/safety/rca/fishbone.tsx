@@ -8,7 +8,7 @@ import {
   type FishboneCategory,
   type RcaFactor,
 } from "@/lib/safety/rca-types";
-import { useReducedMotion } from "@/components/dashboard/use-reduced-motion";
+import { useReducedMotion } from "@/components/motion/use-reduced-motion";
 import { CatBlock } from "./cat-block";
 
 /**

@@ -34,11 +34,16 @@ export default async function MyPhasesPage({
 }) {
   const { org, commission } = await params;
   const slug = commission;
-  const access = await getCommissionAccessByOrg(org, commission);
+
+  // The flag check doesn't depend on `access`, so run them concurrently.
+  const [access, flagOn] = await Promise.all([
+    getCommissionAccessByOrg(org, commission),
+    caseAccessEnabled(),
+  ]);
   if (!access || access.role === null) notFound();
 
   // Flag ON → "Meus Casos" replaces this page; preserve the old URL via redirect.
-  if (await caseAccessEnabled()) {
+  if (flagOn) {
     redirect(commissionHref(org, commission, "meus-casos"));
   }
 

@@ -48,13 +48,16 @@ export default async function ApproverDocumentPage({
 }) {
   const { org, documentId } = await params;
 
+  // Both reads depend only on the session cookie / the path's documentId, not
+  // on each other's results — fetch concurrently.
+  const [context, detail] = await Promise.all([
+    getSessionContext(),
+    getDocument(documentId),
+  ]);
   // A valid session is required; RLS (via getDocument) is the real boundary.
-  const context = await getSessionContext();
   if (!context) {
     notFound();
   }
-
-  const detail = await getDocument(documentId);
   if (!detail) {
     // Either the document does not exist or the caller holds no approval row on it
     // — indistinguishable by design, both 404 and leak nothing.

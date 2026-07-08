@@ -24,7 +24,7 @@ import {
   type ReferralFlowMetrics,
   type ReferralListItem,
 } from "@/lib/referrals/types";
-import { useReducedMotion } from "@/components/dashboard/use-reduced-motion";
+import { useReducedMotion } from "@/components/motion/use-reduced-motion";
 
 /** The petrol-anchored chart ramp from globals.css (`--chart-1..5`). */
 const CHART_COLORS = [

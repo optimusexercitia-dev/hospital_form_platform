@@ -23,10 +23,11 @@ function getServerSnapshot(): boolean {
 /**
  * Tracks the user's `prefers-reduced-motion` setting, reactively, via
  * `useSyncExternalStore` (the idiomatic subscription to an external store — no
- * setState-in-effect). Mirrors the project's matchMedia guard (`auth-hero`,
- * `stat-count`, `wizard-progress`) but reusable for the dashboard charts, which
- * disable Recharts' entrance animations under reduced motion
- * (`isAnimationActive={!reduced}`).
+ * setState-in-effect). Shared platform-wide utility (moved from
+ * `components/dashboard/` per frontend audit #5 — it's consumed well beyond
+ * the dashboard): the rise-in motion group, dashboard charts (which disable
+ * Recharts' entrance animations under reduced motion via
+ * `isAnimationActive={!reduced}`), and the safety RCA/CAPA diagrams.
  */
 export function useReducedMotion(): boolean {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
