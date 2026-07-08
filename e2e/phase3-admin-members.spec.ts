@@ -151,17 +151,27 @@ async function registerActiveOrgUser(
 
 /**
  * Add an already-registered org user to a commission via the coordinator's
- * `AddMemberPicker`: type into "Buscar pessoa", select the matching candidate
- * button in the <ul aria-label="Pessoas cadastradas disponíveis">, then submit
- * "Adicionar". Asserts the success banner. Caller must already be on the members
- * page, signed in as a coordinator of that commission.
+ * `AddMemberPicker`. The picker now lives inside a modal dialog (UI refactor):
+ * click the "Adicionar membro" button to open the dialog, type into "Buscar
+ * pessoa", select the matching candidate button in the <ul aria-label="Pessoas
+ * cadastradas disponíveis">, then submit "Adicionar". Asserts the success
+ * banner. The dialog STAYS OPEN after a successful add (selection clears, list
+ * revalidates), so the helper closes it (Esc) at the end — every caller then
+ * asserts against the underlying members page (roster / Remover buttons).
+ * Caller must already be on the members page, signed in as a coordinator of
+ * that commission.
  */
 async function addMemberViaPicker(
   page: import('@playwright/test').Page,
   candidateEmail: string,
 ) {
-  await page.getByLabel('Buscar pessoa').fill(candidateEmail)
-  const candidateList = page.getByRole('list', {
+  // Open the modal dialog that now holds the picker.
+  await page.getByRole('button', { name: /adicionar membro/i }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+
+  await dialog.getByLabel('Buscar pessoa').fill(candidateEmail)
+  const candidateList = dialog.getByRole('list', {
     name: 'Pessoas cadastradas disponíveis',
   })
   const candidate = candidateList
@@ -171,7 +181,7 @@ async function addMemberViaPicker(
   await candidate.click()
   await expect(candidate).toHaveAttribute('aria-pressed', 'true')
 
-  const addButton = page.getByRole('button', { name: /^adicionar$/i })
+  const addButton = dialog.getByRole('button', { name: /^adicionar$/i })
   await expect(addButton).toBeEnabled()
   await addButton.click()
 
@@ -181,6 +191,11 @@ async function addMemberViaPicker(
   // sucesso.") which the FormBanner prefers over the component default ("Pessoa
   // adicionada à comissão."). Match the invariant part, gender-agnostic.
   await expect(banner).toContainText(/adicionad[ao] à comissão/i)
+
+  // Dialog stays open after a successful add; close it so callers can interact
+  // with the underlying members page (roster rows, Remover buttons).
+  await page.keyboard.press('Escape')
+  await expect(dialog).not.toBeVisible({ timeout: 5_000 })
 }
 
 // ---------------------------------------------------------------------------
@@ -344,8 +359,14 @@ test.describe('AC2 — staff_admin adds an already-registered user and removes a
     await page.goto('/o/rede-a/c/ccih/manage/members')
     await page.waitForURL('**/o/rede-a/c/ccih/manage/members', { timeout: 10_000 })
 
-    const searchBox = page.getByLabel('Buscar pessoa')
-    const emptyState = page.getByText(
+    // The picker (search box + empty state) now lives inside the modal dialog;
+    // open it before evaluating the mutual-exclusivity invariant.
+    await page.getByRole('button', { name: /adicionar membro/i }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+
+    const searchBox = dialog.getByLabel('Buscar pessoa')
+    const emptyState = dialog.getByText(
       /Nenhuma pessoa cadastrada está disponível para adicionar/i,
     )
     // Exactly one of the two is present (mutually exclusive by construction).
@@ -489,12 +510,17 @@ test.describe('AC3 — Role and commission boundary security', () => {
     await page.goto('/o/rede-a/c/farmacia/manage/members')
     // Org-admin can access any commission's manage page in their org.
     await expect(page.getByRole('heading', { level: 1, name: /membros/i })).toBeVisible({ timeout: 10_000 })
-    // The page should render the new member-management UI: the "Adicionar membro"
-    // section + the "Buscar pessoa" picker (the invite-by-email form is gone).
-    await expect(
-      page.getByRole('heading', { name: /adicionar membro/i }),
-    ).toBeVisible()
-    await expect(page.getByLabel('Buscar pessoa')).toBeVisible()
+    // The page should render the new member-management UI: an "Adicionar membro"
+    // button that opens a modal dialog holding the "Buscar pessoa" picker (the
+    // invite-by-email form is gone).
+    const addMemberButton = page.getByRole('button', { name: /adicionar membro/i })
+    await expect(addMemberButton).toBeVisible()
+    await addMemberButton.click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+    // The dialog's title and the picker's search field must both render.
+    await expect(dialog.getByText('Adicionar membro')).toBeVisible()
+    await expect(dialog.getByLabel('Buscar pessoa')).toBeVisible()
   })
 
   test('chefe.farm (staff_admin B) hitting /o/rede-a/c/ccih/manage/members → 404, no ccih member data', async ({ page }) => {

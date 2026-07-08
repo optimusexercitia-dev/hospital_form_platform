@@ -12,7 +12,7 @@ import {
 import { featureEnabled } from "@/lib/queries/feature-flags";
 import { casePatientEnabled } from "@/lib/queries/cases";
 import { listMemberTitles } from "@/lib/commissions/titles";
-import { AddMemberPicker } from "@/components/members/add-member-picker";
+import { AddMemberDialog } from "@/components/members/add-member-dialog";
 import { MemberList } from "@/components/members/member-list";
 
 export const metadata: Metadata = {
@@ -81,34 +81,22 @@ export default async function ManageMembersPage({
       </header>
 
       <section
-        aria-labelledby="adicionar-heading"
-        className="animate-rise-in rounded-2xl border border-border bg-card p-6 sm:p-7"
-      >
-        <h2 id="adicionar-heading" className="text-lg font-semibold">
-          Adicionar membro
-        </h2>
-        <p className="mt-1 mb-5 max-w-prose text-sm text-muted-foreground">
-          Escolha uma pessoa já cadastrada na organização. Membros podem preencher
-          os formulários publicados da comissão.
-        </p>
-        <AddMemberPicker
-          commissionId={access.commission.id}
-          candidates={addable}
-        />
-      </section>
-
-      <section
         aria-labelledby="membros-heading"
         className="animate-rise-in flex flex-col gap-4"
-        style={{ ["--rise-delay" as string]: "80ms" }}
       >
-        <div className="flex items-baseline justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="membros-heading" className="text-lg font-semibold">
             Membros da comissão
           </h2>
-          <span className="text-sm text-muted-foreground">
-            {members.length} {members.length === 1 ? "pessoa" : "pessoas"}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">
+              {members.length} {members.length === 1 ? "pessoa" : "pessoas"}
+            </span>
+            <AddMemberDialog
+              commissionId={access.commission.id}
+              candidates={addable}
+            />
+          </div>
         </div>
         <MemberList
           commissionId={access.commission.id}
