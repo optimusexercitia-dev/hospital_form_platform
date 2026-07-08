@@ -536,22 +536,6 @@ test('B1 — Nova reunião start field exposes a time (HH:mm) segment control th
 test('A1 — access dialog shows Leitura/Edição badges; an attributed-only member shows Atribuído', async ({
   page,
 }) => {
-  // ADR 0061 behavior change: a PHASE assignment now auto-grants the assignee a
-  // case_access WRITE row. staff2.ccih is a NARRATIVE assignee here (no auto-grant),
-  // but another spec in a shared-DB full run may activate a Caso 0001 phase for
-  // staff2 and leave a lingering write grant, which would flip this row's badge from
-  // "Atribuído" to "Edição". Defensively clear any staff2 grant on Caso 0001 so this
-  // narrative-assignee assertion is order-independent.
-  await page.request.delete(
-    `${SUPABASE_URL}/rest/v1/case_access?case_id=eq.${CASE_OPEN}&user_id=eq.00000000-0000-0000-0000-000000000004`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      },
-    },
-  )
-
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`${BASE}/manage/cases/${CASE_OPEN}`)
   await page.waitForURL(`**/manage/cases/${CASE_OPEN}`, { timeout: 15_000 })

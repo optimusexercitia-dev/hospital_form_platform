@@ -1,19 +1,20 @@
 -- ============================================================================
--- Administrativo (ADR 0061) — grant the NON-coordinator creator case_access write
+-- Administrativo (ADR 0061) — grant the NON-coordinator creator case_access READ
 -- ============================================================================
 -- Closes the creator-visibility gap: app.can_read_case has NO creator arm, so a
 -- `create_cases` Administrativo who opened a case (and isn't assigned/granted) could
 -- neither see it on the board nor open it. Fix at the create RPCs, NOT by adding a
 -- creator arm to can_read_case (the read boundary stays single-sourced through the
--- case_access ACL — auditable + revocable, ADR 0033; mirrors activate_phase).
+-- case_access ACL — auditable + revocable, ADR 0033).
 --
 -- After the case row is inserted, when the creator reached the RPC via the
 -- member_can('create_cases') arm — i.e. a NON-coordinator creator — grant THEM a
--- case_access write on their own case. A coordinator / commission-admin already
--- sees the whole board (list_cases_board fast-path) and needs nothing, so skip them
--- (no audit noise). The skip check `NOT (is_staff_admin_of OR is_commission_admin_of)`
--- guarantees only the capability-arm creator self-grants. Gated on the case_access
--- feature being live (the ACL is inert otherwise).
+-- case_access READ on their own case (revised model: read-only — just enough to SEE
+-- the case they opened; case-content WRITE stays the coordinator's explicit
+-- grant_case_access). A coordinator / commission-admin already sees the whole board
+-- (list_cases_board fast-path) and needs nothing, so skip them (no audit noise). The
+-- skip check `NOT (is_staff_admin_of OR is_commission_admin_of)` guarantees only the
+-- capability-arm creator self-grants. Gated on the case_access feature being live.
 --
 -- Bodies are byte-identical to 20260714000000 (create_case / create_case_from_template)
 -- EXCEPT the added self-grant before `return v_case`. Same signatures + RETURNS type,
@@ -104,12 +105,14 @@ begin
 
   perform set_config('app.in_case_rpc', 'off', true);
 
-  -- ADR 0061: a NON-coordinator (capability-arm) creator self-grants case_access
-  -- write so they can read/work the case they opened (can_read_case has no creator
-  -- arm). Coordinators/commission-admins already see the whole board — skip them.
+  -- ADR 0061 (revised): a NON-coordinator (capability-arm) creator self-grants
+  -- case_access READ — just enough to SEE the case they opened (can_read_case has no
+  -- creator arm). NOT write: case-content write stays the coordinator's explicit
+  -- grant_case_access. Coordinators/commission-admins already see the whole board —
+  -- skip them.
   if app.feature_enabled('case_access')
      and not (app.is_staff_admin_of(p_commission_id) or app.is_commission_admin_of(p_commission_id)) then
-    perform app._grant_case_access_unchecked(v_case.id, auth.uid(), 'write');
+    perform app._grant_case_access_unchecked(v_case.id, auth.uid(), 'read');
   end if;
 
   return v_case;
@@ -258,10 +261,11 @@ begin
 
   perform public.recompute_recommendations(v_case.id);
 
-  -- ADR 0061: self-grant the non-coordinator (capability-arm) creator (see create_case).
+  -- ADR 0061 (revised): self-grant the non-coordinator (capability-arm) creator
+  -- case_access READ (see create_case — read-only, not write).
   if app.feature_enabled('case_access')
      and not (app.is_staff_admin_of(v_commission_id) or app.is_commission_admin_of(v_commission_id)) then
-    perform app._grant_case_access_unchecked(v_case.id, auth.uid(), 'write');
+    perform app._grant_case_access_unchecked(v_case.id, auth.uid(), 'read');
   end if;
 
   return v_case;

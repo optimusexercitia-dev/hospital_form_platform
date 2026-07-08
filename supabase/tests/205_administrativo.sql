@@ -4,8 +4,8 @@
 -- Proves:
 --   (P) POSITIVE — a coordinator appoints a `staff` member + grants each capability;
 --       the holder can create a meeting, create + edit-meta a case, activate +
---       reassign a phase (the assignee then gains case_access WRITE), and read the
---       signoff queue.
+--       reassign a phase (the assignee gets case READ + phase-form write, NO
+--       case_access write — revised ADR 0061), and read the signoff queue.
 --   (N) NEGATIVE / ESCALATION — a holder (or a plain staff) can neither appoint nor
 --       grant (to self or others); an Administrativo can NOT close/cancel a case,
 --       can NOT flip case status directly (RLS), can NOT sign a section or set an
@@ -24,7 +24,7 @@
 -- "appoint a staff_admin" rejection without self-grant noise). st_x is the HOLDER.
 
 begin;
-select plan(45);
+select plan(50);
 
 -- The capability chokepoint is flag-aware; enable the surface + its dependencies.
 update app.feature_flags set enabled = true
@@ -171,7 +171,8 @@ values
   ((select phase_id from ph), (select case_id from cs), 1, (select form_u from k),
    (select ver_u from k), 'pendente', '{}');
 
--- 4a) activate the phase, assigning st_x2 — who then gains case_access WRITE.
+-- 4a) activate the phase, assigning st_x2. Revised ADR 0061: assignment grants NO
+-- case_access WRITE — only phase-form write (assigned_to) + case READ (assignee arm).
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select lives_ok(
@@ -180,13 +181,18 @@ select lives_ok(
   'activate_phase: the holder (assign_case_phases) can activate + assign a phase');
 reset role;
 select ok(
-  exists (select 1 from public.case_access
-          where case_id = (select case_id from cs) and user_id = (select st_x2 from k)
-            and level = 'write'),
-  'activate_phase grants the assignee case_access WRITE (ADR 0061 behavior change)');
+  not exists (select 1 from public.case_access
+              where case_id = (select case_id from cs) and user_id = (select st_x2 from k)
+                and level = 'write'),
+  'activate_phase does NOT grant the assignee case_access write (revised ADR 0061)');
+select ok(
+  not app.can_write_case_content((select case_id from cs), (select st_x2 from k)),
+  'activate_phase: the assignee has NO case-content write');
+select ok(
+  app.can_read_case((select case_id from cs), (select st_x2 from k)),
+  'activate_phase: the assignee CAN read the case (assignee arm)');
 
--- 4b) reassign the phase to st_x — the new assignee gains WRITE (least-privilege
--- note §9: the previous assignee's grant is intentionally left as-is).
+-- 4b) reassign the phase to st_x — same revised model: read (assignee arm), no write.
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select lives_ok(
@@ -195,10 +201,16 @@ select lives_ok(
   'reassign_phase: the holder can reassign the phase');
 reset role;
 select ok(
-  exists (select 1 from public.case_access
-          where case_id = (select case_id from cs) and user_id = (select st_x from k)
-            and level = 'write'),
-  'reassign_phase grants the NEW assignee case_access WRITE');
+  not exists (select 1 from public.case_access
+              where case_id = (select case_id from cs) and user_id = (select st_x from k)
+                and level = 'write'),
+  'reassign_phase does NOT grant the new assignee case_access write (revised ADR 0061)');
+select ok(
+  not app.can_write_case_content((select case_id from cs), (select st_x from k)),
+  'reassign_phase: the new assignee has NO case-content write');
+select ok(
+  app.can_read_case((select case_id from cs), (select st_x from k)),
+  'reassign_phase: the new assignee CAN read the case (assignee arm)');
 
 -- 5) read the signoff queue. Build an in_progress response of form_s (sectioned,
 -- with a staff_admin signoff section) so the queue is non-empty.
@@ -315,15 +327,18 @@ create temp table cs3 on commit drop as
 grant select on cs3 to authenticated;
 reset role;
 
--- The self-grant row exists (the mechanism — case_access, not a can_read_case arm).
+-- The self-grant row exists at level READ (revised model — the mechanism is
+-- case_access, not a can_read_case arm; read-only, NOT write).
 select ok(
   exists (select 1 from public.case_access
           where case_id = (select case_id from cs3) and user_id = (select st_x from k)
-            and level = 'write'),
-  'create_case: a non-coordinator creator self-grants case_access write');
--- can_read_case is true for the creator (via the grant), and the case is on their board.
+            and level = 'read'),
+  'create_case: a non-coordinator creator self-grants case_access READ');
+-- can_read_case is true for the creator (via the read grant); content-write is FALSE.
 select ok(app.can_read_case((select case_id from cs3), (select st_x from k)),
   'can_read_case: the creator can read their self-granted case (no creator arm needed)');
+select ok(not app.can_write_case_content((select case_id from cs3), (select st_x from k)),
+  'can_write_case_content: the creator has READ only, NOT write (revised ADR 0061)');
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select ok(

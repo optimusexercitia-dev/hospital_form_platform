@@ -816,13 +816,12 @@ begin
   returning * into v_result;
   perform set_config('app.in_case_rpc', 'off', true);
 
-  -- Behavior change (ADR 0061): the assignee gets case_access WRITE to work the
-  -- phase. Auditable + revocable (ADR 0033 ACL), gated only when the case_access
-  -- feature is live (the ACL is inert otherwise).
-  if app.feature_enabled('case_access') then
-    perform app._grant_case_access_unchecked(v_case_id, p_assigned_to, 'write');
-  end if;
-
+  -- ADR 0061 (revised): assignment grants the assignee phase-form write (via
+  -- assigned_to + answers_write_own_draft) and case READ (via can_read_case's
+  -- assignee arm) — NO case_access WRITE auto-grant. Case-content write stays the
+  -- coordinator's explicit grant_case_access. (DEFINER + the assign_case_phases gate
+  -- are still required: the update bypasses case_phases_staff_admin_write, so the
+  -- internal gate is the authority admitting an Administrativo to assign.)
   return v_result;
 end;
 $$;
@@ -830,10 +829,9 @@ alter function public.activate_phase(uuid, uuid, date) owner to postgres;
 revoke all on function public.activate_phase(uuid, uuid, date) from public;
 grant all on function public.activate_phase(uuid, uuid, date) to authenticated, service_role;
 
--- G6 · reassign_phase — flip to SECURITY DEFINER; add the assign_case_phases arm;
--- grant the NEW assignee case_access WRITE. Least-privilege note (handoff §9): the
--- PREVIOUS assignee's auto-grant is intentionally LEFT AS-IS (simple; revisit if
--- strict least-privilege is required).
+-- G6 · reassign_phase — flip to SECURITY DEFINER; add the assign_case_phases arm.
+-- ADR 0061 (revised): NO case_access WRITE auto-grant — assignment grants only
+-- phase-form write (assigned_to) + case READ (can_read_case assignee arm).
 create or replace function public.reassign_phase(
   p_case_phase_id uuid, p_new_assignee uuid, p_due_date date default null
 ) returns public.case_phases
@@ -841,7 +839,6 @@ create or replace function public.reassign_phase(
   set search_path to 'app', 'public', 'pg_catalog'
 as $$
 declare
-  v_case_id uuid;
   v_case_status text;
   v_commission_id uuid;
   v_has_response boolean;
@@ -849,8 +846,8 @@ declare
 begin
   perform app.assert_cases_enabled();
 
-  select cp.case_id, c.status, c.commission_id
-    into v_case_id, v_case_status, v_commission_id
+  select c.status, c.commission_id
+    into v_case_status, v_commission_id
   from public.case_phases cp
   join public.cases c on c.id = cp.case_id
   where cp.id = p_case_phase_id;
@@ -886,10 +883,6 @@ begin
   where id = p_case_phase_id
   returning * into v_result;
   perform set_config('app.in_case_rpc', 'off', true);
-
-  if app.feature_enabled('case_access') then
-    perform app._grant_case_access_unchecked(v_case_id, p_new_assignee, 'write');
-  end if;
 
   return v_result;
 end;

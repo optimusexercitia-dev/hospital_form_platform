@@ -55,11 +55,17 @@ Decisions were taken in a structured design interview with the product owner (20
    RPCs (gate widened); edit rides a **new narrow `update_case_meta` RPC** exposing only
    label/department (never status/outcome/PHI); `close_case`/`cancel_case` gain an explicit
    coordinator-only gate (defense-in-depth). `set_case_outcome` stays coordinator-only.
-5. **Phase assignment grants the assignee the access to work the phase — for every assignment,
-   coordinators included** (a deliberate behavior change; today assignment gives read-only).
-   Implemented by `activate_phase`/`reassign_phase` calling an unchecked `case_access` write
-   grant (reusing ADR 0033's ACL — auditable, revocable), **not** by teaching
-   `can_write_case_content` "assignee ⇒ writer".
+5. **Phase assignment preserves the prior model — case READ + phase-form write, NO case-content
+   write auto-grant** (revised 2026-07-08, product-owner design change). Assigning a phase grants
+   the assignee phase-form write (already via `assigned_to` + `answers_write_own_draft`) and READ
+   of the rest of the case (already via `can_read_case`'s assignee arm); it does **not**
+   auto-grant `case_access` write. `activate_phase`/`reassign_phase` keep the `SECURITY DEFINER`
+   flip + the `assign_case_phases` gate (so an Administrativo may assign — the update bypasses
+   `case_phases_staff_admin_write`, so the internal gate is the authority), but the earlier
+   `_grant_case_access_unchecked(..., 'write')` calls are removed. A non-coordinator case
+   **creator** gets `case_access` **READ** (not write) — just enough to see the case they opened.
+   The coordinator's explicit `grant_case_access`/`revoke_case_access` (read or write) stays the
+   **sole** path to case-content write.
 6. **Signatures: view-only.** `view_signoffs` opens the `list_signoff_queue` read; the signing
    path (`sign_section` / `can_sign_section`) is never touched.
 7. **Escalation guard + audit + flag.** Appoint/grant RPCs are gated `is_staff_admin_of OR
@@ -92,8 +98,12 @@ end-to-end verification live in the handoff doc referenced above.
 - Committees can delegate bureaucracy to a non-coordinator **without** introducing a new role
   tier; the RLS blast radius is confined to ~8 guarded RPCs + 1 broadened policy + 4 new SQL
   objects, all behind a flag.
-- **Behavior change:** every phase assignment (coordinator or Administrativo) now auto-grants
-  the assignee `case_access` write. Existing case/phase E2E must be updated.
+- **Behavior change (revised 2026-07-08):** phase assignment no longer grants case-content
+  write; it preserves the prior model (case READ via the `can_read_case` assignee arm +
+  phase-form write via `assigned_to`). A non-coordinator case creator receives `case_access`
+  **read** (visibility of the case they opened). Case-content write remains the coordinator's
+  explicit `grant_case_access`. The earlier "assignment ⇒ `case_access` write" behavior was
+  reverted before merge; no E2E depended on it in a shipped state.
 - **PHI note (Rule 12):** granting `create_cases` lets an Administrativo enter and read patient
   context on PHI-bearing commissions (via the case creator/assignee read arms). Minimum-necessary
   is satisfied by the explicit, per-member, coordinator-granted, flag-gated nature of the grant —

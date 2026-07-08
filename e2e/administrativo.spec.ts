@@ -283,11 +283,13 @@ test('POS-2 create_cases: Administrativo reaches the cases board, creates a case
 })
 
 // ---------------------------------------------------------------------------
-// POS-3 — assign_case_phases: activate + reassign; the assignee gains WRITE access
-// (ADR 0061 behavior change — previously assignment gave read-only)
+// POS-3 — assign_case_phases: activate + reassign LAND, and the assignee gets case
+// READ (via the can_read_case assignee arm) + phase-form write (via assigned_to) but
+// NO case-content write. (Design revert 2026-07-08: assignment NO LONGER auto-grants
+// case_access write; coordinator explicit grant stays the only path to content write.)
 // ---------------------------------------------------------------------------
 
-test('POS-3 assign_case_phases: activation + reassignment auto-grant the assignee case_access WRITE (ADR 0061 behavior change)', async ({
+test('POS-3 assign_case_phases: activation + reassignment land; the assignee gets case READ but NO case-content write', async ({
   page,
 }) => {
   test.setTimeout(120_000)
@@ -295,11 +297,9 @@ test('POS-3 assign_case_phases: activation + reassignment auto-grant the assigne
   const caseId = await createCaseAs(page.request, token, `Caso Fase ${Date.now()}`)
   const p1 = await phaseId(page.request, caseId, 1)
 
-  // The affordance IS rendered for an assign_case_phases holder (frontend gate).
-  // NOTE: driving the dialog is covered by BUG-ADM-001 (the server action still
-  // pre-gates on coordinator role); here we exercise the ADR-0061 BEHAVIOR CHANGE
-  // through the widened RPCs under staff2's OWN authority — the capability holder
-  // may activate/reassign, and each assignee auto-gains WRITE.
+  // The affordance IS rendered for an assign_case_phases holder (frontend gate). We
+  // exercise the assign path through the RPCs under staff2's OWN authority (the widened
+  // gate admits the capability holder); the UI-driven activation is covered by REG-ADM-001.
   await signInAs(page, 'staff2.ccih@test.local')
   await page.goto(`${BASE}/casos/${caseId}`)
   await page.waitForURL(`${BASE}/casos/${caseId}`)
@@ -314,16 +314,42 @@ test('POS-3 assign_case_phases: activation + reassignment auto-grant the assigne
   })
   expect(activateRes.ok(), `activate_phase as Administrativo: ${await activateRes.text()}`).toBeTruthy()
 
-  // DB truth (the behavior change): staff1 now holds a WRITE grant on this case.
+  // The assignment LANDS: phase → ativa, assigned to staff1.
   await expect
     .poll(async () => {
-      const rows = await dbQuery<{ level: string }>(page.request, 'case_access', {
+      const rows = await dbQuery<{ status: string; assigned_to: string | null }>(
+        page.request,
+        'case_phases',
+        { id: `eq.${p1}` },
+      )
+      return `${rows[0]?.status}:${rows[0]?.assigned_to}`
+    }, { timeout: 15_000 })
+    .toBe(`ativa:${UID_STAFF1}`)
+
+  // DB truth (design revert): assignment writes NO case_access row for the assignee.
+  await expect
+    .poll(async () => {
+      const rows = await dbQuery(page.request, 'case_access', {
         case_id: `eq.${caseId}`,
         user_id: `eq.${UID_STAFF1}`,
       })
-      return rows[0]?.level
+      return rows.length
     }, { timeout: 15_000 })
-    .toBe('write')
+    .toBe(0)
+
+  await signOut(page)
+
+  // ── The assignee can OPEN the case READ-ONLY (assignee-arm read), NOT as a writer ──
+  await signInAs(page, 'staff1.ccih@test.local')
+  await page.goto(`${BASE}/casos/${caseId}`)
+  await page.waitForURL(`${BASE}/casos/${caseId}`)
+  await expect(page.getByRole('heading', { name: /caso\s*\d+/i })).toBeVisible({ timeout: 10_000 })
+  // Read-only role chip ("Leitura"), NOT the write "Colaboração".
+  await expect(page.getByText('Leitura', { exact: true })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Colaboração', { exact: true })).toHaveCount(0)
+  // No case-content write UI: the un-attributed narratives render with no "Editar".
+  await expect(page.getByRole('button', { name: /^Editar$/ })).toHaveCount(0)
+  await signOut(page)
 
   // ── Reassign to staff4 (no response filled yet, so HC019 does not bite) ──
   const reassignRes = await rpcAs(page.request, token, 'reassign_phase', {
@@ -332,28 +358,24 @@ test('POS-3 assign_case_phases: activation + reassignment auto-grant the assigne
   })
   expect(reassignRes.ok(), `reassign_phase as Administrativo: ${await reassignRes.text()}`).toBeTruthy()
 
-  // DB truth: the new assignee (staff4) also auto-gains WRITE.
+  // The reassignment LANDS (assigned_to → staff4) and STILL writes no case_access row.
   await expect
     .poll(async () => {
-      const rows = await dbQuery<{ level: string }>(page.request, 'case_access', {
+      const rows = await dbQuery<{ assigned_to: string | null }>(page.request, 'case_phases', {
+        id: `eq.${p1}`,
+      })
+      return rows[0]?.assigned_to
+    }, { timeout: 15_000 })
+    .toBe(UID_STAFF4)
+  await expect
+    .poll(async () => {
+      const rows = await dbQuery(page.request, 'case_access', {
         case_id: `eq.${caseId}`,
         user_id: `eq.${UID_STAFF4}`,
       })
-      return rows[0]?.level
+      return rows.length
     }, { timeout: 15_000 })
-    .toBe('write')
-
-  await signOut(page)
-
-  // ── The auto-granted assignee can OPEN + WRITE the case (collaborator role) ──
-  await signInAs(page, 'staff4.ccih@test.local')
-  await page.goto(`${BASE}/casos/${caseId}`)
-  await page.waitForURL(`${BASE}/casos/${caseId}`)
-  await expect(page.getByRole('heading', { name: /caso\s*\d+/i })).toBeVisible({ timeout: 10_000 })
-  // The role chip reflects WRITE access ("Colaboração"), not a read-only "Leitura".
-  await expect(page.getByText('Colaboração', { exact: true })).toBeVisible({ timeout: 10_000 })
-
-  await signOut(page)
+    .toBe(0)
 })
 
 // ---------------------------------------------------------------------------
@@ -711,11 +733,13 @@ test('KBD keyboard-only: edit-meta dialog is fully keyboard-operable for an Admi
 // coordinator `authorizeCommission` pre-gate from `activatePhase` (src/lib/cases/
 // actions.ts), letting the RPC's `member_can` be the authority.
 //
-// We assert SERVER-SIDE truth (phase → ativa, assignee auto-granted case_access write),
-// NOT the dialog closing: `ActivatePhaseDialog` closes via `useActionState` on `state.ok`,
-// which is subject to the pre-existing BUG-AIF-001 (Windows standalone prod build
-// truncates the RSC action-response body → useActionState dialogs hang on success even
-// though the mutation lands). The gate/authority is correct regardless of that artifact.
+// We assert SERVER-SIDE truth (phase → ativa, assigned to the member), NOT the dialog
+// closing: `ActivatePhaseDialog` closes via `useActionState` on `state.ok`, which is
+// subject to the pre-existing BUG-AIF-001 (Windows standalone prod build truncates the
+// RSC action-response body → useActionState dialogs hang on success even though the
+// mutation lands). The gate/authority is correct regardless of that artifact. NOTE
+// (design revert 2026-07-08): assignment no longer grants case_access — so this guard
+// asserts only that the assignment LANDED (no write-row check; POS-3 owns that).
 // ---------------------------------------------------------------------------
 
 test('REG-ADM-001: Administrativo activates a phase through the UI — the activation lands server-side (gate fix regression guard)', async ({
@@ -739,7 +763,7 @@ test('REG-ADM-001: Administrativo activates a phase through the UI — the activ
   await activate.getByRole('button', { name: /Ativar fase/i }).click()
 
   // Server-side truth: the action reached the RPC and the mutation landed — the phase
-  // is ativa, assigned to staff1, who was auto-granted case_access WRITE.
+  // is ativa, assigned to staff1.
   await expect
     .poll(async () => {
       const rows = await dbQuery<{ status: string; assigned_to: string | null }>(
@@ -750,16 +774,6 @@ test('REG-ADM-001: Administrativo activates a phase through the UI — the activ
       return `${rows[0]?.status}:${rows[0]?.assigned_to}`
     }, { timeout: 15_000 })
     .toBe(`ativa:${UID_STAFF1}`)
-
-  await expect
-    .poll(async () => {
-      const rows = await dbQuery<{ level: string }>(page.request, 'case_access', {
-        case_id: `eq.${caseId}`,
-        user_id: `eq.${UID_STAFF1}`,
-      })
-      return rows[0]?.level
-    }, { timeout: 15_000 })
-    .toBe('write')
 
   await signOut(page)
 })

@@ -50,7 +50,7 @@ the ADR must record it.
 | Capability menu (the 4 keys) | `schedule_meetings`, `create_cases`, `assign_case_phases`, `view_signoffs`. |
 | Meetings scope | Manage **all** the commission's meetings (no created-by restriction). |
 | Cases scope | **Create + edit meta, but NEVER conclude or cancel** (and never set outcome). |
-| Phase assignment → access | Assigning a phase grants the assignee the access to work it, **for every assignment (coordinators included)** — a deliberate behavior change (today assignment gives read-only). |
+| Phase assignment → access | **(Revised 2026-07-08)** Assigning a phase grants the assignee phase-form write (`assigned_to` + `answers_write_own_draft`) + case READ (`can_read_case` assignee arm) — **NO `case_access` write auto-grant**. A non-coordinator case CREATOR gets `case_access` **read**. Case-content write stays the coordinator's explicit `grant_case_access`. |
 | Signatures | **View** the pending-signoff queue only; **never sign**. Real reminders depend on Phase-20 notifications; for now it is visibility only. |
 | Rollout | OFF-by-default feature flag `administrativo`; ADR required. |
 
@@ -135,8 +135,9 @@ t19 hygiene: `revoke all … from public; grant execute … to authenticated, se
 | `meetings_staff_admin_write` (policy) | `… OR app.member_can(commission_id,'schedule_meetings')` in USING **and** WITH CHECK |
 | `create_case`, `create_case_from_template` | `… OR app.member_can(commission,'create_cases')` |
 | **NEW** `update_case_meta(p_case_id,p_label,p_department_id,p_department_other)` | DEFINER; `assert_administrativo_enabled` when reached via cap arm; gate `is_staff_admin_of OR is_commission_admin_of OR app.member_can(c,'create_cases')`; block terminal status (HC025); update **only** `label`/`department_*` — never `status`, `outcome_id`, `closed_*`, or any PHI column; re-validate department shape like `create_case`. |
-| `activate_phase` | **flip to SECURITY DEFINER**; gate `… OR app.member_can(c,'assign_case_phases')`; after the assignee UPDATE call `app._grant_case_access_unchecked(case, assignee, 'write')` |
-| `reassign_phase` | **flip to SECURITY DEFINER**; same gate; grant new assignee `write` (see Open item on downgrading the previous assignee) |
+| `activate_phase` | **flip to SECURITY DEFINER**; gate `… OR app.member_can(c,'assign_case_phases')`. **(Revised 2026-07-08)** NO `case_access` write auto-grant — assignment gives phase-form write (`assigned_to`) + case READ (`can_read_case` assignee arm) only. |
+| `reassign_phase` | **flip to SECURITY DEFINER**; same gate. **(Revised 2026-07-08)** NO `case_access` write auto-grant (see `activate_phase`). |
+| **`create_case` / `create_case_from_template`** | **(Revised 2026-07-08)** after insert, a NON-coordinator (`member_can('create_cases')`) creator self-grants `case_access` **read** via `app._grant_case_access_unchecked(..., 'read')`, guarded `NOT (is_staff_admin_of OR is_commission_admin_of)` + the `case_access` flag — visibility of the case they opened, read-only. |
 | `close_case`, `cancel_case` | add explicit `is_staff_admin_of(v_commission) OR is_commission_admin_of(v_commission)` gate (resolve `v_commission` via `app.commission_of_case`), **no** `member_can` — defense-in-depth; keep INVOKER |
 | `list_signoff_queue` | internal gate `is_staff_admin_of(c) OR app.member_can(c,'view_signoffs')` (empty set otherwise) |
 | `set_case_outcome` | **UNCHANGED** (outcome is conclude-adjacent → coordinator-only) |
@@ -176,7 +177,7 @@ After the migration: `supabase gen types typescript --linked > src/lib/types/dat
 5. Full `npx playwright test` (regression + new) green, `--workers=1`, fresh reset.
 
 ## 9. Open / deferred (minor)
-- **Reassignment least-privilege**: whether `reassign_phase` downgrades the *previous* assignee's auto-granted `case_access` to `read` (strict) or leaves it (simple). Default: leave as-is; revisit if least-privilege is required.
+- ~~**Reassignment least-privilege**~~ — **MOOT (revised 2026-07-08):** phase assignment no longer auto-grants `case_access` write, so there is no lingering grant to downgrade. Assignment gives phase-form write (`assigned_to`) + case READ (`can_read_case` assignee arm) only.
 - **Signature reminders**: real "nudge" depends on Phase-20 notifications; `view_signoffs` is visibility-only for now.
 - **PHI/governance note for the ADR**: `create_cases` lets an Administrativo enter/read patient context on PHI-bearing commissions; minimum-necessary is satisfied by the explicit per-member grant, but the manager UI must state it.
 
