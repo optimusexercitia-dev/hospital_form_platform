@@ -115,6 +115,72 @@ export async function listAddableMembers(
 }
 
 /**
+ * Administrativo delegation (ADR 0061). The finite capability menu; the string
+ * union mirrors the DB CHECK on `commission_administrativo_capabilities.capability`.
+ * Keep in sync with the migration's CHECK list.
+ */
+export type MemberCapability =
+  | 'schedule_meetings'
+  | 'create_cases'
+  | 'assign_case_phases'
+  | 'view_signoffs'
+
+/** An "Administrativo" appointment row for a commission member (ADR 0061). */
+export interface AdministrativoAppointment {
+  userId: string
+  appointedAt: string
+}
+
+/** A single granted capability of an Administrativo (ADR 0061). */
+export interface MemberCapabilityGrant {
+  userId: string
+  capability: MemberCapability
+}
+
+/**
+ * The commission's "Administrativo" appointments (ADR 0061). Backs the coordinator
+ * member-manager UI (the "Administrativo" badge + the appoint control). RLS-scoped
+ * via `commission_administrativos_select` (coordinator / commission-admin / self);
+ * returns `[]` when the caller may not read them. Names/roles come from
+ * {@link listMembers} — this only marks WHICH members are appointed.
+ */
+export async function listAdministrativos(
+  commissionId: string,
+): Promise<AdministrativoAppointment[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('commission_administrativos')
+    .select('user_id, appointed_at')
+    .eq('commission_id', commissionId)
+    .returns<{ user_id: string; appointed_at: string }[]>()
+
+  if (error || !data) return []
+  return data.map((row) => ({ userId: row.user_id, appointedAt: row.appointed_at }))
+}
+
+/**
+ * The commission's granted Administrativo capabilities (ADR 0061), one row per
+ * (member, capability). Backs the per-member capability checklist in the manager
+ * UI. RLS-scoped via `commission_administrativo_capabilities_select`; returns `[]`
+ * when the caller may not read them.
+ */
+export async function listMemberCapabilities(
+  commissionId: string,
+): Promise<MemberCapabilityGrant[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('commission_administrativo_capabilities')
+    .select('user_id, capability')
+    .eq('commission_id', commissionId)
+    .returns<{ user_id: string; capability: MemberCapability }[]>()
+
+  if (error || !data) return []
+  return data.map((row) => ({ userId: row.user_id, capability: row.capability }))
+}
+
+/**
  * Canonical member ordering: staff_admins first, then by full name (falling back
  * to email so unnamed rows still sort deterministically), pt-BR locale.
  */

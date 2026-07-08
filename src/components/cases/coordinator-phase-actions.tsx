@@ -57,6 +57,7 @@ export function CoordinatorPhaseActions({
   assignees,
   isOpen,
   canManageLifecycle = true,
+  canAssignPhases = false,
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -67,11 +68,19 @@ export function CoordinatorPhaseActions({
   assignees: AssigneeOption[];
   isOpen: boolean;
   /**
-   * Whether the viewer may run phase lifecycle (activate/skip/reassign) + see the
-   * coordinator answer deep-link. Default `true` preserves every coordinator
-   * call-site; the staff full-case view passes `false`.
+   * COORDINATOR-only controls (ADR 0061 split): the phase-SETTLING "Não necessária"
+   * (skip) + the coordinator answer deep-link ("Ver respostas"). Default `true`
+   * preserves every coordinator call-site; the staff full-case view passes `false`.
+   * Skip stays coordinator-only by design — settling a phase can unblock closure.
    */
   canManageLifecycle?: boolean;
+  /**
+   * Whether the viewer may ACTIVATE / REASSIGN a phase (ADR 0061): a coordinator OR
+   * an Administrativo with `assign_case_phases`. Coordinators pass `true` for both
+   * this and {@link canManageLifecycle}; an assign-only Administrativo gets ONLY
+   * activate/reassign (no skip, no coordinator deep-link).
+   */
+  canAssignPhases?: boolean;
 }) {
   const { run, isPending, error } = useCaseAction();
   const [activateOpen, setActivateOpen] = useState(false);
@@ -86,13 +95,14 @@ export function CoordinatorPhaseActions({
       ? `Bloqueada por Fase ${blockingPositions[0]}`
       : `Bloqueada por Fases ${blockingPositions.join(", ")}`;
 
-  // A non-coordinator viewer (read/write grantee) gets no phase controls: lifecycle
-  // is coordinator-only and the answer deep-link targets the coordinator-only view.
-  if (!canManageLifecycle) return null;
+  // No phase controls at all for a viewer who can neither manage (coordinator) nor
+  // assign (assign_case_phases Administrativo) — e.g. a read/write grantee.
+  if (!canManageLifecycle && !canAssignPhases) return null;
 
-  // Concluída: a read-only answer view is always available (even when closed).
+  // Concluída: the read-only answer deep-link targets the coordinator `/manage` view,
+  // so it stays coordinator-only (canManageLifecycle). Always available (even closed).
   if (phase.status === "concluida") {
-    if (!phase.responseId) return null;
+    if (!canManageLifecycle || !phase.responseId) return null;
     return (
       <div className="flex items-center justify-end">
         <Button asChild variant="outline" size="sm">
@@ -115,62 +125,70 @@ export function CoordinatorPhaseActions({
       <div className="flex flex-wrap items-center justify-end gap-2">
         {phase.status === "pendente" && (
           <>
-            {isBlocked && (
-              <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                <Lock aria-hidden="true" className="size-3.5" />
-                {blockedLabel}
-              </span>
-            )}
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => setActivateOpen(true)}
-              disabled={assignees.length === 0 || isPending || isBlocked}
-              title={isBlocked ? blockedLabel : undefined}
-            >
-              <PlayCircle aria-hidden="true" />
-              Ativar e atribuir
-            </Button>
-
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
+            {canAssignPhases && (
+              <>
+                {isBlocked && (
+                  <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <Lock aria-hidden="true" className="size-3.5" />
+                    {blockedLabel}
+                  </span>
+                )}
                 <Button
                   type="button"
-                  variant="outline"
                   size="sm"
-                  disabled={isPending}
+                  onClick={() => setActivateOpen(true)}
+                  disabled={assignees.length === 0 || isPending || isBlocked}
+                  title={isBlocked ? blockedLabel : undefined}
                 >
-                  <SkipForward aria-hidden="true" />
-                  Não necessária
+                  <PlayCircle aria-hidden="true" />
+                  Ativar e atribuir
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    Marcar como não necessária?
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    A {phaseLabel} será marcada como não necessária e a próxima
-                    fase poderá ser ativada. Esta ação não pode ser desfeita.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={isPending}>
-                    Voltar
-                  </AlertDialogCancel>
-                  <AlertDialogAction
+              </>
+            )}
+
+            {/* "Não necessária" SETTLES a phase → coordinator-only (guardrail: an
+                Administrativo must not settle phases and unblock closure). */}
+            {canManageLifecycle && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     disabled={isPending}
-                    onClick={() => run(() => skipPhase(phase.id))}
                   >
-                    Marcar como não necessária
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                    <SkipForward aria-hidden="true" />
+                    Não necessária
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Marcar como não necessária?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      A {phaseLabel} será marcada como não necessária e a próxima
+                      fase poderá ser ativada. Esta ação não pode ser desfeita.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isPending}>
+                      Voltar
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      disabled={isPending}
+                      onClick={() => run(() => skipPhase(phase.id))}
+                    >
+                      Marcar como não necessária
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </>
         )}
 
-        {phase.status === "ativa" && (
+        {phase.status === "ativa" && canAssignPhases && (
           <Button
             type="button"
             variant="outline"
@@ -190,7 +208,7 @@ export function CoordinatorPhaseActions({
         </p>
       )}
 
-      {phase.status === "pendente" && (
+      {phase.status === "pendente" && canAssignPhases && (
         <ActivatePhaseDialog
           mode="activate"
           open={activateOpen}
@@ -202,7 +220,7 @@ export function CoordinatorPhaseActions({
           defaultDueDays={phase.defaultDueDays}
         />
       )}
-      {phase.status === "ativa" && (
+      {phase.status === "ativa" && canAssignPhases && (
         <ActivatePhaseDialog
           mode="reassign"
           open={reassignOpen}

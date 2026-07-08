@@ -2274,6 +2274,81 @@ export type Database = {
           },
         ]
       }
+      commission_administrativo_capabilities: {
+        Row: {
+          capability: string
+          commission_id: string
+          granted_at: string
+          granted_by: string | null
+          user_id: string
+        }
+        Insert: {
+          capability: string
+          commission_id: string
+          granted_at?: string
+          granted_by?: string | null
+          user_id: string
+        }
+        Update: {
+          capability?: string
+          commission_id?: string
+          granted_at?: string
+          granted_by?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_admin_cap_appointment_fk"
+            columns: ["commission_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "commission_administrativos"
+            referencedColumns: ["commission_id", "user_id"]
+          },
+          {
+            foreignKeyName: "commission_administrativo_capabilities_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      commission_administrativos: {
+        Row: {
+          appointed_at: string
+          appointed_by: string | null
+          commission_id: string
+          user_id: string
+        }
+        Insert: {
+          appointed_at?: string
+          appointed_by?: string | null
+          commission_id: string
+          user_id: string
+        }
+        Update: {
+          appointed_at?: string
+          appointed_by?: string | null
+          commission_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_administrativos_appointed_by_fkey"
+            columns: ["appointed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_administrativos_member_fk"
+            columns: ["commission_id", "user_id"]
+            isOneToOne: true
+            referencedRelation: "commission_members"
+            referencedColumns: ["commission_id", "user_id"]
+          },
+        ]
+      }
       commission_meeting_settings: {
         Row: {
           commission_id: string
@@ -6239,6 +6314,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      appoint_administrativo: {
+        Args: { p_commission_id: string; p_user_id: string }
+        Returns: undefined
+      }
       approve_document: {
         Args: { p_note?: string; p_version_id: string }
         Returns: {
@@ -7830,6 +7909,14 @@ export type Database = {
         }
         Returns: undefined
       }
+      grant_member_capability: {
+        Args: {
+          p_capability: string
+          p_commission_id: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       hospital_document_register: {
         Args: {
           p_doc_type?: string
@@ -8813,12 +8900,24 @@ export type Database = {
         Args: { p_direction: string; p_phase_id: string }
         Returns: undefined
       }
+      revoke_administrativo: {
+        Args: { p_commission_id: string; p_user_id: string }
+        Returns: undefined
+      }
       revoke_case_access: {
         Args: { p_case: string; p_user: string }
         Returns: undefined
       }
       revoke_hospital_admin: {
         Args: { p_hospital: string; p_user: string }
+        Returns: undefined
+      }
+      revoke_member_capability: {
+        Args: {
+          p_capability: string
+          p_commission_id: string
+          p_user_id: string
+        }
         Returns: undefined
       }
       revoke_nsp_coordinator: {
@@ -9731,6 +9830,40 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "capa_plan"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_case_meta: {
+        Args: {
+          p_case_id: string
+          p_department_id?: string
+          p_department_other?: string
+          p_label?: string
+        }
+        Returns: {
+          case_number: number
+          closed_at: string | null
+          closed_by: string | null
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          department_id: string | null
+          department_other: string | null
+          has_patient: boolean
+          id: string
+          label: string | null
+          outcome_id: string | null
+          patient_enabled: boolean
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
+          status: string
+          template_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cases"
           isOneToOne: true
           isSetofReturn: false
         }

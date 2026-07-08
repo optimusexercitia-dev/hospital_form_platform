@@ -35,12 +35,19 @@ export function ReviewAndSign({
   data,
   imageUrls,
   isAdminViewer,
+  readOnly = false,
   onSign,
 }: {
   data: ClientResponseForSignoff;
   imageUrls: Record<string, string>;
   /** A global admin viewing the queue is not a "chefia" signer in the UI copy. */
   isAdminViewer?: boolean;
+  /**
+   * Force the read-only branch — the section status is shown, the sign affordance is
+   * hidden. Used for a `view_signoffs` Administrativo (ADR 0061): they observe the
+   * queue but never sign (defense-in-depth; the DB `sign_section` also rejects them).
+   */
+  readOnly?: boolean;
   onSign: (input: {
     responseId: string;
     sectionId: string;
@@ -93,6 +100,7 @@ export function ReviewAndSign({
             existingSignoff={data.signoffsBySectionId[section.id] ?? null}
             responseId={data.responseId}
             isAdminViewer={isAdminViewer}
+            readOnly={readOnly}
             onSign={onSign}
           />
         ))}
@@ -128,6 +136,7 @@ function ReviewSection({
   existingSignoff,
   responseId,
   isAdminViewer,
+  readOnly = false,
   onSign,
 }: {
   section: Section;
@@ -140,6 +149,7 @@ function ReviewSection({
   existingSignoff: SectionSignoff | null;
   responseId: string;
   isAdminViewer?: boolean;
+  readOnly?: boolean;
   onSign: (input: {
     responseId: string;
     sectionId: string;
@@ -204,9 +214,10 @@ function ReviewSection({
       )}
 
       {/* staff_admin sign-off sections: the sign affordance (or, for an admin
-          viewer, the read-only status — admins observe, coordinators sign). */}
+          viewer OR a read-only `view_signoffs` viewer, the read-only status —
+          they observe, only a coordinator signs). */}
       {isStaffAdminSignoff &&
-        (isAdminViewer ? (
+        (isAdminViewer || readOnly ? (
           <SignoffStatus signoff={existingSignoff} role="staff_admin" />
         ) : (
           <SignSectionPanel

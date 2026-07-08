@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
+import type { MemberCapability } from '@/lib/queries/members'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 
@@ -43,7 +44,20 @@ const MESSAGES = {
     'Esta pessoa não está disponível para adicionar a esta comissão.',
   staffAdded: 'Usuário adicionado à comissão com sucesso.',
   staffRemoved: 'Usuário removido da comissão com sucesso.',
+  administrativoAppointed: 'Membro tornado Administrativo com sucesso.',
+  administrativoRevoked: 'Delegação de Administrativo removida com sucesso.',
+  capabilityGranted: 'Permissão concedida com sucesso.',
+  capabilityRevoked: 'Permissão removida com sucesso.',
+  invalidCapability: 'Permissão inválida.',
 } as const
+
+/** The finite Administrativo capability menu (ADR 0061) — mirrors the DB CHECK. */
+const CAPABILITIES: readonly MemberCapability[] = [
+  'schedule_meetings',
+  'create_cases',
+  'assign_case_phases',
+  'view_signoffs',
+]
 
 /**
  * Authorize a staff-management action for a specific commission: a staff_admin of
@@ -195,4 +209,124 @@ export async function removeStaff(
 
   revalidatePath(`/o/[org]/c/[commission]/manage/members`, 'page')
   return { ok: true, error: MESSAGES.staffRemoved }
+}
+
+/**
+ * Administrativo delegation (ADR 0061) — the coordinator's per-member controls in
+ * the member manager. Each action re-verifies the caller is a coordinator/commission
+ * -admin of THIS commission ({@link authorizeStaffOps}) before the write, then routes
+ * through a guarded SECURITY DEFINER RPC that carries its OWN escalation gate (a
+ * capability holder can never appoint or grant). The RLS-scoped cookie client is used
+ * so `auth.uid()` is the caller; raw Postgres errors are mapped to pt-BR messages and
+ * NEVER surface (CLAUDE.md §8). Appoint/grant/revoke are audited in the DB.
+ */
+
+/** Appoint a `staff` member of the commission as an Administrativo. */
+export async function appointAdministrativo(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const commissionId = String(formData.get('commissionId') ?? '')
+  const userId = String(formData.get('userId') ?? '')
+
+  if (!commissionId) return { ok: false, error: MESSAGES.missingCommission }
+  if (!(await authorizeStaffOps(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+  if (!userId) return { ok: false, error: MESSAGES.missingUser }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('appoint_administrativo', {
+    p_commission_id: commissionId,
+    p_user_id: userId,
+  })
+  if (error) return { ok: false, error: MESSAGES.generic }
+
+  revalidatePath(`/o/[org]/c/[commission]/manage/members`, 'page')
+  return { ok: true, error: MESSAGES.administrativoAppointed }
+}
+
+/** Revoke an Administrativo appointment (cascades its capabilities in the DB). */
+export async function revokeAdministrativo(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const commissionId = String(formData.get('commissionId') ?? '')
+  const userId = String(formData.get('userId') ?? '')
+
+  if (!commissionId) return { ok: false, error: MESSAGES.missingCommission }
+  if (!(await authorizeStaffOps(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+  if (!userId) return { ok: false, error: MESSAGES.missingUser }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('revoke_administrativo', {
+    p_commission_id: commissionId,
+    p_user_id: userId,
+  })
+  if (error) return { ok: false, error: MESSAGES.generic }
+
+  revalidatePath(`/o/[org]/c/[commission]/manage/members`, 'page')
+  return { ok: true, error: MESSAGES.administrativoRevoked }
+}
+
+/** Grant one capability from the finite menu to an appointed Administrativo. */
+export async function grantMemberCapability(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const commissionId = String(formData.get('commissionId') ?? '')
+  const userId = String(formData.get('userId') ?? '')
+  const capability = String(formData.get('capability') ?? '')
+
+  if (!commissionId) return { ok: false, error: MESSAGES.missingCommission }
+  if (!(await authorizeStaffOps(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+  if (!userId) return { ok: false, error: MESSAGES.missingUser }
+  if (!CAPABILITIES.includes(capability as MemberCapability)) {
+    return { ok: false, error: MESSAGES.invalidCapability }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('grant_member_capability', {
+    p_commission_id: commissionId,
+    p_user_id: userId,
+    p_capability: capability,
+  })
+  if (error) return { ok: false, error: MESSAGES.generic }
+
+  revalidatePath(`/o/[org]/c/[commission]/manage/members`, 'page')
+  return { ok: true, error: MESSAGES.capabilityGranted }
+}
+
+/** Revoke one capability from an appointed Administrativo (idempotent). */
+export async function revokeMemberCapability(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const commissionId = String(formData.get('commissionId') ?? '')
+  const userId = String(formData.get('userId') ?? '')
+  const capability = String(formData.get('capability') ?? '')
+
+  if (!commissionId) return { ok: false, error: MESSAGES.missingCommission }
+  if (!(await authorizeStaffOps(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+  if (!userId) return { ok: false, error: MESSAGES.missingUser }
+  if (!CAPABILITIES.includes(capability as MemberCapability)) {
+    return { ok: false, error: MESSAGES.invalidCapability }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('revoke_member_capability', {
+    p_commission_id: commissionId,
+    p_user_id: userId,
+    p_capability: capability,
+  })
+  if (error) return { ok: false, error: MESSAGES.generic }
+
+  revalidatePath(`/o/[org]/c/[commission]/manage/members`, 'page')
+  return { ok: true, error: MESSAGES.capabilityRevoked }
 }

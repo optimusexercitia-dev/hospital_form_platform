@@ -2,9 +2,17 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { listMembers, listAddableMembers } from "@/lib/queries/members";
+import {
+  listMembers,
+  listAddableMembers,
+  listAdministrativos,
+  listMemberCapabilities,
+  type MemberCapability,
+} from "@/lib/queries/members";
+import { featureEnabled } from "@/lib/queries/feature-flags";
+import { casePatientEnabled } from "@/lib/queries/cases";
 import { listMemberTitles } from "@/lib/commissions/titles";
-import { AddMemberPicker } from "@/components/members/add-member-picker";
+import { AddMemberDialog } from "@/components/members/add-member-dialog";
 import { MemberList } from "@/components/members/member-list";
 
 export const metadata: Metadata = {
@@ -35,11 +43,29 @@ export default async function ManageMembersPage({
     notFound();
   }
 
-  const [members, addable, titles] = await Promise.all([
-    listMembers(access.commission.id),
-    listAddableMembers(access.commission.id),
-    listMemberTitles(access.commission.id),
-  ]);
+  const administrativoEnabled = await featureEnabled("administrativo");
+
+  const [members, addable, titles, appointments, capabilities, casePatientOn] =
+    await Promise.all([
+      listMembers(access.commission.id),
+      listAddableMembers(access.commission.id),
+      listMemberTitles(access.commission.id),
+      // Administrativo delegation (ADR 0061): only read when the feature is on.
+      administrativoEnabled
+        ? listAdministrativos(access.commission.id)
+        : Promise.resolve([]),
+      administrativoEnabled
+        ? listMemberCapabilities(access.commission.id)
+        : Promise.resolve([]),
+      administrativoEnabled ? casePatientEnabled() : Promise.resolve(false),
+    ]);
+
+  // Fold the capability rows into a per-user map for the checklist.
+  const capabilitiesByUser: Record<string, MemberCapability[]> = {};
+  for (const grant of capabilities) {
+    (capabilitiesByUser[grant.userId] ??= []).push(grant.capability);
+  }
+  const appointedUserIds = appointments.map((a) => a.userId);
 
   return (
     <div className="flex flex-col gap-10">
@@ -55,40 +81,32 @@ export default async function ManageMembersPage({
       </header>
 
       <section
-        aria-labelledby="adicionar-heading"
-        className="animate-rise-in rounded-2xl border border-border bg-card p-6 sm:p-7"
-      >
-        <h2 id="adicionar-heading" className="text-lg font-semibold">
-          Adicionar membro
-        </h2>
-        <p className="mt-1 mb-5 max-w-prose text-sm text-muted-foreground">
-          Escolha uma pessoa já cadastrada na organização. Membros podem preencher
-          os formulários publicados da comissão.
-        </p>
-        <AddMemberPicker
-          commissionId={access.commission.id}
-          candidates={addable}
-        />
-      </section>
-
-      <section
         aria-labelledby="membros-heading"
         className="animate-rise-in flex flex-col gap-4"
-        style={{ ["--rise-delay" as string]: "80ms" }}
       >
-        <div className="flex items-baseline justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="membros-heading" className="text-lg font-semibold">
             Membros da comissão
           </h2>
-          <span className="text-sm text-muted-foreground">
-            {members.length} {members.length === 1 ? "pessoa" : "pessoas"}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">
+              {members.length} {members.length === 1 ? "pessoa" : "pessoas"}
+            </span>
+            <AddMemberDialog
+              commissionId={access.commission.id}
+              candidates={addable}
+            />
+          </div>
         </div>
         <MemberList
           commissionId={access.commission.id}
           members={members}
           currentUserId={access.context.userId}
           titles={titles}
+          administrativoEnabled={administrativoEnabled}
+          appointedUserIds={appointedUserIds}
+          capabilitiesByUser={capabilitiesByUser}
+          showPhiNotice={casePatientOn}
         />
       </section>
     </div>

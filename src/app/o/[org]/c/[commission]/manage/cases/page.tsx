@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { FolderOpen } from "lucide-react";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
 import {
   listCasesBoard,
   casePatientEnabled,
@@ -28,9 +28,10 @@ export const metadata: Metadata = {
 /**
  * Per-commission cases board (coordinator area): one row per case with its
  * phases' progress and a "Novo caso" create flow. Backed by the SECURITY DEFINER
- * `list_cases_board` (internally `is_staff_admin_of`-gated → `[]` for non-staff_
- * admins), but we ALSO gate the route here so a non-coordinator gets `notFound()`
- * rather than an empty board.
+ * `list_cases_board` — a coordinator sees the whole commission's board; an
+ * Administrativo with `create_cases` (ADR 0061) sees only the cases they can read
+ * (creator/assignee), so their board is correctly scoped. The route admits both;
+ * everyone else gets `notFound()` rather than an empty board.
  *
  * The board carries STATUS ONLY — never answers (the Phase-7 invariant).
  */
@@ -46,9 +47,12 @@ export default async function CasesBoardPage({
   const { view } = await searchParams;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  if (!access || access.role !== "staff_admin") {
+  // Coordinator OR (ADR 0061) an Administrativo with `create_cases`. The board read
+  // is RLS/DEFINER-scoped per caller, so an Administrativo sees only their own cases.
+  if (!access || !canInCommission(access, "create_cases")) {
     notFound();
   }
+  const canCreateCases = canInCommission(access, "create_cases");
 
   const [
     // The board is CAPPED, not cursor-paginated (`nextCursor` is always null),
@@ -112,16 +116,18 @@ export default async function CasesBoardPage({
             paciente.
           </p>
         </div>
-        <CreateCaseDialog
-          org={org} slug={slug}
-          templates={activeTemplates}
-          commissionId={access.commission.id}
-          departments={departments}
-          casePatientEnabled={casePatientOn}
-          processlessEnabled={processlessOn}
-          casesExtrasEnabled={casesExtrasOn}
-          outcomes={outcomes}
-        />
+        {canCreateCases && (
+          <CreateCaseDialog
+            org={org} slug={slug}
+            templates={activeTemplates}
+            commissionId={access.commission.id}
+            departments={departments}
+            casePatientEnabled={casePatientOn}
+            processlessEnabled={processlessOn}
+            casesExtrasEnabled={casesExtrasOn}
+            outcomes={outcomes}
+          />
+        )}
       </header>
 
       {rows.length === 0 ? (
@@ -140,7 +146,7 @@ export default async function CasesBoardPage({
                 ? "Crie o primeiro caso — a partir de um processo publicado ou sem processo."
                 : "Crie o primeiro caso a partir de um processo publicado."}
           </p>
-          {canCreate && (
+          {canCreate && canCreateCases && (
             <div className="mt-2">
               <CreateCaseDialog
                 org={org} slug={slug}
@@ -162,7 +168,15 @@ export default async function CasesBoardPage({
             actionItems={actionItemKpis}
             outcomeBreakdown={outcomeBreakdown}
           />
-          <CasesView rows={rows} org={org} slug={slug} initialView={initialView} />
+          <CasesView
+            rows={rows}
+            org={org}
+            slug={slug}
+            initialView={initialView}
+            // A non-coordinator reaching the board via `create_cases` (ADR 0061) is
+            // routed to the STAFF case route — the coordinator `(detail)` route 404s them.
+            staffCaseRoute={access.role !== "staff_admin"}
+          />
         </>
       )}
     </div>

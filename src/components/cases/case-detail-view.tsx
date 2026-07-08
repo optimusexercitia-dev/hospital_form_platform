@@ -16,6 +16,8 @@ import {
 import { CaseRoleChip } from "@/components/cases/case-role-chip";
 import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
 import { CasePhaseList, type AssigneeOption } from "@/components/cases/case-phase-list";
+import { EditCaseMetaDialog } from "@/components/cases/edit-case-meta-dialog";
+import type { Department } from "@/lib/hospitals/departments";
 import { CaseActionItemsPanel } from "@/components/cases/case-action-items-panel";
 import { CaseEventsTimeline } from "@/components/cases/case-events-timeline";
 import { CaseTagsPanel } from "@/components/cases/case-tags-panel";
@@ -103,6 +105,9 @@ export function CaseDetailView({
   phaseResultOptions = [],
   outcomes = [],
   casesExtrasEnabled = false,
+  canAssignPhases = false,
+  canEditMeta = false,
+  departments = [],
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -153,9 +158,30 @@ export function CaseDetailView({
   outcomes?: CaseOutcome[];
   /** Whether `cases_extras` is on (gates the process-less offered-outcome editor). */
   casesExtrasEnabled?: boolean;
+  /**
+   * Whether the viewer may ACTIVATE / REASSIGN phases (ADR 0061) — resolved at the
+   * host page via `canInCommission(access, 'assign_case_phases')`. OR-ed below with
+   * the coordinator lifecycle capability so a coordinator always retains it. Default
+   * `false` (a plain read/write grantee gets no phase-assignment controls).
+   */
+  canAssignPhases?: boolean;
+  /**
+   * Whether the viewer may EDIT this case's meta (label + department) — a coordinator
+   * OR a `create_cases` Administrativo (ADR 0061), resolved at the host page via
+   * `canInCommission(access, 'create_cases')`. Surfaces the "Editar" affordance in the
+   * self-contained (staff-route) header on an OPEN case; the coordinator `(detail)`
+   * layout renders its own edit-meta button. Default `false`.
+   */
+  canEditMeta?: boolean;
+  /** The case's hospital ACTIVE departments — seeds the edit-meta dialog. Default `[]`. */
+  departments?: Department[];
 }) {
   const c = detail.case;
   const caps = detail.viewerCapabilities;
+  // Activate/reassign: an `assign_case_phases` Administrativo OR anyone who already
+  // manages lifecycle (a coordinator) — the latter keeps coordinators from regressing
+  // regardless of what the page passes.
+  const effectiveCanAssignPhases = canAssignPhases || caps.canManageLifecycle;
   const isOpen = !isTerminalCaseStatus(c.status);
   const offersOutcomes = detail.offeredOutcomes.length > 0;
   // A process-less case (templateId === null) has no template snapshot to freeze,
@@ -251,7 +277,9 @@ export function CaseDetailView({
                 concluded case (mirrors the coordinator top bar). Lifecycle MANAGEMENT
                 lives on the coordinator `/manage/...` route, so here the right side
                 only offers the "Gerenciar caso" link to a coordinator. */}
-            {(patientSafetyEnabled || caps.canManageLifecycle) && (
+            {(patientSafetyEnabled ||
+              caps.canManageLifecycle ||
+              (isOpen && canEditMeta)) && (
               <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
                 {patientSafetyEnabled && (
                   <NotifyEventDialog
@@ -265,6 +293,19 @@ export function CaseDetailView({
                         ? loadCasePatientForNotify.bind(null, c.id)
                         : undefined
                     }
+                  />
+                )}
+                {/* Edit META (label + department) — the single audited edit door
+                    (ADR 0061). Open-only (terminal cases are frozen, HC025). Shown to a
+                    `create_cases` Administrativo on the staff route; coordinators edit
+                    from the `(detail)` layout's own button. */}
+                {isOpen && canEditMeta && (
+                  <EditCaseMetaDialog
+                    caseId={c.id}
+                    currentLabel={c.label}
+                    currentDepartmentId={c.departmentId}
+                    currentDepartmentOther={c.departmentOther}
+                    departments={departments}
                   />
                 )}
                 {caps.canManageLifecycle && (
@@ -305,6 +346,7 @@ export function CaseDetailView({
                 assignees={assignees}
                 isOpen={isOpen}
                 caps={caps}
+                canAssignPhases={effectiveCanAssignPhases}
                 viewerId={viewerId}
                 caseAccessEnabled={caseAccessEnabled}
                 // Post-conclusion correction (task #10): staff_admin + flag on +

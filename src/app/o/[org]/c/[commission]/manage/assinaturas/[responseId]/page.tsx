@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-import { getCommissionAccessByOrg } from "@/lib/queries/session";
+import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
 import { getSignedAssetUrl } from "@/lib/queries/forms";
 import { getResponseForSignoff } from "@/lib/queries/signoffs";
 import { SignRunner } from "@/components/signoffs/sign-runner";
@@ -39,9 +39,17 @@ export default async function ReviewAndSignPage({
   const { org, commission, responseId } = await params;
   const access = await getCommissionAccessByOrg(org, commission);
 
-  if (!access || access.role !== "staff_admin") {
+  // A coordinator / admin OR (ADR 0061) a `view_signoffs` Administrativo may reach
+  // this screen; the latter is READ-ONLY (sign action hidden below). NOTE: the data
+  // read `get_response_for_signoff` is still `is_staff_admin_of`-gated, so a
+  // view_signoffs holder currently 404s at the read until that DEFINER gains the
+  // matching arm — the route relaxation + `readOnly` here are forward-correct.
+  if (!access || !canInCommission(access, "view_signoffs")) {
     notFound();
   }
+
+  // Only a coordinator may sign; a `view_signoffs` holder observes read-only.
+  const canSign = access.role === "staff_admin";
 
   const data: ResponseForSignoff | null =
     await getResponseForSignoff(responseId);
@@ -75,8 +83,9 @@ export default async function ReviewAndSignPage({
         </Link>
         <h1 className="text-3xl text-balance">{data.formTitle}</h1>
         <p className="max-w-prose text-muted-foreground text-pretty">
-          Revise as respostas abaixo e assine as seções sob sua
-          responsabilidade.
+          {canSign
+            ? "Revise as respostas abaixo e assine as seções sob sua responsabilidade."
+            : "Revise as respostas abaixo. A assinatura das seções é feita pela coordenação."}
         </p>
       </header>
 
@@ -84,6 +93,7 @@ export default async function ReviewAndSignPage({
         data={clientData}
         imageUrls={imageUrls}
         isAdminViewer={isAdminViewer}
+        readOnly={!canSign}
       />
     </div>
   );

@@ -18,10 +18,13 @@ export function SignRunner({
   data,
   imageUrls,
   isAdminViewer,
+  readOnly = false,
 }: {
   data: ClientResponseForSignoff;
   imageUrls: Record<string, string>;
   isAdminViewer?: boolean;
+  /** Force read-only (a `view_signoffs` Administrativo observes; only a coordinator signs). */
+  readOnly?: boolean;
 }) {
   const onSign = useMemo(
     () =>
@@ -35,6 +38,7 @@ export function SignRunner({
       data={data}
       imageUrls={imageUrls}
       isAdminViewer={isAdminViewer}
+      readOnly={readOnly}
       onSign={onSign}
     />
   );

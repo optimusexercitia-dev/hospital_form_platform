@@ -83,12 +83,21 @@ export function CasesView({
   org,
   slug,
   initialView,
+  staffCaseRoute = false,
 }: {
   rows: CaseBoardRow[];
   /** Org slug for hrefs. */
   org: string;
   slug: string;
   initialView: CasesViewMode;
+  /**
+   * Point each row at the STAFF case route (`casos/[id]`) instead of the
+   * coordinator `(detail)` route (`manage/cases/[id]`). Set for a non-coordinator
+   * who reaches the board via the `create_cases` capability (ADR 0061) — the
+   * coordinator `(detail)` route 404s them, while the staff route renders their
+   * edit-meta + phase affordances. Coordinators keep the `/manage` link. Default `false`.
+   */
+  staffCaseRoute?: boolean;
 }) {
   const pathname = usePathname();
   const [view, setView] = useState<CasesViewMode>(initialView);
@@ -245,9 +254,9 @@ export function CasesView({
       </p>
 
       {view === "kanban" ? (
-        <CasesKanban rows={filtered} org={org} slug={slug} />
+        <CasesKanban rows={filtered} org={org} slug={slug} staffCaseRoute={staffCaseRoute} />
       ) : (
-        <CasesTable rows={filtered} org={org} slug={slug} />
+        <CasesTable rows={filtered} org={org} slug={slug} staffCaseRoute={staffCaseRoute} />
       )}
     </div>
   );
