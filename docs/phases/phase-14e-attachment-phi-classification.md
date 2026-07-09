@@ -1,199 +1,228 @@
-# Phase 14e — Attachment PHI Classification (Cases & Meetings)
+# Phase 14e — Centralized Attachment Substrate (PHI-classified)
 
-> **Status:** PLANNED — not started. Pick-up-ready execution plan (approved 2026-06-30).
-> **Track:** PHI hardening (extends ARCHITECTURE Rule 12 to file attachments).
-> **Depends on:** Phase 14 (NSP/PHI safeguards established), Phase 13 (audit trail).
-> **First execution step (when picked up):** confirm this file is registered in `PROGRESS.md`
-> (Phase Status table, row `14e`), then recreate the Current-Phase Tasks table and begin B1.
-
----
-
-## 1. Context & rationale
-
-Case documents (`case_documents`) and meeting attachments (`meeting_attachments`) are the
-artifacts most likely to be PHI-dense in the platform — a `digitalizacao` (scanned patient
-record), a signed `ata`, a `lista_presenca`. Today they sit **outside** the PHI regime that
-Rule 12 + ADRs 0030/0035/0037 built for the rest of the system:
-
-- Protected only by **commission-membership RLS** + a private bucket.
-- **No PHI-read auditing** — opening one leaves no trail (contrast `event_patient.read`,
-  `meeting.viewed`).
-- `listCaseDocuments` / `listMeetingAttachments` **batch-mint 1-hour signed URLs for every
-  file on load** (`createSignedUrls`), so any member already holds working links — there is no
-  per-file open chokepoint to audit.
-- The future Phase-19 surveyor/evidence export has **no signal** for which attachments are PHI.
-
-**Decision (this phase):** add a **default-sensitive classification with an explicit
-staff-admin downgrade**, wired to two behaviors — (1) **PHI-read auditing** of file opens, and
-(2) a **carried classification + documented contract** that Phase-19 export must honor
-(withhold/redact). *Not* disposal, *not* a mere visual label. Default-sensitive keeps faith
-with the platform's "structural isolation over self-declaration" philosophy: everything is PHI
-until a staff_admin explicitly declassifies it — the opposite of a fail-open opt-in checkbox.
-
-**Scope:** `case_documents` + `meeting_attachments` only. Interview attachments
-(`case_interview_attachments`) share the pattern and Rule 12 lists interview summaries as
-PHI-bearing → **fast-follow (Phase 14f), not built here.**
-
-**Feature flag:** none new. `logAuditAccess` already no-ops when the `audit_trail` flag is off,
-so audit behavior degrades cleanly; classification + open-routing are always on.
+> **Status:** PLANNED — not started. Approved design; execution deferred (planned 2026-07-09).
+> **Supersedes** the earlier narrow "Attachment PHI Classification (Cases & Meetings)" plan that
+> occupied this slot — that plan added a `contains_phi` flag to two tables; this one generalizes
+> the fix into a centralized substrate and still delivers everything the narrow plan promised.
+> **Track:** PHI hardening (extends ARCHITECTURE Rule 12 to a shared attachments layer).
+> **Depends on:** Phase 14 (NSP/PHI safeguards), Phase 13 (audit trail).
+> **Sequencing (D14):** build NEXT, before resuming the 15 → 17 → 16 pre-pilot track (ADR 0057).
+> **ADR (to write at execution):** `docs/decisions/0063-centralized-attachments-substrate.md`.
 
 ---
 
-## 2. Design decisions (binding)
+## 1. Context (why this change)
 
-1. **Column:** `contains_phi boolean NOT NULL DEFAULT true` on both tables. Default-sensitive;
-   downgrade = `false`, staff_admin only. Classification governs **how the file is opened and
-   exported**, NOT table row visibility — RLS read policies are unchanged.
+Document upload is becoming a first-class, expanding capability (near-term: a Form question-block
+that uploads files, and attachments on Action Items). Two facts force the redesign now:
 
-2. **Audited single-door open (core mechanism).** Stop pre-signing sensitive files:
-   - List queries batch-mint signed URLs **only for `contains_phi = false`** rows; sensitive
-     rows return `signedUrl: null` + `containsPhi: true`.
-   - Opening a sensitive file routes through an **audited open function** that re-reads the row
-     (RLS still authoritative), mints a JIT signed URL, and emits a `*.read` audit row.
-   - Mirrors the `*.viewed` app-layer precedent, but tightened: because the URL is no longer in
-     the list payload, the audited function is the only practical door — an effective
-     single-door without a new `SECURITY DEFINER` RPC.
+1. **Sprawl.** File upload is re-implemented in **seven** places (form-template images,
+   `case_documents`, `meeting_attachments`, `case_interview_attachments`, `rca_evidence`,
+   `capa_action_evidence`, `referral_reply_attachment`), each cloning the same ritual with its own
+   bucket, table, RLS, and divergent MIME lists. Every new surface becomes an 8th/9th copy.
+2. **PHI.** Uploaded documents are the most PHI-dense artifacts on the platform, yet
+   case/meeting/interview docs sit **outside** the Rule-12 regime — membership-only RLS, **no
+   PHI-read auditing**, and list queries pre-sign every file (no per-open chokepoint).
 
-3. **Export contract (design-now, build-with-Phase-19).** Phase 19 does not exist yet. Deliver
-   the column + a binding SQL `COMMENT` + ADR stating: *evidence/surveyor export MUST withhold
-   or redact any attachment with `contains_phi = true`.* Same "documented in COMMENT, honored by
-   future exporter" pattern Rule 12 uses for `minutes_md`, case-event `body`, etc.
+**Outcome:** one `attachments` core owning the *physical* file facts + a `sensitivity_tier`, with
+a shared upload/immutability/audit path and **tiered buckets** (PHI physically segregated);
+**authorization + lifecycle stay domain-owned**, dispatched per `owner_type` via `SECURITY
+DEFINER` helpers; PHI is a first-class tier (segregated + every read audited); and staff-fillable
+upload surfaces get an explicit ingress-control contract. Designed to absorb future upload
+surfaces that may or may not carry PHI.
 
-4. **Reclassification is audited** as a governance event (a declassification is security-
-   relevant). Emit through the existing mutation audit path.
-
----
-
-## 3. Contract-first signatures (Backend posts these BEFORE implementing — frontend builds against them)
-
-```ts
-// src/lib/queries/case-documents.ts  (extend CaseDocumentWithUrl)
-type CaseDocumentWithUrl = { /* …existing… */ containsPhi: boolean; signedUrl: string | null }
-// signedUrl is null for sensitive rows; open via openCaseDocument()
-export async function openCaseDocument(documentId: string): Promise<string | null> // audited JIT URL
-
-// src/lib/queries/meetings.ts  (extend MeetingAttachmentWithUrl)
-type MeetingAttachmentWithUrl = { /* …existing… */ containsPhi: boolean; signedUrl: string | null }
-export async function openMeetingAttachment(attachmentId: string): Promise<string | null>
-
-// src/lib/cases/documents-actions.ts
-export async function setCaseDocumentPhi(documentId: string, containsPhi: boolean): Promise<ActionResult>
-// src/lib/meetings/actions.ts
-export async function setMeetingAttachmentPhi(attachmentId: string, containsPhi: boolean): Promise<ActionResult>
-// upload actions: add optional `containsPhi?: boolean` (defaults true via DB)
-
-// src/lib/audit/access.ts  (extend the union)
-type AuditAccessAction = /* …existing… */ | 'case_document.read' | 'meeting_attachment.read'
-```
+Delivers everything the superseded 14e promised: the audited PHI-read door, the Phase-19
+export-redaction contract, the audit allow-list additions, the fail-closed default, and
+interview-attachment coverage (formerly the reserved "14f").
 
 ---
 
-## 4. Task breakdown
+## 2. Decisions locked (D1–D14)
 
-### Backend (`backend` teammate) — **plan review required** (touches a migration + the audit allow-list)
-
-- **B1 — Migration** `supabase/migrations/<ts>_attachment_phi_classification.sql`:
-  - `ALTER TABLE public.case_documents ADD COLUMN contains_phi boolean NOT NULL DEFAULT true;`
-  - `ALTER TABLE public.meeting_attachments ADD COLUMN contains_phi boolean NOT NULL DEFAULT true;`
-  - `COMMENT ON COLUMN` both — state the export-redaction + audited-open contract (Rule 12).
-  - `CREATE OR REPLACE FUNCTION public.log_audit_access(...)` — add `'case_document.read'` and
-    `'meeting_attachment.read'` to the positive allow-list at
-    `supabase/migrations/20260620008000_audit.sql:613-617`.
-  - Confirm whether `app.audit_write` enforces its own action allow-list; if so, add
-    `'case_document.reclassified'` / `'meeting_attachment.reclassified'` mutation verbs, else
-    emit reclassification through the standard mutation path. Document which.
-  - No RLS change to the SELECT policies; existing `*_staff_admin_write` already gates downgrade.
-- **B2 — Types:** `supabase gen types typescript --linked > src/lib/types/database.ts`.
-- **B3 — Audit union:** add the two `*.read` actions to `AuditAccessAction` in
-  `src/lib/audit/access.ts` (~lines 24-45).
-- **B4 — Case query layer** `src/lib/queries/case-documents.ts`:
-  - `listCaseDocuments` (130-179): select `contains_phi`; build the `createSignedUrls` path list
-    from **non-PHI rows only**; map `containsPhi`; sensitive rows → `signedUrl: null`.
-  - Add `openCaseDocument(documentId)`: fetch row (id, storage_path, contains_phi, case_id +
-    its commission) → mint JIT signed URL → if `contains_phi`, `logAuditAccess({ action:
-    'case_document.read', entityType: 'case_document', entityId: documentId, commissionId,
-    summary: 'Documento de caso aberto' })`. Keep/retire `getCaseDocumentDownloadUrl` per usage.
-  - `setCaseDocumentPhi` action in `src/lib/cases/documents-actions.ts` (staff_admin via RLS),
-    update column, audit the reclassification, `revalidatePath`.
-- **B5 — Meeting query layer** `src/lib/queries/meetings.ts`: mirror B4 for
-  `listMeetingAttachments` (622-664) + `openMeetingAttachment`, action
-  `'meeting_attachment.read'`; `setMeetingAttachmentPhi` in `src/lib/meetings/actions.ts`.
-
-### Frontend (`frontend` teammate) — uses `frontend-design` skill for badge/affordance
-
-- **F1 — Upload dialogs** `src/components/cases/case-document-upload.tsx`,
-  `src/components/meetings/attachment-upload.tsx`: **no opt-in PHI checkbox** (default-sensitive).
-  Add an optional downgrade at the bottom — *"Este arquivo não contém dados de paciente"*
-  (unchecked by default → stays PHI), wired to the optional `containsPhi` upload arg.
-- **F2 — List rows** (components rendering `listCaseDocuments` / `listMeetingAttachments`):
-  sensitive rows show a pt-BR badge *"Contém dados de paciente"* and open via a button calling
-  `openCaseDocument` / `openMeetingAttachment` (not a bare `<a href>`); non-PHI rows keep the
-  direct link from `signedUrl`.
-- **F3 — Reclassify control:** staff_admin-only row affordance (downgrade / re-flag) calling
-  `setCaseDocumentPhi` / `setMeetingAttachmentPhi`, with optimistic refresh.
-- **F4 — A11y:** keyboard-operable open + reclassify; visible focus; badge has accessible text.
-
-### Docs (lead)
-
-- **D1 — ADR** `docs/decisions/00NN-attachment-phi-classification.md` (5-10 lines): default-PHI +
-  downgrade, audited open, Phase-19 export-redaction contract, why not a bare opt-in checkbox.
-- **D2 — ARCHITECTURE.md Rule 12:** one-line note that attachments carry an explicit PHI flag
-  feeding export redaction + audited open.
-
----
-
-## 5. Acceptance criteria
-
-1. New case/meeting attachment defaults to `contains_phi = true`; list payload contains **no
-   pre-signed URL** for it; it renders the *"Contém dados de paciente"* badge.
-2. Opening a sensitive attachment succeeds and writes exactly one `audit_log` row with
-   `action = 'case_document.read'` (resp. `meeting_attachment.read`), correct actor/entity/
-   commission, **no PHI in metadata** (`{}`), when `audit_trail` flag is ON.
-3. A staff_admin can downgrade an attachment to non-PHI; afterward it opens via a direct link,
-   produces **no** `*.read` row, and the badge disappears. The downgrade itself is audited.
-4. A non-staff_admin member cannot reclassify (RLS denial → pt-BR error, no raw PG error).
-5. RLS read visibility of attachment rows is unchanged from pre-phase behavior.
-6. SQL COMMENT on `contains_phi` records the export-redaction contract; ADR + Rule 12 updated.
-7. `npm run lint && npm run typecheck && npm run test` pass; full `npx playwright test` green.
+- **D1 — Breadth.** Build the core; native home for the two NEW surfaces (form-item uploads,
+  action-item attachments); FOLD IN `case_documents`, `meeting_attachments`,
+  `case_interview_attachments` (files only). DEFER via the wrapper pattern: `rca_evidence`,
+  `capa_action_evidence`, `referral_reply_attachment`. LEAVE ALONE: `controlled_documents`,
+  form-template images.
+- **D2 — Shape.** Single polymorphic `attachments` core; ALL common fields on the core (`title`,
+  `description`, generic `kind text`, nullable `occurred_on` + physical facts + owner + tier +
+  soft-delete). No extension tables now, but a stable uuid PK + `text` `owner_type`/`kind` (no
+  enums) so a 1:1 `<owner>_attachment_meta` can bolt on later. `kind` validated per `owner_type`
+  in the write RPC.
+- **D3 — Files-only core.** `storage_path NOT NULL`. Interview EXTERNAL LINKS stay outside the
+  core (small `case_interview_links` table); only interview *file* rows fold in; UI merges.
+- **D4 — Dispatch.** One `app.can_read_attachment(owner_type, owner_id, uid)` DEFINER dispatcher
+  (CASE → existing domain predicates) used by BOTH the core-table and bucket SELECT policies. No
+  INSERT policy; a DEFINER upload RPC checks a parallel `app.can_write_attachment`. Path
+  `{owner_type}/{owner_id}/{uuid}.{ext}`.
+- **D5 — Two buckets + audited re-home.** `attachments` (standard) + `attachments-phi`
+  (locked-down); `sensitivity_tier` picks the bucket. Reclassify = staff_admin-only, audited,
+  server-side re-home: copy → repoint → HARD-DELETE source (documented Rule-6 PHI-safety
+  exception). Row + audit history persist.
+- **D6 — Fail-closed default.** Default `tier=phi` for case/meeting/interview/form-upload/
+  action-item (per-owner policy). Uploader always sees the toggle. Anyone may upload AS PHI; only
+  staff_admin may DECLASSIFY, at upload or later.
+- **D7 — Hard PHI door.** Non-PHI: list mints a signed URL directly, no audit. PHI: the
+  `attachments-phi` bucket denies authenticated signing; a DEFINER door re-gates + writes
+  `log_audit_access('attachment.read', …)`, then Next signs a short-TTL URL with the
+  **service-role** key. Every PHI open is provably audited.
+- **D8 — Delete/immutability.** Soft-delete rows (object retained); objects immutable except the
+  D5 re-home; all writes via DEFINER RPCs (no direct grants); `guard_attachment_immutable` freezes
+  physical columns outside `app.in_attachments_rpc`.
+- **D9 — New-surface scope.** Build action-item attachments (first new consumer). Form-item uploads
+  DESIGN-ONLY: reserve `owner_type='form_upload'` + the ingress contract (builder-set `phi_policy
+  ∈ always_phi | may_be_phi(default) | never_phi`; filler may raise-to-PHI, never declassify).
+  Feature built later on the flexible-forms track.
+- **D10 — Disposal.** Extend each `dispose_*_phi` with one redaction line vs the core keyed by
+  `(owner_type, owner_id)` — redact `title`/`description`, retain row + object.
+- **D11 — Export contract.** Binding SQL COMMENT on `sensitivity_tier` + ADR: export MUST
+  withhold/redact `phi`-tier attachments (honored by future Phase-19 exporter).
+- **D12 — Flag + structure.** New `attachments` flag (seed OFF; flip ON at gate;
+  `app.assert_attachments_enabled()`). Keep the `14e` slot; internal workstreams under ONE Phase
+  Gate.
+- **D13 — Doc substitution.** This doc replaces the narrow 14e plan; PROGRESS.md row 14e updated;
+  accreditation-track + PHASES notes; ARCHITECTURE Rule 12 + Rule 6 footnote (at execution);
+  `docs/backend-state.md` (at execution); new ADR; re-home the interview("14f") + NSP/referral
+  wrapper follow-up notes; regenerate graphify.
+- **D14 — Sequencing.** Build it NEXT, before resuming 15 → 17 → 16. Pre-launch (DB reset OK):
+  DROP the three folded tables and rewire code in a clean forward migration (no back-compat views).
+- **Baked-in defaults:** 25 MiB cap + superset MIME (images + PDF + full Office + csv/plain) at the
+  bucket, owner/item may narrow; `sha256` recorded, NOT unique; `owner_id` has NO real FK
+  (polymorphic) → no PostgREST embeds, explicit two-step reads only.
 
 ---
 
-## 6. Phase gate (per CLAUDE.md §6)
+## 3. Design
 
-1. Build complete — backend + frontend tasks done; lint/typecheck/unit green locally.
-2. Test pass — spawn `tester`: Playwright specs for the criteria above (incl. ≥1 keyboard-only
-   open of a sensitive file); fix loop on failing+phase specs; full suite to declare green.
-3. QA review — spawn `qa`: requirements audit + RLS/audit-coverage review →
-   `docs/reviews/phase-14e-review.md`, verdict APPROVED / CHANGES REQUESTED.
-4. Human approval — lead presents summary; waits.
-5. Record — PROGRESS.md → ✅ + commit hash; rotate task detail to
-   `docs/progress/phase-14e.md`; update `docs/backend-state.md` (new column, `*.read` actions,
-   open functions); commit `phase(14e): complete — attachment PHI classification`.
+### 3.1 Core `public.attachments`
+`id uuid pk`, `owner_type text`, `owner_id uuid`, `kind text default 'outro'`, `title text`,
+`description text`, `occurred_on date`, `storage_bucket text`, `storage_path text not null`,
+`mime_type text`, `size_bytes bigint`, `sha256 text`, `sensitivity_tier text default 'phi'`,
+`uploaded_by`, `created_at`, `updated_at`, `deleted_at`, `deleted_by`. CHECKs: `owner_type` in
+the phase value set; `tier ∈ {phi,standard}`; **bucket↔tier consistency**; `storage_path like
+owner_type||'/'||owner_id||'/%'`. Indexes on `(owner_type, owner_id)` (+ partial not-deleted),
+`tier`, `uploaded_by`. Binding COMMENTs on `sensitivity_tier` (export-redaction, D11) and
+`title`/`description` (PHI-bearing, redacted by disposal). RLS SELECT = the dispatcher; SELECT
+grant only.
+
+### 3.2 Triggers
+- `app.guard_attachment_immutable` (BEFORE UPDATE) — freezes physical + owner + bucket/tier columns
+  unless `app.in_attachments_rpc='on'` (clone of `guard_case_narrative_frozen`).
+- `app.trg_audit_attachment` (AFTER I/U/D) — `app.audit_write('attachment.created|updated|
+  reclassified|deleted', 'attachment', id, app.commission_of_attachment(...), …, app.audit_diff(
+  old,new, {owner_type,owner_id,kind,sensitivity_tier,storage_bucket,occurred_on,deleted_at}))`.
+  The `audit_diff` allow-list NEVER includes title/description/storage_path/sha256 (Rule 11).
+
+### 3.3 Dispatchers (schema `app`, DEFINER)
+- `commission_of_attachment(owner_type, owner_id)` → CASE to `commission_of_case/meeting/
+  interview/action_item`; `form_upload`→null.
+- `can_read_attachment` — `case`→`can_read_case`; `meeting`/`interview`→membership OR
+  commission-admin; `action_item`→membership OR org-admin; else false.
+- `can_write_attachment` — `case`/`meeting`/`action_item`→staff_admin OR org-admin (recommended:
+  also the action-item assignee); `interview`→`can_write_interview`; else false.
+
+### 3.4 Storage
+- Two private buckets `attachments` / `attachments-phi` (25 MiB, superset MIME).
+- `attachments`: INSERT + SELECT via the dispatcher on `foldername[1]=owner_type`,
+  `foldername[2]=owner_id`.
+- `attachments-phi`: INSERT via `can_write_attachment`; **NO authenticated SELECT** → only the
+  service-role client signs (D7 hard door), via `src/lib/supabase/admin.ts::createAdminClient()`,
+  signing ONLY the `(bucket, path)` the audited door returned, short TTL.
+
+### 3.5 RPCs (`public`, DEFINER)
+`create_attachment` (assert flag; `can_write_attachment`; validate `kind` per owner_type; tier
+default `phi`, declassify requires staff_admin; verify object exists in the tier bucket; insert);
+`soft_delete_attachment`; `reclassify_attachment` (directional authz; brackets
+`app.in_attachments_rpc`; flip bucket+tier; Next orchestrates copy → RPC → remove-source);
+`open_attachment(id) returns (bucket, path)` (re-gate → log `attachment.read` for phi → return).
+
+### 3.6 Fold-in rewire (clean forward migration; DROP the three tables)
+- **`case_documents` — coupled.** Repoint two inbound FKs into the deferred systems
+  (`rca_evidence.cited_document_id`, `referral_shared_item.source_document_id`) → `attachments(id)
+  on delete set null`; rewrite `add_referral_shared_item` + `get_referral_detail` readers; replace
+  the `dispose_case_phi` redaction with the D10 core line. Rewire `queries/case-documents.ts` +
+  `cases/documents-actions.ts`.
+- **`meeting_attachments` — clean drop.** Drop table + RPCs + policies; rewire `queries/meetings.ts`
+  + `meetings/actions.ts`.
+- **`case_interview_attachments` — split (D3).** New `case_interview_links` (links only); file rows
+  → core (`owner_type='interview'`); re-express the case-scope read as the core `interview` arm;
+  rewire `interviews/actions.ts` + `queries/interviews.ts` (list merges files + links).
+- **Legacy buckets** `case-documents`/`meeting-attachments`/`interview-attachments`: retire; drop
+  policies in a follow-up cleanup migration after cutover.
+
+### 3.7 Action-item attachments (new consumer, D9)
+`owner_type='action_item'`, owner `public.action_items`. Read = membership OR org-admin; write =
+staff_admin/org-admin (recommended: also `action_items.assigned_to = uid`). Default tier `phi`;
+kinds `{evidencia, outro}`. New "Anexos" panel under `src/components/action-items/`.
+
+### 3.8 Form-item ingress contract (DESIGN-ONLY — reserve, do not build)
+`owner_type='form_upload'` reserved (dispatchers return false). Reserve `form_items.phi_policy text
+default 'may_be_phi' check in (always_phi, may_be_phi, never_phi)`, set only by the staff_admin
+building the form. Fail-closed rules per D9. Documented in the ADR; no form-item code this phase.
+
+### 3.9 TS layer
+`src/lib/queries/attachments.ts` (`AttachmentWithUrl` with `containsPhi`/`signedUrl|null`,
+`listAttachments`, `openAttachment`); `src/lib/attachments/actions.ts` (`uploadAttachment`,
+`deleteAttachment`, `reclassifyAttachment` + per-domain thin wrappers); add `'attachment.read'` to
+`src/lib/audit/access.ts`; add `attachments` to `src/lib/queries/feature-flags.ts` +
+`attachmentsEnabled()`.
 
 ---
 
-## 7. Files touched (summary)
+## 4. Task breakdown (contract-first; backend posts typed stubs first)
 
-- **New:** migration `…_attachment_phi_classification.sql`; ADR `00NN-…md`.
-- **Backend:** `src/lib/types/database.ts`, `src/lib/audit/access.ts`,
-  `src/lib/queries/case-documents.ts`, `src/lib/queries/meetings.ts`,
-  `src/lib/cases/documents-actions.ts`, `src/lib/meetings/actions.ts`.
-- **Frontend:** `src/components/cases/case-document-upload.tsx`,
-  `src/components/meetings/attachment-upload.tsx`, and the case/meeting attachment list/render
-  components.
-- **Docs:** `ARCHITECTURE.md` (Rule 12), `PROGRESS.md`.
+**Backend** — B1 core migration **[FULL PLAN REVIEW]** (table+triggers+dispatchers+RLS+flag; add
+`attachment.read` to BOTH `log_audit_access` allow-list AND `app._audit_access_authorized` — else
+`supabase/tests/191_grant_hardening.sql` fails); B2 storage migration **[FULL PLAN REVIEW]** (two
+buckets + four policies, phi bucket denies authenticated SELECT); B3 write RPCs; B4 fold-in
+migration **[FULL PLAN REVIEW]** (FK repoints + drops + `case_interview_links` + `dispose_*` D10
+lines); B5 enable migration (flag flip at gate); B6 gen types; B7 TS layer (post stubs first).
+
+**Frontend** (uses `frontend-design`) — F1 PHI toggle in upload dialogs (default on; staff_admin
+declassify); F2 list-row PHI badge + open-via-button for phi, direct link for standard
+(keyboard-operable, accessible); F3 staff_admin reclassify control; F4 action-item attachments
+panel.
+
+**Docs (lead)** — D1 ADR 0063; D2 this doc + re-home the "14f"/wrapper follow-ups; D3 PROGRESS.md,
+accreditation-track, ARCHITECTURE Rule 12 + Rule 6 footnote, backend-state, graphify regen.
+
+**Ordering:** B1 → B2 → B3 → B4 → B6 → B7(stubs) → F1–F4 → B5. B4 is a single migration (a
+half-applied drop breaks `rca_evidence`/`referral_shared_item`).
 
 ---
 
-## 8. Verification (end-to-end)
+## 5. Verification
 
-- **Unit (Vitest):** list returns `signedUrl: null` + `containsPhi: true` for a PHI row, real
-  URL for a downgraded row; `openCaseDocument`/`openMeetingAttachment` call `logAuditAccess`
-  only when `contains_phi`.
-- **E2E (Playwright, `e2e/`):** as `chefe.ccih@test.local` — upload (defaults sensitive) → badge
-  + no list URL; open → succeeds and `audit_log` has `case_document.read`; downgrade → opens
-  directly, no new audit row. Mirror one meeting flow. Include keyboard-only open.
-- **DB:** `supabase db reset --linked` applies the migration; `gen types` picks up
-  `contains_phi`; manual `select` confirms default `true`.
-- Gate-green run: full `npx playwright test` with `--workers=1` after fresh reset (per E2E gate
-  mechanics).
+- **Vitest**: list returns `signedUrl:null, containsPhi:true` for phi vs a real URL for standard;
+  `openAttachment` signs via service-role only for phi; upload rejects bad MIME/size, routes to
+  the tier bucket, blocks a non-staff_admin declassify.
+- **Playwright** `e2e/attachments.spec.ts`: upload defaults phi → badge + no list URL; keyboard-only
+  phi open writes exactly one `attachment.read` (correct actor/entity/commission, empty metadata);
+  staff_admin declassify → re-home → standard-bucket sign, no new `.read`, `attachment.reclassified`
+  present; non-staff_admin declassify → pt-BR forbidden; mirror meeting + action-item; interview
+  file→core, link→`case_interview_links`, merged panel.
+- **pgTAP** `supabase/tests/207_attachments.sql`: RLS; guard freezes physical columns outside
+  `in_attachments_rpc`; dispatcher truth table; `open_attachment` null-for-foreigner; phi bucket
+  denies authenticated SELECT. Extend `191_grant_hardening.sql` with an `attachment.read`
+  authorized-vs-unauthorized pair.
+- **DB/gate**: `supabase db reset` applies the wave; `gen types`; gate E2E on a standalone/prod
+  build with `--workers=1` after a fresh reset (flag ON via seed for the gate; `_enable` migration
+  is the prod flip).
+
+---
+
+## 6. Risks
+
+1. **`case_documents` drop reaches DEFERRED systems** (top hazard) — two inbound FKs + three
+   readers must be repointed to `public.attachments` in the same B4 migration.
+2. **Service-role blast radius** (D7) — the admin client signs ONLY the door-returned `(bucket,
+   path)`, never client input; `server-only`; short TTL. Enforced by code review of
+   `openAttachment()`.
+3. **Re-home hard-delete vs Rule 6** (D5) — documented PHI-safety exception; order copy → repoint →
+   delete-source; record in the ADR + a Rule 6 footnote.
+4. **Polymorphic owner = no FK** — no PostgREST embeds; explicit two-step reads; orphan owners
+   become unreadable (dispatcher false), no GC in v1.
+5. **Audit allow-list is a triple mirror** — `log_audit_access` + `_audit_access_authorized` + the
+   TS union must all gain `attachment.read` together.
+6. **Out of scope** — the CAPA-evidence insert-policy wart; `controlled_documents`, form images, and
+   the rca/capa/referral wrappers stay deferred (except the forced FK repoint in #1).

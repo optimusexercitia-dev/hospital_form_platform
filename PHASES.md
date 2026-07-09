@@ -388,6 +388,7 @@ stable identifiers; only the build order changed.
 | ----- | ---- | ------------ |
 | 13 | Audit Trail | `audit_trail` |
 | 14 | Patient-Safety Events, Triage, RCA & CAPA (NSP) | `patient_safety` |
+| 14e | Centralized Attachment Substrate *(planned; supersedes the narrow 14e PHI-classification plan; build **next**, before 15→17→16 — see [phase-14e](docs/phases/phase-14e-attachment-phi-classification.md))* | `attachments` |
 | 15 | Quality Indicators | `quality_indicators` |
 | 16 | Standards Crosswalk & Readiness/Gap Engine | `accreditation` |
 | 17 | Controlled-Document Lifecycle | `controlled_docs` |

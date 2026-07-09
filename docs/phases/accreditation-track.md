@@ -133,6 +133,16 @@ Feature-flagged behind **`patient_safety`** (supersedes the reserved `capa`). De
 four individually-gated, E2E-testable sub-phases **14a–14d**; the 15–21 numbering is unchanged.
 Design specs: `docs/design/README_triage.md` (triage) + `docs/design/README_rca.md` (RCA/PDCA).
 
+**Sub-phase 14e — Centralized Attachment Substrate** *(planned, not started; supersedes the
+earlier narrow "Attachment PHI Classification" plan for this slot)*: a polymorphic `attachments`
+core owning the physical file facts + a `sensitivity_tier`, with physically-tiered PHI buckets and
+a hard audited PHI-read door (service-role signed), replacing the seven per-domain upload silos.
+Authorization stays domain-owned (dispatched per `owner_type`). Folds in case/meeting/interview
+docs (closing the PHI-read-audit gap and the reserved "14f" interview coverage), adds action-item
+attachments, and reserves form-item uploads (design-only ingress contract). Sequenced to build
+**next, before resuming 15 → 17 → 16** (D14). Full plan:
+`docs/phases/phase-14e-attachment-phi-classification.md`; ADR 0063 (to write at execution).
+
 #### Phase 14a — NSP Foundation, Event Intake & Hand-off (req. event detection → notification)
 The PHI/HIPAA foundation (ADR 0030 + the binding-doc reversal) lands here, plus the NSP entity
 and the event record with isolated PHI and a custody ledger so **access follows custody**.
