@@ -7,7 +7,14 @@
 > **Track:** PHI hardening (extends ARCHITECTURE Rule 12 to a shared attachments layer).
 > **Depends on:** Phase 14 (NSP/PHI safeguards), Phase 13 (audit trail).
 > **Sequencing (D14):** build NEXT, before resuming the 15 → 17 → 16 pre-pilot track (ADR 0057).
-> **ADR (to write at execution):** `docs/decisions/0063-centralized-attachments-substrate.md`.
+> **ADR:** [0063](../decisions/0063-centralized-attachments-substrate.md) — **WRITTEN** (2026-07-09;
+> refines this plan). It adds six seams to the §3.1 core: single-owner + non-authorizing
+> `attachment_references`, descriptive PHI-safe `attachment_subjects`, `document_group_id`/
+> `supersedes_id` (versioning/redaction), `confidentiality_label`, `scan_status`, and
+> `legal_hold` + `dispose_attachment_phi`. **Concrete revised core DDL:**
+> [attachments-core-schema-draft.md](../design/attachments-core-schema-draft.md) — build B1/B4 from
+> that draft, not the terse §3.1 sketch below. Remaining doc updates (ARCHITECTURE Rule 12 + Rule 6
+> footnote, `docs/backend-state.md`) still at execution.
 
 ---
 
@@ -93,6 +100,13 @@ interview-attachment coverage (formerly the reserved "14f").
 ---
 
 ## 3. Design
+
+> **⚠ Revised by ADR [0063](../decisions/0063-centralized-attachments-substrate.md).** The
+> authoritative, annotated core DDL now lives in
+> [docs/design/attachments-core-schema-draft.md](../design/attachments-core-schema-draft.md)
+> (superset of the folded tables + the six ADR-0063 seams). §3.1 below is the original terse sketch,
+> kept for context; where they differ, the schema draft wins. Core-shape items (references, subjects,
+> `document_group_id`/`supersedes_id`) MUST land in B1.
 
 ### 3.1 Core `public.attachments`
 `id uuid pk`, `owner_type text`, `owner_id uuid`, `kind text default 'outro'`, `title text`,

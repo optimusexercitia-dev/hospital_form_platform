@@ -1,0 +1,179 @@
+# 0063 — Centralized attachments substrate: which DMS-handoff seams we adopt
+
+**Date:** 2026-07-09 · **Status:** accepted (refines the approved Phase-14e design) / not yet implemented.
+**Relates:** the Phase-14e plan
+([`docs/phases/phase-14e-attachment-phi-classification.md`](../phases/phase-14e-attachment-phi-classification.md)),
+which this ADR refines but does **not** supersede; ADR [0030](./0030-patient-safety-phi-and-pqs-architecture.md)
+(PHI/PQS), [0035](./0035-lgpd-anvisa-regulatory-posture.md) (LGPD + ANVISA/RDC + CFM),
+[0037](./0037-inter-committee-referrals.md) (referral PHI module).
+**Binding rules:** Rule 1 (RLS is the boundary), Rule 6 (storage immutability), Rule 11 (audit),
+Rule 12 (PHI). **Schema draft:** [`docs/design/attachments-core-schema-draft.md`](../design/attachments-core-schema-draft.md).
+
+## Context
+
+A development team on a comparable hospital-committee platform shared a full uploaded-document
+data model ([`docs/design/temp/uploaded_documents_chatgpt.md`](../design/temp/uploaded_documents_chatgpt.md)).
+We evaluated it against our approved-but-unbuilt Phase-14e substrate.
+
+Their model is a **generic enterprise DMS**: ~26 tables including a logical-document → versions →
+assets stack, an `app_resources` registry, many-to-many resource links with per-link access
+inheritance, `document_subjects`, security groups, per-document access grants + requests, a
+**materialized `document_effective_permissions` cache**, an OCR/pages/ingestion-jobs pipeline, a
+retention engine, and monthly-partitioned audit tables. Ours (14e) is a **deliberately minimal,
+RLS-first substrate**: one polymorphic `public.attachments` core, authorization dispatched per
+`owner_type` through `SECURITY DEFINER` predicates, two physically-tiered buckets (PHI segregated),
+a hard audited PHI-read door, soft-delete, and object immutability (Rule 6).
+
+"More developed" here mostly means "more scope," and most of that scope is **operational machinery
+that bolts onto 14e's stable core at any later time** (14e D2 already reserves a stable uuid PK +
+`text` `owner_type`/`kind` for exactly this). The genuine risk is the small set of decisions baked
+into the **shape of the core row** — cardinality of owner-linking, whether a document is its own
+subject, whether a row is one physical file — because those are the only pieces that are *expensive
+to retrofit* once code assumes them. Because 14e is approved but not yet built, this is the one cheap
+moment to widen those seams. This ADR records **which of their ideas we adopt into the 14e core now,
+which seams we reserve, and which we reject** — with reasons — so B1/B4 land the cheap seams before
+the core is frozen.
+
+Two conventions from the existing schema constrain how we adopt anything (confirmed against the
+baseline migration): (a) there is **no polymorphic `(owner_type, owner_id)` pattern anywhere today**
+— 14e's core introduces the first, and existing cross-references use explicit nullable FKs +
+kind-scoped CHECKs (`rca_evidence`, `referral_shared_item`); (b) PHI/sensitivity is classified by
+**column-scoped `COMMENT`, not enum**, and disposal already has a fixed contract
+(`dispose_*_phi(id, reason)` with a 5-value constrained reason + `phi_disposed_at/_by/_reason`
+stamps). Adopting a `confidentiality_label` column and polymorphic reference/subject tables are
+therefore **conscious departures**, justified below, not "matching existing style."
+
+## Decision
+
+### Adopt into the 14e core now — three shape changes (expensive to retrofit)
+
+1. **Single authorizing owner + a non-authorizing `attachment_references` seam.** Keep 14e's single
+   `owner_type`/`owner_id` as the **one authorizing owner** — it drives the dispatcher, the
+   commission/PHI derivation, and the storage path. Add a thin
+   `attachment_references(attachment_id, owner_type, owner_id, note)` that grants **no access** — it
+   is a display-only "this document also appears here" pointer so the same evidence can surface on a
+   case, a meeting, and an RCA without re-upload. We **reject their full M:N `document_resource_links`
+   + `access_inheritance_mode`**: per-link inheritance turns "can I read this" into "via any of N
+   links, each with its own rule," which is exactly the authorization complexity 14e chose to avoid.
+   References resolve their readability from the *parent's* single owner, never widening it.
+
+2. **Descriptive `attachment_subjects` (subject ≠ location).** Their sharpest idea, and it maps
+   directly onto our committed domain: the referral module (Phase 22) and future ethics/credentialing
+   are **physician-centered** — a complaint attached to a *case* but *about a physician*. 14e cannot
+   express that; it collapses subject into owner. Add
+   `attachment_subjects(attachment_id, subject_type, subject_id, subject_role)`, **non-authorizing
+   and PHI-safe**: it records only the *relationship* (e.g. `physician_under_review`,
+   `patient_of_record`, `complainant`) via a structured `subject_id` pointing at a domain row where
+   one exists — **never a free-text name**. Patient/physician *identity* stays in the domain's already
+   isolated PHI table (Rule 12); this table improves on their `document_subjects`, which allowed
+   identifying strings.
+
+3. **Reserve the versioning/redaction seam with two nullable core columns.** Rule 6 already gives
+   immutable objects + a new path per upload, but no "v2 supersedes v1" and no "this redacted copy is
+   an asset of the same document." Add `document_group_id uuid` and `supersedes_id uuid` to the core.
+   This reserves **both** versioning **and** the original-plus-redacted-copy pattern (a redacted
+   attachment is a sibling row in the same group that may sit in the `standard` bucket while the
+   original stays `phi`) against a stable core — **without** building their 4-table
+   `documents→versions→version_assets→file_assets` stack. `controlled_documents` keeps its own richer
+   header+versions+status-state-machine versioning (14e LEAVES IT ALONE); if full attachment version
+   lifecycle is ever needed, *that* precedent is the shape to grow into, not these columns.
+
+### Adopt into the 14e core now — three cheap bolt-ons (no shape change)
+
+4. **`confidentiality_label` alongside the binary `sensitivity_tier`.** Keep two buckets — `tier ∈
+   {phi, standard}` is the *physical* PHI segregation that picks the bucket. Add
+   `confidentiality_label text` (CHECK-constrained, not enum) as the *semantic* classification, a
+   trimmed form of their 8-value scale for regimes our domain actually distinguishes:
+   `non_phi_internal`, `phi_standard`, `phi_restricted`, `peer_review_confidential`,
+   `legal_privileged`, `ethics_investigation` (+ `credentialing_sensitive` reserved). This is a
+   conscious departure from the comment-only norm, justified because tier↔bucket is binary but access
+   *regimes* (peer-review protection, legal privilege) are not. The label does **not** pick storage; a
+   documented convention maps `non_phi_internal ⇒ standard` and everything else defaults `phi`.
+
+5. **All-tier + denied read auditing.** 14e D7 audits only PHI opens. Extend the door to also record
+   standard-tier opens and **denied attempts**, carrying an `access_decision` (`allowed`|`denied`) in
+   the audit metadata — the read-and-denied auditing accreditation (ALCOA+) expects, which their model
+   also insists on. Mechanism is unchanged: `log_audit_access('attachment.read', …)` (Rule 11 — the
+   log records *that* and *who*, never the payload).
+
+6. **Virus-scan gate (`scan_status`), not the pipeline.** We accept Office + PDF (25 MiB) — a real
+   current malware vector with no scan. Add `scan_status text default 'skipped' check (scan_status in
+   ('skipped','pending','clean','infected'))` and gate list/open on `scan_status <> 'infected'`
+   (tightenable to require `'clean'` once a scanner exists; default flips `skipped → pending` then).
+   We **reject** their full async apparatus (`document_ingestion_jobs`, `upload_sessions`) — no
+   pipeline exists to justify it.
+
+### Reserve the seam, do not build (columns / COMMENT / ADR note only)
+
+7. **Kind-policy lookup (their `document_kinds`).** Keep `kind text` validated per `owner_type` in the
+   write RPC. If per-kind *default policy* (default confidentiality, requires-explicit-access,
+   redaction-supported) ever becomes real, a `document_kinds` lookup is the shape — reserved, not built.
+
+8. **Per-document access grants / requests / expiring / break-glass (their `document_access_grants`
+   / `_requests`).** Authorization stays domain-owned via the dispatchers. The natural future
+   extension is an `attachment_access_grants` overlay the dispatcher consults (allow-based, with
+   `expires_at`) — **but not** the materialized cache (§11). Genuinely useful for "consultant needs
+   7-day access"; deferred until a workflow demands it.
+
+9. **Redaction as a linked artifact (their `document_redactions`).** Rides entirely on seam #3 — a
+   redacted attachment is a sibling in the same `document_group_id`; access differs because tier/bucket
+   differ. No dedicated redactions table now.
+
+10. **Retention + legal hold.** Disposal mirrors the **existing** contract exactly:
+    `dispose_attachment_phi(p_id, p_reason)` with the **same 5-value constrained reason**
+    (`retention_expired`, `subject_request`, `entered_in_error`, `duplicate`, `other`) and
+    `phi_disposed_at/_by/_reason` stamps as `dispose_event_phi` / `dispose_referral_phi`; 14e D10's
+    per-owner disposal-redaction line keyed on `(owner_type, owner_id)` becomes a core line. Reserve a
+    **new** `legal_hold boolean default false` column that blocks disposal (their idea; a real
+    requirement). ANVISA/RDC + CFM 20-yr retention stays **procedural/governance** (as it is today),
+    not schema-modeled.
+
+### Reject (with reasons)
+
+11. **Materialized `document_effective_permissions` cache + recompute triggers.** Contradicts Rule 1
+    (RLS is *the* boundary) and our DEFINER-dispatcher model; premature at pre-pilot scale; their own
+    doc lists **eight** recompute triggers — a large cache-invalidation correctness surface. Our
+    dispatchers compute on the fly and are simpler and safer. Revisit only on a **measured** RLS-perf
+    problem.
+
+12. **`security_groups` + `security_group_members`.** Redundant with `commission_members` + roles +
+    `case_access` assignment. Pays off only alongside per-document grants (§8, reserved).
+
+13. **`app_resources` registry table.** Its sole justification is FK integrity for polymorphic links;
+    14e consciously chose no-FK + explicit two-step reads (D2). Reconsider only if references/subjects
+    (§1–2) grow to need a real join target.
+
+14. **OCR / `document_pages` / `document_ocr_extractions` / ingestion-jobs / upload-sessions.** No
+    processing pipeline exists; this is machinery for a capability we do not have. Malware is handled
+    minimally by §6.
+
+15. **Monthly audit partitioning.** Premature; `audit_log` is one platform-wide hash-chained table
+    with per-commission `seq`. Scale-later.
+
+## Consequences
+
+- **14e §3.1 core DDL is revised** to keep the single owner and add: `confidentiality_label`,
+  `scan_status`, `document_group_id`, `supersedes_id`, `legal_hold`, `phi_disposed_at/_by/_reason`;
+  plus two thin non-authorizing companion tables `attachment_references` and `attachment_subjects`
+  (RLS piggybacks the parent via `app.can_read_attachment`). `case_interview_links` (D3) is unchanged.
+  Concrete DDL: [`docs/design/attachments-core-schema-draft.md`](../design/attachments-core-schema-draft.md).
+- **New classification columns are CHECK-constrained `text`, never enums** (14e D2 + the
+  `controlled_documents` precedent), so value sets evolve without enum migrations.
+- **`attachment_subjects`/`attachment_references` never widen access** — an explicit non-goal, to
+  avoid re-creating the "case access = document access" anti-pattern their own doc warns against.
+  Access remains the single authorizing owner through the dispatcher.
+- **Audit is a triple mirror** (unchanged from 14e, one action added): `attachment.read` goes into the
+  `public.log_audit_access` allow-list **and** an `app._audit_access_authorized` dispatch arm
+  (→ `app.can_read_attachment`) **and** the TS union in `src/lib/audit/access.ts`; extend
+  `supabase/tests/191_grant_hardening.sql`. The denied/all-tier extension (§5) is additive metadata,
+  not a new action.
+- **Scope and sequencing are unchanged.** Still built NEXT, before 15 → 17 → 16 (D14), under one Phase
+  Gate. The reserved seams add columns and two thin tables — no new workstreams — keeping 14e's small
+  footprint.
+- **PROGRESS.md** 14e row updated from "ADR 0063 (pending)" to a link to this ADR; ARCHITECTURE
+  Rule 12 gains an attachments note at execution. This ADR supersedes no prior decision.
+- **Open items (stub — resolve before B1 freezes the core):** (a) finalize the
+  `confidentiality_label` value set and its default per `owner_type` with clinical governance;
+  (b) confirm whether `attachment_references` / `attachment_subjects` ship in B1 or as a fast-follow
+  within the same gate (recommended: columns/tables created in B1, populated by later surfaces);
+  (c) decide the default `confidentiality_label` for action-item attachments (the first new consumer).
