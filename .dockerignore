@@ -5,7 +5,14 @@ docker
 e2e
 playwright-report
 test-results
+test
+coverage
 docs
+graphify-out
+.claude
+.agents
 *.md
+*.log
 .git
 .gitignore
+.github

@@ -5,5 +5,27 @@
   "enabledPlugins": {
     "postgres-best-practices@supabase-agent-skills": true,
     "supabase@supabase-agent-skills": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/mike/.local/bin/graphify hook-guard search"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Glob",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/mike/.local/bin/graphify hook-guard read"
+          }
+        ]
+      }
+    ]
   }
 }

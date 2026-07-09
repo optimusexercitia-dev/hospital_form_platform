@@ -91,11 +91,13 @@ function redirectPreservingCookies(
 }
 
 export const config = {
-  // Run on every path EXCEPT Next internals, the favicon, and static asset
-  // files (matched by a trailing file extension). `/auth/*` and the public auth
-  // pages still pass through to their handlers/pages — they are handled inside
-  // `proxy` as public, not excluded here.
+  // Run on every path EXCEPT Next internals, the favicon, static asset files
+  // (matched by a trailing file extension), and the orchestrator liveness probe
+  // `/api/health` (must return 200 to Coolify/Docker WITHOUT a session, so it is
+  // excluded from the gate entirely — see src/app/api/health/route.ts). `/auth/*`
+  // and the public auth pages still pass through to their handlers/pages — they
+  // are handled inside `proxy` as public, not excluded here.
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff2?|ttf|map)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff2?|ttf|map)$).*)',
   ],
 }
