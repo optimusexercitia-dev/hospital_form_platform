@@ -113,6 +113,34 @@ async function restGet<T>(req: APIRequestContext, path: string, bearer: string):
   return Array.isArray(data) ? (data as T[]) : []
 }
 
+/**
+ * F1 re-key (ADR 0064/0066): resolve a case's PATIENT participant_id.
+ * case_patient (1-per-case) is DROPPED → patient_identifiers keyed on
+ * participant_id (N-per-case). A case's PHI is reached via case_participants
+ * (case_id → participant_id) → the participant that owns a patient_identifiers
+ * row. Service-role read bypasses the Class-1 REVOKE. Returns null if no patient
+ * participant has identifiers on file. Assumes a single patient participant
+ * (single-patient UI flows), returning the first with identifiers.
+ */
+async function patientParticipantIdForCase(
+  req: APIRequestContext,
+  caseId: string,
+): Promise<string | null> {
+  const links = await restGet<{ participant_id: string }>(
+    req,
+    `case_participants?case_id=eq.${caseId}&removed_at=is.null&select=participant_id`,
+    SUPABASE_SERVICE_KEY,
+  )
+  if (links.length === 0) return null
+  const ids = links.map((l) => l.participant_id)
+  const rows = await restGet<{ participant_id: string }>(
+    req,
+    `patient_identifiers?participant_id=in.(${ids.join(',')})&select=participant_id`,
+    SUPABASE_SERVICE_KEY,
+  )
+  return rows[0]?.participant_id ?? null
+}
+
 /** Call a public RPC under a persona JWT. Returns the raw Response. */
 async function rpc(
   req: APIRequestContext,
@@ -921,13 +949,10 @@ test('AC-6a/b/c: dispose_case_phi RPC — happy path, HC056 one-shot, 42501 non-
   expect(afterRows[0]?.has_patient).toBe(false)
   expect(afterRows[0]?.phi_disposed_at).not.toBeNull()
 
-  // Verify case_patient record is gone
-  const cpRows = await restGet<{ case_id: string }>(
-    request,
-    `case_patient?case_id=eq.${disposablePhiCaseId}&select=case_id`,
-    SUPABASE_SERVICE_KEY,
-  )
-  expect(cpRows.length).toBe(0)
+  // Verify the patient identifiers record is gone (F1 re-key: PHI now lives in
+  // patient_identifiers, reached via the case's patient participant chain).
+  const disposedPid = await patientParticipantIdForCase(request, disposablePhiCaseId)
+  expect(disposedPid).toBeNull()
 
   // Verify audit row `case_patient.disposed` was written
   const auditRows = await auditRowsFor(request, 'case_patient.disposed', disposablePhiCaseId)
@@ -1208,9 +1233,17 @@ test('AC-9: create-case dialog writes PHI atomically (mrn+encounter, no name)', 
   expect(caseRows[0]?.patient_enabled).toBe(true) // snapshotted from collects_patient
   expect(caseRows[0]?.has_patient).toBe(true) // the regression: was false before the fix
 
-  const cpRows = await restGet<{ case_id: string; mrn: string | null }>(
+  // F1 re-key (ADR 0064/0066): case_patient is DROPPED → patient_identifiers,
+  // keyed on participant_id (N-per-case). Resolve the case's patient participant
+  // via case_participants, then read the identifiers row (service-role bypasses
+  // the Class-1 REVOKE). Original AC-9 intent preserved: exactly one PHI row for
+  // this case, carrying the entered MRN.
+  const patientPid = await patientParticipantIdForCase(request, caseId)
+  expect(patientPid, 'no patient participant chained to the created case').toBeTruthy()
+
+  const cpRows = await restGet<{ participant_id: string; mrn: string | null }>(
     request,
-    `case_patient?case_id=eq.${caseId}&select=case_id,mrn`,
+    `patient_identifiers?participant_id=eq.${patientPid}&select=participant_id,mrn`,
     SUPABASE_SERVICE_KEY,
   )
   expect(cpRows.length).toBe(1) // the regression: zero rows before the fix
@@ -1218,14 +1251,15 @@ test('AC-9: create-case dialog writes PHI atomically (mrn+encounter, no name)', 
 
   // The encounter-key derivation + cross-committee mirror path — never exercised
   // before. The always-on trigger hashes encounter_ref into encounter_key and
-  // mirrors it into the QPS-only patient_xref (module='case').
+  // mirrors it into the QPS-only patient_xref. Post F1 re-key the case-module
+  // xref grain is the PARTICIPANT (entity_id = participant_id), not the case.
   const xrefRows = await restGet<{
     encounter_key: string | null
     patient_key: string | null
     module: string
   }>(
     request,
-    `patient_xref?module=eq.case&entity_id=eq.${caseId}&select=encounter_key,patient_key,module`,
+    `patient_xref?module=eq.case&entity_id=eq.${patientPid}&select=encounter_key,patient_key,module`,
     SUPABASE_SERVICE_KEY,
   )
   expect(xrefRows.length).toBe(1)

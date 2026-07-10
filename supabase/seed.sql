@@ -705,8 +705,30 @@ begin
   values (v_case, v_comm_a, v_tpl, 'Óbito UTI leito 7', v_chefe_a, true);
 
   -- Seeded patient identifiers for Case 0001 (gates the CasePatientPanel in the dev UI).
-  insert into public.case_patient (case_id, name, mrn, date_of_birth, age_years, sex, unit, attending)
-  values (v_case, 'Paciente de Demonstração', 'CCIH-2024-001', '1955-03-15', 70, 'female', 'UTI Adulto', 'Dr. João Mendes');
+  -- Re-keyed to the participant layer (ADR 0064 E0 / F1): a patient participant +
+  -- patient_participants + case_participants link + patient_identifiers. Direct owner
+  -- inserts (bypass the writer's flag gate, as before). The registry display_name is a
+  -- SURROGATE (never the raw name — Q4). Raw identifiers live in patient_identifiers.
+  declare
+    v_org_of_a  uuid := app.org_of_commission(v_comm_a);
+    v_role_pat  uuid := 'e0000000-0000-0000-0000-0000000000a1';
+    v_part_pat  uuid := 'e0000000-0000-0000-0000-0000000000c1';
+  begin
+    insert into public.case_participant_roles
+      (id, organization_id, key, display_name, allowed_participant_types, is_primary_subject_candidate)
+    values (v_role_pat, v_org_of_a, 'affected_patient', 'Paciente afetado', array['patient'], true)
+    on conflict (organization_id, key) where case_type_id is null do nothing;
+
+    insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+    values (v_part_pat, v_org_of_a, 'patient', 'patient_phi', 'Paciente');
+    insert into public.patient_participants (participant_id) values (v_part_pat);
+    insert into public.case_participants (case_id, participant_id, role_id, is_primary_subject, added_by)
+    values (v_case, v_part_pat, v_role_pat, true, v_chefe_a);
+    insert into public.patient_identifiers
+      (participant_id, name, mrn, date_of_birth, age_years, sex, unit, attending)
+    values (v_part_pat, 'Paciente de Demonstração', 'CCIH-2024-001', '1955-03-15', 70,
+            'female', 'UTI Adulto', 'Dr. João Mendes');
+  end;
   update public.cases set has_patient = true where id = v_case;
 
   -- Phase 1: concluida + assigned to staff1; Phase 2: pendente + recommended.
@@ -1548,10 +1570,36 @@ begin
   -- has_patient + patient_enabled so the panel/flags read true. Encounter omitted
   -- here so the encounter_key match stays event<->referral only (a second, narrower
   -- match basis for the QPS view to demonstrate).
-  insert into public.case_patient (case_id, name, mrn, age_years, sex, unit, attending)
-  values (v_tgt_case, 'Paciente de Demonstração', 'PRT-0099123', 71, 'male',
-          'UTI Adulto', 'Dr. Plantonista');
-  update public.cases set has_patient = true, patient_enabled = true where id = v_tgt_case;
+  -- Re-keyed to the participant layer (ADR 0064 E0 / F1). Surrogate registry display_name
+  -- (Q4); raw identifiers only in patient_identifiers. patient_enabled flipped first so
+  -- the case is patient-bearing; the derivation trigger fires on the identifiers insert.
+  declare
+    v_role_pat_b uuid := 'e0000000-0000-0000-0000-0000000000b1';
+    v_part_pat_b uuid := 'e0000000-0000-0000-0000-0000000000b9';
+  begin
+    update public.cases set patient_enabled = true where id = v_tgt_case;
+
+    insert into public.case_participant_roles
+      (id, organization_id, key, display_name, allowed_participant_types, is_primary_subject_candidate)
+    values (v_role_pat_b, app.org_of_commission(v_comm_b), 'affected_patient', 'Paciente afetado', array['patient'], true)
+    on conflict (organization_id, key) where case_type_id is null do nothing;
+    -- The org-wide 'affected_patient' role may already exist (org A/B share an org in
+    -- this seed's tenancy); resolve the actual role id so the FK below is valid.
+    select id into v_role_pat_b from public.case_participant_roles
+     where organization_id = app.org_of_commission(v_comm_b)
+       and key = 'affected_patient' and case_type_id is null;
+
+    insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+    values (v_part_pat_b, app.org_of_commission(v_comm_b), 'patient', 'patient_phi', 'Paciente');
+    insert into public.patient_participants (participant_id) values (v_part_pat_b);
+    insert into public.case_participants (case_id, participant_id, role_id, is_primary_subject, added_by)
+    values (v_tgt_case, v_part_pat_b, v_role_pat_b, true, v_chefe_b);
+    insert into public.patient_identifiers
+      (participant_id, name, mrn, age_years, sex, unit, attending)
+    values (v_part_pat_b, 'Paciente de Demonstração', 'PRT-0099123', 71, 'male',
+            'UTI Adulto', 'Dr. Plantonista');
+  end;
+  update public.cases set has_patient = true where id = v_tgt_case;
 
   perform set_config('app.in_referral_rpc', 'off', true);
 end $$;

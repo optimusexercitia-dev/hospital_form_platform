@@ -1707,58 +1707,114 @@ export type Database = {
           },
         ]
       }
-      case_patient: {
+      case_participant_roles: {
         Row: {
-          age_years: number | null
-          attending: string | null
-          case_id: string
+          allowed_participant_types: string[]
+          case_type_id: string | null
           created_at: string
-          date_of_birth: string | null
-          encounter_key: string | null
-          encounter_ref: string | null
-          mrn: string | null
-          name: string | null
-          patient_key: string | null
-          sex: string
-          unit: string | null
+          display_name: string
+          id: string
+          is_active: boolean
+          is_primary_subject_candidate: boolean
+          key: string
+          organization_id: string
           updated_at: string
         }
         Insert: {
-          age_years?: number | null
-          attending?: string | null
-          case_id: string
+          allowed_participant_types: string[]
+          case_type_id?: string | null
           created_at?: string
-          date_of_birth?: string | null
-          encounter_key?: string | null
-          encounter_ref?: string | null
-          mrn?: string | null
-          name?: string | null
-          patient_key?: string | null
-          sex?: string
-          unit?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean
+          is_primary_subject_candidate?: boolean
+          key: string
+          organization_id: string
           updated_at?: string
         }
         Update: {
-          age_years?: number | null
-          attending?: string | null
-          case_id?: string
+          allowed_participant_types?: string[]
+          case_type_id?: string | null
           created_at?: string
-          date_of_birth?: string | null
-          encounter_key?: string | null
-          encounter_ref?: string | null
-          mrn?: string | null
-          name?: string | null
-          patient_key?: string | null
-          sex?: string
-          unit?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          is_primary_subject_candidate?: boolean
+          key?: string
+          organization_id?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "case_patient_case_id_fkey"
+            foreignKeyName: "case_participant_roles_case_type_id_fkey"
+            columns: ["case_type_id"]
+            isOneToOne: false
+            referencedRelation: "case_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_participant_roles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_participants: {
+        Row: {
+          added_at: string
+          added_by: string | null
+          case_id: string
+          id: string
+          involvement_summary: string | null
+          is_primary_subject: boolean
+          participant_id: string
+          removed_at: string | null
+          role_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by?: string | null
+          case_id: string
+          id?: string
+          involvement_summary?: string | null
+          is_primary_subject?: boolean
+          participant_id: string
+          removed_at?: string | null
+          role_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string | null
+          case_id?: string
+          id?: string
+          involvement_summary?: string | null
+          is_primary_subject?: boolean
+          participant_id?: string
+          removed_at?: string | null
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_participants_case_id_fkey"
             columns: ["case_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_participants_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_participants_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "case_participant_roles"
             referencedColumns: ["id"]
           },
         ]
@@ -2168,6 +2224,85 @@ export type Database = {
           },
         ]
       }
+      case_type_terminology: {
+        Row: {
+          case_type_id: string
+          help_text: string | null
+          plural_label: string | null
+          singular_label: string
+          term_key: string
+        }
+        Insert: {
+          case_type_id: string
+          help_text?: string | null
+          plural_label?: string | null
+          singular_label: string
+          term_key: string
+        }
+        Update: {
+          case_type_id?: string
+          help_text?: string | null
+          plural_label?: string | null
+          singular_label?: string
+          term_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_type_terminology_case_type_id_fkey"
+            columns: ["case_type_id"]
+            isOneToOne: false
+            referencedRelation: "case_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_types: {
+        Row: {
+          created_at: string
+          default_case_label: string | null
+          default_visibility_policy: string
+          display_name: string
+          id: string
+          is_active: boolean
+          key: string
+          organization_id: string
+          primary_subject_kind: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_case_label?: string | null
+          default_visibility_policy?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          key: string
+          organization_id: string
+          primary_subject_kind: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_case_label?: string | null
+          default_visibility_policy?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          organization_id?: string
+          primary_subject_kind?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cases: {
         Row: {
           case_number: number
@@ -2181,6 +2316,7 @@ export type Database = {
           has_patient: boolean
           id: string
           label: string | null
+          organization_id: string
           outcome_id: string | null
           patient_enabled: boolean
           phi_disposed_at: string | null
@@ -2201,6 +2337,7 @@ export type Database = {
           has_patient?: boolean
           id?: string
           label?: string | null
+          organization_id: string
           outcome_id?: string | null
           patient_enabled?: boolean
           phi_disposed_at?: string | null
@@ -2221,6 +2358,7 @@ export type Database = {
           has_patient?: boolean
           id?: string
           label?: string | null
+          organization_id?: string
           outcome_id?: string | null
           patient_enabled?: boolean
           phi_disposed_at?: string | null
@@ -2256,6 +2394,13 @@ export type Database = {
             columns: ["department_id"]
             isOneToOne: false
             referencedRelation: "hospital_departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cases_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
@@ -3958,6 +4103,129 @@ export type Database = {
           },
         ]
       }
+      participants: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          display_name: string
+          id: string
+          organization_id: string
+          participant_type: string
+          sensitivity_class: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          display_name: string
+          id?: string
+          organization_id: string
+          participant_type: string
+          sensitivity_class: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          display_name?: string
+          id?: string
+          organization_id?: string
+          participant_type?: string
+          sensitivity_class?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participants_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patient_identifiers: {
+        Row: {
+          age_years: number | null
+          attending: string | null
+          created_at: string
+          date_of_birth: string | null
+          encounter_key: string | null
+          encounter_ref: string | null
+          mrn: string | null
+          name: string | null
+          participant_id: string
+          patient_key: string | null
+          sex: string
+          unit: string | null
+          updated_at: string
+        }
+        Insert: {
+          age_years?: number | null
+          attending?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          encounter_key?: string | null
+          encounter_ref?: string | null
+          mrn?: string | null
+          name?: string | null
+          participant_id: string
+          patient_key?: string | null
+          sex?: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          age_years?: number | null
+          attending?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          encounter_key?: string | null
+          encounter_ref?: string | null
+          mrn?: string | null
+          name?: string | null
+          participant_id?: string
+          patient_key?: string | null
+          sex?: string
+          unit?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_identifiers_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: true
+            referencedRelation: "patient_participants"
+            referencedColumns: ["participant_id"]
+          },
+        ]
+      }
+      patient_participants: {
+        Row: {
+          created_at: string
+          participant_id: string
+          participant_type: string
+        }
+        Insert: {
+          created_at?: string
+          participant_id: string
+          participant_type?: string
+        }
+        Update: {
+          created_at?: string
+          participant_id?: string
+          participant_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_participants_type_fk"
+            columns: ["participant_id", "participant_type"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id", "participant_type"]
+          },
+        ]
+      }
       patient_safety_event: {
         Row: {
           acknowledged_at: string | null
@@ -4616,6 +4884,92 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      professional_participants: {
+        Row: {
+          created_at: string
+          participant_id: string
+          participant_type: string
+          professional_profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          participant_id: string
+          participant_type?: string
+          professional_profile_id: string
+        }
+        Update: {
+          created_at?: string
+          participant_id?: string
+          participant_type?: string
+          professional_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_participants_professional_profile_id_fkey"
+            columns: ["professional_profile_id"]
+            isOneToOne: false
+            referencedRelation: "professional_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_participants_type_fk"
+            columns: ["participant_id", "participant_type"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id", "participant_type"]
+          },
+        ]
+      }
+      professional_profiles: {
+        Row: {
+          affiliation_status: string | null
+          created_at: string
+          full_name: string
+          id: string
+          license_number: string | null
+          license_region: string | null
+          organization_id: string
+          professional_type: string | null
+          specialty: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          affiliation_status?: string | null
+          created_at?: string
+          full_name: string
+          id?: string
+          license_number?: string | null
+          license_region?: string | null
+          organization_id: string
+          professional_type?: string | null
+          specialty?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          affiliation_status?: string | null
+          created_at?: string
+          full_name?: string
+          id?: string
+          license_number?: string | null
+          license_region?: string | null
+          organization_id?: string
+          professional_type?: string | null
+          specialty?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -5559,9 +5913,63 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      pg_all_foreign_keys: {
+        Row: {
+          fk_columns: unknown[] | null
+          fk_constraint_name: unknown
+          fk_schema_name: unknown
+          fk_table_name: unknown
+          fk_table_oid: unknown
+          is_deferrable: boolean | null
+          is_deferred: boolean | null
+          match_type: string | null
+          on_delete: string | null
+          on_update: string | null
+          pk_columns: unknown[] | null
+          pk_constraint_name: unknown
+          pk_index_name: unknown
+          pk_schema_name: unknown
+          pk_table_name: unknown
+          pk_table_oid: unknown
+        }
+        Relationships: []
+      }
+      tap_funky: {
+        Row: {
+          args: string | null
+          is_definer: boolean | null
+          is_strict: boolean | null
+          is_visible: boolean | null
+          kind: unknown
+          langoid: unknown
+          name: unknown
+          oid: unknown
+          owner: unknown
+          returns: string | null
+          returns_set: boolean | null
+          schema: unknown
+          volatility: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      _cleanup: { Args: never; Returns: boolean }
+      _contract_on: { Args: { "": string }; Returns: unknown }
+      _currtest: { Args: never; Returns: number }
+      _db_privs: { Args: never; Returns: unknown[] }
+      _extensions: { Args: never; Returns: unknown[] }
+      _get: { Args: { "": string }; Returns: number }
+      _get_latest: { Args: { "": string }; Returns: number[] }
+      _get_note: { Args: { "": string }; Returns: string }
+      _is_verbose: { Args: never; Returns: boolean }
+      _prokind: { Args: { p_oid: unknown }; Returns: unknown }
+      _query: { Args: { "": string }; Returns: string }
+      _refine_vol: { Args: { "": string }; Returns: string }
+      _retval: { Args: { "": string }; Returns: string }
+      _table_privs: { Args: never; Returns: unknown[] }
+      _temptypes: { Args: { "": string }; Returns: string }
+      _todo: { Args: never; Returns: string }
       accept_referral: {
         Args: { p_referral_id: string }
         Returns: {
@@ -6607,6 +7015,7 @@ export type Database = {
           has_patient: boolean
           id: string
           label: string | null
+          organization_id: string
           outcome_id: string | null
           patient_enabled: boolean
           phi_disposed_at: string | null
@@ -6810,6 +7219,7 @@ export type Database = {
           has_patient: boolean
           id: string
           label: string | null
+          organization_id: string
           outcome_id: string | null
           patient_enabled: boolean
           phi_disposed_at: string | null
@@ -6825,6 +7235,42 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      col_is_null:
+        | {
+            Args: {
+              column_name: unknown
+              description?: string
+              schema_name: unknown
+              table_name: unknown
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              column_name: unknown
+              description?: string
+              table_name: unknown
+            }
+            Returns: string
+          }
+      col_not_null:
+        | {
+            Args: {
+              column_name: unknown
+              description?: string
+              schema_name: unknown
+              table_name: unknown
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              column_name: unknown
+              description?: string
+              table_name: unknown
+            }
+            Returns: string
+          }
       commission_overview: {
         Args: never
         Returns: {
@@ -7122,6 +7568,7 @@ export type Database = {
           has_patient: boolean
           id: string
           label: string | null
+          organization_id: string
           outcome_id: string | null
           patient_enabled: boolean
           phi_disposed_at: string | null
@@ -7156,6 +7603,7 @@ export type Database = {
           has_patient: boolean
           id: string
           label: string | null
+          organization_id: string
           outcome_id: string | null
           patient_enabled: boolean
           phi_disposed_at: string | null
@@ -7820,6 +8268,20 @@ export type Database = {
         Args: { p_section_id: string; p_target_section_id: string }
         Returns: undefined
       }
+      diag:
+        | {
+            Args: { msg: unknown }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.diag(msg => text), public.diag(msg => anyelement). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+        | {
+            Args: { msg: string }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.diag(msg => text), public.diag(msg => anyelement). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
+          }
+      diag_test_name: { Args: { "": string }; Returns: string }
       discard_response: { Args: { p_response_id: string }; Returns: undefined }
       dispose_case_phi: {
         Args: { p_case_id: string; p_reason: string }
@@ -7877,6 +8339,9 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      do_tap:
+        | { Args: never; Returns: string[] }
+        | { Args: { "": string }; Returns: string[] }
       documents_due_for_review: {
         Args: { p_commission: string }
         Returns: {
@@ -7891,11 +8356,26 @@ export type Database = {
           title: string
         }[]
       }
+      fail:
+        | { Args: never; Returns: string }
+        | { Args: { "": string }; Returns: string }
+      findfuncs: { Args: { "": string }; Returns: string[] }
+      finish: { Args: { exception_on_failure?: boolean }; Returns: string[] }
+      format_type_string: { Args: { "": string }; Returns: string }
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_case_patient: { Args: { p_case_id: string }; Returns: Json }
+      get_case_patients: { Args: { p_case_id: string }; Returns: Json }
+      get_case_professional: {
+        Args: { p_participant_id: string }
+        Returns: Json
+      }
       get_event_patient: { Args: { p_event_id: string }; Returns: Json }
       get_feature_flags: { Args: never; Returns: Json }
       get_member_overview: { Args: { p_commission: string }; Returns: Json }
+      get_participant_patient: {
+        Args: { p_participant_id: string }
+        Returns: Json
+      }
       get_patient_trajectory_for_entity: {
         Args: { p_entity_id: string; p_module: string }
         Returns: Json
@@ -7932,6 +8412,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      has_unique: { Args: { "": string }; Returns: string }
       hospital_document_register: {
         Args: {
           p_doc_type?: string
@@ -7964,6 +8445,7 @@ export type Database = {
           total: number
         }[]
       }
+      in_todo: { Args: never; Returns: boolean }
       indicator_kpis: {
         Args: { p_commission: string }
         Returns: {
@@ -7988,6 +8470,7 @@ export type Database = {
         Returns: boolean
       }
       interviews_enabled: { Args: never; Returns: boolean }
+      is_empty: { Args: { "": string }; Returns: string }
       is_nsp_coordinator_of_self: {
         Args: { p_hospital_id: string }
         Returns: boolean
@@ -7998,6 +8481,7 @@ export type Database = {
         Returns: boolean
       }
       is_pqs_member_self: { Args: never; Returns: boolean }
+      isnt_empty: { Args: { "": string }; Returns: string }
       link_meeting_case: {
         Args: {
           p_agenda_item_id?: string
@@ -8145,6 +8629,7 @@ export type Database = {
           version_number: number
         }[]
       }
+      lives_ok: { Args: { "": string }; Returns: string }
       log_audit_access: {
         Args: {
           p_action: string
@@ -8229,6 +8714,7 @@ export type Database = {
           title: string
         }[]
       }
+      no_plan: { Args: never; Returns: boolean[] }
       notify_safety_event: {
         Args: {
           p_case_id?: string
@@ -8277,6 +8763,7 @@ export type Database = {
       nsp_org_capa_rollup: { Args: { p_org_id: string }; Returns: Json }
       nsp_org_event_rollup: { Args: { p_org_id: string }; Returns: Json }
       nsp_org_roster: { Args: { p_org_id: string }; Returns: Json }
+      num_failed: { Args: never; Returns: number }
       open_capa_plan: {
         Args: {
           p_classification?: string
@@ -8310,6 +8797,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      os_name: { Args: never; Returns: string }
+      pass:
+        | { Args: never; Returns: string }
+        | { Args: { "": string }; Returns: string }
       patient_access_audit: {
         Args: { p_encounter?: string; p_hospital_id?: string; p_mrn?: string }
         Returns: Json
@@ -8320,6 +8811,9 @@ export type Database = {
         Args: { p_entity_id: string; p_module: string }
         Returns: number
       }
+      pg_version: { Args: never; Returns: string }
+      pg_version_num: { Args: never; Returns: number }
+      pgtap_version: { Args: never; Returns: number }
       pqs_inbox: {
         Args: {
           p_cursor_id?: string
@@ -8951,6 +9445,9 @@ export type Database = {
         Args: { p_org: string; p_user: string }
         Returns: undefined
       }
+      runtests:
+        | { Args: never; Returns: string[] }
+        | { Args: { "": string }; Returns: string[] }
       save_narrative_body: {
         Args: { p_body_md: string; p_narrative: string }
         Returns: undefined
@@ -9146,6 +9643,7 @@ export type Database = {
           has_patient: boolean
           id: string
           label: string | null
+          organization_id: string
           outcome_id: string | null
           patient_enabled: boolean
           phi_disposed_at: string | null
@@ -9343,6 +9841,22 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_participant_patient: {
+        Args: {
+          p_age_years?: number
+          p_attending?: string
+          p_case_id: string
+          p_date_of_birth?: string
+          p_encounter_ref?: string
+          p_mrn?: string
+          p_name?: string
+          p_participant_id?: string
+          p_role_id?: string
+          p_sex?: string
+          p_unit?: string
+        }
+        Returns: string
+      }
       set_pqs_rca_due_window: {
         Args: { p_days: number; p_hospital_id: string }
         Returns: number
@@ -9490,6 +10004,9 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      skip:
+        | { Args: { "": string }; Returns: string }
+        | { Args: { how_many: number; why: string }; Returns: string }
       skip_phase: {
         Args: { p_case_phase_id: string }
         Returns: {
@@ -9744,6 +10261,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      throws_ok: { Args: { "": string }; Returns: string }
+      todo:
+        | { Args: { how_many: number }; Returns: boolean[] }
+        | { Args: { how_many: number; why: string }; Returns: boolean[] }
+        | { Args: { why: string }; Returns: boolean[] }
+        | { Args: { how_many: number; why: string }; Returns: boolean[] }
+      todo_end: { Args: never; Returns: boolean[] }
+      todo_start:
+        | { Args: never; Returns: boolean[] }
+        | { Args: { "": string }; Returns: boolean[] }
       transfer_event_custody: {
         Args: {
           p_event_id: string
@@ -9914,6 +10441,7 @@ export type Database = {
           has_patient: boolean
           id: string
           label: string | null
+          organization_id: string
           outcome_id: string | null
           patient_enabled: boolean
           phi_disposed_at: string | null
@@ -10818,7 +11346,9 @@ export type Database = {
       [_ in never]: never
     }
     CompositeTypes: {
-      [_ in never]: never
+      _time_trial_type: {
+        a_time: number | null
+      }
     }
   }
 }

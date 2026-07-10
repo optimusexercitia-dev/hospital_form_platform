@@ -1,33 +1,31 @@
--- case_patient — Capture patient identifiers at Case creation (THIRD PHI module).
--- ADR 0038; migration 20260620017000_case_patient.sql. Mirrors 150_referrals.sql.
+-- patient_identifiers — Capture patient identifiers at Case creation (THIRD PHI module).
+-- ADR 0038 (original), re-keyed to N-per-case by ADR 0064 E0 / F1 (migrations
+-- 20260716000100_patient_identifiers_rekey.sql). Mirrors 150_referrals.sql.
 --
--- Proves:
---   * case_patient direct SELECT REVOKED from authenticated; only the audited door.
+-- Proves (posture PRESERVED verbatim across the re-key — only cardinality + key change):
+--   * patient_identifiers direct SELECT REVOKED from authenticated; only the audited door.
 --   * can_read_case_patient = the BROAD can_read_case (coordinator / phase-assignee /
---     narrative-assignee / grantee / admin → TRUE; a foreign member → FALSE) — the
---     DELIBERATE broad-vs-tight contrast vs event/referral PHI predicates.
---   * get_case_patient: NULL + ZERO audit for an unentitled reader; exactly one
---     case_patient.read for an entitled COORDINATOR and an entitled ASSIGNEE.
+--     narrative-assignee / grantee → TRUE; a foreign member → FALSE) — the DELIBERATE
+--     broad-vs-tight contrast vs event/referral PHI predicates (R1 gate inherited).
+--   * get_participant_patient / get_case_patients: NULL + ZERO audit for an unentitled
+--     reader; exactly one case_patient.read for an entitled COORDINATOR and ASSIGNEE.
 --   * the case_patient.updated mutation-audit metadata is {} (NO identifier).
---   * WRITE asymmetry: an assignee (broad READ) gets 42501 on set_case_patient; a
---     coordinator succeeds + flips has_patient=true.
---   * patient_enabled snapshot true/false by the template's collects_patient; a
---     set on a non-enabled case raises check_violation.
---   * dispose_case_phi: happy path (clears identifiers + redacts narrative/event
---     free text + stamps + flips has_patient false) + second call HC056 + bad
---     reason check_violation + a non-coordinator 42501.
+--   * WRITE asymmetry: an assignee (broad READ) gets 42501 on set_participant_patient;
+--     a coordinator succeeds + flips has_patient=true.
+--   * patient_enabled snapshot true/false; a set on a non-enabled case raises check_violation.
+--   * dispose_case_phi: happy path (clears identifiers + redacts free text + stamps +
+--     flips has_patient false) + second call HC056 + bad reason check_violation + a
+--     non-coordinator 42501 + the org-scoped I1 gate.
 --   * flag-OFF ⇒ the writers raise check_violation.
---
--- The .read AUDIT rows are asserted directly: get_case_patient emits them INSIDE
--- the SECURITY DEFINER door, so a DB-side test can observe them (like referrals).
 
 begin;
-select plan(38);
+select plan(39);
 
--- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_patient';
 update app.feature_flags set enabled = true where key = 'case_access';
 update app.feature_flags set enabled = true where key = 'audit_trail';
+-- The participant layer must be reachable for the re-keyed doors/writer.
+update app.feature_flags set enabled = true where key = 'case_participants';
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -45,23 +43,18 @@ create temp table k on commit drop as
   from ctx;
 grant select on k to authenticated;
 
--- NSP-per-org (ADR 0042): pqs_members has composite PK (organization_id, user_id).
--- case_patient predicate does not require PQS, but admin must still read broadly.
 insert into public.pqs_members (hospital_id, user_id, added_by)
   select (v->>'hosp_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
 insert into public.pqs_department (hospital_id, name, rca_default_due_days)
   select (v->>'hosp_b')::uuid, 'NSP Bootstrap', 30 from ctx
   on conflict (hospital_id) do nothing;
 
--- ---------------------------------------------------------------------------
--- One case in X with: patient_enabled = true, 1 phase (assigned st_x → the broad
--- READ persona), a narrative + an event (PHI free text to prove disposal redacts).
--- Built directly as table owner (case_phases/case_narratives/case_events INSERT is
--- unguarded — the state guards are BEFORE UPDATE/DELETE only).
--- ---------------------------------------------------------------------------
+-- One case in X with patient_enabled = true, 1 phase (assigned st_x → broad READ),
+-- a narrative + an event (PHI free text to prove disposal redacts). organization_id
+-- is backfilled by the guard_case_org_matches_commission BEFORE trigger.
 create temp table cs on commit drop as
-  select gen_random_uuid() as case_x,    -- patient_enabled = true
-         gen_random_uuid() as case_off,  -- patient_enabled = false (snapshot test)
+  select gen_random_uuid() as case_x,
+         gen_random_uuid() as case_off,
          gen_random_uuid() as phase_x,
          gen_random_uuid() as narr_x,
          gen_random_uuid() as event_x;
@@ -89,51 +82,57 @@ values ((select event_x from cs), (select case_x from cs), 'note',
         'NOTA-SENSIVEL-EVENTO', (select sa_x from k));
 
 -- =========================================================================
--- REVOKE: direct SELECT on case_patient is denied to authenticated.
+-- REVOKE: direct SELECT on patient_identifiers is denied to authenticated.
 -- =========================================================================
 select is(
-  has_table_privilege('authenticated', 'public.case_patient', 'SELECT'),
-  false, 'authenticated has NO direct SELECT on case_patient (REVOKE)');
+  has_table_privilege('authenticated', 'public.patient_identifiers', 'SELECT'),
+  false, 'authenticated has NO direct SELECT on patient_identifiers (REVOKE)');
 select is(
-  has_table_privilege('authenticated', 'public.case_patient', 'INSERT'),
-  false, 'authenticated has NO direct INSERT on case_patient (REVOKE)');
+  has_table_privilege('authenticated', 'public.patient_identifiers', 'INSERT'),
+  false, 'authenticated has NO direct INSERT on patient_identifiers (REVOKE)');
 
 -- =========================================================================
--- WRITE gate: an assignee (broad READ) cannot set_case_patient (42501); the
--- coordinator can, and flips has_patient = true.
+-- WRITE gate: an assignee (broad READ) cannot set_participant_patient (42501);
+-- the coordinator can, and flips has_patient = true. Capture the participant id.
 -- =========================================================================
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select throws_ok(
-  $$ select public.set_case_patient(
-       (select case_x from cs), 'Tentativa', 'MRN-X', null, null, 'unknown', null, null, null) $$,
-  '42501', null, 'a phase assignee CANNOT set_case_patient (42501) — writes are coordinators-only');
+  $$ select public.set_participant_patient(
+       (select case_x from cs), null, 'Tentativa', 'MRN-X') $$,
+  '42501', null, 'a phase assignee CANNOT set_participant_patient (42501) — writes are coordinators-only');
 reset role;
 
--- A foreign coordinator cannot write either.
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
 select throws_ok(
-  $$ select public.set_case_patient(
-       (select case_x from cs), 'Tentativa', 'MRN-Y', null, null, 'unknown', null, null, null) $$,
-  '42501', null, 'a foreign coordinator CANNOT set_case_patient (42501)');
+  $$ select public.set_participant_patient(
+       (select case_x from cs), null, 'Tentativa', 'MRN-Y') $$,
+  '42501', null, 'a foreign coordinator CANNOT set_participant_patient (42501)');
 reset role;
 
--- The coordinator sets the identifiers.
+-- The coordinator sets the identifiers; remember the new participant_id.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-select lives_ok(
-  $$ select public.set_case_patient(
-       (select case_x from cs), 'Paciente Teste', 'MRN-9', null, 70, 'male', null, 'UTI', 'Dr X') $$,
-  'the coordinator CAN set_case_patient');
+create temp table pw on commit drop as
+  select public.set_participant_patient(
+    (select case_x from cs), null, 'Paciente Teste', 'MRN-9', null, 70, 'male', null, 'UTI', 'Dr X'
+  ) as pid;
 reset role;
+grant select on pw to authenticated;
+select ok((select pid from pw) is not null, 'the coordinator CAN set_participant_patient (returns a participant id)');
 
 select is(
   (select has_patient from public.cases where id = (select case_x from cs)),
-  true, 'set_case_patient flips cases.has_patient = true');
+  true, 'set_participant_patient flips cases.has_patient = true');
 select is(
-  (select name from public.case_patient where case_id = (select case_x from cs)),
-  'Paciente Teste', 'the identifier row was written');
+  (select name from public.patient_identifiers where participant_id = (select pid from pw)),
+  'Paciente Teste', 'the identifier row was written on the patient participant');
+
+-- Q4 invariant: the participant registry row exposes NO raw identifier (surrogate label).
+select is(
+  (select display_name from public.participants where id = (select pid from pw)),
+  'Paciente', 'the patient participant registry display_name is a SURROGATE, never the raw name (Q4)');
 
 -- =========================================================================
 -- patient_enabled snapshot + non-enabled-case guard.
@@ -148,32 +147,26 @@ select is(
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
-  $$ select public.set_case_patient(
-       (select case_off from cs), 'Nao', 'MRN-0', null, null, 'unknown', null, null, null) $$,
-  '23514', null, 'set_case_patient on a non-enabled case raises check_violation');
+  $$ select public.set_participant_patient((select case_off from cs), null, 'Nao', 'MRN-0') $$,
+  '23514', null, 'set_participant_patient on a non-enabled case raises check_violation');
 reset role;
 
 -- =========================================================================
--- can_read_case_patient (BROAD) — the deliberate broad-vs-tight contrast.
--- coordinator / phase-assignee / admin → TRUE; an unrelated member + foreign → FALSE.
+-- can_read_case_patient (BROAD) — the deliberate broad-vs-tight contrast (R1 gate).
 -- =========================================================================
 select is(app.can_read_case_patient((select case_x from cs), (select sa_x from k)), true,
   'can_read_case_patient: coordinator → true');
 select is(app.can_read_case_patient((select case_x from cs), (select st_x from k)), true,
   'can_read_case_patient: phase ASSIGNEE → true (the broad scope; assignees need the MRN)');
--- Multi-tenancy Phase B: can_read_case_patient is DECOUPLED from can_read_case
--- (ADR 0038 fork) and carries NO admin and NO org-admin term — case PHI
--- identifiers never follow platform/org governance. A platform admin who is not
--- a case worker / PQS reads no MRN.
 select is(app.can_read_case_patient((select case_x from cs), (select admin from k)), false,
-  'can_read_case_patient: platform_admin → FALSE (PHI identifier; admin term dropped; Phase B)');
+  'can_read_case_patient: platform_admin → FALSE (PHI identifier; admin term dropped)');
 select is(app.can_read_case_patient((select case_x from cs), (select st_x2 from k)), false,
   'can_read_case_patient: an unrelated member of the commission → FALSE');
 select is(app.can_read_case_patient((select case_x from cs), (select sa_y from k)), false,
   'can_read_case_patient: a foreign coordinator → FALSE');
 
 -- =========================================================================
--- get_case_patient door: NULL + ZERO audit for an unentitled reader.
+-- get_participant_patient door: NULL + ZERO audit for an unentitled reader.
 -- =========================================================================
 create temp table a0 on commit drop as
   select (select count(*) from public.audit_log where action = 'case_patient.read') as before;
@@ -181,17 +174,17 @@ grant select on a0 to authenticated;
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
 create temp table p_foreign on commit drop as
-  select public.get_case_patient((select case_x from cs)) as j;
+  select public.get_participant_patient((select pid from pw)) as j;
 reset role;
 grant select on p_foreign to authenticated;
 select ok((select j from p_foreign) is null,
-  'get_case_patient returns NULL to an unentitled (foreign) reader');
+  'get_participant_patient returns NULL to an unentitled (foreign) reader');
 select is(
   (select count(*) from public.audit_log where action = 'case_patient.read') - (select before from a0),
   0::bigint, 'an unentitled PHI read writes NO case_patient.read row');
 
 -- =========================================================================
--- get_case_patient door: one case_patient.read for an entitled COORDINATOR.
+-- get_participant_patient door: one case_patient.read for an entitled COORDINATOR.
 -- =========================================================================
 create temp table a1 on commit drop as
   select (select count(*) from public.audit_log where action = 'case_patient.read') as before;
@@ -199,17 +192,17 @@ grant select on a1 to authenticated;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table p_coord on commit drop as
-  select public.get_case_patient((select case_x from cs)) as j;
+  select public.get_participant_patient((select pid from pw)) as j;
 reset role;
 grant select on p_coord to authenticated;
 select is((select p_coord.j->>'name' from p_coord), 'Paciente Teste',
-  'get_case_patient returns the identifiers to the coordinator');
+  'get_participant_patient returns the identifiers to the coordinator');
 select is(
   (select count(*) from public.audit_log where action = 'case_patient.read') - (select before from a1),
   1::bigint, 'an entitled coordinator read writes exactly one case_patient.read row');
 
 -- =========================================================================
--- get_case_patient door: one case_patient.read for an entitled ASSIGNEE (broad).
+-- get_participant_patient door: one case_patient.read for an entitled ASSIGNEE (broad).
 -- =========================================================================
 create temp table a2 on commit drop as
   select (select count(*) from public.audit_log where action = 'case_patient.read') as before;
@@ -217,17 +210,18 @@ grant select on a2 to authenticated;
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 create temp table p_assignee on commit drop as
-  select public.get_case_patient((select case_x from cs)) as j;
+  select public.get_participant_patient((select pid from pw)) as j;
 reset role;
 grant select on p_assignee to authenticated;
 select is((select p_assignee.j->>'mrn' from p_assignee), 'MRN-9',
-  'get_case_patient returns the identifiers to the phase ASSIGNEE (broad read)');
+  'get_participant_patient returns the identifiers to the phase ASSIGNEE (broad read)');
 select is(
   (select count(*) from public.audit_log where action = 'case_patient.read') - (select before from a2),
   1::bigint, 'an entitled assignee read writes exactly one case_patient.read row');
 
 -- =========================================================================
--- The case_patient.updated mutation-audit row carries NO identifier (metadata={}).
+-- The case_patient.updated mutation-audit row carries NO identifier (metadata={}),
+-- keyed on the CASE (entity_id = case_id, continuity with the C-4 dispatch).
 -- =========================================================================
 select is(
   (select metadata from public.audit_log
@@ -245,7 +239,6 @@ select throws_ok(
   '42501', null, 'a non-coordinator CANNOT dispose_case_phi (42501)');
 reset role;
 
--- A bad reason is rejected (check_violation) before any mutation.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
@@ -254,19 +247,9 @@ select throws_ok(
 reset role;
 
 -- =========================================================================
--- §I1 (NSP-per-org regression guard): dispose_case_phi gate is ORG-SCOPED.
--- The case_patient module (ADR 0038) shipped with a bare is_admin() disposal arm —
--- under multi-tenancy that is the VENDOR platform_admin, walled off from all tenant
--- PHI (ADR 0041/0042). The fix swapped is_admin() → is_org_admin_of_commission(case's
--- org), KEEPING the is_staff_admin_of(case's commission) arm. These guards assert the
--- 3-way org gate: platform-admin DENIED · the case's-org org_admin ALLOWED · a
--- DIFFERENT-org org_admin DENIED. The gate (errcode 42501) fires BEFORE the one-shot
--- HC056 check, so we assert it inside the rollback without driving the full lifecycle;
--- the single ALLOWED call uses a DEDICATED throwaway case so case_x's lifecycle below
--- is untouched. The bootstrap world is single-org, so we mint a 2nd org + the
--- org_admin org_members directly (superuser; reverts with the rollback).
+-- §I1 (org-scoped disposal gate) — platform-admin DENIED · case's-org org_admin
+-- ALLOWED · a DIFFERENT-org org_admin DENIED. (Carried forward across the re-key.)
 -- =========================================================================
--- A 2nd org (for the cross-org denial) and an org_admin of EACH org.
 create temp table i1 on commit drop as
   select gen_random_uuid() as org_other, gen_random_uuid() as hosp_other,
          gen_random_uuid() as case_i1;
@@ -276,19 +259,12 @@ insert into public.organizations (id, name, slug)
 insert into public.hospitals (id, organization_id, name, slug)
   values ((select hosp_other from i1), (select org_other from i1), 'Hosp Other',
           'hosp-other-' || substr((select hosp_other from i1)::text,1,8));
--- st_x2 → org_admin of org_b (the CASE's org → ALLOWED); sa_y → org_admin of org_other
--- (a DIFFERENT org → DENIED; sa_y is staff_admin of comm_y only, no comm_x tie). admin
--- stays the platform_admin analog (is_admin, but no org-admin row + not a staff_admin
--- of comm_x → DENIED).
 insert into public.organization_members (organization_id, user_id, role) values
   ((select (v->>'org_b')::uuid from ctx), (select st_x2 from k), 'org_admin'),
   ((select org_other from i1),            (select sa_y from k),  'org_admin');
--- A dedicated patient_enabled case in comm_x (org_b) for the single ALLOWED disposal.
 insert into public.cases (id, commission_id, case_number, label, created_by, patient_enabled)
   values ((select case_i1 from i1), (select comm_x from k), 9309, 'Caso I1', (select sa_x from k), true);
 
--- (I1a) platform_admin analog (admin: is_admin, NOT org_admin of org_b, NOT staff_admin
--- of comm_x) is DENIED — the vendor platform_admin cannot erase a tenant's case PHI.
 select test_helpers.claims_for((select admin from k), true);
 set local role authenticated;
 select throws_ok(
@@ -297,7 +273,6 @@ select throws_ok(
   'I1 GUARD: platform-admin (is_admin, no tenant grant) is DENIED dispose_case_phi (42501)');
 reset role;
 
--- (I1b) a DIFFERENT-org org_admin (sa_y is org_admin of org_other, not org_b) is DENIED.
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
 select throws_ok(
@@ -306,8 +281,6 @@ select throws_ok(
   'I1 GUARD: a DIFFERENT-org org_admin is DENIED dispose_case_phi on this org''s case (42501)');
 reset role;
 
--- (I1c) the case's-ORG org_admin (st_x2 is org_admin of org_b) is ALLOWED. Uses the
--- dedicated case_i1 so case_x''s lifecycle tests below are unaffected.
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
 select lives_ok(
@@ -326,8 +299,8 @@ select lives_ok(
 reset role;
 
 select is(
-  (select count(*)::int from public.case_patient where case_id = (select case_x from cs)),
-  0, 'dispose_case_phi deletes the isolated case_patient row');
+  (select count(*)::int from public.patient_identifiers where participant_id = (select pid from pw)),
+  0, 'dispose_case_phi deletes the isolated patient_identifiers row');
 select is(
   (select body_md from public.case_narratives where id = (select narr_x from cs)),
   null, 'dispose_case_phi NULLs the case narrative body_md (nullable column)');
@@ -344,7 +317,6 @@ select ok(
   (select phi_disposed_at is not null from public.cases where id = (select case_x from cs)),
   'dispose_case_phi stamps phi_disposed_at');
 
--- The disposal mutation-audit row carries the reason ENUM only (no free text/PHI).
 select is(
   (select metadata from public.audit_log
    where action = 'case_patient.disposed' and entity_id = (select case_x from cs)
@@ -352,7 +324,6 @@ select is(
   jsonb_build_object('reason', 'subject_request'),
   'case_patient.disposed audit metadata carries the reason enum only (no PHI)');
 
--- A second disposal on the same case is rejected (HC056, one-shot).
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
@@ -361,15 +332,14 @@ select throws_ok(
 reset role;
 
 -- =========================================================================
--- flag OFF ⇒ the writers raise check_violation (byte-identical-to-today posture).
+-- flag OFF ⇒ the writers raise check_violation.
 -- =========================================================================
 update app.feature_flags set enabled = false where key = 'case_patient';
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
-  $$ select public.set_case_patient(
-       (select case_off from cs), 'X', 'MRN', null, null, 'unknown', null, null, null) $$,
-  '23514', null, 'flag OFF ⇒ set_case_patient raises check_violation');
+  $$ select public.set_participant_patient((select case_off from cs), null, 'X', 'MRN') $$,
+  '23514', null, 'flag OFF ⇒ set_participant_patient raises check_violation');
 select throws_ok(
   $$ select public.dispose_case_phi((select case_off from cs), 'other') $$,
   '23514', null, 'flag OFF ⇒ dispose_case_phi raises check_violation');

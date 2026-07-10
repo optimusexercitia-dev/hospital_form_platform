@@ -146,6 +146,32 @@ async function rpc(
 }
 
 /**
+ * F1 re-key (ADR 0064/0066): resolve a case's PATIENT participant_id. The old
+ * 1-per-case case_patient table is DROPPED → patient_identifiers keyed on
+ * participant_id, and the case-module patient_xref grain moved case_id →
+ * participant_id. Reach a case's PHI via case_participants → the participant that
+ * owns a patient_identifiers row. Service-role read bypasses the Class-1 REVOKE.
+ */
+async function patientParticipantIdForCase(
+  req: APIRequestContext,
+  caseId: string,
+): Promise<string | null> {
+  const links = await restGet<{ participant_id: string }>(
+    req,
+    `case_participants?case_id=eq.${caseId}&removed_at=is.null&select=participant_id`,
+    SUPABASE_SERVICE_KEY,
+  )
+  if (links.length === 0) return null
+  const ids = links.map((l) => l.participant_id)
+  const rows = await restGet<{ participant_id: string }>(
+    req,
+    `patient_identifiers?participant_id=in.(${ids.join(',')})&select=participant_id`,
+    SUPABASE_SERVICE_KEY,
+  )
+  return rows[0]?.participant_id ?? null
+}
+
+/**
  * Service-role audit rows matching an action (and optional entity filter),
  * ordered newest-first.
  */
@@ -548,11 +574,17 @@ test('AC-6: dispose_case_phi → xref retained (disposed_at set), trajectory fla
   // Brief pause to allow the PostgREST connection to see the committed xref row
   await new Promise((r) => setTimeout(r, 300))
 
-  // Verify patient_xref row exists for this case (service-role direct read)
+  // F1 re-key (ADR 0064/0066): the case-module xref grain is now the PATIENT
+  // participant (entity_id = participant_id), not the case. set_case_patient (a
+  // compat door) chained a patient participant; resolve it to key the xref reads.
+  const disposalPid = await patientParticipantIdForCase(request, disposalCaseId)
+  expect(disposalPid, 'set_case_patient did not chain a patient participant').toBeTruthy()
+
+  // Verify patient_xref row exists for this participant (service-role direct read)
   // Note: patient_xref has no `id` column — PK is (module, entity_id).
   const xrefBefore = await restGet<{ entity_id: string; disposed_at: string | null }>(
     request,
-    `patient_xref?module=eq.case&entity_id=eq.${disposalCaseId}&select=entity_id,disposed_at`,
+    `patient_xref?module=eq.case&entity_id=eq.${disposalPid}&select=entity_id,disposed_at`,
     SUPABASE_SERVICE_KEY,
   )
   expect(xrefBefore.length).toBeGreaterThan(0)
@@ -568,16 +600,17 @@ test('AC-6: dispose_case_phi → xref retained (disposed_at set), trajectory fla
   // RETAIN-MARKED-DISPOSED: the xref row must still exist with disposed_at set
   const xrefAfter = await restGet<{ entity_id: string; disposed_at: string | null }>(
     request,
-    `patient_xref?module=eq.case&entity_id=eq.${disposalCaseId}&select=entity_id,disposed_at`,
+    `patient_xref?module=eq.case&entity_id=eq.${disposalPid}&select=entity_id,disposed_at`,
     SUPABASE_SERVICE_KEY,
   )
   expect(xrefAfter.length).toBeGreaterThan(0)
   expect(xrefAfter[0].disposed_at).not.toBeNull()
 
-  // The raw case_patient row must be GONE
-  const cpRows = await restGet<{ case_id: string }>(
+  // The raw PHI identifiers row must be GONE (disposal DELETEs patient_identifiers;
+  // the xref row is retained-marked-disposed above). Was case_patient pre-F1.
+  const cpRows = await restGet<{ participant_id: string }>(
     request,
-    `case_patient?case_id=eq.${disposalCaseId}&select=case_id`,
+    `patient_identifiers?participant_id=eq.${disposalPid}&select=participant_id`,
     SUPABASE_SERVICE_KEY,
   )
   expect(cpRows.length).toBe(0)

@@ -945,9 +945,12 @@ async function getCaseDetailUncached(
 // case_patient — the audited PHI-identifier read + the flag probe (ADR 0038)
 // ---------------------------------------------------------------------------
 
-/** The raw `get_case_patient` jsonb row (snake_case from `to_jsonb(case_patient)`). */
+/**
+ * The raw `get_participant_patient` / `get_case_patients` jsonb row (snake_case from
+ * `to_jsonb(patient_identifiers)`; re-keyed to the participant layer, ADR 0064 E0 / F1).
+ */
 interface CasePatientJson {
-  case_id: string
+  participant_id: string
   name: string | null
   mrn: string | null
   date_of_birth: string | null
@@ -959,26 +962,9 @@ interface CasePatientJson {
   updated_at: string
 }
 
-/**
- * The ISOLATED patient PHI for one case — THE AUDITED READ (Rule 12; the THIRD PHI
- * module, ADR 0038). Routes through the `get_case_patient` SECURITY DEFINER RPC
- * (direct SELECT on `case_patient` is revoked); the RPC re-gates with the BROAD
- * `can_read_case` predicate (assignees need the MRN) and emits `case_patient.read`.
- * Returns `null` when no PHI exists OR the caller is out of scope (no audit row
- * then). The on-demand reveal is the ONLY place this is read — never on a list/board.
- */
-export async function getCasePatient(
-  caseId: string,
-): Promise<CasePatient | null> {
-  const supabase = await createClient()
-  const { data } = await supabase.rpc('get_case_patient', {
-    p_case_id: caseId,
-  })
-  if (!data) return null
-  const row = data as unknown as CasePatientJson
-
+function mapCasePatient(row: CasePatientJson): CasePatient {
   return {
-    caseId: row.case_id,
+    participantId: row.participant_id,
     name: row.name,
     mrn: row.mrn,
     dateOfBirth: row.date_of_birth,
@@ -989,6 +975,52 @@ export async function getCasePatient(
     attending: row.attending,
     updatedAt: row.updated_at,
   }
+}
+
+/**
+ * The ISOLATED patient PHI for ONE patient participant — THE AUDITED READ (Rule 12
+ * Class 1; ADR 0038 re-keyed by ADR 0064 E0 / F1). Routes through the
+ * `get_participant_patient` SECURITY DEFINER RPC (direct SELECT on `patient_identifiers`
+ * is revoked); the RPC re-gates with the BROAD `can_read_case_patient` predicate
+ * (assignees need the MRN) and emits `case_patient.read`. Returns `null` when no PHI
+ * exists OR the caller is out of scope (no audit row then). The on-demand reveal is the
+ * ONLY place this is read — never on a list/board.
+ */
+export async function getParticipantPatient(
+  participantId: string,
+): Promise<CasePatient | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('get_participant_patient', {
+    p_participant_id: participantId,
+  })
+  if (!data) return null
+  return mapCasePatient(data as unknown as CasePatientJson)
+}
+
+/**
+ * ALL patient identifiers of a case (N-per-case, ADR 0064 E0 / F1) — the audited
+ * list door via `get_case_patients`. Emits one `case_patient.read` per returned row;
+ * returns `[]` when entitled but no PHI on file, and `null` when out of scope.
+ */
+export async function getCasePatients(caseId: string): Promise<CasePatient[]> {
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('get_case_patients', { p_case_id: caseId })
+  if (!data) return []
+  return (data as unknown as CasePatientJson[]).map(mapCasePatient)
+}
+
+/**
+ * COMPAT (ADR 0038 single-patient UI): the case's lone patient's identifiers, or
+ * `null` (no PHI on file / out of scope). Routes through the `get_case_patient` compat
+ * RPC (delegates to `get_participant_patient` on the case's single patient participant),
+ * emitting the same audited `case_patient.read`. The multi-patient E1 UI uses
+ * {@link getCasePatients} / {@link getParticipantPatient} directly.
+ */
+export async function getCasePatient(caseId: string): Promise<CasePatient | null> {
+  const supabase = await createClient()
+  const { data } = await supabase.rpc('get_case_patient', { p_case_id: caseId })
+  if (!data) return null
+  return mapCasePatient(data as unknown as CasePatientJson)
 }
 
 /** Whether the `case_patient` feature flag is ON (probes `case_patient_enabled`).

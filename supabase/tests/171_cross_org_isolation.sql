@@ -137,7 +137,7 @@ select is((select count(*)::int from public.referral_shared_item), 0,
 
 -- case_patient PHI (the third PHI module)
 select throws_ok(
-  $$ select count(*) from public.case_patient $$,
+  $$ select count(*) from public.patient_identifiers $$,
   '42501', null,
   'WALL: platform cannot SELECT case_patient (no grant — stronger than 0 rows)');
 
@@ -281,7 +281,7 @@ select throws_ok(
 
 -- (G) case_patient: same hard wall.
 select throws_ok(
-  $$ select count(*) from public.case_patient $$,
+  $$ select count(*) from public.patient_identifiers $$,
   '42501', null,
   'PHI duty-sep: org_admin A cannot SELECT case_patient (no grant to authenticated)');
 

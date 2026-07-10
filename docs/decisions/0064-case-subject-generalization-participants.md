@@ -381,3 +381,33 @@ Ratified by 0065:
 - **`dispose_case_phi`** is rewritten here (F1) to the participant-keyed shape + `patient_xref`
   purge; the F2 attachment-redaction line **layers on top** (fixed composition order; 0065 §4). The
   standalone D5/§6.2 patient-master track is dropped in favor of this model.
+
+## As-built (F1 E0, 2026-07-10)
+
+Implemented on branch `feat/pre-pilot-foundations-plan`, migrations `20260716000000`–`…000200`
+(forward-only, additive). Conformant to every Decision + resolution above. Deltas / decisions taken
+at build (all lead-approved Q1–Q6):
+
+- **Q1 → `patient_xref` re-key = Option A** (case-module `entity_id → participant_id`); recorded in
+  ADR [0066](./0066-patient-xref-participant-rekey.md).
+- **Q3 → audit verb kept `case_patient.read`** and the doors **log `entity_id = case_id`** (not the
+  participant), so the C-4 `_audit_access_authorized` dispatch on `can_read_case_patient(case_id)` is
+  preserved verbatim. The `case_patient.updated` mutation-audit likewise keys the case.
+- **Q4 → patient `participants.display_name` is a SURROGATE by construction** (the DEFINER writer sets
+  `'Paciente'`, never the raw name); disposal redaction + a pgTAP assertion (registry exposes no raw
+  identifier) are belt-and-suspenders. Raw identity stays only in `patient_identifiers`; cross-case
+  linkage rides `patient_key`/`patient_xref`.
+- **Q5 → HC094 (participant-org mismatch), HC095 (cases.org drift) allocated; HC096 held** (the
+  professional gate reuses plain `42501` — Class 2 is deliberately not single-door).
+- **Compat doors added** so the shipped ADR-0038 single-patient UI (create dialog + `CasePatientPanel`)
+  keeps working across the re-key without a frontend change: `set_case_patient(p_case_id, …)` and
+  `get_case_patient(p_case_id)` preserve the original contract by resolving the case's lone patient
+  participant and delegating to `set_participant_patient` / `get_participant_patient`. The multi-patient
+  E1 UI uses the participant-keyed RPCs directly.
+- **`set_participant_patient` auto-resolves a default `affected_patient` role** when the caller supplies
+  none (the arg-only ADR-0038 path), since `case_participants.role_id` is NOT NULL.
+- **Validation:** full pgTAP suite green — `151_case_patient` 39/39 + `152_patient_index` 43/43 (both
+  re-keyed) + `207_case_participants_e0` 21/21 (new keystones: R5 both directions, sensitivity CHECK,
+  N-per-case door, professional audited read, primary-subject unique, HC094/HC095, disposal xref purge
+  + Q4, t19) + re-keyed `171`/`191`/`197_phi_disposal_closure`; `tsc`/`eslint` 0. **Flags OFF; remote
+  deploy deferred to the pilot reset.**

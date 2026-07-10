@@ -67,13 +67,15 @@ export const CASE_PHI_DISPOSE_REASON_LABELS: Record<PhiDisposeReason, string> = 
 // ---------------------------------------------------------------------------
 
 /**
- * The isolated PHI satellite (0..1 per case), modeled exactly on `EventPatient` /
- * `ReferralPatient`. LOADED ONLY via the audited {@link import('@/lib/queries/cases').getCasePatient};
- * every successful, entitled load emits a `case_patient.read` audit row (Rule 12).
- * Minimum-necessary identifiers only.
+ * The isolated PHI satellite, re-keyed to the participant layer (ADR 0064 E0 / F1):
+ * one per PATIENT PARTICIPANT, N per case. LOADED ONLY via the audited
+ * {@link import('@/lib/queries/cases').getParticipantPatient} /
+ * {@link import('@/lib/queries/cases').getCasePatients}; every successful, entitled load
+ * emits a `case_patient.read` audit row (Rule 12). Minimum-necessary identifiers only.
  */
 export interface CasePatient {
-  caseId: string
+  /** The patient participant this PHI hangs off (the door key). */
+  participantId: string
   /** Patient full name (PHI). */
   name: string | null
   /** Medical record number / prontuário (PHI). */

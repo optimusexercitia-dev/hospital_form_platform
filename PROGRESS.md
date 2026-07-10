@@ -69,32 +69,41 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-### F0 — Foundations Design Gate (in progress)
+### F1 — Case-Participants E0 (in progress)
 
-**Started 2026-07-10** on branch `feat/pre-pilot-foundations-plan`. F0 is a **design gate** (no
-migration): author the cross-initiative conventions once so F1–F3 build against a settled contract.
-Owner: `backend` (authorship) + lead (🔴 conformance review of C-α/β/γ/δ) → **human sign-off on the
-conventions** closes the gate and unblocks F1.
+**Started 2026-07-10** on branch `feat/pre-pilot-foundations-plan`. F1 is a **build phase** (migration +
+data-access + pgTAP) per ADR [0064](docs/decisions/0064-case-subject-generalization-participants.md),
+conforming to the F0 conventions ([ADR 0065](docs/decisions/0065-pre-pilot-foundations-conventions.md)).
+Contract-first: `backend` authors the migration contract for lead review **before** implementing. Flags
+`case_participants`/`case_types` seeded **OFF** (m2 hard gate — no flip on real ethics data until
+post-pilot E1). E1/E2 **not built**. F1 **precedes F2** (attachment_subjects → participants).
 
 | # | Task | Owner | Status | Notes |
 | - | ---- | ----- | ------ | ----- |
-| F0-1 | Conventions ADR **0065** — 3 polymorphism dialects (closes D12) · one Rule-12 sensitivity taxonomy (Class 1 patient-PHI ×3 + Class 2 professional identity + attachments tier/label) · disposal-compose order · catalog-vs-CHECK-enum · freeze principle · reference→participants bridge · supersession model | backend | ✅ | program §1 C-α/γ/δ + §2.1–2.10 |
-| F0-2 | ARCHITECTURE.md — new polymorphism-dialects rule/appendix · Rule 12 merged-taxonomy draft (Class 1 current; Class 2/attachments forward-ref F1/F2) · Rule 2 additive-tables note · catalog-vs-enum + freeze convention | backend | ✅ | authoritative rulebook |
-| F0-3 | Amend ADRs **0060 / 0063 / 0064** with reconciliation notes (phi_policy dropped C-ζ · subject-vocab→participants C-β · three-dialects naming · 0033/0038 supersession) | backend | ✅ | amendment footers |
-| F0-4 | CLAUDE.md §3 Rule-12 — verify "three modules" (already correct) + add professional-identity **Class 2** framing | backend | ✅ | plan's "two modules" premise is stale |
-| F0-5 | docs/backend-state.md — record F0 live-catalog facts (R1 gate · HC093 high-water · 10 item_types · no owner-polymorphism yet) | backend | ✅ | reference map |
-| F0-6 | PHASES.md + PROGRESS.md program rows | lead | ✅ | lead-owned; program rows already reference F0–F3 |
+| F1-1 | **Migration contract** (plan-in-text) — reviewed & **APPROVED** by lead 2026-07-10 w/ Q1–Q6 rulings (xref→participant_id [new ADR] · keep `case_patient.read` · disposal redaction + **patient `display_name` non-PHI-by-construction** invariant · reuse 42501, alloc HC094/HC095 only · case-scoped professional read) | backend | ✅ | contract-first |
+| F1-2 | `participants` (org-anchored · `participant_type` · `sensitivity_class` CHECK-derived · `UNIQUE(id, participant_type)`) + `case_participant_roles` + `case_participants` (primary-subject partial-unique) | backend | ✅ | dialect 3 (typed-identity registry) |
+| F1-3 | `professional_profiles` + `professional_participants` (**Class 2** — case-scoped RLS, `professional_profile.read` on `log_audit_access` allow-list, no isolated door) | backend | ✅ | Rule 12 Class 2 |
+| F1-4 | `patient_participants` + **re-key `case_patient → patient_identifiers(participant_id)`** (N/case, all DML REVOKED, atomic DEFINER writer, `get_case_patient → get_participant_patient`); generalize `dispose_case_phi` to per-participant satellites + `patient_xref` purge (R3, xref entity→participant_id) | backend | ✅ | zero-prod-PHI re-key while flag OFF |
+| F1-5 | `case_types` + `case_type_terminology`; **denormalize `organization_id` onto `cases`** (R2, guard HC095) | backend | ✅ | flags OFF |
+| F1-6 | Data-access (`src/lib/queries/` — contract-first stubs first) + generated types regen (Rule 8); new xref-rekey ADR | backend | ✅ | no inline supabase-js |
+| F1-7 | pgTAP keystones (subtype↔type guard · patient door NULL-out-of-scope w/ N patients · professional audited read · primary-subject unique · cross-tenant isolation HC094 · disposal-purges-xref · patient registry row exposes no raw PHI · inherited R1 gate) | backend | ✅ | ADR 0064 §Consequences |
+| F1-G | §6 Phase Gate — tester E2E + qa review + human ✓ + Record | lead | 🏗️ | **Build ✅** pgTAP **1904/1904** (fresh reset; t19 confirmed) · tsc/eslint **0** · Vitest **294**. **E2E ✅ green — 0 F1 regressions.** `tester` re-pointed the 3 F1 drift specs to the participant chain (case-patient/patient-index/processless) → **39/39**. The 2 residual dialog "failures" (phase7 AC-DueDays-RemovePrazo · processless S6) were a **lead harness artifact** (`next start` is incompatible with `output:standalone`, breaking server actions) — **not** F1: re-run on the working dev server + fresh reset = **23/23 pass**. Remaining marathon-run reds = GoTrue auth rate-limit, env-only. **→ QA review next.** |
 
-**Pre-Pilot Foundations Program — IN PROGRESS (F0 design gate; branch `feat/pre-pilot-foundations-plan`).** The product owner decided to land four structural initiatives before the
+> **F0 — Foundations Design Gate: ✅ COMPLETE** (signed off 2026-07-10; commit `ea06bf4`). Durable record
+> = [ADR 0065](docs/decisions/0065-pre-pilot-foundations-conventions.md) (three polymorphism dialects
+> [closes D12] · one Rule-12 sensitivity taxonomy · disposal-compose order · catalog-vs-enum · freeze
+> principle · reference→participants bridge · supersession model) + ARCHITECTURE.md Appendices A/B.
+> `form_items.phi_policy` drop confirmed (C-ζ).
+
+**Pre-Pilot Foundations Program — IN PROGRESS (F1 participants; branch `feat/pre-pilot-foundations-plan`).** The product owner decided to land four structural initiatives before the
 pilot: ADR 0060 (flexible-forms), ADR 0063 (attachments 14e), ADR 0064 E0 (case-participants), and the
 DB-hardening Waves-3+4 remainder — reconciled into **one collision-free plan**:
-[pre-pilot-foundations-program](docs/plans/pre-pilot-foundations-program.md). Recommended sequence:
-**F0 (design gate) → F1 participants → F2 attachments → Phase 16 → F3 flexible-forms → F-cleanup →
+[pre-pilot-foundations-program](docs/plans/pre-pilot-foundations-program.md). Sequence:
+**F0 ✅ → F1 participants (now) → F2 attachments → Phase 16 → F3 flexible-forms → F-cleanup →
 pilot reset.** The only hard ordering constraint is **participants before attachments**
 (`attachment_subjects` references the `participants` registry). Six documented collision resolutions
 (§1) close hardening **D12**, supersede **D5**, and cancel **D6/§6.3**. All lands pre-pilot on a
-disposable DB, dark behind flags where a flag exists. **Next action: human approval, then build F0**
-(the conventions ADR ~0065 + the merged Rule-12/polymorphism edits). This program supersedes the prior
+disposable DB, dark behind flags where a flag exists. This program supersedes the prior
 "next pre-pilot phase = 16" guidance below — Phase 16 now slots between F2 and F3.
 
 The **UI/layout fixes batch** (ad-hoc, frontend + backend — 2026-07-08) shipped: 9 frontend fixes

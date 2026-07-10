@@ -37,16 +37,28 @@ create temp table cs on commit drop as
   select gen_random_uuid() as case_x, gen_random_uuid() as phase_x, gen_random_uuid() as narr_x,
          gen_random_uuid() as event_x, gen_random_uuid() as resp_x, gen_random_uuid() as intv_x,
          gen_random_uuid() as subj_x, gen_random_uuid() as doc_x, gen_random_uuid() as mtg_x,
-         gen_random_uuid() as result_x;
+         gen_random_uuid() as result_x, gen_random_uuid() as part_x;
 grant select on cs to authenticated;
 
 -- Case + patient + a phase with a STORED institutional result (result_id set).
 insert into public.cases (id, commission_id, case_number, label, created_by, patient_enabled)
   values ((select case_x from cs), (select comm_x from k), 9701, 'ROTULO-PHI', (select sa_x from k), true);
--- Patient row directly (superuser; set_case_patient is coordinator-gated but a direct
--- insert models the same PHI state without needing the RPC's exact arg shape).
-insert into public.case_patient (case_id, name, mrn, sex)
-  values ((select case_x from cs), 'Paciente PHI', 'MRN-9701', 'female');
+-- Patient identifiers via the participant chain (re-keyed, ADR 0064 E0 / F1). Direct
+-- owner inserts model the PHI state without needing the RPC's exact arg shape.
+insert into public.case_participant_roles (id, organization_id, key, display_name, allowed_participant_types, is_primary_subject_candidate)
+  values (gen_random_uuid(), app.org_of_commission((select comm_x from k)), 'affected_patient', 'Paciente afetado', array['patient'], true)
+  on conflict (organization_id, key) where case_type_id is null do nothing;
+insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+  values ((select part_x from cs), app.org_of_commission((select comm_x from k)), 'patient', 'patient_phi', 'Paciente');
+insert into public.patient_participants (participant_id) values ((select part_x from cs));
+insert into public.case_participants (case_id, participant_id, role_id, added_by)
+  values ((select case_x from cs), (select part_x from cs),
+          (select id from public.case_participant_roles
+             where organization_id = app.org_of_commission((select comm_x from k))
+               and key = 'affected_patient' and case_type_id is null),
+          (select sa_x from k));
+insert into public.patient_identifiers (participant_id, name, mrn, sex)
+  values ((select part_x from cs), 'Paciente PHI', 'MRN-9701', 'female');
 update public.cases set has_patient = true where id = (select case_x from cs);
 
 -- A phase result (institutional outcome) that MUST survive disposal.
@@ -91,8 +103,8 @@ select lives_ok(
 reset role;
 
 -- Assertions: every PHI column empty/redacted.
-select ok(not exists (select 1 from public.case_patient where case_id = (select case_x from cs)),
-  '1.2: case_patient row deleted');
+select ok(not exists (select 1 from public.patient_identifiers where participant_id = (select part_x from cs)),
+  '1.2: patient_identifiers row deleted');
 select ok(not exists (
     select 1 from public.answers a join public.responses r on r.id=a.response_id
     where r.case_phase_id = (select phase_x from cs)),

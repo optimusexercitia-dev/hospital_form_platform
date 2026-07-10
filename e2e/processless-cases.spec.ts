@@ -82,6 +82,29 @@ async function restGet<T>(req: APIRequestContext, path: string): Promise<T[]> {
   return Array.isArray(data) ? (data as T[]) : []
 }
 
+/**
+ * F1 re-key (ADR 0066): a case's PHI moved from the 1-per-case `case_patient`
+ * table to N-per-case `patient_identifiers`, reached via the patient participant
+ * chain: case_participants (case_id → participant_id) → patient_identifiers
+ * (participant_id). Returns the identifiers row for the case's patient
+ * participant (single-patient flows), or null if none is on file.
+ */
+async function patientIdentifiersForCase(
+  req: APIRequestContext,
+  caseId: string,
+): Promise<Array<{ participant_id: string; mrn: string | null }>> {
+  const links = await restGet<{ participant_id: string }>(
+    req,
+    `case_participants?case_id=eq.${caseId}&removed_at=is.null&select=participant_id`,
+  )
+  if (links.length === 0) return []
+  const ids = links.map((l) => l.participant_id)
+  return restGet<{ participant_id: string; mrn: string | null }>(
+    req,
+    `patient_identifiers?participant_id=in.(${ids.join(',')})&select=participant_id,mrn`,
+  )
+}
+
 /** The case id from the post-create navigation target (.../manage/cases/<uuid>). */
 function caseIdFromUrl(page: Page): string {
   const id = page.url().split('?')[0].split('/').pop() ?? ''
@@ -316,10 +339,7 @@ test('S3: PHI ON → Próximo → step 2 PHI fields + warning + Voltar → fill 
   )
   expect(caseRows[0]?.patient_enabled).toBe(true)
   expect(caseRows[0]?.has_patient).toBe(true)
-  const cpRows = await restGet<{ mrn: string | null }>(
-    request,
-    `case_patient?case_id=eq.${caseId}&select=mrn`,
-  )
+  const cpRows = await patientIdentifiersForCase(request, caseId)
   expect(cpRows.length).toBe(1)
   expect(cpRows[0]?.mrn).toBe(PHI_MRN)
 })
@@ -369,10 +389,7 @@ test('S4: PHI ON + step-2 blank → case is PHI-capable (panel present) with NO 
   )
   expect(caseRows[0]?.patient_enabled).toBe(true)
   expect(caseRows[0]?.has_patient).toBe(false)
-  const cpRows = await restGet<{ case_id: string }>(
-    request,
-    `case_patient?case_id=eq.${caseId}&select=case_id`,
-  )
+  const cpRows = await patientIdentifiersForCase(request, caseId)
   expect(cpRows.length).toBe(0)
 })
 

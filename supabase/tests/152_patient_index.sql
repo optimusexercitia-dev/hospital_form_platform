@@ -96,14 +96,60 @@ values
   ((select case_nameonly from cs), (select comm_x from k), 9403, 'Caso nome-só',   (select sa_x from k), true),
   ((select src_case from cs),      (select comm_x from k), 9404, 'Caso origem',    (select sa_x from k), true);
 
--- case_patient rows (direct insert as owner — the BEFORE trigger derives the keys).
-insert into public.case_patient (case_id, name, mrn, sex, encounter_ref)
-values ((select case_x from cs), 'Paciente Teste', 'PRT-9', 'male', 'ENC-9');
-insert into public.case_patient (case_id, name, mrn, sex)
-values ((select case_y from cs), 'Paciente Teste', ' prt-9 ', 'male');  -- normalizes to PRT-9
--- NAME-ONLY: no mrn, no encounter -> NULL keys -> absent from xref.
-insert into public.case_patient (case_id, name, sex)
-values ((select case_nameonly from cs), 'Sem Identificador', 'unknown');
+-- Patient participants + patient_identifiers (re-keyed, ADR 0064 E0 / F1). The case
+-- module now contributes one xref row PER PATIENT PARTICIPANT (ADR 0066 / Q1=A). Built
+-- directly as owner; the BEFORE trigger derives the keys, the AFTER trigger maintains
+-- the participant-keyed xref. Capture each participant id for the case-module reads.
+create temp table pp on commit drop as
+  select gen_random_uuid() as p_x, gen_random_uuid() as p_y, gen_random_uuid() as p_none,
+         gen_random_uuid() as role_x, gen_random_uuid() as role_y, gen_random_uuid() as role_n;
+grant select on pp to authenticated;
+
+-- A patient role per org (X→org_b, Y→comm_y's org; both may be org_b in this seed's
+-- single-org tenancy — resolve per-commission).
+insert into public.case_participant_roles (id, organization_id, key, display_name, allowed_participant_types, is_primary_subject_candidate)
+values ((select role_x from pp), app.org_of_commission((select comm_x from k)), 'affected_patient', 'Paciente afetado', array['patient'], true)
+on conflict (organization_id, key) where case_type_id is null do nothing;
+insert into public.case_participant_roles (id, organization_id, key, display_name, allowed_participant_types, is_primary_subject_candidate)
+values ((select role_y from pp), app.org_of_commission((select comm_y from k)), 'affected_patient', 'Paciente afetado', array['patient'], true)
+on conflict (organization_id, key) where case_type_id is null do nothing;
+
+-- Resolve the actual (possibly pre-existing) role ids.
+create temp table roleids on commit drop as
+  select (select id from public.case_participant_roles
+            where organization_id = app.org_of_commission((select comm_x from k))
+              and key = 'affected_patient' and case_type_id is null) as rx,
+         (select id from public.case_participant_roles
+            where organization_id = app.org_of_commission((select comm_y from k))
+              and key = 'affected_patient' and case_type_id is null) as ry;
+grant select on roleids to authenticated;
+
+-- case_x patient (MRN PRT-9 + encounter ENC-9).
+insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+values ((select p_x from pp), app.org_of_commission((select comm_x from k)), 'patient', 'patient_phi', 'Paciente');
+insert into public.patient_participants (participant_id) values ((select p_x from pp));
+insert into public.case_participants (case_id, participant_id, role_id, added_by)
+values ((select case_x from cs), (select p_x from pp), (select rx from roleids), (select sa_x from k));
+insert into public.patient_identifiers (participant_id, name, mrn, sex, encounter_ref)
+values ((select p_x from pp), 'Paciente Teste', 'PRT-9', 'male', 'ENC-9');
+
+-- case_y patient (MRN ' prt-9 ' normalizes to PRT-9; commission Y).
+insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+values ((select p_y from pp), app.org_of_commission((select comm_y from k)), 'patient', 'patient_phi', 'Paciente');
+insert into public.patient_participants (participant_id) values ((select p_y from pp));
+insert into public.case_participants (case_id, participant_id, role_id, added_by)
+values ((select case_y from cs), (select p_y from pp), (select ry from roleids), (select sa_y from k));
+insert into public.patient_identifiers (participant_id, name, mrn, sex)
+values ((select p_y from pp), 'Paciente Teste', ' prt-9 ', 'male');
+
+-- NAME-ONLY patient participant: no mrn/encounter -> NULL keys -> absent from xref.
+insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+values ((select p_none from pp), app.org_of_commission((select comm_x from k)), 'patient', 'patient_phi', 'Paciente');
+insert into public.patient_participants (participant_id) values ((select p_none from pp));
+insert into public.case_participants (case_id, participant_id, role_id, added_by)
+values ((select case_nameonly from cs), (select p_none from pp), (select rx from roleids), (select sa_x from k));
+insert into public.patient_identifiers (participant_id, name, sex)
+values ((select p_none from pp), 'Sem Identificador', 'unknown');
 
 -- A referral X -> Y carrying the same patient (its isolated referral_patient).
 insert into public.case_referral
@@ -147,36 +193,36 @@ select is(length(app.derive_patient_key('PRT-9')), 64,
 select is(app.feature_enabled('patient_index'), false,
   'precondition: patient_index is OFF for the data-layer assertions');
 select is(
-  (select patient_key from public.case_patient where case_id = (select case_x from cs)),
+  (select patient_key from public.patient_identifiers where participant_id = (select p_x from pp)),
   app.derive_patient_key('PRT-9'),
-  'the BEFORE trigger derived case_x.patient_key from the MRN (flag OFF — always-on)');
+  'the BEFORE trigger derived case_x patient.patient_key from the MRN (flag OFF — always-on)');
 select is(
-  (select patient_key from public.case_patient where case_id = (select case_x from cs)),
-  (select patient_key from public.case_patient where case_id = (select case_y from cs)),
-  'case_x (comm X) and case_y (comm Y) share ONE patient_key (cross-committee match)');
+  (select patient_key from public.patient_identifiers where participant_id = (select p_x from pp)),
+  (select patient_key from public.patient_identifiers where participant_id = (select p_y from pp)),
+  'case_x (comm X) and case_y (comm Y) patients share ONE patient_key (cross-committee match)');
 select is(
-  (select encounter_key from public.case_patient where case_id = (select case_x from cs)),
+  (select encounter_key from public.patient_identifiers where participant_id = (select p_x from pp)),
   app.derive_patient_key('ENC-9'),
   'encounter_key derived from the encounter_ref');
 select ok(
-  (select patient_key from public.case_patient where case_id = (select case_nameonly from cs)) is null,
-  'a name-only case_patient has a NULL patient_key');
+  (select patient_key from public.patient_identifiers where participant_id = (select p_none from pp)) is null,
+  'a name-only patient_identifiers has a NULL patient_key');
 
 -- =========================================================================
 -- patient_xref maintenance + the name-only absence.
 -- =========================================================================
 select is(
   (select count(*)::int from public.patient_xref
-    where module = 'case' and entity_id = (select case_x from cs)),
-  1, 'an xref row exists for the keyed case_x');
+    where module = 'case' and entity_id = (select p_x from pp)),
+  1, 'an xref row exists for the keyed case_x patient participant');
 select is(
   (select count(*)::int from public.patient_xref
-    where module = 'case' and entity_id = (select case_nameonly from cs)),
-  0, 'NO xref row for the name-only case (skip when both keys NULL)');
+    where module = 'case' and entity_id = (select p_none from pp)),
+  0, 'NO xref row for the name-only patient participant (skip when both keys NULL)');
 select is(
   (select commission_id from public.patient_xref
-    where module = 'case' and entity_id = (select case_y from cs)),
-  (select comm_y from k), 'xref.commission_id resolved via commission_of_case');
+    where module = 'case' and entity_id = (select p_y from pp)),
+  (select comm_y from k), 'xref.commission_id resolved via commission_of_case(participant''s case)');
 
 -- =========================================================================
 -- REVOKE + RLS: no direct authenticated SELECT; the policy is QPS-only.
@@ -301,11 +347,11 @@ grant select on avb to authenticated;
 select test_helpers.claims_for((select admin from k), false);
 set local role authenticated;
 create temp table dl on commit drop as
-  select public.get_patient_trajectory_for_entity('case', (select case_x from cs)) as j;
+  select public.get_patient_trajectory_for_entity('case', (select p_x from pp)) as j;
 reset role;
 grant select on dl to authenticated;
 select is((select (j->>'matchCount')::int from dl), 3,
-  'deep-link from case_x resolves the same 3-entity trajectory');
+  'deep-link from the case_x patient participant resolves the same 3-entity trajectory');
 select is(
   (select count(*) from public.audit_log where action = 'patient.viewed') - (select before from avb),
   1::bigint, 'the deep-link emits exactly one patient.viewed row (not patient.searched)');
@@ -345,16 +391,16 @@ select lives_ok(
 reset role;
 
 select ok(
-  (select count(*) from public.case_patient where case_id = (select case_x from cs)) = 0,
+  (select count(*) from public.patient_identifiers where participant_id = (select p_x from pp)) = 0,
   'dispose_case_phi deleted the isolated identifiers');
 select is(
   (select disposed_reason from public.patient_xref
-    where module = 'case' and entity_id = (select case_x from cs)),
+    where module = 'case' and entity_id = (select p_x from pp)),
   'subject_request',
   'the xref row is RETAINED and stamped with the REAL disposal reason (not "other")');
 select ok(
   (select disposed_at from public.patient_xref
-    where module = 'case' and entity_id = (select case_x from cs)) is not null,
+    where module = 'case' and entity_id = (select p_x from pp)) is not null,
   'the retained xref row carries disposed_at');
 
 -- After disposal, the count for the referral drops to 1 (case_y only; case_x disposed).
