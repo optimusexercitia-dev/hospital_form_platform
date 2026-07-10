@@ -1,0 +1,349 @@
+# 0064 — Case subject generalization: participants, roles, professional registry & case types
+
+**Date:** 2026-07-09 · **Status:** accepted / not yet implemented (foundation for the Ethics
+Committee and other non-patient-centered committees). **Design-reviewed 2026-07-09** — `backend`
+SOUND WITH CHANGES + `qa` CHANGES REQUESTED; **all findings resolved in-text** (see §"Review
+outcomes & resolutions"); design unchanged, all fixes documentary/spec.
+**Supersedes / amends:** ADR [0038](./0038-case-patient-identifiers.md) — `case_patient` is
+**re-keyed from 1:1-per-case to N-per-case via the participant layer** (§ Decision 3); its
+isolation + audited-door + disposal posture is **preserved**, only its cardinality and key
+change. Because `case_patient` still ships **OFF** (flag `case_patient`), no production data is
+migrated.
+**Amends:** ARCHITECTURE.md **Rule 12** (PHI) — introduces a *second, distinct* sensitivity
+class (professional identity) alongside patient PHI; and **Rule 2** (canonical schema) — adds
+the participant/case-type tables.
+**Relates:** ADR [0033](./0033-case-access-control.md) (`case_access` ACL — extended, not
+replaced), [0030](./0030-patient-safety-phi-and-pqs-architecture.md) (PHI/PQS isolation
+pattern), [0035](./0035-lgpd-anvisa-regulatory-posture.md) (LGPD + ANVISA/RDC + CFM; column
+encryption declined), [0037](./0037-inter-committee-referrals.md) (referral PHI module),
+[0017] (multi-phase cases), [0043] (result-based recommendation).
+**Binding rules:** Rule 1 (RLS is the boundary), Rule 11 (audit), Rule 12 (PHI /
+minimum-necessary). **Evaluation context:**
+[`docs/design/case-generalization-evaluation.md`](../design/case-generalization-evaluation.md).
+
+---
+
+## Context
+
+Our `cases` root is already a **generic committee-matter engine** (`cases` +
+`process_templates`/`case_phases` + `case_documents` + `case_events` + `case_access` +
+`audit_log` + meetings/interviews/action-items). The one axiom that still assumes a
+*patient-centered* world is the **subject of a case**: today it is captured **only** as the
+optional, PHI-isolated `case_patient` satellite (ADR 0038), a fixed 8-field *patient* record,
+one per case.
+
+The **Ethics Committee** breaks that axiom. Its case is centered on a **medical professional**
+(the respondent doctor) and involves **several other people with roles** — complainant,
+affected patient(s), witnesses, legal representative, investigator, an external regulatory body
+(CRM/CFM). The same is true, in different shapes, for credentialing, risk/legal, and
+sentinel-event review.
+
+The external design (`docs/design/temp/case_generalization_chatgpt.md`) recommends the
+participant/role abstraction as the fix. We adopt it — **in our idiom** (RLS as the boundary,
+isolated satellites for sensitive attributes, audited doors, hash-chained audit, feature-flag
+dark-launch) — rather than the doc's naïver plaintext-encrypted-column version. This ADR
+records the four foundational decisions taken with the product owner on 2026-07-09.
+
+**Non-goal:** the Ethics *procedure* (allegations, findings, notifications, hearings, votes,
+sanctions, appeals, recusals, conflicts) and the confidentiality/recusal RLS spine are **out of
+scope here** — they are the E1/E2 phases in the evaluation doc and get their own ADR(s). This
+ADR builds only the **subject/participant/case-type foundation** (phase E0) that they require.
+
+## Decision
+
+### One generalized Case model — never a forked one
+
+There is a **single `cases` root and a single engine** for every committee. Patient-,
+doctor-, and entity-centered cases differ only in three pluggable layers *around* the shared
+root: **(1)** the participant/subject layer, **(2)** the case-type config (terminology,
+workflow, default visibility, subject kind), **(3)** committee-specific extension tables that
+*annotate* a case (keyed by `case_id`) and never fork it. We explicitly reject separate
+`patient_cases` / `ethics_cases` roots (the anti-pattern in the source doc §23/§26) — it would
+force forking audit, ACL, documents, timeline, meetings, dashboards, and referrals per
+committee.
+
+### Decision 1 — Full generic participant model (not a one-off satellite)
+
+Add, tenant-anchored to the organization (consistent with our composite-FK tenancy, ADR 0054):
+
+- **`participants`** — unified identity for anyone/anything attachable to a case:
+  `participant_type ∈ {patient, professional, external_person, department, institution,
+  regulatory_body, other}`, `display_name`, `sensitivity_class`. **Holds no sensitive payload**
+  — only identity + type. Subtype detail lives in dedicated 0..1 subtype tables, pinned to the
+  participant's type by a **composite FK + CHECK** (see Decision 2 / resolution R5), not merely
+  "no polymorphic FKs".
+  - **`sensitivity_class`** value domain (m1) = `{patient_phi, professional_identity, non_sensitive}`.
+    It is the hook a security reviewer uses to know *which* isolation checklist applies to a row.
+    It is **derived from and consistent with** `participant_type` (a `patient` participant carries
+    `patient_phi`; a `professional` carries `professional_identity`; department/institution/other
+    carry `non_sensitive`) — enforced by a CHECK, not free-set. External persons default
+    `non_sensitive` at E0; E1 may reclassify a complainant/witness that carries PHI.
+- **`case_participant_roles`** — case-type-aware role vocabulary (`respondent_doctor`,
+  `complainant`, `affected_patient`, `witness`, `investigator`, `legal_representative`,
+  `external_regulatory_body`, `attending_physician`, `involved_department`, …), with
+  `allowed_participant_types[]` and `is_primary_subject_candidate`.
+- **`case_participants`** — the case × participant × role link, with `is_primary_subject`
+  (partial-unique: at most one primary subject per case where `removed_at is null`),
+  `involvement_summary`, soft-remove (`removed_at`).
+
+The generic layer carries **only the link + role**, never sensitive attributes — those route to
+the subtype tables below. This is the mechanism that makes "one Case model" work for every
+subject kind.
+
+### Decision 2 — Professional identity is its **own audited sensitivity class**
+
+- **`professional_profiles`** — a reusable, **non-user** professional entity:
+  `full_name`, `professional_type`, `license_number` (CRM), `license_region`, `specialty`,
+  `affiliation_status`, optional `user_id` (a respondent may be external, former, contractor,
+  or account-less). Linked to a case via `participants` (type `professional`) →
+  `professional_participants(participant_id, professional_profile_id)`.
+- **Sensitivity posture — distinct from patient PHI.** A doctor-under-review is **LGPD personal
+  data but not patient health PHI**. It gets its **own class**: normal RLS confined to the
+  case's readers **plus audited reads** (`professional_profile.read` funneled through
+  `log_audit_access`, PHI-free metadata, Rule 11) — but **not** the full patient-PHI apparatus
+  (no REVOKE-all isolated single-door, no reveal-on-demand). Rationale: it is identity the
+  case-workers must routinely see to do the work; over-applying the patient machinery would add
+  friction the data class doesn't warrant, while under-auditing would fail a disciplinary
+  record's defensibility. Rule 12 is amended to name **two sensitivity classes** — *patient
+  PHI* (isolated single-door) and *professional identity* (audited, case-scoped).
+- **PHI participants stay fully isolated.** An `affected_patient` participant's identifiers do
+  **not** go in `participants`/plaintext — they route to the patient PHI satellite (Decision 3),
+  keeping the isolated + audited-door + disposal discipline intact.
+
+### Decision 3 — Generalize `case_patient` to **N per case**, participant-keyed
+
+`case_patient` (ADR 0038) is re-keyed from `PK = case_id` (one patient) to a
+**participant-scoped** satellite so a case can carry **many** patients (e.g. an ethics case with
+an affected patient *and* a patient-complainant):
+
+- New shape: `patient_identifiers(participant_id PK → patient_participants, <the 8 fixed fields>)`,
+  where `patient_participants` is itself composite-FK-pinned to `participants(id,'patient')` — so
+  identifiers hang off the type-gated patient subtype chain, never off a bare `participants` row
+  (m4; R5). **All DML REVOKED** from `authenticated`; written
+  via a DEFINER writer; read only via the audited single door (`get_case_patient` → generalized
+  to `get_participant_patient`, still emits `*.read`, still NULL-out-of-scope, still never
+  copies payload into the audit). `dispose_case_phi` is generalized to dispose **all** patient
+  satellites of a case.
+- **Migration risk = none in prod:** `case_patient` ships **OFF**; there is no production PHI to
+  migrate. Local/seed rework only. The isolation + audited-door + disposal + reveal-on-demand UI
+  posture is **preserved verbatim** — only cardinality and key change. ADR 0038's read-broad /
+  write-tight asymmetry (case-workers read; coordinators write) is preserved.
+- The denormalized `cases.has_patient` / `patient_enabled` flags remain (now "≥1 patient
+  participant").
+
+### Decision 4 — Dedicated `case_types` table (config layer)
+
+- **`case_types`** — org-scoped first-class config (not a column on `process_templates`):
+  `key`, `display_name`, `primary_subject_kind ∈ {patient, professional, entity, none}`,
+  `default_visibility_policy`, `default_case_label`, `is_active`. A `process_template`
+  references a `case_type`; a `case` snapshots its `case_type_id`.
+- **`case_type_terminology`** — per-type UI label overrides (`case`, `primary_subject`,
+  `timeline`, `document`, `decision`), so Ethics renders *Denúncia / Médico denunciado /
+  Cronologia processual* and M&M renders *Caso / Paciente / Linha do tempo*. **All values stay
+  pt-BR (Rule 10)** — the type only selects *which* pt-BR bundle renders.
+- `default_visibility_policy` becomes the hook the E1 access-spine ADR uses to make Ethics cases
+  *explicit-grants-only* by default. This ADR **defines the column**; it does **not** change
+  `can_read_case` behavior (that is E1).
+
+### What stays shared (Layer 1 — unchanged)
+
+`cases`, `process_templates`/`case_phases` (the assignment + form/narrative + result +
+recommendation engine), `case_documents`, `case_events`, `case_access`, `audit_log`, meetings,
+interviews, `action_items`. No fork, per committee or per subject kind.
+
+### Schema sketch (illustrative, not final DDL)
+
+```
+case_types(id, organization_id, key, display_name, primary_subject_kind,
+           default_visibility_policy, default_case_label, is_active, …)
+case_type_terminology(case_type_id, term_key, singular_label, plural_label, help_text)
+
+process_templates.case_type_id  → case_types            -- template declares its type
+cases.case_type_id              → case_types            -- snapshotted at creation
+
+participants(id, organization_id, participant_type, sensitivity_class, display_name, …,
+             UNIQUE(id, participant_type))          -- the type-pin anchor for subtype composite FKs (R5)
+case_participant_roles(id, organization_id, case_type_id?, key, display_name,
+                       allowed_participant_types[], is_primary_subject_candidate, …)
+case_participants(id, case_id, participant_id, role_id, is_primary_subject,
+                  involvement_summary, added_by, added_at, removed_at,
+                  UNIQUE(case_id, participant_id, role_id),
+                  partial-unique one is_primary_subject where removed_at is null)
+                  -- cross-tenant integrity NOT a pure composite FK (cases has no org col) — see R2
+
+-- subtype tables: composite FK + CHECK pin the participant_type, so a `professional`
+-- can never get a patient satellite and vice-versa (R5 — the core class-separation invariant)
+professional_profiles(id, organization_id, user_id?, full_name, professional_type,
+                      license_number, license_region, specialty, affiliation_status, …,
+                      UNIQUE(organization_id, license_number, license_region) -- O3: dedupe, see resolutions
+professional_participants(participant_id PK, professional_profile_id → professional_profiles,
+                          FK (participant_id,'professional') → participants(id, participant_type))
+
+patient_participants(participant_id PK,
+                     FK (participant_id,'patient') → participants(id, participant_type))
+patient_identifiers(participant_id PK → patient_participants(participant_id),   -- the type-gated chain (m4)
+                    name, mrn, date_of_birth, age_years, sex, encounter_ref, unit, attending)
+                    -- all DML REVOKE-ed; written + read ONLY via audited DEFINER doors
+
+external_person_participants(participant_id PK, full_name, org, role_note, …)   -- E1+, non-user people
+department_participants / institution_participants(...)                          -- entity subjects
+```
+
+## Review outcomes & resolutions (2026-07-09)
+
+Design-reviewed by `backend` (**SOUND WITH CHANGES** —
+[adr-0064-backend-review.md](../reviews/adr-0064-backend-review.md)) and `qa`
+(**CHANGES REQUESTED** — [adr-0064-qa-review.md](../reviews/adr-0064-qa-review.md)). Both
+confirmed the **design is sound and idiomatic, no BLOCKER, no leak, E0-before-E1 sequencing
+valid** — every finding is an ADR-text/spec omission, cheap on paper and costly mid-build. All
+are resolved here; the four PO decisions are unchanged.
+
+### Rule 12 — intended final wording (QA M1)
+
+The Rule-12 amendment is an **added axis, not a replacement**. The three **patient-PHI modules**
+(NSP `event_patient`, referral `referral_patient`, case `case_patient`/`patient_identifiers`)
+**survive intact** — patient PHI stays isolated in exactly those places under the single-door +
+disposal posture. ADR 0064 adds a **second sensitivity class** beside them:
+
+- **Class 1 — patient PHI** (unchanged): isolated REVOKE-ed satellite · audited single door ·
+  reveal-on-demand · LGPD-erasure disposal path. Lives in the three modules above.
+- **Class 2 — professional identity** (new): case-scoped RLS + **audited reads** · **no**
+  isolated-single-door · **no** reveal-on-demand · erasure/retention posture per M2 below. Lives
+  in `professional_profiles`.
+
+At implementation (E0 Record step), Rule 12 gets a new bullet for Class 2 parallel to the three
+"Nth PHI module" bullets, and its closing "modules that don't need patient identity hold none by
+design" sentence is preserved. **Also stale and MUST be reconciled at the same time:**
+**CLAUDE.md §3's Rule-12 summary still says "PHI lives in exactly two modules"** — already wrong
+(ADR 0038 made case the third) and doubly wrong after this ADR. E0 fixes it to "three patient-PHI
+modules + the professional-identity class."
+
+### M2 — professional-identity erasure/retention posture (QA M2)
+
+A respondent doctor is LGPD *dado pessoal* with Art. 18 correction/erasure rights, but a
+**disciplinary** record has a strong CFM 20-yr-retention / institutional-defensibility argument
+**against** erasure. **Decision:** `professional_profiles` gets **no `dispose_*` path at E0**, and
+this is a *stated, phase-deferred posture*, not an oversight — the correction/erasure-vs-retention
+rule is designed in **E1/E2** alongside the disciplinary record itself (a decision issued against a
+doctor likely *pins* retention). E0 shipping the registry dark behind a flag holds no real data, so
+no erasure path is needed yet. Recorded so a future implementer does not silently ship a
+disciplinary registry with no correction/erasure story.
+
+### Backend findings
+
+- **R2 (tenancy-key mismatch) — accepted.** `cases` has **no `organization_id`** (it resolves org
+  via `app.commission_of_case`), while `participants` anchor to `organization_id`; so ADR 0054's
+  *pure* composite-FK shape **cannot** span `case_participants` as written. **Resolution:** E0
+  **denormalizes `organization_id` onto `cases`** (cheap, reset-OK, also simplifies any
+  cross-tenant guard) and composes the FK against it; fallback = an
+  `app.assert_participant_same_org_as_case` BEFORE-INSERT trigger (the ADR-0054
+  `guard_hospital_org_repoint` pattern). The ADR no longer claims a pure composite FK end-to-end.
+- **R3 (`patient_index`/`patient_xref` coupling — ADR [0039](./0039-patient-identity-cross-committee-linkage.md)) — accepted.**
+  The HMAC cross-committee linkage derives its keys from the `case_patient` identifier fields
+  (`patient_xref` is in the baseline). Re-keying to N-per-case means **N xref contributions per
+  case**, and `dispose_case_phi` (generalized) **must purge the `patient_xref` rows for each
+  patient participant** or it regresses ADR-0056 disposal completeness. **Resolution:** E0's
+  migration re-points `get_patient_trajectory_for_entity` + the xref rows to the participant key
+  **and** extends disposal + its pgTAP keystone per-participant. (Note: `case_patient` is the
+  *third patient-PHI module*; `patient_index` is a derived *linkage surface* over it, not a fourth
+  isolated module — but the coupling is real and in-scope.)
+- **R1 (multi-org posture of the patient door) — accepted as a VERIFY item, with a correction.**
+  The review asserts a hard `AND NOT app.is_multi_org()` term (migration `…629000000`) makes the
+  case-PHI door inert in multi-org. **On check, `is_multi_org` appears in no current migration and
+  that migration number does not exist** (baseline is `20260620000000`) — the *specific mechanism
+  cited could not be confirmed and may be stale/incorrect.** The underlying concern is still
+  legitimate: a historical **multi-org PHI guard** posture existed (ADR 0041 amd-10 / 0042) before
+  the model went per-**hospital** (ADR 0052). **Resolution:** E0 must (a) determine the *actual*
+  current gate on `can_read_case_patient`/the PHI doors, (b) ensure the re-keyed
+  `get_participant_patient` inherits it unchanged, and (c) record the **intended asymmetry** —
+  patient PHI follows whatever tenant gate the PHI surface uses; **professional identity is NOT so
+  gated** (it is LGPD-personal, not the tenant-restricted PHI surface). Do not assume the review's
+  `is_multi_org` detail; verify against the live catalog.
+- **R4 (atomic writer) — accepted.** The participant + `patient_participants` + `patient_identifiers`
+  rows are written in a **single coordinator-gated DEFINER writer**, atomically (never a racy
+  post-create round-trip — the established PHI-write-atomic-with-create rule), preserving ADR 0038's
+  name-or-MRN floor and the read-broad / write-tight asymmetry.
+- **R5 (subtype↔type integrity) — accepted; it is the single most important invariant.**
+  `participants UNIQUE(id, participant_type)` + every subtype table FKs
+  `(participant_id, <literal type>) → participants(id, participant_type)` with a CHECK pinning the
+  literal — so a `professional` can never acquire a `patient_identifiers` row (and vice-versa),
+  keeping the two sensitivity classes from cross-contaminating. Now in the schema sketch; a pgTAP
+  keystone.
+- **R6 (E1 anti-recursion pre-commit) — accepted.** E0 does not touch `can_read_case`. **But** any
+  participant-derived term folded into `can_read_case` in E1 (e.g. respondent-exclusion = "uid is
+  not a `respondent_doctor` participant") **must be computed inside the SECURITY DEFINER predicate
+  over base tables** (DEFINER bypasses RLS, breaking the cycle), **never via an RLS-gated read of
+  `case_participants`** — else `case_participants` RLS → `can_read_case` → `case_participants`
+  infinite recursion. Same discipline as ADR 0033's attribution-derived read. Pre-committed here.
+
+### Lower-severity resolutions
+
+- **O1** — seed `case_types` rows carry a sane `default_visibility_policy` so E1 doesn't retrofit.
+- **O2 (interview seam, was Open item 5)** — do **not** fully defer: E0 keeps the door open by
+  allowing new interview subjects to reference a `case_participant` (a nullable FK added later),
+  so the schema doesn't foreclose reconciliation. **Freshness note (m3):**
+  `20260713001200_case_interviews_case_scope_read.sql` already case-scopes interview reads to
+  `can_read_case`; the reconciliation must not regress that.
+- **O3** — `professional_profiles` UNIQUE `(organization_id, license_number, license_region)`
+  (dedupe a re-entered CRM); nullable license tolerated for account-less/unknown.
+- **O4** — new `professional_profile.read` verb appended to the `log_audit_access` positive
+  allow-list (REPLACE-carry-forward, every verb preserved or reads silently fail); every new
+  `public.*` RPC (`get_participant_patient`, the professional reader) does `REVOKE ALL FROM PUBLIC`
+  before `GRANT` (t19 dashboard guard). pgTAP keystones.
+- **O5** — new guard SQLSTATEs (participant-type mismatch, professional gate) allocated from the
+  current `HC0xx` high-water in the E0 "as-built" section (ADR-0018 convention).
+- **m2 (respondent-exclusion guardrail) — HARD GATE:** the `case_participants`/`case_types` flags
+  **MUST NOT be flipped in any environment holding real ethics data until E1's respondent-exclusion
+  RLS lands.** E0 ships the `professional_profiles.user_id` linkage that makes self-read reachable;
+  only E1 closes it. This is a blocking dependency, not a suggestion.
+
+## Consequences
+
+- **One model, three subject kinds.** Patient-, doctor-, and entity-centered cases share the
+  engine; the "kind" is `case_types.primary_subject_kind` + which subtype table the primary
+  `case_participant` resolves to. Ethics, credentialing, risk, and sentinel review all unlock
+  from this one foundation.
+- **Two named sensitivity classes (added axis, not a replacement).** The three patient-PHI
+  modules (NSP, referral, case) **remain**; ADR 0064 adds **professional identity** as a *second
+  class* beside them (see §"Rule 12 — intended final wording"). A security reviewer audits
+  patients by the ADR-0038 single-door checklist and professionals by the lighter
+  audited-read checklist — the divergence is intentional and recorded here.
+- **`case_patient` reworked while dark.** Generalizing to N is done before the flag is ever
+  flipped, so there is no PHI migration — the cost is local test/seed churn, not production risk.
+- **`case_access` extended, not replaced.** Per-case ACL, attribution-driven read, and the
+  restrictive `can_read_case` boundary all carry forward; `case_types.default_visibility_policy`
+  is the new *input*, wired up in the E1 access-spine ADR.
+- **Ships behind flags, dark.** New surface lands OFF (`case_participants`, `case_types`), flipped
+  in-phase — same discipline as `audit_trail` / `patient_safety` / `case_access` /
+  `case_referrals` / `case_patient`.
+- **pgTAP obligations.** New isolation keystones: professional-read is audited + case-scoped;
+  patient-identifier door still NULL-out-of-scope with N patients; **subtype↔type composite-FK
+  guard** (a `professional` cannot acquire a `patient_identifiers` row, and vice-versa — R5);
+  primary-subject partial-unique; cross-tenant participant isolation (R2 mechanism); disposal
+  removes **all** patient satellites of a case **and their `patient_xref` linkage rows** (R3);
+  the re-keyed patient door inherits the *actual verified* PHI-surface tenant gate (R1);
+  `professional_profile.read` in the `log_audit_access` allow-list + `REVOKE…FROM PUBLIC` on new
+  RPCs (O4, t19).
+
+## Open items (deferred to later ADRs / phases)
+
+1. **E1 access spine** — confidentiality levels, `default_visibility_policy` → `can_read_case`
+   wiring, respondent-exclusion, `case_conflict_declarations` + `case_recusals` (RLS-enforced),
+   document-level grants. **Prerequisite for storing any real complaint data** — enforced by the
+   **m2 hard gate** (flags must not be flipped on real ethics data until this lands). Any
+   participant term folded into `can_read_case` must obey the **R6 anti-recursion rule** (compute
+   inside the DEFINER predicate over base tables). Also settle the **M2 professional-identity
+   correction/erasure-vs-CFM-retention** posture here (or in E2 alongside the disciplinary record).
+2. **E2 ethics procedure** — `ethics_case_details`, `ethics_allegations`/`ethics_findings`,
+   `ethics_notifications` (deadlines), `case_decisions` + `ethics_decision_details` (sanctions,
+   **CRM/CFM** external reporting), `case_votes`, `ethics_hearings`, `ethics_appeals`. Some may
+   debut as narrative/form phases and graduate to tables where deadlines/querying demand.
+3. **`form_responses` participant targeting** — optional `target_case_participant_id` so a
+   "Witness Interview" / "Respondent Statement" form attaches to a specific participant, not just
+   a phase.
+4. **Assignment-role vocabulary** — whether `case_phases` gains an assignment-role label
+   (investigator vs reviewer vs chair) or that stays implicit.
+5. **Existing `case_interview_subjects`** — reconcile the interview-scoped person model with the
+   new case-level participants. **Not fully deferred (O2):** E0 keeps the seam open via a nullable
+   `case_participant` FK so reconciliation isn't foreclosed. Must not regress the already-landed
+   `20260713001200_case_interviews_case_scope_read.sql` case-scoping (m3).
