@@ -92,6 +92,14 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      constraints; display items: `required` not true, `content` NOT NULL —
      `{"markdown": ...}` / `{"storage_path", "alt", "caption"}`; trigger
      rejects `answers` targeting display items).
+
+   **Additive foundations tables (Pre-Pilot Foundations Program; ADR 0065).**
+   The participants / attachments / case-type / flexible-forms tables land as
+   **additive** extensions of this schema — they extend, never contradict, the
+   canonical set above: the `participants` typed-identity registry + subtype
+   satellites and `case_types` (F1); `attachments` + `attachment_references` /
+   `attachment_subjects` (F2); the widened `form_items.item_type` enum + inert
+   answer-shape tables (F3). Each phase's Record step names its new tables here.
 3. **Response lifecycle & resume:**
    - `unique (form_version_id, created_by) where status = 'in_progress'` —
      one resumable draft per user per version. Wizard navigation upserts the
@@ -250,6 +258,61 @@ may extend the schema but never contradict it. Cross-references elsewhere to
       free-text PHI `case_narratives.body_md` / `case_events.body`), mirroring
       `dispose_event_phi`. Reverses the Cases module's former "strictly PHI-free"
       stance (ADR 0033 Q13).
+    - **Merged sensitivity taxonomy — added axis, not a replacement** (Pre-Pilot
+      Foundations Program; drafted in ADR 0065, applied per-phase). The three
+      patient-PHI modules above survive intact as **Class 1 — patient PHI**
+      (isolated REVOKE-ed satellite · audited single door · reveal-on-demand ·
+      LGPD-erasure disposal). The program adds:
+      - **Class 2 — professional identity** (lands in **F1** / ADR 0064): a
+        doctor-under-review is LGPD personal data but **not** patient health PHI.
+        Case-scoped RLS + **audited reads** (`professional_profile.read`, PHI-free
+        metadata) — but **no** isolated single door, **no** reveal-on-demand.
+        Lives in `professional_profiles`. (No `dispose_*` path at E0 — the
+        CFM-retention-vs-erasure posture is designed in E1/E2; ADR 0064 M2.)
+      - **Attachments layer** (lands in **F2** / ADR 0063): two orthogonal columns
+        on `attachments` — `sensitivity_tier ∈ {phi, standard}` is the *physical*
+        PHI segregation (picks the bucket); `confidentiality_label` is the
+        *semantic* regime, aligned to the two classes (`phi_*` → Class 1;
+        `ethics_investigation` / `credentialing_sensitive` /
+        `peer_review_confidential` / `legal_privileged` → Class 2 or
+        governance-confidential; `non_phi_internal` → neither).
     - **Operational prerequisites** (Phase 9 deployment gates) — an executed
       Supabase BAA, a HIPAA-eligible project tier, and a breach-response posture.
     Modules that don't need patient identity hold none by design.
+
+## Appendix A — Polymorphism dialects (three sanctioned; closes hardening D12; ADR 0065)
+
+Cross-references use **exactly three** dialects. A fourth requires a new ADR. Naming the incumbent
+(dialect 1) is deliberate — it keeps the already-unified `action_items.source_*` from reading as an
+unsanctioned new pattern.
+
+1. **Named-FK + shape CHECK** *(incumbent).* A `kind`/`source_type` discriminator + explicit
+   **named nullable FKs** + a kind-scoped shape CHECK. **Use for** intra-domain source/provenance
+   links with a closed, small target set where FK integrity + join targets are wanted. Instances:
+   `rca_evidence`, `referral_shared_item`, `case_events`, `capa_plan`, `action_items.source_*`.
+2. **Owner-dispatch polymorphism** — `(owner_type text, owner_id uuid)`, **no FK**; authorization
+   dispatched by a `SECURITY DEFINER` `app.can_*` CASE dispatcher; **never a join target**;
+   explicit two-step reads. **Use only** for a row owned by one of several **heterogeneous** parent
+   domains with no shared registry. Sole sanctioned instance: the attachments authorizing owner
+   (`case|meeting|interview|action_item|form_upload`; `form_upload` permanently inert).
+3. **Typed-identity registry** — a `participants`-style anchor with `UNIQUE(id, type)` + subtype
+   tables pinned by **composite FK + CHECK**. **Use for** a reusable identity many rows point at
+   (people, orgs, entities as case subjects). The composite-FK+CHECK pin is the class-separation
+   invariant (a `professional` can never acquire a `patient_identifiers` row).
+
+**Bridging rule:** `attachment_subjects` uses dialect 3 (`participant_id → participants`), NOT a
+fourth no-FK polymorphism — one subject vocabulary. Consequence: participants (F1) precede
+attachments (F2).
+
+## Appendix B — Catalog-vs-enum + freeze conventions (ADR 0065)
+
+- **Catalog table vs CHECK enum.** *Tenant-extensible* vocabularies (an org/commission may extend
+  at runtime) live in **catalog tables**: `case_types`, `case_participant_roles`,
+  `action_item_statuses` / `_urgency_levels`. *Code-coupled* type systems where each member needs
+  renderer/evaluator/immutability support (adding one is a code change) stay **CHECK enums**,
+  widened per feature: `form_items.item_type`. (This is why the hardening D6/§6.3 metadata-driven
+  `form_item_types` refactor is cancelled — ADR 0060.)
+- **Freeze principle.** *Freeze answer-DATA shapes* now (their structure binds historical answers
+  and is expensive to add post-data — e.g. F3's inert answer tables), but *definitions, engines,
+  and enum-widens are additive anytime* and are **not** pre-landed (calculations, i18n, the
+  correction/`reopen` engine). Defines what the reset-OK window is spent on.

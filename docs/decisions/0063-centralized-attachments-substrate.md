@@ -188,3 +188,33 @@ therefore **conscious departures**, justified below, not "matching existing styl
   (b) confirm whether `attachment_references` / `attachment_subjects` ship in B1 or as a fast-follow
   within the same gate (recommended: columns/tables created in B1, populated by later surfaces);
   (c) decide the default `confidentiality_label` for action-item attachments (the first new consumer).
+
+---
+
+## Reconciliation note — Pre-Pilot Foundations Program (2026-07-10)
+
+See the [Pre-Pilot Foundations Program](../plans/pre-pilot-foundations-program.md) and the F0
+conventions ADR [0065](./0065-pre-pilot-foundations-conventions.md). This ADR is built as **phase
+F2**, sequenced **after F1** (participants). Ratified by 0065:
+
+- **`attachment_subjects` is re-keyed to `participant_id → participants(id)`** (dialect 3) with a
+  nullable `role_id → case_participant_roles(id)` and `note` — replacing the standalone
+  `(subject_type, subject_id, subject_role)` polymorphism in §Decision 2 / the schema draft. One
+  subject/role vocabulary, not two (program §1 C-β). Makes **F1 a hard prerequisite of F2**.
+- **`form_items.phi_policy` reservation is dropped** (program §1 C-ζ). This overrides the
+  phase-14e §3.8 / §10-open-item-(no-phi_policy) reservation — dead schema for the file-upload
+  answers ADR 0060 rejected. `owner_type='form_upload'` **stays reserved-inert** (dialect 2, the
+  dispatcher returns `false`). Reviving form-upload answers requires a new ADR overturning 0060's
+  PHI-ingress objection.
+- **`confidentiality_label` value-set is aligned to the merged Rule-12 taxonomy** (0065 §3): the
+  `phi_*` labels map to Class 1 (patient PHI); `ethics_investigation` /
+  `credentialing_sensitive` / `peer_review_confidential` / `legal_privileged` map to Class 2
+  (professional identity) or governance-confidential. This finalizes open item (a). Confidentiality
+  **defaults** per `owner_type` (open item c) are set in the program (§F2): `case`/`interview` →
+  tier `phi` / label `phi_standard`; `meeting`/`action_item` → tier `standard` / label
+  `non_phi_internal` (escalatable).
+- **`attachment_subjects` uses dialect 3, not a fourth no-FK polymorphism** — the platform's first
+  and only owner-dispatch polymorphism (dialect 2) is the attachments *authorizing owner*
+  `(owner_type, owner_id)`. Both are named in the D12 closure (0065 Appendix A).
+- The D10 per-owner disposal-redaction line **layers on top of F1's participant-keyed
+  `dispose_case_phi`** (fixed composition order; 0065 §4).

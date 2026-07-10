@@ -235,3 +235,29 @@ standalone-only, audit-logged with a reason, `submitted → in_progress`) mirror
 existing `reopen_*` pattern, or **(b)** an explicit `supersedes` link with
 supersession-aware aggregation. Flagged here so it is not mistaken as covered; **tackle
 post-note.**
+
+---
+
+## Reconciliation note — Pre-Pilot Foundations Program (2026-07-10)
+
+See the [Pre-Pilot Foundations Program](../plans/pre-pilot-foundations-program.md) and the F0
+conventions ADR [0065](./0065-pre-pilot-foundations-conventions.md). This ADR is built as **phase
+F3**, after F1 (participants) and F2 (attachments). Ratified by 0065:
+
+- **`action_items.source_*` is a dialect-1 instance** (named-FK + shape CHECK) of the three
+  sanctioned polymorphism dialects — named here so the already-unified `action_items` source does
+  not read as an unsanctioned new pattern (0065 Appendix A / D12 closure).
+- **No file/upload `item_type`** is added and **`form_items.phi_policy` is dropped** (program §1
+  C-ζ) — the widened enum is `group | repeating_group | matrix | risk_matrix | reference` only.
+  `form_items` stays a single-owner (F3) surface with no co-edit by the attachments phase.
+- **D6/§6.3 metadata-driven `form_item_types` refactor is CONFIRMED CANCELLED** (program §1 C-ε) —
+  superseded by this ADR's Gap-1 decision to keep the typed CHECK enum, widened per feature
+  (0065 §5, catalog-vs-enum convention). Only the D6-flip `ELSE false` was wanted; already shipped
+  Wave 1.
+- **The `reference` item type bridges to `participants`** via
+  `answer_references.participant_id → participants(id)` (0065 §7) — hence F3's added dependency on
+  F1. The five inert answer-shape tables land now under the **freeze principle** (0065 §6); the
+  Gap-38 correction model is ratified as **supersession** (`responses.supersedes_id`, latest-in-chain
+  aggregation; 0065 §8), engine/UX deferred.
+- **Calculations** and **i18n** are additive-anytime forward-notes, not F3 create-now scope
+  (freeze principle).

@@ -8,6 +8,12 @@ with no back-compat migrations (memory `prelaunch-db-reset-ok`).
 Rule 3 (one evaluator, mirrored SQL↔TS), Rule 5/6 (published + storage immutability), Rule 10 (pt-BR),
 Rule 11 (audit), Rule 12 (PHI).
 
+**Refined 2026-07-10** (design grill; generated-types verification): three polymorphism dialects (not
+two); F3 expanded to freeze the fuller relational answer-data set (Rec-A contract authored first);
+`reference`→participants bridge; supersession correction model ratified (engine deferred); calculations
++ i18n deferred as additive-anytime; confidentiality-label defaults set. ADR authorship (0065 + 0060/
+0063/0064 amendments) stays F0's Record-step deliverable.
+
 **Consolidates and sequences four independently-approved initiatives into one collision-free plan:**
 
 | # | Initiative | Source | Prior status |
@@ -66,19 +72,28 @@ the phase that owns it. **This is the core of the plan.**
   `attachment_subjects`. C (0064) introduces a **different** dialect — a `participants` *typed
   registry* (`UNIQUE(id, participant_type)` + composite-FK-pinned subtype tables). Landing both,
   unreconciled, is exactly the proliferation D12 forbids.
-- **Resolution — ratify exactly two sanctioned dialects with a written "when to use which" rule**
-  (F0 writes it into ARCHITECTURE.md as the D12 closure; this *is* "picking the dialect"):
-  1. **Owner-dispatch polymorphism** — `(owner_type text, owner_id uuid)`, **no FK**, authorization
+- **Resolution — ratify exactly three sanctioned dialects with a written "when to use which" rule**
+  (F0 writes it into ARCHITECTURE.md as the D12 closure; this *is* "picking the dialect"). The
+  2026-07-10 grill added dialect 1 explicitly: the *incumbent* named-FK+CHECK pattern is **not** being
+  replaced — it stays in permanent use (`rca_evidence`, `referral_shared_item`, `case_events`,
+  `capa_plan`, and the already-unified `action_items.source_*`), so it must be named rather than left
+  implicit. Naming it also keeps the unified-`action_items` source from becoming an unsanctioned "fifth
+  site" of an un-blessed dialect — the exact proliferation D12 forbids:
+  1. **Named-FK + shape CHECK** *(incumbent)* — a `kind`/`source_type` discriminator + explicit **named
+     nullable FKs** + a kind-scoped shape CHECK. **Use** for **intra-domain source/provenance** links
+     where the target set is closed & small and real FK integrity + join targets are wanted. Instances:
+     `rca_evidence`, `referral_shared_item`, `case_events`, `capa_plan`, `action_items.source_*`.
+  2. **Owner-dispatch polymorphism** — `(owner_type text, owner_id uuid)`, **no FK**, authorization
      dispatched by a `SECURITY DEFINER` `app.can_*` CASE dispatcher; never a join target; explicit
      two-step reads. **Use only** for a row *owned by / living under* one of several **heterogeneous**
      parent domains that share no common registry. Sole sanctioned instance: the attachments
      authorizing owner (`case|meeting|interview|action_item|form_upload`).
-  2. **Typed-identity registry** — a `participants`-style anchor with `UNIQUE(id, type)` + subtype
+  3. **Typed-identity registry** — a `participants`-style anchor with `UNIQUE(id, type)` + subtype
      tables pinned by **composite FK + CHECK**. **Use** for a **reusable identity that many rows point
      at** (people, orgs, entities as case subjects).
-  - **Bridging decision (load-bearing):** `attachment_subjects` does **not** get its own third
+  - **Bridging decision (load-bearing):** `attachment_subjects` does **not** get its own fourth
     `(subject_type, subject_id)` no-FK polymorphism. Its subject is a **participant** →
-    `attachment_subjects.participant_id → participants(id)` (dialect 2). See C-β. **Consequence:
+    `attachment_subjects.participant_id → participants(id)` (dialect 3). See C-β. **Consequence:
     participants (F1) must land before attachments (F2).**
 - **Owner:** F0 (convention) + F1/F2 (conform). Closes D12.
 
@@ -198,6 +213,29 @@ the phase that owns it. **This is the core of the plan.**
   optional interleave (F3 vs Phase 16) in §3.
 - **Owner:** this program.
 
+### C-θ · Attachment evidence-consolidation scope — ADR 0063 × existing evidence surfaces  🟢
+
+- **Ground truth (2026-07-10 generated-types verification):** the action-item/CAPA domain is already
+  built and rich — `action_items` is a **single unified table** (`commission_id` + `source_type` +
+  named `source_*_id`, dialect 1; ADR 0050 fold + `visibility_scope`) with `action_item_assignments`
+  (multi-role), `action_item_status_history`, and configurable `action_item_statuses`/
+  `action_item_urgency_levels`; CAPA is a separate regulated subsystem (`capa_plan → capa_action →
+  capa_action_task → capa_action_evidence → capa_effectiveness`). There is **nothing to unify** on the
+  task plane; the only open question was the fragmented **evidence/file** plane. (C-α already described
+  `action_items` correctly — this row records the verified fuller picture.)
+- **Resolution (grill decision "(i)"):** F2 folds the **three pure file tables** (`case_documents`,
+  `meeting_attachments`, `case_interview_attachments`) and adds `owner_type='action_item'` — a genuine
+  **new capability** (`action_items` has no attachments today; the dispatcher resolves commission via
+  `action_items.commission_id`, non-recursively). It **leaves `rca_evidence` and `capa_action_evidence`
+  as deliberate domain tables** (`rca_evidence` is also a *citation* layer via `cited_*_id`; both are
+  working regulated NSP code on the immutable `nsp-evidence` bucket) — a **forward-note** records them
+  as post-pilot consolidation candidates (reset-OK does not expire). **Mandatory:** the
+  `rca_evidence.cited_document_id` + `referral_shared_item.source_document_id` → `attachments(id)`
+  repoint is **atomic** with the `case_documents` fold (single migration — a half-applied drop breaks
+  both). **Fold-in fidelity:** `case_documents.doc_type` maps into `attachments.kind` (preserve; do not
+  flatten to `'outro'`); `meeting`/`interview` files (mime-only) get a per-owner_type default `kind`.
+- **Owner:** F2.
+
 > **🔴/🟢 = plan-review level (CLAUDE.md §6):** 🔴 items get a full plan review before code; 🟢 a
 > one-line plan + ack. C-α/β/γ/δ are the 🔴 design core; they are all resolved *here* so the per-phase
 > reviews are conformance checks, not re-litigation.
@@ -209,8 +247,9 @@ the phase that owns it. **This is the core of the plan.**
 F0 produces a short **conventions ADR** (next free number, ~0065) + the ARCHITECTURE.md edits, so
 F1–F3 build against a settled contract:
 
-1. **Two sanctioned polymorphism dialects** with the "when to use which" rule (C-α). New ARCHITECTURE
-   rule/appendix. **Closes hardening D12.**
+1. **Three sanctioned polymorphism dialects** (named-FK+CHECK *incumbent* · owner-dispatch · typed
+   registry) with the "when to use which" rule (C-α). New ARCHITECTURE rule/appendix. **Closes
+   hardening D12.**
 2. **Identity/subject convention** — `participants` is the platform's reusable identity registry;
    anything that records *who/what a row is about* (starting with `attachment_subjects`) references it
    rather than inventing a parallel subject table (C-β).
@@ -231,6 +270,24 @@ F1–F3 build against a settled contract:
    so gated — it is LGPD-personal, case-scoped). **R2** (denormalize `organization_id` onto `cases` —
    confirmed no org col today), **R5** (`UNIQUE(id, participant_type)` + subtype composite-FK+CHECK —
    the class-separation invariant), **R6** (E1 anti-recursion — pre-committed, E1 not built here).
+
+7. **Catalog-table vs CHECK-enum convention** — *tenant-extensible* vocabularies live in **catalog
+   tables** (`case_types`, `case_participant_roles`, `action_item_statuses`/`_urgency_levels`);
+   *code-coupled* type systems that each need renderer/evaluator support stay **CHECK enums**
+   (`form_items.item_type`). The rule that reconciles adopting 0064's catalogs while rejecting
+   D6/§6.3's form-item catalog (C-ε).
+8. **Freeze principle** — *freeze answer-data shapes while reset-OK* (their structure binds historical
+   answers; e.g. F3's inert answer tables), but *definitions, engines, and enum-widens are additive
+   anytime* and are **not** pre-landed (e.g. calculations, i18n, the correction engine). Defines what
+   the reset-OK window is — and is not — spent on.
+9. **Reference → participants bridge** — the F3 `reference` item type targets the `participants`
+   registry (`answer_references.participant_id`), unifying initiatives A and C; internal-platform-entity
+   reference lanes are deferred-but-additive. Follows from convention 2.
+10. **Supersession correction model** — a future submitted-form correction *supersedes* the prior via a
+    nullable `responses.supersedes_id`, and aggregation counts only the **latest in a supersession
+    chain**. Ratified now (recorded design decision) so Phase-15/dashboard aggregation is built
+    **supersession-tolerant**; the `reopen`/correction engine + UX defer to a post-pilot ADR (0060
+    Gap 38). See §8.
 
 ---
 
@@ -268,7 +325,8 @@ F1–F3 build against a settled contract:
 - **Dependencies:** F0. **Precedes F2** (C-α/β).
 - **Reset-OK payoff:** the `case_patient → patient_identifiers` re-key happens while the flag is OFF ⇒
   **zero production PHI migration** (the entire reason to do it pre-pilot).
-- **Records:** Rule 12 Class 2 + the ADR-0038 supersession; Rule 2 participant/case-type tables.
+- **Records:** Rule 12 Class 2 + the ADR-0038 supersession + **the ADR-0033 supersession** (participants
+  reverse 0033's deliberate "no participants" non-feature); Rule 2 participant/case-type tables.
 - **Gate:** full §6 gate; pgTAP keystones per ADR 0064 §Consequences (subtype↔type guard, patient door
   NULL-out-of-scope with N patients, professional audited read, primary-subject unique, cross-tenant
   isolation, disposal-purges-xref, the verified R1 gate inherited).
@@ -284,6 +342,11 @@ F1–F3 build against a settled contract:
   attachments (first new consumer). `owner_type='form_upload'` reserved-**inert** (C-ζ). Add the D10
   attachment-redaction line to `dispose_*_phi` **on top of F1's participant-keyed `dispose_case_phi`**
   (C-δ); `dispose_attachment_phi`.
+- **Confidentiality defaults (resolves ADR 0063 open items a + c; clinical-governance-ratifiable):**
+  `case`/`interview` → tier `phi`, label `phi_standard`; `meeting`/`action_item` → tier `standard`,
+  label `non_phi_internal` (uploader may **escalate** to `phi`; any `phi_*`/restricted label forces tier
+  `phi`); `form_upload` inert. **De-escalation (declassify) stays staff_admin-only + audited**
+  (`attachment.reclassified`). Evidence-consolidation scope + fold-in fidelity per **C-θ**.
 - **Dependencies:** F0 + **F1** (attachment_subjects references participants; the D10 line composes with
   F1's disposal rewrite).
 - **Records:** Rule 12 attachments layer (tier + label aligned to the F0 taxonomy); Rule 6 re-home
@@ -299,19 +362,35 @@ F1–F3 build against a settled contract:
   before F3. Kept in ADR-0057's slot; this program does not change Phase 16's spec.
 
 ### F3 — Flexible-Forms Foundation  *(ADR 0060; structural, no flag)*
-- **Scope (create-now bones only):** widen `form_items.item_type` CHECK (+`group`, `repeating_group`,
-  `matrix`, `risk_matrix`, `reference`, inert per type); `form_item_options.is_exclusive` +
-  `risk_weight`; `form_versions.behavior_config` jsonb (reserved staging area); the **one live feature**
-  — evaluator operators `contains`/`not_contains`/`is_empty`/`is_not_empty` in **both** `app.eval_condition`
-  and `evalCondition` with the extended golden/parity matrix (operator × value_type; Rule 3, drift =
-  phase-blocking); repeating-group **position-uniqueness within a parent** (shape only — write RPCs →
-  FF-1); reserve inert `form_item_validations`. **No** file/upload item type, **no** `phi_policy` (C-ζ).
-  Reconcile ARCHITECTURE.md §2 with shipped reality (10 item types etc.) + flip ADR 0045/0046 headers
-  to accepted.
-- **Dependencies:** F0. Independent of F1/F2 (touches the form engine only; `form_items` is F3-only
-  after D6 cancellation, C-ε). Sequenced here per ADR 0060 ("after Phase 16, before the pilot reset");
+- **Scope (create-now bones + frozen answer-data shapes):** widen `form_items.item_type` CHECK
+  (+`group`, `repeating_group`, `matrix`, `risk_matrix`, `reference`, inert per type);
+  `form_item_options.is_exclusive` + `risk_weight` (options already carry `score` + `analytics_code`);
+  `form_versions.behavior_config` jsonb (reserved staging area); the **one live feature** — evaluator
+  operators `contains`/`not_contains`/`is_empty`/`is_not_empty` in **both** `app.eval_condition` and
+  `evalCondition` with the extended golden/parity matrix (operator × value_type; Rule 3, drift =
+  phase-blocking); reserve inert `form_item_validations`. **No** file/upload item type, **no**
+  `phi_policy` (C-ζ). Reconcile ARCHITECTURE.md §2 with shipped reality (10 item types etc.) + flip
+  ADR 0045/0046 headers to accepted.
+- **Rec-A answer-storage contract → fuller inert set (2026-07-10 grill "(b) fuller"):** per the *freeze
+  principle* (§2.8), F3 spends the reset-OK window on the **answer-data shapes** the new types need.
+  repeating_group storage **already exists** (`response_group_instances` w/ nesting +
+  `answers.group_instance_id`) — F3 re-validates it against the dashboard/indicator engine and adds
+  **position-uniqueness within a parent** (shape only; write RPCs → FF-1). For the unsolved types, F0/F3
+  **first authors the `question_key`→aggregation contract, then** lands the **fuller relational inert
+  set**: `form_matrix_rows`, `form_matrix_columns`, `answer_matrix_cells`, `answer_risk_matrix`,
+  `answer_references`. All **inert**, all **no `*_snapshot` columns** (rely on published-version
+  immutability, not answer-row snapshots — the platform's existing philosophy). `answer_references`
+  carries a nullable **`participant_id → participants(id)`** (the A/C bridge, §2.9) + a `reference_kind`
+  discriminator; internal-entity lanes deferred-but-additive. **Calculations** and **i18n** are **not**
+  landed here — additive anytime, §8 forward-notes.
+- **Dependencies:** F0; **now also F1** (the inert `answer_references.participant_id` FK → `participants`
+  needs the F1 registry to exist — satisfied by the F0→F1→F2→16→F3 order). Otherwise touches the form
+  engine only; `form_items` is F3-only after D6 cancellation (C-ε). Sequenced here per ADR 0060 ("after
+  Phase 16, before the pilot reset");
   may move earlier if the team prefers — no dependency forces it after 16.
-- **Gate:** full §6 gate; the golden dual-evaluator parity test is the lock.
+- **Gate:** full §6 gate; the golden dual-evaluator parity test is the lock. The five inert answer
+  tables ship with **RLS from creation** (Rule 1 — scoped to their future `response`/`answer` parent, or
+  deny-all until the type activates) + a pgTAP guard that they stay write-inert pre-activation.
 
 ### F-cleanup — residual hardening  *(opportunistic, pre-pilot)*
 - **D3** (jsonb/array → junction tables for the case-phase result engine) — its own WS-1-style scoped
@@ -334,7 +413,8 @@ step applies its slice:
 | ARCHITECTURE **Rule 2** | note additive tables | participants / case-type / `patient_identifiers` re-key + `cases.organization_id` | `attachments` + companions | widened `form_items` enum + option/version cols |
 | ARCHITECTURE **Rule 6** | — | — | attachment re-home hard-delete footnote | — |
 | **CLAUDE.md §3** Rule-12 summary | fix "two modules" → "three modules + professional class" | (verify) | (verify) | — |
-| **polymorphism convention** | new rule/appendix (D12 closure) | conform (registry) | conform (owner-dispatch + registry ref) | — |
+| **polymorphism convention** | new rule/appendix (**three** dialects; D12 closure) | conform (registry) | conform (owner-dispatch + registry ref) | — |
+| **catalog-vs-enum + freeze conventions** | new rule/appendix | conform | conform | conform (inert answer tables) |
 | **docs/backend-state.md** | — | participant/PHI-door surface | attachments surface | form-engine surface |
 
 ---
@@ -367,9 +447,13 @@ heaviest deferred tracks (D5, D6/§6.3) are **removed** by A and C rather than b
   **with the C-β `attachment_subjects.participant_id` change**, then the fold-in/FK-repoint migration
   (single migration — a half-applied drop breaks `rca_evidence`/`referral_shared_item`), the D10
   disposal line **layered on F1's `dispose_case_phi`**, the flag-enable migration. Regen types.
-- **F3** (flexible-forms): `…_flexible_forms_bones.sql` (item_type CHECK widen + option/version cols +
-  repeating-group position-uniqueness + inert `form_item_validations`) + the dual-evaluator operator
-  change (SQL fn + `src/lib/**/evalCondition` + `condition-vectors.json`). Regen types.
+- **F3** (flexible-forms): `…_flexible_forms_bones.sql` (item_type CHECK widen + option cols
+  `is_exclusive`/`risk_weight` + `form_versions.behavior_config` + repeating-group position-uniqueness +
+  inert `form_item_validations`) + `…_flexible_forms_answer_shapes.sql` (the frozen inert set:
+  `form_matrix_rows`, `form_matrix_columns`, `answer_matrix_cells`, `answer_risk_matrix`,
+  `answer_references` incl. `participant_id → participants`; authored against the Rec-A contract; RLS +
+  no `*_snapshot` cols) + the dual-evaluator operator change (SQL fn + `src/lib/**/evalCondition` +
+  `condition-vectors.json`). Regen types.
 - **Remote deploy** is **user-authorized** per wave — `supabase db push` / `db reset --linked` under
   reset-OK (background agents auto-denied; memory `remote-db-push-needs-user-auth`,
   `app-reads-local-migrations-push-remote`). Local first (`supabase migration up`).
@@ -401,17 +485,31 @@ heaviest deferred tracks (D5, D6/§6.3) are **removed** by A and C rather than b
    would rather ship attachments first, the fallback is to keep 0063's standalone subject vocabulary
    *and accept a later reconciliation migration* — **not recommended** (it reintroduces the exact
    duplication D12/this plan removes).
-2. **F3-vs-Phase-16 interleave** is the one free ordering choice (C-η). Recommendation: F0→F1→F2→16→F3
-   (respects 0063 "before 16" + 0060 "after 16"). Alternative: foundations-first (F0→F1→F2→F3→16) if
-   the team wants all schema settled before touching Phase 16.
+2. **F3-vs-Phase-16 interleave — DECIDED (2026-07-10 grill): `F0→F1→F2→16→F3`** (respects 0063 "before
+   16" + 0060 "after 16"). The F3 expansion (five inert answer tables + Rec-A contract) *strengthens*
+   this — foundations-first would delay Phase 16 behind a bigger, wholly-additive F3 for a benefit F3's
+   additivity already provides.
 3. **`form_items.phi_policy` dropped** (C-ζ) overrides an explicit ADR-0063/phase-14e reservation.
    Recorded as a deliberate reconciliation; flag if the team still wants the inert column reserved.
 4. **The m2 hard gate** (0064): `case_participants`/`case_types` flags **must not** be flipped on real
    ethics data until the post-pilot E1 access-spine lands. F1 ships them dark; the pilot does not use them.
-5. **Effort (rough):** F1 ≈ 4–6 backend days (PHI re-key + registry + disposal) · F2 ≈ 4–6 (the core +
-   fold-in is the heaviest, its risk is the `case_documents` drop reaching `rca_evidence`/referral) ·
-   F3 ≈ 2–3 (evaluator parity is the gated risk) · F0 ≈ 0.5 · F-cleanup opportunistic. All front-loaded
-   to the gate, not production (reset-OK = no data migration).
+5. **Effort (rough, revised 2026-07-10):** F1 ≈ 4–6 backend days (PHI re-key + registry + disposal) ·
+   F2 ≈ 4–6 (the core + fold-in is the heaviest, its risk is the `case_documents` drop reaching
+   `rca_evidence`/referral — now an **atomic** repoint, C-θ) · **F3 ≈ 4–6 (up from ~2–3:** the five inert
+   answer tables + the Rec-A aggregation contract authored first + the evaluator parity gate) · F0 ≈ 0.5
+   · F-cleanup opportunistic. All front-loaded to the gate, not production (reset-OK = no data migration).
+6. **Submitted-form correction (Gap 38) — supersession model ratified (§2.10), engine/UX deferred**
+   post-pilot. **Accepted pilot risk (no guard):** with no correction UX, standalone forms can still
+   accumulate **duplicate submissions** — a blanket uniqueness constraint is unsafe (some forms are
+   filled repeatedly, e.g. a monthly audit). Phase-15 aggregation is built **supersession-tolerant** so
+   the later feature can't corrupt metrics.
+7. **Calculations (derived fields) — deferred, forward-note only.** Fully additive later (enum-widen +
+   definition table + engine; the computed answer reuses the existing `value_number`), so **no reset-OK
+   penalty** (freeze principle, §2.8). A recognized FF-phase capability that F3's `score`/`risk_weight`/
+   `answer_risk_matrix` seams feed.
+8. **i18n / translations — deferred entirely, no schema.** Additive later (answers are locale-agnostic —
+   they reference stable option ids; default-locale labels already live on the item/option). Recorded as
+   a future capability tied to the JCI/international positioning; Rule 10 (pt-BR) stands for the pilot.
 
 **Bottom line:** one program, three builds (F1→F2→F3) on a shared design gate (F0) that folds in the
 hardening remainder as its spine. The four initiatives are made collision-free by six resolutions

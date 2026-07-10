@@ -150,7 +150,7 @@ rules:
 9. **Data access via `src/lib/queries/`** — no inline supabase-js.
 10. **User-facing text pt-BR**; code, comments, commits, docs in English.
 11. **Auditability** — append-only, tamper-evident trail; every mutation emits a row; reads of another member's data + every PHI read are logged (records *that* + *who*, never payloads/PHI).
-12. **PHI / HIPAA** — see §1: three isolated modules (`event_patient` / `referral_patient` / `case_patient`) under identical isolation + audited-single-door safeguards; others hold none by design.
+12. **PHI / HIPAA** — see §1: three isolated **Class-1 patient-PHI** modules (`event_patient` / `referral_patient` / `case_patient`) under identical isolation + audited-single-door safeguards. A distinct **Class-2 professional-identity** class (`professional_profiles`; case-scoped RLS + audited reads, no single door) lands in F1 (ADR 0064/0065); others hold none by design.
 
 ## 4. Agent Team
 

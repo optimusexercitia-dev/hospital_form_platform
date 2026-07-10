@@ -358,3 +358,26 @@ disciplinary registry with no correction/erasure story.
    new case-level participants. **Not fully deferred (O2):** E0 keeps the seam open via a nullable
    `case_participant` FK so reconciliation isn't foreclosed. Must not regress the already-landed
    `20260713001200_case_interviews_case_scope_read.sql` case-scoping (m3).
+
+---
+
+## Reconciliation note — Pre-Pilot Foundations Program (2026-07-10)
+
+See the [Pre-Pilot Foundations Program](../plans/pre-pilot-foundations-program.md) and the F0
+conventions ADR [0065](./0065-pre-pilot-foundations-conventions.md). This ADR's E0 foundation is
+sequenced as **phase F1** — it **precedes** the attachments substrate (ADR 0063, phase F2), because
+`attachment_subjects` references the `participants` registry introduced here (program §1 C-α/C-β).
+Ratified by 0065:
+
+- **`participants` is dialect 3** (typed-identity registry) of the three sanctioned polymorphism
+  dialects — `UNIQUE(id, participant_type)` + subtype tables pinned by composite FK + CHECK (the
+  R5 class-separation invariant). This is part of the D12 closure.
+- **Class 2 — professional identity** is recorded into ARCHITECTURE Rule 12 at F1's Record step
+  (audited reads, case-scoped RLS, no isolated single door), as one slice of 0065's merged Rule-12
+  taxonomy.
+- **Supersedes ADR [0033](./0033-case-access-control.md)'s deliberate "no participants" stance** —
+  the participant model is now the platform's identity substrate (in addition to amending ADR 0038
+  as already stated above).
+- **`dispose_case_phi`** is rewritten here (F1) to the participant-keyed shape + `patient_xref`
+  purge; the F2 attachment-redaction line **layers on top** (fixed composition order; 0065 §4). The
+  standalone D5/§6.2 patient-master track is dropped in favor of this model.
