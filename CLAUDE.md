@@ -1,137 +1,104 @@
 # CLAUDE.md — Hospital Commission Forms Platform
 
-This file is loaded by the team lead AND every teammate. It holds the shared
-rules and the team protocol, and points to two companion docs that carry the
-detail:
+Loaded by the team lead **and every teammate** — keep it lean; every spawn pays
+for it. It holds the shared, stable rules and points to the docs that carry detail:
 
-- **[ARCHITECTURE.md](./ARCHITECTURE.md)** — the binding architecture rules and
-  canonical database schema (referenced by §3).
-- **[PHASES.md](./PHASES.md)** — the detailed phased development plan and
-  per-phase acceptance criteria (referenced by §5).
-
-Role-specific instructions live in `.claude/agents/*.md` and are appended to
-each teammate's system prompt.
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** — binding architecture rules + canonical
+  schema (authoritative; summarized in §3).
+- **[PHASES.md](./PHASES.md)** — phased plan + per-phase acceptance criteria (§5).
+- **[PROGRESS.md](./PROGRESS.md)** — live phase/status tracker + full backlog (§7).
+- **[docs/lead-playbook.md](./docs/lead-playbook.md)** — lead-only orchestration
+  protocol (the single lead session reads it once; teammates get task-specific prompts).
+- **`.claude/agents/*.md`** — role instructions, appended per teammate.
 
 ---
 
 ## 1. Project Overview
 
-A web platform that digitizes the manual checklists and forms filled out by
-hospital commissions, so that statistics can be generated automatically through
-dashboards instead of manual tabulation. Frontend design should be professional, but also interactive and engaging, with micro animations using things like GSAP and three.js to make it a captivating experience. 
+A web platform that digitizes the manual checklists/forms hospital commissions fill
+out, so statistics come from **dashboards** instead of manual tabulation. Frontend
+design must be professional yet interactive and engaging — micro-animations via
+**GSAP** for a captivating experience.
 
-**Patient data (PHI) is in scope, on HIPAA-compliant infrastructure (Supabase, under
-a BAA) — see ADR [0030](./docs/decisions/0030-patient-safety-phi-and-pqs-architecture.md).**
-The **binding regulatory regime** for this Brazilian deployment is **LGPD + ANVISA/RDC +
-CFM 1821/2007** (20-yr record retention); the HIPAA BAA is the *infrastructure* safeguard,
-not the governing law — see ADR
-[0035](./docs/decisions/0035-lgpd-anvisa-regulatory-posture.md). PHI is collected only where
-the clinical-governance domain requires it — notably the Phase-14 **patient-safety / NSP
-module** — and handled under those safeguards: minimum-necessary access via RLS, PHI isolated
-into dedicated tables, PHI-access auditing, and platform at-rest encryption (column-level
-encryption considered and **declined**; ARCHITECTURE.md **Rule 12**, ADR 0035). Modules that
-don't need patient identity stay PHI-free by design. This **reverses** the platform's former
-"no patient data, ever" rule.
+**Positioning: a governance / quality LAYER for hospital accreditation** (ONA in
+Brazil; JCI / Joint Commission internationally; the ANVISA/RDC backdrop). It
+documents committee **process, measurement, and improvement**, sitting *beside* the
+EHR, not duplicating it. Outside the three PHI modules it holds **no PHI by design**
+(minimum-necessary). Rationale: ADR
+[0030](./docs/decisions/0030-patient-safety-phi-and-pqs-architecture.md) (supersedes
+[0028](./docs/decisions/0028-accreditation-governance-roadmap.md)'s no-patient-data
+stance).
 
-**Positioning: a governance / quality LAYER for hospital accreditation.** Beyond
-digitizing checklists, the platform is being built to help hospitals satisfy — and
-*prepare for* — accreditation (ONA in Brazil; JCI / Joint Commission internationally;
-the ANVISA/RDC regulatory backdrop). It documents committee **process, measurement,
-and improvement**, sitting beside the EHR rather than duplicating it. The patient-safety /
-NSP module (Phase 14) records patient context directly; everywhere else the platform stays a
-process/measurement layer that holds no PHI by design (minimum-necessary). The PHI posture and
-the PQS/NSP architecture are in ADR
-[0030](./docs/decisions/0030-patient-safety-phi-and-pqs-architecture.md), which supersedes ADR
-[0028](./docs/decisions/0028-accreditation-governance-roadmap.md)'s no-patient-data stance and
-its rejected "minimal-identifiers" alternative.
+**PHI posture (= Architecture Rule 12 — stated once here; elsewhere cite "Rule 12").**
+Patient data (PHI) is in scope on HIPAA-compliant infrastructure (Supabase, under a
+BAA), governed by the binding **LGPD + ANVISA/RDC + CFM 1821/2007** regime (20-yr
+retention; the BAA is the *infrastructure* safeguard, not the governing law — ADR
+[0035](./docs/decisions/0035-lgpd-anvisa-regulatory-posture.md)). PHI is collected
+minimum-necessary and confined to **exactly three isolated modules** — patient-safety
+/ NSP (`event_patient`), inter-committee **referral** (`referral_patient`), and
+**case** (`case_patient`) — each behind the tightest RLS, PHI-access-audited, and
+protected by platform at-rest encryption (column-level encryption **declined**). ADRs
+0030 / 0035 / 0037 / 0038. This **reverses** the platform's former "no patient data,
+ever" rule.
 
 ### Core domain concepts
 
-- **Commission**: an organizational unit (e.g., Infection Control Commission).
-  All forms, members, and responses belong to exactly one commission.
-- **Roles**:
-  - `admin` (global): creates/edits commissions, assigns staff_admins, sees everything.
-  - `staff_admin` (per commission): builds/edits forms, manages staff users of
-    their own commission, views that commission's dashboard.
-  - `staff` (per commission): fills out published forms of their commission.
-  - A user may hold different roles in different commissions.
-- **Form versioning**: forms follow a draft → published → archived lifecycle.
-  Published versions are IMMUTABLE (sections AND items). Editing clones into a
-  new draft (sections, items, conditions, display blocks — everything).
-  Responses always reference a specific `form_version_id`. Input items carry a
-  stable `question_key` across versions so dashboards aggregate across versions.
-- **Sections (first-class)**: a form version is an ordered list of
-  `form_sections`; every `form_item` belongs to exactly one section.
-  - **Unsectioned forms**: every version has ≥1 section. Creating a form
-    auto-creates a default section (`is_default = true`, title null). A
-    version whose only section is the default renders as a flat, single-page
-    form with no section chrome — this is how "a form may or may not have
-    sections" is modeled without nullable `section_id` special cases.
-  - **Conditional sections**: a section may carry `visible_when` (null =
-    always visible) referencing a `question_key` answered in an EARLIER
-    section. Hidden sections collect no answers, require nothing, and are
-    skipped by the wizard.
-  - **Sign-offs**: a section may set `requires_signoff`; sign-off is recorded
-    per response per section (who + when) and is a precondition of submission.
-- **Form items**: each section contains an ORDERED list of `form_items` of two
-  kinds (a lightweight "dynamic zone" model):
-  - **Input items** (collect answers): `multiple_choice`, `dropdown`,
-    `checkbox`, `free_text`. Each may carry an optional
-    `question_explanation` — help text shown to staff while filling the form
-    (rendered as muted helper text under the question label and counted as the
-    input's accessible description).
-  - **Display items** (render only, never answered): `section_text`
-    (Markdown explanatory text) and `image` (Supabase Storage reference).
-    Display items have no `question_key` and are invisible to dashboards.
-- **Filling is a wizard with resume**: sectioned forms render one section per
-  page with progress indication. Answers are persisted on every section
-  navigation, so a response has a lifecycle: `in_progress` (resumable,
-  editable by its creator only) → `submitted` (immutable, counted by
-  dashboards). One in_progress response per user per form version.
+- **Tenancy**: multi-tenant **organizations → hospitals → commissions** (ADR 0041).
+  A commission belongs to one hospital, a hospital to one org.
+- **Commission**: the lowest unit (e.g., Infection Control). All forms, members, and
+  responses belong to exactly one commission.
+- **Roles** (full definitions + RLS: ADR 0041, `docs/backend-state.md`):
+  - `platform_admin` — global superuser, walled off from all tenant data.
+  - `org_admin` / `hospital_admin` — manage an org / a single hospital and its
+    commissions, users, members.
+  - `staff_admin` (per commission) — builds/edits forms, manages that commission's
+    staff, views its dashboard.
+  - `staff` (per commission) — fills published forms.
+  - **NSP roles** (`nsp_org_admin`, `nsp_coordinator`) run the patient-safety / PQS
+    roster; **`administrativo`** is a per-commission delegated-capability grant (not a
+    role enum; ADR 0061).
+  - A user may hold different roles across commissions, hospitals, or organizations.
+- **Forms & responses** (schema-level detail authoritative in ARCHITECTURE.md §2 /
+  Rules 2–5):
+  - **Versioning**: draft → published → archived; published versions **IMMUTABLE**;
+    editing **clones** to a new draft, preserving `question_key`s + conditions.
+    Responses reference a specific `form_version_id`; input items keep a stable
+    `question_key` for cross-version dashboards.
+  - **Sections (first-class)**: a version is an ordered list of `form_sections` (≥1; a
+    lone `is_default` section renders flat/unsectioned); a section may carry
+    `visible_when` (conditional, on an earlier `question_key`) and `requires_signoff`.
+  - **Items**: **input items** collect answers (8 types — `multiple_choice` … `time`;
+    optional `question_explanation` help text); **display items** render only
+    (`section_text`, `image`) — no `question_key`, invisible to dashboards.
+  - **Filling** is a wizard with resume: answers persist on every navigation; lifecycle
+    `in_progress` (resumable, creator-only) → `submitted` (immutable, counted); one
+    `in_progress` response per user per version.
 
-### Governance & accreditation concepts (Phases 13+)
+### Governance & accreditation modules (Phases 13+)
 
-Each is feature-flagged and detailed in PHASES.md + its ADR. Most are PHI-free by
-design; the patient-safety / NSP module (Phase 14) is the one that records patient
-context, under HIPAA safeguards (Rule 12; ADR 0030).
+Each is feature-flagged; full detail in PHASES.md + `docs/phases/accreditation-track.md`
++ its ADR. PHI-free unless flagged **(PHI — Rule 12)**:
 
-- **Audit trail**: an append-only, tamper-evident (hash-chained) `audit_log` of
-  who did what to which entity, when. Every mutation emits a row (Architecture
-  Rule 11); reads of another member's data are logged explicitly. The data-integrity
-  backbone (ALCOA+) accreditation expects.
-- **Patient-safety event → triage → RCA → CAPA (NSP)**: a committee notifies a central
-  **Núcleo de Segurança do Paciente** of an **event**, which is triaged
-  (patient-safety-event? → reach → harm → sentinel screen) to a **review pathway**; a
-  warranted **root-cause analysis** (fishbone / 5-Whys) drives a closed corrective/
-  preventive loop — action plan → **verification of effectiveness** → closure with lessons
-  learned. PHI-bearing, NSP-owned, access-follows-custody (Phase 14, sub-phases 14a–14d;
-  ADR 0030). Committees keep their lightweight action-tasks and escalate when they need this
-  rigor.
-- **Inter-committee case referrals (Encaminhamentos)**: a committee sends a `Case`
-  to another committee for analysis (Notification / Analysis Request) over a **frozen
-  point-in-time snapshot**; the destination returns a **structured reply**; each
-  committee's internal work stays private from the other, while **QPS (the NSP/PQS
-  roster)** sees the full trajectory; an outstanding expected reply blocks case
-  conclusion. PHI-bearing under NSP-grade safeguards — the **second** PHI module
-  (Phase 22; Rule 12; ADR 0037).
-- **Quality indicator**: a managed metric (numerator/denominator, target,
-  periodicity, direction) measured over time and tracked vs target — entered
-  manually or **derived** from submitted-form aggregates via `question_key`.
-- **Accreditation standard & evidence link**: a configurable framework
-  (ONA / JCI / custom) of hierarchical standards; commissions link the artifacts
-  they produce (forms, meetings, cases, indicators, CAPA, documents) as
-  **evidence**, driving a **readiness / gap report**.
-- **Controlled document**: a policy/POP/protocol/regimento under a lifecycle with
-  named-approver e-signatures, effective/expiry dates, and a scheduled review cycle.
-- **Internal audit / mock tracer**: scored self-assessment rounds mapped to
-  standards; a non-conforming finding opens a CAPA and updates the standard's
-  assessment.
+- **Audit trail** — append-only, hash-chained `audit_log` (Rule 11).
+- **Patient-safety event → triage → RCA → CAPA (NSP)** — notify → triage → root-cause
+  → closed CAPA loop. **(PHI — Rule 12; ADR 0030.)**
+- **Inter-committee referrals (Encaminhamentos)** — a `Case` sent to another committee
+  over a frozen snapshot; structured reply; QPS sees the full trajectory. **(PHI —
+  Rule 12; ADR 0037.)**
+- **Quality indicator** — numerator/denominator/target/periodicity/direction; manual or
+  **derived** from submitted-form aggregates via `question_key`.
+- **Accreditation standard & evidence link** — ONA/JCI/custom framework; commissions
+  link artifacts as evidence, driving a **readiness/gap report**.
+- **Controlled document** — policy/POP/protocol lifecycle with e-signatures,
+  effective/expiry dates, scheduled review cycle.
+- **Internal audit / mock tracer** — scored self-assessment; a non-conforming finding
+  opens a CAPA.
 
 ## 2. Tech Stack (do not deviate without human approval)
 
 | Layer       | Choice                                                        |
 | ----------- | ------------------------------------------------------------- |
-| Frontend    | Next.js 15+ (App Router, TypeScript, Server Components first) |
+| Frontend    | Next.js 16+ (App Router, TypeScript, Server Components first) |
 | Styling     | Tailwind CSS v4 + shadcn/ui                                   |
 | Backend     | Supabase (Postgres, Auth/GoTrue, RLS, PostgREST via supabase-js) |
 | Auth        | Supabase Auth, `@supabase/ssr` for server-side sessions       |
@@ -139,329 +106,169 @@ context, under HIPAA safeguards (Rule 12; ADR 0030).
 | E2E testing | Playwright (`@playwright/test`)                               |
 | Unit tests  | Vitest + Testing Library                                      |
 | Local dev   | Supabase CLI (`supabase start` — local Docker stack)          |
-| Deploy      | Docker (Next.js standalone) + Caddy on a DigitalOcean droplet; Supabase Cloud in production |
+| Deploy      | Docker (Next.js standalone) on Coolify (Dockerfile app type — no compose/Caddy; ADR 0059); Supabase Cloud in production |
 
 ### Repository layout
 
 ```
 /
-├── CLAUDE.md                  # this file — shared rules + team protocol
-├── ARCHITECTURE.md            # architecture rules + canonical schema (see §3)
-├── PHASES.md                  # detailed phased plan + acceptance criteria (see §5)
-├── PROGRESS.md                # phase tracker — single source of truth for status
+├── CLAUDE.md / ARCHITECTURE.md / PHASES.md / PROGRESS.md   # rules, schema, plan, status
+├── Dockerfile                 # Coolify deploy — root, Next.js standalone (ADR 0059)
 ├── .claude/agents/            # teammate role definitions
 ├── supabase/
-│   ├── migrations/            # SQL migrations (owned by Backend)
-│   ├── seed.sql               # local dev seed data (test users, demo commission)
+│   ├── migrations/            # SQL migrations (Backend)
+│   ├── seed.sql               # local dev seed (test users, demo commission)
 │   └── config.toml
 ├── src/
-│   ├── app/                   # Next.js App Router (owned by Frontend)
-│   │   ├── (auth)/            # login, invite acceptance
-│   │   ├── admin/             # global admin area
-│   │   └── c/[slug]/          # commission area: manage / forms / dashboard
-│   ├── components/            # owned by Frontend
+│   ├── app/                   # Next.js App Router (Frontend)
+│   │   ├── (auth)/            # login, invite, password reset
+│   │   ├── admin/             # platform-admin area
+│   │   └── o/[org]/…/c/[commission]/  # tenant → commission areas (manage/forms/dashboard, NSP)
+│   ├── components/            # (Frontend)
 │   ├── lib/
-│   │   ├── supabase/          # client factories (browser/server) — Backend
+│   │   ├── supabase/          # client factories + middleware session/gating helper — Backend
 │   │   ├── queries/           # typed data-access functions — Backend
 │   │   └── types/             # generated DB types + domain types — Backend
-│   └── middleware.ts          # session refresh + route gating — Backend
-├── e2e/                       # Playwright specs (owned by Tester)
-├── docs/decisions/            # short ADRs for any non-trivial choice
-└── docker/                    # Dockerfile, compose, Caddyfile (Phase 8)
+├── e2e/                       # Playwright specs (Tester)
+└── docs/decisions/            # ADRs
 ```
 
-## 3. Architecture Rules
+## 3. Architecture Rules (index)
 
-The binding architecture rules and the canonical database schema live in
-**[ARCHITECTURE.md](./ARCHITECTURE.md)** — read it in full before any schema,
-RLS, query, or storage work; cross-references to "Architecture Rule N" point at
-its numbered rules. In brief:
+**Read [ARCHITECTURE.md](./ARCHITECTURE.md) in full before any schema, RLS, query, or
+storage work — it is authoritative.** "Architecture Rule N" refers to its numbered
+rules:
 
-1. **RLS is the security boundary** — explicit policies on every table; never
-   rely on UI hiding; service-role keys server-side only.
-2. **Canonical schema** — `profiles`, `commissions`, `commission_members`,
-   `forms`, `form_versions`, `form_sections`, `form_items`, `responses`,
-   `answers`, `response_section_signoffs`. Backend may extend, never contradict.
-   Includes the sections-integrity rules (default section, two-level ordering,
-   per-version `question_key`, `visible_when` shape, input-vs-display items).
-3. **Response lifecycle & resume** — `in_progress` → `submitted`; one draft per
-   user per version; submission goes through the `submit_response` RPC (the
-   authority); a single condition evaluator mirrored SQL ↔ TypeScript.
-4. **Sign-offs** — per (response, section); `signoff_role` governs who may sign,
-   enforced by RLS, only while `in_progress`.
-5. **Published versions are IMMUTABLE** (versions, sections, items) in the DB;
-   editing clones to a new draft preserving `question_key`s and conditions.
-6. **Storage immutability** — `form-assets` objects are never overwritten; every
-   upload gets a new path; cloning copies the reference only.
+1. **RLS is the security boundary** — explicit policies on every table; service-role keys server-side only; never rely on UI hiding.
+2. **Canonical schema** — `profiles`, `commissions`, `commission_members`, `forms`, `form_versions`, `form_sections`, `form_items`, `responses`, `answers`, `response_section_signoffs` (+ sections-integrity rules); extend, never contradict.
+3. **Response lifecycle & resume** — `in_progress` → `submitted` via the `submit_response` RPC (the authority); one draft per user/version; condition evaluator mirrored SQL ↔ TS.
+4. **Sign-offs** — per (response, section); `signoff_role` gated by RLS; only while `in_progress`.
+5. **Published versions are IMMUTABLE** — editing clones to a new draft, preserving `question_key`s + conditions.
+6. **Storage immutability** — `form-assets` never overwritten; new path per upload; cloning copies the reference.
 7. **Explanatory text is sanitized Markdown, never raw HTML** (stored-XSS).
-8. **Generated types** regenerated after every migration; imported only from
-   `src/lib/types/`.
-9. **Data access goes through `src/lib/queries/`** — no inline supabase-js;
-   centralize the "answerable questions" and "submitted responses" filters.
-10. **All user-facing text pt-BR**; code, comments, commits, docs in English.
-11. **Auditability** (established Phase 13) — an append-only, tamper-evident
-    audit trail; every mutation emits an audit row, and reads of another member's
-    data — and every read of PHI (Rule 12) — are logged. The log records *that*
-    something changed/was read and *who*, never copying answer payloads, free-text/
-    Markdown bodies, or PHI into itself.
-12. **PHI / HIPAA handling** (established Phase 14; extended to a second module in
-    Phase 22 — ADR 0030, 0035, 0037) — PHI is permitted on HIPAA-compliant
-    infrastructure (Supabase BAA), under the binding LGPD + ANVISA/RDC + CFM regime
-    (ADR 0035), collected minimum-necessary, isolated into dedicated tables behind the
-    tightest RLS, access-audited, and protected by platform at-rest encryption
-    (column-level encryption declined). PHI lives in exactly two modules — the
-    patient-safety/NSP module and the inter-committee **referral** module — both under
-    identical isolation + audited-single-door safeguards; modules that don't need
-    patient identity hold none by design.
-
-See ARCHITECTURE.md for the authoritative, detailed form of each rule.
+8. **Generated types** regenerated after every migration; imported only from `src/lib/types/`.
+9. **Data access via `src/lib/queries/`** — no inline supabase-js.
+10. **User-facing text pt-BR**; code, comments, commits, docs in English.
+11. **Auditability** — append-only, tamper-evident trail; every mutation emits a row; reads of another member's data + every PHI read are logged (records *that* + *who*, never payloads/PHI).
+12. **PHI / HIPAA** — see §1: three isolated modules (`event_patient` / `referral_patient` / `case_patient`) under identical isolation + audited-single-door safeguards; others hold none by design.
 
 ## 4. Agent Team
 
-Development uses Claude Code **Agent Teams** (experimental). Enable in
-`.claude/settings.json`:
+Development uses Claude Code **Agent Teams** (experimental; requires v2.1.32+), enabled
+via `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS: "1"` in `.claude/settings.json`. The session
+that opens the project is the **team lead / orchestrator**: it coordinates, assigns,
+reviews plans, and does **not** write feature code. **Lead orchestration protocol →
+[docs/lead-playbook.md](./docs/lead-playbook.md)** (lead only).
 
-```json
-{
-  "env": { "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1" }
-}
-```
+**Delegation:** exploration/grep → Haiku · implementation → Sonnet · architecture &
+multi-file refactors → Opus · read-only reviewers → Haiku/Sonnet.
 
-Requires Claude Code v2.1.32+. The session that opens this project acts as
-**team lead / orchestrator**: it coordinates, assigns tasks, reviews plans, and
-does NOT write feature code itself.
+| Teammate   | Agent type          | Scope |
+| ---------- | ------------------- | ----- |
+| `frontend` | `frontend-engineer` | All UI: `src/app`, `src/components`. MUST use the `frontend-design` skill before new screens; consults `vercel-react-best-practices`. |
+| `backend`  | `backend-engineer`  | Supabase migrations, RLS, seed, `src/lib/{supabase,queries,types}`, middleware, server route handlers, Docker/deploy. Consults `supabase` + `supabase-postgres-best-practices`. |
+| `tester`   | `qa-tester`         | Playwright E2E in `e2e/`, execution, bug reports. Never fixes app code. |
+| `qa`       | `qa-reviewer`       | Final phase review: requirements, code, security/RLS. Read-only on app code; writes only review reports. |
 
-### Agent Delegation Rules
-- Exploration/grep tasks → Haiku
-- Implementation → Sonnet  
-- Architecture decisions / multi-file refactors → Opus
-- Read-only reviewers (security, quality) → Haiku or Sonnet
-
-### Teammates (spawn using these agent types from `.claude/agents/`)
-
-| Teammate name | Agent type          | Scope |
-| ------------- | ------------------- | ----- |
-| `frontend`    | `frontend-engineer` | All UI: `src/app`, `src/components`. MUST use the `frontend-design` skill before building new screens; consults the `vercel-react-best-practices` skill when writing/refactoring React/Next.js. |
-| `backend`     | `backend-engineer`  | Supabase migrations, RLS, seed data, `src/lib/{supabase,queries,types}`, `middleware.ts`, server route handlers, Docker/deploy assets. Consults the `supabase` and `supabase-postgres-best-practices` skills for Supabase/Postgres work. |
-| `tester`      | `qa-tester`         | Playwright E2E specs in `e2e/`, test execution, bug reports. Never fixes app code. |
-| `qa`          | `qa-reviewer`       | Final phase review: requirements audit, code review, security/RLS review. Read-only on app code; writes only review reports. |
-
-### Lead protocol
-
-- **Keep `frontend` and `backend` warm across phases.** Spawn each ONCE (their first
-  phase) and REUSE the same teammate for later phases with a new task-specific prompt —
-  they retain the architecture + codebase context they built up, which removes the
-  per-phase re-read and shrinks the "lead notes" you have to write. Teammates still do
-  NOT share your conversation, so each phase's prompt must include that phase's
-  context, file paths, and acceptance criteria — but they already hold ARCHITECTURE.md
-  and the code they wrote. Spawn a FRESH teammate only if one is genuinely stuck or
-  context-poisoned.
-- **Contract-first sequencing.** At phase start, have `backend` post the typed
-  query/action *signatures* `frontend` depends on (typed stubs in `src/lib/queries/**`
-  and the relevant `actions.ts`) BEFORE implementing them, so `frontend` builds against
-  real types in parallel instead of inventing a provisional shape that later mismatches
-  (this caused rework in Phase 6). Backend then fills in the implementations.
-- **Require plan approval** for `backend` on any task touching migrations or RLS, and
-  for `frontend` on any task introducing a new page/route group — but **right-size the
-  review**. Work that follows an already-approved pattern (a routine additive
-  migration, a new RPC mirroring an existing one, a flag flip; a standard
-  coordinator-gated route group) gets a **one-line plan + your ack**. Reserve a full
-  plan review for **novel or security-sensitive** work: a new RLS *shape*, a
-  `SECURITY DEFINER` read path, a service-role route handler, anything touching the
-  condition evaluator or the immutability triggers, or a genuinely new UI pattern.
-  Reject any plan (fast-tracked or full) that lacks a testing note or violates file
-  ownership.
-- Spawn `tester` only when the phase's features are implemented and the dev
-  server runs. Spawn `qa` only after the tester reports green.
-- Break each phase into 5–6 tasks per teammate on the shared task list; mark
-  dependencies (e.g., frontend form-builder task depends on backend
-  versioning-API task).
-- Enforce file ownership (section above). Two teammates must never edit the
-  same file in the same phase. Shared types change only via `backend`.
-- **Keep the team warm between phases; do the full team cleanup at PROJECT end**
-  (or when a teammate is genuinely done for the project) — the lead runs cleanup,
-  never a teammate. Spinning the team down each phase only to rebuild it next phase
-  throws away context you then pay to re-inject; don't.
+**File ownership is binding**: two teammates never edit the same file in a phase;
+shared types change only via `backend`. Details of warm-team reuse, contract-first
+sequencing, and plan-approval right-sizing live in the lead-playbook.
 
 ## 5. Phased Development Plan
 
-The full phase-by-phase plan, with each phase's deliverables and acceptance
-criteria, lives in **[PHASES.md](./PHASES.md)**. Each phase is gated by the
-Phase Gate (§6). PHASES.md holds the **core-platform track (0–12)** + the index
-of the accreditation track; the **accreditation track (13–21)** detail is split
-into **[docs/phases/accreditation-track.md](./docs/phases/accreditation-track.md)**
-with its track-wide context in
-**[docs/quality-track-context.md](./docs/quality-track-context.md)** (read that
-first before building in 13–21). Both defer to this file and ARCHITECTURE.md for
-the binding rules — one codebase, one schema, one rulebook.
+The full plan + acceptance criteria live in **[PHASES.md](./PHASES.md)** (core
+platform 0–12 + the accreditation-track index). Accreditation track **13–21** detail is
+in **[docs/phases/accreditation-track.md](./docs/phases/accreditation-track.md)** (read
+**[docs/quality-track-context.md](./docs/quality-track-context.md)** first). **Live
+status and the full backlog** — including Phase 22 (Referrals), Phase 23 (Patient
+Identity), and cross-cutting workstreams — live in **PROGRESS.md**. One codebase, one
+schema, one rulebook.
 
-**Hard rule: no phase begins until the previous phase has passed the Phase
-Gate (§6) and the human has approved.** Phases are sequenced so the Backend can
-run one phase ahead on schema work when idle, but nothing is merged ahead of
-its phase.
-
-| Phase | Name |
-| ----- | ---- |
-| 0 | Scaffolding & Environment |
-| 1 | Database Schema, Auth & RLS |
-| 2 | Authentication & App Shell |
-| 3 | Admin Area & User Management |
-| 4 | Form Builder & Versioning |
-| 5 | Wizard Filling, Conditional Sections & Resume |
-| 6 | Section Sign-offs & Submission Lifecycle |
-| 7 | Multi-Phase Cases |
-| 8 | Dashboards & Submissions Browser |
-| 9 | Deployment *(pending — features below are built ahead of it)* |
-| 10 | Meetings |
-| 11 | Interviews |
-| 12 | Case Timeline |
-| **— Accreditation & Quality-Governance Track —** | |
-| 13 | Audit Trail |
-| 14 | Patient-Safety Events, Triage, RCA & CAPA (NSP) — sub-phases 14a–14d |
-| 15 | Quality Indicators |
-| 16 | Standards Crosswalk & Readiness/Gap Engine |
-| 17 | Controlled-Document Lifecycle |
-| 18 | Self-Assessment, Internal Audit & Mock Tracer |
-| 19 | Surveyor Access & Evidence Export |
-| 20 | Notifications & Escalation |
-| 21 | Committee Charters & Meeting Cadence |
-
-Phases 13–21 are the **accreditation-readiness track**: they make the platform
-provably useful to hospitals pursuing ONA / JCI accreditation while keeping its
-governance/quality-layer positioning, with PHI confined to the patient-safety module (ADR 0030). They follow the same
-Phase Gate (§6) and ordering hard-rule. **Deployment plan (revised 2026-07-05, ADR
-0057): remaining pre-pilot phases build in order 15 → 17 → 16; ship a pilot after
-Phase 16** (the P0 core — audit trail, CAPA, indicators, document control, standards
-crosswalk), which also validates the prod-auth gap (ADR 0009); Phases 18–21 follow,
-informed by pilot feedback. See **docs/phases/accreditation-track.md** for the
-authoritative detail of these phases, **docs/quality-track-context.md** for the
-track context, and ADR 0028 for the track's rationale and sequencing.
-
-See PHASES.md for the authoritative detail of the core-platform phases (0–12)
-and the accreditation-track index.
+**Hard rule:** no phase begins until the previous phase has passed the Phase Gate (§6)
+**and** the human has approved. Backend may run one phase ahead on schema work, but
+nothing merges ahead of its phase. Current sequencing / pilot plan: **ADR 0057** (build
+15 → 17 → 16; ship a pilot after Phase 16).
 
 ## 6. Phase Gate (mandatory, in order)
 
-1. **Build complete** — frontend & backend mark all phase tasks done; lint,
-   typecheck, and unit tests pass locally.
-2. **Test pass** — lead spawns `tester`. Tester writes/updates Playwright specs for
-   the phase's acceptance criteria and files a bug report in `PROGRESS.md` for every
-   failure. During the fix loop the tester re-runs only the **failing + current-phase
-   specs** (chromium) for fast feedback; the **FULL E2E suite (regression included)
-   runs once to declare green** — green still requires the full suite to pass.
-   Engineers fix; tester re-runs. Repeat until green. Tester never edits app code;
-   engineers never edit specs to make them pass without tester sign-off.
-3. **QA review** — lead spawns `qa`. QA audits the phase against this file's
-   requirements, reviews code quality and RLS coverage, and writes
-   `docs/reviews/phase-N-review.md` with verdict `APPROVED` or
-   `CHANGES REQUESTED` (with an itemized list). Changes loop back to step 1.
-4. **Human approval** — lead presents a summary (what was built, test results,
-   QA verdict, open risks) and WAITS for explicit human approval.
-5. **Record** — lead updates `PROGRESS.md` (phase → ✅, date, commit hash, links to
-   review), archives the completed phase's task detail to `docs/progress/phase-N.md`
-   (§7), updates `docs/backend-state.md` if the backend surface changed, and commits
-   with `phase(N): complete — <summary>`. The team stays warm for the next phase;
-   full cleanup is at project end (§4).
-
-A `TaskCompleted` hook may be configured to reject completion of any task whose
-description includes `[gate]` unless `npx playwright test` exits 0 — prefer
-this over trusting self-reports.
+1. **Build complete** — all phase tasks done; lint, typecheck, unit tests pass locally.
+2. **Test pass** — `tester` writes/updates Playwright specs for the acceptance criteria
+   and files a bug per failure in PROGRESS.md. The fix loop reruns **failing +
+   current-phase** specs (chromium); the **full E2E suite runs once to declare green**.
+   Tester never edits app code; engineers never edit specs to pass without tester
+   sign-off.
+3. **QA review** — `qa` audits the phase and writes
+   `docs/reviews/phase-N-review.md` with `APPROVED` or `CHANGES REQUESTED`. Changes loop
+   to step 1.
+4. **Human approval** — lead presents a summary (built, test results, QA verdict, open
+   risks) and **waits** for explicit approval.
+5. **Record** — lead updates PROGRESS.md, **rotates** the completed phase's detail out
+   (mechanics: lead-playbook), updates `docs/backend-state.md` if the backend surface
+   changed, and commits `phase(N): complete — <summary>`.
 
 ## 7. Progress Tracking
 
-`PROGRESS.md` at the repo root is the single source of truth. Every teammate
-updates ONLY their own rows/sections; the lead owns the phase status table.
-Update it when: a task starts/finishes, a bug is filed/fixed, a gate step
-passes, a decision is made. Never report status verbally without writing it
-to `PROGRESS.md` first. Format is defined in the file itself.
-
-**Keep `PROGRESS.md` small — every spawn reads it.** Target a few hundred lines / well
-under ~60 KB. The live file holds only the Phase Status table, the **current** phase's
-task table + lead notes, and the *current head* of each cross-phase log — NOT the full
-history. At the §6 Record step the lead **rotates** the just-completed phase's detail out
-of the live file into `docs/progress/`, leaving a one-line pointer behind:
-
-- **Phase task detail + per-phase notes** → `docs/progress/phase-N.md` (or a feature-named
-  file, e.g. `case-access.md`); replace with a one-line pointer under "Completed work".
-- **Bug Log** → keep only **OPEN** bugs live; move resolved/closed rows to
-  `docs/progress/bug-log-archive.md`.
-- **Test Run Summary** → keep only the **most recent gate's** rows live; move the rest to
-  `docs/progress/test-run-archive.md`.
-- **QA Verdicts** → **one line only**: verdict + date + link to `docs/reviews/phase-N-review.md`,
-  which already holds the full analysis. Do not restate rationale in the PROGRESS.md row, and
-  do not also copy it to `docs/progress/qa-verdicts-archive.md` — that file predates this rule
-  and is redundant with the review doc; don't grow it further.
-- **Decisions** → **one line per decision** + ADR link; rationale lives in
-  `docs/decisions/` (verbose pre-collapse history in `docs/progress/decisions-log.md`).
-- **Follow-ups / Deferred** → keep only **OPEN** (`[ ]`/`[~]`) items live; move resolved
-  `[x]` items to `docs/progress/follow-ups-archive.md`.
-
-The durable map of what the backend already provides lives in **`docs/backend-state.md`**
-(the lead keeps it current) so per-phase "lead notes" reference it instead of re-deriving
-it each phase. Archive files under `docs/progress/` are append-only and never loaded by
-spawns — detail goes there to stay out of every teammate's context.
+**PROGRESS.md is the single source of truth for status.** Update it when a task
+starts/finishes, a bug is filed/fixed, a gate step passes, or a decision is made —
+**never report status verbally without writing it there first**. Every teammate updates
+**only their own** rows/sections; the lead owns the phase-status table. **Keep it small
+— every spawn reads it** (target well under 60 KB): the live file holds only the current
+phase + the head of each cross-phase log. The rotation/archive discipline is the lead's
+(mechanics: **lead-playbook**). The durable backend-surface map is
+**`docs/backend-state.md`** — reference it instead of re-deriving the backend each phase.
 
 ## 8. Conventions & Quality Bar
 
 - TypeScript `strict`; no `any` without an inline justification comment.
 - Conventional commits: `feat(scope):`, `fix:`, `test:`, `chore:`, `phase(N):`.
 - Server Components by default; `"use client"` only where interaction requires it.
-- Every form input accessible: labels, keyboard navigation, visible focus.
-  The tester includes at least one keyboard-only flow per phase.
-- Errors are user-readable in pt-BR; raw Supabase/Postgres errors never reach the UI.
-- Secrets only in `.env.local` (gitignored). `NEXT_PUBLIC_` vars: Supabase URL
-  and anon key only. Service-role key is server-only — if it appears in client
-  code, that is a phase-blocking bug.
+- Every form input accessible: labels, keyboard navigation, visible focus. The tester
+  includes at least one keyboard-only flow per phase.
+- Errors user-readable in pt-BR; raw Supabase/Postgres errors never reach the UI.
+- Secrets only in `.env.local` (gitignored). `NEXT_PUBLIC_` vars: Supabase URL + anon
+  key only. Service-role key is server-only — in client code, that's a phase-blocking bug.
 - Non-trivial decisions get a 5–10 line ADR in `docs/decisions/`.
 
 ## 9. Commands Reference
 
-> **Status:** Phase 0 is not yet complete. Until scaffolding lands, NONE of the
-> commands below run from a clean clone (there is no `package.json`, `supabase/`,
-> or `src/` yet) — they document the intended toolchain. Check `PROGRESS.md` for
-> the current phase before assuming any command works.
-
 ```bash
-supabase link --project-ref azkbbhskturikxpgmafq   # link CLI to remote project (one-time, run first)
+supabase link --project-ref azkbbhskturikxpgmafq   # link CLI to remote (one-time)
 supabase db push                                    # push migrations to remote
 supabase db reset --linked                          # reset remote DB + seed (destructive!)
 supabase gen types typescript --linked > src/lib/types/database.ts
 npm run dev                    # Next.js dev server (http://localhost:3000)
 npm run lint && npm run typecheck
 npm run test                   # Vitest unit tests (full suite)
-npx playwright test            # full E2E suite (requires dev server + seeded DB)
-npx playwright test --ui       # interactive debugging
+npx playwright test            # full E2E suite (needs dev server + seeded DB)
 ```
 
-Running a single test (tight debug loops):
+Single-test debug loops: `npx vitest run <file>` / `-t "<name>"`; `npx playwright test
+<spec>` / `-g "<title>"` / `--project=chromium`.
 
-```bash
-npx vitest run path/to/file.test.ts        # one Vitest file
-npx vitest run -t "name of the test"       # one Vitest test by name
-npx vitest watch path/to/file.test.ts      # watch a single file
-npx playwright test e2e/login.spec.ts      # one E2E spec file
-npx playwright test -g "logs in"           # E2E tests matching a title
-npx playwright test --project=chromium     # restrict to one browser
-```
-
-E2E seeded personas (defined in `supabase/seed.sql`, applied via `supabase db reset --linked`):
-`admin@test.local`, `chefe.ccih@test.local` (staff_admin, commission A),
-`staff1.ccih@test.local`, plus equivalents for commission B. Password for all:
-`Test1234!`.
+**E2E seed personas** (`supabase/seed.sql`, applied by `db reset`). Two orgs — **Rede A**
+(commissions CCIH + Farmácia) and **Rede B** (cross-org boundary). Password for ALL:
+`Test1234!`. Key personas (full roster in the seed header): `platform@test.local`
+(`platform_admin`), `orgadmin.a@test.local` (`org_admin` A), `chefe.ccih@test.local`
+(`staff_admin` A / CCIH), `multi@test.local` (`staff` of A **and** B — commission
+picker), `nsporg.a@test.local` (`nsp_org_admin` A).
 
 ## Loop Safety Rules
-- Never exceed 5 fix iterations without reporting to the user
-- Each iteration must fix at least one new issue — if the same error recurs unchanged, stop and escalate
-- Track which files each agent modified to detect conflicts
-- If two agents need to modify the same file, serialize those tasks
-- Log every iteration: what was tested, what failed, what was fixed
+
+- Never exceed 5 fix iterations without reporting to the user.
+- Each iteration must fix at least one new issue — if the same error recurs unchanged,
+  stop and escalate.
+- Track which files each agent modified to detect conflicts.
+- If two agents need to modify the same file, serialize those tasks.
+- Log every iteration: what was tested, what failed, what was fixed.
 
 ## graphify
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+This project has a knowledge graph at `graphify-out/`.
 
-Rules:
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- For codebase questions, run `graphify query "<question>"` first when
+  `graphify-out/graph.json` exists; `graphify path "<A>" "<B>"` for relationships and
+  `graphify explain "<concept>"` for focused concepts — these return a scoped subgraph,
+  usually much smaller than GRAPH_REPORT.md or raw grep.
+- Use `graphify-out/wiki/index.md` for broad navigation; read
+  `graphify-out/GRAPH_REPORT.md` only for broad architecture review.
+- After modifying code, run `graphify update .` (AST-only, no API cost).
