@@ -54,3 +54,8 @@ next-env.d.ts
 
 # personal Pictures library accidentally nested under docs/design (not project design assets)
 docs/design/Pictures/
+
+# graphify: keep the queryable graph + report committed, ignore regenerable local state
+# (cache/ churns on every `graphify update`; dated dirs are rebuild backups)
+graphify-out/cache/
+graphify-out/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/

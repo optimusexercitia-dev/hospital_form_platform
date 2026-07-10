@@ -269,6 +269,5 @@ This project has a knowledge graph at `graphify-out/`.
   `graphify-out/graph.json` exists; `graphify path "<A>" "<B>"` for relationships and
   `graphify explain "<concept>"` for focused concepts — these return a scoped subgraph,
   usually much smaller than GRAPH_REPORT.md or raw grep.
-- Use `graphify-out/wiki/index.md` for broad navigation; read
-  `graphify-out/GRAPH_REPORT.md` only for broad architecture review.
+- Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review.
 - After modifying code, run `graphify update .` (AST-only, no API cost).
