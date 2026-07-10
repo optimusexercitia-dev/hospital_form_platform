@@ -21,6 +21,17 @@ encryption declined), [0037](./0037-inter-committee-referrals.md) (referral PHI 
 minimum-necessary). **Evaluation context:**
 [`docs/design/case-generalization-evaluation.md`](../design/case-generalization-evaluation.md).
 
+> **Execution (2026-07-10):** this ADR's **E0 foundation** is now scheduled as **phase F1** of the
+> unified **[Pre-Pilot Foundations Program](../plans/pre-pilot-foundations-program.md)**, sequenced
+> **before** the attachments substrate (ADR 0063) because `attachment_subjects` references the
+> `participants` registry this ADR introduces (program §1 C-α/C-β). The program also folds in the
+> DB-hardening remainder: **D12** (polymorphism dialect) is closed by ratifying the `participants`
+> typed-registry as one of two sanctioned dialects (§2), and the standalone **D5/§6.2 patient-master
+> track is superseded** by this participant model + the existing `patient_index`/`patient_xref` linkage
+> (§1 C-δ). The E0 build honors the R1/R2/R5/R6 + M1/M2 verify-items recorded below. **E1 (access
+> spine) + E2 (ethics procedure) stay post-pilot**, behind the **m2 hard gate** (flags stay OFF on any
+> real data until E1 lands).
+
 ---
 
 ## Context

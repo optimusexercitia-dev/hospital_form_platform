@@ -8,6 +8,16 @@ QA APPROVED [1 MAJOR cursor-injection found+fixed pre-deploy], remote `db reset 
 [../progress/pre-pilot-hardening-wave2.md](../progress/pre-pilot-hardening-wave2.md)) ·
 **Wave 3/4 (D3, P7, §6.1/§6.2/§6.3 refactors) DEFERRED** · **Date:** 2026-07-04 · **Owner:** platform lead →
 `backend` (+ `frontend` for P1/P3/P4 app-side).
+
+> **Wave 3/4 dispositioned (2026-07-10) → [Pre-Pilot Foundations Program](./pre-pilot-foundations-program.md).**
+> The remaining structural tracks are the connective tissue for three approved ADRs, so they are folded
+> into that unified program rather than run as a standalone Wave 3/4: **D12** (polymorphism dialect) is
+> **CLOSED** by ratifying two sanctioned dialects (owner-dispatch + typed registry); **D5/§6.2** (patient
+> master) is **SUPERSEDED** by ADR 0064's participant model + the existing `patient_index`/`patient_xref`;
+> **D6/§6.3** (metadata `form_item_types`) is **CANCELLED** by ADR 0060 (keep the typed CHECK enum). **D3**
+> (jsonb→junction) + **WS-8** (D8/D10/D11) move to that program's F-cleanup; **P6/P7** + the **§6.1**
+> membership collapse stay deferred (pre-Phase-19 / backlog). See the program's §5 for the full item-by-item
+> disposition.
 **Posture:** pre-launch, **reset-OK** — no live data, so we fix the *correct* shape, not back-compat
 (see memory `prelaunch-db-reset-ok`).
 **Sources:** `../reviews/external-db-audit-2026-07.md` (audit) ·

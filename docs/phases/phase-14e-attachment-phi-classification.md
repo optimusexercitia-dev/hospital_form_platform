@@ -6,7 +6,10 @@
 > the fix into a centralized substrate and still delivers everything the narrow plan promised.
 > **Track:** PHI hardening (extends ARCHITECTURE Rule 12 to a shared attachments layer).
 > **Depends on:** Phase 14 (NSP/PHI safeguards), Phase 13 (audit trail).
-> **Sequencing (D14):** build NEXT, before resuming the 15 → 17 → 16 pre-pilot track (ADR 0057).
+> **Sequencing (updated 2026-07-10):** 15/17 have shipped, so the original "build next before 15→17→16"
+> is superseded. This is now **phase F2 of the [Pre-Pilot Foundations Program](../plans/pre-pilot-foundations-program.md)**,
+> built **after F1 (case-participants, ADR 0064)** because `attachment_subjects` re-keys to the
+> `participants` registry (program §1 C-β), and before/around Phase 16.
 > **ADR:** [0063](../decisions/0063-centralized-attachments-substrate.md) — **WRITTEN** (2026-07-09;
 > refines this plan). It adds six seams to the §3.1 core: single-owner + non-authorizing
 > `attachment_references`, descriptive PHI-safe `attachment_subjects`, `document_group_id`/

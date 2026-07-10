@@ -9,6 +9,17 @@ which this ADR refines but does **not** supersede; ADR [0030](./0030-patient-saf
 **Binding rules:** Rule 1 (RLS is the boundary), Rule 6 (storage immutability), Rule 11 (audit),
 Rule 12 (PHI). **Schema draft:** [`docs/design/attachments-core-schema-draft.md`](../design/attachments-core-schema-draft.md).
 
+> **Execution (2026-07-10):** built as **phase F2** of the unified
+> **[Pre-Pilot Foundations Program](../plans/pre-pilot-foundations-program.md)**. Two reconciliations
+> from that program bind this ADR: (a) **`attachment_subjects` is re-keyed to reference the
+> `participants` registry** (ADR 0064) — `(attachment_id, participant_id → participants(id), role_id →
+> case_participant_roles(id), note)` — instead of its own `(subject_type, subject_id, subject_role)`
+> polymorphism, so there is **one** subject/role vocabulary, not two (program §1 C-β). This makes
+> **F1 (participants) a hard prerequisite of F2 (attachments)**. (b) The **`form_upload` owner_type
+> stays reserved-inert but the `form_items.phi_policy` reservation is dropped** (program §1 C-ζ; ADR
+> 0060 rejected file-upload answers). The two ratified polymorphism dialects (owner-dispatch vs. typed
+> registry) that close hardening **D12** are recorded in program §2 / the F0 conventions ADR.
+
 ## Context
 
 A development team on a comparable hospital-committee platform shared a full uploaded-document

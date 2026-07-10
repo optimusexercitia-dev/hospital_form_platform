@@ -139,9 +139,12 @@ core owning the physical file facts + a `sensitivity_tier`, with physically-tier
 a hard audited PHI-read door (service-role signed), replacing the seven per-domain upload silos.
 Authorization stays domain-owned (dispatched per `owner_type`). Folds in case/meeting/interview
 docs (closing the PHI-read-audit gap and the reserved "14f" interview coverage), adds action-item
-attachments, and reserves form-item uploads (design-only ingress contract). Sequenced to build
-**next, before resuming 15 → 17 → 16** (D14). Full plan:
-`docs/phases/phase-14e-attachment-phi-classification.md`; ADR 0063 (to write at execution).
+attachments, and reserves form-item uploads (design-only ingress contract). **Sequencing updated
+2026-07-10:** now **phase F2 of the [Pre-Pilot Foundations Program](../plans/pre-pilot-foundations-program.md)**
+— built **after F1 (case-participants, ADR 0064)** because `attachment_subjects` re-keys to the
+`participants` registry — and around Phase 16 (15/17 already shipped). Full plan:
+`docs/phases/phase-14e-attachment-phi-classification.md`; ADR
+[0063](../decisions/0063-centralized-attachments-substrate.md) (written).
 
 #### Phase 14a — NSP Foundation, Event Intake & Hand-off (req. event detection → notification)
 The PHI/HIPAA foundation (ADR 0030 + the binding-doc reversal) lands here, plus the NSP entity

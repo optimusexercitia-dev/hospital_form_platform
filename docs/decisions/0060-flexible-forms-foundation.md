@@ -8,6 +8,16 @@
 (published + storage immutability), Rule 1 (RLS), Rule 10 (pt-BR), Rule 11 (audit),
 Rule 12 (PHI isolation).
 
+> **Execution (2026-07-10):** this ADR is now built as **phase F3** of the unified
+> **[Pre-Pilot Foundations Program](../plans/pre-pilot-foundations-program.md)**, which sequences it
+> collision-free with the attachments substrate (ADR 0063), the case-participant model (ADR 0064),
+> and the DB-hardening remainder. Two reconciliations from that program touch this ADR: (a) the
+> hardening **D6/§6.3 metadata-driven `form_item_types` refactor is confirmed CANCELLED** — superseded
+> by this ADR's Gap-1 decision to keep the typed CHECK enum (program §1 C-ε); (b) the design-only
+> `form_items.phi_policy` reservation from ADR 0063/phase-14e §3.8 is **dropped** — dead schema for the
+> file-upload answers this ADR rejected (program §1 C-ζ). Form-item typing stays a single-owner (F3)
+> surface.
+
 ## Context
 
 A partner group circulated a very general Supabase forms/answers data model. A
