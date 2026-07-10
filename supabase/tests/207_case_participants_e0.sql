@@ -16,9 +16,13 @@
 --   K7 disposal purges each patient participant's patient_xref row (R3) + redacts the
 --      registry display_name + soft-removes the case links (Q4).
 --   K8 REVOKE…FROM PUBLIC on the new RPCs (t19 guard).
+--   K9 QA phase-F1 MAJOR-1/MINOR-1 regression lock: the SELECT grant + RLS policy pair
+--      on the seven new non-PHI tables is actually live for `authenticated` (not just
+--      exercised through a DEFINER RPC or the superuser default role), and the catalog
+--      write grant + `_admin_write` policy adjudicate correctly.
 
 begin;
-select plan(21);
+select plan(30);
 
 update app.feature_flags set enabled = true where key = 'case_patient';
 update app.feature_flags set enabled = true where key = 'case_access';
@@ -243,6 +247,138 @@ select is(
      and p.proname in ('set_participant_patient', 'get_participant_patient',
                        'get_case_patients', 'get_case_professional')),
   false, 'K8: PUBLIC has NO EXECUTE on any new F1 public RPC (t19)');
+
+-- =========================================================================
+-- K9 · QA phase-F1 MAJOR-1/MINOR-1 regression lock. Every direct table read/write
+--      above this point runs either as a DEFINER RPC (grant-immune) or at the
+--      default superuser role (bypasses GRANT + RLS) — so the `_select` policies on
+--      the seven new non-PHI tables were never once exercised AS `authenticated`.
+--      Exercise the grant+policy pair for real, `set local role authenticated`.
+-- =========================================================================
+
+-- Clear the JWT claim left by the last claims_for() call above (K7): it is a
+-- transaction-local GUC (set_config(..., true)), so it survives `reset role` and
+-- would otherwise make auth.uid() resolve to a stale persona for the privileged
+-- profile writes below, tripping guard_profile_privileged_columns' service-role-only
+-- check on home_organization_id. Matches the established 61_answer_model_v2.sql
+-- pattern.
+select set_config('request.jwt.claims', null, true);
+
+-- A foreign-org reader (K6's org2 has no commission/user yet — mint a user anchored
+-- there) to prove "0 rows", NOT a permission error, on the org-scoped catalog tables.
+-- `is_org_member`/`is_org_admin_of` key off org_b-scoped grants this user never gets,
+-- so they read as a genuine foreign-org caller regardless of org2 having no commission.
+create temp table foreign_org on commit drop as select gen_random_uuid() as u_foreign;
+grant select on foreign_org to authenticated;
+insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
+  values ('00000000-0000-0000-0000-000000000000', (select u_foreign from foreign_org),
+          'authenticated', 'authenticated',
+          (select u_foreign from foreign_org) || '@test', now(), now());
+update public.profiles set full_name = 'Foreign Org User',
+       home_organization_id = (select org2 from other)
+  where id = (select u_foreign from foreign_org);
+
+-- An org_admin persona in org_b (bootstrap has none) to prove the catalog write
+-- grant + `_admin_write` policy adjudicate correctly.
+create temp table org_admin_p on commit drop as select gen_random_uuid() as u_oa;
+grant select on org_admin_p to authenticated;
+insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
+  values ('00000000-0000-0000-0000-000000000000', (select u_oa from org_admin_p),
+          'authenticated', 'authenticated',
+          (select u_oa from org_admin_p) || '@test', now(), now());
+update public.profiles set full_name = 'Org Admin B',
+       home_organization_id = (select org_b from k)
+  where id = (select u_oa from org_admin_p);
+insert into public.organization_members (organization_id, user_id, role)
+  values ((select org_b from k), (select u_oa from org_admin_p), 'org_admin');
+
+-- K9a · case_participants: in-scope reader (sa_x, coordinator of the case's
+-- commission) does a PLAIN select and gets the row(s) — proves the SELECT grant is
+-- live and RLS admits.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table k9_cp_in on commit drop as
+  select count(*)::int as n from public.case_participants where case_id = (select case_x from cs);
+reset role;
+grant select on k9_cp_in to authenticated;
+select ok((select n from k9_cp_in) > 0,
+  'K9a: an in-scope reader''s PLAIN select on case_participants (as authenticated) returns rows — SELECT grant is live');
+
+-- K9b · case_participants: out-of-scope reader (sa_y, foreign commission) gets 0
+-- rows via RLS filtering, not a permission-denied error.
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select count(*) from public.case_participants where case_id = %L $$, (select case_x from cs)),
+  'K9b: an out-of-scope reader''s select on case_participants does not error (no permission denied)');
+create temp table k9_cp_out on commit drop as
+  select count(*)::int as n from public.case_participants where case_id = (select case_x from cs);
+reset role;
+grant select on k9_cp_out to authenticated;
+select is((select n from k9_cp_out), 0,
+  'K9b: an out-of-scope reader''s select on case_participants returns 0 rows (RLS-filtered)');
+
+-- K9c · participants: an org member (sa_x, org_b) reads the registry rows created
+-- earlier in this test; a foreign-org reader gets 0.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table k9_part_in on commit drop as
+  select count(*)::int as n from public.participants where organization_id = (select org_b from k);
+reset role;
+grant select on k9_part_in to authenticated;
+select ok((select n from k9_part_in) > 0,
+  'K9c: an in-scope org member''s PLAIN select on participants (as authenticated) returns rows — SELECT grant is live');
+
+select test_helpers.claims_for((select u_foreign from foreign_org), false);
+set local role authenticated;
+create temp table k9_part_out on commit drop as
+  select count(*)::int as n from public.participants where organization_id = (select org_b from k);
+reset role;
+grant select on k9_part_out to authenticated;
+select is((select n from k9_part_out), 0,
+  'K9c: a foreign-org reader''s select on participants returns 0 rows (RLS-filtered, not an error)');
+
+-- K9d · case_types: same in/out-of-scope shape as K9c, on a second catalog table.
+insert into public.case_types (organization_id, key, display_name, primary_subject_kind)
+  values ((select org_b from k), 'k9_probe', 'Sonda K9', 'none');
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table k9_ct_in on commit drop as
+  select count(*)::int as n from public.case_types where organization_id = (select org_b from k);
+reset role;
+grant select on k9_ct_in to authenticated;
+select ok((select n from k9_ct_in) > 0,
+  'K9d: an in-scope org member''s PLAIN select on case_types (as authenticated) returns rows — SELECT grant is live');
+
+select test_helpers.claims_for((select u_foreign from foreign_org), false);
+set local role authenticated;
+create temp table k9_ct_out on commit drop as
+  select count(*)::int as n from public.case_types where organization_id = (select org_b from k);
+reset role;
+grant select on k9_ct_out to authenticated;
+select is((select n from k9_ct_out), 0,
+  'K9d: a foreign-org reader''s select on case_types returns 0 rows (RLS-filtered, not an error)');
+
+-- K9e · catalog write: an org-admin's INSERT on case_types succeeds (grant +
+-- `_admin_write` policy adjudicate); the same INSERT by a non-admin authenticated
+-- user (sa_x, a staff_admin but not an org_admin) is rejected by RLS.
+select test_helpers.claims_for((select u_oa from org_admin_p), false);
+set local role authenticated;
+select lives_ok(
+  format($$ insert into public.case_types (organization_id, key, display_name, primary_subject_kind)
+            values (%L, 'k9_admin_write', 'Sonda Admin', 'none') $$, (select org_b from k)),
+  'K9e: an org-admin''s INSERT on case_types (as authenticated) succeeds — write grant + _admin_write policy admit');
+reset role;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ insert into public.case_types (organization_id, key, display_name, primary_subject_kind)
+            values (%L, 'k9_non_admin_write', 'Sonda Não-Admin', 'none') $$, (select org_b from k)),
+  '42501', null,
+  'K9e: a non-org-admin''s INSERT on case_types (as authenticated) is rejected by RLS (write grant is live but policy denies)');
+reset role;
 
 select * from finish();
 rollback;

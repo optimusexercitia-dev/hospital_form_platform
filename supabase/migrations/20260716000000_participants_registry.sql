@@ -63,6 +63,13 @@ create policy case_types_admin_write on public.case_types
   using (app.is_admin() or app.is_org_admin_of(organization_id))
   with check (app.is_admin() or app.is_org_admin_of(organization_id));
 
+-- RLS narrows an existing grant; it does not create one (QA phase-F1 MAJOR-1). Without
+-- these, the SELECT/write policies above are inert and every authenticated read/write
+-- fails with `permission denied` before RLS ever evaluates. The `_admin_write` policy is
+-- already gated on org-admin authority, so granting write here just makes it live.
+grant select on public.case_types to authenticated;
+grant insert, update, delete on public.case_types to authenticated;
+
 -- -----------------------------------------------------------------------------
 -- 2 · case_type_terminology — per-type pt-BR label overrides (ADR 0064 Decision 4).
 --     All values stay pt-BR (Rule 10) — the type only selects WHICH pt-BR bundle.
@@ -102,6 +109,11 @@ create policy case_type_terminology_admin_write on public.case_type_terminology
     where ct.id = case_type_terminology.case_type_id
       and (app.is_admin() or app.is_org_admin_of(ct.organization_id))
   ));
+
+-- See the case_types grant comment above (QA phase-F1 MAJOR-1): the policies above are
+-- inert without a table-level grant.
+grant select on public.case_type_terminology to authenticated;
+grant insert, update, delete on public.case_type_terminology to authenticated;
 
 -- -----------------------------------------------------------------------------
 -- 3 · participants — dialect-3 typed-identity registry (ADR 0064 Decision 1).
@@ -164,6 +176,10 @@ create policy participants_select on public.participants
   for select to authenticated
   using (app.is_org_member(organization_id) or app.is_admin());
 
+-- See the case_types grant comment above (QA phase-F1 MAJOR-1). SELECT only — writes
+-- stay DEFINER-only by design (no INSERT/UPDATE grant here).
+grant select on public.participants to authenticated;
+
 -- -----------------------------------------------------------------------------
 -- 4 · case_participant_roles — case-type-aware role vocabulary (ADR 0064 Decision 1).
 --     Catalog table (ADR 0065 §5).
@@ -204,6 +220,11 @@ create policy case_participant_roles_admin_write on public.case_participant_role
   for all to authenticated
   using (app.is_admin() or app.is_org_admin_of(organization_id))
   with check (app.is_admin() or app.is_org_admin_of(organization_id));
+
+-- See the case_types grant comment above (QA phase-F1 MAJOR-1): the policies above are
+-- inert without a table-level grant.
+grant select on public.case_participant_roles to authenticated;
+grant insert, update, delete on public.case_participant_roles to authenticated;
 
 -- -----------------------------------------------------------------------------
 -- 5 · professional_profiles — Class-2 professional-identity registry (Decision 2).
@@ -280,6 +301,10 @@ create policy professional_profiles_select on public.professional_profiles
   for select to authenticated
   using (app.can_read_professional_profile(id, auth.uid()));
 
+-- See the case_types grant comment above (QA phase-F1 MAJOR-1). SELECT only — no write
+-- policy exists on this table (writes are DEFINER-only at E0).
+grant select on public.professional_profiles to authenticated;
+
 -- -----------------------------------------------------------------------------
 -- 6 · subtype tables — composite FK + CHECK pin the participant_type (R5).
 --     This is the single most important invariant: a `professional` can never
@@ -307,6 +332,10 @@ alter table public.professional_participants enable row level security;
 create policy professional_participants_select on public.professional_participants
   for select to authenticated
   using (app.can_read_professional_profile(professional_profile_id, auth.uid()));
+
+-- See the case_types grant comment above (QA phase-F1 MAJOR-1). SELECT only — no write
+-- policy exists on this table (writes are DEFINER-only at E0).
+grant select on public.professional_participants to authenticated;
 
 -- 6b · patient_participants — the type-gated patient subtype chain (m4).
 --      patient_identifiers (part 2) hangs off THIS, never off a bare participants row.

@@ -124,18 +124,23 @@ create trigger trg_assert_participant_same_org_as_case
 
 alter table public.case_participants enable row level security;
 
--- Case-scoped: read/write gated by the broad can_read_case (DEFINER over base tables,
--- R6-safe — E0 does NOT fold any participant term into can_read_case). Writes are
--- funneled through DEFINER RPCs in later phases; a direct client write still needs
--- can_read_case (defence in depth). The professional/patient WRITE authority
--- (coordinator-only) lives in the writers, not here.
+-- Case-scoped: read gated by the broad can_read_case (DEFINER over base tables, R6-safe
+-- — E0 does NOT fold any participant term into can_read_case).
+--
+-- QA phase-F1 MINOR-1: there is deliberately NO write policy here. `can_read_case` is a
+-- READ authority — gating a FOR ALL write policy on it would let any case reader write
+-- participants, the wrong boundary. Participant writes funnel through DEFINER RPCs (e.g.
+-- set_participant_patient, which inserts as the function owner and is grant/RLS-immune)
+-- until E1 defines a real write authority for case_participants. No direct-client write
+-- path exists — no INSERT/UPDATE/DELETE grant is issued on this table.
 create policy case_participants_select on public.case_participants
   for select to authenticated
   using (app.can_read_case(case_id, auth.uid()));
-create policy case_participants_write on public.case_participants
-  for all to authenticated
-  using (app.can_read_case(case_id, auth.uid()))
-  with check (app.can_read_case(case_id, auth.uid()));
+
+-- RLS narrows an existing grant; it does not create one (QA phase-F1 MAJOR-1). Without
+-- this, case_participants_select is inert and every authenticated read fails with
+-- `permission denied` before RLS ever evaluates.
+grant select on public.case_participants to authenticated;
 
 -- -----------------------------------------------------------------------------
 -- 3 · Re-key case_patient → patient_identifiers (N-per-case, participant-keyed).
@@ -446,7 +451,14 @@ as $$
 declare
   v_existing uuid;
 begin
-  -- The case's single existing patient participant, if one is already on file.
+  -- The case's single existing patient participant, if one is already on file. QA
+  -- phase-F1 MINOR-2: this resolves via an INNER join on patient_identifiers, which is
+  -- safe today because set_participant_patient always writes an identifiers row for
+  -- every patient participant it creates — so after any single-patient write the
+  -- resolver finds it. The invariant is implicit, though: the E1 multi-patient path
+  -- must never create a patient participant WITHOUT a patient_identifiers row, or this
+  -- resolver would fail to find it and mint a duplicate patient participant on the next
+  -- compat-door edit.
   select cp.participant_id into v_existing
   from public.case_participants cp
   join public.participants p on p.id = cp.participant_id

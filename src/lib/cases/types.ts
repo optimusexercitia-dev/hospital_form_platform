@@ -19,7 +19,7 @@
  *
  * **PHI posture (Rule 12 / ADR 0038).** Patient identifiers live ONLY on
  * {@link CasePatient}, loaded through the audited `getCasePatient` door (emits
- * `case_patient.read`). The READ scope is the BROAD `can_read_case` (assignees need
+ * `case_patient.read`). The READ scope is `can_read_case_patient` (assignees need
  * the MRN); WRITES are coordinators-only. Minimum-necessary identifiers only.
  */
 
