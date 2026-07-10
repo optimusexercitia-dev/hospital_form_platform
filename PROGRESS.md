@@ -77,7 +77,9 @@ formerly 14e) — polymorphic `attachments` core + physically-tiered PHI buckets
 PHI-read door (service-role signed), folding in case/meeting/interview docs + action-item attachments;
 `attachment_subjects` **re-keys to the F1 `participants` registry** (§1 C-β — the reason F1 preceded F2).
 Contract-first: `backend` authors the migration contract for lead review **before** implementing.
-Task table added at kickoff.
+Task table added at kickoff. **Resume point:** the F2 contract kickoff was started then paused (agent
+stopped mid-read, no contract produced) — **re-spawn the F2 contract-first task** next session; scope +
+gotchas in the [session handoff](docs/progress/session-handoff-2026-07-10.md).
 
 > **F1 — Case-Participants E0: ✅ COMPLETE** (approved 2026-07-10; commits `ef66b0a` build + `6805bd9`
 > QA-fix). pgTAP **1913/1913** · F1-surface E2E **54/54** (0 reg; marathon reds env-only) · **QA APPROVED**
