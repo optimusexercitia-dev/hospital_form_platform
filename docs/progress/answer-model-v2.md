@@ -86,7 +86,11 @@ confirmed by re-running both files each on a fresh reset: `phase5-wizard` 12/12 
     rows (dedup-safe); `reconcileOptionRows` delegates to it. Re-verified on a **fresh prod
     standalone build**: `answer-model-v2` **6/6** (DV-2 fixed · DV-4 un-masked · DV-6 confirms
     HC080 still rejects a genuinely invalid default) · Vitest **302** (incl. the 8 new) · tsc +
-    eslint clean. Remote deploy still pending.
+    eslint clean. No-regression across the option path re-confirmed **14/14** (form-model-
+    normalization NORM-1..5 + phase4-builder AC-a/b/c/d + smoke) on the dev server (fresh reset,
+    Next 16.3.0-preview.5) — the prod-standalone harness itself was flaky (BUG-AIF-001 on the
+    stale 16.2.9 node_modules; silent standalone-server death on the 16.3 preview), never an
+    option-code assertion. Remote deploy still pending.
 - **BUG-AMV2-001 (MINOR)** — `publishVersion` only mapped Postgres `23514`, not the `HC080`
   errcode, so the friendly pt-BR message never surfaced. **Fixed** (`5b53a51`): now maps
   `HC080` as well. UI-unreachable today (builder prunes/coerces invalid defaults before publish);
