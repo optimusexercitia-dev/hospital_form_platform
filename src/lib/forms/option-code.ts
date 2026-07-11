@@ -62,3 +62,46 @@ export function generateOptionCode(label: string, taken: Set<string>): string {
   taken.add(code)
   return code
 }
+
+/**
+ * Decide the final `code` for every submitted option row of an item, in order —
+ * the single authority both `reconcileOptionRows` (server, `actions.ts`) and the
+ * unit tests use.
+ *
+ * BUG-AMV2-002: a choice-type "Valor padrão" set while authoring an item stores
+ * the option's `code` — minted client-side by the OptionsEditor the moment the
+ * label is typed. The server MUST persist that SAME code, or the stored default
+ * is orphaned and `publish_form_version` rejects it (HC080, "valor padrão
+ * inválido"). So a row that arrives WITH a non-empty code keeps it — whether it
+ * is an existing (kept) row or a brand-new client-minted one. Only a row that
+ * arrives without a code (`code === ''`, e.g. a legacy client) is minted a fresh
+ * one here.
+ *
+ * `existingCodes` are the item's current option codes (EMPTY when adding a new
+ * item — which is exactly why the old `existingCodes.has(code)` gate regenerated
+ * every new row's code and broke the default). `options` is the ordered
+ * submitted set; the return value is one code per option, aligned by index.
+ * Server-minted codes never collide with a code already assigned to an earlier
+ * row, and duplicate submitted codes are de-collided (first wins, the rest are
+ * regenerated) so the reconcile RPC never sees a duplicate (HC013).
+ */
+export function resolveOptionCodes(
+  existingCodes: Iterable<string>,
+  options: readonly { code: string; label: string }[],
+): string[] {
+  const existing = new Set<string>(existingCodes)
+  const assigned = new Set<string>()
+  return options.map((option) => {
+    const submitted = option.code.trim()
+    if (submitted && !assigned.has(submitted)) {
+      assigned.add(submitted)
+      return submitted
+    }
+    // No code, or a duplicate of an earlier row → mint one, dodging both the
+    // existing DB codes (a kept row we must not shadow) and this payload's
+    // already-assigned codes.
+    const code = generateOptionCode(option.label, new Set([...existing, ...assigned]))
+    assigned.add(code)
+    return code
+  })
+}

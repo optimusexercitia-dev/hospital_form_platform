@@ -72,6 +72,21 @@ confirmed by re-running both files each on a fresh reset: `phase5-wizard` 12/12 
   (single generator, server + client); frontend `d29c03f` mints it in `OptionsEditor.updateLabelAt`
   once a row's label is non-empty, so `DefaultValueEditor` + hidden `optionCode`/`defaultValue`
   carry a real code. DB-verified: `default_value` holds `"tarde"` / `["luvas","mascara"]`.
+  - **⚠️ Regressed, then definitively re-fixed (2026-07-11, branch `fix/bug-amv2-002-choice-default-publish`).**
+    The `form-model-normalization` refactor rewrote option persistence into
+    `reconcileOptionRows` (`src/lib/forms/actions.ts`), whose keep-vs-mint gate preserved a
+    submitted `code` **only when it already existed on the item** (`existingCodes.has(code)`).
+    For a brand-new item `existingCodes` is empty, so every option's client-minted `code` was
+    discarded and regenerated server-side — re-orphaning the very default the 07-01 client-mint
+    had produced a code for → `publish_form_version` HC080 "valor padrão inválido" again,
+    deterministic on **dev and prod** (caught by DV-2; DV-4 masked by the `mode: 'serial'`
+    cascade). **Fix:** a pure, unit-tested `resolveOptionCodes(existingCodes, options)`
+    (`src/lib/forms/option-code.ts` + `option-code.test.ts`, 8 cases) now HONORS any non-empty
+    submitted code — kept rows **and** brand-new client-minted rows — minting only for code-less
+    rows (dedup-safe); `reconcileOptionRows` delegates to it. Re-verified on a **fresh prod
+    standalone build**: `answer-model-v2` **6/6** (DV-2 fixed · DV-4 un-masked · DV-6 confirms
+    HC080 still rejects a genuinely invalid default) · Vitest **302** (incl. the 8 new) · tsc +
+    eslint clean. Remote deploy still pending.
 - **BUG-AMV2-001 (MINOR)** — `publishVersion` only mapped Postgres `23514`, not the `HC080`
   errcode, so the friendly pt-BR message never surfaced. **Fixed** (`5b53a51`): now maps
   `HC080` as well. UI-unreachable today (builder prunes/coerces invalid defaults before publish);

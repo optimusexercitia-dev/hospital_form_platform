@@ -104,6 +104,18 @@ pilot reset.** The only hard ordering constraint is **participants before attach
 disposable DB, dark behind flags where a flag exists. This program supersedes the prior
 "next pre-pilot phase = 16" guidance below — Phase 16 now slots between F2 and F3.
 
+**BUG-AMV2-002 — choice-default publish regression (ad-hoc, pre-F3 — 2026-07-11).** Publishing a
+form with a `multiple_choice`/`checkbox` "Valor padrão" was rejected `valor padrão inválido`
+(HC080) on the current baseline (dev **and** prod): `reconcileOptionRows` regenerated the
+client-minted option `code` for **new** rows (it preserved a submitted code only when
+`existingCodes.has(code)` — empty for a brand-new item), orphaning the stored default. **Fixed**
+on branch `fix/bug-amv2-002-choice-default-publish` (off `main`) via a pure, unit-tested
+`resolveOptionCodes` (`src/lib/forms/option-code.ts`) that honors client codes; `reconcileOptionRows`
+delegates to it. Verified on a **fresh prod standalone build**: `answer-model-v2` **6/6** (DV-2 fixed ·
+DV-4 un-masked · DV-6 confirms HC080 still rejects a truly invalid default) · Vitest **302** (incl. 8
+new) · tsc + eslint clean. **Not yet merged / remote-deployed.** Detail →
+[answer-model-v2.md](docs/progress/answer-model-v2.md); memory `choice-default-publish-regression`.
+
 The **UI/layout fixes batch** (ad-hoc, frontend + backend — 2026-07-08) shipped: 9 frontend fixes
 (F1–F9: meeting-badge rename, stacked held/schedule fields, source-badge hug, Meus Casos filter chips,
 single "Aparência Condicional" checkbox, red flag on flagged options, discard-draft, Aprovações-pendentes

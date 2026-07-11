@@ -6,7 +6,7 @@ import { getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
-import { generateOptionCode, slugifyLabel, shortSuffix } from '@/lib/forms/option-code'
+import { resolveOptionCodes, slugifyLabel, shortSuffix } from '@/lib/forms/option-code'
 import { parseItemConfig } from '@/lib/forms/parse-config'
 
 /**
@@ -901,13 +901,14 @@ function parseItemFields(
 }
 
 /**
- * Reconcile an existing choice item's option rows to the submitted set
- * (updateItem). Kept rows (those whose submitted `code` matches an existing row)
+ * Reconcile a choice item's option rows to the submitted set (addItem +
+ * updateItem). Kept rows (those whose submitted `code` matches an existing row)
  * are UPDATEd (label/color/score/analytics_code/position — never the code, which
- * the DB freezes); new rows (empty or unknown code) are INSERTed with a fresh
- * code; existing rows whose code is absent from the submission are DELETEd. This
- * preserves the analytics-stable code across edits while letting the author
- * rename/recolour/reorder freely.
+ * the DB freezes); new rows keep their client-supplied `code` (or get a fresh
+ * one only when they arrive without one — see {@link resolveOptionCodes},
+ * BUG-AMV2-002); existing rows whose code is absent from the submission are
+ * DELETEd. This preserves the analytics-stable code across edits while letting
+ * the author rename/recolour/reorder freely.
  */
 async function reconcileOptionRows(
   supabase: SupabaseClient<Database>,
@@ -926,25 +927,23 @@ async function reconcileOptionRows(
     .eq('item_id', itemId)
     .returns<{ code: string }[]>()
 
-  const existingCodes = new Set<string>((existing ?? []).map((e) => e.code))
-  const taken = new Set<string>(existingCodes)
+  const existingCodes = (existing ?? []).map((e) => e.code)
 
-  // Build the ordered payload; every element carries a code (kept or generated).
-  const payload = options.map((o) => {
-    const submittedCode = o.code.trim()
-    const code =
-      submittedCode && existingCodes.has(submittedCode)
-        ? submittedCode
-        : generateOptionCode(o.label, taken)
-    return {
-      code,
-      label: o.label,
-      color_token: o.color,
-      score: o.score,
-      analytics_code: o.analyticsCode,
-      flagged: o.flagged,
-    }
-  })
+  // Build the ordered payload; every element carries a code. A row that arrives
+  // with a non-empty code KEEPS it — kept rows AND brand-new client-minted rows
+  // — so a choice-type "Valor padrão" set in the same dialog still references a
+  // real option code after save (BUG-AMV2-002); only code-less rows are minted
+  // server-side. (The prior `existingCodes.has(code)` gate regenerated every new
+  // row's code, orphaning the default → HC080 "valor padrão inválido" at publish.)
+  const codes = resolveOptionCodes(existingCodes, options)
+  const payload = options.map((o, i) => ({
+    code: codes[i],
+    label: o.label,
+    color_token: o.color,
+    score: o.score,
+    analytics_code: o.analyticsCode,
+    flagged: o.flagged,
+  }))
 
   const { error } = await supabase.rpc('reconcile_item_options', {
     p_item_id: itemId,
