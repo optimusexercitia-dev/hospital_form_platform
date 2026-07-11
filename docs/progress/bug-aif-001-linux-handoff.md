@@ -1,5 +1,38 @@
 # BUG-AIF-001 — Linux repro CONFIRMED; root-cause handoff
 
+> ## ★ RESOLVED 2026-07-11 (session 2) — read this first
+>
+> **Root cause: an upstream Next.js App-Router bug, NOT a server-side RSC truncation.**
+> A `loading.tsx` Suspense boundary in the route chain + the server-action **deferred
+> `router.refresh()`** trip [`vercel/next.js` PR #95391](https://github.com/vercel/next.js/pull/95391)
+> (regression from #82674: a discarded action advances the router action queue against stale
+> state while a nav is in flight, so the deferred refresh never flushes → the transition stays
+> pending). Matches issues **#86151** ("loading.js soft-nav stuck **despite receiving the page
+> from the server**"; removing `loading.tsx` fixes it), **#86055**, disc **#82289**.
+>
+> **The "silent RSC truncation / body never delivered" framing below is WRONG** — `CDP
+> getResponseBody: No data` happens because React already **consumed** the fetch body then
+> aborted it (the same "ERR_ABORTED after consuming the payload" note is the tell). The response
+> arrives; the client router just fails to apply it. The "minimal app is clean → not a Next bug"
+> test was under-powered: it had **no `loading.tsx`** and trivial content, the two ingredients
+> the upstream repros require. A queue/timing bug is load-dependent → minimal clean, heavy hangs.
+>
+> **Proven on this app (prod standalone build, local Supabase), 3-run control matrix:**
+> | run | next | loading.tsx | AC-ActionItems |
+> | --- | --- | --- | --- |
+> | 1 baseline | 16.2.9 | present | **HANGS** (dialog `toHaveCount(0)` never met) |
+> | 2 remove boundary | 16.2.9 | both ancestors removed | **PASS (6.8s)** |
+> | 3 upgrade | 16.3.0-preview.5 | present | **PASS (6.1s)** |
+>
+> **Fix landed:** `next` 16.2.9 → **16.3.0-preview.5** (carries #95391); keeps every loading
+> skeleton and fixes the whole class app-wide (all `action→refresh` dialogs, not just cases).
+> Move to **16.3.0 stable** when it ships (a 16.2.x backport of #95391 would also do). No
+> react/react-dom change needed (the fix is in Next, not react-dom). The Docker/Linux harness
+> below is now moot for root-causing but kept for the record. Full trail → memory
+> `case-dialog-prod-refresh-layout-revalidate`.
+
+---
+
 **Status (2026-07-11):** the prior session's **KEY OPEN QUESTION is now ANSWERED**.
 BUG-AIF-001 (real-app server-action RSC responses silently truncated → `useActionState`
 dialogs hang on "Salvando…/Enviando…" after a successful write) **REPRODUCES ON NATIVE
