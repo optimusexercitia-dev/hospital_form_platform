@@ -1,7 +1,7 @@
 # F2 — Centralized Attachments (Pre-Pilot Foundations Program) — COMPLETE
 
 **Completed 2026-07-11** on branch `claude/continue-previous-e1d93e` (continues
-`feat/pre-pilot-foundations-plan`). ADR
+`feat/pre-pilot-foundations-plan`); commit `37057c0`. ADR
 [0063](../decisions/0063-centralized-attachments-substrate.md) (centralized attachment
 substrate; formerly phase 14e), conforming to the F0 conventions ([ADR
 0065](../decisions/0065-pre-pilot-foundations-conventions.md)) and the binding migration
