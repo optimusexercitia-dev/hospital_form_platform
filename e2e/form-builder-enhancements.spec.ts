@@ -794,7 +794,7 @@ test('AC-4 (builder): question condition disables and clears "obrigatória" with
 
   // Turn on "Aparência condicional" (the QUESTION-context toggle).
   await d
-    .getByRole('checkbox', { name: /Exibir somente sob condições/i })
+    .getByRole('checkbox', { name: /Aparência condicional/i })
     .check()
 
   // Build the condition: target = "Pergunta controladora?", value = "Sim".
@@ -851,7 +851,7 @@ test('AC-5 (builder): section condition persists after reload (BE-6)', async ({
     .click()
   let settings = page.getByRole('dialog')
   await settings
-    .getByRole('checkbox', { name: /Exibir somente sob condições/i })
+    .getByRole('checkbox', { name: /Visibilidade condicional/i })
     .check()
   await settings
     .locator('select[id$="-target"]')
@@ -879,7 +879,7 @@ test('AC-5 (builder): section condition persists after reload (BE-6)', async ({
   settings = page.getByRole('dialog')
   // The condition toggle is ON and the target/value are repopulated.
   await expect(
-    settings.getByRole('checkbox', { name: /Exibir somente sob condições/i }),
+    settings.getByRole('checkbox', { name: /Visibilidade condicional/i }),
   ).toBeChecked()
   // The target select rehydrated to a non-empty value whose selected option is
   // the controller question (BE-6: the saved condition survived the reload).
@@ -1472,7 +1472,7 @@ test('AC-15 (number-condition regression guard): number gt condition evaluates n
   await d.getByLabel('Enunciado da pergunta').fill('Detalhes (condição numérica)')
 
   // Enable the condition toggle.
-  await d.getByRole('checkbox', { name: /Exibir somente sob condições/i }).check()
+  await d.getByRole('checkbox', { name: /Aparência condicional/i }).check()
 
   // Target: the "Pontuação" number question.
   await d.locator('select[id$="-target"]').selectOption({ label: 'Pontuação' })

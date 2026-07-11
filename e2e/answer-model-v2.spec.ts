@@ -444,7 +444,7 @@ test('DV-3 (hidden default never written): a defaulted item hidden by a conditio
     .getByRole('button', { name: 'Configurações da seção (condição e assinatura)' })
     .click()
   const s = page.getByRole('dialog')
-  await s.getByRole('checkbox', { name: /Exibir somente sob condições/i }).check()
+  await s.getByRole('checkbox', { name: /Visibilidade condicional/i }).check()
   await s.locator('select[id$="-target"]').selectOption({ label: 'Houve intercorrência?' })
   await s.locator('select[id$="-value"]').selectOption({ label: 'Sim' })
   await s.getByRole('button', { name: 'Salvar' }).click()

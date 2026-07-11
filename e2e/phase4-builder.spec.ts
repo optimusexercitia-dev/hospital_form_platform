@@ -230,7 +230,7 @@ test('publish is blocked when a reorder creates a forward-reference condition (A
   const s = page.getByRole('dialog')
   // Enable the condition toggle first (ConditionBuilder refactor in FBE phase).
   await s
-    .getByRole('checkbox', { name: /Exibir somente sob condições/i })
+    .getByRole('checkbox', { name: /Visibilidade condicional/i })
     .check()
   // ConditionBuilder uses stable id-suffix selects (no accessible label).
   await s.locator('select[id$="-target"]').selectOption({ label: 'Houve falha?' })
@@ -325,7 +325,7 @@ test('build a 3-section form with conditional + sign-off sections, then publish 
   const settings = page.getByRole('dialog')
   // Enable the condition toggle first (ConditionBuilder refactor in FBE phase).
   await settings
-    .getByRole('checkbox', { name: /Exibir somente sob condições/i })
+    .getByRole('checkbox', { name: /Visibilidade condicional/i })
     .check()
   // ConditionBuilder uses stable id-suffix selects (no accessible label).
   await settings.locator('select[id$="-target"]').selectOption({ label: 'Houve incidente?' })

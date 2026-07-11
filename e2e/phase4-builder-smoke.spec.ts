@@ -103,7 +103,7 @@ test('coordinator builds, configures, publishes, edits and versions a form', asy
   const settings = page.getByRole('dialog')
   // Enable the condition toggle first (ConditionBuilder refactor in FBE phase).
   await settings
-    .getByRole('checkbox', { name: /Exibir somente sob condições/i })
+    .getByRole('checkbox', { name: /Visibilidade condicional/i })
     .check()
   // ConditionBuilder uses stable id-suffix selects (no accessible label).
   await settings
