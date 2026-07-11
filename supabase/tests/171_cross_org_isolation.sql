@@ -74,8 +74,8 @@ select is((select count(*)::int from public.case_phases), 0,
   'WALL: platform sees 0 case_phases');
 select is((select count(*)::int from public.case_events), 0,
   'WALL: platform sees 0 case_events');
-select is((select count(*)::int from public.case_documents), 0,
-  'WALL: platform sees 0 case_documents');
+select is((select count(*)::int from public.attachments), 0,
+  'WALL: platform sees 0 attachments (folded case_documents)');
 select is((select count(*)::int from public.case_narratives), 0,
   'WALL: platform sees 0 case_narratives');
 select is((select count(*)::int from public.case_access), 0,

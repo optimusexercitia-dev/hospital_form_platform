@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { logAuditAccess } from '@/lib/audit/access'
 import { featureEnabled } from '@/lib/queries/feature-flags'
+import { listAttachments } from '@/lib/queries/attachments'
 
 /**
  * Interviews data-access (Phase 11 — Interviews; Architecture Rule 9 — all reads
@@ -277,16 +278,14 @@ interface InterviewerRow {
   profiles: { full_name: string | null } | null
 }
 
-interface AttachmentRow {
+/** Phase F2: interview external LINKS now live in `case_interview_links` (interview
+ * FILE rows moved to `public.attachments`, owner_type='interview'). */
+interface InterviewLinkRow {
   id: string
   interview_id: string
-  kind: InterviewAttachmentKind
   title: string
-  storage_path: string | null
-  external_url: string | null
-  mime_type: string | null
-  size_bytes: number | null
-  uploaded_by: string | null
+  external_url: string
+  created_by: string | null
   created_at: string
   profiles: { full_name: string | null } | null
 }
@@ -298,8 +297,6 @@ interface InterviewListRow extends InterviewRow {
     profiles: { full_name: string | null } | null
   }[]
 }
-
-const SIGNED_URL_TTL_SECONDS = 3600
 
 function subjectName(s: {
   external_name: string | null
@@ -504,46 +501,55 @@ export async function listInterviewAttachments(
 ): Promise<InterviewAttachmentWithUrl[]> {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
-    .from('case_interview_attachments')
+  // FILE rows: attachments (owner_type='interview'). Interviews default to the PHI
+  // tier, so the blob is opened via the audited door — openUrl is null here (a
+  // standard-tier file would carry a direct URL). externalUrl is null for files.
+  const files = await listAttachments('interview', interviewId)
+  const fileItems: InterviewAttachmentWithUrl[] = files.map((a) => ({
+    id: a.id,
+    interviewId: a.ownerId,
+    kind: a.kind as InterviewAttachmentKind,
+    title: a.title,
+    storagePath: a.storagePath,
+    externalUrl: null,
+    mimeType: a.mimeType,
+    sizeBytes: a.sizeBytes,
+    uploadedBy: a.uploadedBy,
+    uploadedByName: a.uploadedByName,
+    createdAt: a.createdAt,
+    openUrl: a.signedUrl,
+  }))
+
+  // LINK rows: case_interview_links (external https URLs). Links carry no kind in the
+  // folded model (F2) → 'outro'; no blob, so openUrl/storagePath are null.
+  const { data: links } = await supabase
+    .from('case_interview_links')
     .select(
-      `id, interview_id, kind, title, storage_path, external_url, mime_type,
-       size_bytes, uploaded_by, created_at, profiles:uploaded_by ( full_name )`,
+      `id, interview_id, title, external_url, created_by, created_at,
+       profiles:created_by ( full_name )`,
     )
     .eq('interview_id', interviewId)
     .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .returns<AttachmentRow[]>()
-
-  if (error || !data) return []
-
-  const paths = data
-    .map((r) => r.storage_path)
-    .filter((p): p is string => p !== null)
-  const signedByPath = new Map<string, string>()
-  if (paths.length > 0) {
-    const { data: signed } = await supabase.storage
-      .from('interview-attachments')
-      .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS)
-    for (const s of signed ?? []) {
-      if (s.signedUrl && s.path) signedByPath.set(s.path, s.signedUrl)
-    }
-  }
-
-  return data.map((r) => ({
-    id: r.id,
-    interviewId: r.interview_id,
-    kind: r.kind,
-    title: r.title,
-    storagePath: r.storage_path,
-    externalUrl: r.external_url,
-    mimeType: r.mime_type,
-    sizeBytes: r.size_bytes,
-    uploadedBy: r.uploaded_by,
-    uploadedByName: r.profiles?.full_name ?? null,
-    createdAt: r.created_at,
-    openUrl: r.storage_path ? (signedByPath.get(r.storage_path) ?? null) : null,
+    .returns<InterviewLinkRow[]>()
+  const linkItems: InterviewAttachmentWithUrl[] = (links ?? []).map((l) => ({
+    id: l.id,
+    interviewId: l.interview_id,
+    kind: 'outro' as InterviewAttachmentKind,
+    title: l.title,
+    storagePath: null,
+    externalUrl: l.external_url,
+    mimeType: null,
+    sizeBytes: null,
+    uploadedBy: l.created_by,
+    uploadedByName: l.profiles?.full_name ?? null,
+    createdAt: l.created_at,
+    openUrl: null,
   }))
+
+  // Newest-first (both sources are ISO-8601 timestamps).
+  return [...fileItems, ...linkItems].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt),
+  )
 }
 
 /**

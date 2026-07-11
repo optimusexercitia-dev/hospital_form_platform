@@ -486,11 +486,15 @@ export async function listRcaCitationTargets(
     })
   }
 
+  // Phase F2: case documents are `attachments` (owner_type='case'). RCA citations
+  // reference the attachment id (rca_evidence.cited_document_id → attachments.id).
   const { data: docs } = await supabase
-    .from('case_documents')
+    .from('attachments')
     .select('id, title, created_at')
-    .eq('case_id', caseId)
+    .eq('owner_type', 'case')
+    .eq('owner_id', caseId)
     .is('deleted_at', null)
+    .neq('scan_status', 'infected')
     .returns<{ id: string; title: string | null; created_at: string }[]>()
   for (const d of docs ?? []) {
     targets.push({

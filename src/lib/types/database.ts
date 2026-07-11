@@ -508,6 +508,226 @@ export type Database = {
           },
         ]
       }
+      attachment_references: {
+        Row: {
+          attachment_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          owner_id: string
+          owner_type: string
+        }
+        Insert: {
+          attachment_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          owner_id: string
+          owner_type: string
+        }
+        Update: {
+          attachment_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          owner_id?: string
+          owner_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attachment_references_attachment_id_fkey"
+            columns: ["attachment_id"]
+            isOneToOne: false
+            referencedRelation: "attachments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attachment_references_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attachment_subjects: {
+        Row: {
+          attachment_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          note: string | null
+          participant_id: string
+          role_id: string | null
+        }
+        Insert: {
+          attachment_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          participant_id: string
+          role_id?: string | null
+        }
+        Update: {
+          attachment_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          note?: string | null
+          participant_id?: string
+          role_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attachment_subjects_attachment_id_fkey"
+            columns: ["attachment_id"]
+            isOneToOne: false
+            referencedRelation: "attachments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attachment_subjects_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attachment_subjects_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attachment_subjects_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "case_participant_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attachments: {
+        Row: {
+          confidentiality_label: string | null
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string | null
+          document_group_id: string | null
+          id: string
+          kind: string
+          legal_hold: boolean
+          mime_type: string | null
+          occurred_on: string | null
+          owner_id: string
+          owner_type: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
+          scan_status: string
+          sensitivity_tier: string
+          sha256: string | null
+          size_bytes: number | null
+          storage_bucket: string
+          storage_path: string
+          supersedes_id: string | null
+          title: string
+          updated_at: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          confidentiality_label?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
+          document_group_id?: string | null
+          id?: string
+          kind?: string
+          legal_hold?: boolean
+          mime_type?: string | null
+          occurred_on?: string | null
+          owner_id: string
+          owner_type: string
+          phi_disposed_at?: string | null
+          phi_disposed_by?: string | null
+          phi_disposed_reason?: string | null
+          scan_status?: string
+          sensitivity_tier?: string
+          sha256?: string | null
+          size_bytes?: number | null
+          storage_bucket: string
+          storage_path: string
+          supersedes_id?: string | null
+          title: string
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          confidentiality_label?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
+          description?: string | null
+          document_group_id?: string | null
+          id?: string
+          kind?: string
+          legal_hold?: boolean
+          mime_type?: string | null
+          occurred_on?: string | null
+          owner_id?: string
+          owner_type?: string
+          phi_disposed_at?: string | null
+          phi_disposed_by?: string | null
+          phi_disposed_reason?: string | null
+          scan_status?: string
+          sensitivity_tier?: string
+          sha256?: string | null
+          size_bytes?: number | null
+          storage_bucket?: string
+          storage_path?: string
+          supersedes_id?: string | null
+          title?: string
+          updated_at?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attachments_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attachments_phi_disposed_by_fkey"
+            columns: ["phi_disposed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attachments_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "attachments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attachments_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           action: string
@@ -1062,76 +1282,6 @@ export type Database = {
           },
         ]
       }
-      case_documents: {
-        Row: {
-          case_id: string
-          created_at: string
-          deleted_at: string | null
-          deleted_by: string | null
-          description: string | null
-          doc_type: string
-          id: string
-          mime_type: string | null
-          occurred_at: string | null
-          size_bytes: number | null
-          storage_path: string
-          title: string
-          uploaded_by: string | null
-        }
-        Insert: {
-          case_id: string
-          created_at?: string
-          deleted_at?: string | null
-          deleted_by?: string | null
-          description?: string | null
-          doc_type?: string
-          id?: string
-          mime_type?: string | null
-          occurred_at?: string | null
-          size_bytes?: number | null
-          storage_path: string
-          title: string
-          uploaded_by?: string | null
-        }
-        Update: {
-          case_id?: string
-          created_at?: string
-          deleted_at?: string | null
-          deleted_by?: string | null
-          description?: string | null
-          doc_type?: string
-          id?: string
-          mime_type?: string | null
-          occurred_at?: string | null
-          size_bytes?: number | null
-          storage_path?: string
-          title?: string
-          uploaded_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "case_documents_case_id_fkey"
-            columns: ["case_id"]
-            isOneToOne: false
-            referencedRelation: "cases"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "case_documents_deleted_by_fkey"
-            columns: ["deleted_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "case_documents_uploaded_by_fkey"
-            columns: ["uploaded_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       case_events: {
         Row: {
           body: string
@@ -1186,73 +1336,6 @@ export type Database = {
           },
         ]
       }
-      case_interview_attachments: {
-        Row: {
-          created_at: string
-          deleted_at: string | null
-          deleted_by: string | null
-          external_url: string | null
-          id: string
-          interview_id: string
-          kind: string
-          mime_type: string | null
-          size_bytes: number | null
-          storage_path: string | null
-          title: string
-          uploaded_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          deleted_at?: string | null
-          deleted_by?: string | null
-          external_url?: string | null
-          id?: string
-          interview_id: string
-          kind?: string
-          mime_type?: string | null
-          size_bytes?: number | null
-          storage_path?: string | null
-          title: string
-          uploaded_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          deleted_at?: string | null
-          deleted_by?: string | null
-          external_url?: string | null
-          id?: string
-          interview_id?: string
-          kind?: string
-          mime_type?: string | null
-          size_bytes?: number | null
-          storage_path?: string | null
-          title?: string
-          uploaded_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "case_interview_attachments_deleted_by_fkey"
-            columns: ["deleted_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "case_interview_attachments_interview_id_fkey"
-            columns: ["interview_id"]
-            isOneToOne: false
-            referencedRelation: "case_interviews"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "case_interview_attachments_uploaded_by_fkey"
-            columns: ["uploaded_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       case_interview_interviewers: {
         Row: {
           created_at: string
@@ -1300,6 +1383,61 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_interview_links: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          external_url: string
+          id: string
+          interview_id: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          external_url: string
+          id?: string
+          interview_id: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          external_url?: string
+          id?: string
+          interview_id?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_interview_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interview_links_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interview_links_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "case_interviews"
             referencedColumns: ["id"]
           },
         ]
@@ -3647,70 +3785,6 @@ export type Database = {
           },
         ]
       }
-      meeting_attachments: {
-        Row: {
-          created_at: string
-          deleted_at: string | null
-          deleted_by: string | null
-          id: string
-          kind: string
-          meeting_id: string
-          mime_type: string | null
-          size_bytes: number | null
-          storage_path: string
-          title: string
-          uploaded_by: string | null
-        }
-        Insert: {
-          created_at?: string
-          deleted_at?: string | null
-          deleted_by?: string | null
-          id?: string
-          kind?: string
-          meeting_id: string
-          mime_type?: string | null
-          size_bytes?: number | null
-          storage_path: string
-          title: string
-          uploaded_by?: string | null
-        }
-        Update: {
-          created_at?: string
-          deleted_at?: string | null
-          deleted_by?: string | null
-          id?: string
-          kind?: string
-          meeting_id?: string
-          mime_type?: string | null
-          size_bytes?: number | null
-          storage_path?: string
-          title?: string
-          uploaded_by?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "meeting_attachments_deleted_by_fkey"
-            columns: ["deleted_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "meeting_attachments_meeting_id_fkey"
-            columns: ["meeting_id"]
-            isOneToOne: false
-            referencedRelation: "meetings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "meeting_attachments_uploaded_by_fkey"
-            columns: ["uploaded_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       meeting_attendees: {
         Row: {
           attendance: string
@@ -5187,7 +5261,7 @@ export type Database = {
             foreignKeyName: "rca_evidence_cited_document_id_fkey"
             columns: ["cited_document_id"]
             isOneToOne: false
-            referencedRelation: "case_documents"
+            referencedRelation: "attachments"
             referencedColumns: ["id"]
           },
           {
@@ -5651,7 +5725,7 @@ export type Database = {
             foreignKeyName: "referral_shared_item_source_document_id_fkey"
             columns: ["source_document_id"]
             isOneToOne: false
-            referencedRelation: "case_documents"
+            referencedRelation: "attachments"
             referencedColumns: ["id"]
           },
           {
@@ -5913,63 +5987,9 @@ export type Database = {
       }
     }
     Views: {
-      pg_all_foreign_keys: {
-        Row: {
-          fk_columns: unknown[] | null
-          fk_constraint_name: unknown
-          fk_schema_name: unknown
-          fk_table_name: unknown
-          fk_table_oid: unknown
-          is_deferrable: boolean | null
-          is_deferred: boolean | null
-          match_type: string | null
-          on_delete: string | null
-          on_update: string | null
-          pk_columns: unknown[] | null
-          pk_constraint_name: unknown
-          pk_index_name: unknown
-          pk_schema_name: unknown
-          pk_table_name: unknown
-          pk_table_oid: unknown
-        }
-        Relationships: []
-      }
-      tap_funky: {
-        Row: {
-          args: string | null
-          is_definer: boolean | null
-          is_strict: boolean | null
-          is_visible: boolean | null
-          kind: unknown
-          langoid: unknown
-          name: unknown
-          oid: unknown
-          owner: unknown
-          returns: string | null
-          returns_set: boolean | null
-          schema: unknown
-          volatility: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
-      _cleanup: { Args: never; Returns: boolean }
-      _contract_on: { Args: { "": string }; Returns: unknown }
-      _currtest: { Args: never; Returns: number }
-      _db_privs: { Args: never; Returns: unknown[] }
-      _extensions: { Args: never; Returns: unknown[] }
-      _get: { Args: { "": string }; Returns: number }
-      _get_latest: { Args: { "": string }; Returns: number[] }
-      _get_note: { Args: { "": string }; Returns: string }
-      _is_verbose: { Args: never; Returns: boolean }
-      _prokind: { Args: { p_oid: unknown }; Returns: unknown }
-      _query: { Args: { "": string }; Returns: string }
-      _refine_vol: { Args: { "": string }; Returns: string }
-      _retval: { Args: { "": string }; Returns: string }
-      _table_privs: { Args: never; Returns: unknown[] }
-      _temptypes: { Args: { "": string }; Returns: string }
-      _todo: { Args: never; Returns: string }
       accept_referral: {
         Args: { p_referral_id: string }
         Returns: {
@@ -6283,37 +6303,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      add_interview_attachment: {
-        Args: {
-          p_external_url?: string
-          p_interview_id: string
-          p_kind: string
-          p_mime_type?: string
-          p_size_bytes?: number
-          p_storage_path?: string
-          p_title: string
-        }
-        Returns: {
-          created_at: string
-          deleted_at: string | null
-          deleted_by: string | null
-          external_url: string | null
-          id: string
-          interview_id: string
-          kind: string
-          mime_type: string | null
-          size_bytes: number | null
-          storage_path: string | null
-          title: string
-          uploaded_by: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "case_interview_attachments"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       add_interview_interviewer: {
         Args: {
           p_external_name?: string
@@ -6364,35 +6353,6 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_interview_subjects"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      add_meeting_attachment: {
-        Args: {
-          p_kind: string
-          p_meeting_id: string
-          p_mime_type?: string
-          p_size_bytes?: number
-          p_storage_path: string
-          p_title: string
-        }
-        Returns: {
-          created_at: string
-          deleted_at: string | null
-          deleted_by: string | null
-          id: string
-          kind: string
-          meeting_id: string
-          mime_type: string | null
-          size_bytes: number | null
-          storage_path: string
-          title: string
-          uploaded_by: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "meeting_attachments"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -7235,42 +7195,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      col_is_null:
-        | {
-            Args: {
-              column_name: unknown
-              description?: string
-              schema_name: unknown
-              table_name: unknown
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              column_name: unknown
-              description?: string
-              table_name: unknown
-            }
-            Returns: string
-          }
-      col_not_null:
-        | {
-            Args: {
-              column_name: unknown
-              description?: string
-              schema_name: unknown
-              table_name: unknown
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              column_name: unknown
-              description?: string
-              table_name: unknown
-            }
-            Returns: string
-          }
       commission_overview: {
         Args: never
         Returns: {
@@ -7546,6 +7470,56 @@ export type Database = {
       count_open_cases_for_board: {
         Args: { p_commission_id: string }
         Returns: number
+      }
+      create_attachment: {
+        Args: {
+          p_confidentiality_label?: string
+          p_description?: string
+          p_kind?: string
+          p_mime_type?: string
+          p_occurred_on?: string
+          p_owner_id: string
+          p_owner_type: string
+          p_sensitivity_tier?: string
+          p_sha256?: string
+          p_size_bytes?: number
+          p_storage_path: string
+          p_title: string
+        }
+        Returns: {
+          confidentiality_label: string | null
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string | null
+          document_group_id: string | null
+          id: string
+          kind: string
+          legal_hold: boolean
+          mime_type: string | null
+          occurred_on: string | null
+          owner_id: string
+          owner_type: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
+          scan_status: string
+          sensitivity_tier: string
+          sha256: string | null
+          size_bytes: number | null
+          storage_bucket: string
+          storage_path: string
+          supersedes_id: string | null
+          title: string
+          updated_at: string
+          uploaded_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "attachments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_case: {
         Args: {
@@ -8247,16 +8221,8 @@ export type Database = {
         Args: { p_id: string }
         Returns: undefined
       }
-      delete_interview_attachment: {
-        Args: { p_attachment_id: string }
-        Returns: undefined
-      }
       delete_meeting_agenda_item: {
         Args: { p_agenda_item_id: string }
-        Returns: undefined
-      }
-      delete_meeting_attachment: {
-        Args: { p_attachment_id: string }
         Returns: undefined
       }
       delete_member_title: { Args: { p_title_id: string }; Returns: undefined }
@@ -8268,21 +8234,11 @@ export type Database = {
         Args: { p_section_id: string; p_target_section_id: string }
         Returns: undefined
       }
-      diag:
-        | {
-            Args: { msg: unknown }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.diag(msg => text), public.diag(msg => anyelement). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
-        | {
-            Args: { msg: string }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.diag(msg => text), public.diag(msg => anyelement). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
-      diag_test_name: { Args: { "": string }; Returns: string }
       discard_response: { Args: { p_response_id: string }; Returns: undefined }
+      dispose_attachment_phi: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
       dispose_case_phi: {
         Args: { p_case_id: string; p_reason: string }
         Returns: undefined
@@ -8339,9 +8295,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      do_tap:
-        | { Args: never; Returns: string[] }
-        | { Args: { "": string }; Returns: string[] }
       documents_due_for_review: {
         Args: { p_commission: string }
         Returns: {
@@ -8356,12 +8309,6 @@ export type Database = {
           title: string
         }[]
       }
-      fail:
-        | { Args: never; Returns: string }
-        | { Args: { "": string }; Returns: string }
-      findfuncs: { Args: { "": string }; Returns: string[] }
-      finish: { Args: { exception_on_failure?: boolean }; Returns: string[] }
-      format_type_string: { Args: { "": string }; Returns: string }
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_case_patient: { Args: { p_case_id: string }; Returns: Json }
       get_case_patients: { Args: { p_case_id: string }; Returns: Json }
@@ -8412,7 +8359,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      has_unique: { Args: { "": string }; Returns: string }
       hospital_document_register: {
         Args: {
           p_doc_type?: string
@@ -8445,7 +8391,6 @@ export type Database = {
           total: number
         }[]
       }
-      in_todo: { Args: never; Returns: boolean }
       indicator_kpis: {
         Args: { p_commission: string }
         Returns: {
@@ -8470,7 +8415,6 @@ export type Database = {
         Returns: boolean
       }
       interviews_enabled: { Args: never; Returns: boolean }
-      is_empty: { Args: { "": string }; Returns: string }
       is_nsp_coordinator_of_self: {
         Args: { p_hospital_id: string }
         Returns: boolean
@@ -8481,7 +8425,6 @@ export type Database = {
         Returns: boolean
       }
       is_pqs_member_self: { Args: never; Returns: boolean }
-      isnt_empty: { Args: { "": string }; Returns: string }
       link_meeting_case: {
         Args: {
           p_agenda_item_id?: string
@@ -8629,7 +8572,6 @@ export type Database = {
           version_number: number
         }[]
       }
-      lives_ok: { Args: { "": string }; Returns: string }
       log_audit_access: {
         Args: {
           p_action: string
@@ -8714,7 +8656,6 @@ export type Database = {
           title: string
         }[]
       }
-      no_plan: { Args: never; Returns: boolean[] }
       notify_safety_event: {
         Args: {
           p_case_id?: string
@@ -8763,7 +8704,13 @@ export type Database = {
       nsp_org_capa_rollup: { Args: { p_org_id: string }; Returns: Json }
       nsp_org_event_rollup: { Args: { p_org_id: string }; Returns: Json }
       nsp_org_roster: { Args: { p_org_id: string }; Returns: Json }
-      num_failed: { Args: never; Returns: number }
+      open_attachment: {
+        Args: { p_id: string }
+        Returns: {
+          bucket: string
+          path: string
+        }[]
+      }
       open_capa_plan: {
         Args: {
           p_classification?: string
@@ -8797,10 +8744,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      os_name: { Args: never; Returns: string }
-      pass:
-        | { Args: never; Returns: string }
-        | { Args: { "": string }; Returns: string }
       patient_access_audit: {
         Args: { p_encounter?: string; p_hospital_id?: string; p_mrn?: string }
         Returns: Json
@@ -8811,9 +8754,6 @@ export type Database = {
         Args: { p_entity_id: string; p_module: string }
         Returns: number
       }
-      pg_version: { Args: never; Returns: string }
-      pg_version_num: { Args: never; Returns: number }
-      pgtap_version: { Args: never; Returns: number }
       pqs_inbox: {
         Args: {
           p_cursor_id?: string
@@ -9001,6 +8941,43 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reclassify_attachment: {
+        Args: { p_id: string; p_new_label?: string; p_new_tier: string }
+        Returns: {
+          confidentiality_label: string | null
+          created_at: string
+          deleted_at: string | null
+          deleted_by: string | null
+          description: string | null
+          document_group_id: string | null
+          id: string
+          kind: string
+          legal_hold: boolean
+          mime_type: string | null
+          occurred_on: string | null
+          owner_id: string
+          owner_type: string
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
+          scan_status: string
+          sensitivity_tier: string
+          sha256: string | null
+          size_bytes: number | null
+          storage_bucket: string
+          storage_path: string
+          supersedes_id: string | null
+          title: string
+          updated_at: string
+          uploaded_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "attachments"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -9445,9 +9422,6 @@ export type Database = {
         Args: { p_org: string; p_user: string }
         Returns: undefined
       }
-      runtests:
-        | { Args: never; Returns: string[] }
-        | { Args: { "": string }; Returns: string[] }
       save_narrative_body: {
         Args: { p_body_md: string; p_narrative: string }
         Returns: undefined
@@ -10004,9 +9978,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      skip:
-        | { Args: { "": string }; Returns: string }
-        | { Args: { how_many: number; why: string }; Returns: string }
       skip_phase: {
         Args: { p_case_phase_id: string }
         Returns: {
@@ -10048,6 +10019,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      soft_delete_attachment: { Args: { p_id: string }; Returns: undefined }
       start_interview: {
         Args: { p_interview_id: string }
         Returns: {
@@ -10261,16 +10233,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      throws_ok: { Args: { "": string }; Returns: string }
-      todo:
-        | { Args: { how_many: number }; Returns: boolean[] }
-        | { Args: { how_many: number; why: string }; Returns: boolean[] }
-        | { Args: { why: string }; Returns: boolean[] }
-        | { Args: { how_many: number; why: string }; Returns: boolean[] }
-      todo_end: { Args: never; Returns: boolean[] }
-      todo_start:
-        | { Args: never; Returns: boolean[] }
-        | { Args: { "": string }; Returns: boolean[] }
       transfer_event_custody: {
         Args: {
           p_event_id: string
@@ -11346,9 +11308,7 @@ export type Database = {
       [_ in never]: never
     }
     CompositeTypes: {
-      _time_trial_type: {
-        a_time: number | null
-      }
+      [_ in never]: never
     }
   }
 }

@@ -227,8 +227,9 @@ select throws_ok(
 reset role;
 
 -- =========================================================================
--- HC040: invalid attachment (neither a file nor a link). i2 is cancelled, so use
--- a fresh em_andamento interview to avoid the freeze path masking HC040.
+-- F2 (ADR 0063): interview external LINKS now live in case_interview_links (thin
+-- RLS-gated rows via can_write_interview); FILE attachments moved to public.attachments
+-- (owner_type='interview'). The CHECKs (non-empty title, https-only URL) hold here.
 -- =========================================================================
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -241,15 +242,18 @@ grant select on i3 to authenticated;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
-  $$ select public.add_interview_attachment((select id from i3), 'outro', 'sem fonte', null, null, null, null) $$,
-  'HC040', null, 'attachment with neither file nor link raises HC040');
+  format($$ insert into public.case_interview_links (interview_id, title, external_url)
+            values (%L, '', 'https://x.test/a.mp3') $$, (select id from i3)),
+  '23514', null, 'interview link with empty title rejected (btrim CHECK)');
 select throws_ok(
-  $$ select public.add_interview_attachment((select id from i3), 'gravacao_audio', 'link http', null, 'http://x.test/a.mp3', null, null) $$,
-  'HC040', null, 'non-https external link raises HC040');
+  format($$ insert into public.case_interview_links (interview_id, title, external_url)
+            values (%L, 'link http', 'http://x.test/a.mp3') $$, (select id from i3)),
+  '23514', null, 'non-https interview link rejected (external_url CHECK)');
 -- A valid https link is accepted.
 select lives_ok(
-  $$ select public.add_interview_attachment((select id from i3), 'gravacao_audio', 'gravação', null, 'https://x.test/a.mp3', null, null) $$,
-  'a valid https link attachment is accepted');
+  format($$ insert into public.case_interview_links (interview_id, title, external_url)
+            values (%L, 'gravação', 'https://x.test/a.mp3') $$, (select id from i3)),
+  'a valid https interview link is accepted');
 reset role;
 
 -- =========================================================================

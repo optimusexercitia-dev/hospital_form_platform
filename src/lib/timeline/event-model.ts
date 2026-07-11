@@ -38,7 +38,8 @@
  *   - `milestone`    — a `case_events` row with `kind = 'decision'`.
  *   - `interview`    — a `case_interviews` row.
  *   - `meeting`      — a `meetings` row linked via `meeting_cases`.
- *   - `document`     — a `case_documents` row.
+ *   - `document`     — a `public.attachments` row (`owner_type = 'case'`; Phase F2
+ *                      folded the former `case_documents` table into it).
  *   - `action`       — a case-sourced `action_items` hub row (`source_type = 'case'`).
  *   - `safety_event` — a `patient_safety_event` raised from this case (Phase 14a).
  *                      STRICTLY PHI-FREE on the timeline: code/title/status/date/

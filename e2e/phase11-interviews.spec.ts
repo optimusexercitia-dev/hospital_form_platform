@@ -165,22 +165,52 @@ async function getSubjects(
   return Array.isArray(data) ? data : []
 }
 
-/** Service-role JWT: list attachments for an interview (active only). */
+/**
+ * Service-role JWT: list attachments for an interview (active only).
+ *
+ * Phase F2 fold-in (ADR 0063): `case_interview_attachments` no longer exists — FILE
+ * rows now live in `public.attachments` (owner_type='interview') and LINK rows in
+ * `public.case_interview_links`. Merge both into the shape this spec's assertions
+ * already expect (storage_path set for a file, external_url set for a link).
+ */
 async function getAttachments(
   page: Page,
   interviewId: string,
 ): Promise<Array<{ id: string; kind: string; storage_path: string | null; external_url: string | null; deleted_at: string | null }>> {
-  const resp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/case_interview_attachments?interview_id=eq.${interviewId}&deleted_at=is.null&select=id,kind,storage_path,external_url,deleted_at`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      },
-    },
+  const headers = {
+    apikey: SUPABASE_SERVICE_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+  }
+  const filesResp = await page.request.get(
+    `${SUPABASE_URL}/rest/v1/attachments?owner_type=eq.interview&owner_id=eq.${interviewId}&deleted_at=is.null&select=id,kind,storage_path,deleted_at`,
+    { headers },
   )
-  const data = await resp.json()
-  return Array.isArray(data) ? data : []
+  const filesData = await filesResp.json()
+  const files = Array.isArray(filesData) ? filesData : []
+
+  const linksResp = await page.request.get(
+    `${SUPABASE_URL}/rest/v1/case_interview_links?interview_id=eq.${interviewId}&deleted_at=is.null&select=id,external_url,deleted_at`,
+    { headers },
+  )
+  const linksData = await linksResp.json()
+  const links = Array.isArray(linksData) ? linksData : []
+
+  return [
+    ...files.map((f: { id: string; kind: string; storage_path: string; deleted_at: string | null }) => ({
+      id: f.id,
+      kind: f.kind,
+      storage_path: f.storage_path,
+      external_url: null,
+      deleted_at: f.deleted_at,
+    })),
+    ...links.map((l: { id: string; external_url: string; deleted_at: string | null }) => ({
+      id: l.id,
+      kind: 'gravacao_audio',
+      storage_path: null,
+      external_url: l.external_url,
+      deleted_at: l.deleted_at,
+    })),
+  ]
 }
 
 /** Obtain a real JWT for a persona (RLS-scoped token). */
@@ -689,15 +719,30 @@ test('AC4 — negatives: MIME rejection, https-only link, conclude without subje
   expect(addInterviewerResult.status).toBe(400)
   expect((addInterviewerResult.body as { code: string }).code).toBe('HC021')
 
-  // --- HC040: non-https link ---
-  const addLinkResult = await callRPC(page, chefeToken, 'add_interview_attachment', {
-    p_interview_id: noSubjectInterviewId,
-    p_kind: 'gravacao_audio',
-    p_title: 'Link Inválido',
-    p_external_url: 'http://insecure.example.com/audio.mp3', // http not https
+  // --- Non-https link rejected (formerly RPC-coded HC040) ---
+  // Phase F2 fold-in (ADR 0063): `add_interview_attachment` was DROPPED — interview
+  // links now live in the thin RLS-gated `case_interview_links` table, enforced by a
+  // plain CHECK (`external_url like 'https://%'`), not a coded RPC. A direct REST
+  // insert (bypassing the `addInterviewLink` server action's own https-only check)
+  // proves the DB-level boundary still holds.
+  const addLinkResp = await page.request.post(`${SUPABASE_URL}/rest/v1/case_interview_links`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${chefeToken}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    data: {
+      interview_id: noSubjectInterviewId,
+      title: 'Link Inválido',
+      external_url: 'http://insecure.example.com/audio.mp3', // http, not https
+    },
   })
-  expect(addLinkResult.status).toBe(400)
-  expect((addLinkResult.body as { code: string }).code).toBe('HC040')
+  expect(addLinkResp.status()).toBe(400)
+  const addLinkBody = (await addLinkResp.json()) as { code?: string; message?: string }
+  expect(String(addLinkBody.code ?? '') + String(addLinkBody.message ?? '')).toMatch(
+    /check|external_url|23514/i,
+  )
 
   // --- UI layer: MIME rejection on upload (client-side validation, then server) ---
   await signInAs(page, 'chefe.ccih@test.local')

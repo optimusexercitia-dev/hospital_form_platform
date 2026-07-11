@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { logAuditAccess } from '@/lib/audit/access'
+import { listAttachments } from '@/lib/queries/attachments'
 import type { Page, PageParams, CursorSchema } from '@/lib/types/pagination'
 import {
   DEFAULT_PAGE_SIZE,
@@ -381,19 +382,6 @@ interface SignatureRow {
   profiles: { full_name: string | null } | null
 }
 
-interface AttachmentRow {
-  id: string
-  meeting_id: string
-  kind: MeetingAttachmentKind
-  title: string
-  storage_path: string
-  mime_type: string | null
-  size_bytes: number | null
-  uploaded_by: string | null
-  created_at: string
-  profiles: { full_name: string | null } | null
-}
-
 interface MeetingTypeRow {
   id: string
   commission_id: string
@@ -417,8 +405,6 @@ interface PendingSignatureRow {
   scheduled_start: string
   attendee_id: string
 }
-
-const SIGNED_URL_TTL_SECONDS = 3600
 
 /**
  * Map a {@link MeetingRow} to the {@link MeetingListItem} domain shape. Exported
@@ -844,57 +830,23 @@ export async function listMeetingSignatures(
 export async function listMeetingAttachments(
   meetingId: string,
 ): Promise<MeetingAttachmentWithUrl[]> {
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from('meeting_attachments')
-    .select(
-      `id, meeting_id, kind, title, storage_path, mime_type, size_bytes,
-       uploaded_by, created_at, profiles:uploaded_by ( full_name )`,
-    )
-    .eq('meeting_id', meetingId)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-    .returns<AttachmentRow[]>()
-
-  if (error || !data) return []
-
-  const paths = data.map((r) => r.storage_path)
-  const signedByPath = new Map<string, string>()
-  if (paths.length > 0) {
-    const { data: signed } = await supabase.storage
-      .from('meeting-attachments')
-      .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS)
-    for (const s of signed ?? []) {
-      if (s.signedUrl && s.path) signedByPath.set(s.path, s.signedUrl)
-    }
-  }
-
-  return data.map((r) => ({
-    id: r.id,
-    meetingId: r.meeting_id,
-    kind: r.kind,
-    title: r.title,
-    storagePath: r.storage_path,
-    mimeType: r.mime_type,
-    sizeBytes: r.size_bytes,
-    uploadedBy: r.uploaded_by,
-    uploadedByName: r.profiles?.full_name ?? null,
-    createdAt: r.created_at,
-    signedUrl: signedByPath.get(r.storage_path) ?? null,
+  // Phase F2 (ADR 0063): meeting attachments are `attachments` (owner_type='meeting').
+  // Meetings default to the STANDARD tier, so their blob is directly signed; an
+  // escalated (phi-tier) attachment carries signedUrl=null — open via openAttachment.
+  const rows = await listAttachments('meeting', meetingId)
+  return rows.map((a) => ({
+    id: a.id,
+    meetingId: a.ownerId,
+    kind: a.kind as MeetingAttachmentKind,
+    title: a.title,
+    storagePath: a.storagePath,
+    mimeType: a.mimeType,
+    sizeBytes: a.sizeBytes,
+    uploadedBy: a.uploadedBy,
+    uploadedByName: a.uploadedByName,
+    createdAt: a.createdAt,
+    signedUrl: a.signedUrl,
   }))
-}
-
-/** A fresh short-lived signed download URL for a single attachment path; `null` if denied. */
-export async function getMeetingAttachmentDownloadUrl(
-  storagePath: string,
-): Promise<string | null> {
-  if (!storagePath) return null
-  const supabase = await createClient()
-  const { data } = await supabase.storage
-    .from('meeting-attachments')
-    .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS)
-  return data?.signedUrl ?? null
 }
 
 /** A commission's meeting-type vocabulary (non-archived first), for chips + the schedule form. */

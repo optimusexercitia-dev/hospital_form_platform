@@ -42,6 +42,10 @@ export type AuditAccessAction = Extract<
   // migration 20260620014000_referrals_rpcs.sql.
   | 'referral_patient.read'
   | 'referral.viewed'
+  // centralized attachments (Phase F2; ADR 0063; Rule 11/12) — the audited PHI
+  // blob-open. Emitted server-side by the open_attachment DEFINER door; listed here to
+  // keep the triple-mirror complete (DB allow-list + _audit_access_authorized arm + TS).
+  | 'attachment.read'
 >
 
 export async function logAuditAccess(params: {

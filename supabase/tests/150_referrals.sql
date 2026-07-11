@@ -69,10 +69,13 @@ insert into public.cases (id, commission_id, case_number, label, created_by) val
 insert into public.case_narratives (id, case_id, type_label, display_position, title, body_md, created_by)
 values ((select narr from cs), (select src_case from cs), 'Resumo', 0, 'Resumo',
         'CORPO-SENSIVEL-DO-PACIENTE', (select sa_x from k));
-insert into public.case_documents (id, case_id, title, storage_path, mime_type, uploaded_by)
-values ((select doc from cs), (select src_case from cs), 'Laudo',
-        (select comm_x from k) || '/' || (select src_case from cs) || '/laudo.pdf',
-        'application/pdf', (select sa_x from k));
+-- F2 (ADR 0063): a shared case document is an attachment (owner_type='case');
+-- referral_shared_item.source_document_id now references attachments(id).
+insert into public.attachments
+  (id, owner_type, owner_id, kind, title, storage_bucket, storage_path, mime_type, sensitivity_tier, uploaded_by)
+values ((select doc from cs), 'case', (select src_case from cs), 'other', 'Laudo',
+        'attachments-phi', 'case/' || (select src_case from cs) || '/laudo.pdf',
+        'application/pdf', 'phi', (select sa_x from k));
 
 -- =========================================================================
 -- create_referral_draft: source coordinator only (HC071).

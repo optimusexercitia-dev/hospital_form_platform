@@ -36,6 +36,7 @@ export interface FeatureFlags {
   quality_indicators: boolean
   controlled_docs: boolean
   administrativo: boolean
+  attachments: boolean
 }
 
 /** A flag key. */

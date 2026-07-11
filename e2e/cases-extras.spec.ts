@@ -374,12 +374,25 @@ test('AC-Docs: coordinator uploads a PDF document to a case and downloads it; ad
       page.getByText(/Ata E2E de teste/i).first(),
     ).toBeVisible({ timeout: 15_000 })
 
-    const downloadLink = page.getByRole('link', { name: /Baixar Ata E2E de teste/i }).first()
-    await expect(downloadLink).toBeVisible({ timeout: 10_000 })
+    // Phase F2 (ADR 0063): case documents default to the PHI tier, so the download
+    // control is the audited OpenAttachmentButton (a <button>, no inline href) — NOT
+    // a direct <a> link as before the centralized-attachments substrate swap. See
+    // e2e/phase-f2-attachments.spec.ts for the full audited-door + audit-row contract;
+    // here we only re-confirm the fold-in didn't regress the upload→list→open path.
+    const docRow = page.locator('li').filter({ hasText: 'Ata E2E de teste' })
+    await expect(docRow.locator('a')).toHaveCount(0)
+    const downloadButton = docRow.getByRole('button', { name: /Baixar Ata E2E de teste/i })
+    await expect(downloadButton).toBeVisible({ timeout: 10_000 })
 
-    const href = await downloadLink.getAttribute('href')
-    expect(href).toBeTruthy()
-    expect(href).not.toBe('#')
+    // For a real `application/pdf` blob, headless Chromium treats the navigation as a
+    // native file DOWNLOAD rather than a page render — the popup's own `url()` never
+    // commits, but the context emits a `download` event carrying the real target URL.
+    const downloadPromise = page.context().waitForEvent('download', { timeout: 5_000 }).catch(() => null)
+    const [popup] = await Promise.all([page.waitForEvent('popup'), downloadButton.click()])
+    const download = await downloadPromise
+    const openedUrl = download ? download.url() : popup.url()
+    expect(openedUrl).toMatch(/\/storage\/v1\/object\/sign\//)
+    await popup.close().catch(() => {})
   } finally {
     if (fs.existsSync(tmpPdfPath)) fs.unlinkSync(tmpPdfPath)
   }

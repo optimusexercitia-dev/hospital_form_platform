@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
 import { casesExtrasEnabled } from '@/lib/cases/extras-gate'
+import { featureEnabled } from '@/lib/queries/feature-flags'
+import { bucketForTier, effectiveTier } from '@/lib/attachments/constants'
 import type { CaseDocumentType, CaseEventKind } from '@/lib/queries/case-documents'
 
 /**
@@ -190,6 +192,11 @@ export async function uploadCaseDocument(
   if (!(await casesExtrasEnabled())) {
     return { ok: false, error: MESSAGES.unavailable }
   }
+  // Phase F2: case documents are `attachments` (owner_type='case') — gated by the
+  // `attachments` flag (in addition to cases_extras). Inert while the flag is OFF.
+  if (!(await featureEnabled('attachments'))) {
+    return { ok: false, error: MESSAGES.unavailable }
+  }
 
   const supabase = await createClient()
   const commissionId = await commissionOfCase(supabase, caseId)
@@ -198,32 +205,32 @@ export async function uploadCaseDocument(
     return { ok: false, error: MESSAGES.forbidden }
   }
 
-  // Immutable path: commission folder (RLS boundary) / case folder / uuid.ext.
-  const path = `${commissionId}/${caseId}/${crypto.randomUUID()}.${ext}`
+  // Owner-scoped immutable path `case/{caseId}/{uuid}.{ext}` (attachments_path_scope_ck);
+  // case documents default to the PHI tier → the attachments-phi bucket.
+  const tier = effectiveTier('case')
+  const bucket = bucketForTier(tier)
+  const path = `case/${caseId}/${crypto.randomUUID()}.${ext}`
   const bytes = new Uint8Array(await file.arrayBuffer())
 
   const { error: uploadError } = await supabase.storage
-    .from('case-documents')
+    .from(bucket)
     .upload(path, bytes, { contentType: file.type, upsert: false })
   if (uploadError) return { ok: false, error: MESSAGES.uploadFailed }
 
-  // Insert the metadata row. created_by/uploaded_by = the caller.
-  const context = await getSessionContext()
-  const { data, error } = await supabase
-    .from('case_documents')
-    .insert({
-      case_id: caseId,
-      doc_type: docType,
-      title,
-      description: description || null,
-      storage_path: path,
-      mime_type: file.type,
-      size_bytes: file.size,
-      occurred_at: occurredAt ?? null,
-      uploaded_by: context?.userId ?? null,
-    })
-    .select('id')
-    .maybeSingle()
+  // Record the row via the DEFINER write door (validates kind + tier, verifies the
+  // object exists in the tier bucket, inserts). Returns the single attachments row.
+  const { data, error } = await supabase.rpc('create_attachment', {
+    p_owner_type: 'case',
+    p_owner_id: caseId,
+    p_storage_path: path,
+    p_title: title,
+    p_kind: docType,
+    p_description: description || undefined,
+    p_occurred_on: occurredAt ?? undefined,
+    p_mime_type: file.type,
+    p_size_bytes: file.size,
+    p_sensitivity_tier: tier,
+  })
 
   if (error || !data) {
     // The row insert failed AFTER the object landed; the object is orphaned but
@@ -247,26 +254,14 @@ export async function deleteCaseDocument(
   if (!(await casesExtrasEnabled())) {
     return { ok: false, error: MESSAGES.unavailable }
   }
-
-  const supabase = await createClient()
-  const { data: doc } = await supabase
-    .from('case_documents')
-    .select('case_id, cases(commission_id)')
-    .eq('id', documentId)
-    .is('deleted_at', null)
-    .maybeSingle<{ case_id: string; cases: { commission_id: string } | null }>()
-  const commissionId = doc?.cases?.commission_id
-  if (!commissionId) return { ok: false, error: MESSAGES.missingDocument }
-  if (!(await authorizeCommission(commissionId))) {
-    return { ok: false, error: MESSAGES.forbidden }
+  if (!(await featureEnabled('attachments'))) {
+    return { ok: false, error: MESSAGES.unavailable }
   }
 
-  const context = await getSessionContext()
-  const { error } = await supabase
-    .from('case_documents')
-    .update({ deleted_at: new Date().toISOString(), deleted_by: context?.userId ?? null })
-    .eq('id', documentId)
-
+  // Phase F2: soft-delete via the DEFINER door (handles can_write_attachment authz +
+  // not-found itself; the object is retained — Rule 6).
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('soft_delete_attachment', { p_id: documentId })
   if (error) return { ok: false, error: MESSAGES.generic }
 
   revalidateCase()

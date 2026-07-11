@@ -4,12 +4,15 @@ import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
+import { featureEnabled } from '@/lib/queries/feature-flags'
+import { bucketForTier, effectiveTier } from '@/lib/attachments/constants'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
 import {
   INTERVIEW_MESSAGES,
   mapInterviewError,
 } from '@/lib/interviews/messages'
+import { interviewsEnabled } from '@/lib/queries/interviews'
 import type {
   InterviewerRole,
   InterviewModality,
@@ -143,19 +146,6 @@ async function commissionOfCase(
     .eq('id', caseId)
     .maybeSingle()
   return data?.commission_id ?? null
-}
-
-/**
- * Feature-flag gate for the direct interviews writes (mirror of `meetingsEnabled`).
- * Calls the SECURITY DEFINER `public.interviews_enabled()` read so the gate is
- * authoritative server-side (the flag lives in the locked-down `app` schema).
- * Fails closed.
- */
-export async function interviewsEnabled(): Promise<boolean> {
-  const supabase = await createClient()
-  const { data, error } = await supabase.rpc('interviews_enabled')
-  if (error) return false
-  return data === true
 }
 
 // ---------------------------------------------------------------------------
@@ -583,7 +573,8 @@ const ATTACHMENT_KINDS = [
  * `interviewId`, `file`, `kind`, `title`. Validates the MIME allow-list (no audio)
  * + 25 MiB cap, uploads to a FRESH immutable path
  * (`{commissionId}/{interviewId}/{uuid}.{ext}`, `upsert:false`), then records the
- * metadata row via `add_interview_attachment`. The bucket INSERT policy authorizes
+ * metadata row via the `create_attachment` RPC (Phase F2 — owner_type='interview').
+ * The bucket INSERT policy authorizes
  * the upload via `can_write_interview` keyed on the interview-id path segment, so a
  * registered interviewer (not just staff_admin) can upload — hence the path must
  * carry the interview id as the SECOND segment. Returns the new `attachmentId`.
@@ -618,38 +609,36 @@ export async function uploadInterviewAttachment(
   if (!(await interviewsEnabled())) {
     return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
   }
-
-  const supabase = await createClient()
-  // Resolve the commission from the interview (RLS-scoped read; null = unseen).
-  // No staff_admin pre-check — a registered interviewer must be able to upload;
-  // the bucket policy + add RPC (can_write_interview) are the authority.
-  const { data: interview } = await supabase
-    .from('case_interviews')
-    .select('commission_id')
-    .eq('id', interviewId)
-    .maybeSingle()
-  const commissionId = interview?.commission_id
-  if (!commissionId) {
-    return { ok: false, error: INTERVIEW_MESSAGES.missingInterview }
+  // Phase F2 (ADR 0063): interview file attachments are `attachments`
+  // (owner_type='interview'), gated by the `attachments` flag. Inert while OFF.
+  if (!(await featureEnabled('attachments'))) {
+    return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
   }
 
-  // Immutable path: commission folder (read boundary) / interview folder (write
-  // boundary, segment [2]) / uuid.ext.
-  const path = `${commissionId}/${interviewId}/${crypto.randomUUID()}.${ext}`
+  const supabase = await createClient()
+
+  // Owner-scoped immutable path `interview/{interviewId}/{uuid}.{ext}`; interviews
+  // default to the PHI tier → the attachments-phi bucket (the write RPC + bucket
+  // policy enforce can_write_interview).
+  const tier = effectiveTier('interview')
+  const bucket = bucketForTier(tier)
+  const path = `interview/${interviewId}/${crypto.randomUUID()}.${ext}`
   const bytes = new Uint8Array(await file.arrayBuffer())
 
   const { error: uploadError } = await supabase.storage
-    .from('interview-attachments')
+    .from(bucket)
     .upload(path, bytes, { contentType: file.type, upsert: false })
   if (uploadError) return { ok: false, error: INTERVIEW_MESSAGES.uploadFailed }
 
-  const { data, error } = await supabase.rpc('add_interview_attachment', {
-    p_interview_id: interviewId,
-    p_kind: kind,
-    p_title: title,
+  const { data, error } = await supabase.rpc('create_attachment', {
+    p_owner_type: 'interview',
+    p_owner_id: interviewId,
     p_storage_path: path,
+    p_title: title,
+    p_kind: kind,
     p_mime_type: file.type,
     p_size_bytes: file.size,
+    p_sensitivity_tier: tier,
   })
 
   if (error || !data) {
@@ -698,14 +687,25 @@ export async function addInterviewLink(
   if (!(await interviewsEnabled())) {
     return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
   }
+  if (!(await featureEnabled('attachments'))) {
+    return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
+  }
 
+  // Phase F2: interview external links live in `case_interview_links` (thin RLS-gated
+  // rows via can_write_interview). `kind` is not modeled on links anymore (folded model)
+  // — the param is kept for signature compatibility but not persisted.
   const supabase = await createClient()
-  const { data, error } = await supabase.rpc('add_interview_attachment', {
-    p_interview_id: interviewId,
-    p_kind: kind,
-    p_title: title.trim(),
-    p_external_url: url,
-  })
+  const context = await getSessionContext()
+  const { data, error } = await supabase
+    .from('case_interview_links')
+    .insert({
+      interview_id: interviewId,
+      title: title.trim(),
+      external_url: url,
+      created_by: context?.userId ?? null,
+    })
+    .select('id')
+    .maybeSingle()
 
   if (error || !data) return { ok: false, error: mapInterviewError(error) }
 
@@ -713,7 +713,9 @@ export async function addInterviewLink(
   return { ok: true, error: INTERVIEW_MESSAGES.linkAdded, attachmentId: data.id }
 }
 
-/** SOFT-delete an attachment (row hidden, Storage object retained — Rule 6). */
+/** SOFT-delete an interview attachment — a FILE (`attachments`) or a LINK
+ * (`case_interview_links`). The two id namespaces are disjoint, so we soft-delete
+ * whichever the id resolves to (row hidden, storage object retained — Rule 6). */
 export async function softDeleteInterviewAttachment(
   attachmentId: string,
 ): Promise<ActionState> {
@@ -721,13 +723,37 @@ export async function softDeleteInterviewAttachment(
   if (!(await interviewsEnabled())) {
     return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
   }
+  if (!(await featureEnabled('attachments'))) {
+    return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
+  }
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc('delete_interview_attachment', {
-    p_attachment_id: attachmentId,
-  })
 
-  if (error) return { ok: false, error: mapInterviewError(error) }
+  // A file attachment? (RLS-scoped visibility.)
+  const { data: file } = await supabase
+    .from('attachments')
+    .select('id')
+    .eq('id', attachmentId)
+    .maybeSingle()
+
+  if (file) {
+    const { error } = await supabase.rpc('soft_delete_attachment', {
+      p_id: attachmentId,
+    })
+    if (error) return { ok: false, error: mapInterviewError(error) }
+  } else {
+    // Otherwise a link row — soft-delete via the RLS write policy (can_write_interview).
+    const context = await getSessionContext()
+    const { error } = await supabase
+      .from('case_interview_links')
+      .update({
+        deleted_at: new Date().toISOString(),
+        deleted_by: context?.userId ?? null,
+      })
+      .eq('id', attachmentId)
+      .is('deleted_at', null)
+    if (error) return { ok: false, error: mapInterviewError(error) }
+  }
 
   revalidateInterviews()
   return { ok: true, error: INTERVIEW_MESSAGES.attachmentRemoved }

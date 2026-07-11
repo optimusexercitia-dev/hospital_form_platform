@@ -73,8 +73,9 @@ export default async function InterviewDetailPage({
   const canEditContent =
     canWrite && isEditableInterviewStatus(interview.status);
   // Attachments are DELIBERATELY excluded from the conclusion content-freeze (ADR
-  // 0026 / `add_interview_attachment` has no status check) — a late signed
-  // transcript can be uploaded AFTER conclusion. So attachment management is
+  // 0026 — the attachment write path has no interview-status check; F2 folded
+  // `add_interview_attachment` into `create_attachment` without adding one) — a late
+  // signed transcript can be uploaded AFTER conclusion. So attachment management is
   // available whenever the viewer may write and the interview is not the one
   // terminal state (`cancelada`); `concluida` keeps upload/add-link/soft-delete.
   const canManageAttachments = canWrite && interview.status !== "cancelada";

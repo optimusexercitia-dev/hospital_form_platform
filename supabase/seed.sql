@@ -1112,15 +1112,22 @@ begin
     (v_itw, v_staff_a1, null, null, 'Enfermeiro(a) da unidade', null),
     (v_itw, null, 'Carlos Pereira', 'Hospital Central', 'Técnico de enfermagem', null);
 
-  -- Attachments: one stored-file metadata row + one external audio link.
-  insert into public.case_interview_attachments
-    (interview_id, kind, title, storage_path, external_url, mime_type, size_bytes, uploaded_by)
+  -- Attachments (F2 fold-in): one stored-file metadata row now lives in
+  -- public.attachments (owner_type='interview'); the external audio link now lives
+  -- in public.case_interview_links.
+  insert into public.attachments
+    (owner_type, owner_id, kind, title, storage_bucket, storage_path,
+     sensitivity_tier, confidentiality_label, mime_type, size_bytes, uploaded_by)
   values
-    (v_itw, 'transcricao_assinada', 'Transcrição assinada (rascunho)',
-     v_comm_a || '/' || v_itw || '/00000000-0000-0000-0000-0000000000f1.pdf',
-     null, 'application/pdf', 12345, v_chefe_a),
-    (v_itw, 'gravacao_audio', 'Gravação de áudio (link externo)',
-     null, 'https://example.com/recordings/caso-0001-entrevista.mp3', null, null, v_chefe_a);
+    ('interview', v_itw, 'transcricao_assinada', 'Transcrição assinada (rascunho)',
+     'attachments-phi',
+     'interview/' || v_itw || '/00000000-0000-0000-0000-0000000000f1.pdf',
+     'phi', 'phi_standard', 'application/pdf', 12345, v_chefe_a);
+  insert into public.case_interview_links
+    (interview_id, title, external_url, created_by)
+  values
+    (v_itw, 'Gravação de áudio (link externo)',
+     'https://example.com/recordings/caso-0001-entrevista.mp3', v_chefe_a);
 end $$;
 
 -- ===========================================================================
@@ -1482,11 +1489,15 @@ begin
     (v_narr, v_src_case, 'Resumo do caso', 0, 'Resumo clínico',
      E'## Resumo\n\nPaciente do leito 7 com evolução desfavorável; solicita-se '
      || E'parecer da farmácia sobre a conciliação medicamentosa.', v_chefe_a);
-  insert into public.case_documents
-    (id, case_id, title, storage_path, mime_type, uploaded_by)
+  -- F2 fold-in: case_documents no longer exists; the row is now a case-owned
+  -- public.attachments row (owner_type='case').
+  insert into public.attachments
+    (id, owner_type, owner_id, kind, title, storage_bucket, storage_path,
+     sensitivity_tier, confidentiality_label, mime_type, uploaded_by)
   values
-    (v_doc, v_src_case, 'Prescrição digitalizada',
-     v_comm_a || '/' || v_src_case || '/prescricao-seed.pdf', 'application/pdf', v_chefe_a);
+    (v_doc, 'case', v_src_case, 'digitalizacao', 'Prescrição digitalizada',
+     'attachments-phi', 'case/' || v_src_case || '/prescricao-seed.pdf',
+     'phi', 'phi_standard', 'application/pdf', v_chefe_a);
 
   -- A case in B to link onto ENC-0001 (so B's analyst path is demonstrable).
   insert into public.cases (id, commission_id, case_number, label, status, created_by)
@@ -1912,6 +1923,16 @@ end $ind$;
 -- (Phase 15 flipped quality_indicators via a MIGRATION because that WAS its ship
 --  state — prod ON intended. Phase 17 is not shipping yet, so we use the seed instead.)
 update app.feature_flags set enabled = true where key = 'controlled_docs';
+
+-- LOCAL-ONLY FLAG FLIP (F2 / ADR 0063 — same convention as controlled_docs above).
+-- After the F2 fold-in, the meeting / interview / case attachment features all sit
+-- behind the `attachments` flag (their upload/delete/open paths assert it), so with it
+-- OFF the EXISTING attachment E2E specs — not just F2's — would fail and the frontend
+-- rewire can't be verified in the browser preview. The migration keeps it default OFF
+-- (prod stays OFF until the deliberate pilot-cutover flip the lead owns); seed.sql runs
+-- ONLY on `db reset`, so flipping it ON HERE yields a flag-ON LOCAL/E2E env. NOT under
+-- the F1 m2 hard gate (that gate is case_participants/case_types only — real ethics data).
+update app.feature_flags set enabled = true where key = 'attachments';
 -- ---------------------------------------------------------------------------
 do $cd$
 declare

@@ -1,21 +1,25 @@
 import { createClient } from '@/lib/supabase/server'
+import { listAttachments } from '@/lib/queries/attachments'
 
 /**
  * Case DOCUMENTS & manual EVENTS data-access (Cases-Extras batch, R1).
  *
  * Two independent child entities of a case (Architecture Rule 9 — reads through
  * `src/lib/queries/`):
- *   - `case_documents` — file-backed artifacts (minutes/ata, scans, registries)
- *     in the private `case-documents` Storage bucket. Objects are NEVER
- *     overwritten (Rule 6); "delete" is a SOFT delete (the row is hidden, the
- *     object stays). Reads filter `deleted_at is null` and serve files via
- *     short-lived signed URLs.
+ *   - documents — file-backed artifacts (minutes/ata, scans, registries). As of
+ *     Phase F2 (ADR 0063) these are `public.attachments` rows with
+ *     `owner_type='case'` (the old `case_documents` table was folded in). This
+ *     module is a THIN ADAPTER over `listAttachments('case', …)` that preserves the
+ *     `CaseDocument` shape so existing callers keep compiling. NOTE: case documents
+ *     default to the PHI tier, so their blob lives in `attachments-phi` (no direct
+ *     signed URL) — `signedUrl` is `null` and `containsPhi` is `true`; download via
+ *     the audited `openAttachment(attachmentId)` door (`src/lib/attachments/actions`).
  *   - `case_events` — manual free-text working notes (meeting/decision/note).
  *     Fully editable + hard-deletable (not immutable artifacts).
  *
- * RLS on both: member-read / staff_admin-write, commission resolved via the
- * existing `app.commission_of_case`. NO state-machine guard (not part of the
- * case workflow invariant). All user-facing strings are the caller's (pt-BR).
+ * RLS: member-read / staff_admin-write, commission resolved via the existing
+ * `app.commission_of_case` (documents now via `app.can_read_attachment`). All
+ * user-facing strings are the caller's (pt-BR).
  */
 
 // ---------------------------------------------------------------------------
@@ -46,8 +50,15 @@ export interface CaseDocument {
 
 /** A {@link CaseDocument} plus a freshly-minted signed URL for download. */
 export interface CaseDocumentWithUrl extends CaseDocument {
-  /** Short-lived signed download URL (`createSignedUrl`); `null` if it failed. */
+  /** Short-lived signed download URL for a STANDARD-tier blob; `null` for a
+   * PHI-tier blob (the common case for case documents) — open it via the audited
+   * `openAttachment({@link attachmentId})` door instead. */
   signedUrl: string | null
+  /** The underlying attachment id (Phase F2) — pass to `openAttachment` for the
+   * audited PHI download. Optional so existing callers keep compiling. */
+  attachmentId?: string
+  /** `true` when the blob is PHI-tiered (`signedUrl` is then `null`). */
+  containsPhi?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -91,21 +102,6 @@ export interface CaseEvent {
 // Row shapes (RLS-scoped table reads)
 // ---------------------------------------------------------------------------
 
-interface CaseDocumentRow {
-  id: string
-  case_id: string
-  doc_type: CaseDocumentType
-  title: string
-  description: string | null
-  storage_path: string
-  mime_type: string | null
-  size_bytes: number | null
-  occurred_at: string | null
-  uploaded_by: string | null
-  created_at: string
-  profiles: { full_name: string | null } | null
-}
-
 interface CaseEventRow {
   id: string
   case_id: string
@@ -137,59 +133,35 @@ const SIGNED_URL_TTL_SECONDS = 3600
 export async function listCaseDocuments(
   caseId: string,
 ): Promise<CaseDocumentWithUrl[]> {
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from('case_documents')
-    .select(
-      `
-      id, case_id, doc_type, title, description, storage_path, mime_type,
-      size_bytes, occurred_at, uploaded_by, created_at,
-      profiles:uploaded_by ( full_name )
-    `,
-    )
-    .eq('case_id', caseId)
-    .is('deleted_at', null)
-    .order('occurred_at', { ascending: false, nullsFirst: false })
-    .order('created_at', { ascending: false })
-    .returns<CaseDocumentRow[]>()
-
-  if (error || !data) return []
-
-  // Batch-mint signed URLs for all paths in one round trip.
-  const paths = data.map((r) => r.storage_path)
-  const signedByPath = new Map<string, string>()
-  if (paths.length > 0) {
-    const { data: signed } = await supabase.storage
-      .from('case-documents')
-      .createSignedUrls(paths, SIGNED_URL_TTL_SECONDS)
-    for (const s of signed ?? []) {
-      if (s.signedUrl && s.path) signedByPath.set(s.path, s.signedUrl)
-    }
-  }
-
-  return data.map((r) => ({
-    id: r.id,
-    caseId: r.case_id,
-    docType: r.doc_type,
-    title: r.title,
-    description: r.description,
-    storagePath: r.storage_path,
-    mimeType: r.mime_type,
-    sizeBytes: r.size_bytes,
-    occurredAt: r.occurred_at,
-    uploadedBy: r.uploaded_by,
-    uploadedByName: r.profiles?.full_name ?? null,
-    createdAt: r.created_at,
-    signedUrl: signedByPath.get(r.storage_path) ?? null,
+  // Phase F2: case documents are `attachments` (owner_type='case'). Delegate to the
+  // tier-split reader and adapt to the CaseDocument shape (kind→docType,
+  // occurredOn→occurredAt). PHI-tier rows carry signedUrl=null + containsPhi=true.
+  const rows = await listAttachments('case', caseId)
+  return rows.map((a) => ({
+    id: a.id,
+    caseId: a.ownerId,
+    docType: a.kind as CaseDocumentType,
+    title: a.title,
+    description: a.description,
+    storagePath: a.storagePath,
+    mimeType: a.mimeType,
+    sizeBytes: a.sizeBytes,
+    occurredAt: a.occurredOn,
+    uploadedBy: a.uploadedBy,
+    uploadedByName: a.uploadedByName,
+    createdAt: a.createdAt,
+    signedUrl: a.signedUrl,
+    attachmentId: a.id,
+    containsPhi: a.containsPhi,
   }))
 }
 
 /**
- * A fresh short-lived signed download URL for a single document path. RLS-scoped
- * (the case-documents bucket's member-read policy grants it only to members of
- * the object's commission, folder[1]), so a foreign caller gets `null`. Used by
- * the per-row "download" action when a deep link needs a just-in-time URL.
+ * A fresh short-lived signed download URL for a single STANDARD-tier document path
+ * (Phase F2: the `attachments` bucket). Returns `null` for a PHI-tier path (the
+ * `attachments-phi` bucket has no authenticated SELECT) — use the audited
+ * `openAttachment(attachmentId)` door for those. Preserved for the per-row download
+ * of standard-tier artifacts.
  */
 export async function getCaseDocumentDownloadUrl(
   storagePath: string,
@@ -197,7 +169,7 @@ export async function getCaseDocumentDownloadUrl(
   if (!storagePath) return null
   const supabase = await createClient()
   const { data } = await supabase.storage
-    .from('case-documents')
+    .from('attachments')
     .createSignedUrl(storagePath, SIGNED_URL_TTL_SECONDS)
   return data?.signedUrl ?? null
 }

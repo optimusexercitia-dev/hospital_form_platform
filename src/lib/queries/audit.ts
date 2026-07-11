@@ -68,6 +68,8 @@ export type AuditEntityType =
   // GLOBAL-chain QPS lookup trail. NOT a PHI entity; "patient" here is referenced
   // by a non-reversible key-derived UUID, never an identifier.
   | 'patient'
+  // centralized attachments (Phase F2; ADR 0063) — the audit trigger + PHI door.
+  | 'attachment'
 
 /**
  * The audit `action` union — `'<entity>.<verb>'`. These are the verbs emitted by
@@ -173,6 +175,15 @@ export type AuditAction =
   // reassembly trail on the GLOBAL chain; KEY-ONLY metadata, never a raw MRN/name.
   | 'patient.searched'
   | 'patient.viewed'
+  // centralized attachments (Phase F2; ADR 0063) — mutation verbs (PHI-free metadata:
+  // owner/kind/tier/label/bucket/scan/legal_hold/reason/deleted_at) + the audited PHI
+  // blob-open read. title/description/path/sha256/subject are NEVER audited (Rule 11).
+  | 'attachment.created'
+  | 'attachment.updated'
+  | 'attachment.reclassified'
+  | 'attachment.deleted'
+  | 'attachment.phi_disposed'
+  | 'attachment.read'
 
 // ---------------------------------------------------------------------------
 // pt-BR display labels (Rule 10) — UI maps the ASCII slug → label
@@ -204,6 +215,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   referral: 'Encaminhamento',
   referral_patient: 'Dados do paciente (encaminhamento)',
   patient: 'Paciente (vínculo entre comissões)',
+  attachment: 'Anexo',
 }
 
 /** pt-BR labels for the action filter (short verb phrases). */
@@ -278,6 +290,12 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'patient.viewed': 'Trajetória do paciente visualizada',
   'response.exported': 'Respostas exportadas',
   'audit.exported': 'Trilha de auditoria exportada',
+  'attachment.created': 'Anexo criado',
+  'attachment.updated': 'Anexo atualizado',
+  'attachment.reclassified': 'Anexo reclassificado',
+  'attachment.deleted': 'Anexo removido',
+  'attachment.phi_disposed': 'Dados do anexo descartados',
+  'attachment.read': 'Anexo (PHI) aberto',
 }
 
 // ---------------------------------------------------------------------------

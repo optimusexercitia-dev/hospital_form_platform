@@ -2,6 +2,8 @@ import { Download, ExternalLink, Paperclip } from "lucide-react";
 
 import type { InterviewAttachmentWithUrl } from "@/lib/queries/interviews";
 import { softDeleteInterviewAttachment } from "@/lib/interviews/actions";
+import { attachmentsEnabled } from "@/lib/attachments/actions";
+import { OpenAttachmentButton } from "@/components/attachments/open-attachment-button";
 import { AttachmentUpload } from "./attachment-upload";
 import { AttachmentLinkForm } from "./attachment-link-form";
 import { ConfirmDeleteButton } from "./confirm-delete-button";
@@ -9,19 +11,26 @@ import { ATTACHMENT_KIND_LABEL } from "./interview-labels";
 import { formatDate } from "./format";
 
 /**
- * Interview ATTACHMENTS panel (F3): unified evidence — stored FILES (transcrição
- * assinada, evidência, …) served via a short-lived signed URL, AND external LINKS
- * (e.g. an audio-recording URL). Newest-first; the writer uploads files, adds
- * links, and soft-deletes (Storage objects retained — Rule 6). Server-Component
- * shell — the data (incl. fresh signed URLs in `openUrl`) arrives as props; the
+ * Interview ATTACHMENTS panel (F3; the file side rewired onto the
+ * centralized-attachments substrate in F2 — ADR 0063): unified evidence — stored
+ * FILES (transcrição assinada, evidência, …) opened via the audited attachments
+ * door, AND external LINKS (e.g. an audio-recording URL) opened directly. Newest-
+ * first; the writer uploads files, adds links, and soft-deletes (Storage objects
+ * retained — Rule 6). Server-Component shell — the data arrives as props; the
  * upload, add-link, and delete are client islands. Soft-deleted rows are already
  * filtered out by `listInterviewAttachments`.
  *
- * `openUrl` is the uniform open target: a signed URL for a file, the `externalUrl`
- * for a link. Both open in a NEW TAB with `rel="noopener noreferrer"` and are never
- * auto-fetched (link-safety; ARCHITECTURE Rule 7 spirit for external URLs).
+ * The row discriminates file-vs-link WITHOUT guessing: exactly one of
+ * `openUrl`/`externalUrl` is non-null. A LINK's `externalUrl` opens directly in a
+ * new tab (unaudited — it is just a stored URL, never a blob). A FILE's `openUrl`
+ * is always `null` (interviews default to the PHI tier), so files open via the
+ * audited {@link OpenAttachmentButton} instead — never pre-fetched, only on click.
+ *
+ * Upload/add-link/delete AND the file-open door are gated on the `attachments`
+ * feature flag; while off, existing rows render read-only and the file-open
+ * control is disabled (list reads + link opens are never gated).
  */
-export function AttachmentsPanel({
+export async function AttachmentsPanel({
   interviewId,
   attachments,
   canEdit,
@@ -30,6 +39,8 @@ export function AttachmentsPanel({
   attachments: InterviewAttachmentWithUrl[];
   canEdit: boolean;
 }) {
+  const flagOn = await attachmentsEnabled();
+  const canEditNow = canEdit && flagOn;
   return (
     <section
       aria-labelledby="interview-attachments-heading"
@@ -51,7 +62,7 @@ export function AttachmentsPanel({
             {attachments.length}
           </span>
         </div>
-        {canEdit && (
+        {canEditNow && (
           <div className="flex flex-wrap items-center gap-2">
             <AttachmentLinkForm interviewId={interviewId} />
             <AttachmentUpload interviewId={interviewId} />
@@ -61,7 +72,7 @@ export function AttachmentsPanel({
 
       {attachments.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-          {canEdit
+          {canEditNow
             ? "Nenhum anexo. Envie a transcrição assinada ou vincule a gravação de áudio."
             : "Nenhum anexo."}
         </p>
@@ -94,31 +105,40 @@ export function AttachmentsPanel({
                   </p>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-0.5">
-                  {att.openUrl ? (
+                <div className="flex shrink-0 items-start gap-0.5">
+                  {isLink ? (
+                    att.externalUrl && (
+                      <a
+                        href={att.externalUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`Abrir ${att.title}`}
+                        className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                      >
+                        <ExternalLink aria-hidden="true" className="size-4" />
+                      </a>
+                    )
+                  ) : att.openUrl ? (
+                    // Standard-tier file (not the default for interviews, but
+                    // possible after a future reclassification): direct inline URL.
                     <a
                       href={att.openUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label={
-                        isLink
-                          ? `Abrir ${att.title}`
-                          : `Baixar ${att.title}`
-                      }
+                      aria-label={`Baixar ${att.title}`}
                       className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
                     >
-                      {isLink ? (
-                        <ExternalLink aria-hidden="true" className="size-4" />
-                      ) : (
-                        <Download aria-hidden="true" className="size-4" />
-                      )}
+                      <Download aria-hidden="true" className="size-4" />
                     </a>
                   ) : (
-                    <span className="text-xs text-muted-foreground/70 italic">
-                      indisponível
-                    </span>
+                    // PHI-tier file (the default): audited open, on click only.
+                    <OpenAttachmentButton
+                      attachmentId={att.id}
+                      label={`Baixar ${att.title}`}
+                      disabled={!flagOn}
+                    />
                   )}
-                  {canEdit && (
+                  {canEditNow && (
                     <ConfirmDeleteButton
                       // Bound server-action reference (NOT an inline closure):
                       // this panel is a Server Component, and a closure — even one

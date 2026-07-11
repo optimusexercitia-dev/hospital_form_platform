@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
 import { MEETING_MESSAGES, mapMeetingError } from '@/lib/meetings/messages'
+import { bucketForTier, effectiveTier } from '@/lib/attachments/constants'
 import type {
   AttendanceStatus,
   AttendeeRole,
@@ -903,8 +904,8 @@ const ATTACHMENT_KINDS = [
  * `title`. Clones the case-documents flow: validates the MIME allow-list + 25
  * MiB cap, uploads to a FRESH immutable path (`upsert:false`,
  * `{commissionId}/{meetingId}/{uuid}.{ext}`), then inserts the metadata row via
- * the `add_meeting_attachment` RPC — objects are never overwritten (Rule 6).
- * staff_admin-only.
+ * the `create_attachment` RPC (Phase F2 — owner_type='meeting') — objects are
+ * never overwritten (Rule 6). staff_admin-only.
  */
 export async function uploadMeetingAttachment(
   _prev: UploadAttachmentState | undefined,
@@ -936,6 +937,11 @@ export async function uploadMeetingAttachment(
   if (!(await meetingsEnabled())) {
     return { ok: false, error: MEETING_MESSAGES.unavailable }
   }
+  // Phase F2 (ADR 0063): meeting attachments are `attachments` (owner_type='meeting'),
+  // gated by the `attachments` flag (in addition to meetings). Inert while OFF.
+  if (!(await featureEnabled('attachments'))) {
+    return { ok: false, error: MEETING_MESSAGES.unavailable }
+  }
 
   const supabase = await createClient()
   const commissionId = await commissionOfMeeting(supabase, meetingId)
@@ -944,22 +950,27 @@ export async function uploadMeetingAttachment(
     return { ok: false, error: MEETING_MESSAGES.forbidden }
   }
 
-  // Immutable path: commission folder (RLS boundary) / meeting folder / uuid.ext.
-  const path = `${commissionId}/${meetingId}/${crypto.randomUUID()}.${ext}`
+  // Owner-scoped immutable path `meeting/{meetingId}/{uuid}.{ext}`; meetings default to
+  // the STANDARD tier → the `attachments` bucket.
+  const tier = effectiveTier('meeting')
+  const bucket = bucketForTier(tier)
+  const path = `meeting/${meetingId}/${crypto.randomUUID()}.${ext}`
   const bytes = new Uint8Array(await file.arrayBuffer())
 
   const { error: uploadError } = await supabase.storage
-    .from('meeting-attachments')
+    .from(bucket)
     .upload(path, bytes, { contentType: file.type, upsert: false })
   if (uploadError) return { ok: false, error: MEETING_MESSAGES.uploadFailed }
 
-  const { data, error } = await supabase.rpc('add_meeting_attachment', {
-    p_meeting_id: meetingId,
-    p_kind: kind,
-    p_title: title,
+  const { data, error } = await supabase.rpc('create_attachment', {
+    p_owner_type: 'meeting',
+    p_owner_id: meetingId,
     p_storage_path: path,
+    p_title: title,
+    p_kind: kind,
     p_mime_type: file.type,
     p_size_bytes: file.size,
+    p_sensitivity_tier: tier,
   })
 
   if (error || !data) {
@@ -983,10 +994,13 @@ export async function deleteMeetingAttachment(
   if (!(await meetingsEnabled())) {
     return { ok: false, error: MEETING_MESSAGES.unavailable }
   }
+  if (!(await featureEnabled('attachments'))) {
+    return { ok: false, error: MEETING_MESSAGES.unavailable }
+  }
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc('delete_meeting_attachment', {
-    p_attachment_id: attachmentId,
+  const { error } = await supabase.rpc('soft_delete_attachment', {
+    p_id: attachmentId,
   })
 
   if (error) return { ok: false, error: mapMeetingError(error) }

@@ -110,9 +110,12 @@ values
    (select st_x2 from k)),
   ((select narr2 from cs), (select case_x from cs), 'Conclusão', 3, 'aberta', null);
 
-insert into public.case_documents (id, case_id, title, storage_path, uploaded_by)
-values ((select doc_x from cs), (select case_x from cs), 'Ata',
-        (select comm_x from k) || '/' || (select case_x from cs) || '/doc.pdf',
+-- F2 (ADR 0063): case documents are attachments (owner_type='case'); their read
+-- follows can_read_attachment('case', …) = can_read_case (ACL under case_access).
+insert into public.attachments
+  (id, owner_type, owner_id, kind, title, storage_bucket, storage_path, sensitivity_tier, uploaded_by)
+values ((select doc_x from cs), 'case', (select case_x from cs), 'ata', 'Ata',
+        'attachments-phi', 'case/' || (select case_x from cs) || '/doc.pdf', 'phi',
         (select sa_x from k));
 
 insert into public.case_events (id, case_id, kind, body, created_by)
@@ -157,9 +160,11 @@ insert into public.case_interview_subjects (id, interview_id, external_name, not
 values ((select subj from ivt), (select iv from ivt), 'Sujeito Externo', 'nota');
 insert into public.case_interview_interviewers (id, interview_id, external_name, role)
 values ((select intr from ivt), (select iv from ivt), 'Entrevistador Externo', 'entrevistador');
-insert into public.case_interview_attachments
-  (id, interview_id, kind, title, external_url, uploaded_by)
-values ((select att from ivt), (select iv from ivt), 'outro', 'Anexo',
+-- F2 (ADR 0063): interview external links live in case_interview_links (case-scoped
+-- read, INFO-N1 parity); interview FILE attachments moved to public.attachments.
+insert into public.case_interview_links
+  (id, interview_id, title, external_url, created_by)
+values ((select att from ivt), (select iv from ivt), 'Anexo',
         'https://example.test/a', (select sa_x from k));
 
 -- =========================================================================
@@ -253,8 +258,8 @@ select is((select count(*)::int from public.case_phases where case_id = (select 
   0, 'RLS: unrelated member reads 0 case_phases rows');
 select is((select count(*)::int from public.case_narratives where case_id = (select case_x from cs)),
   0, 'RLS: unrelated member reads 0 case_narratives rows');
-select is((select count(*)::int from public.case_documents where case_id = (select case_x from cs)),
-  0, 'RLS: unrelated member reads 0 case_documents rows');
+select is((select count(*)::int from public.attachments where owner_type = 'case' and owner_id = (select case_x from cs)),
+  0, 'RLS: unrelated member reads 0 case attachments rows');
 select is((select count(*)::int from public.case_events where case_id = (select case_x from cs)),
   0, 'RLS: unrelated member reads 0 case_events rows');
 reset role;
@@ -264,8 +269,8 @@ select test_helpers.claims_for((select gx_r from p), false);
 set local role authenticated;
 select is((select count(*)::int from public.cases where id = (select case_x from cs)),
   1, 'RLS: granted-read member reads the case');
-select is((select count(*)::int from public.case_documents where case_id = (select case_x from cs)),
-  1, 'RLS: granted-read member reads the case documents');
+select is((select count(*)::int from public.attachments where owner_type = 'case' and owner_id = (select case_x from cs)),
+  1, 'RLS: granted-read member reads the case attachments');
 reset role;
 
 -- st_x (phase assignee): reads the case (attribution-derived).
@@ -289,8 +294,8 @@ select is((select count(*)::int from public.case_interview_subjects where interv
   0, 'INFO-N1 boundary: bare member reads 0 case_interview_subjects rows');
 select is((select count(*)::int from public.case_interview_interviewers where interview_id = (select iv from ivt)),
   0, 'INFO-N1 boundary: bare member reads 0 case_interview_interviewers rows');
-select is((select count(*)::int from public.case_interview_attachments where interview_id = (select iv from ivt)),
-  0, 'INFO-N1 boundary: bare member reads 0 case_interview_attachments rows');
+select is((select count(*)::int from public.case_interview_links where interview_id = (select iv from ivt)),
+  0, 'INFO-N1 boundary: bare member reads 0 case_interview_links rows');
 reset role;
 
 -- (b) gx_r — a granted-READ case-worker — reads the interview + every child.
@@ -302,8 +307,8 @@ select is((select count(*)::int from public.case_interview_subjects where interv
   1, 'INFO-N1: granted-read case-worker reads the interview subject');
 select is((select count(*)::int from public.case_interview_interviewers where interview_id = (select iv from ivt)),
   1, 'INFO-N1: granted-read case-worker reads the interviewer');
-select is((select count(*)::int from public.case_interview_attachments where interview_id = (select iv from ivt)),
-  1, 'INFO-N1: granted-read case-worker reads the attachment');
+select is((select count(*)::int from public.case_interview_links where interview_id = (select iv from ivt)),
+  1, 'INFO-N1: granted-read case-worker reads the interview link');
 reset role;
 
 -- (b′) st_x — an ATTRIBUTION-derived case-worker (phase assignee) — reads the
@@ -326,8 +331,8 @@ select is((select count(*)::int from public.case_interview_subjects where interv
   1, 'INFO-N1: org_admin reads the interview subject (org-admin arm)');
 select is((select count(*)::int from public.case_interview_interviewers where interview_id = (select iv from ivt)),
   1, 'INFO-N1: org_admin reads the interviewer (org-admin arm)');
-select is((select count(*)::int from public.case_interview_attachments where interview_id = (select iv from ivt)),
-  1, 'INFO-N1: org_admin reads the attachment (org-admin arm)');
+select is((select count(*)::int from public.case_interview_links where interview_id = (select iv from ivt)),
+  1, 'INFO-N1: org_admin reads the interview link (org-admin arm)');
 reset role;
 
 -- =========================================================================

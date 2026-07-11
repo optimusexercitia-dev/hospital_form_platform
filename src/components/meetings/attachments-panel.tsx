@@ -2,19 +2,32 @@ import { Download, Paperclip } from "lucide-react";
 
 import type { MeetingAttachmentWithUrl } from "@/lib/queries/meetings";
 import { deleteMeetingAttachment } from "@/lib/meetings/actions";
+import { attachmentsEnabled } from "@/lib/attachments/actions";
+import { OpenAttachmentButton } from "@/components/attachments/open-attachment-button";
 import { AttachmentUpload } from "./attachment-upload";
 import { ConfirmDeleteButton } from "./confirm-delete-button";
 import { ATTACHMENT_KIND_LABEL } from "./meeting-labels";
 import { formatDate } from "./format";
 
 /**
- * Meeting ATTACHMENTS panel (F4): file-backed artifacts (pauta, apresentação,
+ * Meeting ATTACHMENTS panel (F4; rewired onto the centralized-attachments
+ * substrate in F2 — ADR 0063): file-backed artifacts (pauta, apresentação,
  * literatura, lista de presença, ata assinada, outro), newest-first, each with a
- * signed-URL download and a soft-delete. Server-Component shell — the data (incl.
- * fresh signed URLs) arrives as props; the upload + delete are client islands.
- * Soft-deleted rows are already filtered out by `listMeetingAttachments`.
+ * download and a soft-delete. Server-Component shell — the data (incl. fresh
+ * signed URLs where available) arrives as props; the upload + delete are client
+ * islands. Soft-deleted rows are already filtered out by `listMeetingAttachments`.
+ *
+ * Meetings default to the STANDARD tier, so most rows carry a usable inline
+ * `signedUrl` and open directly; a row with `signedUrl: null` (an escalated
+ * phi-tier attachment, or a batch-signing failure) opens via the audited
+ * {@link OpenAttachmentButton} instead — never pre-fetched, only on click.
+ *
+ * Upload/delete AND the audited open door are gated on the `attachments` feature
+ * flag (`attachmentsEnabled()`); while off, existing rows render read-only and the
+ * escalated-open control is disabled rather than hidden (list reads themselves are
+ * never gated).
  */
-export function AttachmentsPanel({
+export async function AttachmentsPanel({
   meetingId,
   attachments,
   canEdit,
@@ -23,6 +36,8 @@ export function AttachmentsPanel({
   attachments: MeetingAttachmentWithUrl[];
   canEdit: boolean;
 }) {
+  const flagOn = await attachmentsEnabled();
+  const canEditNow = canEdit && flagOn;
   return (
     <section
       aria-labelledby="meeting-attachments-heading"
@@ -44,12 +59,12 @@ export function AttachmentsPanel({
             {attachments.length}
           </span>
         </div>
-        {canEdit && <AttachmentUpload meetingId={meetingId} />}
+        {canEditNow && <AttachmentUpload meetingId={meetingId} />}
       </div>
 
       {attachments.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center text-sm text-muted-foreground">
-          {canEdit
+          {canEditNow
             ? "Nenhum anexo. Envie a pauta, apresentações ou a ata assinada."
             : "Nenhum anexo."}
         </p>
@@ -75,7 +90,7 @@ export function AttachmentsPanel({
                 </p>
               </div>
 
-              <div className="flex shrink-0 items-center gap-0.5">
+              <div className="flex shrink-0 items-start gap-0.5">
                 {att.signedUrl ? (
                   <a
                     href={att.signedUrl}
@@ -87,11 +102,13 @@ export function AttachmentsPanel({
                     <Download aria-hidden="true" className="size-4" />
                   </a>
                 ) : (
-                  <span className="text-xs text-muted-foreground/70 italic">
-                    indisponível
-                  </span>
+                  <OpenAttachmentButton
+                    attachmentId={att.id}
+                    label={`Baixar ${att.title}`}
+                    disabled={!flagOn}
+                  />
                 )}
-                {canEdit && (
+                {canEditNow && (
                   <ConfirmDeleteButton
                     // Bound server-action reference (NOT an inline closure): this
                     // panel is a Server Component, and a closure — even one

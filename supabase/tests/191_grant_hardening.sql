@@ -16,12 +16,15 @@
 --           helper (entitled passes / unentitled fails, empirically).
 
 begin;
-select plan(24);
+select plan(26);
 
 -- HARD REQUIREMENT (QA-B-1): the C-4 PHI-door + .viewed assertions need these flags
 -- (audit_write early-returns without audit_trail; the PHI doors gate on patient_safety).
+-- F2 §4 adds the attachment.read pair: `meetings` is needed for the create_meeting
+-- fixture (the attachment owner). attachment.read itself is not flag-gated.
 update app.feature_flags set enabled = true where key = 'patient_safety';
 update app.feature_flags set enabled = true where key = 'audit_trail';
+update app.feature_flags set enabled = true where key = 'meetings';
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -231,6 +234,47 @@ select has_function('app', '_audit_access_authorized', array['text','uuid','uuid
 select ok(
   not has_function_privilege('anon', 'app._audit_access_authorized(text,uuid,uuid)', 'EXECUTE'),
   '3.12: _audit_access_authorized is NOT anon-executable (t19 grant hygiene)');
+
+-- ============================================================================
+-- §4: F2 (ADR 0063) — the attachment.read triple-mirror pair. An entitled reader
+--     (a member of the owning commission → can_read_attachment) CAN log
+--     attachment.read; a foreign member CANNOT (the C-4 forge-guard closes it).
+-- ============================================================================
+-- A meeting in comm_x (create_meeting mints it) + a standard-tier attachment owned
+-- by it (inserted directly — no storage object needed for the RLS/audit-guard test;
+-- the immutability guard is BEFORE UPDATE only, so a plain INSERT is unaffected).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table mtg on commit drop as
+  select * from public.create_meeting((select comm_x from k), 'Reunião Anexo', null, now(), null, 'presencial', null, null);
+reset role;
+grant select on mtg to authenticated;
+
+create temp table att on commit drop as select gen_random_uuid() as id;
+grant select on att to authenticated;
+insert into public.attachments (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier)
+  select (select id from att), 'meeting', (select id from mtg), 'Anexo de teste',
+         'attachments', 'meeting/' || (select id from mtg)::text || '/x.pdf', 'standard';
+
+-- (4a) ENTITLED: st_x2 (a comm_x member → can_read_attachment) may log attachment.read.
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.log_audit_access('attachment.read','attachment',%L::uuid,%L::uuid,'v','{}'::jsonb) $$,
+         (select id from att), (select comm_x from k)),
+  '3.13: an entitled reader (can_read_attachment) CAN log attachment.read');
+reset role;
+
+-- (4b) UNENTITLED cross-commission: st_y (comm_y, no relationship to comm_x) CANNOT
+-- forge attachment.read for the comm_x attachment → 42501 (the C-4 vector, closed).
+select test_helpers.claims_for((select st_y from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.log_audit_access('attachment.read','attachment',%L::uuid,%L::uuid,'v','{}'::jsonb) $$,
+         (select id from att), (select comm_x from k)),
+  '42501', null,
+  '3.14: an UNENTITLED cross-commission caller CANNOT forge attachment.read (C-4 closed)');
+reset role;
 
 select * from finish();
 rollback;
