@@ -610,17 +610,7 @@ test('Flow 4c: a response_expected=false referral does not block close_case', as
   //  as chefe.ccih is CCIH coordinator — same result.)
   const adminToken = await getToken(request, 'admin@test.local')
 
-  // Create a notification-type (ciencia = no reply) draft
-  await rpc(request, 'create_referral_draft', adminToken, {
-    p_source_case_id: CASE_A_ID,
-    p_target_commission_id: COMM_B,
-    p_referral_type_id: (await rpc(request, 'list_referral_types', adminToken, {})).ok()
-      ? null
-      : null, // use null type → RPC will pick its own default; we force response_expected=false below
-    p_subject: 'Ciência — spec Flow 4c',
-    p_response_expected: false,
-  })
-  // NOTE: p_referral_type_id is required by the RPC; use the service key to pick a type id
+  // p_referral_type_id is required by the RPC; use the service key to pick a valid type id
   const typesResp = await restGet<{ id: string; key: string }>(
     request,
     'referral_types?select=id,key&is_active=eq.true&order=position.asc',
@@ -628,19 +618,19 @@ test('Flow 4c: a response_expected=false referral does not block close_case', as
   )
   const cienciaType = typesResp.find((t) => t.key === 'ciencia') ?? typesResp[0]
 
-  const draft2Resp = await rpc(request, 'create_referral_draft', adminToken, {
+  const draftResp = await rpc(request, 'create_referral_draft', adminToken, {
     p_source_case_id: CASE_A_ID,
     p_target_commission_id: COMM_B,
     p_referral_type_id: cienciaType?.id,
     p_subject: 'Ciência — spec Flow 4c',
     p_response_expected: false,
   })
-  if (!draft2Resp.ok()) {
+  if (!draftResp.ok()) {
     // CASE_A_ID may have a concurrent ENC-0001 that is concluida — that's fine, not blocking
     // Just assert close_case doesn't raise HC076 for this case (it's already been tested in 4a/4b)
     return
   }
-  const draftData = await draft2Resp.json() as { id: string }
+  const draftData = await draftResp.json() as { id: string }
   const refId = draftData?.id
 
   if (refId) {
