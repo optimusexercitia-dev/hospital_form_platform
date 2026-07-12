@@ -68,7 +68,6 @@ if (!SUPABASE_SERVICE_KEY) {
 
 // Commissions
 const COMM_A = 'a0000000-0000-0000-0000-0000000000a1' // CCIH (source)
-const COMM_B = 'b0000000-0000-0000-0000-0000000000b1' // Farmácia (target)
 
 // Hospital (NSP-per-HOSPITAL, ADR 0052) — the cross-committee fixture's synthetic
 // patient lives under CCIH, whose hospital is central-a. search_patient_xref /
@@ -79,7 +78,6 @@ const HOSP_CENTRAL_A = '05000000-0000-0000-0000-00000000000a'
 
 // Personas (UUIDs). The UI/RPC actors are driven by email via signInAs/getToken;
 // these UUIDs are only for service-role data-setup (e.g. cases.created_by).
-const UID_ADMIN   = '00000000-0000-0000-0000-000000000001' // admin@test.local — rede-a org_admin + rede-a PQS member
 const UID_CHEFE_A = '00000000-0000-0000-0000-000000000002' // chefe.ccih — NOT in pqs_members
 
 // Seed fixture IDs
@@ -87,8 +85,6 @@ const UID_CHEFE_A = '00000000-0000-0000-0000-000000000002' // chefe.ccih — NOT
 const EV1_ID    = 'e1000000-0000-0000-0000-0000000000a1'
 /** ENC-0001 referral (concluida), commission A→B, has patient (same MRN + encounter) */
 const ENC1_ID   = 'efa00000-0000-0000-0000-0000000000a1'
-/** B-side case (case 9001, commission B), has patient (same MRN, no encounter) */
-const CASE_B_ID = 'dba00000-0000-0000-0000-0000000000b1'
 
 // Cross-committee test patient identifiers (in seed)
 const TEST_MRN       = 'PRT-0099123'
@@ -346,11 +342,6 @@ test('AC-3: referral ENC-0001 detail shows count-only "aparece em N outros regis
     await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
     await page.waitForLoadState('networkidle')
 
-    // The referral-patient panel renders on ENC-0001 (hasPatient=true)
-    const panelSection = page
-      .getByRole('region', { name: /identificação do paciente/i })
-      .or(page.getByText(/Identificação do paciente/i).first())
-
     // Look for the "aparece em N outros registros" count note
     // It renders as "Este paciente aparece em N outro(s) registro(s)"
     const countNote = page
@@ -460,7 +451,7 @@ test('AC-4b: zero-match search emits NO audit row', async ({
   // zero-match (not a fail-closed empty from a missing hospital) — the audit-suppression
   // assertion below is therefore meaningful.
   const adminToken = await getToken(request, 'admin@test.local')
-  const searchResp = await rpc(request, 'search_patient_xref', adminToken, {
+  await rpc(request, 'search_patient_xref', adminToken, {
     p_mrn: NONEXISTENT_MRN,
     p_hospital_id: HOSP_CENTRAL_A,
   })

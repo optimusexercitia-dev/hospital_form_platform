@@ -62,13 +62,6 @@ const COMMISSION_B = 'b0000000-0000-0000-0000-0000000000b1' // Farmácia
 const ADMIN_ID = '00000000-0000-0000-0000-000000000001'
 const CHEFE_CCIH_ID = '00000000-0000-0000-0000-000000000002'
 const STAFF1_CCIH_ID = '00000000-0000-0000-0000-000000000003'
-// STAFF2_CCIH_ID (004) used in AC-1b probe member — no phase2 landing assertion for this user.
-const STAFF2_CCIH_ID = '00000000-0000-0000-0000-000000000004'
-const CHEFE_FARM_ID = '00000000-0000-0000-0000-000000000005'
-
-// Read-only AC tests (3/4/5/6/7/8) consume these seeded IDs — they are safe
-// because none of those tests mutate the seeded entities.
-const FORM_A_VER = '50000000-0000-0000-0000-00000000a001'
 
 // ---------------------------------------------------------------------------
 // Helpers

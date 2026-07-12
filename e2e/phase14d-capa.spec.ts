@@ -58,7 +58,6 @@ if (!SUPABASE_SERVICE_KEY) {
 
 const CAPA_ID     = 'ca000000-0000-0000-0000-0000000000a3'
 const CAPA_ACT_ID = 'caa00000-0000-0000-0000-0000000000a1'
-const CAPA_MEAS_ID = 'cab00000-0000-0000-0000-0000000000a1'
 const EV2_ID      = 'e2000000-0000-0000-0000-0000000000a2'  // stand-alone event (for source=event CAPA)
 
 const ADMIN_EMAIL  = 'admin@test.local'

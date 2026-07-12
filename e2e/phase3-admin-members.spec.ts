@@ -54,8 +54,6 @@ import { test, expect } from '@playwright/test'
  * the AC3 cross-commission boundary check remains valid regardless of run order.
  */
 
-const MAILPIT_API = 'http://127.0.0.1:54324/api/v1'
-
 // The seeded hospital under rede-a (from supabase/seed.sql — Hospital Central A).
 // We select this in the Hospital dropdown when creating a commission.
 const HOSPITAL_NAME = 'Hospital Central A'
@@ -77,37 +75,6 @@ async function signInAs(
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), {
     timeout: 15_000,
   })
-}
-
-/**
- * Poll Mailpit for a message to `toAddress`.
- * Returns the first matching message object or null after `timeoutMs`.
- *
- * NOTE: the `afterMs` time-guard was removed (spec defect fix 2026-06-12).
- * On the local Docker stack GoTrue delivers the invite email so quickly that
- * it arrives in Mailpit BEFORE `Date.now()` is captured in the test, making
- * the time-filter exclude the very message we're looking for. Since every test
- * uses a unique `Date.now()`-suffixed address, matching by address alone is
- * safe — no stale email from a prior run can share the same address.
- */
-async function waitForMailpitMessage(
-  toAddress: string,
-  timeoutMs = 20_000,
-): Promise<{ Subject: string; To: { Address: string }[] } | null> {
-  const deadline = Date.now() + timeoutMs
-  while (Date.now() < deadline) {
-    const res = await fetch(`${MAILPIT_API}/messages?limit=50`)
-    if (!res.ok) break
-    const body = (await res.json()) as {
-      messages: { Subject: string; To: { Address: string }[]; Created: string }[]
-    }
-    const match = body.messages.find((m) =>
-      m.To.some((t) => t.Address.toLowerCase() === toAddress.toLowerCase()),
-    )
-    if (match) return match
-    await new Promise((r) => setTimeout(r, 800))
-  }
-  return null
 }
 
 /**

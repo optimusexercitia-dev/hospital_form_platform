@@ -220,6 +220,10 @@ phase + the head of each cross-phase log. The rotation/archive discipline is the
 ## 8. Conventions & Quality Bar
 
 - TypeScript `strict`; no `any` without an inline justification comment.
+- **Lint gate** — `npm run lint` = `eslint --max-warnings=0`: **0 errors AND 0 warnings**
+  (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
+  `.claude/` tooling + build dirs are ignored; mark intentionally-unused bindings with a
+  `_` prefix; keep `eslint-config-next` pinned to the installed `next`. Rationale: ADR 0067.
 - Conventional commits: `feat(scope):`, `fix:`, `test:`, `chore:`, `phase(N):`.
 - Server Components by default; `"use client"` only where interaction requires it.
 - Every form input accessible: labels, keyboard navigation, visible focus. The tester

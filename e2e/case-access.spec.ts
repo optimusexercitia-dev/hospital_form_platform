@@ -73,13 +73,10 @@ const BASE = `/o/${ORG}/c/${SLUG}` // canonical commission route prefix
 // Deterministic IDs from seed.sql
 const CASE_ID = 'd0000000-0000-0000-0000-0000000000c1'         // Caso 0001 (open)
 const CASE_ID_TERMINAL = 'd0000000-0000-0000-0000-0000000000c2' // Caso 0002 (concluido)
-const COMM_ID = 'a0000000-0000-0000-0000-0000000000a1'
 // Narrative type: "Resumo Clínico" (assigned to staff2)
 const NARRATIVE_TYPE_RES = 'e2000000-0000-0000-0000-0000000000f1'
 // User IDs
 const UID_CHEFE  = '00000000-0000-0000-0000-000000000002'       // coordinator
-const UID_MULTI  = '00000000-0000-0000-0000-000000000008'       // read grant
-const UID_STAFF3 = '00000000-0000-0000-0000-000000000009'       // write grant
 const UID_STAFF4 = '00000000-0000-0000-0000-00000000000a'       // boundary
 
 const PW = 'Test1234!'
@@ -130,22 +127,6 @@ async function dbQuery<T = Record<string, unknown>>(
   const data: unknown = await res.json()
   if (!Array.isArray(data)) return []
   return data as T[]
-}
-
-/** Call a Supabase RPC via the service-role key (bypasses RLS). */
-async function dbRpc(fn: string, body: Record<string, unknown>): Promise<{ ok: boolean; data: unknown; error: unknown }> {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
-    method: 'POST',
-    headers: {
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
-  const data: unknown = res.ok ? await res.json() : null
-  const error = res.ok ? null : await res.text()
-  return { ok: res.ok, data, error }
 }
 
 /** Find the "Resumo Clínico" narrative id in Caso 0001 (deterministic type id). */
@@ -269,7 +250,6 @@ test('AC-1 attribution-read: phase assignee (staff1) opens full case read-only; 
   // also the staff read path) to see submitted answers via `get_case_detail`
   // (submitted-only answer projection). The answered key is `dispensador_disponivel`.
   // We assert the phase card is visible and shows "Concluída".
-  const phase1Card = page.locator('[data-testid="phase-card"]').first()
   // If there is no data-testid, we look for the status pill "Concluída".
   // In any case the detail page must render without 404.
   await expect(page.getByText(/Óbito UTI leito 7/i)).toBeVisible()

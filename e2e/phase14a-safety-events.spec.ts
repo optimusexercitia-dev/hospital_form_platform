@@ -76,18 +76,12 @@ const COMMISSION_A = 'a0000000-0000-0000-0000-0000000000a1' // CCIH
 const COMMISSION_B = 'b0000000-0000-0000-0000-0000000000b1' // Farmácia
 
 // Personas
-const ADMIN_ID    = '00000000-0000-0000-0000-000000000001'
 const PQS_A_ID    = '00000000-0000-0000-0000-0000000000c2'
 const PQS_A_EMAIL = 'pqs.a@test.local'
-const CHEFE_CCIH  = '00000000-0000-0000-0000-000000000002'
-const STAFF1_CCIH = '00000000-0000-0000-0000-000000000003'
 
 // Seeded events
 const EV1_ID = 'e1000000-0000-0000-0000-0000000000a1'  // acknowledged, case-linked, has PHI
 const EV2_ID = 'e2000000-0000-0000-0000-0000000000a2'  // reported, stand-alone, no PHI
-
-// Caso 0001
-const CASE1_ID = 'd0000000-0000-0000-0000-0000000000c1'
 
 // ---------------------------------------------------------------------------
 // Helpers

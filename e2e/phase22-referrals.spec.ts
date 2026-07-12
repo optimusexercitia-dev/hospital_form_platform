@@ -71,9 +71,7 @@ const COMM_A = 'a0000000-0000-0000-0000-0000000000a1' // CCIH  (source)
 const COMM_B = 'b0000000-0000-0000-0000-0000000000b1' // Farmácia (target)
 
 // Personas
-const UID_ADMIN   = '00000000-0000-0000-0000-000000000001'
 const UID_CHEFE_A = '00000000-0000-0000-0000-000000000002' // chefe.ccih
-const UID_CHEFE_B = '00000000-0000-0000-0000-000000000005' // chefe.farm
 
 // Seed fixture IDs
 const ENC1_ID      = 'efa00000-0000-0000-0000-0000000000a1' // concluida
@@ -613,7 +611,7 @@ test('Flow 4c: a response_expected=false referral does not block close_case', as
   const adminToken = await getToken(request, 'admin@test.local')
 
   // Create a notification-type (ciencia = no reply) draft
-  const draftResp = await rpc(request, 'create_referral_draft', adminToken, {
+  await rpc(request, 'create_referral_draft', adminToken, {
     p_source_case_id: CASE_A_ID,
     p_target_commission_id: COMM_B,
     p_referral_type_id: (await rpc(request, 'list_referral_types', adminToken, {})).ok()
@@ -685,11 +683,6 @@ test('Flow 5a: QPS admin PHI panel reveal → referral_patient.read audit row, n
 
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
   await page.waitForLoadState('networkidle')
-
-  // The patient panel is visible (hasPatient=true on ENC-0001)
-  const panelRegion = page.getByRole('region', { name: /identificação do paciente/i })
-    .or(page.locator('[data-referral-patient-panel]'))
-    .or(page.getByText(/Identificação do paciente/i).locator('..'))
 
   // Click the reveal button (lazy: fires the audited `get_referral_patient` door)
   const revealBtn = page.getByRole('button', { name: /exibir identificação/i })

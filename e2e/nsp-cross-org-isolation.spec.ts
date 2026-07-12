@@ -32,9 +32,6 @@ const TITLE_B = 'Erro de identificação de paciente (Rede B)' // rede-b event t
 
 test.use({ viewport: { width: 1280, height: 900 } })
 
-const BASE = 'http://localhost:3000'
-
-const EV_A = 'e1000000-0000-0000-0000-0000000000a1' // rede-a event (has PHI)
 const EV_B = 'e4000000-0000-0000-0000-0000000000b1' // rede-b event (has PHI)
 
 async function signInAs(page: Page, email: string, password = 'Test1234!') {

@@ -59,19 +59,15 @@ if (!SUPABASE_SERVICE_KEY) {
 }
 
 const RCA_ID  = 'f3000000-0000-0000-0000-0000000000a3'
-const EV3_ID  = 'e3000000-0000-0000-0000-0000000000a3'
 
 const ADMIN_EMAIL   = 'admin@test.local'
-const CHEFE_EMAIL   = 'chefe.ccih@test.local'
 const STAFF1_EMAIL  = 'staff1.ccih@test.local'
 const FARM_EMAIL    = 'chefe.farm@test.local'
 // NSP console actor for rede-a (enrolled PQS reader; ADR 0042 per-org NSP).
 // Drives the /o/rede-a/nsp/** console UI; admin@ stays for RPC data-setup.
 const PQS_A_EMAIL   = 'pqs.a@test.local'
 
-const STAFF1_ID = '00000000-0000-0000-0000-000000000003'
 const ADMIN_ID  = '00000000-0000-0000-0000-000000000001'
-const PQS_A_ID  = '00000000-0000-0000-0000-0000000000c2'
 
 // ---------------------------------------------------------------------------
 // Helpers

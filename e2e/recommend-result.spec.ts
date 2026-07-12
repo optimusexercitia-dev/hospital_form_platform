@@ -130,9 +130,6 @@ let ph1MixedAnswerId: string
 let ph1MixedNeitherMatchId: string
 let ph1OverrideId: string
 
-// Phase 2 IDs for the specific-result case (used for override re-flip test)
-let ph2SpecificMatchId: string
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -143,16 +140,6 @@ async function signInAs(page: Page, email: string, password = 'Test1234!') {
   await page.locator('input[name="password"]').fill(password)
   await page.getByRole('button', { name: /entrar/i }).click()
   await page.waitForURL((url: URL) => !url.pathname.startsWith('/login'), { timeout: 20_000 })
-}
-
-async function signOut(page: Page) {
-  await page.evaluate(() => window.scrollTo(0, 0)).catch(() => {})
-  const userMenu = page.getByRole('button', { name: /abrir menu da conta/i })
-  await userMenu.click()
-  const sairItem = page.getByRole('menuitem', { name: /sair/i })
-  await expect(sairItem).toBeVisible({ timeout: 5_000 })
-  await sairItem.click()
-  await page.waitForURL('**/login', { timeout: 15_000 })
 }
 
 /** Obtain a persona JWT (RLS evaluated under it). */
@@ -626,9 +613,6 @@ test.beforeAll(async ({ request }) => {
   ph1MixedAnswerId = await getPhase1Id(request, caseMixedAnswerId)
   ph1MixedNeitherMatchId = await getPhase1Id(request, caseMixedNeitherMatchId)
   ph1OverrideId = await getPhase1Id(request, caseOverrideId)
-
-  // Phase 2 for the SpecificMatch case (used in override re-flip test)
-  ph2SpecificMatchId = await getPhase2Id(request, caseSpecificMatchId)
 
   // ── 8. Activate Phase 1 for all cases ─────────────────────────────────────
   async function activatePhase(phaseId: string): Promise<void> {
@@ -1111,7 +1095,6 @@ test('RR-K: keyboard-only — recommend-when editor source toggle and add-row bu
     await page.waitForTimeout(400)
 
     // Verify the editor expanded (Radix checkbox becomes checked).
-    const isChecked = await recommendCheckbox.isChecked().catch(() => false)
     // Whether or not the attribute is "checked", the editor should now be enabled.
     // Look for the "Adicionar condição" button having appeared.
     const addCondBtn = slotDialog2.getByRole('button', { name: /Adicionar condição/i })

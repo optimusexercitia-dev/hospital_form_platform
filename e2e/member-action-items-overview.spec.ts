@@ -69,7 +69,6 @@ const COMM_FARM_ID = 'b0000000-0000-0000-0000-0000000000b1'
 // Persona ids (seed.sql).
 const STAFF1_CCIH = '00000000-0000-0000-0000-000000000003' // staff, commission A
 const STAFF2_CCIH = '00000000-0000-0000-0000-000000000004' // staff, commission A
-const STAFF4_CCIH = '00000000-0000-0000-0000-00000000000a' // staff, commission A (boundary persona: no items)
 const CHEFE_CCIH = '00000000-0000-0000-0000-000000000002' // staff_admin, commission A
 
 // Seeded fixtures (seed.sql).

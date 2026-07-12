@@ -56,8 +56,6 @@ if (!SUPABASE_SERVICE_KEY) {
   throw new Error('SUPABASE_SERVICE_ROLE_KEY ausente — defina-o em .env.local.')
 }
 
-const COMM_CCIH_ID = 'a0000000-0000-0000-0000-0000000000a1'
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -412,7 +410,6 @@ test('S5: offered-outcomes editor — dropping the assigned outcome shows the HC
   await dialog.getByRole('checkbox', { name: /Emite desfecho\?/i }).click()
 
   // Pick the first TWO outcomes from the commission vocabulary (seeded CCIH has ≥3).
-  const checkboxes = dialog.locator('label').filter({ has: page.getByRole('checkbox') })
   // The "Emite desfecho?" toggle is itself a checkbox-label; scope to the
   // multiselect list rows (they carry an outcome badge). Use the OutcomeMultiselect
   // rows: each <li><label><checkbox/><badge/></label>.
