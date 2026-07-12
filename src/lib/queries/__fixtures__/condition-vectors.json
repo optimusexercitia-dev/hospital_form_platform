@@ -256,6 +256,162 @@
       "visible_when": { "question_key": "q1", "op": "lte", "value": "23:59" },
       "answers": { "q1": "23:59" },
       "expected": true
+    },
+    {
+      "name": "contains string substring hit",
+      "visible_when": { "question_key": "q1", "op": "contains", "value": "grave" },
+      "answers": { "q1": "Infecção grave" },
+      "expected": true
+    },
+    {
+      "name": "contains string substring miss",
+      "visible_when": { "question_key": "q1", "op": "contains", "value": "leve" },
+      "answers": { "q1": "Infecção grave" },
+      "expected": false
+    },
+    {
+      "name": "contains checkbox array membership hit",
+      "visible_when": { "question_key": "q1", "op": "contains", "value": "luvas" },
+      "answers": { "q1": ["luvas", "avental"] },
+      "expected": true
+    },
+    {
+      "name": "contains checkbox array membership miss",
+      "visible_when": { "question_key": "q1", "op": "contains", "value": "touca" },
+      "answers": { "q1": ["luvas", "avental"] },
+      "expected": false
+    },
+    {
+      "name": "contains number answer is false (no number substring)",
+      "visible_when": { "question_key": "q1", "op": "contains", "value": "2" },
+      "answers": { "q1": 12 },
+      "expected": false
+    },
+    {
+      "name": "contains date string is text substring",
+      "visible_when": { "question_key": "q1", "op": "contains", "value": "2026" },
+      "answers": { "q1": "2026-06-23" },
+      "expected": true
+    },
+    {
+      "name": "contains missing answer is false",
+      "visible_when": { "question_key": "q1", "op": "contains", "value": "x" },
+      "answers": {},
+      "expected": false
+    },
+    {
+      "name": "contains null answer is false",
+      "visible_when": { "question_key": "q1", "op": "contains", "value": "x" },
+      "answers": { "q1": null },
+      "expected": false
+    },
+    {
+      "name": "contains empty-string target on string answer is true",
+      "visible_when": { "question_key": "q1", "op": "contains", "value": "" },
+      "answers": { "q1": "abc" },
+      "expected": true
+    },
+    {
+      "name": "not_contains string miss is true",
+      "visible_when": { "question_key": "q1", "op": "not_contains", "value": "leve" },
+      "answers": { "q1": "Infecção grave" },
+      "expected": true
+    },
+    {
+      "name": "not_contains string hit is false",
+      "visible_when": { "question_key": "q1", "op": "not_contains", "value": "grave" },
+      "answers": { "q1": "Infecção grave" },
+      "expected": false
+    },
+    {
+      "name": "not_contains checkbox absent option is true",
+      "visible_when": { "question_key": "q1", "op": "not_contains", "value": "touca" },
+      "answers": { "q1": ["luvas", "avental"] },
+      "expected": true
+    },
+    {
+      "name": "not_contains missing answer is true",
+      "visible_when": { "question_key": "q1", "op": "not_contains", "value": "x" },
+      "answers": {},
+      "expected": true
+    },
+    {
+      "name": "is_empty missing answer is true",
+      "visible_when": { "question_key": "q1", "op": "is_empty", "value": null },
+      "answers": {},
+      "expected": true
+    },
+    {
+      "name": "is_empty null answer is true",
+      "visible_when": { "question_key": "q1", "op": "is_empty", "value": null },
+      "answers": { "q1": null },
+      "expected": true
+    },
+    {
+      "name": "is_empty empty string is true",
+      "visible_when": { "question_key": "q1", "op": "is_empty", "value": null },
+      "answers": { "q1": "" },
+      "expected": true
+    },
+    {
+      "name": "is_empty empty array is true",
+      "visible_when": { "question_key": "q1", "op": "is_empty", "value": null },
+      "answers": { "q1": [] },
+      "expected": true
+    },
+    {
+      "name": "is_empty non-empty string is false",
+      "visible_when": { "question_key": "q1", "op": "is_empty", "value": null },
+      "answers": { "q1": "x" },
+      "expected": false
+    },
+    {
+      "name": "is_empty number zero is false",
+      "visible_when": { "question_key": "q1", "op": "is_empty", "value": null },
+      "answers": { "q1": 0 },
+      "expected": false
+    },
+    {
+      "name": "is_empty non-empty array is false",
+      "visible_when": { "question_key": "q1", "op": "is_empty", "value": null },
+      "answers": { "q1": ["luvas"] },
+      "expected": false
+    },
+    {
+      "name": "is_not_empty non-empty string is true",
+      "visible_when": { "question_key": "q1", "op": "is_not_empty", "value": null },
+      "answers": { "q1": "x" },
+      "expected": true
+    },
+    {
+      "name": "is_not_empty missing answer is false",
+      "visible_when": { "question_key": "q1", "op": "is_not_empty", "value": null },
+      "answers": {},
+      "expected": false
+    },
+    {
+      "name": "is_not_empty empty string is false",
+      "visible_when": { "question_key": "q1", "op": "is_not_empty", "value": null },
+      "answers": { "q1": "" },
+      "expected": false
+    },
+    {
+      "name": "is_not_empty empty array is false",
+      "visible_when": { "question_key": "q1", "op": "is_not_empty", "value": null },
+      "answers": { "q1": [] },
+      "expected": false
+    },
+    {
+      "name": "is_not_empty number zero is true",
+      "visible_when": { "question_key": "q1", "op": "is_not_empty", "value": null },
+      "answers": { "q1": 0 },
+      "expected": true
+    },
+    {
+      "name": "is_not_empty date string is true",
+      "visible_when": { "question_key": "q1", "op": "is_not_empty", "value": null },
+      "answers": { "q1": "2026-06-23" },
+      "expected": true
     }
   ]
 }

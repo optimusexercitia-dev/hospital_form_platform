@@ -142,6 +142,49 @@ table from creation regardless (Rule 1). **Local validation:** full pgTAP green 
 - **Flag:** `attachments` — migration `…000500` seeds OFF (`on conflict do update` forces OFF);
   `seed.sql` flips it ON for local/E2E; prod OFF until the pilot flip.
 
+## F3 — Flexible-Forms Foundation (2026-07-11; ADR 0060/0065; migrations `20260718000000`–`…000200`; NO flag, structural)
+
+The pre-pilot form-engine bones for the four committed field types + the one live feature (dual-evaluator
+operators). **Structural, no feature flag** (D6/§6.3 metadata-catalog CANCELLED — `item_type` stays a
+CHECK enum widened per feature, ADR 0065 §5). Reset-OK, forward-only, additive. **Local validation:** full
+ordered `supabase test db` **78 files / 2023 PASS** (new `209_flexible_forms.sql` 38/38 + extended
+`20_conditions.sql` operator×value_type matrix); tsc 0; Vitest `conditions.test.ts` 81/81 (golden
+dual-evaluator parity). **Remote deploy DEFERRED to the pilot reset.**
+
+- **`item_type` widened 10→15** — BOTH constraints: the value enum `form_items_item_type_check` AND the
+  shape CHECK `form_items_input_vs_display` gain arms for `group`/`repeating_group` (containers:
+  `content NULL`, `required=false`) and `matrix`/`risk_matrix`/`reference` (answerable: `question_key`+
+  `label`, `content NULL`, **`required=false`** — the Flag-5 completeness invariant: their answers live in
+  the F3 answer tables, not `answers.value`, so a `required` one would deadlock
+  `app.response_required_complete`). Garbage still rejected (D6-flip `ELSE false`). All 5 inert (no
+  renderer/writer).
+- **Cheap columns** — `form_item_options.is_exclusive` (bool, default false) + `risk_weight` (numeric);
+  `form_versions.behavior_config jsonb` (reserved staging bag, object|null; shape CHECK). No writer/UX yet.
+  `clone_form_version` carries all three forward (Rule 5 / Flag 4).
+- **Repeating-group** — `response_group_instances` gains position-uniqueness within a parent
+  (`UNIQUE NULLS NOT DISTINCT (response_id, group_item_id, parent_instance_id, position)`); write RPCs → FF-1.
+- **Frozen inert answer-shape set** (freeze principle, ADR 0065 §6; authored against
+  `docs/design/f3-question-key-aggregation.md`): `form_matrix_rows`/`form_matrix_columns` (definition,
+  version-scoped, clone-stable `code`) + `answer_matrix_cells`/`answer_risk_matrix`/`answer_references`
+  (answer rows off `answer_id → answers`; disposing a case-phase answer auto-cleans them via FK cascade).
+  `answer_references.participant_id → participants(id)` is the A/C bridge (`reference_kind='participant'`;
+  FF-5 widens). Reserved `form_item_validations` (open `rule_type text`; FF-3). **All six RLS-from-creation:
+  scoped `to authenticated` SELECT + matching GRANT (K9), NO write policy / NO write grant (write-inert;
+  the DEFINER writer lands with each FF phase).** No `*_snapshot` cols (rely on published-version immutability).
+- **THE one live feature — dual-evaluator operators** `contains`/`not_contains`/`is_empty`/`is_not_empty`
+  in BOTH `app.eval_condition` (migration `…000200`, `CREATE OR REPLACE`, stays IMMUTABLE + `search_path`
+  pinned) AND `evalCondition` (`src/lib/queries/conditions.ts`), golden-vector-locked (Rule 3, drift =
+  phase-blocking). Semantics (ADR 0060 Rec D): `contains` = array-membership | text-substring, else false
+  (no number→text coercion); `is_empty` = absent/null/`''`/`[]`, unary. **NOT authorable** — the storage
+  validators (`assert_condition_op_target`/`is_valid_visibility`/`validate_visible_when`) + the builder
+  picker (`CHOICE_OPS`/`ORDERED_OPS`/`AGGREGATE_OPS`) are UNTOUCHED; the ops are evaluator-only vocabulary.
+  `visible_when` stays visibility-only. `OP_LABELS` in the 3 `Record<ConditionOp>` maps gained pt-BR labels
+  (compile lock only, no picker change).
+- **SQLSTATEs:** none new (HC high-water stays **HC098**). **No new RPCs / helpers / flags.**
+- **Supersession forward-note:** `responses.supersedes_id` deliberately NOT added (additive-anytime,
+  freeze principle §6); the post-pilot correction ADR adds it + the dashboard/derived-indicator
+  aggregation-exclusion retrofit **atomically** (ARCHITECTURE §2 / ADR 0065 §8).
+
 ## Migrations (forward-only, additive)
 
 | Range | Phase | What landed |
@@ -214,6 +257,9 @@ table from creation regardless (Rule 1). **Local validation:** full pgTAP green 
 | `20260717000000` | F2 | **Attachments core** (ADR 0063/0065). `attachments` (**dialect-2 owner-dispatch** `(owner_type,owner_id)`, no-FK; `sensitivity_tier`→bucket, `confidentiality_label`, `scan_status`, `legal_hold`, `phi_disposed_*`; path-scope CHECK; immutability guard **HC096**), `attachment_references`, `attachment_subjects` (→ F1 `participants`, dialect 3), `case_interview_links`. DEFINER dispatchers `commission_of_attachment`/`can_read_attachment`/`can_write_attachment` (explicit `p_uid` `_for` variants; interview arm case-scoped via `can_read_case`; `form_upload` reserved-inert). Audit triple-mirror gains `attachment.read`. RLS + K9 grants on all four tables (write DEFINER-only). |
 | `20260717000100–…000200` | F2 | **Storage buckets + RPCs.** Buckets `attachments` (standard — authenticated owner-dispatch SELECT + INSERT) + `attachments-phi` (**INSERT only — NO authenticated SELECT, the hard door**). RPCs `create_attachment` (write door — kind/tier/label validation + in-bucket existence check), `open_attachment` (audited PHI door — service-role signed `(bucket,path)`, exactly one `attachment.read`/allowed phi open, NULL-out-of-scope), `reclassify_attachment`, `soft_delete_attachment`, `dispose_attachment_phi` (legal-hold **HC098** + double-dispose **HC097**; redacts title/description, retains object — Rule 6). |
 | `20260717000300–…000500` | F2 | **Fold-in + disposal + flag.** Dropped `case_documents`/`meeting_attachments`/`case_interview_attachments`; repointed `rca_evidence.cited_document_id` (RESTRICT) + `referral_shared_item.source_document_id` (SET NULL) onto `attachments`; rewired `add_referral_shared_item`. `dispose_case_phi` composes the D10 attachment-redaction seam (redact live non-held case attachments + stamp; **skip `legal_hold`** with reported count, Q9). Flag `attachments` seeded **OFF** (`seed.sql` enables local/E2E). |
+| `20260718000000` | F3 | **Flexible-forms bones** (ADR 0060; no flag). `item_type` widened 10→15 on BOTH constraints (value enum + shape CHECK; new answerable arm `matrix`/`risk_matrix`/`reference` forced `required=false` — Flag-5; container arm `group`/`repeating_group`); `form_item_options.is_exclusive`+`risk_weight`; `form_versions.behavior_config jsonb` (+shape CHECK); `response_group_instances` position-uniqueness (`NULLS NOT DISTINCT`); inert `form_item_validations` (scoped-read + write-inert). `clone_form_version` carries `behavior_config` + the 2 option cols (Rule 5). |
+| `20260718000100` | F3 | **Frozen inert answer-shape set** (ADR 0060 §4 Rec A; `docs/design/f3-question-key-aggregation.md`). `form_matrix_rows`/`form_matrix_columns` (definition, version-scoped, clone-stable `code`) + `answer_matrix_cells`/`answer_risk_matrix`/`answer_references` (off `answer_id`; `answer_references.participant_id → participants` A/C bridge). All RLS scoped-read + K9 grant, NO write policy/grant (write-inert); no `*_snapshot` cols. |
+| `20260718000200` | F3 | **Dual-evaluator operators** `contains`/`not_contains`/`is_empty`/`is_not_empty` — `CREATE OR REPLACE app.eval_condition` (IMMUTABLE, `search_path` pinned; Rec D semantics), mirrored byte-for-byte in `src/lib/queries/conditions.ts`. Golden vectors extended both sides (`20_conditions.sql` ↔ `condition-vectors.json`, operator×value_type). NOT authorable (validators/picker untouched); `visible_when` stays visibility-only. No new SQLSTATE. |
 
 ## RPC inventory
 

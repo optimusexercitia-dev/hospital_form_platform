@@ -49,6 +49,12 @@ const OP_LABELS: Record<ConditionOp, string> = {
   gte: "é maior ou igual a",
   lt: "é menor que",
   lte: "é menor ou igual a",
+  // F3 (ADR 0060 Rec D) — evaluator-only ops; NOT offered by CHOICE_OPS/ORDERED_OPS.
+  // Labels exist solely to satisfy the exhaustive Record<ConditionOp> (compile lock).
+  contains: "contém",
+  not_contains: "não contém",
+  is_empty: "está vazio",
+  is_not_empty: "não está vazio",
 };
 
 /** Operators offered for a choice target (the answer is a discrete label). */

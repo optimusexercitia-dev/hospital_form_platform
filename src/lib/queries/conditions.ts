@@ -25,6 +25,18 @@ import type { Json } from '@/lib/types/database'
  * number/date/time targets (form-builder-enhancements): when BOTH operands are
  * JSON numbers they compare numerically, otherwise as text — so ISO dates
  * (`YYYY-MM-DD`) and 24h times (`HH:mm`) sort correctly lexicographically.
+ *
+ * `contains`/`not_contains`/`is_empty`/`is_not_empty` are the F3 (ADR 0060 Rec D)
+ * additions, mirrored byte-for-byte in SQL `app.eval_condition`:
+ *   - `contains` = membership on a choice array (same relation as array-aware
+ *     `equals`) OR substring on text (`String.includes`, case-sensitive); every
+ *     other value type → false. `not_contains` = its negation.
+ *   - `is_empty` (UNARY — `value` ignored) = true iff the answer is absent / null /
+ *     `''` / `[]`. `is_not_empty` = its negation.
+ * These are deliberately NOT offered by the author picker (see `condition-builder`);
+ * they are evaluator-level vocabulary, exercised by the golden vectors. Adding a
+ * member here forces every `ConditionOp` consumer (the `evalCondition` switch guard
+ * + the pt-BR `OP_LABELS` records) to handle it at compile time.
  */
 export type ConditionOp =
   | 'equals'
@@ -34,6 +46,10 @@ export type ConditionOp =
   | 'gte'
   | 'lt'
   | 'lte'
+  | 'contains'
+  | 'not_contains'
+  | 'is_empty'
+  | 'is_not_empty'
 
 export interface VisibleWhen {
   question_key: string
@@ -524,6 +540,36 @@ export function evalCondition(
     case 'lte': {
       const cmp = orderedCompare(present ? answer : undefined, target)
       return cmp !== null && cmp <= 0
+    }
+    case 'contains':
+    case 'not_contains': {
+      // Rec D (mirrors SQL): membership on a choice array; substring on a text
+      // scalar (case-sensitive, `String.includes` ⇔ `strpos > 0`); every other
+      // value type → false. No number→text coercion.
+      let hit: boolean
+      if (!present || answer === undefined || answer === null) {
+        hit = false
+      } else if (Array.isArray(answer)) {
+        hit = answer.some((sel) => jsonEquals(sel, target))
+      } else if (typeof answer === 'string' && typeof target === 'string') {
+        hit = answer.includes(target)
+      } else {
+        hit = false
+      }
+      return op === 'contains' ? hit : !hit
+    }
+    case 'is_empty':
+    case 'is_not_empty': {
+      // Rec D (mirrors SQL): unary — `target` ignored. Empty iff absent / null /
+      // `''` / `[]`. Only the exact empty string / empty array count (no trimming;
+      // number 0 and `[null]` are NON-empty).
+      const empty =
+        !present ||
+        answer === undefined ||
+        answer === null ||
+        answer === '' ||
+        (Array.isArray(answer) && answer.length === 0)
+      return op === 'is_empty' ? empty : !empty
     }
     default: {
       // Exhaustiveness guard: a new op must be added to both evaluators.

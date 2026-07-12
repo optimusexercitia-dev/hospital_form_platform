@@ -46,7 +46,35 @@ insert into vectors (name, visible_when, answers, expected) values
   ('lt ISO date string sorts as text, false', '{"question_key":"q1","op":"lt","value":"2026-01-01"}', '{"q1":"2026-06-23"}', false),
   ('lt ISO date boundary (strictly before)', '{"question_key":"q1","op":"lt","value":"2026-06-23"}', '{"q1":"2026-06-22"}', true),
   ('gt 24h time string sorts as text, true', '{"question_key":"q1","op":"gt","value":"08:00"}', '{"q1":"14:30"}', true),
-  ('lte 24h time string equal, true', '{"question_key":"q1","op":"lte","value":"23:59"}', '{"q1":"23:59"}', true);
+  ('lte 24h time string equal, true', '{"question_key":"q1","op":"lte","value":"23:59"}', '{"q1":"23:59"}', true),
+  -- F3 (ADR 0060 Rec D): contains/not_contains/is_empty/is_not_empty x each value_type.
+  -- MUST match condition-vectors.json byte-for-byte (Rule 3).
+  ('contains string substring hit', '{"question_key":"q1","op":"contains","value":"grave"}', '{"q1":"Infecção grave"}', true),
+  ('contains string substring miss', '{"question_key":"q1","op":"contains","value":"leve"}', '{"q1":"Infecção grave"}', false),
+  ('contains checkbox array membership hit', '{"question_key":"q1","op":"contains","value":"luvas"}', '{"q1":["luvas","avental"]}', true),
+  ('contains checkbox array membership miss', '{"question_key":"q1","op":"contains","value":"touca"}', '{"q1":["luvas","avental"]}', false),
+  ('contains number answer is false (no number substring)', '{"question_key":"q1","op":"contains","value":"2"}', '{"q1":12}', false),
+  ('contains date string is text substring', '{"question_key":"q1","op":"contains","value":"2026"}', '{"q1":"2026-06-23"}', true),
+  ('contains missing answer is false', '{"question_key":"q1","op":"contains","value":"x"}', '{}', false),
+  ('contains null answer is false', '{"question_key":"q1","op":"contains","value":"x"}', '{"q1":null}', false),
+  ('contains empty-string target on string answer is true', '{"question_key":"q1","op":"contains","value":""}', '{"q1":"abc"}', true),
+  ('not_contains string miss is true', '{"question_key":"q1","op":"not_contains","value":"leve"}', '{"q1":"Infecção grave"}', true),
+  ('not_contains string hit is false', '{"question_key":"q1","op":"not_contains","value":"grave"}', '{"q1":"Infecção grave"}', false),
+  ('not_contains checkbox absent option is true', '{"question_key":"q1","op":"not_contains","value":"touca"}', '{"q1":["luvas","avental"]}', true),
+  ('not_contains missing answer is true', '{"question_key":"q1","op":"not_contains","value":"x"}', '{}', true),
+  ('is_empty missing answer is true', '{"question_key":"q1","op":"is_empty","value":null}', '{}', true),
+  ('is_empty null answer is true', '{"question_key":"q1","op":"is_empty","value":null}', '{"q1":null}', true),
+  ('is_empty empty string is true', '{"question_key":"q1","op":"is_empty","value":null}', '{"q1":""}', true),
+  ('is_empty empty array is true', '{"question_key":"q1","op":"is_empty","value":null}', '{"q1":[]}', true),
+  ('is_empty non-empty string is false', '{"question_key":"q1","op":"is_empty","value":null}', '{"q1":"x"}', false),
+  ('is_empty number zero is false', '{"question_key":"q1","op":"is_empty","value":null}', '{"q1":0}', false),
+  ('is_empty non-empty array is false', '{"question_key":"q1","op":"is_empty","value":null}', '{"q1":["luvas"]}', false),
+  ('is_not_empty non-empty string is true', '{"question_key":"q1","op":"is_not_empty","value":null}', '{"q1":"x"}', true),
+  ('is_not_empty missing answer is false', '{"question_key":"q1","op":"is_not_empty","value":null}', '{}', false),
+  ('is_not_empty empty string is false', '{"question_key":"q1","op":"is_not_empty","value":null}', '{"q1":""}', false),
+  ('is_not_empty empty array is false', '{"question_key":"q1","op":"is_not_empty","value":null}', '{"q1":[]}', false),
+  ('is_not_empty number zero is true', '{"question_key":"q1","op":"is_not_empty","value":null}', '{"q1":0}', true),
+  ('is_not_empty date string is true', '{"question_key":"q1","op":"is_not_empty","value":null}', '{"q1":"2026-06-23"}', true);
 
 -- Visibility GROUP vectors (mirror visibility-vectors.json), exercised against
 -- app.eval_visibility (the AND/OR wrapper + legacy-single passthrough).
@@ -64,7 +92,10 @@ insert into visibility_vectors (name, rule, answers, expected) values
   ('any: all false is false', '{"match":"any","conditions":[{"question_key":"q1","op":"equals","value":"Sim"},{"question_key":"q2","op":"gt","value":100}]}', '{"q1":"Não","q2":3}', false),
   ('any: single condition true', '{"match":"any","conditions":[{"question_key":"q1","op":"in","value":["A","B"]}]}', '{"q1":"B"}', true),
   ('all: three conditions incl. date + checkbox, all true', '{"match":"all","conditions":[{"question_key":"q1","op":"not_equals","value":"Não"},{"question_key":"q2","op":"lte","value":"2026-12-31"},{"question_key":"q3","op":"equals","value":"luvas"}]}', '{"q1":"Sim","q2":"2026-06-23","q3":["luvas","avental"]}', true),
-  ('all: date out of range makes group false', '{"match":"all","conditions":[{"question_key":"q1","op":"not_equals","value":"Não"},{"question_key":"q2","op":"lte","value":"2026-12-31"}]}', '{"q1":"Sim","q2":"2027-01-01"}', false);
+  ('all: date out of range makes group false', '{"match":"all","conditions":[{"question_key":"q1","op":"not_equals","value":"Não"},{"question_key":"q2","op":"lte","value":"2026-12-31"}]}', '{"q1":"Sim","q2":"2027-01-01"}', false),
+  -- F3 (ADR 0060 Rec D): the new ops pass through the eval_visibility wrapper unchanged.
+  ('all: F3 ops pass through the wrapper (is_not_empty + contains, both true)', '{"match":"all","conditions":[{"question_key":"q1","op":"is_not_empty","value":null},{"question_key":"q2","op":"contains","value":"grave"}]}', '{"q1":"x","q2":"Infecção grave"}', true),
+  ('any: F3 is_empty short-circuits the wrapper to true', '{"match":"any","conditions":[{"question_key":"q1","op":"is_empty","value":null},{"question_key":"q2","op":"equals","value":"Sim"}]}', '{"q1":"","q2":"Não"}', true);
 
 select plan(
   (select count(*)::int from vectors)

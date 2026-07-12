@@ -31,6 +31,12 @@ const OP_LABELS: Record<ConditionOp, string> = {
   gte: "é maior ou igual a",
   lt: "é menor que",
   lte: "é menor ou igual a",
+  // F3 (ADR 0060 Rec D) — evaluator-only ops; not author-emittable. Present for the
+  // exhaustive Record<ConditionOp> only (a stored visible_when never carries them today).
+  contains: "contém",
+  not_contains: "não contém",
+  is_empty: "está vazio",
+  is_not_empty: "não está vazio",
 };
 
 /** One rendered clause of a condition summary. */

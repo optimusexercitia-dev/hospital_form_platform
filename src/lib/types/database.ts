@@ -398,6 +398,143 @@ export type Database = {
           },
         ]
       }
+      answer_matrix_cells: {
+        Row: {
+          answer_id: string
+          col_id: string
+          created_at: string
+          id: string
+          row_id: string
+          value: Json | null
+        }
+        Insert: {
+          answer_id: string
+          col_id: string
+          created_at?: string
+          id?: string
+          row_id: string
+          value?: Json | null
+        }
+        Update: {
+          answer_id?: string
+          col_id?: string
+          created_at?: string
+          id?: string
+          row_id?: string
+          value?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "answer_matrix_cells_answer_id_fkey"
+            columns: ["answer_id"]
+            isOneToOne: false
+            referencedRelation: "answers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answer_matrix_cells_col_id_fkey"
+            columns: ["col_id"]
+            isOneToOne: false
+            referencedRelation: "form_matrix_columns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answer_matrix_cells_row_id_fkey"
+            columns: ["row_id"]
+            isOneToOne: false
+            referencedRelation: "form_matrix_rows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      answer_references: {
+        Row: {
+          answer_id: string
+          created_at: string
+          id: string
+          participant_id: string | null
+          reference_kind: string
+        }
+        Insert: {
+          answer_id: string
+          created_at?: string
+          id?: string
+          participant_id?: string | null
+          reference_kind?: string
+        }
+        Update: {
+          answer_id?: string
+          created_at?: string
+          id?: string
+          participant_id?: string | null
+          reference_kind?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "answer_references_answer_id_fkey"
+            columns: ["answer_id"]
+            isOneToOne: false
+            referencedRelation: "answers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answer_references_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      answer_risk_matrix: {
+        Row: {
+          answer_id: string
+          created_at: string
+          id: string
+          likelihood_col_id: string
+          risk_score: number | null
+          severity_row_id: string
+        }
+        Insert: {
+          answer_id: string
+          created_at?: string
+          id?: string
+          likelihood_col_id: string
+          risk_score?: number | null
+          severity_row_id: string
+        }
+        Update: {
+          answer_id?: string
+          created_at?: string
+          id?: string
+          likelihood_col_id?: string
+          risk_score?: number | null
+          severity_row_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "answer_risk_matrix_answer_id_fkey"
+            columns: ["answer_id"]
+            isOneToOne: true
+            referencedRelation: "answers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answer_risk_matrix_likelihood_col_id_fkey"
+            columns: ["likelihood_col_id"]
+            isOneToOne: false
+            referencedRelation: "form_matrix_columns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answer_risk_matrix_severity_row_id_fkey"
+            columns: ["severity_row_id"]
+            isOneToOne: false
+            referencedRelation: "form_matrix_rows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       answer_selected_options: {
         Row: {
           answer_id: string
@@ -3241,10 +3378,12 @@ export type Database = {
           flagged: boolean
           form_version_id: string
           id: string
+          is_exclusive: boolean
           is_other: boolean
           item_id: string
           label: string
           position: number
+          risk_weight: number | null
           score: number | null
         }
         Insert: {
@@ -3255,10 +3394,12 @@ export type Database = {
           flagged?: boolean
           form_version_id: string
           id?: string
+          is_exclusive?: boolean
           is_other?: boolean
           item_id: string
           label: string
           position: number
+          risk_weight?: number | null
           score?: number | null
         }
         Update: {
@@ -3269,10 +3410,12 @@ export type Database = {
           flagged?: boolean
           form_version_id?: string
           id?: string
+          is_exclusive?: boolean
           is_other?: boolean
           item_id?: string
           label?: string
           position?: number
+          risk_weight?: number | null
           score?: number | null
         }
         Relationships: [
@@ -3285,6 +3428,57 @@ export type Database = {
           },
           {
             foreignKeyName: "form_item_options_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "form_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_item_validations: {
+        Row: {
+          config: Json | null
+          created_at: string
+          form_version_id: string
+          id: string
+          item_id: string
+          message: string | null
+          position: number
+          rule_type: string
+          severity: string
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string
+          form_version_id: string
+          id?: string
+          item_id: string
+          message?: string | null
+          position?: number
+          rule_type: string
+          severity?: string
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string
+          form_version_id?: string
+          id?: string
+          item_id?: string
+          message?: string | null
+          position?: number
+          rule_type?: string
+          severity?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_item_validations_form_version_id_fkey"
+            columns: ["form_version_id"]
+            isOneToOne: false
+            referencedRelation: "form_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_item_validations_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "form_items"
@@ -3368,6 +3562,96 @@ export type Database = {
           },
         ]
       }
+      form_matrix_columns: {
+        Row: {
+          code: string
+          created_at: string
+          form_version_id: string
+          id: string
+          item_id: string
+          label: string
+          position: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          form_version_id: string
+          id?: string
+          item_id: string
+          label: string
+          position: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          form_version_id?: string
+          id?: string
+          item_id?: string
+          label?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_matrix_columns_form_version_id_fkey"
+            columns: ["form_version_id"]
+            isOneToOne: false
+            referencedRelation: "form_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_matrix_columns_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "form_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_matrix_rows: {
+        Row: {
+          code: string
+          created_at: string
+          form_version_id: string
+          id: string
+          item_id: string
+          label: string
+          position: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          form_version_id: string
+          id?: string
+          item_id: string
+          label: string
+          position: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          form_version_id?: string
+          id?: string
+          item_id?: string
+          label?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_matrix_rows_form_version_id_fkey"
+            columns: ["form_version_id"]
+            isOneToOne: false
+            referencedRelation: "form_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_matrix_rows_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "form_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       form_sections: {
         Row: {
           description: string | null
@@ -3416,6 +3700,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by: string | null
+          behavior_config: Json | null
           created_at: string
           created_by: string | null
           effective_date: string | null
@@ -3429,6 +3714,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by?: string | null
+          behavior_config?: Json | null
           created_at?: string
           created_by?: string | null
           effective_date?: string | null
@@ -3442,6 +3728,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by?: string | null
+          behavior_config?: Json | null
           created_at?: string
           created_by?: string | null
           effective_date?: string | null
@@ -8819,6 +9106,7 @@ export type Database = {
         Returns: {
           approved_at: string | null
           approved_by: string | null
+          behavior_config: Json | null
           created_at: string
           created_by: string | null
           effective_date: string | null

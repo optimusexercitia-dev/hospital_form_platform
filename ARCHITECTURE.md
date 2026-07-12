@@ -20,7 +20,10 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    - `commissions(id, name, slug, created_by, created_at)`
    - `commission_members(commission_id, user_id, role ∈ {staff, staff_admin})`
    - `forms(id, commission_id, title, description, created_by)`
-   - `form_versions(id, form_id, version_number, status ∈ {draft, published, archived}, published_at)`
+   - `form_versions(id, form_id, version_number, status ∈ {draft, published, archived}, published_at,`
+     `  approved_by, approved_at, effective_date, review_due_date,  -- Phase 17 publish metadata`
+     `  behavior_config jsonb)`  — `behavior_config` is F3 (ADR 0060) reserved: a per-version
+     staging bag (object | null), no writer yet; `clone_form_version` carries it verbatim.
    - `form_sections(id, form_version_id, position, title, description,`
      `  is_default boolean, visible_when jsonb,`
      `  requires_signoff boolean, signoff_role ∈ {respondent, staff_admin})`
@@ -31,13 +34,23 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      `  parent_item_id → form_items,  -- answer-model-v2 scaffolding, always NULL (no repeating-group UX)`
      `  -- display items only:`
      `  content jsonb)`
-     with `item_type ∈ {multiple_choice, dropdown, checkbox, free_text, section_text, image}`
+     with `item_type ∈` **input** {multiple_choice, dropdown, checkbox, free_text,
+     short_text, number, date, time} · **display** {section_text, image} · **F3-reserved
+     inert** {group, repeating_group, matrix, risk_matrix, reference} (ADR 0060 — admitted by
+     the CHECK, but with no renderer/answer path until each type's FF phase: `group`/
+     `repeating_group` are containers, `matrix`/`risk_matrix`/`reference` are answerable yet
+     forced `required = false` until their completeness wiring lands). `form_items.item_type`
+     stays a **CHECK enum widened per feature**, never a data-driven catalog (ADR 0065 §5).
    - `form_item_options(id, item_id → form_items, form_version_id, position, code,`
-     `  label, color_token, score numeric, analytics_code)` — the choice options,
+     `  label, color_token, score numeric, analytics_code, flagged, is_other,`
+     `  is_exclusive, risk_weight)` — the choice options,
      normalized out of the former `form_items.options jsonb` (form-model-normalization).
      `code` is a STABLE hidden slug (`slug(label)_suffix`) minted once and preserved
      across label renames + version clones; `unique(item_id, code)`. `analytics_code`
-     is the free-text dashboard tag; `score` is nullable. Answers reference the option
+     is the free-text dashboard tag; `score` is nullable. `flagged` (aggregate-count result
+     criteria) + `is_other` (the reserved free-text "Outro" row) shipped with
+     form-builder-enhancements / others-open; `is_exclusive` (select-clears-others) +
+     `risk_weight` are F3-reserved (ADR 0060, no builder UX yet). Answers reference the option
      ROW (see `answer_selected_options`), and `visible_when` / `default_value` reference
      the `code`.
    - `responses(id, form_version_id, commission_id, created_by,`
@@ -81,13 +94,17 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      a trigger or a denormalized `form_version_id` on items + partial unique
      index (denormalizing the version id onto `form_items` is the recommended
      approach; keep it consistent with `section_id` via trigger).
-   - `visible_when` shape (v1: single condition, no AND/OR trees — note the
-     extension point in an ADR):
-     `{"question_key": "...", "op": "equals" | "not_equals" | "in", "value": <jsonb>}`.
-     The referenced `question_key` MUST belong to an input item in a section
-     with a strictly LOWER position (no forward/circular references, no
-     conditions on the first section). Validated at publish time; publishing
-     fails with a clear error otherwise. Default section: `visible_when` null.
+   - `visible_when` shape: either a single condition
+     `{"question_key": "...", "op": ..., "value": <jsonb>}` OR a flat AND/OR group
+     `{"match": "all" | "any", "conditions": [ <single>, ... ]}` (form-builder-enhancements;
+     no nesting). **Authorable** ops: `equals`/`not_equals`/`in` (choice targets) +
+     `gt`/`gte`/`lt`/`lte` (ordered number/date/time targets). The evaluator ALSO defines
+     `contains`/`not_contains`/`is_empty`/`is_not_empty` (F3, ADR 0060 Rec D) — mirrored
+     SQL↔TS and golden-vector-locked, but deliberately NOT offered by the author picker
+     (evaluator-level vocabulary; `visible_when` stays visibility-only). The referenced
+     `question_key` MUST belong to an input item in a section with a strictly LOWER position
+     (no forward/circular references, no conditions on the first section). Validated at publish
+     time; publishing fails with a clear error otherwise. Default section: `visible_when` null.
    - `form_items` integrity as before (input vs display column rules; CHECK
      constraints; display items: `required` not true, `content` NOT NULL —
      `{"markdown": ...}` / `{"storage_path", "alt", "caption"}`; trigger
@@ -98,8 +115,23 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    **additive** extensions of this schema — they extend, never contradict, the
    canonical set above: the `participants` typed-identity registry + subtype
    satellites and `case_types` (F1); `attachments` + `attachment_references` /
-   `attachment_subjects` (F2); the widened `form_items.item_type` enum + inert
-   answer-shape tables (F3). Each phase's Record step names its new tables here.
+   `attachment_subjects` (F2); the widened `form_items.item_type` enum + option cols
+   (`is_exclusive`/`risk_weight`) + `form_versions.behavior_config` + the frozen inert
+   answer-shape set — `form_matrix_rows`/`form_matrix_columns` (definition, version-scoped,
+   clone-stable `code`) + `answer_matrix_cells`/`answer_risk_matrix`/`answer_references`
+   (answer rows off `answer_id`; `answer_references.participant_id → participants` is the A/C
+   bridge, ADR 0065 §7) + the reserved `form_item_validations`, plus repeating-group
+   position-uniqueness on `response_group_instances` (F3; ADR 0060 — all RLS-scoped-read +
+   write-inert until each type's FF phase; aggregation contract in
+   `docs/design/f3-question-key-aggregation.md`). Each phase's Record step names its new tables here.
+
+   **Supersession correction (forward-note — NOT built; ADR 0065 §8 / 0060 Gap 38).** A future
+   submitted-form correction will *supersede* the prior via a nullable `responses.supersedes_id`,
+   and aggregation will count only the latest in a chain. The column is deliberately NOT added
+   pre-pilot (it binds no historical answer — additive-anytime, freeze principle §6). When the
+   post-pilot correction engine lands it MUST add the column AND retrofit the dashboard /
+   derived-indicator aggregation to exclude superseded rows **in the same change**: Phase-15
+   shipped counting ALL submitted rows, so the two are coupled or a corrected metric double-counts.
 3. **Response lifecycle & resume:**
    - `unique (form_version_id, created_by) where status = 'in_progress'` —
      one resumable draft per user per version. Wizard navigation upserts the

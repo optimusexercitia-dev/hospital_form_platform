@@ -114,6 +114,30 @@
       },
       "answers": { "q1": "Sim", "q2": "2027-01-01" },
       "expected": false
+    },
+    {
+      "name": "all: F3 ops pass through the wrapper (is_not_empty + contains, both true)",
+      "rule": {
+        "match": "all",
+        "conditions": [
+          { "question_key": "q1", "op": "is_not_empty", "value": null },
+          { "question_key": "q2", "op": "contains", "value": "grave" }
+        ]
+      },
+      "answers": { "q1": "x", "q2": "Infecção grave" },
+      "expected": true
+    },
+    {
+      "name": "any: F3 is_empty short-circuits the wrapper to true",
+      "rule": {
+        "match": "any",
+        "conditions": [
+          { "question_key": "q1", "op": "is_empty", "value": null },
+          { "question_key": "q2", "op": "equals", "value": "Sim" }
+        ]
+      },
+      "answers": { "q1": "", "q2": "Não" },
+      "expected": true
     }
   ]
 }

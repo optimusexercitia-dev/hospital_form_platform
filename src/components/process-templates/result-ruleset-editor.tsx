@@ -32,6 +32,12 @@ const OP_LABELS: Record<ConditionOp, string> = {
   gte: "for maior ou igual a",
   lt: "for menor que",
   lte: "for menor ou igual a",
+  // F3 (ADR 0060 Rec D) — evaluator-only ops; not offered by AGGREGATE_OPS/answer picker.
+  // Subjunctive register ("for…") matches this file; present only for the exhaustive Record.
+  contains: "contiver",
+  not_contains: "não contiver",
+  is_empty: "estiver vazio",
+  is_not_empty: "não estiver vazio",
 };
 
 /**
