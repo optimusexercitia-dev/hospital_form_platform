@@ -194,7 +194,9 @@ nothing merges ahead of its phase. Current sequencing / pilot plan: **ADR 0057**
 1. **Build complete** — all phase tasks done; lint, typecheck, unit tests pass locally.
 2. **Test pass** — `tester` writes/updates Playwright specs for the acceptance criteria
    and files a bug per failure in PROGRESS.md. The fix loop reruns **failing +
-   current-phase** specs (chromium); the **full E2E suite runs once to declare green**.
+   current-phase** specs (chromium); the **full E2E suite runs once to declare green** —
+   via **`npm run e2e:prod`** (prod-standalone, batched + server-restart-per-batch; a plain
+   `npx playwright test` monolith collapses on Windows — see `docs/testing/e2e-prod-build-gate.md`).
    Tester never edits app code; engineers never edit specs to pass without tester
    sign-off.
 3. **QA review** — `qa` audits the phase and writes
@@ -243,7 +245,11 @@ supabase gen types typescript --linked > src/lib/types/database.ts
 npm run dev                    # Next.js dev server (http://localhost:3000)
 npm run lint && npm run typecheck
 npm run test                   # Vitest unit tests (full suite)
-npx playwright test            # full E2E suite (needs dev server + seeded DB)
+npx playwright test            # E2E on a dev server (quick loop; needs dev server + seeded DB)
+npm run e2e:prod               # FULL prod-standalone E2E gate — batches the suite + restarts the
+                               #   server per batch to avoid the Windows monolith collapse.
+                               #   Knobs: BATCH_SIZE / RESET / REBUILD / RETRIES / SPECS.
+                               #   Details: docs/testing/e2e-prod-build-gate.md
 ```
 
 Single-test debug loops: `npx vitest run <file>` / `-t "<name>"`; `npx playwright test

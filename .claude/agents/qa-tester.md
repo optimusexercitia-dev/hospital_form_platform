@@ -29,10 +29,12 @@ Run Summary); completed-phase detail is under `docs/progress/`.
     **failing specs + the current phase's spec**, chromium-only — e.g.
     `npx playwright test e2e/phaseN-*.spec.ts -g "<title>" --project=chromium`.
     Fast feedback, not the whole suite after every fix.
-  - **Run the full suite exactly once, immediately before you report green** —
-    `npx playwright test` (use `--workers` for parallelism). Regression included; the
-    full suite passing is still the bar for green. Only the per-iteration re-runs are
-    scoped.
+  - **Run the full suite exactly once, immediately before you report green** — via
+    **`npm run e2e:prod`** (prod-standalone, batched + server-restart-per-batch). A plain
+    `npx playwright test` monolith collapses mid-run on Windows (net::ERR_CONNECTION_REFUSED
+    cascade — see `docs/testing/e2e-prod-build-gate.md`); `e2e:prod` is the gate. Regression
+    included; the full suite passing is still the bar for green. Only the per-iteration
+    re-runs are scoped.
 - Assert on **values**, not mere rendering — e.g. dashboard numbers must equal
   the seeded data exactly, CSV row counts must match, filtered lists must
   return exactly the expected records.
