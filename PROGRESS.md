@@ -70,7 +70,7 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-### Ad-hoc (out-of-phase) — Case "Reuniões" panel · ✅ built & tested — committed to `feat/case-meetings-panel` (2026-07-12)
+### Ad-hoc (out-of-phase) — Case "Reuniões" panel · ✅ complete — merged to `main` `fbe215f` (2026-07-12)
 
 **Case↔Meeting reverse link on the Case detail view.** A read-only "Reuniões" rail card on the case
 **Detalhes** tab listing every meeting the case was discussed in (reverse of the meeting's "Casos
@@ -83,7 +83,7 @@ all meetings regardless of state · always render (empty state) · card gated on
 | FE — new `case-meetings-panel.tsx` rail card + wire `CaseDetailView` + both host pages (coordinator `(detail)` + staff `casos/[caseId]`) | frontend | ✅ built · `tsc`/`eslint --max-warnings=0`/`next build` clean (lead re-verified) |
 | E2E — focused `case-meetings-panel.spec.ts` (link→appears · row links out · empty state) | tester | ✅ 2/2 green (chromium dev loop, `--workers=1`) · 0 defects · screenshot proof |
 
-_Files:_ NEW `src/components/cases/case-meetings-panel.tsx` + NEW `e2e/case-meetings-panel.spec.ts`; EDIT `case-detail-view.tsx`, `manage/cases/[caseId]/(detail)/page.tsx`, `casos/[caseId]/page.tsx`. No backend/schema touched. Follow-up (optional, backend-owned): relocate `listCaseMeetings` out of `case-timeline.ts` to a home shared by both tabs. **Committed** to branch `feat/case-meetings-panel` (QA gate skipped by decision — no new schema/RLS/route; not pushed; `graphify-out/` graph refresh left uncommitted for review clarity).
+_Files:_ NEW `src/components/cases/case-meetings-panel.tsx` + NEW `e2e/case-meetings-panel.spec.ts`; EDIT `case-detail-view.tsx`, `manage/cases/[caseId]/(detail)/page.tsx`, `casos/[caseId]/page.tsx`. No backend/schema touched. Follow-up (optional, backend-owned): relocate `listCaseMeetings` out of `case-timeline.ts` to a home shared by both tabs. **Merged to `main`** (fast-forward `bf22926..fbe215f`; feature branch deleted; QA gate skipped by decision — no new schema/RLS/route). **Not pushed** to origin (`main` is 1 ahead of `origin/main`); `graphify-out/` graph refresh left uncommitted.
 
 ### No active phase — F-cleanup ✅ complete (2026-07-12; on branch `f-cleanup`, awaiting human merge)
 
