@@ -200,7 +200,7 @@ select ok(not app.can_write_attachment('form_upload', gen_random_uuid(), (select
 create temp table ivx on commit drop as select gen_random_uuid() as iv;
 grant select on ivx to authenticated;
 insert into public.case_interviews (id, commission_id, case_id, interview_number, status)
-values ((select iv from ivx), (select comm_x from k), (select cid from cse), 0, 'rascunho');
+values ((select iv from ivx), (select comm_x from k), (select cid from cse), 0, 'draft');
 
 update app.feature_flags set enabled = true where key = 'case_access';
 

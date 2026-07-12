@@ -3,7 +3,7 @@
 -- (bootstrap, 42501); the NEW participant-write grant (a plain-staff registered
 -- interviewer CAN write, a non-interviewer staff CANNOT — HC039); lifecycle
 -- schedule/start/conclude/reopen/cancel + wrong-state HC038; content + child-lock
--- freeze once concluida; phase-in-case guard; HC021 registered interviewer not a
+-- freeze once completed; phase-in-case guard; HC021 registered interviewer not a
 -- member; HC041 conclude with no subject; conclude writes a case_events
 -- kind='interview' row and re-conclude UPDATES the SAME row (no duplicate); HC040
 -- invalid attachment; cross-commission RLS isolation.
@@ -47,7 +47,7 @@ grant select on cp to authenticated;
 insert into public.case_phases (id, case_id, position, form_id, form_version_id, title, status)
 values ((select phase_y from cp), (select case_y from cs), 0,
         (select (v->>'form_y')::uuid from ctx), (select (v->>'ver_y')::uuid from ctx),
-        'Fase Y', 'pendente');
+        'Fase Y', 'pending');
 
 -- =========================================================================
 -- create_interview: staff_admin-only bootstrap + minting.
@@ -69,7 +69,7 @@ reset role;
 grant select on i1 to authenticated;
 
 select is((select interview_number from i1), 1, 'first interview minted number 1');
-select is((select status from i1), 'rascunho', 'new interview starts rascunho');
+select is((select status from i1), 'draft', 'new interview starts draft');
 select is((select commission_id from i1), (select comm_x from k),
   'create derives commission_id from the case');
 
@@ -140,7 +140,7 @@ select is(
 reset role;
 
 -- =========================================================================
--- HC041: conclude with NO interviewee. Build i1 to em_andamento first.
+-- HC041: conclude with NO interviewee. Build i1 to in_progress first.
 -- =========================================================================
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -148,7 +148,7 @@ select public.schedule_interview((select id from i1), now(), null);
 select public.start_interview((select id from i1));
 reset role;
 select is((select status from public.case_interviews where id = (select id from i1)),
-  'em_andamento', 'schedule + start advance to em_andamento');
+  'in_progress', 'schedule + start advance to in_progress');
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -168,7 +168,7 @@ select public.conclude_interview((select id from i1));
 reset role;
 
 select is((select status from public.case_interviews where id = (select id from i1)),
-  'concluida', 'conclude flips status to concluida');
+  'completed', 'conclude flips status to completed');
 select is(
   (select count(*)::int from public.case_events
    where case_id = (select case_x from cs) and kind = 'interview'),
@@ -178,16 +178,16 @@ select isnt(
   null, 'concluded interview stores its registry_event_id');
 
 -- =========================================================================
--- Content + child-lock freeze while concluida.
+-- Content + child-lock freeze while completed.
 -- =========================================================================
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
   $$ select public.update_interview_summary((select id from i1), 'edição proibida') $$,
-  'HC038', null, 'summary locked while concluida (HC038)');
+  'HC038', null, 'summary locked while completed (HC038)');
 select throws_ok(
   $$ select public.add_interview_subject((select id from i1), (select st_x from k), null, 'x', null, null) $$,
-  '23514', null, 'subject child insert locked while concluida (child-lock 23514)');
+  '23514', null, 'subject child insert locked while completed (child-lock 23514)');
 reset role;
 
 -- =========================================================================
@@ -198,7 +198,7 @@ set local role authenticated;
 select public.reopen_interview((select id from i1));
 reset role;
 select is((select status from public.case_interviews where id = (select id from i1)),
-  'em_andamento', 'reopen returns to em_andamento');
+  'in_progress', 'reopen returns to in_progress');
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -218,7 +218,7 @@ set local role authenticated;
 select public.cancel_interview((select id from i2));
 reset role;
 select is((select status from public.case_interviews where id = (select id from i2)),
-  'cancelada', 'cancel flips status to cancelada');
+  'cancelled', 'cancel flips status to cancelled');
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(

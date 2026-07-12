@@ -156,7 +156,7 @@ insert into public.case_referral
   (id, code, source_case_id, source_commission_id, target_commission_id, type_label, subject, status)
 values
   ((select ref_xy from cs), 'ENC-T001', (select src_case from cs),
-   (select comm_x from k), (select comm_y from k), 'Parecer', 'Teste de vínculo', 'enviada');
+   (select comm_x from k), (select comm_y from k), 'Parecer', 'Teste de vínculo', 'sent');
 insert into public.referral_patient (referral_id, name, mrn, sex)
 values ((select ref_xy from cs), 'Paciente Teste', 'PRT-9', 'male');
 

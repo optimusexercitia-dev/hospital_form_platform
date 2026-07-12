@@ -55,7 +55,7 @@ export function MyPhaseCard({
           </span>
           {phase.dueDate &&
             (() => {
-              const overdue = isOverdue(phase.dueDate, "ativa");
+              const overdue = isOverdue(phase.dueDate, "active");
               return (
                 <span
                   className={cn(

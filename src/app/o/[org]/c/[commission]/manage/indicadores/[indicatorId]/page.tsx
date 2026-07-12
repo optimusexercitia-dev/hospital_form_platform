@@ -97,9 +97,9 @@ export default async function IndicatorDetailPage({
                 {indicator.code}
               </span>
               <IndicatorKindBadge kind={indicator.kind} />
-              {indicator.status === "arquivado" ? (
+              {indicator.status === "archived" ? (
                 <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                  {INDICATOR_STATUS_LABELS.arquivado}
+                  {INDICATOR_STATUS_LABELS.archived}
                 </span>
               ) : null}
             </div>
@@ -120,7 +120,7 @@ export default async function IndicatorDetailPage({
               <span>{DATA_SOURCE_LABELS[indicator.dataSource]}</span>
             </p>
           </div>
-          {indicator.status === "ativo" ? (
+          {indicator.status === "active" ? (
             <Button asChild variant="outline" size="lg">
               <Link href={editHref}>
                 <Pencil aria-hidden="true" className="size-4" />

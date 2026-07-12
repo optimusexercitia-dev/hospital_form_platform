@@ -11,8 +11,8 @@ import {
 /**
  * Meetings data-access (Phase 10 — Meetings; Architecture Rule 9 — all reads go
  * through `src/lib/queries/`). Meetings are the committee's minutes/ata registry:
- * a header with a lifecycle (`agendada → realizada → em_assinatura → assinada →
- * distribuida`, plus `cancelada`), an ordered agenda, attendees + quorum, cases
+ * a header with a lifecycle (`scheduled → held → in_signature → signed →
+ * distributed`, plus `cancelled`), an ordered agenda, attendees + quorum, cases
  * discussed, internal electronic signatures, action plans, and attachments.
  *
  * RLS is the security boundary: every read below uses the RLS-scoped cookie
@@ -27,14 +27,14 @@ import {
 // Union types (stable ASCII slugs; pt-BR labels resolved in the UI)
 // ---------------------------------------------------------------------------
 
-/** Meeting lifecycle. `assinada` is auto-flipped inside the sign RPC; `distribuida` and `cancelada` are terminal. */
+/** Meeting lifecycle. `signed` is auto-flipped inside the sign RPC; `distributed` and `cancelled` are terminal. */
 export type MeetingStatus =
-  | 'agendada'
-  | 'realizada'
-  | 'em_assinatura'
-  | 'assinada'
-  | 'distribuida'
-  | 'cancelada'
+  | 'scheduled'
+  | 'held'
+  | 'in_signature'
+  | 'signed'
+  | 'distributed'
+  | 'cancelled'
 
 /** How the meeting is held. */
 export type MeetingModality = 'presencial' | 'remoto' | 'hibrido'
@@ -44,10 +44,10 @@ export type AttendeeRole = 'presidente' | 'secretario' | 'membro' | 'convidado'
 
 /** A participant's attendance state (convocado → presente/ausente/justificado). */
 export type AttendanceStatus =
-  | 'convocado'
-  | 'presente'
-  | 'ausente'
-  | 'justificado'
+  | 'summoned'
+  | 'present'
+  | 'absent'
+  | 'excused'
 
 /** A signature's state. Re-opening a meeting flips active signatures to `revoked` (rows kept). */
 export type SignatureStatus = 'signed' | 'declined' | 'revoked'
@@ -98,7 +98,7 @@ export interface MeetingListItem {
    */
   pendingActionItems: number
   /**
-   * For a meeting in the SIGNATURE phase (`status = 'em_assinatura'`): the number
+   * For a meeting in the SIGNATURE phase (`status = 'in_signature'`): the number
    * of required signatures still outstanding — present platform signers
    * (attendees with `user_id` set AND `attendance = 'presente'`) minus the
    * `meeting_signatures` rows already `signed`. `null` for any other status (the
@@ -124,18 +124,18 @@ export interface MeetingDetail extends MeetingListItem {
   eligibleMemberCount: number | null
   /**
    * ISO timestamp the meeting ACTUALLY occurred (start), captured at the
-   * `→ realizada` transition and correctable while `realizada` (ADR 0062).
+   * `→ held` transition and correctable while `held` (ADR 0062).
    * Distinct from the schedule (`scheduledStart`) and from `concludedAt`
    * ("ata sent to signature"). `null` = not recorded (never backfilled).
    */
   heldAt: string | null
   /** ISO timestamp the meeting actually ended (optional real-duration end); `null` if not recorded. */
   heldEnd: string | null
-  /** ISO timestamp the meeting was concluded (→ `em_assinatura`); `null` if not concluded. */
+  /** ISO timestamp the meeting was concluded (→ `in_signature`); `null` if not concluded. */
   concludedAt: string | null
   /** User who concluded the meeting; `null` if not concluded. */
   concludedBy: string | null
-  /** ISO timestamp the ata was distributed (→ `distribuida`); `null` otherwise. */
+  /** ISO timestamp the ata was distributed (→ `distributed`); `null` otherwise. */
   distributedAt: string | null
   /** ISO timestamp the meeting was cancelled; `null` otherwise. */
   cancelledAt: string | null
@@ -463,7 +463,7 @@ export const MEETING_LIST_COLUMNS = `
  * ({@link MeetingListItem.pendingActionItems} / `pendingSignatures`), computed
  * from three batched, RLS-scoped child reads (so a non-member sees neither the
  * meetings nor their aggregates) and merged in memory — no DEFINER RPC, no
- * schema object. `pendingSignatures` is `null` for any non-`em_assinatura`
+ * schema object. `pendingSignatures` is `null` for any non-`in_signature`
  * meeting (the column renders `—`).
  */
 /** The keyset sort-tuple encoded in a `listMeetings` cursor. Private; opaque. */
@@ -518,7 +518,7 @@ export async function listMeetings(
 
   const meetingIds = pageData.map((m) => m.id)
   const signatureMeetingIds = pageData
-    .filter((m) => m.status === 'em_assinatura')
+    .filter((m) => m.status === 'in_signature')
     .map((m) => m.id)
 
   // (1) Open action items per meeting — the shared action_items hub, meeting
@@ -539,7 +539,7 @@ export async function listMeetings(
     )
   }
 
-  // (2) Pending signatures — ONLY for em_assinatura meetings: present platform
+  // (2) Pending signatures — ONLY for in_signature meetings: present platform
   // signers (user_id set AND attendance='presente') minus rows already signed.
   // Mirrors the conclude/sign "required signers" set (user_id not null & present).
   const presentSignersByMeeting = new Map<string, number>()
@@ -549,7 +549,7 @@ export async function listMeetings(
       .from('meeting_attendees')
       .select('meeting_id')
       .in('meeting_id', signatureMeetingIds)
-      .eq('attendance', 'presente')
+      .eq('attendance', 'present')
       .not('user_id', 'is', null)
       .returns<{ meeting_id: string }[]>()
     for (const r of presentRows ?? []) {
@@ -576,7 +576,7 @@ export async function listMeetings(
   const rows = pageData.map((m) => {
     const base = mapListItem(m)
     const pendingSignatures =
-      m.status === 'em_assinatura'
+      m.status === 'in_signature'
         ? Math.max(
             0,
             (presentSignersByMeeting.get(m.id) ?? 0) -

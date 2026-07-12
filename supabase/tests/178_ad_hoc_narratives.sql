@@ -199,7 +199,7 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select public.skip_phase(id)
-  from public.case_phases where case_id = (select cid from cse) and status = 'pendente';
+  from public.case_phases where case_id = (select cid from cse) and status = 'pending';
 select public.close_case((select cid from cse));
 reset role;
 

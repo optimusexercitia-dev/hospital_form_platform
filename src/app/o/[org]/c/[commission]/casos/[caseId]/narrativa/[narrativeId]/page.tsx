@@ -60,7 +60,7 @@ export default async function NarrativeEditorPage({
   const isAssignee = narrative.assignedTo === viewerId;
   const canConclude =
     caseOpen &&
-    narrative.status === "aberta" &&
+    narrative.status === "open" &&
     (caps.canManageLifecycle || isAssignee);
 
   const heading = narrative.title || narrative.typeLabel;

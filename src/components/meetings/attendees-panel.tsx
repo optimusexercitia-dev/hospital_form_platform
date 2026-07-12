@@ -43,7 +43,7 @@ function AttendeeRow({
   // guest) — the common secretary action. Rebuilds the FULL attendee input from the
   // row's current values so only `attendance` changes (the update RPC replaces the
   // editable fields).
-  const canMarkPresent = canEdit && attendee.attendance === "convocado";
+  const canMarkPresent = canEdit && attendee.attendance === "summoned";
 
   return (
     <li className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
@@ -92,7 +92,7 @@ function AttendeeRow({
                       externalName: attendee.externalName,
                       externalOrg: attendee.externalOrg,
                       role: attendee.role,
-                      attendance: "presente",
+                      attendance: "present",
                       note: attendee.note,
                     }),
                   )
@@ -256,7 +256,7 @@ export function AttendeesPanel({
   // Quorum counts PLATFORM members only — external guests are never counted
   // (ADR 0025; QA Phase 10 MINOR-2). Mirrors the DB conclusion snapshot.
   const presentCount = attendees.filter(
-    (a) => a.attendance === "presente" && a.userId !== null,
+    (a) => a.attendance === "present" && a.userId !== null,
   ).length;
 
   // Exclude already-attending members from the "add member" picker.

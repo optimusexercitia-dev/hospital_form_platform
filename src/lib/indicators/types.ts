@@ -61,14 +61,14 @@ export type IndicatorFrequency =
   | 'anual'
 
 /** The indicator lifecycle. `ativo` (measured) → `arquivado` (retired, read-only). */
-export type IndicatorStatus = 'ativo' | 'arquivado'
+export type IndicatorStatus = 'active' | 'archived'
 
 /**
- * A single measurement's target classification. `na_meta` (on target),
- * `fora_da_meta` (off target), `sem_dados` (no value yet — the ONLY empty state;
+ * A single measurement's target classification. `on_target` (on target),
+ * `off_target` (off target), `no_data` (no value yet — the ONLY empty state;
  * a hybrid row is born complete, so there is no partial-measurement status).
  */
-export type MeasurementStatus = 'na_meta' | 'fora_da_meta' | 'sem_dados'
+export type MeasurementStatus = 'on_target' | 'off_target' | 'no_data'
 
 /** Where a measurement's value came from (a single measurement row). */
 export type MeasurementSource = 'manual' | 'derivado'
@@ -182,7 +182,7 @@ export interface Indicator {
  * An indicator plus its LATEST-measurement summary, for the list view. Lets the
  * F1 list render the status chip + current value WITHOUT a per-row
  * `getIndicatorSeries` round trip (a lateral "latest measurement per indicator"
- * join in `listIndicators`). `latestStatus` is `sem_dados` when the indicator has
+ * join in `listIndicators`). `latestStatus` is `no_data` when the indicator has
  * no measurement yet.
  */
 export interface IndicatorListItem extends Indicator {
@@ -194,7 +194,7 @@ export interface IndicatorListItem extends Indicator {
 /**
  * A single measurement of an indicator for one period. `value` is computed from
  * `numerator`/`denominator` per the indicator kind. `status` is the target
- * classification at this value (`sem_dados` when `value` is null).
+ * classification at this value (`no_data` when `value` is null).
  */
 export interface IndicatorMeasurement {
   id: string
@@ -282,12 +282,12 @@ export const INDICATOR_FREQUENCY_LABELS: Record<IndicatorFrequency, string> = {
 }
 
 export const INDICATOR_STATUS_LABELS: Record<IndicatorStatus, string> = {
-  ativo: 'Ativo',
-  arquivado: 'Arquivado',
+  active: 'Ativo',
+  archived: 'Arquivado',
 }
 
 export const MEASUREMENT_STATUS_LABELS: Record<MeasurementStatus, string> = {
-  na_meta: 'Na meta',
-  fora_da_meta: 'Fora da meta',
-  sem_dados: 'Sem dados',
+  on_target: 'Na meta',
+  off_target: 'Fora da meta',
+  no_data: 'Sem dados',
 }

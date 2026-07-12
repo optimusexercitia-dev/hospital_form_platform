@@ -59,15 +59,15 @@ type BoardPhase = CaseBoardRow["phases"][number];
 
 /** done / total progress, where "total" excludes não-necessária phases. */
 export function phaseProgress(row: CaseBoardRow): { done: number; total: number } {
-  const counted = row.phases.filter((p) => p.status !== "nao_necessaria");
-  const done = counted.filter((p) => p.status === "concluida").length;
+  const counted = row.phases.filter((p) => p.status !== "not_required");
+  const done = counted.filter((p) => p.status === "completed").length;
   return { done, total: counted.length };
 }
 
 /** Every `ativa` phase of a row, in position order (A5 — parallel phases). */
 export function activePhases(row: CaseBoardRow): BoardPhase[] {
   return [...row.phases]
-    .filter((p) => p.status === "ativa")
+    .filter((p) => p.status === "active")
     .sort((a, b) => a.position - b.position);
 }
 
@@ -75,8 +75,8 @@ export function activePhases(row: CaseBoardRow): BoardPhase[] {
 export function currentPhase(row: CaseBoardRow): BoardPhase | null {
   const ordered = [...row.phases].sort((a, b) => a.position - b.position);
   return (
-    ordered.find((p) => p.status === "ativa") ??
-    ordered.find((p) => p.status === "pendente") ??
+    ordered.find((p) => p.status === "active") ??
+    ordered.find((p) => p.status === "pending") ??
     null
   );
 }
@@ -89,13 +89,13 @@ export function hasUnassignedWork(row: CaseBoardRow): boolean {
   if (isTerminalCaseStatus(row.case.status)) return false;
   return row.phases.some(
     (p) =>
-      (p.status === "ativa" || p.status === "pendente") && p.assignedTo === null,
+      (p.status === "active" || p.status === "pending") && p.assignedTo === null,
   );
 }
 
 /** Whether the case has a recommended phase that has not started yet. */
 export function hasRecommendedPending(row: CaseBoardRow): boolean {
-  return row.phases.some((p) => p.recommended && p.status === "pendente");
+  return row.phases.some((p) => p.recommended && p.status === "pending");
 }
 
 // ---------------------------------------------------------------------------
@@ -104,7 +104,7 @@ export function hasRecommendedPending(row: CaseBoardRow): boolean {
 
 /** A blocker is SATISFIED when the blocking phase is concluída OR não necessária. */
 function isBlockerSatisfied(status: CasePhaseStatus): boolean {
-  return status === "concluida" || status === "nao_necessaria";
+  return status === "completed" || status === "not_required";
 }
 
 /**
@@ -158,7 +158,7 @@ function isSameMonth(iso: string | null, ref: Date): boolean {
   );
 }
 
-const ACTIVE_OR_PENDING: CasePhaseStatus[] = ["ativa", "pendente"];
+const ACTIVE_OR_PENDING: CasePhaseStatus[] = ["active", "pending"];
 
 /**
  * Compute the overview KPIs across the full (unfiltered) row set. "Open" vs
@@ -179,11 +179,11 @@ export function computeCaseKpis(rows: CaseBoardRow[]): CaseKpis {
     const open = !isTerminalCaseStatus(row.case.status);
     let rowHasActive = false;
     for (const p of row.phases) {
-      if (p.status === "ativa") {
+      if (p.status === "active") {
         fasesAtivas += 1;
         rowHasActive = true;
       }
-      if (p.status === "pendente") fasesPendentes += 1;
+      if (p.status === "pending") fasesPendentes += 1;
       if (
         open &&
         ACTIVE_OR_PENDING.includes(p.status) &&

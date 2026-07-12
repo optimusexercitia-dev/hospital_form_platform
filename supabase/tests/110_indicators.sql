@@ -234,7 +234,7 @@ select is(
 );
 select is(
   (select status from public.indicator_measurements where indicator_id = (select id from _tm)),
-  'na_meta', 'tempo_medio 25 <= 30 (menor_melhor) => na_meta'
+  'on_target', 'tempo_medio 25 <= 30 (menor_melhor) => na_meta'
 );
 
 -- ---- 5) hybrid taxa: one-step + preserve-on-recompute + HC088 ----
@@ -291,7 +291,7 @@ reset role;
 -- maior_melhor / >= (pct sim = 50 >= 40 => na_meta)
 select is(
   (select status from public.indicator_measurements where indicator_id = (select id from _pct)),
-  'na_meta', 'maior_melhor >=: 50 >= 40 => na_meta'
+  'on_target', 'maior_melhor >=: 50 >= 40 => na_meta'
 );
 -- menor_melhor / <= manual: a value ABOVE target => fora_da_meta
 select test_helpers.claims_for((select sa_x from k), false);
@@ -306,7 +306,7 @@ select public.record_indicator_measurement((select id from _mm), '2026-06', 3, 1
 reset role;
 select is(
   (select status from public.indicator_measurements where indicator_id = (select id from _mm)),
-  'fora_da_meta', 'menor_melhor <=: 3.0 > 2 => fora_da_meta'
+  'off_target', 'menor_melhor <=: 3.0 > 2 => fora_da_meta'
 );
 
 -- ---- 8) indicator_kpis counts (act as staff_admin) ----
@@ -366,7 +366,7 @@ select set_eq(
        where n.nspname='public' and p.proname='hospital_indicator_rollup'
      ) q where mode = 't' $$,
   $$ values ('commission_id'),('commission_name'),('total'),
-            ('na_meta'),('fora_da_meta'),('sem_dados') $$,
+            ('on_target'),('off_target'),('no_data') $$,
   'hospital_indicator_rollup exposes ONLY counts + commission id/name (PHI-free, minimum-necessary)'
 );
 

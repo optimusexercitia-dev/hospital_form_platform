@@ -108,7 +108,7 @@ export function CaseNarrativeCard({
   const heading = narrative.title || narrative.typeLabel;
   const hasBody = effectiveBody.trim().length > 0;
   const headingId = `narrative-${narrative.id}-heading`;
-  const isConcluded = narrative.status === "concluida";
+  const isConcluded = narrative.status === "completed";
 
   function handleEdit() {
     setError(null);

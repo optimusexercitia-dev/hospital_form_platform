@@ -220,13 +220,13 @@ grant select on cse to authenticated;
 -- status uses the FIXED model (the configurable vocab + em_andamento were
 -- removed by the 093000–093003 batch). A direct INSERT is not guarded
 -- (guard_case_status fires only on UPDATE/DELETE), so any CHECK-valid status is
--- fine; 'concluido' is coherent with the concluida phase below.
+-- fine; 'completed' is coherent with the concluida phase below.
 -- WS-3b D9: a terminal case (concluido/cancelado) must carry closed_at
 -- (cases_closed_at_paired CHECK); set it so this fixture row is lifecycle-consistent.
 insert into public.cases (id, commission_id, case_number, status, closed_at, created_by)
-select cse.case_id, k.comm_x, 9999, 'concluido', now(), k.sa_x from cse, k;
+select cse.case_id, k.comm_x, 9999, 'completed', now(), k.sa_x from cse, k;
 insert into public.case_phases (id, case_id, position, title, form_id, form_version_id, status)
-select cse.phase_id, cse.case_id, 1, 'P1', i.form_d, i.ver_d, 'concluida' from cse, ids i;
+select cse.phase_id, cse.case_id, 1, 'P1', i.form_d, i.ver_d, 'completed' from cse, ids i;
 insert into public.responses (id, form_version_id, commission_id, created_by, status, submitted_at, case_phase_id)
 select gen_random_uuid(), i.ver_d, k.comm_x, k.st_x, 'submitted', now(), cse.phase_id from ids i, k, cse;
 select set_config('app.in_submit_rpc', 'off', true);

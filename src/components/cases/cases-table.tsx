@@ -18,17 +18,17 @@ type SortKey = "caso" | "status" | "criado";
 type SortDir = "asc" | "desc";
 
 const PHASE_DOT: Record<CasePhaseStatus, string> = {
-  ativa: "bg-primary",
-  concluida: "bg-success",
-  pendente: "bg-muted-foreground/35",
-  nao_necessaria: "bg-muted-foreground/15",
+  active: "bg-primary",
+  completed: "bg-success",
+  pending: "bg-muted-foreground/35",
+  not_required: "bg-muted-foreground/15",
 };
 
 const PHASE_WORD: Record<CasePhaseStatus, string> = {
-  ativa: "Ativa",
-  concluida: "Concluída",
-  pendente: "Pendente",
-  nao_necessaria: "Não necessária",
+  active: "Ativa",
+  completed: "Concluída",
+  pending: "Pendente",
+  not_required: "Não necessária",
 };
 
 // Status sort rank = the fixed board order; every status is present.

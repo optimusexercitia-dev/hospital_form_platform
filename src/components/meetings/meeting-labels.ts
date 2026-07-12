@@ -24,22 +24,22 @@ import type { MeetingActionItemStatus } from "@/lib/queries/meeting-action-items
 // ---------------------------------------------------------------------------
 
 export const MEETING_STATUS_LABEL: Record<MeetingStatus, string> = {
-  agendada: "Agendada",
-  realizada: "Realizada",
-  em_assinatura: "Assinatura",
-  assinada: "Assinada",
-  distribuida: "Distribuída",
-  cancelada: "Cancelada",
+  scheduled: "Agendada",
+  held: "Realizada",
+  in_signature: "Assinatura",
+  signed: "Assinada",
+  distributed: "Distribuída",
+  cancelled: "Cancelada",
 };
 
 /** Badge styling per lifecycle status (semantic tokens; paired with the label text). */
 export const MEETING_STATUS_STYLE: Record<MeetingStatus, string> = {
-  agendada: "bg-secondary text-secondary-foreground",
-  realizada: "bg-accent text-accent-foreground",
-  em_assinatura: "bg-warning/15 text-warning",
-  assinada: "bg-success/12 text-success dark:bg-success/15",
-  distribuida: "bg-primary/12 text-primary",
-  cancelada: "bg-muted text-muted-foreground line-through",
+  scheduled: "bg-secondary text-secondary-foreground",
+  held: "bg-accent text-accent-foreground",
+  in_signature: "bg-warning/15 text-warning",
+  signed: "bg-success/12 text-success dark:bg-success/15",
+  distributed: "bg-primary/12 text-primary",
+  cancelled: "bg-muted text-muted-foreground line-through",
 };
 
 /**
@@ -47,17 +47,17 @@ export const MEETING_STATUS_STYLE: Record<MeetingStatus, string> = {
  * upcoming state; everything from `realizada` onward (incl. `cancelada`) is past.
  */
 export function isUpcomingStatus(status: MeetingStatus): boolean {
-  return status === "agendada";
+  return status === "scheduled";
 }
 
 /** Whether the meeting content (minutes/agenda/attendees/case-links) is still editable. */
 export function isEditableStatus(status: MeetingStatus): boolean {
-  return status === "agendada" || status === "realizada";
+  return status === "scheduled" || status === "held";
 }
 
 /** Whether the meeting is in a terminal lifecycle state (no further transitions). */
 export function isTerminalMeetingStatus(status: MeetingStatus): boolean {
-  return status === "distribuida" || status === "cancelada";
+  return status === "distributed" || status === "cancelled";
 }
 
 // ---------------------------------------------------------------------------
@@ -95,25 +95,25 @@ export const ATTENDEE_ROLE_ORDER: AttendeeRole[] = [
 ];
 
 export const ATTENDANCE_LABEL: Record<AttendanceStatus, string> = {
-  convocado: "Convocado",
-  presente: "Presente",
-  ausente: "Ausente",
-  justificado: "Justificado",
+  summoned: "Convocado",
+  present: "Presente",
+  absent: "Ausente",
+  excused: "Justificado",
 };
 
 export const ATTENDANCE_ORDER: AttendanceStatus[] = [
-  "convocado",
-  "presente",
-  "ausente",
-  "justificado",
+  "summoned",
+  "present",
+  "absent",
+  "excused",
 ];
 
 /** Badge styling per attendance state (semantic tokens; paired with the label). */
 export const ATTENDANCE_STYLE: Record<AttendanceStatus, string> = {
-  convocado: "bg-muted text-muted-foreground",
-  presente: "bg-success/12 text-success dark:bg-success/15",
-  ausente: "bg-destructive/10 text-destructive",
-  justificado: "bg-warning/15 text-warning",
+  summoned: "bg-muted text-muted-foreground",
+  present: "bg-success/12 text-success dark:bg-success/15",
+  absent: "bg-destructive/10 text-destructive",
+  excused: "bg-warning/15 text-warning",
 };
 
 // ---------------------------------------------------------------------------

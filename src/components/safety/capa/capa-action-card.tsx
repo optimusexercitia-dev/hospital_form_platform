@@ -67,7 +67,7 @@ export function CapaActionCard({
   const { run, isPending, error } = useSafetyAction();
 
   const isSettled =
-    action.status === "concluida" || action.status === "cancelada";
+    action.status === "completed" || action.status === "cancelled";
 
   return (
     <li className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs">
@@ -149,13 +149,13 @@ export function CapaActionCard({
       {/* Advance / complete controls (assignee-OR-PQS) */}
       {canAdvance && !isSettled && (
         <div className="flex flex-wrap items-center gap-2">
-          {action.status === "pendente" && (
+          {action.status === "pending" && (
             <Button
               type="button"
               size="sm"
               variant="outline"
               disabled={isPending}
-              onClick={() => run(() => advanceCapaAction(action.id, "em_andamento"))}
+              onClick={() => run(() => advanceCapaAction(action.id, "in_progress"))}
             >
               <ChevronRight aria-hidden="true" />
               Iniciar
@@ -176,7 +176,7 @@ export function CapaActionCard({
               size="sm"
               variant="ghost"
               disabled={isPending}
-              onClick={() => run(() => advanceCapaAction(action.id, "cancelada"))}
+              onClick={() => run(() => advanceCapaAction(action.id, "cancelled"))}
               className="text-muted-foreground hover:text-foreground"
             >
               Cancelar ação

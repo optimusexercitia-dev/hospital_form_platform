@@ -224,7 +224,7 @@ export async function listIndicators(commissionId: string): Promise<IndicatorLis
     })[0]
     return {
       ...mapIndicator(r),
-      latestStatus: (latest?.status as MeasurementStatus) ?? 'sem_dados',
+      latestStatus: (latest?.status as MeasurementStatus) ?? 'no_data',
       latestValue: latest?.value ?? null,
       latestPeriodLabel: latest?.period_label ?? null,
     }
@@ -331,9 +331,9 @@ export async function getIndicatorSeries(
 
 interface KpisRow {
   total: number
-  na_meta: number
-  fora_da_meta: number
-  sem_dados: number
+  on_target: number
+  off_target: number
+  no_data: number
 }
 
 /**
@@ -349,9 +349,9 @@ export async function getIndicatorKpis(commissionId: string): Promise<IndicatorK
   const r = data?.[0]
   return {
     total: r?.total ?? 0,
-    naMeta: r?.na_meta ?? 0,
-    foraDaMeta: r?.fora_da_meta ?? 0,
-    semDados: r?.sem_dados ?? 0,
+    naMeta: r?.on_target ?? 0,
+    foraDaMeta: r?.off_target ?? 0,
+    semDados: r?.no_data ?? 0,
   }
 }
 
@@ -359,9 +359,9 @@ interface RollupRow {
   commission_id: string
   commission_name: string
   total: number
-  na_meta: number
-  fora_da_meta: number
-  sem_dados: number
+  on_target: number
+  off_target: number
+  no_data: number
 }
 
 /**
@@ -381,9 +381,9 @@ export async function getHospitalIndicatorRollup(
     commissionId: r.commission_id,
     commissionName: r.commission_name,
     total: r.total,
-    naMeta: r.na_meta,
-    foraDaMeta: r.fora_da_meta,
-    semDados: r.sem_dados,
+    naMeta: r.on_target,
+    foraDaMeta: r.off_target,
+    semDados: r.no_data,
   }))
 }
 

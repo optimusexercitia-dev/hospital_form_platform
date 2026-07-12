@@ -55,8 +55,8 @@ insert into public.organization_members (organization_id, user_id, role, hospita
 create temp table c on commit drop as select gen_random_uuid() as capa_b, gen_random_uuid() as capa_2;
 grant select on c to authenticated;
 insert into public.capa_plan (id, source, classification, status, hospital_id) values
-  ((select capa_b from c), 'manual', 'corretiva', 'aberto', (select hosp_b from k)),
-  ((select capa_2 from c), 'manual', 'corretiva', 'aberto', (select hosp2 from t));
+  ((select capa_b from c), 'manual', 'corretiva', 'open', (select hosp_b from k)),
+  ((select capa_2 from c), 'manual', 'corretiva', 'open', (select hosp2 from t));
 
 -- ============================================================================
 -- §1: anchor + code unique + predicate + derive trigger exist.
@@ -99,7 +99,7 @@ select test_helpers.claims_for((select op_b from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ insert into public.capa_action (capa_id, title, position, status)
-            values (%L::uuid, 'x', 0, 'pendente') $$,
+            values (%L::uuid, 'x', 0, 'pending') $$,
          (select capa_2 from c)),
   '42501', null,
   '2.3: a hosp_b operator cannot insert a capa_action under a hosp2 CAPA (42501)');
@@ -118,7 +118,7 @@ select lives_ok(
   '3.2: the hosp2 operator CAN update its own CAPA (positive control)');
 select lives_ok(
   format($$ insert into public.capa_action (capa_id, title, position, status)
-            values (%L::uuid, 'Ação hosp2', 0, 'pendente') $$,
+            values (%L::uuid, 'Ação hosp2', 0, 'pending') $$,
          (select capa_2 from c)),
   '3.3: the hosp2 operator CAN insert a capa_action under its own CAPA');
 reset role;
@@ -137,7 +137,7 @@ values
   ((select id from ev), 'EV-CAPA', (select comm_x from k), current_date,
    'Evento CAPA', 'acknowledged', 'pqs', (select admin from k));
 insert into public.capa_plan (id, source, source_event_id, classification, status)
-  values ((select capa from ev), 'event', (select id from ev), 'corretiva', 'aberto');
+  values ((select capa from ev), 'event', (select id from ev), 'corretiva', 'open');
 select is(
   (select hospital_id from public.capa_plan where id = (select capa from ev)),
   (select hosp_b from k),

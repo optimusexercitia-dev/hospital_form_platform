@@ -29,7 +29,7 @@ import { createClient } from '@/lib/supabase/server'
 export interface MemberOverview {
   /**
    * Cases the caller is PERSONALLY attributed on or granted, with a non-terminal
-   * status (excludes `concluido` AND `cancelado`). The attribution disjuncts
+   * status (excludes `completed` AND `cancelled`). The attribution disjuncts
    * (phase/narrative assignee) count REGARDLESS of the `case_access` flag (the
    * `minhas-fases` reality when the flag is off); the explicit read/write grant
    * disjunct counts only when `case_access` is ON. 0 when the cases feature is
@@ -47,8 +47,8 @@ export interface MemberOverview {
   pendingActionItemsOverdue: number
   /**
    * Meetings the caller ATTENDS (`meeting_attendees.user_id = auth.uid()`) whose
-   * status is not concluded — status ∈ {agendada, realizada, em_assinatura}
-   * (excludes assinada/distribuida/cancelada). 0 when `meetings` is off.
+   * status is not concluded — status ∈ {scheduled, held, in_signature}
+   * (excludes signed/distributed/cancelled). 0 when `meetings` is off.
    */
   meetingsNotConcluded: number
   /**

@@ -32,22 +32,22 @@
 // ---------------------------------------------------------------------------
 
 /**
- * The referral lifecycle (Decision 4). A drives `rascunho → enviada` and the
- * `→ retirada` withdrawal; B drives `recebida → aceita/recusada → em_analise →
- * concluida` (conclusion delivers the reply). The pt-BR slugs are the stored
+ * The referral lifecycle (Decision 4). A drives `draft → sent` and the
+ * `→ withdrawn` withdrawal; B drives `received → accepted/rejected → in_review →
+ * completed` (conclusion delivers the reply). The pt-BR slugs are the stored
  * `case_referral.status` values; DB-enforced by `app.guard_referral_status`
  * (HC070 wrong-state). The RESOLVED set (a referral no longer "in flight" for
- * the close-case gate) is `concluida / recusada / retirada`.
+ * the close-case gate) is `completed / rejected / withdrawn`.
  */
 export type ReferralStatus =
-  | 'rascunho'
-  | 'enviada'
-  | 'recebida'
-  | 'aceita'
-  | 'recusada'
-  | 'em_analise'
-  | 'concluida'
-  | 'retirada'
+  | 'draft'
+  | 'sent'
+  | 'received'
+  | 'accepted'
+  | 'rejected'
+  | 'in_review'
+  | 'completed'
+  | 'withdrawn'
 
 /** The two kinds of frozen snapshot row B reads (Decision 9). A `narrative`
  * freezes a `body_md` copy; a `document` freezes the storage REFERENCE (Rule 6,
@@ -70,14 +70,14 @@ export type ReferralDirection = 'incoming' | 'outgoing'
 
 /** pt-BR labels for the referral status chip / filter. */
 export const REFERRAL_STATUS_LABELS: Record<ReferralStatus, string> = {
-  rascunho: 'Rascunho',
-  enviada: 'Enviada',
-  recebida: 'Recebida',
-  aceita: 'Aceita',
-  recusada: 'Recusada',
-  em_analise: 'Em análise',
-  concluida: 'Concluída',
-  retirada: 'Retirada',
+  draft: 'Rascunho',
+  sent: 'Enviada',
+  received: 'Recebida',
+  accepted: 'Aceita',
+  rejected: 'Recusada',
+  in_review: 'Em análise',
+  completed: 'Concluída',
+  withdrawn: 'Retirada',
 }
 
 /**
@@ -87,14 +87,14 @@ export const REFERRAL_STATUS_LABELS: Record<ReferralStatus, string> = {
  * to its `Badge` variants — NOT raw colours.
  */
 export const REFERRAL_STATUS_TOKENS: Record<ReferralStatus, string> = {
-  rascunho: 'muted',
-  enviada: 'info',
-  recebida: 'info',
-  aceita: 'accent',
-  recusada: 'destructive',
-  em_analise: 'warning',
-  concluida: 'success',
-  retirada: 'muted',
+  draft: 'muted',
+  sent: 'info',
+  received: 'info',
+  accepted: 'accent',
+  rejected: 'destructive',
+  in_review: 'warning',
+  completed: 'success',
+  withdrawn: 'muted',
 }
 
 /** pt-BR labels for the snapshot shared-item kind. */
@@ -122,7 +122,7 @@ export const REFERRAL_DIRECTION_LABELS: Record<ReferralDirection, string> = {
  * label which in-flight referrals are blocking. */
 export const RESOLVED_REFERRAL_STATUSES: ReadonlySet<ReferralStatus> = new Set<
   ReferralStatus
->(['concluida', 'recusada', 'retirada'])
+>(['completed', 'rejected', 'withdrawn'])
 
 // ---------------------------------------------------------------------------
 // Configurable vocabularies (seeded, admin-managed; Decisions 8 & 10)
@@ -199,7 +199,7 @@ export interface ReferralListItem {
   targetCaseNumber: number | null
   /** Denormalized: an isolated PHI record exists (panel affordance gate). */
   hasPatient: boolean
-  /** Whether a reply has been delivered (`concluida`); the card shows it. */
+  /** Whether a reply has been delivered (`completed`); the card shows it. */
   hasReply: boolean
   sentAt: string | null
   createdAt: string
@@ -239,7 +239,7 @@ export interface ReferralDetail {
   createdByName: string | null
   /** The frozen snapshot rows B reads (narratives + documents). */
   sharedItems: SharedItem[]
-  /** The delivered reply, or `null` until `concluida`. */
+  /** The delivered reply, or `null` until `completed`. */
   reply: ReferralReply | null
   sentAt: string | null
   receivedAt: string | null
@@ -359,7 +359,7 @@ export interface ReferralDashboardFilters {
  */
 export interface ReferralFlowMetrics {
   total: number
-  /** Not yet in a resolved state (`concluida/recusada/retirada`). */
+  /** Not yet in a resolved state (`completed/rejected/withdrawn`). */
   open: number
   /** Reply-expecting + still in flight (the close-case blockers across the org). */
   awaitingReply: number
@@ -408,7 +408,7 @@ export interface CreateReferralInput {
   responseExpected: boolean
 }
 
-/** Editable draft fields (only while `rascunho`; HC070 otherwise). */
+/** Editable draft fields (only while `draft`; HC070 otherwise). */
 export interface UpdateReferralInput {
   referralTypeId: string
   subject: string

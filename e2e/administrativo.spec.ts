@@ -299,7 +299,7 @@ test('POS-3 assign_case_phases: activation + reassignment land; the assignee get
       )
       return `${rows[0]?.status}:${rows[0]?.assigned_to}`
     }, { timeout: 15_000 })
-    .toBe(`ativa:${UID_STAFF1}`)
+    .toBe(`active:${UID_STAFF1}`)
 
   // DB truth (design revert): assignment writes NO case_access row for the assignee.
   await expect
@@ -752,7 +752,7 @@ test('REG-ADM-001: Administrativo activates a phase through the UI — the activ
       )
       return `${rows[0]?.status}:${rows[0]?.assigned_to}`
     }, { timeout: 15_000 })
-    .toBe(`ativa:${UID_STAFF1}`)
+    .toBe(`active:${UID_STAFF1}`)
 
   await signOut(page)
 })

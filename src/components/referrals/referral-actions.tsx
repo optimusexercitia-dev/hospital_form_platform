@@ -115,10 +115,10 @@ export function ReferralActions({
   // read-only snapshot/reply). Keeps the surface calm for plain members.
   const targetCanAct =
     canManageTarget &&
-    ["enviada", "recebida", "aceita", "em_analise"].includes(status);
+    ["sent", "received", "accepted", "in_review"].includes(status);
   const sourceCanWithdraw =
     canManageSource &&
-    ["enviada", "recebida", "aceita", "em_analise"].includes(status);
+    ["sent", "received", "accepted", "in_review"].includes(status);
 
   if (!targetCanAct && !sourceCanWithdraw) return null;
 
@@ -135,7 +135,7 @@ export function ReferralActions({
 
       <div className="flex flex-wrap gap-2">
         {/* TARGET transitions */}
-        {canManageTarget && status === "enviada" && (
+        {canManageTarget && status === "sent" && (
           <Button
             type="button"
             size="sm"
@@ -147,7 +147,7 @@ export function ReferralActions({
           </Button>
         )}
 
-        {canManageTarget && status === "recebida" && (
+        {canManageTarget && status === "received" && (
           <>
             <Button
               type="button"
@@ -171,7 +171,7 @@ export function ReferralActions({
           </>
         )}
 
-        {canManageTarget && status === "aceita" && (
+        {canManageTarget && status === "accepted" && (
           <Button
             type="button"
             size="sm"
@@ -184,7 +184,7 @@ export function ReferralActions({
         )}
 
         {/* Link case — available to the target coordinator once accepted/in review. */}
-        {canManageTarget && ["aceita", "em_analise"].includes(status) && (
+        {canManageTarget && ["accepted", "in_review"].includes(status) && (
           <Button
             type="button"
             variant="outline"
@@ -222,7 +222,7 @@ export function ReferralActions({
       )}
 
       {/* The reply / conclusion form — only the target coordinator, only in review. */}
-      {canManageTarget && status === "em_analise" && (
+      {canManageTarget && status === "in_review" && (
         <ReplyForm
           referralId={referralId}
           responseExpected={responseExpected}

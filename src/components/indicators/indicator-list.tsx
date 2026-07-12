@@ -35,7 +35,7 @@ export function IndicatorList({
   return (
     <ul className="flex flex-col gap-3">
       {indicators.map((indicator, i) => {
-        const status = latestStatusByIndicator?.[indicator.id] ?? "sem_dados";
+        const status = latestStatusByIndicator?.[indicator.id] ?? "no_data";
         return (
           <li
             key={indicator.id}
@@ -59,9 +59,9 @@ export function IndicatorList({
                       {indicator.code}
                     </span>
                     <IndicatorKindBadge kind={indicator.kind} />
-                    {indicator.status === "arquivado" ? (
+                    {indicator.status === "archived" ? (
                       <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                        {INDICATOR_STATUS_LABELS.arquivado}
+                        {INDICATOR_STATUS_LABELS.archived}
                       </span>
                     ) : null}
                   </div>

@@ -303,7 +303,7 @@ export async function archivePhaseResult(
 
 /**
  * Apply a manual result override to a case phase (the POST-CONCLUSION correction
- * entry point — the case-detail surface, on a `concluida` phase of a non-terminal
+ * entry point — the case-detail surface, on a `completed` phase of a non-terminal
  * case). Wraps `set_case_phase_result_override`, which authorizes staff_admin/admin
  * of the case's commission, enforces the non-terminal-case precondition, validates
  * the option against the live vocabulary, and RECOMPUTES the effective result in
@@ -311,7 +311,7 @@ export async function archivePhaseResult(
  * clears the override → recompute from the snapshotted ruleset). Per Rule 11 the
  * free-text `reason` is audited as a fact only, never copied into the payload.
  *
- * (The END-OF-WIZARD override, on an `ativa` phase, flows through
+ * (The END-OF-WIZARD override, on an `active` phase, flows through
  * `submitCasePhaseResponse` instead — same RPC, different entry point.)
  */
 export async function overrideCasePhaseResult(

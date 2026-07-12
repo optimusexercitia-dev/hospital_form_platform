@@ -50,7 +50,7 @@ export const PDCA_META: Record<
 export function allActionsSettled(actions: CapaAction[]): boolean {
   return (
     actions.length > 0 &&
-    actions.every((a) => a.status === "concluida" || a.status === "cancelada")
+    actions.every((a) => a.status === "completed" || a.status === "cancelled")
   );
 }
 
@@ -79,19 +79,19 @@ export function derivePdca(
   resultsByMeasure: Map<string, CapaMeasureResult[]>,
 ): Record<PdcaStageId, PdcaCellStatus> {
   const s = plan.status;
-  const beyondOpen = s === "em_execucao" || s === "em_verificacao" || s === "concluido";
-  const beyondExec = s === "em_verificacao" || s === "concluido";
+  const beyondOpen = s === "in_execution" || s === "in_verification" || s === "completed";
+  const beyondExec = s === "in_verification" || s === "completed";
 
   const done: Record<PdcaStageId, boolean> = {
     plan: beyondOpen && actions.length > 0,
     do: beyondExec || allActionsSettled(actions),
     check: beyondExec && allMeasuresHaveResults(measures, resultsByMeasure),
-    act: s === "concluido",
+    act: s === "completed",
   };
 
   const result = {} as Record<PdcaStageId, PdcaCellStatus>;
   let activeAssigned = false;
-  const terminal = s === "concluido" || s === "cancelado";
+  const terminal = s === "completed" || s === "cancelled";
   for (const cell of PDCA_ORDER) {
     if (done[cell]) {
       result[cell] = "done";
@@ -139,7 +139,7 @@ export function concludeGate(
 ): ConcludeGate {
   const settled = allActionsSettled(actions);
   const hasEffectiveness = effectiveness != null;
-  const inVerification = plan.status === "em_verificacao";
+  const inVerification = plan.status === "in_verification";
   return {
     allActionsSettled: settled,
     hasEffectiveness,

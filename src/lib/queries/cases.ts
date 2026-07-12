@@ -32,7 +32,7 @@ export type { CaseStatus } from '@/lib/cases/case-status'
  *   - `list_cases_board(commission_id)` — one row per case + aggregated phase
  *     STATUS (no answers).
  *   - `get_case_detail(case_id)` — case header + phases; `responseId`/`submittedAt`
- *     populated ONLY for SUBMITTED (concluida) phases, so the coordinator can
+ *     populated ONLY for SUBMITTED (completed) phases, so the coordinator can
  *     deep-link a completed phase's answers via the existing staff_admin
  *     submitted-response read path — never an in-progress answer.
  *
@@ -47,10 +47,10 @@ export type { CaseStatus } from '@/lib/cases/case-status'
 // ---------------------------------------------------------------------------
 
 export type CasePhaseStatus =
-  | 'pendente'
-  | 'ativa'
-  | 'concluida'
-  | 'nao_necessaria'
+  | 'pending'
+  | 'active'
+  | 'completed'
+  | 'not_required'
 
 /** A case header (no phases). */
 export interface Case {
@@ -156,8 +156,8 @@ export interface CasePhase {
   isAdHoc: boolean
   /**
    * The 1-based positions of EARLIER phases that BLOCK this one (D1/D4): this
-   * phase cannot be activated until every listed phase is `concluida` or
-   * `nao_necessaria`. Snapshot-copied from the template slot at case creation;
+   * phase cannot be activated until every listed phase is `completed` or
+   * `not_required`. Snapshot-copied from the template slot at case creation;
    * `[]` = no blockers (always activatable). References earlier positions only.
    */
   blocks: number[]
@@ -186,7 +186,7 @@ export interface CasePhase {
    * The EFFECTIVE per-phase result option id (phase-results feature), or `null`
    * when the phase is not concluded, has no snapshotted ruleset and no override,
    * or the feature is off. Written in the SAME statement that flips the phase to
-   * `concluida` (computed or honored-override); never rewritten afterward. The
+   * `completed` (computed or honored-override); never rewritten afterward. The
    * resolved label/colour for display is the sibling `result` projection on the
    * board/detail phase entries.
    */
@@ -202,7 +202,7 @@ export interface CasePhase {
  * effective label SNAPSHOTTED at case creation (so later vocabulary edits do not
  * rewrite an opened case); `bodyMd` is the de-identified sanitized-Markdown body
  * (Rule 7), authored inline by the coordinator and frozen once the case is
- * concluído/cancelado.
+ * concluído/cancelled.
  */
 export interface CaseNarrative {
   id: string
@@ -238,10 +238,10 @@ export interface CaseNarrative {
   assigneeName: string | null
   /**
    * The narrative's lifecycle status (ADR 0033 D5): `aberta` (editable by the
-   * assignee / un-attributed write-grantee) → `concluida` (body frozen). A
+   * assignee / un-attributed write-grantee) → `completed` (body frozen). A
    * coordinator can reopen. Defaults to `aberta` for existing rows.
    */
-  status: 'aberta' | 'concluida'
+  status: 'open' | 'completed'
   /** When it was concluded (ISO), or `null` while `aberta`. */
   concludedAt: string | null
   /** Who concluded it (profile id), or `null` while `aberta`. */
@@ -280,7 +280,7 @@ export interface CaseBoardRow {
     }
   >
   /**
-   * The count of this case's OPEN narratives (`case_narratives.status = 'aberta'`).
+   * The count of this case's OPEN narratives (`case_narratives.status = 'open'`).
    * SCALAR only — the board renders no narrative rows (minimum-necessary), so no
    * `narratives[]` array is carried here. `0` when the case has none / the
    * `case_narratives` feature is off. Feeds the "Etapas pendentes" KPI, which sums
@@ -292,7 +292,7 @@ export interface CaseBoardRow {
 /**
  * Full per-case detail: the case header + every phase. For each phase,
  * `responseId`/`submittedAt` are non-null ONLY when the phase is SUBMITTED
- * (concluida) — the coordinator deep-links those to the existing staff_admin
+ * (completed) — the coordinator deep-links those to the existing staff_admin
  * submitted-response detail view. In-progress phases expose status only.
  */
 export interface CaseDetail {
@@ -457,14 +457,14 @@ export interface MyCaseItem {
   title: string
   /**
    * The item's own status slug — a {@link CasePhaseStatus} for a phase, a
-   * narrative status (`'aberta' | 'concluida'`) for a narrative. A stable ASCII
+   * narrative status (`'open' | 'completed'`) for a narrative. A stable ASCII
    * union the card maps to a pt-BR pill; not itself a label.
    */
   status: string
   /** The item's order in the merged case layout (interleave; phases ∪ narratives). */
   displayPosition: number
   /**
-   * `true` when the viewer can act on it RIGHT NOW — a phase that is `ativa` AND
+   * `true` when the viewer can act on it RIGHT NOW — a phase that is `active` AND
    * assigned to the viewer (drives "Preencher"); a narrative that is `aberta` AND
    * assigned to the viewer (drives "Abrir"/"Concluir"). `false` renders the item
    * as context only (e.g. a concluded narrative, a not-yet-active phase).
@@ -574,22 +574,40 @@ interface BoardRowJson {
   created_at: string
   closed_at: string | null
   phases: BoardPhaseJson[]
-  /** Scalar count of the case's open narratives (status='aberta'). */
+  /** Scalar count of the case's open narratives (status='open'). */
   open_narrative_count: number
+}
+
+/**
+ * D3 (F-cleanup): re-aggregate a `case_phase_allowed_results` embed back to the
+ * byte-identical `string[] | null` domain shape (ordered by position; empty ⇒ null,
+ * matching the pre-D3 "null = no allowed set" contract). Replaces the direct read of
+ * the removed `case_phases.allowed_result_ids` jsonb column.
+ */
+function allowedFromJunction(
+  rows: { result_id: string; position: number }[] | null | undefined,
+): string[] | null {
+  const list = rows ?? []
+  if (list.length === 0) return null
+  return list
+    .slice()
+    .sort((a, b) => a.position - b.position)
+    .map((r) => r.result_id)
 }
 
 /**
  * The result-MODE columns of a `case_phases` row (phase-result-manual-mode),
  * read RLS-scoped to supplement the `get_case_detail` envelope (which omits
  * them). The MODE is the ruleset's presence (ruleset → automatic; none → manual);
- * `allowed_result_ids` is the author-selected subset (present for both modes when
- * emitting). The correction picker derives the MANUAL-only subset from these.
+ * the allowed subset (D3: `case_phase_allowed_results`) is the author-selected set
+ * (present for both modes when emitting). The correction picker derives the
+ * MANUAL-only subset from these.
  */
 interface CasePhaseModeRow {
   id: string
   emits_result: boolean
   result_ruleset: ResultRuleset | null
-  allowed_result_ids: string[] | null
+  case_phase_allowed_results: { result_id: string; position: number }[] | null
 }
 
 /**
@@ -600,7 +618,7 @@ interface CasePhaseModeRow {
  */
 function manualSubsetOf(row: CasePhaseModeRow | undefined): string[] | null {
   if (!row || !row.emits_result || row.result_ruleset != null) return null
-  return row.allowed_result_ids ?? null
+  return allowedFromJunction(row.case_phase_allowed_results)
 }
 
 /** One phase entry inside the `get_case_detail` jsonb envelope. */
@@ -652,7 +670,7 @@ interface DetailNarrativeJson {
    */
   assigned_to?: string | null
   assignee_name?: string | null
-  status?: 'aberta' | 'concluida' | null
+  status?: 'open' | 'completed' | null
   concluded_at?: string | null
   concluded_by?: string | null
   updated_at: string
@@ -675,7 +693,7 @@ function mapNarrativeJson(n: DetailNarrativeJson, caseId: string): CaseNarrative
     // / aberta, which is exactly the state of an existing narrative row.
     assignedTo: n.assigned_to ?? null,
     assigneeName: n.assignee_name ?? null,
-    status: n.status ?? 'aberta',
+    status: n.status ?? 'open',
     concludedAt: n.concluded_at ?? null,
     concludedBy: n.concluded_by ?? null,
     updatedAt: n.updated_at,
@@ -841,14 +859,17 @@ async function getCaseDetailUncached(
   const env = data as unknown as CaseDetailJson
 
   // The `get_case_detail` envelope does NOT carry each phase's result MODE inputs
-  // (`emits_result` / `result_ruleset` / `allowed_result_ids`). Read them RLS-scoped
+  // (`emits_result` / `result_ruleset` / the allowed subset). Read them RLS-scoped
   // (commission members may read their case_phases) so the post-conclusion
   // correction picker can gate on emits-result and restrict a MANUAL phase to its
   // allowed subset — the same direct-read pattern as `getCasePhaseForFill`. A row
-  // the caller may not read simply defaults to "no result mode".
+  // the caller may not read simply defaults to "no result mode". D3: the allowed
+  // subset is embedded from case_phase_allowed_results (was allowed_result_ids jsonb).
   const { data: modeRows } = await supabase
     .from('case_phases')
-    .select('id, emits_result, result_ruleset, allowed_result_ids')
+    .select(
+      'id, emits_result, result_ruleset, case_phase_allowed_results ( result_id, position )',
+    )
     .eq('case_id', caseId)
     .returns<CasePhaseModeRow[]>()
   const modeByPhaseId = new Map(
@@ -1070,7 +1091,8 @@ interface PhaseFillRow {
   result_ruleset: ResultRuleset | null
   result_override_id: string | null
   emits_result: boolean
-  allowed_result_ids: string[] | null
+  // D3 (F-cleanup): embedded allowed junction (was allowed_result_ids jsonb).
+  case_phase_allowed_results: { result_id: string; position: number }[] | null
   forms: { title: string | null } | null
   cases: {
     id: string
@@ -1105,7 +1127,7 @@ export async function getCasePhaseForFill(
       id, case_id, position, form_id, form_version_id, title, status,
       recommended, assigned_to, is_ad_hoc, blocks, recommend_when, due_date,
       default_due_days, result_ruleset, result_override_id, emits_result,
-      allowed_result_ids,
+      case_phase_allowed_results ( result_id, position ),
       forms ( title ),
       cases (
         id, commission_id, template_id, case_number, label, status, outcome_id,
@@ -1171,7 +1193,7 @@ export async function getCasePhaseForFill(
       supabase,
       data.emits_result,
       data.result_ruleset,
-      data.allowed_result_ids,
+      allowedFromJunction(data.case_phase_allowed_results),
       data.result_override_id,
       c.commission_id,
     ),
@@ -1236,7 +1258,7 @@ async function loadPhaseResultContext(
 // Member-scoped "my active phases"
 // ---------------------------------------------------------------------------
 
-/** One ativa phase assigned to the caller, with its case context (no answers). */
+/** One active phase assigned to the caller, with its case context (no answers). */
 export interface MyAssignedPhase {
   caseId: string
   caseNumber: number
@@ -1266,7 +1288,7 @@ interface MyAssignedPhaseRow {
 
 /**
  * The caller's ACTIVE phases in a commission: `case_phases` where
- * `assigned_to = auth.uid()` AND `status = 'ativa'`, joined to the case. This is
+ * `assigned_to = auth.uid()` AND `status = 'active'`, joined to the case. This is
  * the MEMBER-scoped "my work" read — a plain `staff` assignee cannot use
  * `getCaseDetail` (staff_admin-only), so this RLS-scoped read lets them find the
  * phases they must fill (the acceptance criterion: an assignee fills only their
@@ -1295,7 +1317,7 @@ export async function listMyAssignedPhases(
     `,
     )
     .eq('assigned_to', context.userId)
-    .eq('status', 'ativa')
+    .eq('status', 'active')
     .eq('cases.commission_id', commissionId)
     .order('updated_at', { ascending: false })
     .returns<MyAssignedPhaseRow[]>()

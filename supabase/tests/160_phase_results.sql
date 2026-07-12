@@ -323,7 +323,7 @@ begin
 
   -- Activate + assign.
   update public.case_phases
-    set status = 'ativa', assigned_to = (select st_x from k), updated_at = now()
+    set status = 'active', assigned_to = (select st_x from k), updated_at = now()
     where id = v_phase_id;
   perform set_config('app.in_case_rpc', 'off', true);
 
@@ -586,7 +586,7 @@ reset role;
 -- ===========================================================================
 -- SECTION 8: HC060 — terminal case
 -- ===========================================================================
--- HC060 requires phase.status = 'concluida' AND case.status in ('concluido','cancelado').
+-- HC060 requires phase.status = 'completed' AND case.status in ('completed','cancelled').
 -- cse1/ph1 has a concluida phase 1 and a still-pendente phase 2. We skip
 -- phase 2 then close cse1 to make it terminal, then try to override ph1.
 
@@ -596,7 +596,7 @@ set local role authenticated;
 select public.skip_phase(id)
   from public.case_phases
   where case_id = (select cid from cse1) and position = 2
-    and status = 'pendente';
+    and status = 'pending';
 select public.close_case((select cid from cse1));
 reset role;
 

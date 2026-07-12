@@ -52,10 +52,10 @@ create temp table cf on commit drop as
 grant select on cf to authenticated;
 
 insert into public.cases (id, commission_id, case_number, created_by, status)
-select cf.case_id, (c.v->>'comm_x')::uuid, 9001, (c.v->>'st_x')::uuid, 'em_revisao'
+select cf.case_id, (c.v->>'comm_x')::uuid, 9001, (c.v->>'st_x')::uuid, 'in_review'
 from cf, ctx c;
 insert into public.case_phases (id, case_id, position, form_id, form_version_id, status)
-select cf.phase_id, cf.case_id, 0, (c.v->>'form_s')::uuid, (c.v->>'ver_s')::uuid, 'ativa'
+select cf.phase_id, cf.case_id, 0, (c.v->>'form_s')::uuid, (c.v->>'ver_s')::uuid, 'active'
 from cf, ctx c;
 insert into public.responses (id, form_version_id, commission_id, created_by, status, case_phase_id)
 select r.r_case, (c.v->>'ver_s')::uuid, (c.v->>'comm_x')::uuid, (c.v->>'st_x')::uuid, 'in_progress', cf.phase_id

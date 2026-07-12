@@ -109,7 +109,7 @@ export async function createReferralDraft(
 }
 
 /** Edit a draft's type/subject/description/response-expected (only while
- * `rascunho`; the RPC raises HC070 otherwise). */
+ * `draft`; the RPC raises HC070 otherwise). */
 export async function updateReferralDraft(
   referralId: string,
   input: UpdateReferralInput,
@@ -160,7 +160,7 @@ export async function addReferralSharedItem(
   return { ok: true, message: REFERRAL_MESSAGES.sharedItemAdded }
 }
 
-/** Remove a frozen snapshot item from a draft (only while `rascunho`). */
+/** Remove a frozen snapshot item from a draft (only while `draft`). */
 export async function removeReferralSharedItem(
   sharedItemId: string,
 ): Promise<ReferralActionState> {
@@ -215,7 +215,7 @@ export async function setReferralPatient(
 // Source transitions
 // ---------------------------------------------------------------------------
 
-/** Send a draft to the target commission (`rascunho → enviada`; freezes the
+/** Send a draft to the target commission (`draft → sent`; freezes the
  * snapshot). Source coordinator only (HC071); HC070 if not a draft. */
 export async function sendReferral(
   referralId: string,
@@ -239,7 +239,7 @@ export async function sendReferral(
   return { ok: true, message: REFERRAL_MESSAGES.referralSent }
 }
 
-/** Withdraw an in-flight referral (`→ retirada`). Source coordinator only;
+/** Withdraw an in-flight referral (`→ withdrawn`). Source coordinator only;
  * resolves the close-case gate. */
 export async function withdrawReferral(
   referralId: string,
@@ -258,7 +258,7 @@ export async function withdrawReferral(
 // Target transitions (target coordinator)
 // ---------------------------------------------------------------------------
 
-/** Take receipt of a sent referral (`enviada → recebida`). Target coordinator
+/** Take receipt of a sent referral (`sent → received`). Target coordinator
  * only (HC072). */
 export async function receiveReferral(
   referralId: string,
@@ -273,7 +273,7 @@ export async function receiveReferral(
   return { ok: true, message: REFERRAL_MESSAGES.referralReceived }
 }
 
-/** Accept a received referral (`recebida → aceita`). Target coordinator only. */
+/** Accept a received referral (`received → accepted`). Target coordinator only. */
 export async function acceptReferral(
   referralId: string,
 ): Promise<ReferralActionState> {
@@ -287,7 +287,7 @@ export async function acceptReferral(
   return { ok: true, message: REFERRAL_MESSAGES.referralAccepted }
 }
 
-/** Decline a received referral with an optional note (`→ recusada`). Target
+/** Decline a received referral with an optional note (`→ rejected`). Target
  * coordinator only; resolves the close-case gate. */
 export async function declineReferral(
   input: DeclineReferralInput,
@@ -307,7 +307,7 @@ export async function declineReferral(
   return { ok: true, message: REFERRAL_MESSAGES.referralDeclined }
 }
 
-/** Move an accepted referral into review (`aceita → em_analise`). Target
+/** Move an accepted referral into review (`accepted → in_review`). Target
  * coordinator only. */
 export async function startReferralReview(
   referralId: string,
@@ -378,7 +378,7 @@ export async function addReferralReplyAttachment(
 }
 
 /**
- * Conclude a referral, delivering + freezing the reply (`em_analise → concluida`).
+ * Conclude a referral, delivering + freezing the reply (`in_review → completed`).
  * Target coordinator only. When the referral expects a reply, `replyOutcomeId` +
  * `resultMd` are REQUIRED (the RPC raises HC075 otherwise); a no-reply-expected
  * referral may conclude with `acknowledgedOnly = true`.

@@ -67,11 +67,11 @@ export function InterviewLifecycleActions({
   const status = interview.status;
 
   const canEdit = isEditableInterviewStatus(status);
-  const canSchedule = status === "rascunho";
-  const canStart = status === "agendada";
-  const canConclude = status === "em_andamento";
-  const canReopen = status === "concluida";
-  const canCancel = status !== "concluida" && status !== "cancelada";
+  const canSchedule = status === "draft";
+  const canStart = status === "scheduled";
+  const canConclude = status === "in_progress";
+  const canReopen = status === "completed";
+  const canCancel = status !== "completed" && status !== "cancelled";
 
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">

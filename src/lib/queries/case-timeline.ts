@@ -96,7 +96,7 @@ interface CasePhaseTimelineRow {
   id: string
   position: number
   title: string | null
-  status: 'pendente' | 'ativa' | 'concluida' | 'nao_necessaria'
+  status: 'pending' | 'active' | 'completed' | 'not_required'
   activated_at: string | null
   completed_at: string | null
   skipped_at: string | null
@@ -318,12 +318,12 @@ function phaseTitle(p: CasePhaseTimelineRow): string {
 
 /**
  * Normalize a phase row into 0..1 timeline events (plan rules):
- *   - `ativa` / `concluida` (activated) → a `phase` BAR: `start = activated_at`,
+ *   - `active` / `completed` (activated) → a `phase` BAR: `start = activated_at`,
  *     `end = completed_at ?? skipped_at ?? null` (null = active → grows to today).
- *   - `nao_necessaria` (skipped) → a muted single-day pin at `skipped_at`
+ *   - `not_required` (skipped) → a muted single-day pin at `skipped_at`
  *     (falls back to `due_date`/omit if somehow unset).
- *   - `pendente` WITH a `due_date` → an upcoming single-day pin at `due_date`.
- *   - `pendente` WITHOUT a `due_date` → omitted (nothing to place).
+ *   - `pending` WITH a `due_date` → an upcoming single-day pin at `due_date`.
+ *   - `pending` WITHOUT a `due_date` → omitted (nothing to place).
  *
  * NOTE: a skipped/pending phase is a SINGLE-DAY event but keeps `type: 'phase'`
  * so the legend/filter still groups it under "Fases"; the view branches on
@@ -350,18 +350,18 @@ function phaseToEvent(p: CasePhaseTimelineRow): CaseTimelineEvent | null {
     result,
   }
 
-  if (p.status === 'nao_necessaria') {
+  if (p.status === 'not_required') {
     const day = p.skipped_at ?? p.due_date
     if (!day) return null
     return { ...base, day, muted: true }
   }
 
-  if (p.status === 'pendente') {
+  if (p.status === 'pending') {
     if (!p.due_date) return null
     return { ...base, day: p.due_date }
   }
 
-  // ativa / concluida → a durational bar. activated_at is set on activation.
+  // active / completed → a durational bar. activated_at is set on activation.
   if (!p.activated_at) return null
   return {
     ...base,
@@ -446,7 +446,7 @@ export async function getCaseTimeline(caseId: string): Promise<CaseTimeline> {
       type: 'lifecycle',
       subtype: 'closed',
       title:
-        detail.case.status === 'cancelado'
+        detail.case.status === 'cancelled'
           ? 'Caso cancelado'
           : 'Caso concluído',
       day: closedAt,
@@ -473,7 +473,7 @@ export async function getCaseTimeline(caseId: string): Promise<CaseTimeline> {
       owner: null,
       note: iv.subjectSummary || null,
       statusSlug: iv.status,
-      muted: iv.status === 'cancelada',
+      muted: iv.status === 'cancelled',
       href: `manage/cases/${caseId}/interviews/${iv.id}`,
     })
   }
@@ -489,7 +489,7 @@ export async function getCaseTimeline(caseId: string): Promise<CaseTimeline> {
       owner: null,
       note: m.locationText || link.summary || null,
       statusSlug: m.status,
-      muted: m.status === 'cancelada',
+      muted: m.status === 'cancelled',
       href: null,
     })
   }
@@ -543,7 +543,7 @@ export async function getCaseTimeline(caseId: string): Promise<CaseTimeline> {
         ? `Para ${r.target_commission.name}`
         : null,
       statusSlug: r.status,
-      muted: r.status === 'retirada' || r.status === 'recusada',
+      muted: r.status === 'withdrawn' || r.status === 'rejected',
       href: null,
     })
   }

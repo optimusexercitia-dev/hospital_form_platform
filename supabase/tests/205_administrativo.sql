@@ -169,7 +169,7 @@ insert into public.case_phases
   (id, case_id, position, form_id, form_version_id, status, blocks)
 values
   ((select phase_id from ph), (select case_id from cs), 1, (select form_u from k),
-   (select ver_u from k), 'pendente', '{}');
+   (select ver_u from k), 'pending', '{}');
 
 -- 4a) activate the phase, assigning st_x2. Revised ADR 0061: assignment grants NO
 -- case_access WRITE — only phase-form write (assigned_to) + case READ (assignee arm).
@@ -390,11 +390,11 @@ select throws_ok(
   '42501', null, 'sign_section: an Administrativo cannot sign a section (42501)');
 -- A holder cannot flip case status by a DIRECT UPDATE (no cases write policy for
 -- member_can — the leak guardrail). RLS filters the row → 0 rows, status unchanged.
-update public.cases set status = 'concluido' where id = (select case_id from cs);
+update public.cases set status = 'completed' where id = (select case_id from cs);
 reset role;
 select isnt(
   (select status from public.cases where id = (select case_id from cs)),
-  'concluido', 'direct UPDATE by a holder does NOT conclude the case (cases_staff_admin_write unbroadened)');
+  'completed', 'direct UPDATE by a holder does NOT conclude the case (cases_staff_admin_write unbroadened)');
 
 -- A plain staff (no appointment) cannot create a case.
 select test_helpers.claims_for((select st_x2 from k), false);

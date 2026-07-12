@@ -34,8 +34,8 @@ import {
  * @param org  the org slug whose NSP console this is — builds the breadcrumb hrefs.
  */
 export function CapaHeader({ org, plan }: { org: string; plan: CapaPlan }) {
-  const isClosed = plan.status === "concluido";
-  const isTerminal = isClosed || plan.status === "cancelado";
+  const isClosed = plan.status === "completed";
+  const isTerminal = isClosed || plan.status === "cancelled";
 
   return (
     <header className="flex flex-col gap-4">

@@ -162,7 +162,7 @@ test('S1: Sem processo label-only → creates a template-less case with the "Sem
     `cases?id=eq.${caseId}&select=template_id,status`,
   )
   expect(caseRows[0]?.template_id).toBeNull()
-  expect(caseRows[0]?.status).toBe('nao_iniciado')
+  expect(caseRows[0]?.status).toBe('not_started')
 
   const phaseRows = await restGet<{ id: string }>(
     request,
@@ -253,7 +253,7 @@ test('S2: emite desfecho ON (with inline new outcome) → conclude blocked until
           ?.status,
       { timeout: 15_000 },
     )
-    .toBe('concluido')
+    .toBe('completed')
   const finalRow = (
     await restGet<{ outcome_id: string | null }>(request, `cases?id=eq.${caseId}&select=outcome_id`)
   )[0]
@@ -589,7 +589,7 @@ test('S6: add an ad-hoc phase to a process-less case, then conclude it', async (
           ?.status,
       { timeout: 15_000 },
     )
-    .toBe('concluido')
+    .toBe('completed')
 })
 
 // ===========================================================================

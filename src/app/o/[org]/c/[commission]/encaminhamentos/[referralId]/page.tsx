@@ -126,9 +126,9 @@ export default async function ReferralDetailPage({
   // Reply vocab + linkable target cases — only meaningful for the target
   // coordinator while the referral is in review; skipped otherwise (no leak, no
   // wasted reads). Excludes the already-linked case + terminal cases.
-  const inReview = ["aceita", "em_analise"].includes(detail.status);
+  const inReview = ["accepted", "in_review"].includes(detail.status);
   const [replyOutcomes, { rows: board }] = await Promise.all([
-    canManageTarget && detail.status === "em_analise"
+    canManageTarget && detail.status === "in_review"
       ? listReplyOutcomes()
       : Promise.resolve([]),
     canManageTarget && inReview

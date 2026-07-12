@@ -101,14 +101,14 @@ insert into public.case_phases
   (id, case_id, position, form_id, form_version_id, status, assigned_to, blocks)
 values
   ((select phase_x from cs), (select case_x from cs), 1, (select form_u from k),
-   (select ver_u from k), 'ativa', (select st_x from k), '{}');
+   (select ver_u from k), 'active', (select st_x from k), '{}');
 
 insert into public.case_narratives
   (id, case_id, type_label, display_position, status, assigned_to)
 values
-  ((select narr1 from cs), (select case_x from cs), 'Resumo', 2, 'aberta',
+  ((select narr1 from cs), (select case_x from cs), 'Resumo', 2, 'open',
    (select st_x2 from k)),
-  ((select narr2 from cs), (select case_x from cs), 'Conclusão', 3, 'aberta', null);
+  ((select narr2 from cs), (select case_x from cs), 'Conclusão', 3, 'open', null);
 
 -- F2 (ADR 0063): case documents are attachments (owner_type='case'); their read
 -- follows can_read_attachment('case', …) = can_read_case (ACL under case_access).
@@ -155,7 +155,7 @@ insert into public.organization_members (organization_id, user_id, role)
 -- The interview graph (interview_number is minted by the BEFORE INSERT trigger).
 insert into public.case_interviews
   (id, commission_id, case_id, interview_number, status)
-values ((select iv from ivt), (select comm_x from k), (select case_x from cs), 0, 'rascunho');
+values ((select iv from ivt), (select comm_x from k), (select case_x from cs), 0, 'draft');
 insert into public.case_interview_subjects (id, interview_id, external_name, note)
 values ((select subj from ivt), (select iv from ivt), 'Sujeito Externo', 'nota');
 insert into public.case_interview_interviewers (id, interview_id, external_name, role)
@@ -399,9 +399,9 @@ insert into public.case_phases
   (id, case_id, position, form_id, form_version_id, status, assigned_to, blocks)
 values
   ((select phase2 from ph2), (select case_x from cs), 2, (select form_u from k),
-   (select ver_u from k), 'concluida', (select st_x from k), '{}'),
+   (select ver_u from k), 'completed', (select st_x from k), '{}'),
   ((select phase3 from ph2), (select case_x from cs), 3, (select form_u from k),
-   (select ver_u from k), 'ativa', (select st_x2 from k), '{}');
+   (select ver_u from k), 'active', (select st_x2 from k), '{}');
 
 -- A SUBMITTED response for phase 2 (the submitted-immutability trigger needs
 -- app.in_submit_rpc to write answers on a submitted parent — mirror the seed).
@@ -501,7 +501,7 @@ select throws_ok(
   'HC055', null, 'save_narrative_body on a concluded narrative is rejected (HC055)');
 reset role;
 select is((select status from public.case_narratives where id = (select narr1 from cs)),
-  'concluida', 'N1 is concluida after conclude_narrative');
+  'completed', 'N1 is concluida after conclude_narrative');
 
 -- A write-grantee cannot reopen (coordinator-only) → 42501.
 select test_helpers.claims_for((select gx_w from p), false);
@@ -518,7 +518,7 @@ select lives_ok(
   'reopen_narrative: the coordinator reopens N1 (concluida → aberta)');
 reset role;
 select is((select status from public.case_narratives where id = (select narr1 from cs)),
-  'aberta', 'N1 is aberta again after reopen_narrative');
+  'open', 'N1 is aberta again after reopen_narrative');
 
 -- =========================================================================
 -- BE-4: grant / revoke RPCs (coordinator-only; HC021 member check).

@@ -9,7 +9,7 @@ import { listAttachments } from '@/lib/queries/attachments'
  * Phase 10 Meetings feature: a committee interviews healthcare professionals
  * about a specific case (e.g. M&M interviewing the staff involved in a patient's
  * care). An interview is scheduled FROM WITHIN an open case, has its own
- * lifecycle (`rascunho → agendada → em_andamento → concluida`, plus `cancelada`),
+ * lifecycle (`draft → scheduled → in_progress → completed`, plus `cancelled`),
  * optionally links to a case phase, records multiple INTERVIEWEES (subjects) and
  * INTERVIEWERS (registered platform user XOR external fallback, each with a role),
  * and carries evidence attachments (uploaded documents + external audio-recording
@@ -31,17 +31,17 @@ import { listAttachments } from '@/lib/queries/attachments'
 // ---------------------------------------------------------------------------
 
 /**
- * Interview lifecycle. `rascunho` is the initial draft (created, not yet
- * scheduled); `agendada` once a date is set; `em_andamento` while it is being
- * conducted; `concluida` once finalized (writes the registry event). `cancelada`
- * is TERMINAL (not reopenable); only `concluida` reopens back to `em_andamento`.
+ * Interview lifecycle. `draft` is the initial draft (created, not yet
+ * scheduled); `scheduled` once a date is set; `in_progress` while it is being
+ * conducted; `completed` once finalized (writes the registry event). `cancelled`
+ * is TERMINAL (not reopenable); only `completed` reopens back to `in_progress`.
  */
 export type InterviewStatus =
-  | 'rascunho'
-  | 'agendada'
-  | 'em_andamento'
-  | 'concluida'
-  | 'cancelada'
+  | 'draft'
+  | 'scheduled'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
 
 /**
  * An interviewer's fixed committee role on the interview (fixed-enum CHECK in the
@@ -88,7 +88,7 @@ export interface InterviewListItem {
   status: InterviewStatus
   /** How the interview is held. */
   modality: InterviewModality
-  /** ISO timestamp; the planned start. `null` while `rascunho` (set at `agendada`). */
+  /** ISO timestamp; the planned start. `null` while `draft` (set at `scheduled`). */
   scheduledStart: string | null
   /** ISO timestamp; the planned end (`null` if open-ended). */
   scheduledEnd: string | null

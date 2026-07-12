@@ -27,10 +27,10 @@ const DOC_TYPES = new Set<DocType>([
   "outro",
 ]);
 const DOC_STATUSES = new Set<DocStatus>([
-  "rascunho",
-  "em_aprovacao",
-  "vigente",
-  "obsoleto",
+  "draft",
+  "in_approval",
+  "effective",
+  "obsolete",
 ]);
 
 /** Validate a raw URL param against a known union, else drop it (null). */

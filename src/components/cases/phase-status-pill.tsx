@@ -18,23 +18,23 @@ const STATUS_META: Record<
   CasePhaseStatus,
   { label: string; icon: typeof CheckCircle2; className: string }
 > = {
-  pendente: {
+  pending: {
     label: "Pendente",
     icon: CircleDashed,
     className: "bg-muted text-muted-foreground",
   },
-  ativa: {
+  active: {
     label: "Ativa",
     icon: PlayCircle,
     className: "bg-accent text-accent-foreground",
   },
-  concluida: {
+  completed: {
     label: "Concluída",
     icon: CheckCircle2,
     className:
       "bg-primary/10 text-primary dark:bg-primary/15",
   },
-  nao_necessaria: {
+  not_required: {
     label: "Não necessária",
     icon: MinusCircle,
     className: "bg-muted/60 text-muted-foreground/80",

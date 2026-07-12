@@ -271,7 +271,7 @@ test('AC1 — happy path: schedule meeting, Marcar como realizada, add content, 
 
   // Verify DB: meeting is now `realizada`
   const meetingRow = await getMeetingRow(page, newMeetingId)
-  expect(meetingRow?.status).toBe('realizada')
+  expect(meetingRow?.status).toBe('held')
 
   // --- Add an agenda item ---
   const addAgendaBtn = page.getByRole('button', { name: /Adicionar item/i })
@@ -374,7 +374,7 @@ test('AC1 — happy path: schedule meeting, Marcar como realizada, add content, 
 
   // We need to check the meeting status in DB
   const rowAfterConclude = await getMeetingRow(page, newMeetingId)
-  if (rowAfterConclude?.status === 'em_assinatura') {
+  if (rowAfterConclude?.status === 'in_signature') {
     // Success: status flipped to em_assinatura. Badge label renamed to "Assinatura".
     await expect(page.getByText('Assinatura', { exact: true }).first()).toBeVisible({
       timeout: 15_000,
@@ -433,7 +433,7 @@ test('AC1b — seeded meeting: Concluir → em_assinatura, quorum snapshot popul
 
   // Verify DB: meeting status is now `em_assinatura` and quorum snapshot populated
   const row = await getMeetingRow(page, SEEDED_MEETING_ID)
-  expect(row?.status).toBe('em_assinatura')
+  expect(row?.status).toBe('in_signature')
   // 3 CCIH personas are present, so present_count should be 3
   expect(row?.present_count).toBe(3)
   // eligible_member_count should be ≥ 3 (all commission members)
@@ -464,10 +464,10 @@ test('AC2 — signing flow: pending badge, sign, badge clears, auto-flip to assi
   // Precondition: the seeded meeting is em_assinatura (AC1b must have run first in this session).
   // We verify the status and skip if the DB is not in the expected state.
   const rowBefore = await getMeetingRow(page, SEEDED_MEETING_ID)
-  if (rowBefore?.status !== 'em_assinatura') {
+  if (rowBefore?.status !== 'in_signature') {
     test.info().annotations.push({
       type: 'info',
-      description: `Skipping AC2 sign flow — seeded meeting status is '${rowBefore?.status}', expected 'em_assinatura'. Run after AC1b.`,
+      description: `Skipping AC2 sign flow — seeded meeting status is '${rowBefore?.status}', expected 'in_signature'. Run after AC1b.`,
     })
     return
   }
@@ -554,7 +554,7 @@ test('AC2 — signing flow: pending badge, sign, badge clears, auto-flip to assi
   expect(signedFinal.length).toBe(3)
 
   const rowAssinada = await getMeetingRow(page, SEEDED_MEETING_ID)
-  expect(rowAssinada?.status).toBe('assinada')
+  expect(rowAssinada?.status).toBe('signed')
 
   // --- Distribuir (staff_admin only) ---
   const distribuirBtn = page.getByRole('button', { name: /Distribuir/i })
@@ -570,7 +570,7 @@ test('AC2 — signing flow: pending badge, sign, badge clears, auto-flip to assi
   await expect(page.getByText(/Distribuída/i).first()).toBeVisible({ timeout: 10_000 })
 
   const rowDistribuida = await getMeetingRow(page, SEEDED_MEETING_ID)
-  expect(rowDistribuida?.status).toBe('distribuida')
+  expect(rowDistribuida?.status).toBe('distributed')
 
   // After signing their own row, staff1 should no longer see a pending badge
   await signOut(page)
@@ -788,7 +788,7 @@ test('AC4b — negative: non-present user cannot sign (HC036 via RPC)', async ({
     p_meeting_id: meetingId,
     p_user_id: CHEFE_CCIH_ID,
     p_role: 'presidente',
-    p_attendance: 'presente',
+    p_attendance: 'present',
   })
   expect(addAttendeeResp.status).toBe(200)
 
@@ -799,7 +799,7 @@ test('AC4b — negative: non-present user cannot sign (HC036 via RPC)', async ({
   expect(concludeResp.status).toBe(200)
   // conclude_meeting returns the updated meetings row; verify status from the response
   const concludeBody = concludeResp.body as { id: string; status: string }
-  expect(concludeBody.status).toBe('em_assinatura')
+  expect(concludeBody.status).toBe('in_signature')
 
   // Get the attendee row id for chefe.ccih in this meeting
   const attendeeResp = await page.request.get(
@@ -854,7 +854,7 @@ test('AC4c — negative: double-sign → HC035', async ({ page }) => {
     p_meeting_id: hc035MeetingId,
     p_user_id: CHEFE_CCIH_ID,
     p_role: 'presidente',
-    p_attendance: 'presente',
+    p_attendance: 'present',
   })
   expect(addChefe.status).toBe(200)
 
@@ -862,7 +862,7 @@ test('AC4c — negative: double-sign → HC035', async ({ page }) => {
     p_meeting_id: hc035MeetingId,
     p_user_id: STAFF1_CCIH_ID,
     p_role: 'membro',
-    p_attendance: 'presente',
+    p_attendance: 'present',
   })
   expect(addStaff1.status).toBe(200)
 
@@ -871,11 +871,11 @@ test('AC4c — negative: double-sign → HC035', async ({ page }) => {
     p_meeting_id: hc035MeetingId,
   })
   expect(concludeResp.status).toBe(200)
-  expect((concludeResp.body as { status: string }).status).toBe('em_assinatura')
+  expect((concludeResp.body as { status: string }).status).toBe('in_signature')
 
   // Get chefe's attendee id
   const attendeeResp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/meeting_attendees?meeting_id=eq.${hc035MeetingId}&user_id=eq.${CHEFE_CCIH_ID}&attendance=eq.presente&select=id`,
+    `${SUPABASE_URL}/rest/v1/meeting_attendees?meeting_id=eq.${hc035MeetingId}&user_id=eq.${CHEFE_CCIH_ID}&attendance=eq.present&select=id`,
     {
       headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` },
     },
@@ -892,7 +892,7 @@ test('AC4c — negative: double-sign → HC035', async ({ page }) => {
 
   // Verify meeting is still em_assinatura (staff1 hasn't signed yet)
   const rowAfterSign1 = await getMeetingRow(page, hc035MeetingId)
-  expect(rowAfterSign1?.status).toBe('em_assinatura')
+  expect(rowAfterSign1?.status).toBe('in_signature')
 
   // Second sign (should fail with HC035 — already signed)
   const sign2 = await callRPC(page, chefeToken, 'sign_meeting', {
@@ -908,7 +908,7 @@ test('AC4d — negative: editing minutes while em_assinatura is rejected (conten
   const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
 
   const meetingsResp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/meetings?commission_id=eq.${COMM_CCIH_ID}&status=eq.em_assinatura&select=id`,
+    `${SUPABASE_URL}/rest/v1/meetings?commission_id=eq.${COMM_CCIH_ID}&status=eq.in_signature&select=id`,
     {
       headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` },
     },
@@ -952,7 +952,7 @@ test('AC4d — negative: editing minutes while em_assinatura is rejected (conten
 test('AC4e — Reabrir revokes signatures and unlocks editing', async ({ page }) => {
   // Find any em_assinatura meeting with at least one signature
   const meetingsResp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/meetings?commission_id=eq.${COMM_CCIH_ID}&status=eq.em_assinatura&select=id`,
+    `${SUPABASE_URL}/rest/v1/meetings?commission_id=eq.${COMM_CCIH_ID}&status=eq.in_signature&select=id`,
     {
       headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` },
     },
@@ -992,7 +992,7 @@ test('AC4e — Reabrir revokes signatures and unlocks editing', async ({ page })
 
   // Verify DB: meeting is now `realizada` and any active sigs are revoked
   const rowAfterReabrir = await getMeetingRow(page, reabrirMeetingId)
-  expect(rowAfterReabrir?.status).toBe('realizada')
+  expect(rowAfterReabrir?.status).toBe('held')
 
   if (activeSigsBefore.length > 0) {
     const sigsAfter = await getMeetingSignatures(page, reabrirMeetingId)
@@ -1156,7 +1156,7 @@ test('AC6 — keyboard-only: schedule meeting and Concluir via keyboard navigati
 
   // Verify DB
   const kbRow = await getMeetingRow(page, kbMeetingId)
-  expect(kbRow?.status).toBe('realizada')
+  expect(kbRow?.status).toBe('held')
 
   // The Concluir flow requires a PRESENT attendee. The meeting-create form now
   // defaults "Convocar todos" ON, so creating the meeting auto-convokes every
@@ -1181,7 +1181,7 @@ test('AC6 — keyboard-only: schedule meeting and Concluir via keyboard navigati
     const updResp = await callRPC(page, chefeToken, 'update_meeting_attendee', {
       p_attendee_id: existing[0].id,
       p_role: 'presidente',
-      p_attendance: 'presente',
+      p_attendance: 'present',
     })
     expect(updResp.status).toBe(200)
   } else {
@@ -1189,7 +1189,7 @@ test('AC6 — keyboard-only: schedule meeting and Concluir via keyboard navigati
       p_meeting_id: kbMeetingId,
       p_user_id: CHEFE_CCIH_ID,
       p_role: 'presidente',
-      p_attendance: 'presente',
+      p_attendance: 'present',
     })
     expect(addAttResp.status).toBe(200)
   }
@@ -1213,7 +1213,7 @@ test('AC6 — keyboard-only: schedule meeting and Concluir via keyboard navigati
   await expect(page.getByText('Assinatura', { exact: true }).first()).toBeVisible({ timeout: 10_000 })
 
   const kbRowFinal = await getMeetingRow(page, kbMeetingId)
-  expect(kbRowFinal?.status).toBe('em_assinatura')
+  expect(kbRowFinal?.status).toBe('in_signature')
 })
 
 // ---------------------------------------------------------------------------
@@ -1237,7 +1237,7 @@ test('AC7 — meetings list: filters by status and type; Reuniões nav item pres
 
   // Filtering by "distribuida" should show the seeded meeting (if it was distributed by AC2)
   // or filter to empty if not. Either way, assert it doesn't error.
-  await statusFilter.selectOption('distribuida')
+  await statusFilter.selectOption('distributed')
   await page.waitForTimeout(800) // Client-side filter, immediate
   // Check no destructive error banner on the page
   // Note: Next.js route announcer has role="alert" but is a navigation aid (no text content here)
@@ -1307,7 +1307,7 @@ test('AC8 — Cancelar a meeting transitions to terminal cancelada state', async
   await expect(page.getByText(/Cancelada/i).first()).toBeVisible({ timeout: 10_000 })
 
   const rowCanceled = await getMeetingRow(page, cancelMeetingId)
-  expect(rowCanceled?.status).toBe('cancelada')
+  expect(rowCanceled?.status).toBe('cancelled')
 
   // After cancellation, lifecycle controls should be gone (terminal state)
   await expect(page.getByRole('button', { name: 'Concluir', exact: true })).not.toBeVisible({ timeout: 5_000 })

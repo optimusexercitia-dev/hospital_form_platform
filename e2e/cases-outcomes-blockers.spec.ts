@@ -321,7 +321,7 @@ test('AC-ConcludeGate: Concluir blocked (HC028 pt-BR) when offered-outcome case 
   // ── DB truth: case is concluido + outcome_id is set ──
   await expect
     .poll(async () => (await getCaseRow(page, caseId))?.status, { timeout: 15_000 })
-    .toBe('concluido')
+    .toBe('completed')
 
   const finalRow = await getCaseRow(page, caseId)
   expect(finalRow?.outcome_id).toBeTruthy()
@@ -391,7 +391,7 @@ test('AC-OutcomeFlow: conclude with adverse outcome → case has outcome_id → 
   // ── DB truth: concluido + outcome_id = Óbito evitável ──
   await expect
     .poll(async () => (await getCaseRow(page, caseId))?.status, { timeout: 15_000 })
-    .toBe('concluido')
+    .toBe('completed')
 
   const finalRow = await getCaseRow(page, caseId)
   expect(finalRow?.outcome_id).toBe(OUTCOME_EVITAVEL_ID)
@@ -592,7 +592,7 @@ test('AC-D15-NoOutcome: a process offering no outcomes lets the case conclude wi
   expect(closeResp.ok()).toBeTruthy()
 
   const finalRow = await getCaseRow(page, newCaseId)
-  expect(finalRow?.status).toBe('concluido')
+  expect(finalRow?.status).toBe('completed')
   expect(finalRow?.outcome_id).toBeNull() // D15: no outcome required
 
   // ── UI layer: the conclude dialog for a no-outcome process has no selector ──
@@ -652,7 +652,7 @@ test('AC-D15-NoOutcome: a process offering no outcomes lets the case conclude wi
 
   await expect
     .poll(async () => (await getCaseRow(page, case2Id))?.status, { timeout: 15_000 })
-    .toBe('concluido')
+    .toBe('completed')
 })
 
 // ---------------------------------------------------------------------------
@@ -689,7 +689,7 @@ test('AC-CancelAnytime: "Cancelar" works even when phases are unsettled (D3); ca
   // DB truth: case is cancelado.
   await expect
     .poll(async () => (await getCaseRow(page, caseId))?.status, { timeout: 15_000 })
-    .toBe('cancelado')
+    .toBe('cancelled')
 
   // ── HC025: trying to activate a phase on the canceled case is rejected ──
   const phasesAfter = await getCasePhases(page, caseId)
@@ -732,7 +732,7 @@ test('AC-SeedDashboard: seeded Caso 0002 (adverse outcome) causes the Desfechos 
 
   // Verify the seed data is correct: Caso 0002 has an adverse outcome.
   const caseRow = await getCaseRow(page, 'd0000000-0000-0000-0000-0000000000c2')
-  expect(caseRow?.status).toBe('concluido')
+  expect(caseRow?.status).toBe('completed')
   expect(caseRow?.outcome_id).toBe(OUTCOME_EVITAVEL_ID) // Óbito evitável (adverse)
 
   // Navigate to the cases board as coordinator.

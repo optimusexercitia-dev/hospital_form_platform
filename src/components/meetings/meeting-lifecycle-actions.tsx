@@ -75,14 +75,14 @@ export function MeetingLifecycleActions({
   const status = meeting.status;
 
   const canEdit = isEditableStatus(status);
-  const canMarkHeld = status === "agendada";
+  const canMarkHeld = status === "scheduled";
   // The conclude RPC accepts BOTH agendada and realizada (one-step shortcut).
-  const canConclude = status === "agendada" || status === "realizada";
-  const canReopen = status === "em_assinatura" || status === "assinada";
-  const canDistribute = status === "assinada";
+  const canConclude = status === "scheduled" || status === "held";
+  const canReopen = status === "in_signature" || status === "signed";
+  const canDistribute = status === "signed";
   // No cancel edge from `assinada` — the state machine allows only
   // assinada→distribuida|realizada (QA Phase 10 MINOR-1).
-  const canCancel = !isTerminalMeetingStatus(status) && status !== "assinada";
+  const canCancel = !isTerminalMeetingStatus(status) && status !== "signed";
 
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">

@@ -29,14 +29,14 @@ import { formatDate, formatReferralCode } from "./format";
 
 /** Status filter options in lifecycle order; "all" is the default sentinel. */
 const STATUS_FILTER_ORDER: ReferralStatus[] = [
-  "rascunho",
-  "enviada",
-  "recebida",
-  "aceita",
-  "em_analise",
-  "concluida",
-  "recusada",
-  "retirada",
+  "draft",
+  "sent",
+  "received",
+  "accepted",
+  "in_review",
+  "completed",
+  "rejected",
+  "withdrawn",
 ];
 
 
@@ -276,7 +276,7 @@ export function ReferralsList({
                         {r.subject}
                       </Link>
                       {r.responseExpected &&
-                        !["concluida", "recusada", "retirada"].includes(
+                        !["completed", "rejected", "withdrawn"].includes(
                           r.status,
                         ) && (
                           <span className="mt-0.5">

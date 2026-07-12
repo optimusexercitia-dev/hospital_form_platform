@@ -44,11 +44,11 @@ export const CLASSIFICATION_CHIP: Record<CapaClassification, string> = {
 
 /** Plan status chip classes. */
 export const STATUS_CHIP: Record<CapaStatus, string> = {
-  aberto: "border-border bg-muted text-muted-foreground",
-  em_execucao: "border-primary/30 bg-primary/10 text-primary",
-  em_verificacao: "border-warning/30 bg-warning/12 text-warning",
-  concluido: "border-success/30 bg-success/12 text-success",
-  cancelado: "border-border bg-muted text-muted-foreground",
+  open: "border-border bg-muted text-muted-foreground",
+  in_execution: "border-primary/30 bg-primary/10 text-primary",
+  in_verification: "border-warning/30 bg-warning/12 text-warning",
+  completed: "border-success/30 bg-success/12 text-success",
+  cancelled: "border-border bg-muted text-muted-foreground",
 };
 
 /**
@@ -64,10 +64,10 @@ export const STRENGTH_CHIP: Record<CapaActionStrength, string> = {
 
 /** Action status chip classes. */
 export const ACTION_STATUS_CHIP: Record<CapaActionStatus, string> = {
-  pendente: "border-border bg-muted text-muted-foreground",
-  em_andamento: "border-primary/30 bg-primary/10 text-primary",
-  concluida: "border-success/30 bg-success/12 text-success",
-  cancelada: "border-border bg-muted text-muted-foreground line-through",
+  pending: "border-border bg-muted text-muted-foreground",
+  in_progress: "border-primary/30 bg-primary/10 text-primary",
+  completed: "border-success/30 bg-success/12 text-success",
+  cancelled: "border-border bg-muted text-muted-foreground line-through",
 };
 
 /** Effectiveness verdict chip classes. */

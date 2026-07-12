@@ -35,7 +35,7 @@ export default async function EditIndicatorPage({
   if (
     !indicator ||
     indicator.commissionId !== access.commission.id ||
-    indicator.status === "arquivado"
+    indicator.status === "archived"
   ) {
     notFound();
   }

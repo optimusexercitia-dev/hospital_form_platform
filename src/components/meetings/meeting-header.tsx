@@ -48,7 +48,7 @@ export function MeetingHeader({
   // by a coordinator (product decision — the server rejects edits thereafter,
   // requiring "Reabrir a reunião"). Once concluded it is read-only; we still
   // surface it when recorded so the occurrence time stays visible.
-  const canEditHeld = isCoordinator && meeting.status === "realizada";
+  const canEditHeld = isCoordinator && meeting.status === "held";
 
   return (
     <header className="flex flex-col gap-4">

@@ -60,7 +60,7 @@ values ((select case_x from cs), (select comm_x from k), 9401, 'Caso Expiry', (s
 -- An UN-assigned narrative (so a write-grantee may write it — the save gate uses
 -- can_write_case_content on an un-attributed narrative).
 insert into public.case_narratives (id, case_id, type_label, display_position, status, assigned_to)
-values ((select narr_x from cs), (select case_x from cs), 'Resumo', 1, 'aberta', null);
+values ((select narr_x from cs), (select case_x from cs), 'Resumo', 1, 'open', null);
 
 -- A referral whose TARGET case is our case, so referral_target_analyst consults a
 -- case_access grant on target_case_id. Built directly under the RPC guard flag.
@@ -70,7 +70,7 @@ insert into public.case_referral
    target_case_id, type_label, subject, status, response_expected, has_patient)
 values
   ((select ref_x from cs), 'ENC-EXPIRY-1', (select case_x from cs), (select comm_x from k),
-   (select comm_y from k), (select case_x from cs), 'Parecer', 'Assunto', 'concluida', false, true);
+   (select comm_y from k), (select case_x from cs), 'Parecer', 'Assunto', 'completed', false, true);
 select set_config('app.in_referral_rpc', 'off', true);
 
 -- Helper: (re)write st_x's grant with a chosen expiry. A separate proc keeps each

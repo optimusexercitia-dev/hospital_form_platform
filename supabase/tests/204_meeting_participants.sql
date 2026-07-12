@@ -52,7 +52,7 @@ select is(
 select ok(
   exists (select 1 from public.meeting_attendees
           where meeting_id = (select id from m) and user_id = (select st_x from k)
-            and attendance = 'convocado' and role = 'membro'),
+            and attendance = 'summoned' and role = 'membro'),
   'subset: st_x seeded as convocado/membro');
 select ok(
   exists (select 1 from public.meeting_attendees

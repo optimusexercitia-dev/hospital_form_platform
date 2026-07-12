@@ -59,12 +59,12 @@ export function CapaWorkspace({
   const cells = derivePdca(plan, data.actions, data.measures, resultsByMeasure);
   const gate = concludeGate(plan, data.actions, data.effectiveness);
   const canManage = plan.viewerCanManage;
-  const isClosed = plan.status === "concluido";
+  const isClosed = plan.status === "completed";
 
   const terminalLabel =
-    plan.status === "concluido"
+    plan.status === "completed"
       ? "Concluído"
-      : plan.status === "cancelado"
+      : plan.status === "cancelled"
         ? "Cancelado"
         : null;
 

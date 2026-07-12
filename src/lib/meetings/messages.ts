@@ -25,7 +25,7 @@ export const HC_NOT_ENTITLED_ACTION_ITEM = 'HC037'
 // HC081–HC083 are NEW for the actual-occurrence window (ADR 0062).
 export const HC_HELD_END_BEFORE_START = 'HC081' // held_end < held_at
 export const HC_HELD_AT_IN_FUTURE = 'HC082' // held_at > now()
-export const HC_HELD_EDIT_WRONG_STATE = 'HC083' // set_meeting_held_window off `realizada`
+export const HC_HELD_EDIT_WRONG_STATE = 'HC083' // set_meeting_held_window off `held`
 
 /** Generic Postgres SQLSTATEs the meetings RPCs/policies may surface. */
 export const PG_CHECK_VIOLATION = '23514'

@@ -49,11 +49,11 @@ export function CapaClassificationChip({
 }
 
 const STATUS_ICON: Record<CapaStatus, LucideIcon> = {
-  aberto: CircleDot,
-  em_execucao: CircleDot,
-  em_verificacao: CircleDot,
-  concluido: CircleCheck,
-  cancelado: CircleSlash,
+  open: CircleDot,
+  in_execution: CircleDot,
+  in_verification: CircleDot,
+  completed: CircleCheck,
+  cancelled: CircleSlash,
 };
 
 /** Plan status chip. */

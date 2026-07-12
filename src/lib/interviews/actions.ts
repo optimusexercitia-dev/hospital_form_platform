@@ -83,7 +83,7 @@ export interface InterviewInput {
   casePhaseId: string | null
   /** How the interview is held. */
   modality: InterviewModality
-  /** ISO datetime; `null` while still a `rascunho` draft (set when scheduling). */
+  /** ISO datetime; `null` while still a `draft` (set when scheduling). */
   scheduledStart: string | null
   /** ISO datetime; the planned end (`null` if open-ended). */
   scheduledEnd: string | null
@@ -153,7 +153,7 @@ async function commissionOfCase(
 // ---------------------------------------------------------------------------
 
 /**
- * Create a new interview on a case (`status='rascunho'`, `interview_number`
+ * Create a new interview on a case (`status='draft'`, `interview_number`
  * minted). staff_admin-only bootstrap. Returns the new `interviewId` so the
  * dialog can route into the detail page.
  */
@@ -248,7 +248,7 @@ export async function updateInterviewSummary(
   return { ok: true, error: INTERVIEW_MESSAGES.interviewUpdated }
 }
 
-/** Schedule an interview (`rascunho → agendada`; sets `scheduled_start`, optional `scheduled_end`). */
+/** Schedule an interview (`draft → scheduled`; sets `scheduled_start`, optional `scheduled_end`). */
 export async function scheduleInterview(
   interviewId: string,
   scheduledStart: string,
@@ -301,7 +301,7 @@ async function runLifecycle(
   return { ok: true, error: successMessage }
 }
 
-/** Start conducting an interview (`agendada → em_andamento`). */
+/** Start conducting an interview (`scheduled → in_progress`). */
 export async function startInterview(interviewId: string): Promise<ActionState> {
   return runLifecycle(
     interviewId,
@@ -311,7 +311,7 @@ export async function startInterview(interviewId: string): Promise<ActionState> 
 }
 
 /**
- * Conclude an interview (`em_andamento → concluida`): requires ≥1 interviewee
+ * Conclude an interview (`in_progress → completed`): requires ≥1 interviewee
  * (HC041), writes/updates the single `case_events kind='interview'` registry row
  * on the case timeline (no duplicate on re-conclude), and freezes content.
  */
@@ -325,7 +325,7 @@ export async function concludeInterview(
   )
 }
 
-/** Re-open a concluded interview (`concluida → em_andamento`); unlocks content, keeps the registry link. */
+/** Re-open a concluded interview (`completed → in_progress`); unlocks content, keeps the registry link. */
 export async function reopenInterview(
   interviewId: string,
 ): Promise<ActionState> {
@@ -336,7 +336,7 @@ export async function reopenInterview(
   )
 }
 
-/** Cancel an interview (→ `cancelada`, terminal) from any non-terminal state. */
+/** Cancel an interview (→ `cancelled`, terminal) from any non-terminal state. */
 export async function cancelInterview(
   interviewId: string,
 ): Promise<ActionState> {

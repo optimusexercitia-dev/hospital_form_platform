@@ -146,12 +146,12 @@ export interface CaseTimelineEvent {
   note?: string | null
   /**
    * The raw entity status slug for the status pill (e.g. an interview's
-   * `cancelada`, a meeting's `realizada`, an action's `done`, a phase's
-   * `nao_necessaria`). `null` for types with no status of their own (lifecycle,
+   * `cancelled`, a meeting's `held`, an action's `done`, a phase's
+   * `not_required`). `null` for types with no status of their own (lifecycle,
    * document, note/milestone). pt-BR pill labels are resolved in the UI.
    */
   statusSlug?: string | null
-  /** `true` for cancelled / `nao_necessaria` entities — the view renders them muted. */
+  /** `true` for cancelled / `not_required` entities — the view renders them muted. */
   muted?: boolean
   /**
    * In-app deep-link to the canonical record, RELATIVE to the commission area

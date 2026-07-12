@@ -220,7 +220,7 @@ test('AC-1: full lifecycle — create, upload, submit two approvers, both e-sign
       )
       return rows[0]?.status
     }, { timeout: 15_000, message: 'version → em_aprovacao after submit' })
-    .toBe('em_aprovacao')
+    .toBe('in_approval')
 
   const approvals = await serviceQuery<{ approver_id: string; decision: string | null }>(
     page,
@@ -295,7 +295,7 @@ test('AC-1: full lifecycle — create, upload, submit two approvers, both e-sign
       )
       return rows[0]
     }, { timeout: 15_000, message: 'version published vigente with computed dates' })
-    .toMatchObject({ status: 'vigente', effective_date: effective, review_due_date: expectedReview })
+    .toMatchObject({ status: 'effective', effective_date: effective, review_due_date: expectedReview })
 
   // The header status chip reflects vigente + a real, downloadable file is present.
   await page.reload()
@@ -370,7 +370,7 @@ test('AC-3: publish is rejected in pt-BR while an approval is pending', async ({
     page,
     `controlled_documents?id=eq.${doc0002}&select=status`,
   )
-  expect(rows[0].status, 'DOC-0002 remains em_aprovacao').toBe('em_aprovacao')
+  expect(rows[0].status, 'DOC-0002 remains em_aprovacao').toBe('in_approval')
 })
 
 // ===========================================================================
@@ -414,7 +414,7 @@ test('AC-4: a rejection returns the version to rascunho with the note; resubmit 
         page,
         `controlled_document_versions?document_id=eq.${docId}&select=id,status`,
       )
-      return rows[0]?.status === 'em_aprovacao' ? rows[0].id : null
+      return rows[0]?.status === 'in_approval' ? rows[0].id : null
     }, { timeout: 15_000 })
     .not.toBeNull()
     .then(async () => {
@@ -442,7 +442,7 @@ test('AC-4: a rejection returns the version to rascunho with the note; resubmit 
       )
       return rows[0]?.status
     }, { timeout: 15_000, message: 'version returned to rascunho after rejection' })
-    .toBe('rascunho')
+    .toBe('draft')
 
   const noteRows = await serviceQuery<{ note: string | null; decision: string | null }>(
     page,
@@ -466,7 +466,7 @@ test('AC-4: a rejection returns the version to rascunho with the note; resubmit 
       )
       return rows[0]?.status
     }, { timeout: 15_000, message: 'resubmit → em_aprovacao again' })
-    .toBe('em_aprovacao')
+    .toBe('in_approval')
 })
 
 // ===========================================================================
@@ -541,7 +541,7 @@ test('AC-5: supersede retires the prior version to obsoleto (retained + download
       )
       return rows[0]?.status
     }, { timeout: 15_000 })
-    .toBe('em_aprovacao')
+    .toBe('in_approval')
 
   await signInAs(page, 'staff1.ccih@test.local')
   await page.goto(`/o/rede-a/documentos-pendentes/${docId}`)
@@ -572,7 +572,7 @@ test('AC-5: supersede retires the prior version to obsoleto (retained + download
       const v2row = rows.find((r) => r.id === v2.id)
       return `${v1row?.status}/${v2row?.status}/${v1row?.storage_path ? 'kept' : 'gone'}`
     }, { timeout: 15_000, message: 'v1 obsoleto+retained, v2 vigente' })
-    .toBe('obsoleto/vigente/kept')
+    .toBe('obsolete/effective/kept')
 
   // The prior version is still downloadable in the versions history (signed URL link).
   await page.reload()
@@ -1086,7 +1086,7 @@ async function buildPublishedDoc(page: Page, title: string): Promise<string> {
   const versionId = (await expect
     .poll(async () => {
       const rows = await serviceQuery<{ id: string; status: string }>(page, `controlled_document_versions?document_id=eq.${docId}&select=id,status`)
-      return rows[0]?.status === 'em_aprovacao' ? rows[0].id : null
+      return rows[0]?.status === 'in_approval' ? rows[0].id : null
     }, { timeout: 15_000 })
     .not.toBeNull()
     .then(async () => (await serviceQuery<{ id: string }>(page, `controlled_document_versions?document_id=eq.${docId}&select=id`))[0].id))
@@ -1104,7 +1104,7 @@ async function buildPublishedDoc(page: Page, title: string): Promise<string> {
   await publishViaDialog(page)
   await expect
     .poll(async () => (await serviceQuery<{ status: string }>(page, `controlled_document_versions?id=eq.${versionId}&select=status`))[0]?.status, { timeout: 15_000 })
-    .toBe('vigente')
+    .toBe('effective')
 
   return docId
 }

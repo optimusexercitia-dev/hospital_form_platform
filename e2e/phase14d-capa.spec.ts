@@ -179,7 +179,7 @@ test('C2: open_capa_plan with source=event creates a new CAPA plan', async ({
   }
   expect(plan.source).toBe('event')
   expect(plan.classification).toBe('preventiva')
-  expect(plan.status).toBe('aberto')
+  expect(plan.status).toBe('open')
   expect(plan.source_event_id).toBe(EV2_ID)
 
   // Audit row must exist for capa.opened
@@ -326,7 +326,7 @@ test('C7: record_capa_effectiveness with eficaz transitions plan to em_verificac
   expect(openResp.ok()).toBeTruthy()
   const freshPlan = await openResp.json() as { id: string; status: string }
   const freshId = freshPlan.id
-  expect(freshPlan.status).toBe('aberto')
+  expect(freshPlan.status).toBe('open')
 
   // Add a dummy action
   const actResp = await rpc(request, 'add_capa_action', adminToken, {
@@ -341,7 +341,7 @@ test('C7: record_capa_effectiveness with eficaz transitions plan to em_verificac
     `capa_plan?id=eq.${freshId}&select=status`,
     SUPABASE_SERVICE_KEY,
   )
-  expect(planRows[0]?.status).toBe('em_execucao')
+  expect(planRows[0]?.status).toBe('in_execution')
 
   // Record effectiveness = eficaz
   const effResp = await rpc(request, 'record_capa_effectiveness', adminToken, {
@@ -359,7 +359,7 @@ test('C7: record_capa_effectiveness with eficaz transitions plan to em_verificac
     `capa_plan?id=eq.${freshId}&select=status`,
     SUPABASE_SERVICE_KEY,
   )
-  expect(afterRows[0]?.status).toBe('em_verificacao')
+  expect(afterRows[0]?.status).toBe('in_verification')
 })
 
 // ---------------------------------------------------------------------------
@@ -409,7 +409,7 @@ test('C8: close_capa_plan transitions to concluido with lessons-learned', async 
   const closed = await closeResp.json() as {
     status: string; lessons_learned_md: string; closed_at: string
   }
-  expect(closed.status).toBe('concluido')
+  expect(closed.status).toBe('completed')
   expect(closed.lessons_learned_md).toMatch(/E2E C8/)
   expect(closed.closed_at).toBeTruthy()
 
@@ -517,7 +517,7 @@ test('C11: reopen_capa_plan revokes effectiveness; plan returns to em_execucao',
   })
   expect(reopenResp.ok()).toBeTruthy()
   const plan = await reopenResp.json() as { status: string; closed_at: string | null }
-  expect(plan.status).toBe('em_execucao')
+  expect(plan.status).toBe('in_execution')
   expect(plan.closed_at).toBeNull()
 
   // Effectiveness must be revoked (row deleted)
@@ -565,8 +565,10 @@ test('C12: adding action to a concluded plan raises HC049', async ({ request }) 
   expect(addResp.status()).not.toBe(200)
   const body = await addResp.json() as { code?: string; message?: string }
   const errorText = body.message ?? body.code ?? JSON.stringify(body)
-  // HC049: "plano em um estado inválido" or guard_capa_status raises it
-  expect(errorText).toMatch(/HC049|concluido|terminal|encerr/i)
+  // HC049: guard_capa_status blocks writes to a closed plan. Match the STABLE
+  // pt-BR word `bloqueado` (present regardless of the status key) — the guard
+  // interpolates the status key, which D11 anglicized concluido→completed.
+  expect(errorText).toMatch(/HC049|bloqueado|completed|terminal|encerr/i)
 })
 
 // ---------------------------------------------------------------------------
@@ -582,17 +584,17 @@ test('C13: assignee (staff1.ccih) can advance their action via advance_capa_acti
   // Current status: em_andamento → advance to 'concluida' (valid action terminal status)
   const resp = await rpc(request, 'advance_capa_action', staffToken, {
     p_action_id: CAPA_ACT_ID,
-    p_status: 'concluida',
+    p_status: 'completed',
   })
   expect(resp.ok()).toBeTruthy()
   const action = await resp.json() as { status: string }
-  expect(action.status).toBe('concluida')
+  expect(action.status).toBe('completed')
 
   // Return to em_andamento so other tests are not affected
   const adminToken = await getOwnerToken(request, ADMIN_EMAIL)
   const rollbackResp = await rpc(request, 'advance_capa_action', adminToken, {
     p_action_id: CAPA_ACT_ID,
-    p_status: 'em_andamento',
+    p_status: 'in_progress',
   })
   expect(rollbackResp.ok()).toBeTruthy()
 })
@@ -610,7 +612,7 @@ test('C14: non-assignee non-PQS gets HC050 on advance_capa_action', async ({
 
   const resp = await rpc(request, 'advance_capa_action', farmToken, {
     p_action_id: CAPA_ACT_ID,
-    p_status: 'concluida',
+    p_status: 'completed',
   })
   expect(resp.status()).not.toBe(200)
   const body = await resp.json() as { code?: string; message?: string }
@@ -666,7 +668,7 @@ test('C16b: capa.action_advanced audit row written when action status changes', 
 
   await rpc(request, 'advance_capa_action', adminToken, {
     p_action_id: CAPA_ACT_ID,
-    p_status: 'em_verificacao',
+    p_status: 'in_verification',
   })
 
   const after = await restGet<{ id: string }>(
@@ -680,7 +682,7 @@ test('C16b: capa.action_advanced audit row written when action status changes', 
   // Restore
   await rpc(request, 'advance_capa_action', adminToken, {
     p_action_id: CAPA_ACT_ID,
-    p_status: 'em_andamento',
+    p_status: 'in_progress',
   })
 })
 

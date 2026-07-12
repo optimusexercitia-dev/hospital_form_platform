@@ -288,10 +288,10 @@ export async function getDocument(id: string): Promise<ControlledDocumentDetail 
 
   const versions = (versionRows ?? []).map(mapVersion)
 
-  // Approvals of the version currently in the approval loop (em_aprovacao), else the
+  // Approvals of the version currently in the approval loop (in_approval), else the
   // current version. Approvers see their own rows via the sign-own-row arm.
   const focusVersion =
-    versions.find((v) => v.status === 'em_aprovacao') ??
+    versions.find((v) => v.status === 'in_approval') ??
     versions.find((v) => v.id === docRow.current_version_id) ??
     versions[0]
 

@@ -145,7 +145,7 @@ export interface MeetingInput {
 }
 
 /**
- * Schedule a new meeting (`status='agendada'`, `meeting_number` minted).
+ * Schedule a new meeting (`status='scheduled'`, `meeting_number` minted).
  * staff_admin-only. Returns the new `meetingId`.
  */
 export async function createMeeting(
@@ -188,7 +188,7 @@ export async function createMeeting(
 }
 
 /**
- * Edit a meeting header (only while `agendada`/`realizada` — locked thereafter).
+ * Edit a meeting header (only while `scheduled`/`held` — locked thereafter).
  * staff_admin-only.
  */
 export async function updateMeeting(
@@ -326,10 +326,10 @@ export interface MeetingHeldWindow {
 }
 
 /**
- * Mark a scheduled meeting as held (`agendada → realizada`), the explicit step
- * into the `realizada` resting state (e.g. to record discussion/attendance over
+ * Mark a scheduled meeting as held (`scheduled → held`), the explicit step
+ * into the `held` resting state (e.g. to record discussion/attendance over
  * several sessions before sending the ata to signature). staff_admin-only.
- * `concludeMeeting` still accepts `agendada` directly as a one-step shortcut.
+ * `concludeMeeting` still accepts `scheduled` directly as a one-step shortcut.
  *
  * ADR 0062: optionally captures the actual-occurrence window (`held`) in the
  * same transition. Omit `held` to preserve the legacy no-data behaviour.
@@ -347,7 +347,7 @@ export async function markMeetingHeld(
 }
 
 /**
- * Conclude a meeting (`agendada`/`realizada → em_assinatura`): validates ≥1
+ * Conclude a meeting (`scheduled`/`held → in_signature`): validates ≥1
  * present attendee (HC034), snapshots the quorum rule + counts, writes a
  * `case_events` row per linked case, and locks the minutes/agenda/attendees/
  * case-links. staff_admin-only.
@@ -370,7 +370,7 @@ export async function concludeMeeting(
 /**
  * Correct the actual-occurrence window (`held_at` / `held_end`) of a meeting
  * AFTER the transition. ADR 0062 + product decision: allowed ONLY while
- * `status = 'realizada'`; a concluded meeting (`em_assinatura`+) is frozen and
+ * `status = 'held'`; a concluded meeting (`in_signature`+) is frozen and
  * must be reopened (`reopenMeeting`) first. Writes ONLY `held_*` (never the
  * schedule). staff_admin-only; validation HC081 (heldEnd < heldAt) / HC082
  * (heldAt in future) / HC083 (wrong status). RPC `set_meeting_held_window`.
@@ -407,7 +407,7 @@ export async function setMeetingHeldWindow(
 }
 
 /**
- * Re-open a meeting (`em_assinatura`/`assinada → realizada`): REVOKES all active
+ * Re-open a meeting (`in_signature`/`signed → held`): REVOKES all active
  * signatures (rows kept, `status='revoked'`) and unlocks content. staff_admin-only.
  */
 export async function reopenMeeting(meetingId: string): Promise<ActionState> {
@@ -418,7 +418,7 @@ export async function reopenMeeting(meetingId: string): Promise<ActionState> {
   )
 }
 
-/** Distribute the signed ata (`assinada → distribuida`, terminal). staff_admin-only. */
+/** Distribute the signed ata (`signed → distributed`, terminal). staff_admin-only. */
 export async function distributeMeeting(
   meetingId: string,
 ): Promise<ActionState> {
@@ -429,7 +429,7 @@ export async function distributeMeeting(
   )
 }
 
-/** Cancel a meeting (→ `cancelada`, terminal) from any non-terminal state. staff_admin-only. */
+/** Cancel a meeting (→ `cancelled`, terminal) from any non-terminal state. staff_admin-only. */
 export async function cancelMeeting(meetingId: string): Promise<ActionState> {
   return runLifecycle(
     meetingId,
@@ -440,7 +440,7 @@ export async function cancelMeeting(meetingId: string): Promise<ActionState> {
 
 /**
  * Persist the minutes narrative (`minutes_md`, sanitized Markdown — Architecture
- * Rule 7). Editable only while `agendada`/`realizada`; rejected once locked.
+ * Rule 7). Editable only while `scheduled`/`held`; rejected once locked.
  * staff_admin-only.
  */
 export async function updateMeetingMinutes(
@@ -762,7 +762,7 @@ export async function seedSelectedAttendees(
 
 /**
  * Override the computed quorum verdict (`quorum_met`) — the secretary's call.
- * Allowed while `em_assinatura`. staff_admin-only.
+ * Allowed while `in_signature`. staff_admin-only.
  */
 export async function setMeetingQuorumMet(
   meetingId: string,
@@ -1015,9 +1015,9 @@ export async function deleteMeetingAttachment(
 
 /**
  * Internal electronic signature on the ata: the CURRENT user signs for their own
- * present-attendee row of an `em_assinatura` meeting (HC036 if not entitled,
+ * present-attendee row of an `in_signature` meeting (HC036 if not entitled,
  * HC035 if already signed). Routed through the SECURITY DEFINER `sign_meeting`
- * RPC, which computes the `content_hash` and count-and-flips to `assinada` when
+ * RPC, which computes the `content_hash` and count-and-flips to `signed` when
  * the last required signature lands. NOT a staff_admin action — any present
  * member may sign their own row, so there is NO commission-scoped pre-check (the
  * RPC's `app.can_sign_meeting` gate is the sole authority).

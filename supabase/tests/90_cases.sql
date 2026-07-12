@@ -136,7 +136,7 @@ select is(
 -- ---- 5) two pendente phases were materialized with PINNED versions ----
 select is(
   (select count(*)::int from public.case_phases
-   where case_id = (select cid from cse) and status = 'pendente'
+   where case_id = (select cid from cse) and status = 'pending'
      and form_version_id is not null),
   2,
   'snapshot materializes both phases as pendente with a pinned form_version_id'
@@ -236,14 +236,14 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (public.activate_phase((select id from bcp where position = 1), (select st_x from k))).status,
-  'ativa',
+  'active',
   'a phase with empty blocks activates freely (parallel; sequential guard removed)'
 );
 reset role;
 
 -- (9c) Settle B1 by CONCLUIDA -> B2 unblocks (D4 satisfier A).
 select set_config('app.in_case_rpc', 'on', true);
-update public.case_phases set status = 'concluida', completed_at = now()
+update public.case_phases set status = 'completed', completed_at = now()
   where id = (select id from bcp where position = 1);
 select set_config('app.in_case_rpc', 'off', true);
 
@@ -251,7 +251,7 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (public.activate_phase((select id from bcp where position = 2), (select st_x from k))).status,
-  'ativa',
+  'active',
   'D4 satisfier A: a CONCLUIDA blocker unblocks the dependent phase'
 );
 reset role;
@@ -272,7 +272,7 @@ set local role authenticated;
 select public.skip_phase((select id from bcp2 where position = 2));
 select is(
   (public.activate_phase((select id from bcp2 where position = 3), (select st_x from k))).status,
-  'ativa',
+  'active',
   'D4 satisfier B: a NAO_NECESSARIA (skipped) blocker unblocks the dependent phase'
 );
 reset role;
@@ -294,7 +294,7 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (public.activate_phase((select id from cp where position = 1), (select st_x from k))).status,
-  'ativa',
+  'active',
   'activate_phase sets the phase to ativa and assigns it'
 );
 reset role;
@@ -378,7 +378,7 @@ reset role;
 -- ---- 17) the submit trigger advances phase 1 -> concluida ----
 select is(
   (select status from public.case_phases where id = (select id from cp where position = 1)),
-  'concluida',
+  'completed',
   'sync_case_phase_on_submit advances the phase to concluida on submission'
 );
 
@@ -403,7 +403,7 @@ select is(
 set local role authenticated;
 select test_helpers.claims_for((select sa_x from k), false);
 select throws_ok(
-  format($$ update public.case_phases set status = 'ativa' where id = %L $$,
+  format($$ update public.case_phases set status = 'active' where id = %L $$,
           (select id from cp where position = 1)),
   '23514',
   null,
@@ -416,7 +416,7 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (public.skip_phase((select id from cp where position = 2))).status,
-  'nao_necessaria',
+  'not_required',
   'skip_phase marks a pendente phase nao_necessaria'
 );
 reset role;
@@ -496,7 +496,7 @@ select throws_ok(
 select public.set_case_outcome((select cid from gcse2), (select oid from goc));
 select is(
   (public.close_case((select cid from gcse2))).status,
-  'concluido',
+  'completed',
   'close_case succeeds once settled AND an offered outcome is chosen'
 );
 reset role;
@@ -507,7 +507,7 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (public.close_case((select cid from cse))).status,
-  'concluido',
+  'completed',
   'close_case flips a settled, no-outcome case to concluido'
 );
 reset role;

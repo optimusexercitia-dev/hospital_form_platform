@@ -91,7 +91,7 @@ export function CaseLifecycleActions({
   const [concludeOpen, setConcludeOpen] = useState(false);
 
   const hasOpenPhases = phases.some(
-    (p) => p.status === "pendente" || p.status === "ativa",
+    (p) => p.status === "pending" || p.status === "active",
   );
 
   return (

@@ -5,7 +5,7 @@
 --
 -- Proves the two new SECURITY DEFINER WRITE RPCs + the editable offered-set:
 --   * create_case by a staff_admin → template_id NULL, minted case_number, status
---     'nao_iniciado', ZERO case_phases.
+--     'not_started', ZERO case_phases.
 --   * an OPTIONAL offered-outcome set (two same-commission non-archived → two
 --     case_offered_outcomes rows); a cross-commission/archived outcome → HC030.
 --   * patient_enabled true/false snapshot vs set_case_patient (check_violation
@@ -69,7 +69,7 @@ reset role;
 
 -- =========================================================================
 -- 1) create_case by a staff_admin → template_id NULL, minted number,
---    status 'nao_iniciado', ZERO case_phases.
+--    status 'not_started', ZERO case_phases.
 -- =========================================================================
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -87,7 +87,7 @@ select ok(
   'create_case mints a case_number (the BEFORE-INSERT trigger fires for a null-template insert)');
 select is(
   (select status from public.cases where id = (select cid from cse)),
-  'nao_iniciado',
+  'not_started',
   'create_case lands the case at status nao_iniciado (column default)');
 select is(
   (select count(*)::int from public.case_phases where case_id = (select cid from cse)),
@@ -219,7 +219,7 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (public.close_case((select cid from cse))).status,
-  'concluido',
+  'completed',
   'close_case on a zero-phase, empty-offered process-less case succeeds (HC031 pass + no HC028)');
 reset role;
 
@@ -241,7 +241,7 @@ set local role authenticated;
 select public.set_case_outcome((select cid from cse2), (select adverse_id from oc));
 select is(
   (public.close_case((select cid from cse2))).status,
-  'concluido',
+  'completed',
   'close_case succeeds once an offered outcome is chosen (HC028 cleared)');
 reset role;
 
@@ -282,7 +282,7 @@ set local role authenticated;
 select public.skip_phase((select pid from adhoc));
 select is(
   (public.close_case((select cid from cse_ph))).status,
-  'concluido',
+  'completed',
   'close_case succeeds once the ad-hoc phase is settled');
 reset role;
 

@@ -697,7 +697,7 @@ export async function startOrResumePhase(
 
 /**
  * Close an open case (`aberto → concluido`): flips any remaining
- * pendente/ativa phases to `nao_necessaria` so the board reads cleanly; a
+ * pendente/ativa phases to `not_required` so the board reads cleanly; a
  * stranded in-progress draft is then inert. Guard: case open (P0020).
  */
 export async function closeCase(caseId: string): Promise<ActionState> {

@@ -116,7 +116,7 @@ const MESSAGES = {
   // HC020 — assign/conclude/reopen attempted on a terminal (concluído/cancelado) case.
   caseTerminal: 'Este caso está em um estado final e não pode mais ser alterado.',
   // HC055 — narrative wrong state for the requested lifecycle op (assign/conclude
-  // requires 'aberta'; reopen requires 'concluida').
+  // requires 'open'; reopen requires 'completed').
   narrativeWrongState: 'A narrativa não está no estado necessário para esta ação.',
   assigned: 'Responsável definido.',
   unassigned: 'Responsável removido.',

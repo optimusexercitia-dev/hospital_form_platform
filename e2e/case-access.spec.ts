@@ -876,7 +876,7 @@ test('AC-6 narrative lifecycle: staff2 fills Resumo via focused editor, conclude
   const rows = await dbQuery<{ status: string }>('case_narratives', {
     id: `eq.${narrativeId}`,
   })
-  expect(rows[0]?.status).toBe('concluida')
+  expect(rows[0]?.status).toBe('completed')
 
   await signOut(page)
 
@@ -910,7 +910,7 @@ test('AC-6 narrative lifecycle: staff2 fills Resumo via focused editor, conclude
   const rows2 = await dbQuery<{ status: string }>('case_narratives', {
     id: `eq.${narrativeId}`,
   })
-  expect(rows2[0]?.status).toBe('aberta')
+  expect(rows2[0]?.status).toBe('open')
 
   await signOut(page)
 

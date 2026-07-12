@@ -385,7 +385,7 @@ export async function submitResponse(responseId: string): Promise<ActionState> {
  *   1. Authorize membership of the response's commission (existing pattern).
  *   2. If `overrideResultId` is chosen (or explicitly cleared via `null`), call
  *      `set_case_phase_result_override(casePhaseId, overrideResultId, reason)` —
- *      a deliberate write on the still-`ativa` phase BEFORE submit. Per Rule 11
+ *      a deliberate write on the still-`active` phase BEFORE submit. Per Rule 11
  *      the free-text `reason` is audited as a fact only, never copied into the
  *      payload.
  *   3. Call the UNCHANGED `submit_response` RPC; its conclusion trigger
@@ -411,7 +411,7 @@ export async function submitCasePhaseResponse(
     return { ok: false, error: MESSAGES.forbidden }
   }
 
-  // Stash / clear the override on the still-`ativa` phase BEFORE submit. `undefined`
+  // Stash / clear the override on the still-`active` phase BEFORE submit. `undefined`
   // leaves any existing override untouched (skip the call entirely).
   if (overrideResultId !== undefined && casePhaseId) {
     const { error: overrideError } = await supabase.rpc(

@@ -559,7 +559,7 @@ test('AC-HappyPath: board shows seeded Phase 1 concluída + Phase 2 recommended 
       const phases = await getCasePhases(page, SEEDED_CASE_ID)
       return phases.find((p) => p.position === 2)?.status
     }, { timeout: 15_000 })
-    .toBe('ativa')
+    .toBe('active')
 
   await signOut(page)
 
@@ -625,7 +625,7 @@ test('AC-HappyPath: board shows seeded Phase 1 concluída + Phase 2 recommended 
       const phases = await getCasePhases(page, SEEDED_CASE_ID)
       return phases.find((p) => p.position === 2)?.status
     }, { timeout: 20_000 })
-    .toBe('concluida')
+    .toBe('completed')
 
   await signOut(page)
 
@@ -687,7 +687,7 @@ test('AC-HappyPath: board shows seeded Phase 1 concluída + Phase 2 recommended 
       const phases = await getCasePhases(page, SEEDED_CASE_ID)
       return phases.find((p) => p.is_ad_hoc)?.status
     }, { timeout: 15_000 })
-    .toBe('nao_necessaria')
+    .toBe('not_required')
 
   // ── 7. Close the case via "Concluir" button + outcome dialog ──
   // Fixed-status model (D12/D13): the old "Encerrar" dropdown menu is GONE.
@@ -724,7 +724,7 @@ test('AC-HappyPath: board shows seeded Phase 1 concluída + Phase 2 recommended 
   // DB truth: case is concluido.
   await expect
     .poll(async () => (await getCaseRow(page, SEEDED_CASE_ID))?.status, { timeout: 15_000 })
-    .toBe('concluido')
+    .toBe('completed')
 
   // The case detail shows the "Concluído" status badge (fixed label, CASE_STATUS_META).
   await page.reload()
@@ -891,7 +891,7 @@ test('AC-BlockerGuard: Phase 2 with blocks=[1] is disabled until Phase 1 is sett
       const rows = (await r.json()) as Array<{ status: string }>
       return rows[0]?.status
     }, { timeout: 15_000 })
-    .toBe('nao_necessaria')
+    .toBe('not_required')
 
   // ── After skip, Phase 2 "Ativar e atribuir" is now ENABLED ──
   await page.reload()
@@ -1318,7 +1318,7 @@ test('AC-Keyboard: keyboard-only activate + assign flow on a fresh case; focus a
       const phases = await getCasePhases(page, kbCaseId)
       return phases.find((p) => p.position === 1)?.status
     }, { timeout: 15_000 })
-    .toBe('ativa')
+    .toBe('active')
 
   // ── The assignee opens "Meus Casos" and enters the phase via keyboard ──
   await signOut(page)

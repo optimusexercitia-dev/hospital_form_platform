@@ -244,7 +244,7 @@ test.beforeAll(async ({ request }) => {
     data: {
       commission_id: COMM_A,
       label: 'HC076 gate — Flow 4 disposable case (phase22 spec)',
-      status: 'pendente',
+      status: 'pending',
       created_by: UID_CHEFE_A,
     },
   })
@@ -592,7 +592,7 @@ test('Flow 4b: after withdrawing gateReferralId, close_case on disposable case s
   })
   expect(closeResp.ok(), `close_case after withdraw failed: ${await closeResp.text()}`).toBeTruthy()
   const closed = await closeResp.json() as { status: string }
-  expect(closed.status).toBe('concluido')
+  expect(closed.status).toBe('completed')
 })
 
 test('Flow 4c: a response_expected=false referral does not block close_case', async ({

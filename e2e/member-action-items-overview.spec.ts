@@ -329,7 +329,7 @@ test.beforeAll(async ({ request }) => {
   const farmCase = await svcInsert<{ id: string }>(request, 'cases', {
     commission_id: COMM_FARM_ID,
     label: `${TAG} Caso Farmácia (isolamento)`,
-    status: 'pendente',
+    status: 'pending',
     created_by: CHEFE_CCIH,
   })
   await svcInsert(request, 'action_items', {
@@ -349,7 +349,7 @@ test.beforeAll(async ({ request }) => {
   const nextMeeting = await svcInsert<{ id: string }>(request, 'meetings', {
     commission_id: COMM_CCIH_ID,
     title: `${TAG} Reunião futura`,
-    status: 'agendada',
+    status: 'scheduled',
     scheduled_start: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
     modality: 'presencial',
     created_by: CHEFE_CCIH,
@@ -358,7 +358,7 @@ test.beforeAll(async ({ request }) => {
     meeting_id: nextMeeting.id,
     user_id: STAFF1_CCIH,
     role: 'membro',
-    attendance: 'presente',
+    attendance: 'present',
   })
 })
 

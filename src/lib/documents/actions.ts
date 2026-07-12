@@ -165,7 +165,7 @@ function revalidateDocuments(): void {
 // ---------------------------------------------------------------------------
 
 /**
- * Create a controlled document (header) with an initial `rascunho` version. Fields:
+ * Create a controlled document (header) with an initial `draft` version. Fields:
  * `commissionId`, `title`, `docType`, optional `reviewCycleMonths`. Routes to
  * `create_controlled_document`; mints the per-commission `code`. Returns
  * `documentId`.
@@ -203,7 +203,7 @@ export async function createControlledDocument(
 /**
  * Edit a document's header metadata (title/doc_type/review cycle). Expects a hidden
  * `documentId` field plus the same fields as create. Routes to
- * `update_controlled_document` — editable ONLY while the current version is `rascunho`
+ * `update_controlled_document` — editable ONLY while the current version is `draft`
  * (HC089 otherwise). Returns the `documentId` (create-state shape) so the editar page
  * can route back to the detail.
  */
@@ -269,7 +269,7 @@ async function uploadDocumentFile(
 }
 
 /**
- * Attach/replace the file of a `rascunho` version (immutable upload). Fields:
+ * Attach/replace the file of a `draft` version (immutable upload). Fields:
  * `commissionId`, `documentId`, `versionId`, the uploaded `file`, optional
  * `summaryOfChangesMd`/`expiryDate`. Uploads to a NEW path then routes to
  * `set_document_version_file`. Returns `versionId`.
@@ -308,10 +308,10 @@ export async function addDocumentVersion(
 }
 
 /**
- * Submit a `rascunho` version for approval, naming its approvers. Fields:
+ * Submit a `draft` version for approval, naming its approvers. Fields:
  * `versionId`, `approvers` (a JSON array of `{ approver_id, approver_title? }` —
  * each MUST be an active same-hospital user). Routes to
- * `submit_document_for_approval` (→ `em_aprovacao`; delete-then-insert the pending
+ * `submit_document_for_approval` (→ `in_approval`; delete-then-insert the pending
  * rows that GRANT READ; rejects foreign-hospital/inactive/duplicate approvers).
  */
 export async function submitDocumentForApproval(
@@ -391,7 +391,7 @@ export async function approveDocument(
 /**
  * Record the caller's `rejeitado` decision on a version they were named on. Fields:
  * `versionId`, `note` (the reason, surfaced on the returned draft). Routes to
- * `reject_document` (sign-own-row; returns the version to `rascunho` with the note).
+ * `reject_document` (sign-own-row; returns the version to `draft` with the note).
  */
 export async function rejectDocument(
   _prev: ActionState | undefined,
@@ -417,11 +417,11 @@ export async function rejectDocument(
 // ---------------------------------------------------------------------------
 
 /**
- * Publish an approved version (→ `vigente`). Requires ALL named approvers
+ * Publish an approved version (→ `effective`). Requires ALL named approvers
  * `aprovado` (else HC090). Fields: `versionId`, optional `effectiveDate`,
  * `reviewDueDate` override, `expiryDate`. Routes to `publish_document` (sets
  * `effective_date`; computes `review_due_date = effective + review_cycle_months`
- * unless overridden; repoints the header + retires the prior vigente version).
+ * unless overridden; repoints the header + retires the prior effective version).
  */
 export async function publishDocument(
   _prev: ActionState | undefined,
@@ -452,9 +452,9 @@ export async function publishDocument(
 }
 
 /**
- * Supersede the current `vigente` version with a NEW draft version. Fields:
- * `documentId`. Routes to `supersede_document` (creates the next `rascunho` version;
- * the prior stays `vigente` until the new one publishes). The frontend then uploads
+ * Supersede the current `effective` version with a NEW draft version. Fields:
+ * `documentId`. Routes to `supersede_document` (creates the next `draft` version;
+ * the prior stays `effective` until the new one publishes). The frontend then uploads
  * a file to the returned version via {@link addDocumentVersion}. Returns `versionId`.
  */
 export async function supersedeDocument(
@@ -474,7 +474,7 @@ export async function supersedeDocument(
 }
 
 /**
- * Mark a document's current version `obsoleto` (retire without a replacement).
+ * Mark a document's current version `obsolete` (retire without a replacement).
  * Routes to `mark_document_obsolete`. The version is retained + downloadable.
  */
 export async function markDocumentObsolete(documentId: string): Promise<ActionState> {

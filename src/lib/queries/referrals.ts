@@ -93,11 +93,11 @@ const SIGNED_URL_TTL_SECONDS = 3600
 // ---------------------------------------------------------------------------
 
 /** The PHI-free list/card select: governance metadata + denormalized flags. NOTE:
- * `hasReply` is derived from `status === 'concluida'` (PHI-free, on case_referral),
+ * `hasReply` is derived from `status === 'completed'` (PHI-free, on case_referral),
  * NOT from a `referral_reply` embed — that table's SELECT policy is tightened to
  * `can_read_referral_phi` (Phase-22 body lockdown, migration …015000), so a plain
  * member's embed would return empty and mis-report the reply existence. `status` is
- * the correct PHI-free signal every reader sees (a reply exists iff `concluida`). */
+ * the correct PHI-free signal every reader sees (a reply exists iff `completed`). */
 const REFERRAL_LIST_SELECT =
   'id, code, status, subject, type_label, response_expected, ' +
   'source_commission_id, target_commission_id, source_case_id, target_case_id, ' +
@@ -160,7 +160,7 @@ function mapReferralListItem(
     hasPatient: r.has_patient,
     // A delivered reply exists iff the referral concluded (PHI-free signal); the
     // referral_reply table is now PHI-gated so we must NOT rely on an embed here.
-    hasReply: r.status === 'concluida',
+    hasReply: r.status === 'completed',
     sentAt: r.sent_at,
     createdAt: r.created_at,
   }
@@ -296,8 +296,8 @@ export async function listCaseOutboundReferrals(
 /**
  * The actionable-count badge for the commission's nav. Counts referrals needing
  * this commission's attention: incoming awaiting receive/accept/reply
- * (`enviada/recebida/aceita/em_analise` where this commission is the target) +
- * outgoing drafts (`rascunho` where this commission is the source). PHI-free.
+ * (`sent/received/accepted/in_review` where this commission is the target) +
+ * outgoing drafts (`draft` where this commission is the source). PHI-free.
  */
 export async function countCommissionReferralActionable(
   commissionId: string,
@@ -308,13 +308,13 @@ export async function countCommissionReferralActionable(
     .from('case_referral')
     .select('id', { count: 'exact', head: true })
     .eq('target_commission_id', commissionId)
-    .in('status', ['enviada', 'recebida', 'aceita', 'em_analise'])
+    .in('status', ['sent', 'received', 'accepted', 'in_review'])
   // Outgoing drafts this committee has not yet sent.
   const drafts = await supabase
     .from('case_referral')
     .select('id', { count: 'exact', head: true })
     .eq('source_commission_id', commissionId)
-    .eq('status', 'rascunho')
+    .eq('status', 'draft')
 
   return (incoming.count ?? 0) + (drafts.count ?? 0)
 }
@@ -844,17 +844,17 @@ export async function referralFlowMetrics(): Promise<ReferralFlowMetrics> {
     .returns<{ status: string; response_expected: boolean }[]>()
 
   const rows = data ?? []
-  const resolved = new Set(['concluida', 'recusada', 'retirada'])
-  const inFlight = new Set(['enviada', 'recebida', 'aceita', 'em_analise'])
+  const resolved = new Set(['completed', 'rejected', 'withdrawn'])
+  const inFlight = new Set(['sent', 'received', 'accepted', 'in_review'])
   return {
     total: rows.length,
     open: rows.filter((r) => !resolved.has(r.status)).length,
     awaitingReply: rows.filter(
       (r) => r.response_expected && inFlight.has(r.status),
     ).length,
-    concluded: rows.filter((r) => r.status === 'concluida').length,
-    declined: rows.filter((r) => r.status === 'recusada').length,
-    withdrawn: rows.filter((r) => r.status === 'retirada').length,
+    concluded: rows.filter((r) => r.status === 'completed').length,
+    declined: rows.filter((r) => r.status === 'rejected').length,
+    withdrawn: rows.filter((r) => r.status === 'withdrawn').length,
   }
 }
 

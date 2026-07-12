@@ -29,7 +29,7 @@ export function canEditNarrative(
   // WHETHER it is editable AT ALL (separate from WHO): a concluded body is frozen
   // and a terminal case is locked.
   if (!caseOpen) return false;
-  if (narrative.status !== "aberta") return false;
+  if (narrative.status !== "open") return false;
 
   // WHO may edit — mirror the DB predicate `app.can_write_case_narrative` EXACTLY
   // (Q14). Order matters: the assignee check MUST precede the `canWriteContent` gate,

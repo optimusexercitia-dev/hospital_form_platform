@@ -69,12 +69,12 @@ insert into public.case_phases
   (id, case_id, position, form_id, form_version_id, status, assigned_to, blocks)
 values
   ((select phase_x from cs), (select case_x from cs), 1, (select form_u from k),
-   (select ver_u from k), 'ativa', (select st_x from k), '{}');
+   (select ver_u from k), 'active', (select st_x from k), '{}');
 
 insert into public.case_narratives
   (id, case_id, type_label, display_position, status, body_md, created_by)
 values
-  ((select narr_x from cs), (select case_x from cs), 'Resumo', 2, 'aberta',
+  ((select narr_x from cs), (select case_x from cs), 'Resumo', 2, 'open',
    'CORPO-SENSIVEL-NARRATIVA', (select sa_x from k));
 
 insert into public.case_events (id, case_id, kind, body, created_by)

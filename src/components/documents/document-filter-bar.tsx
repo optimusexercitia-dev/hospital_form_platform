@@ -21,10 +21,10 @@ const DOC_TYPES: DocType[] = [
   "outro",
 ];
 const DOC_STATUSES: DocStatus[] = [
-  "rascunho",
-  "em_aprovacao",
-  "vigente",
-  "obsoleto",
+  "draft",
+  "in_approval",
+  "effective",
+  "obsolete",
 ];
 
 /**

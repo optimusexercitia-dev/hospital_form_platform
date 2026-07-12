@@ -46,7 +46,7 @@ export function NarrativeEditor({
   const [savedNote, setSavedNote] = useState<string | null>(null);
 
   const hasBody = (narrative.bodyMd ?? "").trim().length > 0;
-  const isConcluded = narrative.status === "concluida";
+  const isConcluded = narrative.status === "completed";
 
   function handleSave() {
     setError(null);

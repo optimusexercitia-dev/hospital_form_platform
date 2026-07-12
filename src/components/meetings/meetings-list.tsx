@@ -25,12 +25,12 @@ import { formatMeetingNumber, formatSchedule } from "./format";
 
 /** Status filter options, in lifecycle order, plus an "all" sentinel. */
 const STATUS_FILTER_ORDER: MeetingStatus[] = [
-  "agendada",
-  "realizada",
-  "em_assinatura",
-  "assinada",
-  "distribuida",
-  "cancelada",
+  "scheduled",
+  "held",
+  "in_signature",
+  "signed",
+  "distributed",
+  "cancelled",
 ];
 
 type SortKey = "numero" | "data" | "status";

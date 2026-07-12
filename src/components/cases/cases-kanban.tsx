@@ -20,10 +20,10 @@ import { CaseStatusBadge, TOKEN_COLOR_VAR } from "./case-status-badge";
 import { ageLabel, formatCaseNumber } from "./format";
 
 const PHASE_DOT: Record<CasePhaseStatus, string> = {
-  ativa: "bg-primary",
-  concluida: "bg-success",
-  pendente: "bg-muted-foreground/35",
-  nao_necessaria: "bg-muted-foreground/15",
+  active: "bg-primary",
+  completed: "bg-success",
+  pending: "bg-muted-foreground/35",
+  not_required: "bg-muted-foreground/15",
 };
 
 function CaseCard({

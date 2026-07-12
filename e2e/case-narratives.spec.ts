@@ -212,7 +212,7 @@ async function createFreshCase(page: Page, token: string): Promise<string | null
 async function skipAllOpenPhases(page: Page, caseId: string, token: string): Promise<void> {
   const resp = await supabaseGet(
     page,
-    `case_phases?case_id=eq.${caseId}&status=in.(pendente,ativa)&select=id`,
+    `case_phases?case_id=eq.${caseId}&status=in.(pending,active)&select=id`,
   )
   const phases = await resp.json()
   if (!Array.isArray(phases)) return
@@ -673,7 +673,7 @@ test('AC-6: conclude with expected-empty narrative — advisory warning listed; 
   // DB truth: case status is now terminal.
   const caseRow = await getCaseRow(page, freshCaseId!)
   expect(caseRow).not.toBeNull()
-  expect(caseRow!.status).toBe('concluido')
+  expect(caseRow!.status).toBe('completed')
 
   // Store the case ID for AC-7 (serial mode: same worker, next test).
   concludedFreshCaseId = freshCaseId
@@ -696,7 +696,7 @@ test('AC-7: after conclusion — read-only; no Editar; empty narratives hidden',
 
   // Verify the case is indeed concluded (guard against test-order drift).
   const caseRow = await getCaseRow(page, concludedFreshCaseId)
-  if (caseRow?.status !== 'concluido') {
+  if (caseRow?.status !== 'completed') {
     test.skip(true, 'AC-7 requires the fresh case to be concluido.')
     return
   }

@@ -45,14 +45,14 @@ const CHIP_BASE =
  * dot, `em_analise` = microscope, `concluida` = check, `recusada` = slash,
  * `retirada` = slash (withdrawn). */
 const STATUS_ICON: Record<ReferralStatus, LucideIcon> = {
-  rascunho: FileEdit,
-  enviada: ArrowUpRight,
-  recebida: Inbox,
-  aceita: CircleDot,
-  recusada: CircleSlash,
-  em_analise: Microscope,
-  concluida: CircleCheck,
-  retirada: CircleSlash,
+  draft: FileEdit,
+  sent: ArrowUpRight,
+  received: Inbox,
+  accepted: CircleDot,
+  rejected: CircleSlash,
+  in_review: Microscope,
+  completed: CircleCheck,
+  withdrawn: CircleSlash,
 };
 
 /** The referral lifecycle chip (icon + pt-BR label + tone resolved from the

@@ -1,9 +1,9 @@
 -- Phase 10: Meetings.
 -- Covers: per-commission meeting_number minting; seed-on-commission (types +
 -- settings auto-created); lifecycle conclude (quorum snapshot + case_events
--- write) HC034; sign-own-row RLS + auto-flip to assinada; reopen revokes
+-- write) HC034; sign-own-row RLS + auto-flip to signed; reopen revokes
 -- signatures; HC035 double-sign; HC036 non-present sign; HC037 non-assignee
--- action-item advance; child-lock while em_assinatura; HC032 cross-commission
+-- action-item advance; child-lock while in_signature; HC032 cross-commission
 -- case link; cross-commission RLS isolation.
 
 begin;
@@ -55,7 +55,7 @@ grant select on m1 to authenticated;
 -- comm_x is a fresh bootstrap commission with no prior meetings, so the first
 -- mint is 1.
 select is((select meeting_number from m1), 1, 'first meeting minted number 1');
-select is((select status from m1), 'agendada', 'new meeting starts agendada');
+select is((select status from m1), 'scheduled', 'new meeting starts scheduled');
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -90,17 +90,17 @@ select is(
 -- Mark all three present.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
-update public.meeting_attendees set attendance = 'presente' where meeting_id = (select id from m1);
+update public.meeting_attendees set attendance = 'present' where meeting_id = (select id from m1);
 -- Add a PRESENT external guest (user_id null). Guests must NEVER count toward
 -- quorum (ADR 0025 / plan §7), so this must NOT inflate present_count at
 -- conclusion below (regression guard for MINOR-2).
 select public.add_meeting_attendee(
-  (select id from m1), null, 'Convidada Externa', 'Hospital Z', 'convidado', 'presente', null);
+  (select id from m1), null, 'Convidada Externa', 'Hospital Z', 'convidado', 'present', null);
 reset role;
 
 -- =========================================================================
--- mark_meeting_held: agendada -> realizada (the explicit resting transition).
--- m2 has no present attendees, so it stays a clean agendada subject.
+-- mark_meeting_held: scheduled -> held (the explicit resting transition).
+-- m2 has no present attendees, so it stays a clean scheduled subject.
 -- =========================================================================
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -108,18 +108,18 @@ select public.mark_meeting_held((select id from m2));
 reset role;
 select is(
   (select status from public.meetings where id = (select id from m2)),
-  'realizada', 'mark_meeting_held flips agendada -> realizada');
+  'held', 'mark_meeting_held flips scheduled -> held');
 
--- A second mark_meeting_held (no longer agendada) is rejected (HC033).
+-- A second mark_meeting_held (no longer scheduled) is rejected (HC033).
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
   $$ select public.mark_meeting_held((select id from m2)) $$,
-  'HC033', null, 'mark_meeting_held on a non-agendada meeting raises HC033');
+  'HC033', null, 'mark_meeting_held on a non-scheduled meeting raises HC033');
 reset role;
 
 -- =========================================================================
--- HC034: conclude with no present attendee (m2 is now realizada, none present).
+-- HC034: conclude with no present attendee (m2 is now held, none present).
 -- =========================================================================
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -142,7 +142,7 @@ create temp table m3 on commit drop as
 grant select on m3 to authenticated;
 -- Only a PRESENT guest (user_id null) — no present member.
 select public.add_meeting_attendee(
-  (select id from m3), null, 'Só Convidado', 'Hospital W', 'convidado', 'presente', null);
+  (select id from m3), null, 'Só Convidado', 'Hospital W', 'convidado', 'present', null);
 select throws_ok(
   $$ select public.conclude_meeting((select id from m3)) $$,
   'HC034', null,
@@ -150,7 +150,7 @@ select throws_ok(
 reset role;
 
 -- =========================================================================
--- conclude m1: quorum snapshot + status em_assinatura.
+-- conclude m1: quorum snapshot + status in_signature.
 -- =========================================================================
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
@@ -159,13 +159,13 @@ reset role;
 
 select is(
   (select status from public.meetings where id = (select id from m1)),
-  'em_assinatura', 'conclude flips status to em_assinatura');
+  'in_signature', 'conclude flips status to in_signature');
 -- Sanity: the meeting really has 4 PRESENT attendees (3 members + 1 guest), so
 -- the present_count = 3 below proves the snapshot DROPPED the guest, not that no
 -- guest was present.
 select is(
   (select count(*)::int from public.meeting_attendees
-   where meeting_id = (select id from m1) and attendance = 'presente'),
+   where meeting_id = (select id from m1) and attendance = 'present'),
   4, 'm1 has 4 present attendees (3 members + 1 external guest)');
 select is(
   (select present_count from public.meetings where id = (select id from m1)),
@@ -178,16 +178,16 @@ select is(
   true, 'maioria_simples quorum met (3 > 3/2)');
 
 -- =========================================================================
--- Child-lock: editing minutes / agenda while em_assinatura is rejected.
+-- Child-lock: editing minutes / agenda while in_signature is rejected.
 -- =========================================================================
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
   $$ select public.update_meeting_minutes((select id from m1), 'edição proibida') $$,
-  'HC033', null, 'minutes locked while em_assinatura (HC033)');
+  'HC033', null, 'minutes locked while in_signature (HC033)');
 select throws_ok(
   $$ select public.create_meeting_agenda_item((select id from m1), 'novo item', null, null, null) $$,
-  '23514', null, 'agenda child insert locked while em_assinatura (child-lock 23514)');
+  '23514', null, 'agenda child insert locked while in_signature (child-lock 23514)');
 reset role;
 
 -- =========================================================================
@@ -196,7 +196,7 @@ reset role;
 -- test HC036 on m2 path is messy; instead verify the present signers flow and
 -- HC035 double-sign, then HC036 via a freshly built meeting with a non-present.
 -- =========================================================================
--- sa_x signs own row (1/3) — stays em_assinatura.
+-- sa_x signs own row (1/3) — stays in_signature.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select lives_ok(
@@ -214,7 +214,7 @@ reset role;
 
 select is(
   (select status from public.meetings where id = (select id from m1)),
-  'em_assinatura', 'still em_assinatura after 1 of 3 signatures');
+  'in_signature', 'still in_signature after 1 of 3 signatures');
 
 -- st_x signs own row (2/3).
 select test_helpers.claims_for((select st_x from k), false);
@@ -230,7 +230,7 @@ select throws_ok(
   'HC036', null, 'cannot sign another attendee''s row (HC036)');
 reset role;
 
--- st_x2 signs own row (3/3) -> auto-flip to assinada.
+-- st_x2 signs own row (3/3) -> auto-flip to signed.
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
 select public.sign_meeting(
@@ -240,7 +240,7 @@ reset role;
 
 select is(
   (select status from public.meetings where id = (select id from m1)),
-  'assinada', 'auto-flip to assinada when the last required signature lands');
+  'signed', 'auto-flip to signed when the last required signature lands');
 select is(
   (select count(*)::int from public.meeting_signatures where meeting_id=(select id from m1) and status='signed'),
   3, '3 active signatures recorded');
@@ -255,7 +255,7 @@ reset role;
 
 select is(
   (select status from public.meetings where id = (select id from m1)),
-  'realizada', 'reopen returns status to realizada');
+  'held', 'reopen returns status to held');
 select is(
   (select count(*)::int from public.meeting_signatures where meeting_id=(select id from m1) and status='revoked'),
   3, 'reopen revokes all 3 signatures (rows kept)');

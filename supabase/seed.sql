@@ -695,11 +695,11 @@ begin
      14);
 
   -- The case (number minted by the trigger). Pin Form A's published version.
-  -- status is LEFT to the column default 'nao_iniciado' (the FIXED five-value
+  -- status is LEFT to the column default 'not_started' (the FIXED five-value
   -- model; the configurable-status vocabulary R2 introduced was removed). The
   -- recompute trigger on case_phases then auto-advances the macro status as the
-  -- phases below are inserted: once Phase 1 lands 'concluida' (and none 'ativa'),
-  -- the case computes to 'pendente' (>=1 concluida, none ativa) — matching the
+  -- phases below are inserted: once Phase 1 lands 'completed' (and none 'active'),
+  -- the case computes to 'pending' (>=1 concluida, none ativa) — matching the
   -- mid-flight fixture the dashboard/board E2E expects.
   insert into public.cases (id, commission_id, template_id, label, created_by, patient_enabled)
   values (v_case, v_comm_a, v_tpl, 'Óbito UTI leito 7', v_chefe_a, true);
@@ -742,13 +742,13 @@ begin
      assigned_to, activated_at, completed_at, default_due_days)
   values
     (v_cp1, v_case, 1, v_form_a, v_ver_a, 'Fase 1 — Coleta inicial',
-     'concluida', false, v_staff_a1, now(), now(), 7);
+     'completed', false, v_staff_a1, now(), now(), 7);
   insert into public.case_phases
     (id, case_id, position, form_id, form_version_id, title, status, recommended,
      recommend_when, default_due_days, due_date)
   values
     (v_cp2, v_case, 2, v_form_a, v_ver_a, 'Fase 2 — Revisão do comitê',
-     'pendente', true,
+     'pending', true,
      jsonb_build_object('from_phase', 1, 'question_key', 'dispensador_disponivel',
                         'op', 'equals', 'value', 'sim'),
      14, current_date - 3);
@@ -825,7 +825,7 @@ begin
   insert into public.cases
     (id, commission_id, template_id, label, status, outcome_id, created_by, closed_at, closed_by)
   values
-    (v_case2, v_comm_a, v_tpl, 'Óbito UTI leito 3', 'concluido', v_oc_evit, v_chefe_a, now(), v_chefe_a);
+    (v_case2, v_comm_a, v_tpl, 'Óbito UTI leito 3', 'completed', v_oc_evit, v_chefe_a, now(), v_chefe_a);
 
   -- One concluida phase (pins Form A's published version). The recompute trigger
   -- fires on the insert but early-returns because the case is already terminal.
@@ -834,7 +834,7 @@ begin
      assigned_to, activated_at, completed_at, default_due_days)
   values
     (v_cp1, v_case2, 1, v_form_a, v_ver_a, 'Fase 1 — Coleta inicial',
-     'concluida', false, v_staff_a1, now(), now(), 7);
+     'completed', false, v_staff_a1, now(), now(), 7);
   perform set_config('app.in_case_rpc', 'off', true);
 
   -- Caso 0002 also snapshots the offered set (consistency with the model).
@@ -935,7 +935,7 @@ end $$;
 --   * staff1.ccih (…03) — PHASE assignee: already assigned Caso 0001 Phase 1
 --     (the Phase-7 fixture above) → attribution-derived FULL-CASE READ.
 --   * staff2.ccih (…04) — NARRATIVE assignee: assigned the "Resumo Clínico"
---     narrative below (status stays 'aberta') → attribution-derived FULL-CASE READ
+--     narrative below (status stays 'open') → attribution-derived FULL-CASE READ
 --     + may author/conclude THAT narrative (Q14).
 --   * multi       (…08) — standalone READ grant (a viewer; editors hidden).
 --   * staff3.ccih (…09) — standalone WRITE grant (a collaborator; may author the
@@ -1014,7 +1014,7 @@ begin
     (id, commission_id, meeting_type_id, title, status, scheduled_start, scheduled_end,
      modality, location_text, minutes_md, created_by)
   values
-    (v_mtg, v_comm_a, v_type, 'Reunião Ordinária — Junho/2026', 'realizada',
+    (v_mtg, v_comm_a, v_type, 'Reunião Ordinária — Junho/2026', 'held',
      now() - interval '2 days', now() - interval '2 days' + interval '90 minutes',
      'presencial', 'Sala de reuniões da CCIH',
      E'## Pauta\n\nDiscussão dos indicadores de infecção do mês e acompanhamento '
@@ -1034,9 +1034,9 @@ begin
 
   -- The three CCIH personas as PRESENT attendees (chefe = presidente).
   insert into public.meeting_attendees (meeting_id, user_id, role, attendance) values
-    (v_mtg, v_chefe_a,  'presidente', 'presente'),
-    (v_mtg, v_staff_a1, 'membro',     'presente'),
-    (v_mtg, v_staff_a2, 'membro',     'presente');
+    (v_mtg, v_chefe_a,  'presidente', 'present'),
+    (v_mtg, v_staff_a1, 'membro',     'present'),
+    (v_mtg, v_staff_a2, 'membro',     'present');
 
   -- One case discussed (Caso 0001), attached to the first agenda item.
   insert into public.meeting_cases (meeting_id, case_id, agenda_item_id, summary, decision)
@@ -1085,12 +1085,12 @@ declare
   v_case1    uuid := 'd0000000-0000-0000-0000-0000000000c1';  -- existing Caso 0001
   v_itw      uuid := 'f2000000-0000-0000-0000-0000000000e1';  -- deterministic
 begin
-  -- The interview header (status em_andamento — being conducted).
+  -- The interview header (status in_progress — being conducted).
   insert into public.case_interviews
     (id, commission_id, case_id, title, status, modality, location_text,
      scheduled_start, conducted_at, summary_md, created_by)
   values
-    (v_itw, v_comm_a, v_case1, 'Entrevista sobre o Caso 0001', 'em_andamento',
+    (v_itw, v_comm_a, v_case1, 'Entrevista sobre o Caso 0001', 'in_progress',
      'presencial', 'Sala da CCIH',
      now() - interval '1 day', now() - interval '1 day',
      E'## Resumo preliminar\n\nEntrevista com a equipe envolvida no caso. '
@@ -1342,14 +1342,14 @@ begin
   returning id into v_root3;
 
   -- A CAPA plan opened from that RCA root cause (Phase 14d demo). Left OPEN
-  -- (em_execucao) so the close-flow stays demoable: one corrective action with a
+  -- (in_execution) so the close-flow stays demoable: one corrective action with a
   -- task, a measure with a result, and a recorded effectiveness verdict — but NOT
   -- closed (closing requires every action settled, which the open action blocks).
   -- capa_plan.hospital_id (WS-3c D4/H-8) is auto-derived from the source RCA by the
   -- derive_capa_hospital BEFORE INSERT trigger (rca -> event -> hospital), so this
   -- direct seed insert needs no explicit hospital_id.
   insert into public.capa_plan (id, source, source_rca_id, classification, status, opened_by)
-  values (v_capa3, 'rca', v_rca3, 'corretiva', 'em_execucao', v_chefe_a);
+  values (v_capa3, 'rca', v_rca3, 'corretiva', 'in_execution', v_chefe_a);
 
   -- A corrective action assigned to a PLAIN staff member (demonstrates the
   -- assignee-or-PQS advance path); links back to the root cause. Strength = forte.
@@ -1361,7 +1361,7 @@ begin
      'Implantar dupla checagem padronizada da contagem cirúrgica',
      'Enf. responsável do CC', v_staff_a1, current_date + 30, 'forte',
      'Conformidade da dupla checagem ≥ 95% nas cirurgias auditadas',
-     v_root3, 'em_andamento', 1);
+     v_root3, 'in_progress', 1);
 
   insert into public.capa_action_task (action_id, description, is_done, position) values
     (v_capa_act, 'Revisar o protocolo de cirurgia segura com a equipe do CC', true, 1),
@@ -1501,13 +1501,13 @@ begin
 
   -- A case in B to link onto ENC-0001 (so B's analyst path is demonstrable).
   insert into public.cases (id, commission_id, case_number, label, status, created_by)
-  values (v_tgt_case, v_comm_b, 9001, 'Análise de parecer — CCIH', 'pendente', v_chefe_b);
+  values (v_tgt_case, v_comm_b, 9001, 'Análise de parecer — CCIH', 'pending', v_chefe_b);
 
   -- A PHASE-CLEAN source case in A for ENC-0002, so the close-gate E2E hits HC076
   -- (a referral still in flight) WITHOUT the HC031 unsettled-phases gate masking it.
   -- No phases/outcomes are attached, so close_case reaches the referral gate first.
   insert into public.cases (id, commission_id, case_number, label, status, created_by)
-  values (v_gate_case, v_comm_a, 9101, 'Caso aguardando parecer (close-gate)', 'pendente', v_chefe_a);
+  values (v_gate_case, v_comm_a, 9101, 'Caso aguardando parecer (close-gate)', 'pending', v_chefe_a);
 
   -- === ENC-0001 — CONCLUDED, reply-expecting (full isolation happy path) =====
   insert into public.case_referral
@@ -1517,7 +1517,7 @@ begin
   values
     (v_ref1, v_src_case, v_comm_a, v_comm_b, v_type_par, 'Parecer',
      'Solicitação de parecer sobre conciliação medicamentosa', true, true, v_tgt_case, v_chefe_a,
-     'concluida', now() - interval '6 days', v_chefe_a, now() - interval '5 days', v_chefe_b,
+     'completed', now() - interval '6 days', v_chefe_a, now() - interval '5 days', v_chefe_b,
      now() - interval '5 days', v_chefe_b, now() - interval '2 days', v_chefe_b);
 
   -- Its frozen snapshot (a narrative copy + a document reference).
@@ -1564,7 +1564,7 @@ begin
   values
     (v_ref2, v_gate_case, v_comm_a, v_comm_b, v_type_par, 'Parecer',
      'Segundo parecer — interação medicamentosa', true, v_chefe_a,
-     'enviada', now() - interval '1 day', v_chefe_a);
+     'sent', now() - interval '1 day', v_chefe_a);
   insert into public.referral_shared_item
     (referral_id, kind, source_narrative_id, frozen_title, frozen_body_md, position)
   values
@@ -1640,14 +1640,14 @@ begin
   -- A minimal rede-b source case in Qualidade B (so the referral has a provenance
   -- case in the source commission). Created by the source coordinator.
   insert into public.cases (id, commission_id, case_number, label, status, created_by)
-  values (v_src_case, v_comm_src, 9101, 'Análise de incidente — Rede B', 'nao_iniciado', v_coord_src);
+  values (v_src_case, v_comm_src, 9101, 'Análise de incidente — Rede B', 'not_started', v_coord_src);
 
   -- A narrative on that case to snapshot into the referral.
   insert into public.case_narratives
     (id, case_id, type_label, display_position, title, body_md, created_by, assigned_to, status)
   values (v_narr_b, v_src_case, 'Resumo', 1, 'Resumo do incidente',
           E'Resumo do incidente de identificação para parecer da Farmácia B.',
-          v_coord_src, v_coord_src, 'aberta');
+          v_coord_src, v_coord_src, 'open');
 
   -- The intra-rede-b referral (Qualidade B → Farmácia B), ENVIADA, reply-expecting.
   -- Status set directly under the in_referral_rpc guard (mirrors the section-10 seed).
@@ -1658,7 +1658,7 @@ begin
   values
     (v_ref_b, v_src_case, v_comm_src, v_comm_tgt, v_type_par, 'Parecer',
      'Parecer sobre conduta medicamentosa — Rede B', true, v_coord_src,
-     'enviada', now() - interval '1 day', v_coord_src);
+     'sent', now() - interval '1 day', v_coord_src);
 
   insert into public.referral_shared_item
     (referral_id, kind, source_narrative_id, frozen_title, frozen_body_md, position)
@@ -1707,13 +1707,13 @@ begin
   select id into v_type_par from public.referral_types where key = 'parecer';
 
   insert into public.cases (id, commission_id, case_number, label, status, created_by)
-  values (v_src_case, v_comm_src, 9201, 'Análise de incidente — Central A', 'nao_iniciado', v_coord_src);
+  values (v_src_case, v_comm_src, 9201, 'Análise de incidente — Central A', 'not_started', v_coord_src);
 
   insert into public.case_narratives
     (id, case_id, type_label, display_position, title, body_md, created_by, assigned_to, status)
   values (v_narr_a2, v_src_case, 'Resumo', 1, 'Resumo do incidente',
           E'Resumo do incidente de infecção para parecer da Segurança do Paciente A2.',
-          v_coord_src, v_coord_src, 'aberta');
+          v_coord_src, v_coord_src, 'open');
 
   perform set_config('app.in_referral_rpc', 'on', true);
   insert into public.case_referral
@@ -1722,7 +1722,7 @@ begin
   values
     (v_ref_x, v_src_case, v_comm_src, v_comm_tgt, v_type_par, 'Parecer',
      'Parecer sobre protocolo entre hospitais — Rede A', true, v_coord_src,
-     'enviada', now() - interval '1 day', v_coord_src);
+     'sent', now() - interval '1 day', v_coord_src);
 
   insert into public.referral_shared_item
     (referral_id, kind, source_narrative_id, frozen_title, frozen_body_md, position)
@@ -1950,11 +1950,11 @@ begin
     jsonb_build_object('sub', v_chefe, 'role', 'authenticated')::text, true);
   perform set_config('app.in_controlled_docs_rpc', 'on', true);
 
-  -- 1) VIGENTE document with a PAST-DUE review_due_date.
+  -- 1) EFFECTIVE document with a PAST-DUE review_due_date.
   insert into public.controlled_documents
     (commission_id, code, title, doc_type, review_cycle_months, status, created_by)
   values
-    (v_comm_a, 'DOC-0001', 'Política de Higienização das Mãos', 'politica', 12, 'vigente', v_chefe)
+    (v_comm_a, 'DOC-0001', 'Política de Higienização das Mãos', 'politica', 12, 'effective', v_chefe)
   returning id into v_doc_vig;
 
   insert into public.controlled_document_versions
@@ -1964,7 +1964,7 @@ begin
   values
     (v_doc_vig, 1, null,
      'Versão inicial da política.', date '2025-01-15', date '2026-01-15',  -- review_due IN THE PAST
-     'vigente', v_chefe)
+     'effective', v_chefe)
   returning id into v_ver_vig;
 
   update public.controlled_documents set current_version_id = v_ver_vig where id = v_doc_vig;
@@ -1980,11 +1980,11 @@ begin
     (v_ver_vig, v_farm2, 'Diretor Técnico', 'aprovado', now() - interval '18 months', null,
      encode(extensions.digest('' || ':' || v_farm2::text || ':aprovado', 'sha256'), 'hex'));
 
-  -- 2) EM_APROVACAO document naming the OUTSIDE-commission approver 0005 (pending).
+  -- 2) IN_APPROVAL document naming the OUTSIDE-commission approver 0005 (pending).
   insert into public.controlled_documents
     (commission_id, code, title, doc_type, review_cycle_months, status, created_by)
   values
-    (v_comm_a, 'DOC-0002', 'POP de Isolamento de Contato', 'pop', 24, 'em_aprovacao', v_chefe)
+    (v_comm_a, 'DOC-0002', 'POP de Isolamento de Contato', 'pop', 24, 'in_approval', v_chefe)
   returning id into v_doc_apr;
 
   insert into public.controlled_document_versions
@@ -1992,7 +1992,7 @@ begin
   values
     -- storage_path NULL on purpose (BUG-DOC-002 — no real bytes seedable; see header).
     (v_doc_apr, 1, null,
-     'Primeira versão para aprovação.', 'em_aprovacao', v_chefe)
+     'Primeira versão para aprovação.', 'in_approval', v_chefe)
   returning id into v_ver_apr;
 
   update public.controlled_documents set current_version_id = v_ver_apr where id = v_doc_apr;

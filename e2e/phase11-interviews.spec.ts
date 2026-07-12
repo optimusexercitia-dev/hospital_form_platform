@@ -422,7 +422,7 @@ test('AC1 — happy path: create interview, add participants, start, add attachm
 
   // Assert the interview row has a registry_event_id
   const dbRow = await getInterviewRow(page, newInterviewId)
-  expect(dbRow?.status).toBe('concluida')
+  expect(dbRow?.status).toBe('completed')
   expect(dbRow?.registry_event_id).not.toBeNull()
   const registryEventId = dbRow!.registry_event_id!
 
@@ -467,7 +467,7 @@ test('AC1 — happy path: create interview, add participants, start, add attachm
 
   // Verify DB state
   const cancelledRow = await getInterviewRow(page, cancelInterviewId)
-  expect(cancelledRow?.status).toBe('cancelada')
+  expect(cancelledRow?.status).toBe('cancelled')
   expect(cancelledRow?.cancelled_at).not.toBeNull()
 })
 
@@ -559,7 +559,7 @@ test('AC2a — participant write grant: registered interviewer (staff role) CAN 
 
   // DB truth: interview is concluded
   const dbRow = await getInterviewRow(page, grantInterviewId)
-  expect(dbRow?.status).toBe('concluida')
+  expect(dbRow?.status).toBe('completed')
 
   await signOut(page)
 })
@@ -1046,7 +1046,7 @@ test('AC9 — concluded interview: attachments manageable; content panels read-o
 
   // Verify DB-level status
   const row = await getInterviewRow(page, ac9Id)
-  expect(row?.status).toBe('concluida')
+  expect(row?.status).toBe('completed')
 
   // --- UI layer ---
   await signInAs(page, 'chefe.ccih@test.local')

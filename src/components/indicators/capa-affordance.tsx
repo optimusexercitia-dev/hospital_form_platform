@@ -71,7 +71,7 @@ export function CapaAffordance({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const isOffTarget = latestMeasurement?.status === "fora_da_meta";
+  const isOffTarget = latestMeasurement?.status === "off_target";
 
   function openCapa() {
     if (!latestMeasurement) return;

@@ -95,7 +95,7 @@ grant select on mtg to authenticated;
 create temp table att on commit drop as
   select (public.add_meeting_attendee(
             (select mid from mtg), (select st_x from k), null, null,
-            'membro', 'presente', null)).id as attid;
+            'membro', 'present', null)).id as attid;
 grant select on att to authenticated;
 
 create temp table mai on commit drop as

@@ -41,22 +41,22 @@ export type CapaSource =
 export type CapaClassification = 'corretiva' | 'preventiva' | 'melhoria'
 
 /**
- * The CAPA plan lifecycle. `aberto` (opened) → `em_execucao` (actions running) →
- * `em_verificacao` (effectiveness being verified) → `concluido` (closed); plus
- * `cancelado`. DB-enforced by `app.guard_capa_status` (HC049 wrong-state).
+ * The CAPA plan lifecycle. `open` (opened) → `in_execution` (actions running) →
+ * `in_verification` (effectiveness being verified) → `completed` (closed); plus
+ * `cancelled`. DB-enforced by `app.guard_capa_status` (HC049 wrong-state).
  */
 export type CapaStatus =
-  | 'aberto'
-  | 'em_execucao'
-  | 'em_verificacao'
-  | 'concluido'
-  | 'cancelado'
+  | 'open'
+  | 'in_execution'
+  | 'in_verification'
+  | 'completed'
+  | 'cancelled'
 
 /** The fixed Joint-Commission action-strength hierarchy (stronger = more reliable). */
 export type CapaActionStrength = 'forte' | 'intermediaria' | 'fraca'
 
 /** A single corrective action's status. The assignee advances it via the narrow path. */
-export type CapaActionStatus = 'pendente' | 'em_andamento' | 'concluida' | 'cancelada'
+export type CapaActionStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 
 /** How implementation evidence is attached: an uploaded file (immutable bucket) XOR a link. */
 export type CapaEvidenceKind = 'document' | 'link'
@@ -84,11 +84,11 @@ export const CAPA_CLASSIFICATION_LABELS: Record<CapaClassification, string> = {
 }
 
 export const CAPA_STATUS_LABELS: Record<CapaStatus, string> = {
-  aberto: 'Aberto',
-  em_execucao: 'Em execução',
-  em_verificacao: 'Em verificação',
-  concluido: 'Concluído',
-  cancelado: 'Cancelado',
+  open: 'Aberto',
+  in_execution: 'Em execução',
+  in_verification: 'Em verificação',
+  completed: 'Concluído',
+  cancelled: 'Cancelado',
 }
 
 export const CAPA_ACTION_STRENGTH_LABELS: Record<CapaActionStrength, string> = {
@@ -98,10 +98,10 @@ export const CAPA_ACTION_STRENGTH_LABELS: Record<CapaActionStrength, string> = {
 }
 
 export const CAPA_ACTION_STATUS_LABELS: Record<CapaActionStatus, string> = {
-  pendente: 'Pendente',
-  em_andamento: 'Em andamento',
-  concluida: 'Concluída',
-  cancelada: 'Cancelada',
+  pending: 'Pendente',
+  in_progress: 'Em andamento',
+  completed: 'Concluída',
+  cancelled: 'Cancelada',
 }
 
 export const CAPA_EVIDENCE_KIND_LABELS: Record<CapaEvidenceKind, string> = {

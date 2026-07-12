@@ -11,7 +11,7 @@
  * (`@/lib/documents/actions`) import their types FROM here.
  *
  * A controlled document is a hospital policy/POP/protocolo/regimento/manual under a
- * controlled lifecycle (`rascunho → em_aprovacao → vigente → obsoleto`) with a
+ * controlled lifecycle (`draft → in_approval → effective → obsolete`) with a
  * named-approver e-signature workflow, effective/expiry dates, and a scheduled
  * review cycle (JCI MOI document control). Version-level status: the header's
  * status is DERIVED from its current version. Commission-owned; the hospital tier
@@ -37,12 +37,12 @@ export type DocType = 'politica' | 'pop' | 'protocolo' | 'regimento' | 'manual' 
 
 /**
  * The version lifecycle (the header `status` mirrors its CURRENT version).
- * `rascunho` (draft, editable) → `em_aprovacao` (approver set frozen, awaiting
- * e-signatures) → `vigente` (published/in-force, immutable) → `obsoleto`
+ * `draft` (editable) → `in_approval` (approver set frozen, awaiting
+ * e-signatures) → `effective` (published/in-force, immutable) → `obsolete`
  * (superseded/retired, retained + downloadable). A `rejeitado` decision returns a
- * version from `em_aprovacao` to `rascunho` (it is not a status of its own).
+ * version from `in_approval` to `draft` (it is not a status of its own).
  */
-export type DocStatus = 'rascunho' | 'em_aprovacao' | 'vigente' | 'obsoleto'
+export type DocStatus = 'draft' | 'in_approval' | 'effective' | 'obsolete'
 
 /**
  * A single approver's decision on a version. `null` while the approval is PENDING
@@ -218,10 +218,10 @@ export const DOC_TYPE_LABELS: Record<DocType, string> = {
 }
 
 export const DOC_STATUS_LABELS: Record<DocStatus, string> = {
-  rascunho: 'Rascunho',
-  em_aprovacao: 'Em aprovação',
-  vigente: 'Vigente',
-  obsoleto: 'Obsoleto',
+  draft: 'Rascunho',
+  in_approval: 'Em aprovação',
+  effective: 'Vigente',
+  obsolete: 'Obsoleto',
 }
 
 export const APPROVAL_DECISION_LABELS: Record<ApprovalDecision, string> = {

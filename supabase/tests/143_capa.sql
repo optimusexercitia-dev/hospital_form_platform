@@ -1,7 +1,7 @@
 -- Phase 14d: Patient-Safety / NSP — CAPA (Corrective Action Plan, Effectiveness &
 -- Closure). ADR 0030/0034. The FINAL Phase-14 sub-phase.
 -- Covers (per the track-doc acceptance list):
---   * status machine (aberto -> em_execucao -> em_verificacao -> concluido / cancelado /
+--   * status machine (open -> in_execution -> in_verification -> completed / cancelled /
 --     reopen) + child-lock (a terminal plan rejects child writes);
 --   * the conclude-gate: close blocked by an unsettled action (HC051) and by a missing
 --     effectiveness verdict (HC052);
@@ -88,8 +88,8 @@ select isnt((select capa_id from c), null, 'open_capa_plan (rca-sourced) mints a
 select ok(
   (select code from public.capa_plan where id = (select capa_id from c)) like 'CAPA-%',
   'the plan code is minted (CAPA-####)');
-select is((select status from public.capa_plan where id = (select capa_id from c)), 'aberto',
-  'a new plan starts aberto');
+select is((select status from public.capa_plan where id = (select capa_id from c)), 'open',
+  'a new plan starts open');
 
 select test_helpers.claims_for((select admin from k), true);
 set local role authenticated;
@@ -130,23 +130,23 @@ select is(
 -- =========================================================================
 select test_helpers.claims_for((select admin from k), true);
 set local role authenticated;
-select public.update_capa_plan((select capa_id from c), 'corretiva');  -- aberto -> em_execucao
+select public.update_capa_plan((select capa_id from c), 'corretiva');  -- open -> in_execution
 create temp table a on commit drop as
   select (public.add_capa_action((select capa_id from c), 'Ação 1', 'Resp.', (select st_x from k),
           current_date + 30, 'forte', 'medida', (select root_id from root))).id as action_id;
 reset role;
 grant select on a to authenticated;
-select is((select status from public.capa_plan where id = (select capa_id from c)), 'em_execucao',
-  'adding an action moves aberto -> em_execucao');
+select is((select status from public.capa_plan where id = (select capa_id from c)), 'in_execution',
+  'adding an action moves open -> in_execution');
 select is((select root_cause_id from public.capa_action where id = (select action_id from a)),
   (select root_id from root), 'the action links to the RCA root cause (the 14c FK)');
 
 -- A plain-staff ASSIGNEE (st_x) CAN advance their action (HC050 path).
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
-select public.advance_capa_action((select action_id from a), 'em_andamento');
+select public.advance_capa_action((select action_id from a), 'in_progress');
 reset role;
-select is((select status from public.capa_action where id = (select action_id from a)), 'em_andamento',
+select is((select status from public.capa_action where id = (select action_id from a)), 'in_progress',
   'a plain-staff assignee advances their own action (assignee-or-PQS)');
 
 -- ...but the assignee CANNOT broadly edit the plan (PQS-only write).
@@ -161,7 +161,7 @@ reset role;
 select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 select throws_ok(
-  $$ select public.advance_capa_action((select action_id from a), 'concluida') $$,
+  $$ select public.advance_capa_action((select action_id from a), 'completed') $$,
   'HC050', null, 'a non-assignee non-PQS user cannot advance the action (HC050)');
 reset role;
 
@@ -183,7 +183,7 @@ set local role authenticated;
 select public.complete_capa_action((select action_id from a));
 select public.close_capa_plan((select capa_id from c), 'Lições aprendidas registradas.');
 reset role;
-select is((select status from public.capa_plan where id = (select capa_id from c)), 'concluido',
+select is((select status from public.capa_plan where id = (select capa_id from c)), 'completed',
   'close succeeds once actions are settled + effectiveness recorded');
 
 -- =========================================================================
@@ -206,8 +206,8 @@ select test_helpers.claims_for((select admin from k), true);
 set local role authenticated;
 select public.reopen_capa_plan((select capa_id from c));
 reset role;
-select is((select status from public.capa_plan where id = (select capa_id from c)), 'em_execucao',
-  'reopen moves concluido -> em_execucao');
+select is((select status from public.capa_plan where id = (select capa_id from c)), 'in_execution',
+  'reopen moves completed -> in_execution');
 select is(
   (select count(*)::int from public.capa_effectiveness where capa_id = (select capa_id from c)),
   0, 'reopen REVOKES the effectiveness verdict (must re-verify before re-closing)');
@@ -235,7 +235,7 @@ do $$
 declare p record;
 begin
   for p in select id from public.capa_plan
-           where app.event_of_capa(id) = (select id from ev) and status not in ('concluido','cancelado')
+           where app.event_of_capa(id) = (select id from ev) and status not in ('completed','cancelled')
              and id <> (select capa_id from c)
   loop
     perform public.cancel_capa_plan(p.id);
@@ -373,7 +373,7 @@ reset role;
 grant select on kpi_before to authenticated;
 
 -- A 2nd org + hospital + commission, an event in it, an event-sourced capa_plan
--- (em_execucao → counts toward open_count) + an OVERDUE action, and a PQS member
+-- (in_execution → counts toward open_count) + an OVERDUE action, and a PQS member
 -- enrolled in that 2nd org (st_y).
 create temp table m3 on commit drop as
   select gen_random_uuid() as org_other, gen_random_uuid() as hosp_other,
@@ -396,13 +396,13 @@ insert into public.patient_safety_event
 values
   ((select ev_other from m3), 'EV-M3-OTHER', (select comm_other from m3), current_date,
    'Evento rede-other', 'acknowledged', 'pqs', null, (select admin from k));
--- An EVENT-SOURCED plan on that event (em_execucao) → event-org = org_other.
+-- An EVENT-SOURCED plan on that event (in_execution) → event-org = org_other.
 insert into public.capa_plan (id, source, source_event_id, classification, status)
-  values ((select capa_other from m3), 'event', (select ev_other from m3), 'corretiva', 'em_execucao');
+  values ((select capa_other from m3), 'event', (select ev_other from m3), 'corretiva', 'in_execution');
 -- An OVERDUE action on it (due in the past, not concluded/cancelled).
 insert into public.capa_action (id, capa_id, title, position, due_date, status)
   values ((select action_other from m3), (select capa_other from m3), 'Ação rede-other', 0,
-          current_date - 1, 'pendente');
+          current_date - 1, 'pending');
 -- Enroll st_y as a PQS member of the 2nd org's hospital (so it sees ITS hospital's KPIs).
 insert into public.pqs_members (hospital_id, user_id, added_by)
   values ((select hosp_other from m3), (select st_y from k), (select admin from k));

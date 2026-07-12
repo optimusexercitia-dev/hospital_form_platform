@@ -204,7 +204,7 @@ async function createRealizadaMeeting(
       p_meeting_id: id,
       p_user_id: CHEFE_CCIH_ID,
       p_role: 'presidente',
-      p_attendance: 'presente',
+      p_attendance: 'present',
     })
     expect(add.status).toBe(200)
   }
@@ -262,7 +262,7 @@ test('C2 — Concluir succeeds with a present committee member (no HC034, → Em
   await expect(page.getByText('Assinatura', { exact: true }).first()).toBeVisible({
     timeout: 10_000,
   })
-  expect(await meetingStatus(page, meetingId)).toBe('em_assinatura')
+  expect(await meetingStatus(page, meetingId)).toBe('in_signature')
 })
 
 test('C2 — Concluir is blocked when NO member is present (guard message shows, stays Realizada)', async ({
@@ -299,7 +299,7 @@ test('C2 — Concluir is blocked when NO member is present (guard message shows,
   await expect(page.getByText(/HC034/)).toHaveCount(0)
 
   // The meeting did NOT advance.
-  expect(await meetingStatus(page, meetingId)).toBe('realizada')
+  expect(await meetingStatus(page, meetingId)).toBe('held')
 })
 
 // ===========================================================================
@@ -388,7 +388,7 @@ test('C1 — quick-presence check button flips a Convocado attendee to Presente'
     p_meeting_id: meetingId,
     p_user_id: STAFF1_CCIH_ID,
     p_role: 'membro',
-    p_attendance: 'convocado',
+    p_attendance: 'summoned',
   })
   expect(add.status).toBe(200)
   await callRPC(page, chefeToken, 'mark_meeting_held', { p_meeting_id: meetingId })
@@ -420,7 +420,7 @@ test('C1 — quick-presence check button flips a Convocado attendee to Presente'
     page,
     `meeting_attendees?meeting_id=eq.${meetingId}&user_id=eq.${STAFF1_CCIH_ID}&select=attendance,user_id`,
   )
-  expect(rows[0]?.attendance).toBe('presente')
+  expect(rows[0]?.attendance).toBe('present')
   expect(rows[0]?.user_id).toBe(STAFF1_CCIH_ID)
 })
 

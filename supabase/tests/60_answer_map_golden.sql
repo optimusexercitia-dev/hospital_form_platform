@@ -183,9 +183,9 @@ begin
   insert into public.process_templates (id, commission_id, title, created_by) values (v_tmpl, v_comm, 'T', v_user);
   insert into public.process_template_phases (id, template_id, position, title, form_id) values (v_tphase, v_tmpl, 0, 'P', v_form);
   insert into public.cases (id, commission_id, template_id, case_number, label, created_by, status)
-    values (v_case, v_comm, v_tmpl, 1, 'Caso', v_user, 'em_revisao');
+    values (v_case, v_comm, v_tmpl, 1, 'Caso', v_user, 'in_review');
   insert into public.case_phases (id, case_id, position, title, form_id, form_version_id, status)
-    values (v_cphase, v_case, 0, 'P', v_form, v_ver, 'ativa');
+    values (v_cphase, v_case, 0, 'P', v_form, v_ver, 'active');
   insert into public.responses (id, form_version_id, commission_id, created_by, status, case_phase_id)
     values (v_resp, v_ver, v_comm, v_user, 'in_progress', v_cphase);
   insert into public.answers (response_id, item_id, question_key, value) values (v_resp, v_mc, 'mc', null) returning id into a_mc;

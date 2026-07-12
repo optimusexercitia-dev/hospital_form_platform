@@ -263,7 +263,7 @@ reset role;
 -- §4b · P4 — count_open_cases_for_board MUST equal the board's open-row count for a
 --       coordinator (same is_staff_admin_of gate + commission scope + terminal filter),
 --       and be 0 for a non-coordinator. Our 3 seeds (B1/B2/B3) have no phases → status
---       defaults to the open 'nao_iniciado', so all 3 are open.
+--       defaults to the open 'not_started', so all 3 are open.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 
@@ -272,7 +272,7 @@ set local role authenticated;
 select is(
   public.count_open_cases_for_board((select comm_x from k)),
   (select count(*)::int from public.list_cases_board((select comm_x from k), 200)
-   where status not in ('concluido', 'cancelado')),
+   where status not in ('completed', 'cancelled')),
   '4.5 P4: count_open_cases_for_board == the board''s open-row count (visibility parity)');
 
 -- And it counts our 3 open seeds (a concluding case would drop out).

@@ -56,7 +56,7 @@ insert into public.case_phases
   (id, case_id, position, form_id, form_version_id, status, assigned_to, blocks)
 values
   ((select phase_x from cs), (select case_x from cs), 1, (select form_u from k),
-   (select ver_u from k), 'ativa', (select st_x from k), '{}');
+   (select ver_u from k), 'active', (select st_x from k), '{}');
 
 -- A role usable for participant links (org-wide; is_primary_subject_candidate).
 create temp table roles on commit drop as select gen_random_uuid() as role_patient;

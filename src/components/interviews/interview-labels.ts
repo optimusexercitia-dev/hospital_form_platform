@@ -20,29 +20,29 @@ import type {
 // ---------------------------------------------------------------------------
 
 export const INTERVIEW_STATUS_LABEL: Record<InterviewStatus, string> = {
-  rascunho: "Rascunho",
-  agendada: "Agendada",
-  em_andamento: "Em andamento",
-  concluida: "Concluída",
-  cancelada: "Cancelada",
+  draft: "Rascunho",
+  scheduled: "Agendada",
+  in_progress: "Em andamento",
+  completed: "Concluída",
+  cancelled: "Cancelada",
 };
 
 /** Badge styling per lifecycle status (semantic tokens; paired with the label text). */
 export const INTERVIEW_STATUS_STYLE: Record<InterviewStatus, string> = {
-  rascunho: "bg-muted text-muted-foreground",
-  agendada: "bg-secondary text-secondary-foreground",
-  em_andamento: "bg-warning/15 text-warning",
-  concluida: "bg-success/12 text-success dark:bg-success/15",
-  cancelada: "bg-muted text-muted-foreground line-through",
+  draft: "bg-muted text-muted-foreground",
+  scheduled: "bg-secondary text-secondary-foreground",
+  in_progress: "bg-warning/15 text-warning",
+  completed: "bg-success/12 text-success dark:bg-success/15",
+  cancelled: "bg-muted text-muted-foreground line-through",
 };
 
 /** Lifecycle order for the status filter (plus an "all" sentinel handled by the UI). */
 export const INTERVIEW_STATUS_ORDER: InterviewStatus[] = [
-  "rascunho",
-  "agendada",
-  "em_andamento",
-  "concluida",
-  "cancelada",
+  "draft",
+  "scheduled",
+  "in_progress",
+  "completed",
+  "cancelled",
 ];
 
 /**
@@ -52,15 +52,15 @@ export const INTERVIEW_STATUS_ORDER: InterviewStatus[] = [
  */
 export function isEditableInterviewStatus(status: InterviewStatus): boolean {
   return (
-    status === "rascunho" ||
-    status === "agendada" ||
-    status === "em_andamento"
+    status === "draft" ||
+    status === "scheduled" ||
+    status === "in_progress"
   );
 }
 
 /** Whether the interview is in a terminal lifecycle state. Only `cancelada` is terminal. */
 export function isTerminalInterviewStatus(status: InterviewStatus): boolean {
-  return status === "cancelada";
+  return status === "cancelled";
 }
 
 // ---------------------------------------------------------------------------

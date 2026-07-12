@@ -253,7 +253,7 @@ set local role authenticated;
 select public.set_case_outcome((select cid from cse), (select adverse_id from oc));
 select is(
   (public.close_case((select cid from cse))).status,
-  'concluido',
+  'completed',
   'close_case succeeds once all phases are settled AND an offered outcome is chosen'
 );
 reset role;
@@ -322,7 +322,7 @@ select public.skip_phase((select id from public.case_phases
   where case_id = (select cid from cse0) and position = 1));
 select is(
   (public.close_case((select cid from cse0))).status,
-  'concluido',
+  'completed',
   'D15: a case whose process offers NO outcomes concludes with no outcome (no HC028)'
 );
 reset role;

@@ -78,7 +78,7 @@ export default async function InterviewDetailPage({
   // signed transcript can be uploaded AFTER conclusion. So attachment management is
   // available whenever the viewer may write and the interview is not the one
   // terminal state (`cancelada`); `concluida` keeps upload/add-link/soft-delete.
-  const canManageAttachments = canWrite && interview.status !== "cancelada";
+  const canManageAttachments = canWrite && interview.status !== "cancelled";
 
   // The roster backs the subject/interviewer member pickers — load it for ANY
   // writer (a plain-staff interviewer needs it too), but skip the read entirely

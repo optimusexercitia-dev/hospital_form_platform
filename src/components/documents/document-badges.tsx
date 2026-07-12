@@ -17,10 +17,10 @@ import {
 
 /** Tailwind token classes per lifecycle status (background + text + border). */
 const STATUS_CLASSES: Record<DocStatus, string> = {
-  rascunho: "bg-muted text-muted-foreground",
-  em_aprovacao: "bg-warning/15 text-warning",
-  vigente: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200",
-  obsoleto: "bg-muted text-muted-foreground line-through decoration-1",
+  draft: "bg-muted text-muted-foreground",
+  in_approval: "bg-warning/15 text-warning",
+  effective: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200",
+  obsolete: "bg-muted text-muted-foreground line-through decoration-1",
 };
 
 /**

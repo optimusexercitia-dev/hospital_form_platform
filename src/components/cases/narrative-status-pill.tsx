@@ -9,27 +9,27 @@ import { cn } from "@/lib/utils";
  * check. Kept here (pure, no server import) so the "Meus Casos" card, the detail
  * narrative card, and the focused editor share one source of labels + styling.
  */
-export type NarrativeStatus = "aberta" | "concluida";
+export type NarrativeStatus = "open" | "completed";
 
 const STATUS_META: Record<
   NarrativeStatus,
   { label: string; icon: typeof CheckCircle2; className: string }
 > = {
-  aberta: {
+  open: {
     label: "Aberta",
     icon: PenLine,
     className: "bg-warning/15 text-warning",
   },
-  concluida: {
+  completed: {
     label: "Concluída",
     icon: CheckCircle2,
     className: "bg-success/12 text-success dark:bg-success/15",
   },
 };
 
-/** Narrow an arbitrary status string to a {@link NarrativeStatus} (defaults `aberta`). */
+/** Narrow an arbitrary status string to a {@link NarrativeStatus} (defaults `open`). */
 export function asNarrativeStatus(status: string): NarrativeStatus {
-  return status === "concluida" ? "concluida" : "aberta";
+  return status === "completed" ? "completed" : "open";
 }
 
 /**

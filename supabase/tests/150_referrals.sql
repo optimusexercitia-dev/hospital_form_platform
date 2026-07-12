@@ -101,7 +101,7 @@ reset role;
 grant select on r1 to authenticated;
 
 select matches((select code from r1), '^ENC-[0-9]+$', 'draft mints an ENC-#### code');
-select is((select status from r1), 'rascunho', 'new referral starts rascunho');
+select is((select status from r1), 'draft', 'new referral starts draft');
 select is((select response_expected from r1), true, 'response_expected seeded from type');
 
 select test_helpers.claims_for((select sa_x from k), false);
@@ -136,7 +136,7 @@ select is(
 -- and a shared item cannot be added once non-draft (HC073).
 -- =========================================================================
 select throws_ok(
-  $$ update public.case_referral set status = 'enviada' where id = (select id from r1) $$,
+  $$ update public.case_referral set status = 'sent' where id = (select id from r1) $$,
   'HC070', null, 'a direct status change outside an RPC is rejected (HC070)');
 
 -- Send it (source coordinator).
@@ -146,7 +146,7 @@ select public.send_referral((select id from r1));
 reset role;
 select is(
   (select status from public.case_referral where id = (select id from r1)),
-  'enviada', 'send_referral moves rascunho -> enviada');
+  'sent', 'send_referral moves draft -> sent');
 
 -- After send, a direct shared-item insert is blocked by the snapshot-lock (HC073).
 select throws_ok(
@@ -388,7 +388,7 @@ create temp table closed on commit drop as
   select * from public.close_case((select src_case from cs));
 reset role;
 grant select on closed to authenticated;
-select is((select status from closed), 'concluido',
+select is((select status from closed), 'completed',
   'close_case succeeds with only a response_expected=false referral in flight');
 
 select * from finish();

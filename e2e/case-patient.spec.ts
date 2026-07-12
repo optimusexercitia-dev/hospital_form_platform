@@ -886,7 +886,7 @@ test('AC-6a/b/c: dispose_case_phi RPC — happy path, HC056 one-shot, 42501 non-
     data: {
       commission_id: COMM_A,
       label: 'AC-6 disposal test case (case_patient spec)',
-      status: 'pendente',
+      status: 'pending',
       patient_enabled: true,
       created_by: UID_CHEFE_A,
     },

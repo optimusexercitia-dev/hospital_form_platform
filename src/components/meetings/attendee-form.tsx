@@ -83,7 +83,7 @@ export function AttendeeForm({
   const [externalOrg, setExternalOrg] = useState(attendee?.externalOrg ?? "");
   const [role, setRole] = useState<AttendeeRole>(attendee?.role ?? "membro");
   const [attendance, setAttendance] = useState<AttendanceStatus>(
-    attendee?.attendance ?? "convocado",
+    attendee?.attendance ?? "summoned",
   );
   const [note, setNote] = useState(attendee?.note ?? "");
   // Client-side guard for the member picker: the `<select>` is `required`, but the
@@ -104,7 +104,7 @@ export function AttendeeForm({
       setExternalName(attendee?.externalName ?? "");
       setExternalOrg(attendee?.externalOrg ?? "");
       setRole(attendee?.role ?? "membro");
-      setAttendance(attendee?.attendance ?? "convocado");
+      setAttendance(attendee?.attendance ?? "summoned");
       setNote(attendee?.note ?? "");
     }
   }

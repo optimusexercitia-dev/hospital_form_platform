@@ -114,7 +114,7 @@ export default async function DocumentDetailPage({
   // The approver picker (F3 submit) needs the active same-hospital candidates — only
   // when a `rascunho` working draft is present (the point at which submit is offered).
   const candidates =
-    workingStatus === "rascunho"
+    workingStatus === "draft"
       ? await listApproverCandidates(access.commission.id)
       : [];
 
@@ -123,7 +123,7 @@ export default async function DocumentDetailPage({
   // in-force download shown alongside the working-draft affordances).
   const hasPublishedInForce =
     currentVersion != null &&
-    (currentVersion.status === "vigente" || currentVersion.status === "obsoleto");
+    (currentVersion.status === "effective" || currentVersion.status === "obsolete");
   const currentInForceDownloadUrl =
     versionsWithUrls.find((v) => v.id === currentVersion?.id)?.downloadUrl ?? null;
 
@@ -175,7 +175,7 @@ export default async function DocumentDetailPage({
           </div>
           {/* Header edit is allowed only while the working draft is `rascunho`
               (#D: `updateControlledDocument`; the editar page enforces + posts). */}
-          {workingStatus === "rascunho" ? (
+          {workingStatus === "draft" ? (
             <Button asChild variant="outline" size="lg">
               <Link href={editHref}>
                 <Pencil aria-hidden="true" className="size-4" />
@@ -214,7 +214,7 @@ export default async function DocumentDetailPage({
             </div>
           ) : null}
 
-          {workingStatus === "rascunho" ? (
+          {workingStatus === "draft" ? (
             <>
               <AddVersionForm
                 action={addDocumentVersion}
@@ -260,7 +260,7 @@ export default async function DocumentDetailPage({
             </>
           )}
         </div>
-      ) : currentStatus === "vigente" ? (
+      ) : currentStatus === "effective" ? (
         <div className="flex flex-col gap-6">
           <SupersedeDocumentButton
             documentId={document.id}

@@ -2094,6 +2094,39 @@ export type Database = {
           },
         ]
       }
+      case_phase_allowed_results: {
+        Row: {
+          case_phase_id: string
+          position: number
+          result_id: string
+        }
+        Insert: {
+          case_phase_id: string
+          position: number
+          result_id: string
+        }
+        Update: {
+          case_phase_id?: string
+          position?: number
+          result_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_phase_allowed_results_case_phase_id_fkey"
+            columns: ["case_phase_id"]
+            isOneToOne: false
+            referencedRelation: "case_phases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_phase_allowed_results_result_id_fkey"
+            columns: ["result_id"]
+            isOneToOne: false
+            referencedRelation: "phase_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_phase_offered_results: {
         Row: {
           case_id: string
@@ -2127,7 +2160,6 @@ export type Database = {
       case_phases: {
         Row: {
           activated_at: string | null
-          allowed_result_ids: Json | null
           assigned_to: string | null
           blocks: number[]
           case_id: string
@@ -2159,7 +2191,6 @@ export type Database = {
         }
         Insert: {
           activated_at?: string | null
-          allowed_result_ids?: Json | null
           assigned_to?: string | null
           blocks?: number[]
           case_id: string
@@ -2191,7 +2222,6 @@ export type Database = {
         }
         Update: {
           activated_at?: string | null
-          allowed_result_ids?: Json | null
           assigned_to?: string | null
           blocks?: number[]
           case_id?: string
@@ -2599,6 +2629,7 @@ export type Database = {
           phi_disposed_reason: string | null
           status: string
           template_id: string | null
+          updated_at: string
         }
         Insert: {
           case_number: number
@@ -2620,6 +2651,7 @@ export type Database = {
           phi_disposed_reason?: string | null
           status?: string
           template_id?: string | null
+          updated_at?: string
         }
         Update: {
           case_number?: number
@@ -2641,6 +2673,7 @@ export type Database = {
           phi_disposed_reason?: string | null
           status?: string
           template_id?: string | null
+          updated_at?: string
         }
         Relationships: [
           {
@@ -2932,6 +2965,7 @@ export type Database = {
           name: string
           organization_id: string
           slug: string
+          updated_at: string
         }
         Insert: {
           created_at?: string
@@ -2941,6 +2975,7 @@ export type Database = {
           name: string
           organization_id: string
           slug: string
+          updated_at?: string
         }
         Update: {
           created_at?: string
@@ -2950,6 +2985,7 @@ export type Database = {
           name?: string
           organization_id?: string
           slug?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -3771,6 +3807,7 @@ export type Database = {
           description: string | null
           id: string
           title: string
+          updated_at: string
         }
         Insert: {
           commission_id: string
@@ -3779,6 +3816,7 @@ export type Database = {
           description?: string | null
           id?: string
           title: string
+          updated_at?: string
         }
         Update: {
           commission_id?: string
@@ -3787,6 +3825,7 @@ export type Database = {
           description?: string | null
           id?: string
           title?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -5055,9 +5094,71 @@ export type Database = {
           },
         ]
       }
+      process_template_phase_allowed_results: {
+        Row: {
+          position: number
+          result_id: string
+          template_phase_id: string
+        }
+        Insert: {
+          position: number
+          result_id: string
+          template_phase_id: string
+        }
+        Update: {
+          position?: number
+          result_id?: string
+          template_phase_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_template_phase_allowed_results_result_id_fkey"
+            columns: ["result_id"]
+            isOneToOne: false
+            referencedRelation: "phase_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_template_phase_allowed_results_template_phase_id_fkey"
+            columns: ["template_phase_id"]
+            isOneToOne: false
+            referencedRelation: "process_template_phases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_template_phase_offered_results: {
+        Row: {
+          result_id: string
+          template_phase_id: string
+        }
+        Insert: {
+          result_id: string
+          template_phase_id: string
+        }
+        Update: {
+          result_id?: string
+          template_phase_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_template_phase_offered_results_result_id_fkey"
+            columns: ["result_id"]
+            isOneToOne: false
+            referencedRelation: "phase_results"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_template_phase_offered_results_template_phase_id_fkey"
+            columns: ["template_phase_id"]
+            isOneToOne: false
+            referencedRelation: "process_template_phases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       process_template_phases: {
         Row: {
-          allowed_result_ids: Json | null
           blocks: number[]
           created_at: string
           default_due_days: number | null
@@ -5072,7 +5173,6 @@ export type Database = {
           title: string | null
         }
         Insert: {
-          allowed_result_ids?: Json | null
           blocks?: number[]
           created_at?: string
           default_due_days?: number | null
@@ -5087,7 +5187,6 @@ export type Database = {
           title?: string | null
         }
         Update: {
-          allowed_result_ids?: Json | null
           blocks?: number[]
           created_at?: string
           default_due_days?: number | null
@@ -6365,7 +6464,6 @@ export type Database = {
         }
         Returns: {
           activated_at: string | null
-          allowed_result_ids: Json | null
           assigned_to: string | null
           blocks: number[]
           case_id: string
@@ -6448,7 +6546,6 @@ export type Database = {
         }
         Returns: {
           activated_at: string | null
-          allowed_result_ids: Json | null
           assigned_to: string | null
           blocks: number[]
           case_id: string
@@ -6897,7 +6994,6 @@ export type Database = {
           p_title?: string
         }
         Returns: {
-          allowed_result_ids: Json | null
           blocks: number[]
           created_at: string
           default_due_days: number | null
@@ -7270,6 +7366,7 @@ export type Database = {
           phi_disposed_reason: string | null
           status: string
           template_id: string | null
+          updated_at: string
         }
         SetofOptions: {
           from: "*"
@@ -7474,6 +7571,7 @@ export type Database = {
           phi_disposed_reason: string | null
           status: string
           template_id: string | null
+          updated_at: string
         }
         SetofOptions: {
           from: "*"
@@ -7837,6 +7935,7 @@ export type Database = {
           phi_disposed_reason: string | null
           status: string
           template_id: string | null
+          updated_at: string
         }
         SetofOptions: {
           from: "*"
@@ -7872,6 +7971,7 @@ export type Database = {
           phi_disposed_reason: string | null
           status: string
           template_id: string | null
+          updated_at: string
         }
         SetofOptions: {
           from: "*"
@@ -8672,18 +8772,18 @@ export type Database = {
         Returns: {
           commission_id: string
           commission_name: string
-          fora_da_meta: number
-          na_meta: number
-          sem_dados: number
+          no_data: number
+          off_target: number
+          on_target: number
           total: number
         }[]
       }
       indicator_kpis: {
         Args: { p_commission: string }
         Returns: {
-          fora_da_meta: number
-          na_meta: number
-          sem_dados: number
+          no_data: number
+          off_target: number
+          on_target: number
           total: number
         }[]
       }
@@ -9153,7 +9253,6 @@ export type Database = {
         }
         Returns: {
           activated_at: string | null
-          allowed_result_ids: Json | null
           assigned_to: string | null
           blocks: number[]
           case_id: string
@@ -9913,6 +10012,7 @@ export type Database = {
           phi_disposed_reason: string | null
           status: string
           template_id: string | null
+          updated_at: string
         }
         SetofOptions: {
           from: "*"
@@ -10203,7 +10303,6 @@ export type Database = {
       set_template_phase_blocks: {
         Args: { p_blocks: number[]; p_phase_id: string }
         Returns: {
-          allowed_result_ids: Json | null
           blocks: number[]
           created_at: string
           default_due_days: number | null
@@ -10270,7 +10369,6 @@ export type Database = {
         Args: { p_case_phase_id: string }
         Returns: {
           activated_at: string | null
-          allowed_result_ids: Json | null
           assigned_to: string | null
           blocks: number[]
           case_id: string
@@ -10699,6 +10797,7 @@ export type Database = {
           phi_disposed_reason: string | null
           status: string
           template_id: string | null
+          updated_at: string
         }
         SetofOptions: {
           from: "*"
@@ -11512,7 +11611,6 @@ export type Database = {
           p_title?: string
         }
         Returns: {
-          allowed_result_ids: Json | null
           blocks: number[]
           created_at: string
           default_due_days: number | null

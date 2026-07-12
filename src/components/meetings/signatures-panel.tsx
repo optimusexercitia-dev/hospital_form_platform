@@ -40,7 +40,7 @@ export function SignaturesPanel({
 }) {
   // The signing roster = present PLATFORM attendees (have a userId).
   const roster: RosterEntry[] = attendees
-    .filter((a) => a.userId != null && a.attendance === "presente")
+    .filter((a) => a.userId != null && a.attendance === "present")
     .map((a) => ({
       attendee: a,
       signature:
@@ -54,13 +54,13 @@ export function SignaturesPanel({
   const signedCount = roster.filter(
     (e) => e.signature?.status === "signed",
   ).length;
-  const isSigning = meeting.status === "em_assinatura";
+  const isSigning = meeting.status === "in_signature";
 
   // Only meetings that reached the signature stage show this panel meaningfully.
   const reachedSignatureStage =
-    meeting.status === "em_assinatura" ||
-    meeting.status === "assinada" ||
-    meeting.status === "distribuida";
+    meeting.status === "in_signature" ||
+    meeting.status === "signed" ||
+    meeting.status === "distributed";
 
   return (
     <section

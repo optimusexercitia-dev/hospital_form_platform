@@ -61,7 +61,7 @@ export interface ProcessTemplatePhase {
   /**
    * The 1-based positions of EARLIER slots that BLOCK this one (D1/D4): a case's
    * materialized phase cannot be activated until every listed earlier phase is
-   * `concluida` or `nao_necessaria`. Validated earlier-only on save and remapped
+   * `completed` or `not_required`. Validated earlier-only on save and remapped
    * on reorder/remove (mirrors `recommend_when`'s renumber machinery);
    * snapshot-copied verbatim into `case_phases` at case creation. `[]` = no
    * blockers.
@@ -157,7 +157,11 @@ interface TemplatePhaseRow {
   display_position: number | null
   result_ruleset: ResultRuleset | null
   emits_result: boolean
-  allowed_result_ids: string[] | null
+  // D3 (F-cleanup): the allowed subset is normalized into
+  // process_template_phase_allowed_results; re-aggregated to allowedResultIds below.
+  process_template_phase_allowed_results:
+    | { result_id: string; position: number }[]
+    | null
   forms: { title: string | null } | null
 }
 
@@ -197,7 +201,8 @@ const TEMPLATE_SELECT = `
   id, commission_id, title, description, status, created_at, collects_patient,
   process_template_phases (
     id, template_id, position, form_id, title, recommend_when, default_due_days,
-    blocks, display_position, result_ruleset, emits_result, allowed_result_ids,
+    blocks, display_position, result_ruleset, emits_result,
+    process_template_phase_allowed_results ( result_id, position ),
     forms ( title )
   ),
   process_template_narratives (
@@ -222,7 +227,17 @@ function mapPhase(p: TemplatePhaseRow): ProcessTemplatePhase {
     displayPosition: p.display_position ?? null,
     resultRuleset: p.result_ruleset ?? null,
     emitsResult: p.emits_result ?? false,
-    allowedResultIds: p.allowed_result_ids ?? null,
+    // D3 (F-cleanup): re-aggregate the allowed junction back to the byte-identical
+    // domain shape (ordered string[] | null; empty ⇒ null, matching the pre-D3
+    // "null = no allowed set" contract so no ProcessTemplatePhase consumer changes).
+    allowedResultIds: (() => {
+      const rows = p.process_template_phase_allowed_results ?? []
+      if (rows.length === 0) return null
+      return rows
+        .slice()
+        .sort((a, b) => a.position - b.position)
+        .map((r) => r.result_id)
+    })(),
   }
 }
 

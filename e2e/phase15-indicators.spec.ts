@@ -678,14 +678,14 @@ test('AC-8c: hospital_admin sees its rollup; a foreign hospital_admin sees nothi
   const rollup = (await rollupResp.json()) as Array<{
     commission_name: string
     total: number
-    fora_da_meta: number
+    off_target: number
   }>
   const ccih = rollup.find((r) => /infecção|ccih/i.test(r.commission_name))
   expect(ccih, 'central-a rollup includes CCIH').toBeTruthy()
   expect(ccih!.total).toBeGreaterThanOrEqual(4) // 4 seeded active indicators
   // The seeded latest-measurement classification: 3 fora (IND-0001 latest is na,
   // but IND-0002 fora; the rollup counts by latest per indicator) — assert ≥1 fora.
-  expect(ccih!.fora_da_meta).toBeGreaterThanOrEqual(1)
+  expect(ccih!.off_target).toBeGreaterThanOrEqual(1)
 
   // Foreign hospital_admin (org-b's org_admin has NO hospital_admin grant on central-a).
   const foreignTok = await getOwnerToken(page, 'orgadmin.b@test.local')

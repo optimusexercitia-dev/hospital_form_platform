@@ -193,7 +193,7 @@ test('AC-1: coordinator adds an ad-hoc narrative with an EXISTING type → botto
   const adHoc = narratives.find((n) => n.is_ad_hoc)!
   expect(adHoc.type_label).toBe(uniqueTitle)
   expect(adHoc.is_expected).toBe(false)
-  expect(adHoc.status).toBe('aberta')
+  expect(adHoc.status).toBe('open')
 
   // Bottom of the merged interleave: its display_position is the max over phases+narratives.
   const phases = await getCasePhases(request, caseId)
@@ -348,7 +348,7 @@ test('AC-3: concluded case — "Adicionar narrativa" absent; direct RPC rejected
     request,
     `cases?id=eq.${CONCLUDED_CASE_ID}&select=status`,
   )
-  expect(caseRow?.status).toBe('concluido')
+  expect(caseRow?.status).toBe('completed')
 
   await page.goto(`${BASE}/manage/cases/${CONCLUDED_CASE_ID}`)
   await page.waitForURL(`**/cases/${CONCLUDED_CASE_ID}**`, { timeout: 15_000 })

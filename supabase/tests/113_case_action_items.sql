@@ -98,7 +98,7 @@ insert into public.case_phases
   (id, case_id, position, form_id, form_version_id, status, assigned_to, blocks)
 values
   ((select phase_x from cs), (select case_x from cs), 1, (select form_u from k),
-   (select ver_u from k), 'ativa', (select st_x from k), '{}');
+   (select ver_u from k), 'active', (select st_x from k), '{}');
 
 insert into public.case_access (case_id, user_id, level, granted_by)
 values

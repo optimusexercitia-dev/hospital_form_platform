@@ -8,7 +8,7 @@
 --
 -- Asserts:
 --   * status-machine guard: out-of-RPC status write + illegal transition → HC089;
---   * frozen-approver-set guard: approver INSERT while em_aprovacao → HC093;
+--   * frozen-approver-set guard: approver INSERT while in_approval → HC093;
 --   * all-must-approve publish gate (HC090); duplicate approver (HC092);
 --     foreign/inactive approver (HC091);
 --   * approver read arm is VERSION-scoped (an approver on doc A gains NO read of an
@@ -21,7 +21,7 @@
 --   * form_versions publish-metadata settable ONLY via publish_form_version (a direct
 --     UPDATE on a published row raises the immutability error);
 --   * reject cleanup (MINOR-1): a reject deletes the still-PENDING sibling approvals
---     (so they no longer grant read of the now-private rascunho) while KEEPING the
+--     (so they no longer grant read of the now-private draft) while KEEPING the
 --     rejeitado row + note; a formerly-pending approver's read is then denied; resubmit works.
 --
 -- Definer/RPC calls read auth.uid() via request.jwt.claims; assertions reset to
@@ -102,7 +102,7 @@ grant select on d to authenticated;
 set local role authenticated;
 select test_helpers.claims_for((select sa_x from k));
 
--- create_controlled_document → header + rascunho v1.
+-- create_controlled_document → header + draft v1.
 create temp table doc_a on commit drop as
   select * from public.create_controlled_document((select comm_x from k), 'Política A', 'politica', 12);
 grant select on doc_a to authenticated;
@@ -129,38 +129,38 @@ grant select on va to authenticated;
 -- 1a — a direct out-of-RPC status write (as superuser: bypasses RLS but NOT the
 -- BEFORE trigger) is rejected HC089.
 select throws_ok(
-  format($$ update public.controlled_document_versions set status = 'em_aprovacao' where id = %L $$,
+  format($$ update public.controlled_document_versions set status = 'in_approval' where id = %L $$,
     (select ver1 from va)),
   'HC089', null,
   'out-of-RPC status change on a version is rejected (HC089)');
 
--- 1b — an illegal transition even under the RPC flag (rascunho → vigente) is HC089.
+-- 1b — an illegal transition even under the RPC flag (draft → effective) is HC089.
 select throws_ok(
   format($$
     do $inner$ begin
       perform set_config('app.in_controlled_docs_rpc', 'on', true);
-      update public.controlled_document_versions set status = 'vigente' where id = %L;
+      update public.controlled_document_versions set status = 'effective' where id = %L;
       perform set_config('app.in_controlled_docs_rpc', 'off', true);
     end $inner$; $$,
     (select ver1 from va)),
   'HC089', null,
-  'illegal transition rascunho → vigente is rejected even inside an RPC (HC089)');
+  'illegal transition draft → effective is rejected even inside an RPC (HC089)');
 
--- 1c — a legal transition under the RPC flag succeeds (rascunho → em_aprovacao).
+-- 1c — a legal transition under the RPC flag succeeds (draft → in_approval).
 select lives_ok(
   format($$
     do $inner$ begin
       perform set_config('app.in_controlled_docs_rpc', 'on', true);
-      update public.controlled_document_versions set status = 'em_aprovacao' where id = %L;
+      update public.controlled_document_versions set status = 'in_approval' where id = %L;
       perform set_config('app.in_controlled_docs_rpc', 'off', true);
     end $inner$; $$,
     (select ver1 from va)),
-  'legal transition rascunho → em_aprovacao succeeds under the RPC flag');
+  'legal transition draft → in_approval succeeds under the RPC flag');
 
--- Return the version to rascunho for the real submit flow below (legal edge).
+-- Return the version to draft for the real submit flow below (legal edge).
 do $$ begin
   perform set_config('app.in_controlled_docs_rpc', 'on', true);
-  update public.controlled_document_versions set status = 'rascunho'
+  update public.controlled_document_versions set status = 'draft'
     where id = (select ver1 from va);
   perform set_config('app.in_controlled_docs_rpc', 'off', true);
 end $$;
@@ -199,7 +199,7 @@ select throws_ok(
   'a duplicate approver in the set is rejected (HC092)');
 
 -- 2d — a valid submit with TWO approvers: st_x (in-commission) + sa_y (same-hospital,
--- OUTSIDE commission X). Both are entitled. Succeeds → em_aprovacao.
+-- OUTSIDE commission X). Both are entitled. Succeeds → in_approval.
 select lives_ok(
   format($$ select public.submit_document_for_approval(%L,
              jsonb_build_array(
@@ -212,7 +212,7 @@ reset role;
 
 select is(
   (select status from public.controlled_document_versions where id = (select ver1 from va)),
-  'em_aprovacao', 'the version is em_aprovacao after submit');
+  'in_approval', 'the version is in_approval after submit');
 
 select is(
   (select count(*)::int from public.document_approvals where document_version_id = (select ver1 from va)),
@@ -222,21 +222,21 @@ select is(
 -- 3 · FROZEN-APPROVER-SET GUARD (HC093)
 -- ===========================================================================
 
--- A direct approver INSERT while the version is em_aprovacao (roster change) → HC093.
+-- A direct approver INSERT while the version is in_approval (roster change) → HC093.
 select throws_ok(
   format($$ insert into public.document_approvals (document_version_id, approver_id)
             values (%L, %L) $$,
     (select ver1 from va), (select st_x2 from k)),
   'HC093', null,
-  'inserting an approver while em_aprovacao is rejected (frozen set, HC093)');
+  'inserting an approver while in_approval is rejected (frozen set, HC093)');
 
--- A direct approver DELETE while em_aprovacao (roster change) → HC093.
+-- A direct approver DELETE while in_approval (roster change) → HC093.
 select throws_ok(
   format($$ delete from public.document_approvals
             where document_version_id = %L and approver_id = %L $$,
     (select ver1 from va), (select st_x from k)),
   'HC093', null,
-  'deleting an approver while em_aprovacao is rejected (frozen set, HC093)');
+  'deleting an approver while in_approval is rejected (frozen set, HC093)');
 
 -- Changing an existing row's approver_id → HC093.
 select throws_ok(
@@ -340,7 +340,7 @@ set local role authenticated;
 select test_helpers.claims_for((select sa_x from k));
 select lives_ok(
   format($$ select public.publish_document(%L, date '2024-01-10', null, null) $$, (select ver1 from va)),
-  'publish with all approvals succeeds → vigente');
+  'publish with all approvals succeeds → effective');
 reset role;
 
 select is(
@@ -350,7 +350,7 @@ select is(
 
 select is(
   (select status from public.controlled_document_versions where id = (select ver1 from va)),
-  'vigente', 'the version is vigente after publish');
+  'effective', 'the version is effective after publish');
 
 -- 6b — supersede DOC A, publish the new version with an OVERRIDE review-due that
 -- differs from the cycle math → the override wins.
@@ -383,10 +383,10 @@ select is(
   date '2030-12-31',
   'an explicit review_due override WINS over the cycle math');
 
--- The prior version was retired but retained (still present, obsoleto).
+-- The prior version was retired but retained (still present, obsolete).
 select is(
   (select status from public.controlled_document_versions where id = (select ver1 from va)),
-  'obsoleto', 'the prior vigente version is retired → obsoleto (retained, not deleted)');
+  'obsolete', 'the prior effective version is retired → obsolete (retained, not deleted)');
 
 -- ===========================================================================
 -- 7 · IMMUTABLE STORAGE BUCKET (no update/delete policy)
@@ -551,11 +551,11 @@ select is(
   '', 'a no-metadata publish leaves all four form-version metadata columns NULL (backward-compatible)');
 
 -- ===========================================================================
--- 11 · documents_due_for_review — the past-due arm surfaces the vigente doc
+-- 11 · documents_due_for_review — the past-due arm surfaces the effective doc
 -- ===========================================================================
 
 -- DOC A's current version (v2) has review_due 2030-12-31 (future) — not overdue.
--- Create a fresh vigente doc with a PAST review-due and confirm is_overdue = true.
+-- Create a fresh effective doc with a PAST review-due and confirm is_overdue = true.
 set local role authenticated;
 select test_helpers.claims_for((select sa_x from k));
 create temp table doc_p on commit drop as
@@ -583,13 +583,13 @@ select test_helpers.claims_for((select sa_x from k));
 select is(
   (select is_overdue from public.documents_due_for_review((select comm_x from k))
    where document_id = (select id from doc_p)),
-  true, 'a past-due vigente document surfaces as overdue in documents_due_for_review');
+  true, 'a past-due effective document surfaces as overdue in documents_due_for_review');
 reset role;
 
 -- ===========================================================================
 -- 10 · REJECT CLEANS UP SIBLING PENDING GRANTS (MINOR-1)
---   A reject moves em_aprovacao → rascunho; the still-PENDING sibling approvals must
---   be deleted so they no longer grant read of the now-private rascunho via the
+--   A reject moves in_approval → draft; the still-PENDING sibling approvals must
+--   be deleted so they no longer grant read of the now-private draft via the
 --   approver-read arm. The rejeitado row (with its note) is KEPT.
 -- ===========================================================================
 
@@ -614,7 +614,7 @@ set local role authenticated;
 select test_helpers.claims_for((select sa_y from k));
 select is(
   (select count(*)::int from public.controlled_documents where id = (select id from doc_r)),
-  1, 'MINOR-1 pre: a pending outside-commission approver can read the em_aprovacao doc');
+  1, 'MINOR-1 pre: a pending outside-commission approver can read the in_approval doc');
 reset role;
 
 -- st_x REJECTS with a note (sa_y stays pending).
@@ -636,15 +636,15 @@ select is(
      and decision = 'rejeitado' and note = 'Faltou seção de EPI'),
   1, 'MINOR-1 (b): the rejeitado decision row (with its note) is kept after a reject');
 
--- (c) the formerly-pending outside approver sa_y can NO LONGER read the private rascunho.
+-- (c) the formerly-pending outside approver sa_y can NO LONGER read the private draft.
 set local role authenticated;
 select test_helpers.claims_for((select sa_y from k));
 select is(
   (select count(*)::int from public.controlled_documents where id = (select id from doc_r)),
-  0, 'MINOR-1 (c): a formerly-pending approver is DENIED read of the rejected rascunho');
+  0, 'MINOR-1 (c): a formerly-pending approver is DENIED read of the rejected draft');
 reset role;
 
--- (d) resubmit still works (delete-then-insert a fresh roster) → em_aprovacao.
+-- (d) resubmit still works (delete-then-insert a fresh roster) → in_approval.
 set local role authenticated;
 select test_helpers.claims_for((select sa_x from k));
 select public.submit_document_for_approval(
@@ -653,7 +653,7 @@ select public.submit_document_for_approval(
 select is(
   (select status from public.controlled_document_versions
    where id = (select current_version_id from doc_r)),
-  'em_aprovacao', 'MINOR-1 (d): resubmit after a reject works (fresh roster) → em_aprovacao');
+  'in_approval', 'MINOR-1 (d): resubmit after a reject works (fresh roster) → in_approval');
 reset role;
 
 select * from finish();

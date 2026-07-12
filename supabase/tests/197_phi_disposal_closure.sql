@@ -66,7 +66,7 @@ insert into public.phase_results (id, commission_id, label, position)
   values ((select result_x from cs), (select comm_x from k), 'Concluído', 1);
 insert into public.case_phases (id, case_id, position, form_id, form_version_id, status, result_id, result_computed_at)
   values ((select phase_x from cs), (select case_x from cs), 1, (select form_u from k),
-          (select ver_u from k), 'concluida', (select result_x from cs), now());
+          (select ver_u from k), 'completed', (select result_x from cs), now());
 
 -- Case-phase answers (patient-authored PHI) on a submitted response for that phase.
 insert into public.responses (id, form_version_id, commission_id, created_by, status, submitted_at, case_phase_id)
@@ -79,11 +79,11 @@ select set_config('app.in_submit_rpc','off',true);
 
 -- Narrative + events (body + title) + interview (+subject) + document + a linked meeting.
 insert into public.case_narratives (id, case_id, type_label, display_position, status, body_md, created_by)
-  values ((select narr_x from cs), (select case_x from cs), 'Resumo', 2, 'aberta', 'CORPO-NARRATIVA-PHI', (select sa_x from k));
+  values ((select narr_x from cs), (select case_x from cs), 'Resumo', 2, 'open', 'CORPO-NARRATIVA-PHI', (select sa_x from k));
 insert into public.case_events (id, case_id, kind, title, body, created_by)
   values ((select event_x from cs), (select case_x from cs), 'note', 'TITULO-EVENTO-PHI', 'CORPO-EVENTO-PHI', (select sa_x from k));
 insert into public.case_interviews (id, case_id, commission_id, interview_number, summary_md, created_by, status)
-  values ((select intv_x from cs), (select case_x from cs), (select comm_x from k), 1, 'RESUMO-ENTREVISTA-PHI', (select sa_x from k), 'agendada');
+  values ((select intv_x from cs), (select case_x from cs), (select comm_x from k), 1, 'RESUMO-ENTREVISTA-PHI', (select sa_x from k), 'scheduled');
 insert into public.case_interview_subjects (id, interview_id, external_name, note)
   values ((select subj_x from cs), (select intv_x from cs), 'Entrevistado Externo', 'NOTA-SUJEITO-PHI');
 -- F2 (ADR 0063): case documents are attachments (owner_type='case'); dispose_case_phi
@@ -93,7 +93,7 @@ insert into public.attachments
   values ((select doc_x from cs), 'case', (select case_x from cs), 'other', 'TITULO-DOC-PHI', 'DESC-DOC-PHI',
           'attachments-phi', 'case/' || (select case_x from cs)::text || '/y.pdf', 'phi', (select sa_x from k));
 insert into public.meetings (id, commission_id, meeting_number, title, status, scheduled_start, created_by)
-  values ((select mtg_x from cs), (select comm_x from k), 9701, 'Reunião', 'agendada', now(), (select sa_x from k));
+  values ((select mtg_x from cs), (select comm_x from k), 9701, 'Reunião', 'scheduled', now(), (select sa_x from k));
 insert into public.meeting_cases (meeting_id, case_id, summary, decision)
   values ((select mtg_x from cs), (select case_x from cs), 'RESUMO-REUNIAO-CASO-PHI', 'DECISAO-PHI');
 
@@ -157,7 +157,7 @@ insert into public.cases (id, commission_id, case_number, created_by) values
   ((select case_a from mt), (select comm_x from k), 9711, (select sa_x from k)),
   ((select case_b from mt), (select comm_x from k), 9712, (select sa_x from k));
 insert into public.meetings (id, commission_id, meeting_number, title, status, scheduled_start, minutes_md, created_by)
-  values ((select mtg from mt), (select comm_x from k), 9713, 'Reunião 2 casos', 'realizada',
+  values ((select mtg from mt), (select comm_x from k), 9713, 'Reunião 2 casos', 'held',
           now(), 'ATA-COM-DOIS-CASOS', (select sa_x from k));
 insert into public.meeting_agenda_items (id, meeting_id, position, title, description, discussion_notes, resolution)
   values ((select agenda from mt), (select mtg from mt), 1, 'Item', 'DESC-PHI', 'DISCUSSAO-PHI', 'RESOLUCAO-PHI');
@@ -239,7 +239,7 @@ insert into public.cases (id, commission_id, case_number, created_by)
   values ((select src_case from rf), (select comm_x from k), 9721, (select sa_x from k));
 insert into public.case_referral
   (id, code, source_case_id, source_commission_id, target_commission_id, status, subject, type_label, decline_note, created_by)
-  values ((select ref from rf), 'ENC-D64', (select src_case from rf), (select comm_x from k), (select comm_t from rf), 'recusada',
+  values ((select ref from rf), 'ENC-D64', (select src_case from rf), (select comm_x from k), (select comm_t from rf), 'rejected',
           'ASSUNTO', 'Tipo', 'MOTIVO-RECUSA-PHI', (select sa_x from k));
 -- The shared-content freeze guard blocks edits on a sent referral; set the referral
 -- RPC bypass GUC (mirrors the referral write paths) to seed the frozen document item.

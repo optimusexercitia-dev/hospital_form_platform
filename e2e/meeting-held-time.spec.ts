@@ -177,7 +177,7 @@ async function createAgendadaMeeting(
       const upd = await callRPC(page, token, 'update_meeting_attendee', {
         p_attendee_id: existing[0].id,
         p_role: 'presidente',
-        p_attendance: 'presente',
+        p_attendance: 'present',
       })
       expect(upd.status).toBe(200)
     } else {
@@ -185,7 +185,7 @@ async function createAgendadaMeeting(
         p_meeting_id: meetingId,
         p_user_id: CHEFE_CCIH_ID,
         p_role: 'presidente',
-        p_attendance: 'presente',
+        p_attendance: 'present',
       })
       expect(add.status).toBe(200)
     }
@@ -295,7 +295,7 @@ test('T1.1 — Marcar como realizada with a changed held date: header shows "Rea
 
   // --- DB truth: held_at persisted, is NOT null, and the schedule is untouched ---
   const row = await getMeetingHeld(page, meetingId)
-  expect(row?.status).toBe('realizada')
+  expect(row?.status).toBe('held')
   expect(row?.held_at).not.toBeNull()
   // Schedule was never overwritten (ADR 0062 decision 1).
   expect(new Date(row!.scheduled_start).getTime()).toBe(scheduledStart.getTime())
@@ -372,7 +372,7 @@ test('T1.2 — inline header edit of held window (while realizada) persists the 
 
   // --- DB truth: the new held_at persisted and differs from the initial one ---
   const row = await getMeetingHeld(page, meetingId)
-  expect(row?.status).toBe('realizada')
+  expect(row?.status).toBe('held')
   expect(row?.held_at).not.toBeNull()
   const persisted = new Date(row!.held_at as string)
   expect(persisted.getMinutes()).toBe(45)
@@ -427,7 +427,7 @@ test('T1.3 — future held_at is rejected: UI shows a readable pt-BR message, no
 
   // DB truth: the meeting did NOT flip to realizada and held_at stayed null.
   const row = await getMeetingHeld(page, meetingId)
-  expect(row?.status).toBe('agendada')
+  expect(row?.status).toBe('scheduled')
   expect(row?.held_at).toBeNull()
 })
 
@@ -458,7 +458,7 @@ test('T1.4 — after Concluir (em_assinatura), the held window is READ-ONLY with
     p_held_at: heldAt.toISOString(),
   })
   expect(concludeResp.status).toBe(200)
-  expect((concludeResp.body as { status: string }).status).toBe('em_assinatura')
+  expect((concludeResp.body as { status: string }).status).toBe('in_signature')
 
   await signInAs(page, 'chefe.ccih@test.local')
   await goToMeeting(page, meetingId, /held-time T1\.4/i)
@@ -485,7 +485,7 @@ test('T1.4 — after Concluir (em_assinatura), the held window is READ-ONLY with
 
   // And held_at is unchanged by the rejected edit.
   const row = await getMeetingHeld(page, meetingId)
-  expect(row?.status).toBe('em_assinatura')
+  expect(row?.status).toBe('in_signature')
   expect(new Date(row!.held_at as string).getTime()).toBe(heldAt.getTime())
 })
 
@@ -565,7 +565,7 @@ test('T1.5 — keyboard-only: open the transition dialog, operate the held date 
 
   // DB truth: realizada + held_at recorded with the keyboard-typed 08:30 minute.
   const row = await getMeetingHeld(page, meetingId)
-  expect(row?.status).toBe('realizada')
+  expect(row?.status).toBe('held')
   expect(row?.held_at).not.toBeNull()
   expect(new Date(row!.held_at as string).getMinutes()).toBe(30)
 })

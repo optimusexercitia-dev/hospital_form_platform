@@ -43,7 +43,7 @@ export default async function EditDocumentPage({
   // reached by URL) rather than rendering the editor and letting the action fail
   // with a generic error. Mirrors the other coordinator routes' state gating.
   const workingDraft = selectWorkingDraft(detail.versions);
-  if (!workingDraft || workingDraft.status !== "rascunho") {
+  if (!workingDraft || workingDraft.status !== "draft") {
     notFound();
   }
 

@@ -80,7 +80,7 @@ export function MeasurementGrid({
         <h2 id="measurements-heading" className="text-lg font-semibold">
           Medições
         </h2>
-        {indicator.status === "ativo" ? (
+        {indicator.status === "active" ? (
           isManual ? (
             <RecordMeasurementDialog
               indicator={indicator}
@@ -127,7 +127,7 @@ export function MeasurementGrid({
                 <th scope="col" className="py-2 pr-3 font-medium">
                   Situação
                 </th>
-                {indicator.status === "ativo" ? (
+                {indicator.status === "active" ? (
                   <th scope="col" className="py-2 font-medium">
                     <span className="sr-only">Ações</span>
                   </th>
@@ -166,7 +166,7 @@ export function MeasurementGrid({
                   <td className="py-2 pr-3">
                     <MeasurementStatusChip status={m.status} />
                   </td>
-                  {indicator.status === "ativo" ? (
+                  {indicator.status === "active" ? (
                     <td className="py-2 text-right">
                       {isManual ? (
                         <RecordMeasurementDialog

@@ -574,7 +574,7 @@ test('AC-1e: change a case status → exactly one case.status_changed row (actor
     SUPABASE_SERVICE_KEY,
   )
   expect(phases.length).toBe(1)
-  expect(phases[0].status).toBe('pendente')
+  expect(phases[0].status).toBe('pending')
 
   const before = await auditRowsFor(request, 'case.status_changed', probeAdmin.userId)
 
@@ -638,7 +638,7 @@ test('AC-1f: sign a meeting → exactly one meeting.signed row (actor=chefe.ccih
       meeting_id: freshMeetingId,
       user_id: CHEFE_CCIH_ID,
       role: 'presidente',
-      attendance: 'presente',
+      attendance: 'present',
     },
   })
   expect(attResp.status()).toBe(201)

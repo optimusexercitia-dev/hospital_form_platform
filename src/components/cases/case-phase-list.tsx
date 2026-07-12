@@ -112,12 +112,12 @@ export function CasePhaseList({
               // Conclude: assignee or coordinator, while `aberta` + case open.
               const canConclude =
                 isOpen &&
-                narrative.status === "aberta" &&
+                narrative.status === "open" &&
                 (caps.canManageLifecycle || isAssignee);
               // Reopen: coordinator, while `concluida` + case open.
               const canReopen =
                 isOpen &&
-                narrative.status === "concluida" &&
+                narrative.status === "completed" &&
                 caps.canManageLifecycle;
               // Attribution (ADR 0033 D5): a coordinator may (re)assign the narrative's
               // author from the card while it is `aberta` + the case is open. Mirrors the
@@ -125,7 +125,7 @@ export function CasePhaseList({
               const canAssign =
                 caps.canManageLifecycle &&
                 isOpen &&
-                narrative.status === "aberta";
+                narrative.status === "open";
               return (
                 <CaseNarrativeCard
                   narrative={narrative}

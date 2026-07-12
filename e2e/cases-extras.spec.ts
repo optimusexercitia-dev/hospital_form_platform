@@ -206,7 +206,7 @@ test('AC-FixedStatusAdvance: activating a phase auto-computes em_revisao; comple
   // Fresh case: status must be nao_iniciado (no phases active or concluded yet).
   await expect
     .poll(async () => (await getCaseRow(page, caseId))?.status, { timeout: 10_000 })
-    .toBe('nao_iniciado')
+    .toBe('not_started')
 
   // Activate Phase 1 → case status auto-computes to em_revisao.
   const phases = await getCasePhases(page, caseId)
@@ -215,7 +215,7 @@ test('AC-FixedStatusAdvance: activating a phase auto-computes em_revisao; comple
 
   await expect
     .poll(async () => (await getCaseRow(page, caseId))?.status, { timeout: 10_000 })
-    .toBe('em_revisao')
+    .toBe('in_review')
 
   // In the UI: the board shows "Em revisão" badge for this case.
   await signInAs(page, 'chefe.ccih@test.local')
@@ -269,7 +269,7 @@ test('AC-SubmitWhileFixedStatus: phase submit advances to concluida while case i
   // The case must be em_revisao (one phase ativa, D7).
   await expect
     .poll(async () => (await getCaseRow(page, caseId))?.status, { timeout: 10_000 })
-    .toBe('em_revisao')
+    .toBe('in_review')
 
   // 2. staff1.ccih fills + submits Phase 1 via the wizard.
   await signInAs(page, 'staff1.ccih@test.local')
@@ -325,13 +325,13 @@ test('AC-SubmitWhileFixedStatus: phase submit advances to concluida while case i
       const updatedPhases = await getCasePhases(page, caseId)
       return updatedPhases.find((p) => p.position === 1)?.status
     }, { timeout: 20_000 })
-    .toBe('concluida')
+    .toBe('completed')
 
   // Status auto-advances to pendente (Phase 1 concluida, Phase 2 still pendente,
   // none ativa → D7 precedence: pendente > nao_iniciado).
   await expect
     .poll(async () => (await getCaseRow(page, caseId))?.status, { timeout: 15_000 })
-    .toBe('pendente')
+    .toBe('pending')
 })
 
 // ---------------------------------------------------------------------------
@@ -718,7 +718,7 @@ test('AC-SecurityStatus: closing a case (concluido) prevents further phase activ
   // Case must now be concluido (terminal).
   await expect
     .poll(async () => (await getCaseRow(page, caseId))?.status, { timeout: 10_000 })
-    .toBe('concluido')
+    .toBe('completed')
 
   // Now try to activate a phase on a terminal case → HC025.
   const phasesAfter = await getCasePhases(page, caseId)
@@ -881,7 +881,7 @@ test('AC-Keyboard: keyboard-only conclude flow — focus "Concluir", Enter opens
   // DB truth: case is concluido.
   await expect
     .poll(async () => (await getCaseRow(page, kbCaseId))?.status, { timeout: 15_000 })
-    .toBe('concluido')
+    .toBe('completed')
 
   // The case detail shows "Concluído" status badge.
   await page.reload()

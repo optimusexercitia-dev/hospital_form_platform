@@ -167,7 +167,7 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (public.activate_phase((select id from cp where position = 1), (select st_x from k))).status,
-  'ativa',
+  'active',
   'a phase with empty blocks activates freely (no strict-sequential guard)'
 );
 reset role;
@@ -178,7 +178,7 @@ reset role;
 -- Drive phase 1 ativa -> concluida directly under the flag (the submit path's
 -- effect), then phase 2 should activate.
 select set_config('app.in_case_rpc', 'on', true);
-update public.case_phases set status = 'concluida', completed_at = now()
+update public.case_phases set status = 'completed', completed_at = now()
   where id = (select id from cp where position = 1);
 select set_config('app.in_case_rpc', 'off', true);
 
@@ -186,7 +186,7 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (public.activate_phase((select id from cp where position = 2), (select st_x from k))).status,
-  'ativa',
+  'active',
   'D4 satisfier A: a CONCLUIDA blocker unblocks the dependent phase (activates)'
 );
 reset role;
@@ -232,7 +232,7 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (public.activate_phase((select id from cp2 where position = 3), (select st_x from k))).status,
-  'ativa',
+  'active',
   'D4 satisfier B: a NAO_NECESSARIA (skipped) blocker unblocks the dependent phase'
 );
 reset role;

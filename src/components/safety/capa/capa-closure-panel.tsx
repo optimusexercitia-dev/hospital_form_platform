@@ -34,7 +34,7 @@ export function CapaClosurePanel({
   const [error, setError] = useState<string | null>(null);
   const [lessons, setLessons] = useState(plan.lessonsLearnedMd ?? "");
 
-  const isClosed = plan.status === "concluido";
+  const isClosed = plan.status === "completed";
 
   function handleConclude(e: React.FormEvent) {
     e.preventDefault();

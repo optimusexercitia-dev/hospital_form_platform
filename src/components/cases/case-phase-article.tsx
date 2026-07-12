@@ -76,7 +76,7 @@ export function CasePhaseArticle({
   const correction = resolvePhaseCorrectionOptions(phase, resultOptions);
   const showCorrect =
     canCorrectResult &&
-    phase.status === "concluida" &&
+    phase.status === "completed" &&
     correction.mode !== "none";
 
   return (
@@ -88,7 +88,7 @@ export function CasePhaseArticle({
               Fase {phase.position}
             </span>
             <PhaseStatusPill status={phase.status} />
-            {phase.recommended && phase.status === "pendente" && (
+            {phase.recommended && phase.status === "pending" && (
               <RecommendedChip />
             )}
             {phase.isAdHoc && (
@@ -96,7 +96,7 @@ export function CasePhaseArticle({
                 adicional
               </span>
             )}
-            {phase.status === "concluida" && (
+            {phase.status === "completed" && (
               <PhaseResultBadge result={phase.result} />
             )}
           </div>

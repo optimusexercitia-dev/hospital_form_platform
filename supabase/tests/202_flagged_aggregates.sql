@@ -160,7 +160,7 @@ begin
   -- A process-less case (no template) + a manually-inserted ativa phase bound to
   -- the flagged form's published version, carrying the aggregate ruleset.
   insert into public.cases (id, commission_id, case_number, status, created_by)
-    values (v_cid, v_comm, 900001, 'pendente', v_sa);
+    values (v_cid, v_comm, 900001, 'pending', v_sa);
 
   v_phase := gen_random_uuid();
   perform set_config('app.in_case_rpc', 'on', true);
@@ -168,7 +168,7 @@ begin
     (id, case_id, position, form_id, form_version_id, title, status, assigned_to,
      is_ad_hoc, emits_result, result_ruleset)
   values
-    (v_phase, v_cid, 1, v_form, v_ver, 'Fase', 'ativa', v_st, true, true,
+    (v_phase, v_cid, 1, v_form, v_ver, 'Fase', 'active', v_st, true, true,
      jsonb_build_object(
        'rules', jsonb_build_array(
          jsonb_build_object(

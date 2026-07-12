@@ -101,7 +101,7 @@ export function CoordinatorPhaseActions({
 
   // Concluída: the read-only answer deep-link targets the coordinator `/manage` view,
   // so it stays coordinator-only (canManageLifecycle). Always available (even closed).
-  if (phase.status === "concluida") {
+  if (phase.status === "completed") {
     if (!canManageLifecycle || !phase.responseId) return null;
     return (
       <div className="flex items-center justify-end">
@@ -123,7 +123,7 @@ export function CoordinatorPhaseActions({
   return (
     <div className="flex flex-col items-end gap-2">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {phase.status === "pendente" && (
+        {phase.status === "pending" && (
           <>
             {canAssignPhases && (
               <>
@@ -188,7 +188,7 @@ export function CoordinatorPhaseActions({
           </>
         )}
 
-        {phase.status === "ativa" && canAssignPhases && (
+        {phase.status === "active" && canAssignPhases && (
           <Button
             type="button"
             variant="outline"
@@ -208,7 +208,7 @@ export function CoordinatorPhaseActions({
         </p>
       )}
 
-      {phase.status === "pendente" && canAssignPhases && (
+      {phase.status === "pending" && canAssignPhases && (
         <ActivatePhaseDialog
           mode="activate"
           open={activateOpen}
@@ -220,7 +220,7 @@ export function CoordinatorPhaseActions({
           defaultDueDays={phase.defaultDueDays}
         />
       )}
-      {phase.status === "ativa" && canAssignPhases && (
+      {phase.status === "active" && canAssignPhases && (
         <ActivatePhaseDialog
           mode="reassign"
           open={reassignOpen}

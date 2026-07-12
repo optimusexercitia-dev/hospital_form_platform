@@ -4,7 +4,7 @@
  *
  * As of this change the per-commission CONFIGURABLE status vocabulary
  * (`case_status_defs`, the R2 system) is removed (D12) and replaced by a fixed,
- * five-value, AUTO-COMPUTED status. `concluido`/`cancelado` are MANUAL terminal
+ * five-value, AUTO-COMPUTED status. `completed`/`cancelled` are MANUAL terminal
  * actions; the other three auto-compute from phase state (the DB
  * `app.recompute_case_status` is the authority — this module is its display +
  * ordering twin, never a writer).
@@ -52,16 +52,16 @@ export type CaseStatusColorToken =
  * A case's GLOBAL macro status — a FIXED five-value union (restores
  * compile-time exhaustiveness, the point of the change).
  *
- *   - `nao_iniciado` — no phase is `ativa`/`concluida` yet (a skip-only case
+ *   - `not_started` — no phase is `active`/`completed` yet (a skip-only case
  *     stays here, D7).
- *   - `em_revisao`   — at least one phase is `ativa` (work in progress).
- *   - `pendente`     — ≥1 phase `concluida`, none `ativa` (awaiting the next
+ *   - `in_review`   — at least one phase is `active` (work in progress).
+ *   - `pending`     — ≥1 phase `completed`, none `active` (awaiting the next
  *     step / conclusion).
- *   - `concluido`    — MANUAL terminal (D6); the conclude gate passed.
- *   - `cancelado`    — MANUAL terminal (D6); cancellable anytime.
+ *   - `completed`    — MANUAL terminal (D6); the conclude gate passed.
+ *   - `cancelled`    — MANUAL terminal (D6); cancellable anytime.
  *
- * Precedence (the DB recompute mirrors this): `cancelado` > `concluido` >
- * `em_revisao` > `pendente` > `nao_iniciado`. The first two are manual and never
+ * Precedence (the DB recompute mirrors this): `cancelled` > `completed` >
+ * `in_review` > `pending` > `not_started`. The first two are manual and never
  * overridden by recompute; the last three auto-compute from phase state.
  *
  * NOTE (phase vs case status): this is the CASE-level macro status. The per-phase
@@ -69,25 +69,25 @@ export type CaseStatusColorToken =
  * lifecycle.
  */
 export type CaseStatus =
-  | 'nao_iniciado'
-  | 'pendente'
-  | 'em_revisao'
-  | 'concluido'
-  | 'cancelado'
+  | 'not_started'
+  | 'pending'
+  | 'in_review'
+  | 'completed'
+  | 'cancelled'
 
 /**
  * The five statuses in BOARD / display order (D13 — the read-only kanban
- * columns, left→right): a case progresses `nao_iniciado → em_revisao →
- * pendente`, then resolves to one of the terminal columns `concluido` /
- * `cancelado`. This is the canonical order the kanban, the status filter chips
+ * columns, left→right): a case progresses `not_started → in_review →
+ * pending`, then resolves to one of the terminal columns `completed` /
+ * `cancelled`. This is the canonical order the kanban, the status filter chips
  * and any status legend iterate.
  */
 export const CASE_STATUSES: readonly CaseStatus[] = [
-  'nao_iniciado',
-  'em_revisao',
-  'pendente',
-  'concluido',
-  'cancelado',
+  'not_started',
+  'in_review',
+  'pending',
+  'completed',
+  'cancelled',
 ] as const
 
 /** Per-status display metadata: pt-BR label + constrained palette token. */
@@ -104,11 +104,11 @@ export interface CaseStatusMeta {
  * (concluded), `red` (cancelled) — all from the shared 7-token palette.
  */
 export const CASE_STATUS_META: Record<CaseStatus, CaseStatusMeta> = {
-  nao_iniciado: { label: 'Não iniciado', colorToken: 'slate' },
-  em_revisao: { label: 'Em revisão', colorToken: 'blue' },
-  pendente: { label: 'Pendente', colorToken: 'amber' },
-  concluido: { label: 'Concluído', colorToken: 'green' },
-  cancelado: { label: 'Cancelado', colorToken: 'red' },
+  not_started: { label: 'Não iniciado', colorToken: 'slate' },
+  in_review: { label: 'Em revisão', colorToken: 'blue' },
+  pending: { label: 'Pendente', colorToken: 'amber' },
+  completed: { label: 'Concluído', colorToken: 'green' },
+  cancelled: { label: 'Cancelado', colorToken: 'red' },
 }
 
 /**
@@ -117,5 +117,5 @@ export const CASE_STATUS_META: Record<CaseStatus, CaseStatusMeta> = {
  * early-returns instead of overriding it. The TS twin of the DB terminal check.
  */
 export function isTerminalCaseStatus(status: CaseStatus): boolean {
-  return status === 'concluido' || status === 'cancelado'
+  return status === 'completed' || status === 'cancelled'
 }

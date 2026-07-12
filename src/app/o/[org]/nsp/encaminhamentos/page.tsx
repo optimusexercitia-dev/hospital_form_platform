@@ -173,15 +173,15 @@ export default async function NspReferralsDashboardPage({
  */
 function deriveFlowMetrics(referrals: ReferralListItem[]): ReferralFlowMetrics {
   const resolved = new Set<ReferralStatus>([
-    "concluida",
-    "recusada",
-    "retirada",
+    "completed",
+    "rejected",
+    "withdrawn",
   ]);
   const inFlight = new Set<ReferralStatus>([
-    "enviada",
-    "recebida",
-    "aceita",
-    "em_analise",
+    "sent",
+    "received",
+    "accepted",
+    "in_review",
   ]);
   return {
     total: referrals.length,
@@ -189,8 +189,8 @@ function deriveFlowMetrics(referrals: ReferralListItem[]): ReferralFlowMetrics {
     awaitingReply: referrals.filter(
       (r) => r.responseExpected && inFlight.has(r.status),
     ).length,
-    concluded: referrals.filter((r) => r.status === "concluida").length,
-    declined: referrals.filter((r) => r.status === "recusada").length,
-    withdrawn: referrals.filter((r) => r.status === "retirada").length,
+    concluded: referrals.filter((r) => r.status === "completed").length,
+    declined: referrals.filter((r) => r.status === "rejected").length,
+    withdrawn: referrals.filter((r) => r.status === "withdrawn").length,
   };
 }

@@ -25,15 +25,15 @@ import { MyCaseCard } from "@/components/cases/my-case-card";
 
 /** A case is "open" when it is not in a terminal status. */
 function isOpenCase(myCase: MyCase): boolean {
-  return myCase.status !== "concluido" && myCase.status !== "cancelado";
+  return myCase.status !== "completed" && myCase.status !== "cancelled";
 }
 
 /** True when the viewer has ≥1 attributed item that is still open. */
 function hasOpenAssignment(myCase: MyCase): boolean {
   return myCase.items.some((item) =>
     item.kind === "phase"
-      ? item.status !== "concluida" && item.status !== "nao_necessaria"
-      : item.status !== "concluida",
+      ? item.status !== "completed" && item.status !== "not_required"
+      : item.status !== "completed",
   );
 }
 

@@ -46,7 +46,7 @@ values
    'Evento D1', 'acknowledged', 'pqs', (select st_x from k));
 insert into public.rca (id, event_id, status) values ((select id from r), (select id from ev), 'draft');
 insert into public.capa_plan (code, source, source_rca_id, classification, status)
-  values ('CAPA-D1-A', 'rca', (select id from r), 'corretiva', 'aberto');
+  values ('CAPA-D1-A', 'rca', (select id from r), 'corretiva', 'open');
 
 select throws_ok(
   format($$ delete from public.patient_safety_event where id = %L::uuid $$, (select id from ev)),
@@ -114,7 +114,7 @@ select throws_ok(
 -- (3b) cases: concluido + null closed_at.
 select throws_ok(
   format($$ insert into public.cases (commission_id, case_number, status, closed_at, created_by)
-            values (%L::uuid, 99001, 'concluido', null, %L::uuid) $$,
+            values (%L::uuid, 99001, 'completed', null, %L::uuid) $$,
          (select comm_x from k), (select st_x from k)),
   '23514', null,
   '3.2: cases status=concluido with NULL closed_at raises (23514)');
@@ -122,7 +122,7 @@ select throws_ok(
 -- (3c) cases: cancelado + null closed_at.
 select throws_ok(
   format($$ insert into public.cases (commission_id, case_number, status, closed_at, created_by)
-            values (%L::uuid, 99002, 'cancelado', null, %L::uuid) $$,
+            values (%L::uuid, 99002, 'cancelled', null, %L::uuid) $$,
          (select comm_x from k), (select st_x from k)),
   '23514', null,
   '3.3: cases status=cancelado with NULL closed_at raises (23514)');
@@ -130,7 +130,7 @@ select throws_ok(
 -- (3d) cases: a valid terminal case (concluido + closed_at set) is accepted.
 select lives_ok(
   format($$ insert into public.cases (commission_id, case_number, status, closed_at, created_by)
-            values (%L::uuid, 99003, 'concluido', now(), %L::uuid) $$,
+            values (%L::uuid, 99003, 'completed', now(), %L::uuid) $$,
          (select comm_x from k), (select st_x from k)),
   '3.4: a terminal case WITH closed_at is accepted (positive control)');
 

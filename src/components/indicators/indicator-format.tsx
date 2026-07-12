@@ -24,15 +24,15 @@ const STATUS_STYLES: Record<
   MeasurementStatus,
   { icon: typeof CheckCircle2; className: string }
 > = {
-  na_meta: {
+  on_target: {
     icon: CheckCircle2,
     className: "bg-success/12 text-success",
   },
-  fora_da_meta: {
+  off_target: {
     icon: CircleAlert,
     className: "bg-destructive/10 text-destructive",
   },
-  sem_dados: {
+  no_data: {
     icon: CircleDashed,
     className: "bg-muted text-muted-foreground",
   },

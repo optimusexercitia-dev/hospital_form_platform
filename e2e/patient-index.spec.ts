@@ -549,7 +549,7 @@ test('AC-6: dispose_case_phi → xref retained (disposed_at set), trajectory fla
     data: {
       commission_id: COMM_A,
       label: 'AC-6 disposal test — patient_index spec (throwaway)',
-      status: 'pendente',
+      status: 'pending',
       patient_enabled: true,
       has_patient: false,
       created_by: UID_CHEFE_A,

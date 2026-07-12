@@ -195,6 +195,33 @@ async function clickNextPage(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle')
 }
 
+/** Defensively ensure the `case_referrals` feature flag is ON, independent of
+ * batch ordering. The full standalone-prod gate batches multiple referral
+ * specs per server; an earlier spec (e.g. phase22-referrals) can leave the
+ * flag OFF in its afterAll, and the seed default does NOT persist across
+ * same-batch specs. Mirrors phase22-referrals.spec.ts's defensive flip: the
+ * canonical `set_referrals_feature_flag` RPC, with a local CLI fallback. */
+async function ensureReferralsFlagOn(ctx: APIRequestContext): Promise<void> {
+  const resp = await ctx.post(`${SUPABASE_URL}/rest/v1/rpc/set_referrals_feature_flag`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    data: { p_enabled: true },
+  })
+  if (!resp.ok()) {
+    // RPC shim absent — fall back to a direct local DB update (idempotent).
+    const { execSync } = await import('child_process')
+    execSync(
+      'npx supabase db query --local "UPDATE app.feature_flags SET enabled = true WHERE key = \'case_referrals\'"',
+      { cwd: process.cwd(), stdio: 'pipe' },
+    )
+  }
+  // Let PostgREST/flag-cache pick up the change before we assert on it.
+  await new Promise((r) => setTimeout(r, 500))
+}
+
 // ===========================================================================
 // P2 — audit actor filter dropdown backed by list_audit_filter_actors RPC
 // ===========================================================================
@@ -259,10 +286,14 @@ test.describe('P2 — audit actor filter (list_audit_filter_actors RPC)', () => 
     // insert has no auth.uid(), so it would attribute to "system" — this must
     // go through a real user action instead) via the actual case-creation
     // dialog would work too, but the referral-draft RPC used elsewhere in
-    // this file is a lighter, equally-real audited write. The seed ships
-    // `case_referrals` ON by default (confirmed via `referrals_enabled()`), so
-    // no flag flip is needed here (unlike phase22-referrals.spec.ts, which
-    // predates that default and flips it defensively).
+    // this file is a lighter, equally-real audited write.
+    //
+    // Defensively ENABLE case_referrals in this test's own setup: the full
+    // batched gate runs other referral specs (e.g. phase22-referrals) in the
+    // same batch whose afterAll can leave the flag OFF, and the seed default
+    // does NOT persist across same-batch specs — so this precondition must not
+    // depend on batch ordering (P2-b passes in isolation).
+    await ensureReferralsFlagOn(request)
     const referralsOn = await rpcAsUser<boolean>(
       request,
       SUPABASE_SERVICE_KEY,
@@ -528,7 +559,10 @@ test.describe('P3 — keyset pagination', () => {
     page,
     request,
   }) => {
-    // The seed ships `case_referrals` ON by default; confirm rather than flip.
+    // Defensively ENABLE case_referrals first (see ensureReferralsFlagOn): the
+    // batched gate can leave the flag OFF via a sibling referral spec's
+    // afterAll, so this precondition must not depend on batch ordering.
+    await ensureReferralsFlagOn(request)
     const referralsOn = await rpcAsUser<boolean>(
       request,
       SUPABASE_SERVICE_KEY,
@@ -642,7 +676,7 @@ test.describe('P3 — keyset pagination', () => {
       commission_id: COMM_CCIH,
       meeting_type_id: meetingType[0].id,
       title: `WS6 perf-sweep meeting ${i}`,
-      status: 'realizada',
+      status: 'held',
       scheduled_start: new Date(base - i * 3_600_000).toISOString(),
       created_by: UID_CHEFE_CCIH,
     }))
@@ -780,7 +814,7 @@ test.describe('P4 — feature-flag cache + open-cases badge', () => {
     // straight from Postgres.
     const openCases = await serviceQuery<{ id: string }>(
       request,
-      `cases?commission_id=eq.${COMM_CCIH}&status=not.in.(concluido,cancelado)&select=id`,
+      `cases?commission_id=eq.${COMM_CCIH}&status=not.in.(completed,cancelled)&select=id`,
     )
 
     await signInAs(page, 'chefe.ccih@test.local')

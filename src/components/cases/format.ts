@@ -72,7 +72,7 @@ export function isOverdue(
   status: CasePhaseStatus,
 ): boolean {
   if (!dueIso) return false;
-  if (status !== "pendente" && status !== "ativa") return false;
+  if (status !== "pending" && status !== "active") return false;
   const parts = dueIso.split("-");
   if (parts.length !== 3) return false;
   const [y, m, d] = parts.map((n) => Number.parseInt(n, 10));

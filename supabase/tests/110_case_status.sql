@@ -68,7 +68,7 @@ grant select on cp to authenticated;
 -- =========================================================================
 select is(
   (select status from public.cases where id = (select cid from cse)),
-  'nao_iniciado',
+  'not_started',
   'fresh case (all phases pendente) computes to nao_iniciado'
 );
 
@@ -81,13 +81,13 @@ select is(
 -- 2) ONE ATIVA  =>  em_revisao
 -- =========================================================================
 select set_config('app.in_case_rpc', 'on', true);
-update public.case_phases set status = 'ativa', activated_at = now()
+update public.case_phases set status = 'active', activated_at = now()
   where id = (select id from cp where position = 1);
 select set_config('app.in_case_rpc', 'off', true);
 
 select is(
   (select status from public.cases where id = (select cid from cse)),
-  'em_revisao',
+  'in_review',
   'a single ativa phase computes the case to em_revisao'
 );
 
@@ -95,13 +95,13 @@ select is(
 -- 3) >=1 CONCLUIDA, NONE ATIVA  =>  pendente
 -- =========================================================================
 select set_config('app.in_case_rpc', 'on', true);
-update public.case_phases set status = 'concluida', completed_at = now()
+update public.case_phases set status = 'completed', completed_at = now()
   where id = (select id from cp where position = 1);
 select set_config('app.in_case_rpc', 'off', true);
 
 select is(
   (select status from public.cases where id = (select cid from cse)),
-  'pendente',
+  'pending',
   '>=1 concluida and NONE ativa computes the case to pendente'
 );
 
@@ -109,13 +109,13 @@ select is(
 -- 4) ATIVA + CONCLUIDA  =>  em_revisao (ativa takes precedence over pendente)
 -- =========================================================================
 select set_config('app.in_case_rpc', 'on', true);
-update public.case_phases set status = 'ativa', activated_at = now()
+update public.case_phases set status = 'active', activated_at = now()
   where id = (select id from cp where position = 2);
 select set_config('app.in_case_rpc', 'off', true);
 
 select is(
   (select status from public.cases where id = (select cid from cse)),
-  'em_revisao',
+  'in_review',
   'ativa + concluida computes to em_revisao (ativa precedence over pendente)'
 );
 
@@ -131,13 +131,13 @@ reset role;
 grant select on skip_cse to authenticated;
 
 select set_config('app.in_case_rpc', 'on', true);
-update public.case_phases set status = 'nao_necessaria', skipped_at = now()
+update public.case_phases set status = 'not_required', skipped_at = now()
   where case_id = (select cid from skip_cse);
 select set_config('app.in_case_rpc', 'off', true);
 
 select is(
   (select status from public.cases where id = (select cid from skip_cse)),
-  'nao_iniciado',
+  'not_started',
   'a SKIP-ONLY case (all nao_necessaria, none concluida) stays nao_iniciado (D7)'
 );
 
@@ -152,10 +152,10 @@ select is(
 -- second update in the same block would otherwise lose it and the phase guard
 -- would reject the transition.
 select set_config('app.in_case_rpc', 'on', true);
-update public.case_phases set status = 'concluida', completed_at = now()
+update public.case_phases set status = 'completed', completed_at = now()
   where id = (select id from cp where position = 2);
 select set_config('app.in_case_rpc', 'on', true);
-update public.case_phases set status = 'nao_necessaria', skipped_at = now()
+update public.case_phases set status = 'not_required', skipped_at = now()
   where id = (select id from cp where position = 3);
 select set_config('app.in_case_rpc', 'off', true);
 
@@ -164,7 +164,7 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (public.close_case((select cid from cse))).status,
-  'concluido',
+  'completed',
   'close_case sets a settled case to concluido (manual terminal)'
 );
 reset role;
@@ -188,7 +188,7 @@ select set_config('app.in_case_rpc', 'off', true);
 
 select is(
   (select status from public.cases where id = (select cid from cse)),
-  'concluido',
+  'completed',
   'recompute early-returns on a terminal case: concluido is never overridden (D6)'
 );
 
@@ -243,14 +243,14 @@ reset role;
 grant select on cancel_cse to authenticated;
 
 select set_config('app.in_case_rpc', 'on', true);
-update public.case_phases set status = 'ativa', activated_at = now()
+update public.case_phases set status = 'active', activated_at = now()
   where case_id = (select cid from cancel_cse) and position = 1;
 select set_config('app.in_case_rpc', 'off', true);
 
 -- Sanity: it is em_revisao (open) before cancel.
 select is(
   (select status from public.cases where id = (select cid from cancel_cse)),
-  'em_revisao',
+  'in_review',
   'the cancel fixture is em_revisao (an open, non-settled case) before cancel'
 );
 
@@ -258,7 +258,7 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (public.cancel_case((select cid from cancel_cse))).status,
-  'cancelado',
+  'cancelled',
   'cancel_case sets ANY non-terminal case to cancelado (no settle gate, anytime)'
 );
 reset role;
@@ -267,7 +267,7 @@ reset role;
 select is(
   (select status from public.case_phases
    where case_id = (select cid from cancel_cse) and position = 1),
-  'nao_necessaria',
+  'not_required',
   'cancel_case flips remaining open phases to nao_necessaria (terminal-first)'
 );
 
