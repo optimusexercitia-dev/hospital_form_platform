@@ -329,7 +329,6 @@ test('AC-4: Date filter narrows dashboard results', async ({ page, request }) =>
   const newestDate = rows[0].submitted_at.slice(0, 10) // YYYY-MM-DD
 
   await page.goto(`/o/rede-a/c/ccih/dashboard?from=${newestDate}&to=${newestDate}`)
-  await page.waitForLoadState('networkidle')
 
   // Wait for the form picker to hydrate (client component).
   const tabList = page.getByRole('tablist', { name: /form/i })
@@ -437,7 +436,7 @@ test('AC-6b: Painel nav link absent for plain staff', async ({ page }) => {
   await signInAs(page, 'staff1.ccih@test.local')
   // Navigate into the commission shell.
   await page.goto('/o/rede-a/c/ccih/forms')
-  await page.waitForLoadState('networkidle')
+  await expect(page.getByRole('heading').first()).toBeVisible()
 
   // The "Painel" nav link must NOT be visible for plain staff.
   await expect(page.getByRole('link', { name: /^painel$/i })).not.toBeVisible()
@@ -451,7 +450,6 @@ test('AC-6b: Painel nav link absent for plain staff', async ({ page }) => {
 test('AC-7a: Submissions browser filter by staff1.ccih returns expected submitted rows', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/dashboard/submissions')
-  await page.waitForLoadState('networkidle')
 
   // The "Membro" select filter — choose staff1.ccih.
   const memberSelect = page.getByLabel('Membro')
@@ -479,7 +477,6 @@ test('AC-7a: Submissions browser filter by staff1.ccih returns expected submitte
 test('AC-7b: Submissions browser filter by staff2.ccih returns at least 3 submitted rows', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/dashboard/submissions')
-  await page.waitForLoadState('networkidle')
 
   const memberSelect = page.getByLabel('Membro')
   await expect(memberSelect).toBeVisible({ timeout: 10_000 })
@@ -499,7 +496,6 @@ test('AC-7b: Submissions browser filter by staff2.ccih returns at least 3 submit
 test('AC-7c: Submissions browser — no filter shows 6 submitted rows for Form A (CCIH)', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/dashboard/submissions')
-  await page.waitForLoadState('networkidle')
 
   // Default view: no filter → all submitted for CCIH (6 from Form A + 1 case-phase).
   const responseList = page.getByRole('list', { name: /respostas/i })
@@ -513,7 +509,6 @@ test('AC-7c: Submissions browser — no filter shows 6 submitted rows for Form A
 test('AC-7d: Submissions browser form filter narrows rows', async ({ page }) => {
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto('/o/rede-a/c/farmacia/dashboard/submissions')
-  await page.waitForLoadState('networkidle')
 
   // Form filter: pick Form B explicitly.
   const formSelect = page.getByLabel('Formulário')
@@ -540,7 +535,6 @@ test('AC-7d: Submissions browser form filter narrows rows', async ({ page }) => 
 test('AC-8: in_progress toggle works; any visible in_progress rows are metadata-only (non-link)', async ({ page }) => {
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto('/o/rede-a/c/farmacia/dashboard/submissions')
-  await page.waitForLoadState('networkidle')
 
   // Toggle on "em andamento". The shadcn Checkbox is a <button role="checkbox">,
   // not a native <input>, so use .click() (not .check()).
@@ -617,7 +611,6 @@ test('AC-8b: staff_admin cannot access a foreign-commission response detail via 
 test('AC-9: Version-faithful detail — Não branch shows conditional section as não aplicável', async ({ page }) => {
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto('/o/rede-a/c/farmacia/dashboard/submissions')
-  await page.waitForLoadState('networkidle')
 
   // Open the submissions list and find a row WITHOUT case-phase badge.
   const responseList = page.getByRole('list', { name: /respostas/i })
@@ -639,7 +632,7 @@ test('AC-9: Version-faithful detail — Não branch shows conditional section as
     const href = await links.nth(i).getAttribute('href')
     if (!href) continue
     await page.goto(href)
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByRole('heading', { name: /inspeção.*armazenamento.*medicamentos/i })).toBeVisible()
 
     // Check if the "Controle de temperatura" section is marked "não aplicável"
     const tempSection = page.getByRole('region').filter({
@@ -661,7 +654,7 @@ test('AC-9: Version-faithful detail — Não branch shows conditional section as
       }
     }
     await page.goto('/o/rede-a/c/farmacia/dashboard/submissions')
-    await page.waitForLoadState('networkidle')
+    await expect(responseList).toBeVisible()
   }
 
   expect(foundNaoApplicavel).toBe(true)
@@ -670,7 +663,6 @@ test('AC-9: Version-faithful detail — Não branch shows conditional section as
 test('AC-9b: Version-faithful detail — Sim branch shows temperature answers + sign-off metadata', async ({ page }) => {
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto('/o/rede-a/c/farmacia/dashboard/submissions')
-  await page.waitForLoadState('networkidle')
 
   const responseList = page.getByRole('list', { name: /respostas/i })
   await expect(responseList).toBeVisible({ timeout: 10_000 })
@@ -683,7 +675,7 @@ test('AC-9b: Version-faithful detail — Sim branch shows temperature answers + 
     const href = await links.nth(i).getAttribute('href')
     if (!href) continue
     await page.goto(href)
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByRole('heading', { name: /inspeção.*armazenamento.*medicamentos/i })).toBeVisible()
 
     // Look for the conditional temperature section without "não aplicável"
     const tempSection = page.getByRole('region').filter({
@@ -708,7 +700,7 @@ test('AC-9b: Version-faithful detail — Sim branch shows temperature answers + 
       }
     }
     await page.goto('/o/rede-a/c/farmacia/dashboard/submissions')
-    await page.waitForLoadState('networkidle')
+    await expect(responseList).toBeVisible()
   }
 
   expect(foundSimBranch).toBe(true)
@@ -722,7 +714,6 @@ test('AC-9b: Version-faithful detail — Sim branch shows temperature answers + 
 test('AC-10a: staff_admin can open any submitted detail within their commission', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/dashboard/submissions')
-  await page.waitForLoadState('networkidle')
 
   const responseList = page.getByRole('list', { name: /respostas/i })
   await expect(responseList).toBeVisible({ timeout: 10_000 })
@@ -880,7 +871,6 @@ test('AC-12: Keyboard-only — dashboard form picker → date filter → submiss
   // 4. Navigate to the submissions browser via keyboard: find the
   // "Respostas enviadas" link in the nav / breadcrumb area.
   await page.goto('/o/rede-a/c/ccih/dashboard/submissions')
-  await page.waitForLoadState('networkidle')
 
   // 5. Tab to the first submission link and Enter to open it.
   const responseList = page.getByRole('list', { name: /respostas/i })

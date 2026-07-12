@@ -130,7 +130,6 @@ test.describe('AC-1: cross-hospital, same-org NSP isolation', () => {
     await expect(
       page.getByRole('heading', { name: /fila de eventos/i }),
     ).toBeVisible()
-    await page.waitForLoadState('networkidle')
 
     const body = await bodyText(page)
     expect(body).toContain(TITLE_CENTRAL_A)
@@ -150,7 +149,6 @@ test.describe('AC-1: cross-hospital, same-org NSP isolation', () => {
     await expect(
       page.getByRole('heading', { name: /fila de eventos/i }),
     ).toBeVisible()
-    await page.waitForLoadState('networkidle')
 
     const body = await bodyText(page)
     expect(body).toContain(TITLE_SECUNDARIO_A)
@@ -193,7 +191,10 @@ test.describe('AC-1: cross-hospital, same-org NSP isolation', () => {
       `/o/rede-a/nsp/configuracoes?hospital=${HOSP_SECUNDARIO_A}`,
     ]) {
       await page.goto(path)
-      await page.waitForLoadState('networkidle')
+      // Wait for the page's own heading (web-first) rather than `networkidle`;
+      // scope collapses to central-a server-side, so a settled render is enough
+      // to assert the secundario-a signals are absent.
+      await expect(page.getByRole('heading').first()).toBeVisible()
       const body = await bodyText(page)
       expect(body, `no secundario-a MRN on ${path}`).not.toContain(
         MRN_SECUNDARIO_A,
@@ -216,7 +217,9 @@ test.describe('AC-1: cross-hospital, same-org NSP isolation', () => {
   }) => {
     await signInAs(page, 'pqs.a2@test.local')
     await page.goto(`/o/rede-a/nsp?hospital=${HOSP_CENTRAL_A}`)
-    await page.waitForLoadState('networkidle')
+    // Scope collapses to secundario-a; wait for its event to render (web-first)
+    // before asserting the central-a signals are absent.
+    await expect(page.getByText(TITLE_SECUNDARIO_A).first()).toBeVisible()
     const body = await bodyText(page)
     expect(body).not.toContain(MRN_CENTRAL_A)
     expect(body).not.toContain(TITLE_CENTRAL_A)
@@ -269,7 +272,9 @@ test.describe('AC-1b: multi-hospital NSP switcher (2-grant operator)', () => {
     // when the operator serves >1 hospital), so a switch is observable there.
     await signInAs(page, 'pqsdual.a@test.local')
     await page.goto('/o/rede-a/nsp/configuracoes')
-    await page.waitForLoadState('networkidle')
+    await expect(
+      page.getByText('Configuração do hospital Hospital Central A').first(),
+    ).toBeVisible()
 
     // Default selection = first (name-sorted) grant = central-a.
     let body = await bodyText(page)
@@ -282,7 +287,9 @@ test.describe('AC-1b: multi-hospital NSP switcher (2-grant operator)', () => {
       .getByRole('menuitem', { name: /Hospital Secundário A/i })
       .click()
     await page.waitForURL(/hospital=/, { timeout: 10_000 })
-    await page.waitForLoadState('networkidle')
+    await expect(
+      page.getByText('Configuração do hospital Hospital Secundário A').first(),
+    ).toBeVisible()
 
     // Now scoped to secundario-a: its name + its distinct RCA window (20d).
     body = await bodyText(page)
@@ -299,14 +306,18 @@ test.describe('AC-1b: multi-hospital NSP switcher (2-grant operator)', () => {
     await page.goto(
       `/o/rede-a/nsp/configuracoes?hospital=${HOSP_SECUNDARIO_A}`,
     )
-    await page.waitForLoadState('networkidle')
+    await expect(
+      page.getByText('Configuração do hospital Hospital Secundário A').first(),
+    ).toBeVisible()
     let body = await bodyText(page)
     expect(body).toContain('Configuração do hospital Hospital Secundário A')
     expect(body).toContain('20')
 
     // And the central-a deep link resolves to central-a's config.
     await page.goto(`/o/rede-a/nsp/configuracoes?hospital=${HOSP_CENTRAL_A}`)
-    await page.waitForLoadState('networkidle')
+    await expect(
+      page.getByText('Configuração do hospital Hospital Central A').first(),
+    ).toBeVisible()
     body = await bodyText(page)
     expect(body).toContain('Configuração do hospital Hospital Central A')
     expect(body).toContain('45')
@@ -318,14 +329,18 @@ test.describe('AC-1b: multi-hospital NSP switcher (2-grant operator)', () => {
     await signInAs(page, 'pqsdual.a@test.local')
     // central-a event PHI (server-rendered on the event detail).
     await page.goto(`/o/rede-a/nsp/${EV_CENTRAL_A}`)
-    await page.waitForLoadState('networkidle')
-    expect(await bodyText(page)).toContain(MRN_CENTRAL_A)
+    // Event-detail PHI renders server-side; wait for the MRN itself (web-first,
+    // auto-retrying). `networkidle` never settles on this GSAP page (BUG-F3E2E-001).
+    await expect(page.getByText(MRN_CENTRAL_A).first()).toBeVisible({
+      timeout: 10_000,
+    })
 
     // secundario-a event PHI — the SAME operator reads it via its second grant (a
     // central-a-only operator got null on this in AC-1; here the dual operator reads it).
     await page.goto(`/o/rede-a/nsp/${EV_SECUNDARIO_A}`)
-    await page.waitForLoadState('networkidle')
-    expect(await bodyText(page)).toContain(MRN_SECUNDARIO_A)
+    await expect(page.getByText(MRN_SECUNDARIO_A).first()).toBeVisible({
+      timeout: 10_000,
+    })
   })
 })
 
@@ -353,7 +368,9 @@ test.describe('AC-2: nsp_org_admin console is PHI-free', () => {
   }) => {
     await signInAs(page, 'nsporg.a@test.local')
     await page.goto('/o/rede-a/nsp-org')
-    await page.waitForLoadState('networkidle')
+    // Rollups render server-side; wait for a hospital name (web-first) before the
+    // body reads below.
+    await expect(page.getByText('Hospital Central A').first()).toBeVisible()
     // Rollups + roster summary are keyed by HOSPITAL NAME (staff-identity / counts
     // only). Both org-a hospitals appear.
     const body = await bodyText(page)
@@ -391,6 +408,9 @@ test.describe('AC-2: nsp_org_admin console is PHI-free', () => {
       '/o/rede-a/nsp-org/coordenadores',
     ]) {
       await page.goto(path)
+      // INTENTIONAL `networkidle` (not the discouraged page-ready wait): this is a
+      // network-leak audit — we must let every `/nsp-org` response arrive and settle
+      // before asserting no PHI appears in the DOM or in any captured payload below.
       await page.waitForLoadState('networkidle')
       const body = await bodyText(page)
       for (const phi of [
@@ -477,7 +497,6 @@ test.describe('AC-3: three-tier appointment chain', () => {
   }) => {
     await signInAs(page, 'nsporg.a@test.local')
     await page.goto('/o/rede-a/nsp-org/coordenadores')
-    await page.waitForLoadState('networkidle')
 
     // The Hospital Central A curation card. Its coordinator section offers a
     // "Substituir coordenação" (someone is already coordinator: nspcoord.a) select +
@@ -555,7 +574,6 @@ test.describe('AC-3: three-tier appointment chain', () => {
     await signInAs(page, 'orgadmin.a@test.local')
     const res = await page.goto('/o/rede-a/manage/administradores')
     expect(res?.status()).toBe(200)
-    await page.waitForLoadState('networkidle')
 
     // The NSP-org-admin appointment section. The picker (`listOrgEligibleUsers`)
     // includes the caller; selecting SELF and submitting must be REJECTED server-side
@@ -635,7 +653,11 @@ test.describe('AC-4: per-hospital roster + config curation', () => {
     // only ever curate its own roster — never central-a's. central-a's roster member
     // (pqs.a / NSP Central A) must NOT appear.
     await page.goto(`/o/rede-a/nsp/equipe?hospital=${HOSP_CENTRAL_A}`)
-    await page.waitForLoadState('networkidle')
+    // Scope collapses to secundario-a; wait for the roster heading (web-first)
+    // before asserting central-a's member is absent.
+    await expect(
+      page.getByRole('heading', { name: /equipe do nsp/i }),
+    ).toBeVisible()
     const body = await bodyText(page)
     // pqs.a2 (NSP Secundário A) is secundario-a's roster; NSP Central A is central-a's.
     expect(body).not.toContain('NSP Central A')
@@ -646,7 +668,9 @@ test.describe('AC-4: per-hospital roster + config curation', () => {
   }) => {
     await signInAs(page, 'nspcoord.a2@test.local')
     await page.goto('/o/rede-a/nsp/equipe')
-    await page.waitForLoadState('networkidle')
+    await expect(
+      page.getByRole('heading', { name: /equipe do nsp/i }),
+    ).toBeVisible()
 
     // The roster manager: pick an eligible user, "Adicionar", then remove to restore.
     const addSelect = page.getByLabel(/adicionar (à equipe|membro)/i).first()
@@ -703,9 +727,8 @@ test.describe('AC-5: coordinator is a full local operator (read + write) without
     await expect(
       page.getByRole('heading', { name: /fila de eventos/i }),
     ).toBeVisible()
-    await page.waitForLoadState('networkidle')
     // Its OWN hospital's event is in the inbox.
-    expect(await bodyText(page)).toContain(TITLE_CENTRAL_A)
+    await expect(page.getByText(TITLE_CENTRAL_A).first()).toBeVisible()
 
     // Open the central-a event detail — the operator's working view renders.
     const evRes = await page.goto(`/o/rede-a/nsp/${EV_CENTRAL_A}`)
@@ -718,7 +741,6 @@ test.describe('AC-5: coordinator is a full local operator (read + write) without
   }) => {
     await signInAs(page, 'nspcoord.a@test.local')
     await page.goto(`/o/rede-a/nsp/${EV_CENTRAL_A}`)
-    await page.waitForLoadState('networkidle')
 
     // The event detail's isolated-PHI panel renders SERVER-SIDE (the audited
     // `getEventPatient` read fires on load; there is no reveal button on the EVENT
@@ -789,10 +811,9 @@ test.describe('AC-6: dual-hospital same-org referral — both endpoints read, cr
     await signInAs(page, 'chefe.ccih@test.local')
     const res = await page.goto(REF_DETAIL_URL)
     expect(res?.status()).toBe(200)
-    await page.waitForLoadState('networkidle')
 
     // The header shows the ENC code + subject (source commission-admin can read it).
-    expect(await bodyText(page)).toContain(REF_XHOSP_SUBJECT)
+    await expect(page.getByText(REF_XHOSP_SUBJECT).first()).toBeVisible()
 
     // Reveal the isolated PHI (audited door). chefe.ccih is the source commission
     // coordinator → entitled.
@@ -873,12 +894,11 @@ test.describe('AC-7: dispose_referral_phi erases PHI, keeps the referral record'
   }) => {
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(REF_DETAIL_URL)
-    await page.waitForLoadState('networkidle')
 
     // The referral detail IS reachable (chefe.ccih is the source-commission coordinator),
     // so the subject renders — but the LGPD-erasure control is absent (canDisposeReferralPhi
     // = false for a plain staff_admin who is not a commission-admin/operator).
-    expect(await bodyText(page)).toContain(REF_XHOSP_SUBJECT)
+    await expect(page.getByText(REF_XHOSP_SUBJECT).first()).toBeVisible()
     await expect(
       page.getByRole('button', { name: /apagar dados do paciente/i }),
     ).toHaveCount(0)
@@ -901,8 +921,7 @@ test.describe('AC-7: dispose_referral_phi erases PHI, keeps the referral record'
     await signInAs(page, 'pqsdual.a@test.local')
     const res = await page.goto(REF_DETAIL_URL)
     expect(res?.status()).toBe(200)
-    await page.waitForLoadState('networkidle')
-    expect(await bodyText(page)).toContain(REF_XHOSP_SUBJECT)
+    await expect(page.getByText(REF_XHOSP_SUBJECT).first()).toBeVisible()
 
     // The operator arm of canDisposeReferralPhi → the control is present + usable.
     const trigger = page
@@ -934,7 +953,6 @@ test.describe('AC-7: dispose_referral_phi erases PHI, keeps the referral record'
     // end-to-end and preserves the non-PHI referral record (CFM retention).
     await signInAs(page, 'admin@test.local')
     await page.goto(REF_DETAIL_URL)
-    await page.waitForLoadState('networkidle')
 
     const trigger = page
       .getByRole('button', { name: /apagar dados do paciente/i })
@@ -964,7 +982,12 @@ test.describe('AC-7: dispose_referral_phi erases PHI, keeps the referral record'
     // Success: the dialog closes (no error banner). The action nulls the PHI graph
     // and router.refresh()es.
     await expect(dialog).toBeHidden({ timeout: 15_000 })
-    await page.waitForLoadState('networkidle')
+    // `router.refresh()` re-renders server-side after disposal; wait (web-first) for
+    // the now-ineligible dispose control to disappear, proving the refresh applied,
+    // before reading the post-disposal body.
+    await expect(
+      page.getByRole('button', { name: /apagar dados do paciente/i }),
+    ).toHaveCount(0, { timeout: 15_000 })
 
     // After disposal: the referral record (ENC code + subject) REMAINS...
     const afterBody = await bodyText(page)
@@ -999,7 +1022,6 @@ test.describe('AC-8: keyboard-only flow through the dispose dialog', () => {
   }) => {
     await signInAs(page, 'pqsdual.a@test.local')
     await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
-    await page.waitForLoadState('networkidle')
 
     const trigger = page
       .getByRole('button', { name: /apagar dados do paciente/i })

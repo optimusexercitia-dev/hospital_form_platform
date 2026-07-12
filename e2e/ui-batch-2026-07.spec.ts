@@ -307,7 +307,6 @@ test.afterAll(async () => {
 /** Enter the wizard for a spec form by title from the standalone forms list. */
 async function enterWizardByTitle(page: Page, title: string) {
   await page.goto(`/o/${ORG}/c/ccih/forms`)
-  await page.waitForLoadState('networkidle')
   const card = page.locator('article').filter({ hasText: title })
   await expect(card.first()).toBeVisible({ timeout: 15_000 })
   const cont = card.getByRole('link', { name: /continuar preenchimento/i })
@@ -352,7 +351,6 @@ test('A1 — discard: a resuming card offers Descartar rascunho; confirm removes
   // Start filling → creates an in_progress draft, then exit back to the list.
   await enterWizardByTitle(page, DISCARD_FORM_TITLE)
   await page.goto(`/o/${ORG}/c/ccih/forms`)
-  await page.waitForLoadState('networkidle')
 
   const card = formCard(page, DISCARD_FORM_TITLE)
   await expect(card.first()).toBeVisible({ timeout: 15_000 })
@@ -426,7 +424,6 @@ test('A2 — discard is NOT offered for a submitted response (immutable, no draf
 
   // Back on the forms list, the card is NON-resuming — no "Descartar rascunho".
   await page.goto(`/o/${ORG}/c/ccih/forms`)
-  await page.waitForLoadState('networkidle')
   const card = formCard(page, DISCARD_FORM_TITLE)
   await expect(card.first()).toBeVisible({ timeout: 15_000 })
   await expect(
@@ -501,7 +498,6 @@ test('B1 — meus-casos: two chips OFF by default show all; "Abertos" hides term
   // shrink as filters combine), so they hold regardless of exact seed volume.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/meus-casos`)
-  await page.waitForLoadState('networkidle')
 
   const abertos = page.getByRole('button', { name: 'Abertos', exact: true })
   const minhas = page.getByRole('button', {
@@ -561,7 +557,12 @@ test('B2 — meus-casos: pt-BR empty state renders when a narrow-access persona 
 }) => {
   await signInAs(page, 'staff2.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/meus-casos`)
-  await page.waitForLoadState('networkidle')
+  await expect(
+    page
+      .getByRole('button', { name: 'Abertos', exact: true })
+      .or(page.getByText(/Nenhum caso acessível/i))
+      .first(),
+  ).toBeVisible({ timeout: 15_000 })
 
   // If staff2 has no accessible cases at all, the PAGE-level empty state ("Nenhum
   // caso acessível") shows and there are no chips — a valid outcome; skip.
@@ -602,7 +603,6 @@ test('B-K — KEYBOARD-ONLY: the filter chips are reachable and toggle via keybo
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/meus-casos`)
-  await page.waitForLoadState('networkidle')
 
   const abertos = page.getByRole('button', { name: 'Abertos', exact: true })
   await expect(abertos).toBeVisible({ timeout: 15_000 })
@@ -735,7 +735,6 @@ test('S1 — smoke: the meeting status badge uses "Assinatura" — the deprecate
   await signInAs(page, 'chefe.ccih@test.local')
 
   await page.goto(`/o/${ORG}/c/ccih/meetings`)
-  await page.waitForLoadState('networkidle')
   await expect(page.getByRole('heading', { name: /Reuniões/i }).first()).toBeVisible({
     timeout: 15_000,
   })
@@ -759,7 +758,6 @@ test('S2 — smoke: "Aprovações pendentes" org page renders with a nav shell (
   // seeded approver on the pending "POP de Isolamento de Contato" doc.
   await signInAs(page, 'staff1.ccih@test.local')
   await page.goto(`/o/${ORG}/documentos-pendentes`)
-  await page.waitForLoadState('networkidle')
 
   // The shell mounts a sticky header with the org display name and the
   // "Aprovações pendentes" nav item — not a bare page.

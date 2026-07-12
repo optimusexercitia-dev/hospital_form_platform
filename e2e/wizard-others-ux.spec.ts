@@ -198,7 +198,6 @@ async function purge() {
 /** Enter the wizard for the spec form (Preencher / Continuar). */
 async function enterWizard(page: Page) {
   await page.goto(`/o/${ORG}/c/ccih/forms`)
-  await page.waitForLoadState('networkidle')
   const scope = page.locator('article').filter({ hasText: FORM_TITLE })
   await expect(scope.first()).toBeVisible({ timeout: 15_000 })
   const cont = scope.getByRole('link', { name: /continuar preenchimento/i })

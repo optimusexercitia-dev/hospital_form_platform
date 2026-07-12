@@ -123,7 +123,6 @@ test.afterAll(async () => {
  *  The caller signs in ONCE per test (so this is safe to call twice per test). */
 async function openQuestionDialog(page: Page, typeLabel: RegExp) {
   await page.goto(`/o/${ORG}/c/ccih/manage/forms/${formId}`)
-  await page.waitForLoadState('networkidle')
   const addBlock = page.getByRole('button', { name: /Adicionar bloco/i }).first()
   await expect(addBlock).toBeVisible({ timeout: 15_000 })
   await addBlock.click()
@@ -214,7 +213,6 @@ test('AC-4: the "Adicionar bloco" menu stays inside the viewport (no clip)', asy
   page,
 }) => {
   await page.goto(`/o/${ORG}/c/ccih/manage/forms/${formId}`)
-  await page.waitForLoadState('networkidle')
 
   const addBlock = page.getByRole('button', { name: /Adicionar bloco/i }).first()
   await expect(addBlock).toBeVisible({ timeout: 15_000 })

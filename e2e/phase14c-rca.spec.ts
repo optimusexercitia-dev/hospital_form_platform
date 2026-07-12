@@ -152,7 +152,9 @@ test('R1: RCA workspace page loads for a sentinel-triaged event', async ({ page,
 
   await signInAs(page, PQS_A_EMAIL)
   await page.goto(`/o/rede-a/nsp/rca/${RCA_ID}`)
-  await page.waitForLoadState('networkidle')
+  // Readiness before the one-shot content() snapshot: wait for the problem statement
+  // (set above) to render, proving the workspace loaded its content.
+  await expect(page.getByText(/compressa cirúrgica retida/i).first()).toBeVisible()
 
   // Page heading / breadcrumb
   const html = await page.content()
@@ -649,7 +651,6 @@ test('R16: keyboard-only — RCA workspace loads and content is keyboard reachab
 }) => {
   await signInAs(page, PQS_A_EMAIL)
   await page.goto(`/o/rede-a/nsp/rca/${RCA_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // Verify the page loaded the RCA workspace
   await expect(page.getByRole('main')).toBeVisible()
@@ -676,7 +677,8 @@ test('R16: keyboard-only — RCA workspace loads and content is keyboard reachab
 test('R17: RCA workspace page contains NO patient PHI', async ({ page }) => {
   await signInAs(page, PQS_A_EMAIL)
   await page.goto(`/o/rede-a/nsp/rca/${RCA_ID}`)
-  await page.waitForLoadState('networkidle')
+  // Readiness before the PHI-absence snapshot: prove the workspace rendered.
+  await expect(page.getByRole('main')).toBeVisible()
 
   const html = await page.content()
   // PHI from the seeded patient row (EV-0001's event_patient)

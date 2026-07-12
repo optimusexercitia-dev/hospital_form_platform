@@ -146,7 +146,7 @@ test.describe('X-4: the inbox is org-scoped (no cross-org events)', () => {
     await signInAs(page, 'pqs.a@test.local')
     await page.goto('/o/rede-a/nsp')
     await expect(page.getByRole('heading', { name: /fila de eventos/i })).toBeVisible()
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByText(TITLE_A).first()).toBeVisible({ timeout: 10_000 })
 
     const body = (await page.locator('body').textContent()) ?? ''
     // The rede-a event title IS present; the rede-b event's unique title is ABSENT.
@@ -161,7 +161,7 @@ test.describe('X-4: the inbox is org-scoped (no cross-org events)', () => {
     await signInAs(page, 'pqs.b@test.local')
     await page.goto('/o/rede-b/nsp')
     await expect(page.getByRole('heading', { name: /fila de eventos/i })).toBeVisible()
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByText(TITLE_B).first()).toBeVisible({ timeout: 10_000 })
 
     const body = (await page.locator('body').textContent()) ?? ''
     expect(body).toContain(TITLE_B)
@@ -181,7 +181,12 @@ test.describe('X-5: patient index is org-scoped', () => {
   }) => {
     await signInAs(page, 'pqs.a@test.local')
     await page.goto('/o/rede-a/nsp/pacientes')
-    await page.waitForLoadState('networkidle')
+    await expect(
+      page
+        .getByRole('heading', { name: /pacientes entre comissões/i })
+        .or(page.getByRole('heading', { name: /não encontramos esta página/i }))
+        .first(),
+    ).toBeVisible({ timeout: 10_000 })
 
     // The cross-committee patient index is `patient_index`-flag-gated. When ON, the
     // search UI renders; when OFF, the page is notFound() (also a valid "no cross-org

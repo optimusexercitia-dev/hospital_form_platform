@@ -218,7 +218,6 @@ test.describe('P2 — audit actor filter (list_audit_filter_actors RPC)', () => 
 
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/${ORG_A}/c/ccih/manage/audit`)
-    await page.waitForLoadState('networkidle')
 
     const actorSelect = page.getByLabel('Autor')
     await expect(actorSelect).toBeVisible({ timeout: 10_000 })
@@ -294,12 +293,10 @@ test.describe('P2 — audit actor filter (list_audit_filter_actors RPC)', () => 
 
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/${ORG_A}/c/ccih/manage/audit`)
-    await page.waitForLoadState('networkidle')
 
     const actorSelect = page.getByLabel('Autor')
     await expect(actorSelect).toBeVisible({ timeout: 10_000 })
     await actorSelect.selectOption({ value: UID_CHEFE_CCIH })
-    await page.waitForLoadState('networkidle')
     await expect(page).toHaveURL(new RegExp(`actor=${UID_CHEFE_CCIH}`))
 
     // The feed's visible entries (if any) must all attribute to chefe.ccih —
@@ -363,7 +360,6 @@ test.describe('P3 — keyset pagination', () => {
 
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/${ORG_A}/c/ccih/dashboard/submissions?form=${FORM_A_ID}`)
-    await page.waitForLoadState('networkidle')
 
     const list = page.getByRole('list', { name: /respostas/i })
     await expect(list).toBeVisible({ timeout: 10_000 })
@@ -417,11 +413,9 @@ test.describe('P3 — keyset pagination', () => {
     // Navigate directly back to the un-cursored URL to prove page 1 is stable/
     // re-derivable, then use real back navigation from page 2.
     await page.goto(`/o/${ORG_A}/c/ccih/dashboard/submissions?form=${FORM_A_ID}`)
-    await page.waitForLoadState('networkidle')
     await expect(list.getByRole('listitem')).toHaveCount(25, { timeout: 10_000 })
     await clickNextPage(page)
     await page.goBack()
-    await page.waitForLoadState('networkidle')
     await expect(page).not.toHaveURL(/cursor=/)
     await expect(list.getByRole('listitem')).toHaveCount(25, { timeout: 10_000 })
   })
@@ -488,7 +482,6 @@ test.describe('P3 — keyset pagination', () => {
 
     // Baseline: the true page 1 (no cursor).
     await page.goto(`/o/${ORG_A}/c/ccih/dashboard/submissions?form=${FORM_A_ID}`)
-    await page.waitForLoadState('networkidle')
     const baseList = page.getByRole('list', { name: /respostas/i })
     await expect(baseList).toBeVisible({ timeout: 10_000 })
     await expect(baseList.getByRole('listitem')).toHaveCount(25, { timeout: 10_000 })
@@ -502,7 +495,6 @@ test.describe('P3 — keyset pagination', () => {
     await page.goto(
       `/o/${ORG_A}/c/ccih/dashboard/submissions?form=${FORM_A_ID}&cursor=${tamperedCursor}`,
     )
-    await page.waitForLoadState('networkidle')
     // No Next.js error boundary / crash.
     await expect(
       page.getByText(/algo deu errado|application error|internal server error/i),
@@ -592,7 +584,6 @@ test.describe('P3 — keyset pagination', () => {
 
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/${ORG_A}/c/ccih/encaminhamentos`)
-    await page.waitForLoadState('networkidle')
 
     const nextBtn = page.getByRole('button', { name: /próxima página/i })
     await expect(nextBtn).toBeVisible({ timeout: 10_000 })
@@ -661,7 +652,6 @@ test.describe('P3 — keyset pagination', () => {
 
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/${ORG_A}/c/ccih/meetings`)
-    await page.waitForLoadState('networkidle')
 
     const nextBtn = page.getByRole('button', { name: /próxima página/i })
     await expect(nextBtn).toBeVisible({ timeout: 10_000 })
@@ -719,7 +709,6 @@ test.describe('P3 — keyset pagination', () => {
 
     await signInAs(page, 'pqsdual.a@test.local')
     await page.goto(`/o/${ORG_A}/nsp`)
-    await page.waitForLoadState('networkidle')
 
     const nextBtn = page.getByRole('button', { name: /próxima página/i })
     await expect(nextBtn).toBeVisible({ timeout: 10_000 })
@@ -746,7 +735,9 @@ test.describe('P3 — keyset pagination', () => {
   }) => {
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/${ORG_A}/c/ccih/manage/cases`)
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByRole('heading', { name: /^casos$/i }).first()).toBeVisible({
+      timeout: 10_000,
+    })
     await expect(page.getByRole('button', { name: /próxima página/i })).toHaveCount(0)
   })
 
@@ -755,7 +746,9 @@ test.describe('P3 — keyset pagination', () => {
   }) => {
     await signInAs(page, 'pqsdual.a@test.local')
     await page.goto(`/o/${ORG_A}/nsp/triagem`)
-    await page.waitForLoadState('networkidle')
+    await expect(
+      page.getByRole('heading', { name: /entrada de eventos/i }).first(),
+    ).toBeVisible({ timeout: 10_000 })
     await expect(page.getByRole('button', { name: /próxima página/i })).toHaveCount(0)
   })
 })
@@ -770,7 +763,6 @@ test.describe('P4 — feature-flag cache + open-cases badge', () => {
   }) => {
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/${ORG_A}/c/ccih/meetings`)
-    await page.waitForLoadState('networkidle')
     // The meetings feature is ON in the seeded environment; the page must
     // render its real content, not a 404 (proves get_feature_flags() behavior
     // parity with the old per-flag RPCs for this flag).
@@ -793,7 +785,6 @@ test.describe('P4 — feature-flag cache + open-cases badge', () => {
 
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/${ORG_A}/c/ccih`)
-    await page.waitForLoadState('networkidle')
 
     const casesNav = page.getByRole('link', { name: /^casos/i })
     await expect(casesNav).toBeVisible({ timeout: 10_000 })
@@ -810,7 +801,9 @@ test.describe('P4 — feature-flag cache + open-cases badge', () => {
     // count since the board is capped @200, but for this seed size well under
     // the cap so they must match exactly).
     await page.goto(`/o/${ORG_A}/c/ccih/manage/cases`)
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByRole('heading', { name: /^casos$/i }).first()).toBeVisible({
+      timeout: 10_000,
+    })
     const boardCaseCards = page.locator('[data-case-id]')
     if (await boardCaseCards.count() > 0) {
       // Only assert equality when the seed is under the 200 cap (true here).
@@ -835,7 +828,9 @@ test.describe('P5 — submissions form-filter parity', () => {
 
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/${ORG_A}/c/ccih/dashboard/submissions?form=${FORM_A_ID}`)
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByRole('list', { name: /respostas/i }).first()).toBeVisible({
+      timeout: 10_000,
+    })
 
     // Page through everything and count total rows shown for this filter.
     let total = 0
@@ -861,7 +856,6 @@ test.describe('P5 — submissions form-filter parity', () => {
   }) => {
     await signInAs(page, 'chefe.farm@test.local')
     await page.goto(`/o/${ORG_A}/c/farmacia/dashboard/submissions?form=${FORM_B_ID}`)
-    await page.waitForLoadState('networkidle')
 
     const list = page.getByRole('list', { name: /respostas/i })
     await expect(list).toBeVisible({ timeout: 10_000 })

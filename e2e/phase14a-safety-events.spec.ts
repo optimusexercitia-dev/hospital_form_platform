@@ -197,7 +197,6 @@ test('AC-1: chefe.ccih files event via case-detail dialog → NSP inbox + case t
 
   // Navigate to Caso 0001 detail
   await page.goto('/o/rede-a/c/ccih/manage/cases/d0000000-0000-0000-0000-0000000000c1')
-  await page.waitForLoadState('networkidle')
 
   // The "Notificar evento ao NSP" button triggers the dialog
   const notifyBtn = page.getByRole('button', { name: /notificar evento ao nsp/i })
@@ -236,7 +235,6 @@ test('AC-1: chefe.ccih files event via case-detail dialog → NSP inbox + case t
 
   // Case timeline includes a safety_event entry for Caso 0001
   await page.goto('/o/rede-a/c/ccih/manage/cases/d0000000-0000-0000-0000-0000000000c1/timeline')
-  await page.waitForLoadState('networkidle')
   // The timeline feed renders an event card with the type label "Evento de segurança"
   await expect(page.getByText(/evento de segurança/i).first()).toBeVisible()
 })
@@ -281,7 +279,6 @@ test('AC-2b: reporting commission (CCIH) read-back shows acknowledged status', a
   // EV-0001 is already `acknowledged` in seed — CCIH can see it on their list
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/eventos')
-  await page.waitForLoadState('networkidle')
 
   // The event card list shows "Reconhecido" status chip. Scope to `table tbody` so
   // we don't accidentally match the status-filter `<option value="acknowledged">
@@ -366,7 +363,6 @@ test('AC-4a: pqs.a navigates to EV-0001 detail → PHI panel renders with patien
 }) => {
   await signInAs(page, PQS_A_EMAIL)
   await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // The patient panel heading is present (the section is rendered for in-scope PHI)
   await expect(page.getByRole('heading', { name: /identificação do paciente/i })).toBeVisible()
@@ -390,7 +386,9 @@ test('AC-4b: PHI read writes event_patient.read audit row with no identifiers in
   const before = await auditRowsFor(request, 'event_patient.read', EV1_ID)
 
   await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
-  await page.waitForLoadState('networkidle')
+  // Readiness: the audited getEventPatient read renders this PHI heading server-side,
+  // so its visibility proves the event_patient.read audit row was written.
+  await expect(page.getByRole('heading', { name: /identificação do paciente/i })).toBeVisible()
 
   // One new audit row must have been added
   const after = await auditRowsFor(request, 'event_patient.read', EV1_ID)
@@ -421,7 +419,6 @@ test('AC-5: stand-alone event filing via /c/ccih/eventos/novo → inbox + read-b
 }) => {
   await signInAs(page, 'staff1.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/eventos')
-  await page.waitForLoadState('networkidle')
 
   // "Notificar evento" link button navigates to the stand-alone form
   const notifyLink = page.getByRole('link', { name: /notificar evento/i })
@@ -467,7 +464,8 @@ test('AC-6: NSP inbox page renders NO PHI (name, mrn, dob absent from HTML)', as
 }) => {
   await signInAs(page, PQS_A_EMAIL)
   await page.goto('/o/rede-a/nsp')
-  await page.waitForLoadState('networkidle')
+  // Readiness before the PHI-absence snapshot: prove the inbox rendered its rows.
+  await expect(page.getByText(/queda de paciente durante transferência/i).first()).toBeVisible()
 
   const html = await page.content()
   // The seed PHI row for EV-0001
@@ -482,7 +480,8 @@ test('AC-6: NSP inbox page renders NO PHI (name, mrn, dob absent from HTML)', as
 test('AC-6: CCIH eventos list renders NO PHI', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/eventos')
-  await page.waitForLoadState('networkidle')
+  // Readiness before the PHI-absence snapshot: prove the events list rendered its rows.
+  await expect(page.getByText(/queda de paciente durante transferência/i).first()).toBeVisible()
 
   const html = await page.content()
   expect(html).not.toContain('Paciente de Demonstração')
@@ -493,7 +492,8 @@ test('AC-6: CCIH eventos list renders NO PHI', async ({ page }) => {
 test('AC-6: case timeline renders NO PHI for safety event cards', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/cases/d0000000-0000-0000-0000-0000000000c1/timeline')
-  await page.waitForLoadState('networkidle')
+  // Readiness before the PHI-absence snapshot: prove the timeline rendered its cards.
+  await expect(page.getByText(/evento de segurança/i).first()).toBeVisible()
 
   const html = await page.content()
   expect(html).not.toContain('Paciente de Demonstração')
@@ -512,7 +512,6 @@ test('AC-7: keyboard-only — navigate to eventos list and filter by status', as
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/eventos')
-  await page.waitForLoadState('networkidle')
 
   // Tab until the "Filtrar por estado" select is focused
   // The select is inside a label with that aria-label
@@ -567,7 +566,9 @@ test('AC-8a: event detail shows Reconhecer button when status is reported', asyn
 
   await signInAs(page, PQS_A_EMAIL)
   await page.goto(`/o/rede-a/nsp/${EV2_ID}`)
-  await page.waitForLoadState('networkidle')
+  // Readiness: this static section heading renders for any event (PHI or not), so its
+  // visibility proves the detail page rendered before we assert on the button.
+  await expect(page.getByRole('heading', { name: /descrição do evento/i })).toBeVisible()
 
   const acknowledgeBtn = page.getByRole('button', { name: /reconhecer evento/i })
   if (ev2Status === 'reported') {
@@ -584,7 +585,9 @@ test('AC-8b: event detail shows NO Reconhecer button when status is acknowledged
   // EV-0001 is seeded as `acknowledged`
   await signInAs(page, PQS_A_EMAIL)
   await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
-  await page.waitForLoadState('networkidle')
+  // Readiness before the negative button check: the acknowledged timestamp proves the
+  // page rendered its acknowledged-state header (avoids a vacuous not-visible pass).
+  await expect(page.getByText(/reconhecido em/i).first()).toBeVisible()
 
   await expect(page.getByRole('button', { name: /reconhecer evento/i })).not.toBeVisible()
   // Acknowledged timestamp appears in the header
@@ -619,7 +622,6 @@ test('AC-10: NSP event detail shows custody history with at least one entry', as
 }) => {
   await signInAs(page, PQS_A_EMAIL)
   await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // "Histórico de custódia" section heading
   await expect(page.getByRole('heading', { name: /histórico de custódia/i })).toBeVisible()

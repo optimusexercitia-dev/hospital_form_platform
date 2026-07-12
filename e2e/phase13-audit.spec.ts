@@ -1002,6 +1002,11 @@ test('AC-4b: a member opening their OWN submission writes NO audit row', async (
   await page.goto(`/o/rede-a/c/ccih/dashboard/submissions/${own.id}`)
   // staff cannot reach the staff_admin submissions detail (route-gated) — but
   // either way, the invariant is: no .read row is written for a self/own access.
+  // INTENTIONAL networkidle (conversion-policy Class 5): this is a NEGATIVE DB-side-
+  // effect assertion (no `response.opened_foreign` row leaked), not a content wait.
+  // We must let any navigation-triggered server reads settle before querying the
+  // audit_log below; there is no page-content signal to wait on (the route is gated
+  // for staff → redirect/deny). Preserved deliberately — flagged for lead review.
   await page.waitForLoadState('networkidle')
 
   const after = await restGet<AuditRow>(

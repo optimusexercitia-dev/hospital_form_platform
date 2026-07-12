@@ -409,7 +409,6 @@ test('AC-1: flagged option + flaggedWhen → __flagged_count__ rule → "Crític
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseCritico}`)
-  await page.waitForLoadState('networkidle')
 
   await expect(
     page
@@ -433,7 +432,6 @@ test('AC-2: no flag + score below threshold → default "Normal"', async ({
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseNormal}`)
-  await page.waitForLoadState('networkidle')
 
   await expect(
     page
@@ -455,7 +453,6 @@ test('AC-3: __total_score__ criterion fires independently of flagged → "Atenç
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseAtencao}`)
-  await page.waitForLoadState('networkidle')
 
   await expect(
     page

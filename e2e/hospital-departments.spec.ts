@@ -122,7 +122,6 @@ test('AC-1: orgadmin creates, renames, adds a second, reorders and archives a de
   test.setTimeout(90_000)
   await signInAs(page, 'orgadmin.a@test.local')
   await page.goto(HOSPITAL_DETAIL)
-  await page.waitForLoadState('networkidle')
 
   // The hospital detail page shows the "Setores" section.
   await expect(
@@ -230,7 +229,6 @@ test('AC-2: hospital_admin of central-a is denied the secundario-a detail page (
 }) => {
   await signInAs(page, 'hospitaladmin.a1@test.local')
   await page.goto(`/o/${ORG}/manage/hospitais/${SECUNDARIO_A}`)
-  await page.waitForLoadState('networkidle')
 
   // notFound() — no departments manager, no "Novo setor" button. The page shows
   // the app's not-found UI. Assert the manager is absent (no data leakage).
@@ -239,7 +237,6 @@ test('AC-2: hospital_admin of central-a is denied the secundario-a detail page (
   ).toHaveCount(0, { timeout: 8_000 })
   // Its OWN hospital detail page must work (positive control).
   await page.goto(HOSPITAL_DETAIL)
-  await page.waitForLoadState('networkidle')
   await expect(
     page.getByRole('button', { name: /Novo setor/i }),
   ).toBeVisible({ timeout: 10_000 })
@@ -255,7 +252,6 @@ test('AC-3: Novo caso — select a managed department → case detail shows it',
   test.setTimeout(90_000)
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/manage/cases`)
-  await page.waitForLoadState('networkidle')
 
   await page.getByRole('button', { name: /Novo caso/i }).click()
   const dialog = page.getByRole('dialog', { name: /Novo caso/i })
@@ -298,7 +294,6 @@ test('AC-4: Novo caso — select "Outros" + custom value → case detail shows t
   const CUSTOM = `Ambulatório de Cardiologia ${TAG}`
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/manage/cases`)
-  await page.waitForLoadState('networkidle')
 
   await page.getByRole('button', { name: /Novo caso/i }).click()
   const dialog = page.getByRole('dialog', { name: /Novo caso/i })
@@ -358,7 +353,6 @@ test('AC-5: Novo caso PHI block has NO free-text "Unidade" (hideUnit), but the s
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/manage/cases`)
-  await page.waitForLoadState('networkidle')
 
   await page.getByRole('button', { name: /Novo caso/i }).click()
   const dialog = page.getByRole('dialog', { name: /Novo caso/i })
@@ -395,7 +389,6 @@ test('AC-K: keyboard-only — Novo-caso unit dropdown is reachable and shows a f
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/manage/cases`)
-  await page.waitForLoadState('networkidle')
 
   await page.getByRole('button', { name: /Novo caso/i }).click()
   const dialog = page.getByRole('dialog', { name: /Novo caso/i })

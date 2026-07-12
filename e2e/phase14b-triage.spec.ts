@@ -185,7 +185,9 @@ test('T1b: triage workstation page renders EV-0003 as sentinel with RCA mandated
 }) => {
   await signInAs(page, PQS_A_EMAIL)
   await page.goto(`/o/rede-a/nsp/triagem?event=${EV3_ID}`)
-  await page.waitForLoadState('networkidle')
+  // The workstation renders server-side from props; wait for its main region so the
+  // one-shot content() snapshot below sees the fully-rendered disposition rail.
+  await expect(page.getByRole('main')).toBeVisible()
 
   // The disposition rail must show "RCA" or "RCA obrigatória" / sentinel verdict
   const html = await page.content()
@@ -437,7 +439,6 @@ test('T7a: /o/rede-a/nsp/configuracoes loads the sentinel checklist and event ty
   // member sees a read-only note). The vocab sections are visible to any operator.
   await signInAs(page, NSPCOORD_A_EMAIL)
   await page.goto('/o/rede-a/nsp/configuracoes')
-  await page.waitForLoadState('networkidle')
 
   // Page heading
   await expect(page.getByRole('heading', { name: /configurações da triagem/i })).toBeVisible()
@@ -515,7 +516,6 @@ test('T8: keyboard-only — navigate to triage workstation and verify keyboard r
 }) => {
   await signInAs(page, PQS_A_EMAIL)
   await page.goto('/o/rede-a/nsp/triagem')
-  await page.waitForLoadState('networkidle')
 
   // The triage workstation loads — verify the main content region is present.
   await expect(page.getByRole('main')).toBeVisible()

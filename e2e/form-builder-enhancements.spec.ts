@@ -1250,7 +1250,6 @@ test('AC-12/AC-13 (read): observation line + coloured chip on submission detail'
   // Read-only submission detail (staff_admin view at /dashboard/submissions/{id}).
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/dashboard/submissions/${responseId}`)
-  await page.waitForLoadState('networkidle')
 
   // AC-13: the selected coloured option renders as a chip carrying the palette
   // token's class (a coloured chip, not a plain string). TOKEN_STYLES['red']
@@ -1413,7 +1412,6 @@ test('AC-14 (sign-off review): observation line renders in the sign-off review (
   // The response stays in_progress — the sign-off panel is what appears here.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/assinaturas/${responseId}`)
-  await page.waitForLoadState('networkidle')
 
   // The page must load the form title (not 404).
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 })

@@ -328,7 +328,6 @@ test('Flow 1a: A hub shows ENC-0001 (concluida) — subject, status, reply prese
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/encaminhamentos')
-  await page.waitForLoadState('networkidle')
 
   // Hub renders; the "Enviados" section contains ENC-0001
   await expect(page.getByText(/Solicitação de parecer sobre conciliação medicamentosa/i)).toBeVisible()
@@ -341,7 +340,6 @@ test("Flow 1b: A detail page shows reply but NOT B's internal case body", async 
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // A sees the referral subject
   await expect(page.getByText(/Solicitação de parecer sobre conciliação medicamentosa/i)).toBeVisible()
@@ -414,7 +412,6 @@ test('Flow 2a: B reads ENC-0001 snapshot and sees the frozen narrative body', as
   // B's coordinator logs in to their hub and opens ENC-0001
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto('/o/rede-a/c/farmacia/encaminhamentos')
-  await page.waitForLoadState('networkidle')
 
   // The referral appears in "Recebidos"
   await expect(page.getByText(/Solicitação de parecer sobre conciliação medicamentosa/i)).toBeVisible()
@@ -425,7 +422,6 @@ test('Flow 2b: B opens ENC-0001 detail — sees frozen narrative text from snaps
 }) => {
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${ENC1_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // The frozen narrative body is visible (the seed copies the body_md at-send)
   // Use .first() to handle multiple matches (subject heading + snapshot body + reply)
@@ -514,7 +510,6 @@ test('Flow 3b: QPS member can read ENC-0001 detail via the per-org QPS referral 
   // admin@ is rede-a org_admin and a truth-read persona, not the dashboard actor.
   await signInAs(page, 'pqs.a@test.local')
   await page.goto('/o/rede-a/nsp/encaminhamentos')
-  await page.waitForLoadState('networkidle')
 
   // Dashboard shows the referral
   await expect(page.getByText(/Solicitação de parecer sobre conciliação medicamentosa/i)).toBeVisible()
@@ -544,7 +539,6 @@ test('Flow 3d: QPS admin sees ENC-0001 reply (concluida) + delivered result on d
   // via the CCIH commission hub. (pqs.a@ would 404 here — PQS-roster-only, no
   // commission/org membership — so the QPS dashboard, not this hub, is its surface.)
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // Reply is visible
   await expect(page.getByText(/Procede/i).first()).toBeVisible()
@@ -672,7 +666,6 @@ test('Flow 5a: QPS admin PHI panel reveal → referral_patient.read audit row, n
   const before = await auditRowsFor(request, 'referral_patient.read', ENC1_ID)
 
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // Click the reveal button (lazy: fires the audited `get_referral_patient` door)
   const revealBtn = page.getByRole('button', { name: /exibir identificação/i })
@@ -904,7 +897,6 @@ test('Flow 7c: B\'s linked case analyst (chefe.farm as coordinator) can read ENC
 test('Flow 8a: keyboard-only — hub page reachable via Tab navigation', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih')
-  await page.waitForLoadState('networkidle')
 
   // Tab through the sidebar nav until "Encaminhamentos" is focused
   const encaNav = page.getByRole('link', { name: /encaminhamentos/i })
@@ -922,7 +914,6 @@ test('Flow 8b: keyboard-only — send wizard button focus and label visibility',
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // The "Encaminhar caso" button (or wizard trigger) must be keyboard-reachable
   const sendBtn = page.getByRole('button', { name: /encaminhar caso/i })
@@ -969,7 +960,6 @@ test('Flow 8c: keyboard-only — B-detail reply form labels and visible focus', 
   // keyboard-reachable (reply view, patient panel reveal button).
   await signInAs(page, 'chefe.farm@test.local')
   await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${ENC1_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // Verify the patient panel reveal button is keyboard-reachable
   const revealBtn = page.getByRole('button', { name: /exibir identificação/i })
@@ -998,7 +988,7 @@ test('Flow 5-PHI-list: hub page renders NO patient identifiers in HTML', async (
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/encaminhamentos')
-  await page.waitForLoadState('networkidle')
+  await expect(page.getByText(/Solicitação de parecer sobre conciliação medicamentosa/i).first()).toBeVisible()
 
   const html = await page.content()
   expect(html).not.toContain(PHI_NAME)
@@ -1015,7 +1005,7 @@ test('Flow 5-PHI-dash: per-org QPS referral dashboard renders NO patient identif
   // behind the per-referral audited PHI door, never on this macro view.
   await signInAs(page, 'pqs.a@test.local')
   await page.goto('/o/rede-a/nsp/encaminhamentos')
-  await page.waitForLoadState('networkidle')
+  await expect(page.getByText(/Solicitação de parecer sobre conciliação medicamentosa/i).first()).toBeVisible()
 
   const html = await page.content()
   expect(html).not.toContain(PHI_NAME)
@@ -1027,7 +1017,7 @@ test('Flow 5-PHI-timeline: case timeline shows referral entry with NO PHI', asyn
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}/timeline`)
-  await page.waitForLoadState('networkidle')
+  await expect(page.getByText(/encaminhamento/i).first()).toBeVisible()
 
   const html = await page.content()
   expect(html).not.toContain(PHI_NAME)

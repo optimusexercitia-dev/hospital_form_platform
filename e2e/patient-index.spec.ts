@@ -238,7 +238,6 @@ test('AC-1: PQS search for PRT-0099123 → trajectory spans ≥3 entities / ≥2
 }) => {
   await signInAs(page, 'pqs.a@test.local')
   await page.goto('/o/rede-a/nsp/pacientes')
-  await page.waitForLoadState('networkidle')
 
   // The page must render (flag is ON, admin is PQS)
   await expect(page.getByRole('heading', { name: /pacientes entre comissões/i })).toBeVisible({ timeout: 10_000 })
@@ -296,7 +295,6 @@ test('AC-2: encounter search for ENC-2026-4471 → returns ≥2 entities (event 
 }) => {
   await signInAs(page, 'pqs.a@test.local')
   await page.goto('/o/rede-a/nsp/pacientes')
-  await page.waitForLoadState('networkidle')
 
   // Fill encounter only (no MRN)
   const encounterInput = page.getByPlaceholder('Número do atendimento')
@@ -340,7 +338,12 @@ test('AC-3: referral ENC-0001 detail shows count-only "aparece em N outros regis
   try {
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${ENC1_ID}`)
-    await page.waitForLoadState('networkidle')
+
+    // The referral detail (with its isolated PHI panel) must render before we probe
+    // the PHI-free count note / assert absence of raw identifiers below.
+    await expect(
+      page.getByRole('heading', { name: /identificação do paciente/i }),
+    ).toBeVisible({ timeout: 15_000 })
 
     // Look for the "aparece em N outros registros" count note
     // It renders as "Este paciente aparece em N outro(s) registro(s)"
@@ -477,7 +480,12 @@ test('AC-5: deep-link ?entity=event:<EV1_ID> renders trajectory and emits patien
 
   await signInAs(page, 'pqs.a@test.local')
   await page.goto(`/o/rede-a/nsp/pacientes?entity=event:${EV1_ID}`)
-  await page.waitForLoadState('networkidle')
+
+  // The patient console shell must render before we probe the (server-resolved)
+  // trajectory and assert the PHI-free HTML below.
+  await expect(
+    page.getByRole('heading', { name: /pacientes entre comissões/i }),
+  ).toBeVisible({ timeout: 12_000 })
 
   // The page should render the trajectory (deep-link resolved server-side)
   // Look for at least one trajectory entity type label
@@ -610,7 +618,6 @@ test('AC-6: dispose_case_phi → xref retained (disposed_at set), trajectory fla
   // (The throwaway case shares a patient_key so searching its MRN should show it disposed)
   await signInAs(page, 'pqs.a@test.local')
   await page.goto('/o/rede-a/nsp/pacientes')
-  await page.waitForLoadState('networkidle')
 
   const mrnInput = page.getByPlaceholder('Número do prontuário')
   await mrnInput.click()
@@ -650,7 +657,13 @@ test('AC-7: flag OFF → /o/rede-a/nsp/pacientes → 404, search RPC denies/empt
     // UI: the page must return 404 when flag is OFF
     await signInAs(page, 'pqs.a@test.local')
     await page.goto('/o/rede-a/nsp/pacientes')
-    await page.waitForLoadState('networkidle')
+
+    // Flag OFF → the page notFound()s into the NSP not-found boundary. Wait for that
+    // 404 content to render (a positive readiness — you cannot deterministically
+    // "wait for absence") before the is404 probe / redirect check below.
+    await expect(
+      page.getByRole('heading', { name: /não encontramos esta página/i }),
+    ).toBeVisible({ timeout: 12_000 })
 
     // The page should show 404 content (Next.js notFound → this page returns notFound())
     const is404 =
@@ -770,7 +783,13 @@ test('AC-8c: non-PQS staff_admin (chefe.farm) cannot see QPS patient search page
   // /o/[org]/nsp layout gates on PQS membership of THIS org (getNspAccessByOrg →
   // notFound), so committee-admin standing alone does not reach the console.
   await page.goto('/o/rede-a/nsp/pacientes')
-  await page.waitForLoadState('networkidle')
+
+  // chefe.farm is non-PQS → the NSP layout notFound()s into the global 404. Wait for
+  // that 404 to render so the "search heading absent" check below is a real negative,
+  // not a vacuous read of an unrendered page.
+  await expect(
+    page.getByRole('heading', { name: /não encontramos esta página/i }),
+  ).toBeVisible({ timeout: 12_000 })
 
   // Must NOT render the patient search UI
   const isSearchPageVisible = await page
@@ -790,7 +809,6 @@ test('AC-9: trajectory + access-audit render NO patient name or raw MRN in DOM',
 }) => {
   await signInAs(page, 'pqs.a@test.local')
   await page.goto('/o/rede-a/nsp/pacientes')
-  await page.waitForLoadState('networkidle')
 
   // Perform a search that matches (MRN with results)
   const mrnInput = page.getByPlaceholder('Número do prontuário')
@@ -836,7 +854,6 @@ test('AC-10: keyboard-only — Tab to search field, type MRN, Enter, read result
 }) => {
   await signInAs(page, 'pqs.a@test.local')
   await page.goto('/o/rede-a/nsp/pacientes')
-  await page.waitForLoadState('networkidle')
 
   // The page heading is visible
   await expect(page.getByRole('heading', { name: /pacientes entre comissões/i })).toBeVisible({ timeout: 10_000 })
@@ -885,7 +902,6 @@ test('AC-11a: patient search page uses pt-BR copy (no English error messages sur
 }) => {
   await signInAs(page, 'pqs.a@test.local')
   await page.goto('/o/rede-a/nsp/pacientes')
-  await page.waitForLoadState('networkidle')
 
   // Page headings and labels are in pt-BR
   await expect(page.getByRole('heading', { name: /pacientes entre comissões/i })).toBeVisible()
@@ -919,7 +935,11 @@ test('AC-11b: NSP hub entry "Pacientes" is visible and in pt-BR', async ({ page 
   // The NSP hub should have a "Pacientes" link entry when patient_index is ON
   await signInAs(page, 'pqs.a@test.local')
   await page.goto('/o/rede-a/nsp')
-  await page.waitForLoadState('networkidle')
+
+  // The NSP hub must render before we probe for the (conditional) Pacientes link.
+  await expect(
+    page.getByRole('heading', { name: /fila de eventos/i }),
+  ).toBeVisible({ timeout: 12_000 })
 
   // Look for the Pacientes nav link (the hub may link to /o/rede-a/nsp/pacientes)
   const pacientesLink = page.getByRole('link', { name: /pacientes/i })

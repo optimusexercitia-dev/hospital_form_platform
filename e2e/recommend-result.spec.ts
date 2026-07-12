@@ -762,7 +762,6 @@ test('RR-1a: specific result match — Phase 2 recommended=true when Phase 1 res
   // UI: case detail page shows the "recomendada" badge on Phase 2.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseSpecificMatchId}`)
-  await page.waitForLoadState('networkidle')
 
   // Phase 2 card contains "recomendada" or "Recomendada" text (matches existing phase7 pattern).
   const phase2Article = page
@@ -791,7 +790,6 @@ test('RR-1b: specific result no-match — Phase 2 recommended=false when Phase 1
   // UI: Phase 2 card must NOT show "recomendada" badge.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseSpecificNoMatchId}`)
-  await page.waitForLoadState('networkidle')
 
   const phase2Article = page
     .getByRole('article')
@@ -824,7 +822,6 @@ test('RR-2a: adverse result match — Phase 2 recommended=true when Phase 1 resu
   // UI.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseAdverseMatchId}`)
-  await page.waitForLoadState('networkidle')
 
   const phase2Article = page
     .getByRole('article')
@@ -852,7 +849,6 @@ test('RR-2b: adverse result no-match — Phase 2 recommended=false when Phase 1 
   // UI: no "recomendada" badge.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseAdverseNoMatchId}`)
-  await page.waitForLoadState('networkidle')
 
   const phase2Article = page
     .getByRole('article')
@@ -884,7 +880,6 @@ test('RR-3a: mixed group (QUALQUER) — Phase 2 recommended=true when result leg
   // UI.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseMixedResultId}`)
-  await page.waitForLoadState('networkidle')
 
   const phase2Article = page
     .getByRole('article')
@@ -912,7 +907,6 @@ test('RR-3b: mixed group (QUALQUER) — Phase 2 recommended=true when answer leg
   // UI.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseMixedAnswerId}`)
-  await page.waitForLoadState('networkidle')
 
   const phase2Article = page
     .getByRole('article')
@@ -940,7 +934,6 @@ test('RR-3c: mixed group (QUALQUER) — Phase 2 NOT recommended when neither leg
   // UI: no badge.
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseMixedNeitherMatchId}`)
-  await page.waitForLoadState('networkidle')
 
   const phase2Article = page
     .getByRole('article')
@@ -994,7 +987,6 @@ test('RR-4: override re-flip — post-conclusion result change causes Phase 2 re
   // UI: Phase 2 on the override case does NOT show "recomendada".
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseOverrideId}`)
-  await page.waitForLoadState('networkidle')
 
   const phase2Article = page
     .getByRole('article')
@@ -1036,7 +1028,6 @@ test('RR-K: keyboard-only — recommend-when editor source toggle and add-row bu
 
   // Navigate to the process-templates builder list.
   await page.goto('/o/rede-a/c/ccih/manage/process-templates')
-  await page.waitForLoadState('networkidle')
   await expect(
     page.getByRole('heading', { name: /Processos multifásicos/i }),
   ).toBeVisible({ timeout: 15_000 })

@@ -628,7 +628,6 @@ test('AC-1: computed badge "Conforme" on board and detail (case 1, Sim → Confo
 
   // Board — find the case card and assert the result badge
   await page.goto('/o/rede-a/c/ccih/manage/cases')
-  await page.waitForLoadState('networkidle')
 
   // Try data-attribute card selector first, then fall through to text search
   const boardCard = page
@@ -651,7 +650,6 @@ test('AC-1: computed badge "Conforme" on board and detail (case 1, Sim → Confo
 
   // Detail page — the definitive assertion
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId1}`)
-  await page.waitForLoadState('networkidle')
 
   // The badge renders as "Resultado: Conforme" in a span; also match exact text.
   // Use .first() to avoid strict-mode if the case label also contains "Conforme".
@@ -678,7 +676,6 @@ test('AC-2: computed badge "Não-conforme" on detail (case 2, Não → default f
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId2}`)
-  await page.waitForLoadState('networkidle')
 
   await expect(
     page.getByText(/Resultado:?\s*Não-conforme/i)
@@ -733,7 +730,6 @@ test('AC-3: pre-conclusion override → badge "Não-conforme" + "Manual" pill (c
   // 3. Navigate to case detail and assert
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId3}`)
-  await page.waitForLoadState('networkidle')
 
   await expect(
     page.getByText(/Resultado:?\s*Não-conforme/i)
@@ -776,7 +772,6 @@ test('AC-4: post-conclusion correction by staff_admin → badge "Não-conforme" 
 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId1}`)
-  await page.waitForLoadState('networkidle')
 
   // Badge must now show "Não-conforme"
   await expect(
@@ -807,7 +802,7 @@ test('AC-5: staff user does NOT see "Corrigir resultado" button', async ({
 
   // Staff route: /c/ccih/casos/{caseId}
   await page.goto(`/o/rede-a/c/ccih/casos/${caseId1}`)
-  await page.waitForLoadState('networkidle')
+  await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 15_000 })
 
   // "Corrigir resultado" must NOT be visible to a regular staff member
   await page.waitForTimeout(2_000) // let the page settle
@@ -828,7 +823,6 @@ test('AC-6: result label visible in timeline or phase history on case detail', a
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId1}`)
-  await page.waitForLoadState('networkidle')
 
   // Main detail view must show the result (Não-conforme after AC-4's correction)
   await expect(
@@ -844,7 +838,6 @@ test('AC-6: result label visible in timeline or phase history on case detail', a
 
   if (await timelineTab.isVisible({ timeout: 4_000 }).catch(() => false)) {
     await timelineTab.click()
-    await page.waitForLoadState('networkidle')
     await page.waitForTimeout(1_000)
 
     const resultInTimeline = page
@@ -861,7 +854,6 @@ test('AC-6: result label visible in timeline or phase history on case detail', a
       .isVisible({ timeout: 4_000 })
       .catch(() => false)
     if (!notFound) {
-      await page.waitForLoadState('networkidle')
       const resultText = page
         .getByText(/Não-conforme/i)
         .or(page.getByText(/Conforme/i))
@@ -885,7 +877,6 @@ test('AC-K: keyboard-only flow — vocab settings page and "Corrigir resultado" 
 
   // K-1: Vocab settings page — keyboard navigation to "Novo resultado"
   await page.goto('/o/rede-a/c/ccih/manage/settings/resultados')
-  await page.waitForLoadState('networkidle')
 
   const novoBtn = page
     .getByRole('button', { name: /novo resultado/i })
@@ -917,7 +908,6 @@ test('AC-K: keyboard-only flow — vocab settings page and "Corrigir resultado" 
 
   // K-2: Case detail — "Corrigir resultado" keyboard activation
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId1}`)
-  await page.waitForLoadState('networkidle')
 
   const corrigirBtn = page.getByRole('button', { name: /corrigir resultado/i })
 
@@ -962,7 +952,6 @@ test('AC-M1: manual-phase correction shows ONLY the allowed subset, no "Limpar"'
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId4}`)
-  await page.waitForLoadState('networkidle')
 
   const corrigir = page
     .getByRole('button', { name: /corrigir resultado/i })
@@ -1019,7 +1008,6 @@ test('AC-M2: automatic-phase correction keeps full vocabulary + "Limpar" option'
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${caseId1}`)
-  await page.waitForLoadState('networkidle')
 
   const corrigir = page
     .getByRole('button', { name: /corrigir resultado/i })

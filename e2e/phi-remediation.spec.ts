@@ -156,7 +156,6 @@ test('REM-1: PQS member reaches /o/rede-a/nsp and sees the seeded event', async 
   await signInAs(page, 'pqs.a@test.local')
 
   await page.goto('/o/rede-a/nsp')
-  await page.waitForLoadState('networkidle')
 
   // Must NOT be redirected to 404 (pqs.a IS a rede-a PQS member)
   await expect(page).not.toHaveURL(/not-found|404/)
@@ -184,7 +183,6 @@ test('REM-2: PQS member opens event detail — patient panel shows PHI via get_e
   await signInAs(page, 'pqs.a@test.local')
 
   await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // Patient panel heading
   await expect(
@@ -215,7 +213,11 @@ test('REM-3: opening EV-0001 detail emits event_patient.read audit row with no P
   const before = await auditRows(request, 'event_patient.read', EV1_ID)
 
   await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
-  await page.waitForLoadState('networkidle')
+
+  // The audited PHI read (get_event_patient → event_patient.read) fires SERVER-SIDE
+  // while the panel renders; wait for the MRN to paint so the audit row is committed
+  // before we re-read the log.
+  await expect(page.getByText(PHI_MRN)).toBeVisible({ timeout: 15_000 })
 
   // At least one new audit row must have been emitted
   const after = await auditRows(request, 'event_patient.read', EV1_ID)
@@ -291,7 +293,6 @@ test('REM-6a: chefe.ccih committee read-back shows events with no PHI leakage', 
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/eventos')
-  await page.waitForLoadState('networkidle')
 
   // The seeded EV-0001 (acknowledged) is visible to CCIH as the reporting commission
   await expect(
@@ -315,7 +316,12 @@ test('REM-6b: staff1.ccih plain member sees events with no PHI leakage', async (
 }) => {
   await signInAs(page, 'staff1.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/eventos')
-  await page.waitForLoadState('networkidle')
+
+  // Prove the events list page rendered before asserting PHI absence — otherwise a
+  // not-yet-streamed page yields a vacuous "no PHI" pass.
+  await expect(
+    page.getByRole('heading', { name: /eventos de segurança/i }),
+  ).toBeVisible({ timeout: 12_000 })
 
   // Staff members can view the events list for their commission
   // (no PHI present regardless of what they can see)
@@ -340,7 +346,13 @@ test('REM-7: opening event detail emits safety_event.viewed audit row', async ({
   const before = await auditRows(request, 'safety_event.viewed', EV1_ID)
 
   await page.goto(`/o/rede-a/nsp/${EV1_ID}`)
-  await page.waitForLoadState('networkidle')
+
+  // The event detail renders (and emits safety_event.viewed SERVER-SIDE) as it
+  // paints; wait for its stable heading so the audit row is committed before the
+  // re-read.
+  await expect(
+    page.getByRole('heading', { name: /descrição do evento/i }),
+  ).toBeVisible({ timeout: 15_000 })
 
   const after = await auditRows(request, 'safety_event.viewed', EV1_ID)
   expect(after.length).toBeGreaterThan(before.length)
@@ -377,7 +389,12 @@ test('REM-8: opening RCA detail emits rca.viewed audit row', async ({
   const before = await auditRows(request, 'rca.viewed', rcaId)
 
   await page.goto(`/o/rede-a/nsp/rca/${rcaId}`)
-  await page.waitForLoadState('networkidle')
+
+  // The RCA workspace streams its content (and emits rca.viewed SERVER-SIDE); wait
+  // for the event-title heading so the audit row is committed before the re-read.
+  await expect(
+    page.getByText(/queda de paciente durante transferência/i).first(),
+  ).toBeVisible({ timeout: 15_000 })
 
   // Page must load (not 404)
   await expect(page).not.toHaveURL(/not-found|404/)
@@ -416,7 +433,12 @@ test('REM-9: opening CAPA detail emits capa_plan.viewed audit row', async ({
   const before = await auditRows(request, 'capa_plan.viewed', capaId)
 
   await page.goto(`/o/rede-a/nsp/capa/${capaId}`)
-  await page.waitForLoadState('networkidle')
+
+  // The CAPA workspace streams its content (and emits capa_plan.viewed SERVER-SIDE);
+  // wait for its stable heading so the audit row is committed before the re-read.
+  await expect(
+    page.getByRole('heading', { name: /plano de ação corretivo/i }),
+  ).toBeVisible({ timeout: 15_000 })
 
   await expect(page).not.toHaveURL(/not-found|404/)
 
@@ -440,7 +462,6 @@ test('REM-K1: keyboard-only — NSP inbox → open event detail → patient pane
 
   // Navigate to inbox via keyboard: go to /o/rede-a/nsp first, then Tab to an event link
   await page.goto('/o/rede-a/nsp')
-  await page.waitForLoadState('networkidle')
 
   // The event title links are in the inbox table. Tab to the first one and press Enter.
   // We focus the first event link in the table (contains the EV-0001 title text).
@@ -452,7 +473,6 @@ test('REM-K1: keyboard-only — NSP inbox → open event detail → patient pane
 
   // Keyboard-activate: Enter key navigates to the event detail
   await page.keyboard.press('Enter')
-  await page.waitForLoadState('networkidle')
 
   // Must be on an event detail page
   await expect(page).toHaveURL(/\/o\/rede-a\/nsp\/[0-9a-f-]+$/)

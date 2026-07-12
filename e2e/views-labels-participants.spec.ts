@@ -254,7 +254,6 @@ test('AC-1: published template shows the "Desfechos disponíveis" card + the "Em
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/manage/process-templates/${templateId}`)
-  await page.waitForLoadState('networkidle')
 
   // 8(a): the read-only outcomes card lists the offered outcomes.
   await expect(
@@ -298,7 +297,6 @@ test('AC-2: KPI label reads "Etapas pendentes"; the board count INCLUDES open na
   // Label + sub-line copy (the relabel acceptance).
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/manage/cases`)
-  await page.waitForLoadState('networkidle')
   await expect(page.getByText('Etapas pendentes', { exact: true })).toBeVisible({
     timeout: 12_000,
   })
@@ -330,7 +328,6 @@ test('AC-3: the create-case PHI block encounter label reads "Atendimento" (not "
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/manage/cases`)
-  await page.waitForLoadState('networkidle')
 
   await page.getByRole('button', { name: /Novo caso/i }).click()
   const dialog = page.getByRole('dialog', { name: /Novo caso/i })
@@ -362,7 +359,6 @@ test('AC-4: Nova reunião — "Participantes" section defaults to "Convocar todo
   test.setTimeout(90_000)
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/meetings`)
-  await page.waitForLoadState('networkidle')
 
   await page.getByRole('button', { name: /Nova reunião/i }).click()
   const dialog = page.getByRole('dialog', { name: /Nova reunião/i })
@@ -414,7 +410,6 @@ test('AC-5: Nova reunião — toggle OFF reveals a member checklist + live count
   test.setTimeout(90_000)
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/meetings`)
-  await page.waitForLoadState('networkidle')
 
   await page.getByRole('button', { name: /Nova reunião/i }).click()
   const dialog = page.getByRole('dialog', { name: /Nova reunião/i })
@@ -484,7 +479,6 @@ test('AC-K: keyboard-only — the Participantes toggle + member checklist are re
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/meetings`)
-  await page.waitForLoadState('networkidle')
 
   await page.getByRole('button', { name: /Nova reunião/i }).click()
   const dialog = page.getByRole('dialog', { name: /Nova reunião/i })
@@ -521,7 +515,6 @@ test('AC-6a: the meeting-create "Início" time is the segmented TimeField (not n
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/${ORG}/c/ccih/meetings`)
-  await page.waitForLoadState('networkidle')
 
   await page.getByRole('button', { name: /Nova reunião/i }).click()
   const dialog = page.getByRole('dialog', { name: /Nova reunião/i })

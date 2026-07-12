@@ -307,7 +307,6 @@ test('AC-1a: builder toggle enables collects_patient on draft template', async (
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/process-templates/${draftTemplateId}`)
-  await page.waitForLoadState('networkidle')
 
   // The collects_patient toggle should be present (flag is ON)
   const toggle = page
@@ -354,7 +353,6 @@ test('AC-1a: builder toggle enables collects_patient on draft template', async (
 
   // Reload and verify the persisted state
   await page.reload()
-  await page.waitForLoadState('networkidle')
   const toggleAfter = page
     .getByRole('switch', { name: /coleta identificação do paciente/i })
     .or(page.getByRole('checkbox', { name: /coleta identificação do paciente/i }))
@@ -401,7 +399,6 @@ test('AC-1b: Novo caso from collecting template shows PHI block; non-collecting 
 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/cases')
-  await page.waitForLoadState('networkidle')
 
   // Open the "Novo caso" dialog
   const novoCasoBtn = page.getByRole('button', { name: /novo caso/i })
@@ -475,7 +472,6 @@ test('AC-2a: opening case detail does NOT emit case_patient.read', async ({
 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
-  await page.waitForLoadState('networkidle')
   await page.waitForTimeout(1_500)
 
   // The panel header should be visible (patient_enabled=true → panel renders)
@@ -502,7 +498,6 @@ test('AC-2b: clicking "Exibir identificação" reveals PHI and emits exactly one
 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // The reveal button is visible
   const revealBtn = page.getByRole('button', { name: /exibir identificação/i })
@@ -550,7 +545,6 @@ test('AC-3a: phase assignee can reveal identifiers but has no edit affordance', 
   await signInAs(page, 'staff1.ccih@test.local')
   // Phase assignees use the staff route (can_read_case via assignment)
   await page.goto(`/o/rede-a/c/ccih/casos/${CASE_A_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // The panel must be visible (patient_enabled=true)
   const panelHeading = page.getByRole('heading', { name: /Identificação do paciente/i })
@@ -624,7 +618,6 @@ test('AC-3c: coordinator has edit affordance + name-or-MRN floor enforced server
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // The "Editar identificação" button is present for a coordinator (has_patient=true)
   const editBtn = page.getByRole('button', { name: /editar identificação/i })
@@ -708,7 +701,6 @@ test('AC-4: referral wizard pre-fills from case_patient (source=case)', async ({
   try {
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
-    await page.waitForLoadState('networkidle')
 
     // Find the "Encaminhar caso" button or referral send trigger
     const sendBtn = page.getByRole('button', { name: /encaminhar caso/i })
@@ -795,7 +787,6 @@ test('AC-5: notify-NSP dialog pre-fills event_patient from case_patient', async 
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // Find the "Notificar NSP" button (patient_safety flag is ON)
   const notifyBtn = page.getByRole('button', { name: /notificar nsp/i })
@@ -980,7 +971,6 @@ test('AC-7: keyboard-only flow — reveal button is keyboard-focusable and activ
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // Locate the reveal button
   const revealBtn = page.getByRole('button', { name: /exibir identificação/i })
@@ -1039,7 +1029,7 @@ test('AC-8a: case_patient flag OFF — detail panel absent from case detail', as
   try {
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto(`/o/rede-a/c/ccih/manage/cases/${CASE_A_ID}`)
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 15_000 })
     await page.waitForTimeout(1_000)
 
     // The patient panel section must NOT be present
@@ -1079,7 +1069,7 @@ test('AC-8b: case_patient flag OFF — Novo caso PHI block absent even for colle
 
     await signInAs(page, 'chefe.ccih@test.local')
     await page.goto('/o/rede-a/c/ccih/manage/cases')
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByRole('button', { name: /novo caso/i })).toBeVisible({ timeout: 10_000 })
 
     const novoCasoBtn = page.getByRole('button', { name: /novo caso/i })
     if (await novoCasoBtn.isVisible({ timeout: 8_000 }).catch(() => false)) {
@@ -1167,7 +1157,6 @@ test('AC-9: create-case dialog writes PHI atomically (mrn+encounter, no name)', 
 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/cases')
-  await page.waitForLoadState('networkidle')
 
   // Open the "Novo caso" dialog.
   const novoCasoBtn = page.getByRole('button', { name: /novo caso/i })
@@ -1201,8 +1190,6 @@ test('AC-9: create-case dialog writes PHI atomically (mrn+encounter, no name)', 
   })
   const caseId = page.url().split('/').pop() as string
   expect(caseId).toMatch(/^[0-9a-f-]{36}$/i)
-
-  await page.waitForLoadState('networkidle')
 
   // The patient panel must render in its PROTECTED (has_patient=true) state — NOT
   // the empty placeholder that the original bug produced.

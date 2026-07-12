@@ -142,7 +142,9 @@ async function auditRowsFor(
 test('C1: CAPA workspace page loads with seeded plan content', async ({ page }) => {
   await signInAs(page, PQS_A_EMAIL)
   await page.goto(`/o/rede-a/nsp/capa/${CAPA_ID}`)
-  await page.waitForLoadState('networkidle')
+  // Readiness before the one-shot content() snapshot: wait for the seeded action
+  // title, proving the workspace rendered its plan content.
+  await expect(page.getByText(/dupla checagem padronizada/i).first()).toBeVisible()
 
   // Page heading
   const html = await page.content()
@@ -691,7 +693,6 @@ test('C17: keyboard-only — CAPA workspace loads and action sections are keyboa
 }) => {
   await signInAs(page, PQS_A_EMAIL)
   await page.goto(`/o/rede-a/nsp/capa/${CAPA_ID}`)
-  await page.waitForLoadState('networkidle')
 
   // Page main content area visible
   await expect(page.getByRole('main')).toBeVisible()
@@ -719,7 +720,8 @@ test('C17: keyboard-only — CAPA workspace loads and action sections are keyboa
 test('C18: CAPA workspace page contains NO patient PHI', async ({ page }) => {
   await signInAs(page, PQS_A_EMAIL)
   await page.goto(`/o/rede-a/nsp/capa/${CAPA_ID}`)
-  await page.waitForLoadState('networkidle')
+  // Readiness before the PHI-absence snapshot: prove the workspace rendered its plan.
+  await expect(page.getByText(/dupla checagem padronizada/i).first()).toBeVisible()
 
   const html = await page.content()
   expect(html).not.toContain('Paciente de Demonstração')
