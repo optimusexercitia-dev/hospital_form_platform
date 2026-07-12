@@ -19,6 +19,8 @@ import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents"
 import { listCaseTags, listCaseTagsForCase } from "@/lib/queries/case-tags";
 import { listCaseActionItems } from "@/lib/queries/case-action-items";
 import { listCaseInterviews, interviewsEnabled } from "@/lib/queries/interviews";
+import { listCaseMeetings } from "@/lib/queries/case-timeline";
+import { meetingsEnabled } from "@/lib/meetings/actions";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
@@ -79,12 +81,14 @@ export default async function StaffCaseDetailPage({
     casePatientOn,
     narrativesOn,
     phaseResultsOn,
+    meetingsOn,
   ] = await Promise.all([
     interviewsEnabled(),
     patientSafetyEnabled(),
     casePatientEnabled(),
     narrativesEnabled(),
     phaseResultsEnabled(),
+    meetingsEnabled(),
   ]);
 
   // Post-conclusion result correction (phase-results feature; task #10) is
@@ -95,7 +99,7 @@ export default async function StaffCaseDetailPage({
   const phaseResultOptions = canManagePhaseResults
     ? toResolvedPhaseResultOptions(await listPhaseResults(access.commission.id))
     : [];
-  const [members, documents, events, tags, caseTags, actionItems, interviews] =
+  const [members, documents, events, tags, caseTags, actionItems, interviews, meetings] =
     await Promise.all([
       listMembers(access.commission.id),
       listCaseDocuments(caseId),
@@ -104,6 +108,7 @@ export default async function StaffCaseDetailPage({
       listCaseTagsForCase(caseId),
       listCaseActionItems(caseId),
       interviewsOn ? listCaseInterviews(caseId) : Promise.resolve([]),
+      meetingsOn ? listCaseMeetings(caseId) : Promise.resolve([]),
     ]);
 
   // The outbound-referrals card module (Phase 22; null when the flag is off). Built
@@ -132,6 +137,8 @@ export default async function StaffCaseDetailPage({
       actionItems={actionItems}
       interviews={interviews}
       interviewsEnabled={interviewsOn}
+      meetings={meetings}
+      meetingsEnabled={meetingsOn}
       patientSafetyEnabled={patientSafetyOn}
       casePatientEnabled={casePatientOn}
       narrativesEnabled={narrativesOn}

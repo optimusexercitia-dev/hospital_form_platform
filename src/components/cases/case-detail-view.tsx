@@ -33,6 +33,8 @@ import {
 } from "@/lib/cases/actions";
 import { CaseDetailMotion } from "@/components/cases/case-detail-motion";
 import { InterviewsPanel } from "@/components/interviews/interviews-panel";
+import { CaseMeetingsPanel } from "@/components/cases/case-meetings-panel";
+import type { CaseMeetingLink } from "@/lib/queries/case-timeline";
 import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
 import { CaseOutboundReferralsCard } from "@/components/referrals/case-outbound-referrals-card";
 import type { ReferralListItem, ReferralType } from "@/lib/referrals/types";
@@ -92,6 +94,8 @@ export function CaseDetailView({
   actionItems,
   interviews,
   interviewsEnabled,
+  meetings = [],
+  meetingsEnabled = false,
   patientSafetyEnabled,
   casePatientEnabled,
   narrativesEnabled,
@@ -121,6 +125,10 @@ export function CaseDetailView({
   actionItems: CaseActionItem[];
   interviews: InterviewListItem[];
   interviewsEnabled: boolean;
+  /** The meetings this case was discussed in (the reverse of a meeting's "Casos discutidos"). Default `[]`. */
+  meetings?: CaseMeetingLink[];
+  /** Whether the `meetings` flag is on (gates the rail card). Default `false`. */
+  meetingsEnabled?: boolean;
   patientSafetyEnabled: boolean;
   /** Whether the `case_patient` flag is on (gates the patient reveal panel; ADR 0038). */
   casePatientEnabled: boolean;
@@ -427,6 +435,15 @@ export function CaseDetailView({
                   interviews={interviews}
                   phases={phaseOptions}
                   canCreate={caps.canManageLifecycle}
+                  variant="rail"
+                />
+              </div>
+            )}
+            {meetingsEnabled && (
+              <div data-rise className="order-6 lg:order-none">
+                <CaseMeetingsPanel
+                  org={org} slug={slug}
+                  meetings={meetings}
                   variant="rail"
                 />
               </div>

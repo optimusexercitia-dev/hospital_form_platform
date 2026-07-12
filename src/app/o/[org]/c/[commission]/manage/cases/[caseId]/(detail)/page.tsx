@@ -20,6 +20,8 @@ import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents"
 import { listCaseTags, listCaseTagsForCase } from "@/lib/queries/case-tags";
 import { listCaseActionItems } from "@/lib/queries/case-action-items";
 import { listCaseInterviews, interviewsEnabled } from "@/lib/queries/interviews";
+import { listCaseMeetings } from "@/lib/queries/case-timeline";
+import { meetingsEnabled } from "@/lib/meetings/actions";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
@@ -67,6 +69,7 @@ export default async function CaseDetailPage({
     caseAccessOn,
     phaseResultsOn,
     casesExtrasOn,
+    meetingsOn,
   ] = await Promise.all([
     interviewsEnabled(),
     patientSafetyEnabled(),
@@ -75,6 +78,7 @@ export default async function CaseDetailPage({
     caseAccessEnabled(),
     phaseResultsEnabled(),
     casesExtrasEnabled(),
+    meetingsEnabled(),
   ]);
 
   // The commission's outcome vocabulary — for the process-less offered-outcome
@@ -93,7 +97,7 @@ export default async function CaseDetailPage({
   const phaseResultOptions = phaseResultsOn
     ? toResolvedPhaseResultOptions(await listPhaseResults(access.commission.id))
     : [];
-  const [members, documents, events, tags, caseTags, actionItems, interviews] =
+  const [members, documents, events, tags, caseTags, actionItems, interviews, meetings] =
     await Promise.all([
       listMembers(access.commission.id),
       listCaseDocuments(caseId),
@@ -102,6 +106,7 @@ export default async function CaseDetailPage({
       listCaseTagsForCase(caseId),
       listCaseActionItems(caseId),
       interviewsOn ? listCaseInterviews(caseId) : Promise.resolve([]),
+      meetingsOn ? listCaseMeetings(caseId) : Promise.resolve([]),
     ]);
 
   // The outbound-referrals card module (Phase 22; null when the flag is off). Built
@@ -120,6 +125,8 @@ export default async function CaseDetailPage({
       actionItems={actionItems}
       interviews={interviews}
       interviewsEnabled={interviewsOn}
+      meetings={meetings}
+      meetingsEnabled={meetingsOn}
       patientSafetyEnabled={patientSafetyOn}
       casePatientEnabled={casePatientOn}
       narrativesEnabled={narrativesOn}
