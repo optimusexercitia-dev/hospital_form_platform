@@ -10,8 +10,8 @@
     "semantic_hash": ""
   },
   "eslint.config.mjs": {
-    "mtime": 1781298343.6220756,
-    "ast_hash": "d7695728930fb5558e4927b87acb8e11",
+    "mtime": 1783852904.523943,
+    "ast_hash": "ce67ed782ff29d47a5b33150f2f9343f",
     "semantic_hash": ""
   },
   "next.config.ts": {
@@ -20,8 +20,8 @@
     "semantic_hash": ""
   },
   "package.json": {
-    "mtime": 1783807123.550139,
-    "ast_hash": "1a55c80db47ea18d08a010ec5278e246",
+    "mtime": 1783854074.6601865,
+    "ast_hash": "027b711471e932e029c1e52bff145beb",
     "semantic_hash": ""
   },
   "playwright.config.ts": {
@@ -1615,7 +1615,7 @@
     "semantic_hash": ""
   },
   "src/components/forms/condition-builder.tsx": {
-    "mtime": 1783821915.0295835,
+    "mtime": 1783851738.575323,
     "ast_hash": "813c2ed138b21d754ccab3b8e06ae703",
     "semantic_hash": ""
   },
@@ -1655,7 +1655,7 @@
     "semantic_hash": ""
   },
   "src/components/forms/describe-visibility.ts": {
-    "mtime": 1783821915.0295835,
+    "mtime": 1783851738.575323,
     "ast_hash": "11cd0152d533b35bee7a555bc1b927ae",
     "semantic_hash": ""
   },
@@ -2335,7 +2335,7 @@
     "semantic_hash": ""
   },
   "src/components/process-templates/result-ruleset-editor.tsx": {
-    "mtime": 1783821915.035689,
+    "mtime": 1783851738.5763218,
     "ast_hash": "0c170829f96bf0bb7bd66a39e81e4399",
     "semantic_hash": ""
   },
@@ -3465,12 +3465,12 @@
     "semantic_hash": ""
   },
   "src/lib/queries/__fixtures__/condition-vectors.json": {
-    "mtime": 1783820519.8666854,
+    "mtime": 1783851738.5773237,
     "ast_hash": "d0243ff1a66222a6bc79d89f4e0995b5",
     "semantic_hash": ""
   },
   "src/lib/queries/__fixtures__/visibility-vectors.json": {
-    "mtime": 1783820564.6367826,
+    "mtime": 1783851738.5783257,
     "ast_hash": "23a764ed0bf7db042d0c059d16ef2273",
     "semantic_hash": ""
   },
@@ -3540,7 +3540,7 @@
     "semantic_hash": ""
   },
   "src/lib/queries/conditions.ts": {
-    "mtime": 1783821915.035689,
+    "mtime": 1783851738.5783257,
     "ast_hash": "4d40322fa09ceeb837037c394c8445dc",
     "semantic_hash": ""
   },
@@ -3775,7 +3775,7 @@
     "semantic_hash": ""
   },
   "src/lib/types/database.ts": {
-    "mtime": 1783821915.037701,
+    "mtime": 1783851738.5806136,
     "ast_hash": "13c4e3bcd7df5f4b252fa46437a646a4",
     "semantic_hash": ""
   },
@@ -4400,7 +4400,7 @@
     "semantic_hash": ""
   },
   "supabase/tests/20_conditions.sql": {
-    "mtime": 1783820579.423736,
+    "mtime": 1783851738.5844262,
     "ast_hash": "51a957adbff657b959210b793d3a4909",
     "semantic_hash": ""
   },
@@ -4495,13 +4495,13 @@
     "semantic_hash": ""
   },
   "ARCHITECTURE.md": {
-    "mtime": 1783822348.6800923,
+    "mtime": 1783851738.5234385,
     "ast_hash": "4fb868388d73c2e51e91c34750636a10",
     "semantic_hash": ""
   },
   "CLAUDE.md": {
-    "mtime": 1783817851.192364,
-    "ast_hash": "4fce98c3e39e215ba112494551d028be",
+    "mtime": 1783854226.8018873,
+    "ast_hash": "5d72fbdcb8e0f8b2f74605afcea871df",
     "semantic_hash": ""
   },
   "PHASES.md": {
@@ -4510,8 +4510,8 @@
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1783819877.3598223,
-    "ast_hash": "bfd47e7f0331ac1115e6b226bd17e2c0",
+    "mtime": 1783851738.5254383,
+    "ast_hash": "e4eb988209f1eb0d7bde08724d3341fd",
     "semantic_hash": ""
   },
   "README.md": {
@@ -4520,7 +4520,7 @@
     "semantic_hash": ""
   },
   "docs/backend-state.md": {
-    "mtime": 1783822462.630996,
+    "mtime": 1783851738.5264373,
     "ast_hash": "0bf163245b881ece33e486e4a05a759c",
     "semantic_hash": ""
   },
@@ -5480,8 +5480,8 @@
     "semantic_hash": ""
   },
   "e2e/case-access.spec.ts": {
-    "mtime": 1783410248.5236504,
-    "ast_hash": "b91517c62c12dd0fcdcd54ab1680825b",
+    "mtime": 1783853806.6160152,
+    "ast_hash": "122b2ba69cea57a96cb147c4166273ec",
     "semantic_hash": ""
   },
   "e2e/case-narratives.spec.ts": {
@@ -5490,8 +5490,8 @@
     "semantic_hash": ""
   },
   "e2e/case-patient.spec.ts": {
-    "mtime": 1783724399.268042,
-    "ast_hash": "723845a79da04913f20cf95488b9493a",
+    "mtime": 1783853750.729824,
+    "ast_hash": "3b545fc7e16760e83868fd9a64665485",
     "semantic_hash": ""
   },
   "e2e/case-phase-result.spec.ts": {
@@ -5555,13 +5555,13 @@
     "semantic_hash": ""
   },
   "e2e/member-action-items-overview.spec.ts": {
-    "mtime": 1783410204.1158855,
-    "ast_hash": "d57645a177756d552be4e51ac5708b8e",
+    "mtime": 1783853649.3797936,
+    "ast_hash": "38f23e53f0d06f99693038f8cb7e441a",
     "semantic_hash": ""
   },
   "e2e/nsp-cross-org-isolation.spec.ts": {
-    "mtime": 1783410204.1803863,
-    "ast_hash": "30e9b913200f1143e06e5cb5984c5198",
+    "mtime": 1783853651.697323,
+    "ast_hash": "513723cb2d8936342f748304a9aaff27",
     "semantic_hash": ""
   },
   "e2e/nsp-per-hospital.spec.ts": {
@@ -5570,8 +5570,8 @@
     "semantic_hash": ""
   },
   "e2e/patient-index.spec.ts": {
-    "mtime": 1783724399.268042,
-    "ast_hash": "93bd12886589b639d9fe66c138c3a640",
+    "mtime": 1783853864.432288,
+    "ast_hash": "acd309a80bb7d6971b511fdefd8af306",
     "semantic_hash": ""
   },
   "e2e/perf-sweep-wave2.spec.ts": {
@@ -5600,13 +5600,13 @@
     "semantic_hash": ""
   },
   "e2e/phase13-audit.spec.ts": {
-    "mtime": 1783410204.5409636,
-    "ast_hash": "4bd9aab18115381a3d54e0673a77f709",
+    "mtime": 1783853657.69661,
+    "ast_hash": "8cc8c0edeb752d917d9c0ac0a26ed06f",
     "semantic_hash": ""
   },
   "e2e/phase14a-safety-events.spec.ts": {
-    "mtime": 1783410204.5721228,
-    "ast_hash": "8520f115475397b9ec24238d9689aebb",
+    "mtime": 1783853811.649115,
+    "ast_hash": "a15a7c923ef6d72b2ebcb3f23bbec3cc",
     "semantic_hash": ""
   },
   "e2e/phase14b-triage.spec.ts": {
@@ -5615,13 +5615,13 @@
     "semantic_hash": ""
   },
   "e2e/phase14c-rca.spec.ts": {
-    "mtime": 1783410204.6362123,
-    "ast_hash": "4ab6b0a24b2868975621a4df556142c7",
+    "mtime": 1783853842.3028994,
+    "ast_hash": "6806b727e8ff8626bb0ed459c17ff21e",
     "semantic_hash": ""
   },
   "e2e/phase14d-capa.spec.ts": {
-    "mtime": 1783410204.6694217,
-    "ast_hash": "af79405a6cbbf02a1c269ed48247fa08",
+    "mtime": 1783853668.2873724,
+    "ast_hash": "fca1b121e0380901801c66ea41529959",
     "semantic_hash": ""
   },
   "e2e/phase15-indicators.spec.ts": {
@@ -5640,13 +5640,13 @@
     "semantic_hash": ""
   },
   "e2e/phase22-referrals.spec.ts": {
-    "mtime": 1783410204.7998078,
-    "ast_hash": "5f5fe42d828e6cb93622238c0ceaaed2",
+    "mtime": 1783853844.8064659,
+    "ast_hash": "26ea6c48f11d1f596409d014d6443944",
     "semantic_hash": ""
   },
   "e2e/phase3-admin-members.spec.ts": {
-    "mtime": 1783503671.256159,
-    "ast_hash": "ca2d6484743829758e8283fda257b168",
+    "mtime": 1783854033.3485236,
+    "ast_hash": "e10bbde970976ccb69a740b4fbf792a5",
     "semantic_hash": ""
   },
   "e2e/phase4-builder-smoke.spec.ts": {
@@ -5685,13 +5685,13 @@
     "semantic_hash": ""
   },
   "e2e/processless-cases.spec.ts": {
-    "mtime": 1783724399.268042,
-    "ast_hash": "ad6c6fc7a49366e577a4f6bd2bb7d733",
+    "mtime": 1783853766.736355,
+    "ast_hash": "19dbad2caf13de83212a1bc2d140902d",
     "semantic_hash": ""
   },
   "e2e/recommend-result.spec.ts": {
-    "mtime": 1783410205.1334882,
-    "ast_hash": "57b9b0bfde4de696b960668ee2c1621b",
+    "mtime": 1783854031.6698468,
+    "ast_hash": "4699913a7e178be4133ee2932ef720e9",
     "semantic_hash": ""
   },
   "e2e/ui-batch-2026-07.spec.ts": {
@@ -6375,28 +6375,43 @@
     "semantic_hash": ""
   },
   "supabase/migrations/20260718000000_flexible_forms_bones.sql": {
-    "mtime": 1783820994.7999568,
-    "ast_hash": "ec48ebc9e8dddba0f73830e0623a472c",
+    "mtime": 1783851738.5822203,
+    "ast_hash": "7fe175722d4ee8880e1fa3734e0c397a",
     "semantic_hash": ""
   },
   "supabase/migrations/20260718000100_flexible_forms_answer_shapes.sql": {
-    "mtime": 1783821000.8350258,
-    "ast_hash": "7702f07055ba41af4f7872df8cab156e",
+    "mtime": 1783851738.5822203,
+    "ast_hash": "3b19a938b2f2369e2e55a939db7b64fc",
     "semantic_hash": ""
   },
   "supabase/migrations/20260718000200_flexible_forms_operators.sql": {
-    "mtime": 1783820353.6388323,
-    "ast_hash": "986e5498f8155c46170234b199462ac3",
+    "mtime": 1783851738.5832264,
+    "ast_hash": "df1b2ac447cafa1c89bb6ee755b9614f",
     "semantic_hash": ""
   },
   "supabase/tests/209_flexible_forms.sql": {
-    "mtime": 1783820867.2280552,
-    "ast_hash": "f33a5999ad8c5064be72ef6b694daef2",
+    "mtime": 1783851738.5832264,
+    "ast_hash": "0cc7aa78a517949a1576cc0a79dd583d",
     "semantic_hash": ""
   },
   "docs/design/f3-question-key-aggregation.md": {
-    "mtime": 1783820130.7863705,
-    "ast_hash": "42c609ae23367208797a46cd0463062c",
+    "mtime": 1783851738.5274422,
+    "ast_hash": "b7fe27a4bb6236bedc2f2199159d0bc4",
+    "semantic_hash": ""
+  },
+  "docs/decisions/0067-lint-gate-scope-and-policy.md": {
+    "mtime": 1783854220.1081216,
+    "ast_hash": "3c96182bcbacace41bb8cd5edf743537",
+    "semantic_hash": ""
+  },
+  "docs/progress/f3-flexible-forms.md": {
+    "mtime": 1783851738.5284393,
+    "ast_hash": "68f11d1320c31772e5099200324c2816",
+    "semantic_hash": ""
+  },
+  "docs/reviews/phase-F3-review.md": {
+    "mtime": 1783851738.5294392,
+    "ast_hash": "b9f57d752584825294c55ace5f6c238c",
     "semantic_hash": ""
   }
 }
