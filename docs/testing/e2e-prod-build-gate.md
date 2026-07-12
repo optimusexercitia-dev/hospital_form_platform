@@ -68,12 +68,40 @@ Prereqs: local Supabase up + seeded (`supabase status`; the specs use the seed p
 (server `&` + specs + teardown) so the server survives; the lead runs it as a background
 command (memory `subagent-cannot-run-full-e2e`, `e2e-foreground-run-recipe`).
 
+## The batched gate runner — `npm run e2e:prod` (server restart per batch)
+
+The single-server monolith run collapses (see TL;DR): after ~580 tests the standalone
+server on Windows starts refusing connections (`net::ERR_CONNECTION_REFUSED` cascade, ~20 min
+in). [`scripts/e2e-prod-gate.sh`](../../scripts/e2e-prod-gate.sh) (aliased `npm run e2e:prod`)
+defeats this by splitting the suite into **batches** and starting a **fresh server — and, by
+default, a fresh seeded DB — for each batch**, so no single server runs long enough to
+accumulate the backlog and no cross-spec seed contamination carries over. It builds the
+standalone once, then per batch pre-starts `node .next/standalone/server.js` and lets
+`reuseExistingServer` (CI unset) reuse it, waiting on both Next `/login` **and** GoTrue
+`/auth/v1/health` (the container restarts on reset; skipping this flakes the first logins).
+
+```bash
+npm run e2e:prod                 # full suite, batched (default 6 specs/batch, fresh DB+server each)
+BATCH_SIZE=4 npm run e2e:prod    # smaller batches → more restarts (use if a batch still collapses)
+RESET=0      npm run e2e:prod    # server-restart ONLY, keep the DB (faster; contamination may reappear)
+REBUILD=1    npm run e2e:prod    # force a fresh `next build` (otherwise auto-detects source drift)
+RETRIES=0    npm run e2e:prod    # stricter: no per-test retry
+SPECS="e2e/phase8-dashboard.spec.ts e2e/phi-remediation.spec.ts" npm run e2e:prod   # gate a subset
+```
+
+Requires bash (Git Bash on Windows; run `bash scripts/e2e-prod-gate.sh` directly if `npm run`
+can't find bash) + local Supabase up/seeded. The **server restart between batches** is the
+resource-buildup fix; the per-batch `db reset` (default on) is the orthogonal contamination
+fix — set `RESET=0` for just the server-restart behavior. Each batch's Playwright output lands
+in `$TMPDIR/e2e-prod-gate/batch-N.log`; the run prints an aggregate `GATE GREEN/RED` and exits
+non-zero on any hard failure. Smoke-tested 2026-07-12 (2 batches, fresh server each → 21/21).
+
 ## Recommendations
 
-1. **Add an `e2e:prod` npm script** wrapping the recipe above (build → stage → serve →
-   `playwright test`) and make the phase-gate "declare green" step use it, not `next dev`.
-   The plan §7 already says the gate runs against the standalone server — this makes it a
-   one-liner so it's actually done, not skipped under time pressure.
+1. **✅ DONE (2026-07-12) — `npm run e2e:prod`** ([`scripts/e2e-prod-gate.sh`](../../scripts/e2e-prod-gate.sh))
+   wraps the recipe (build → stage → per-batch serve → `playwright test`) **and restarts the
+   server per batch** to defeat the monolith collapse — see the section above. Make the
+   phase-gate "declare green" step use it, not `next dev`.
 2. **Run the FULL suite on the prod build periodically** — nightly, or as a required
    check before merging to `main` — not per-commit (a prod build + 20–40 min suite is too
    slow for every push). Per-commit stays on `dev` for speed; the periodic prod run is
