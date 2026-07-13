@@ -52,8 +52,11 @@ of Phase 9 (Deployment) — with the agreed plan (revised 2026-07-05, ADR
 [0057](../decisions/0057-indicators-doc-control-replan.md)) to build the remaining
 pre-pilot phases in order **15 → 17 → 16** (documents pulled PRE-pilot so the Phase-16
 evidence picker ships with real controlled documents) and **deploy a pilot after
-Phase 16**, then sequence Phases 18–21 on pilot feedback. Phase numbers are stable
-identifiers — only the build order changed.
+Phase 16**, then sequence Phases **18–19** on pilot feedback. **Phases 20–21, Referrals v2,
+Interviews v2, Ethics E1–E3, action-items satellites + cross-link, §6.1, and the supersession
+engine were pulled pre-pilot 2026-07-12 (ADR
+[0071](../decisions/0071-pre-pilot-release-scope-expansion.md)) — the pilot now follows that
+whole block.** Phase numbers are stable identifiers — only the build order changed.
 
 ---
 
@@ -584,7 +587,7 @@ behind `surveyor_access`.
   cross-commission / cross-framework leakage); **zero write capability** from a grant; no answer payloads
   in any surveyor read.
 
-### Phase 20 — Notifications & Escalation (Notificações & Escalonamento)
+### Phase 20 — Notifications & Escalation (Notificações & Escalonamento) *(**pulled pre-pilot** 2026-07-12 — ADR [0071](../decisions/0071-pre-pilot-release-scope-expansion.md))*
 Email + an in-app **notification center** + scheduled **reminders/escalation**, replacing
 the v1 "in-app pending queue only" posture. Timely follow-through is what accreditation
 follow-up depends on, and the track has accumulated several due/overdue signals worth
@@ -613,7 +616,7 @@ body. Feature-flagged behind `notifications`.
   one keyboard-only pass. pgTAP: own-row RLS; `compute_due_notifications` selects exactly the due/overdue
   set across each source; idempotency guard; escalation threshold.
 
-### Phase 21 — Committee Charters & Meeting Cadence (Regimentos & Periodicidade de Reuniões)
+### Phase 21 — Committee Charters & Meeting Cadence (Regimentos & Periodicidade de Reuniões) *(**pulled pre-pilot** 2026-07-12 — ADR [0071](../decisions/0071-pre-pilot-release-scope-expansion.md))*
 Each commission carries a **charter (regimento)** — purpose, scope, authority, membership,
 and a **required meeting frequency** — and the platform **tracks adherence to that cadence**
 (e.g. CCIH must meet monthly) and **carries forward** unresolved agenda items + open action
