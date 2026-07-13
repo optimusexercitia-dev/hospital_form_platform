@@ -68,3 +68,22 @@ not a rewrite.
 - **The written §20 / pre-pilot-plan §N acceptance criteria are superseded for S1** by the narrower AC
   in [notifications-s1.md](../plans/notifications-s1.md) (no email/escalation assertions in S1; those
   return with their fast-follows).
+
+## Follow-up (recorded at the N gate, 2026-07-13)
+
+- **Decision 3 ("actionable-to-me") forced a small additive surface.** Build-time testing found a
+  CAPA action can be assigned to *any* profile (`add_capa_action` checks only that the profile exists —
+  no PQS/membership gate), yet the only CAPA view is PQS-gated — so a **non-PQS assignee** had no page
+  to open (a pre-existing domain gap the notification made visible). To honor decision 3, the PO
+  ratified a new **global personal surface `/conta/itens-de-acao`** (non-gated, `requireUser`-gated
+  shell) that lists the caller's assigned CAPA actions via a new self-scoped `SECURITY DEFINER`
+  `list_my_assigned_capa_actions()` (config-level, PHI-free — Rule 12); the `capa` notification
+  deep-links there (a **static** route, which also removed the per-recipient RLS href lookup that had
+  dead-`'#'`-linked). "Meus itens de ação" was *not* used — it is commission-scoped and CAPA is
+  commission-less. The assignee acts via the existing `advance_capa_action` (its assignee branch has no
+  PQS gate). Additive and engine-consistent; no rebuild.
+- **3 QA MINORs carried as fast-follow** (non-gating): (1) `revalidatePath('/', 'layout')`
+  over-invalidates the root layout on every N write; (2) the sign-off `pending` scan depends on a prior
+  `requested` event, so a response submitted while the flag was OFF never gets pending reminders
+  (documented S1 simplification); (3) `notification_preferences` permits own-row direct DML by design
+  (own-row, zero security impact).

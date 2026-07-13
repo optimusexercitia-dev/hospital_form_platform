@@ -174,6 +174,27 @@ export interface CapaAction {
   position: number
 }
 
+/**
+ * One row of the caller's OWN assigned CAPA actions, for the global personal
+ * page `/conta/itens-de-acao` (BUG-N-001, ADR 0076). A strict PHI-free subset
+ * of {@link CapaAction} — the `list_my_assigned_capa_actions` DEFINER RPC
+ * returns only config-level columns (no RCA/root-cause narrative, event, or
+ * patient text; Rule 12), so a non-PQS assignee reached from a capa/assigned
+ * notification has a surface to see + advance their action without any CAPA
+ * workspace (PQS-gated) access.
+ */
+export interface MyAssignedCapaAction {
+  id: string
+  capaId: string
+  title: string
+  /** Free-text responsible party (displayed governance metadata). */
+  owner: string | null
+  actionStrength: CapaActionStrength
+  dueDate: string | null
+  status: CapaActionStatus
+  updatedAt: string
+}
+
 /** One execution step (task) of an action. */
 export interface CapaActionTask {
   id: string

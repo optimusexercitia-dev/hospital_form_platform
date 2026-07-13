@@ -38,6 +38,7 @@ export interface FeatureFlags {
   administrativo: boolean
   attachments: boolean
   response_correction: boolean
+  notifications: boolean
 }
 
 /** A flag key. */
@@ -97,4 +98,16 @@ export async function controlledDocsEnabled(): Promise<boolean> {
  */
 export async function responseCorrectionEnabled(): Promise<boolean> {
   return featureEnabled('response_correction')
+}
+
+/**
+ * Whether the S1·N Notifications engine (Phase 20, ADR 0076) is ON. Thin
+ * per-flag wrapper over {@link featureEnabled} (consistent with the other
+ * per-flag `*Enabled()` readers), so callers avoid an `as FeatureFlagKey`
+ * cast. Request-memoized via {@link getFeatureFlags}. Seeded OFF in the
+ * notifications core migration; flips ON via a companion one-line migration
+ * at the S1·N gate; `seed.sql` forces it ON for local/E2E.
+ */
+export async function notificationsEnabled(): Promise<boolean> {
+  return featureEnabled('notifications')
 }

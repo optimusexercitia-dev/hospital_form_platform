@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { getSessionContext } from "@/lib/queries/session";
 import { controlledDocsEnabled } from "@/lib/queries/feature-flags";
 import { UserMenu } from "@/components/shell/user-menu";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { OrgApprovalsNav } from "@/components/shell/org-approvals-nav";
 
 /**
@@ -100,7 +101,8 @@ export default async function PendingApprovalsLayout({
             Organização
           </span>
           <OrgApprovalsNav org={organization.slug} />
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-3">
+            <NotificationBell />
             <UserMenu fullName={context.fullName} email={context.email} />
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { commissionHref, orgHref } from './routing'
+import { commissionHref, notificationHref, orgHref } from './routing'
 
 describe('commissionHref', () => {
   it('builds the bare commission base with no segments', () => {
@@ -45,5 +45,61 @@ describe('orgHref', () => {
 
   it('never emits a double slash', () => {
     expect(orgHref('org-a', '', 'manage')).toBe('/o/org-a/manage')
+  })
+})
+
+describe('notificationHref', () => {
+  it('routes a meeting notification to the meeting detail page', () => {
+    expect(
+      notificationHref({
+        entityType: 'meeting',
+        entityId: 'meeting-1',
+        orgSlug: 'org-a',
+        commissionSlug: 'ccih',
+      }),
+    ).toBe('/o/org-a/c/ccih/meetings/meeting-1')
+  })
+
+  it('routes a signoff notification to the queue page, ignoring entityId', () => {
+    expect(
+      notificationHref({
+        entityType: 'response_section_signoff',
+        entityId: 'response-1',
+        orgSlug: 'org-a',
+        commissionSlug: 'ccih',
+      }),
+    ).toBe('/o/org-a/c/ccih/manage/assinaturas')
+  })
+
+  it('routes a capa_action notification to the static personal page (BUG-N-001), never a PQS-gated route', () => {
+    expect(
+      notificationHref({ entityType: 'capa_action', entityId: 'action-1' }),
+    ).toBe('/conta/itens-de-acao')
+  })
+
+  it('routes capa_action statically regardless of any org/commission context', () => {
+    // No org/commission is needed or consulted — the point is a link no
+    // per-recipient RLS lookup can fail to resolve.
+    expect(
+      notificationHref({
+        entityType: 'capa_action',
+        entityId: 'action-2',
+        orgSlug: 'org-a',
+        commissionSlug: 'ccih',
+      }),
+    ).toBe('/conta/itens-de-acao')
+  })
+
+  it('falls back to # when the commission slug is missing (meeting/signoff)', () => {
+    expect(
+      notificationHref({ entityType: 'meeting', entityId: 'm1', orgSlug: 'org-a' }),
+    ).toBe('#')
+    expect(
+      notificationHref({
+        entityType: 'response_section_signoff',
+        entityId: 'r1',
+        orgSlug: 'org-a',
+      }),
+    ).toBe('#')
   })
 })

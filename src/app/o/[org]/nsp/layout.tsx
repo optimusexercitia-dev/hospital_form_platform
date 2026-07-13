@@ -6,6 +6,7 @@ import { nspHref } from "@/lib/routing";
 import { referralsEnabled } from "@/lib/queries/referrals";
 import { patientIndexEnabled } from "@/lib/queries/patient-index";
 import { UserMenu } from "@/components/shell/user-menu";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { NspConsoleNav } from "@/components/shell/nsp-console-nav";
 import { NspHospitalSwitcher } from "@/components/shell/nsp-hospital-switcher";
 
@@ -91,7 +92,8 @@ export default async function NspConsoleLayout({
             referralsEnabled={referralsOn}
             patientIndexEnabled={patientIndexOn}
           />
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-3">
+            <NotificationBell />
             <UserMenu fullName={context.fullName} email={context.email} />
           </div>
         </div>

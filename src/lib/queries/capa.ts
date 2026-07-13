@@ -28,6 +28,7 @@ import type {
   CapaMeasure,
   CapaMeasureResult,
   CapaPlan,
+  MyAssignedCapaAction,
 } from '@/lib/safety/capa-types'
 
 // Re-export the client-safe contract so consumers import types/labels from the query
@@ -48,6 +49,7 @@ export type {
   CapaPlan,
   CapaSource,
   CapaStatus,
+  MyAssignedCapaAction,
 } from '@/lib/safety/capa-types'
 export {
   CAPA_SOURCE_LABELS,
@@ -268,6 +270,49 @@ export async function listCapaActions(capaId: string): Promise<CapaAction[]> {
     rootCauseId: a.root_cause_id,
     status: a.status as CapaActionStatus,
     position: a.position,
+  }))
+}
+
+interface MyAssignedCapaActionRow {
+  id: string
+  capa_id: string
+  title: string
+  owner: string | null
+  action_strength: string
+  due_date: string | null
+  status: string
+  updated_at: string
+}
+
+/**
+ * The caller's OWN assigned CAPA actions (S1·N BUG-N-001; ADR 0076), for the
+ * global personal page `/conta/itens-de-acao`. Backed by the self-scoped
+ * DEFINER `list_my_assigned_capa_actions` (assignee_user_id = auth.uid()),
+ * which returns config-level columns ONLY — PHI-free by construction (Rule 12).
+ * Ordered soonest-due first (undated last), then most-recently-touched.
+ *
+ * This is the surface a non-PQS assignee reaches from a `capa/assigned`
+ * notification; they advance an action via {@link advanceCapaAction} /
+ * {@link completeCapaAction} in `@/lib/safety/capa-actions` (the assignee
+ * branch of `advance_capa_action` has no PQS gate).
+ */
+export async function listMyAssignedCapaActions(): Promise<MyAssignedCapaAction[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .rpc('list_my_assigned_capa_actions')
+    .returns<MyAssignedCapaActionRow[]>()
+
+  if (error || !data) return []
+
+  return data.map((a) => ({
+    id: a.id,
+    capaId: a.capa_id,
+    title: a.title,
+    owner: a.owner,
+    actionStrength: a.action_strength as CapaActionStrength,
+    dueDate: a.due_date,
+    status: a.status as CapaActionStatus,
+    updatedAt: a.updated_at,
   }))
 }
 

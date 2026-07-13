@@ -23,6 +23,7 @@ import {
   controlledDocsEnabled,
 } from "@/lib/queries/feature-flags";
 import { AppSidebar, type SidebarCounts } from "@/components/shell/app-sidebar";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 
 /**
  * Commission area shell. Server Component.
@@ -176,6 +177,7 @@ export default async function CommissionLayout({
         controlledDocsEnabled={controlledDocsOn}
         isNspCoordinator={nspAccess?.isCoordinator ?? false}
         isPqsMember={nspAccess?.isPqsMember ?? false}
+        notificationBell={<NotificationBell />}
       />
       <main className="min-w-0 flex-1">
         <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 md:px-8">

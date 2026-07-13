@@ -77,3 +77,60 @@ export function nspHref(
   const base = `/o/${encodeURIComponent(org)}/nsp`
   return buildPath(base, segments)
 }
+
+/**
+ * Deep-link target for a S1·N notification (Phase 20, ADR 0076). Pure path
+ * construction — the caller (`queries/notifications.ts`) resolves the
+ * org/commission slugs and, for CAPA, the `capa_plan` id via batched `.in(...)`
+ * lookups (`@/lib/notifications/routing-context`) before calling this; the
+ * function itself does no I/O, matching the file's other helpers.
+ *
+ * Deviates from the plan doc's literal `notificationHref(entity_type,
+ * entity_id, commission?)` sketch: `orgSlug` is required for the tenant-scoped
+ * branches (every `/o/{org}/...` route needs it; the sketch omitted it).
+ *
+ * Per-branch routing:
+ *   - `capa_action` → the STATIC global personal page `/conta/itens-de-acao`
+ *     (BUG-N-001, ADR 0076 / PO Option A). A CAPA action can be assigned to a
+ *     non-PQS user who has no access to the PQS-gated CAPA workspace, so the
+ *     link must NOT depend on org/commission/capa-plan resolution — a static
+ *     route dissolves the dead-'#' at the root (no per-recipient lookup can
+ *     fail). `orgSlug`/`entityId` are unused here.
+ *   - `response_section_signoff` → the commission's sign-off queue
+ *     (`/manage/assinaturas`); no per-response detail page exists, so
+ *     `entityId` is unused for this branch.
+ *   - `meeting` → the meeting detail page.
+ *
+ * @example notificationHref({ entityType: 'meeting', entityId: meetingId, orgSlug: 'org-a', commissionSlug: 'ccih' })
+ *   // /o/org-a/c/ccih/meetings/<meetingId>
+ * @example notificationHref({ entityType: 'response_section_signoff', entityId: responseId, orgSlug: 'org-a', commissionSlug: 'ccih' })
+ *   // /o/org-a/c/ccih/manage/assinaturas
+ * @example notificationHref({ entityType: 'capa_action', entityId: actionId })
+ *   // /conta/itens-de-acao
+ */
+export function notificationHref(params: {
+  entityType: 'capa_action' | 'response_section_signoff' | 'meeting'
+  entityId: string
+  /** Required for 'response_section_signoff' and 'meeting'; unused for 'capa_action' (static route). */
+  orgSlug?: string
+  /** Required for 'response_section_signoff' and 'meeting'; unused for 'capa_action' (static route). */
+  commissionSlug?: string | null
+}): string {
+  const { entityType, entityId, orgSlug, commissionSlug } = params
+
+  switch (entityType) {
+    case 'capa_action':
+      // Static — reachable by ANY assignee regardless of PQS standing (BUG-N-001).
+      return '/conta/itens-de-acao'
+    case 'meeting':
+      return orgSlug && commissionSlug
+        ? commissionHref(orgSlug, commissionSlug, 'meetings', entityId)
+        : '#'
+    case 'response_section_signoff':
+      return orgSlug && commissionSlug
+        ? commissionHref(orgSlug, commissionSlug, 'manage', 'assinaturas')
+        : '#'
+    default:
+      return '#'
+  }
+}

@@ -249,6 +249,7 @@ export function AppSidebar({
   email,
   roleLabel,
   counts,
+  notificationBell,
   meetingsEnabled = false,
   auditEnabled = false,
   patientSafetyEnabled = false,
@@ -274,6 +275,16 @@ export function AppSidebar({
   email: string;
   roleLabel: string;
   counts: SidebarCounts;
+  /**
+   * The S1·N (Phase 20) notification bell, pre-rendered by the Server
+   * Component parent (`CommissionLayout`) — a Client Component like this one
+   * cannot import the server-only `NotificationBell` directly (it
+   * transitively value-imports `@/lib/supabase/server`, which drags
+   * `next/headers` into the client bundle). `undefined` when the caller
+   * doesn't pass one; flag-gating happens inside `NotificationBell` itself,
+   * so this is `null`/empty whenever the `notifications` flag is off.
+   */
+  notificationBell?: React.ReactNode;
   /** Whether the `meetings` feature flag is on (gates the "Reuniões" item). */
   meetingsEnabled?: boolean;
   /** Whether the `audit_trail` feature flag is on (gates the audit item). */
@@ -357,6 +368,9 @@ export function AppSidebar({
             Comissões
           </span>
         </span>
+        {notificationBell ? (
+          <span className="ml-auto">{notificationBell}</span>
+        ) : null}
       </div>
 
       {/* Drawer scrim (mobile only). */}
@@ -579,8 +593,11 @@ export function AppSidebar({
         </nav>
 
         {/* User / account footer. */}
-        <div className="border-t border-sidebar-border p-3">
-          <UserMenu fullName={fullName} email={email} roleLabel={roleLabel} />
+        <div className="flex items-center gap-2 border-t border-sidebar-border p-3">
+          {notificationBell}
+          <div className="min-w-0 flex-1">
+            <UserMenu fullName={fullName} email={email} roleLabel={roleLabel} />
+          </div>
         </div>
       </aside>
     </>

@@ -6,6 +6,7 @@ import { orgHref } from "@/lib/routing";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { isNspOrgAdmin } from "@/lib/pqs/org-admin";
 import { UserMenu } from "@/components/shell/user-menu";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { OrgNspAdminNav } from "@/components/shell/org-nsp-admin-nav";
 
 /**
@@ -84,7 +85,8 @@ export default async function OrgNspAdminLayout({
             NSP · organização
           </span>
           <OrgNspAdminNav org={organization.slug} />
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-3">
+            <NotificationBell />
             <UserMenu fullName={context.fullName} email={context.email} />
           </div>
         </div>

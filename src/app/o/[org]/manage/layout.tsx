@@ -10,6 +10,7 @@ import {
   controlledDocsEnabled,
 } from "@/lib/queries/feature-flags";
 import { UserMenu } from "@/components/shell/user-menu";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { OrgManageNav } from "@/components/shell/org-manage-nav";
 
 /**
@@ -101,7 +102,8 @@ export default async function OrgManageLayout({
             controlledDocsEnabled={controlledDocsOn}
             isOrgAdmin={Boolean(orgAdmin)}
           />
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-3">
+            <NotificationBell />
             <UserMenu fullName={context.fullName} email={context.email} />
           </div>
         </div>

@@ -4448,6 +4448,104 @@ export type Database = {
           },
         ]
       }
+      notification_preferences: {
+        Row: {
+          created_at: string
+          reminders_enabled: boolean
+          surface: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          reminders_enabled?: boolean
+          surface: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          reminders_enabled?: boolean
+          surface?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          commission_id: string | null
+          created_at: string
+          dedup_key: string
+          entity_id: string
+          entity_type: string
+          id: string
+          is_reminder: boolean
+          kind: string
+          milestone: string
+          read_at: string | null
+          resolved_at: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          commission_id?: string | null
+          created_at?: string
+          dedup_key: string
+          entity_id: string
+          entity_type: string
+          id?: string
+          is_reminder: boolean
+          kind: string
+          milestone: string
+          read_at?: string | null
+          resolved_at?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          commission_id?: string | null
+          created_at?: string
+          dedup_key?: string
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          is_reminder?: boolean
+          kind?: string
+          milestone?: string
+          read_at?: string | null
+          resolved_at?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
@@ -7639,6 +7737,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      compute_due_notifications: { Args: never; Returns: number }
       conclude_interview: {
         Args: { p_interview_id: string }
         Returns: {
@@ -8875,6 +8974,19 @@ export type Database = {
         Returns: Json
       }
       list_my_action_items: { Args: { p_commission: string }; Returns: Json }
+      list_my_assigned_capa_actions: {
+        Args: never
+        Returns: {
+          action_strength: string
+          capa_id: string
+          due_date: string
+          id: string
+          owner: string
+          status: string
+          title: string
+          updated_at: string
+        }[]
+      }
       list_my_cases: { Args: { p_commission: string }; Returns: Json }
       list_my_nsp_hospitals: { Args: never; Returns: Json }
       list_org_eligible_users: { Args: { p_org_id: string }; Returns: Json }
@@ -8913,6 +9025,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      mark_all_notifications_read: { Args: never; Returns: undefined }
       mark_document_obsolete: {
         Args: { p_document_id: string }
         Returns: {
@@ -8975,6 +9088,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      mark_notification_read: { Args: { p_id: string }; Returns: undefined }
       meetings_enabled: { Args: never; Returns: boolean }
       my_pending_meeting_signatures: {
         Args: never
@@ -10155,6 +10269,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_notification_preferences: {
+        Args: { p_enabled: boolean; p_surface: string }
+        Returns: undefined
       }
       set_participant_patient: {
         Args: {

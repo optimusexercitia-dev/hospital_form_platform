@@ -1949,6 +1949,15 @@ update app.feature_flags set enabled = true where key = 'attachments';
 -- "seed.sql forces ON for local/E2E" instruction, so local/E2E stays ON even if
 -- a future migration edit ever changes the flip's shape.
 update app.feature_flags set enabled = true where key = 'response_correction';
+
+-- BELT-AND-SUSPENDERS FLAG FLIP (S1·N / ADR 0076): the companion migration
+-- 20260720000720_notifications_flag_on.sql already flips notifications ON
+-- unconditionally (the quality_indicators / SUP precedent — prod ships ON from
+-- that migration), so this line is redundant on an ordinary `db reset`. Repeated
+-- here anyway, matching the plan's explicit "seed.sql forces ON for local/E2E"
+-- instruction, so local/E2E stays ON even if a future migration edit ever
+-- changes the flip's shape.
+update app.feature_flags set enabled = true where key = 'notifications';
 -- ---------------------------------------------------------------------------
 do $cd$
 declare
