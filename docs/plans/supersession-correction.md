@@ -29,8 +29,10 @@ the **latest in chain**. The original submitted row is **never mutated** — imm
 closed.
 
 **Invariants that MUST hold (regression-guard these):**
-- **Original immutable:** `guard_submitted_response` / `guard_submitted_children` /
-  `guard_submitted_selections` stay unchanged; the predecessor's row + answers are read-only forever.
+- **Original immutable:** `public.guard_submitted_response` / `public.guard_submitted_children` /
+  `app.guard_submitted_selections` stay unchanged; the predecessor's row + answers are read-only
+  forever. (Schema-qualified per readiness 2026-07-13 — the first two live in `public`, the third in
+  `app`; pgTAP §9 must reference them correctly.)
 - **Standalone-only:** a case-wrapped response (`case_phase_id` set) can never be superseded via this
   path and never renders the affordance; the case-phase lifecycle owns its corrections.
 - **Narrow exclusion:** aggregation excludes ONLY a row pointed at by a *submitted* successor — it
@@ -48,7 +50,10 @@ Per CLAUDE.md contract-first discipline, `backend` commits the **signatures** be
 parallel against real types. Bodies may `throw new Error('not implemented')` to start. Keep the
 return SHAPES stable once posted; tell the lead if a shape must change.
 
-### 2.1 Data model (migration, additive — SUP core, `20260720000000_supersession_core.sql`)
+### 2.1 Data model (migration, additive — SUP core, `20260720000600_supersession_core.sql`)
+
+> **Migration numbering (readiness 2026-07-13):** MEM consumed `20260720000000`–`…000500`; SUP core is
+> **`…000600`**, flag-on is **`…000610`** (§6). Nothing occupies `…000600+`.
 
 ```sql
 -- Self-referential correction link. Lives on the SUCCESSOR row; set at creation while
@@ -203,9 +208,16 @@ the helper):**
 | `compute_derived_measurement` — `question_key` section denom | same | ✅ |
 
 **B. The ONE inline counter — needs a direct edit.**
-`public.commission_overview()` (baseline) counts submitted responses **inline** in two sub-selects
+`public.commission_overview()` counts submitted responses **inline** in two sub-selects
 (`submitted_count`, `submitted_last_30_days`) with `status='submitted' AND case_phase_id IS NULL` —
 it does **NOT** use the helper. Add the **same `NOT EXISTS`** predicate to **both** sub-selects.
+
+> **⚠️ Build on the POST-MEM body (readiness 2026-07-13).** MEM **redefined `commission_overview` in
+> `20260720000300_repoint_read_functions.sql`** (repointed to `public.memberships`). The retrofit must
+> `CREATE OR REPLACE` from **that** post-MEM body, NOT the stale baseline definition — otherwise it
+> reintroduces the dropped `organization_members`/`commission_members` references (runtime error) and
+> regresses the MEM repoint. Copy the current (memberships-scoped) body verbatim, add only the two
+> `NOT EXISTS` predicates.
 
 **C. The TS twin — `isDashboardCountable`** (`src/lib/queries/dashboard.ts`). Rule 3 parity: extend
 its input shape with `hasSubmittedSuccessor` and mirror the exclusion. `dashboard.ts` otherwise
@@ -248,15 +260,17 @@ byte-for-byte pre-SUP when off. **Do NOT** wrap it in a `feature_enabled` check.
 ## 6. Feature flag
 
 `response_correction`: **insert OFF** in the SUP core migration; **flip ON** via a separate one-line
-migration `20260720000010_flag_response_correction_on.sql` at the SUP gate; `seed.sql` forces ON for
+migration `20260720000610_flag_response_correction_on.sql` at the SUP gate; `seed.sql` forces ON for
 local/E2E. Add to `src/lib/queries/feature-flags.ts` `FeatureFlags` interface when the first typed
 caller (the action/affordance) consumes it — a 20th key alongside the 19 existing.
 
 ## 7. Migration ownership & serialization
 
 - **Independent surface** (S0 / plan §5): SUP touches `responses.supersedes_id` + the aggregation
-  helper + `commission_overview` + `dashboard.ts`. No other S1 track (N, MEM) touches these. Safe to
-  interleave.
+  helper + `commission_overview` + `dashboard.ts`. **Object-overlap caveat (readiness 2026-07-13):**
+  MEM redefined `commission_overview` (repoint to `memberships`) — SUP shares that *object* (not a file;
+  SUP's is a later migration) and must build on its post-MEM body (§3.B). N does not touch these. Since
+  MEM is already recorded (serialized before SUP), there is no live concurrency — safe.
 - **One caution:** if any concurrent track edits `src/lib/queries/dashboard.ts` or the dashboard RPCs,
   serialize — but per S0 none do in S1. MEM edits `session.ts`/`members.ts` (disjoint).
 - Local-first (`supabase migration up` → regen types) before any user-authorized remote push
@@ -305,12 +319,13 @@ seeded ON):**
 **Vitest:** `isDashboardCountable` truth table — submitted+standalone+no-successor ⇒ true; with a
 submitted successor ⇒ false; `in_progress` ⇒ false; case-phase ⇒ false.
 
-## 9. Open decisions (lead / PO)
+## 9. Open decisions (lead / PO) — RESOLVED 2026-07-13
 
-Carried from ADR 0074 §Open decisions:
-1. **Answer pre-population vs blank-start on supersede** — recommend **pre-populate** (correct-in-place
-   ergonomics). Affects the RPC body + acceptance #1's edit step.
-2. **Successor abandon path** = the existing `discard_response` (standalone/own/`in_progress` all hold
-   for the successor). No new RPC. Confirm (recommended).
-3. **Authority mapping** "coordinator" → `is_staff_admin_of OR is_commission_admin_of` (the
-   `supersede_document` gate). Confirm.
+Carried from ADR 0074 §Open decisions; all three settled at the SUP plan-approval gate:
+1. **Answer pre-population vs blank-start on supersede** — ✅ **PRE-POPULATE** (PO decision 2026-07-13;
+   correct-in-place ergonomics). The RPC body copies the predecessor's answers into the new draft;
+   acceptance #1's edit step edits from the pre-filled state.
+2. **Successor abandon path** = ✅ the existing `discard_response` (standalone/own/`in_progress` all hold
+   for the successor). No new RPC. **Confirmed (lead).**
+3. **Authority mapping** "coordinator" → ✅ `is_staff_admin_of OR is_commission_admin_of` (the
+   `supersede_document` gate). **Confirmed (lead).**
