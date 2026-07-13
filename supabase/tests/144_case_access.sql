@@ -75,7 +75,7 @@ update public.profiles set full_name = 'Granted Read X'  where id = (select gx_r
 update public.profiles set full_name = 'Granted Write X' where id = (select gx_w from p);
 update public.profiles set full_name = 'Unrelated X'     where id = (select ux from p);
 
-insert into public.commission_members (commission_id, user_id, role)
+insert into public.memberships (commission_id, principal_id, role)
 select (select comm_x from k), u, 'staff'
 from (select gx_r as u from p union all select gx_w from p union all select ux from p) s;
 
@@ -149,7 +149,7 @@ select '00000000-0000-0000-0000-000000000000', (select oa from ivt), 'authentica
 update public.profiles
    set full_name = 'Org Admin', home_organization_id = (select (v->>'org_b')::uuid from ctx)
  where id = (select oa from ivt);
-insert into public.organization_members (organization_id, user_id, role)
+insert into public.memberships (organization_id, principal_id, role)
   values ((select (v->>'org_b')::uuid from ctx), (select oa from ivt), 'org_admin');
 
 -- The interview graph (interview_number is minted by the BEFORE INSERT trigger).

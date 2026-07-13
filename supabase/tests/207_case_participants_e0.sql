@@ -289,7 +289,7 @@ insert into auth.users (instance_id, id, aud, role, email, created_at, updated_a
 update public.profiles set full_name = 'Org Admin B',
        home_organization_id = (select org_b from k)
   where id = (select u_oa from org_admin_p);
-insert into public.organization_members (organization_id, user_id, role)
+insert into public.memberships (organization_id, principal_id, role)
   values ((select org_b from k), (select u_oa from org_admin_p), 'org_admin');
 
 -- K9a · case_participants: in-scope reader (sa_x, coordinator of the case's

@@ -330,23 +330,24 @@ export async function listOrgEligibleUsers(
 /**
  * The CURRENT `nsp_coordinator`s of `orgId`, keyed by hospital (for the appoint
  * surface, so the appointer sees who is coordinator of which hospital + can revoke).
- * Reads `organization_members` filtered to `role = 'nsp_coordinator'` joined to
- * `profiles`; RLS scopes it to the org_admin / nsp_org_admin caller. PHI-free; `[]`
- * for an unauthorized caller (RLS yields no rows). Each row carries `hospitalId`
- * (a per-hospital coordinator, ADR 0052; `hospital_id` is NOT NULL for the role).
+ * Reads `memberships` (S1·MEM; formerly `organization_members`) filtered to
+ * `role = 'nsp_coordinator'` joined to `profiles`; RLS scopes it to the org_admin /
+ * nsp_org_admin caller. PHI-free; `[]` for an unauthorized caller (RLS yields no
+ * rows). Each row carries `hospitalId` (a per-hospital coordinator, ADR 0052;
+ * `hospital_id` is NOT NULL for the role).
  */
 export async function listNspCoordinators(
   orgId: string,
 ): Promise<(PqsEligibleUser & { hospitalId: string | null })[]> {
   const supabase = await createClient()
   const { data, error } = await supabase
-    .from('organization_members')
-    .select('user_id, hospital_id, profiles:user_id(full_name, email)')
+    .from('memberships')
+    .select('principal_id, hospital_id, profiles:principal_id(full_name, email)')
     .eq('organization_id', orgId)
     .eq('role', 'nsp_coordinator')
     .returns<
       {
-        user_id: string
+        principal_id: string
         hospital_id: string | null
         profiles: { full_name: string | null; email: string | null } | null
       }[]
@@ -355,7 +356,7 @@ export async function listNspCoordinators(
   if (error || !data) return []
   return data
     .map((r) => ({
-      userId: r.user_id,
+      userId: r.principal_id,
       hospitalId: r.hospital_id,
       fullName: r.profiles?.full_name ?? null,
       email: r.profiles?.email ?? null,

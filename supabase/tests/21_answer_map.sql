@@ -38,7 +38,7 @@ begin
   insert into public.hospitals (id, organization_id, name, slug) values (v_hosp, v_org, 'H', 'h-'||substr(v_hosp::text,1,8));
   insert into public.commissions (id, name, slug, created_by, hospital_id)
     values (v_comm, 'C', 'c-'||substr(v_comm::text,1,8), v_user, v_hosp);
-  insert into public.commission_members (commission_id, user_id, role) values (v_comm, v_user, 'staff');
+  insert into public.memberships (commission_id, principal_id, role) values (v_comm, v_user, 'staff');
 
   insert into public.forms (id, commission_id, title, created_by) values (v_form, v_comm, 'F', v_user);
   insert into public.form_versions (id, form_id, version_number, status) values (v_ver, v_form, 1, 'draft');

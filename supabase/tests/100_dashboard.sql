@@ -275,7 +275,7 @@ insert into public.hospitals (id, organization_id, name, slug) values
   ('00000000-0000-0000-0000-0000000000bb', '00000000-0000-0000-0000-0000000000aa', 'Hosp Dash', 'hosp-dash');
 update public.commissions set hospital_id = '00000000-0000-0000-0000-0000000000bb'
   where id = (select comm_x from k);
-insert into public.organization_members (organization_id, user_id, role) values
+insert into public.memberships (organization_id, principal_id, role) values
   ('00000000-0000-0000-0000-0000000000aa', (select admin from k), 'org_admin');
 
 select test_helpers.claims_for((select admin from k), true);

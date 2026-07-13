@@ -19,7 +19,7 @@
 --     of the referral BUG-NSP-002 guard).
 
 begin;
-select plan(34);
+select plan(35);
 
 update app.feature_flags set enabled = true where key = 'patient_safety';
 update app.feature_flags set enabled = true where key = 'audit_trail';
@@ -44,12 +44,12 @@ grant select on k to authenticated;
 -- Set up an NSP coordinator for hosp_b (bootstrap's single hospital). We'll use sa_y as
 -- the coordinator persona (plain staff_admin — not admin), and insert directly as
 -- superuser. The nsp_coordinator role is now HOSPITAL-scoped (hospital_id NOT NULL).
-insert into public.organization_members (organization_id, user_id, role, hospital_id)
+insert into public.memberships (organization_id, principal_id, role, hospital_id)
   values ((select org_b from k), (select sa_y from k), 'nsp_coordinator', (select hosp_b from k));
 
 -- Enroll admin into the roster so we can test revocation. Direct superuser insert.
-insert into public.pqs_members (hospital_id, user_id, added_by)
-  values ((select hosp_b from k), (select admin from k), (select sa_y from k));
+insert into public.memberships (organization_id, hospital_id, principal_id, role, granted_by)
+  values ((select org_b from k), (select hosp_b from k), (select admin from k), 'pqs_member', (select sa_y from k));
 
 -- ============================================================================
 -- §A: is_pqs_member_of_for reflects enrollment state
@@ -97,13 +97,14 @@ reset role;
 -- The coordinator (sa_y) CAN enroll a user.
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
-create temp table enrolled on commit drop as
-  select * from public.add_pqs_member((select hosp_b from k), (select sa_x from k));
+select lives_ok(
+  format($$ select public.add_pqs_member(%L::uuid, %L::uuid) $$,
+         (select hosp_b from k), (select sa_x from k)),
+  'C3: coordinator add_pqs_member enrolls sa_x (void return)');
 reset role;
-grant select on enrolled to authenticated;
 select ok(
-  (select user_id from enrolled) = (select sa_x from k),
-  'C3: coordinator add_pqs_member returns the enrolled row with user_id = sa_x');
+  app.has_role('hospital', (select hosp_b from k), 'pqs_member', (select sa_x from k)),
+  'C3b: sa_x now enrolled per app.has_role (hospital, pqs_member)');
 select ok(
   app.is_pqs_member_of_for((select hosp_b from k), (select sa_x from k)),
   'C4: sa_x now enrolled → is_pqs_member_of_for = true after add_pqs_member');
@@ -231,7 +232,7 @@ select is(
 -- Bootstrap sets admin as the bootstrap persona (is_admin=true) but it is also
 -- enrolled in pqs_members — we need a PURE org_admin test; use a fresh persona.
 -- Insert an org_admin org_member for st_y (plain staff, not a coordinator).
-insert into public.organization_members (organization_id, user_id, role)
+insert into public.memberships (organization_id, principal_id, role)
   values ((select org_b from k), (select st_y from k), 'org_admin');
 
 select test_helpers.claims_for((select st_y from k), false);
@@ -245,9 +246,9 @@ reset role;
 
 -- (2) org_admin CAN appoint coordinators via organization_members (their own curation right).
 -- The nsp_coordinator role is now HOSPITAL-scoped (hospital_id NOT NULL).
-insert into public.organization_members (organization_id, user_id, role, hospital_id)
+insert into public.memberships (organization_id, principal_id, role, hospital_id)
   values ((select org_b from k), (select st_x from k), 'nsp_coordinator', (select hosp_b from k))
-  on conflict do nothing;
+  on conflict (principal_id, role, organization_id, hospital_id, commission_id) do nothing;
 select ok(
   app.is_nsp_coordinator_of_for((select hosp_b from k), (select st_x from k)),
   'G2: a user appointed nsp_coordinator is recognized by is_nsp_coordinator_of_for');

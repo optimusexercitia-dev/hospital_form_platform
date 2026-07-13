@@ -88,13 +88,13 @@ select is(
    where action = 'form_version.published' and entity_id = (select version_id from f1)),
   1, 'publish → exactly one form_version.published row');
 
--- (2) Add a member → exactly one commission_member.added row for that user.
+-- (2) Add a member → exactly one membership.granted row for that user.
 do $$
 declare v_u uuid := gen_random_uuid();
 begin
   insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
     values ('00000000-0000-0000-0000-000000000000', v_u, 'authenticated','authenticated', v_u||'@test', now(), now());
-  insert into public.commission_members (commission_id, user_id, role)
+  insert into public.memberships (commission_id, principal_id, role)
     values ((select comm_x from k), v_u, 'staff');
   -- stash for the assertion
   create temp table newu on commit drop as select v_u as id;
@@ -102,9 +102,9 @@ end $$;
 
 select is(
   (select count(*)::int from public.audit_log
-   where action = 'commission_member.added'
-     and (metadata->'user_id'->>'new')::uuid = (select id from newu)),
-  1, 'add member → exactly one commission_member.added row');
+   where action = 'membership.granted'
+     and (metadata->>'user_id')::uuid = (select id from newu)),
+  1, 'add member → exactly one membership.granted row');
 
 -- (3) Submit a response → exactly one response.submitted row (status only, no answers).
 select test_helpers.claims_for((select st_x from k), false);

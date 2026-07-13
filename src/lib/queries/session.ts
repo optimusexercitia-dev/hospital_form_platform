@@ -164,34 +164,37 @@ export const getSessionContext = cache(async (): Promise<SessionContext | null> 
       .maybeSingle(),
     // The nested `organization:organizations(...)` select resolves the parent org
     // via commissions.organization_id (denormalized, multi-tenancy Phase A).
+    // S1·MEM: memberships mixes commission/org/hospital-tier rows; the
+    // `.not('commission_id', 'is', null)` filter scopes to commission-tier rows.
     supabase
-      .from('commission_members')
+      .from('memberships')
       .select(
         'role, commission:commissions(id, name, slug, organization:organizations(id, slug, name))',
       )
-      .eq('user_id', userId),
+      .eq('principal_id', userId)
+      .not('commission_id', 'is', null),
     // Orgs the caller is org_admin of (parallel read; RLS-scoped to own orgs).
     supabase
-      .from('organization_members')
+      .from('memberships')
       .select('organization:organizations(id, slug, name)')
-      .eq('user_id', userId)
+      .eq('principal_id', userId)
       .eq('role', 'org_admin'),
     // Hospitals the caller is hospital_admin of (ADR 0051). The self-read RLS arm
     // (20260709000500) lets the caller read its OWN grant rows; each carries the
     // org + hospital so `adminedHospitals`/`isHospitalAdmin` resolve without a
     // second hop. hospital_admin rows always have hospital_id set (the iff-CHECK).
     supabase
-      .from('organization_members')
+      .from('memberships')
       .select(
         'organization:organizations(id, slug, name), hospital:hospitals(id, slug, name, organization_id)',
       )
-      .eq('user_id', userId)
+      .eq('principal_id', userId)
       .eq('role', 'hospital_admin'),
     // Orgs the caller is nsp_org_admin of (ADR 0051; inert until Phase B, shape now).
     supabase
-      .from('organization_members')
+      .from('memberships')
       .select('organization:organizations(id, slug, name)')
-      .eq('user_id', userId)
+      .eq('principal_id', userId)
       .eq('role', 'nsp_org_admin'),
   ])
 

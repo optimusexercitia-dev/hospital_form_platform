@@ -46,7 +46,7 @@ insert into public.commissions (id, name, slug, created_by, hospital_id)
           (select admin from k), (select hosp2 from t));
 
 -- op_b = coordinator (operator) of hosp_b; op_2 = coordinator of hosp2. Distinct scopes.
-insert into public.organization_members (organization_id, user_id, role, hospital_id) values
+insert into public.memberships (organization_id, principal_id, role, hospital_id) values
   ((select org_b from k), (select op_b from k), 'nsp_coordinator', (select hosp_b from k)),
   ((select org_b from k), (select op_2 from k), 'nsp_coordinator', (select hosp2 from t));
 

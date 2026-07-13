@@ -81,7 +81,7 @@ from (select gx_r as u from p union all select gx_w from p) s;
 update public.profiles set full_name = 'Granted Read X'  where id = (select gx_r from p);
 update public.profiles set full_name = 'Granted Write X' where id = (select gx_w from p);
 
-insert into public.commission_members (commission_id, user_id, role)
+insert into public.memberships (commission_id, principal_id, role)
 select (select comm_x from k), u, 'staff'
 from (select gx_r as u from p union all select gx_w from p) s;
 

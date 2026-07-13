@@ -122,8 +122,8 @@ reset role;
 --     (org,user) unique would have rejected the second). BOTH grants resolve.
 -- ============================================================================
 select is(
-  (select count(*)::int from public.organization_members
-   where user_id = (select ha_dual from p) and role = 'hospital_admin'),
+  (select count(*)::int from public.memberships
+   where principal_id = (select ha_dual from p) and role = 'hospital_admin'),
   2, 'COEXISTENCE: hospitaladmin.dual holds 2 hospital_admin rows (relaxed composite unique)');
 select test_helpers.claims_for((select ha_dual from p), false);
 set local role authenticated;
@@ -145,7 +145,7 @@ reset role;
 -- A cross-org hospital_admin row (org-a user, org-b hospital) is rejected by the
 -- guard_org_member_hospital_org trigger (check_violation).
 select throws_ok(
-  $$insert into public.organization_members (organization_id, user_id, role, hospital_id)
+  $$insert into public.memberships (organization_id, principal_id, role, hospital_id)
     values ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e1',
             'hospital_admin', '05000000-0000-0000-0000-00000000000b')$$,
   '23514',

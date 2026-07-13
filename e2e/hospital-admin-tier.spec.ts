@@ -60,14 +60,18 @@ const HOSP_SECUNDARIO_A = '05000000-0000-0000-0000-0000000000a2'
  * read secundario-a hospital-tier rows, breaking downstream specs
  * (phase13-audit AC-3c, phase3-admin-members AC3). This guarantees no leak even
  * on failure; idempotent (no-op when the UI revoke already succeeded).
+ *
+ * MEM (S1): organization_members is dropped — the grant now lives in
+ * `memberships` (commission_id null, hospital-tier row: organization_id +
+ * hospital_id both set). A service-role client is RLS-exempt (ADR 0075 path (a)).
  */
 async function revokeStaff1HospitalAdminLeak(
   request: import('@playwright/test').APIRequestContext,
 ): Promise<void> {
   await request.delete(
-    `${SUPABASE_URL}/rest/v1/organization_members` +
+    `${SUPABASE_URL}/rest/v1/memberships` +
       `?organization_id=eq.${ORG_A}` +
-      `&user_id=eq.${STAFF1_CCIH_UID}` +
+      `&principal_id=eq.${STAFF1_CCIH_UID}` +
       `&role=eq.hospital_admin` +
       `&hospital_id=eq.${HOSP_SECUNDARIO_A}`,
     {

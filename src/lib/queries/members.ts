@@ -6,17 +6,18 @@ import { createClient } from '@/lib/supabase/server'
  * both the commission member-management page (`/c/[slug]/manage/members`) and
  * the admin commission detail's staff_admin roster, so the two never drift.
  *
- * All reads use the cookie-wired (RLS-scoped) client: `commission_members_select`
- * (M6) returns rows only to members of the commission and admins; emails come
- * from the denormalized `profiles.email` (M9, ADR 0010) under
- * `profiles_select_self_or_admin`. No service-role read on this display path.
+ * All reads use the cookie-wired (RLS-scoped) client: `memberships` RLS (S1·MEM;
+ * formerly `commission_members_select`, M6) returns rows only to members of the
+ * commission and admins; emails come from the denormalized `profiles.email` (M9,
+ * ADR 0010) under `profiles_select_self_or_admin`. No service-role read on this
+ * display path.
  */
 
 export type CommissionRole = 'staff' | 'staff_admin'
 
 export interface MemberListItem {
   /**
-   * The `commission_members.id` (NOT the user id) — the membership row's PK.
+   * The `memberships.id` (NOT the user id) — the membership row's PK.
    * Required by `assignMemberTitle(memberId, …)` (ADR 0051): a user may hold
    * memberships in several commissions, so `userId` alone cannot identify the row.
    */
@@ -33,13 +34,14 @@ export interface MemberListItem {
   titleName: string | null
 }
 
-// Shape of a commission_members row joined to its profile + optional title.
-// PostgREST returns each embedded relation as an object (or null if unset/RLS-hid).
+// Shape of a memberships row (commission-tier) joined to its profile + optional
+// title. PostgREST returns each embedded relation as an object (or null if
+// unset/RLS-hid).
 interface MemberRow {
   id: string
-  user_id: string
+  principal_id: string
   role: string
-  created_at: string
+  granted_at: string
   title_id: string | null
   profiles: { full_name: string | null; email: string | null } | null
   commission_member_titles: { name: string } | null
@@ -56,13 +58,23 @@ export async function listMembers(
 ): Promise<MemberListItem[]> {
   const supabase = await createClient()
 
-  const { data } = await supabase
-    .from('commission_members')
+  const { data, error } = await supabase
+    .from('memberships')
     .select(
-      'id, user_id, role, created_at, title_id, profiles(full_name, email), commission_member_titles(name)',
+      // MEM added a SECOND memberships→profiles FK (granted_by), so the bare
+      // `profiles(...)` embed is ambiguous (PGRST201). Pin the member-profile FK.
+      'id, principal_id, role, granted_at, title_id, profiles!memberships_principal_id_fkey(full_name, email), commission_member_titles(name)',
     )
     .eq('commission_id', commissionId)
     .returns<MemberRow[]>()
+
+  // An RLS-denied read yields `{ data: [], error: null }` → an empty roster is a
+  // legitimate "no visible members" result (per this function's contract). But a
+  // genuine query error (e.g. an ambiguous embed) must NOT masquerade as an empty
+  // roster — surface it as a handled error so the failure is visible, not swallowed.
+  if (error) {
+    throw new Error(`Failed to list commission members: ${error.message}`)
+  }
 
   const members: MemberListItem[] = (data ?? [])
     .filter(
@@ -71,11 +83,11 @@ export async function listMembers(
     )
     .map((row) => ({
       memberId: row.id,
-      userId: row.user_id,
+      userId: row.principal_id,
       fullName: row.profiles?.full_name ?? null,
       email: row.profiles?.email ?? null,
       role: row.role,
-      joinedAt: row.created_at,
+      joinedAt: row.granted_at,
       titleId: row.title_id,
       titleName: row.commission_member_titles?.name ?? null,
     }))

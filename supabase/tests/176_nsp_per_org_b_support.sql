@@ -203,19 +203,20 @@ select ok(
 --     curator gate (coordinator of the hospital) is the sole roster writer — no
 --     platform/org_admin/plain-member escape hatch.
 -- ============================================================================
--- The role CHECK on organization_members admits nsp_coordinator (the appointment
--- seam). ADR 0051 (A1) added a SECOND constraint on `role` — the hospital-scope
--- iff-CHECK — whose NULL arm also names nsp_coordinator, so >=1 constraint clause
--- references it (was exactly 1 before A1). >=1 keeps the "admits it" intent stable.
+-- The role CHECK on memberships admits nsp_coordinator (the appointment seam;
+-- MEM collapse successor of organization_members.role's CHECK). memberships_role_check
+-- names the full role vocabulary (org_admin/nsp_org_admin/hospital_admin/
+-- nsp_coordinator/staff_admin/staff/pqs_member); memberships_scope_shape's per-role
+-- CASE arms also reference nsp_coordinator, so >=1 constraint clause names it.
 select ok(
   (select count(*)::int
    from information_schema.check_constraints cc
    join information_schema.constraint_column_usage ccu
      on cc.constraint_name = ccu.constraint_name
-   where ccu.table_name = 'organization_members'
+   where ccu.table_name = 'memberships'
      and ccu.column_name = 'role'
      and cc.check_clause like '%nsp_coordinator%') >= 1,
-  'C1: organization_members.role CHECK admits nsp_coordinator (appointment seam)');
+  'C1: memberships.role CHECK admits nsp_coordinator (appointment seam)');
 
 -- Appoint happy path — now via the guarded RPC (WS-1, 20260711000000): the
 -- nsp_coordinator organization_members row is no longer directly writable by
@@ -260,34 +261,36 @@ select throws_ok(
   'C3 ISOLATION: a rede-a nsp_org_admin CANNOT appoint a coordinator in rede-b (cross-org authority denied)');
 reset role;
 
--- The roster is written ONLY through add_pqs_member (WS-1: pqs_members has no direct
--- write grant and NO policy at all — RPC-only door, like case_access). These negative
--- controls prove no direct-write escape hatch survives; the reason is now "no grant /
--- no policy" (42501 permission-denied) rather than a curator-policy WITH CHECK, but the
--- guarantee is identical and stronger. 190_membership_lockdown covers the org_admin /
--- nsp_org_admin direct-write vectors canonically; these add the enrolled-member and
--- cross-hospital-coordinator vectors 190 does not.
+-- The roster is written ONLY through add_pqs_member (WS-1/MEM: memberships has no
+-- direct write grant and NO write policy at all — RPC-only door, like case_access).
+-- These negative controls prove no direct-write escape hatch survives; the reason is
+-- "no grant / no policy" (42501 permission-denied) rather than a curator-policy WITH
+-- CHECK, but the guarantee is identical and stronger. 190_membership_lockdown covers
+-- the org_admin / nsp_org_admin direct-write vectors canonically; these add the
+-- enrolled-member and cross-hospital-coordinator vectors 190 does not.
 --
 -- C4: orgadmin.a (org_admin, not coordinator/nsp_org_admin) cannot directly write.
 select test_helpers.claims_for((select orgadmin_a from personas), false);
 set local role authenticated;
 select throws_ok(
-  format($$ insert into public.pqs_members (hospital_id, user_id, added_by)
-            values (%L::uuid, %L::uuid, %L::uuid) $$,
-         (select hosp_central_a from personas), (select staff_ccih from personas), (select orgadmin_a from personas)),
+  format($$ insert into public.memberships (organization_id, hospital_id, principal_id, role, granted_by)
+            values (%L::uuid, %L::uuid, %L::uuid, 'pqs_member', %L::uuid) $$,
+         (select org_a from personas), (select hosp_central_a from personas),
+         (select staff_ccih from personas), (select orgadmin_a from personas)),
   '42501', null,
-  'C4: an org_admin CANNOT directly write pqs_members (no grant, no policy — RPC-only door)');
+  'C4: an org_admin CANNOT directly write a pqs_member row into memberships (no grant, no policy — RPC-only door)');
 reset role;
 
 -- C5: the enrolled member (pqs.a) is NOT a coordinator → also cannot write directly.
 select test_helpers.claims_for((select pqs_a from personas), false);
 set local role authenticated;
 select throws_ok(
-  format($$ insert into public.pqs_members (hospital_id, user_id, added_by)
-            values (%L::uuid, %L::uuid, %L::uuid) $$,
-         (select hosp_central_a from personas), (select staff_ccih from personas), (select pqs_a from personas)),
+  format($$ insert into public.memberships (organization_id, hospital_id, principal_id, role, granted_by)
+            values (%L::uuid, %L::uuid, %L::uuid, 'pqs_member', %L::uuid) $$,
+         (select org_a from personas), (select hosp_central_a from personas),
+         (select staff_ccih from personas), (select pqs_a from personas)),
   '42501', null,
-  'C5: an enrolled PQS member CANNOT directly write pqs_members (curation ≠ enrollment; no direct-write escape hatch)');
+  'C5: an enrolled PQS member CANNOT directly write a pqs_member row into memberships (curation ≠ enrollment; no direct-write escape hatch)');
 reset role;
 
 -- C6: the coordinator (nspcoord.a) CAN enroll into its HOSPITAL's roster via the RPC

@@ -2793,13 +2793,6 @@ export type Database = {
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "commission_administrativos_member_fk"
-            columns: ["commission_id", "user_id"]
-            isOneToOne: true
-            referencedRelation: "commission_members"
-            referencedColumns: ["commission_id", "user_id"]
-          },
         ]
       }
       commission_meeting_settings: {
@@ -2903,55 +2896,6 @@ export type Database = {
             columns: ["commission_id"]
             isOneToOne: false
             referencedRelation: "commissions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      commission_members: {
-        Row: {
-          commission_id: string
-          created_at: string
-          id: string
-          role: string
-          title_id: string | null
-          user_id: string
-        }
-        Insert: {
-          commission_id: string
-          created_at?: string
-          id?: string
-          role: string
-          title_id?: string | null
-          user_id: string
-        }
-        Update: {
-          commission_id?: string
-          created_at?: string
-          id?: string
-          role?: string
-          title_id?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "commission_members_commission_id_fkey"
-            columns: ["commission_id"]
-            isOneToOne: false
-            referencedRelation: "commissions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "commission_members_title_id_fkey"
-            columns: ["title_id"]
-            isOneToOne: false
-            referencedRelation: "commission_member_titles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "commission_members_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -4422,51 +4366,84 @@ export type Database = {
           },
         ]
       }
-      organization_members: {
+      memberships: {
         Row: {
-          created_at: string
+          commission_id: string | null
+          expires_at: string | null
+          granted_at: string
+          granted_by: string | null
           hospital_id: string | null
           id: string
-          organization_id: string
+          organization_id: string | null
+          principal_id: string
           role: string
-          user_id: string
+          title_id: string | null
         }
         Insert: {
-          created_at?: string
+          commission_id?: string | null
+          expires_at?: string | null
+          granted_at?: string
+          granted_by?: string | null
           hospital_id?: string | null
           id?: string
-          organization_id: string
+          organization_id?: string | null
+          principal_id: string
           role: string
-          user_id: string
+          title_id?: string | null
         }
         Update: {
-          created_at?: string
+          commission_id?: string | null
+          expires_at?: string | null
+          granted_at?: string
+          granted_by?: string | null
           hospital_id?: string | null
           id?: string
-          organization_id?: string
+          organization_id?: string | null
+          principal_id?: string
           role?: string
-          user_id?: string
+          title_id?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "organization_members_hospital_id_fkey"
+            foreignKeyName: "memberships_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_granted_by_fkey"
+            columns: ["granted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_hospital_id_fkey"
             columns: ["hospital_id"]
             isOneToOne: false
             referencedRelation: "hospitals"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "organization_members_organization_id_fkey"
+            foreignKeyName: "memberships_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "organization_members_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "memberships_principal_id_fkey"
+            columns: ["principal_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_title_id_fkey"
+            columns: ["title_id"]
+            isOneToOne: false
+            referencedRelation: "commission_member_titles"
             referencedColumns: ["id"]
           },
         ]
@@ -4919,49 +4896,6 @@ export type Database = {
             columns: ["hospital_id"]
             isOneToOne: false
             referencedRelation: "hospitals"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      pqs_members: {
-        Row: {
-          added_at: string
-          added_by: string | null
-          hospital_id: string
-          user_id: string
-        }
-        Insert: {
-          added_at?: string
-          added_by?: string | null
-          hospital_id: string
-          user_id: string
-        }
-        Update: {
-          added_at?: string
-          added_by?: string | null
-          hospital_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "pqs_members_added_by_fkey"
-            columns: ["added_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pqs_members_hospital_id_fkey"
-            columns: ["hospital_id"]
-            isOneToOne: false
-            referencedRelation: "hospitals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "pqs_members_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -6772,18 +6706,7 @@ export type Database = {
       }
       add_pqs_member: {
         Args: { p_hospital_id: string; p_user_id: string }
-        Returns: {
-          added_at: string
-          added_by: string | null
-          hospital_id: string
-          user_id: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "pqs_members"
-          isOneToOne: true
-          isSetofReturn: false
-        }
+        Returns: undefined
       }
       add_rca_evidence: {
         Args: {
@@ -8746,6 +8669,16 @@ export type Database = {
         }
         Returns: undefined
       }
+      grant_role: {
+        Args: {
+          p_role: string
+          p_scope_id: string
+          p_scope_type: string
+          p_title_id?: string
+          p_user: string
+        }
+        Returns: undefined
+      }
       hospital_document_register: {
         Args: {
           p_doc_type?: string
@@ -9807,6 +9740,15 @@ export type Database = {
       }
       revoke_org_admin: {
         Args: { p_org: string; p_user: string }
+        Returns: undefined
+      }
+      revoke_role: {
+        Args: {
+          p_role: string
+          p_scope_id: string
+          p_scope_type: string
+          p_user: string
+        }
         Returns: undefined
       }
       save_narrative_body: {

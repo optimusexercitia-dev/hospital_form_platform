@@ -269,11 +269,13 @@ export async function assignStaffAdmin(
       orgId,
     )
 
-    // Hard-coded role: 'staff_admin'. Upsert is idempotent on the
-    // unique(commission_id, user_id) constraint.
-    const { error } = await admin.from('commission_members').upsert(
-      { commission_id: commissionId, user_id: userId, role: 'staff_admin' },
-      { onConflict: 'commission_id,user_id' },
+    // Hard-coded role: 'staff_admin'. MEM (ADR 0075): service-role writer keeps a
+    // DIRECT insert into `memberships` (RLS-exempt, TS-authorized); the door RPC
+    // would fail with no auth.uid(). Audited by trg_audit_memberships. Idempotent on
+    // the grant-unique key.
+    const { error } = await admin.from('memberships').upsert(
+      { commission_id: commissionId, principal_id: userId, role: 'staff_admin' },
+      { onConflict: 'principal_id,role,organization_id,hospital_id,commission_id' },
     )
     if (error) {
       return { ok: false, error: MESSAGES.generic }
@@ -311,14 +313,15 @@ export async function removeStaffAdmin(
   }
 
   const supabase = await createClient()
-  // Scope the delete to staff_admin rows so this action can only remove the
-  // intended role; staff removal goes through the members action.
-  const { error } = await supabase
-    .from('commission_members')
-    .delete()
-    .eq('commission_id', commissionId)
-    .eq('user_id', userId)
-    .eq('role', 'staff_admin')
+  // MEM (ADR 0075): RLS-scoped removal routes through the revoke_role door (memberships
+  // has no direct write policy). Scoped to the staff_admin grant so this action removes
+  // only the intended role; staff removal goes through the members action.
+  const { error } = await supabase.rpc('revoke_role', {
+    p_scope_type: 'commission',
+    p_scope_id: commissionId,
+    p_role: 'staff_admin',
+    p_user: userId,
+  })
 
   if (error) {
     return { ok: false, error: MESSAGES.generic }

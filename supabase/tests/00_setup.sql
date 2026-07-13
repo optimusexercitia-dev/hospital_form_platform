@@ -159,7 +159,7 @@ begin
     (comm_x, 'Comissão X', 'comm-x-' || substr(comm_x::text,1,8), admin_id, hosp_b),
     (comm_y, 'Comissão Y', 'comm-y-' || substr(comm_y::text,1,8), admin_id, hosp_b);
 
-  insert into public.commission_members (commission_id, user_id, role) values
+  insert into public.memberships (commission_id, principal_id, role) values
     (comm_x, sa_x, 'staff_admin'),
     (comm_x, st_x, 'staff'),
     (comm_x, st_x2, 'staff'),

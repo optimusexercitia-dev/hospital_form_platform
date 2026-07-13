@@ -43,7 +43,7 @@ insert into public.hospitals (id, organization_id, name, slug)
   union all
   select hosp_b, org_b, 'Hospital B', 'hosp-b' from h;
 
-insert into public.organization_members (organization_id, user_id, role)
+insert into public.memberships (organization_id, principal_id, role)
   select org_a, sa_x, 'org_admin' from h
   union all
   select org_b, sa_y, 'org_admin' from h;
@@ -177,9 +177,9 @@ select is((select count(*)::int from public.hospitals where organization_id = (s
   'org_admin A: SELECT sees org A hospitals (Hospital A + Hosp Two A)');
 select is((select count(*)::int from public.hospitals where organization_id = (select org_b from h)), 0,
   'org_admin A: SELECT sees 0 of org B hospitals');
-select is((select count(*)::int from public.organization_members where organization_id = (select org_a from h)), 1,
+select is((select count(*)::int from public.memberships where organization_id = (select org_a from h)), 1,
   'org_admin A: SELECT sees org A members');
-select is((select count(*)::int from public.organization_members where organization_id = (select org_b from h)), 0,
+select is((select count(*)::int from public.memberships where organization_id = (select org_b from h)), 0,
   'org_admin A: SELECT sees 0 of org B members');
 
 -- org_admin A CAN insert a hospital into A.
@@ -259,8 +259,8 @@ select is((select count(*)::int from public.organizations where id = (select org
   'plain staff: SELECT sees 0 of a FOREIGN org (isolation holds)');
 select is((select count(*)::int from public.hospitals), 0,
   'plain staff: SELECT sees 0 hospitals (hospitals_select stays org_admin/platform-only)');
-select is((select count(*)::int from public.organization_members), 0,
-  'plain staff: SELECT sees 0 organization_members');
+select is((select count(*)::int from public.memberships where organization_id is not null), 0,
+  'plain staff: SELECT sees 0 organization-tier memberships');
 
 select throws_ok(
   format($$ insert into public.hospitals (organization_id, name, slug) values (%L, 'nope', 'nope-slug') $$,

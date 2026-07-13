@@ -26,7 +26,7 @@ begin
     values (v_comm, 'RC', 'rc-'||substr(v_user::text,1,8), v_user, v_hosp);
   -- (fetch the derived id back — commissions id may be trigger-managed elsewhere,
   -- but here we set it explicitly, so v_comm is valid.)
-  insert into public.commission_members (commission_id, user_id, role) values (v_comm, v_user, 'staff_admin');
+  insert into public.memberships (commission_id, principal_id, role) values (v_comm, v_user, 'staff_admin');
 
   insert into public.forms (id, commission_id, title, created_by) values (v_form, v_comm, 'F', v_user);
   insert into public.form_versions (id, form_id, version_number, status) values (v_ver, v_form, 1, 'draft');

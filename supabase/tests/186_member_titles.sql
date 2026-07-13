@@ -82,9 +82,9 @@ reset role;
 do $$
 declare v_member uuid; v_title uuid;
 begin
-  select id into v_member from public.commission_members
+  select id into v_member from public.memberships
     where commission_id = 'a0000000-0000-0000-0000-0000000000a1'
-      and user_id = '00000000-0000-0000-0000-000000000003';
+      and principal_id = '00000000-0000-0000-0000-000000000003';
   select id into v_title from public.commission_member_titles
     where commission_id = 'a0000000-0000-0000-0000-0000000000a1' and name = 'Presidente';
   perform set_config('test186.member', v_member::text, true);
@@ -99,7 +99,7 @@ select lives_ok(
   'ASSIGN: staff_admin assigns a title to a member');
 reset role;
 select is(
-  (select title_id from public.commission_members where id = current_setting('test186.member')::uuid),
+  (select title_id from public.memberships where id = current_setting('test186.member')::uuid),
   current_setting('test186.title')::uuid,
   'ASSIGN: the member''s title_id is set');
 
@@ -115,6 +115,10 @@ select ok(not app.is_commission_admin_of((select comm_ccih from p)),
 reset role;
 
 -- same-commission integrity: assigning a Farmácia title to a CCIH member fails.
+-- MEM collapse: memberships has NO direct UPDATE grant to authenticated (WS-1/MEM
+-- lockdown — writes flow only through the door / a DEFINER RPC), so the integrity
+-- guard is now reached via assign_member_title (SECURITY DEFINER; its internal
+-- UPDATE still trips guard_membership_title_commission_trg) rather than a raw UPDATE.
 do $$
 declare v_farm_title uuid;
 begin
@@ -125,8 +129,8 @@ end $$;
 select test_helpers.claims_for((select chefe_ccih from p), false);
 set local role authenticated;
 select throws_ok(
-  format($$update public.commission_members set title_id = %L where id = %L$$,
-    current_setting('test186.farm_title'), current_setting('test186.member')),
+  format($$select public.assign_member_title(%L, %L)$$,
+    current_setting('test186.member'), current_setting('test186.farm_title')),
   '23514', null,
   'INTEGRITY: assigning a title from ANOTHER commission is rejected (check_violation)');
 reset role;
@@ -139,7 +143,7 @@ select lives_ok(
   'DELETE: staff_admin deletes the assigned title');
 reset role;
 select is(
-  (select title_id from public.commission_members where id = current_setting('test186.member')::uuid),
+  (select title_id from public.memberships where id = current_setting('test186.member')::uuid),
   null,
   'ON DELETE SET NULL: the member''s title_id is cleared after the title is deleted');
 
@@ -152,7 +156,7 @@ select is(
 -- (a) exactly one FK backs the members->titles embed (PostgREST unambiguous).
 select is(
   (select count(*)::int from pg_constraint
-   where conrelid = 'public.commission_members'::regclass and contype = 'f'
+   where conrelid = 'public.memberships'::regclass and contype = 'f'
      and confrelid = 'public.commission_member_titles'::regclass),
   1,
   'READ (Gap#2): a single FK title_id->commission_member_titles backs the members-title embed');
@@ -162,7 +166,7 @@ select is(
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b1'::uuid, false);  -- orgadmin.a
 set local role authenticated;
 select is(
-  (select count(*)::int from public.organization_members om
+  (select count(*)::int from public.memberships om
    where om.role = 'hospital_admin' and om.hospital_id = '05000000-0000-0000-0000-00000000000a'),
   2,
   'READ (Gap#1): org_admin.a reads the central-a hospital_admin roster (a1 + dual)');
@@ -170,7 +174,7 @@ reset role;
 select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b3'::uuid, false);  -- org-b staff
 set local role authenticated;
 select is(
-  (select count(*)::int from public.organization_members om
+  (select count(*)::int from public.memberships om
    where om.role = 'hospital_admin' and om.hospital_id = '05000000-0000-0000-0000-00000000000a'),
   0,
   'READ (Gap#1) ISOLATION: an org-b staff reads ZERO of org-a''s hospital_admin roster');

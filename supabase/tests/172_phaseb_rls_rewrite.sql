@@ -34,7 +34,7 @@ insert into public.organizations (id, name, slug) select org_a, 'Org A', 'org-a'
   union all select org_b, 'Org B', 'org-b' from h;
 insert into public.hospitals (id, organization_id, name, slug) select hosp_a, org_a, 'Hosp A', 'hosp-a' from h
   union all select hosp_b, org_b, 'Hosp B', 'hosp-b' from h;
-insert into public.organization_members (organization_id, user_id, role)
+insert into public.memberships (organization_id, principal_id, role)
   select org_a, sa_x, 'org_admin' from h union all select org_b, sa_y, 'org_admin' from h;
 update public.commissions set hospital_id = (select hosp_a from h) where id = (select comm_x from h);
 update public.commissions set hospital_id = (select hosp_b from h) where id = (select comm_y from h);

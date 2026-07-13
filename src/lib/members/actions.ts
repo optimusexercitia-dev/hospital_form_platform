@@ -155,12 +155,18 @@ export async function addStaff(
     return { ok: false, fieldErrors: { user: MESSAGES.userNotAddable } }
   }
 
-  // Hard-coded role: 'staff'. A tampered form cannot escalate here. Upsert is
-  // idempotent on unique(commission_id, user_id); DO NOTHING so adding an existing
-  // member (incl. a staff_admin) never silently demotes them.
-  const { error } = await admin.from('commission_members').upsert(
-    { commission_id: commissionId, user_id: userId, role: 'staff' },
-    { onConflict: 'commission_id,user_id', ignoreDuplicates: true },
+  // Hard-coded role: 'staff'. A tampered form cannot escalate here. MEM (ADR 0075):
+  // this service-role writer keeps a DIRECT insert into `memberships` (RLS-exempt,
+  // TS-authorized above) — the door RPC would fail here since the admin client has
+  // no auth.uid(). The blanket trg_audit_memberships trigger still audits it. Upsert
+  // is idempotent on the grant-unique key; DO NOTHING so adding an existing member
+  // (incl. a staff_admin) never silently demotes them.
+  const { error } = await admin.from('memberships').upsert(
+    { commission_id: commissionId, principal_id: userId, role: 'staff' },
+    {
+      onConflict: 'principal_id,role,organization_id,hospital_id,commission_id',
+      ignoreDuplicates: true,
+    },
   )
   if (error) {
     return { ok: false, error: MESSAGES.generic }
@@ -171,12 +177,12 @@ export async function addStaff(
 }
 
 /**
- * Remove a STAFF member from a commission. Uses the cookie (RLS-scoped) client:
- * `commission_members_staff_admin_delete` (M6) restricts deletion to staff rows
- * of a commission the caller is staff_admin of, and `commission_members_admin_all`
- * covers admin — so RLS itself blocks removing a staff_admin or a foreign
- * commission's member. The explicit `role='staff'` filter keeps this action's
- * intent narrow regardless.
+ * Remove a STAFF member from a commission. MEM (ADR 0075 / O-2): `memberships` has
+ * no direct write RLS policy, so this RLS-scoped path routes through the
+ * `revoke_role` door over the cookie client (auth.uid() present → the incumbent
+ * staff/commission-admin authority resolves in-door). The door revokes ONLY the
+ * exact (commission, user, 'staff') grant — never a staff_admin or a foreign
+ * commission's row. Exported signature frozen.
  */
 export async function removeStaff(
   _prev: ActionState | undefined,
@@ -196,12 +202,12 @@ export async function removeStaff(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase
-    .from('commission_members')
-    .delete()
-    .eq('commission_id', commissionId)
-    .eq('user_id', userId)
-    .eq('role', 'staff')
+  const { error } = await supabase.rpc('revoke_role', {
+    p_scope_type: 'commission',
+    p_scope_id: commissionId,
+    p_role: 'staff',
+    p_user: userId,
+  })
 
   if (error) {
     return { ok: false, error: MESSAGES.generic }

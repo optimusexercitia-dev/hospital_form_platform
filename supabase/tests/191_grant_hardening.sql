@@ -76,14 +76,14 @@ select throws_ok(
   '1.7: TRUNCATE audit_log raises HC042 (statement-level immutability guard)');
 
 -- A DEFINER path (audit_write via an instrumented mutation) still writes: change an
--- existing comm_x member's role as superuser → the trg_audit_commission_members UPDATE
--- arm emits a commission_member.role_changed row. (Do NOT add a persona to comm_x here
+-- existing comm_x member's role as superuser → the trg_audit_memberships UPDATE
+-- arm emits a membership.role_changed row. (Do NOT add a persona to comm_x here
 -- — st_y must stay a comm_y-only outsider for the §3.2 forgery test.)
 create temp table ac1 on commit drop as
   select count(*)::int as before from public.audit_log where commission_id = (select comm_x from k);
 grant select on ac1 to authenticated;
-update public.commission_members set role = 'staff_admin'
-  where commission_id = (select comm_x from k) and user_id = (select st_x from k);
+update public.memberships set role = 'staff_admin'
+  where commission_id = (select comm_x from k) and principal_id = (select st_x from k);
 select ok(
   (select count(*)::int from public.audit_log where commission_id = (select comm_x from k)) > (select before from ac1),
   '1.8: audit_write (DEFINER) still inserts via an instrumented mutation (role_changed)');
@@ -123,8 +123,8 @@ values
 insert into public.event_patient (event_id, name, mrn, sex)
   values ((select id from ev), 'Paciente WS2', 'MRN-WS2', 'female');
 update public.patient_safety_event set has_patient = true where id = (select id from ev);
-insert into public.pqs_members (hospital_id, user_id, added_by)
-  values ((select hosp_b from k), (select admin from k), (select sa_x from k));
+insert into public.memberships (organization_id, hospital_id, principal_id, role, granted_by)
+  values ((select org_b from k), (select hosp_b from k), (select admin from k), 'pqs_member', (select sa_x from k));
 
 -- (3a) ENTITLED entity-scoped: st_x2 (a comm_x member → can_read_event) may log
 -- safety_event.viewed for the comm_x event.

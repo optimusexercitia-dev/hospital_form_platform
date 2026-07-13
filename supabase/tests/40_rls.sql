@@ -154,45 +154,52 @@ select is(
   'staff_admin cannot escalate self to global admin'
 );
 
--- Creating a staff_admin member is rejected by the insert WITH CHECK (role must
--- be staff). Done as sa_x.
+-- MEM collapse (WS-1 lockdown carried onto the unified memberships table): there is
+-- NO direct DML grant to `authenticated` on memberships at all (only SELECT) — every
+-- write flows through grant_role/revoke_role. A direct escalation-attempt INSERT is
+-- now rejected outright (permission denied), not merely WITH-CHECK-scoped. Done as sa_x.
 select test_helpers.claims_for((select (v->>'sa_x')::uuid from ctx), false);
 set local role authenticated;
 select throws_ok(
-  format($$ insert into public.commission_members (commission_id, user_id, role)
+  format($$ insert into public.memberships (commission_id, principal_id, role)
             values (%L, %L, 'staff_admin') $$,
          (select (v->>'comm_x')::uuid from ctx),
          (select (v->>'st_y')::uuid from ctx)),
-  '42501',  -- insufficient_privilege: RLS WITH CHECK violation
+  '42501',  -- insufficient_privilege: no INSERT grant on memberships (WS-1 lockdown)
   null,
-  'staff_admin cannot create another staff_admin (escalation blocked)'
+  'staff_admin cannot create another staff_admin (direct write rejected — no grant)'
 );
 reset role;
 
--- MAJOR-1: a staff_admin cannot demote a FELLOW staff_admin to staff. Add a
--- second staff_admin (the admin user) to commission X as postgres, then act as
--- sa_x and try to update that row to role='staff' — the USING clause restricts
--- targets to staff rows, so the UPDATE matches nothing (and the row is
--- unchanged).
-insert into public.commission_members (commission_id, user_id, role)
+-- MAJOR-1 (carried forward): a staff_admin cannot demote a FELLOW staff_admin to
+-- staff. Add a second staff_admin (the admin user) to commission X as postgres, then
+-- act as sa_x and try to update that row to role='staff'. Under the OLD RLS-only
+-- posture the USING clause restricted targets to staff rows (silent 0-row no-op);
+-- under the MEM collapse there is no UPDATE grant on memberships at all, so the direct
+-- write is now rejected outright (permission denied) — a STRONGER guarantee than the
+-- USING-clause no-op it replaces (the escalation is blocked earlier, at the grant).
+insert into public.memberships (commission_id, principal_id, role)
 select (v->>'comm_x')::uuid, (v->>'admin')::uuid, 'staff_admin' from ctx;
 
 select test_helpers.claims_for((select (v->>'sa_x')::uuid from ctx), false);
 set local role authenticated;
-prepare demote_peer as
-  update public.commission_members set role = 'staff'
-  where commission_id = (select (v->>'comm_x')::uuid from ctx)
-    and user_id = (select (v->>'admin')::uuid from ctx);
-select lives_ok('execute demote_peer', 'demote-peer UPDATE does not error');
-deallocate demote_peer;
+select throws_ok(
+  format($$ update public.memberships set role = 'staff'
+            where commission_id = %L and principal_id = %L $$,
+         (select (v->>'comm_x')::uuid from ctx),
+         (select (v->>'admin')::uuid from ctx)),
+  '42501',
+  null,
+  'staff_admin cannot demote a fellow staff_admin (direct write rejected — no grant)'
+);
 reset role;
 
 select is(
-  (select role from public.commission_members
+  (select role from public.memberships
      where commission_id = (select (v->>'comm_x')::uuid from ctx)
-       and user_id = (select (v->>'admin')::uuid from ctx)),
+       and principal_id = (select (v->>'admin')::uuid from ctx)),
   'staff_admin',
-  'staff_admin cannot demote a fellow staff_admin (USING restricts to staff)'
+  'staff_admin cannot demote a fellow staff_admin (row unchanged)'
 );
 
 -- MINOR-2: profiles are never deleted. Two layers prove this:

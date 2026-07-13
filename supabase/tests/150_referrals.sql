@@ -43,8 +43,10 @@ create temp table k on commit drop as
 grant select on k to authenticated;
 
 -- NSP-per-org (ADR 0042): pqs_members has composite PK (organization_id, user_id).
-insert into public.pqs_members (hospital_id, user_id, added_by)
-  select (v->>'hosp_b')::uuid, (v->>'admin')::uuid, (v->>'admin')::uuid from ctx;
+insert into public.memberships (organization_id, hospital_id, principal_id, role, granted_by)
+  select (select organization_id from public.hospitals where id = (v->>'hosp_b')::uuid),
+         (v->>'hosp_b')::uuid, (v->>'admin')::uuid, 'pqs_member', (v->>'admin')::uuid
+  from ctx;
 insert into public.pqs_department (hospital_id, name, rca_default_due_days)
   select (v->>'hosp_b')::uuid, 'NSP Bootstrap', 30 from ctx
   on conflict (hospital_id) do nothing;

@@ -40,7 +40,7 @@ insert into public.hospitals (id, organization_id, name, slug)
           'hosp-two-' || substr((select hosp2 from t)::text,1,8));
 
 -- Make sa_x a per-hospital nsp_coordinator of hosp_b (a PQS operator of hosp_b ONLY).
-insert into public.organization_members (organization_id, user_id, role, hospital_id)
+insert into public.memberships (organization_id, principal_id, role, hospital_id)
   values ((select org_b from k), (select sa_x from k), 'nsp_coordinator', (select hosp_b from k));
 
 -- ============================================================================

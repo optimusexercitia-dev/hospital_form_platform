@@ -201,11 +201,13 @@ async function callerHospitalAdminMayManageUser(
     return true
   }
 
-  // (b) membership in any commission under an admined hospital.
+  // (b) membership in any commission under an admined hospital. MEM: commission-scope
+  // rows of `memberships` (commission_id set); resolve the hospital via the FK.
   const { data: memberships } = await admin
-    .from('commission_members')
+    .from('memberships')
     .select('commissions:commission_id(hospital_id)')
-    .eq('user_id', userId)
+    .eq('principal_id', userId)
+    .not('commission_id', 'is', null)
     .returns<{ commissions: { hospital_id: string } | null }[]>()
   return (memberships ?? []).some(
     (m) => m.commissions && adminedHospitalIds.has(m.commissions.hospital_id),
@@ -505,15 +507,18 @@ export async function registerUser(
       }
     }
 
+    // MEM (ADR 0075): service-role writer keeps a DIRECT insert into `memberships`
+    // (RLS-exempt, TS-authorized above; the door needs an auth.uid() this admin
+    // client lacks). Audited by trg_audit_memberships.
     const { error: memberError } = await admin
-      .from('commission_members')
+      .from('memberships')
       .upsert(
         committees.map((c) => ({
           commission_id: c.commissionId,
-          user_id: userId,
+          principal_id: userId,
           role: c.role,
         })),
-        { onConflict: 'commission_id,user_id' },
+        { onConflict: 'principal_id,role,organization_id,hospital_id,commission_id' },
       )
     if (memberError) {
       return { ok: false, error: MESSAGES.generic }
@@ -673,10 +678,23 @@ export async function assignCommitteeRole(
   }
 
   const admin = createAdminClient()
-  const { error } = await admin.from('commission_members').upsert(
-    { commission_id: input.commissionId, user_id: userId, role: input.role },
-    { onConflict: 'commission_id,user_id' },
-  )
+  // MEM (ADR 0075): service-role writer; direct `memberships` write (RLS-exempt,
+  // TS-authorized). The memberships grant-unique key INCLUDES role, so a plain upsert
+  // could not CHANGE a user's role in a commission (a different role = a different
+  // row) and would leave a stale row. Preserve the incumbent "one role per user per
+  // commission, role-updating" semantics with delete-then-insert. Both writes fire
+  // trg_audit_memberships (revoked + granted), which is correct.
+  const { error: delError } = await admin
+    .from('memberships')
+    .delete()
+    .eq('commission_id', input.commissionId)
+    .eq('principal_id', userId)
+  if (delError) return { ok: false, error: MESSAGES.generic }
+  const { error } = await admin.from('memberships').insert({
+    commission_id: input.commissionId,
+    principal_id: userId,
+    role: input.role,
+  })
   if (error) return { ok: false, error: MESSAGES.generic }
 
   revalidateDirectory()
@@ -701,11 +719,13 @@ export async function removeCommittee(
   }
 
   const admin = createAdminClient()
+  // MEM (ADR 0075): service-role writer; direct `memberships` delete of the commission
+  // membership (either role). Audited by trg_audit_memberships.
   const { error } = await admin
-    .from('commission_members')
+    .from('memberships')
     .delete()
     .eq('commission_id', commissionId)
-    .eq('user_id', userId)
+    .eq('principal_id', userId)
   if (error) return { ok: false, error: MESSAGES.generic }
 
   revalidateDirectory()

@@ -216,9 +216,9 @@ reset role;
 -- on the TARGET being confirmed/active. Add d1 (pending) to CCIH, then read as the
 -- active staff_ccih. (Rolled back with the txn.)
 select set_config('request.jwt.claims', '', true);
-insert into public.commission_members (commission_id, user_id, role)
+insert into public.memberships (commission_id, principal_id, role)
   values ((select comm_ccih from ids), (select u_pending from ids), 'staff')
-  on conflict (commission_id, user_id) do nothing;
+  on conflict (principal_id, role, organization_id, hospital_id, commission_id) do nothing;
 select test_helpers.claims_for((select staff_ccih from ids), false);
 set local role authenticated;
 select ok(

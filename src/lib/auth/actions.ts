@@ -100,13 +100,14 @@ async function resolveLanding(
   const [profileResult, membershipResult, orgAdminResult] = await Promise.all([
     supabase.from('profiles').select('is_admin').eq('id', userId).maybeSingle(),
     supabase
-      .from('commission_members')
+      .from('memberships')
       .select('commission:commissions(slug, organization:organizations(slug))')
-      .eq('user_id', userId),
+      .eq('principal_id', userId)
+      .not('commission_id', 'is', null),
     supabase
-      .from('organization_members')
+      .from('memberships')
       .select('organization:organizations(slug)')
-      .eq('user_id', userId)
+      .eq('principal_id', userId)
       .eq('role', 'org_admin'),
   ])
 

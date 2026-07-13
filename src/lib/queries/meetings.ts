@@ -699,10 +699,11 @@ export async function listMeetingAttendees(
   if (error || !data) return []
 
   // ADR 0051 committee titles (display-only): a title lives on the member's
-  // `commission_members` row for THIS meeting's commission, not on the attendee
-  // row — so resolve them in one extra RLS-scoped read keyed by the member
-  // attendees' user_ids, then merge in TS (PostgREST can't hop attendee →
-  // commission_members → title conditionally). External guests carry no title.
+  // `memberships` row (S1·MEM; formerly `commission_members`) for THIS meeting's
+  // commission, not on the attendee row — so resolve them in one extra RLS-scoped
+  // read keyed by the member attendees' user_ids, then merge in TS (PostgREST
+  // can't hop attendee → memberships → title conditionally). External guests
+  // carry no title.
   const memberUserIds = data
     .map((r) => r.user_id)
     .filter((id): id is string => id !== null)
@@ -717,21 +718,21 @@ export async function listMeetingAttendees(
 
     if (meeting) {
       const { data: memberTitles } = await supabase
-        .from('commission_members')
-        .select('user_id, title_id, commission_member_titles(name)')
+        .from('memberships')
+        .select('principal_id, title_id, commission_member_titles(name)')
         .eq('commission_id', meeting.commission_id)
-        .in('user_id', memberUserIds)
+        .in('principal_id', memberUserIds)
         .not('title_id', 'is', null)
         .returns<
           {
-            user_id: string
+            principal_id: string
             title_id: string | null
             commission_member_titles: { name: string } | null
           }[]
         >()
       for (const m of memberTitles ?? []) {
         if (m.title_id && m.commission_member_titles) {
-          titlesByUser.set(m.user_id, {
+          titlesByUser.set(m.principal_id, {
             id: m.title_id,
             name: m.commission_member_titles.name,
           })

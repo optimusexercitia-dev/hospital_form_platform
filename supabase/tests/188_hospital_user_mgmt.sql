@@ -26,17 +26,17 @@ create temp table p on commit drop as select
 grant select on p to authenticated;
 
 -- ============================================================================
--- §1: organization_members self-read (20260709000500) — a hospital_admin reads
---     its OWN grant so getSessionContext resolves hospitalAdminOf.
+-- §1: memberships self-read (20260709000500, now the collapsed table) — a
+--     hospital_admin reads its OWN grant so getSessionContext resolves hospitalAdminOf.
 -- ============================================================================
 select test_helpers.claims_for((select ha1 from p), false);
 set local role authenticated;
 select is(
-  (select count(*)::int from public.organization_members where user_id = (select ha1 from p)),
+  (select count(*)::int from public.memberships where principal_id = (select ha1 from p)),
   1,
   'SELF-READ: hospitaladmin.a1 reads its OWN grant row (1 = central-a)');
 select is(
-  (select count(*)::int from public.organization_members where user_id = (select orgadmin_a from p)),
+  (select count(*)::int from public.memberships where principal_id = (select orgadmin_a from p)),
   0,
   'SELF-READ ISOLATION: a1 reads ZERO of ANOTHER user''s grant rows (no roster leak)');
 reset role;
@@ -44,7 +44,7 @@ reset role;
 select test_helpers.claims_for((select ha_dual from p), false);
 set local role authenticated;
 select is(
-  (select count(*)::int from public.organization_members where user_id = (select ha_dual from p)),
+  (select count(*)::int from public.memberships where principal_id = (select ha_dual from p)),
   2,
   'SELF-READ: hospitaladmin.dual reads its TWO own grant rows (both hospitals)');
 reset role;
@@ -69,7 +69,7 @@ select ok(
   (select count(*)::int from public.profiles
    where home_hospital_id = (select hosp_central_a from p)
       or id in (
-        select cm.user_id from public.commission_members cm
+        select cm.principal_id from public.memberships cm
         join public.commissions c on c.id = cm.commission_id
         where c.hospital_id = (select hosp_central_a from p)
       )) >= 5,
@@ -173,7 +173,7 @@ reset role;
 --     hospital. Prove the RLS-backed predicate that gate reads DENIES an A-only
 --     hospital_admin for a secundario-a (sibling-hospital) commission: the
 --     Ética commission's hospital_id is NOT in ha1's admined-hospital set
---     (from its OWN organization_members self-read grant). Without this the
+--     (from its OWN memberships self-read grant). Without this the
 --     caller could delete a shared user's sibling-hospital membership on the
 --     service-role client (no RLS backstop).
 -- ============================================================================
@@ -183,9 +183,9 @@ select ok(
   not exists(
     select 1
     from public.commissions c
-    join public.organization_members om
+    join public.memberships om
       on om.hospital_id = c.hospital_id
-     and om.user_id = (select ha1 from p)
+     and om.principal_id = (select ha1 from p)
      and om.role = 'hospital_admin'
     where c.id = 'e0000000-0000-0000-0000-0000000000e1'  -- Ética (secundario-a)
   ),

@@ -196,8 +196,10 @@ create temp table ev on commit drop as
   select gen_random_uuid() as event, gen_random_uuid() as rca, gen_random_uuid() as evid,
          gen_random_uuid() as why, gen_random_uuid() as factor;
 grant select on ev to authenticated;
-insert into public.pqs_members (hospital_id, user_id, added_by)
-  values ((select hosp_b from k), (select sa_x from k), (select admin from k)) on conflict do nothing;
+insert into public.memberships (organization_id, hospital_id, principal_id, role, granted_by)
+  values ((select organization_id from public.hospitals where id = (select hosp_b from k)),
+          (select hosp_b from k), (select sa_x from k), 'pqs_member', (select admin from k))
+  on conflict (principal_id, role, organization_id, hospital_id, commission_id) do nothing;
 insert into public.patient_safety_event (id, code, reporting_commission_id, discovered_at, title, status, current_owner_kind, reported_by)
   values ((select event from ev), 'EV-D7C', (select comm_x from k), current_date, 'Ev', 'acknowledged', 'pqs', (select sa_x from k));
 insert into public.event_patient (event_id, name, mrn, sex) values ((select event from ev), 'P', 'M', 'female');

@@ -226,34 +226,38 @@ end $$;
 update public.organizations set created_by = '00000000-0000-0000-0000-0000000000b0'
 where id in ('0c000000-0000-0000-0000-00000000000a', '0c000000-0000-0000-0000-00000000000b');
 
-insert into public.organization_members (organization_id, user_id, role, hospital_id) values
+-- MEM (S1): the three role tables collapsed into public.memberships. Org/hospital-tier
+-- grants seed as memberships rows (principal_id + scope columns per the shape CHECK).
+-- Org-tier: organization_id set. Hospital-tier: organization_id + hospital_id set.
+insert into public.memberships (organization_id, hospital_id, principal_id, role) values
   -- admin@test.local re-homed as org_admin of org-a; orgadmin.a as well (so both
   -- a legacy id and the named persona administer org-a). orgadmin.b runs org-b.
-  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-000000000001', 'org_admin', null),
-  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000b1', 'org_admin', null),
-  ('0c000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000b2', 'org_admin', null),
-  -- NSP-per-HOSPITAL (ADR 0052): the nsp_coordinator is now the LOCAL hospital NSP head
-  -- (full operator, decision 12), so the role row carries hospital_id. Appointed by the
-  -- org's nsp_org_admin. nspcoord.a heads central-a; nspcoord.a2 heads secundario-a;
-  -- nspcoord.b heads central-b. nspcoord.a is left UNENROLLED in central-a's roster
-  -- below — proving a coordinator reads via the coordinator arm even without membership.
-  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000c1', 'nsp_coordinator', '05000000-0000-0000-0000-00000000000a'),
-  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000c5', 'nsp_coordinator', '05000000-0000-0000-0000-0000000000a2'),
-  ('0c000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000c3', 'nsp_coordinator', '05000000-0000-0000-0000-00000000000b'),
-  -- NSP-per-hospital (ADR 0052): nsp_org_admin of org-a (org-level, ACTIVE now —
-  -- curates any hospital's roster + appoints coordinators + reads PHI-free aggregates;
-  -- enrolled in NO roster below, proving zero-PHI). hospital_id NULL (org-level).
-  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e2', 'nsp_org_admin', null);
+  ('0c000000-0000-0000-0000-00000000000a', null, '00000000-0000-0000-0000-000000000001', 'org_admin'),
+  ('0c000000-0000-0000-0000-00000000000a', null, '00000000-0000-0000-0000-0000000000b1', 'org_admin'),
+  ('0c000000-0000-0000-0000-00000000000b', null, '00000000-0000-0000-0000-0000000000b2', 'org_admin'),
+  -- NSP-per-HOSPITAL (ADR 0052): the nsp_coordinator is the LOCAL hospital NSP head
+  -- (full operator, decision 12), so the role row carries hospital_id (+ org, per the
+  -- memberships shape CHECK). Appointed by the org's nsp_org_admin. nspcoord.a heads
+  -- central-a; nspcoord.a2 heads secundario-a; nspcoord.b heads central-b. nspcoord.a
+  -- is left UNENROLLED in central-a's roster below — proving a coordinator reads via the
+  -- coordinator arm even without membership.
+  ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000c1', 'nsp_coordinator'),
+  ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000c5', 'nsp_coordinator'),
+  ('0c000000-0000-0000-0000-00000000000b', '05000000-0000-0000-0000-00000000000b', '00000000-0000-0000-0000-0000000000c3', 'nsp_coordinator'),
+  -- nsp_org_admin of org-a (org-level, ACTIVE — curates any hospital's roster + appoints
+  -- coordinators + reads PHI-free aggregates; enrolled in NO roster below, proving
+  -- zero-PHI). hospital_id NULL (org-level).
+  ('0c000000-0000-0000-0000-00000000000a', null, '00000000-0000-0000-0000-0000000000e2', 'nsp_org_admin');
 
--- Hospital-admin rows carry hospital_id (the Phase-A iff-CHECK requires it).
+-- Hospital-admin rows carry hospital_id + org (the memberships shape CHECK requires both).
 --   a1   -> central-a ONLY (isolation subject).
 --   dual -> BOTH central-a and secundario-a (Note-2 coexistence: two rows for one
---           (org,user), which the OLD (org,user) unique rejected and the new
---           composite NULLS-NOT-DISTINCT key admits; 184 asserts BOTH resolve).
-insert into public.organization_members (organization_id, user_id, role, hospital_id) values
-  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e1', 'hospital_admin', '05000000-0000-0000-0000-00000000000a'),
-  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e3', 'hospital_admin', '05000000-0000-0000-0000-00000000000a'),
-  ('0c000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e3', 'hospital_admin', '05000000-0000-0000-0000-0000000000a2');
+--           (org,user), which the memberships NULLS-NOT-DISTINCT grant-unique admits;
+--           184 asserts BOTH resolve).
+insert into public.memberships (organization_id, hospital_id, principal_id, role) values
+  ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e1', 'hospital_admin'),
+  ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-00000000000a', '00000000-0000-0000-0000-0000000000e3', 'hospital_admin'),
+  ('0c000000-0000-0000-0000-00000000000a', '05000000-0000-0000-0000-0000000000a2', '00000000-0000-0000-0000-0000000000e3', 'hospital_admin');
 
 -- Q2 hospital-scoped directory: anchor the hospital_admin's home hospital to
 -- central-a. The dual + nsporg personas stay hospital-less at home.
@@ -284,7 +288,8 @@ insert into public.commissions (id, name, slug, created_by, hospital_id) values
   -- secundario-a operator (pqs.a2 / nspcoord.a2) reads it (189 isolation keystone).
   ('e0000000-0000-0000-0000-0000000000e2', 'Comissão de Segurança do Paciente A2',        'seguranca-a2', '00000000-0000-0000-0000-0000000000b1', '05000000-0000-0000-0000-0000000000a2');
 
-insert into public.commission_members (commission_id, user_id, role) values
+-- Commission-tier grants seed as memberships rows (commission_id set; org/hospital null).
+insert into public.memberships (commission_id, principal_id, role) values
   -- org-b commission staff_admin + staff (cross-org isolation personas).
   ('c0000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000b2', 'staff_admin'),
   ('c0000000-0000-0000-0000-0000000000c1', '00000000-0000-0000-0000-0000000000b3', 'staff'),
@@ -1187,14 +1192,16 @@ begin
   --   pqsdual.a: enrolled in BOTH central-a AND secundario-a → a dual-hospital operator
   --     (the NSP switcher >1-grant path) who is ALSO a CCIH commission member.
   -- nsporg.a (the org NSP-admin) is enrolled in NO roster — proving it reads ZERO PHI.
-  insert into public.pqs_members (hospital_id, user_id, added_by) values
-    (v_hosp_a1, v_pqs_a, v_admin),
-    (v_hosp_a1, v_admin, v_admin),
-    (v_hosp_a2, v_pqs_a2, v_admin),
-    (v_hosp_a1, v_pqs_dual, v_admin),
-    (v_hosp_a2, v_pqs_dual, v_admin),
-    (v_hosp_b,  v_pqs_b, v_admin)
-  on conflict (hospital_id, user_id) do nothing;
+  -- MEM (S1): pqs enrollment is the synthetic role='pqs_member' on memberships,
+  -- scoped to the hospital (+ its org, per the shape CHECK). granted_by = v_admin.
+  insert into public.memberships (organization_id, hospital_id, principal_id, role, granted_by) values
+    (v_org_a, v_hosp_a1, v_pqs_a,    'pqs_member', v_admin),
+    (v_org_a, v_hosp_a1, v_admin,    'pqs_member', v_admin),
+    (v_org_a, v_hosp_a2, v_pqs_a2,   'pqs_member', v_admin),
+    (v_org_a, v_hosp_a1, v_pqs_dual, 'pqs_member', v_admin),
+    (v_org_a, v_hosp_a2, v_pqs_dual, 'pqs_member', v_admin),
+    (v_org_b, v_hosp_b,  v_pqs_b,    'pqs_member', v_admin)
+  on conflict (principal_id, role, organization_id, hospital_id, commission_id) do nothing;
 
   -- Event 1 — CASE-LINKED, reported by a PLAIN staff member (just-culture),
   -- acknowledged by the NSP. Held by the NSP.

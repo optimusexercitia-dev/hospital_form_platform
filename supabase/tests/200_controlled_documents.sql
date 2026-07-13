@@ -76,7 +76,7 @@ insert into public.commissions (id, name, slug, created_by, hospital_id)
 select (select comm_z from k2), 'Comissão Z', 'comm-z-' || substr((select comm_z from k2)::text,1,8),
        (select admin from k), (select hosp2 from k2);
 
-insert into public.commission_members (commission_id, user_id, role)
+insert into public.memberships (commission_id, principal_id, role)
 select (select comm_z from k2), (select user_z from k2), 'staff';
 
 -- An INACTIVE same-hospital user (for the HC091 inactive arm).
@@ -88,7 +88,7 @@ select '00000000-0000-0000-0000-000000000000', (select user_inactive from k3),
 update public.profiles set full_name = 'User Inactive', is_active = false,
        home_organization_id = (select org_id from k)
   where id = (select user_inactive from k3);
-insert into public.commission_members (commission_id, user_id, role)
+insert into public.memberships (commission_id, principal_id, role)
 select (select comm_y from k), (select user_inactive from k3), 'staff';
 
 -- ---------------------------------------------------------------------------

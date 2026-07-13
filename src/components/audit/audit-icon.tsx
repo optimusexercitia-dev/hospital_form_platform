@@ -28,7 +28,8 @@ const ENTITY_ICON: Partial<Record<AuditEntityType, LucideIcon>> = {
   form_section: Rows3,
   form_item: Rows3,
   commission: FolderOpen,
-  commission_member: Users,
+  // MEM (S1): entity type renamed commission_member -> membership (unified audit).
+  membership: Users,
   response: Send,
   signoff: PenLine,
   case: FolderOpen,

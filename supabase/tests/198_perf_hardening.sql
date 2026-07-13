@@ -16,10 +16,12 @@ begin;
 select plan(16);
 
 -- ============================================================================
--- §1: P9 composite indexes.
+-- §1: P9 composite indexes. (MEM collapse: organization_members's composite index
+-- has no direct successor by name — the memberships table ships its OWN composite
+-- indexes per scope, which supersede the old per-table ones; see 20260720000000.)
 -- ============================================================================
-select has_index('public', 'organization_members', 'organization_members_user_role_hosp_idx',
-  '1.1: organization_members(user_id, role, hospital_id) composite index exists');
+select has_index('public', 'memberships', 'memberships_organization_idx',
+  '1.1: memberships(organization_id, principal_id, role) composite index exists (organization_members successor)');
 select has_index('public', 'audit_log', 'audit_log_hospital_occurred_idx',
   '1.2: audit_log(hospital_id, occurred_at DESC) partial index exists');
 
@@ -34,8 +36,15 @@ select has_index('public', 'responses', 'responses_last_section_idx',
   '2.3: responses.last_section_id indexed');
 select has_index('public', 'case_phases', 'case_phases_result_idx',
   '2.4: case_phases.result_id indexed');
-select has_index('public', 'commission_members', 'commission_members_title_idx',
-  '2.5: commission_members.title_id indexed');
+-- MEM-GAP (flagged to backend/lead, NOT papered over): the collapsed memberships
+-- table has no title_id-covering index — memberships_commission_idx covers
+-- (commission_id, principal_id) only, not title_id lookups. commission_members_title_idx
+-- has no direct successor. This assertion is left probing the (now-absent) legacy
+-- index name so it FAILS LOUD until a real memberships title_id index is added or this
+-- is confirmed intentionally dropped (title_id lookups are rare/admin-only, so the
+-- index may be a deliberate non-migration — confirm with backend before silencing).
+select has_index('public', 'memberships', 'memberships_title_idx',
+  '2.5: memberships.title_id indexed (MEM-GAP: confirm this index should exist before green)');
 
 -- ============================================================================
 -- §3: P9 auth.uid() InitPlan wraps — each of the 9 hot policies has ( SELECT auth.uid())
@@ -81,8 +90,8 @@ select ok(pg_temp.is_wrapped('responses','responses_update_own_draft'),
   '3.7: responses_update_own_draft wraps auth.uid()');
 select ok(pg_temp.is_wrapped('cases','cases_select'),
   '3.8: cases_select wraps auth.uid()');
-select ok(pg_temp.is_wrapped('organization_members','organization_members_select'),
-  '3.9: organization_members_select wraps auth.uid()');
+select ok(pg_temp.is_wrapped('memberships','memberships_select'),
+  '3.9: memberships_select wraps auth.uid() (organization_members_select successor)');
 
 select * from finish();
 rollback;

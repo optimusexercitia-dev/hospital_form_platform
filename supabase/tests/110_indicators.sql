@@ -343,9 +343,9 @@ reset role;
 
 -- ---- 10) hospital_indicator_rollup: scope + PHI-free SELECT list ----
 -- Grant a hospital_admin of comm_x's hospital (org_b/hosp_b in the fixture).
-insert into public.organization_members (organization_id, user_id, role, hospital_id)
+insert into public.memberships (organization_id, principal_id, role, hospital_id)
 select (select org_id from k), (select st_x2 from k), 'hospital_admin', (select hosp_id from k)
-on conflict do nothing;
+on conflict (principal_id, role, organization_id, hospital_id, commission_id) do nothing;
 
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
@@ -391,8 +391,10 @@ select is(
 
 -- ---- 12) two-tier CAPA hook ----
 -- Enroll st_x as a PQS operator of comm_x's hospital so they can open the CAPA.
-insert into public.pqs_members (hospital_id, user_id)
-select (select hosp_id from k), (select st_x from k) on conflict do nothing;
+insert into public.memberships (organization_id, hospital_id, principal_id, role)
+select (select organization_id from public.hospitals where id = (select hosp_id from k)),
+       (select hosp_id from k), (select st_x from k), 'pqs_member'
+on conflict (principal_id, role, organization_id, hospital_id, commission_id) do nothing;
 
 -- non-operator staff_admin -> 42501
 select test_helpers.claims_for((select sa_x from k), false);

@@ -40,7 +40,9 @@ export type AuditEntityType =
   | 'form_section'
   | 'form_item'
   | 'commission'
-  | 'commission_member'
+  // MEM (S1): membership entity type replaces the retired commission_member (the
+  // blanket trg_audit_memberships emits entity_type = 'membership').
+  | 'membership'
   | 'response'
   | 'signoff'
   | 'case'
@@ -92,12 +94,14 @@ export type AuditAction =
   | 'form_item.created'
   | 'form_item.updated'
   | 'form_item.deleted'
-  // membership
+  // membership — MEM (S1) unified verbs (D1 HARD-CUT: the legacy commission_member.* /
+  // organization_member.* / pqs_member.* families are RETIRED, no aliases). One
+  // membership.* family across all three tiers; scope-ids in metadata preserve the tier.
   | 'commission.created'
   | 'commission.updated'
-  | 'commission_member.added'
-  | 'commission_member.role_changed'
-  | 'commission_member.removed'
+  | 'membership.granted'
+  | 'membership.role_changed'
+  | 'membership.revoked'
   // responses + sign-offs (status flips only — NEVER answer payloads)
   | 'response.submitted'
   | 'response.opened_foreign'
@@ -196,7 +200,7 @@ export const AUDIT_ENTITY_LABELS: Record<AuditEntityType, string> = {
   form_section: 'Seção',
   form_item: 'Item',
   commission: 'Comissão',
-  commission_member: 'Membro',
+  membership: 'Função',
   response: 'Resposta',
   signoff: 'Assinatura de seção',
   case: 'Caso',
@@ -234,9 +238,9 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'form_item.deleted': 'Item excluído',
   'commission.created': 'Comissão criada',
   'commission.updated': 'Comissão atualizada',
-  'commission_member.added': 'Membro adicionado',
-  'commission_member.role_changed': 'Função alterada',
-  'commission_member.removed': 'Membro removido',
+  'membership.granted': 'Função concedida',
+  'membership.role_changed': 'Função alterada',
+  'membership.revoked': 'Função revogada',
   'response.submitted': 'Resposta enviada',
   'response.opened_foreign': 'Resposta de terceiro visualizada',
   'signoff.recorded': 'Seção assinada',

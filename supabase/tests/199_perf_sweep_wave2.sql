@@ -146,8 +146,9 @@ reset role;
 -- §3 · P3a — pqs_inbox: limit + keyset cursor + org-scope gate.
 -- =========================================================================
 -- Enroll admin into the hospital PQS roster so pqs_inbox returns its events.
-insert into public.pqs_members (hospital_id, user_id, added_by)
-  select (select hosp_b from k), (select admin from k), (select admin from k);
+insert into public.memberships (organization_id, hospital_id, principal_id, role, granted_by)
+  select (select organization_id from public.hospitals where id = (select hosp_b from k)),
+         (select hosp_b from k), (select admin from k), 'pqs_member', (select admin from k);
 
 -- Create THREE events in comm_x with DISTINCT reported_at so the keyset order is
 -- deterministic. notify_safety_event stamps reported_at = now(); we override to

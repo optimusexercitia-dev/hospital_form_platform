@@ -182,13 +182,13 @@ export interface RoleHolder {
   userId: string
   fullName: string
   email: string
-  /** When the grant was made (`organization_members.created_at`). */
+  /** When the grant was made (`memberships.granted_at`). */
   grantedAt: string
 }
 
 interface RoleHolderRow {
-  user_id: string
-  created_at: string
+  principal_id: string
+  granted_at: string
   profiles: { full_name: string | null; email: string | null } | null
 }
 
@@ -200,27 +200,27 @@ function mapRoleHolders(rows: RoleHolderRow[]): RoleHolder[] {
         r.profiles !== null,
     )
     .map((r) => ({
-      userId: r.user_id,
+      userId: r.principal_id,
       fullName: r.profiles.full_name ?? '',
       email: r.profiles.email ?? '',
-      grantedAt: r.created_at,
+      grantedAt: r.granted_at,
     }))
     .sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR'))
 }
 
 /**
  * The current `hospital_admin` holders of `hospitalId` (ADR 0051). Joins
- * `organization_members → profiles`. RLS-scoped: `organization_members_select`
- * (`is_admin() OR is_org_admin_of(organization_id)`) returns rows only to an
- * org_admin of the hospital's org (or platform_admin); `[]` otherwise. Sorted by
- * name (pt-BR). `grantedAt` = `organization_members.created_at`.
+ * `memberships → profiles` (S1·MEM; formerly `organization_members`). RLS-scoped:
+ * `memberships_select` (`is_admin() OR is_org_admin_of(organization_id)`) returns
+ * rows only to an org_admin of the hospital's org (or platform_admin); `[]`
+ * otherwise. Sorted by name (pt-BR). `grantedAt` = `memberships.granted_at`.
  */
 export async function listHospitalAdmins(hospitalId: string): Promise<RoleHolder[]> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
-    .from('organization_members')
-    .select('user_id, created_at, profiles:user_id(full_name, email)')
+    .from('memberships')
+    .select('principal_id, granted_at, profiles:principal_id(full_name, email)')
     .eq('role', 'hospital_admin')
     .eq('hospital_id', hospitalId)
     .returns<RoleHolderRow[]>()
@@ -239,8 +239,8 @@ export async function listNspOrgAdmins(orgId: string): Promise<RoleHolder[]> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
-    .from('organization_members')
-    .select('user_id, created_at, profiles:user_id(full_name, email)')
+    .from('memberships')
+    .select('principal_id, granted_at, profiles:principal_id(full_name, email)')
     .eq('role', 'nsp_org_admin')
     .eq('organization_id', orgId)
     .returns<RoleHolderRow[]>()

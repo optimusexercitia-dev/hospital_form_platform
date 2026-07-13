@@ -187,16 +187,15 @@ export async function assignOrgAdmin(
       organizationId,
     )
 
-    // Hard-coded role: 'org_admin'. Upsert is idempotent on the live composite key
-    // organization_members_identity_key (organization_id, user_id, role, hospital_id)
-    // — the old (organization_id, user_id) unique was dropped in Phase A
-    // (20260709000000). hospital_id is NULL for the org-level org_admin row, and the
-    // key is NULLS NOT DISTINCT (PG17), so a repeat provision still conflicts. This
-    // is the service-role provisioning door (RLS/grant-exempt); the WS-1 blanket
-    // trigger (20260711000000) audits the write regardless of the write path.
-    const { error } = await admin.from('organization_members').upsert(
-      { organization_id: organizationId, user_id: userId, role: 'org_admin' },
-      { onConflict: 'organization_id,user_id,role,hospital_id' },
+    // Hard-coded role: 'org_admin'. MEM (ADR 0075): the first-org_admin provisioning
+    // door stays a DIRECT service-role insert into `memberships` (RLS/grant-exempt) —
+    // the grant_role door would fail here since the admin client has no auth.uid().
+    // hospital_id is NULL for the org-level org_admin row; the grant-unique key is
+    // NULLS NOT DISTINCT (PG17), so a repeat provision still conflicts. The blanket
+    // trg_audit_memberships trigger audits the write regardless of path.
+    const { error } = await admin.from('memberships').upsert(
+      { organization_id: organizationId, principal_id: userId, role: 'org_admin' },
+      { onConflict: 'principal_id,role,organization_id,hospital_id,commission_id' },
     )
     if (error) {
       return { ok: false, error: MESSAGES.generic }

@@ -65,7 +65,7 @@ update public.profiles set full_name = 'StaffAdmin X2',
        home_organization_id = (select org_b from k) where id = (select sa_x2 from p);
 update public.profiles set full_name = 'Administrativo 2',
        home_organization_id = (select org_b from k) where id = (select adm2 from p);
-insert into public.commission_members (commission_id, user_id, role) values
+insert into public.memberships (commission_id, principal_id, role) values
   ((select comm_x from k), (select sa_x2 from p), 'staff_admin'),
   ((select comm_x from k), (select adm2 from p), 'staff');
 -- adm2 is appointed with create_cases (built as table owner — bypasses the guarded

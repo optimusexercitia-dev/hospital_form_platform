@@ -204,15 +204,20 @@ async function makeProbeCommission(
   const commId = commRow[0].id
   expect(commId).toBeTruthy()
 
+  // MEM (S1): memberships has no direct write RLS/grant for `authenticated`, but a
+  // service-role client is RLS-exempt (ADR 0075 path (a) — service-role writers keep
+  // a direct write; auth.uid() is NULL under service-role, so the grant_role door's
+  // is_*_of authority checks would 42501 here). Still fully audited by the blanket
+  // trg_audit_memberships trigger (role-agnostic).
   for (const { userId, role } of members) {
-    const mResp = await req.post(`${SUPABASE_URL}/rest/v1/commission_members`, {
+    const mResp = await req.post(`${SUPABASE_URL}/rest/v1/memberships`, {
       headers: {
         apikey: SUPABASE_SERVICE_KEY,
         Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
         'Content-Type': 'application/json',
         Prefer: 'return=representation',
       },
-      data: { commission_id: commId, user_id: userId, role },
+      data: { commission_id: commId, principal_id: userId, role },
     })
     expect(mResp.status()).toBe(201)
   }
@@ -306,7 +311,7 @@ test('AC-1a: publish a form version → exactly one form_version.published row (
   expect(row.summary).toMatch(/publicada/i)
 })
 
-test('AC-1b: add a member → exactly one commission_member.added row (role in metadata, actor=admin)', async ({
+test('AC-1b: add a member → exactly one membership.granted row (role in metadata, actor=admin)', async ({
   request,
 }) => {
   // ISOLATION (P13-006): actor = admin@test.local (global — adding more commissions
@@ -315,7 +320,7 @@ test('AC-1b: add a member → exactly one commission_member.added row (role in m
   const admin = await getOwnerToken(request, 'admin@test.local')
   const probeMember = await makeProbeUser(request, 'ac1b-member')
 
-  const before = await auditRowsFor(request, 'commission_member.added', ADMIN_ID)
+  const before = await auditRowsFor(request, 'membership.granted', ADMIN_ID)
 
   // Create a fresh disposable commission (admin-only write).
   const slug = `probe-ac1b-${Date.now()}`
@@ -340,30 +345,40 @@ test('AC-1b: add a member → exactly one commission_member.added row (role in m
   const probeCommId = commRow[0].id
   expect(probeCommId).toBeTruthy()
 
-  // Admin inserts the fresh throwaway user into the new commission.
-  const insertResp = await request.post(`${SUPABASE_URL}/rest/v1/commission_members`, {
-    headers: {
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${admin}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-    },
-    data: { commission_id: probeCommId, user_id: probeMember.userId, role: 'staff' },
+  // MEM (S1): memberships has NO direct write path — grant through the door
+  // (grant_role RPC), not a direct commission_members INSERT (table dropped).
+  const grantResp = await rpc(request, 'grant_role', admin, {
+    p_scope_type: 'commission',
+    p_scope_id: probeCommId,
+    p_role: 'staff',
+    p_user: probeMember.userId,
   })
-  expect(insertResp.status()).toBe(201)
-  const memberRow = (await insertResp.json()) as { id: string }[]
-  const memberId = memberRow[0].id
+  expect(grantResp.ok()).toBeTruthy()
 
-  const after = await auditRowsFor(request, 'commission_member.added', ADMIN_ID)
+  // grant_role returns void — read the freshly-minted memberships row back to
+  // pin the exact entity_id the audit trigger must have attributed.
+  const membershipRows = await restGet<{ id: string }>(
+    request,
+    `memberships?commission_id=eq.${probeCommId}&principal_id=eq.${probeMember.userId}&role=eq.staff&select=id`,
+    admin,
+  )
+  expect(membershipRows).toHaveLength(1)
+  const membershipId = membershipRows[0].id
+
+  const after = await auditRowsFor(request, 'membership.granted', ADMIN_ID)
   const added = after.filter((r) => !before.some((b) => b.id === r.id))
   expect(added).toHaveLength(1)
   const row = added[0]
-  expect(row.entity_type).toBe('commission_member')
-  expect(row.entity_id).toBe(memberId)
+  expect(row.entity_type).toBe('membership')
+  expect(row.entity_id).toBe(membershipId)
   expect(row.actor_id).toBe(ADMIN_ID)
   expect(row.commission_id).toBe(probeCommId)
-  // Curated non-sensitive metadata: the role transition (null → staff).
-  expect(row.metadata).toMatchObject({ role: { old: null, new: 'staff' } })
+  // Curated non-sensitive metadata: role + scope + principal — never PHI/payload.
+  expect(row.metadata).toMatchObject({
+    role: 'staff',
+    user_id: probeMember.userId,
+    commission_id: probeCommId,
+  })
 })
 
 test('AC-1c: submit a response → exactly one response.submitted row; metadata = status flip, NO answer payload', async ({
@@ -788,10 +803,12 @@ test('AC-3a: staff_admin A audit RLS — zero commission-B rows readable; no B e
   )
   expect(bRows).toHaveLength(0)
 
-  // No COMMISSION_B entity_id (member IDs etc.) appears in the visible set.
+  // No COMMISSION_B entity_id (membership row IDs etc.) appears in the visible set.
+  // MEM (S1): commission_members is dropped — membership rows now live in
+  // memberships, scoped by commission_id exactly as before.
   const bEntityIds = await restGet<{ id: string }>(
     request,
-    `commission_members?commission_id=eq.${COMMISSION_B}&select=id`,
+    `memberships?commission_id=eq.${COMMISSION_B}&select=id`,
     SUPABASE_SERVICE_KEY,
   )
   const visibleEntityIds = new Set(visible.map((r) => r.entity_id))
@@ -1099,15 +1116,15 @@ test('AC-5a: entity-type filter narrows the feed to that entity', async ({ page 
   const unfiltered = await feed.getByRole('listitem').count()
   expect(unfiltered).toBeGreaterThan(0)
 
-  // Filter to "Membro" (commission_member) entries only.
-  await page.goto('/o/rede-a/c/ccih/manage/audit?entity=commission_member')
+  // Filter to "Função" (membership — MEM S1 unified entity) entries only.
+  await page.goto('/o/rede-a/c/ccih/manage/audit?entity=membership')
   await expect(feed).toBeVisible({ timeout: 10_000 })
   const memberRows = await feed.getByRole('listitem').count()
   expect(memberRows).toBeGreaterThan(0)
-  // Every visible card shows the "Membro" entity chip; no other entity types.
+  // Every visible card shows the "Função" entity chip; no other entity types.
   const items = feed.getByRole('listitem')
   for (let i = 0; i < memberRows; i++) {
-    await expect(items.nth(i)).toContainText('Membro')
+    await expect(items.nth(i)).toContainText('Função')
   }
   // CCIH seeds 2 members (staff1/staff2 added) → fewer rows than the full feed.
   expect(memberRows).toBeLessThan(unfiltered)
@@ -1123,16 +1140,17 @@ test('AC-5b: action-type filter narrows the feed to that action', async ({ page 
   const unfiltered = await feed.getByRole('listitem').count()
   expect(unfiltered).toBeGreaterThan(0)
 
-  // commission_member.added is the most reliable CCIH action; use it.
-  await page.goto('/o/rede-a/c/ccih/manage/audit?action=commission_member.added')
+  // membership.granted is the most reliable CCIH action; use it (MEM S1 unified verb —
+  // the retired commission_member.added is HARD-CUT, no alias).
+  await page.goto('/o/rede-a/c/ccih/manage/audit?action=membership.granted')
   await expect(feed).toBeVisible({ timeout: 10_000 })
   const rows = feed.getByRole('listitem')
   const count = await rows.count()
   expect(count).toBeGreaterThan(0)
   expect(count).toBeLessThanOrEqual(unfiltered)
-  // Every card shows the "Membro adicionado" action label and the Membro entity.
+  // Every card shows the "Função concedida" action label and the Função entity.
   for (let i = 0; i < count; i++) {
-    await expect(rows.nth(i)).toContainText(/membro adicionado/i)
+    await expect(rows.nth(i)).toContainText(/função concedida/i)
   }
 })
 
@@ -1206,20 +1224,21 @@ test('AC-6: audit CSV row count equals the entity-filtered list total', async ({
 }) => {
   await signInAs(page, 'chefe.ccih@test.local')
 
-  // Filter to commission_member entries scoped to commission A — the CSV
+  // Filter to membership.granted entries scoped to commission A — the CSV
   // download is emitted from /c/ccih/ and is commission-scoped. Since AC-1
   // probe commissions also make chefe.ccih a staff_admin (adding their own
-  // commission_member.added rows), an unscoped query would over-count.
+  // membership.granted rows), an unscoped query would over-count. (MEM S1
+  // unified verb — the retired commission_member.added is HARD-CUT, no alias.)
   const chefe = await getOwnerToken(request, 'chefe.ccih@test.local')
   const dbRows = await restGet<{ id: string }>(
     request,
-    `audit_log?action=eq.commission_member.added&commission_id=eq.${COMMISSION_A}&select=id`,
+    `audit_log?action=eq.membership.granted&commission_id=eq.${COMMISSION_A}&select=id`,
     chefe,
   )
   const expectedCount = dbRows.length
   expect(expectedCount).toBeGreaterThan(0)
 
-  await page.goto('/o/rede-a/c/ccih/manage/audit?action=commission_member.added')
+  await page.goto('/o/rede-a/c/ccih/manage/audit?action=membership.granted')
   const feed = page.getByRole('list', { name: /registros de auditoria/i })
   await expect(feed).toBeVisible({ timeout: 15_000 })
 
@@ -1305,8 +1324,10 @@ test('AC-8: keyboard-only — focus a filter, apply, run integrity check (focus 
 
   // 2. Apply a filter from the keyboard (selectOption is a keyboard-equivalent
   //    interaction on a native <select>; the URL-driven re-query follows).
-  await entitySelect.selectOption('commission_member')
-  await page.waitForURL(/entity=commission_member/, { timeout: 10_000 })
+  //    MEM (S1): the entity option is now 'membership' ("Função") — the retired
+  //    'commission_member' ("Membro") is HARD-CUT, no alias.
+  await entitySelect.selectOption('membership')
+  await page.waitForURL(/entity=membership/, { timeout: 10_000 })
   const feed = page.getByRole('list', { name: /registros de auditoria/i })
   await expect(feed).toBeVisible({ timeout: 10_000 })
   expect(await feed.getByRole('listitem').count()).toBeGreaterThan(0)

@@ -93,12 +93,13 @@ export async function listOrgUsers(
   const counts = new Map<string, number>()
   if (ids.length > 0) {
     const { data: memberships, error: mErr } = await supabase
-      .from('commission_members')
-      .select('user_id')
-      .in('user_id', ids)
+      .from('memberships')
+      .select('principal_id')
+      .not('commission_id', 'is', null)
+      .in('principal_id', ids)
     if (mErr) throw mErr
     for (const m of memberships ?? []) {
-      counts.set(m.user_id, (counts.get(m.user_id) ?? 0) + 1)
+      counts.set(m.principal_id, (counts.get(m.principal_id) ?? 0) + 1)
     }
   }
 
@@ -149,11 +150,11 @@ export async function listHospitalUsers(
   const memberUserIds = new Set<string>()
   if (commissionIds.length > 0) {
     const { data: memberRows } = await supabase
-      .from('commission_members')
-      .select('user_id')
+      .from('memberships')
+      .select('principal_id')
       .in('commission_id', commissionIds)
-      .returns<{ user_id: string }[]>()
-    for (const m of memberRows ?? []) memberUserIds.add(m.user_id)
+      .returns<{ principal_id: string }[]>()
+    for (const m of memberRows ?? []) memberUserIds.add(m.principal_id)
   }
 
   const from = paging.page * paging.pageSize
@@ -189,12 +190,13 @@ export async function listHospitalUsers(
   const counts = new Map<string, number>()
   if (ids.length > 0) {
     const { data: memberships, error: mErr } = await supabase
-      .from('commission_members')
-      .select('user_id')
-      .in('user_id', ids)
+      .from('memberships')
+      .select('principal_id')
+      .not('commission_id', 'is', null)
+      .in('principal_id', ids)
     if (mErr) throw mErr
     for (const m of memberships ?? []) {
-      counts.set(m.user_id, (counts.get(m.user_id) ?? 0) + 1)
+      counts.set(m.principal_id, (counts.get(m.principal_id) ?? 0) + 1)
     }
   }
 
@@ -239,9 +241,10 @@ export async function getOrgUser(userId: string): Promise<OrgUserDetail | null> 
       .eq('user_id', userId)
       .order('created_at', { ascending: true }),
     supabase
-      .from('commission_members')
+      .from('memberships')
       .select('role, commission:commissions(id, name, slug)')
-      .eq('user_id', userId),
+      .eq('principal_id', userId)
+      .not('commission_id', 'is', null),
   ])
 
   if (credentialsResult.error) throw credentialsResult.error
