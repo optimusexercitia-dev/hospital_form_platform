@@ -8,6 +8,9 @@ import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { getSubmissionDetail } from "@/lib/queries/submissions";
 import { getSignedAssetUrl, type VersionTree } from "@/lib/queries/forms";
 import { SubmissionDetailView } from "@/components/dashboard/submission-detail-view";
+import { SupersessionBadgePill } from "@/components/dashboard/supersession-badge";
+import { CorrectSubmissionButton } from "@/components/dashboard/correct-submission-button";
+import { supersedeResponseAction } from "@/lib/responses/actions";
 
 export const metadata: Metadata = {
   title: "Resposta enviada",
@@ -71,6 +74,7 @@ export default async function SubmissionDetailPage({
               Em andamento
             </span>
           )}
+          <SupersessionBadgePill badge={detail.badge} />
         </div>
         <p className="text-sm text-muted-foreground">
           {member}
@@ -78,6 +82,17 @@ export default async function SubmissionDetailPage({
             ? ` · Enviada em ${formatDateTime(detail.submittedAt)}`
             : ""}
         </p>
+        {detail.canCorrect && (
+          <div>
+            <CorrectSubmissionButton
+              responseId={detail.responseId}
+              formId={detail.formId}
+              org={org}
+              slug={commission}
+              action={supersedeResponseAction}
+            />
+          </div>
+        )}
       </header>
 
       <SubmissionDetailView

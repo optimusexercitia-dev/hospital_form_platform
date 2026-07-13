@@ -37,6 +37,7 @@ export interface FeatureFlags {
   controlled_docs: boolean
   administrativo: boolean
   attachments: boolean
+  response_correction: boolean
 }
 
 /** A flag key. */
@@ -84,4 +85,16 @@ export async function qualityIndicatorsEnabled(): Promise<boolean> {
  */
 export async function controlledDocsEnabled(): Promise<boolean> {
   return featureEnabled('controlled_docs')
+}
+
+/**
+ * Whether the SUP · Supersession correction engine (Pre-Pilot Release, ADR
+ * 0074) is ON. Thin per-flag wrapper over {@link featureEnabled} (consistent
+ * with the other per-flag `*Enabled()` readers), so callers avoid an `as
+ * FeatureFlagKey` cast. Request-memoized via {@link getFeatureFlags}. Seeded
+ * OFF in the SUP core migration; flips ON via a companion one-line migration
+ * at the SUP gate; `seed.sql` forces it ON for local/E2E.
+ */
+export async function responseCorrectionEnabled(): Promise<boolean> {
+  return featureEnabled('response_correction')
 }

@@ -6241,6 +6241,7 @@ export type Database = {
           started_at: string
           status: string
           submitted_at: string | null
+          supersedes_id: string | null
           updated_at: string
         }
         Insert: {
@@ -6253,6 +6254,7 @@ export type Database = {
           started_at?: string
           status?: string
           submitted_at?: string | null
+          supersedes_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -6265,6 +6267,7 @@ export type Database = {
           started_at?: string
           status?: string
           submitted_at?: string | null
+          supersedes_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -6301,6 +6304,13 @@ export type Database = {
             columns: ["last_section_id"]
             isOneToOne: false
             referencedRelation: "form_sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "responses_supersedes_id_fkey"
+            columns: ["supersedes_id"]
+            isOneToOne: false
+            referencedRelation: "responses"
             referencedColumns: ["id"]
           },
         ]
@@ -9775,6 +9785,7 @@ export type Database = {
           started_at: string
           status: string
           submitted_at: string | null
+          supersedes_id: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -10393,6 +10404,7 @@ export type Database = {
           started_at: string
           status: string
           submitted_at: string | null
+          supersedes_id: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -10414,6 +10426,7 @@ export type Database = {
           started_at: string
           status: string
           submitted_at: string | null
+          supersedes_id: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -10529,6 +10542,7 @@ export type Database = {
           started_at: string
           status: string
           submitted_at: string | null
+          supersedes_id: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -10557,6 +10571,28 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "controlled_document_versions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      supersede_response: {
+        Args: { p_reason: string; p_response_id: string }
+        Returns: {
+          case_phase_id: string | null
+          commission_id: string
+          created_by: string
+          form_version_id: string
+          id: string
+          last_section_id: string | null
+          started_at: string
+          status: string
+          submitted_at: string | null
+          supersedes_id: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "responses"
           isOneToOne: true
           isSetofReturn: false
         }

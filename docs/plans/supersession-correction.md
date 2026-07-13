@@ -135,10 +135,13 @@ public.supersede_response(p_response_id uuid, p_reason text) returns public.resp
 | 3 | predecessor `case_phase_id IS NULL` | **HC0H1** | esta resposta pertence a um caso; a correção é feita pela fase do caso |
 | 4 | no live successor already | **HC0H2** | já existe uma correção em andamento para esta resposta |
 | 5 | `p_reason` non-blank | **HC0H3** | informe o motivo da correção |
+| 6 | caller has NO live `in_progress` draft of the predecessor's `form_version_id` | **HC0H5** | você já tem um preenchimento em andamento para esta versão do formulário; conclua ou descarte-o antes de corrigir |
 | — | (coherence, from the trigger) | **HC0H4** | a correção deve manter versão e comissão da resposta original |
 
-  (Precondition 3/4 are also backstopped by the trigger + partial-unique; the explicit checks give a
-  clean message. `HC0H5–HC0H9` reserved for future SUP needs.)
+  (Precondition 3/4 are also backstopped by the trigger + partial-unique; precondition 6 is backstopped
+  by `responses_one_draft_per_user_idx` (one in_progress draft per user per version) — the explicit
+  check pre-empts the raw `23505` with a clean, actionable message (BUG-SUP-001). `HC0H6–HC0H9`
+  reserved for future SUP needs.)
 - **Body:** INSERT the successor (`form_version_id`, `commission_id` copied from predecessor;
   `created_by = auth.uid()`; `status='in_progress'`; `case_phase_id=null`; `supersedes_id =
   p_response_id`); **copy the predecessor's answers** into the new draft (Open decision A — recommend

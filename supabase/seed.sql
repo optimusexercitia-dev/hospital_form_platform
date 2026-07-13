@@ -1940,6 +1940,15 @@ update app.feature_flags set enabled = true where key = 'controlled_docs';
 -- ONLY on `db reset`, so flipping it ON HERE yields a flag-ON LOCAL/E2E env. NOT under
 -- the F1 m2 hard gate (that gate is case_participants/case_types only — real ethics data).
 update app.feature_flags set enabled = true where key = 'attachments';
+
+-- BELT-AND-SUSPENDERS FLAG FLIP (SUP / ADR 0074): the companion migration
+-- 20260720000610_flag_response_correction_on.sql already flips
+-- response_correction ON unconditionally (the quality_indicators precedent —
+-- prod ships ON from that migration), so this line is redundant on an ordinary
+-- `db reset`. It is repeated here anyway, matching the plan's explicit
+-- "seed.sql forces ON for local/E2E" instruction, so local/E2E stays ON even if
+-- a future migration edit ever changes the flip's shape.
+update app.feature_flags set enabled = true where key = 'response_correction';
 -- ---------------------------------------------------------------------------
 do $cd$
 declare

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ChevronRight, Clock, Layers } from "lucide-react";
 
 import type { SubmissionRow as SubmissionRowData } from "@/lib/queries/submissions";
+import { SupersessionBadgePill } from "@/components/dashboard/supersession-badge";
 
 /** pt-BR date + time for a submission timestamp. */
 function formatDateTime(iso: string): string {
@@ -62,6 +63,7 @@ export function SubmissionRow({
               Fase de caso
             </span>
           )}
+          <SupersessionBadgePill badge={row.badge} />
           {!isSubmitted && (
             <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-muted-foreground uppercase">
               <Clock aria-hidden="true" className="size-3" />

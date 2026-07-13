@@ -3,6 +3,8 @@ import { getVersionTree } from '@/lib/queries/forms'
 import { getResponseSignoffs } from '@/lib/queries/signoffs'
 import { getSessionContext } from '@/lib/queries/session'
 import { logAuditAccess } from '@/lib/audit/access'
+import { isCommissionAdmin } from '@/lib/auth/access'
+import { responseCorrectionEnabled } from '@/lib/queries/feature-flags'
 import type { Json } from '@/lib/types/database'
 import type { Page, PageParams, CursorSchema } from '@/lib/types/pagination'
 import {
@@ -79,6 +81,37 @@ export interface SubmissionRow {
   /** True when this submitted response is a case PHASE (Phase-7) rather than a
    * standalone form-fill — lets the UI badge/segregate it. */
   isCasePhase: boolean
+  /** SUP (ADR 0074): the supersession badge for this row (plan §5 — badges show
+   * in response lists AND the detail header). Resolved via a single batched
+   * lookup in {@link listSubmissions}, never N+1. See {@link SupersessionBadge}. */
+  badge: SupersessionBadge
+}
+
+/**
+ * SUP (ADR 0074): a response's supersession badge for display in lists + the
+ * detail header. `'substituido'` — this response IS a predecessor that has
+ * been superseded (a submitted successor points at it); `'atual'` — this
+ * response IS a successor (it supersedes an earlier one); `null` — no
+ * supersession relationship either way.
+ */
+export type SupersessionBadge = 'substituido' | 'atual' | null
+
+/**
+ * SUP (ADR 0074): the pure badge-merge rule shared by the list read
+ * ({@link listSubmissions}) — extracted so it is unit-testable in isolation
+ * (Rule 3-adjacent: one place decides the badge). A row is `'substituido'` when
+ * it has a SUBMITTED successor (`hasSubmittedSuccessor` — the "latest-in-chain"
+ * signal, mirroring the aggregation exclusion); `'atual'` when the row IS a
+ * successor (`isSuccessor`, i.e. its own `supersedes_id` is non-null); otherwise
+ * `null`. `'substituido'` takes precedence in the rare case a row is both.
+ */
+export function resolveSupersessionBadge(input: {
+  hasSubmittedSuccessor: boolean
+  isSuccessor: boolean
+}): SupersessionBadge {
+  if (input.hasSubmittedSuccessor) return 'substituido'
+  if (input.isSuccessor) return 'atual'
+  return null
 }
 
 /**
@@ -93,6 +126,12 @@ export interface SubmissionRow {
  *
  * This is structurally the read-only twin of `ResponseForFill` (responses.ts) —
  * intentionally the SAME tree+answers contract so the renderer is shared.
+ *
+ * SUP (ADR 0074) additions: `supersedesId`/`supersededById`/`badge` surface the
+ * correction chain; `canCorrect` gates the "Corrigir envio" affordance
+ * (flag ON && staff_admin/commission-admin of the commission && standalone &&
+ * submitted && no live successor) — computed server-side so the frontend never
+ * re-derives authority.
  */
 export interface SubmissionDetail {
   responseId: string
@@ -108,6 +147,17 @@ export interface SubmissionDetail {
   submittedAt: string | null
   /** True when the response is a case phase (Phase-7). */
   isCasePhase: boolean
+  /** SUP: the predecessor this response supersedes, if it IS a successor. */
+  supersedesId: string | null
+  /** SUP: the successor that supersedes this response, if any (regardless of
+   * that successor's status — in_progress or submitted). */
+  supersededById: string | null
+  /** SUP: the display badge — see {@link SupersessionBadge}. */
+  badge: SupersessionBadge
+  /** SUP: whether the caller may correct THIS response via `supersede_response`
+   * right now (flag ON && staff_admin/commission-admin of the commission &&
+   * standalone && submitted && no live successor). */
+  canCorrect: boolean
   /** The response's OWN version tree (version-faithful — v1 stays v1 after v2
    * is published). */
   tree: VersionTree
@@ -156,6 +206,8 @@ interface SubmissionListRow {
   submitted_at: string | null
   case_phase_id: string | null
   created_by: string
+  /** SUP: non-null when THIS row is a successor → `'atual'`. */
+  supersedes_id: string | null
   profiles: { full_name: string | null } | null
   form_versions: {
     form_id: string
@@ -173,12 +225,18 @@ interface DetailResponseRow {
   submitted_at: string | null
   case_phase_id: string | null
   created_by: string
+  /** SUP: the predecessor this response supersedes (null unless this row IS a
+   * successor). */
+  supersedes_id: string | null
   profiles: { full_name: string | null } | null
   form_versions: {
     form_id: string
     version_number: number
     forms: { title: string }
   }
+  /** SUP: the commission's org/hospital ids, to mirror `is_commission_admin_of`
+   * client-side via `isCommissionAdmin` (ADR 0051). */
+  commissions: { organization_id: string; hospital_id: string }
 }
 
 interface DetailAnswerRow {
@@ -251,7 +309,7 @@ export async function listSubmissions(
     .from('responses')
     .select(
       'id, form_version_id, status, started_at, updated_at, submitted_at, ' +
-        'case_phase_id, created_by, profiles:created_by(full_name), ' +
+        'case_phase_id, created_by, supersedes_id, profiles:created_by(full_name), ' +
         'form_versions!inner(form_id, version_number, forms!inner(title))',
     )
     .eq('commission_id', commissionId)
@@ -297,6 +355,34 @@ export async function listSubmissions(
   const hasMore = fetched.length > limit
   const pageRows = hasMore ? fetched.slice(0, limit) : fetched
 
+  // SUP (ADR 0074): resolve each row's supersession badge in ONE batched lookup
+  // (never N+1). A row is `'substituido'` when a SUBMITTED successor points at it
+  // (the same "latest-in-chain" exclusion the aggregation uses — an in_progress
+  // successor doesn't yet mark the predecessor superseded); `'atual'` when the row
+  // IS a successor (its own supersedes_id is non-null, already fetched above);
+  // otherwise `null`. `'substituido'` takes precedence in the rare chain where a
+  // row is both. RLS-scoped via the same cookie client — a caller who can't read
+  // a successor simply doesn't get the `'substituido'` mark (safe under-badging,
+  // never a leak). The keyset/cursor shape is untouched — badge is purely additive.
+  const supersededIds = new Set<string>()
+  if (pageRows.length > 0) {
+    const { data: successors } = await supabase
+      .from('responses')
+      .select('supersedes_id')
+      .in('supersedes_id', pageRows.map((r) => r.id))
+      .eq('status', 'submitted')
+      .returns<{ supersedes_id: string | null }[]>()
+    for (const s of successors ?? []) {
+      if (s.supersedes_id != null) supersededIds.add(s.supersedes_id)
+    }
+  }
+
+  const badgeFor = (r: SubmissionListRow): SupersessionBadge =>
+    resolveSupersessionBadge({
+      hasSubmittedSuccessor: supersededIds.has(r.id),
+      isSuccessor: r.supersedes_id != null,
+    })
+
   const rows = pageRows.map(
     (r): SubmissionRow => ({
       responseId: r.id,
@@ -311,6 +397,7 @@ export async function listSubmissions(
       updatedAt: r.updated_at,
       submittedAt: r.submitted_at,
       isCasePhase: r.case_phase_id != null,
+      badge: badgeFor(r),
     }),
   )
 
@@ -347,10 +434,12 @@ export async function getSubmissionDetail(
     .from('responses')
     .select(
       'id, form_version_id, commission_id, status, started_at, submitted_at, ' +
-        'case_phase_id, created_by, profiles:created_by(full_name), ' +
+        'case_phase_id, created_by, supersedes_id, profiles:created_by(full_name), ' +
         // `!inner`: an orphaned response (its form deleted) resolves to no row
         // here → clean null → friendly 404, never a null-embed crash.
-        'form_versions!inner(form_id, version_number, forms!inner(title))',
+        'form_versions!inner(form_id, version_number, forms!inner(title)), ' +
+        // SUP: the commission's org/hospital ids, to mirror is_commission_admin_of.
+        'commissions:commission_id!inner(organization_id, hospital_id)',
     )
     .eq('id', responseId)
     .maybeSingle<DetailResponseRow>()
@@ -406,6 +495,57 @@ export async function getSubmissionDetail(
 
   const signoffs = await getResponseSignoffs(responseId)
 
+  // SUP (ADR 0074): resolve the successor that points at THIS response (if
+  // any) — a live successor exists regardless of its own status (in_progress
+  // OR submitted); `canCorrect` only needs "does one exist at all" (mirrors
+  // the RPC's HC0H2 check), and the badge distinguishes further by the
+  // successor's status only for cosmetic labeling (both non-null cases show
+  // "substituído" — the predecessor reads the same whether the fix is still
+  // being drafted or already landed).
+  const { data: successor } = await supabase
+    .from('responses')
+    .select('id, status')
+    .eq('supersedes_id', responseId)
+    .maybeSingle<{ id: string; status: string }>()
+
+  const supersededById = successor?.id ?? null
+  const supersedesId = response.supersedes_id
+
+  const badge: SupersessionBadge = supersededById != null
+    ? 'substituido'
+    : supersedesId != null
+      ? 'atual'
+      : null
+
+  // canCorrect: flag ON && staff_admin/commission-admin of the commission &&
+  // standalone && submitted && no live successor. Computed server-side so the
+  // frontend never re-derives authority (Rule 1 — RLS is the boundary; this is
+  // UI gating only, mirroring the RPC's own preconditions so the affordance
+  // never renders when the RPC would refuse it).
+  let canCorrect = false
+  if (
+    (await responseCorrectionEnabled()) &&
+    response.status === 'submitted' &&
+    response.case_phase_id == null &&
+    supersededById == null
+  ) {
+    const session = await getSessionContext()
+    if (session) {
+      // Mirrors the RPC's authority gate EXACTLY: is_staff_admin_of OR
+      // is_commission_admin_of — no is_admin() fallback (platform admins are
+      // walled off from tenant data by design, ADR 0041; they are NOT implicitly
+      // commission admins here, matching isCommissionAdmin's own contract).
+      canCorrect =
+        session.memberships.some(
+          (m) => m.commission.id === response.commission_id && m.role === 'staff_admin',
+        ) ||
+        isCommissionAdmin(session, {
+          organizationId: response.commissions.organization_id,
+          hospitalId: response.commissions.hospital_id,
+        })
+    }
+  }
+
   // Sensitive-READ audit (Phase 13 / ADR 0029 §6): a staff_admin opening ANOTHER
   // member's SUBMITTED response emits a `response.opened_foreign` row. Guard:
   //  - SUBMITTED only (a foreign in_progress response never reaches here — RLS
@@ -440,6 +580,10 @@ export async function getSubmissionDetail(
     startedAt: response.started_at,
     submittedAt: response.submitted_at,
     isCasePhase: response.case_phase_id != null,
+    supersedesId,
+    supersededById,
+    badge,
+    canCorrect,
     tree,
     answersByItemId,
     answersByKey,

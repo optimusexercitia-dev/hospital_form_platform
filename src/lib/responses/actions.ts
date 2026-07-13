@@ -43,6 +43,16 @@ const MESSAGES = {
   discardNotDraft: 'Apenas rascunhos podem ser descartados.',
   discardCaseBound: 'Esta resposta pertence a um caso e não pode ser descartada aqui.',
   discarded: 'Rascunho descartado.',
+  // supersedeResponseAction discriminated failures (SUP / ADR 0074)
+  supersedeNotSubmitted: 'Apenas respostas enviadas podem ser corrigidas.',
+  supersedeCaseBound: 'Esta resposta pertence a um caso; a correção é feita pela fase do caso.',
+  supersedeAlreadyOpen: 'Já existe uma correção em andamento para esta resposta.',
+  supersedeReasonRequired: 'Informe o motivo da correção.',
+  supersedeCoherence: 'A correção deve manter a versão e a comissão da resposta original.',
+  supersedeDraftInProgress:
+    'Você já tem um preenchimento em andamento para esta versão do formulário; conclua ou descarte-o antes de corrigir.',
+  supersedeUnavailable: 'O recurso de correção de envios não está disponível.',
+  superseded: 'Correção iniciada. Revise e envie a nova versão.',
   // submit_response discriminated failures
   alreadySubmitted: 'Esta resposta já foi enviada.',
   missingRequired: 'Há perguntas obrigatórias sem resposta. Revise o formulário.',
@@ -91,6 +101,15 @@ const OVERRIDE_RESULT_REQUIRED = 'HC062'
 /** discard_response discriminated failures (standalone draft delete). */
 const DISCARD_NOT_DRAFT = 'HC065'
 const DISCARD_CASE_BOUND = 'HC066'
+/** supersede_response discriminated failures (SUP / ADR 0074, SQLSTATE block HC0H0-HC0H9). */
+const SUPERSEDE_NOT_SUBMITTED = 'HC0H0'
+const SUPERSEDE_CASE_BOUND = 'HC0H1'
+const SUPERSEDE_ALREADY_OPEN = 'HC0H2'
+const SUPERSEDE_REASON_REQUIRED = 'HC0H3'
+const SUPERSEDE_COHERENCE = 'HC0H4'
+/** The caller already holds an in_progress draft of this form version (the
+ * platform's one-draft-per-user-per-version invariant, responses_one_draft_per_user_idx). */
+const SUPERSEDE_DRAFT_IN_PROGRESS = 'HC0H5'
 
 /** The staff filling area — revalidated as dynamic-segment pages. */
 const FORMS_LIST_PATH = '/o/[org]/c/[commission]/forms'
@@ -521,6 +540,87 @@ export async function discardResponse(responseId: string): Promise<ActionState> 
   // The discarded draft leaves the standalone forms list; revalidate it.
   revalidateFill()
   return { ok: true, error: MESSAGES.discarded }
+}
+
+// ---------------------------------------------------------------------------
+// supersede (correct a standalone submitted response) — SUP / ADR 0074
+// ---------------------------------------------------------------------------
+
+/** Result of `supersedeResponseAction` — carries the new successor's id so the
+ * caller routes the wizard straight into it (mirrors `StartResponseState`). */
+export interface SupersedeResponseState extends ActionState {
+  successorId?: string
+}
+
+/** The submitted-response detail page revalidates alongside the fill area. */
+const SUBMISSIONS_DETAIL_PATH =
+  '/o/[org]/c/[commission]/dashboard/submissions/[responseId]'
+
+/**
+ * Correct a standalone SUBMITTED response by creating a new `in_progress`
+ * SUCCESSOR that supersedes it (wraps `supersede_response` — the single
+ * authority; SUP / ADR 0074). Reads `responseId` + `reason` (mandatory) from
+ * `formData` — the `useActionState`-as-prop pattern (mirrors
+ * `supersedeDocument`/`SupersedeDocumentButton`), so the confirm dialog's
+ * "Motivo da correção" textarea posts here.
+ *
+ * The RPC copies the predecessor's answers + selections into the new draft
+ * (correct-in-place ergonomics — the corrector edits what was wrong rather
+ * than re-keying from scratch) and pre-links `supersedes_id`; the predecessor
+ * row is NEVER written. Maps the RPC's discriminated SQLSTATEs to pt-BR:
+ * HC0H0 (not submitted), HC0H1 (case-bound), HC0H2 (a live successor already
+ * exists), HC0H3 (blank reason), HC0H4 (coherence — should not surface for a
+ * well-formed client call, but mapped defensively), 42501 (not staff_admin/
+ * commission-admin of the commission), no_data_found (not visible),
+ * check_violation (the `response_correction` flag is OFF — the affordance
+ * must not render in that case, but the RPC refuses regardless). A raw PG
+ * error never reaches the UI.
+ */
+export async function supersedeResponseAction(
+  _prev: SupersedeResponseState | undefined,
+  formData: FormData,
+): Promise<SupersedeResponseState> {
+  const responseId = String(formData.get('responseId') ?? '')
+  const reason = String(formData.get('reason') ?? '')
+  if (!responseId) return { ok: false, error: MESSAGES.missingResponse }
+  if (!reason.trim()) return { ok: false, error: MESSAGES.supersedeReasonRequired }
+
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.rpc('supersede_response', {
+    p_response_id: responseId,
+    p_reason: reason,
+  })
+
+  if (error || !data) {
+    switch (error?.code) {
+      case SUPERSEDE_NOT_SUBMITTED:
+        return { ok: false, error: MESSAGES.supersedeNotSubmitted }
+      case SUPERSEDE_CASE_BOUND:
+        return { ok: false, error: MESSAGES.supersedeCaseBound }
+      case SUPERSEDE_ALREADY_OPEN:
+        return { ok: false, error: MESSAGES.supersedeAlreadyOpen }
+      case SUPERSEDE_REASON_REQUIRED:
+        return { ok: false, error: MESSAGES.supersedeReasonRequired }
+      case SUPERSEDE_COHERENCE:
+        return { ok: false, error: MESSAGES.supersedeCoherence }
+      case SUPERSEDE_DRAFT_IN_PROGRESS:
+        return { ok: false, error: MESSAGES.supersedeDraftInProgress }
+      case PG_CHECK_VIOLATION:
+        // app.assert_response_correction_enabled() fired (flag OFF).
+        return { ok: false, error: MESSAGES.supersedeUnavailable }
+      case PG_NO_DATA_FOUND:
+        return { ok: false, error: MESSAGES.missingResponse }
+      case PG_RLS_VIOLATION:
+        return { ok: false, error: MESSAGES.forbidden }
+      default:
+        return { ok: false, error: MESSAGES.generic }
+    }
+  }
+
+  revalidateFill()
+  revalidatePath(SUBMISSIONS_DETAIL_PATH, 'page')
+  return { ok: true, error: MESSAGES.superseded, successorId: data.id }
 }
 
 // ---------------------------------------------------------------------------

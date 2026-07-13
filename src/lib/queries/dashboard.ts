@@ -181,16 +181,22 @@ const CHARTABLE = new Set<ItemType>(['multiple_choice', 'dropdown', 'checkbox'])
 /**
  * The canonical "dashboard-countable responses" predicate (Architecture Rule 9),
  * the TS twin of the SQL helper `app.submitted_form_responses`: a response counts
- * toward a standalone form's dashboard iff it is submitted AND not a case phase
- * (ADR 0020). The SQL helper is the authority for the aggregations; this is the
- * single source of the same rule for any TS-side filtering (e.g. a future
- * client-side count). Keep the two in agreement.
+ * toward a standalone form's dashboard iff it is submitted, AND not a case phase
+ * (ADR 0020), AND not superseded by a SUBMITTED successor (SUP / ADR 0074
+ * latest-in-chain retrofit — `hasSubmittedSuccessor`). The SQL helper is the
+ * authority for the aggregations; this is the single source of the same rule
+ * for any TS-side filtering (e.g. a future client-side count). Keep the two in
+ * agreement (Rule 3).
  */
 export function isDashboardCountable(r: {
   status: ResponseStatus
   casePhaseId: string | null
+  /** SUP (ADR 0074): true when a SUBMITTED successor points at this response
+   * via `responses.supersedes_id`. A merely `in_progress` successor does NOT
+   * exclude the predecessor — mirrors the SQL `NOT EXISTS` predicate exactly. */
+  hasSubmittedSuccessor: boolean
 }): boolean {
-  return r.status === 'submitted' && r.casePhaseId == null
+  return r.status === 'submitted' && r.casePhaseId == null && !r.hasSubmittedSuccessor
 }
 
 /**
