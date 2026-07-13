@@ -187,3 +187,97 @@ six are on the `log_audit_access` positive allow-list.
   and A is not a member of B).
 - **Pilot-ready behind the flag.** Ships OFF; the whole feature is dark until the
   in-phase flip, exactly like `audit_trail` / `patient_safety` / `case_access`.
+
+---
+
+## Amendment 1 (2026-07-12) — Referrals v2: dialogue + governance expansion (pre-pilot)
+
+**Status:** Accepted (product owner, 2026-07-12) · **Build spec:**
+[referrals-v2-dialogue-governance.md](../plans/referrals-v2-dialogue-governance.md) ·
+**Evaluation:** [referral_data_model_evaluation.md](../design/temp/referral_data_model_evaluation.md)
+· **Amends:** this ADR's Decisions **4, 5, 10, 15**.
+
+### Context
+
+Initial pilot-prep testing surfaced the one workflow the shipped Phase-22 model cannot
+do: **mid-review, two-way dialogue**. Today B can only *decline with a note* or *conclude
+with a single structured reply* (`referral_reply`, 0..1) — there is no channel for B to
+**ask A a clarifying question and receive an answer before concluding**, which is the
+most common real referral interaction. Separately, a partner team shared a from-scratch
+inter-committee referral data model
+([handoff](../design/temp/inter_committee_referral_data_model.md)); we evaluated it
+feature-by-feature against our as-built module (the evaluation doc above). This amendment
+records the disposition and authorizes a **bounded, additive** expansion **before pilot
+deployment** (reset-OK — no live referral data yet).
+
+### Decision — the three-bucket disposition
+
+**ADOPT (Essential — closes the tested gap):** a shared **`referral_messages`** thread
+(`information_request` / `information_response` / `clarification` / `general`) *layered
+under* the existing snapshot + formal-reply spine (the terminal `referral_reply` and
+`conclude_referral` are kept); a new **`awaiting_information`** status + a
+**`waiting_on_committee_id`** column so "ball in A's court" is legible and feeds the
+close-gate.
+
+**ADOPT (Deferred — sequenced after the essential increment, still pre-pilot):**
+committee-private **`referral_internal_notes`** (separate table, *never* a `visibility`
+flag); **`priority`**; **`response_due_at`** + overdue (reuses the shipped
+`due_date`/`isOverdue` pattern); **`requested_action_code`** vocab; **`parent_referral_id`**
+(explicit lineage, *no automatic information flow*); **reopen + answered/resolved split**
+(`referral_resolutions`); **`referral_assignments`** (responsibility ≠ access); multiple
+typed **`referral_case_links`**; snapshot **`referral_context_versions`**;
+**`referral_read_receipts`**; per-message **redaction workflow**; **idempotency keys**.
+
+**AVOID (considered and rejected — we already have an equal-or-better mechanism):**
+- **`row_version` optimistic concurrency** — redundant with our `SECURITY DEFINER` +
+  `FOR UPDATE` + RLS model (zero `row_version` in-tree). We keep the partner design's
+  transactional `sequence_number` lock for messages; we do **not** add compare-and-set.
+- **`referral_status_events` history table** — redundant with the tamper-evident
+  hash-chained `audit_log` (Rule 11); a second denormalized log = two sources of truth.
+  A timeline UI, if needed, reads a **view over `audit_log`**.
+- **`structured_context` jsonb carrying clinical/patient data** — violates Rule 12
+  containment (PHI outside the isolated `referral_patient` door). Any such field must be
+  PHI-free.
+- **`referral_participants` per-user ACL table** — forks our authorization model; the
+  `can_read_referral` / `can_read_referral_phi` / `referral_target_analyst` predicate
+  trio already enforces least-privilege PHI access. Revisit only for a concrete
+  non-member guest-access requirement.
+- **A referral-local transactional outbox** — notification delivery is a platform-wide
+  concern (there is *no* outbox anywhere today, only `audit_log`); it belongs to a
+  dedicated notifications workstream (Phase 20), not this module.
+
+### What v2 does NOT change (non-regression guarantees)
+
+The Phase-22 **security core is preserved and extended, never contradicted**: the frozen
+**snapshot remains the disclosure boundary** (B never reads A's live case); the **PHI
+single-door** discipline holds — every **new free-text body** (`referral_messages.body`,
+`referral_internal_notes.body`) is PHI-bearing by classification and inherits the exact
+`frozen_body_md`/`result_md` treatment (**REVOKE** direct `SELECT` from `authenticated`,
+served only to a `can_read_referral_phi` reader via the audited detail door, nulled for
+metadata-only readers); the **hub/inbox/QPS-dashboard projections stay PHI-free** —
+counts and metadata only, **never** a message-body or "last message" preview (Decision
+16); the **QPS macro-oversight plane** (`is_pqs_member`) extends its read scope to every
+new table; and the **`dispose_referral_phi`** door generalizes to purge the new bodies.
+
+### Decisions amended
+
+- **D4 (lifecycle).** Gains `awaiting_information` (with `waiting_on_committee_id`), and —
+  in the deferred resolution phase — an **answered → resolved** split so the *source*
+  committee formally confirms closure (partner §2.5) rather than B unilaterally
+  concluding. The current anglicized keys are **extended, not renamed**.
+- **D5 (close-gate).** HC076 now counts `awaiting_information` (and, post-split,
+  `answered`) as *in-flight* for a `response_expected` referral; only `resolved` (source
+  accepted) / `rejected` / `withdrawn` release the gate.
+- **D10 (reply shape).** The single structured reply is no longer the *only* B→A channel;
+  a message thread precedes and complements it. The formal reply stays the terminal
+  structured act.
+- **D15 (chaining).** May become **explicit** via `parent_referral_id` (a lineage
+  denormalization for QPS) while the "downstream referral shares nothing automatically"
+  rule stands.
+
+A dedicated SQLSTATE block (above the current `HC0xx` high-water) and the new audit verbs
+(`referral.message_created` / `referral.message_viewed` / `referral.note_created` /
+`referral.note_viewed` / `referral.message_redacted`) are allocated in the build spec;
+reopen/resolve ride the existing `referral.status_changed`. Delivered as the **Referrals
+v2 — Dialogue & Governance** program (R0 gate → R1 essential → R2–R5 deferred), one Phase
+Gate each, all pre-pilot and reset-OK.

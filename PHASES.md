@@ -400,6 +400,15 @@ stable identifiers; only the build order changed.
 
 → **Full detail: [docs/phases/accreditation-track.md](docs/phases/accreditation-track.md)**
 
+> **Referrals v2 — Dialogue & Governance (pre-pilot expansion of Phase 22; planned 2026-07-12).**
+> Phase 22 shipped a frozen-snapshot + single-structured-reply channel; pilot-prep testing surfaced
+> the missing **mid-review two-way dialogue**. A partner referral data model was evaluated
+> ([eval](docs/design/temp/referral_data_model_evaluation.md)); the adopted **Essential** (`referral_messages`
+> thread + `awaiting_information`) + **Deferred** governance items ship as a gated program **R0→R5**
+> behind `case_referrals`, pre-pilot / reset-OK. Decision → ADR
+> [0037](docs/decisions/0037-inter-committee-case-referrals.md) **Amendment 1**; build spec →
+> [referrals-v2-dialogue-governance](docs/plans/referrals-v2-dialogue-governance.md).
+
 <!-- Phases 13–21 detail relocated to docs/phases/accreditation-track.md; rationale in docs/quality-track-context.md. -->
 
 ---
