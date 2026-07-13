@@ -1,0 +1,21 @@
+# S1 · Substrate — completed-track record (Pre-Pilot Release Scope Expansion, ADR 0071)
+
+Rotated out of the live PROGRESS.md at S2 kickoff (2026-07-13). S1 = the substrate stage of the
+[Pre-Pilot Release Scope Expansion](../plans/pre-pilot-release-scope-expansion.md), built **serially**
+(one local DB · one `database.ts`/`seed.sql`) as **MEM → SUP → N**, each through its own Phase Gate,
+all on branch `pre-pilot-release-s0`. **🎉 all three recorded 2026-07-13.** Remote deploy DEFERRED to
+the pilot reset (a user-authorized step).
+
+| Track | Spec | Status |
+| ----- | ---- | ------ |
+| **MEM** — single `memberships` collapse | [memberships-collapse-s6-1.md](../plans/memberships-collapse-s6-1.md) · ADR [0075](../decisions/0075-memberships-collapse-write-path-split.md) · `HC0G*` | ✅ **COMPLETE — Recorded 2026-07-13** on `pre-pilot-release-s0`. Three role tables → one `memberships` + one `grant_role`/`revoke_role` DEFINER door + one `has_role` family (27 `is_*_of` wrappers verbatim); `membership.*` audit hard-cut; ADR 0075 write-path split (no privilege change). 6 migrations `20260720000000`–`…000500`; `HC0G*`; structural (no flag). QA APPROVED (0B/0M/3 minor cleared); pgTAP 2161/0 (`224` 64) · E2E 586p/0f/8flaky · BUG-MEM-001 fixed. Detail → [plan](../plans/memberships-collapse-s6-1.md) · [review](../reviews/memberships-collapse-review.md) · backend-state. |
+| **SUP** — supersession correction engine | [supersession-correction.md](../plans/supersession-correction.md) · ADR [0074](../decisions/0074-supersession-correction-model.md) · `HC0H*` | ✅ **COMPLETE — Recorded 2026-07-13** on `pre-pilot-release-s0` [`feat(supersession)`]. Standalone submitted responses get a controlled correction path: `responses.supersedes_id` + `supersede_response` DEFINER RPC (pre-populates answers; authority `is_staff_admin_of OR is_commission_admin_of`) + single-choke aggregation retrofit (`NOT EXISTS` successor-exclusion, inert until a successor exists). 2 migrations `…000600`/`…000610`; `HC0H0–HC0H5`; flag `response_correction` ON. QA APPROVED (BUG-SUP-002 blocker found+fixed — guard enforces flag+authority on direct-INSERT/UPDATE); pgTAP 2203/0 (`225` 41) · SUP E2E 5/5 + phase8 24/24 · BUG-SUP-001 fixed. Detail → [plan](../plans/supersession-correction.md) · [review](../reviews/s1-sup-supersession-review.md) · backend-state. |
+| **N** — Notifications & Escalation (Ph 20) | ADR [0076](../decisions/0076-notifications-pilot-scope.md) · plan [notifications-s1.md](../plans/notifications-s1.md) · `HC0C*` | ✅ **COMPLETE — Recorded 2026-07-13** on `pre-pilot-release-s0` [`feat(notifications)` `aac7c1c`]. In-app notification center (bell+badge all shells, server-render-on-nav) + scheduled `compute_due_notifications` engine for **CAPA + Sign-off + Meeting** — actionable-to-me, reminder-only, per-kind reminder toggle (assignments non-suppressible). Own-row RLS + DEFINER-only write door; Rule-12 PHI-free bodies; outside the Rule-11 audit trail. 4 migrations `20260720000700`–`…000730`; `HC0C0/HC0C1`; flag `notifications` ON. BUG-N-001 (non-PQS CAPA assignee had no surface) closed via new `/conta/itens-de-acao` + `list_my_assigned_capa_actions`; BUG-N-002/003 fixed. QA APPROVED (0B/0M/3 MINOR fast-follow: revalidate over-invalidation · signoff-pending-needs-requested · prefs own-row DML); pgTAP 2255/0 (`226` 52) · `notifications.spec.ts` 8/8 (dev + isolated prod) · full `e2e:prod` RED triaged 31/31 to documented baseline+env-flake (no N regression). Detail → [plan](../plans/notifications-s1.md) · ADR [0076](../decisions/0076-notifications-pilot-scope.md) · [review](../reviews/s1-n-notifications-review.md) · backend-state. |
+
+**S0 record** (design gate, signed off 2026-07-13) → [s0-ratification.md](../plans/pre-pilot-release-s0-ratification.md).
+
+**Suite-health track OPEN (parallel, non-blocking):** the `e2e:prod` prod-standalone gate carries a
+documented ~18–31 pre-existing flaky-red baseline (dialog/toast close-animation timing + retry
+write-pollution; NOT regressions — memory `e2e-prod-build-flaky-baseline`). `reducedMotion` landed but is
+empirically insufficient (cause = retry write-pollution, not animation); real pay-down = per-test DB
+isolation / `retries=0` OR a gate known-flaky allowlist. DEFERRED (non-blocking for the pilot).
