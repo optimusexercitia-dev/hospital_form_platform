@@ -14,8 +14,12 @@ import {
 } from '@/lib/interviews/messages'
 import { interviewsEnabled } from '@/lib/queries/interviews'
 import type {
+  InterviewCategory,
+  InterviewConfidentiality,
   InterviewerRole,
   InterviewModality,
+  RelationshipToCase,
+  SessionType,
 } from '@/lib/queries/interviews'
 
 /**
@@ -75,20 +79,31 @@ export interface AddAttachmentState extends ActionState {
 // Input shapes (camelCase; the forms bind to these)
 // ---------------------------------------------------------------------------
 
-/** Fields accepted when creating or editing an interview header. */
+/** Fields accepted when creating or editing an interview header (IV2 — scheduling
+ * moved to {@link SessionInput}). */
 export interface InterviewInput {
   /** Optional title; the UI falls back to "Entrevista nº N" when blank. */
   title: string | null
   /** Optional case phase to attach the interview to; `null` if free-standing. */
   casePhaseId: string | null
-  /** How the interview is held. */
-  modality: InterviewModality
-  /** ISO datetime; `null` while still a `draft` (set when scheduling). */
+  /** IV2: dashboard classification (required). */
+  interviewCategory: InterviewCategory
+  /** IV2: NON-ENFORCING confidentiality tag (default `standard`; does not gate access yet). */
+  confidentialityLevel: InterviewConfidentiality
+}
+
+/** Fields accepted when scheduling/editing a session (IV2). */
+export interface SessionInput {
+  /** Session kind; `null` lets the RPC default it (`initial` for seq 1, else `follow_up`). */
+  sessionType: SessionType | null
+  /** How the session is held; `null` for a written/async session. */
+  modality: InterviewModality | null
+  /** ISO datetime; the planned start. */
   scheduledStart: string | null
   /** ISO datetime; the planned end (`null` if open-ended). */
   scheduledEnd: string | null
   locationText: string | null
-  /** Video-call URL for a remote/hybrid interview; `null` if absent. */
+  /** Video-call URL for a remote/hybrid session; `null` if absent. */
   meetingUrl: string | null
 }
 
@@ -102,6 +117,8 @@ export interface InterviewSubjectInput {
    * it. Omitted/`null`/`undefined` all mean "no org".
    */
   externalOrg?: string | null
+  /** IV2: the subject's relationship to the case (required; staff-only enum). */
+  relationshipToCase: RelationshipToCase
   /** Free-text clinical role/title (e.g. "Enfermeira da UTI"); `null` if blank. */
   clinicalRole: string | null
   note: string | null
@@ -153,13 +170,17 @@ async function commissionOfCase(
 // ---------------------------------------------------------------------------
 
 /**
- * Create a new interview on a case (`status='draft'`, `interview_number`
- * minted). staff_admin-only bootstrap. Returns the new `interviewId` so the
- * dialog can route into the detail page.
+ * Create a new interview on a case (`status='draft'`, `interview_number` minted,
+ * `interview_category` required). staff_admin/commission-admin bootstrap. When
+ * `firstSession` is provided this is the create-then-schedule UX: it calls
+ * `create_interview` then `schedule_session` (IV2 — the interview flips to
+ * `scheduled`). Returns the new `interviewId` so the dialog can route into the
+ * detail page (even if the follow-up schedule call fails, the interview exists).
  */
 export async function createInterview(
   caseId: string,
   input: InterviewInput,
+  firstSession?: SessionInput | null,
 ): Promise<CreateInterviewState> {
   if (!caseId) return { ok: false, error: INTERVIEW_MESSAGES.missingCase }
   if (!(await interviewsEnabled())) {
@@ -177,26 +198,42 @@ export async function createInterview(
     p_case_id: caseId,
     p_title: input.title?.trim() || undefined,
     p_case_phase_id: input.casePhaseId ?? undefined,
-    p_modality: input.modality,
-    p_scheduled_start: input.scheduledStart ?? undefined,
-    p_scheduled_end: input.scheduledEnd ?? undefined,
-    p_location_text: input.locationText ?? undefined,
-    p_meeting_url: input.meetingUrl ?? undefined,
+    p_interview_category: input.interviewCategory,
+    p_confidentiality_level: input.confidentialityLevel,
   })
 
   if (error || !data) return { ok: false, error: mapInterviewError(error) }
+
+  const interviewId = data.id
+
+  if (firstSession) {
+    const { error: sessionError } = await supabase.rpc('schedule_session', {
+      p_interview_id: interviewId,
+      p_session_type: firstSession.sessionType ?? undefined,
+      p_modality: firstSession.modality ?? undefined,
+      p_scheduled_start: firstSession.scheduledStart ?? undefined,
+      p_scheduled_end: firstSession.scheduledEnd ?? undefined,
+      p_location_text: firstSession.locationText ?? undefined,
+      p_meeting_url: firstSession.meetingUrl ?? undefined,
+    })
+    if (sessionError) {
+      revalidateInterviews()
+      return { ok: false, error: mapInterviewError(sessionError), interviewId }
+    }
+  }
 
   revalidateInterviews()
   return {
     ok: true,
     error: INTERVIEW_MESSAGES.interviewCreated,
-    interviewId: data.id,
+    interviewId,
   }
 }
 
 /**
- * Edit an interview header. Routed through `update_interview`; the RPC authorizes
- * via `can_write_interview` (HC039) and rejects a locked interview (HC038). No
+ * Edit an interview header (title/phase/category/confidentiality; IV2 — scheduling
+ * lives on sessions). Routed through `update_interview`; the RPC authorizes via
+ * `can_write_interview` (HC039) and rejects a locked interview (HC038). No
  * staff_admin pre-check — a registered interviewer may edit.
  */
 export async function updateInterview(
@@ -213,11 +250,8 @@ export async function updateInterview(
     p_interview_id: interviewId,
     p_title: input.title?.trim() || undefined,
     p_case_phase_id: input.casePhaseId ?? undefined,
-    p_modality: input.modality,
-    p_scheduled_start: input.scheduledStart ?? undefined,
-    p_scheduled_end: input.scheduledEnd ?? undefined,
-    p_location_text: input.locationText ?? undefined,
-    p_meeting_url: input.meetingUrl ?? undefined,
+    p_interview_category: input.interviewCategory,
+    p_confidentiality_level: input.confidentialityLevel,
   })
 
   if (error) return { ok: false, error: mapInterviewError(error) }
@@ -248,44 +282,159 @@ export async function updateInterviewSummary(
   return { ok: true, error: INTERVIEW_MESSAGES.interviewUpdated }
 }
 
-/** Schedule an interview (`draft → scheduled`; sets `scheduled_start`, optional `scheduled_end`). */
-export async function scheduleInterview(
+// ---------------------------------------------------------------------------
+// Sessions (IV2 — the encounter children; ADR 0070 §4 state machine)
+// ---------------------------------------------------------------------------
+
+/**
+ * Schedule a new session on an interview (`scheduled`; sequence auto-assigned).
+ * Flips the interview `draft → scheduled`. The RPC rejects a non-schedulable
+ * interview state (HC0B0) and authorizes via `can_write_interview` (HC039).
+ */
+export async function scheduleSession(
   interviewId: string,
-  scheduledStart: string,
-  scheduledEnd?: string | null,
+  input: SessionInput,
 ): Promise<ActionState> {
   if (!interviewId) return { ok: false, error: INTERVIEW_MESSAGES.missingInterview }
-  if (!scheduledStart) {
-    return {
-      ok: false,
-      fieldErrors: { scheduledStart: INTERVIEW_MESSAGES.scheduleRequired },
-    }
-  }
   if (!(await interviewsEnabled())) {
     return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc('schedule_interview', {
+  const { error } = await supabase.rpc('schedule_session', {
     p_interview_id: interviewId,
-    p_scheduled_start: scheduledStart,
-    p_scheduled_end: scheduledEnd ?? undefined,
+    p_session_type: input.sessionType ?? undefined,
+    p_modality: input.modality ?? undefined,
+    p_scheduled_start: input.scheduledStart ?? undefined,
+    p_scheduled_end: input.scheduledEnd ?? undefined,
+    p_location_text: input.locationText ?? undefined,
+    p_meeting_url: input.meetingUrl ?? undefined,
   })
 
   if (error) return { ok: false, error: mapInterviewError(error) }
 
   revalidateInterviews()
-  return { ok: true, error: INTERVIEW_MESSAGES.interviewScheduled }
+  return { ok: true, error: INTERVIEW_MESSAGES.sessionScheduled }
 }
+
+/** Reschedule/edit a non-terminal session in place (emits an audit reschedule line
+ * when the times change). HC038 if the session is terminal. */
+export async function updateSession(
+  sessionId: string,
+  input: SessionInput,
+): Promise<ActionState> {
+  if (!sessionId) return { ok: false, error: INTERVIEW_MESSAGES.missingSession }
+  if (!(await interviewsEnabled())) {
+    return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('update_session', {
+    p_session_id: sessionId,
+    p_session_type: input.sessionType ?? undefined,
+    p_modality: input.modality ?? undefined,
+    p_scheduled_start: input.scheduledStart ?? undefined,
+    p_scheduled_end: input.scheduledEnd ?? undefined,
+    p_location_text: input.locationText ?? undefined,
+    p_meeting_url: input.meetingUrl ?? undefined,
+  })
+
+  if (error) return { ok: false, error: mapInterviewError(error) }
+
+  revalidateInterviews()
+  return { ok: true, error: INTERVIEW_MESSAGES.sessionUpdated }
+}
+
+/** Start a session (`scheduled → in_progress`, `actual_start=now`); flips the
+ * interview `{scheduled, awaiting_follow_up} → in_progress`. HC038 otherwise. */
+export async function startSession(sessionId: string): Promise<ActionState> {
+  if (!sessionId) return { ok: false, error: INTERVIEW_MESSAGES.missingSession }
+  if (!(await interviewsEnabled())) {
+    return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('start_session', { p_session_id: sessionId })
+  if (error) return { ok: false, error: mapInterviewError(error) }
+
+  revalidateInterviews()
+  return { ok: true, error: INTERVIEW_MESSAGES.sessionStarted }
+}
+
+/** Complete a session (`in_progress → completed`); the interview derives
+ * `awaiting_follow_up` iff another scheduled session remains. HC038 otherwise. */
+export async function completeSession(
+  sessionId: string,
+  actualEnd?: string | null,
+): Promise<ActionState> {
+  if (!sessionId) return { ok: false, error: INTERVIEW_MESSAGES.missingSession }
+  if (!(await interviewsEnabled())) {
+    return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('complete_session', {
+    p_session_id: sessionId,
+    p_actual_end: actualEnd ?? undefined,
+  })
+  if (error) return { ok: false, error: mapInterviewError(error) }
+
+  revalidateInterviews()
+  return { ok: true, error: INTERVIEW_MESSAGES.sessionCompleted }
+}
+
+/** Cancel a session (→ `cancelled`, +reason). Terminal; never hard-deleted. HC038
+ * if the session is already completed. */
+export async function cancelSession(
+  sessionId: string,
+  reason?: string | null,
+): Promise<ActionState> {
+  if (!sessionId) return { ok: false, error: INTERVIEW_MESSAGES.missingSession }
+  if (!(await interviewsEnabled())) {
+    return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('cancel_session', {
+    p_session_id: sessionId,
+    p_reason: reason?.trim() || undefined,
+  })
+  if (error) return { ok: false, error: mapInterviewError(error) }
+
+  revalidateInterviews()
+  return { ok: true, error: INTERVIEW_MESSAGES.sessionCancelled }
+}
+
+/** Mark a session as no-show (→ `no_show`, +reason). Terminal; never hard-deleted.
+ * HC038 if the session is already completed. */
+export async function noShowSession(
+  sessionId: string,
+  reason?: string | null,
+): Promise<ActionState> {
+  if (!sessionId) return { ok: false, error: INTERVIEW_MESSAGES.missingSession }
+  if (!(await interviewsEnabled())) {
+    return { ok: false, error: INTERVIEW_MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('no_show_session', {
+    p_session_id: sessionId,
+    p_reason: reason?.trim() || undefined,
+  })
+  if (error) return { ok: false, error: mapInterviewError(error) }
+
+  revalidateInterviews()
+  return { ok: true, error: INTERVIEW_MESSAGES.sessionNoShow }
+}
+
+// ---------------------------------------------------------------------------
+// Interview-level lifecycle (conclude / reopen / cancel)
+// ---------------------------------------------------------------------------
 
 /** Shared lifecycle-RPC runner (writability is the RPC's authority; flag + pt-BR mapping). */
 async function runLifecycle(
   interviewId: string,
-  rpc:
-    | 'start_interview'
-    | 'conclude_interview'
-    | 'reopen_interview'
-    | 'cancel_interview',
+  rpc: 'conclude_interview' | 'reopen_interview' | 'cancel_interview',
   successMessage: string,
 ): Promise<ActionState> {
   if (!interviewId) return { ok: false, error: INTERVIEW_MESSAGES.missingInterview }
@@ -301,17 +450,8 @@ async function runLifecycle(
   return { ok: true, error: successMessage }
 }
 
-/** Start conducting an interview (`scheduled → in_progress`). */
-export async function startInterview(interviewId: string): Promise<ActionState> {
-  return runLifecycle(
-    interviewId,
-    'start_interview',
-    INTERVIEW_MESSAGES.interviewStarted,
-  )
-}
-
 /**
- * Conclude an interview (`in_progress → completed`): requires ≥1 interviewee
+ * Conclude an interview (`{in_progress, awaiting_follow_up} → completed`): requires ≥1 interviewee
  * (HC041), writes/updates the single `case_events kind='interview'` registry row
  * on the case timeline (no duplicate on re-conclude), and freezes content.
  */
@@ -386,6 +526,7 @@ export async function addInterviewSubject(
     p_clinical_role: input.clinicalRole ?? undefined,
     p_external_org: input.externalOrg ?? undefined,
     p_note: input.note ?? undefined,
+    p_relationship_to_case: input.relationshipToCase,
   })
 
   if (error || !data) return { ok: false, error: mapInterviewError(error) }
@@ -411,6 +552,7 @@ export async function updateInterviewSubject(
     p_note: input.note ?? undefined,
     p_external_name: input.externalName ?? undefined,
     p_external_org: input.externalOrg ?? undefined,
+    p_relationship_to_case: input.relationshipToCase ?? undefined,
   })
 
   if (error) return { ok: false, error: mapInterviewError(error) }
@@ -765,5 +907,10 @@ export type {
   InterviewerRole,
   InterviewModality,
   InterviewStatus,
+  InterviewCategory,
+  InterviewConfidentiality,
+  RelationshipToCase,
+  SessionType,
+  SessionStatus,
   InterviewAttachmentKind,
 } from '@/lib/queries/interviews'

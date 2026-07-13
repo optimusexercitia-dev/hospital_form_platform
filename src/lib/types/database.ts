@@ -1588,6 +1588,7 @@ export type Database = {
           id: string
           interview_id: string
           note: string | null
+          relationship_to_case: string
           updated_at: string
           user_id: string | null
         }
@@ -1599,6 +1600,7 @@ export type Database = {
           id?: string
           interview_id: string
           note?: string | null
+          relationship_to_case: string
           updated_at?: string
           user_id?: string | null
         }
@@ -1610,6 +1612,7 @@ export type Database = {
           id?: string
           interview_id?: string
           note?: string | null
+          relationship_to_case?: string
           updated_at?: string
           user_id?: string | null
         }
@@ -1638,18 +1641,14 @@ export type Database = {
           commission_id: string
           concluded_at: string | null
           concluded_by: string | null
-          conducted_at: string | null
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           form_version_id: string | null
           id: string
+          interview_category: string
           interview_number: number
-          location_text: string | null
-          meeting_url: string | null
-          modality: string
           registry_event_id: string | null
-          scheduled_end: string | null
-          scheduled_start: string | null
           status: string
           summary_md: string | null
           title: string | null
@@ -1662,18 +1661,14 @@ export type Database = {
           commission_id: string
           concluded_at?: string | null
           concluded_by?: string | null
-          conducted_at?: string | null
+          confidentiality_level?: string
           created_at?: string
           created_by?: string | null
           form_version_id?: string | null
           id?: string
+          interview_category: string
           interview_number: number
-          location_text?: string | null
-          meeting_url?: string | null
-          modality?: string
           registry_event_id?: string | null
-          scheduled_end?: string | null
-          scheduled_start?: string | null
           status?: string
           summary_md?: string | null
           title?: string | null
@@ -1686,18 +1681,14 @@ export type Database = {
           commission_id?: string
           concluded_at?: string | null
           concluded_by?: string | null
-          conducted_at?: string | null
+          confidentiality_level?: string
           created_at?: string
           created_by?: string | null
           form_version_id?: string | null
           id?: string
+          interview_category?: string
           interview_number?: number
-          location_text?: string | null
-          meeting_url?: string | null
-          modality?: string
           registry_event_id?: string | null
-          scheduled_end?: string | null
-          scheduled_start?: string | null
           status?: string
           summary_md?: string | null
           title?: string | null
@@ -3997,6 +3988,78 @@ export type Database = {
             columns: ["commission_id"]
             isOneToOne: false
             referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_sessions: {
+        Row: {
+          actual_end: string | null
+          actual_start: string | null
+          cancellation_reason: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          interview_id: string
+          location_text: string | null
+          meeting_url: string | null
+          modality: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          sequence_number: number
+          session_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actual_end?: string | null
+          actual_start?: string | null
+          cancellation_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          interview_id: string
+          location_text?: string | null
+          meeting_url?: string | null
+          modality?: string | null
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+          sequence_number: number
+          session_type: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actual_end?: string | null
+          actual_start?: string | null
+          cancellation_reason?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          interview_id?: string
+          location_text?: string | null
+          meeting_url?: string | null
+          modality?: string | null
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+          sequence_number?: number
+          session_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_sessions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_sessions_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "case_interviews"
             referencedColumns: ["id"]
           },
         ]
@@ -6763,6 +6826,7 @@ export type Database = {
           p_external_org?: string
           p_interview_id: string
           p_note?: string
+          p_relationship_to_case?: string
           p_user_id?: string
         }
         Returns: {
@@ -6773,6 +6837,7 @@ export type Database = {
           id: string
           interview_id: string
           note: string | null
+          relationship_to_case: string
           updated_at: string
           user_id: string | null
         }
@@ -7451,18 +7516,14 @@ export type Database = {
           commission_id: string
           concluded_at: string | null
           concluded_by: string | null
-          conducted_at: string | null
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           form_version_id: string | null
           id: string
+          interview_category: string
           interview_number: number
-          location_text: string | null
-          meeting_url: string | null
-          modality: string
           registry_event_id: string | null
-          scheduled_end: string | null
-          scheduled_start: string | null
           status: string
           summary_md: string | null
           title: string | null
@@ -7511,6 +7572,33 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "meetings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cancel_session: {
+        Args: { p_reason?: string; p_session_id: string }
+        Returns: {
+          actual_end: string | null
+          actual_start: string | null
+          cancellation_reason: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          interview_id: string
+          location_text: string | null
+          meeting_url: string | null
+          modality: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          sequence_number: number
+          session_type: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "interview_sessions"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -7707,6 +7795,33 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      complete_session: {
+        Args: { p_actual_end?: string; p_session_id: string }
+        Returns: {
+          actual_end: string | null
+          actual_start: string | null
+          cancellation_reason: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          interview_id: string
+          location_text: string | null
+          meeting_url: string | null
+          modality: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          sequence_number: number
+          session_type: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "interview_sessions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       compute_derived_measurement: {
         Args: {
           p_denominator?: number
@@ -7747,18 +7862,14 @@ export type Database = {
           commission_id: string
           concluded_at: string | null
           concluded_by: string | null
-          conducted_at: string | null
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           form_version_id: string | null
           id: string
+          interview_category: string
           interview_number: number
-          location_text: string | null
-          meeting_url: string | null
-          modality: string
           registry_event_id: string | null
-          scheduled_end: string | null
-          scheduled_start: string | null
           status: string
           summary_md: string | null
           title: string | null
@@ -8242,11 +8353,8 @@ export type Database = {
         Args: {
           p_case_id: string
           p_case_phase_id?: string
-          p_location_text?: string
-          p_meeting_url?: string
-          p_modality?: string
-          p_scheduled_end?: string
-          p_scheduled_start?: string
+          p_confidentiality_level?: string
+          p_interview_category?: string
           p_title?: string
         }
         Returns: {
@@ -8256,18 +8364,14 @@ export type Database = {
           commission_id: string
           concluded_at: string | null
           concluded_by: string | null
-          conducted_at: string | null
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           form_version_id: string | null
           id: string
+          interview_category: string
           interview_number: number
-          location_text: string | null
-          meeting_url: string | null
-          modality: string
           registry_event_id: string | null
-          scheduled_end: string | null
-          scheduled_start: string | null
           status: string
           summary_md: string | null
           title: string | null
@@ -9100,6 +9204,33 @@ export type Database = {
           title: string
         }[]
       }
+      no_show_session: {
+        Args: { p_reason?: string; p_session_id: string }
+        Returns: {
+          actual_end: string | null
+          actual_start: string | null
+          cancellation_reason: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          interview_id: string
+          location_text: string | null
+          meeting_url: string | null
+          modality: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          sequence_number: number
+          session_type: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "interview_sessions"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       notify_safety_event: {
         Args: {
           p_case_id?: string
@@ -9665,18 +9796,14 @@ export type Database = {
           commission_id: string
           concluded_at: string | null
           concluded_by: string | null
-          conducted_at: string | null
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           form_version_id: string | null
           id: string
+          interview_category: string
           interview_number: number
-          location_text: string | null
-          meeting_url: string | null
-          modality: string
           registry_event_id: string | null
-          scheduled_end: string | null
-          scheduled_start: string | null
           status: string
           summary_md: string | null
           title: string | null
@@ -9943,39 +10070,37 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      schedule_interview: {
+      schedule_session: {
         Args: {
           p_interview_id: string
+          p_location_text?: string
+          p_meeting_url?: string
+          p_modality?: string
           p_scheduled_end?: string
-          p_scheduled_start: string
+          p_scheduled_start?: string
+          p_session_type?: string
         }
         Returns: {
-          cancelled_at: string | null
-          case_id: string
-          case_phase_id: string | null
-          commission_id: string
-          concluded_at: string | null
-          concluded_by: string | null
-          conducted_at: string | null
+          actual_end: string | null
+          actual_start: string | null
+          cancellation_reason: string | null
           created_at: string
           created_by: string | null
-          form_version_id: string | null
           id: string
-          interview_number: number
+          interview_id: string
           location_text: string | null
           meeting_url: string | null
-          modality: string
-          registry_event_id: string | null
+          modality: string | null
           scheduled_end: string | null
           scheduled_start: string | null
+          sequence_number: number
+          session_type: string
           status: string
-          summary_md: string | null
-          title: string | null
           updated_at: string
         }
         SetofOptions: {
           from: "*"
-          to: "case_interviews"
+          to: "interview_sessions"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -10477,39 +10602,6 @@ export type Database = {
         }
       }
       soft_delete_attachment: { Args: { p_id: string }; Returns: undefined }
-      start_interview: {
-        Args: { p_interview_id: string }
-        Returns: {
-          cancelled_at: string | null
-          case_id: string
-          case_phase_id: string | null
-          commission_id: string
-          concluded_at: string | null
-          concluded_by: string | null
-          conducted_at: string | null
-          created_at: string
-          created_by: string | null
-          form_version_id: string | null
-          id: string
-          interview_number: number
-          location_text: string | null
-          meeting_url: string | null
-          modality: string
-          registry_event_id: string | null
-          scheduled_end: string | null
-          scheduled_start: string | null
-          status: string
-          summary_md: string | null
-          title: string | null
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "case_interviews"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
       start_or_resume_phase: {
         Args: { p_case_phase_id: string }
         Returns: {
@@ -10593,6 +10685,33 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      start_session: {
+        Args: { p_session_id: string }
+        Returns: {
+          actual_end: string | null
+          actual_start: string | null
+          cancellation_reason: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          interview_id: string
+          location_text: string | null
+          meeting_url: string | null
+          modality: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          sequence_number: number
+          session_type: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "interview_sessions"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -11162,12 +11281,9 @@ export type Database = {
       update_interview: {
         Args: {
           p_case_phase_id?: string
+          p_confidentiality_level?: string
+          p_interview_category?: string
           p_interview_id: string
-          p_location_text?: string
-          p_meeting_url?: string
-          p_modality?: string
-          p_scheduled_end?: string
-          p_scheduled_start?: string
           p_title?: string
         }
         Returns: {
@@ -11177,18 +11293,14 @@ export type Database = {
           commission_id: string
           concluded_at: string | null
           concluded_by: string | null
-          conducted_at: string | null
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           form_version_id: string | null
           id: string
+          interview_category: string
           interview_number: number
-          location_text: string | null
-          meeting_url: string | null
-          modality: string
           registry_event_id: string | null
-          scheduled_end: string | null
-          scheduled_start: string | null
           status: string
           summary_md: string | null
           title: string | null
@@ -11233,6 +11345,7 @@ export type Database = {
           p_external_name?: string
           p_external_org?: string
           p_note?: string
+          p_relationship_to_case?: string
           p_subject_id: string
         }
         Returns: {
@@ -11243,6 +11356,7 @@ export type Database = {
           id: string
           interview_id: string
           note: string | null
+          relationship_to_case: string
           updated_at: string
           user_id: string | null
         }
@@ -11262,18 +11376,14 @@ export type Database = {
           commission_id: string
           concluded_at: string | null
           concluded_by: string | null
-          conducted_at: string | null
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           form_version_id: string | null
           id: string
+          interview_category: string
           interview_number: number
-          location_text: string | null
-          meeting_url: string | null
-          modality: string
           registry_event_id: string | null
-          scheduled_end: string | null
-          scheduled_start: string | null
           status: string
           summary_md: string | null
           title: string | null
@@ -11659,6 +11769,41 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "pqs_sentinel_criteria"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_session: {
+        Args: {
+          p_location_text?: string
+          p_meeting_url?: string
+          p_modality?: string
+          p_scheduled_end?: string
+          p_scheduled_start?: string
+          p_session_id: string
+          p_session_type?: string
+        }
+        Returns: {
+          actual_end: string | null
+          actual_start: string | null
+          cancellation_reason: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          interview_id: string
+          location_text: string | null
+          meeting_url: string | null
+          modality: string | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          sequence_number: number
+          session_type: string
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "interview_sessions"
           isOneToOne: true
           isSetofReturn: false
         }

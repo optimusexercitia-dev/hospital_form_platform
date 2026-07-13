@@ -19,6 +19,11 @@ export const HC_INTERVIEW_WRONG_STATE = 'HC038'
 export const HC_NOT_ENTITLED_TO_WRITE = 'HC039'
 export const HC_INVALID_ATTACHMENT = 'HC040'
 export const HC_CANNOT_CONCLUDE = 'HC041'
+// HC0B0–HC0B2 are NEW for IV2 (ADR 0070; block HC0B0–HC0B9). All other IV2
+// session/interview state-transition errors REUSE HC038.
+export const HC_SESSION_SCHEDULE_PRECONDITION = 'HC0B0'
+export const HC_INVALID_CATEGORY = 'HC0B1'
+export const HC_INVALID_RELATIONSHIP = 'HC0B2'
 
 /** Generic Postgres SQLSTATEs the interviews RPCs/policies may surface. */
 export const PG_CHECK_VIOLATION = '23514'
@@ -34,6 +39,7 @@ export const INTERVIEW_MESSAGES = {
 
   // Not-found
   missingInterview: 'Entrevista não encontrada.',
+  missingSession: 'Sessão de entrevista não encontrada.',
   missingSubject: 'Entrevistado não encontrado.',
   missingInterviewer: 'Entrevistador não encontrado.',
   missingAttachment: 'Anexo não encontrado.',
@@ -55,22 +61,34 @@ export const INTERVIEW_MESSAGES = {
   linkTitleRequired: 'Informe um título para o link.',
   uploadFailed: 'Não foi possível enviar o arquivo. Tente novamente.',
 
-  // Lifecycle / domain (mapped from HC038–HC041 + reused HC021)
+  // Lifecycle / domain (mapped from HC038–HC041 + HC0B0–HC0B2 + reused HC021)
   interviewWrongState:
     'A entrevista não está no estado necessário para esta ação.',
   notEntitledToWrite: 'Você não pode editar esta entrevista.',
   invalidAttachment: 'Anexo inválido: envie um arquivo OU informe um link https.',
   cannotConclude: 'Adicione ao menos um entrevistado antes de concluir.',
   interviewerNotMember: 'O entrevistador deve ser membro da comissão.',
+  // IV2 (ADR 0070)
+  sessionSchedulePrecondition:
+    'Não é possível agendar uma sessão no estado atual da entrevista.',
+  categoryRequired: 'Selecione uma categoria para a entrevista.',
+  relationshipRequired: 'Selecione a relação do entrevistado com o caso.',
+  sessionWrongState:
+    'A sessão não está no estado necessário para esta ação.',
 
   // Success
   interviewCreated: 'Entrevista criada com sucesso.',
   interviewUpdated: 'Entrevista atualizada.',
-  interviewScheduled: 'Entrevista agendada.',
-  interviewStarted: 'Entrevista iniciada.',
   interviewConcluded: 'Entrevista concluída. O registro foi adicionado ao caso.',
   interviewReopened: 'Entrevista reaberta.',
   interviewCancelled: 'Entrevista cancelada.',
+  // IV2 session lifecycle
+  sessionScheduled: 'Sessão agendada.',
+  sessionUpdated: 'Sessão atualizada.',
+  sessionStarted: 'Sessão iniciada.',
+  sessionCompleted: 'Sessão concluída.',
+  sessionCancelled: 'Sessão cancelada.',
+  sessionNoShow: 'Sessão registrada como não comparecimento.',
   subjectAdded: 'Entrevistado adicionado.',
   subjectUpdated: 'Entrevistado atualizado.',
   subjectRemoved: 'Entrevistado removido.',
@@ -103,6 +121,12 @@ export function mapInterviewError(
       return error.message || INTERVIEW_MESSAGES.cannotConclude
     case HC_INTERVIEWER_NOT_MEMBER:
       return error.message || INTERVIEW_MESSAGES.interviewerNotMember
+    case HC_SESSION_SCHEDULE_PRECONDITION:
+      return error.message || INTERVIEW_MESSAGES.sessionSchedulePrecondition
+    case HC_INVALID_CATEGORY:
+      return error.message || INTERVIEW_MESSAGES.categoryRequired
+    case HC_INVALID_RELATIONSHIP:
+      return error.message || INTERVIEW_MESSAGES.relationshipRequired
     case PG_FORBIDDEN:
       return INTERVIEW_MESSAGES.forbidden
     case PG_NO_DATA_FOUND:

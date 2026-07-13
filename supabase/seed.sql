@@ -1090,18 +1090,35 @@ declare
   v_case1    uuid := 'd0000000-0000-0000-0000-0000000000c1';  -- existing Caso 0001
   v_itw      uuid := 'f2000000-0000-0000-0000-0000000000e1';  -- deterministic
 begin
-  -- The interview header (status in_progress — being conducted).
+  -- The interview header (IV2 — ADR 0070). Status `awaiting_follow_up`: one
+  -- session has been conducted (completed) and a follow-up is scheduled. Scheduling
+  -- now lives on interview_sessions; the interview carries interview_category +
+  -- (non-enforcing) confidentiality_level.
   insert into public.case_interviews
-    (id, commission_id, case_id, title, status, modality, location_text,
-     scheduled_start, conducted_at, summary_md, created_by)
+    (id, commission_id, case_id, title, status, interview_category,
+     confidentiality_level, summary_md, created_by)
   values
-    (v_itw, v_comm_a, v_case1, 'Entrevista sobre o Caso 0001', 'in_progress',
-     'presencial', 'Sala da CCIH',
-     now() - interval '1 day', now() - interval '1 day',
+    (v_itw, v_comm_a, v_case1, 'Entrevista sobre o Caso 0001', 'awaiting_follow_up',
+     'clinical_team', 'standard',
      E'## Resumo preliminar\n\nEntrevista com a equipe envolvida no caso. '
      || E'**Sem dados de paciente.** Foco no processo assistencial e nas '
      || E'oportunidades de melhoria.',
      v_chefe_a);
+
+  -- Sessions (IV2): one completed encounter + one scheduled follow-up → this is
+  -- exactly what puts the interview in `awaiting_follow_up`. Child-lock passes on
+  -- insert (parent is non-terminal).
+  insert into public.interview_sessions
+    (interview_id, sequence_number, session_type, status, modality,
+     scheduled_start, scheduled_end, actual_start, actual_end, location_text, created_by)
+  values
+    (v_itw, 1, 'initial', 'completed', 'presencial',
+     now() - interval '2 days', now() - interval '2 days' + interval '1 hour',
+     now() - interval '2 days', now() - interval '2 days' + interval '50 minutes',
+     'Sala da CCIH', v_chefe_a),
+    (v_itw, 2, 'follow_up', 'scheduled', 'presencial',
+     now() + interval '3 days', now() + interval '3 days' + interval '1 hour',
+     null, null, 'Sala da CCIH', v_chefe_a);
 
   -- Interviewers: chefe.ccih (REGISTERED, principal) + one external.
   insert into public.case_interview_interviewers
@@ -1112,10 +1129,12 @@ begin
 
   -- Subjects (interviewees): staff1.ccih (REGISTERED) + one external person.
   insert into public.case_interview_subjects
-    (interview_id, user_id, external_name, external_org, clinical_role, note)
+    (interview_id, user_id, external_name, external_org, clinical_role, note,
+     relationship_to_case)
   values
-    (v_itw, v_staff_a1, null, null, 'Enfermeiro(a) da unidade', null),
-    (v_itw, null, 'Carlos Pereira', 'Hospital Central', 'Técnico de enfermagem', null);
+    (v_itw, v_staff_a1, null, null, 'Enfermeiro(a) da unidade', null, 'nurse'),
+    (v_itw, null, 'Carlos Pereira', 'Hospital Central', 'Técnico de enfermagem', null,
+     'other_professional');
 
   -- Attachments (F2 fold-in): one stored-file metadata row now lives in
   -- public.attachments (owner_type='interview'); the external audio link now lives

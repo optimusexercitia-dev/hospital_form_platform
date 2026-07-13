@@ -154,10 +154,10 @@ insert into public.memberships (organization_id, principal_id, role)
 
 -- The interview graph (interview_number is minted by the BEFORE INSERT trigger).
 insert into public.case_interviews
-  (id, commission_id, case_id, interview_number, status)
-values ((select iv from ivt), (select comm_x from k), (select case_x from cs), 0, 'draft');
-insert into public.case_interview_subjects (id, interview_id, external_name, note)
-values ((select subj from ivt), (select iv from ivt), 'Sujeito Externo', 'nota');
+  (id, commission_id, case_id, interview_number, status, interview_category)
+values ((select iv from ivt), (select comm_x from k), (select case_x from cs), 0, 'draft', 'other');
+insert into public.case_interview_subjects (id, interview_id, external_name, note, relationship_to_case)
+values ((select subj from ivt), (select iv from ivt), 'Sujeito Externo', 'nota', 'other');
 insert into public.case_interview_interviewers (id, interview_id, external_name, role)
 values ((select intr from ivt), (select iv from ivt), 'Entrevistador Externo', 'entrevistador');
 -- F2 (ADR 0063): interview external links live in case_interview_links (case-scoped

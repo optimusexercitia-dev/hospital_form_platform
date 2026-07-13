@@ -82,10 +82,10 @@ insert into public.case_narratives (id, case_id, type_label, display_position, s
   values ((select narr_x from cs), (select case_x from cs), 'Resumo', 2, 'open', 'CORPO-NARRATIVA-PHI', (select sa_x from k));
 insert into public.case_events (id, case_id, kind, title, body, created_by)
   values ((select event_x from cs), (select case_x from cs), 'note', 'TITULO-EVENTO-PHI', 'CORPO-EVENTO-PHI', (select sa_x from k));
-insert into public.case_interviews (id, case_id, commission_id, interview_number, summary_md, created_by, status)
-  values ((select intv_x from cs), (select case_x from cs), (select comm_x from k), 1, 'RESUMO-ENTREVISTA-PHI', (select sa_x from k), 'scheduled');
-insert into public.case_interview_subjects (id, interview_id, external_name, note)
-  values ((select subj_x from cs), (select intv_x from cs), 'Entrevistado Externo', 'NOTA-SUJEITO-PHI');
+insert into public.case_interviews (id, case_id, commission_id, interview_number, summary_md, created_by, status, interview_category)
+  values ((select intv_x from cs), (select case_x from cs), (select comm_x from k), 1, 'RESUMO-ENTREVISTA-PHI', (select sa_x from k), 'scheduled', 'other');
+insert into public.case_interview_subjects (id, interview_id, external_name, note, relationship_to_case)
+  values ((select subj_x from cs), (select intv_x from cs), 'Entrevistado Externo', 'NOTA-SUJEITO-PHI', 'other');
 -- F2 (ADR 0063): case documents are attachments (owner_type='case'); dispose_case_phi
 -- redacts them at the D10 seam. Insert directly (superuser bypasses RLS + the flag).
 insert into public.attachments

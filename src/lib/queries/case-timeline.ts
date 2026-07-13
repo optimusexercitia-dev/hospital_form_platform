@@ -469,7 +469,7 @@ export async function getCaseTimeline(caseId: string): Promise<CaseTimeline> {
       id: `interview:${iv.id}`,
       type: 'interview',
       title: iv.title?.trim() || `Entrevista nº ${iv.interviewNumber}`,
-      day: iv.conductedAt ?? iv.scheduledStart ?? iv.createdAt,
+      day: iv.nextSession?.scheduledStart ?? iv.concludedAt ?? iv.createdAt,
       owner: null,
       note: iv.subjectSummary || null,
       statusSlug: iv.status,

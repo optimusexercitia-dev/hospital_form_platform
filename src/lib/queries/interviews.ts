@@ -4,25 +4,21 @@ import { featureEnabled } from '@/lib/queries/feature-flags'
 import { listAttachments } from '@/lib/queries/attachments'
 
 /**
- * Interviews data-access (Phase 11 — Interviews; Architecture Rule 9 — all reads
- * go through `src/lib/queries/`). Interviews are a CASE-SCOPED sibling of the
- * Phase 10 Meetings feature: a committee interviews healthcare professionals
- * about a specific case (e.g. M&M interviewing the staff involved in a patient's
- * care). An interview is scheduled FROM WITHIN an open case, has its own
- * lifecycle (`draft → scheduled → in_progress → completed`, plus `cancelled`),
- * optionally links to a case phase, records multiple INTERVIEWEES (subjects) and
- * INTERVIEWERS (registered platform user XOR external fallback, each with a role),
- * and carries evidence attachments (uploaded documents + external audio-recording
- * URLs). On conclusion it writes/updates a single `case_events kind='interview'`
- * row (the case "registry"). **No patient data.**
+ * Interviews data-access (Phase 11 — Interviews; revised by IV2 / ADR 0070 —
+ * sessions + reporting/confidentiality). Architecture Rule 9 — all reads go
+ * through `src/lib/queries/`. Interviews are a CASE-SCOPED sibling of Meetings: a
+ * committee interviews healthcare professionals about a specific case. Since IV2 an
+ * interview is a small MULTI-ENCOUNTER aggregate: it stays the lifecycle
+ * coordinator (`draft → scheduled → in_progress ⇄ awaiting_follow_up → completed`,
+ * plus `cancelled`) while its 1:N {@link InterviewSession} children carry
+ * scheduling + their own status. On conclusion it writes/updates a single
+ * `case_events kind='interview'` row (the case "registry"). Interviews are
+ * STAFF-ONLY and non-PHI (Rule 12).
  *
  * RLS is the security boundary: every read below uses the RLS-scoped cookie server
  * client, so a non-member of the interview's commission gets `[]`/`null` (never a
- * leak). Commission is resolved in the DB via `app.commission_of_interview` and the
- * per-table policies; these reads add no extra authz of their own. The NEW Phase-11
- * write shape (member SELECT; write = staff_admin/admin OR a registered interviewer
- * of that interview, via `app.can_write_interview`) is surfaced to the UI as
- * {@link InterviewDetail.viewerCanWrite}. All user-facing strings are pt-BR and
+ * leak). Commission/case are resolved in the DB via the per-table policies; these
+ * reads add no extra authz of their own. All user-facing strings are pt-BR and
  * resolved in the UI — the ASCII union slugs below are stable storage values.
  */
 
@@ -31,17 +27,75 @@ import { listAttachments } from '@/lib/queries/attachments'
 // ---------------------------------------------------------------------------
 
 /**
- * Interview lifecycle. `draft` is the initial draft (created, not yet
- * scheduled); `scheduled` once a date is set; `in_progress` while it is being
- * conducted; `completed` once finalized (writes the registry event). `cancelled`
- * is TERMINAL (not reopenable); only `completed` reopens back to `in_progress`.
+ * Interview lifecycle. `draft` (created, no session yet); `scheduled` once a
+ * session is scheduled; `in_progress` while a session is being conducted;
+ * `awaiting_follow_up` after a session completed AND another is still scheduled;
+ * `completed` once finalized (writes the registry event). `cancelled` is TERMINAL
+ * (not reopenable); only `completed` reopens back to `in_progress`.
  */
 export type InterviewStatus =
   | 'draft'
   | 'scheduled'
   | 'in_progress'
+  | 'awaiting_follow_up'
   | 'completed'
   | 'cancelled'
+
+/**
+ * Dashboard classification of the interview (IV2 N1; fixed-enum CHECK in the DB),
+ * required at create. English key; pt-BR label in the UI.
+ */
+export type InterviewCategory =
+  | 'witness'
+  | 'subject'
+  | 'clinical_team'
+  | 'expert'
+  | 'complainant'
+  | 'respondent'
+  | 'administrative'
+  | 'other'
+
+/**
+ * A NON-ENFORCING confidentiality classification (IV2; default `standard`). It is a
+ * forward hook only — it does NOT gate access yet (enforcement lands with E1). The
+ * UI must label it as not-yet-gating.
+ */
+export type InterviewConfidentiality = 'standard' | 'restricted' | 'highly_restricted'
+
+/**
+ * A subject's relationship to the case (IV2 N2; fixed-enum CHECK), required at add.
+ * Staff-only — deliberately EXCLUDES patient/family_member (Rule 12). Distinct from
+ * the free-text `clinicalRole`.
+ */
+export type RelationshipToCase =
+  | 'attending_physician'
+  | 'consulting_physician'
+  | 'nurse'
+  | 'other_professional'
+  | 'witness'
+  | 'complainant'
+  | 'respondent'
+  | 'subject'
+  | 'expert'
+  | 'committee_member'
+  | 'other'
+
+/** A session's kind (IV2; fixed-enum CHECK). */
+export type SessionType =
+  | 'initial'
+  | 'follow_up'
+  | 'clarification'
+  | 'written_response'
+  | 'supplementary'
+  | 'closing'
+
+/** A session's own lifecycle status (IV2; fixed-enum CHECK). */
+export type SessionStatus =
+  | 'scheduled'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+  | 'no_show'
 
 /**
  * An interviewer's fixed committee role on the interview (fixed-enum CHECK in the
@@ -53,16 +107,15 @@ export type InterviewerRole =
   | 'observador'
   | 'anotador'
 
-/** How the interview is held (mirror of the meetings modality). */
+/** How a session is held (mirror of the meetings modality). Nullable on a session
+ * (a written_response/async session leaves it null). */
 export type InterviewModality = 'presencial' | 'remoto' | 'hibrido'
 
 /**
  * An attachment's EVIDENCE category (fixed CHECK in the DB). ORTHOGONAL to
  * file-vs-link: any kind may be a stored file (`storagePath`) OR an external link
  * (`externalUrl`) — the storage/link distinction is enforced by a separate XOR
- * CHECK, not by `kind`. `gravacao_audio` (audio recording) is typically a `link`
- * since audio BYTES are never stored in the bucket; `transcricao_assinada` (signed
- * transcript) is typically a stored PDF.
+ * CHECK, not by `kind`.
  */
 export type InterviewAttachmentKind =
   | 'gravacao_audio'
@@ -73,6 +126,19 @@ export type InterviewAttachmentKind =
 // ---------------------------------------------------------------------------
 // Domain interfaces (camelCase) — the frozen frontend contract
 // ---------------------------------------------------------------------------
+
+/**
+ * A compact summary of the next upcoming (`scheduled`) session, for the list
+ * subtitle + header (replaces the interview's old single `scheduledStart`). `null`
+ * when no session is scheduled.
+ */
+export interface NextSessionSummary {
+  id: string
+  sequenceNumber: number
+  sessionType: SessionType
+  /** ISO timestamp of the planned start; `null` if the session has no start set yet. */
+  scheduledStart: string | null
+}
 
 /** An interview as it appears in the case's "Entrevistas" panel list. */
 export interface InterviewListItem {
@@ -86,17 +152,12 @@ export interface InterviewListItem {
   /** Optional free-text title; the UI falls back to "Entrevista nº N" when `null`. */
   title: string | null
   status: InterviewStatus
-  /** How the interview is held. */
-  modality: InterviewModality
-  /** ISO timestamp; the planned start. `null` while `draft` (set at `scheduled`). */
-  scheduledStart: string | null
-  /** ISO timestamp; the planned end (`null` if open-ended). */
-  scheduledEnd: string | null
-  /** ISO timestamp the interview was actually conducted (set by `startInterview`); `null` before. */
-  conductedAt: string | null
-  locationText: string | null
-  /** Video-call URL for a remote/hybrid interview; `null` if absent. */
-  meetingUrl: string | null
+  /** IV2: dashboard classification (required at create). */
+  interviewCategory: InterviewCategory
+  /** IV2: NON-ENFORCING confidentiality tag (does not gate access yet). */
+  confidentialityLevel: InterviewConfidentiality
+  /** IV2: the earliest upcoming `scheduled` session, or `null`. */
+  nextSession: NextSessionSummary | null
   /** ISO timestamp the interview was concluded; `null` otherwise. */
   concludedAt: string | null
   /** Number of interviewees on this interview (for the list-row subtitle). */
@@ -131,17 +192,47 @@ export interface InterviewDetail extends InterviewListItem {
   /**
    * `app.can_write_interview(id, auth.uid())` — whether the CURRENT viewer may
    * write this interview (staff_admin/admin OR a registered interviewer of it).
-   * The SINGLE signal the detail UI gates every write control on: a plain-`staff`
-   * registered interviewer gets `true`; a non-interviewer `staff` gets `false`.
+   * The SINGLE signal the detail UI gates every write control on.
    */
   viewerCanWrite: boolean
 }
 
 /**
+ * A single encounter of an interview (IV2 — ADR 0070). Carries scheduling (moved
+ * off the interview) + its own lifecycle status. `modality` is nullable (a
+ * written_response/async session leaves it null).
+ */
+export interface InterviewSession {
+  id: string
+  interviewId: string
+  /** 1-based order within the interview (unique per interview). */
+  sequenceNumber: number
+  sessionType: SessionType
+  status: SessionStatus
+  modality: InterviewModality | null
+  /** ISO timestamp; the planned start. */
+  scheduledStart: string | null
+  /** ISO timestamp; the planned end. */
+  scheduledEnd: string | null
+  /** ISO timestamp the session actually started (set by `startSession`). */
+  actualStart: string | null
+  /** ISO timestamp the session actually ended (set by `completeSession`). */
+  actualEnd: string | null
+  locationText: string | null
+  /** Video-call URL for a remote/hybrid session; `null` if absent. */
+  meetingUrl: string | null
+  /** Reason recorded on a cancelled/no_show session; `null` otherwise. */
+  cancellationReason: string | null
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+/**
  * An interviewee (the professional being interviewed). A platform user
- * (`userId`) XOR an external person (`externalName`). The clinical role is FREE
- * TEXT (e.g. "Enfermeira da UTI") — deliberately not an enum, since clinical
- * roles vary widely. **No patient data** — subjects are staff, never patients.
+ * (`userId`) XOR an external person (`externalName`). `relationshipToCase` (IV2) is
+ * a fixed enum; `clinicalRole` is FREE TEXT (e.g. "Enfermeira da UTI"). **No
+ * patient data** — subjects are staff, never patients.
  */
 export interface InterviewSubject {
   id: string
@@ -152,6 +243,8 @@ export interface InterviewSubject {
   externalName: string | null
   /** External person's organization; `null` when `userId` is set or unknown. */
   externalOrg: string | null
+  /** IV2: the subject's relationship to the case (required; staff-only enum). */
+  relationshipToCase: RelationshipToCase
   /** Free-text clinical role/title; `null` if unspecified. */
   clinicalRole: string | null
   note: string | null
@@ -166,8 +259,8 @@ export interface InterviewSubject {
  * An interviewer (a committee member conducting the interview). A platform user
  * (`userId`) XOR an external fallback (`externalName`), each with a fixed
  * committee {@link InterviewerRole}. A REGISTERED (platform-user) interviewer
- * gains row-level WRITE on the interview (the new RLS shape) and must be a member
- * of the commission (HC021).
+ * gains row-level WRITE on the interview and must be a member of the commission
+ * (HC021).
  */
 export interface InterviewInterviewer {
   id: string
@@ -190,16 +283,15 @@ export interface InterviewInterviewer {
 
 /**
  * An attachment's metadata. A stored attachment has a `storagePath` (in the
- * private `interview-attachments` bucket); a linked attachment has an
- * `externalUrl` (https-only) — exactly one is non-null. Soft-deleted rows are
- * excluded from reads.
+ * private bucket); a linked attachment has an `externalUrl` (https-only) — exactly
+ * one is non-null. Soft-deleted rows are excluded from reads.
  */
 export interface InterviewAttachment {
   id: string
   interviewId: string
   kind: InterviewAttachmentKind
   title: string
-  /** Immutable Storage path `{commissionId}/{interviewId}/{uuid}.{ext}` (unique); `null` for links. */
+  /** Immutable Storage path (unique); `null` for links. */
   storagePath: string | null
   /** External https URL (e.g. an audio-recording URL); `null` for stored files. */
   externalUrl: string | null
@@ -214,9 +306,7 @@ export interface InterviewAttachment {
 /**
  * An {@link InterviewAttachment} resolved for display. The UI discriminates
  * file-vs-link WITHOUT guessing: exactly one of `openUrl`/`externalUrl` is
- * non-null. A stored file gets a freshly-minted short-lived signed `openUrl`
- * (and `externalUrl` is `null`); a link exposes its `externalUrl` (and `openUrl`
- * is `null`).
+ * non-null.
  */
 export interface InterviewAttachmentWithUrl extends InterviewAttachment {
   /** Short-lived signed download URL for a STORED file; `null` for links (or if minting failed). */
@@ -227,6 +317,15 @@ export interface InterviewAttachmentWithUrl extends InterviewAttachment {
 // Row shapes (RLS-scoped table reads)
 // ---------------------------------------------------------------------------
 
+/** Embedded session row for deriving `nextSession` on list/detail reads. */
+interface NextSessionRow {
+  id: string
+  sequence_number: number
+  session_type: SessionType
+  status: SessionStatus
+  scheduled_start: string | null
+}
+
 interface InterviewRow {
   id: string
   commission_id: string
@@ -235,12 +334,8 @@ interface InterviewRow {
   interview_number: number
   title: string | null
   status: InterviewStatus
-  modality: InterviewModality
-  scheduled_start: string | null
-  scheduled_end: string | null
-  conducted_at: string | null
-  location_text: string | null
-  meeting_url: string | null
+  interview_category: InterviewCategory
+  confidentiality_level: InterviewConfidentiality
   concluded_at: string | null
   created_by: string | null
   created_at: string
@@ -254,6 +349,26 @@ interface InterviewDetailRow extends InterviewRow {
   concluded_by: string | null
   cancelled_at: string | null
   cases: { case_number: number; label: string | null } | null
+  interview_sessions: NextSessionRow[] | null
+}
+
+interface InterviewSessionRow {
+  id: string
+  interview_id: string
+  sequence_number: number
+  session_type: SessionType
+  status: SessionStatus
+  modality: InterviewModality | null
+  scheduled_start: string | null
+  scheduled_end: string | null
+  actual_start: string | null
+  actual_end: string | null
+  location_text: string | null
+  meeting_url: string | null
+  cancellation_reason: string | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
 }
 
 interface SubjectRow {
@@ -262,6 +377,7 @@ interface SubjectRow {
   user_id: string | null
   external_name: string | null
   external_org: string | null
+  relationship_to_case: RelationshipToCase
   clinical_role: string | null
   note: string | null
   profiles: { full_name: string | null } | null
@@ -278,8 +394,7 @@ interface InterviewerRow {
   profiles: { full_name: string | null } | null
 }
 
-/** Phase F2: interview external LINKS now live in `case_interview_links` (interview
- * FILE rows moved to `public.attachments`, owner_type='interview'). */
+/** Phase F2: interview external LINKS live in `case_interview_links`. */
 interface InterviewLinkRow {
   id: string
   interview_id: string
@@ -290,12 +405,13 @@ interface InterviewLinkRow {
   profiles: { full_name: string | null } | null
 }
 
-/** Subset of {@link InterviewRow} + a joined subject roster for the list subtitle. */
+/** Subset of {@link InterviewRow} + joined subject roster + sessions for the list. */
 interface InterviewListRow extends InterviewRow {
   case_interview_subjects: {
     external_name: string | null
     profiles: { full_name: string | null } | null
   }[]
+  interview_sessions: NextSessionRow[] | null
 }
 
 function subjectName(s: {
@@ -304,6 +420,35 @@ function subjectName(s: {
 }): string {
   return s.profiles?.full_name ?? s.external_name ?? 'Entrevistado'
 }
+
+/** Earliest upcoming `scheduled` session (by start, nulls last, then sequence). */
+function toNextSession(rows: NextSessionRow[] | null): NextSessionSummary | null {
+  const scheduled = (rows ?? []).filter((s) => s.status === 'scheduled')
+  if (scheduled.length === 0) return null
+  scheduled.sort((a, b) => {
+    if (a.scheduled_start && b.scheduled_start) {
+      return a.scheduled_start.localeCompare(b.scheduled_start)
+    }
+    if (a.scheduled_start) return -1
+    if (b.scheduled_start) return 1
+    return a.sequence_number - b.sequence_number
+  })
+  const n = scheduled[0]
+  return {
+    id: n.id,
+    sequenceNumber: n.sequence_number,
+    sessionType: n.session_type,
+    scheduledStart: n.scheduled_start,
+  }
+}
+
+const INTERVIEW_LIST_COLUMNS = `id, commission_id, case_id, case_phase_id, interview_number,
+  title, status, interview_category, confidentiality_level, concluded_at,
+  created_by, created_at, updated_at`
+
+const SESSION_COLUMNS = `id, interview_id, sequence_number, session_type, status, modality,
+  scheduled_start, scheduled_end, actual_start, actual_end, location_text, meeting_url,
+  cancellation_reason, created_by, created_at, updated_at`
 
 // ---------------------------------------------------------------------------
 // Reads — RLS-scoped (members read their commission's interviews; `[]`/`null`
@@ -319,10 +464,9 @@ export async function listCaseInterviews(
   const { data, error } = await supabase
     .from('case_interviews')
     .select(
-      `id, commission_id, case_id, case_phase_id, interview_number, title, status,
-       modality, scheduled_start, scheduled_end, conducted_at, location_text,
-       meeting_url, concluded_at, created_by, created_at, updated_at,
-       case_interview_subjects ( external_name, profiles:user_id ( full_name ) )`,
+      `${INTERVIEW_LIST_COLUMNS},
+       case_interview_subjects ( external_name, profiles:user_id ( full_name ) ),
+       interview_sessions ( id, sequence_number, session_type, status, scheduled_start )`,
     )
     .eq('case_id', caseId)
     .order('created_at', { ascending: false })
@@ -340,12 +484,9 @@ export async function listCaseInterviews(
       interviewNumber: r.interview_number,
       title: r.title,
       status: r.status,
-      modality: r.modality,
-      scheduledStart: r.scheduled_start,
-      scheduledEnd: r.scheduled_end,
-      conductedAt: r.conducted_at,
-      locationText: r.location_text,
-      meetingUrl: r.meeting_url,
+      interviewCategory: r.interview_category,
+      confidentialityLevel: r.confidentiality_level,
+      nextSession: toNextSession(r.interview_sessions),
       concludedAt: r.concluded_at,
       subjectCount: names.length,
       subjectSummary: names.join(', '),
@@ -359,8 +500,7 @@ export async function listCaseInterviews(
 /**
  * Full detail for one interview (the detail-page hub), or `null` if
  * unreadable/absent. Resolves {@link InterviewDetail.viewerCanWrite} via the
- * `interview_viewer_can_write` RPC so the UI can gate write controls on the new
- * participant-write rule.
+ * `interview_viewer_can_write` RPC so the UI can gate write controls.
  */
 export async function getInterviewDetail(
   interviewId: string,
@@ -370,19 +510,18 @@ export async function getInterviewDetail(
   const { data, error } = await supabase
     .from('case_interviews')
     .select(
-      `id, commission_id, case_id, case_phase_id, interview_number, title, status,
-       modality, scheduled_start, scheduled_end, conducted_at, location_text,
-       meeting_url, concluded_at, created_by, created_at, updated_at,
+      `${INTERVIEW_LIST_COLUMNS},
        summary_md, form_version_id, registry_event_id, concluded_by, cancelled_at,
-       cases:case_id ( case_number, label )`,
+       cases:case_id ( case_number, label ),
+       interview_sessions ( id, sequence_number, session_type, status, scheduled_start )`,
     )
     .eq('id', interviewId)
     .maybeSingle<InterviewDetailRow>()
 
   if (error || !data) return null
 
-  // WS B (Rule 11/12): audit an interview detail-open (free-text summary_md). Best-
-  // effort, app-layer on the RLS-scoped read; commission-scoped attribution.
+  // WS B (Rule 11): audit an interview detail-open. Best-effort, app-layer on the
+  // RLS-scoped read; commission-scoped attribution.
   await logAuditAccess({
     action: 'interview.viewed',
     entityType: 'interview',
@@ -391,8 +530,6 @@ export async function getInterviewDetail(
     summary: 'Detalhe da entrevista visualizado',
   })
 
-  // The participant-write signal for the current viewer (separate RPC; a stored
-  // function in the locked-down app schema is not directly callable).
   const { data: canWrite } = await supabase.rpc('interview_viewer_can_write', {
     p_interview_id: interviewId,
   })
@@ -405,12 +542,9 @@ export async function getInterviewDetail(
     interviewNumber: data.interview_number,
     title: data.title,
     status: data.status,
-    modality: data.modality,
-    scheduledStart: data.scheduled_start,
-    scheduledEnd: data.scheduled_end,
-    conductedAt: data.conducted_at,
-    locationText: data.location_text,
-    meetingUrl: data.meeting_url,
+    interviewCategory: data.interview_category,
+    confidentialityLevel: data.confidentiality_level,
+    nextSession: toNextSession(data.interview_sessions),
     concludedAt: data.concluded_at,
     subjectCount: 0,
     subjectSummary: '',
@@ -428,6 +562,41 @@ export async function getInterviewDetail(
   }
 }
 
+/** The interview's sessions, ordered by `sequence_number`. */
+export async function listInterviewSessions(
+  interviewId: string,
+): Promise<InterviewSession[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('interview_sessions')
+    .select(SESSION_COLUMNS)
+    .eq('interview_id', interviewId)
+    .order('sequence_number', { ascending: true })
+    .returns<InterviewSessionRow[]>()
+
+  if (error || !data) return []
+
+  return data.map((r) => ({
+    id: r.id,
+    interviewId: r.interview_id,
+    sequenceNumber: r.sequence_number,
+    sessionType: r.session_type,
+    status: r.status,
+    modality: r.modality,
+    scheduledStart: r.scheduled_start,
+    scheduledEnd: r.scheduled_end,
+    actualStart: r.actual_start,
+    actualEnd: r.actual_end,
+    locationText: r.location_text,
+    meetingUrl: r.meeting_url,
+    cancellationReason: r.cancellation_reason,
+    createdBy: r.created_by,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  }))
+}
+
 /** The interview's interviewees (subjects), ordered by creation. */
 export async function listInterviewSubjects(
   interviewId: string,
@@ -437,8 +606,8 @@ export async function listInterviewSubjects(
   const { data, error } = await supabase
     .from('case_interview_subjects')
     .select(
-      `id, interview_id, user_id, external_name, external_org, clinical_role,
-       note, profiles:user_id ( full_name )`,
+      `id, interview_id, user_id, external_name, external_org, relationship_to_case,
+       clinical_role, note, profiles:user_id ( full_name )`,
     )
     .eq('interview_id', interviewId)
     .order('created_at', { ascending: true })
@@ -452,6 +621,7 @@ export async function listInterviewSubjects(
     userId: r.user_id,
     externalName: r.external_name,
     externalOrg: r.external_org,
+    relationshipToCase: r.relationship_to_case,
     clinicalRole: r.clinical_role,
     note: r.note,
     displayName: r.profiles?.full_name ?? r.external_name ?? null,
@@ -491,19 +661,15 @@ export async function listInterviewInterviewers(
 
 /**
  * The interview's NON-deleted attachments, each resolved for display. Stored
- * `file` rows get a batch-minted short-lived signed `openUrl` (one round trip);
- * `link` rows expose their `external_url` and have `openUrl = null`. Soft-deleted
- * rows are excluded. Batch-minted under the same RLS-scoped client, so a foreign
- * caller gets neither rows nor URLs.
+ * `file` rows get a batch-minted short-lived signed `openUrl`; `link` rows expose
+ * their `external_url` and have `openUrl = null`. Batch-minted under the same
+ * RLS-scoped client, so a foreign caller gets neither rows nor URLs.
  */
 export async function listInterviewAttachments(
   interviewId: string,
 ): Promise<InterviewAttachmentWithUrl[]> {
   const supabase = await createClient()
 
-  // FILE rows: attachments (owner_type='interview'). Interviews default to the PHI
-  // tier, so the blob is opened via the audited door — openUrl is null here (a
-  // standard-tier file would carry a direct URL). externalUrl is null for files.
   const files = await listAttachments('interview', interviewId)
   const fileItems: InterviewAttachmentWithUrl[] = files.map((a) => ({
     id: a.id,
@@ -520,8 +686,6 @@ export async function listInterviewAttachments(
     openUrl: a.signedUrl,
   }))
 
-  // LINK rows: case_interview_links (external https URLs). Links carry no kind in the
-  // folded model (F2) → 'outro'; no blob, so openUrl/storagePath are null.
   const { data: links } = await supabase
     .from('case_interview_links')
     .select(
@@ -546,18 +710,16 @@ export async function listInterviewAttachments(
     openUrl: null,
   }))
 
-  // Newest-first (both sources are ISO-8601 timestamps).
   return [...fileItems, ...linkItems].sort((a, b) =>
     b.createdAt.localeCompare(a.createdAt),
   )
 }
 
 /**
- * Feature-flag gate for the interviews surface (mirror of `meetingsEnabled` /
- * `casesExtrasEnabled`). Backed by the SECURITY DEFINER `public.interviews_enabled()`
- * read (the flag lives in the locked-down `app` schema). Fails closed.
+ * Feature-flag gate for the interviews surface. Backed by the SECURITY DEFINER
+ * `public.interviews_enabled()` read (the flag lives in the locked-down `app`
+ * schema). Fails closed.
  */
 export async function interviewsEnabled(): Promise<boolean> {
-  // P4 (WS-6): delegate to the consolidated, request-memoized flag read.
   return featureEnabled('interviews')
 }
