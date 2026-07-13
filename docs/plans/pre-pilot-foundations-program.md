@@ -204,13 +204,14 @@ the phase that owns it. **This is the core of the plan.**
 - **Owner:** F2 keeps the inert owner_type; F3 owns `form_items` and adds no upload type. Removes the
   only table both B and A would touch.
 
-### C-η · Sequencing across the four + Phase 16  🟢
+### C-η · Sequencing across the four  🟢
 
 - **Collision:** stale/again-conflicting sequencing notes — 0063 "build next before 15→17→16" (15/17
   now shipped), 0060 "after Phase 16", 0064 unscheduled, D unscheduled.
 - **Resolution — one pre-pilot order (all reset-OK, all cheapest on an empty DB):**
-  `F0 → F1 → F2 → Phase 16 → F3 → F-cleanup → pilot reset → pilot`. Rationale + the one genuinely
-  optional interleave (F3 vs Phase 16) in §3.
+  `F0 → F1 → F2 → F3 → F-cleanup → pilot reset → pilot`. Phase 16 was originally interleaved between
+  F2 and F3 (see §3); the PO deferred it 2026-07-11, so it is **out of this program's sequence** —
+  tracked separately in PROGRESS.md.
 - **Owner:** this program.
 
 ### C-θ · Attachment evidence-consolidation scope — ADR 0063 × existing evidence surfaces  🟢
@@ -355,11 +356,9 @@ F1–F3 build against a settled contract:
   audit, phi-bucket denies authenticated SELECT, fold-in FK-repoint integrity) + an
   `attachment_subjects → participants` FK/RLS test.
 
-### Phase 16 — Standards Crosswalk & Readiness  *(the already-planned next accreditation phase; unchanged)*
-- Runs **after F2** so the evidence picker *can* (optionally, later) link an attachment as evidence and
-  so the pre-pilot foundations are all in place. Phase 16 does **not** hard-depend on the foundations
-  (its evidence picker targets forms/meetings/cases/indicators/controlled-docs), so it may equally run
-  before F3. Kept in ADR-0057's slot; this program does not change Phase 16's spec.
+### Phase 16 — Standards Crosswalk & Readiness  *(deferred by the PO 2026-07-11 — out of this program's scope)*
+- Originally slated to run between F2 and F3, in ADR-0057's slot. The PO deferred Phase 16 pending
+  replanning; it is no longer part of this program's sequence — F3 ran directly after F2 (see §8 item 2).
 
 ### F3 — Flexible-Forms Foundation  *(ADR 0060; structural, no flag)*
 - **Scope (create-now bones + frozen answer-data shapes):** widen `form_items.item_type` CHECK
@@ -384,10 +383,9 @@ F1–F3 build against a settled contract:
   discriminator; internal-entity lanes deferred-but-additive. **Calculations** and **i18n** are **not**
   landed here — additive anytime, §8 forward-notes.
 - **Dependencies:** F0; **now also F1** (the inert `answer_references.participant_id` FK → `participants`
-  needs the F1 registry to exist — satisfied by the F0→F1→F2→16→F3 order). Otherwise touches the form
-  engine only; `form_items` is F3-only after D6 cancellation (C-ε). Sequenced here per ADR 0060 ("after
-  Phase 16, before the pilot reset");
-  may move earlier if the team prefers — no dependency forces it after 16.
+  needs the F1 registry to exist — satisfied by the F0→F1→F2→F3 order). Otherwise touches the form
+  engine only; `form_items` is F3-only after D6 cancellation (C-ε). Originally sequenced after Phase 16
+  per ADR 0060; since Phase 16 was deferred by the PO (2026-07-11), F3 ran directly after F2 instead.
 - **Gate:** full §6 gate; the golden dual-evaluator parity test is the lock. The five inert answer
   tables ship with **RLS from creation** (Rule 1 — scoped to their future `response`/`answer` parent, or
   deny-all until the type activates) + a pgTAP guard that they stay write-inert pre-activation.
@@ -485,10 +483,9 @@ heaviest deferred tracks (D5, D6/§6.3) are **removed** by A and C rather than b
    would rather ship attachments first, the fallback is to keep 0063's standalone subject vocabulary
    *and accept a later reconciliation migration* — **not recommended** (it reintroduces the exact
    duplication D12/this plan removes).
-2. **F3-vs-Phase-16 interleave — DECIDED (2026-07-10 grill): `F0→F1→F2→16→F3`** (respects 0063 "before
-   16" + 0060 "after 16"). The F3 expansion (five inert answer tables + Rec-A contract) *strengthens*
-   this — foundations-first would delay Phase 16 behind a bigger, wholly-additive F3 for a benefit F3's
-   additivity already provides.
+2. **F3-vs-Phase-16 interleave — SUPERSEDED.** The 2026-07-10 grill decided `F0→F1→F2→16→F3`; the PO
+   then deferred Phase 16 (2026-07-11, needs replanning) before it was built, so it dropped out of the
+   sequence entirely and F3 ran directly after F2 as `F0→F1→F2→F3`.
 3. **`form_items.phi_policy` dropped** (C-ζ) overrides an explicit ADR-0063/phase-14e reservation.
    Recorded as a deliberate reconciliation; flag if the team still wants the inert column reserved.
 4. **The m2 hard gate** (0064): `case_participants`/`case_types` flags **must not** be flipped on real
