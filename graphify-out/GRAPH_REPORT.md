@@ -1,16 +1,16 @@
 # Graph Report - hospital_form_platform  (2026-07-12)
 
 ## Corpus Check
-- 1296 files · ~1,635,227 words
+- 1301 files · ~1,649,682 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 9061 nodes · 19338 edges · 1402 communities (513 shown, 889 thin omitted)
+- 9233 nodes · 19546 edges · 1407 communities (515 shown, 892 thin omitted)
 - Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 90 edges (avg confidence: 0.69)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `d1119f13`
+- Built from commit: `3447ce7c`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -95,7 +95,6 @@
 - Page
 - Interim multi org PHI guard (is multi org)
 - Dependencies
-- Loading
 - Loading
 - Route
 - ActionItemRow
@@ -542,15 +541,31 @@
 - 40. Example Scenarios
 - 8. Table: `app_resources`
 - 9. Table: `document_kinds`
+- loading.tsx
 - Phase 14b–14d — Patient-Safety / NSP: Triage, RCA & CAPA
 - hospital-admin-tier.spec.ts
+- Phase 14b–14d — Patient-Safety / NSP: Triage, RCA & CAPA
 - async-cheap-condition-before-await.md
 - Prefer Statically Analyzable Paths
 - server-hoist-static-io.md
 - loading.tsx
+- 0068 — Case-phase result engine: jsonb/array → FK-backed junctions (D3)
+- 0069 — Anglicize status-enum internal keys (D11)
+- Phase 8 — Dashboards & Submissions Browser (archived task detail)
 - loading.tsx
 - loading.tsx
 - 21. Recommended Dashboard Views
+- 27. Example: Simple Action Item
+- 21. Recommended Dashboard Views
+- loading.tsx
+- loading.tsx
+- loading.tsx
+- loading.tsx
+- loading.tsx
+- loading.tsx
+- loading.tsx
+- loading.tsx
+- loading.tsx
 - loading.tsx
 - 10. Related Records: `action_item_related_records`
 - 11. Updates: `action_item_updates`
@@ -684,10 +699,7 @@
 - phase-4.md
 - phase-5.md
 - phase-6.md
-- ADR 0033 — Case Access Control (per-case read/write grants, attribution-driven access & "Meus Casos")
-- 0058 — Derived quality-indicator measurement compute (the parity lock)
 - Feature — `case_phase_results` (per-phase categorical result + manual override)
-- page.tsx
 - Rule 2 — Canonical DB schema
 - event_patient (isolated PHI satellite)
 - form_item_options (normalized choice options)
@@ -895,7 +907,6 @@
 - Plan-vs-Actual Distinction Rationale
 - Custom access-token hook (JWT is_admin claim)
 - 27. Example: Simple Action Item
-- 28. Example: Complex Action Item
 - Conteudo/Comportamento Two-Column Grouping
 - ItemEditorDialog Component
 - OptionsEditor Table Redesign
@@ -1395,12 +1406,12 @@
 
 ## God Nodes (most connected - your core abstractions)
 1. `createClient()` - 515 edges
-2. `cn()` - 344 edges
+2. `cn()` - 346 edges
 3. `Button()` - 235 edges
-4. `commissionHref()` - 153 edges
+4. `commissionHref()` - 155 edges
 5. `getCommissionAccessByOrg` - 112 edges
 6. `getSessionContext` - 101 edges
-7. `Page` - 100 edges
+7. `Page` - 101 edges
 8. `FormBanner()` - 96 edges
 9. `NativeSelect()` - 69 edges
 10. `DialogContent()` - 62 edges
@@ -1415,7 +1426,7 @@
 - `signOut()` --references--> `Page`  [EXTRACTED]
   e2e/administrativo.spec.ts → src/lib/types/pagination.ts
 - `signInAs()` --references--> `Page`  [EXTRACTED]
-  e2e/case-narratives.spec.ts → src/lib/types/pagination.ts
+  e2e/answer-model-v2.spec.ts → src/lib/types/pagination.ts
 
 ## Import Cycles
 - None detected.
@@ -1424,211 +1435,211 @@
 - **Case triage classification badges (harm, preventability, status, sentinel)** — docs_design_dashboard_kpi_harm_badge, docs_design_dashboard_kpi_preventability_badge, docs_design_dashboard_kpi_status_badge, docs_design_dashboard_kpi_sentinel_flag [INFERRED 0.85]
 - **M&M committee KPI overview metrics** — docs_design_dashboard_kpi_kpi_awaiting_screening, docs_design_dashboard_kpi_kpi_on_next_agenda, docs_design_dashboard_kpi_kpi_under_review, docs_design_dashboard_kpi_kpi_overdue_review, docs_design_dashboard_kpi_kpi_closed_ytd, docs_design_dashboard_kpi_kpi_preventable_rate [EXTRACTED 1.00]
 
-## Communities (1402 total, 889 thin omitted)
+## Communities (1407 total, 892 thin omitted)
 
 ### Community 0 - "Case Lifecycle Actions"
 Cohesion: 0.05
-Nodes (81): CancelCaseButton(), ADR-0032, ConcludeNarrativeButton(), ADR-0033, ConfirmDeleteButton(), DetailPhase, ADR-0033, ADR-0061 (+73 more)
+Nodes (85): ConcludeNarrativeButton(), ADR-0033, CoordinatorPhaseActions(), DetailPhase, ADR-0033, ADR-0061, NarrativeTypeDialog(), NarrativeTypeManager() (+77 more)
 
 ### Community 1 - "Admin & Auth Pages"
 Cohesion: 0.05
-Nodes (78): AdminOrganizationsPage(), metadata, metadata, metadata, metadata, CommissionEditForm(), StaffAdminManager(), LoginForm() (+70 more)
+Nodes (77): metadata, metadata, metadata, metadata, CommissionEditForm(), StaffAdminManager(), LoginForm(), PasswordSetForm() (+69 more)
 
 ### Community 2 - "Shared UI & Phase Dialogs"
-Cohesion: 0.10
-Nodes (47): BannerTone, FormBanner(), toneStyles, ActivatePhaseDialog(), defaultDueDateValue(), ACCEPT, DOC_TYPES, EVENT_KINDS (+39 more)
+Cohesion: 0.05
+Nodes (95): BannerTone, FormBanner(), toneStyles, ActivatePhaseDialog(), defaultDueDateValue(), AddAdHocNarrativeDialog(), AddAdHocPhaseDialog(), ADR-0033 (+87 more)
 
 ### Community 3 - "Error & Not-Found Boundaries"
-Cohesion: 0.04
-Nodes (3): Button(), buttonVariants, Calendar()
+Cohesion: 0.03
+Nodes (13): metadata, ADR-0033, PhaseResultOverrideDialog(), MarkdownRenderer(), ADR-0012, Mode, SectionTextEditor(), AccessAuditTable() (+5 more)
 
 ### Community 4 - "Condition & Result Rule Editor"
 Cohesion: 0.07
-Nodes (49): ADR-0005, ConditionRow(), condToRow(), DraftRow, emptyRow(), initialToRows(), isLegacySingle(), nextUid() (+41 more)
+Nodes (46): ADR-0005, ConditionRow(), condToRow(), DraftRow, emptyRow(), initialToRows(), isLegacySingle(), nextUid() (+38 more)
 
 ### Community 5 - "Phase Answers & Assignments"
 Cohesion: 0.07
-Nodes (49): DashboardPage(), metadata, activePhases(), blockedBy(), BoardPhase, CaseStatusColumn, currentPhase(), groupByFixedStatus() (+41 more)
+Nodes (53): CasesBoardPage(), metadata, ADR-0038, ADR-0061, AssigneeAvatar(), ACTIVE_OR_PENDING, activePhases(), blockedBy() (+45 more)
 
 ### Community 6 - "Triage Disposition & Pathways"
 Cohesion: 0.07
-Nodes (58): DispositionRail(), NON_RCA_PATHWAYS, Pill(), HARM_DEFINITIONS, HarmScale(), ChoiceCard(), CLOSURE_DESCRIPTIONS, CLOSURE_ORDER (+50 more)
+Nodes (59): DispositionRail(), NON_RCA_PATHWAYS, Pill(), VerdictBlock(), HARM_DEFINITIONS, HarmScale(), ChoiceCard(), CLOSURE_DESCRIPTIONS (+51 more)
 
 ### Community 7 - "Case Documents"
-Cohesion: 0.21
-Nodes (19): ActionItemRow(), isItemOverdue(), ACTION_ITEM_STATUSES, ActionState, advanceActionItem(), authorizeCommission(), commissionOfCase(), completeActionItem() (+11 more)
+Cohesion: 0.12
+Nodes (30): CaseActionItemForm(), PhaseOption, ActionItemRow(), CaseActionItemsPanel(), isItemOverdue(), STATUS_ORDER, ADR-0033, ACTION_ITEM_STATUSES (+22 more)
 
 ### Community 8 - "RCA Problem Stage"
-Cohesion: 0.07
-Nodes (35): CaseNarrativeCard(), CasePhaseArticle(), DetailPhase, ADR-0033, ADR-0061, CasePhaseList(), ADR-0032, ADR-0033 (+27 more)
+Cohesion: 0.06
+Nodes (36): CaseDetailLayout(), ADR-0032, ADR-0033, ADR-0038, ADR-0061, CaseNarrativesBuilderPage(), metadata, ADR-0032 (+28 more)
 
 ### Community 9 - "Form Builder Actions"
 Cohesion: 0.06
-Nodes (63): ADR-0011, ActionState, addItem(), addSection(), ALL_ITEM_TYPES, ALLOWED_IMAGE_MIME, authorizeCommission(), CHOICE_TYPES (+55 more)
+Nodes (64): ADR-0011, SectionMetaDialog(), ActionState, addItem(), addSection(), ALL_ITEM_TYPES, ALLOWED_IMAGE_MIME, authorizeCommission() (+56 more)
 
 ### Community 10 - "Submission Detail (Answer Model)"
-Cohesion: 0.09
-Nodes (35): metadata, PhaseResponderPage(), metadata, ResponderPage(), metadata, resolveImageUrls(), ReviewAndSignPage(), ADR-0061 (+27 more)
+Cohesion: 0.05
+Nodes (61): metadata, PhaseResponderPage(), metadata, ResponderPage(), SubmissionsFiltersAsync(), SubmissionsFilters(), ConfirmationScreen(), resolveImageUrls() (+53 more)
 
 ### Community 11 - "Section Visibility & Blocks"
-Cohesion: 0.10
-Nodes (29): metadata, NewCommissionEventPage(), DocumentsLayout(), CaseNarrativesBuilderPage(), metadata, ProcessTemplateBuilderPage(), CaseOutcomesSettingsPage(), metadata (+21 more)
+Cohesion: 0.06
+Nodes (25): ADR 0024 — Case model adjustments: fixed statuses, phase blocking, outcomes, Consequences, Context, Decision, ADR 0025 — Meetings (scheduling, minutes/ata registry, internal e-signatures), Consequences, Context, Decision (+17 more)
 
 ### Community 12 - "CAPA Badges"
 Cohesion: 0.08
-Nodes (24): 0040 — Form Builder Enhancements: condition engine, per-item visibility, additive schema, conditionTargets widening (supersedes a prior decision), Consequences, Context, Decisions, 0046 — Forward-compatible form capabilities (repeating groups, answer blocks, field confidentiality) + default values, Alternatives rejected, Consequences (+16 more)
+Nodes (36): CommissionEventsPage(), metadata, NspConsoleLayout(), ADR-0052, NspPatientsPage(), metadata, NspInboxPage(), ADR-0042 (+28 more)
 
 ### Community 13 - "NSP Event Pages"
-Cohesion: 0.06
-Nodes (64): CommissionEventsPage(), metadata, metadata, NspEventDetailPage(), CapaEffectivenessPanel(), CapaHeader(), CapaPlanCard(), CustodyHistory() (+56 more)
+Cohesion: 0.08
+Nodes (45): metadata, NspEventDetailPage(), CapaPlanCard(), OpenCapaButton(), CustodyHistory(), EventStatusChip(), OwnerChip(), STATUS_ICON (+37 more)
 
 ### Community 14 - "RCA Analysis Stage"
-Cohesion: 0.18
-Nodes (13): OpenAttachmentButton(), ADR-0063, AttachmentLinkForm(), AttachmentUpload(), AttachmentsPanel(), ADR-0063, ATTACHMENT_KIND_LABEL, AttachmentsPanel() (+5 more)
+Cohesion: 0.13
+Nodes (19): ManageMembersPage(), metadata, ADR-0061, metadata, TitlesSettingsPage(), ADR-0051, AddMemberDialog(), listMemberTitles() (+11 more)
 
 ### Community 15 - "Case Department Field"
-Cohesion: 0.08
-Nodes (32): ADR-0025, AgendaItemForm(), AgendaPanel(), AgendaRow(), AttendeeForm(), AttendeeMemberOption, Kind, AttendeeRow() (+24 more)
+Cohesion: 0.25
+Nodes (9): TitleBadge(), ADR-0051, formatDateTime(), SignatureBadge(), SignButton(), RosterEntry, SignaturesPanel(), MeetingAttendee (+1 more)
 
 ### Community 16 - "Referral Detail & Formatting"
-Cohesion: 0.17
-Nodes (18): metadata, ReferralDetailPage(), formatDateTime(), formatFileSize(), referralTypeChipClass(), LinkableTargetCase, ReferralTypeChip(), ReferralDisposeDialog() (+10 more)
+Cohesion: 0.09
+Nodes (40): metadata, ReferralDetailPage(), formatCaseNumber(), formatDate(), formatDateTime(), formatFileSize(), formatReferralCode(), referralStatusChipClass() (+32 more)
 
 ### Community 17 - "Staff Case Detail"
-Cohesion: 0.04
-Nodes (39): createForm(), enterWizardByTitle(), openAddBlock(), publishForm(), purge(), signInAs(), sql(), ADR-0045 (+31 more)
+Cohesion: 0.05
+Nodes (29): openQuestionDialog(), signInAs(), signInAs(), signInAs(), ADR-0042, freshOpenCaseId(), getChefeToken(), goToCaseDetail() (+21 more)
 
 ### Community 18 - "Org Overview Dashboard"
-Cohesion: 0.09
-Nodes (33): formatMeetingNumber(), MeetingStatusBadge(), MeetingTypeChip(), MeetingHeader(), ADR-0062, ACTION_ITEM_STATUS_LABEL, ACTION_ITEM_STATUS_STYLE, ATTACHMENT_KIND_ORDER (+25 more)
+Cohesion: 0.07
+Nodes (37): ADR-0025, AttendeeForm(), AttendeeMemberOption, AttendeesPanel(), QuorumSummary(), ActionItemStatusBadge(), AttendanceBadge(), ACTION_ITEM_STATUS_LABEL (+29 more)
 
 ### Community 19 - "Quality Indicators"
-Cohesion: 0.12
-Nodes (23): DerivedConfigPicker(), PickerForm, PickerOption, PickerQuestion, BuilderFields(), COMPARATORS, ControlledState, CreateAction (+15 more)
+Cohesion: 0.10
+Nodes (24): metadata, NewIndicatorPage(), DerivedConfigPicker(), allowedSources(), BuilderFields(), COMPARATORS, ControlledState, CreateAction (+16 more)
 
 ### Community 20 - "NSP Patient Registry"
-Cohesion: 0.07
-Nodes (43): metadata, parseEntityParam(), ADR-0039, ADR-0052, VALID_MODULES, AccessAuditTable(), formatDate(), formatDateTime() (+35 more)
+Cohesion: 0.08
+Nodes (40): metadata, parseEntityParam(), ADR-0039, ADR-0052, VALID_MODULES, formatDate(), patientModuleChipClass(), ADR-0039 (+32 more)
 
 ### Community 21 - "Form Builder Page"
-Cohesion: 0.07
-Nodes (44): BuilderPage(), metadata, resolveImageUrls(), DATE_FMT, metadata, resolveImageUrls(), VersionsPage(), FormCard() (+36 more)
+Cohesion: 0.05
+Nodes (59): formatDateTime(), metadata, resolveImageUrls(), SubmissionDetailPage(), BuilderPage(), metadata, resolveImageUrls(), DATE_FMT (+51 more)
 
 ### Community 22 - "CAPA Actions & Closure"
 Cohesion: 0.06
 Nodes (31): App-layer ripple, App-layer ripple, App-layer ripple, App-layer ripple: **none.**  ### Review flag: 🟢. **Open decision → D8-Q1 (skip vs COMMENT migration).**, Current state, Current state, Current state (full sweep), Current state — structural findings (+23 more)
 
 ### Community 23 - "My Cases List"
-Cohesion: 0.08
-Nodes (38): OutcomeBreakdownRow, CaseOutcomeSelector(), CaseStatusBadge(), CaseStatus, CaseStatusColorToken, allowedFromJunction(), BoardPhaseJson, BoardRowJson (+30 more)
+Cohesion: 0.06
+Nodes (45): OutcomeBreakdownRow, MyCaseCard(), FilterChip(), hasOpenAssignment(), isOpenCase(), MyCasesFilter(), ADR-0033, CaseStatus (+37 more)
 
 ### Community 24 - "Auth Callback & Meeting Settings"
-Cohesion: 0.12
-Nodes (54): LegacyMeetingsSettingsPage(), UploadDialog(), isTerminalMeetingStatus(), MeetingLifecycleActions(), addMeetingAttendee(), AgendaItemInput, ALLOWED_ATTACHMENT_MIME, archiveMeetingType() (+46 more)
+Cohesion: 0.11
+Nodes (59): ActionItemRow(), AgendaItemForm(), AgendaRow(), UploadDialog(), AttendeeRow(), MeetingLifecycleActions(), addMeetingAttendee(), advanceMeetingActionItem() (+51 more)
 
 ### Community 25 - "Referral Actions & Reply"
-Cohesion: 0.18
-Nodes (25): ReferralActions(), getReferralPatient(), acceptReferral(), addReferralReplyAttachment(), addReferralSharedItem(), concludeReferral(), createReferralDraft(), declineReferral() (+17 more)
+Cohesion: 0.17
+Nodes (26): ReferralActions(), SafetyEventPrefill, CaseSafetyPrefill, getReferralPatient(), acceptReferral(), addReferralReplyAttachment(), addReferralSharedItem(), concludeReferral() (+18 more)
 
 ### Community 26 - "NSP Referrals Dashboard"
-Cohesion: 0.08
-Nodes (33): CommissionReferralsPage(), metadata, metadata, ADR-0042, buildCaseReferralsModule(), NOTE: the safety-event PHI pre-fill is intentionally NOT assembled here — the, ReferralsHubSections(), isPqsMemberSelf() (+25 more)
+Cohesion: 0.09
+Nodes (35): CommissionReferralsPage(), metadata, deriveFlowMetrics(), metadata, NspReferralsDashboardPage(), ADR-0042, buildCaseReferralsModule(), NOTE: the safety-event PHI pre-fill is intentionally NOT assembled here — the (+27 more)
 
 ### Community 27 - "Case & Phase Actions"
-Cohesion: 0.12
-Nodes (38): AddAdHocPhaseDialog(), CreateCaseDialog(), ActionState, activatePhase(), addAdHocPhase(), AddAdHocPhaseState, authorizeCommission(), cancelCase() (+30 more)
+Cohesion: 0.14
+Nodes (34): CancelCaseButton(), CreateCaseDialog(), ActionState, activatePhase(), addAdHocPhase(), AddAdHocPhaseState, authorizeCommission(), cancelCase() (+26 more)
 
 ### Community 28 - "Meeting Detail & Agenda"
-Cohesion: 0.06
-Nodes (46): MeetingsSettingsTabPage(), metadata, MeetingDetailPage(), metadata, AttachmentUpload(), ADR-0063, CaseLinker(), formatCaseNumber() (+38 more)
+Cohesion: 0.07
+Nodes (40): MeetingDetailPage(), metadata, ActionItemsPanel(), AgendaPanel(), isEditableStatus(), MeetingMinutesEditor(), MeetingSettingsView(), MeetingTypeManager() (+32 more)
 
 ### Community 29 - "NSP CAPA/RCA Pages"
-Cohesion: 0.18
-Nodes (20): metadata, NspCapaPage(), metadata, NspRcaPage(), getCapaEffectiveness(), getCapaPlan(), listCapaActionEvidence(), listCapaActions() (+12 more)
+Cohesion: 0.06
+Nodes (58): metadata, NspCapaPage(), metadata, NspRcaPage(), CapaClassificationChip(), CapaSourceBadge(), CapaStatusChip(), CapaVerdictChip() (+50 more)
 
 ### Community 30 - "CAPA Evidence & Cards"
-Cohesion: 0.15
-Nodes (35): GET(), SUCCESS_REDIRECT, CapaActionCard(), CapaEvidenceList(), CapaTaskList(), getCasePatients(), getParticipantPatient(), mapCasePatient() (+27 more)
+Cohesion: 0.09
+Nodes (47): CapaActionCard(), CapaActionStatusChip(), CapaStrengthPill(), CapaEvidenceLinkForm(), CapaEvidenceUpload(), CapaEvidenceList(), CancelButton(), ReopenButton() (+39 more)
 
 ### Community 31 - "Case Narrative Editor"
-Cohesion: 0.09
-Nodes (45): metadata, NarrativeEditorPage(), ADR-0033, metadata, roleFromCapabilities(), StaffCaseDetailPage(), ADR-0033, ADR-0061 (+37 more)
+Cohesion: 0.06
+Nodes (69): metadata, roleFromCapabilities(), StaffCaseDetailPage(), ADR-0033, ADR-0061, CaseDetailPage(), metadata, ADR-0033 (+61 more)
 
 ### Community 32 - "Form Item Editor & Tests"
 Cohesion: 0.06
-Nodes (43): ADR-0033, ExpiryPreset, GrantDialog(), isoDaysFromNow(), isoTomorrow(), ADR-0033, ADR-0050, ymdFromIso() (+35 more)
+Nodes (41): CasePatientEditDialog(), ADR-0038, TemplateOption, ADR-0038, OutcomeMultiselect(), ADR-0051, casePatientToDraft(), EventNotifyForm() (+33 more)
 
 ### Community 33 - "Submission Detail Blocks"
-Cohesion: 0.21
-Nodes (11): PhaseAnswersReadonly(), AnswerSummary(), formatIsoDate(), OptionChip(), renderValue(), choiceItem(), opt(), isEmptyValue() (+3 more)
+Cohesion: 0.06
+Nodes (42): metadata, PhaseAnswersPage(), GrantExpiry(), CaseDocumentsPanel(), CasePhaseArticle(), DetailPhase, ADR-0033, ADR-0061 (+34 more)
 
 ### Community 34 - "Phase Responder & Submissions"
-Cohesion: 0.14
-Nodes (37): UploadDialog(), InterviewLifecycleActions(), ActionState, AddAttachmentState, AddInterviewerState, addInterviewInterviewer(), addInterviewLink(), addInterviewSubject() (+29 more)
+Cohesion: 0.16
+Nodes (33): UploadDialog(), InterviewLifecycleActions(), bucketForTier(), addInterviewInterviewer(), addInterviewLink(), addInterviewSubject(), ALLOWED_ATTACHMENT_MIME, ATTACHMENT_KINDS (+25 more)
 
 ### Community 35 - "Case Narrative Cards"
-Cohesion: 0.12
-Nodes (40): metadata, ADR-0032, FormsListPage(), metadata, AddAdHocNarrativeDialog(), ConstrutorTabs(), CreateFormDialog(), caseAccessEnabled() (+32 more)
+Cohesion: 0.18
+Nodes (33): caseAccessEnabled(), addAdHocNarrative(), addTemplateNarrative(), archiveNarrativeType(), assignNarrative(), authorizeCommission(), CaseLayoutOrderItem, commissionOfCase() (+25 more)
 
 ### Community 36 - "Phase Result Actions"
-Cohesion: 0.26
+Cohesion: 0.27
 Nodes (21): ActionState, AddPhaseState, addTemplatePhase(), archiveProcessTemplate(), authorizeCommission(), commissionOfTemplate(), contextOfPhase(), createProcessTemplate() (+13 more)
 
 ### Community 37 - "Admin Layout & Claims"
-Cohesion: 0.04
-Nodes (88): CapaActionForm(), userLabel(), CapaActionsSection(), CapaActionStatusChip(), CapaClassificationChip(), CapaSourceBadge(), CapaStatusChip(), CapaStrengthPill() (+80 more)
+Cohesion: 0.11
+Nodes (35): CapaActionForm(), userLabel(), CapaActionsSection(), CapaClosurePanel(), activePdcaStage(), allActionsSettled(), allMeasuresHaveResults(), canAdvanceAction() (+27 more)
 
 ### Community 38 - "Interview & Agenda Forms"
-Cohesion: 0.06
-Nodes (80): CaseTimelinePage(), metadata, timelineResultToResolved(), AvatarStack(), CaseTimeline(), DAY_MONTH, DERIVED_PILL, durationSuffix() (+72 more)
+Cohesion: 0.11
+Nodes (18): 5.11 `referral_resolutions`, 5.4 `referral_assignments`, 5.6 `referral_internal_notes`, 5.8 `referral_message_documents`, 5. Table Definitions, Columns, Columns, Columns (+10 more)
 
 ### Community 39 - "Forms & Process Templates"
-Cohesion: 0.12
-Nodes (23): metadata, OrgUsersPage(), ADR-0051, UserDirectoryList(), UserDirectorySearch(), UserPagination(), STATUS_LABEL, STATUS_STYLES (+15 more)
+Cohesion: 0.11
+Nodes (22): metadata, ADR-0051, UserDirectoryList(), UserDirectorySearch(), UserPagination(), STATUS_LABEL, STATUS_STYLES, UserStatusBadge() (+14 more)
 
 ### Community 40 - "Derived Indicator Config"
-Cohesion: 0.10
-Nodes (34): OutcomeDefDialog(), OutcomeMultiselect(), CollectsPatientPicker(), ADR-0038, PhaseBlocksEditor(), ProcessOutcomesPicker(), PublishedOutcomesCard(), OUTCOMES (+26 more)
+Cohesion: 0.30
+Nodes (16): ActionState, archiveCaseOutcome(), authorizeCommission(), commissionOfCase(), commissionOfOutcome(), commissionOfTemplate(), createCaseOutcome(), mapOutcomeError() (+8 more)
 
 ### Community 41 - "Meeting Attendees & Quorum"
-Cohesion: 0.15
-Nodes (17): react, HeldWindowFields(), isFuture(), localToIso(), ADR-0062, useHeldWindowState(), MeetingHeldEdit(), HeldTransitionButton() (+9 more)
+Cohesion: 0.12
+Nodes (19): react, FLAGGED_OPS, FlaggedWhenEditor(), OP_LABELS, HeldWindowFields(), isFuture(), localToIso(), ADR-0062 (+11 more)
 
 ### Community 42 - "Hospital Detail Pages"
 Cohesion: 0.07
 Nodes (27): 0. Conflicts named (plan wins) + verified-fact corrections, A.1 `public.attachments` — core (single authorizing owner + six ADR-0063 seams), A.2 `public.attachment_references` — non-authorizing "also appears here" (ADR-0063 §1), A.3 `public.attachment_subjects` — descriptive, PHI-safe, **participant-keyed (C-β)**, A.4 `public.case_interview_links` — interview external links (14e D3; unchanged by ADR-0063), A. Table / column DDL plan (attachments + companions), Appendix — verified F1/baseline build surface (symbols F2 depends on), B.1 `app.commission_of_attachment(owner_type text, owner_id uuid) returns uuid` (+19 more)
 
 ### Community 43 - "Narrative Templates"
-Cohesion: 0.08
-Nodes (26): ArchiveNarrativeTypeButton(), NarrativeTypeManager(), useNarrativeAction(), ArchiveTemplateButton(), NarrativeSlotCard(), NarrativeSlotDialog(), PhaseSlotCard(), initialResultValue() (+18 more)
+Cohesion: 0.05
+Nodes (82): CaseTimelinePage(), metadata, timelineResultToResolved(), AvatarStack(), CaseTimeline(), DAY_MONTH, DERIVED_PILL, durationSuffix() (+74 more)
 
 ### Community 44 - "Event Notification & Triage"
-Cohesion: 0.19
-Nodes (18): AcknowledgeButton(), acknowledgeEvent(), cancelEvent(), disposeEventPhi(), notifySafetyEvent(), revalidateSafety(), setEventPatient(), transferEventCustody() (+10 more)
+Cohesion: 0.14
+Nodes (27): GET(), SUCCESS_REDIRECT, AcknowledgeButton(), assignMemberTitle(), createMemberTitle(), deleteMemberTitle(), MESSAGES, renameMemberTitle() (+19 more)
 
 ### Community 45 - "Page"
 Cohesion: 0.06
-Nodes (22): 0062 — Meeting actual-occurrence time (`held_at` / `held_end`), Consequences, Context, Decision, Archive — Bug Log (resolved & closed), Archive — Increment: Case Narratives, Increment: Case Narratives (feature-flagged; plan `on-this-platform-a-zazzy-waterfall.md`), Archive — `case_patient` (third PHI module; ADR 0038) (+14 more)
+Nodes (30): 0040 — Form Builder Enhancements: condition engine, per-item visibility, additive schema, conditionTargets widening (supersedes a prior decision), Consequences, Context, Decisions, 0046 — Forward-compatible form capabilities (repeating groups, answer blocks, field confidentiality) + default values, Alternatives rejected, Consequences (+22 more)
 
 ### Community 46 - "Page"
-Cohesion: 0.33
-Nodes (10): ActionState, authorizeCommission(), CaseAccessLevel, commissionOfCase(), grantCaseAccess(), mapError(), MESSAGES, revalidateCase() (+2 more)
+Cohesion: 0.12
+Nodes (16): 12. Transactional Outbox and Notifications, 13. Audit and Retention, 15.1 Optimistic concurrency, 15.2 Pessimistic locking for commands, 15.3 Idempotency keys, 15. Concurrency Control, 16. Suggested Application-Layer Domain Model, 18.1 Referral inbox (+8 more)
 
 ### Community 47 - "Layout"
-Cohesion: 0.13
-Nodes (18): metadata, OrgNspCoordinatorsPage(), metadata, OrgNspOverviewPage(), personLabel(), ADR-0052, NspOrgHospitalManager(), NspOrgRollups() (+10 more)
+Cohesion: 0.12
+Nodes (21): metadata, OrgNspCoordinatorsPage(), metadata, OrgNspOverviewPage(), personLabel(), ADR-0052, NspOrgHospitalManager(), NspOrgRollups() (+13 more)
 
 ### Community 48 - "Page"
-Cohesion: 0.14
-Nodes (19): CHOICE_OPS, CHOICE_TARGET_TYPES, ConditionBuilder(), DraftRow, isChoiceTarget(), isGroup(), nextUid(), OP_LABELS (+11 more)
+Cohesion: 0.08
+Nodes (30): CHOICE_OPS, CHOICE_TARGET_TYPES, ConditionBuilder(), isChoiceTarget(), isGroup(), nextUid(), OP_LABELS, opsForType() (+22 more)
 
 ### Community 49 - "IsTerminalMeetingStatus"
-Cohesion: 0.07
-Nodes (30): OrgCommissionDetailError(), HospitalDetailPage(), metadata, metadata, OrgHospitalsPage(), AREAS, ManageArea, metadata (+22 more)
+Cohesion: 0.04
+Nodes (75): AdminOrganizationsPage(), metadata, PrimeiroAcessoPage(), PendingApprovalsLayout(), metadata, OrgAdministratorsPage(), ADR-0051, ADR-0052 (+67 more)
 
 ### Community 50 - "Page"
-Cohesion: 0.31
-Nodes (9): metadata, OrgAdministratorsPage(), ADR-0051, ADR-0052, listHospitalAdmins(), listNspOrgAdmins(), listOrgHospitals(), mapRoleHolders() (+1 more)
+Cohesion: 0.13
+Nodes (14): AdminLayout(), ADR-0042, ENTITY_ICON, EntityIcon(), resolveEntityIcon(), AuditEntityType, AuditFilterActor, AuditListRow (+6 more)
 
 ### Community 51 - "UserLifecycleActions"
 Cohesion: 0.14
@@ -1639,80 +1650,80 @@ Cohesion: 0.12
 Nodes (23): metadata, MyActionItemsPage(), ActionItemSourceBadge(), ActionItemStatusBadge(), SOURCE_META, STATUS_META, ActionItemsTable(), compareItems() (+15 more)
 
 ### Community 53 - "Page"
-Cohesion: 0.09
-Nodes (32): metadata, OrgCommissionsPage(), ADR-0051, metadata, OrgDocumentsPage(), metadata, OrgRegisterUserPage(), ADR-0051 (+24 more)
+Cohesion: 0.18
+Nodes (15): metadata, NarrativeEditorPage(), ADR-0033, canEditNarrative(), NarrativeEditor(), ActionState, authorizeCommission(), CaseAccessLevel (+7 more)
 
 ### Community 54 - "Section signoff fields"
-Cohesion: 0.09
-Nodes (47): item(), CHOICE_TYPES, computeEffectiveVisibility(), EffectiveVisibility, INPUT_ITEM_TYPES, INPUT_TYPES, isChoiceItem(), isInputItem() (+39 more)
+Cohesion: 0.10
+Nodes (42): item(), CHOICE_TYPES, computeEffectiveVisibility(), EffectiveVisibility, INPUT_ITEM_TYPES, INPUT_TYPES, isChoiceItem(), isInputItem() (+34 more)
 
 ### Community 55 - "ListMeetings"
-Cohesion: 0.12
-Nodes (22): IndicatorsPage(), metadata, ActionItemFallbackDialog(), HybridComputeDialog(), formatIndicatorValue(), formatPeriodLabel(), formatTarget(), IndicatorKindBadge() (+14 more)
+Cohesion: 0.23
+Nodes (12): IndicatorsPage(), metadata, formatPeriodLabel(), formatTarget(), IndicatorKindBadge(), MeasurementStatusChip(), STATUS_STYLES, IndicatorList() (+4 more)
 
 ### Community 56 - "Page"
-Cohesion: 0.17
-Nodes (22): EditDocumentPage(), metadata, metadata, NewDocumentPage(), DocumentEditor(), addDocumentVersion(), ALLOWED_DOCUMENT_MIME, approveDocument() (+14 more)
+Cohesion: 0.27
+Nodes (17): addDocumentVersion(), ALLOWED_DOCUMENT_MIME, approveDocument(), createControlledDocument(), mapDocumentError(), markDocumentObsolete(), MESSAGES, parseDate() (+9 more)
 
 ### Community 57 - "TitleAssignControl"
-Cohesion: 0.08
-Nodes (37): ManageMembersPage(), metadata, ADR-0061, ConfirmRemoveButton(), AddMemberDialog(), CAPABILITIES, MemberAdministrativoControls(), ADR-0061 (+29 more)
+Cohesion: 0.10
+Nodes (27): ConfirmRemoveButton(), TitleAssignControl(), ADR-0051, CAPABILITIES, MemberAdministrativoControls(), ADR-0061, MemberList(), ADR-0051 (+19 more)
 
 ### Community 58 - "Condition builder"
-Cohesion: 0.16
-Nodes (16): EditIndicatorPage(), metadata, metadata, NewIndicatorPage(), SettingsIndexPage(), MyCaseItemAction(), BuilderHeader(), ArchiveIndicatorButton() (+8 more)
+Cohesion: 0.06
+Nodes (39): metadata, SubmissionsPage(), metadata, FormsListPage(), metadata, EditDocumentPage(), metadata, metadata (+31 more)
 
 ### Community 59 - "Interview badges"
 Cohesion: 0.13
 Nodes (13): readHiddenDateValue(), buildPublishedDoc(), commissionDocHref(), cookieJar, loginFresh(), ownerTokenCache, pdfPayload, pickApprover() (+5 more)
 
 ### Community 60 - "Page"
-Cohesion: 0.33
-Nodes (7): ADR-0052, addPqsMember(), MESSAGES, removePqsMember(), revalidateNsp(), setPqsRcaDueWindow(), ADR-0052
+Cohesion: 0.12
+Nodes (8): ADR-0026, confirmLifecycle(), goToCaseDetail(), IMPORTANT: by the time this test runs, AC1 may have cancelled the seeded, NOTE: The seeded interview has attachments AND canEdit=true for chefe.ccih, signInAs(), signOut(), ADR-0063
 
 ### Community 61 - "CaseActionItemForm"
-Cohesion: 0.13
-Nodes (19): metadata, ProcessTemplatesListPage(), CreateProcessTemplateDialog(), ProcessTemplateCard(), STATUS_LABEL, STATUS_STYLES, TemplateStatusBadge(), listProcessTemplates() (+11 more)
+Cohesion: 0.06
+Nodes (43): DraftRow, AGGREGATE_OPS, aggregateKeyFor(), AllowedResultsPicker(), AutomaticEditor(), Criterion, criterionForKey(), DraftRule (+35 more)
 
 ### Community 62 - "VersionWithUrl"
-Cohesion: 0.09
-Nodes (36): asDocStatus(), asDocType(), DOC_STATUSES, DOC_TYPES, DocumentsPage(), metadata, STATUS_CLASSES, APPROVAL_DECISION_LABELS (+28 more)
+Cohesion: 0.05
+Nodes (78): DocumentDetailPage(), metadata, asDocStatus(), asDocType(), DOC_STATUSES, DOC_TYPES, DocumentsPage(), metadata (+70 more)
 
 ### Community 63 - "UploadDialog"
-Cohesion: 0.10
-Nodes (28): InterviewDetailPage(), metadata, InterviewerRoleBadge(), isEditableInterviewStatus(), InterviewSummaryEditor(), InterviewerForm(), InterviewerMemberOption, InterviewerRow() (+20 more)
+Cohesion: 0.07
+Nodes (45): InterviewDetailPage(), metadata, ConfirmDeleteButton(), InterviewerRoleBadge(), ATTACHMENT_KIND_LABEL, ATTACHMENT_KIND_ORDER, INTERVIEW_STATUS_LABEL, INTERVIEW_STATUS_ORDER (+37 more)
 
 ### Community 64 - "Layout"
 Cohesion: 0.05
 Nodes (42): 10. Findings, 1.1 `case_phases` carries status/assignee/recommended only — never answers, 1.2 Coordinator board reads (`list_cases_board` / `get_case_detail`), 1.3 `case_phase_answer_map` is submitted-only, 1.4 `recompute_recommendations` is submitted-only end-to-end, 1.5 `responses_select` / `answers_select` not broadened, 1.6 RLS check in the E2E suite, 1.7 Service-role key not reachable client-side (+34 more)
 
 ### Community 65 - "Page"
-Cohesion: 0.14
-Nodes (19): RespondentSignoff(), ReviewScreen(), ReviewSection(), formatDate(), RespondentContext(), ReviewAndSign(), SectionBody(), ADR-0061 (+11 more)
+Cohesion: 0.10
+Nodes (26): metadata, resolveImageUrls(), ReviewAndSignPage(), ADR-0061, SectionSignoffFields(), RespondentSignoff(), signoffRecordsToMap(), toClientResponseForSignoff() (+18 more)
 
 ### Community 66 - "Case tags panel"
-Cohesion: 0.12
-Nodes (26): ADR-0032, ADR-0033, ADR-0033, AddBlockMenu(), DISPLAY_TYPES, INPUT_TYPES, blankOption(), COLOR_TOKENS (+18 more)
+Cohesion: 0.08
+Nodes (45): CaseNarrativeCard(), NarrativeAssignMenu(), ADR-0032, ADR-0033, CaseTagsPanel(), ADR-0033, AddBlockMenu(), DISPLAY_TYPES (+37 more)
 
 ### Community 67 - "Event type manager"
-Cohesion: 0.15
-Nodes (23): metadata, PrimeiroAcessoPage(), ActionState, isCommissionAdmin(), APPOINT_MESSAGES, assignHospitalAdmin(), assignNspCoordinator(), assignNspOrgAdmin() (+15 more)
+Cohesion: 0.19
+Nodes (10): activatePhase(), createCase(), insertChoiceOptions(), rpc(), saveAnswer(), signInAs(), slug(), startResponse() (+2 more)
 
 ### Community 68 - "Page"
 Cohesion: 0.17
-Nodes (20): AdminAuditPage(), metadata, CommissionAuditPage(), metadata, metadata, ADR-0051, AuditEmptyState(), AuditFiltersAsync() (+12 more)
+Nodes (22): AdminAuditPage(), metadata, CommissionAuditPage(), metadata, metadata, OrgAuditPage(), ADR-0051, AuditEmptyState() (+14 more)
 
 ### Community 69 - "Page"
-Cohesion: 0.22
-Nodes (10): metadata, appOrigin(), AuthState, MESSAGES, requestPasswordReset(), resolveLanding(), safeRedirectPath(), signIn() (+2 more)
+Cohesion: 0.13
+Nodes (15): 0. Why, 1. The three-bucket disposition (summary — full rationale in the evaluation doc), 2. Design spine — cross-cutting rules every phase conforms to, 3. Phased sequence, 4. Migration batching & ownership (no two teammates touch one file per phase — CLAUDE.md §4), 5. Avoided items (recorded so builders don't reintroduce them), 6. Testing & gates, 7. Risks & open decisions for the product owner (+7 more)
 
 ### Community 70 - "Phase result badge"
 Cohesion: 0.05
 Nodes (40): 1. Requirements Audit (PHASES.md §Phase 5), 2. Security / RLS Audit (Architecture Rule 1 + Rule 3), 3. Code Quality (Architecture Rule 9 + CLAUDE.md §8), 4. UX & Accessibility (CLAUDE.md §8, Architecture Rule 7), 5. Hygiene, 6. Findings, 7. Scope Deferrals Confirmed (Not Findings), 8. RLS Verification Summary (+32 more)
 
 ### Community 71 - "Wizard runner"
-Cohesion: 0.17
-Nodes (21): saveAndExit, saveSection, signSection, submitCasePhaseResponse, submitResponse, WizardRunner(), ActionState, authorizeMember() (+13 more)
+Cohesion: 0.16
+Nodes (22): WizardActions, saveAndExit, saveSection, signSection, submitCasePhaseResponse, submitResponse, WizardRunner(), ActionState (+14 more)
 
 ### Community 72 - "Case timeline"
 Cohesion: 0.08
@@ -1731,8 +1742,8 @@ Cohesion: 0.09
 Nodes (21): aliases, components, hooks, lib, ui, utils, iconLibrary, menuAccent (+13 more)
 
 ### Community 77 - "Page"
-Cohesion: 0.22
-Nodes (12): CasesBoardPage(), metadata, ADR-0038, ADR-0061, ACTIVE_OR_PENDING, computeCaseKpis(), computeOutcomeBreakdown(), isSameMonth() (+4 more)
+Cohesion: 0.09
+Nodes (26): DashboardCharts(), groupBySection(), SectionEntry, SectionGroupData, DashboardFilters(), FormPicker(), CHART_COLORS, DistributionChart() (+18 more)
 
 ### Community 79 - "Dependencies"
 Cohesion: 0.09
@@ -1743,24 +1754,24 @@ Cohesion: 0.09
 Nodes (22): 1. Data model (shared by both layouts), 2. Design token mapping, 3.1 Geometry constants (recommended; adapt to your scale), 3.2 Axis header, 3.3 Background layers (behind events), 3.4 Phase bars (width = duration), 3.5 Single-day pins, 3.6 Event states (visual) (+14 more)
 
 ### Community 82 - "Route"
-Cohesion: 0.11
-Nodes (21): EMPTY_REFERRAL_PATIENT_DRAFT, ReferralPatientDraft, referralPatientDraftToInput(), ReferralPatientFields(), SEX_ORDER, ADR-0037, AddReplyAttachmentInput, AddSharedItemInput (+13 more)
+Cohesion: 0.08
+Nodes (28): EMPTY_REFERRAL_PATIENT_DRAFT, ReferralPatientDraft, referralPatientDraftHasData(), referralPatientDraftToInput(), ReferralPatientFields(), SEX_ORDER, ADR-0037, ReferralSendWizard() (+20 more)
 
 ### Community 83 - "ActionItemRow"
-Cohesion: 0.12
-Nodes (20): AGGREGATE_OPS, aggregateKeyFor(), AllowedResultsPicker(), AutomaticEditor(), Criterion, criterionForKey(), isRuleComplete(), nextUid() (+12 more)
+Cohesion: 0.19
+Nodes (13): IndicatorDetailPage(), metadata, isPqsOperatorOfIndicatorHospital(), ADR-0057, DATA_SOURCE_LABELS, INDICATOR_DIRECTION_LABELS, INDICATOR_FREQUENCY_LABELS, INDICATOR_STATUS_LABELS (+5 more)
 
 ### Community 84 - "CaseActionItemsPanel"
-Cohesion: 0.28
-Nodes (19): EventTypeManager(), SentinelCriterionManager(), TriageWorkstation(), VocabManager(), mapTriageError(), archiveEventType(), archiveSentinelCriterion(), confirmTriage() (+11 more)
+Cohesion: 0.26
+Nodes (20): EventTypeManager(), SentinelCriterionManager(), draftFromTriage(), TriageWorkstation(), VocabManager(), mapTriageError(), archiveEventType(), archiveSentinelCriterion() (+12 more)
 
 ### Community 85 - "Case document delete"
 Cohesion: 0.09
 Nodes (21): fieldContainer(), fillTimeField(), pickDate(), pickDateKeyboard(), setDateTimeField(), setDateTimeFieldKeyboard(), callRPC(), createAgendadaMeeting() (+13 more)
 
 ### Community 86 - "Gantt axis"
-Cohesion: 0.11
-Nodes (27): CaseOutboundReferralsCard(), formatCaseNumber(), formatDate(), formatReferralCode(), referralStatusChipClass(), ADR-0037, LinkCaseDialog(), ReferralDirectionChip() (+19 more)
+Cohesion: 0.15
+Nodes (13): Area findings, D10 — `updated_at` triggers  🟢 — SOUND, D11 — status-key anglicization (G1–G6)  🔴 scope — SOUND, D3 — result-engine junctions  🔴 (the crux) — SOUND, D8 — forward-FK lock  🟢 — SOUND, F-cleanup — QA Review (D3 · D10 · D8 · D11), Findings (ranked), Recommendation (+5 more)
 
 ### Community 87 - "Tsconfig.json"
 Cohesion: 0.10
@@ -1783,100 +1794,100 @@ Cohesion: 0.06
 Nodes (31): 22. Key Design Decisions and Justifications, Decision, Decision 10 — Audit both reads and writes for sensitive cases, Decision 1 — Replace patient-centered case ownership with generic committee cases, Decision 2 — Add `case_types`, Decision, Decision, Decision (+23 more)
 
 ### Community 93 - "Page"
-Cohesion: 0.06
-Nodes (51): metadata, NspConfigPage(), ADR-0052, deriveFlowMetrics(), NspReferralsDashboardPage(), metadata, NspRosterPage(), ADR-0052 (+43 more)
+Cohesion: 0.09
+Nodes (27): metadata, NspConfigPage(), ADR-0052, metadata, NspRosterPage(), ADR-0052, personLabel(), PqsRosterManager() (+19 more)
 
 ### Community 94 - "Page"
 Cohesion: 0.07
 Nodes (29): 0 · CAPA-surface confirmation (B1 (a) — closes the pre-WS-3c-baseline risk), 1.1 `public.indicators`, 1.2 `public.indicator_measurements`, 1.3 `app.mint_indicator_code()` — per-commission (reuses the `mint_meeting_number` pattern), 1.4 Flag seed — **OFF**, 1.5 RLS (Rule 1) — **posture (b): DEFINER-RPC-only writes (LEAD DECISION 2026-07-05)**, 1.6 Audit AFTER-triggers (Rule 11 — non-sensitive allow-list, **never `description_md`**), 1 · Migration set (B2 — `20260712000000_indicators_core.sql`) (+21 more)
 
 ### Community 95 - "Page"
-Cohesion: 0.07
-Nodes (24): ADR 0009 — Local JWT verification for the auth gate & identity, Consequences, Context, Decision, Rationale, 0010 — Denormalize email onto public.profiles, Consequences, Context (+16 more)
+Cohesion: 0.25
+Nodes (8): Bug trail (all resolved), Final gate result (§6.2 / §6.3), Open follow-up (deploy), QA verdict history, Summary, Task detail, Test-run log (rotated from Test Run Summary), User Registration & Identity Management — phase record (archived)
 
 ### Community 96 - "Page"
-Cohesion: 0.13
-Nodes (19): metadata, SubmissionsPage(), formatDateTime(), SubmissionRow(), SubmissionsFiltersAsync(), SelectionRow, DetailAnswerRow, DetailResponseRow (+11 more)
+Cohesion: 0.17
+Nodes (8): createForm(), enterWizardByTitle(), openAddBlock(), publishForm(), purge(), signInAs(), sql(), ADR-0045
 
 ### Community 97 - "ActionItemForm"
 Cohesion: 0.07
 Nodes (29): 1. Requirements Coverage, 2.1 The three predicates, 2.2 Flag-OFF fallback — no ON-path gap, 2.3 Anon / PUBLIC EXECUTE, 2.4 `case_access` SELECT policy scoping, 2.5 Additive `case_documents` / `case_events` WRITE policies, 2.6 Submitted-only invariant (Phase-7), 2.7 PHI isolation (Architecture Rule 12) (+21 more)
 
 ### Community 98 - "Referral patient fields"
-Cohesion: 0.12
-Nodes (8): ADR-0026, confirmLifecycle(), goToCaseDetail(), IMPORTANT: by the time this test runs, AC1 may have cancelled the seeded, NOTE: The seeded interview has attachments AND canEdit=true for chefe.ccih, signInAs(), signOut(), ADR-0063
+Cohesion: 0.22
+Nodes (11): formatDate(), generateMetadata(), OrgCommissionDetailPage(), AdminCommissionDetail, AdminCommissionListItem, CommissionRow, getCommissionForAdmin(), listCommissionsForAdmin() (+3 more)
 
 ### Community 99 - "ClampCalloutCenter"
 Cohesion: 0.07
 Nodes (28): 1. Requirements Audit, 2. Security / RLS Audit, 2a. Definer RPC gating, 2b. in_progress-answers invariant (the crux), 2c. B6 anon/PUBLIC EXECUTE revoke, 2d. Export route — no service-role key, 2e. Client-side form filter in `listSubmissions`, 3. Code Quality Audit (+20 more)
 
 ### Community 100 - "Actions"
-Cohesion: 0.07
-Nodes (65): CancelButton(), ReopenButton(), AnalysisStage(), SubView, Tab(), CatBlock(), CauseCard(), Fishbone() (+57 more)
+Cohesion: 0.06
+Nodes (63): CapaStage(), AnalysisStage(), SubView, RcaMemberRoleBadge(), RcaStatusChip(), STATUS_CLASS, countDone(), deriveDone() (+55 more)
 
 ### Community 105 - "Page"
-Cohesion: 0.19
-Nodes (15): CaseReferralsModule, referralPatientDraftHasData(), PickableDocument, PickableNarrative, NOTE: removal is a hub-draft affordance in v1; here we only ADD. Toggling, ReferralSendWizard(), ReferralTargetCommission, SafetyEventPrefill (+7 more)
+Cohesion: 0.17
+Nodes (19): CaseReferralsModule, ADR-0032, ADR-0038, ADR-0061, CaseOfferedOutcomesEditor(), CasePatientPanel(), CaseOutboundReferralsCard(), PickableDocument (+11 more)
 
 ### Community 106 - "Outcomes actions"
-Cohesion: 0.18
-Nodes (17): appOrigin(), assignStaffAdmin(), authorizeStaffAdminOps(), createCommission(), MESSAGES, removeStaffAdmin(), requireAdmin(), revalidateCommissionPages() (+9 more)
+Cohesion: 0.09
+Nodes (34): OrgCommissionCreateForm(), slugify(), ActionState, appOrigin(), assignStaffAdmin(), authorizeStaffAdminOps(), createCommission(), MESSAGES (+26 more)
 
 ### Community 108 - "Audit motion"
-Cohesion: 0.16
-Nodes (15): InterviewStatusBadge(), ATTACHMENT_KIND_ORDER, INTERVIEW_STATUS_LABEL, INTERVIEW_STATUS_ORDER, INTERVIEW_STATUS_STYLE, INTERVIEWER_ROLE_LABEL, INTERVIEWER_ROLE_ORDER, MODALITY_LABEL (+7 more)
+Cohesion: 0.10
+Nodes (30): CaseMeetingsPanel(), formatCaseNumber(), formatInterviewNumber(), interviewTitle(), InterviewModalityChip(), InterviewStatusBadge(), InterviewFormDialog(), InterviewPhaseOption (+22 more)
 
 ### Community 109 - "CaseTagsPanel"
-Cohesion: 0.32
-Nodes (14): CaseTagsPanel(), ActionState, archiveCaseTag(), assignCaseTag(), authorizeCommission(), commissionOfCase(), commissionOfTag(), createCaseTag() (+6 more)
+Cohesion: 0.25
+Nodes (8): DashboardPage(), metadata, DashboardForms(), TagReportCardAsync(), getCaseTagReport(), getFormDashboard(), listDashboardForms(), pivotFreeText()
 
 ### Community 110 - "DepartmentDefDialog"
-Cohesion: 0.06
-Nodes (50): ProblemCard(), RcaMemberRoleBadge(), RootCauseTypePill(), STATUS_CLASS, RcaConfirmDelete(), EvidenceCitationForm(), EvidenceLinkForm(), EvidenceUpload() (+42 more)
+Cohesion: 0.09
+Nodes (49): CatBlock(), CauseCard(), ProblemStage(), RootCauseTypePill(), RcaTimelinePanel(), TimelineEntryDialog(), TimelineRow(), toLocalInput() (+41 more)
 
 ### Community 111 - "ADR 0050"
 Cohesion: 0.09
 Nodes (22): 1.1 The triage worksheet (one per event), 1.2 Reach & harm spectrum — `ReachId` (ordered, escalating), 1.3 Harm severity — `HarmId` (NCC MERP / JC tiers), 1.4 Sentinel designated categories (JC "always review"), 1.5 Not-a-PSE closure reasons — `ReasonId`, 1.6 Reporting committees (intake sources), 1.7 Intake event, 1.8 Seed events (de-identified reference) (+14 more)
 
 ### Community 115 - "Page"
-Cohesion: 0.05
-Nodes (52): metadata, PhaseAnswersPage(), GrantExpiry(), CaseActionItemForm(), PhaseOption, CaseActionItemsPanel(), STATUS_ORDER, ADR-0033 (+44 more)
+Cohesion: 0.17
+Nodes (9): ADR 0059 — Coolify as the pre-Phase-9 dev/staging deployment target, Consequences, Context, Decision, Archive — Follow-ups / Deferred Items (full snapshot incl. resolved), Closed 2026-07-05 (rotated out of PROGRESS live Follow-ups), Closed 2026-07-07 (rotated out of PROGRESS live Follow-ups), Follow-ups / Deferred Items (+1 more)
 
 ### Community 116 - "Audit feed"
 Cohesion: 0.33
 Nodes (12): AuditRow(), actionLabel(), AuditLabelMap, DATE_TIME, displayValue(), entityLabel(), formatAbsolute(), formatRelative() (+4 more)
 
 ### Community 117 - "Browser"
-Cohesion: 0.08
-Nodes (33): metadata, OrgIndicatorsPage(), HospitalIndicatorScorecard(), IndicatorsPanelAsync(), IndicatorsPanel(), RunChart, RunChartLoader(), DerivedConfig (+25 more)
+Cohesion: 0.10
+Nodes (27): IndicatorsPanelAsync(), IndicatorsPanel(), RunChart, RunChartLoader(), DerivedConfig, DerivedDenominatorRef, DerivedNumeratorRef, HybridDerivedConfig (+19 more)
 
 ### Community 120 - "AdminAuditPage"
 Cohesion: 0.17
-Nodes (17): DocumentDetailPage(), metadata, ApproverDocumentPage(), metadata, AddVersionForm(), ApprovalSignForm(), ApprovalsPanel(), ObsoleteDocumentButton() (+9 more)
+Nodes (12): 1. Executive Summary, 2.1 A referral does not transfer case ownership, 2.2 A referral has one source and one target committee, 2.3 Shared information must be explicit, 2.4 Shared messages and internal notes are different security domains, 2.5 A response is not the same as resolution, 2.6 Important records are append-only, 2. Core Domain Principles (+4 more)
 
 ### Community 121 - "Page"
-Cohesion: 0.19
-Nodes (16): metadata, PendingApprovalsPage(), ApprovalDecisionBadge(), DocumentStatusChip(), DocumentTypeBadge(), DocumentRegisterList(), DocumentVersionsList(), VersionWithUrl (+8 more)
+Cohesion: 0.17
+Nodes (6): createMeeting, MEMBERS, seedExpectedAttendees, seedSelectedAttendees, TYPES, updateMeeting
 
 ### Community 122 - "Page"
-Cohesion: 0.16
-Nodes (14): ActionItemForm(), AssigneeOption, ActionItemRow(), ActionItemsPanel(), isItemOverdue(), STATUS_ORDER, ActionItemStatusBadge(), advanceMeetingActionItem() (+6 more)
+Cohesion: 0.18
+Nodes (11): 19.10 Copying PHI into notification payloads, 19.1 Storing the conversation as JSONB, 19.2 Automatically granting target committee access to the entire case, 19.3 Combining shared messages and internal notes, 19.4 One referral with multiple target committees, 19.5 Resolving automatically when a response is sent, 19.6 Using assignments as permissions, 19.7 Hard-deleting communication (+3 more)
 
 ### Community 123 - "BlockConditionNote"
-Cohesion: 0.07
-Nodes (24): ADR 0059 — Coolify as the pre-Phase-9 dev/staging deployment target, Consequences, Context, Decision, 0. What you're pointing at, 1.1 Push pending migrations, 1.2 Verify asymmetric JWT signing keys (known gap — ADR 0009), 1.3 Register the custom access-token hook (+16 more)
+Cohesion: 0.13
+Nodes (15): 0. What you're pointing at, 1.1 Push pending migrations, 1.2 Verify asymmetric JWT signing keys (known gap — ADR 0009), 1.3 Register the custom access-token hook, 1.4 Note your keys, 1.5 Email (defer for now), 1. Pre-flight on Supabase Cloud (one-time, before the first deploy), 2. Get the repo onto the droplet (+7 more)
 
 ### Community 124 - "ConfirmDeleteButton"
 Cohesion: 0.26
 Nodes (18): archiveIndicator(), computeDerivedMeasurement(), createIndicator(), KNOWN_PT_BR_HC084, mapIndicatorError(), MESSAGES, openCapaFromIndicator(), parseDate() (+10 more)
 
 ### Community 125 - "Format"
-Cohesion: 0.16
-Nodes (13): AdminLayout(), ADR-0042, OrgAuditPage(), AuditListRow, AuditLogEntry, listAuditForHospital(), listAuditForOrg(), mapAuditRow() (+5 more)
+Cohesion: 0.18
+Nodes (5): openAccessDialog(), signInAs(), signOut(), ADR-0033, ADR-0050
 
 ### Community 127 - "ADR 0028"
-Cohesion: 0.24
-Nodes (9): ADR-0028, AuditIntegrityCheck(), ADR-0051, ADR-0051, verifyAuditChainAction(), VerifyChainState, AUDIT_MESSAGES, AuditChainResult (+1 more)
+Cohesion: 0.27
+Nodes (7): ADR-0028, ADR-0051, verifyAuditChainAction(), VerifyChainState, AUDIT_MESSAGES, AuditChainResult, verifyAuditChain()
 
 ### Community 129 - "Corrective Action (PDCA tracked)"
 Cohesion: 0.10
@@ -1891,12 +1902,12 @@ Cohesion: 0.15
 Nodes (13): 0045 — Answer-Model v2 (uniform answer entity, typed scalar columns, instance-ready keys), Alternatives rejected, Consequences, Context, Decision, Delivery, Evaluator parity — the hard invariant (Rule 3), Immutability & RLS (+5 more)
 
 ### Community 139 - "Meeting form dialog.test"
-Cohesion: 0.22
-Nodes (13): TitleAssignControl(), ADR-0051, assignMemberTitle(), createMemberTitle(), deleteMemberTitle(), MESSAGES, renameMemberTitle(), reorderMemberTitles() (+5 more)
+Cohesion: 0.20
+Nodes (10): 14.1 Target committee inbox, 14.2 Source committee inbox, 14.3 Case referral history, 14.4 Deadlines, 14.5 Message ordering, 14.6 Message timeline, 14.7 Active participation, 14.8 Active assignments (+2 more)
 
 ### Community 146 - "Page"
-Cohesion: 0.19
-Nodes (13): IndicatorDetailPage(), metadata, isPqsOperatorOfIndicatorHospital(), ADR-0057, DATA_SOURCE_LABELS, INDICATOR_DIRECTION_LABELS, INDICATOR_FREQUENCY_LABELS, INDICATOR_STATUS_LABELS (+5 more)
+Cohesion: 0.11
+Nodes (17): ADR-0051, AppSidebar(), CountKey, NAV_GROUPS, NavGroup, NavItem, SidebarCounts, ADR-0033 (+9 more)
 
 ### Community 147 - "Page"
 Cohesion: 0.19
@@ -1907,32 +1918,28 @@ Cohesion: 0.07
 Nodes (26): 10. Timeline, 11. Meetings, 12. Decisions, 13. Action Items, 14.4 Recommended RLS Logic, 14. Access Control and Confidentiality, 15. Audit Logging, 16. Morbidity & Mortality Extension Tables (+18 more)
 
 ### Community 149 - "Options editor"
-Cohesion: 0.13
-Nodes (22): CONDITION_TARGET_TYPES, isEligibleTarget(), newQuestionConditionTargets(), questionConditionTargets(), sectionConditionTargets(), toTarget(), DefaultValue, initialDefaultValue() (+14 more)
+Cohesion: 0.20
+Nodes (10): 1. The core difference in one paragraph, 2. Feature-by-feature comparison, 3. ESSENTIAL — adopt now (closes the tested back-and-forth gap), 4. DEFER — valuable, sequence after the dialogue loop, 5. AVOID — do not adopt as specified, 6. Protect these when adopting (what the external model lacks — don't regress), 7. Adoption constraints (non-negotiable) + next step, E1. A shared message thread (`referral_messages`) (+2 more)
 
 ### Community 150 - "Titles"
-Cohesion: 0.06
-Nodes (31): ADR 0032 — Case Narratives (per-case prose interleaved with phases), Alternatives rejected, Consequences, Context, Decision, 0044 — Process-less cases ("Sem processo"), Consequences, Context (+23 more)
-
-### Community 151 - "Architecture Rules (binding)"
-Cohesion: 0.06
-Nodes (37): Appendix A — Polymorphism dialects (three sanctioned; closes hardening D12; ADR 0065), Appendix B — Catalog-vs-enum + freeze conventions (ADR 0065), ARCHITECTURE.md — Hospital Commission Forms Platform, Architecture Rules, This is NOT the Next.js you know, ADR 0028 — Accreditation & Quality-Governance Roadmap (Phases 13–21), Consequences, Context (+29 more)
+Cohesion: 0.08
+Nodes (21): ADR 0032 — Case Narratives (per-case prose interleaved with phases), Alternatives rejected, Consequences, Context, Decision, ADR 0047 — Ad-hoc Case Narratives (per-case narrative add on an open case), Alternatives rejected, Consequences (+13 more)
 
 ### Community 156 - "ADR 0048 — User Registration & Identity"
 Cohesion: 1.00
 Nodes (3): /auth/confirm Server-Side Handler (verifyOtp token_hash + type), Invite Email Template (pt-BR), Password-Recovery Email Template (pt-BR)
 
 ### Community 157 - "Page"
-Cohesion: 0.10
-Nodes (23): TOKEN_COLOR_VAR, TOKEN_STYLES, ColorTokenPicker(), TOKEN_NAME, TOKENS, ResultDefDialog(), TagDefDialog(), TagReportCardAsync() (+15 more)
+Cohesion: 0.24
+Nodes (5): enterWizard(), insertOptionsWithOther(), signInAs(), slug(), svcInsert()
 
 ### Community 158 - "Page"
 Cohesion: 0.21
 Nodes (10): buildCards(), CommissionHomePage(), formatNextMeeting(), metadata, OverviewCardData, StatCount(), getMemberOverview(), MemberOverview (+2 more)
 
 ### Community 159 - "OrgAuditPage"
-Cohesion: 0.04
-Nodes (43): ADR 0004 — Sign-off enforcement feature flag, Consequences, Context, Decision, Rationale, Update — flag flipped (Phase 6, 2026-06-13), ADR 0005 — `visible_when` condition shape (v1), Context (+35 more)
+Cohesion: 0.05
+Nodes (35): ADR 0004 — Sign-off enforcement feature flag, Consequences, Context, Decision, Rationale, Update — flag flipped (Phase 6, 2026-06-13), ADR 0005 — `visible_when` condition shape (v1), Context (+27 more)
 
 ### Community 164 - "Action Items Data Model Handoff"
 Cohesion: 0.14
@@ -1963,12 +1970,12 @@ Cohesion: 0.29
 Nodes (5): ibmPlexMono, ibmPlexSans, ibmPlexSerif, metadata, viewport
 
 ### Community 199 - "AttachmentLinkForm"
-Cohesion: 0.14
-Nodes (13): Area findings, D10 — `updated_at` triggers  🟢 — SOUND, D11 — status-key anglicization (G1–G6)  🔴 scope — SOUND, D3 — result-engine junctions  🔴 (the crux) — SOUND, D8 — forward-FK lock  🟢 — SOUND, F-cleanup — QA Review (D3 · D10 · D8 · D11), Findings (ranked), Recommendation (+5 more)
+Cohesion: 0.05
+Nodes (34): 0066 — patient_xref case-module grain re-keyed to the patient participant, Consequences, Context, Decision, Rationale, 0068 — Case-phase result engine: jsonb/array → FK-backed junctions (D3), Consequences, Context (+26 more)
 
 ### Community 208 - "AuditFeed"
-Cohesion: 0.14
-Nodes (9): FLAGGED_OPS, OP_LABELS, CompositeTypes, Constants, DatabaseWithoutInternals, DefaultSchema, Enums, Tables (+1 more)
+Cohesion: 0.22
+Nodes (9): 8.1 `draft → submitted`, 8.2 `submitted → accepted`, 8.3 `submitted → declined`, 8.4 `under_review → awaiting_information`, 8.5 `awaiting_information → under_review`, 8.6 `under_review → answered`, 8.7 `answered → resolved`, 8.8 `resolved → under_review` (+1 more)
 
 ### Community 209 - "InterviewLifecycleActions"
 Cohesion: 0.09
@@ -1983,16 +1990,16 @@ Cohesion: 0.40
 Nodes (4): plugins, semi, singleQuote, trailingComma
 
 ### Community 219 - "Audit icon"
-Cohesion: 0.20
-Nodes (19): CaseDocumentDelete(), UploadDialog(), ActionState, ALLOWED_DOC_MIME, authorizeCommission(), commissionOfCase(), createCaseEvent(), deleteCaseDocument() (+11 more)
+Cohesion: 0.09
+Nodes (36): CaseDocumentDelete(), CaseDocumentUpload(), UploadDialog(), ADR-0033, ADR-0063, CaseEventForm(), CaseEventsTimeline(), ACTION_ITEM_STATUS_LABEL (+28 more)
 
 ### Community 220 - "Title assign control"
 Cohesion: 0.09
 Nodes (21): 1. Executive summary, 2. Must-fix before pilot (the critical set), 3. Permission model — adequacy assessment, 4. Efficiency & performance, 5. Data model & extensibility, 6.1 Collapse the role stack into one audited `memberships` table, 6.2 Introduce a hospital-scoped patient master, 6.3 Metadata-drive the form builder (+13 more)
 
 ### Community 222 - "CaseEvent Data Model"
-Cohesion: 0.18
-Nodes (17): CasePhaseTimelineRow, CaseReferralTimelineRow, CaseSafetyEventRow, CaseTimeline, getCaseTimeline(), interviewRegistryEventIds(), InterviewRegistryRow, listCaseMeetings() (+9 more)
+Cohesion: 0.27
+Nodes (10): AuditMotion(), CaseDetailMotion(), FALLBACK_MS, getMotionDurations(), Gsap, MOTION_EASE, readDurationMs(), RiseInGroup() (+2 more)
 
 ### Community 226 - "Email Denormalization on Profiles (M9)"
 Cohesion: 0.11
@@ -2003,19 +2010,19 @@ Cohesion: 0.50
 Nodes (3): name, private, version
 
 ### Community 229 - "Page"
-Cohesion: 0.06
-Nodes (46): metadata, OrgOverviewPage(), AuditMotion(), CaseDetailMotion(), CHART_COLORS, CommissionOverview(), DashboardCharts(), groupBySection() (+38 more)
+Cohesion: 0.32
+Nodes (6): metadata, OrgOverviewPage(), CHART_COLORS, CommissionOverview(), CommissionOverviewRow, getCommissionOverview()
 
 ### Community 241 - "Loading"
-Cohesion: 0.17
-Nodes (6): createMeeting, MEMBERS, seedExpectedAttendees, seedSelectedAttendees, TYPES, updateMeeting
+Cohesion: 0.05
+Nodes (40): Appendix A — Polymorphism dialects (three sanctioned; closes hardening D12; ADR 0065), Appendix B — Catalog-vs-enum + freeze conventions (ADR 0065), ARCHITECTURE.md — Hospital Commission Forms Platform, Architecture Rules, This is NOT the Next.js you know, ADR 0009 — Local JWT verification for the auth gate & identity, Consequences, Context (+32 more)
 
 ### Community 242 - "Loading"
 Cohesion: 0.40
 Nodes (4): ADR 0006 — Supabase API key scheme vs. env var naming, Consequences, Context, Decision
 
 ### Community 243 - "Loading"
-Cohesion: 0.09
+Cohesion: 0.10
 Nodes (21): 1. PHI isolation (Rule 12), 2. Access-follows-custody RLS, 3. Custody ledger append-only, 4. PHI `.read` auditing, 5. Audit data-minimization (Rule 11), 6. State machine + DEFINER RPCs + search_path, 7. Client/server boundary (P14a-002), 8. Flag-gating + just-culture (+13 more)
 
 ### Community 244 - "Loading"
@@ -2023,12 +2030,12 @@ Cohesion: 0.19
 Nodes (11): createFreshCase(), getCaseNarratives(), getCaseRow(), getMandMTemplateId(), getNarrativeTypes(), NOTE: the display_position ordering has a seed collision (phase2 and Resumo, signInAs(), skipAllOpenPhases() (+3 more)
 
 ### Community 245 - "Loading"
-Cohesion: 0.29
-Nodes (8): ADR-0033, MarkdownRenderer(), Mode, ModeTab(), SectionTextEditor(), CapaClosurePanel(), GateRow(), VERDICT_ORDER
+Cohesion: 0.39
+Nodes (6): getServerSnapshot(), getSnapshot(), subscribe(), useReducedMotion(), Fishbone(), FISHBONE_CATEGORY_ORDER
 
 ### Community 246 - "Loading"
-Cohesion: 0.05
-Nodes (52): ADR-0002, CommissionLayout(), ADR-0033, metadata, SignoffQueuePage(), ADR-0061, IndicatorsLayout(), metadata (+44 more)
+Cohesion: 0.06
+Nodes (49): ADR-0002, NewCommissionEventPage(), CommissionLayout(), ADR-0033, metadata, SignoffQueuePage(), ADR-0061, DocumentsLayout() (+41 more)
 
 ### Community 247 - "Loading"
 Cohesion: 0.25
@@ -2059,8 +2066,8 @@ Cohesion: 0.10
 Nodes (20): 1. Requirements coverage, 2. Security / RLS, 3. Code quality, 4. XSS / Rule 7, 5. pt-BR and a11y, 6. No patient data / §1 compliance, 7. Hygiene, Audit Details (+12 more)
 
 ### Community 254 - "Loading"
-Cohesion: 0.29
-Nodes (6): 1. Team lifecycle, 2. Sequencing & task breakdown, 3. Plan-approval right-sizing, 4. Phase Gate — Record step (§6 step 5) mechanics, 5. PROGRESS.md rotation & archive discipline, Lead Playbook — orchestration protocol (lead only)
+Cohesion: 0.25
+Nodes (8): Follow-up notes, Lead decisions (B1 approval, 2026-07-05), Phase 15 — Quality Indicators (Indicadores de Qualidade), QA MINORs — all fixed pre-merge (2026-07-06), Spec realignment for MINOR-1 (tester-owned), Task ledger, Test gate — fix loop, What shipped
 
 ### Community 255 - "Loading"
 Cohesion: 0.20
@@ -2075,8 +2082,12 @@ Cohesion: 0.33
 Nodes (6): 7. Status Model, Example Mapping, Normalized Status Categories, Responsibility, Suggested Schema, Why Not Use a Fixed Enum?
 
 ### Community 258 - "Loading"
-Cohesion: 0.09
-Nodes (19): formatDateTime(), metadata, resolveImageUrls(), SubmissionDetailPage(), formatDateTime(), SectionBody(), SignoffMeta(), SubmissionDetailView() (+11 more)
+Cohesion: 0.06
+Nodes (29): formatDateTime(), SectionBody(), SignoffMeta(), SubmissionDetailView(), ImageItemEditor(), ImagePreview(), SECTION, ImageContentRenderer() (+21 more)
+
+### Community 259 - "Loading"
+Cohesion: 0.32
+Nodes (5): AGING_BUCKETS, CHART_COLORS, daysSince(), ReferralFlowCharts(), ReferralFlowMetrics
 
 ### Community 260 - "Loading"
 Cohesion: 0.40
@@ -2103,7 +2114,7 @@ Cohesion: 0.10
 Nodes (18): 2.1 — Auth → URL Configuration, 2.2 — JWT signing keys: migrate to asymmetric (the ADR 0009 "prod-auth gap"), 2.3 — Enable the custom access-token hook (the `is_admin` claim), 2.4 — SMTP + email verification (optional at first), Architecture, Deploying to DigitalOcean + Coolify (test environment), Known risks & gotchas, Local vs remote — the day-to-day workflow (+10 more)
 
 ### Community 276 - "Case Generalization — Platform Evaluation & Ethics-Committee Gap Analysis"
-Cohesion: 0.10
+Cohesion: 0.11
 Nodes (19): 1. TL;DR, 2. What our platform already is (the corrected baseline), 3.1 Core case engine, 3.2 Participants & identity — **the core gap**, 3.3 Assignments, forms, meetings, documents, timeline, action items, 3.4 Decisions & the ethics procedure — mostly **Absent**, 3.5 Access, confidentiality, conflicts — **the security-sensitive gap**, 3.6 Committee-specific extension tables (M&M etc.) (+11 more)
 
 ### Community 277 - "recommend-result.spec.ts"
@@ -2143,8 +2154,8 @@ Cohesion: 0.11
 Nodes (18): 4-tier audit lockstep (A3) ✅, Audit-integrity KNOWN-GAP adjudication (security focus #5), CLAUDE.md / hygiene compliance, MAJOR-1 — Hospital-tier "Verificar integridade" is disabled in the UI despite the full backend being wired & tested, MAJOR-2 — `removeCommittee` lacks the commission-scope check, permitting a cross-hospital destructive write (same org), MAJOR findings, MINOR-1 — `updateUserProfile` writes a client-supplied `home_hospital_id` unvalidated (amendment-11 hard-set not applied on the update path), MINOR-2 — Stale KNOWN-GAP documentation left in code & PROGRESS (+10 more)
 
 ### Community 286 - "referrals-list.tsx"
-Cohesion: 0.22
-Nodes (11): formatDate(), generateMetadata(), OrgCommissionDetailPage(), AdminCommissionDetail, AdminCommissionListItem, CommissionRow, getCommissionForAdmin(), listCommissionsForAdmin() (+3 more)
+Cohesion: 0.33
+Nodes (6): EditIndicatorPage(), metadata, ArchiveIndicatorButton(), getIndicator(), mapDerivedConfig(), mapIndicator()
 
 ### Community 287 - "Decision"
 Cohesion: 0.11
@@ -2195,8 +2206,8 @@ Cohesion: 0.12
 Nodes (16): 1. Context (why this change), 2. Decisions locked (D1–D14), 3.1 Core `public.attachments`, 3.2 Triggers, 3.3 Dispatchers (schema `app`, DEFINER), 3.4 Storage, 3.5 RPCs (`public`, DEFINER), 3.6 Fold-in rewire (clean forward migration; DROP the three tables) (+8 more)
 
 ### Community 299 - "Per-Area Findings"
-Cohesion: 0.08
-Nodes (23): Bugs caught & fixed during the build (0 escaped to the test gate), Contract-first sequencing, Gate results, Open notes / risks, Phase 10 — Meetings (archived task detail), Summary, Tasks, 1. RLS & Security (+15 more)
+Cohesion: 0.12
+Nodes (16): 1. RLS & Security, 2. State Machine & Immutability, 3. Quorum, 4. Code Quality & Architecture, 5. UX, A11y & pt-BR, 6. Test Coverage, Findings, INFO-1: Migration comment contradicts ADR on DEFINER bypass (no action required) (+8 more)
 
 ### Community 300 - "Checklist Results"
 Cohesion: 0.12
@@ -2207,8 +2218,8 @@ Cohesion: 0.12
 Nodes (16): B1 — `profiles_select_self_or_admin`'s shared-commission peer-visibility branch bypasses the `app.is_active()` fold entirely, BLOCKER, Bug Log cross-check, M1 — No test coverage for the explicitly-designed `nsp_coordinator` exclusion from the org directory, M2 — `180_user_registration.sql`'s "SQL status derivation" claim is inaccurate; no such function exists, M3 — Credential/category collisions surface only the generic error, not a field-specific one, M4 — Invite/resend email copy hardcodes "expira em uma hora" outside the config that governs it, MAJOR (+8 more)
 
 ### Community 302 - "case-phase-result.spec.ts"
-Cohesion: 0.19
-Nodes (10): activatePhase(), createCase(), insertChoiceOptions(), rpc(), saveAnswer(), signInAs(), slug(), startResponse() (+2 more)
+Cohesion: 0.33
+Nodes (5): 0010 — Denormalize email onto public.profiles, Consequences, Context, Decision, Options considered
 
 ### Community 303 - "form-model-normalization.spec.ts"
 Cohesion: 0.16
@@ -2219,8 +2230,8 @@ Cohesion: 0.12
 Nodes (16): Accreditation & Quality-Governance Track (Phases 13–21), Phase 0 — Scaffolding & Environment, Phase 10 — Meetings, Phase 11 — Interviews, Phase 12 — Case Timeline, Phase 1 — Database Schema, Auth & RLS, Phase 2 — Authentication & App Shell, Phase 3 — Admin Area & User Management (+8 more)
 
 ### Community 305 - "result-actions.ts"
-Cohesion: 0.34
-Nodes (13): archivePhaseResult(), authorizeCommission(), commissionOfCasePhase(), commissionOfResult(), createPhaseResult(), mapOverrideError(), mapVocabError(), MESSAGES (+5 more)
+Cohesion: 0.28
+Nodes (15): archivePhaseResult(), authorizeCommission(), commissionOfCasePhase(), commissionOfResult(), createPhaseResult(), mapOverrideError(), mapVocabError(), MESSAGES (+7 more)
 
 ### Community 306 - "7. JavaScript Performance"
 Cohesion: 0.13
@@ -2251,8 +2262,8 @@ Cohesion: 0.13
 Nodes (14): 1. Tech assumptions, 2. Typography, 3.1 Theme — "Clinical Calm" (the palette used on both screens), 3.3 Review-status accents (stable), 3. Color tokens, 4. Spacing, radii, shape, 6. Shared components, 7. Screen A — Overview (KPI + Table) (+6 more)
 
 ### Community 313 - "Action Items Data Model Handoff"
-Cohesion: 0.13
-Nodes (14): 1. Purpose, 21.1 Open Action Items View, 21.2 Action Item Dashboard View, 21. Recommended Dashboard Views, 22. Recommended Indexes, 27. Example: Simple Action Item, 2. Core Architectural Decision, 30. Final Architecture Summary (+6 more)
+Cohesion: 0.11
+Nodes (17): 1. Purpose, 20. Reminder Rules, 22. Recommended Indexes, 27. Example: Simple Action Item, 28. Example: Complex Action Item, 2. Core Architectural Decision, 30. Final Architecture Summary, 4. Domain Overview (+9 more)
 
 ### Community 314 - "Why this track exists"
 Cohesion: 0.13
@@ -2271,8 +2282,8 @@ Cohesion: 0.13
 Nodes (15): 1 · Requirements coverage, 2 · Security / RLS (Architecture Rule 1) — the priority, 3 · Rule compliance, 4 · Code quality, 5 · Itemized findings (non-blocking), 6 · What I verified live (summary), INFO-1 — Indicator→CAPA escalation is gated on `patient_safety`, INFO-2 — Derived denominator section resolved from latest published version (+7 more)
 
 ### Community 318 - "case-narratives.spec.ts"
-Cohesion: 0.13
-Nodes (30): ALLOWED_MIME, createAttachment(), DISPOSAL_REASONS, disposeAttachmentPhi(), MESSAGES, OWNER_TYPES, ADR-0063, ATTACHMENT_KINDS (+22 more)
+Cohesion: 0.08
+Nodes (44): OpenAttachmentButton(), ADR-0063, AttachmentLinkForm(), AttachmentUpload(), AttachmentsPanel(), ADR-0063, AttachmentUpload(), AttachmentsPanel() (+36 more)
 
 ### Community 319 - "dashboard-charts.tsx"
 Cohesion: 0.22
@@ -2327,7 +2338,7 @@ Cohesion: 0.15
 Nodes (13): BLOCKER — none., Code quality, Findings, INFO / observations (no action required to pass the gate), Keep-vs-simplify: the `use-wizard.ts` `getLatestSnapshot` ref-mirror, MAJOR — none., MINOR — none., QA Review — Form-Builder Enhancements batch (ad-hoc, out-of-phase) (+5 more)
 
 ### Community 332 - "Risks / gaps (ordered by severity)"
-Cohesion: 0.15
+Cohesion: 0.17
 Nodes (12): Backend review — ADR 0064 (Case subject generalization: participants, professional registry, case types), Lower-severity / omissions, R1 — MAJOR: the multi-org PHI guard silently disables the participant-keyed patient door, R2 — MAJOR: tenancy-key mismatch — participants anchor to `organization_id`, but `cases`/`case_patient` anchor to *commission*, R3 — MAJOR: the re-key breaks `patient_index` (ADR 0039, the 4th PHI surface) — unaddressed, R4 — MEDIUM: "N-per-case" collides with the `patient_enabled` snapshot + write-tight invariant, R5 — MEDIUM: integrity gap — nothing prevents a `professional` participant from getting a patient satellite (or vice-versa), R6 — MEDIUM: `can_read_case` recursion risk when participants become a read input (E1), not E0 (+4 more)
 
 ### Community 333 - "Findings by focus area"
@@ -2367,8 +2378,8 @@ Cohesion: 0.17
 Nodes (11): Additional Checks, Audit Scope, Open Informational Notes (Non-blocking), QA Review — PHI / HIPAA-Readiness Remediation, Security Model Findings, Verdict: APPROVED, WS A — Structured-Identifier Lockdown, WS B — Audited Free-Text / PHI Classification (+3 more)
 
 ### Community 342 - "QA Review — Pre-Pilot DB Hardening, Wave 2 (WS-6 Performance Sweep)"
-Cohesion: 0.12
-Nodes (15): Gate record, Pre-Pilot DB Hardening — Wave 2 (WS-6 perf sweep) — archived task detail, QA findings (Wave 2), Task detail (W2-T0 … W2-T3 + gate), 1. The two DEFINER RPCs' gate parity (the point of this review) — VERIFIED LIVE, 2. P2 INVOKER + RLS — VERIFIED LIVE, 3. `get_feature_flags()` DEFINER — reviewed, no PHI/per-tenant exposure, 4. Cursor safety — MAJOR finding (bounded blast radius, not a BLOCKER) (+7 more)
+Cohesion: 0.18
+Nodes (11): 1. The two DEFINER RPCs' gate parity (the point of this review) — VERIFIED LIVE, 2. P2 INVOKER + RLS — VERIFIED LIVE, 3. `get_feature_flags()` DEFINER — reviewed, no PHI/per-tenant exposure, 4. Cursor safety — MAJOR finding (bounded blast radius, not a BLOCKER), 5. Rule compliance, 6. Grants / new-column trap, 7. Other observations (INFO, non-blocking), 8. Test-pass corroboration (+3 more)
 
 ### Community 343 - "case-access.spec.ts"
 Cohesion: 0.18
@@ -2379,12 +2390,12 @@ Cohesion: 0.18
 Nodes (10): 3.10 Use after() for Non-Blocking Operations, 3.1 Authenticate Server Actions Like API Routes, 3.2 Avoid Duplicate Serialization in RSC Props, 3.3 Avoid Shared Module State for Request Data, 3.4 Cross-Request LRU Caching, 3.5 Hoist Static I/O to Module Level, 3.6 Minimize Serialization at RSC Boundaries, 3.7 Parallel Data Fetching with Component Composition (+2 more)
 
 ### Community 345 - "ADR 0020 — Dashboard-countable responses: case-phase exclusion"
-Cohesion: 0.07
-Nodes (28): 0066 — patient_xref case-module grain re-keyed to the patient participant, Consequences, Context, Decision, Rationale, 0068 — Case-phase result engine: jsonb/array → FK-backed junctions (D3), Consequences, Context (+20 more)
+Cohesion: 0.33
+Nodes (6): ADR 0048 — User Registration & Identity Management, Alternatives rejected, Consequences, Context, Decision, The activation-link fix (BUG-UREG-002)
 
 ### Community 346 - "0027-case-timeline.md"
-Cohesion: 0.18
-Nodes (8): ADR 0027 — Case Timeline (read-only event aggregation, two layouts), Consequences, Context, Decision, Gate, Lead notes, Phase 12 — Case Timeline (archived task detail), Tasks
+Cohesion: 0.50
+Nodes (4): ADR 0027 — Case Timeline (read-only event aggregation, two layouts), Consequences, Context, Decision
 
 ### Community 347 - "Decision"
 Cohesion: 0.18
@@ -2411,8 +2422,8 @@ Cohesion: 0.18
 Nodes (10): 1. RLS / leak audit of the two RPCs (most important) — PASS, 2. Count 1 correctness (`casesNotConcluded`) — PASS, 3. Flag handling — PASS, 4. Frontend correctness — PASS, 5. Standards (pt-BR, a11y, errors, TS strict) — PASS, Focus-area findings, Hygiene, Non-blocking observations (MINOR / informational — no change required) (+2 more)
 
 ### Community 353 - "QA Review — Pre-Pilot DB Hardening, Wave 1"
-Cohesion: 0.12
-Nodes (14): Gate record, Pre-Pilot DB Hardening — Wave 1 (archived task detail), QA findings (all non-blocking; tracked in PROGRESS Follow-ups), Task detail (W1-T1 … W1-T7 + gate), Dimension 1 — Requirements audit (C-1…C-6 + H-8 closed as scoped?), Dimension 2 — RLS / privilege security, Dimension 3 — PHI (Rule 12) + C-6 narrowed claim, Dimension 4 — Integrity invariants (+6 more)
+Cohesion: 0.20
+Nodes (10): Dimension 1 — Requirements audit (C-1…C-6 + H-8 closed as scoped?), Dimension 2 — RLS / privilege security, Dimension 3 — PHI (Rule 12) + C-6 narrowed claim, Dimension 4 — Integrity invariants, Dimension 5 — Architecture rules, Dimension 6 — Perf changes (WS-5), Findings (all non-blocking), Gate posture (+2 more)
 
 ### Community 354 - "QA Review — "Sem processo" (process-less cases) · flag `processless_cases`"
 Cohesion: 0.18
@@ -2451,8 +2462,8 @@ Cohesion: 0.20
 Nodes (10): 3.2 `forms.form_versions`, Design Reasoning, Example `behavior_config`, Example `theme_config`, Important Columns, Purpose, Related Types, Relationships (+2 more)
 
 ### Community 363 - "QA Review — Form Builder Enhancements (mini-phase)"
-Cohesion: 0.27
-Nodes (8): TitleBadge(), ADR-0051, SignatureBadge(), SignButton(), RosterEntry, SignaturesPanel(), MeetingAttendee, MeetingSignature
+Cohesion: 0.33
+Nodes (6): 10.1 Referral read access, 10.2 Message insertion, 10.3 Internal notes, 10.4 Documents, 10.5 Linked cases, 10. Row-Level Security Strategy
 
 ### Community 364 - "ad-hoc-narratives.spec.ts"
 Cohesion: 0.29
@@ -2471,12 +2482,12 @@ Cohesion: 0.22
 Nodes (5): AuditRow, auditRowsFor(), restGet(), signInAs(), ADR-0029
 
 ### Community 368 - "wizard-others-ux.spec.ts"
-Cohesion: 0.24
-Nodes (5): enterWizard(), insertOptionsWithOther(), signInAs(), slug(), svcInsert()
+Cohesion: 0.38
+Nodes (5): metadata, OrgIndicatorsPage(), HospitalIndicatorScorecard(), HospitalIndicatorRollupRow, getHospitalIndicatorRollup()
 
 ### Community 369 - "PROGRESS.md — Project Status Tracker"
-Cohesion: 0.20
-Nodes (10): Bug Log, Completed work (archived to docs/progress/), Current Phase Tasks, Decisions, Follow-ups / Deferred Items, No active phase — F-cleanup ✅ complete (2026-07-12; on branch `f-cleanup`, awaiting human merge), Phase Status, PROGRESS.md — Project Status Tracker (+2 more)
+Cohesion: 0.18
+Nodes (11): Ad-hoc (out-of-phase) — Case "Reuniões" panel · ✅ complete — merged to `main` `fbe215f` (2026-07-12), Bug Log, Completed work (archived to docs/progress/), Current Phase Tasks, Decisions, Follow-ups / Deferred Items, No active phase — F-cleanup ✅ complete (2026-07-12; on branch `f-cleanup`, awaiting human merge), Phase Status (+3 more)
 
 ### Community 370 - "ADR 0042 — NSP-per-org: per-org PQS roster + org-bound PHI doors"
 Cohesion: 0.22
@@ -2495,8 +2506,8 @@ Cohesion: 0.50
 Nodes (4): 12. Status History: `action_item_status_history`, Questions This Enables, Responsibility, Suggested Schema
 
 ### Community 375 - "Phase 17 — Controlled-Document Lifecycle (Gestão de Documentos Controlados)"
-Cohesion: 0.22
-Nodes (9): Backend (migrations `20260713000000`–`…000400`), Bugs found + fixed (5, all tester-verified; DB-proven each), Deferred / carried, Frontend (F1–F7), Locked decisions (ADR 0057), Phase 17 — Controlled-Document Lifecycle (Gestão de Documentos Controlados), QA MINORs (all cleared before Record), Test gate (+1 more)
+Cohesion: 0.33
+Nodes (6): 5.1 `case_referrals`, Columns, Design rationale, Important constraints, Recommended priority values, Recommended status values
 
 ### Community 376 - "Phase B — NSP-per-hospital — HANDOFF (machine switch, 2026-07-03)"
 Cohesion: 0.22
@@ -2507,8 +2518,8 @@ Cohesion: 0.22
 Nodes (8): BLOCKER, Completeness / premature-closure assessment, Findings, INFO, MAJOR, MINOR, QA Review — ADR 0064 (Case subject generalization: participants, professional registry, case types), Requirements & product-owner-decision fidelity
 
 ### Community 378 - "Phase 17 — Controlled-Document Lifecycle · QA Review"
-Cohesion: 0.29
-Nodes (9): ADR-0009, updateSession(), AUTHED_REDIRECT_AWAY, config, isPublicPath(), proxy(), PUBLIC_PATHS, redirectPreservingCookies() (+1 more)
+Cohesion: 0.21
+Nodes (10): ADR-0009, updateSession(), Database, AUTHED_REDIRECT_AWAY, config, isPublicPath(), proxy(), PUBLIC_PATHS (+2 more)
 
 ### Community 379 - "case-patient.spec.ts"
 Cohesion: 0.20
@@ -2579,12 +2590,12 @@ Cohesion: 0.25
 Nodes (8): 4.1 Documents are first-class secured resources, 4.2 Logical document and physical file are separated, 4.3 Domain links and permissions are separated, 4.4 Sensitive metadata is separated from non-PHI metadata, 4.5 OCR text is sensitive data, 4.6 Use explicit access grants for sensitive documents, 4.7 Use materialized effective permissions for RLS, 4. Core Architectural Decisions
 
 ### Community 396 - "Handoff — Meeting actual-occurrence time (`held_at` / `held_end`)"
-Cohesion: 0.25
-Nodes (8): Backend tasks (owner: `backend`), Design decisions (locked — see ADR 0062), Frontend tasks (owner: `frontend`), Gotchas / must-read before building, Handoff — Meeting actual-occurrence time (`held_at` / `held_end`), Open questions for the product owner (decide at plan review), Problem (one paragraph), Tester / QA
+Cohesion: 0.09
+Nodes (19): 0062 — Meeting actual-occurrence time (`held_at` / `held_end`), Consequences, Context, Decision, Backend tasks (owner: `backend`), Design decisions (locked — see ADR 0062), Frontend tasks (owner: `frontend`), Gotchas / must-read before building (+11 more)
 
 ### Community 397 - "Form-Builder Enhancements batch (ad-hoc, out-of-phase) — COMPLETE 2026-07-07"
-Cohesion: 0.11
-Nodes (18): FormsListPage(), metadata, DiscardDraftButton(), FillableFormCard(), StartFillButton(), answerableItems(), CHOICE_ITEM_TYPES, DisplayItemType (+10 more)
+Cohesion: 0.33
+Nodes (6): 5.3 `referral_participants`, Columns, Constraints, Design rationale, Suggested access levels, Suggested participant roles
 
 ### Community 398 - "Phase 15 — Quality Indicators (Indicadores de Qualidade)"
 Cohesion: 0.22
@@ -2603,8 +2614,8 @@ Cohesion: 0.25
 Nodes (7): Binding-rule preservation — verified ✓, Change-map (section by section), CLAUDE.md optimization — evaluation & change-map, How to adopt (two steps, when you're satisfied), Out of scope this pass — recommended follow-ups, TL;DR, What the audit found
 
 ### Community 402 - "QA Review — Phase B: NSP-per-hospital + `nsp_org_admin`"
-Cohesion: 0.25
-Nodes (7): RcaStatusChip(), ProgressReadout(), RcaHeader(), SavePill(), SaveState, Stat(), TriageTopbar()
+Cohesion: 0.05
+Nodes (45): LevelOption(), CaseKpis, OutcomeBreakdown, CaseOutcomeSelector(), CaseStatusBadge(), CaseStatusBadgeFixed(), TOKEN_COLOR_VAR, CasesKpiStrip() (+37 more)
 
 ### Community 403 - "phase14b-triage.spec.ts"
 Cohesion: 0.29
@@ -2615,8 +2626,8 @@ Cohesion: 0.50
 Nodes (4): 15. Reviews: `action_item_reviews`, Example Workflow, Responsibility, Suggested Schema
 
 ### Community 405 - "ui-batch-2026-07.spec.ts"
-Cohesion: 0.22
-Nodes (9): 1. Requirements coverage (spec `docs/phases/accreditation-track.md:427-506`, ADR 0057), 2. Security / RLS review (the crux — audited adversarially), 3. Code quality, 4. Bug-fix soundness (BUG-DOC-001..005), 5. Findings, 6. Verdict, INFO (no action required), MINOR (clear before Record if cheap; none blocking) (+1 more)
+Cohesion: 0.33
+Nodes (6): 5.5 `referral_messages`, Columns, Constraints, Design rationale, Sequence assignment, Suggested message types
 
 ### Community 406 - "commission-overview.tsx"
 Cohesion: 0.50
@@ -2691,16 +2702,16 @@ Cohesion: 0.43
 Nodes (5): free_port(), e2e-prod-gate.sh script, start_server(), stop_server(), wait_gotrue()
 
 ### Community 424 - "Phase 14a — NSP Foundation, Event Intake & Hand-off (archived task detail)"
-Cohesion: 0.25
-Nodes (8): Form-Builder Enhancements batch (ad-hoc, out-of-phase) — COMPLETE 2026-07-07, Gate bugs found + fixed (all tester-verified), Migrations (6, pushed to remote 2026-07-07), Notes / follow-ups, Test gate result, Test reconciliation (test-side only; app was sound), The 10 tasks (all delivered), Time-field: masked → segmented (human decision 2026-07-07)
+Cohesion: 0.50
+Nodes (4): ADR 0030 — Patient-Safety PHI Posture Reversal & PQS/NSP Module Architecture (Phase 14), Consequences, Context, Decision
 
 ### Community 425 - "UI/layout fixes batch (frontend + backend)"
 Cohesion: 0.29
 Nodes (6): Backend rows, Base-branch failure triage (2026-07-08, lead), E2E (scoped pass, NOT a formal gate), Frontend rows, UI/layout fixes batch + base-branch triage — 2026-07-08, UI/layout fixes batch (frontend + backend)
 
 ### Community 426 - "Quality-Track Context — Accreditation & Quality Governance (Phases 13–21)"
-Cohesion: 0.25
-Nodes (8): Follow-up notes, Lead decisions (B1 approval, 2026-07-05), Phase 15 — Quality Indicators (Indicadores de Qualidade), QA MINORs — all fixed pre-merge (2026-07-06), Spec realignment for MINOR-1 (tester-owned), Task ledger, Test gate — fix loop, What shipped
+Cohesion: 0.06
+Nodes (28): Form-Builder Enhancements batch (ad-hoc, out-of-phase) — COMPLETE 2026-07-07, Gate bugs found + fixed (all tester-verified), Migrations (6, pushed to remote 2026-07-07), Notes / follow-ups, Test gate result, Test reconciliation (test-side only; app was sound), The 10 tasks (all delivered), Time-field: masked → segmented (human decision 2026-07-07) (+20 more)
 
 ### Community 428 - "nsp-per-hospital.spec.ts"
 Cohesion: 0.33
@@ -2763,12 +2774,12 @@ Cohesion: 0.33
 Nodes (5): ADR 0022 — Cross-committee case referrals (linked cases), Consequences, Context, Decision, Future shape (when built — not now)
 
 ### Community 444 - "ADR 0037 — Inter-Committee Case Referrals & the referral PHI posture"
-Cohesion: 0.16
-Nodes (10): ADR 0037 — Inter-Committee Case Referrals & the referral PHI posture, Consequences, Context, Decision — the 16 locked design decisions, Supersession & amendments, The concrete surface as built (for QA to audit against), Batch context, Gate outcome (§6) (+2 more)
+Cohesion: 0.18
+Nodes (11): ADR 0037 — Inter-Committee Case Referrals & the referral PHI posture, Amendment 1 (2026-07-12) — Referrals v2: dialogue + governance expansion (pre-pilot), Consequences, Context, Context, Decision — the 16 locked design decisions, Decision — the three-bucket disposition, Decisions amended (+3 more)
 
 ### Community 445 - "ADR 0038 — Case patient identifiers (`case_patient`, the third PHI module)"
-Cohesion: 0.32
-Nodes (5): AGING_BUCKETS, CHART_COLORS, daysSince(), ReferralFlowCharts(), ReferralFlowMetrics
+Cohesion: 0.50
+Nodes (4): ADR 0035 — Regulatory Posture (LGPD / ANVISA / CFM) & Column-Encryption Decision, Consequences, Context, Decision
 
 ### Community 446 - "ADR 0041 — Multi-Tenancy: organizations + hospitals above commissions"
 Cohesion: 0.33
@@ -2787,8 +2798,8 @@ Cohesion: 0.40
 Nodes (5): Bugs found + fixed en route, Full-regression triage (lead, 2026-07-03), Key lead decisions (durable), Phase B — NSP-per-hospital + `nsp_org_admin` — completed phase record, What was built
 
 ### Community 450 - "ADR 0030 — Patient-Safety PHI Posture Reversal & PQS/NSP Module Architecture (Phase 14)"
-Cohesion: 0.21
-Nodes (11): CapaAffordance(), CreateManualAction, OpenCapaAction, ActionState, CreateActionItemState, createManualActionItem(), mapItemError(), MESSAGES (+3 more)
+Cohesion: 0.16
+Nodes (14): ActionItemFallbackDialog(), CapaAffordance(), CreateManualAction, OpenCapaAction, ActionState, CreateActionItemState, createManualActionItem(), mapItemError() (+6 more)
 
 ### Community 451 - "18. Custom Fields"
 Cohesion: 0.33
@@ -2871,16 +2882,16 @@ Cohesion: 0.33
 Nodes (6): 34.1 Input sources, 34.2 Output, 34.3 Expiration, 34.4 Suggested pseudo-code, 34.5 Events that should trigger recomputation, 34. Permission Resolution Algorithm
 
 ### Community 471 - "ADR 0035 — Regulatory Posture (LGPD / ANVISA / CFM) & Column-Encryption Decision"
-Cohesion: 0.21
-Nodes (15): formatCaseNumber(), formatInterviewNumber(), interviewTitle(), InterviewModalityChip(), InterviewFormDialog(), InterviewPhaseOption, NewInterviewButton(), InterviewHeader() (+7 more)
+Cohesion: 0.50
+Nodes (4): ADR 0036 — PHI Access Hardening: PQS Membership, Single-Door Identifier Read, Free-Text Classification & Disposal, Consequences, Context, Decision
 
 ### Community 472 - "Lead notes"
 Cohesion: 0.33
 Nodes (6): Build detail, Gate + fix-loop summary, Lead notes, NOT in Phase A (→ Phase B), Phase A — Hospital-admin tier, 4-tier audit & committee titles, Task table
 
 ### Community 473 - "phase-22.md"
-Cohesion: 0.29
-Nodes (7): Backend — B1–B7 + QA MINOR (HC084) DONE (local; awaiting remote push), Frontend — F1–F5 built (components + actions), lint+typecheck green, Lead — full-suite gate run + two REAL bugs caught & fixed, Meeting actual-occurrence time — `held_at` / `held_end` (ADR 0062), Out of scope (pre-existing branch failures — NOT this feature), Outcome, Tester T1 — `e2e/meeting-held-time.spec.ts` 5/5 (chromium, `--workers=1`, fresh reset)
+Cohesion: 0.33
+Nodes (6): 5.7 `referral_document_links`, Columns, Design rationale, Permission requirement, Suggested access modes, Suggested audiences
 
 ### Community 474 - ""Sem processo" — process-less case creation (`processless_cases`)"
 Cohesion: 0.29
@@ -2888,7 +2899,7 @@ Nodes (7): ADRs, Data-access & action modules, Deferred (carried as a follow-up,
 
 ### Community 475 - "Result-based phase recommendation — `recommend_when` answer/result groups (✅ COMPLETE 2026-06-26)"
 Cohesion: 0.33
-Nodes (6): §6 gate, Backend (`backend`), Frontend (`frontend`, `aebe7cdff7d0fbfad` / `a20b5bd87cf9c7014`), Handoff note (historical), Result-based phase recommendation — `recommend_when` answer/result groups (✅ COMPLETE 2026-06-26), Tester (`tester`, `a5775c724f7eaab9c`) — gate
+Nodes (4): Gate, Lead notes, Phase 12 — Case Timeline (archived task detail), Tasks
 
 ### Community 477 - "8. Advanced Patterns"
 Cohesion: 0.40
@@ -2910,9 +2921,13 @@ Nodes (4): Hard boundary, How you work, Reporting, Scope you own
 Cohesion: 0.33
 Nodes (5): 0013 — Fix form_versions INSERT RLS self-reference, Consequences, Context, Decision, Options considered
 
+### Community 482 - "ADR 0055 — CAPA tenant anchor: hospital-scope every CAPA, close the cross-hospital write hole"
+Cohesion: 0.50
+Nodes (4): ADR 0054 — Tenant-hierarchy composite FK: a commission's org must match its hospital's org, Consequences, Context, Decision
+
 ### Community 483 - "0012 — clone_form_version returns the existing draft (one draft per form)"
-Cohesion: 0.05
-Nodes (50): AssigneeAvatar(), CaseAccessPanel(), LevelOption(), CaseKpis, OutcomeBreakdown, NarrativeAssignMenu(), CaseTabs(), CasesKpiStrip() (+42 more)
+Cohesion: 0.06
+Nodes (45): AuditLabelOption, ADR-0051, AuditIntegrityCheck(), ADR-0051, TOKEN_STYLES, ColorTokenPicker(), ArchiveNarrativeTypeButton(), OutcomeDefDialog() (+37 more)
 
 ### Community 484 - "ADR 0019 — The default (anchor) section may carry a title"
 Cohesion: 0.22
@@ -2927,8 +2942,8 @@ Cohesion: 0.25
 Nodes (7): E2E gating on a prod standalone build, Recommendations, References, The batched gate runner — `npm run e2e:prod` (server restart per batch), The recipe (what actually works here), TL;DR, Worked example — the 2026-07-11 run
 
 ### Community 487 - "ADR 0031 — Event Custody Ledger, Access-Follows-Custody RLS & PHI Isolation (Phase 14a)"
-Cohesion: 0.33
-Nodes (6): F-cleanup — residual DB-hardening (durable record), Gate, Process learning — e2e completeness (for future D11-style renames), QA Minor-1 — re-enforced (not deferred), Remaining / deferred, What shipped (8 migrations `20260719000000`–`…000800`)
+Cohesion: 0.50
+Nodes (4): ADR 0055 — CAPA tenant anchor: hospital-scope every CAPA, close the cross-hospital write hole, Consequences, Context, Decision
 
 ### Community 488 - "ADR 0033 — Case Access Control (per-case read/write grants, attribution-driven access & "Meus Casos")"
 Cohesion: 0.33
@@ -2939,16 +2954,16 @@ Cohesion: 0.40
 Nodes (4): ADR 0023 — Configurable per-committee case status, Consequences, Context, Decision
 
 ### Community 490 - "ADR 0050 — Action-Items Fold, `visibility_scope`, and Case-Access Grant Expiry"
-Cohesion: 0.67
-Nodes (3): 28. Example: Complex Action Item, Scenario, Tables Used
+Cohesion: 0.40
+Nodes (5): ADR 0033 — Case Access Control (per-case read/write grants, attribution-driven access & "Meus Casos"), Alternatives rejected, Consequences, Context, Decision
 
 ### Community 491 - "27. Example: Simple Action Item"
 Cohesion: 0.40
 Nodes (4): 0012 — clone_form_version returns the existing draft (one draft per form), Consequences, Context, Decision
 
 ### Community 492 - "ADR 0052 — NSP-per-hospital: re-key the PQS roster + every PHI door org → hospital, add `nsp_org_admin`"
-Cohesion: 0.53
-Nodes (5): AuditFeed(), getServerSnapshot(), getSnapshot(), subscribe(), useClientNow()
+Cohesion: 0.50
+Nodes (4): Lead notes, Phase 22 — Inter-Committee Case Referrals (`case_referrals`), Summary, Tasks
 
 ### Community 493 - "case-narratives.md"
 Cohesion: 0.40
@@ -2959,8 +2974,12 @@ Cohesion: 0.40
 Nodes (4): 1 — Shared (non-PHI) `action_items` hub — Option A unification (2026-07-02), 2 — Action-items fold + `visibility_scope` + case-access expiry (2026-07-02, ADR 0050), 3 — "Meus itens de ação" + member "Visão Geral" (2026-07-02), Shared Action-Items Hub — task detail (Option A → case-fold → member views)
 
 ### Community 495 - "layout-adjustments-2026-07.md"
-Cohesion: 0.67
-Nodes (3): 20. Reminder Rules, Responsibility, Suggested Schema
+Cohesion: 0.40
+Nodes (5): ADR 0050 — Action-Items Fold, `visibility_scope`, and Case-Access Grant Expiry, Alternatives rejected, Consequences, Context, Decision
+
+### Community 496 - "loading.tsx"
+Cohesion: 0.40
+Nodes (5): 11.1 Submit referral transaction, 11.2 Send message transaction, 11.3 Resolve referral transaction, 11.4 Reopen referral transaction, 11. Domain Services and Transaction Boundaries
 
 ### Community 497 - "loading.tsx"
 Cohesion: 0.40
@@ -3104,23 +3123,47 @@ Nodes (5): 9. Table: `document_kinds`, DDL, Design rationale, Example rows, Purp
 
 ### Community 533 - "Phase 14b–14d — Patient-Safety / NSP: Triage, RCA & CAPA"
 Cohesion: 0.50
-Nodes (4): ENTITY_ICON, EntityIcon(), resolveEntityIcon(), AuditEntityType
+Nodes (4): Gate record, Pre-Pilot DB Hardening — Wave 1 (archived task detail), QA findings (all non-blocking; tracked in PROGRESS Follow-ups), Task detail (W1-T1 … W1-T7 + gate)
+
+### Community 535 - "Phase 14b–14d — Patient-Safety / NSP: Triage, RCA & CAPA"
+Cohesion: 0.50
+Nodes (4): Batch context, Gate outcome (§6), Phase 14b–14d — Patient-Safety / NSP: Triage, RCA & CAPA, Tasks
 
 ### Community 537 - "Prefer Statically Analyzable Paths"
 Cohesion: 0.50
 Nodes (3): File-System Paths, Import Paths, Prefer Statically Analyzable Paths
 
 ### Community 539 - "loading.tsx"
-Cohesion: 0.29
-Nodes (7): 1. How this track is organized (and why not a physical module), 2. Conventions inherited by every phase in this track, 3. Data-coupling map — how the quality track rides on the committee track, 4. Feature-flag index, 5. ADR index for the track, 6. Deployment note, Quality-Track Context — Accreditation & Quality Governance (Phases 13–21)
+Cohesion: 0.40
+Nodes (5): 17. Suggested Repository and Service Boundaries, Application layer, Domain layer, Infrastructure layer, Presentation layer
+
+### Community 540 - "0068 — Case-phase result engine: jsonb/array → FK-backed junctions (D3)"
+Cohesion: 0.70
+Nodes (4): getServerSnapshot(), getSnapshot(), subscribe(), useClientNow()
+
+### Community 541 - "0069 — Anglicize status-enum internal keys (D11)"
+Cohesion: 0.50
+Nodes (4): 5.10 `referral_status_events`, Columns, Design rationale, Suggested event types
+
+### Community 542 - "Phase 8 — Dashboards & Submissions Browser (archived task detail)"
+Cohesion: 0.50
+Nodes (4): 5.12 `referral_read_receipts`, Columns, Design rationale, Primary key
 
 ### Community 543 - "loading.tsx"
 Cohesion: 0.40
 Nodes (5): ADR 0051 — Hospital-admin tier, 4-tier audit chain & committee member titles, Alternatives rejected, Consequences, Context, Decision
 
 ### Community 544 - "loading.tsx"
-Cohesion: 0.32
-Nodes (6): metadata, ReviewDuePage(), ReviewOverdueChip(), ReviewDueList(), ReviewDueRow, listDocumentsDueForReview()
+Cohesion: 0.50
+Nodes (4): Gate record, Pre-Pilot DB Hardening — Wave 2 (WS-6 perf sweep) — archived task detail, QA findings (Wave 2), Task detail (W2-T0 … W2-T3 + gate)
+
+### Community 545 - "21. Recommended Dashboard Views"
+Cohesion: 0.50
+Nodes (4): 5.2 `referral_context_versions`, Columns, Constraints, Design rationale
+
+### Community 546 - "27. Example: Simple Action Item"
+Cohesion: 0.50
+Nodes (4): 5.9 `referral_case_links`, Columns, Design rationale, Suggested relationship types
 
 ### Community 547 - "21. Recommended Dashboard Views"
 Cohesion: 0.40
@@ -3129,6 +3172,18 @@ Nodes (4): ADR 0001 — Scaffolding & toolchain bootstrap, Consequences, Context
 ### Community 548 - "loading.tsx"
 Cohesion: 0.40
 Nodes (5): ADR 0052 — NSP-per-hospital: re-key the PQS roster + every PHI door org → hospital, add `nsp_org_admin`, Alternatives rejected, Consequences, Context, Decision
+
+### Community 552 - "loading.tsx"
+Cohesion: 0.67
+Nodes (3): 28. Example: Complex Action Item, Scenario, Tables Used
+
+### Community 553 - "loading.tsx"
+Cohesion: 0.67
+Nodes (3): 21.1 Open Action Items View, 21.2 Action Item Dashboard View, 21. Recommended Dashboard Views
+
+### Community 559 - "loading.tsx"
+Cohesion: 0.67
+Nodes (3): NSP-per-org — phase record (archived), NSP-per-org — Sub-phase A: Backend security core (✅ QA-APPROVED 2026-06-25), NSP-per-org — Sub-phase B: FE route-move + un-quarantine E2E (🏗️ in progress)
 
 ### Community 560 - "10. Related Records: `action_item_related_records`"
 Cohesion: 0.50
@@ -3358,45 +3413,33 @@ Nodes (4): 37.1 Case-linked documents, 37.2 Case access versus document access, 
 Cohesion: 0.50
 Nodes (4): 42. Minimal Viable Implementation Plan, Phase 1: Core secure document storage, Phase 2: Scanned document processing, Phase 3: Advanced compliance
 
-### Community 706 - "ADR 0033 — Case Access Control (per-case read/write grants, attribution-driven access & "Meus Casos")"
-Cohesion: 0.14
-Nodes (10): ADR 0033 — Case Access Control (per-case read/write grants, attribution-driven access & "Meus Casos"), Alternatives rejected, Consequences, Context, Decision, ADR 0050 — Action-Items Fold, `visibility_scope`, and Case-Access Grant Expiry, Alternatives rejected, Consequences (+2 more)
-
-### Community 707 - "0058 — Derived quality-indicator measurement compute (the parity lock)"
-Cohesion: 0.40
-Nodes (5): 0058 — Derived quality-indicator measurement compute (the parity lock), Alternatives rejected, Consequences, Context, Decision
-
 ### Community 713 - "Feature — `case_phase_results` (per-phase categorical result + manual override)"
-Cohesion: 0.50
+Cohesion: 0.33
 Nodes (4): Backend (`backend`), Feature — `case_phase_results` (per-phase categorical result + manual override), Frontend (`frontend`), Tester (`tester`)
 
 ### Community 922 - "27. Example: Simple Action Item"
 Cohesion: 0.67
 Nodes (3): 27. Example: Simple Action Item, Scenario, Tables Used
 
-### Community 923 - "28. Example: Complex Action Item"
-Cohesion: 0.67
-Nodes (3): 28. Example: Complex Action Item, Scenario, Tables Used
-
 ## Knowledge Gaps
-- **4205 isolated node(s):** `semi`, `singleQuote`, `trailingComma`, `plugins`, `$schema` (+4200 more)
+- **4341 isolated node(s):** `semi`, `singleQuote`, `trailingComma`, `plugins`, `$schema` (+4336 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **889 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **892 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `createClient()` connect `CAPA Evidence & Cards` to `Admin & Auth Pages`, `Phase Answers & Assignments`, `Triage Disposition & Pathways`, `Case Documents`, `RCA Problem Stage`, `Form Builder Actions`, `Submission Detail (Answer Model)`, `Section Visibility & Blocks`, `NSP Event Pages`, `RCA Analysis Stage`, `Case Department Field`, `Referral Detail & Formatting`, `NSP Patient Registry`, `Form Builder Page`, `My Cases List`, `Auth Callback & Meeting Settings`, `Referral Actions & Reply`, `NSP Referrals Dashboard`, `Case & Phase Actions`, `Meeting Detail & Agenda`, `NSP CAPA/RCA Pages`, `Case Narrative Editor`, `Form Item Editor & Tests`, `loading.tsx`, `Phase Responder & Submissions`, `Case Narrative Cards`, `Phase Result Actions`, `Admin Layout & Claims`, `Forms & Process Templates`, `Derived Indicator Config`, `Event Notification & Triage`, `Page`, `Layout`, `IsTerminalMeetingStatus`, `Page`, `Page`, `Page`, `ListMeetings`, `Page`, `TitleAssignControl`, `Condition builder`, `Page`, `CaseActionItemForm`, `VersionWithUrl`, `UploadDialog`, `Event type manager`, `Page`, `Page`, `Wizard runner`, `Page`, `Page`, `CaseActionItemsPanel`, `Page`, `Page`, `Actions`, `Outcomes actions`, `CaseTagsPanel`, `DepartmentDefDialog`, `Page`, `Browser`, `AdminAuditPage`, `Page`, `Page`, `ConfirmDeleteButton`, `Format`, `ADR 0028`, `Meeting form dialog.test`, `Page`, `Page`, `Page`, `Audit icon`, `CaseEvent Data Model`, `Page`, `Loading`, `Loading`, `markdown-renderer.tsx`, `referrals-list.tsx`, `result-actions.ts`, `case-narratives.spec.ts`, `Form-Builder Enhancements batch (ad-hoc, out-of-phase) — COMPLETE 2026-07-07`, `0066 — patient_xref case-module grain re-keyed to the patient participant`, `ADR 0030 — Patient-Safety PHI Posture Reversal & PQS/NSP Module Architecture (Phase 14)`?**
-  _High betweenness centrality (0.063) - this node is a cross-community bridge._
-- **Why does `Page` connect `Staff Case Detail` to `phase22-referrals.spec.ts`, `phase8-dashboard.spec.ts`, `Loading`, `phase14b-triage.spec.ts`, `Page`, `recommend-result.spec.ts`, `My Cases List`, `NSP Referrals Dashboard`, `Meeting Detail & Agenda`, `flagged-aggregate-result.spec.ts`, `phase7-cases.spec.ts`, `cases-outcomes-blockers.spec.ts`, `nsp-per-hospital.spec.ts`, `phase14c-rca.spec.ts`, `case-phase-result.spec.ts`, `form-model-normalization.spec.ts`, `phase14d-capa.spec.ts`, `phase15-indicators.spec.ts`, `phi-remediation.spec.ts`, `Interview badges`, `form-builder-enhancements.spec.ts`, `Page`, `Case document delete`, `Page`, `Page`, `Referral patient fields`, `ad-hoc-narratives.spec.ts`, `administrativo.spec.ts`, `member-action-items-overview.spec.ts`, `phase13-audit.spec.ts`, `loading.tsx`, `wizard-others-ux.spec.ts`, `Loading`, `Increment Archive — Case Access Control & "Meus Casos"`, `Loading`, `case-patient.spec.ts`, `cases-extras.spec.ts`, `cases-meetings-minor.spec.ts`, `patient-index.spec.ts`, `phase14a-safety-events.spec.ts`?**
+- **Why does `createClient()` connect `Event Notification & Triage` to `Admin & Auth Pages`, `NSP Referrals Dashboard`, `Phase Answers & Assignments`, `Triage Disposition & Pathways`, `Case Documents`, `RCA Problem Stage`, `Form Builder Actions`, `Submission Detail (Answer Model)`, `CAPA Badges`, `NSP Event Pages`, `RCA Analysis Stage`, `Referral Detail & Formatting`, `Org Overview Dashboard`, `NSP Patient Registry`, `Form Builder Page`, `My Cases List`, `Auth Callback & Meeting Settings`, `Referral Actions & Reply`, `markdown-renderer.tsx`, `Case & Phase Actions`, `Meeting Detail & Agenda`, `NSP CAPA/RCA Pages`, `referrals-list.tsx`, `Case Narrative Editor`, `Form Item Editor & Tests`, `Page`, `Phase Responder & Submissions`, `Case Narrative Cards`, `Phase Result Actions`, `CAPA Evidence & Cards`, `Forms & Process Templates`, `Derived Indicator Config`, `Layout`, `result-actions.ts`, `IsTerminalMeetingStatus`, `Page`, `Page`, `Page`, `0066 — patient_xref case-module grain re-keyed to the patient participant`, `ListMeetings`, `Page`, `TitleAssignControl`, `Condition builder`, `CaseActionItemForm`, `case-narratives.spec.ts`, `VersionWithUrl`, `UploadDialog`, `Page`, `ADR 0030 — Patient-Safety PHI Posture Reversal & PQS/NSP Module Architecture (Phase 14)`, `Case tags panel`, `Page`, `Wizard runner`, `Page`, `Page`, `ActionItemRow`, `CaseActionItemsPanel`, `Audit icon`, `Page`, `Referral patient fields`, `0012 — clone_form_version returns the existing draft (one draft per form)`, `Actions`, `Page`, `Page`, `Outcomes actions`, `CaseTagsPanel`, `DepartmentDefDialog`, `wizard-others-ux.spec.ts`, `Browser`, `Loading`, `ConfirmDeleteButton`, `ADR 0028`?**
+  _High betweenness centrality (0.068) - this node is a cross-community bridge._
+- **Why does `cn()` connect `QA Review — Phase B: NSP-per-hospital + `nsp_org_admin`` to `Case Lifecycle Actions`, `Admin & Auth Pages`, `Shared UI & Phase Dialogs`, `Error & Not-Found Boundaries`, `Loading`, `Phase Answers & Assignments`, `Triage Disposition & Pathways`, `Case Documents`, `RCA Problem Stage`, `Submission Detail (Answer Model)`, `CAPA Badges`, `NSP Event Pages`, `Case Department Field`, `Referral Detail & Formatting`, `Org Overview Dashboard`, `Page`, `loading.tsx`, `My Cases List`, `Auth Callback & Meeting Settings`, `NSP Referrals Dashboard`, `NSP CAPA/RCA Pages`, `CAPA Evidence & Cards`, `Case Narrative Editor`, `Form Item Editor & Tests`, `Submission Detail Blocks`, `Admin Layout & Claims`, `Forms & Process Templates`, `Meeting Attendees & Quorum`, `Narrative Templates`, `Page`, `IsTerminalMeetingStatus`, `Page`, `ListMeetings`, `TitleAssignControl`, `Condition builder`, `CaseActionItemForm`, `VersionWithUrl`, `UploadDialog`, `Page`, `Case tags panel`, `Page`, `Page`, `Route`, `CaseActionItemsPanel`, `Audit icon`, `0012 — clone_form_version returns the existing draft (one draft per form)`, `Actions`, `Audit motion`, `DepartmentDefDialog`?**
   _High betweenness centrality (0.044) - this node is a cross-community bridge._
-- **Why does `cn()` connect `0012 — clone_form_version returns the existing draft (one draft per form)` to `Case Lifecycle Actions`, `Admin & Auth Pages`, `Shared UI & Phase Dialogs`, `Error & Not-Found Boundaries`, `Condition & Result Rule Editor`, `Phase Answers & Assignments`, `Triage Disposition & Pathways`, `Case Documents`, `RCA Problem Stage`, `Section Visibility & Blocks`, `NSP Event Pages`, `Case Department Field`, `Referral Detail & Formatting`, `Org Overview Dashboard`, `QA Review — Phase B: NSP-per-hospital + `nsp_org_admin``, `Options editor`, `Form Builder Page`, `My Cases List`, `Page`, `CAPA Evidence & Cards`, `Form Item Editor & Tests`, `loading.tsx`, `Submission Detail Blocks`, `Case Narrative Cards`, `Admin Layout & Claims`, `Interview & Agenda Forms`, `Forms & Process Templates`, `Derived Indicator Config`, `Meeting Attendees & Quorum`, `IsTerminalMeetingStatus`, `Page`, `ListMeetings`, `TitleAssignControl`, `CaseActionItemForm`, `VersionWithUrl`, `UploadDialog`, `Page`, `Case tags panel`, `Page`, `Loading`, `ActionItemRow`, `CaseActionItemsPanel`, `Gantt axis`, `ADR 0035 — Regulatory Posture (LGPD / ANVISA / CFM) & Column-Encryption Decision`, `Page`, `Actions`, `Page`, `QA Review — Form Builder Enhancements (mini-phase)`, `Audit motion`, `CaseTagsPanel`, `DepartmentDefDialog`, `Page`, `Loading`, `Loading`, `Page`, `Page`, `ADR 0028`?**
-  _High betweenness centrality (0.039) - this node is a cross-community bridge._
+- **Why does `Page` connect `Staff Case Detail` to `phase22-referrals.spec.ts`, `phase8-dashboard.spec.ts`, `Submission Detail (Answer Model)`, `phase14b-triage.spec.ts`, `Page`, `recommend-result.spec.ts`, `My Cases List`, `NSP Referrals Dashboard`, `Meeting Detail & Agenda`, `Page`, `loading.tsx`, `flagged-aggregate-result.spec.ts`, `phase7-cases.spec.ts`, `cases-outcomes-blockers.spec.ts`, `nsp-per-hospital.spec.ts`, `phase14c-rca.spec.ts`, `phase14d-capa.spec.ts`, `form-model-normalization.spec.ts`, `phase15-indicators.spec.ts`, `phi-remediation.spec.ts`, `Interview badges`, `Page`, `Event type manager`, `form-builder-enhancements.spec.ts`, `Page`, `Case document delete`, `Page`, `Page`, `ad-hoc-narratives.spec.ts`, `administrativo.spec.ts`, `member-action-items-overview.spec.ts`, `phase13-audit.spec.ts`, `Loading`, `Increment Archive — Case Access Control & "Meus Casos"`, `Format`, `Loading`, `case-patient.spec.ts`, `cases-extras.spec.ts`, `cases-meetings-minor.spec.ts`, `patient-index.spec.ts`, `phase14a-safety-events.spec.ts`?**
+  _High betweenness centrality (0.043) - this node is a cross-community bridge._
 - **What connects `semi`, `singleQuote`, `trailingComma` to the rest of the system?**
-  _4365 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _4501 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Case Lifecycle Actions` be split into smaller, more focused modules?**
-  _Cohesion score 0.05134656602366974 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.04971264367816092 - nodes in this community are weakly interconnected._
 - **Should `Admin & Auth Pages` be split into smaller, more focused modules?**
-  _Cohesion score 0.0456768038163387 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.048618922634670665 - nodes in this community are weakly interconnected._
 - **Should `Shared UI & Phase Dialogs` be split into smaller, more focused modules?**
-  _Cohesion score 0.09632590900437846 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.0515791865485117 - nodes in this community are weakly interconnected._
