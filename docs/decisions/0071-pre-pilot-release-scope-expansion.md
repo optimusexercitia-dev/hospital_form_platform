@@ -6,6 +6,11 @@ lead → backend/frontend/tester.
 post-pilot / deferred **into the pre-pilot release**. No new feature design; each item keeps
 its own ADR/plan, feature flag, and Phase Gate (CLAUDE.md §6). Supersedes only the *timing*
 in the dispositions cited below.
+**Implemented by:** the sequenced build plan
+[pre-pilot-release-scope-expansion](../plans/pre-pilot-release-scope-expansion.md) — an **S0**
+design/spec gate → **S1–S5** dependency stages, one Phase Gate per track (14 gated units). It
+resolves the cross-track schema collisions, allocates SQLSTATE/flag blocks, and lists the specs
+still to author. This ADR decides *what* moves pre-pilot and *why*; the plan decides *in what order*.
 
 ## Context
 

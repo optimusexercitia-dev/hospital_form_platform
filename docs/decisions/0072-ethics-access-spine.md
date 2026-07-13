@@ -1,0 +1,424 @@
+# 0072 — Ethics access spine: confidentiality, respondent-exclusion, recusal/COI & the m2 gate release
+
+**Date:** 2026-07-13 · **Status:** proposed (S0 design gate — DESIGN ONLY, not implemented).
+**Owner:** platform lead → `backend`. **Gate unit:** ETH·E1 of the
+[Pre-Pilot Release Scope Expansion](../plans/pre-pilot-release-scope-expansion.md) (ADR
+[0071](./0071-pre-pilot-release-scope-expansion.md)); ratified against the
+[S0 spine](../plans/pre-pilot-release-s0-ratification.md).
+**Build plan:** [`docs/phases/ethics-e1-access-spine.md`](../phases/ethics-e1-access-spine.md).
+
+**Supersedes / amends:**
+- **Continues ADR [0064](./0064-case-subject-generalization-participants.md)** (the E0 participant
+  foundation): this ADR is the **E1 access spine** that ADR 0064 §"Open items" 1 defers and the
+  **m2 hard gate** (0064 §m2) blocks release on. It changes **no** E0 table shape; it *adds* the
+  confidentiality/recusal/COI layer and the `can_read_case` terms E0 pre-committed to (0064 R6).
+- **Amends ADR [0033](./0033-case-access-control.md)** (`case_access` ACL): the implicit
+  "any commission member reads any case" arm becomes **conditional** — an *ethics-typed* case with
+  `default_visibility_policy = 'explicit_grants_only'` drops the member-wide read and requires a
+  `case_access` grant (or attribution). Non-ethics cases are byte-for-byte unchanged.
+- **Amends ARCHITECTURE.md Rule 12** — settles the **M2 professional-identity erasure-vs-retention**
+  posture ADR 0064 §M2 deferred (see §7 below; a *recommendation* for human sign-off, not an open item).
+
+**Relates:** ADR [0035](./0035-lgpd-anvisa-regulatory-posture.md) (LGPD Art. 18 vs CFM-1821/2007
+20-yr retention — the M2 basis), ADR [0037](./0037-inter-committee-referrals.md) (referral
+internal-notes RLS keystone this mirrors), ADR [0063]/F2 attachments (the one confidentiality
+taxonomy — X-δ), ADR [0070](./0070-interview-data-model-v2-sessions.md) + the
+[Interviews-v2 plan](../plans/interviews-v2-sessions.md) (the IV2 fold-in target — X-γ).
+**Binding rules:** Rule 1 (RLS is the boundary), Rule 6 (**R6 anti-recursion**, ADR 0064), Rule 10
+(pt-BR UI / English code), Rule 11 (audit), Rule 12 (PHI + the Class-2 professional class).
+
+---
+
+## Context
+
+ADR 0064 built the generalized-subject **E0 foundation** — the `participants` typed-identity
+registry, `case_participants`, `case_types` (+ `default_visibility_policy`), and the Class-2
+`professional_profiles` registry — but shipped it **dark behind the `case_participants` / `case_types`
+flags** with an explicit **m2 hard gate**: *those flags MUST NOT be flipped in any environment holding
+real ethics data until E1's respondent-exclusion RLS lands* (0064 §m2). E0 deliberately shipped the
+`professional_profiles.user_id` self-read hook that makes a respondent-doctor's self-read **reachable**;
+only E1 closes it.
+
+The Ethics Committee is the case type that forces the gate. Its case is a **complaint against a medical
+professional** (the *respondent doctor*), read by a **deliberating panel**, and its correctness rests on
+three properties the shipped `can_read_case` does not yet have:
+
+1. **Respondent-exclusion** — a respondent who is also a platform user (an internal doctor complained
+   about by a peer) must **never** read the case investigating them, even though they are a commission
+   member and E0 linked their `professional_profiles.user_id`. This is the m2 keystone.
+2. **Recusal / conflict-of-interest** — a panel member with a declared conflict, or one formally recused,
+   loses read on that specific case (so they cannot see the deliberation or later vote — E2).
+3. **Explicit-grants-only + a confidentiality ceiling** — ethics deliberation is **not** open to every
+   commission member by default (contrast an infection-control checklist); access is by explicit grant,
+   and sensitive documents (legal-privileged, credentialing) are gated above ordinary case-read.
+
+E1 makes the generalized-subject layer **safe to hold real complaint data**, then — and only then —
+**releases the m2 gate** (flips `case_participants` + `case_types` ON). It also **folds in** the
+Interviews-v2 deferred bucket (X-γ): IV2 lands its confidentiality/relationship columns *inert* on
+purpose so E1 adds enforcement + participant-registry wiring **without a re-migration**.
+
+**Non-goal:** the ethics *procedure* (allegations, findings, notices, hearings, votes, sanctions,
+appeals) is **E2** (ADR 0073). E1 builds only the **access spine** those procedures ride on. E1 also
+does **not** own the `ethics` feature flag (E2 owns it — S0 §F.4); E1 flips only `case_participants` +
+`case_types`.
+
+---
+
+## Decision
+
+### D1 — One confidentiality taxonomy: `cases.confidentiality_level`, snapshot at create (X-δ)
+
+A new column `cases.confidentiality_level text not null` aligned to **the F2 label set** — the platform's
+**single** confidentiality vocabulary (ADR 0065 §3; already shipped on `attachments.confidentiality_label`):
+
+```
+non_phi_internal · phi_standard · phi_restricted ·
+peer_review_confidential · legal_privileged · ethics_investigation · credentialing_sensitive
+```
+
+- **Resolved at create, snapshotted, immutable-by-default.** `case_types.default_visibility_policy`
+  (E0: `commission_default` | `explicit_grants_only`) chooses the **access model**; a companion
+  `case_types.default_confidentiality_level` (NEW column on `case_types`, same 7-value CHECK) chooses the
+  **default ceiling**. At `create_case`, the case snapshots `case_type.default_confidentiality_level`
+  into `cases.confidentiality_level` (mirrors how `case_type_id` is already snapshotted, 0064 D4). A
+  coordinator may later raise/lower it via a DEFINER RPC (`set_case_confidentiality`, audited) — never a
+  direct write.
+- **`case_types.default_visibility_policy` → `cases`.** So the resolved policy is stable even if the
+  type config changes, E1 also snapshots the **effective visibility policy** onto the case:
+  `cases.visibility_policy text not null default 'commission_default'` (CHECK
+  `∈ {commission_default, explicit_grants_only}`), set at create from the type. This is the column
+  `can_read_case`'s explicit-grants-only term reads (D2·3) — a **base-table column on `cases`**, so the
+  term stays R6-safe with no join.
+- **Non-ethics cases are unaffected:** existing seed/case types default to `commission_default` +
+  `non_phi_internal`, reproducing today's behaviour exactly (flag-OFF invariant, §6).
+
+> Rationale for a snapshot (not a live read of `case_types`): a case's confidentiality must not silently
+> change because an admin edited the type catalog months later — the deliberation's access contract is
+> fixed when the case opens. Same freeze principle as `case_type_id` (0064) and `form_version_id`
+> (Rule 5).
+
+### D2 — `can_read_case` gains four terms, **all computed inside the DEFINER over base tables** (R6)
+
+E1 adds its terms to the **existing** `app.can_read_case(p_case_id, p_uid)` SECURITY DEFINER predicate
+(live definition: `20260710000000_nsp_per_hospital.sql` L569). The DEFINER bypasses RLS, so every term
+traverses **base tables** (`case_participants`, `professional_participants`, `case_recusals`,
+`cases.visibility_policy`) directly — **never** an RLS-gated read of `case_participants`, which would
+recurse (`case_participants` RLS → `can_read_case` → `case_participants` …). This is ADR 0064 R6,
+pre-committed at E0 and identical to the pattern already shipped in `can_read_professional_profile`.
+
+The predicate becomes (arms in order; **new** terms marked ⟵E1):
+
+```
+0.  ⟵E1  RESPONDENT-EXCLUSION (hard DENY, evaluated FIRST, before every arm) —
+         return false if p_uid is the user behind a respondent_doctor participant
+         of THIS case.
+0b. ⟵E1  RECUSAL-EXCLUSION (hard DENY, also first) — return false if a live
+         case_recusals row exists for (p_case_id, p_uid).
+1.  QPS macro-view (case_referrals) …………………………………… unchanged (grant)
+2.  flag-OFF fallback (case_access disabled) ……………………… MODIFIED: is_member_of_for,
+         BUT suppressed for cases whose visibility_policy = 'explicit_grants_only'.
+3.  is_staff_admin_of_for / is_commission_admin_of_for ………… unchanged (coordinator/admin)
+4.  case_access grant (expiry-filtered) …………………………… unchanged
+5.  phase-assignee / narrative-assignee …………………………… unchanged (attribution)
+```
+
+Three structural points make this correct and safe:
+
+- **Deny-terms are evaluated FIRST** (before even the QPS grant), and **hard-deny** (short-circuit
+  `return false`) — a respondent or recused user who is *also* a `staff_admin` / grant-holder / QPS
+  operator is still denied. This is the m2 keystone: exclusion cannot be out-voted by any positive arm.
+- **There is no blanket "any commission member" arm in the `case_access`-ON path today** — with
+  `case_access` ON, `can_read_case` already resolves through staff-admin / grant / attribution only. A
+  `commission_default` case's member-wide *visibility* comes from `list_my_cases` + the case board, **not**
+  from `can_read_case`. So E1 does **not** add-then-condition a member arm to the ON path; it leaves the ON
+  arms untouched and instead **suppresses the flag-OFF member fallback (arm 2)** for `explicit_grants_only`
+  cases (belt: a mis-configured environment with `case_access` OFF must still not leak an ethics case to
+  every member). The **primary** `explicit_grants_only` enforcement therefore lives in the member-facing
+  reach surfaces — `list_my_cases` and the case board must consult `cases.visibility_policy` and **not**
+  surface an `explicit_grants_only` case to a member without a grant/attribution.
+- **The member-facing reach audit is a build-plan task.** The build plan §Ripples enumerates every
+  member-facing surface that shows case reach for `commission_default` cases (board, Meus Casos, meeting
+  case-labels, timeline case refs) and confirms each gates on `visibility_policy` so an `explicit_grants_only`
+  case is grant/attribution-only there, while **no `commission_default` case loses reach** (the change is a
+  no-op for them). Same D2 ripple discipline as ADR 0033 §7.
+
+**Respondent-exclusion term (the base-table traversal, R6-safe):**
+
+```sql
+-- inside app.can_read_case, BEFORE the grant arms:
+if exists (
+  select 1
+  from public.case_participants cp
+  join public.case_participant_roles r on r.id = cp.role_id
+  join public.professional_participants pp on pp.participant_id = cp.participant_id
+  join public.professional_profiles prof on prof.id = pp.professional_profile_id
+  where cp.case_id = p_case_id
+    and cp.removed_at is null
+    and r.key = 'respondent_doctor'
+    and prof.user_id = p_uid
+) then
+  return false;   -- HARD DENY: the respondent may never read their own case (m2)
+end if;
+```
+
+`can_read_case_patient` receives the **same** respondent + recusal deny-terms (a respondent must not
+reach the PHI door either), inheriting its verified PHI tenant gate unchanged (0064 R1).
+
+### D3 — `can_write_case_content` also honours recusal + respondent-exclusion
+
+The two hard-deny terms are added to `app.can_write_case_content` as well (same base-table shape): a
+recused or respondent user cannot *write* case content even if some legacy arm would allow it. (Read
+denial alone would be inconsistent — E2's vote gate leans on this, but E1 sets it up.)
+
+### D4 — New tables: `case_recusals` + `case_conflict_declarations` (RLS-enforced)
+
+Both are **case children**, RLS-gated by `can_read_case` for SELECT and DEFINER-RPC-only for writes
+(the meetings/interviews/case-access pattern — a case *reader* cannot write them; only the RPC's
+authority gate can).
+
+```
+case_conflict_declarations
+  id, case_id → cases (cascade), declarant_id → profiles,
+  conflict_type text  check in ('professional_relationship','personal_relationship',
+                                'financial_interest','prior_involvement','other'),
+  description_md text,                     -- sanitized Markdown (Rule 7)
+  status text default 'declared'  check in ('declared','recused','waived'),
+  declared_at, resolved_at, resolved_by → profiles,
+  unique (case_id, declarant_id)           -- one live declaration per member per case
+  -- RLS SELECT: can_read_case(case_id, auth.uid())  (a declarant always sees their own via the read)
+  -- writes: DEFINER RPC declare_conflict / (resolution) record_recusal|waive
+```
+
+```
+case_recusals
+  id, case_id → cases (cascade), user_id → profiles,
+  reason_md text, source text check in ('self','coordinator','conflict'),
+  conflict_declaration_id → case_conflict_declarations (nullable),
+  recused_at, recused_by → profiles,
+  lifted_at, lifted_by → profiles,          -- soft-lift (audit-preserving)
+  -- LIVE recusal = lifted_at is null; the can_read_case deny-term filters on that.
+  -- partial-unique: one LIVE recusal per (case_id, user_id) where lifted_at is null
+  -- RLS SELECT: can_read_case(case_id, auth.uid())  ⚠ see note
+```
+
+> **RLS self-reference note (important):** `case_recusals.user_id = auth.uid()` is a **recused** user —
+> `can_read_case` now *denies* them, so a recused member could not SELECT **their own** recusal row via a
+> plain `can_read_case` SELECT policy. This is acceptable (the recusal is enforced; they simply can't
+> browse it), but the *coordinator* must see all recusals of a case to manage the panel. Resolution: the
+> `case_recusals` SELECT policy is `can_read_case(case_id, auth.uid()) OR user_id = auth.uid() OR
+> app.is_staff_admin_of_for(app.commission_of_case(case_id), auth.uid())` — the self-arm lets a recused
+> member see *that they are recused* (a UI "você está impedido neste caso" banner) without granting case
+> read. The coordinator arm is R6-safe (no `case_participants` read). This asymmetry is a pgTAP keystone.
+
+### D5 — Document-level confidentiality **extends the F2 attachment reader** (X-δ — NOT a parallel grant table)
+
+E1 does **not** create a document-grant table. Instead it adds a **confidentiality ceiling** to the
+already-shipped `app.can_read_attachment` owner-dispatch (F2, `20260717000000_attachments_core.sql`
+L230), which today is *pure owner-auth* — `confidentiality_label` is stored but does **not** gate reads.
+E1 makes the label enforcing for the sensitive labels:
+
+- After the owner-auth arm resolves (`can_read_case` for `owner_type='case'`, etc.), gate on the label:
+  a **`legal_privileged`** or **`credentialing_sensitive`** attachment additionally requires a
+  matching **`case_access` grant with a confidentiality-clearance level** — i.e. an ordinary case reader
+  sees the case but **not** the privileged document; a legal-grant holder sees both.
+- The clearance rides `case_access` (not a new table): `case_access.level` is widened from
+  `('read','write')` to add clearance grades, **or** — the recommended shape — a nullable
+  `case_access.max_confidentiality text` (7-value CHECK) column stating the highest label this grant may
+  open. `can_read_attachment`'s new ceiling term reads that column (base-table, R6-safe). Ordinary
+  labels (`non_phi_internal`, `phi_standard`, `peer_review_confidential`, `ethics_investigation`) stay
+  at case-read; only `legal_privileged` + `credentialing_sensitive` require the elevated clearance.
+
+> This keeps **one** taxonomy and **one** grant plane (`case_access`), exactly as X-δ mandates: the
+> attachment's own `confidentiality_label` is the ceiling; the reader's `case_access.max_confidentiality`
+> is the clearance; no second ACL. Design detail (which labels gate, whether via `level` grades or a new
+> column) is finalized in the build plan §Contract; **Open decision O1** flags the `level`-vs-column
+> choice for the lead.
+
+### D6 — Participant write authority: DEFINER RPCs (the F1 carry-over)
+
+E0 left `case_participants` **SELECT-only** (no write policy — 0064 QA MINOR-1: gating a `FOR ALL` write
+on the *read* predicate would let any reader write participants). E1 supplies the **real** write
+authority as DEFINER RPCs (coordinator/staff-admin gated, audited), matching
+`set_participant_patient` / the meetings/interviews/case-access door pattern:
+
+- `add_case_participant(p_case_id, p_participant_id, p_role_id, p_is_primary_subject, p_involvement_summary)`
+- `remove_case_participant(p_case_participant_id)` — soft-remove (`removed_at`).
+- `set_primary_subject(p_case_participant_id)` — flips `is_primary_subject` (partial-unique already
+  enforces ≤1 live primary).
+- `set_case_participant_role(p_case_participant_id, p_role_id)`.
+- Plus professional-profile **writers** (E0 shipped only readers): `create_professional_profile` /
+  `update_professional_profile` (coordinator-gated, audited `professional_profile.updated`; the M2
+  erasure posture of §7 governs whether a `dispose_*` exists — **recommendation: none at E1**).
+
+`case_participants` **keeps** its SELECT-only RLS (`can_read_case`); all writes funnel through these
+RPCs. A case *reader* who is not a coordinator gets `42501` — a pgTAP + E2E keystone.
+
+### D7 — Interviews-v2 fold-in (X-γ) — enforcement + registry wiring, no re-migration
+
+IV2 (which lands **before** E1, S2) ships `case_interviews.confidentiality_level`,
+`interview_category`, and `case_interview_subjects.relationship_to_case` **inert** (non-enforcing;
+IV2's own 3-value `{standard, restricted, highly_restricted}` tag; no `participant_id` FK). E1 owns the
+enforcement + wiring migration:
+
+1. **`participant_id` FK** (nullable) on `case_interviews`, `case_interview_subjects`,
+   `case_interview_interviewers` → `case_participants(id)`. Nullable because a subject may be an
+   external person not yet in the registry; when set, it ties the interview person to the case-level
+   participant so *the same* respondent resolves the same `participant_id` across sessions.
+2. **`confidentiality_level` becomes ENFORCING** and is **remapped to the F2 7-value taxonomy** (X-δ) —
+   IV2's `{standard→non_phi_internal, restricted→peer_review_confidential,
+   highly_restricted→ethics_investigation}` (final map fixed in the build plan). An interview's
+   effective read ceiling then rides the same clearance mechanism as documents (D5). The IV2 picker's
+   "não restringe acesso ainda" helper text is replaced (FE, E2/E3 surfacing).
+3. **Per-session attendance** table `interview_session_attendance(session_id, participant_id,
+   attendance_status, role_at_session)` — wants the unified participant row (hence E1, not IV2).
+4. **Participant-roles M2M** for interviews, `interview_topics`, and versioned/per-audience
+   `interview_summaries` — the remaining "Defer→E1" bucket (IV2 plan §5). These are additive tables,
+   RLS-mirroring the interview-child pattern (`can_read_case` via the interview, per
+   `20260713001200_case_interviews_case_scope_read`).
+
+### D8 — RPCs `declare_conflict` / `record_recusal` / `lift_recusal`
+
+- `declare_conflict(p_case_id, p_conflict_type, p_description_md)` — any case reader may declare their
+  own conflict (self-service); inserts `case_conflict_declarations` (`status='declared'`); audited
+  `case.conflict_declared`.
+- `record_recusal(p_case_id, p_user_id, p_reason_md, p_conflict_declaration_id default null)` —
+  coordinator-gated (or self, `source='self'`); inserts a **live** `case_recusals` row; if it resolves a
+  declaration, flips that declaration `→ 'recused'`; audited `case.recusal_recorded`. Once live, the
+  target **immediately loses read** via the `can_read_case` deny-term.
+- `lift_recusal(p_recusal_id, p_reason_md)` — coordinator-gated; soft-lifts (`lifted_at = now()`);
+  audited `case.recusal_lifted`. Read is restored.
+
+All: `assert` the relevant flag, `REVOKE ALL FROM PUBLIC` then `GRANT authenticated, service_role`
+(t19 guard), pt-BR error messages, SQLSTATE from the `HC0E·` block (§ below).
+
+### D9 — SQLSTATE block `HC0E0–HC0E9` (S0 §B) + audit verbs
+
+| Code | Meaning (pt-BR message) |
+|---|---|
+| `HC0E0` | recusa já registrada para este usuário neste caso (live-recusal partial-unique) |
+| `HC0E1` | recusa não encontrada ou já suspensa (`lift_recusal`) |
+| `HC0E2` | declaração de conflito já existe para este usuário neste caso (`unique(case_id, declarant_id)`) |
+| `HC0E3` | papel de participante inválido para o tipo de participante (`add_case_participant` type/role mismatch) |
+| `HC0E4` | apenas a coordenação pode gerenciar participantes / recusas deste caso (write-authority gate; where a distinct code aids UX vs plain 42501) |
+| `HC0E5` | nível de confidencialidade inválido (`set_case_confidentiality` / clearance CHECK) |
+| `HC0E6` | sem autorização para abrir este documento confidencial (attachment confidentiality ceiling — D5) |
+| `HC0E7` | não é possível definir mais de um sujeito principal ativo (primary-subject partial-unique surface) |
+| `HC0E8` | reservado (E1 growth) |
+| `HC0E9` | reservado (E1 growth) |
+
+New audit verbs (mutation, via `app.audit_write`; PHI-free metadata — Rule 11): `case.participant_added`,
+`case.participant_removed`, `case.primary_subject_set`, `case.participant_role_changed`,
+`case.conflict_declared`, `case.recusal_recorded`, `case.recusal_lifted`, `case.confidentiality_changed`,
+`professional_profile.updated`, `interview.confidentiality_changed` (IV2 verb reused). The Class-2 read
+verb `professional_profile.read` is already on the `log_audit_access` allow-list + `_audit_access_authorized`
+dispatch (E0 O4) — **unchanged**.
+
+### D10 — Release the m2 gate LAST: `case_participants` + `case_types` ON
+
+E1 flips both flags ON **in a separate one-line final migration**, only after the **m2-flip checklist**
+(§ below) is green, and **adds them to the hand-maintained `src/lib/queries/feature-flags.ts`
+`FeatureFlags` interface** (S0 A5). E1 does **not** create or flip the `ethics` flag (E2 owns it,
+S0 §F.4). Local `seed.sql` may force both ON for E2E; production stays OFF until the pilot reset that
+follows the whole S0 block.
+
+---
+
+## The m2-flip checklist (gate keystones — flags flip ONLY when all are green)
+
+1. **Respondent-exclusion live** in `can_read_case` **and** `can_read_case_patient` (hard deny, before
+   grants), computed in the DEFINER over base tables (R6).
+2. **Recusal enforced in RLS** — a live `case_recusals` row denies read; `case_conflict_declarations`
+   is RLS-gated; `record_recusal` / `lift_recusal` DEFINER-only.
+3. **Explicit-grants-only wired from `case_types`** — `cases.visibility_policy` snapshot drives the
+   conditional member-wide arm; an `explicit_grants_only` case is grant/attribution-only.
+4. **Confidentiality column + enforcement** — `cases.confidentiality_level` snapshot at create;
+   `can_read_attachment` ceiling gates `legal_privileged` + `credentialing_sensitive`.
+5. **Real participant write authority** — `add/remove_case_participant`, `set_primary_subject`,
+   `set_case_participant_role` DEFINER RPCs; `case_participants` stays SELECT-only; a reader cannot write.
+6. **pgTAP isolation negatives green** — respondent denied (read + PHI door + write), recused user
+   denied, `explicit_grants_only` member without grant denied, privileged-doc reader denied — on a fresh
+   reset (memory `pgtap-needs-fresh-reset-vs-e2e-leftovers`).
+7. **THEN** the flag-flip migration + interface update.
+
+---
+
+## Consequences
+
+- **The m2 gate releases safely.** Real ethics complaint data becomes storable because the respondent
+  can no longer read their own case, recusals/COI are enforced in the DB (not the UI), and ethics cases
+  default to explicit-grants-only with a confidentiality ceiling. Nothing downstream (E2 procedure) can
+  hold ethics data until this lands (0064 §m2 satisfied).
+- **One taxonomy, one grant plane.** `cases.confidentiality_level`, `case_interviews.confidentiality_level`,
+  and `attachments.confidentiality_label` all speak the **same** 7-value vocabulary; clearance rides the
+  **existing** `case_access` (via `max_confidentiality`), not a new document-grant table (X-δ).
+- **R6 discipline preserved at every step.** Every participant-derived term (respondent-exclusion,
+  recusal, professional read) is computed **inside** the DEFINER over base tables — no
+  `case_participants` RLS recursion. This is the ADR-0064 R6 pre-commitment, now honoured.
+- **Flag-OFF byte-for-byte.** With `case_participants`/`case_types` OFF (and no ethics case types
+  seeded), `can_read_case` reproduces today's arms exactly: the new deny-terms find no
+  `respondent_doctor` participant and no `case_recusals` row (both empty), and every case's
+  `visibility_policy` defaults to `commission_default` so arm-8 is unchanged. The flag-OFF invariant is a
+  pgTAP keystone.
+- **IV2 folds in with no re-migration.** Because IV2 shipped its columns inert with English keys and a
+  `patient/family`-excluding `relationship_to_case`, E1 adds enforcement + the `participant_id` FK + the
+  attendance/roles/topics/summaries satellites additively (X-γ).
+- **Strict serialization.** E1 needs **F1** (done), **IV2** (X-γ fold-in target — lands first),
+  **MEM** (X-α `has_role()` base — lands first); N is soft (grant-expiry reminders). **E1 → E2 → E3** is
+  strictly sequential (§ plan 5). E1 is serialized against MEM on the membership-predicate surface (MEM
+  regens types before E1 starts).
+
+---
+
+## 7. M2 posture — professional-identity erasure vs CFM-1821/2007 retention (RECOMMENDATION for human sign-off)
+
+ADR 0064 §M2 deferred this to E1: a respondent doctor is LGPD *dado pessoal* with Art. 18
+correction/**eliminação** rights, but a **disciplinary** record has a strong CFM-1821/2007
+20-yr-retention + institutional-defensibility argument **against** erasure. E1 holds the disciplinary
+record's access spine, so E1 is where the posture is settled. This ADR **proposes a resolution** (it is
+not left open):
+
+**Recommendation — adopt the ADR-0035 "minimise, do not destroy" reconciliation, applied to Class-2
+professional identity, with a decision-pin:**
+
+1. **No hard-delete / no `dispose_professional_profile` at E1.** A `professional_profiles` row that is a
+   respondent in **any** case with an issued decision (E2) is **retention-pinned** — the disciplinary
+   record's defensibility (CFM-1821/2007, 20-yr floor) overrides Art. 18 erasure, exactly as PHI disposal
+   is reconciled with retention in ADR 0035 (erasure minimises, the governance skeleton + audit survive).
+2. **A `correction` path is provided, an `erasure` path is not (yet).** LGPD Art. 18 *correction* is
+   satisfied by `update_professional_profile` (audited `professional_profile.updated`). Art. 18 *erasure*
+   is **withheld while a case pins the profile**; for a profile that is a respondent in **no** decided
+   case, a future **`redact_professional_profile`** (E2, alongside the decision model) may null the
+   identity fields while preserving the row + audit — the *same* minimise-not-destroy shape as
+   `dispose_case_phi`. E1 does **not** build it (no decided cases exist pre-pilot); E1 **records the
+   posture** so a future implementer does not silently ship either an un-erasable registry *or* an
+   erasure path that destroys a defensible disciplinary record.
+3. **Rule 12 amendment (at E1 Record):** the Class-2 bullet gains: *"professional-identity erasure is
+   retention-pinned when the profile is a respondent in a decided case (CFM-1821/2007); correction is
+   always available; minimise-not-destroy redaction — not row deletion — is the erasure shape, designed
+   with the decision model (E2)."*
+
+**Rationale.** This mirrors the platform's already-ratified PHI stance (ADR 0035: disposal is
+minimisation reconciled with the 20-yr retention floor, not record destruction) rather than inventing a
+second, conflicting erasure philosophy for the professional class. It resolves the 0064 §M2 tension in
+the conservative, defensible direction (a disciplinary record survives), keeps E1 free of a
+premature-and-dangerous delete path, and defers the *redaction* mechanism to E2 where the decision model
+that *triggers* the retention pin actually exists. **This is a recommendation requiring human sign-off at
+the S0 gate.** (If the PO instead wants an active erasure path pre-decision, that is a scope addition to
+flag — but the recommendation is to defer it.)
+
+---
+
+## Open decisions (flagged for lead / PO)
+
+- **O1 — clearance shape (D5):** widen `case_access.level` with confidentiality grades **vs** add a
+  nullable `case_access.max_confidentiality` column. **Recommend the column** (orthogonal to read/write,
+  doesn't overload `level`'s existing 2-value CHECK, and reads cleanly in the ceiling term). Decide before
+  the migration.
+- **O2 — which labels gate at the document ceiling (D5):** the proposal gates **`legal_privileged` +
+  `credentialing_sensitive`** above ordinary case-read; `ethics_investigation` stays at case-read (it
+  *is* the ordinary ethics document). Confirm the PO wants exactly these two elevated.
+- **O3 — IV2 confidentiality remap (D7·2):** the `{standard, restricted, highly_restricted}` →
+  F2-7-value map. Proposed `standard→non_phi_internal`, `restricted→peer_review_confidential`,
+  `highly_restricted→ethics_investigation`. Confirm at the build-plan contract freeze.
+- **O4 (settled here, listed for visibility) — M2 posture:** §7 — recommend minimise-not-destroy,
+  retention-pin, no erasure path at E1. Human sign-off required at S0.

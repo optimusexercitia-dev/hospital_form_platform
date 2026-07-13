@@ -587,7 +587,7 @@ behind `surveyor_access`.
   cross-commission / cross-framework leakage); **zero write capability** from a grant; no answer payloads
   in any surveyor read.
 
-### Phase 20 — Notifications & Escalation (Notificações & Escalonamento) *(**pulled pre-pilot** 2026-07-12 — ADR [0071](../decisions/0071-pre-pilot-release-scope-expansion.md))*
+### Phase 20 — Notifications & Escalation (Notificações & Escalonamento) *(**pulled pre-pilot** 2026-07-12 — ADR [0071](../decisions/0071-pre-pilot-release-scope-expansion.md); built as track **N**, stage **S1**, of the [pre-pilot-release plan](../plans/pre-pilot-release-scope-expansion.md) — first in the block, as the escalation/reminder substrate)*
 Email + an in-app **notification center** + scheduled **reminders/escalation**, replacing
 the v1 "in-app pending queue only" posture. Timely follow-through is what accreditation
 follow-up depends on, and the track has accumulated several due/overdue signals worth
@@ -616,7 +616,7 @@ body. Feature-flagged behind `notifications`.
   one keyboard-only pass. pgTAP: own-row RLS; `compute_due_notifications` selects exactly the due/overdue
   set across each source; idempotency guard; escalation threshold.
 
-### Phase 21 — Committee Charters & Meeting Cadence (Regimentos & Periodicidade de Reuniões) *(**pulled pre-pilot** 2026-07-12 — ADR [0071](../decisions/0071-pre-pilot-release-scope-expansion.md))*
+### Phase 21 — Committee Charters & Meeting Cadence (Regimentos & Periodicidade de Reuniões) *(**pulled pre-pilot** 2026-07-12 — ADR [0071](../decisions/0071-pre-pilot-release-scope-expansion.md); built as track **CH**, stage **S4**, of the [pre-pilot-release plan](../plans/pre-pilot-release-scope-expansion.md) — soft-depends on Phase 20 for review/cadence reminders)*
 Each commission carries a **charter (regimento)** — purpose, scope, authority, membership,
 and a **required meeting frequency** — and the platform **tracks adherence to that cadence**
 (e.g. CCIH must meet monthly) and **carries forward** unresolved agenda items + open action
