@@ -108,7 +108,13 @@ start_server() {
   done
   return 1
 }
-num() { echo "$1" | grep -oE "[0-9]+ $2" | grep -oE '[0-9]+' | tail -1; }
+# Parse a Playwright list-reporter summary count ("  N passed", "  N failed",
+# "  N flaky") from the WHOLE batch log ($1 = log path, $2 = status word).
+# Anchored to a line that is <indent><digits> <word>: the summary footer matches,
+# but per-test lines ("  ✓  11 [chromium] …"), failure headers ("  1) …") and error
+# text never do. A prior version parsed `tail -5`, which dropped the "N failed"
+# header whenever flaky entries printed after it → failed=0 → FALSE GATE GREEN.
+num() { grep -oE "^[[:space:]]*[0-9]+ $2([[:space:]]|\$)" "$1" | grep -oE '[0-9]+' | tail -1; }
 
 TOTAL_PASS=0 TOTAL_FAIL=0 TOTAL_FLAKY=0 BATCH_NO=0 RED_BATCHES=""
 i=0
@@ -128,7 +134,7 @@ while [ "$i" -lt "$N" ]; do
   sleep 4
   BLOG="$GATE_LOGDIR/batch-$BATCH_NO.log"
   npx playwright test "${BATCH[@]}" --project=chromium --workers=1 --retries="$RETRIES" --reporter=list 2>&1 | tee "$BLOG" | tail -30
-  p=$(num "$(tail -5 "$BLOG")" passed); f=$(num "$(tail -5 "$BLOG")" failed); fl=$(num "$(tail -5 "$BLOG")" flaky)
+  p=$(num "$BLOG" passed); f=$(num "$BLOG" failed); fl=$(num "$BLOG" flaky)
   p=${p:-0}; f=${f:-0}; fl=${fl:-0}
   TOTAL_PASS=$(( TOTAL_PASS + p )); TOTAL_FAIL=$(( TOTAL_FAIL + f )); TOTAL_FLAKY=$(( TOTAL_FLAKY + fl ))
   [ "$f" != "0" ] && RED_BATCHES="$RED_BATCHES b$BATCH_NO"
