@@ -317,6 +317,29 @@ function toPtBRDate(iso: string): string {
   return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`
 }
 
+/**
+ * Pick a day-of-month that is GUARANTEED different from `prefillIso`'s
+ * day-of-month, while staying a valid calendar day within the SAME month (the
+ * `DatePicker` popover opens showing the prefilled value's month, and
+ * `pickDate` does not navigate months here) — so the resulting click always
+ * lands on a real, different day.
+ *
+ * A previously hard-coded day (`"20"`) collided with the prefill whenever
+ * `prefillIso`'s day-of-month was itself 20 — which happens whenever "today"
+ * is the 13th of the month (prefill = today + 7 days = the 20th). Deriving
+ * the target day from the prefill instead of a literal makes the test
+ * collision-proof for any prefill day-of-month.
+ *
+ * Strategy: day 1 unless the prefill IS day 1, in which case day 2. Day 1/2
+ * are always valid in every month, and the activate-phase dialog's
+ * `DatePicker` has no `min`/`max` (no `disabled` matcher), so any real day in
+ * the displayed month is clickable regardless of past/future.
+ */
+function pickDifferentDayInSameMonth(prefillIso: string): string {
+  const prefillDay = Number(prefillIso.split('-')[2])
+  return prefillDay === 1 ? '2' : '1'
+}
+
 // ---------------------------------------------------------------------------
 // AC-BUILDER — Coordinator builds a 3-phase template with recommend_when and publishes
 // ---------------------------------------------------------------------------
@@ -1482,14 +1505,18 @@ test('AC-DueDays-Activate-Prefill: activate dialog prefills dueDate from default
   const expectedIso = toDateInputValue(expectedDate)
   expect(prefillValue).toBe(expectedIso)
 
-  // Choose a NEW date via the calendar popover (day "20" — present + enabled in the
-  // prefilled month), then read back the actual chosen YYYY-MM-DD from the hidden
-  // input and assert the case's Prazo chip shows THAT date. Picking via the real UI
-  // (rather than fabricating an exact day) keeps the end-to-end flow honest while
-  // remaining deterministic.
+  // Choose a NEW date via the calendar popover — a day-of-month DERIVED from the
+  // prefill (never a literal), so it is always present + enabled in the prefilled
+  // month AND always different from the prefill day (previously a hard-coded "20"
+  // collided with the prefill whenever today was the 13th of the month, since
+  // prefill = today + 7 = the 20th — see pickDifferentDayInSameMonth). Then read
+  // back the actual chosen YYYY-MM-DD from the hidden input and assert the case's
+  // Prazo chip shows THAT date. Picking via the real UI (rather than fabricating an
+  // exact day) keeps the end-to-end flow honest while remaining deterministic.
+  const targetDay = pickDifferentDayInSameMonth(prefillValue)
   await pickDate(activateDialog, page, {
     trigger: activateDialog.locator('button[aria-haspopup="dialog"]').first(),
-    day: '20',
+    day: targetDay,
   })
   const chosenIso = await readHiddenDateValue(activateDialog, 'dueDate')
   expect(chosenIso).not.toBe('')
