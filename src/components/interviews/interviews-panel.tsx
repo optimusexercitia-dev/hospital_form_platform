@@ -5,20 +5,22 @@ import { CalendarClock, MessagesSquare } from "lucide-react";
 import type { InterviewListItem } from "@/lib/queries/interviews";
 import { cn } from "@/lib/utils";
 import {
-  InterviewModalityChip,
+  ConfidentialityBadge,
+  InterviewCategoryBadge,
   InterviewStatusBadge,
 } from "./interview-badges";
 import {
   NewInterviewButton,
   type InterviewPhaseOption,
 } from "./interview-form-dialog";
-import { formatInterviewNumber, formatSchedule, interviewTitle } from "./format";
+import { formatInterviewNumber, formatNextSession, interviewTitle } from "./format";
 
 /**
  * The "Entrevistas" panel on the coordinator case-detail page (F1). Lists the
- * case's interviews newest-scheduled-first, each linking into the interview detail
- * hub; the staff_admin sees the "Nova entrevista" action. Server-Component shell —
- * the data arrives as props; only the create button is a client island.
+ * case's interviews (soonest upcoming session first), each linking into the
+ * interview detail hub; the staff_admin sees the "Nova entrevista" action.
+ * Server-Component shell — the data arrives as props; only the create button is a
+ * client island.
  *
  * Discovery for plain-`staff` interviewers is via direct link only in v1 (no
  * "Minhas entrevistas" surface — noted follow-up); this panel lives on the
@@ -44,12 +46,15 @@ export function InterviewsPanel({
   /** "rail" = compact, flatter treatment for the case-detail side rail. */
   variant?: "default" | "rail";
 }) {
-  // Newest scheduled first; drafts (no start) sort to the top by created order.
+  // Soonest upcoming session first; interviews with no scheduled session sort to
+  // the top by created order (they need attention).
   const ordered = [...interviews].sort((a, b) => {
-    const sa = a.scheduledStart ?? "";
-    const sb = b.scheduledStart ?? "";
+    const sa = a.nextSession?.scheduledStart ?? "";
+    const sb = b.nextSession?.scheduledStart ?? "";
     if (sa === sb) return b.createdAt.localeCompare(a.createdAt);
-    return sb.localeCompare(sa);
+    if (!sa) return -1;
+    if (!sb) return 1;
+    return sa.localeCompare(sb);
   });
 
   return (
@@ -103,12 +108,18 @@ export function InterviewsPanel({
             <li
               key={iv.id}
               className="animate-rise-in"
-              style={
-                { "--rise-delay": `${i * 60}ms` } as React.CSSProperties
-              }
+              style={{ "--rise-delay": `${i * 60}ms` } as React.CSSProperties}
             >
               <Link
-                href={commissionHref(org, slug, "manage", "cases", caseId, "interviews", iv.id)}
+                href={commissionHref(
+                  org,
+                  slug,
+                  "manage",
+                  "cases",
+                  caseId,
+                  "interviews",
+                  iv.id,
+                )}
                 className="group flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/20 p-4 transition-[transform,box-shadow,border-color] hover:-translate-y-0.5 hover:border-border hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
               >
                 <div className="flex items-start justify-between gap-3">
@@ -123,14 +134,18 @@ export function InterviewsPanel({
                   <InterviewStatusBadge status={iv.status} />
                 </div>
 
+                <div className="flex flex-wrap items-center gap-2">
+                  <InterviewCategoryBadge category={iv.interviewCategory} />
+                  <ConfidentialityBadge level={iv.confidentialityLevel} />
+                </div>
+
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
-                  {iv.scheduledStart && (
-                    <span className="inline-flex items-center gap-1.5 tabular-nums">
-                      <CalendarClock aria-hidden="true" className="size-3.5" />
-                      {formatSchedule(iv.scheduledStart, iv.scheduledEnd)}
-                    </span>
-                  )}
-                  <InterviewModalityChip modality={iv.modality} />
+                  <span className="inline-flex items-center gap-1.5 tabular-nums">
+                    <CalendarClock aria-hidden="true" className="size-3.5" />
+                    {iv.nextSession
+                      ? formatNextSession(iv.nextSession)
+                      : "Nenhuma sessão agendada"}
+                  </span>
                 </div>
               </Link>
             </li>

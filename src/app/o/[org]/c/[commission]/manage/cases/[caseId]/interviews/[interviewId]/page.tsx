@@ -7,12 +7,14 @@ import {
   interviewsEnabled,
   listInterviewAttachments,
   listInterviewInterviewers,
+  listInterviewSessions,
   listInterviewSubjects,
 } from "@/lib/queries/interviews";
 import { getCaseDetail } from "@/lib/queries/cases";
 import { listMembers, sortMembers } from "@/lib/queries/members";
 import { InterviewHeader } from "@/components/interviews/interview-header";
 import { InterviewSummaryEditor } from "@/components/interviews/interview-summary-editor";
+import { SessionsPanel } from "@/components/interviews/sessions-panel";
 import { SubjectsPanel } from "@/components/interviews/subjects-panel";
 import { InterviewersPanel } from "@/components/interviews/interviewers-panel";
 import { AttachmentsPanel } from "@/components/interviews/attachments-panel";
@@ -84,8 +86,9 @@ export default async function InterviewDetailPage({
   // writer (a plain-staff interviewer needs it too), but skip the read entirely
   // for read-only viewers. The phases back the edit dialog's phase picker and are
   // coordinator-readable only.
-  const [subjects, interviewers, attachments, members, caseDetail] =
+  const [sessions, subjects, interviewers, attachments, members, caseDetail] =
     await Promise.all([
+      listInterviewSessions(interviewId),
       listInterviewSubjects(interviewId),
       listInterviewInterviewers(interviewId),
       listInterviewAttachments(interviewId),
@@ -112,6 +115,12 @@ export default async function InterviewDetailPage({
         phases={phaseOptions}
         isCoordinator={isCoordinator}
         canWrite={canWrite}
+      />
+
+      <SessionsPanel
+        interviewId={interview.id}
+        sessions={sessions}
+        canEdit={canEditContent}
       />
 
       <InterviewSummaryEditor

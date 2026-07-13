@@ -11,10 +11,14 @@ import {
   type ActionState,
   type CreateInterviewState,
   type InterviewInput,
+  type SessionInput,
 } from "@/lib/interviews/actions";
 import type {
+  InterviewCategory,
+  InterviewConfidentiality,
   InterviewDetail,
   InterviewModality,
+  SessionType,
 } from "@/lib/queries/interviews";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,8 +32,17 @@ import {
 import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
-import { MODALITY_LABEL, MODALITY_ORDER } from "./interview-labels";
-import { toDateTimeLocalValue } from "./format";
+import {
+  CONFIDENTIALITY_HELPER_TEXT,
+  CONFIDENTIALITY_LABEL,
+  CONFIDENTIALITY_ORDER,
+  INTERVIEW_CATEGORY_LABEL,
+  INTERVIEW_CATEGORY_ORDER,
+  MODALITY_LABEL,
+  MODALITY_ORDER,
+  SESSION_TYPE_LABEL,
+  SESSION_TYPE_ORDER,
+} from "./interview-labels";
 
 const FIELD_CLASS =
   "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -49,16 +62,18 @@ function localToIso(value: string): string | null {
 }
 
 /**
- * Create a new interview on a case OR edit an existing interview header. The
- * created interview starts as a `rascunho` draft — the start date is OPTIONAL here
- * and is formally set by the separate "Agendar" lifecycle action; offering it on
- * create is a convenience (the server accepts a null start for a draft). Arg-based
- * actions (`createInterview` / `updateInterview`) run inside a transition; errors
- * stay on screen and the route refreshes on success. On create we navigate into
- * the new interview's detail page.
+ * Create a new interview on a case OR edit an existing interview header (IV2 — ADR
+ * 0070). The header now carries the dashboard **category** (required) and a
+ * NON-ENFORCING **confidentiality** tag; scheduling has moved onto sessions.
  *
- * Editing is only offered while the interview is unlocked; the parent decides
- * whether to render the edit trigger, and the server re-checks.
+ * On **create** the dialog optionally schedules the FIRST session inline — one user
+ * action calling `createInterview(caseId, input, firstSession)` — so the common
+ * "create + schedule" flow is a single step; unchecking leaves the interview a
+ * `rascunho` draft with no session yet. On **edit** only the header fields show
+ * (sessions are managed from the sessions panel).
+ *
+ * Arg-based actions run inside a transition; errors stay on screen and the route
+ * refreshes on success. On create we navigate into the new interview's detail page.
  */
 export function InterviewFormDialog({
   mode,
@@ -88,29 +103,30 @@ export function InterviewFormDialog({
     (CreateInterviewState & ActionState) | null
   >(null);
 
-  // Ids wire each field's <label> to the DateTimePicker's date control. The
-  // label must NOT wrap the picker: a native <label> forwards a tap to its first
-  // labelable control (the date button), so tapping the react-aria time segments
-  // — which are not labelable — would open the date calendar. `htmlFor` keeps the
-  // segments outside any label (time is keyboard-only; no picker on tap).
+  // Ids wire each field's <label>/help text to its control.
   const startId = useId();
   const endId = useId();
+  const confidentialityHelpId = useId();
 
   const [title, setTitle] = useState(interview?.title ?? "");
   const [casePhaseId, setCasePhaseId] = useState(interview?.casePhaseId ?? "");
-  const [modality, setModality] = useState<InterviewModality>(
-    interview?.modality ?? "presencial",
+  const [category, setCategory] = useState<InterviewCategory | "">(
+    interview?.interviewCategory ?? "",
   );
-  const [start, setStart] = useState(
-    toDateTimeLocalValue(interview?.scheduledStart ?? null),
-  );
-  const [end, setEnd] = useState(
-    toDateTimeLocalValue(interview?.scheduledEnd ?? null),
-  );
-  const [locationText, setLocationText] = useState(
-    interview?.locationText ?? "",
-  );
-  const [meetingUrl, setMeetingUrl] = useState(interview?.meetingUrl ?? "");
+  const [confidentiality, setConfidentiality] =
+    useState<InterviewConfidentiality>(
+      interview?.confidentialityLevel ?? "standard",
+    );
+  const [categoryError, setCategoryError] = useState(false);
+
+  // Create-only: schedule the first session inline (the create-then-schedule UX).
+  const [scheduleFirst, setScheduleFirst] = useState(true);
+  const [sessionType, setSessionType] = useState<SessionType>("initial");
+  const [modality, setModality] = useState<InterviewModality>("presencial");
+  const [start, setStart] = useState("");
+  const [end, setEnd] = useState("");
+  const [locationText, setLocationText] = useState("");
+  const [meetingUrl, setMeetingUrl] = useState("");
 
   // Reset local state each time the dialog opens (render-phase prop-sync).
   const [wasOpen, setWasOpen] = useState(false);
@@ -118,13 +134,18 @@ export function InterviewFormDialog({
     setWasOpen(open);
     if (open) {
       setState(null);
+      setCategoryError(false);
       setTitle(interview?.title ?? "");
       setCasePhaseId(interview?.casePhaseId ?? "");
-      setModality(interview?.modality ?? "presencial");
-      setStart(toDateTimeLocalValue(interview?.scheduledStart ?? null));
-      setEnd(toDateTimeLocalValue(interview?.scheduledEnd ?? null));
-      setLocationText(interview?.locationText ?? "");
-      setMeetingUrl(interview?.meetingUrl ?? "");
+      setCategory(interview?.interviewCategory ?? "");
+      setConfidentiality(interview?.confidentialityLevel ?? "standard");
+      setScheduleFirst(true);
+      setSessionType("initial");
+      setModality("presencial");
+      setStart("");
+      setEnd("");
+      setLocationText("");
+      setMeetingUrl("");
     }
   }
 
@@ -132,7 +153,15 @@ export function InterviewFormDialog({
     if (!state?.ok) return;
     if (mode === "create" && state.interviewId) {
       router.push(
-        commissionHref(org, slug, "manage", "cases", caseId, "interviews", state.interviewId),
+        commissionHref(
+          org,
+          slug,
+          "manage",
+          "cases",
+          caseId,
+          "interviews",
+          state.interviewId,
+        ),
       );
       return;
     }
@@ -142,25 +171,43 @@ export function InterviewFormDialog({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!category) {
+      setCategoryError(true);
+      return;
+    }
+    setCategoryError(false);
     const input: InterviewInput = {
       title: title.trim() || null,
       casePhaseId: casePhaseId || null,
-      modality,
-      scheduledStart: localToIso(start),
-      scheduledEnd: localToIso(end),
-      locationText: locationText.trim() || null,
-      meetingUrl: meetingUrl.trim() || null,
+      interviewCategory: category,
+      confidentialityLevel: confidentiality,
     };
+
+    const written = sessionType === "written_response";
+    const firstSession: SessionInput | null =
+      mode === "create" && scheduleFirst
+        ? {
+            sessionType,
+            modality: written ? null : modality,
+            scheduledStart: localToIso(start),
+            scheduledEnd: localToIso(end),
+            locationText: written ? null : locationText.trim() || null,
+            meetingUrl: written ? null : meetingUrl.trim() || null,
+          }
+        : null;
+
     startTransition(async () => {
       const result =
         mode === "create"
-          ? await createInterview(caseId, input)
+          ? await createInterview(caseId, input, firstSession)
           : await updateInterview(interview!.id, input);
       setState(result);
     });
   }
 
   const showRemoteFields = modality === "remoto" || modality === "hibrido";
+  const showSessionFields =
+    mode === "create" && scheduleFirst && sessionType !== "written_response";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -193,14 +240,33 @@ export function InterviewFormDialog({
               onChange={(e) => setTitle(e.target.value)}
               className={FIELD_CLASS}
               placeholder="Ex.: Entrevista com a equipe da UTI"
-              aria-invalid={state?.fieldErrors?.title ? true : undefined}
             />
-            {state?.fieldErrors?.title && (
-              <span
-                role="alert"
-                className="text-sm font-medium text-destructive"
-              >
-                {state.fieldErrors.title}
+          </label>
+
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium">Categoria</span>
+            <NativeSelect
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value as InterviewCategory);
+                setCategoryError(false);
+              }}
+              required
+              aria-invalid={categoryError ? true : undefined}
+              className="h-10"
+            >
+              <option value="" disabled>
+                Selecione uma categoria…
+              </option>
+              {INTERVIEW_CATEGORY_ORDER.map((c) => (
+                <option key={c} value={c}>
+                  {INTERVIEW_CATEGORY_LABEL[c]}
+                </option>
+              ))}
+            </NativeSelect>
+            {categoryError && (
+              <span role="alert" className="text-sm font-medium text-destructive">
+                Selecione uma categoria para a entrevista.
               </span>
             )}
           </label>
@@ -228,124 +294,147 @@ export function InterviewFormDialog({
             </label>
           )}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-1.5 text-sm">
-              <label htmlFor={startId} className="font-medium">
-                Início{" "}
-                <span className="font-normal text-muted-foreground">
-                  (opcional)
-                </span>
-              </label>
-              <DateTimePicker
-                id={startId}
-                value={start}
-                onChange={setStart}
-                aria-invalid={
-                  state?.fieldErrors?.scheduledStart ? true : undefined
-                }
-              />
-              {state?.fieldErrors?.scheduledStart && (
-                <span
-                  role="alert"
-                  className="text-sm font-medium text-destructive"
-                >
-                  {state.fieldErrors.scheduledStart}
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-1.5 text-sm">
-              <label htmlFor={endId} className="font-medium">
-                Término{" "}
-                <span className="font-normal text-muted-foreground">
-                  (opcional)
-                </span>
-              </label>
-              <DateTimePicker
-                id={endId}
-                value={end}
-                onChange={setEnd}
-                aria-invalid={
-                  state?.fieldErrors?.scheduledEnd ? true : undefined
-                }
-              />
-              {state?.fieldErrors?.scheduledEnd && (
-                <span
-                  role="alert"
-                  className="text-sm font-medium text-destructive"
-                >
-                  {state.fieldErrors.scheduledEnd}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <fieldset className="flex flex-col gap-1.5 text-sm">
-            <legend className="font-medium">Modalidade</legend>
-            <div className="flex flex-wrap gap-1.5">
-              {MODALITY_ORDER.map((m) => {
-                const selected = modality === m;
-                return (
-                  <button
-                    key={m}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => setModality(m)}
-                    className={
-                      "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none " +
-                      (selected
-                        ? "border-primary bg-accent text-accent-foreground"
-                        : "border-border text-muted-foreground hover:text-foreground")
-                    }
-                  >
-                    {MODALITY_LABEL[m]}
-                  </button>
-                );
-              })}
-            </div>
-          </fieldset>
-
           <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">
-              Local{" "}
-              <span className="font-normal text-muted-foreground">
-                (opcional)
-              </span>
+            <span className="font-medium">Confidencialidade</span>
+            <NativeSelect
+              value={confidentiality}
+              onChange={(e) =>
+                setConfidentiality(e.target.value as InterviewConfidentiality)
+              }
+              aria-describedby={confidentialityHelpId}
+              className="h-10"
+            >
+              {CONFIDENTIALITY_ORDER.map((level) => (
+                <option key={level} value={level}>
+                  {CONFIDENTIALITY_LABEL[level]}
+                </option>
+              ))}
+            </NativeSelect>
+            <span
+              id={confidentialityHelpId}
+              className="text-xs text-muted-foreground"
+            >
+              {CONFIDENTIALITY_HELPER_TEXT}
             </span>
-            <input
-              type="text"
-              value={locationText}
-              onChange={(e) => setLocationText(e.target.value)}
-              className={FIELD_CLASS}
-              placeholder="Ex.: Sala da comissão — 2º andar"
-            />
           </label>
 
-          {showRemoteFields && (
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">
-                Link da chamada{" "}
-                <span className="font-normal text-muted-foreground">
-                  (opcional)
-                </span>
-              </span>
-              <input
-                type="url"
-                value={meetingUrl}
-                onChange={(e) => setMeetingUrl(e.target.value)}
-                className={FIELD_CLASS}
-                placeholder="https://…"
-                aria-invalid={state?.fieldErrors?.meetingUrl ? true : undefined}
-              />
-              {state?.fieldErrors?.meetingUrl && (
-                <span
-                  role="alert"
-                  className="text-sm font-medium text-destructive"
-                >
-                  {state.fieldErrors.meetingUrl}
-                </span>
+          {mode === "create" && (
+            <fieldset className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-4">
+              <label className="flex items-center gap-2.5 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={scheduleFirst}
+                  onChange={(e) => setScheduleFirst(e.target.checked)}
+                  className="size-4 rounded border-input accent-primary focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+                />
+                Agendar a primeira sessão agora
+              </label>
+
+              {scheduleFirst && (
+                <div className="flex flex-col gap-4">
+                  <label className="flex flex-col gap-1.5 text-sm">
+                    <span className="font-medium">Tipo de sessão</span>
+                    <NativeSelect
+                      value={sessionType}
+                      onChange={(e) =>
+                        setSessionType(e.target.value as SessionType)
+                      }
+                      className="h-10"
+                    >
+                      {SESSION_TYPE_ORDER.map((t) => (
+                        <option key={t} value={t}>
+                          {SESSION_TYPE_LABEL[t]}
+                        </option>
+                      ))}
+                    </NativeSelect>
+                  </label>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1.5 text-sm">
+                      <label htmlFor={startId} className="font-medium">
+                        Início{" "}
+                        <span className="font-normal text-muted-foreground">
+                          (opcional)
+                        </span>
+                      </label>
+                      <DateTimePicker id={startId} value={start} onChange={setStart} />
+                    </div>
+                    <div className="flex flex-col gap-1.5 text-sm">
+                      <label htmlFor={endId} className="font-medium">
+                        Término{" "}
+                        <span className="font-normal text-muted-foreground">
+                          (opcional)
+                        </span>
+                      </label>
+                      <DateTimePicker id={endId} value={end} onChange={setEnd} />
+                    </div>
+                  </div>
+
+                  {sessionType !== "written_response" && (
+                    <fieldset className="flex flex-col gap-1.5 text-sm">
+                      <legend className="font-medium">Modalidade</legend>
+                      <div className="flex flex-wrap gap-1.5">
+                        {MODALITY_ORDER.map((m) => {
+                          const selected = modality === m;
+                          return (
+                            <button
+                              key={m}
+                              type="button"
+                              aria-pressed={selected}
+                              onClick={() => setModality(m)}
+                              className={
+                                "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none " +
+                                (selected
+                                  ? "border-primary bg-accent text-accent-foreground"
+                                  : "border-border text-muted-foreground hover:text-foreground")
+                              }
+                            >
+                              {MODALITY_LABEL[m]}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </fieldset>
+                  )}
+
+                  {showSessionFields && (
+                    <label className="flex flex-col gap-1.5 text-sm">
+                      <span className="font-medium">
+                        Local{" "}
+                        <span className="font-normal text-muted-foreground">
+                          (opcional)
+                        </span>
+                      </span>
+                      <input
+                        type="text"
+                        value={locationText}
+                        onChange={(e) => setLocationText(e.target.value)}
+                        className={FIELD_CLASS}
+                        placeholder="Ex.: Sala da comissão — 2º andar"
+                      />
+                    </label>
+                  )}
+
+                  {showSessionFields && showRemoteFields && (
+                    <label className="flex flex-col gap-1.5 text-sm">
+                      <span className="font-medium">
+                        Link da chamada{" "}
+                        <span className="font-normal text-muted-foreground">
+                          (opcional)
+                        </span>
+                      </span>
+                      <input
+                        type="url"
+                        value={meetingUrl}
+                        onChange={(e) => setMeetingUrl(e.target.value)}
+                        className={FIELD_CLASS}
+                        placeholder="https://…"
+                      />
+                    </label>
+                  )}
+                </div>
               )}
-            </label>
+            </fieldset>
           )}
 
           <DialogFooter>
@@ -399,7 +488,8 @@ export function NewInterviewButton({
         mode="create"
         open={open}
         onOpenChange={setOpen}
-        org={org} slug={slug}
+        org={org}
+        slug={slug}
         caseId={caseId}
         phases={phases}
       />

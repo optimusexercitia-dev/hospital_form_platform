@@ -1,22 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import {
-  CalendarCheck,
-  CheckCircle2,
-  Pencil,
-  Play,
-  RotateCcw,
-  XCircle,
-} from "lucide-react";
+import { CheckCircle2, Pencil, RotateCcw, XCircle } from "lucide-react";
 
 import type { InterviewDetail } from "@/lib/queries/interviews";
 import {
   cancelInterview,
   concludeInterview,
   reopenInterview,
-  scheduleInterview,
-  startInterview,
 } from "@/lib/interviews/actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -36,16 +27,16 @@ import { InterviewFormDialog } from "./interview-form-dialog";
 import type { InterviewPhaseOption } from "./interview-form-dialog";
 
 /**
- * Interview lifecycle controls in the detail header. Which actions appear depends
- * on the status (the server re-enforces the state machine; this is UX only):
- *  - `rascunho` → **Editar** + **Agendar** (rascunho→agendada, needs a start) + **Cancelar**
- *  - `agendada` → **Editar** + **Iniciar** (agendada→em_andamento) + **Cancelar**
- *  - `em_andamento` → **Editar** + **Concluir** (→ concluida, needs ≥1 entrevistado) + **Cancelar**
- *  - `concluida` → **Reabrir** (concluida→em_andamento)
- *  - `cancelada` → TERMINAL, no actions
+ * INTERVIEW-level lifecycle controls in the detail header (IV2 — ADR 0070).
+ * Scheduling / start / complete now live on SESSIONS (the sessions panel); the
+ * interview-level acts are only:
+ *  - **Editar** — while unlocked (`rascunho`/`agendada`/`em_andamento`/`aguardando follow-up`)
+ *  - **Concluir** — from `em_andamento` OR `aguardando follow-up` (needs ≥1 entrevistado)
+ *  - **Reabrir** — from `concluida` (→ `em_andamento`)
+ *  - **Cancelar** — from any non-terminal state (cascades non-terminal sessions)
  *
- * `cancelada` is the single terminal state; only `concluida` reopens. Rendered
- * only when the viewer may write (`viewerCanWrite`) — that includes a registered
+ * `cancelada` is the single terminal state; only `concluida` reopens. Rendered only
+ * when the viewer may write (`viewerCanWrite`) — that includes a registered
  * interviewer who is a plain `staff` member, not just coordinators. pt-BR errors
  * surface inline; the server is the authority.
  */
@@ -67,9 +58,8 @@ export function InterviewLifecycleActions({
   const status = interview.status;
 
   const canEdit = isEditableInterviewStatus(status);
-  const canSchedule = status === "draft";
-  const canStart = status === "scheduled";
-  const canConclude = status === "in_progress";
+  const canConclude =
+    status === "in_progress" || status === "awaiting_follow_up";
   const canReopen = status === "completed";
   const canCancel = status !== "completed" && status !== "cancelled";
 
@@ -85,44 +75,6 @@ export function InterviewLifecycleActions({
           <Pencil aria-hidden="true" />
           Editar
         </Button>
-      )}
-
-      {canSchedule && (
-        <ConfirmActionButton
-          trigger={
-            <Button type="button" variant="outline" size="lg">
-              <CalendarCheck aria-hidden="true" />
-              Agendar
-            </Button>
-          }
-          title="Agendar a entrevista?"
-          description="A entrevista passará para “Agendada”. É necessário definir a data de início — informe-a em “Editar” antes de agendar, se ainda não o fez."
-          confirmLabel="Agendar entrevista"
-          disabled={!interview.scheduledStart}
-          disabledHint="Defina a data de início em “Editar” para poder agendar."
-          action={() =>
-            scheduleInterview(
-              interview.id,
-              interview.scheduledStart ?? "",
-              interview.scheduledEnd,
-            )
-          }
-        />
-      )}
-
-      {canStart && (
-        <ConfirmActionButton
-          trigger={
-            <Button type="button" size="lg">
-              <Play aria-hidden="true" />
-              Iniciar
-            </Button>
-          }
-          title="Iniciar a entrevista?"
-          description="A entrevista passará para “Em andamento” e a data de realização será registrada. Você poderá registrar o resumo, os entrevistados, os entrevistadores e os anexos."
-          confirmLabel="Iniciar entrevista"
-          action={() => startInterview(interview.id)}
-        />
       )}
 
       {canConclude && (
@@ -169,7 +121,7 @@ export function InterviewLifecycleActions({
             </Button>
           }
           title="Cancelar a entrevista?"
-          description="A entrevista passará para o estado final “Cancelada”. Você poderá reabri-la depois, se necessário."
+          description="A entrevista passará para o estado final “Cancelada” e as sessões ainda não realizadas também serão canceladas. Você poderá reabri-la depois, se necessário."
           confirmLabel="Cancelar entrevista"
           action={() => cancelInterview(interview.id)}
         />
@@ -179,7 +131,8 @@ export function InterviewLifecycleActions({
         mode="edit"
         open={editOpen}
         onOpenChange={setEditOpen}
-        org={org} slug={slug}
+        org={org}
+        slug={slug}
         caseId={caseId}
         phases={phases}
         interview={interview}
@@ -191,9 +144,8 @@ export function InterviewLifecycleActions({
 /**
  * A confirm-then-run lifecycle button. The trigger is supplied by the caller so
  * each transition keeps its own icon/variant; the dialog body explains the
- * consequence in pt-BR and surfaces an inline error on failure. An optional
- * `disabled` guard (with a hint) blocks the confirm when a precondition is unmet
- * (e.g. scheduling without a start date) — the server still re-checks.
+ * consequence in pt-BR and surfaces an inline error on failure. The server
+ * re-checks the state machine.
  */
 function ConfirmActionButton({
   trigger,
@@ -201,16 +153,12 @@ function ConfirmActionButton({
   description,
   confirmLabel,
   action,
-  disabled = false,
-  disabledHint,
 }: {
   trigger: React.ReactNode;
   title: string;
   description: string;
   confirmLabel: string;
   action: () => Promise<{ ok: boolean; error?: string }>;
-  disabled?: boolean;
-  disabledHint?: string;
 }) {
   const { run, isPending, error } = useInterviewAction();
   return (
@@ -221,11 +169,6 @@ function ConfirmActionButton({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
-        {disabled && disabledHint && (
-          <p role="alert" className="text-sm font-medium text-warning">
-            {disabledHint}
-          </p>
-        )}
         {error && (
           <p role="alert" className="text-sm font-medium text-destructive">
             {error}
@@ -234,7 +177,7 @@ function ConfirmActionButton({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isPending}>Voltar</AlertDialogCancel>
           <AlertDialogAction
-            disabled={isPending || disabled}
+            disabled={isPending}
             onClick={(e) => {
               // Keep it simple: run the action; the route refresh on success
               // unmounts this. Prevent the default auto-close so a failed action

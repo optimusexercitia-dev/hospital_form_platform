@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { AssigneeAvatar } from "@/components/cases/assignee-avatar";
 import { SubjectForm, type SubjectMemberOption } from "./subject-form";
 import { ConfirmDeleteButton } from "./confirm-delete-button";
+import { RelationshipBadge } from "./interview-badges";
 
 function SubjectRow({
   subject,
@@ -27,14 +28,15 @@ function SubjectRow({
     <li className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
       <div className="flex min-w-0 items-center gap-3">
         <AssigneeAvatar name={name} />
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate text-sm font-medium text-foreground">
-            {name}
+        <div className="flex min-w-0 flex-col gap-1">
+          <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-foreground">
+            <span className="truncate">{name}</span>
             {isExternal && (
-              <span className="ml-1.5 rounded bg-muted px-1.5 py-0.5 text-[0.6rem] font-medium tracking-wide text-muted-foreground uppercase">
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[0.6rem] font-medium tracking-wide text-muted-foreground uppercase">
                 Externo
               </span>
             )}
+            <RelationshipBadge relationship={subject.relationshipToCase} />
           </span>
           {(subject.clinicalRole || subject.note) && (
             <span className="truncate text-xs text-muted-foreground">

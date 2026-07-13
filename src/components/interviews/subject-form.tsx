@@ -10,7 +10,10 @@ import {
   type AddSubjectState,
   type InterviewSubjectInput,
 } from "@/lib/interviews/actions";
-import type { InterviewSubject } from "@/lib/queries/interviews";
+import type {
+  InterviewSubject,
+  RelationshipToCase,
+} from "@/lib/queries/interviews";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,6 +25,10 @@ import {
 } from "@/components/ui/dialog";
 import { FormBanner } from "@/components/auth/form-banner";
 import { NativeSelect } from "@/components/ui/native-select";
+import {
+  RELATIONSHIP_TO_CASE_LABEL,
+  RELATIONSHIP_TO_CASE_ORDER,
+} from "./interview-labels";
 
 const FIELD_CLASS =
   "h-10 w-full rounded-lg border border-input bg-card px-3 text-sm shadow-xs outline-none transition-[color,box-shadow,border-color] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:opacity-50";
@@ -69,6 +76,10 @@ export function SubjectForm({
   const [kind, setKind] = useState<Kind>(initialKind);
   const [userId, setUserId] = useState(subject?.userId ?? "");
   const [externalName, setExternalName] = useState(subject?.externalName ?? "");
+  const [relationship, setRelationship] = useState<RelationshipToCase | "">(
+    subject?.relationshipToCase ?? "",
+  );
+  const [relationshipError, setRelationshipError] = useState(false);
   const [clinicalRole, setClinicalRole] = useState(subject?.clinicalRole ?? "");
   const [note, setNote] = useState(subject?.note ?? "");
 
@@ -77,9 +88,11 @@ export function SubjectForm({
     setWasOpen(open);
     if (open) {
       setState(null);
+      setRelationshipError(false);
       setKind(initialKind);
       setUserId(subject?.userId ?? "");
       setExternalName(subject?.externalName ?? "");
+      setRelationship(subject?.relationshipToCase ?? "");
       setClinicalRole(subject?.clinicalRole ?? "");
       setNote(subject?.note ?? "");
     }
@@ -96,10 +109,16 @@ export function SubjectForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!relationship) {
+      setRelationshipError(true);
+      return;
+    }
+    setRelationshipError(false);
     const isExternal = kind === "external";
     const input: InterviewSubjectInput = {
       userId: isExternal ? null : userId || null,
       externalName: isExternal ? externalName.trim() || null : null,
+      relationshipToCase: relationship,
       clinicalRole: clinicalRole.trim() || null,
       note: note.trim() || null,
     };
@@ -202,6 +221,34 @@ export function SubjectForm({
               />
             </label>
           )}
+
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium">Relação com o caso</span>
+            <NativeSelect
+              value={relationship}
+              onChange={(e) => {
+                setRelationship(e.target.value as RelationshipToCase);
+                setRelationshipError(false);
+              }}
+              required
+              aria-invalid={relationshipError ? true : undefined}
+              className="h-10"
+            >
+              <option value="" disabled>
+                Selecione a relação com o caso…
+              </option>
+              {RELATIONSHIP_TO_CASE_ORDER.map((r) => (
+                <option key={r} value={r}>
+                  {RELATIONSHIP_TO_CASE_LABEL[r]}
+                </option>
+              ))}
+            </NativeSelect>
+            {relationshipError && (
+              <span role="alert" className="text-sm font-medium text-destructive">
+                Selecione a relação do entrevistado com o caso.
+              </span>
+            )}
+          </label>
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">
