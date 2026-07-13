@@ -1,7 +1,7 @@
 "use client";
 
 import { commissionHref } from "@/lib/routing";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 
@@ -87,6 +87,14 @@ export function InterviewFormDialog({
   const [state, setState] = useState<
     (CreateInterviewState & ActionState) | null
   >(null);
+
+  // Ids wire each field's <label> to the DateTimePicker's date control. The
+  // label must NOT wrap the picker: a native <label> forwards a tap to its first
+  // labelable control (the date button), so tapping the react-aria time segments
+  // — which are not labelable — would open the date calendar. `htmlFor` keeps the
+  // segments outside any label (time is keyboard-only; no picker on tap).
+  const startId = useId();
+  const endId = useId();
 
   const [title, setTitle] = useState(interview?.title ?? "");
   const [casePhaseId, setCasePhaseId] = useState(interview?.casePhaseId ?? "");
@@ -221,14 +229,15 @@ export function InterviewFormDialog({
           )}
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">
+            <div className="flex flex-col gap-1.5 text-sm">
+              <label htmlFor={startId} className="font-medium">
                 Início{" "}
                 <span className="font-normal text-muted-foreground">
                   (opcional)
                 </span>
-              </span>
+              </label>
               <DateTimePicker
+                id={startId}
                 value={start}
                 onChange={setStart}
                 aria-invalid={
@@ -243,16 +252,17 @@ export function InterviewFormDialog({
                   {state.fieldErrors.scheduledStart}
                 </span>
               )}
-            </label>
+            </div>
 
-            <label className="flex flex-col gap-1.5 text-sm">
-              <span className="font-medium">
+            <div className="flex flex-col gap-1.5 text-sm">
+              <label htmlFor={endId} className="font-medium">
                 Término{" "}
                 <span className="font-normal text-muted-foreground">
                   (opcional)
                 </span>
-              </span>
+              </label>
               <DateTimePicker
+                id={endId}
                 value={end}
                 onChange={setEnd}
                 aria-invalid={
@@ -267,7 +277,7 @@ export function InterviewFormDialog({
                   {state.fieldErrors.scheduledEnd}
                 </span>
               )}
-            </label>
+            </div>
           </div>
 
           <fieldset className="flex flex-col gap-1.5 text-sm">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, CalendarClock, Pencil, Plus } from "lucide-react";
 
@@ -223,6 +223,13 @@ function TimelineEntryDialog({
   const [occurredAt, setOccurredAt] = useState(toLocalInput(entry?.occurredAt));
   const [description, setDescription] = useState(entry?.description ?? "");
 
+  // Wire the label to the DateTimePicker's date control via `htmlFor` rather than
+  // wrapping the picker: a native <label> forwards a tap to its first labelable
+  // control (the date button), so tapping the react-aria time segments — which
+  // are not labelable — would open the date calendar. Keeping the segments
+  // outside any label makes time keyboard-only (no picker on tap).
+  const occurredAtId = useId();
+
   const [wasOpen, setWasOpen] = useState(false);
   if (open !== wasOpen) {
     setWasOpen(open);
@@ -272,14 +279,17 @@ function TimelineEntryDialog({
           {state && !state.ok && (
             <FormBanner tone="error">{state.error}</FormBanner>
           )}
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Data e hora</span>
+          <div className="flex flex-col gap-1.5 text-sm">
+            <label htmlFor={occurredAtId} className="font-medium">
+              Data e hora
+            </label>
             <DateTimePicker
+              id={occurredAtId}
               value={occurredAt}
               onChange={setOccurredAt}
               required
             />
-          </label>
+          </div>
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">Descrição</span>
             <Textarea
