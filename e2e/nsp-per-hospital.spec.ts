@@ -658,9 +658,29 @@ test.describe('AC-4: per-hospital roster + config curation', () => {
     await expect(
       page.getByRole('heading', { name: /equipe do nsp/i }),
     ).toBeVisible()
-    const body = await bodyText(page)
-    // pqs.a2 (NSP Secundário A) is secundario-a's roster; NSP Central A is central-a's.
-    expect(body).not.toContain('NSP Central A')
+
+    // Positive check: the page resolved to secundario-a's roster — its current
+    // members are listed under "Equipe atual".
+    const currentRosterHeading = page.getByRole('heading', {
+      name: /^equipe atual$/i,
+    })
+    await expect(currentRosterHeading).toBeVisible()
+    // The roster wrapper is the heading's grandparent (heading-row div → section
+    // div containing the heading row + the member <ul>); this excludes the
+    // sibling "Adicionar à equipe" form/picker above it.
+    const currentRosterSection = currentRosterHeading.locator('xpath=../..')
+    await expect(currentRosterSection).toContainText(
+      /NSP Dual A|NSP Secundário A/,
+    )
+
+    // Negative check, scoped to the CURRENT-ROSTER region only — NOT the whole
+    // body and NOT the "Adicionar à equipe" add-member picker. That picker is
+    // org-wide BY DESIGN (list_hospital_eligible_users_for_pqs computes
+    // eligibility as all memberships in the hospital's org), so "NSP Central A"
+    // legitimately appears there as an addable candidate for ANY hospital in the
+    // org, including secundario-a — that is not a roster leak. The isolation
+    // guarantee under test is that central-a's CURRENT roster never renders here.
+    await expect(currentRosterSection).not.toContainText('NSP Central A')
   })
 
   test('nspcoord.a2 can add then remove a roster member on its own hospital', async ({
