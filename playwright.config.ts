@@ -20,7 +20,12 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
-    reducedMotion: 'reduce',
+    // `reducedMotion` is a browser-context option, not a top-level test fixture,
+    // so it rides under `contextOptions` (Playwright 1.60 — it is absent from
+    // `PlaywrightTestOptions`). Merged into every test context; disables CSS
+    // animations to reduce animation-timing flake, aligning with the
+    // reduced-motion-safe design system.
+    contextOptions: { reducedMotion: 'reduce' },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
