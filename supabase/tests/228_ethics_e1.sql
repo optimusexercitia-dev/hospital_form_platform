@@ -15,7 +15,7 @@
 -- =============================================================================
 
 begin;
-select plan(108);
+select plan(111);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -673,6 +673,43 @@ reset role;
 select is((select count(*)::int from public.audit_log
            where action = 'interview.confidentiality_changed' and entity_id = (select id from iv)), 1,
   'audit: interview.confidentiality_changed emitted one row');
+
+-- ===========================================================================
+-- BE-7 — modified reads: list_my_cases respondent/recusal exclusion (ADR 0072 §2.3).
+-- st_x2 holds a case_access grant on c_default (from BE-6); st_x is the respondent
+-- (BE-4) and also holds a grant (BE-4). case_access ON.
+-- ===========================================================================
+reset role;
+update app.feature_flags set enabled = true where key in ('case_access', 'case_participants');
+
+-- (1) baseline: a granted, non-respondent, non-recused member sees the case in Meus Casos.
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from jsonb_array_elements(public.list_my_cases((select comm_x from k))) e
+   where (e->>'case_id')::uuid = (select cid from c_default)), 1,
+  'list_my_cases: a granted member sees the case');
+reset role;
+
+-- (2) recusing st_x2 removes the case from their personal list.
+insert into public.case_recusals (case_id, user_id, source, reason_md)
+values ((select cid from c_default), (select st_x2 from k), 'coordinator', 'impedido');
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from jsonb_array_elements(public.list_my_cases((select comm_x from k))) e
+   where (e->>'case_id')::uuid = (select cid from c_default)), 0,
+  'list_my_cases: a recused member no longer sees the case (explicit exclusion)');
+reset role;
+
+-- (3) the respondent (also a grant-holder) is excluded from their personal list.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from jsonb_array_elements(public.list_my_cases((select comm_x from k))) e
+   where (e->>'case_id')::uuid = (select cid from c_default)), 0,
+  'list_my_cases: the respondent is excluded even though granted (respondent exclusion)');
+reset role;
 
 select * from finish();
 rollback;

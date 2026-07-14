@@ -869,13 +869,20 @@ interface CaseDetailJson {
     can_write_content: boolean
     can_manage_lifecycle: boolean
   } | null
-  /**
-   * The case's snapshotted confidentiality ceiling + access model (ADR 0072 D1 · E1),
-   * added by `get_case_detail` in BE-7. Absent on a pre-BE-7 envelope → the mapper
-   * defaults to the flag-OFF values (`non_phi_internal` / `commission_default`).
-   */
-  confidentiality_level?: string | null
-  visibility_policy?: string | null
+}
+
+/**
+ * One `case_participants` row with its embedded registry + role (ADR 0072 · E1),
+ * read RLS-scoped alongside the `get_case_detail` envelope (the to-one embeds resolve
+ * to an object or `null`).
+ */
+interface CaseParticipantRow {
+  id: string
+  participant_id: string
+  is_primary_subject: boolean
+  involvement_summary: string | null
+  participants: { participant_type: string; display_name: string } | null
+  case_participant_roles: { id: string; key: string; display_name: string } | null
 }
 
 /** The board CAP (WS-6 P3). The cases board is a kanban (column-per-status), which
@@ -1026,9 +1033,15 @@ async function getCaseDetailUncached(
   // (the SELECT policy admits any hospital member, so a case viewer resolves it). A
   // department archived-away (or unreadable) simply yields a null name — the case
   // still shows `departmentOther` when that was used instead.
+  // Also read the ethics access-spine snapshot fields (ADR 0072 · E1) here — base-table
+  // columns on `cases`, RLS-scoped like the department, so the envelope RPC stays
+  // untouched. Flag-OFF cases carry the today-defaults (commission_default /
+  // non_phi_internal), so this is a no-op until the m2 gate opens.
   const { data: deptRow } = await supabase
     .from('cases')
-    .select('department_id, department_other')
+    .select(
+      'department_id, department_other, visibility_policy, confidentiality_level',
+    )
     .eq('id', caseId)
     .maybeSingle()
   let departmentName: string | null = deptRow?.department_other ?? null
@@ -1039,6 +1052,82 @@ async function getCaseDetailUncached(
       .eq('id', deptRow.department_id)
       .maybeSingle()
     departmentName = dept?.name ?? null
+  }
+
+  // The case's participants (ADR 0064 · E1), RLS-scoped via `case_participants`
+  // (already `can_read_case`-gated). `[]` pre-m2 / when the case has none. The
+  // registry `display_name` is a SURROGATE for a patient — never raw identity (Rule 12).
+  const { data: partRows } = await supabase
+    .from('case_participants')
+    .select(
+      'id, participant_id, is_primary_subject, involvement_summary, ' +
+        'participants ( participant_type, display_name ), ' +
+        'case_participant_roles ( id, key, display_name )',
+    )
+    .eq('case_id', caseId)
+    .is('removed_at', null)
+    .returns<CaseParticipantRow[]>()
+  const participants: CaseParticipant[] = (partRows ?? []).map((r) => ({
+    id: r.id,
+    participantId: r.participant_id,
+    participantType: (r.participants?.participant_type ??
+      'other') as ParticipantType,
+    displayName: r.participants?.display_name ?? '',
+    roleId: r.case_participant_roles?.id ?? '',
+    roleKey: r.case_participant_roles?.key ?? '',
+    roleLabel: r.case_participant_roles?.display_name ?? '',
+    isPrimarySubject: r.is_primary_subject,
+    involvementSummary: r.involvement_summary,
+  }))
+
+  // The CURRENT viewer's live recusal + own conflict declaration (ADR 0072 D4 · E1).
+  // The `case_recusals` self-arm surfaces a recused viewer's own row even though the
+  // case read is denied — so the UI can show the "impedido" banner. `null` pre-m2.
+  const viewerId = (await getSessionContext())?.userId ?? null
+  let myRecusal: CaseRecusal | null = null
+  let myConflict: CaseConflictDeclaration | null = null
+  if (viewerId) {
+    const { data: recRow } = await supabase
+      .from('case_recusals')
+      .select(
+        'id, case_id, user_id, reason_md, source, conflict_declaration_id, recused_at, lifted_at',
+      )
+      .eq('case_id', caseId)
+      .eq('user_id', viewerId)
+      .is('lifted_at', null)
+      .maybeSingle()
+    if (recRow) {
+      myRecusal = {
+        id: recRow.id,
+        caseId: recRow.case_id,
+        userId: recRow.user_id,
+        reasonMd: recRow.reason_md,
+        source: recRow.source as CaseRecusal['source'],
+        conflictDeclarationId: recRow.conflict_declaration_id,
+        recusedAt: recRow.recused_at,
+        liftedAt: recRow.lifted_at,
+      }
+    }
+    const { data: coiRow } = await supabase
+      .from('case_conflict_declarations')
+      .select(
+        'id, case_id, declarant_id, conflict_type, description_md, status, declared_at, resolved_at',
+      )
+      .eq('case_id', caseId)
+      .eq('declarant_id', viewerId)
+      .maybeSingle()
+    if (coiRow) {
+      myConflict = {
+        id: coiRow.id,
+        caseId: coiRow.case_id,
+        declarantId: coiRow.declarant_id,
+        conflictType: coiRow.conflict_type as ConflictType,
+        descriptionMd: coiRow.description_md,
+        status: coiRow.status as CaseConflictDeclaration['status'],
+        declaredAt: coiRow.declared_at,
+        resolvedAt: coiRow.resolved_at,
+      }
+    }
   }
 
   return {
@@ -1103,20 +1192,17 @@ async function getCaseDetailUncached(
           canManageLifecycle: env.viewer_capabilities.can_manage_lifecycle,
         }
       : { canRead: true, canWriteContent: true, canManageLifecycle: true },
-    // Ethics access-spine fields (ADR 0072 · E1). CONTRACT-FIRST defaults mirror the
-    // `viewerCapabilities` precedent above: BE-2 lands the columns and BE-7 wires the
-    // RPC projection. Until then these reproduce the flag-OFF invariant exactly —
-    // every case is `commission_default` / `non_phi_internal` with no participants /
-    // recusal / conflict surfaced (ADR 0072 §Consequences "Flag-OFF byte-for-byte").
+    // Ethics access-spine fields (ADR 0072 · E1), read RLS-scoped above. Flag-OFF cases
+    // carry the today-defaults, so this reproduces the flag-OFF invariant exactly.
     confidentialityLevel:
-      (env.confidentiality_level as CaseConfidentialityLevel | undefined) ??
+      (deptRow?.confidentiality_level as CaseConfidentialityLevel | undefined) ??
       'non_phi_internal',
     visibilityPolicy:
-      (env.visibility_policy as VisibilityPolicy | undefined) ??
+      (deptRow?.visibility_policy as VisibilityPolicy | undefined) ??
       'commission_default',
-    participants: [],
-    myRecusal: null,
-    myConflict: null,
+    participants,
+    myRecusal,
+    myConflict,
   }
 }
 
