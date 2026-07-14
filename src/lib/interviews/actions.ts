@@ -21,6 +21,9 @@ import type {
   RelationshipToCase,
   SessionType,
 } from '@/lib/queries/interviews'
+// ETH·E1 fold-in (ADR 0072 D7): the enforcing 7-value confidentiality taxonomy the
+// interview confidentiality setter now speaks (type-only ⇒ no server-only runtime import).
+import type { CaseConfidentialityLevel } from '@/lib/queries/cases'
 
 /**
  * Interviews server actions (Phase 11 — Interviews; Architecture Rules 6, 9 & 10).
@@ -899,6 +902,58 @@ export async function softDeleteInterviewAttachment(
 
   revalidateInterviews()
   return { ok: true, error: INTERVIEW_MESSAGES.attachmentRemoved }
+}
+
+// ---------------------------------------------------------------------------
+// ETH·E1 fold-in (ADR 0072 D7 · X-γ) — participant-registry wiring, enforcing
+// confidentiality, and per-session attendance. ADDITIVE to IV2's surface; the
+// bodies land in BE-6 (the interview fold-in migration + RPCs). CONTRACT-FIRST
+// STUB (BE-1) — signatures are the frozen contract the E2/E3 UI binds to.
+// ---------------------------------------------------------------------------
+
+/** Fields accepted when recording a participant's attendance at a session (ADR 0072
+ * D7·3; `interview_session_attendance`). `attendanceStatus`/`roleAtSession` enums are
+ * finalized against the DB CHECK in BE-6. */
+export interface SessionAttendanceInput {
+  /** `case_participants.id` — the unified participant row for this attendee. */
+  participantId: string
+  /** Attendance outcome (present / absent / excused / …); DB-CHECK-bound in BE-6. */
+  attendanceStatus: string
+  /** The participant's role at THIS session (optional). */
+  roleAtSession?: string | null
+}
+
+function notImplementedE1(fn: string, ..._args: unknown[]): never {
+  throw new Error(`${fn} not implemented (ETH·E1 BE-6 — contract stub)`)
+}
+
+/** Tie an interview to a case-level participant (`set_interview_participant`; wires the
+ * BE-6 `participant_id` FK so the SAME respondent resolves the same participant across
+ * sessions). `null` clears the link. Subject/interviewer variants land in BE-6. */
+export async function setInterviewParticipant(
+  interviewId: string,
+  participantId: string | null,
+): Promise<ActionState> {
+  return notImplementedE1('setInterviewParticipant', interviewId, participantId)
+}
+
+/** Set an interview's confidentiality — now ENFORCING and on the 7-value taxonomy
+ * (`set_interview_confidentiality`; audited `interview.confidentiality_changed`). A
+ * below-clearance reader loses the interview detail. Replaces IV2's non-enforcing tag. */
+export async function setInterviewConfidentiality(
+  interviewId: string,
+  level: CaseConfidentialityLevel,
+): Promise<ActionState> {
+  return notImplementedE1('setInterviewConfidentiality', interviewId, level)
+}
+
+/** Record a participant's attendance at a session (`record_session_attendance`;
+ * `interview_session_attendance`). */
+export async function recordSessionAttendance(
+  sessionId: string,
+  input: SessionAttendanceInput,
+): Promise<ActionState> {
+  return notImplementedE1('recordSessionAttendance', sessionId, input)
 }
 
 // Re-export the union types frontend forms bind to, so a form importing the

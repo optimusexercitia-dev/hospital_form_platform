@@ -109,6 +109,13 @@ function detail(
       canWriteContent: true,
       canManageLifecycle: true,
     },
+    // Ethics access-spine fields (ADR 0072 · E1); mergeCaseLayout never reads them —
+    // the flag-OFF mapper defaults keep the fixture valid.
+    confidentialityLevel: 'non_phi_internal',
+    visibilityPolicy: 'commission_default',
+    participants: [],
+    myRecusal: null,
+    myConflict: null,
   }
 }
 

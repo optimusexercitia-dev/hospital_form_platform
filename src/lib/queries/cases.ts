@@ -361,6 +361,36 @@ export interface CaseDetail {
    * capability signal, NOT the security boundary (RLS is — Rule 1).
    */
   viewerCapabilities: CaseViewerCapabilities
+  /**
+   * The case's snapshotted confidentiality ceiling (ADR 0072 D1 · E1). Drives the
+   * confidentiality badge + the document-ceiling affordances. Defaults to
+   * `non_phi_internal` until BE-2 lands the `cases.confidentiality_level` column +
+   * BE-7 surfaces it (the flag-OFF value = today's behaviour).
+   */
+  confidentialityLevel: CaseConfidentialityLevel
+  /**
+   * The case's snapshotted access model (ADR 0072 D1 · E1). `explicit_grants_only`
+   * (ethics) is grant/attribution-only; `commission_default` is today's member reach.
+   * Defaults to `commission_default` until BE-2/BE-7.
+   */
+  visibilityPolicy: VisibilityPolicy
+  /**
+   * The case's participants resolved for display (ADR 0064 `case_participants` · E1).
+   * `[]` until BE-7 surfaces them / with the `case_participants` flag OFF. Writes go
+   * through the D6 DEFINER RPCs (`src/lib/participants/actions.ts`).
+   */
+  participants: CaseParticipant[]
+  /**
+   * The CURRENT viewer's LIVE recusal on this case (ADR 0072 D4 · E1), or `null`.
+   * Present via the `case_recusals` self-arm so the UI can show the "impedido" banner
+   * even though a live recusal denies case-read. `null` until BE-7.
+   */
+  myRecusal: CaseRecusal | null
+  /**
+   * The CURRENT viewer's own conflict declaration on this case (ADR 0072 D4 · E1), or
+   * `null`. `null` until BE-7.
+   */
+  myConflict: CaseConflictDeclaration | null
 }
 
 /** The assignee's phase-fill landing: the phase + its parent case (metadata). */
@@ -428,6 +458,113 @@ export interface CaseViewerCapabilities {
   canRead: boolean
   canWriteContent: boolean
   canManageLifecycle: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Ethics access spine (ADR 0072 · E1) — confidentiality, participants,
+// recusal/COI. CONTRACT-FIRST types: posted at BE-1, populated at BE-2..BE-7.
+// ---------------------------------------------------------------------------
+
+/**
+ * The platform's SINGLE confidentiality vocabulary (ADR 0072 D1; the F2 label set
+ * on `attachments.confidentiality_label`). Snapshotted onto `cases.confidentiality_level`
+ * at create and spoken by interviews (post-BE-6 remap) too. Ordinary labels stay at
+ * case-read; `legal_privileged` + `credentialing_sensitive` gate above it at the
+ * document ceiling (O2). English keys; pt-BR labels in the UI (Rule 10).
+ */
+export type CaseConfidentialityLevel =
+  | 'non_phi_internal'
+  | 'phi_standard'
+  | 'phi_restricted'
+  | 'peer_review_confidential'
+  | 'legal_privileged'
+  | 'ethics_investigation'
+  | 'credentialing_sensitive'
+
+/**
+ * The case's ACCESS MODEL (ADR 0072 D1), snapshotted onto `cases.visibility_policy`
+ * at create from `case_types.default_visibility_policy`:
+ *   - `commission_default`    — today's behaviour (member reach via the board / Meus Casos).
+ *   - `explicit_grants_only`  — ethics deliberation; grant/attribution-only, no member-wide read.
+ */
+export type VisibilityPolicy = 'commission_default' | 'explicit_grants_only'
+
+/** The registry participant kind (`participants.participant_type`; ADR 0064). */
+export type ParticipantType =
+  | 'patient'
+  | 'professional'
+  | 'external_person'
+  | 'department'
+  | 'institution'
+  | 'regulatory_body'
+  | 'other'
+
+/** A COI declaration's kind (`case_conflict_declarations.conflict_type`; ADR 0072 D4). */
+export type ConflictType =
+  | 'professional_relationship'
+  | 'personal_relationship'
+  | 'financial_interest'
+  | 'prior_involvement'
+  | 'other'
+
+/**
+ * One case × participant × role link resolved for display (ADR 0064 `case_participants`
+ * + role vocabulary). Writes route through the D6 DEFINER RPCs; this is the read shape
+ * `getCaseDetail` surfaces. `displayName` is the org-scoped SURROGATE label — NEVER raw
+ * patient identity (Rule 12; that lives behind the audited PHI door).
+ */
+export interface CaseParticipant {
+  /** `case_participants.id` — the link row the remove/set RPCs target. */
+  id: string
+  /** `participants.id` — the registry identity. */
+  participantId: string
+  /** The participant kind. */
+  participantType: ParticipantType
+  /** Org-scoped display label (surrogate for a patient; never raw identity). */
+  displayName: string
+  /** `case_participant_roles.id`. */
+  roleId: string
+  /** Stable role key (e.g. `respondent_doctor`, `complainant`). */
+  roleKey: string
+  /** pt-BR role label. */
+  roleLabel: string
+  /** At most one LIVE primary subject per case (partial-unique). */
+  isPrimarySubject: boolean
+  /** Optional free-text involvement note; `null` if unset. */
+  involvementSummary: string | null
+}
+
+/**
+ * The CALLER's recusal state on a case (ADR 0072 D4; `case_recusals`). A LIVE recusal
+ * (`liftedAt === null`) denies the caller case-read via the `can_read_case` deny-term,
+ * but the D4 self-arm still lets them see THIS row (the "você está impedido" banner).
+ */
+export interface CaseRecusal {
+  id: string
+  caseId: string
+  userId: string
+  reasonMd: string | null
+  source: 'self' | 'coordinator' | 'conflict'
+  conflictDeclarationId: string | null
+  recusedAt: string
+  /** `null` while the recusal is LIVE; set once soft-lifted (read restored). */
+  liftedAt: string | null
+}
+
+/**
+ * The CALLER's conflict-of-interest declaration on a case (ADR 0072 D4;
+ * `case_conflict_declarations`). Self-service via `declareConflict`; a coordinator may
+ * resolve it (→ `recused` / `waived`).
+ */
+export interface CaseConflictDeclaration {
+  id: string
+  caseId: string
+  declarantId: string
+  conflictType: ConflictType
+  descriptionMd: string | null
+  status: 'declared' | 'recused' | 'waived'
+  declaredAt: string
+  resolvedAt: string | null
 }
 
 /**
@@ -732,6 +869,13 @@ interface CaseDetailJson {
     can_write_content: boolean
     can_manage_lifecycle: boolean
   } | null
+  /**
+   * The case's snapshotted confidentiality ceiling + access model (ADR 0072 D1 · E1),
+   * added by `get_case_detail` in BE-7. Absent on a pre-BE-7 envelope → the mapper
+   * defaults to the flag-OFF values (`non_phi_internal` / `commission_default`).
+   */
+  confidentiality_level?: string | null
+  visibility_policy?: string | null
 }
 
 /** The board CAP (WS-6 P3). The cases board is a kanban (column-per-status), which
@@ -959,6 +1103,20 @@ async function getCaseDetailUncached(
           canManageLifecycle: env.viewer_capabilities.can_manage_lifecycle,
         }
       : { canRead: true, canWriteContent: true, canManageLifecycle: true },
+    // Ethics access-spine fields (ADR 0072 · E1). CONTRACT-FIRST defaults mirror the
+    // `viewerCapabilities` precedent above: BE-2 lands the columns and BE-7 wires the
+    // RPC projection. Until then these reproduce the flag-OFF invariant exactly —
+    // every case is `commission_default` / `non_phi_internal` with no participants /
+    // recusal / conflict surfaced (ADR 0072 §Consequences "Flag-OFF byte-for-byte").
+    confidentialityLevel:
+      (env.confidentiality_level as CaseConfidentialityLevel | undefined) ??
+      'non_phi_internal',
+    visibilityPolicy:
+      (env.visibility_policy as VisibilityPolicy | undefined) ??
+      'commission_default',
+    participants: [],
+    myRecusal: null,
+    myConflict: null,
   }
 }
 
