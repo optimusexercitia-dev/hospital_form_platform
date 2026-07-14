@@ -15,6 +15,7 @@ import type {
   MeetingModality,
 } from '@/lib/queries/meetings'
 import type { MeetingActionItemStatus } from '@/lib/queries/meeting-action-items'
+import type { VisibilityScope } from '@/lib/queries/action-items'
 
 /**
  * Meetings server actions (Phase 10 — Meetings; Architecture Rules 9 & 10).
@@ -1058,6 +1059,14 @@ export interface MeetingActionItemInput {
   sourceAgendaItemId: string | null
   /** Optional cross-link to a case; `null` if none. */
   caseId: string | null
+  /**
+   * Coordinator-chosen read scope (ADR 0050). `null` leaves it to the RPC's own
+   * default computation (`case_restricted` when `caseId` is set, else `committee`).
+   * The FE MUST NOT offer `case_restricted` without a `caseId` — the RPC does NOT
+   * cross-validate that combination and would silently create an item readable by
+   * no one but staff_admin/org_admin (a null-case `case_restricted` row).
+   */
+  visibilityScope?: VisibilityScope | null
 }
 
 /** Create an action item on a meeting. staff_admin-only. Returns the new `actionItemId`. */
@@ -1096,6 +1105,7 @@ export async function createMeetingActionItem(
     p_description: input.description ?? undefined,
     p_assigned_to: input.assignedTo ?? undefined,
     p_due_date: dueDate ?? undefined,
+    p_visibility_scope: input.visibilityScope ?? undefined,
   })
 
   if (error || !data) return { ok: false, error: mapMeetingError(error) }
@@ -1131,12 +1141,17 @@ export async function updateMeetingActionItem(
   }
 
   const supabase = await createClient()
+  // NB: update_committee_action_item exposes NO p_case_id (the case cross-link is
+  // create-time only; changing it is not supported by the hub RPC and adding it
+  // would alter a committee_* signature, out of scope). Only p_visibility_scope is
+  // editable here. `null` leaves the scope unchanged (the RPC coalesces).
   const { error } = await supabase.rpc('update_committee_action_item', {
     p_id: actionItemId,
     p_title: input.title.trim(),
     p_description: input.description ?? undefined,
     p_assigned_to: input.assignedTo ?? undefined,
     p_due_date: dueDate ?? undefined,
+    p_visibility_scope: input.visibilityScope ?? undefined,
   })
 
   if (error) return { ok: false, error: mapMeetingError(error) }
