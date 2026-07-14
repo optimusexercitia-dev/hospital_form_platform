@@ -15,7 +15,7 @@
 -- =============================================================================
 
 begin;
-select plan(84);
+select plan(108);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -552,6 +552,127 @@ select ok(
   not exists (select 1 from public.audit_log
               where action = 'professional_profile.created' and metadata::text ilike '%Teste%'),
   'audit (Rule 11): the professional_profile.created row carries NO identity payload');
+
+-- ===========================================================================
+-- BE-6 — IV2 fold-in (ADR 0072 D7): participant FK, enforcing confidentiality
+-- (O3 remap), per-session attendance. Interviews + case_participants + case_access
+-- + audit_trail ON.
+-- ===========================================================================
+reset role;
+update app.feature_flags set enabled = true
+  where key in ('interviews', 'case_participants', 'case_access', 'audit_trail');
+
+-- (t19) grants on the 5 fold-in RPCs.
+select is(has_function_privilege('anon', 'public.set_interview_participant(uuid,uuid)', 'EXECUTE'), false, 't19: anon cannot EXECUTE set_interview_participant');
+select is(has_function_privilege('anon', 'public.set_interview_subject_participant(uuid,uuid)', 'EXECUTE'), false, 't19: anon cannot EXECUTE set_interview_subject_participant');
+select is(has_function_privilege('anon', 'public.set_interview_interviewer_participant(uuid,uuid)', 'EXECUTE'), false, 't19: anon cannot EXECUTE set_interview_interviewer_participant');
+select is(has_function_privilege('anon', 'public.set_interview_confidentiality(uuid,text)', 'EXECUTE'), false, 't19: anon cannot EXECUTE set_interview_confidentiality');
+select is(has_function_privilege('anon', 'public.record_session_attendance(uuid,uuid,text,text)', 'EXECUTE'), false, 't19: anon cannot EXECUTE record_session_attendance');
+select is(has_function_privilege('authenticated', 'public.set_interview_participant(uuid,uuid)', 'EXECUTE'), true, 't19: authenticated can EXECUTE set_interview_participant');
+select is(has_function_privilege('authenticated', 'public.set_interview_subject_participant(uuid,uuid)', 'EXECUTE'), true, 't19: authenticated can EXECUTE set_interview_subject_participant');
+select is(has_function_privilege('authenticated', 'public.set_interview_interviewer_participant(uuid,uuid)', 'EXECUTE'), true, 't19: authenticated can EXECUTE set_interview_interviewer_participant');
+select is(has_function_privilege('authenticated', 'public.set_interview_confidentiality(uuid,text)', 'EXECUTE'), true, 't19: authenticated can EXECUTE set_interview_confidentiality');
+select is(has_function_privilege('authenticated', 'public.record_session_attendance(uuid,uuid,text,text)', 'EXECUTE'), true, 't19: authenticated can EXECUTE record_session_attendance');
+
+-- Fixtures: a plain (no-clearance) read grant for st_x2 on c_default; a case
+-- participant on c_default; another on c_ethics (for the cross-case validation).
+insert into public.case_access (case_id, user_id, level, granted_by)
+values ((select cid from c_default), (select st_x2 from k), 'read', (select sa_x from k))
+on conflict do nothing;
+insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+values ('00000000-0000-0000-0000-0000000e0121', (select org_x from k), 'external_person', 'non_sensitive', 'Entrevistado');
+insert into public.case_participants (id, case_id, participant_id, role_id)
+values ('00000000-0000-0000-0000-0000000e0122', (select cid from c_default),
+        '00000000-0000-0000-0000-0000000e0121', '00000000-0000-0000-0000-0000000e0112');
+insert into public.case_participants (id, case_id, participant_id, role_id)
+values ('00000000-0000-0000-0000-0000000e0123', (select cid from c_ethics),
+        '00000000-0000-0000-0000-0000000e0121', '00000000-0000-0000-0000-0000000e0112');
+
+-- Create an interview on c_default + two sessions.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table iv on commit drop as
+  select id from public.create_interview((select cid from c_default), 'Entrevista E1', null, 'witness', 'standard');
+grant select on iv to authenticated;
+select public.schedule_session((select id from iv));
+select public.schedule_session((select id from iv));
+reset role;
+grant select on iv to authenticated;
+
+-- normalization: legacy 'standard' → non_phi_internal.
+select is((select confidentiality_level from public.case_interviews where id = (select id from iv)),
+  'non_phi_internal', 'O3 remap: create_interview(''standard'') normalizes to non_phi_internal');
+
+-- set_interview_participant: sets the FK; a cross-case participant is rejected.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.set_interview_participant(%L, '00000000-0000-0000-0000-0000000e0122') $$,
+          (select id from iv)),
+  'set_interview_participant: coordinator ties the interview to a case participant');
+select throws_ok(
+  format($$ select public.set_interview_participant(%L, '00000000-0000-0000-0000-0000000e0123') $$,
+          (select id from iv)),
+  '23514', null,
+  'set_interview_participant: a participant from another case is rejected');
+reset role;
+select is((select participant_id from public.case_interviews where id = (select id from iv)),
+  '00000000-0000-0000-0000-0000000e0122'::uuid,
+  'set_interview_participant persisted the FK');
+
+-- record_session_attendance: same participant across the two sessions.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.record_session_attendance(s.id, '00000000-0000-0000-0000-0000000e0122')
+            from (select id from public.interview_sessions where interview_id = %L order by sequence_number) s $$,
+          (select id from iv)),
+  'record_session_attendance: records attendance across the interview''s sessions');
+select throws_ok(
+  format($$ select public.record_session_attendance(
+              (select id from public.interview_sessions where interview_id = %L order by sequence_number limit 1),
+              '00000000-0000-0000-0000-0000000e0123') $$, (select id from iv)),
+  '23514', null,
+  'record_session_attendance: a participant from another case is rejected');
+reset role;
+select is(
+  (select count(distinct participant_id)::int from public.interview_session_attendance a
+   join public.interview_sessions s on s.id = a.session_id
+   where s.interview_id = (select id from iv)
+     and a.participant_id = '00000000-0000-0000-0000-0000000e0122'), 1,
+  'the SAME participant resolves across the interview''s two sessions');
+select is(
+  (select count(*)::int from public.interview_session_attendance a
+   join public.interview_sessions s on s.id = a.session_id
+   where s.interview_id = (select id from iv)), 2,
+  'attendance recorded on both sessions');
+
+-- set_interview_confidentiality: enforcing. legal_privileged hides the interview from
+-- a below-clearance reader; a cleared reader still sees it; invalid + non-writer errors.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.set_interview_confidentiality(%L, 'legal_privileged') $$, (select id from iv)),
+  'set_interview_confidentiality: coordinator raises the interview to legal_privileged');
+select throws_ok(
+  format($$ select public.set_interview_confidentiality(%L, 'bogus') $$, (select id from iv)),
+  'HC0E5', null,
+  'set_interview_confidentiality: an invalid level raises HC0E5');
+reset role;
+select is(app.can_read_interview((select id from iv), (select st_x2 from k)), false,
+  'enforcing: a below-clearance reader (plain grant) no longer sees the legal_privileged interview');
+select is(app.can_read_interview((select id from iv), (select sa_x from k)), true,
+  'enforcing: a cleared reader (legal_privileged clearance) still sees the interview');
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.set_interview_confidentiality(%L, 'phi_standard') $$, (select id from iv)),
+  'HC039', null,
+  'set_interview_confidentiality: a non-writer is denied (HC039)');
+reset role;
+select is((select count(*)::int from public.audit_log
+           where action = 'interview.confidentiality_changed' and entity_id = (select id from iv)), 1,
+  'audit: interview.confidentiality_changed emitted one row');
 
 select * from finish();
 rollback;

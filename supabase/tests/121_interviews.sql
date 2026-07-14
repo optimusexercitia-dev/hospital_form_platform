@@ -70,8 +70,10 @@ select is((select interview_number from i1), 1, 'first interview minted number 1
 select is((select status from i1), 'draft', 'new interview starts draft');                    -- 4
 select is((select commission_id from i1), (select comm_x from k),
   'create derives commission_id from the case');                                              -- 5
-select is((select confidentiality_level from i1), 'standard',
-  'confidentiality_level defaults to standard');                                              -- 6
+-- ETH·E1 (ADR 0072 D7·O3): the IV2 3-value tag was remapped to the 7-value taxonomy;
+-- create_interview's legacy 'standard' input is normalized to 'non_phi_internal'.
+select is((select confidentiality_level from i1), 'non_phi_internal',
+  'confidentiality_level: legacy ''standard'' normalizes to non_phi_internal (E1 O3 remap)'); -- 6
 select is((select interview_category from i1), 'clinical_team',
   'interview_category is stored as given');                                                   -- 7
 

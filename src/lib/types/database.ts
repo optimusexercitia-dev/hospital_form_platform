@@ -1693,6 +1693,7 @@ export type Database = {
           id: string
           interview_id: string
           note: string | null
+          participant_id: string | null
           role: string
           updated_at: string
           user_id: string | null
@@ -1704,6 +1705,7 @@ export type Database = {
           id?: string
           interview_id: string
           note?: string | null
+          participant_id?: string | null
           role?: string
           updated_at?: string
           user_id?: string | null
@@ -1715,6 +1717,7 @@ export type Database = {
           id?: string
           interview_id?: string
           note?: string | null
+          participant_id?: string | null
           role?: string
           updated_at?: string
           user_id?: string | null
@@ -1725,6 +1728,13 @@ export type Database = {
             columns: ["interview_id"]
             isOneToOne: false
             referencedRelation: "case_interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interview_interviewers_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "case_participants"
             referencedColumns: ["id"]
           },
           {
@@ -1800,6 +1810,7 @@ export type Database = {
           id: string
           interview_id: string
           note: string | null
+          participant_id: string | null
           relationship_to_case: string
           updated_at: string
           user_id: string | null
@@ -1812,6 +1823,7 @@ export type Database = {
           id?: string
           interview_id: string
           note?: string | null
+          participant_id?: string | null
           relationship_to_case: string
           updated_at?: string
           user_id?: string | null
@@ -1824,6 +1836,7 @@ export type Database = {
           id?: string
           interview_id?: string
           note?: string | null
+          participant_id?: string | null
           relationship_to_case?: string
           updated_at?: string
           user_id?: string | null
@@ -1834,6 +1847,13 @@ export type Database = {
             columns: ["interview_id"]
             isOneToOne: false
             referencedRelation: "case_interviews"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interview_subjects_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "case_participants"
             referencedColumns: ["id"]
           },
           {
@@ -1860,6 +1880,7 @@ export type Database = {
           id: string
           interview_category: string
           interview_number: number
+          participant_id: string | null
           registry_event_id: string | null
           status: string
           summary_md: string | null
@@ -1880,6 +1901,7 @@ export type Database = {
           id?: string
           interview_category: string
           interview_number: number
+          participant_id?: string | null
           registry_event_id?: string | null
           status?: string
           summary_md?: string | null
@@ -1900,6 +1922,7 @@ export type Database = {
           id?: string
           interview_category?: string
           interview_number?: number
+          participant_id?: string | null
           registry_event_id?: string | null
           status?: string
           summary_md?: string | null
@@ -1947,6 +1970,13 @@ export type Database = {
             columns: ["form_version_id"]
             isOneToOne: false
             referencedRelation: "form_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_interviews_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "case_participants"
             referencedColumns: ["id"]
           },
           {
@@ -4297,6 +4327,51 @@ export type Database = {
           },
         ]
       }
+      interview_session_attendance: {
+        Row: {
+          attendance_status: string
+          created_at: string
+          created_by: string | null
+          id: string
+          participant_id: string
+          role_at_session: string | null
+          session_id: string
+        }
+        Insert: {
+          attendance_status?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          participant_id: string
+          role_at_session?: string | null
+          session_id: string
+        }
+        Update: {
+          attendance_status?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          participant_id?: string
+          role_at_session?: string | null
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_session_attendance_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "case_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interview_session_attendance_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "interview_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       interview_sessions: {
         Row: {
           actual_end: string | null
@@ -4362,6 +4437,76 @@ export type Database = {
           },
           {
             foreignKeyName: "interview_sessions_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "case_interviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_summaries: {
+        Row: {
+          audience: string
+          created_at: string
+          created_by: string | null
+          id: string
+          interview_id: string
+          summary_md: string | null
+          version: number
+        }
+        Insert: {
+          audience?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          interview_id: string
+          summary_md?: string | null
+          version?: number
+        }
+        Update: {
+          audience?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          interview_id?: string
+          summary_md?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_summaries_interview_id_fkey"
+            columns: ["interview_id"]
+            isOneToOne: false
+            referencedRelation: "case_interviews"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      interview_topics: {
+        Row: {
+          created_at: string
+          display_position: number
+          id: string
+          interview_id: string
+          topic: string
+        }
+        Insert: {
+          created_at?: string
+          display_position?: number
+          id?: string
+          interview_id: string
+          topic: string
+        }
+        Update: {
+          created_at?: string
+          display_position?: number
+          id?: string
+          interview_id?: string
+          topic?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interview_topics_interview_id_fkey"
             columns: ["interview_id"]
             isOneToOne: false
             referencedRelation: "case_interviews"
@@ -7188,6 +7333,7 @@ export type Database = {
           id: string
           interview_id: string
           note: string | null
+          participant_id: string | null
           role: string
           updated_at: string
           user_id: string | null
@@ -7217,6 +7363,7 @@ export type Database = {
           id: string
           interview_id: string
           note: string | null
+          participant_id: string | null
           relationship_to_case: string
           updated_at: string
           user_id: string | null
@@ -7905,6 +8052,7 @@ export type Database = {
           id: string
           interview_category: string
           interview_number: number
+          participant_id: string | null
           registry_event_id: string | null
           status: string
           summary_md: string | null
@@ -8253,6 +8401,7 @@ export type Database = {
           id: string
           interview_category: string
           interview_number: number
+          participant_id: string | null
           registry_event_id: string | null
           status: string
           summary_md: string | null
@@ -8831,6 +8980,7 @@ export type Database = {
           id: string
           interview_category: string
           interview_number: number
+          participant_id: string | null
           registry_event_id: string | null
           status: string
           summary_md: string | null
@@ -10221,6 +10371,15 @@ export type Database = {
         }
         Returns: string
       }
+      record_session_attendance: {
+        Args: {
+          p_attendance_status?: string
+          p_participant_id: string
+          p_role_at_session?: string
+          p_session_id: string
+        }
+        Returns: string
+      }
       referrals_enabled: { Args: never; Returns: boolean }
       reject_document: {
         Args: { p_note?: string; p_version_id: string }
@@ -10390,6 +10549,7 @@ export type Database = {
           id: string
           interview_category: string
           interview_number: number
+          participant_id: string | null
           registry_event_id: string | null
           status: string
           summary_md: string | null
@@ -10958,6 +11118,22 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_interview_confidentiality: {
+        Args: { p_interview_id: string; p_level: string }
+        Returns: undefined
+      }
+      set_interview_interviewer_participant: {
+        Args: { p_interviewer_id: string; p_participant_id: string }
+        Returns: undefined
+      }
+      set_interview_participant: {
+        Args: { p_interview_id: string; p_participant_id: string }
+        Returns: undefined
+      }
+      set_interview_subject_participant: {
+        Args: { p_participant_id: string; p_subject_id: string }
+        Returns: undefined
       }
       set_meeting_held_window: {
         Args: { p_held_at: string; p_held_end?: string; p_meeting_id: string }
@@ -12013,6 +12189,7 @@ export type Database = {
           id: string
           interview_category: string
           interview_number: number
+          participant_id: string | null
           registry_event_id: string | null
           status: string
           summary_md: string | null
@@ -12041,6 +12218,7 @@ export type Database = {
           id: string
           interview_id: string
           note: string | null
+          participant_id: string | null
           role: string
           updated_at: string
           user_id: string | null
@@ -12069,6 +12247,7 @@ export type Database = {
           id: string
           interview_id: string
           note: string | null
+          participant_id: string | null
           relationship_to_case: string
           updated_at: string
           user_id: string | null
@@ -12096,6 +12275,7 @@ export type Database = {
           id: string
           interview_category: string
           interview_number: number
+          participant_id: string | null
           registry_event_id: string | null
           status: string
           summary_md: string | null
