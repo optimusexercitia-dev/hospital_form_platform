@@ -97,6 +97,13 @@ const PHI_MRN  = 'PRT-0099123'
 let gateCaseId: string          // uuid of the disposable pendente case
 let gateReferralId: string      // uuid of the reply-expecting referral on it
 
+// RV2 R1 — Dialogue core fixtures (own disposable case + referral; never touches
+// a seeded fixture). Advanced to `em_analise` (in_review) and LINKED to a fresh
+// Farmácia case so a target ANALYST (case_access grant, not staff_admin) can be
+// exercised — the composer's compose-authority parity with the R1 RPCs.
+let r1CaseId: string            // uuid of the disposable Farmácia (target) case
+let r1ReferralId: string        // uuid of the CCIH → Farmácia dialogue-test referral
+
 // ---------------------------------------------------------------------------
 // Feature-flag lifecycle
 // ---------------------------------------------------------------------------
@@ -312,6 +319,93 @@ test.afterAll(async ({ request }) => {
       { cwd: process.cwd(), stdio: 'pipe' },
     )
   }
+})
+
+// ---------------------------------------------------------------------------
+// RV2 R1 — Dialogue core fixture setup. Creates a disposable Farmácia case
+// (r1CaseId) and a fresh CCIH → Farmácia referral (r1ReferralId), advances it
+// through send → receive → accept → link (to r1CaseId) → start review, so it
+// lands in `em_analise` (in_review) — ready for the dialogue tests. Grants
+// staff1.farm a `case_access` row on r1CaseId (→ target ANALYST via
+// `app.referral_target_analyst`, NOT staff_admin); staff2.farm gets no grant
+// (plain non-participant / metadata-only reader).
+// ---------------------------------------------------------------------------
+
+test.beforeAll(async ({ request }) => {
+  const chefeAToken = await getToken(request, 'chefe.ccih@test.local')
+  const chefeBToken = await getToken(request, 'chefe.farm@test.local')
+
+  const caseResp = await request.post(`${SUPABASE_URL}/rest/v1/cases`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    data: {
+      commission_id: COMM_B,
+      label: 'RV2 R1 — disposable target case (phase22 spec)',
+      status: 'pending',
+      created_by: '00000000-0000-0000-0000-000000000005', // chefe.farm
+    },
+  })
+  expect(caseResp.ok(), `R1 beforeAll: could not create target case: ${await caseResp.text()}`).toBeTruthy()
+  const [r1CaseRow] = (await caseResp.json()) as Array<{ id: string }>
+  r1CaseId = r1CaseRow.id
+
+  const typesResp = await restGet<{ id: string }>(
+    request,
+    'referral_types?is_active=eq.true&order=position.asc&limit=1',
+    SUPABASE_SERVICE_KEY,
+  )
+  const typeId = typesResp[0]?.id
+  expect(typeId, 'R1 beforeAll: no active referral type found').toBeTruthy()
+
+  const draftResp = await rpc(request, 'create_referral_draft', chefeAToken, {
+    p_source_case_id: CASE_A_ID,
+    p_target_commission_id: COMM_B,
+    p_referral_type_id: typeId,
+    p_subject: 'RV2 R1 — encaminhamento de diálogo (phase22 spec)',
+    p_response_expected: true,
+    p_description_md: 'Descrição sintética para os testes de diálogo (R1).',
+  })
+  expect(draftResp.ok(), `R1 beforeAll: create_referral_draft failed: ${await draftResp.text()}`).toBeTruthy()
+  const draftData = (await draftResp.json()) as { id: string }
+  r1ReferralId = draftData.id
+
+  const sendResp = await rpc(request, 'send_referral', chefeAToken, { p_referral_id: r1ReferralId })
+  expect(sendResp.ok(), `R1 beforeAll: send_referral failed: ${await sendResp.text()}`).toBeTruthy()
+
+  const receiveResp = await rpc(request, 'receive_referral', chefeBToken, { p_referral_id: r1ReferralId })
+  expect(receiveResp.ok(), `R1 beforeAll: receive_referral failed: ${await receiveResp.text()}`).toBeTruthy()
+
+  const acceptResp = await rpc(request, 'accept_referral', chefeBToken, { p_referral_id: r1ReferralId })
+  expect(acceptResp.ok(), `R1 beforeAll: accept_referral failed: ${await acceptResp.text()}`).toBeTruthy()
+
+  const linkResp = await rpc(request, 'link_referral_case', chefeBToken, {
+    p_referral_id: r1ReferralId,
+    p_target_case_id: r1CaseId,
+  })
+  expect(linkResp.ok(), `R1 beforeAll: link_referral_case failed: ${await linkResp.text()}`).toBeTruthy()
+
+  const reviewResp = await rpc(request, 'start_referral_review', chefeBToken, { p_referral_id: r1ReferralId })
+  expect(reviewResp.ok(), `R1 beforeAll: start_referral_review failed: ${await reviewResp.text()}`).toBeTruthy()
+
+  const accessResp = await request.post(`${SUPABASE_URL}/rest/v1/case_access`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    data: {
+      case_id: r1CaseId,
+      user_id: '00000000-0000-0000-0000-000000000006', // staff1.farm
+      level: 'read',
+      granted_by: '00000000-0000-0000-0000-000000000005', // chefe.farm
+    },
+  })
+  expect(accessResp.ok(), `R1 beforeAll: case_access grant failed: ${await accessResp.text()}`).toBeTruthy()
 })
 
 // ---------------------------------------------------------------------------
@@ -1024,4 +1118,321 @@ test('Flow 5-PHI-timeline: case timeline shows referral entry with NO PHI', asyn
   expect(html).not.toContain(PHI_MRN)
   // A referral timeline entry (type label) is visible
   await expect(page.getByText(/encaminhamento/i).first()).toBeVisible()
+})
+
+// ---------------------------------------------------------------------------
+// RV2 R1 — Dialogue core (mid-review two-way thread; ADR 0037 Amendment 1;
+// plan §R1 docs/plans/referrals-v2-dialogue-governance.md)
+//
+// Fixture: r1ReferralId (CCIH → Farmácia), created + advanced to `em_analise`
+// in the R1 beforeAll above, linked to the disposable r1CaseId (Farmácia).
+// staff1.farm holds a case_access grant on r1CaseId → target ANALYST.
+// staff2.farm holds NO grant → plain non-participant / metadata-only reader.
+//
+// R1-1..R1-3, R1-7a and R1-9 all POST through r1ReferralId's SAME thread, in
+// file order (serial mode) — the message count/sequence assertions below
+// depend on that exact order: R1-1 → #1, R1-2 → #2, R1-3 → #3, R1-7a → #4,
+// R1-9 → #5. R1-4/5/6/7b are read-only or use their own disposable fixture.
+// ---------------------------------------------------------------------------
+
+test('R1-1: source coordinator posts "Comentar" → the message renders in the thread', async ({ page }) => {
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${r1ReferralId}`)
+
+  const thread = page.getByRole('region', { name: 'Diálogo' })
+  await expect(thread).toBeVisible({ timeout: 10_000 })
+  await expect(thread.getByText('Ainda não há mensagens')).toBeVisible()
+
+  const composer = thread.locator('form')
+  await expect(composer).toBeVisible()
+  await composer.locator('textarea').fill('Primeira mensagem — comentário da origem (R1-1).')
+  await composer.locator('button[type="submit"]').click()
+
+  await expect(
+    thread.getByText('Primeira mensagem — comentário da origem (R1-1).'),
+  ).toBeVisible({ timeout: 15_000 })
+  const firstMessage = thread.locator('li').first()
+  await expect(firstMessage).toContainText('#1')
+  await expect(firstMessage).toContainText('Infecção Hospitalar') // sender = source (CCIH)
+  await expect(firstMessage).toContainText('Comentário') // message-type chip label
+})
+
+test('R1-2: target coordinator "Solicitar informação" → awaiting_information + waiting-on(source); message shows', async ({
+  page,
+}) => {
+  await signInAs(page, 'chefe.farm@test.local')
+  await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${r1ReferralId}`)
+
+  const thread = page.getByRole('region', { name: 'Diálogo' })
+  await expect(thread).toBeVisible({ timeout: 10_000 })
+  const composer = thread.locator('form')
+  await expect(composer).toBeVisible()
+
+  // Two modes available for the target coordinator while `em_analise` — the
+  // status-specific act ("Solicitar informação") is the toggle default; click it
+  // explicitly to exercise the mode switch, not just rely on the default.
+  await composer.locator('fieldset').getByRole('button', { name: /^Solicitar informação$/i }).click()
+  await composer.locator('textarea').fill('Precisamos do resultado do exame X antes de concluir (R1-2).')
+  await composer.locator('button[type="submit"]').click()
+
+  // Status flips to "Aguardando informação"; waiting-on = source (CCIH).
+  await expect(
+    page.locator('span').filter({ hasText: /^Aguardando informação$/ }).first(),
+  ).toBeVisible({ timeout: 15_000 })
+  const waitingOn = thread.getByRole('status')
+  await expect(waitingOn).toBeVisible()
+  await expect(waitingOn).toContainText(/origem/i)
+
+  await expect(
+    thread.getByText('Precisamos do resultado do exame X antes de concluir (R1-2).'),
+  ).toBeVisible()
+  const secondMessage = thread.locator('li').nth(1)
+  await expect(secondMessage).toContainText('#2')
+  await expect(secondMessage).toContainText('Solicitação de informação')
+})
+
+test('R1-3: source coordinator "Responder" → back to em_analise + waiting-on(target); response message shows', async ({
+  page,
+}) => {
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${r1ReferralId}`)
+
+  const thread = page.getByRole('region', { name: 'Diálogo' })
+  const composer = thread.locator('form')
+  await expect(composer).toBeVisible({ timeout: 10_000 })
+
+  // "Responder" is the source's status-specific act while awaiting_information.
+  await composer.locator('fieldset').getByRole('button', { name: /^Responder$/i }).click()
+  await composer.locator('textarea').fill('O exame X confirmou o resultado esperado (R1-3).')
+  await composer.locator('button[type="submit"]').click()
+
+  await expect(
+    page.locator('span').filter({ hasText: /^Em análise$/ }).first(),
+  ).toBeVisible({ timeout: 15_000 })
+  // The waiting-on indicator disappears once back to em_analise.
+  await expect(thread.getByRole('status')).toHaveCount(0)
+
+  await expect(thread.getByText('O exame X confirmou o resultado esperado (R1-3).')).toBeVisible()
+  const thirdMessage = thread.locator('li').nth(2)
+  await expect(thirdMessage).toContainText('#3')
+  await expect(thirdMessage).toContainText('Resposta')
+})
+
+test('R1-4a: metadata-only reader (plain target staff) sees "Conteúdo restrito" — no message bodies, no composer', async ({
+  page,
+}) => {
+  await signInAs(page, 'staff2.farm@test.local')
+  await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${r1ReferralId}`)
+
+  const thread = page.getByRole('region', { name: 'Diálogo' })
+  await expect(thread).toBeVisible({ timeout: 10_000 })
+  // 3 messages exist (R1-1/2/3); every body must be replaced by the placeholder.
+  await expect(thread.locator('li')).toHaveCount(3)
+  await expect(thread.getByText('Conteúdo restrito').first()).toBeVisible()
+  await expect(thread.locator('li').filter({ hasText: 'Conteúdo restrito' })).toHaveCount(3)
+
+  // None of the real message texts leak into the page.
+  const html = await page.content()
+  expect(html).not.toContain('Primeira mensagem — comentário da origem')
+  expect(html).not.toContain('Precisamos do resultado do exame X')
+  expect(html).not.toContain('O exame X confirmou o resultado esperado')
+
+  // No compose affordance for a non-participant, non-analyst plain member.
+  await expect(thread.locator('form')).toHaveCount(0)
+})
+
+test('R1-4b: PHI-entitled reader (target coordinator) sees the actual message bodies', async ({ page }) => {
+  await signInAs(page, 'chefe.farm@test.local')
+  await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${r1ReferralId}`)
+
+  const thread = page.getByRole('region', { name: 'Diálogo' })
+  await expect(
+    thread.getByText('Primeira mensagem — comentário da origem (R1-1).'),
+  ).toBeVisible({ timeout: 10_000 })
+  await expect(
+    thread.getByText('Precisamos do resultado do exame X antes de concluir (R1-2).'),
+  ).toBeVisible()
+  await expect(thread.getByText('O exame X confirmou o resultado esperado (R1-3).')).toBeVisible()
+  await expect(thread.getByText('Conteúdo restrito')).toHaveCount(0)
+})
+
+test('R1-4c / R1-8: hub shows NO message-body preview — only status + Última atividade timestamp', async ({
+  page,
+}) => {
+  await signInAs(page, 'staff2.farm@test.local')
+  await page.goto('/o/rede-a/c/farmacia/encaminhamentos')
+
+  await expect(
+    page.getByText(/RV2 R1 — encaminhamento de diálogo/i).first(),
+  ).toBeVisible({ timeout: 10_000 })
+
+  const html = await page.content()
+  expect(html).not.toContain('Primeira mensagem — comentário da origem')
+  expect(html).not.toContain('Precisamos do resultado do exame X')
+  expect(html).not.toContain('O exame X confirmou o resultado esperado')
+
+  // The row's "Última atividade" cell (last <td>) shows a real date — the
+  // column-grant fix (350a7d7) is what makes this non-empty.
+  const row = page.locator('tr').filter({ hasText: /RV2 R1 — encaminhamento de diálogo/i })
+  await expect(row).toBeVisible()
+  const lastCell = row.locator('td').last()
+  await expect(lastCell).not.toHaveText('—')
+  await expect(lastCell).not.toBeEmpty()
+})
+
+test('R1-5: close_case blocks while a referral is awaiting_information (HC076, pt-BR error, not raw PG)', async ({
+  request,
+}) => {
+  const chefeAToken = await getToken(request, 'chefe.ccih@test.local')
+  const chefeBToken = await getToken(request, 'chefe.farm@test.local')
+
+  const caseResp = await request.post(`${SUPABASE_URL}/rest/v1/cases`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    data: {
+      commission_id: COMM_A,
+      label: 'RV2 R1-5 — awaiting_information close-gate (phase22 spec)',
+      status: 'pending',
+      created_by: UID_CHEFE_A,
+    },
+  })
+  expect(caseResp.ok(), `R1-5: could not create gate case: ${await caseResp.text()}`).toBeTruthy()
+  const [caseRow] = (await caseResp.json()) as Array<{ id: string }>
+  const gateCase5Id = caseRow.id
+
+  const typesResp = await restGet<{ id: string }>(
+    request,
+    'referral_types?is_active=eq.true&order=position.asc&limit=1',
+    SUPABASE_SERVICE_KEY,
+  )
+  const typeId = typesResp[0]?.id
+
+  const draftResp = await rpc(request, 'create_referral_draft', chefeAToken, {
+    p_source_case_id: gateCase5Id,
+    p_target_commission_id: COMM_B,
+    p_referral_type_id: typeId,
+    p_subject: 'RV2 R1-5 — gate referral (phase22 spec)',
+    p_response_expected: true,
+    p_description_md: 'Descrição sintética (R1-5).',
+  })
+  expect(draftResp.ok(), `R1-5: create_referral_draft failed: ${await draftResp.text()}`).toBeTruthy()
+  const { id: gateRef5Id } = (await draftResp.json()) as { id: string }
+
+  const sendR = await rpc(request, 'send_referral', chefeAToken, { p_referral_id: gateRef5Id })
+  expect(sendR.ok(), `R1-5: send_referral failed: ${await sendR.text()}`).toBeTruthy()
+  const receiveR = await rpc(request, 'receive_referral', chefeBToken, { p_referral_id: gateRef5Id })
+  expect(receiveR.ok(), `R1-5: receive_referral failed: ${await receiveR.text()}`).toBeTruthy()
+  const acceptR = await rpc(request, 'accept_referral', chefeBToken, { p_referral_id: gateRef5Id })
+  expect(acceptR.ok(), `R1-5: accept_referral failed: ${await acceptR.text()}`).toBeTruthy()
+  const reviewR = await rpc(request, 'start_referral_review', chefeBToken, { p_referral_id: gateRef5Id })
+  expect(reviewR.ok(), `R1-5: start_referral_review failed: ${await reviewR.text()}`).toBeTruthy()
+
+  const requestResp = await rpc(request, 'request_referral_information', chefeBToken, {
+    p_referral_id: gateRef5Id,
+    p_body: 'Precisamos de mais dados antes de concluir (R1-5).',
+  })
+  expect(requestResp.ok(), `R1-5: request_referral_information failed: ${await requestResp.text()}`).toBeTruthy()
+
+  const statusRows = await restGet<{ status: string }>(
+    request,
+    `case_referral?id=eq.${gateRef5Id}&select=status`,
+    SUPABASE_SERVICE_KEY,
+  )
+  expect(statusRows[0]?.status).toBe('awaiting_information')
+
+  const closeResp = await rpc(request, 'close_case', chefeAToken, { p_case_id: gateCase5Id })
+  expect(closeResp.ok()).toBeFalsy()
+  const bodyStr = JSON.stringify(await closeResp.json())
+  expect(bodyStr).toMatch(/HC076/)
+  // The RPC's own pt-BR text surfaces — not a raw Postgres error (CLAUDE.md §8).
+  expect(bodyStr).toMatch(/aguardando resposta/i)
+})
+
+test('R1-6: posting a message on a referral your commission is not party to is rejected (HC0A0, no leakage)', async ({
+  request,
+}) => {
+  // staff1.qual.b is a rede-b (a different ORG entirely) persona — not a member
+  // of CCIH or Farmácia, not QPS of rede-a, not the r1ReferralId analyst.
+  const foreignToken = await getToken(request, 'staff1.qual.b@test.local')
+
+  const resp = await rpc(request, 'post_referral_message', foreignToken, {
+    p_referral_id: r1ReferralId,
+    p_message_type: 'general',
+    p_body: 'Tentativa de mensagem de comissão não participante (R1-6).',
+  })
+  expect(resp.ok()).toBeFalsy()
+  const bodyStr = JSON.stringify(await resp.json())
+  expect(bodyStr).toMatch(/HC0A0/)
+  // No referral data disclosed in the error response.
+  expect(bodyStr).not.toContain('RV2 R1 — encaminhamento de diálogo')
+
+  // No leakage at the row level either — RLS returns zero rows for the referral.
+  const rows = await restGet<{ id: string }>(
+    request,
+    `case_referral?id=eq.${r1ReferralId}&select=id`,
+    foreignToken,
+  )
+  expect(rows.length).toBe(0)
+})
+
+test('R1-7a: target ANALYST (case_access grant, NOT staff_admin) sees and USES the composer', async ({
+  page,
+}) => {
+  await signInAs(page, 'staff1.farm@test.local')
+  await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${r1ReferralId}`)
+
+  const thread = page.getByRole('region', { name: 'Diálogo' })
+  await expect(thread).toBeVisible({ timeout: 10_000 })
+  const composer = thread.locator('form')
+  await expect(composer).toBeVisible({ timeout: 10_000 })
+
+  // Stay on "Comentar" (avoid flipping status via "Solicitar informação", which
+  // she — as target authority — could also reach) to prove real RPC-level write
+  // authorization without disturbing the referral's state for later tests.
+  await composer.locator('fieldset').getByRole('button', { name: /^Comentar$/i }).click()
+  await composer.locator('textarea').fill('Comentário do analista de destino (R1-7a).')
+  await composer.locator('button[type="submit"]').click()
+
+  await expect(
+    thread.getByText('Comentário do analista de destino (R1-7a).'),
+  ).toBeVisible({ timeout: 15_000 })
+  const analystMessage = thread.locator('li').nth(3)
+  await expect(analystMessage).toContainText('#4')
+  await expect(analystMessage).toContainText('Farmácia e Terapêutica') // sender = target commission
+})
+
+test('R1-7b: a plain non-participant member sees no composer', async ({ page }) => {
+  await signInAs(page, 'staff2.farm@test.local')
+  await page.goto(`/o/rede-a/c/farmacia/encaminhamentos/${r1ReferralId}`)
+
+  const thread = page.getByRole('region', { name: 'Diálogo' })
+  await expect(thread).toBeVisible({ timeout: 10_000 })
+  await expect(thread.locator('form')).toHaveCount(0)
+})
+
+test('R1-9: keyboard-only — compose and submit a message via Tab/Enter (no mouse)', async ({ page }) => {
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${r1ReferralId}`)
+
+  const thread = page.getByRole('region', { name: 'Diálogo' })
+  const composer = thread.locator('form')
+  await expect(composer).toBeVisible({ timeout: 10_000 })
+
+  const textarea = composer.locator('textarea')
+  await textarea.focus()
+  await expect(textarea).toBeFocused()
+  await page.keyboard.type('Mensagem enviada só com teclado (R1-9).')
+
+  const submitBtn = composer.locator('button[type="submit"]')
+  await page.keyboard.press('Tab')
+  await expect(submitBtn).toBeFocused()
+  await page.keyboard.press('Enter')
+
+  await expect(
+    thread.getByText('Mensagem enviada só com teclado (R1-9).'),
+  ).toBeVisible({ timeout: 15_000 })
 })
