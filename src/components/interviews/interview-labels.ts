@@ -193,7 +193,14 @@ export const CONFIDENTIALITY_STYLE: Record<InterviewConfidentiality, string> = {
   credentialing_sensitive: "bg-warning/15 text-warning",
 };
 
-/** Ascending-sensitivity order (mirrors the canonical `ConfidentialityLabel` union). */
+/**
+ * DISPLAY order for the picker/filter — mirrors the declaration order of the
+ * canonical `ConfidentialityLabel` union. This is NOT a sensitivity ranking: the
+ * authority is backend's `app.confidentiality_rank()`, which ranks
+ * `ethics_investigation` (4) BELOW `legal_privileged` (5) — the reverse of their
+ * order here. Consumed only to render options; never derive access or rank from
+ * this array, and do not reorder it to "match" the rank (the two are independent).
+ */
 export const CONFIDENTIALITY_ORDER: InterviewConfidentiality[] = [
   "non_phi_internal",
   "phi_standard",
