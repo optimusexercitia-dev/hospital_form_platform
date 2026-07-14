@@ -13,6 +13,9 @@
 --   2. SCOPE TRUTH-TABLE — per satellite × each visibility_scope (committee /
 --      case_restricted / assignees_only): a qualifying reader sees the satellite
 --      row; a disqualified reader does not (27 cells).
+--   2b. DIRECT DML DENIED — each satellite has NO authenticated write policy (all
+--      writes funnel through the DEFINER committee_* RPCs): a direct INSERT by a
+--      parent-READER is RLS-denied (42501), and no non-SELECT policy exists.
 --   3. O-1 NULL-CASE — a case_restricted item with NULL coalesce(source_case_id,
 --      case_id) is invisible to EVERYONE incl. staff_admin (can_read_case(null)
 --      is fail-closed), and so are its satellite rows.
@@ -33,7 +36,7 @@
 --   sa_y   foreign coordinator (commission Y) — qualifies nothing in X.
 
 begin;
-select plan(64);
+select plan(70);
 
 -- Master + case-source flags ON; case_access ON for the case_restricted matrix;
 -- audit_trail ON for the audit assertions.
@@ -260,6 +263,47 @@ select is((select count(*)::int from public.action_item_updates where action_ite
   0, 'scope assignees_only/updates: a stakeless plain member sees 0');
 select is((select count(*)::int from public.action_item_checklists where action_item_id=(select id from p_assg)),
   0, 'scope assignees_only/checklists: a stakeless plain member sees 0');
+reset role;
+
+-- ===========================================================================
+-- (2b) DIRECT DML DENIED — no authenticated write policy; writes are DEFINER-RPC
+--      only. Structural: each satellite carries ONLY a SELECT policy (RLS denies
+--      any INSERT with 42501, and any UPDATE/DELETE matches no policy → 0 rows).
+--      Runtime: a parent-READER (st_x2, member of comm_x, who CAN read the
+--      committee item's satellites) is STILL denied a direct INSERT (42501) —
+--      proving the block is the missing WRITE policy, not a SELECT filter.
+--      Mirrors the 224/F1 table-level-enforcement precedent (BUG-SUP-002).
+-- ===========================================================================
+-- Structural (catalog, as owner): only a SELECT policy exists on each satellite.
+select is(
+  (select count(*)::int from pg_policies
+   where schemaname='public' and tablename='action_item_reminders' and cmd <> 'SELECT'),
+  0, 'DML: action_item_reminders has NO non-SELECT policy (writes are DEFINER-RPC only)');
+select is(
+  (select count(*)::int from pg_policies
+   where schemaname='public' and tablename='action_item_updates' and cmd <> 'SELECT'),
+  0, 'DML: action_item_updates has NO non-SELECT policy (writes are DEFINER-RPC only)');
+select is(
+  (select count(*)::int from pg_policies
+   where schemaname='public' and tablename='action_item_checklists' and cmd <> 'SELECT'),
+  0, 'DML: action_item_checklists has NO non-SELECT policy (writes are DEFINER-RPC only)');
+
+-- Runtime: st_x2 CAN read p_comm's satellites (committee scope) yet a direct
+-- INSERT is RLS-denied (42501) — the missing write policy, not a read block.
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ insert into public.action_item_reminders (action_item_id, reminder_type)
+            values (%L::uuid, 'on_due') $$, (select id from p_comm)),
+  '42501', null, 'DML: a parent-reader''s direct INSERT into action_item_reminders is RLS-denied (42501)');
+select throws_ok(
+  format($$ insert into public.action_item_updates (action_item_id, update_type, body)
+            values (%L::uuid, 'note', 'x') $$, (select id from p_comm)),
+  '42501', null, 'DML: a parent-reader''s direct INSERT into action_item_updates is RLS-denied (42501)');
+select throws_ok(
+  format($$ insert into public.action_item_checklists (action_item_id, title)
+            values (%L::uuid, 'x') $$, (select id from p_comm)),
+  '42501', null, 'DML: a parent-reader''s direct INSERT into action_item_checklists is RLS-denied (42501)');
 reset role;
 
 -- ===========================================================================
