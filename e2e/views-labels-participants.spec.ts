@@ -1,5 +1,5 @@
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
-import { setDateTimeField, fillTimeField, pickDate } from './helpers/date-pickers'
+import { setDateTimeField, fillTimeField, pickDate, fieldContainer } from './helpers/date-pickers'
 
 /**
  * Form-builder-enhancements batch (ad-hoc 2026-07-06) — TASKS 8 + 9 + 10:
@@ -524,13 +524,20 @@ test('AC-6a: the meeting-create "Início" time is the segmented TimeField (not n
   await expect(dialog.locator('input[type="time"]')).toHaveCount(0)
 
   // The Início time control is the segmented "Hora" group (hour/minute spinbuttons).
-  const inicioLabel = dialog.locator('label').filter({ hasText: 'Início' }).first()
-  const timeGroup = inicioLabel.getByRole('group', { name: /^Hora$/i })
+  // Since `ce4744e` ("fix(datetime): don't wrap DateTimePicker in a native label")
+  // the "Início" <label> is a SIBLING of the DateTimePicker (wired via htmlFor to
+  // the date button, not wrapping it — a native <label> would forward a tap to its
+  // first labelable control, stealing focus from the non-labelable time segments).
+  // `fieldContainer` resolves the shared parent so the lookup doesn't require the
+  // label to be an ancestor of the TimeField (mirrors `setDateTimeField`'s own use
+  // of this helper).
+  const inicioField = fieldContainer(dialog, 'Início')
+  const timeGroup = inicioField.getByRole('group', { name: /^Hora$/i })
   await expect(timeGroup).toBeVisible({ timeout: 8_000 })
   await expect(timeGroup.getByRole('spinbutton')).toHaveCount(2)
 
   // Controlled DateTimePicker: pick the date first, then fill the segmented time.
-  await pickDate(inicioLabel, page)
+  await pickDate(inicioField, page)
   await fillTimeField(timeGroup, page, '09:30')
   await expect(timeGroup).toContainText('09')
   await expect(timeGroup).toContainText('30')
