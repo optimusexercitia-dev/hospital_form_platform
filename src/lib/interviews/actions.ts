@@ -91,7 +91,9 @@ export interface InterviewInput {
   casePhaseId: string | null
   /** IV2: dashboard classification (required). */
   interviewCategory: InterviewCategory
-  /** IV2: NON-ENFORCING confidentiality tag (default `standard`; does not gate access yet). */
+  /** ENFORCING confidentiality classification (ADR 0072 D7 · E1; default
+   * `non_phi_internal`): `legal_privileged` + `credentialing_sensitive` gate the
+   * interview above ordinary case-read. Legacy 3-value input is normalized by the DB. */
   confidentialityLevel: InterviewConfidentiality
 }
 

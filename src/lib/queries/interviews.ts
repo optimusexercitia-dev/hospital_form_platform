@@ -162,7 +162,8 @@ export interface InterviewListItem {
   status: InterviewStatus
   /** IV2: dashboard classification (required at create). */
   interviewCategory: InterviewCategory
-  /** IV2: NON-ENFORCING confidentiality tag (does not gate access yet). */
+  /** ENFORCING confidentiality classification (ADR 0072 D7 · E1): `legal_privileged` +
+   * `credentialing_sensitive` gate the interview above ordinary case-read. */
   confidentialityLevel: InterviewConfidentiality
   /** IV2: the earliest upcoming `scheduled` session, or `null`. */
   nextSession: NextSessionSummary | null

@@ -15,7 +15,7 @@
 -- =============================================================================
 
 begin;
-select plan(111);
+select plan(119);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -709,6 +709,72 @@ select is(
   (select count(*)::int from jsonb_array_elements(public.list_my_cases((select comm_x from k))) e
    where (e->>'case_id')::uuid = (select cid from c_default)), 0,
   'list_my_cases: the respondent is excluded even though granted (respondent exclusion)');
+reset role;
+
+-- ===========================================================================
+-- QA fix loop (review phase-ETH-E1) — the two Majors. These assert at the LAYER
+-- the defects live in, which the predicate-only assertions above could not reach:
+--   MAJOR-1: a real table-level `select` under `set local role authenticated`, with
+--            the respondent/recused persona ALSO an org_admin (the admin OR-arm the
+--            consuming policies applied OUTSIDE the DEFINER out-voted the hard-deny).
+--   MAJOR-2: record_recusal's self-arm had no reach gate (cross-tenant write + oracle).
+-- State here: st_x = respondent_doctor of c_default (BE-4); st_x2 = LIVE recusal on
+-- c_default (BE-7); sa_y = foreign coordinator with NO reach into c_default.
+-- ===========================================================================
+reset role;
+
+-- (MAJOR-2) a caller with NO reach cannot self-recuse into a foreign case, and gets the
+-- not-found posture (record_recusal must not be a case-existence oracle).
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.record_recusal(%L, %L, 'sonda') $$,
+          (select cid from c_default), (select sa_y from k)),
+  'P0002', null,
+  'QA MAJOR-2: a no-reach user cannot self-recuse into a foreign case (P0002 — no oracle)');
+reset role;
+
+-- (MAJOR-1) Make the respondent + the recused user org_admins, so the policies'
+-- commission-admin OR-arm would out-vote the hard-deny. sa_y becomes a CLEAN org_admin —
+-- the control proving the admin arm still works for everyone not excluded.
+insert into public.memberships (organization_id, principal_id, role) values
+  ((select org_x from k), (select st_x from k),  'org_admin'),
+  ((select org_x from k), (select st_x2 from k), 'org_admin'),
+  ((select org_x from k), (select sa_y from k),  'org_admin')
+on conflict do nothing;
+-- BE-6 left c_default's interview at legal_privileged; drop it back to a NON-gated label
+-- so the interview assertions below prove the deny (not merely the clearance ceiling).
+update public.case_interviews set confidentiality_level = 'non_phi_internal'
+  where id = (select id from iv);
+
+-- The respondent who is ALSO an org_admin reads NOTHING of their own case.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.cases where id = (select cid from c_default)), 0,
+  'QA MAJOR-1 (policy layer): a respondent who is org_admin reads NO cases row');
+select is((select count(*)::int from public.case_phases where case_id = (select cid from c_default)), 0,
+  'QA MAJOR-1 (policy layer): a respondent who is org_admin reads NO case_phases rows');
+select is((select count(*)::int from public.case_interviews where case_id = (select cid from c_default)), 0,
+  'QA MAJOR-1 (policy layer): a respondent who is org_admin reads NO case_interviews rows');
+reset role;
+
+-- The RECUSED user who is ALSO an org_admin reads NOTHING of that case.
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.cases where id = (select cid from c_default)), 0,
+  'QA MAJOR-1 (policy layer): a recused user who is org_admin reads NO cases row');
+select is((select count(*)::int from public.case_phases where case_id = (select cid from c_default)), 0,
+  'QA MAJOR-1 (policy layer): a recused user who is org_admin reads NO case_phases rows');
+select is((select count(*)::int from public.case_interviews where case_id = (select cid from c_default)), 0,
+  'QA MAJOR-1 (policy layer): a recused user who is org_admin reads NO case_interviews rows');
+reset role;
+
+-- CONTROL: a clean org_admin (neither respondent nor recused) STILL reads the case —
+-- the deny must not collaterally break the legitimate commission-admin arm.
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.cases where id = (select cid from c_default)), 1,
+  'QA MAJOR-1 control: a clean org_admin still reads the case (admin arm intact)');
 reset role;
 
 select * from finish();
