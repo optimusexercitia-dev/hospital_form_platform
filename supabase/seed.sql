@@ -2076,3 +2076,84 @@ select 'a0000000-0000-0000-0000-0000000000a1',
        '00000000-0000-0000-0000-000000000002'
 from unnest(array['schedule_meetings', 'create_cases', 'assign_case_phases', 'view_signoffs']) as cap
 on conflict (commission_id, user_id, capability) do nothing;
+
+-- ---------------------------------------------------------------------------
+-- ETH·E1 (ADR 0072) — m2-gate E2E fixtures. The case_participants / case_types
+-- flags are flipped ON by migration 20260720001040 (local via db reset); these
+-- direct inserts (superuser ⇒ bypass RLS) give the tester the isolation-negative
+-- scenarios: a respondent-doctor-who-IS-a-user, a granted-then-recused member, an
+-- explicit_grants_only case (a plain member without a grant sees nothing), and a
+-- legal_privileged document (gated above ordinary case-read) + an ordinary
+-- ethics_investigation document (O2 — stays visible). All under CCIH (commission A)
+-- where the staff personas live. pt-BR labels (Rule 10).
+-- ---------------------------------------------------------------------------
+do $eth$
+declare
+  v_org   uuid := '0c000000-0000-0000-0000-00000000000a';   -- Rede A
+  v_comm  uuid := 'a0000000-0000-0000-0000-0000000000a1';   -- CCIH
+  v_chefe uuid := '00000000-0000-0000-0000-000000000002';   -- chefe.ccih (staff_admin / coordinator)
+  v_resp  uuid := '00000000-0000-0000-0000-00000000000a';   -- staff4.ccih — the RESPONDENT doctor (IS a platform user + CCIH member)
+  v_recu  uuid := '00000000-0000-0000-0000-000000000003';   -- staff1.ccih — granted, then RECUSED
+  v_case  uuid := 'ca000000-0000-0000-0000-0000000000e1';   -- the ethics case (explicit_grants_only)
+  v_ctype uuid := 'ce000000-0000-0000-0000-0000000000e1';
+  v_part  uuid := 'fa000000-0000-0000-0000-0000000000e1';
+  v_prof  uuid := 'fb000000-0000-0000-0000-0000000000e1';
+  v_role  uuid := 'fc000000-0000-0000-0000-0000000000e1';
+begin
+  insert into public.case_types
+    (id, organization_id, key, display_name, primary_subject_kind,
+     default_visibility_policy, default_confidentiality_level)
+  values (v_ctype, v_org, 'ethics', 'Ética', 'professional',
+          'explicit_grants_only', 'ethics_investigation')
+  on conflict do nothing;
+
+  insert into public.case_participant_roles
+    (id, organization_id, key, display_name, allowed_participant_types, is_primary_subject_candidate)
+  values (v_role, v_org, 'respondent_doctor', 'Médico denunciado', array['professional'], true)
+  on conflict do nothing;
+
+  insert into public.cases
+    (id, commission_id, case_number, label, created_by, visibility_policy, confidentiality_level)
+  values (v_case, v_comm, 9001, 'Denúncia Ética (fixture E1)', v_chefe,
+          'explicit_grants_only', 'ethics_investigation')
+  on conflict do nothing;
+
+  -- The respondent doctor: a professional profile bound to a platform user (m2 keystone).
+  insert into public.professional_profiles
+    (id, organization_id, user_id, full_name, professional_type, license_number, license_region)
+  values (v_prof, v_org, v_resp, 'Dra. Denunciada', 'medico', 'CRM-9001', 'SP')
+  on conflict do nothing;
+  insert into public.participants
+    (id, organization_id, participant_type, sensitivity_class, display_name, created_by)
+  values (v_part, v_org, 'professional', 'professional_identity', 'Dra. Denunciada', v_chefe)
+  on conflict do nothing;
+  insert into public.professional_participants (participant_id, professional_profile_id)
+  values (v_part, v_prof) on conflict do nothing;
+  insert into public.case_participants
+    (id, case_id, participant_id, role_id, is_primary_subject, added_by)
+  values ('fd000000-0000-0000-0000-0000000000e1', v_case, v_part, v_role, true, v_chefe)
+  on conflict do nothing;
+
+  -- A granted member who is RECUSED: read grant + a LIVE recusal (tester lifts to restore).
+  insert into public.case_access (case_id, user_id, level, granted_by)
+  values (v_case, v_recu, 'read', v_chefe) on conflict do nothing;
+  insert into public.case_recusals (id, case_id, user_id, source, reason_md, recused_by)
+  values ('fe000000-0000-0000-0000-0000000000e1', v_case, v_recu, 'coordinator', 'Conflito declarado', v_chefe)
+  on conflict do nothing;
+
+  -- Coordinator clearance so the legal_privileged doc is openable by chefe.ccih.
+  insert into public.case_access (case_id, user_id, level, max_confidentiality, granted_by)
+  values (v_case, v_chefe, 'read', 'legal_privileged', v_chefe) on conflict do nothing;
+
+  -- A gated legal_privileged document + an ordinary ethics_investigation document (O2).
+  insert into public.attachments
+    (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier, confidentiality_label)
+  values ('a7000000-0000-0000-0000-0000000000e1', 'case', v_case, 'Parecer jurídico (privilegiado)',
+          'attachments', 'case/' || v_case || '/legal.pdf', 'standard', 'legal_privileged')
+  on conflict do nothing;
+  insert into public.attachments
+    (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier, confidentiality_label)
+  values ('a7000000-0000-0000-0000-0000000000e2', 'case', v_case, 'Nota do processo ético',
+          'attachments', 'case/' || v_case || '/nota.pdf', 'standard', 'ethics_investigation')
+  on conflict do nothing;
+end $eth$;

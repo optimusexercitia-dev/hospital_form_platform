@@ -39,6 +39,10 @@ export interface FeatureFlags {
   attachments: boolean
   response_correction: boolean
   notifications: boolean
+  // ETH·E1 (ADR 0072 D10): the m2 gate — the generalized-subject participant registry
+  // + case-type config. Flipped ON at E1 (BE-8) once respondent-exclusion RLS landed.
+  case_participants: boolean
+  case_types: boolean
 }
 
 /** A flag key. */
