@@ -21,7 +21,7 @@
 -- SECURITY DEFINER RPC, so a DB-side test can observe them).
 
 begin;
-select plan(80);
+select plan(82);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -629,6 +629,19 @@ set local role authenticated;
 select throws_ok(
   $$ select public.provide_referral_information((select id from r3), 'de novo') $$,
   'HC0A1', null, 'provide from a non-awaiting_information status is rejected (HC0A1)');
+reset role;
+
+-- QA M-1: post_referral_message may NOT mint the state-driving types (those come
+-- only from Solicitar/Responder); {general, clarification} still post. (r3 is
+-- in_review — postable.)
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.post_referral_message((select id from r3), 'information_request', 'x') $$,
+  'HC0A0', null, 'M-1: post_referral_message rejects the state-driving information_request type (HC0A0)');
+select lives_ok(
+  $$ select public.post_referral_message((select id from r3), 'clarification', 'um esclarecimento') $$,
+  'M-1: post_referral_message still accepts a clarification message');
 reset role;
 
 select * from finish();
