@@ -21,7 +21,7 @@
 -- SECURITY DEFINER RPC, so a DB-side test can observe them).
 
 begin;
-select plan(77);
+select plan(80);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -228,6 +228,22 @@ select is(
 select is(
   has_column_privilege('authenticated', 'public.case_referral', 'subject', 'SELECT'),
   true, 'authenticated CAN directly SELECT the PHI-free case_referral.subject');
+-- RV2 R1 (case-referral-column-grants guard): the two NEW PHI-free columns must be
+-- authenticated-SELECTable, else the direct-select referrals hub 42501s. This is the
+-- guard the suite was missing when 20260720000900 added the columns.
+select is(
+  has_column_privilege('authenticated', 'public.case_referral', 'last_message_at', 'SELECT'),
+  true, 'authenticated CAN directly SELECT case_referral.last_message_at (hub column)');
+select is(
+  has_column_privilege('authenticated', 'public.case_referral', 'waiting_on_committee_id', 'SELECT'),
+  true, 'authenticated CAN directly SELECT case_referral.waiting_on_committee_id (hub column)');
+-- Positive hub-shaped select: a member reads the new columns directly (no 42501).
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $$ select last_message_at, waiting_on_committee_id from public.case_referral where id = (select id from r1) $$,
+  'the direct-select hub path (new columns) works for an authenticated member (no 42501)');
+reset role;
 
 -- =========================================================================
 -- get_referral_detail body-gating + referral.viewed audit.
