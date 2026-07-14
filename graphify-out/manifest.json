@@ -3635,8 +3635,8 @@
     "semantic_hash": ""
   },
   "src/lib/queries/referrals.ts": {
-    "mtime": 1784016080.783438,
-    "ast_hash": "d79505c942e430e8d14445d06e21a2cb",
+    "mtime": 1784018064.3639908,
+    "ast_hash": "108b10c1d9abb311d8f4b0ec00664d98",
     "semantic_hash": ""
   },
   "src/lib/queries/responses.ts": {
@@ -3685,8 +3685,8 @@
     "semantic_hash": ""
   },
   "src/lib/referrals/types.ts": {
-    "mtime": 1784016017.6761837,
-    "ast_hash": "ba4461c377160b1f3970dc70852d5825",
+    "mtime": 1784018051.37439,
+    "ast_hash": "6922ff5ac30221a4f06f90799dc3b5bd",
     "semantic_hash": ""
   },
   "src/lib/responses/actions.ts": {
@@ -3775,7 +3775,7 @@
     "semantic_hash": ""
   },
   "src/lib/types/database.ts": {
-    "mtime": 1784015889.2201574,
+    "mtime": 1784018123.110924,
     "ast_hash": "4f2231e3ff0ea5cabf7d096888db5c5a",
     "semantic_hash": ""
   },
@@ -4205,8 +4205,8 @@
     "semantic_hash": ""
   },
   "supabase/tests/150_referrals.sql": {
-    "mtime": 1784016381.6225631,
-    "ast_hash": "a2bc323772ecca99eadf2843e820846e",
+    "mtime": 1784018105.630731,
+    "ast_hash": "12b6ff1661386f0f28471d48409c54d2",
     "semantic_hash": ""
   },
   "supabase/tests/151_case_patient.sql": {
@@ -4510,8 +4510,8 @@
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1784016667.95762,
-    "ast_hash": "c62a30d61d34be5476aa7c3a5de90022",
+    "mtime": 1784017663.249274,
+    "ast_hash": "57e163ebcb65392669e6406d255fb7b4",
     "semantic_hash": ""
   },
   "README.md": {
@@ -6887,6 +6887,11 @@
   "src/components/referrals/referral-thread.tsx": {
     "mtime": 1784017070.1455853,
     "ast_hash": "8c3517422465cdda08d34ef70b93ee89",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260720000920_referral_detail_compose_flags.sql": {
+    "mtime": 1784018042.6332679,
+    "ast_hash": "54c5637e7847008c843255654f120701",
     "semantic_hash": ""
   }
 }
