@@ -1,35 +1,48 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type Locator } from '@playwright/test'
 import path from 'path'
 import fs from 'fs'
 import { setDateTimeField } from './helpers/date-pickers'
 
 /**
- * Phase 11 — Interviews
+ * Phase 11 — Interviews v2 (IV2 — ADR 0070, plan §I5)
  *
- * Test contract: translates every bullet in PHASES.md §Phase 11 Acceptance into
- * Playwright assertions. Runs against the LOCAL Supabase stack (seeded personas).
+ * IV2 replaced the one-encounter-per-interview model with an `interview_sessions`
+ * 1:N child: the interview stays the lifecycle coordinator (`draft → scheduled →
+ * in_progress ⇄ awaiting_follow_up → completed`, plus `cancelled`) while sessions
+ * carry scheduling + their own status. `schedule_interview`/`start_interview` are
+ * GONE — replaced by `schedule_session`/`start_session`/`complete_session`/
+ * `cancel_session`/`no_show_session`/`update_session`. `interview_category` is now
+ * required at create; `confidentiality_level` is a NON-ENFORCING tag; subjects
+ * require `relationship_to_case`. State machine: docs/plans/interviews-v2-sessions.md §4.
  *
- * Seeded fixtures (supabase/seed.sql — Phase 11 block):
+ * Test contract: translates every bullet of plan §I5 into Playwright assertions.
+ * Runs against the LOCAL Supabase stack (seeded personas).
+ *
+ * Seeded fixture (supabase/seed.sql — Phase 11 / IV2 block):
  *   Seeded interview f2000000-…-e1: "Entrevista sobre o Caso 0001" on Caso 0001
- *     - status: `em_andamento`
- *     - commission: CCIH (a0000000-…-a1)
- *     - case: d0000000-…-c1 (Caso 0001)
+ *     - status: `awaiting_follow_up` (session #1 completed, session #2 scheduled)
+ *     - commission: CCIH (a0000000-…-a1); case: d0000000-…-c1 (Caso 0001)
+ *     - interview_category: clinical_team; confidentiality_level: standard
  *     - interviewers: chefe.ccih (REGISTERED, entrevistador_principal) + Dra. Helena Marques (EXTERNAL)
- *     - subjects: staff1.ccih (REGISTERED, clinical_role "Enfermeiro(a) da unidade") + Carlos Pereira (EXTERNAL)
+ *     - subjects: staff1.ccih (REGISTERED, relationship_to_case=nurse) + Carlos Pereira (EXTERNAL, other_professional)
  *     - attachments: one file (transcricao_assinada) + one link (gravacao_audio, external https URL)
+ *   None of the specs below MUTATE the seeded interview — every test creates its
+ *   own fresh interview via RPC, so tests are independent under --workers=1.
  *
  * Personas (password Test1234!):
- *   admin@test.local            global admin
  *   chefe.ccih@test.local       staff_admin of CCIH (id …0002), registered interviewer on seeded interview
  *   staff1.ccih@test.local      staff of CCIH (id …0003), registered SUBJECT on seeded interview (NOT interviewer)
  *   staff2.ccih@test.local      staff of CCIH (id …0004), NOT an interviewer on any interview
  *   chefe.farm@test.local       staff_admin of Farmácia (foreign commission)
  *
- * Run with --workers=1 (tests mutate DB state in sequence).
- * Run `npx supabase db reset` before each full run.
+ * Run with --workers=1. Run `npx supabase db reset` before a full run.
  *
  * Note: AlertDialog lifecycle buttons use e.preventDefault() — dialogs close via
- * route refresh on success, staying open with an inline error on failure.
+ * route refresh on success, staying open with an inline error on failure. Because
+ * "Concluir" and "Cancelar" exist BOTH at the interview level (header) and the
+ * session level (sessions panel), every such assertion below is scoped to either
+ * `page.locator('header')` or the sessions-panel region to avoid Playwright
+ * strict-mode multi-match errors.
  */
 
 test.use({ viewport: { width: 1280, height: 900 } })
@@ -52,12 +65,9 @@ if (!SUPABASE_SERVICE_KEY) {
 
 const SEEDED_INTERVIEW_ID = 'f2000000-0000-0000-0000-0000000000e1'
 const SEEDED_CASE_ID = 'd0000000-0000-0000-0000-0000000000c1' // Caso 0001
-// Persona UUIDs used in DB-truth assertions
-const CHEFE_CCIH_ID = '00000000-0000-0000-0000-000000000002'
-const STAFF1_CCIH_ID = '00000000-0000-0000-0000-000000000003'
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Auth / navigation helpers
 // ---------------------------------------------------------------------------
 
 async function signInAs(page: Page, email: string, password = 'Test1234!') {
@@ -80,35 +90,83 @@ async function signOut(page: Page) {
   await page.waitForURL('**/login', { timeout: 15_000 })
 }
 
-/** Service-role JWT: read an interview row by id. */
+/** Navigate to Caso 0001 detail as the currently signed-in coordinator. */
+async function goToCaseDetail(page: Page) {
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
+  await page.waitForURL(`**/c/ccih/manage/cases/${SEEDED_CASE_ID}`, { timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: /Entrevistas/i }).first()).toBeVisible({
+    timeout: 15_000,
+  })
+}
+
+async function goToInterview(page: Page, interviewId: string) {
+  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${interviewId}`)
+  await page.waitForURL(`**/interviews/${interviewId}`, { timeout: 15_000 })
+}
+
+// ---------------------------------------------------------------------------
+// REST / RPC helpers (service-role DB truth + caller-scoped RLS/RPC calls)
+// ---------------------------------------------------------------------------
+
 async function getInterviewRow(
   page: Page,
   interviewId: string,
 ): Promise<{
   status: string
-  interview_number: number
+  interview_category: string
+  confidentiality_level: string
   registry_event_id: string | null
   concluded_at: string | null
   cancelled_at: string | null
 } | null> {
   const resp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/case_interviews?id=eq.${interviewId}&select=status,interview_number,registry_event_id,concluded_at,cancelled_at`,
+    `${SUPABASE_URL}/rest/v1/case_interviews?id=eq.${interviewId}&select=status,interview_category,confidentiality_level,registry_event_id,concluded_at,cancelled_at`,
     {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      },
+      headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` },
     },
   )
   const data = await resp.json()
   if (!Array.isArray(data) || data.length === 0) return null
-  return data[0] as {
+  return data[0]
+}
+
+async function getSessions(
+  page: Page,
+  interviewId: string,
+): Promise<
+  Array<{
+    id: string
+    sequence_number: number
+    session_type: string
     status: string
-    interview_number: number
-    registry_event_id: string | null
-    concluded_at: string | null
-    cancelled_at: string | null
-  }
+    scheduled_start: string | null
+    actual_start: string | null
+    actual_end: string | null
+    cancellation_reason: string | null
+  }>
+> {
+  const resp = await page.request.get(
+    `${SUPABASE_URL}/rest/v1/interview_sessions?interview_id=eq.${interviewId}&select=id,sequence_number,session_type,status,scheduled_start,actual_start,actual_end,cancellation_reason&order=sequence_number.asc`,
+    {
+      headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` },
+    },
+  )
+  const data = await resp.json()
+  return Array.isArray(data) ? data : []
+}
+
+async function getSubjects(
+  page: Page,
+  interviewId: string,
+): Promise<Array<{ id: string; user_id: string | null; external_name: string | null; relationship_to_case: string }>> {
+  const resp = await page.request.get(
+    `${SUPABASE_URL}/rest/v1/case_interview_subjects?interview_id=eq.${interviewId}&select=id,user_id,external_name,relationship_to_case`,
+    {
+      headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` },
+    },
+  )
+  const data = await resp.json()
+  return Array.isArray(data) ? data : []
 }
 
 /** Service-role JWT: list case_events for a case. */
@@ -119,401 +177,646 @@ async function getCaseEvents(
   const resp = await page.request.get(
     `${SUPABASE_URL}/rest/v1/case_events?case_id=eq.${caseId}&select=id,kind,title`,
     {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      },
+      headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` },
     },
   )
   const data = await resp.json()
   return Array.isArray(data) ? data : []
-}
-
-/** Service-role JWT: list interviewers for an interview. */
-async function getInterviewers(
-  page: Page,
-  interviewId: string,
-): Promise<Array<{ id: string; user_id: string | null; external_name: string | null; role: string }>> {
-  const resp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/case_interview_interviewers?interview_id=eq.${interviewId}&select=id,user_id,external_name,role`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      },
-    },
-  )
-  const data = await resp.json()
-  return Array.isArray(data) ? data : []
-}
-
-/** Service-role JWT: list subjects for an interview. */
-async function getSubjects(
-  page: Page,
-  interviewId: string,
-): Promise<Array<{ id: string; user_id: string | null; external_name: string | null }>> {
-  const resp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/case_interview_subjects?interview_id=eq.${interviewId}&select=id,user_id,external_name`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      },
-    },
-  )
-  const data = await resp.json()
-  return Array.isArray(data) ? data : []
-}
-
-/**
- * Service-role JWT: list attachments for an interview (active only).
- *
- * Phase F2 fold-in (ADR 0063): `case_interview_attachments` no longer exists — FILE
- * rows now live in `public.attachments` (owner_type='interview') and LINK rows in
- * `public.case_interview_links`. Merge both into the shape this spec's assertions
- * already expect (storage_path set for a file, external_url set for a link).
- */
-async function getAttachments(
-  page: Page,
-  interviewId: string,
-): Promise<Array<{ id: string; kind: string; storage_path: string | null; external_url: string | null; deleted_at: string | null }>> {
-  const headers = {
-    apikey: SUPABASE_SERVICE_KEY,
-    Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-  }
-  const filesResp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/attachments?owner_type=eq.interview&owner_id=eq.${interviewId}&deleted_at=is.null&select=id,kind,storage_path,deleted_at`,
-    { headers },
-  )
-  const filesData = await filesResp.json()
-  const files = Array.isArray(filesData) ? filesData : []
-
-  const linksResp = await page.request.get(
-    `${SUPABASE_URL}/rest/v1/case_interview_links?interview_id=eq.${interviewId}&deleted_at=is.null&select=id,external_url,deleted_at`,
-    { headers },
-  )
-  const linksData = await linksResp.json()
-  const links = Array.isArray(linksData) ? linksData : []
-
-  return [
-    ...files.map((f: { id: string; kind: string; storage_path: string; deleted_at: string | null }) => ({
-      id: f.id,
-      kind: f.kind,
-      storage_path: f.storage_path,
-      external_url: null,
-      deleted_at: f.deleted_at,
-    })),
-    ...links.map((l: { id: string; external_url: string; deleted_at: string | null }) => ({
-      id: l.id,
-      kind: 'gravacao_audio',
-      storage_path: null,
-      external_url: l.external_url,
-      deleted_at: l.deleted_at,
-    })),
-  ]
 }
 
 /** Obtain a real JWT for a persona (RLS-scoped token). */
 async function getOwnerToken(page: Page, email: string, password = 'Test1234!'): Promise<string> {
-  const resp = await page.request.post(
-    `${SUPABASE_URL}/auth/v1/token?grant_type=password`,
-    {
-      headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
-      data: { email, password },
-    },
-  )
+  const resp = await page.request.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
+    data: { email, password },
+  })
   expect(resp.ok()).toBeTruthy()
   return ((await resp.json()) as { access_token: string }).access_token
 }
 
-/** Call an RPC via the REST API with a caller-supplied JWT (tests RLS authority). */
+/** Call an RPC via the REST API with a caller-supplied JWT (tests RLS/RPC authority). */
 async function callRPC(
   page: Page,
   token: string,
   rpcName: string,
   body: Record<string, unknown>,
 ): Promise<{ status: number; body: unknown }> {
-  const resp = await page.request.post(
-    `${SUPABASE_URL}/rest/v1/rpc/${rpcName}`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        Prefer: 'return=representation',
-      },
-      data: body,
+  const resp = await page.request.post(`${SUPABASE_URL}/rest/v1/rpc/${rpcName}`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
     },
-  )
+    data: body,
+  })
   const text = await resp.text()
   let body_parsed: unknown
-  try { body_parsed = JSON.parse(text) } catch { body_parsed = text }
+  try {
+    body_parsed = JSON.parse(text)
+  } catch {
+    body_parsed = text
+  }
   return { status: resp.status(), body: body_parsed }
 }
 
-/** Navigate to Caso 0001 detail as the currently signed-in coordinator. */
-async function goToCaseDetail(page: Page) {
-  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
-  await page.waitForURL(`**/c/ccih/manage/cases/${SEEDED_CASE_ID}`, { timeout: 15_000 })
-  // Entrevistas panel should be visible
-  await expect(page.getByRole('heading', { name: /Entrevistas/i }).first()).toBeVisible({
-    timeout: 15_000,
+/** Create a fresh interview via RPC (fast test setup — the UI create flow itself is covered by IV2-1/IV2-8). */
+async function createInterviewRpc(
+  page: Page,
+  token: string,
+  opts: { title: string; category: string; caseId?: string; confidentiality?: string },
+): Promise<string> {
+  const res = await callRPC(page, token, 'create_interview', {
+    p_case_id: opts.caseId ?? SEEDED_CASE_ID,
+    p_title: opts.title,
+    p_interview_category: opts.category,
+    ...(opts.confidentiality ? { p_confidentiality_level: opts.confidentiality } : {}),
   })
+  expect(res.status, JSON.stringify(res.body)).toBe(200)
+  return (res.body as { id: string }).id
 }
 
-/** Click a lifecycle button and wait for the confirm dialog, then confirm. */
-async function confirmLifecycle(page: Page, buttonName: string | RegExp, confirmLabel: string | RegExp) {
-  await page.getByRole('button', { name: buttonName }).click()
-  // Wait for AlertDialog
+async function scheduleSessionRpc(
+  page: Page,
+  token: string,
+  interviewId: string,
+  extra: Record<string, unknown> = {},
+): Promise<string> {
+  const res = await callRPC(page, token, 'schedule_session', {
+    p_interview_id: interviewId,
+    ...extra,
+  })
+  expect(res.status, JSON.stringify(res.body)).toBe(200)
+  return (res.body as { id: string }).id
+}
+
+async function startSessionRpc(page: Page, token: string, sessionId: string): Promise<void> {
+  const res = await callRPC(page, token, 'start_session', { p_session_id: sessionId })
+  expect(res.status, JSON.stringify(res.body)).toBe(200)
+}
+
+async function completeSessionRpc(page: Page, token: string, sessionId: string): Promise<void> {
+  const res = await callRPC(page, token, 'complete_session', { p_session_id: sessionId })
+  expect(res.status, JSON.stringify(res.body)).toBe(200)
+}
+
+async function addSubjectRpc(
+  page: Page,
+  token: string,
+  interviewId: string,
+  opts: { externalName?: string; relationship?: string } = {},
+): Promise<string> {
+  const res = await callRPC(page, token, 'add_interview_subject', {
+    p_interview_id: interviewId,
+    p_external_name: opts.externalName ?? 'Sujeito de Teste',
+    p_relationship_to_case: opts.relationship ?? 'witness',
+  })
+  expect(res.status, JSON.stringify(res.body)).toBe(200)
+  return (res.body as { id: string }).id
+}
+
+// ---------------------------------------------------------------------------
+// UI helpers
+// ---------------------------------------------------------------------------
+
+/** Locate a `<select>`/`<textarea>` nested inside a `<label>` by the label's text
+ * (structural lookup — sidesteps ARIA implicit-label computation through the
+ * NativeSelect wrapper `<div>`; mirrors `fieldContainer` in helpers/date-pickers.ts). */
+function selectByLabel(scope: Locator, labelText: string): Locator {
+  return scope.locator('label').filter({ hasText: labelText }).locator('select')
+}
+function textareaByLabel(scope: Locator, labelText: string): Locator {
+  return scope.locator('label').filter({ hasText: labelText }).locator('textarea')
+}
+
+/**
+ * Click an AlertDialog-confirm lifecycle trigger and confirm it. `trigger` must
+ * already be scoped (header vs. sessions-panel region) by the caller — "Concluir"
+ * and "Cancelar" exist at BOTH the interview and session level, so an unscoped
+ * `page.getByRole('button', …)` would multi-match.
+ */
+async function confirmLifecycle(
+  page: Page,
+  trigger: Locator,
+  confirmLabel: string | RegExp,
+): Promise<void> {
+  await trigger.click()
   const dialog = page.getByRole('alertdialog')
   await expect(dialog).toBeVisible({ timeout: 10_000 })
-  // Click the confirm button
   await dialog.getByRole('button', { name: confirmLabel }).click()
-  // Wait for dialog to close (success causes route refresh + unmount)
   await expect(dialog).not.toBeVisible({ timeout: 20_000 })
 }
 
 // ---------------------------------------------------------------------------
-// AC1 — Happy path: create → add subjects → add interviewers → start →
-//         upload PDF → add audio link → conclude → case_events row appears
+// IV2-0 — Seeded fixture read assertions (no mutation)
 // ---------------------------------------------------------------------------
 
-test('AC1 — happy path: create interview, add participants, start, add attachments, conclude → case_events', async ({ page }) => {
+test('IV2-0 — seeded fixture: awaiting_follow_up (1 completed + 1 scheduled session); subjects carry relationship_to_case', async ({ page }) => {
+  const dbRow = await getInterviewRow(page, SEEDED_INTERVIEW_ID)
+  expect(dbRow?.status).toBe('awaiting_follow_up')
+  expect(dbRow?.interview_category).toBe('clinical_team')
+  expect(dbRow?.confidentiality_level).toBe('standard')
+
+  const sessions = await getSessions(page, SEEDED_INTERVIEW_ID)
+  expect(sessions.length).toBe(2)
+  expect(sessions.find((s) => s.status === 'completed')).toBeDefined()
+  expect(sessions.find((s) => s.status === 'scheduled')).toBeDefined()
+
+  const subjects = await getSubjects(page, SEEDED_INTERVIEW_ID)
+  expect(subjects.length).toBe(2)
+  expect(subjects.every((s) => typeof s.relationship_to_case === 'string' && s.relationship_to_case.length > 0)).toBe(
+    true,
+  )
+
+  // UI: the detail page renders (no RSC crash from the model migration) and shows
+  // the awaiting_follow_up badge + both sessions + the seeded subject.
   await signInAs(page, 'chefe.ccih@test.local')
-  await goToCaseDetail(page)
-
-  // --- 1. Create a new interview via "Nova entrevista" ---
-  const interviewsSection = page.getByRole('region', {
-    name: /Entrevistas/i,
-  }).first()
-  await interviewsSection.getByRole('button', { name: /Nova entrevista/i }).click()
-  const createDialog = page.getByRole('dialog', { name: /Nova entrevista/i })
-  await expect(createDialog).toBeVisible({ timeout: 10_000 })
-
-  // Fill in title
-  await createDialog.getByPlaceholder(/Entrevista com a equipe/i).fill('Entrevista AC1')
-  // Select modality: keep presencial (default)
-  // Submit
-  await createDialog.getByRole('button', { name: /Criar entrevista/i }).click()
-
-  // Should navigate to the new interview detail page
-  await page.waitForURL(/\/c\/ccih\/manage\/cases\/.+\/interviews\/.+/, { timeout: 20_000 })
-  // Confirm we're on the detail page
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 })
-
-  // Capture interview URL for later
-  const interviewUrl = page.url()
-  const interviewIdMatch = interviewUrl.match(/interviews\/([a-f0-9-]+)/)
-  expect(interviewIdMatch).not.toBeNull()
-  const newInterviewId = interviewIdMatch![1]
-
-  // --- 2. Add a registered subject (staff2.ccih) ---
-  const subjectsSection = page.getByRole('region', { name: /Entrevistados/i })
-  await subjectsSection.getByRole('button', { name: /Adicionar/i }).click()
-  const subjectDialog = page.getByRole('dialog', { name: /Adicionar entrevistado/i })
-  await expect(subjectDialog).toBeVisible({ timeout: 10_000 })
-  // Default kind is "Membro da comissão" — select staff2 (label must be an exact string)
-  const memberSelect = subjectDialog.locator('select').first()
-  await memberSelect.selectOption({ label: 'Enfermeira CCIH Dois' })
-  await subjectDialog.getByRole('button', { name: /Adicionar/i }).click()
-  await expect(subjectDialog).not.toBeVisible({ timeout: 15_000 })
-
-  // --- 3. Add an external subject ---
-  await subjectsSection.getByRole('button', { name: /Adicionar/i }).click()
-  const subjectDialog2 = page.getByRole('dialog', { name: /Adicionar entrevistado/i })
-  await expect(subjectDialog2).toBeVisible({ timeout: 10_000 })
-  // Switch to external
-  await subjectDialog2.getByRole('button', { name: /Profissional externo/i }).click()
-  await subjectDialog2.getByPlaceholder(/Dra. Ana Lima/i).fill('Dr. Externo Sujeito')
-  await subjectDialog2.getByRole('button', { name: /Adicionar/i }).click()
-  await expect(subjectDialog2).not.toBeVisible({ timeout: 15_000 })
-
-  // Verify 2 subjects visible in panel
-  await expect(subjectsSection.locator('li')).toHaveCount(2, { timeout: 10_000 })
-
-  // --- 4. Add a registered interviewer (staff1.ccih) ---
-  const interviewersSection = page.getByRole('region', { name: /Entrevistadores/i })
-  await interviewersSection.getByRole('button', { name: /Adicionar/i }).click()
-  const interviewerDialog = page.getByRole('dialog', { name: /Adicionar entrevistador/i })
-  await expect(interviewerDialog).toBeVisible({ timeout: 10_000 })
-  // Default kind is "Membro da comissão"
-  const interviewerMemberSelect = interviewerDialog.locator('select').first()
-  await interviewerMemberSelect.selectOption({ label: 'Enfermeiro CCIH Um' })
-  await interviewerDialog.getByRole('button', { name: /Adicionar/i }).click()
-  await expect(interviewerDialog).not.toBeVisible({ timeout: 15_000 })
-
-  // --- 5. Add an external interviewer ---
-  await interviewersSection.getByRole('button', { name: /Adicionar/i }).click()
-  const interviewerDialog2 = page.getByRole('dialog', { name: /Adicionar entrevistador/i })
-  await expect(interviewerDialog2).toBeVisible({ timeout: 10_000 })
-  await interviewerDialog2.getByRole('button', { name: 'Externo', exact: true }).click()
-  await interviewerDialog2.getByPlaceholder(/Dr. Paulo Mendes/i).fill('Dr. Externo Entrevistador')
-  await interviewerDialog2.getByRole('button', { name: /Adicionar/i }).click()
-  await expect(interviewerDialog2).not.toBeVisible({ timeout: 15_000 })
-
-  // Verify 2 interviewers visible
-  await expect(interviewersSection.locator('li')).toHaveCount(2, { timeout: 10_000 })
-
-  // --- 6. The interview is in rascunho — schedule it first ---
-  // Status badge renders as a <span> with text "Rascunho"
-  await expect(page.getByText('Rascunho', { exact: true })).toBeVisible()
-
-  // Schedule (requires a start date — we need to edit first then schedule).
-  // Use exact: true to match only the "Editar" header button (not per-row "Editar X" buttons).
-  await page.getByRole('button', { name: 'Editar', exact: true }).click()
-  const editDialog = page.getByRole('dialog', { name: /Editar entrevista/i })
-  await expect(editDialog).toBeVisible({ timeout: 10_000 })
-  // Set the scheduled start via the DateTimePicker (DatePicker popover + segmented
-  // TimeField — replaced the native datetime-local input).
-  await setDateTimeField(page, editDialog, 'Início', { time: '10:00' })
-  await editDialog.getByRole('button', { name: /Salvar/i }).click()
-  await expect(editDialog).not.toBeVisible({ timeout: 15_000 })
-
-  // Now schedule
-  await confirmLifecycle(page, /Agendar/i, /Agendar entrevista/i)
-
-  // --- 7. Start the interview ---
-  // Now status is agendada
-  await confirmLifecycle(page, /Iniciar/i, /Iniciar entrevista/i)
-
-  // Status should now be em_andamento
-  await expect(page.locator('text=Em andamento').first()).toBeVisible({ timeout: 15_000 })
-
-  // --- 8. Upload a PDF attachment ---
-  const attachmentsSection = page.getByRole('region', { name: /Anexos e gravações/i })
-  await attachmentsSection.getByRole('button', { name: /Enviar anexo/i }).click()
-  const uploadDialog = page.getByRole('dialog', { name: /Enviar anexo/i })
-  await expect(uploadDialog).toBeVisible({ timeout: 10_000 })
-
-  // Create a small dummy PDF file for upload
-  const tmpPdfPath = path.join(__dirname, '__tmp_test.pdf')
-  fs.writeFileSync(tmpPdfPath, '%PDF-1.4\n1 0 obj<</Type /Catalog /Pages 2 0 R>>endobj\n2 0 obj<</Type /Pages /Kids [3 0 R] /Count 1>>endobj\n3 0 obj<</Type /Page /MediaBox [0 0 3 3]>>endobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000058 00000 n \n0000000115 00000 n \ntrailer<</Size 4 /Root 1 0 R>>\nstartxref\n190\n%%EOF\n')
-
-  await uploadDialog.locator('input[type="file"]').setInputFiles(tmpPdfPath)
-  await uploadDialog.locator('input[name="title"]').fill('Transcrição de Teste AC1')
-  await uploadDialog.getByRole('button', { name: /Enviar anexo/i }).click()
-  await expect(uploadDialog).not.toBeVisible({ timeout: 25_000 })
-
-  // Clean up temp file
-  fs.unlinkSync(tmpPdfPath)
-
-  // --- 9. Add an audio link ---
-  await attachmentsSection.getByRole('button', { name: /Adicionar gravação/i }).click()
-  const linkDialog = page.getByRole('dialog', { name: /Adicionar gravação/i })
-  await expect(linkDialog).toBeVisible({ timeout: 10_000 })
-  await linkDialog.locator('input[type="text"]').fill('Gravação de Áudio AC1')
-  await linkDialog.locator('input[type="url"]').fill('https://example.com/audio-ac1.mp3')
-  await linkDialog.getByRole('button', { name: /Adicionar gravação/i }).click()
-  await expect(linkDialog).not.toBeVisible({ timeout: 15_000 })
-
-  // Verify 2+ attachments
-  await expect(attachmentsSection.locator('li')).toHaveCount(2, { timeout: 10_000 })
-
-  // --- 10. Conclude the interview ---
-  await confirmLifecycle(page, /Concluir/i, /Concluir entrevista/i)
-
-  // Status should be concluida
-  await expect(page.locator('text=Concluída').first()).toBeVisible({ timeout: 20_000 })
-
-  // --- 11. Assert a case_events kind='interview' row appears on the case timeline ---
-  const eventsAfterConclude = await getCaseEvents(page, SEEDED_CASE_ID)
-  const interviewEvents = eventsAfterConclude.filter((e) => e.kind === 'interview')
-  expect(interviewEvents.length).toBeGreaterThanOrEqual(1)
-
-  // Assert the interview row has a registry_event_id
-  const dbRow = await getInterviewRow(page, newInterviewId)
-  expect(dbRow?.status).toBe('completed')
-  expect(dbRow?.registry_event_id).not.toBeNull()
-  const registryEventId = dbRow!.registry_event_id!
-
-  // --- 12. Reopen and re-conclude — same timeline row is UPDATED, not duplicated ---
-  await confirmLifecycle(page, /Reabrir/i, /Reabrir entrevista/i)
-  await expect(page.locator('text=Em andamento').first()).toBeVisible({ timeout: 15_000 })
-
-  // Re-conclude
-  await confirmLifecycle(page, /Concluir/i, /Concluir entrevista/i)
-  await expect(page.locator('text=Concluída').first()).toBeVisible({ timeout: 20_000 })
-
-  // The registry_event_id must be the SAME row (no duplicate)
-  const dbRowAfterReopen = await getInterviewRow(page, newInterviewId)
-  expect(dbRowAfterReopen?.registry_event_id).toBe(registryEventId)
-
-  // Total interview events must still be 1 more than before (no new duplicate)
-  const eventsAfterReconclude = await getCaseEvents(page, SEEDED_CASE_ID)
-  const interviewEventsAfterReconclude = eventsAfterReconclude.filter((e) => e.kind === 'interview')
-  // Should be the same count as after the first conclude (no duplicate added)
-  expect(interviewEventsAfterReconclude.length).toBe(interviewEvents.length)
-
-  // --- 13. Cancel a separate interview ---
-  // Create a fresh interview to cancel (avoids state contamination from seeded interview
-  // being cancelled by prior runs when the full suite runs without a fresh db reset).
-  const cancelToken = await getOwnerToken(page, 'chefe.ccih@test.local')
-  const cancelCreateResult = await callRPC(page, cancelToken, 'create_interview', {
-    p_case_id: SEEDED_CASE_ID,
-    p_title: 'Entrevista AC1 Para Cancelar',
-    p_modality: 'presencial',
+  await goToInterview(page, SEEDED_INTERVIEW_ID)
+  await expect(page.getByRole('heading', { name: /Entrevista sobre o Caso 0001/i }).first()).toBeVisible({
+    timeout: 15_000,
   })
-  expect(cancelCreateResult.status).toBe(200)
-  const cancelInterviewId = (cancelCreateResult.body as { id: string }).id
+  await expect(page.locator('header').getByText('Aguardando follow-up', { exact: true })).toBeVisible()
 
-  // Navigate to the freshly created interview and cancel it
-  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${cancelInterviewId}`)
-  await page.waitForURL(`**/interviews/${cancelInterviewId}`, { timeout: 15_000 })
-  await expect(page.locator('text=Rascunho').first()).toBeVisible({ timeout: 15_000 })
-  // Cancel from rascunho state (cancel is available in any non-terminal state)
-  await confirmLifecycle(page, /Cancelar/i, /Cancelar entrevista/i)
-  // Status should be cancelada
-  await expect(page.locator('text=Cancelada').first()).toBeVisible({ timeout: 20_000 })
+  const sessionsSection = page.getByRole('region', { name: /Sessões/i })
+  await expect(sessionsSection).toBeVisible()
+  await expect(sessionsSection.locator('li')).toHaveCount(2)
 
-  // Verify DB state
-  const cancelledRow = await getInterviewRow(page, cancelInterviewId)
-  expect(cancelledRow?.status).toBe('cancelled')
-  expect(cancelledRow?.cancelled_at).not.toBeNull()
+  const subjectsSection = page.getByRole('region', { name: /Entrevistados/i })
+  await expect(subjectsSection).toContainText(/Carlos Pereira/i)
+
+  const interviewersSection = page.getByRole('region', { name: /Entrevistadores/i })
+  await expect(interviewersSection).toContainText(/Dra. Helena Marques/i)
+
+  await signOut(page)
 })
 
 // ---------------------------------------------------------------------------
-// AC2 — Participant write grant: both directions tested
-//        (a) plain-staff interviewer CAN write  [UI + RPC]
-//        (b) different plain-staff NON-interviewer CANNOT write  [UI + RPC]
+// IV2-1 — create requires interview_category; confidentiality non-enforcing copy
 // ---------------------------------------------------------------------------
 
-test('AC2a — participant write grant: registered interviewer (staff role) CAN write', async ({ page }) => {
-  // chefe.ccih is a registered interviewer on the SEEDED interview.
-  // But chefe.ccih is also staff_admin — use a fresh interview where staff1 is added.
-  // Per seed: staff1.ccih is a SUBJECT (not an interviewer) on the seeded interview.
-  // We need to create a fresh interview and add staff2 as a registered INTERVIEWER.
-  // The seeded interview already has chefe.ccih as an interviewer (staff_admin role
-  // but also proves the grant). For the true plain-staff test we create one.
-
-  // 1. Create a fresh interview as chefe (staff_admin), add staff2 as interviewer
+test('IV2-1 — create requires interview_category (cannot submit without it); confidentiality picker shows non-enforcing helper copy; RPC rejects a missing category (HC0B1)', async ({ page }) => {
   await signInAs(page, 'chefe.ccih@test.local')
   await goToCaseDetail(page)
 
-  // Create interview
   const interviewsSection = page.getByRole('region', { name: /Entrevistas/i }).first()
   await interviewsSection.getByRole('button', { name: /Nova entrevista/i }).click()
   const createDialog = page.getByRole('dialog', { name: /Nova entrevista/i })
   await expect(createDialog).toBeVisible({ timeout: 10_000 })
-  await createDialog.getByPlaceholder(/Entrevista com a equipe/i).fill('Entrevista AC2 Grant')
+
+  await createDialog.getByPlaceholder(/Entrevista com a equipe/i).fill('Entrevista IV2-1')
+
+  // The confidentiality helper copy is visible and states the tag does not
+  // restrict access yet (mandatory pt-BR clarification — plan §2.6 / §6 risk).
+  await expect(createDialog.getByText(/não restringe o acesso/i)).toBeVisible()
+
+  // Isolate: don't schedule a first session inline for this test.
+  await createDialog.getByRole('checkbox', { name: /Agendar a primeira sessão agora/i }).uncheck()
+
+  // Submit WITHOUT selecting a category → blocked client-side; dialog stays open.
   await createDialog.getByRole('button', { name: /Criar entrevista/i }).click()
+  await expect(createDialog).toBeVisible()
+  const categoryAlert = createDialog.getByRole('alert')
+  await expect(categoryAlert).toBeVisible({ timeout: 5_000 })
+  await expect(categoryAlert).toContainText(/categoria/i)
+
+  // Now select a category and submit successfully.
+  await selectByLabel(createDialog, 'Categoria').selectOption({ label: 'Testemunha' })
+  await createDialog.getByRole('button', { name: /Criar entrevista/i }).click()
+
   await page.waitForURL(/\/c\/ccih\/manage\/cases\/.+\/interviews\/.+/, { timeout: 20_000 })
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 })
 
-  const interviewUrl = page.url()
-  const interviewIdMatch = interviewUrl.match(/interviews\/([a-f0-9-]+)/)
-  expect(interviewIdMatch).not.toBeNull()
-  const grantInterviewId = interviewIdMatch![1]
+  const interviewId = page.url().match(/interviews\/([a-f0-9-]+)/)![1]
+  await expect(page.locator('header').getByText('Rascunho', { exact: true })).toBeVisible()
+  await expect(page.locator('header')).toContainText('Testemunha')
+  await expect(page.locator('header')).toContainText('Padrão') // default confidentiality_level
 
-  // Add a subject (so we can conclude later)
+  const dbRow = await getInterviewRow(page, interviewId)
+  expect(dbRow?.interview_category).toBe('witness')
+  expect(dbRow?.confidentiality_level).toBe('standard')
+
+  // Server-level defense in depth: create_interview rejects a missing category (HC0B1).
+  const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
+  const rpcResult = await callRPC(page, chefeToken, 'create_interview', {
+    p_case_id: SEEDED_CASE_ID,
+    p_title: 'Sem Categoria IV2-1',
+  })
+  expect(rpcResult.status).toBe(400)
+  expect((rpcResult.body as { code: string }).code).toBe('HC0B1')
+
+  await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// IV2-2 — session lifecycle: schedule → start → complete
+// ---------------------------------------------------------------------------
+
+test('IV2-2 — session lifecycle: schedule a session, start it, complete it (interview stays em_andamento — no other session pending)', async ({ page }) => {
+  const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
+  const interviewId = await createInterviewRpc(page, chefeToken, {
+    title: 'Entrevista IV2-2 Sessão',
+    category: 'clinical_team',
+  })
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  await goToInterview(page, interviewId)
+
+  const sessionsSection = page.getByRole('region', { name: /Sessões/i })
+  await expect(sessionsSection.locator('li')).toHaveCount(0)
+
+  // Schedule
+  await sessionsSection.getByRole('button', { name: /Agendar sessão/i }).click()
+  const scheduleDialog = page.getByRole('dialog', { name: /Agendar sessão/i })
+  await expect(scheduleDialog).toBeVisible({ timeout: 10_000 })
+  await selectByLabel(scheduleDialog, 'Tipo de sessão').selectOption({ label: 'Inicial' })
+  await setDateTimeField(page, scheduleDialog, 'Início', { time: '10:00' })
+  await scheduleDialog.getByRole('button', { name: /Agendar sessão/i }).click()
+  await expect(scheduleDialog).not.toBeVisible({ timeout: 15_000 })
+
+  await expect(page.locator('header').getByText('Agendada', { exact: true })).toBeVisible({ timeout: 15_000 })
+  await expect(sessionsSection.locator('li')).toHaveCount(1)
+  await expect(sessionsSection).toContainText('Agendada')
+  await expect(sessionsSection).toContainText('Inicial')
+
+  // Start
+  const startBtn = sessionsSection.getByRole('button', { name: /Iniciar/i })
+  await confirmLifecycle(page, startBtn, /Iniciar sessão/i)
+  await expect(page.locator('header').getByText('Em andamento', { exact: true })).toBeVisible({ timeout: 15_000 })
+  await expect(sessionsSection.getByText('Em andamento', { exact: true })).toBeVisible()
+
+  // Complete
+  const completeBtn = sessionsSection.getByRole('button', { name: /Concluir/i })
+  await confirmLifecycle(page, completeBtn, /Concluir sessão/i)
+
+  // No OTHER scheduled session exists → the interview stays em_andamento (does
+  // NOT flip to awaiting_follow_up); this is the precise §4 derivation contract.
+  await expect(page.locator('header').getByText('Em andamento', { exact: true })).toBeVisible({ timeout: 15_000 })
+  await expect(sessionsSection.getByText('Concluída', { exact: true })).toBeVisible()
+
+  const sessions = await getSessions(page, interviewId)
+  expect(sessions.length).toBe(1)
+  expect(sessions[0].status).toBe('completed')
+  expect(sessions[0].actual_start).not.toBeNull()
+  expect(sessions[0].actual_end).not.toBeNull()
+
+  await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// IV2-3 — follow-up session → awaiting_follow_up derivation
+// ---------------------------------------------------------------------------
+
+test('IV2-3 — adding a follow-up session while em_andamento, then completing the first, flips the interview to aguardando follow-up', async ({ page }) => {
+  const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
+  const interviewId = await createInterviewRpc(page, chefeToken, {
+    title: 'Entrevista IV2-3 Follow-up',
+    category: 'witness',
+  })
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  await goToInterview(page, interviewId)
+  const sessionsSection = page.getByRole('region', { name: /Sessões/i })
+
+  // Session 1: schedule + start (em_andamento)
+  await sessionsSection.getByRole('button', { name: /Agendar sessão/i }).click()
+  let sessionDialog = page.getByRole('dialog', { name: /Agendar sessão/i })
+  await expect(sessionDialog).toBeVisible({ timeout: 10_000 })
+  await selectByLabel(sessionDialog, 'Tipo de sessão').selectOption({ label: 'Inicial' })
+  await sessionDialog.getByRole('button', { name: /Agendar sessão/i }).click()
+  await expect(sessionDialog).not.toBeVisible({ timeout: 15_000 })
+
+  const startBtn = sessionsSection.getByRole('button', { name: /Iniciar/i })
+  await confirmLifecycle(page, startBtn, /Iniciar sessão/i)
+  await expect(page.locator('header').getByText('Em andamento', { exact: true })).toBeVisible({ timeout: 15_000 })
+
+  // Add the FOLLOW-UP session (still scheduled) while session 1 is still in_progress.
+  // Scheduling from em_andamento does not itself change the interview status.
+  await sessionsSection.getByRole('button', { name: /Agendar sessão/i }).click()
+  sessionDialog = page.getByRole('dialog', { name: /Agendar sessão/i })
+  await expect(sessionDialog).toBeVisible({ timeout: 10_000 })
+  // Default session type is already "Follow-up" — leave it.
+  await sessionDialog.getByRole('button', { name: /Agendar sessão/i }).click()
+  await expect(sessionDialog).not.toBeVisible({ timeout: 15_000 })
+
+  await expect(sessionsSection.locator('li')).toHaveCount(2)
+  await expect(page.locator('header').getByText('Em andamento', { exact: true })).toBeVisible()
+  await expect(sessionsSection).toContainText('Follow-up')
+
+  // Complete session 1: exactly one "Concluir" inside the sessions region now
+  // (session 2 is scheduled, not in_progress, so it shows no Concluir button).
+  const completeBtn = sessionsSection.getByRole('button', { name: /Concluir/i })
+  await confirmLifecycle(page, completeBtn, /Concluir sessão/i)
+
+  // Session 2 is still `scheduled` → the interview derives awaiting_follow_up.
+  await expect(page.locator('header').getByText('Aguardando follow-up', { exact: true })).toBeVisible({
+    timeout: 15_000,
+  })
+  // canConclude also covers awaiting_follow_up — the header's Concluir stays available.
+  await expect(page.locator('header').getByRole('button', { name: /Concluir/i })).toBeVisible()
+
+  const dbRow = await getInterviewRow(page, interviewId)
+  expect(dbRow?.status).toBe('awaiting_follow_up')
+
+  await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// IV2-4 — conclude requires >=1 subject; single registry event; content lock
+// ---------------------------------------------------------------------------
+
+test('IV2-4 — conclude requires >=1 subject (HC041 surfaces inline); exactly one registry event, no duplicate on reopen+reconclude; content locks but attachments stay manageable', async ({ page }) => {
+  const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
+  const interviewId = await createInterviewRpc(page, chefeToken, {
+    title: 'Entrevista IV2-4 Sem Sujeito',
+    category: 'witness',
+  })
+  const s1 = await scheduleSessionRpc(page, chefeToken, interviewId)
+  await startSessionRpc(page, chefeToken, s1)
+  await completeSessionRpc(page, chefeToken, s1)
+  // interview em_andamento (no other scheduled session), 0 subjects
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  await goToInterview(page, interviewId)
+  await expect(page.locator('header').getByText('Em andamento', { exact: true })).toBeVisible({ timeout: 15_000 })
+
+  // Attempt to conclude WITHOUT a subject → HC041 surfaces inline; dialog stays open.
+  const concludeBtn = page.locator('header').getByRole('button', { name: /Concluir/i })
+  await concludeBtn.click()
+  const dialog = page.getByRole('alertdialog')
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+  await dialog.getByRole('button', { name: /Concluir entrevista/i }).click()
+  const inlineError = dialog.getByRole('alert')
+  await expect(inlineError).toBeVisible({ timeout: 10_000 })
+  await expect(inlineError).toContainText(/entrevistado/i)
+  await dialog.getByRole('button', { name: /Voltar/i }).click()
+  await expect(dialog).not.toBeVisible()
+
+  // Add a subject via the UI.
   const subjectsSection = page.getByRole('region', { name: /Entrevistados/i })
   await subjectsSection.getByRole('button', { name: /Adicionar/i }).click()
   const subjectDialog = page.getByRole('dialog', { name: /Adicionar entrevistado/i })
   await expect(subjectDialog).toBeVisible({ timeout: 10_000 })
   await subjectDialog.getByRole('button', { name: /Profissional externo/i }).click()
-  await subjectDialog.getByPlaceholder(/Dra. Ana Lima/i).fill('Dr. Sujeito AC2')
+  await subjectDialog.getByPlaceholder(/Dra. Ana Lima/i).fill('Sujeito IV2-4')
+  await selectByLabel(subjectDialog, 'Relação com o caso').selectOption({ label: 'Testemunha' })
   await subjectDialog.getByRole('button', { name: /Adicionar/i }).click()
   await expect(subjectDialog).not.toBeVisible({ timeout: 15_000 })
 
-  // Add staff2.ccih as a registered INTERVIEWER
+  // Conclude successfully now.
+  await confirmLifecycle(page, concludeBtn, /Concluir entrevista/i)
+  await expect(page.locator('header').getByText('Concluída', { exact: true })).toBeVisible({ timeout: 20_000 })
+
+  const dbRow = await getInterviewRow(page, interviewId)
+  expect(dbRow?.status).toBe('completed')
+  expect(dbRow?.registry_event_id).not.toBeNull()
+  const registryEventId = dbRow!.registry_event_id!
+
+  const eventsAfterConclude = await getCaseEvents(page, SEEDED_CASE_ID)
+  const interviewEventsBefore = eventsAfterConclude.filter((e) => e.kind === 'interview').length
+
+  // Reopen + re-conclude — same registry row UPDATED, never duplicated.
+  const reopenBtn = page.locator('header').getByRole('button', { name: /Reabrir/i })
+  await confirmLifecycle(page, reopenBtn, /Reabrir entrevista/i)
+  await expect(page.locator('header').getByText('Em andamento', { exact: true })).toBeVisible({ timeout: 15_000 })
+
+  const concludeBtn2 = page.locator('header').getByRole('button', { name: /Concluir/i })
+  await confirmLifecycle(page, concludeBtn2, /Concluir entrevista/i)
+  await expect(page.locator('header').getByText('Concluída', { exact: true })).toBeVisible({ timeout: 20_000 })
+
+  const dbRowAfter = await getInterviewRow(page, interviewId)
+  expect(dbRowAfter?.registry_event_id).toBe(registryEventId)
+
+  const eventsAfterReconclude = await getCaseEvents(page, SEEDED_CASE_ID)
+  const interviewEventsAfter = eventsAfterReconclude.filter((e) => e.kind === 'interview').length
+  expect(interviewEventsAfter).toBe(interviewEventsBefore)
+
+  // Content is locked once concluded (canEditContent=false): no session/subject/
+  // interviewer "add" controls — but attachments stay manageable (ADR 0026).
+  const sessionsSection = page.getByRole('region', { name: /Sessões/i })
+  await expect(sessionsSection.getByRole('button', { name: /Agendar sessão/i })).not.toBeVisible()
+  await expect(subjectsSection.getByRole('button', { name: /Adicionar/i })).not.toBeVisible()
+  const interviewersSection = page.getByRole('region', { name: /Entrevistadores/i })
+  await expect(interviewersSection.getByRole('button', { name: /Adicionar/i })).not.toBeVisible()
+
+  const attachmentsSection = page.getByRole('region', { name: /Anexos e gravações/i })
+  await expect(attachmentsSection.getByRole('button', { name: /Enviar anexo/i })).toBeVisible()
+  await expect(attachmentsSection.getByRole('button', { name: /Adicionar gravação/i })).toBeVisible()
+
+  await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// IV2-5 — reschedule a session
+// ---------------------------------------------------------------------------
+
+test('IV2-5 — reschedule a session (edit times)', async ({ page }) => {
+  const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
+  const interviewId = await createInterviewRpc(page, chefeToken, {
+    title: 'Entrevista IV2-5 Reagendar',
+    category: 'clinical_team',
+  })
+  const sessionId = await scheduleSessionRpc(page, chefeToken, interviewId, {
+    p_scheduled_start: '2026-08-01T10:00:00Z',
+  })
+  const before = await getSessions(page, interviewId)
+  expect(before[0].scheduled_start).toBe('2026-08-01T10:00:00+00:00')
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  await goToInterview(page, interviewId)
+  const sessionsSection = page.getByRole('region', { name: /Sessões/i })
+
+  await sessionsSection.getByRole('button', { name: /Reagendar/i }).click()
+  const rescheduleDialog = page.getByRole('dialog', { name: /Reagendar sessão/i })
+  await expect(rescheduleDialog).toBeVisible({ timeout: 10_000 })
+  await setDateTimeField(page, rescheduleDialog, 'Início', { time: '14:30', day: '20' })
+  await rescheduleDialog.getByRole('button', { name: /Salvar/i }).click()
+  await expect(rescheduleDialog).not.toBeVisible({ timeout: 15_000 })
+
+  const after = await getSessions(page, interviewId)
+  expect(after.length).toBe(1)
+  expect(after[0].id).toBe(sessionId)
+  expect(after[0].scheduled_start).not.toBe(before[0].scheduled_start)
+  expect(after[0].scheduled_start).not.toBeNull()
+
+  await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// IV2-6 — cancel a session / mark another as no-show
+// ---------------------------------------------------------------------------
+
+test('IV2-6 — cancel a session and mark another as no-show (both terminal, with reason)', async ({ page }) => {
+  const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
+  const interviewId = await createInterviewRpc(page, chefeToken, {
+    title: 'Entrevista IV2-6 Cancelar/Não Compareceu',
+    category: 'expert',
+  })
+  await scheduleSessionRpc(page, chefeToken, interviewId) // session #1
+  await scheduleSessionRpc(page, chefeToken, interviewId) // session #2
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  await goToInterview(page, interviewId)
+  const sessionsSection = page.getByRole('region', { name: /Sessões/i })
+  await expect(sessionsSection.locator('li')).toHaveCount(2)
+
+  // Session #1 (first row, sequence_number=1): cancel with a reason.
+  const row1 = sessionsSection.locator('li').nth(0)
+  await row1.getByRole('button', { name: /Cancelar/i }).click()
+  let dialog = page.getByRole('alertdialog')
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+  await textareaByLabel(dialog, 'Motivo do cancelamento').fill('Reagendada a pedido do entrevistado')
+  await dialog.getByRole('button', { name: /Cancelar sessão/i }).click()
+  await expect(dialog).not.toBeVisible({ timeout: 15_000 })
+
+  await expect(row1).toContainText('Cancelada')
+  await expect(row1).toContainText('Reagendada a pedido do entrevistado')
+
+  // Session #2 (second row, sequence_number=2): mark as no-show with a reason.
+  const row2 = sessionsSection.locator('li').nth(1)
+  await row2.getByRole('button', { name: /Não compareceu/i }).click()
+  dialog = page.getByRole('alertdialog')
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+  await textareaByLabel(dialog, 'Observação').fill('Entrevistado não compareceu e não avisou')
+  await dialog.getByRole('button', { name: /Registrar não comparecimento/i }).click()
+  await expect(dialog).not.toBeVisible({ timeout: 15_000 })
+
+  await expect(row2).toContainText('Não compareceu')
+  await expect(row2).toContainText('Entrevistado não compareceu e não avisou')
+
+  // Both sessions are terminal → no more lifecycle buttons on either row.
+  await expect(row1.getByRole('button')).toHaveCount(0)
+  await expect(row2.getByRole('button')).toHaveCount(0)
+
+  const sessions = await getSessions(page, interviewId)
+  const s1 = sessions.find((s) => s.sequence_number === 1)!
+  const s2 = sessions.find((s) => s.sequence_number === 2)!
+  expect(s1.status).toBe('cancelled')
+  expect(s1.cancellation_reason).toBe('Reagendada a pedido do entrevistado')
+  expect(s2.status).toBe('no_show')
+  expect(s2.cancellation_reason).toBe('Entrevistado não compareceu e não avisou')
+
+  await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// IV2-7 — subject relationship_to_case required
+// ---------------------------------------------------------------------------
+
+test('IV2-7 — subject relationship_to_case is required (UI blocks submit; RPC rejects a missing value with HC0B2)', async ({ page }) => {
+  const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
+  const interviewId = await createInterviewRpc(page, chefeToken, {
+    title: 'Entrevista IV2-7 Relação',
+    category: 'clinical_team',
+  })
+
+  // RPC-level: omitting p_relationship_to_case is rejected (HC0B2).
+  const rpcResult = await callRPC(page, chefeToken, 'add_interview_subject', {
+    p_interview_id: interviewId,
+    p_external_name: 'Sujeito RPC Sem Relação',
+  })
+  expect(rpcResult.status).toBe(400)
+  expect((rpcResult.body as { code: string }).code).toBe('HC0B2')
+
+  // UI-level: the picker blocks submit until a relationship is chosen.
+  await signInAs(page, 'chefe.ccih@test.local')
+  await goToInterview(page, interviewId)
+
+  const subjectsSection = page.getByRole('region', { name: /Entrevistados/i })
+  await subjectsSection.getByRole('button', { name: /Adicionar/i }).click()
+  const subjectDialog = page.getByRole('dialog', { name: /Adicionar entrevistado/i })
+  await expect(subjectDialog).toBeVisible({ timeout: 10_000 })
+  await subjectDialog.getByRole('button', { name: /Profissional externo/i }).click()
+  await subjectDialog.getByPlaceholder(/Dra. Ana Lima/i).fill('Sujeito UI Sem Relação')
+  await subjectDialog.getByRole('button', { name: /Adicionar/i }).click()
+
+  // Blocked: dialog stays open with an inline error; nothing was submitted.
+  await expect(subjectDialog).toBeVisible()
+  const relationshipAlert = subjectDialog.getByRole('alert')
+  await expect(relationshipAlert).toBeVisible({ timeout: 5_000 })
+  await expect(relationshipAlert).toContainText(/relação/i)
+
+  // Select a relationship and submit successfully.
+  await selectByLabel(subjectDialog, 'Relação com o caso').selectOption({ label: 'Enfermeiro(a)' })
+  await subjectDialog.getByRole('button', { name: /Adicionar/i }).click()
+  await expect(subjectDialog).not.toBeVisible({ timeout: 15_000 })
+
+  const subjects = await getSubjects(page, interviewId)
+  expect(subjects.length).toBe(1)
+  expect(subjects[0].relationship_to_case).toBe('nurse')
+
+  await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// IV2-8 — keyboard-only: create flow via Tab/Enter
+// ---------------------------------------------------------------------------
+
+test('IV2-8 — keyboard-only: create interview dialog via Tab/Enter, required category selected via native-select keyboard type-ahead, submit', async ({ page }) => {
+  await signInAs(page, 'chefe.ccih@test.local')
+  await goToCaseDetail(page)
+
+  // Focus the "Nova entrevista" button via keyboard and open the dialog with Enter.
+  await page.getByRole('button', { name: /Nova entrevista/i }).focus()
+  await expect(page.getByRole('button', { name: /Nova entrevista/i })).toBeFocused()
+  await page.keyboard.press('Enter')
+
+  const createDialog = page.getByRole('dialog', { name: /Nova entrevista/i })
+  await expect(createDialog).toBeVisible({ timeout: 10_000 })
+
+  // Programmatic focus + keyboard typing to fill the title (replaces the
+  // Radix Dialog autoFocus this environment can't rely on for a fresh
+  // click-free flow — mirrors the existing convention in this spec).
+  await createDialog.locator('input[type="text"]').first().focus()
+  await page.keyboard.type('Entrevista Teclado IV2')
+
+  // Category is REQUIRED — select it via keyboard type-ahead on the native
+  // <select> (no mouse): typing "T" jumps to "Testemunha" (witness).
+  const categorySelect = selectByLabel(createDialog, 'Categoria')
+  await categorySelect.focus()
+  await expect(categorySelect).toBeFocused()
+  await page.keyboard.press('T')
+  await expect(categorySelect).toHaveValue('witness')
+
+  // Tab through every remaining interactive field (confidentiality picker, the
+  // schedule-first checkbox + its session sub-fields) without a mouse until the
+  // submit button is reached — proving the entire dialog is keyboard-navigable.
+  const submitBtn = createDialog.getByRole('button', { name: /Criar entrevista/i })
+  let reached = false
+  for (let i = 0; i < 60; i++) {
+    await page.keyboard.press('Tab')
+    reached = await submitBtn.evaluate((el) => document.activeElement === el)
+    if (reached) break
+  }
+  expect(reached).toBe(true)
+
+  // Submit via keyboard (Enter) — no mouse click anywhere in this test.
+  await page.keyboard.press('Enter')
+
+  await page.waitForURL(/\/c\/ccih\/manage\/cases\/.+\/interviews\/.+/, { timeout: 25_000 })
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('heading', { name: /Entrevista Teclado IV2/i })).toBeVisible()
+  await expect(page.locator('header')).toContainText('Testemunha')
+
+  const backLink = page.getByRole('link', { name: /caso\s*\d+|caso/i })
+  await expect(backLink.first()).toBeVisible()
+
+  await signOut(page)
+})
+
+// ---------------------------------------------------------------------------
+// IV2-9 — participant write grant (both directions)
+// ---------------------------------------------------------------------------
+
+test('IV2-9a — participant write grant: registered interviewer (plain staff) CAN write — schedule/start/complete a session, conclude the interview', async ({ page }) => {
+  const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
+  const interviewId = await createInterviewRpc(page, chefeToken, {
+    title: 'Entrevista IV2-9a Grant',
+    category: 'clinical_team',
+  })
+  await addSubjectRpc(page, chefeToken, interviewId, { relationship: 'witness' })
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  await goToInterview(page, interviewId)
   const interviewersSection = page.getByRole('region', { name: /Entrevistadores/i })
   await interviewersSection.getByRole('button', { name: /Adicionar/i }).click()
   const interviewerDialog = page.getByRole('dialog', { name: /Adicionar entrevistador/i })
@@ -522,101 +825,62 @@ test('AC2a — participant write grant: registered interviewer (staff role) CAN 
   await interviewerMemberSelect.selectOption({ label: 'Enfermeira CCIH Dois' })
   await interviewerDialog.getByRole('button', { name: /Adicionar/i }).click()
   await expect(interviewerDialog).not.toBeVisible({ timeout: 15_000 })
-
-  // Schedule + start (so staff2 can operate in em_andamento state)
-  await page.getByRole('button', { name: 'Editar', exact: true }).click()
-  const editDialog = page.getByRole('dialog', { name: /Editar entrevista/i })
-  await expect(editDialog).toBeVisible({ timeout: 10_000 })
-  await setDateTimeField(page, editDialog, 'Início', { time: '10:00' })
-  await editDialog.getByRole('button', { name: /Salvar/i }).click()
-  await expect(editDialog).not.toBeVisible({ timeout: 15_000 })
-  await confirmLifecycle(page, /Agendar/i, /Agendar entrevista/i)
-  await confirmLifecycle(page, /Iniciar/i, /Iniciar entrevista/i)
-  await expect(page.locator('text=Em andamento').first()).toBeVisible({ timeout: 15_000 })
-
   await signOut(page)
 
-  // 2. Sign in as staff2 — a plain-staff registered INTERVIEWER
+  // staff2.ccih — a plain-staff registered interviewer, not staff_admin.
   await signInAs(page, 'staff2.ccih@test.local')
-  await page.goto(
-    `/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${grantInterviewId}`,
-  )
-  await page.waitForURL(`**/interviews/${grantInterviewId}`, { timeout: 15_000 })
-
-  // staff2 should see the interview detail (member SELECT works)
+  await goToInterview(page, interviewId)
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 })
 
-  // Write CONTROLS must be present (viewerCanWrite=true)
-  // The Concluir button is a write control
-  await expect(page.getByRole('button', { name: /Concluir/i })).toBeVisible({ timeout: 10_000 })
-  // The Adicionar button in subjects panel (canEditContent=true for an interviewer in em_andamento)
-  const subjectsPanelStaff = page.getByRole('region', { name: /Entrevistados/i })
-  await expect(subjectsPanelStaff.getByRole('button', { name: /Adicionar/i })).toBeVisible()
+  const sessionsSection = page.getByRole('region', { name: /Sessões/i })
+  await expect(sessionsSection.getByRole('button', { name: /Agendar sessão/i })).toBeVisible()
+  await sessionsSection.getByRole('button', { name: /Agendar sessão/i }).click()
+  const sessionDialog = page.getByRole('dialog', { name: /Agendar sessão/i })
+  await expect(sessionDialog).toBeVisible({ timeout: 10_000 })
+  await selectByLabel(sessionDialog, 'Tipo de sessão').selectOption({ label: 'Inicial' })
+  await sessionDialog.getByRole('button', { name: /Agendar sessão/i }).click()
+  await expect(sessionDialog).not.toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('header').getByText('Agendada', { exact: true })).toBeVisible({ timeout: 15_000 })
 
-  // Perform an actual write (conclude) to prove the grant works end-to-end
-  await confirmLifecycle(page, /Concluir/i, /Concluir entrevista/i)
-  await expect(page.locator('text=Concluída').first()).toBeVisible({ timeout: 20_000 })
+  const startBtn = sessionsSection.getByRole('button', { name: /Iniciar/i })
+  await confirmLifecycle(page, startBtn, /Iniciar sessão/i)
+  await expect(page.locator('header').getByText('Em andamento', { exact: true })).toBeVisible({ timeout: 15_000 })
 
-  // DB truth: interview is concluded
-  const dbRow = await getInterviewRow(page, grantInterviewId)
+  const completeBtn = sessionsSection.getByRole('button', { name: /Concluir/i })
+  await confirmLifecycle(page, completeBtn, /Concluir sessão/i)
+
+  const concludeBtn = page.locator('header').getByRole('button', { name: /Concluir/i })
+  await confirmLifecycle(page, concludeBtn, /Concluir entrevista/i)
+  await expect(page.locator('header').getByText('Concluída', { exact: true })).toBeVisible({ timeout: 20_000 })
+
+  const dbRow = await getInterviewRow(page, interviewId)
   expect(dbRow?.status).toBe('completed')
 
   await signOut(page)
 })
 
-test('AC2b — participant write grant: non-interviewer staff CANNOT write', async ({ page }) => {
-  // staff1.ccih is NOT an interviewer on the seeded interview (they are a SUBJECT).
-  // They should be able to READ the interview (member SELECT) but NOT write.
-
-  // For this test the seeded interview may be cancelled from AC1 — create a fresh one
-  // in em_andamento so the "cannot write" scenario is clear regardless of lock state.
-  // Use the RPC path to create without going through the UI.
-
-  // First create a fresh interview with ONLY chefe.ccih as interviewer (no staff1)
+test('IV2-9b — participant write grant: non-interviewer staff CANNOT write (UI controls absent; RPC rejects with HC039)', async ({ page }) => {
   const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
-  const createResult = await callRPC(page, chefeToken, 'create_interview', {
-    p_case_id: SEEDED_CASE_ID,
-    p_title: 'Entrevista AC2b Sem Grant',
-    p_modality: 'presencial',
+  const interviewId = await createInterviewRpc(page, chefeToken, {
+    title: 'Entrevista IV2-9b Sem Grant',
+    category: 'other',
   })
-  expect(createResult.status).toBe(200)
-  const noGrantInterviewId = (createResult.body as { id: string }).id
+  const s1 = await scheduleSessionRpc(page, chefeToken, interviewId)
+  await startSessionRpc(page, chefeToken, s1)
+  // em_andamento; staff1.ccih is NOT an interviewer on this interview.
 
-  // Schedule and start it via RPC (so staff1 sees em_andamento — not locked)
-  const scheduleResult = await callRPC(page, chefeToken, 'schedule_interview', {
-    p_interview_id: noGrantInterviewId,
-    p_scheduled_start: '2026-06-22T10:00:00Z',
-  })
-  expect(scheduleResult.status).toBe(200)
-
-  const startResult = await callRPC(page, chefeToken, 'start_interview', {
-    p_interview_id: noGrantInterviewId,
-  })
-  expect(startResult.status).toBe(200)
-
-  // --- UI layer: staff1 (non-interviewer) should see NO write controls ---
   await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto(
-    `/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${noGrantInterviewId}`,
-  )
-  await page.waitForURL(`**/interviews/${noGrantInterviewId}`, { timeout: 15_000 })
-
-  // staff1 can READ (member SELECT allows it)
+  await goToInterview(page, interviewId)
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 })
 
-  // But no write controls must be visible (viewerCanWrite=false)
-  await expect(page.getByRole('button', { name: /Concluir/i })).not.toBeVisible()
-  await expect(page.getByRole('button', { name: /Cancelar/i })).not.toBeVisible()
-  await expect(page.getByRole('button', { name: /Iniciar/i })).not.toBeVisible()
-  // The Adicionar button in subjects panel is absent
-  const subjectsPanelNonWriter = page.getByRole('region', { name: /Entrevistados/i })
-  await expect(subjectsPanelNonWriter.getByRole('button', { name: /Adicionar/i })).not.toBeVisible()
+  await expect(page.locator('header').getByRole('button', { name: /Concluir/i })).not.toBeVisible()
+  await expect(page.locator('header').getByRole('button', { name: /Cancelar/i })).not.toBeVisible()
+  const sessionsSection = page.getByRole('region', { name: /Sessões/i })
+  await expect(sessionsSection.getByRole('button', { name: /Agendar sessão/i })).not.toBeVisible()
+  await expect(sessionsSection.getByRole('button', { name: /Iniciar/i })).not.toBeVisible()
 
-  // --- API layer: staff1's token is rejected by the conclude RPC (HC039) ---
   const staff1Token = await getOwnerToken(page, 'staff1.ccih@test.local')
-  const concludeResult = await callRPC(page, staff1Token, 'conclude_interview', {
-    p_interview_id: noGrantInterviewId,
-  })
+  const concludeResult = await callRPC(page, staff1Token, 'conclude_interview', { p_interview_id: interviewId })
   expect(concludeResult.status).toBe(400)
   expect((concludeResult.body as { code: string }).code).toBe('HC039')
 
@@ -624,107 +888,63 @@ test('AC2b — participant write grant: non-interviewer staff CANNOT write', asy
 })
 
 // ---------------------------------------------------------------------------
-// AC3 — Security: foreign-commission user gets 404 (no data leakage)
+// IV2-10 — security: foreign-commission user gets 404, no data leakage
 // ---------------------------------------------------------------------------
 
-test('AC3 — security: foreign-commission user gets 404, no leakage', async ({ page }) => {
-  // chefe.farm is staff_admin of Farmácia but NOT a member of CCIH
+test('IV2-10 — security: foreign-commission user gets 404, no data leakage', async ({ page }) => {
   await signInAs(page, 'chefe.farm@test.local')
 
-  // Attempt to access the seeded CCIH interview
-  await page.goto(
-    `/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${SEEDED_INTERVIEW_ID}`,
-  )
-  // Next.js renders the not-found page via notFound() — chefe.farm is NOT a member of
-  // CCIH so the commission layout calls notFound() → global 404 page renders.
-  // The global 404 page has: <p>Erro 404</p> and <h1>Não encontramos esta página.</h1>
-  // (not the heading role, but the h1 element; we assert on the paragraph text "Erro 404"
-  // which is also present in the commission-scoped not-found page inside the shell).
+  await goToInterview(page, SEEDED_INTERVIEW_ID)
   await expect(page.getByText(/Erro 404/i).first()).toBeVisible({ timeout: 15_000 })
   await expect(page.getByRole('heading', { name: /Não encontramos esta página/i })).toBeVisible({ timeout: 5_000 })
-  // Specifically: the interview title MUST NOT appear
   await expect(page.getByText(/Entrevista sobre o Caso 0001/i)).not.toBeVisible()
 
-  // Also test the case detail itself (also coordinator-only, but still commission-gated)
   await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}`)
-  // chefe.farm can't access CCIH's cases (coordinator-only case detail) — renders 404
   await expect(page.getByText(/Erro 404/i).first()).toBeVisible({ timeout: 15_000 })
 
-  // API layer: service role check — verify PostgREST RLS denies reads
   const farmToken = await getOwnerToken(page, 'chefe.farm@test.local')
-  const resp2 = await page.request.get(
+  const resp = await page.request.get(
     `${SUPABASE_URL}/rest/v1/case_interviews?id=eq.${SEEDED_INTERVIEW_ID}&select=id,title`,
-    {
-      headers: {
-        apikey: SUPABASE_SERVICE_KEY,
-        Authorization: `Bearer ${farmToken}`,
-      },
-    },
+    { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${farmToken}` } },
   )
-  const data = await resp2.json()
-  // RLS SELECT policy: must be a member of the commission → returns empty, not the row
+  const data = await resp.json()
   expect(Array.isArray(data)).toBe(true)
   expect((data as unknown[]).length).toBe(0)
 
-  // Navigate to chefe.farm's own commission before signing out (the CCIH 404 page
-  // has no commission shell / account menu button — signing out requires the shell).
+  const respSessions = await page.request.get(
+    `${SUPABASE_URL}/rest/v1/interview_sessions?interview_id=eq.${SEEDED_INTERVIEW_ID}&select=id`,
+    { headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${farmToken}` } },
+  )
+  const sessionsData = await respSessions.json()
+  expect(Array.isArray(sessionsData)).toBe(true)
+  expect((sessionsData as unknown[]).length).toBe(0)
+
   await page.goto('/o/rede-a/c/farmacia')
   await page.waitForURL('**/o/rede-a/c/farmacia', { timeout: 15_000 })
   await signOut(page)
 })
 
 // ---------------------------------------------------------------------------
-// AC4 — Negatives: MIME/size rejection, non-https link (HC040),
-//         conclude without subjects (HC041), non-member interviewer (HC021)
+// IV2-11 — server-level negatives
 // ---------------------------------------------------------------------------
 
-test('AC4 — negatives: MIME rejection, https-only link, conclude without subject, non-member interviewer', async ({ page }) => {
-  // Use the seeded interview (already has subjects; we need a fresh one for HC041)
-  // Get a token for chefe.ccih for RPC-layer tests
+test('IV2-11 — server-level negatives: HC021 non-member interviewer, non-https link CHECK, HC038 wrong-state, HC0B0 schedule precondition, MIME rejection', async ({ page }) => {
   const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
-
-  // --- HC041: conclude_interview without any subjects (RPC layer) ---
-  // Create a fresh interview, don't add subjects
-  const createResult = await callRPC(page, chefeToken, 'create_interview', {
-    p_case_id: SEEDED_CASE_ID,
-    p_title: 'Entrevista AC4 Sem Entrevistados',
-    p_modality: 'presencial',
-  })
-  expect(createResult.status).toBe(200)
-  const noSubjectInterviewId = (createResult.body as { id: string }).id
-
-  // Start it (rascunho → agendada → em_andamento)
-  await callRPC(page, chefeToken, 'schedule_interview', {
-    p_interview_id: noSubjectInterviewId,
-    p_scheduled_start: '2026-06-23T10:00:00Z',
-  })
-  await callRPC(page, chefeToken, 'start_interview', {
-    p_interview_id: noSubjectInterviewId,
+  const interviewId = await createInterviewRpc(page, chefeToken, {
+    title: 'Entrevista IV2-11 Negativos',
+    category: 'other',
   })
 
-  // Attempt to conclude without subjects → HC041
-  const concludeResult = await callRPC(page, chefeToken, 'conclude_interview', {
-    p_interview_id: noSubjectInterviewId,
-  })
-  expect(concludeResult.status).toBe(400)
-  expect((concludeResult.body as { code: string }).code).toBe('HC041')
-
-  // --- HC021: add a non-member registered interviewer ---
-  // chefe.farm is NOT a member of CCIH → adding them as a registered interviewer fails
+  // HC021 — chefe.farm is not a CCIH member.
   const addInterviewerResult = await callRPC(page, chefeToken, 'add_interview_interviewer', {
-    p_interview_id: noSubjectInterviewId,
-    p_user_id: '00000000-0000-0000-0000-000000000005', // chefe.farm
+    p_interview_id: interviewId,
+    p_user_id: '00000000-0000-0000-0000-000000000005',
     p_role: 'entrevistador',
   })
   expect(addInterviewerResult.status).toBe(400)
   expect((addInterviewerResult.body as { code: string }).code).toBe('HC021')
 
-  // --- Non-https link rejected (formerly RPC-coded HC040) ---
-  // Phase F2 fold-in (ADR 0063): `add_interview_attachment` was DROPPED — interview
-  // links now live in the thin RLS-gated `case_interview_links` table, enforced by a
-  // plain CHECK (`external_url like 'https://%'`), not a coded RPC. A direct REST
-  // insert (bypassing the `addInterviewLink` server action's own https-only check)
-  // proves the DB-level boundary still holds.
+  // Non-https link — DB CHECK boundary (bypasses the addInterviewLink action's own check).
   const addLinkResp = await page.request.post(`${SUPABASE_URL}/rest/v1/case_interview_links`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
@@ -733,366 +953,50 @@ test('AC4 — negatives: MIME rejection, https-only link, conclude without subje
       Prefer: 'return=representation',
     },
     data: {
-      interview_id: noSubjectInterviewId,
+      interview_id: interviewId,
       title: 'Link Inválido',
-      external_url: 'http://insecure.example.com/audio.mp3', // http, not https
+      external_url: 'http://insecure.example.com/audio.mp3',
     },
   })
   expect(addLinkResp.status()).toBe(400)
   const addLinkBody = (await addLinkResp.json()) as { code?: string; message?: string }
-  expect(String(addLinkBody.code ?? '') + String(addLinkBody.message ?? '')).toMatch(
-    /check|external_url|23514/i,
-  )
+  expect(String(addLinkBody.code ?? '') + String(addLinkBody.message ?? '')).toMatch(/check|external_url|23514/i)
 
-  // --- UI layer: MIME rejection on upload (client-side validation, then server) ---
+  // HC038 — starting an already-started session.
+  const s1 = await scheduleSessionRpc(page, chefeToken, interviewId)
+  await startSessionRpc(page, chefeToken, s1)
+  const startAgain = await callRPC(page, chefeToken, 'start_session', { p_session_id: s1 })
+  expect(startAgain.status).toBe(400)
+  expect((startAgain.body as { code: string }).code).toBe('HC038')
+
+  // HC0B0 — scheduling a session on a CANCELLED interview.
+  const cancelRes = await callRPC(page, chefeToken, 'cancel_interview', { p_interview_id: interviewId })
+  expect(cancelRes.status).toBe(200)
+  const scheduleAfterCancel = await callRPC(page, chefeToken, 'schedule_session', { p_interview_id: interviewId })
+  expect(scheduleAfterCancel.status).toBe(400)
+  expect((scheduleAfterCancel.body as { code: string }).code).toBe('HC0B0')
+
+  // UI: MIME rejection on upload (fresh unlocked interview).
+  const uploadInterviewId = await createInterviewRpc(page, chefeToken, {
+    title: 'Entrevista IV2-11 Upload',
+    category: 'other',
+  })
   await signInAs(page, 'chefe.ccih@test.local')
-  // Navigate to an em_andamento interview for the upload test
-  await page.goto(
-    `/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${noSubjectInterviewId}`,
-  )
-  await page.waitForURL(`**/interviews/${noSubjectInterviewId}`, { timeout: 15_000 })
+  await goToInterview(page, uploadInterviewId)
 
-  // The interview should be in em_andamento and the upload button visible
-  const attachmentsSection2 = page.getByRole('region', { name: /Anexos e gravações/i })
-  await attachmentsSection2.getByRole('button', { name: /Enviar anexo/i }).click()
+  const attachmentsSection = page.getByRole('region', { name: /Anexos e gravações/i })
+  await attachmentsSection.getByRole('button', { name: /Enviar anexo/i }).click()
   const uploadDialog = page.getByRole('dialog', { name: /Enviar anexo/i })
   await expect(uploadDialog).toBeVisible({ timeout: 10_000 })
 
-  // Try to upload an audio file (should be rejected by size or MIME)
-  const tmpAudioPath = path.join(__dirname, '__tmp_test.mp3')
-  // Create a minimal fake MP3 (just bytes, not a real MP3)
-  fs.writeFileSync(tmpAudioPath, Buffer.from([0xFF, 0xFB, 0x90, 0x00]))
+  const tmpAudioPath = path.join(__dirname, '__tmp_iv2_test.mp3')
+  fs.writeFileSync(tmpAudioPath, Buffer.from([0xff, 0xfb, 0x90, 0x00]))
   await uploadDialog.locator('input[type="file"]').setInputFiles(tmpAudioPath)
   await uploadDialog.locator('input[name="title"]').fill('Audio Upload Test')
   await uploadDialog.getByRole('button', { name: /Enviar anexo/i }).click()
-  // Should show an error (MIME not accepted server-side)
   await expect(uploadDialog.locator('[role="alert"]').first()).toBeVisible({ timeout: 15_000 })
   fs.unlinkSync(tmpAudioPath)
-  // Close the dialog
   await uploadDialog.getByRole('button', { name: /Cancelar/i }).click()
-
-  // --- UI layer: client-side non-https link validation ---
-  await attachmentsSection2.getByRole('button', { name: /Adicionar gravação/i }).click()
-  const linkDialog = page.getByRole('dialog', { name: /Adicionar gravação/i })
-  await expect(linkDialog).toBeVisible({ timeout: 10_000 })
-  await linkDialog.locator('input[type="text"]').fill('Link Inválido')
-  await linkDialog.locator('input[type="url"]').fill('http://insecure.example.com/audio.mp3')
-  await linkDialog.getByRole('button', { name: /Adicionar gravação/i }).click()
-  // Client-side validation shows an error about https
-  await expect(linkDialog.locator('[role="alert"]').first()).toBeVisible({ timeout: 10_000 })
-  await expect(linkDialog.locator('[role="alert"]').first()).toContainText(/https/i)
-  await linkDialog.getByRole('button', { name: /Cancelar/i }).click()
-
-  await signOut(page)
-})
-
-// ---------------------------------------------------------------------------
-// AC5 — Keyboard-only flow: create → fill → submit → land on detail
-//        (Tab/Enter only, no mouse clicks)
-// ---------------------------------------------------------------------------
-
-test('AC5 — keyboard-only: create interview dialog via Tab/Enter, navigate to detail', async ({ page }) => {
-  await signInAs(page, 'chefe.ccih@test.local')
-  await goToCaseDetail(page)
-
-  // Focus on the "Nova entrevista" button via keyboard
-  // Tab into the interviews section's "Nova entrevista" button
-  await page.getByRole('button', { name: /Nova entrevista/i }).focus()
-  await expect(page.getByRole('button', { name: /Nova entrevista/i })).toBeFocused()
-  await page.keyboard.press('Enter')
-
-  // Dialog should open
-  const createDialog = page.getByRole('dialog', { name: /Nova entrevista/i })
-  await expect(createDialog).toBeVisible({ timeout: 10_000 })
-
-  // Type the title into the title input (focused via .focus() — we avoid clicking
-  // the mouse; the initial focus move uses programmatic focus which is permitted in
-  // keyboard-only testing to replace the "initial element is focused on dialog open"
-  // behaviour that Radix Dialog provides via autoFocus).
-  await createDialog.locator('input[type="text"]').first().focus()
-  await page.keyboard.type('Entrevista Teclado AC5')
-
-  // Keyboard-only navigation proof: Tab through every interactive field in the dialog
-  // without using the mouse. The DateTimePicker contributes a date-trigger button
-  // plus segmented TimeField spinbutton stops (each a Tab stop), so the count to
-  // reach the submit button is higher than the field count. We loop-Tab until we hit
-  // the submit button (max 40 presses), proving it is keyboard-reachable without a
-  // mouse. (The interview is created in rascunho with no scheduled date — the
-  // schedule date is set later via the Editar dialog; AC1/AC2a cover that.)
-  const submitBtn = createDialog.getByRole('button', { name: /Criar entrevista/i })
-  let reached = false
-  for (let i = 0; i < 40; i++) {
-    await page.keyboard.press('Tab')
-    reached = await submitBtn.evaluate((el) => document.activeElement === el)
-    if (reached) break
-  }
-  // The submit button MUST be reachable by Tab alone (keyboard accessibility requirement)
-  expect(reached).toBe(true)
-
-  // Press Enter to submit the form via keyboard (keyboard-only submit — no mouse)
-  await page.keyboard.press('Enter')
-
-  // Should navigate to the interview detail page
-  await page.waitForURL(/\/c\/ccih\/manage\/cases\/.+\/interviews\/.+/, { timeout: 25_000 })
-
-  // The interview detail page renders (h1 heading present)
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByRole('heading', { name: /Entrevista Teclado AC5/i })).toBeVisible()
-
-  // Back-link is focusable and points to the case (coordinator → "← Caso N")
-  const backLink = page.getByRole('link', { name: /caso\s*\d+|caso/i })
-  await expect(backLink.first()).toBeVisible()
-
-  await signOut(page)
-})
-
-// ---------------------------------------------------------------------------
-// AC6 — Seeded interview panel: panel is visible on case detail, links to detail
-// ---------------------------------------------------------------------------
-
-test('AC6 — seeded interview panel visible on case detail; back-link conditional', async ({ page }) => {
-  // Coordinator sees "← Caso N" back-link
-  await signInAs(page, 'chefe.ccih@test.local')
-  await goToCaseDetail(page)
-
-  // Entrevistas panel shows the seeded interview
-  const interviewsSection = page.getByRole('region', { name: /Entrevistas/i }).first()
-  await expect(interviewsSection).toBeVisible()
-  // Should show the seeded interview title or number
-  await expect(interviewsSection).toContainText(/Entrevista sobre o Caso 0001/i)
-
-  // Click through to the detail
-  await interviewsSection.getByRole('link').first().click()
-  await page.waitForURL(/\/interviews\//, { timeout: 15_000 })
-
-  // The interview detail page must render (heading visible). Note: the seeded
-  // interview has attachments with a delete button. If the interview detail page
-  // crashes (app bug P11-001 — AttachmentsPanel RSC lambda), this assertion catches
-  // it as a failing test rather than silently passing.
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 15_000 })
-
-  // Coordinator sees "← Caso N" back-link (caseNumber is non-null) — this is the
-  // back-link in the <InterviewHeader>, NOT the sidebar nav. Scoped to the <header>
-  // element to exclude the sidebar's "Casos 1" link from matching.
-  const interviewHeader = page.locator('header').first()
-  const backLink = interviewHeader.getByRole('link', { name: /caso\s*\d+/i })
-  await expect(backLink.first()).toBeVisible()
-
-  await signOut(page)
-})
-
-// ---------------------------------------------------------------------------
-// AC7 — HC038: wrong-state transitions are rejected
-// ---------------------------------------------------------------------------
-
-test('AC7 — HC038: wrong-state transition (start already-started interview) is rejected', async ({ page }) => {
-  // Create and start an interview
-  const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
-  const createResult = await callRPC(page, chefeToken, 'create_interview', {
-    p_case_id: SEEDED_CASE_ID,
-    p_title: 'Entrevista AC7 Wrong State',
-    p_modality: 'presencial',
-  })
-  expect(createResult.status).toBe(200)
-  const wrongStateId = (createResult.body as { id: string }).id
-
-  await callRPC(page, chefeToken, 'schedule_interview', {
-    p_interview_id: wrongStateId,
-    p_scheduled_start: '2026-06-24T10:00:00Z',
-  })
-  await callRPC(page, chefeToken, 'start_interview', {
-    p_interview_id: wrongStateId,
-  })
-
-  // Trying to start again → HC038
-  const startAgainResult = await callRPC(page, chefeToken, 'start_interview', {
-    p_interview_id: wrongStateId,
-  })
-  expect(startAgainResult.status).toBe(400)
-  expect((startAgainResult.body as { code: string }).code).toBe('HC038')
-
-  // UI: After cancelling, "Reabrir" should not appear (cancelada has no reopen)
-  // Let's also test that trying to reopen a rascunho (wrong state) returns HC038
-  const createResult2 = await callRPC(page, chefeToken, 'create_interview', {
-    p_case_id: SEEDED_CASE_ID,
-    p_title: 'Entrevista AC7 Rascunho',
-    p_modality: 'presencial',
-  })
-  expect(createResult2.status).toBe(200)
-  const rascunhoId = (createResult2.body as { id: string }).id
-
-  const reopenRascunhoResult = await callRPC(page, chefeToken, 'reopen_interview', {
-    p_interview_id: rascunhoId,
-  })
-  expect(reopenRascunhoResult.status).toBe(400)
-  expect((reopenRascunhoResult.body as { code: string }).code).toBe('HC038')
-})
-
-// ---------------------------------------------------------------------------
-// AC8 — Seeded interview detail: attachments display (file + link), subjects,
-//        interviewers, case_events count from seed
-// ---------------------------------------------------------------------------
-
-test('AC8 — seeded interview detail: all panels render with correct seeded data', async ({ page }) => {
-  // IMPORTANT: by the time this test runs, AC1 may have cancelled the seeded
-  // interview. Since Playwright runs tests in sequence (--workers=1) and AC1
-  // does cancel the seeded interview, we verify from the DB directly and skip
-  // the UI check on the cancelled state.
-  // However, we still assert the DB-level seeded counts.
-
-  const attachments = await getAttachments(page, SEEDED_INTERVIEW_ID)
-  // The seeded interview has 2 active attachments (1 file + 1 link)
-  // Note: AC1 may have soft-deleted none of them since it cancels by lifecycle, not attachment changes.
-  // We only assert >= 2 to be resilient.
-  expect(attachments.length).toBeGreaterThanOrEqual(2)
-  const fileAtt = attachments.find((a) => a.storage_path !== null)
-  const linkAtt = attachments.find((a) => a.external_url !== null)
-  expect(fileAtt).toBeDefined()
-  expect(linkAtt).toBeDefined()
-  expect(linkAtt!.external_url).toMatch(/^https:\/\//)
-
-  const subjects = await getSubjects(page, SEEDED_INTERVIEW_ID)
-  // 2 subjects: staff1.ccih (registered) + Carlos Pereira (external)
-  expect(subjects.length).toBe(2)
-  expect(subjects.some((s) => s.user_id === STAFF1_CCIH_ID)).toBe(true)
-  expect(subjects.some((s) => s.external_name === 'Carlos Pereira')).toBe(true)
-
-  const interviewers = await getInterviewers(page, SEEDED_INTERVIEW_ID)
-  // 2 interviewers: chefe.ccih (registered, principal) + Dra. Helena Marques (external)
-  expect(interviewers.length).toBe(2)
-  expect(interviewers.some((i) => i.user_id === CHEFE_CCIH_ID && i.role === 'entrevistador_principal')).toBe(true)
-  expect(interviewers.some((i) => i.external_name === 'Dra. Helena Marques')).toBe(true)
-
-  // UI: sign in as chefe.ccih and navigate to the seeded interview.
-  // NOTE: The seeded interview has attachments AND canEdit=true for chefe.ccih
-  // (staff_admin + registered interviewer). If app bug P11-001 is unfixed
-  // (AttachmentsPanel passes a closure instead of a bound server action to the
-  // ConfirmDeleteButton Client Component), the detail page renders an error boundary
-  // "Algo deu errado" instead of the interview content. We assert on that boundary
-  // so the bug surfaces as a test failure rather than a silent pass.
-  await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${SEEDED_INTERVIEW_ID}`)
-  await page.waitForURL(
-    `**/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${SEEDED_INTERVIEW_ID}`,
-    { timeout: 15_000 },
-  )
-
-  // The interview title must render as an h1 (app bug P11-001 prevents this when
-  // the interview has attachments and canEdit=true → error boundary fires instead).
-  // When the bug is fixed, this assertion will pass and the rest of the UI checks run.
-  await expect(page.getByRole('heading', { name: /Entrevista sobre o Caso 0001/i }).first()).toBeVisible({ timeout: 15_000 })
-
-  // Panels present in the interview detail:
-  await expect(page.getByRole('region', { name: /Entrevistados/i })).toBeVisible()
-  await expect(page.getByRole('region', { name: /Entrevistadores/i })).toBeVisible()
-  await expect(page.getByRole('region', { name: /Anexos e gravações/i })).toBeVisible()
-
-  // Seeded data visible in panels
-  const subPanelEl = page.getByRole('region', { name: /Entrevistados/i })
-  await expect(subPanelEl).toContainText(/Carlos Pereira/i)
-  const intPanelEl = page.getByRole('region', { name: /Entrevistadores/i })
-  await expect(intPanelEl).toContainText(/Dra. Helena Marques/i)
-  const attPanelEl = page.getByRole('region', { name: /Anexos e gravações/i })
-  await expect(attPanelEl).toContainText(/Transcrição assinada/i)
-  await expect(attPanelEl).toContainText(/Gravação de áudio/i)
-
-  await signOut(page)
-})
-
-// ---------------------------------------------------------------------------
-// AC9 — QA MINOR-1 locking assertion (ADR 0026):
-//        concluded interview → attachments are STILL manageable (upload / add-link
-//        controls present; add-link succeeds); content panels (summary, subjects,
-//        interviewers) are read-only (edit controls absent).
-// ---------------------------------------------------------------------------
-
-test('AC9 — concluded interview: attachments manageable; content panels read-only', async ({ page }) => {
-  // Create, add a subject, schedule, start, and conclude a fresh interview via RPC
-  // so we reach `concluida` without going through the full UI lifecycle (AC1 does that).
-  const token = await getOwnerToken(page, 'chefe.ccih@test.local')
-
-  const createRes = await callRPC(page, token, 'create_interview', {
-    p_case_id: SEEDED_CASE_ID,
-    p_title: 'Entrevista AC9 Concluída',
-    p_modality: 'presencial',
-  })
-  expect(createRes.status).toBe(200)
-  const ac9Id = (createRes.body as { id: string }).id
-
-  // A subject is required to conclude (HC041).
-  const addSubjectRes = await callRPC(page, token, 'add_interview_subject', {
-    p_interview_id: ac9Id,
-    p_external_name: 'Sujeito AC9',
-    p_clinical_role: 'Técnico',
-  })
-  expect(addSubjectRes.status).toBe(200)
-
-  // Advance through full lifecycle: rascunho → agendada → em_andamento → concluida
-  const scheduleRes = await callRPC(page, token, 'schedule_interview', {
-    p_interview_id: ac9Id,
-    p_scheduled_start: '2026-06-25T10:00:00Z',
-  })
-  expect(scheduleRes.status).toBe(200)
-
-  const startRes = await callRPC(page, token, 'start_interview', {
-    p_interview_id: ac9Id,
-  })
-  expect(startRes.status).toBe(200)
-
-  const concludeRes = await callRPC(page, token, 'conclude_interview', {
-    p_interview_id: ac9Id,
-  })
-  expect(concludeRes.status).toBe(200)
-
-  // Verify DB-level status
-  const row = await getInterviewRow(page, ac9Id)
-  expect(row?.status).toBe('completed')
-
-  // --- UI layer ---
-  await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(`/o/rede-a/c/ccih/manage/cases/${SEEDED_CASE_ID}/interviews/${ac9Id}`)
-  await page.waitForURL(`**/interviews/${ac9Id}`, { timeout: 15_000 })
-
-  // Page must render without error boundary
-  await expect(
-    page.getByRole('heading', { name: /Entrevista AC9 Concluída/i }).first()
-  ).toBeVisible({ timeout: 15_000 })
-
-  // Status badge shows Concluída
-  await expect(page.getByText('Concluída', { exact: true })).toBeVisible()
-
-  // --- MINOR-1 fix: canManageAttachments = canWrite && status !== 'cancelada' ---
-  // `concluida` must expose both upload and add-link controls
-  const attPanel = page.getByRole('region', { name: /Anexos e gravações/i })
-  await expect(attPanel.getByRole('button', { name: /Enviar anexo/i })).toBeVisible()
-  await expect(attPanel.getByRole('button', { name: /Adicionar gravação/i })).toBeVisible()
-
-  // Add-link actually succeeds on a concluida interview (no status check in
-  // add_interview_attachment per ADR 0026 — late transcripts can be uploaded after
-  // conclusion). Verify end-to-end: open dialog → fill → submit → dialog closes.
-  await attPanel.getByRole('button', { name: /Adicionar gravação/i }).click()
-  const linkDialog = page.getByRole('dialog', { name: /Adicionar gravação/i })
-  await expect(linkDialog).toBeVisible({ timeout: 10_000 })
-  await linkDialog.locator('input[type="text"]').fill('Gravação pós-conclusão AC9')
-  await linkDialog.locator('input[type="url"]').fill('https://example.com/ac9-audio.mp3')
-  await linkDialog.getByRole('button', { name: /Adicionar gravação/i }).click()
-  // Dialog must close on success (would stay open on RPC error)
-  await expect(linkDialog).not.toBeVisible({ timeout: 15_000 })
-  // Attachment appears in the list
-  await expect(attPanel.locator('li')).toHaveCount(1, { timeout: 10_000 })
-
-  // --- canEditContent = false on concluida → content panels are READ-ONLY ---
-  // Summary panel: no "Editar" button (editor is in view-only mode)
-  const summaryPanel = page.getByRole('region', { name: /Resumo/i }).first()
-  await expect(summaryPanel.getByRole('button', { name: /Editar/i })).not.toBeVisible()
-
-  // Subjects panel: no "Adicionar" button
-  const subjectsPanel = page.getByRole('region', { name: /Entrevistados/i })
-  await expect(subjectsPanel.getByRole('button', { name: /Adicionar/i })).not.toBeVisible()
-
-  // Interviewers panel: no "Adicionar" button
-  const interviewersPanel = page.getByRole('region', { name: /Entrevistadores/i })
-  await expect(interviewersPanel.getByRole('button', { name: /Adicionar/i })).not.toBeVisible()
 
   await signOut(page)
 })
