@@ -15,7 +15,7 @@
 -- =============================================================================
 
 begin;
-select plan(23);
+select plan(40);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -255,6 +255,133 @@ select lives_ok(
   format($$ insert into public.case_recusals (case_id, user_id, source)
             values (%L, %L, 'coordinator') $$, (select cid from c_default), (select st_x from k)),
   'a fresh LIVE recusal is allowed once the prior one is lifted (partial unique)');
+
+-- ===========================================================================
+-- BE-4 — access predicates: respondent/recusal hard-deny, explicit_grants_only
+-- suppression, document ceiling (ADR 0072 D2/D3/D5). Predicate truth-table
+-- assertions call the DEFINER predicates directly (explicit p_uid); RLS-surface
+-- assertions (self-arm SELECT, attachment list/open) use claims + role.
+-- ===========================================================================
+reset role;
+
+-- Respondent fixture: st_x becomes the respondent_doctor of c_default (a
+-- commission_default case). Flag-independent (the deny helper reads base tables).
+insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+values ('00000000-0000-0000-0000-0000000e0101', (select org_x from k), 'professional', 'professional_identity', 'Dr. Réu');
+insert into public.professional_profiles (id, organization_id, user_id, full_name)
+values ('00000000-0000-0000-0000-0000000e0102', (select org_x from k), (select st_x from k), 'Dr. Réu');
+insert into public.professional_participants (participant_id, professional_profile_id)
+values ('00000000-0000-0000-0000-0000000e0101', '00000000-0000-0000-0000-0000000e0102');
+insert into public.case_participant_roles
+  (id, organization_id, key, display_name, allowed_participant_types, is_primary_subject_candidate)
+values ('00000000-0000-0000-0000-0000000e0103', (select org_x from k), 'respondent_doctor',
+  'Médico denunciado', array['professional'], true);
+insert into public.case_participants (case_id, participant_id, role_id, is_primary_subject)
+values ((select cid from c_default), '00000000-0000-0000-0000-0000000e0101',
+        '00000000-0000-0000-0000-0000000e0103', true);
+
+update app.feature_flags set enabled = false where key = 'case_access';
+
+-- (24) commission_default member arm intact: a clean member reads the case.
+select is(app.can_read_case((select cid from c_default), (select st_x2 from k)), true,
+  'commission_default: a clean member still reads the case (byte-for-byte)');
+-- (25)+(26)+(27) the respondent is HARD-DENIED on read, PHI door, and write.
+select is(app.can_read_case((select cid from c_default), (select st_x from k)), false,
+  'respondent-exclusion: the respondent_doctor cannot read their own case');
+select is(app.can_read_case_patient((select cid from c_default), (select st_x from k)), false,
+  'respondent-exclusion: the respondent cannot reach the PHI door');
+select is(app.can_write_case_content((select cid from c_default), (select st_x from k)), false,
+  'respondent-exclusion: the respondent cannot write case content');
+
+-- (28) respondent beats a POSITIVE arm: even holding a case_access grant (case_access
+-- ON), the respondent is denied — the deny-terms precede every grant arm.
+update app.feature_flags set enabled = true where key = 'case_access';
+insert into public.case_access (case_id, user_id, level, granted_by)
+values ((select cid from c_default), (select st_x from k), 'read', (select sa_x from k));
+select is(app.can_read_case((select cid from c_default), (select st_x from k)), false,
+  'respondent-exclusion beats a grant: a respondent with a case_access grant is still denied');
+
+-- Recusal block (case_access OFF; st_x2 is a plain member who could otherwise read).
+update app.feature_flags set enabled = false where key = 'case_access';
+insert into public.case_recusals (case_id, user_id, source, reason_md)
+values ((select cid from c_default), (select st_x2 from k), 'coordinator', 'conflito');
+-- (29) a live recusal denies read via RLS.
+select is(app.can_read_case((select cid from c_default), (select st_x2 from k)), false,
+  'recusal: a live recusal denies case read');
+-- (30) the recused user STILL sees their own recusal row (self-arm) despite the deny.
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.case_recusals
+           where case_id = (select cid from c_default) and user_id = (select st_x2 from k) and lifted_at is null), 1,
+  'D4 asymmetry: a recused user reads their OWN recusal row while denied case read');
+reset role;
+-- (31) lifting restores read (also: commission_default unchanged for a clean member).
+update public.case_recusals set lifted_at = now() where case_id = (select cid from c_default)
+  and user_id = (select st_x2 from k) and lifted_at is null;
+select is(app.can_read_case((select cid from c_default), (select st_x2 from k)), true,
+  'recusal lift restores read (commission_default member arm intact)');
+
+-- explicit_grants_only block on c_ethics (case_access ON).
+update app.feature_flags set enabled = true where key = 'case_access';
+-- (32) a member with NO grant/attribution sees nothing.
+select is(app.can_read_case((select cid from c_ethics), (select st_x2 from k)), false,
+  'explicit_grants_only: a member without a grant cannot read the ethics case');
+-- (33) a coordinator grant opens it.
+insert into public.case_access (case_id, user_id, level, granted_by)
+values ((select cid from c_ethics), (select st_x2 from k), 'read', (select sa_x from k));
+select is(app.can_read_case((select cid from c_ethics), (select st_x2 from k)), true,
+  'explicit_grants_only: a case_access grant opens the ethics case');
+
+-- explicit_grants_only belt with case_access OFF.
+update app.feature_flags set enabled = false where key = 'case_access';
+-- (34) member is suppressed; (35) coordinator keeps read.
+select is(app.can_read_case((select cid from c_ethics), (select st_x2 from k)), false,
+  'explicit_grants_only belt (case_access OFF): a member is still suppressed');
+select is(app.can_read_case((select cid from c_ethics), (select sa_x from k)), true,
+  'explicit_grants_only belt (case_access OFF): the coordinator keeps read');
+
+-- Document confidentiality ceiling (attachments ON, case_access ON) on c_default.
+update app.feature_flags set enabled = true where key in ('case_access', 'attachments');
+insert into public.attachments
+  (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier, confidentiality_label)
+values ('00000000-0000-0000-0000-0000000e0201', 'case', (select cid from c_default),
+        'Parecer jurídico', 'attachments',
+        'case/' || (select cid from c_default) || '/legal.pdf', 'standard', 'legal_privileged');
+insert into public.attachments
+  (id, owner_type, owner_id, title, storage_bucket, storage_path, sensitivity_tier, confidentiality_label)
+values ('00000000-0000-0000-0000-0000000e0202', 'case', (select cid from c_default),
+        'Nota de ética', 'attachments',
+        'case/' || (select cid from c_default) || '/ethics.pdf', 'standard', 'ethics_investigation');
+
+-- (36) an ordinary case reader (coordinator, no clearance) does NOT see the legal doc.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.attachments
+           where id = '00000000-0000-0000-0000-0000000e0201'), 0,
+  'ceiling: a legal_privileged doc is absent from the list for a reader without clearance');
+-- (37) opening it by id → HC0E6.
+select throws_ok(
+  $$ select * from public.open_attachment('00000000-0000-0000-0000-0000000e0201') $$,
+  'HC0E6', null,
+  'ceiling: open_attachment on a legal_privileged doc without clearance raises HC0E6');
+-- (40) an ethics_investigation doc STAYS visible to the ordinary reader (O2).
+select is((select count(*)::int from public.attachments
+           where id = '00000000-0000-0000-0000-0000000e0202'), 1,
+  'ceiling (O2): an ethics_investigation doc stays visible to an ordinary case reader');
+reset role;
+
+-- (38)+(39) a clearance grant (max_confidentiality >= legal_privileged) opens both.
+insert into public.case_access (case_id, user_id, level, max_confidentiality, granted_by)
+values ((select cid from c_default), (select sa_x from k), 'read', 'legal_privileged', (select sa_x from k));
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.attachments
+           where id = '00000000-0000-0000-0000-0000000e0201'), 1,
+  'ceiling: a legal-clearance grant makes the legal_privileged doc visible in the list');
+select lives_ok(
+  $$ select * from public.open_attachment('00000000-0000-0000-0000-0000000e0201') $$,
+  'ceiling: a cleared reader opens the legal_privileged doc');
+reset role;
 
 select * from finish();
 rollback;
