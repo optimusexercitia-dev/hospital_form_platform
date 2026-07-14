@@ -21,7 +21,7 @@
 -- SECURITY DEFINER RPC, so a DB-side test can observe them).
 
 begin;
-select plan(44);
+select plan(72);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -392,6 +392,187 @@ reset role;
 grant select on closed to authenticated;
 select is((select status from closed), 'completed',
   'close_case succeeds with only a response_expected=false referral in flight');
+
+-- =========================================================================
+-- RV2 R1 — Dialogue core (ADR 0037 Amendment 1). A fresh OPEN source case (src2)
+-- + a referral r3 driven to in_review to exercise the thread + the waiting state.
+-- =========================================================================
+create temp table cs2 on commit drop as
+  select gen_random_uuid() as src2, gen_random_uuid() as narr2;
+grant select on cs2 to authenticated;
+insert into public.cases (id, commission_id, case_number, label, created_by)
+values ((select src2 from cs2), (select comm_x from k), 9203, 'Caso A2', (select sa_x from k));
+insert into public.case_narratives (id, case_id, type_label, display_position, title, body_md, created_by)
+values ((select narr2 from cs2), (select src2 from cs2), 'Resumo', 0, 'Resumo', 'CORPO-A2', (select sa_x from k));
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table r3 on commit drop as
+  select * from public.create_referral_draft(
+    (select src2 from cs2), (select comm_y from k),
+    (select type_parecer from voc), 'Diálogo R1', true);
+reset role;
+grant select on r3 to authenticated;
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select public.add_referral_shared_item((select id from r3), 'narrative', (select narr2 from cs2), null);
+select public.send_referral((select id from r3));
+reset role;
+
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select public.receive_referral((select id from r3));
+select public.accept_referral((select id from r3));
+select public.start_referral_review((select id from r3));
+reset role;
+
+-- ---- post_referral_message: entitlement (HC0A0) + sequence allocation ----
+-- QPS (a PHI reader) cannot resolve to a sender side → cannot post.
+select test_helpers.claims_for((select admin from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.post_referral_message((select id from r3), 'general', 'oi') $$,
+  'HC0A0', null, 'a QPS reader cannot post (no source/target side to resolve) — HC0A0');
+reset role;
+-- A plain (non-PHI) member cannot post.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.post_referral_message((select id from r3), 'general', 'oi') $$,
+  'HC0A0', null, 'a non-PHI member cannot post — HC0A0');
+reset role;
+-- Source + target coordinators each post → two distinct sequence numbers.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $$ select public.post_referral_message((select id from r3), 'general', 'MENSAGEM-A') $$,
+  'source coordinator posts a message (seq 1)');
+reset role;
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select lives_ok(
+  $$ select public.post_referral_message((select id from r3), 'general', 'MENSAGEM-B') $$,
+  'target coordinator posts a message (seq 2)');
+reset role;
+select is((select count(*)::int from public.referral_messages where referral_id = (select id from r3)),
+  2, 'two posts create two message rows');
+select is((select count(distinct sequence_number)::int from public.referral_messages where referral_id = (select id from r3)),
+  2, 'concurrent-safe: the two posts get DISTINCT sequence_number');
+
+-- ---- t19 REVOKE guards ----
+select is(has_function_privilege('public',
+  'public.post_referral_message(uuid,text,text)', 'execute'), false,
+  't19: PUBLIC cannot execute post_referral_message');
+select is(has_function_privilege('public',
+  'public.request_referral_information(uuid,text)', 'execute'), false,
+  't19: PUBLIC cannot execute request_referral_information');
+select is(has_function_privilege('public',
+  'public.provide_referral_information(uuid,text)', 'execute'), false,
+  't19: PUBLIC cannot execute provide_referral_information');
+
+-- ---- Option B: body column-lockdown + DML-revoked ----
+select is(has_column_privilege('authenticated', 'public.referral_messages', 'body', 'SELECT'),
+  false, 'Option B: authenticated has NO direct SELECT on referral_messages.body');
+select is(has_column_privilege('authenticated', 'public.referral_messages', 'sequence_number', 'SELECT'),
+  true, 'authenticated CAN directly SELECT the PHI-free referral_messages.sequence_number');
+-- A PHI-cleared reader (target coord) still cannot direct-SELECT body (only the door):
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select body from public.referral_messages where referral_id = (select id from r3) $$,
+  '42501', null, 'Option B: even a PHI reader''s direct SELECT body is denied (door only)');
+-- Direct INSERT is revoked (writes are DEFINER-RPC only):
+select throws_ok(
+  format($$ insert into public.referral_messages (referral_id, sequence_number, sender_commission_id, message_type, body)
+            values (%L, 99, %L, 'general', 'x') $$, (select id from r3), (select comm_y from k)),
+  '42501', null, 'direct INSERT into referral_messages is denied (DML revoked)');
+-- ...but the PHI reader DOES see the rows (metadata) via the row policy.
+select is((select count(*)::int from public.referral_messages where referral_id = (select id from r3)),
+  2, 'a PHI reader sees the message rows (metadata) under the row policy');
+reset role;
+-- A non-PHI member sees ZERO message rows on a direct SELECT (row policy = can_read_referral_phi).
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.referral_messages where referral_id = (select id from r3)),
+  0, 'a non-PHI member sees 0 message rows directly (row RLS = can_read_referral_phi)');
+reset role;
+
+-- ---- get_referral_detail: metadata reader → body NULL; PHI reader → body + one referral.viewed ----
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+create temp table md_msgs on commit drop as
+  select public.get_referral_detail((select id from r3)) as j;
+reset role;
+grant select on md_msgs to authenticated;
+select is((select jsonb_array_length(j->'messages') from md_msgs), 2,
+  'metadata-only reader gets the message thread metadata (2 messages)');
+select ok((select j->'messages'->0->>'body' from md_msgs) is null,
+  'metadata-only reader gets message body = NULL');
+
+create temp table vb3 on commit drop as
+  select (select count(*) from public.audit_log where action = 'referral.viewed') as before;
+grant select on vb3 to authenticated;
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+create temp table phi_msgs on commit drop as
+  select public.get_referral_detail((select id from r3)) as j;
+reset role;
+grant select on phi_msgs to authenticated;
+select is((select phi_msgs.j->'messages'->0->>'body' from phi_msgs), 'MENSAGEM-A',
+  'PHI reader gets the populated message body via the door');
+select is(
+  (select count(*) from public.audit_log where action = 'referral.viewed') - (select before from vb3),
+  1::bigint, 'a message-body serve to the target coordinator writes one referral.viewed row');
+
+-- ---- request / provide: waiting_on + status transitions, entitlement, wrong-status ----
+-- Source coordinator cannot REQUEST (target-only) — HC0A0. (status = in_review)
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.request_referral_information((select id from r3), 'preciso de X') $$,
+  'HC0A0', null, 'the source cannot request information (target-only) — HC0A0');
+reset role;
+-- Target coordinator requests → awaiting_information, waiting_on = source.
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select public.request_referral_information((select id from r3), 'Preciso de mais detalhes');
+reset role;
+select is((select status from public.case_referral where id = (select id from r3)),
+  'awaiting_information', 'request_referral_information → awaiting_information');
+select is((select waiting_on_committee_id from public.case_referral where id = (select id from r3)),
+  (select comm_x from k), 'request sets waiting_on = source committee');
+-- Request again from awaiting_information → wrong status (HC0A1).
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.request_referral_information((select id from r3), 'de novo') $$,
+  'HC0A1', null, 'request from a non-in_review status is rejected (HC0A1)');
+-- Target cannot PROVIDE (source-only) — HC0A0.
+select throws_ok(
+  $$ select public.provide_referral_information((select id from r3), 'resposta') $$,
+  'HC0A0', null, 'the target cannot provide the response (source-only) — HC0A0');
+reset role;
+-- close_case is BLOCKED while the child referral is awaiting_information (Flag A fix).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.close_case((select src2 from cs2)) $$,
+  'HC076', null, 'close_case is blocked while a referral is awaiting_information (gate fix)');
+-- Source coordinator provides → in_review, waiting_on = target.
+select public.provide_referral_information((select id from r3), 'Aqui estão os detalhes');
+reset role;
+select is((select status from public.case_referral where id = (select id from r3)),
+  'in_review', 'provide_referral_information → in_review');
+select is((select waiting_on_committee_id from public.case_referral where id = (select id from r3)),
+  (select comm_y from k), 'provide sets waiting_on = target committee');
+-- Provide again from in_review → wrong status (HC0A1).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.provide_referral_information((select id from r3), 'de novo') $$,
+  'HC0A1', null, 'provide from a non-awaiting_information status is rejected (HC0A1)');
+reset role;
 
 select * from finish();
 rollback;

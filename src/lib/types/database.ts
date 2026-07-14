@@ -2300,6 +2300,7 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          last_message_at: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -2319,6 +2320,7 @@ export type Database = {
           target_commission_name: string | null
           type_label: string
           updated_at: string
+          waiting_on_committee_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -2334,6 +2336,7 @@ export type Database = {
           description_md?: string | null
           has_patient?: boolean
           id?: string
+          last_message_at?: string | null
           phi_disposed_at?: string | null
           phi_disposed_by?: string | null
           phi_disposed_reason?: string | null
@@ -2353,6 +2356,7 @@ export type Database = {
           target_commission_name?: string | null
           type_label: string
           updated_at?: string
+          waiting_on_committee_id?: string | null
           withdrawn_at?: string | null
           withdrawn_by?: string | null
         }
@@ -2368,6 +2372,7 @@ export type Database = {
           description_md?: string | null
           has_patient?: boolean
           id?: string
+          last_message_at?: string | null
           phi_disposed_at?: string | null
           phi_disposed_by?: string | null
           phi_disposed_reason?: string | null
@@ -2387,6 +2392,7 @@ export type Database = {
           target_commission_name?: string | null
           type_label?: string
           updated_at?: string
+          waiting_on_committee_id?: string | null
           withdrawn_at?: string | null
           withdrawn_by?: string | null
         }
@@ -5989,6 +5995,69 @@ export type Database = {
           },
         ]
       }
+      referral_messages: {
+        Row: {
+          body: string
+          created_at: string
+          id: string
+          in_reply_to_message_id: string | null
+          message_type: string
+          redacted_at: string | null
+          redacted_by: string | null
+          redacted_reason: string | null
+          referral_id: string
+          sender_commission_id: string
+          sender_user_id: string | null
+          sequence_number: number
+          supersedes_message_id: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          id?: string
+          in_reply_to_message_id?: string | null
+          message_type?: string
+          redacted_at?: string | null
+          redacted_by?: string | null
+          redacted_reason?: string | null
+          referral_id: string
+          sender_commission_id: string
+          sender_user_id?: string | null
+          sequence_number: number
+          supersedes_message_id?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          id?: string
+          in_reply_to_message_id?: string | null
+          message_type?: string
+          redacted_at?: string | null
+          redacted_by?: string | null
+          redacted_reason?: string | null
+          referral_id?: string
+          sender_commission_id?: string
+          sender_user_id?: string | null
+          sequence_number?: number
+          supersedes_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_messages_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "case_referral"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_messages_sender_user_id_fkey"
+            columns: ["sender_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       referral_patient: {
         Row: {
           age_years: number | null
@@ -6495,6 +6564,7 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          last_message_at: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -6514,6 +6584,7 @@ export type Database = {
           target_commission_name: string | null
           type_label: string
           updated_at: string
+          waiting_on_committee_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -7942,6 +8013,7 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          last_message_at: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -7961,6 +8033,7 @@ export type Database = {
           target_commission_name: string | null
           type_label: string
           updated_at: string
+          waiting_on_committee_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -8570,6 +8643,7 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          last_message_at: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -8589,6 +8663,7 @@ export type Database = {
           target_commission_name: string | null
           type_label: string
           updated_at: string
+          waiting_on_committee_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -8707,6 +8782,7 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          last_message_at: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -8726,6 +8802,7 @@ export type Database = {
           target_commission_name: string | null
           type_label: string
           updated_at: string
+          waiting_on_committee_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -8996,6 +9073,7 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          last_message_at: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -9015,6 +9093,7 @@ export type Database = {
           target_commission_name: string | null
           type_label: string
           updated_at: string
+          waiting_on_committee_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -9329,6 +9408,34 @@ export type Database = {
         Args: { p_entity_id: string; p_module: string }
         Returns: number
       }
+      post_referral_message: {
+        Args: {
+          p_body?: string
+          p_message_type?: string
+          p_referral_id: string
+        }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          in_reply_to_message_id: string | null
+          message_type: string
+          redacted_at: string | null
+          redacted_by: string | null
+          redacted_reason: string | null
+          referral_id: string
+          sender_commission_id: string
+          sender_user_id: string | null
+          sequence_number: number
+          supersedes_message_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_messages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       pqs_inbox: {
         Args: {
           p_cursor_id?: string
@@ -9355,6 +9462,51 @@ export type Database = {
         }[]
       }
       processless_cases_enabled: { Args: never; Returns: boolean }
+      provide_referral_information: {
+        Args: { p_body: string; p_referral_id: string }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          last_message_at: string | null
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          source_commission_name: string | null
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          target_commission_name: string | null
+          type_label: string
+          updated_at: string
+          waiting_on_committee_id: string | null
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       publish_document: {
         Args: {
           p_effective_date?: string
@@ -9491,6 +9643,7 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          last_message_at: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -9510,6 +9663,7 @@ export type Database = {
           target_commission_name: string | null
           type_label: string
           updated_at: string
+          waiting_on_committee_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -9961,6 +10115,51 @@ export type Database = {
         Args: { p_direction: string; p_phase_id: string }
         Returns: undefined
       }
+      request_referral_information: {
+        Args: { p_body: string; p_referral_id: string }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          last_message_at: string | null
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          source_commission_name: string | null
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          target_commission_name: string | null
+          type_label: string
+          updated_at: string
+          waiting_on_committee_id: string | null
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       revoke_administrativo: {
         Args: { p_commission_id: string; p_user_id: string }
         Returns: undefined
@@ -10131,6 +10330,7 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          last_message_at: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -10150,6 +10350,7 @@ export type Database = {
           target_commission_name: string | null
           type_label: string
           updated_at: string
+          waiting_on_committee_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -10660,6 +10861,7 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          last_message_at: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -10679,6 +10881,7 @@ export type Database = {
           target_commission_name: string | null
           type_label: string
           updated_at: string
+          waiting_on_committee_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -11724,6 +11927,7 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          last_message_at: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -11743,6 +11947,7 @@ export type Database = {
           target_commission_name: string | null
           type_label: string
           updated_at: string
+          waiting_on_committee_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }
@@ -11901,6 +12106,7 @@ export type Database = {
           description_md: string | null
           has_patient: boolean
           id: string
+          last_message_at: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -11920,6 +12126,7 @@ export type Database = {
           target_commission_name: string | null
           type_label: string
           updated_at: string
+          waiting_on_committee_id: string | null
           withdrawn_at: string | null
           withdrawn_by: string | null
         }

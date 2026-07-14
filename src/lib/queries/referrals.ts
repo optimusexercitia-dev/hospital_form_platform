@@ -44,11 +44,13 @@ import {
   encodeCursor,
 } from '@/lib/types/pagination'
 import type {
+  MessageType,
   ReferralDashboardFilters,
   ReferralDetail,
   ReferralDirection,
   ReferralFlowMetrics,
   ReferralListItem,
+  ReferralMessage,
   ReferralPatient,
   ReferralPatientSex,
   ReferralReply,
@@ -101,7 +103,7 @@ const SIGNED_URL_TTL_SECONDS = 3600
 const REFERRAL_LIST_SELECT =
   'id, code, status, subject, type_label, response_expected, ' +
   'source_commission_id, target_commission_id, source_case_id, target_case_id, ' +
-  'has_patient, sent_at, created_at, referral_type_id, ' +
+  'has_patient, sent_at, last_message_at, created_at, referral_type_id, ' +
   'source_commission_name, target_commission_name, ' +
   'source_case:source_case_id(case_number), ' +
   'target_case:target_case_id(case_number), ' +
@@ -120,6 +122,7 @@ interface ReferralListRow {
   target_case_id: string | null
   has_patient: boolean
   sent_at: string | null
+  last_message_at: string | null
   created_at: string
   referral_type_id: string | null
   source_commission_name: string | null
@@ -162,6 +165,7 @@ function mapReferralListItem(
     // referral_reply table is now PHI-gated so we must NOT rely on an embed here.
     hasReply: r.status === 'completed',
     sentAt: r.sent_at,
+    lastMessageAt: r.last_message_at,
     createdAt: r.created_at,
   }
 }
@@ -344,6 +348,20 @@ interface ReferralDetailJson {
   created_by: string | null
   created_by_name: string | null
   decline_note: string | null
+  waiting_on_committee_id: string | null
+  last_message_at: string | null
+  messages: {
+    id: string
+    referral_id: string
+    sequence_number: number
+    sender_commission_id: string
+    sender_commission_name: string | null
+    sender_user_id: string | null
+    sender_user_name: string | null
+    message_type: string
+    body: string | null
+    created_at: string
+  }[]
   shared_items: {
     id: string
     referral_id: string
@@ -449,6 +467,19 @@ export async function getReferralDetail(
       }
     : null
 
+  const messages: ReferralMessage[] = (d.messages ?? []).map((m) => ({
+    id: m.id,
+    referralId: m.referral_id,
+    sequenceNumber: m.sequence_number,
+    senderCommissionId: m.sender_commission_id,
+    senderCommissionName: m.sender_commission_name,
+    senderUserId: m.sender_user_id,
+    senderUserName: m.sender_user_name,
+    messageType: m.message_type as MessageType,
+    body: m.body,
+    createdAt: m.created_at,
+  }))
+
   return {
     id: d.id,
     code: d.code,
@@ -471,7 +502,10 @@ export async function getReferralDetail(
     hasPatient: d.has_patient,
     createdById: d.created_by,
     createdByName: d.created_by_name,
+    waitingOnCommitteeId: d.waiting_on_committee_id,
+    lastMessageAt: d.last_message_at,
     sharedItems,
+    messages,
     reply,
     sentAt: d.sent_at,
     receivedAt: d.received_at,

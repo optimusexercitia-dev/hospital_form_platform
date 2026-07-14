@@ -42,6 +42,14 @@ export const HC_TARGET_CASE_INVALID = 'HC079'
 /** A vocabulary (referral_types / reply_outcomes) CRUD violation. */
 export const HC_VOCAB_CRUD = 'HC07A'
 
+// RV2 R1 (ADR 0037 Amendment 1): dialogue thread. Block HC0A0–HC0A9.
+/** Message shape/entitlement: bad type, blank body, or the sender cannot resolve
+ * to the source/target side (non-participant / QPS-only). */
+export const HC_MESSAGE_SHAPE = 'HC0A0'
+/** request/provide called in the wrong status (request needs `in_review`; provide
+ * needs `awaiting_information`). */
+export const HC_INFORMATION_WRONG_STATE = 'HC0A1'
+
 /** Generic Postgres SQLSTATEs the referral RPCs/policies may surface. */
 export const PG_CHECK_VIOLATION = '23514'
 export const PG_FORBIDDEN = '42501'
@@ -74,6 +82,9 @@ export const REFERRAL_MESSAGES = {
   targetCaseRequired: 'Selecione o caso a vincular.',
   attachmentTitleRequired: 'Informe um título para o anexo.',
   attachmentUploadFailed: 'Não foi possível enviar o anexo. Tente novamente.',
+  messageBodyRequired: 'Escreva uma mensagem.',
+  requestBodyRequired: 'Descreva a informação solicitada.',
+  responseBodyRequired: 'Informe a resposta à solicitação.',
 
   // Lifecycle / domain (mapped from HC070–HC079)
   referralWrongState:
@@ -97,6 +108,11 @@ export const REFERRAL_MESSAGES = {
     'O caso selecionado não pertence à comissão de destino.',
   vocabDuplicateKey: 'Já existe um item com este identificador.',
   vocabCrud: 'Não foi possível alterar o vocabulário de encaminhamentos.',
+  // RV2 R1 dialogue (HC0A0–HC0A1)
+  messageShape:
+    'Não foi possível enviar a mensagem neste encaminhamento.',
+  informationWrongState:
+    'O encaminhamento não está no estado necessário para esta solicitação.',
 
   // Success
   referralDrafted: 'Rascunho de encaminhamento criado.',
@@ -115,6 +131,10 @@ export const REFERRAL_MESSAGES = {
   patientSaved: 'Dados do paciente registrados.',
   attachmentAdded: 'Anexo adicionado.',
   phiDisposed: 'Dados do paciente do encaminhamento descartados.',
+  // RV2 R1 dialogue
+  messagePosted: 'Mensagem enviada.',
+  informationRequested: 'Solicitação de informação enviada à origem.',
+  informationProvided: 'Resposta enviada à comissão de destino.',
 } as const
 
 /**
@@ -154,6 +174,10 @@ export function mapReferralError(
       return error.message || REFERRAL_MESSAGES.targetCaseInvalid
     case HC_VOCAB_CRUD:
       return error.message || REFERRAL_MESSAGES.vocabCrud
+    case HC_MESSAGE_SHAPE:
+      return error.message || REFERRAL_MESSAGES.messageShape
+    case HC_INFORMATION_WRONG_STATE:
+      return error.message || REFERRAL_MESSAGES.informationWrongState
     case PG_FORBIDDEN:
       return REFERRAL_MESSAGES.forbidden
     case PG_NO_DATA_FOUND:

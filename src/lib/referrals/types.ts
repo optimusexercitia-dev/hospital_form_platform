@@ -46,8 +46,22 @@ export type ReferralStatus =
   | 'accepted'
   | 'rejected'
   | 'in_review'
+  | 'awaiting_information'
   | 'completed'
   | 'withdrawn'
+
+/**
+ * A thread message kind (RV2 R1). `general` = a free-form comment; the
+ * `information_request` / `information_response` pair is the two-way clarification
+ * exchange (posted by the dedicated RPCs, which also flip
+ * `awaiting_information`); `clarification` is a follow-up note. Stored verbatim in
+ * `referral_messages.message_type`.
+ */
+export type MessageType =
+  | 'general'
+  | 'information_request'
+  | 'information_response'
+  | 'clarification'
 
 /** The two kinds of frozen snapshot row B reads (Decision 9). A `narrative`
  * freezes a `body_md` copy; a `document` freezes the storage REFERENCE (Rule 6,
@@ -76,6 +90,7 @@ export const REFERRAL_STATUS_LABELS: Record<ReferralStatus, string> = {
   accepted: 'Aceita',
   rejected: 'Recusada',
   in_review: 'Em análise',
+  awaiting_information: 'Aguardando informação',
   completed: 'Concluída',
   withdrawn: 'Retirada',
 }
@@ -93,8 +108,17 @@ export const REFERRAL_STATUS_TOKENS: Record<ReferralStatus, string> = {
   accepted: 'accent',
   rejected: 'destructive',
   in_review: 'warning',
+  awaiting_information: 'warning',
   completed: 'success',
   withdrawn: 'muted',
+}
+
+/** pt-BR labels for the message-type badge on the thread. */
+export const MESSAGE_TYPE_LABELS: Record<MessageType, string> = {
+  general: 'Comentário',
+  information_request: 'Solicitação de informação',
+  information_response: 'Resposta',
+  clarification: 'Esclarecimento',
 }
 
 /** pt-BR labels for the snapshot shared-item kind. */
@@ -202,6 +226,9 @@ export interface ReferralListItem {
   /** Whether a reply has been delivered (`completed`); the card shows it. */
   hasReply: boolean
   sentAt: string | null
+  /** RV2 R1: last thread activity (PHI-free metadata) for the hub's
+   * last-activity column; `null` if no message yet. Never a body preview. */
+  lastMessageAt: string | null
   createdAt: string
 }
 
@@ -237,8 +264,16 @@ export interface ReferralDetail {
   hasPatient: boolean
   createdById: string | null
   createdByName: string | null
+  /** RV2 R1: the committee the referral is waiting on while `awaiting_information`
+   * (= source or target); `null` otherwise. PHI-free metadata. */
+  waitingOnCommitteeId: string | null
+  /** RV2 R1: last thread activity (PHI-free); `null` if no message yet. */
+  lastMessageAt: string | null
   /** The frozen snapshot rows B reads (narratives + documents). */
   sharedItems: SharedItem[]
+  /** RV2 R1: the ordered dialogue thread. Message `body` is PHI-bearing and is
+   * `null` for a metadata-only reader (the audited door nulls it). */
+  messages: ReferralMessage[]
   /** The delivered reply, or `null` until `completed`. */
   reply: ReferralReply | null
   sentAt: string | null
@@ -248,6 +283,27 @@ export interface ReferralDetail {
   withdrawnAt: string | null
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * One thread message (`referral_messages`), RV2 R1. Ordered by
+ * {@link sequenceNumber}. The metadata (sender committee/user, type, timestamp) is
+ * always present; {@link body} is PHI-bearing and arrives ONLY through the audited
+ * detail door — `null` for a metadata-only reader.
+ */
+export interface ReferralMessage {
+  id: string
+  referralId: string
+  sequenceNumber: number
+  /** Which committee sent it (= source or target). */
+  senderCommissionId: string
+  senderCommissionName: string | null
+  senderUserId: string | null
+  senderUserName: string | null
+  messageType: MessageType
+  /** PHI-bearing message text; `null` for a metadata-only reader. */
+  body: string | null
+  createdAt: string
 }
 
 /**
@@ -481,4 +537,31 @@ export interface DeclineReferralInput {
   referralId: string
   /** Optional short pt-BR note shown to the source (free text). */
   note: string | null
+}
+
+/** Post a free-form thread message (RV2 R1 — "Comentar"). The RPC gates a PHI
+ * reader who resolves to the source/target side (HC0A0) + a non-terminal status. */
+export interface PostReferralMessageInput {
+  referralId: string
+  messageType: MessageType
+  /** PHI-bearing message text (required, non-blank). */
+  body: string
+}
+
+/** Target coordinator/analyst asks the source a clarifying question (RV2 R1 —
+ * "Solicitar informação"). Sets `awaiting_information`, waiting-on = source. The
+ * RPC requires `in_review` (HC0A1). */
+export interface RequestReferralInfoInput {
+  referralId: string
+  /** PHI-bearing request text (required, non-blank). */
+  body: string
+}
+
+/** Source coordinator answers a pending request (RV2 R1 — "Responder"). Sets
+ * waiting-on = target and resumes `in_review`. The RPC requires
+ * `awaiting_information` (HC0A1). */
+export interface ProvideReferralInfoInput {
+  referralId: string
+  /** PHI-bearing response text (required, non-blank). */
+  body: string
 }

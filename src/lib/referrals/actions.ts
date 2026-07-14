@@ -18,8 +18,11 @@ import type {
   CreateReferralState,
   DeclineReferralInput,
   LinkReferralCaseInput,
+  PostReferralMessageInput,
+  ProvideReferralInfoInput,
   ReferralActionState,
   ReferralPatient,
+  RequestReferralInfoInput,
   SetReferralPatientInput,
   UpdateReferralInput,
 } from '@/lib/referrals/types'
@@ -482,4 +485,87 @@ export async function disposeReferralPhi(
 
   revalidateReferrals()
   return { ok: true, message: REFERRAL_MESSAGES.phiDisposed }
+}
+
+// ---------------------------------------------------------------------------
+// Dialogue thread (RV2 R1) — post / request / provide
+// ---------------------------------------------------------------------------
+
+/**
+ * Post a free-form thread message ("Comentar"). The RPC gates a PHI reader who
+ * resolves to the source/target side (HC0A0) and a non-terminal status; it locks
+ * the referral, allocates the sequence number, and updates `last_message_at`.
+ */
+export async function postReferralMessage(
+  input: PostReferralMessageInput,
+): Promise<ReferralActionState> {
+  if (!input.referralId) {
+    return { ok: false, error: REFERRAL_MESSAGES.missingReferral }
+  }
+  if (!input.body?.trim()) {
+    return { ok: false, fieldErrors: { body: REFERRAL_MESSAGES.messageBodyRequired } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('post_referral_message', {
+    p_referral_id: input.referralId,
+    p_message_type: input.messageType,
+    p_body: input.body.trim(),
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.messagePosted }
+}
+
+/**
+ * Target coordinator/analyst asks the source a clarifying question ("Solicitar
+ * informação"): posts an `information_request`, flips the referral to
+ * `awaiting_information`, waiting-on = source. The RPC requires `in_review` (HC0A1).
+ */
+export async function requestReferralInformation(
+  input: RequestReferralInfoInput,
+): Promise<ReferralActionState> {
+  if (!input.referralId) {
+    return { ok: false, error: REFERRAL_MESSAGES.missingReferral }
+  }
+  if (!input.body?.trim()) {
+    return { ok: false, fieldErrors: { body: REFERRAL_MESSAGES.requestBodyRequired } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('request_referral_information', {
+    p_referral_id: input.referralId,
+    p_body: input.body.trim(),
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.informationRequested }
+}
+
+/**
+ * Source coordinator answers a pending request ("Responder"): posts an
+ * `information_response`, waiting-on = target, resumes `in_review`. The RPC requires
+ * `awaiting_information` (HC0A1).
+ */
+export async function provideReferralInformation(
+  input: ProvideReferralInfoInput,
+): Promise<ReferralActionState> {
+  if (!input.referralId) {
+    return { ok: false, error: REFERRAL_MESSAGES.missingReferral }
+  }
+  if (!input.body?.trim()) {
+    return { ok: false, fieldErrors: { body: REFERRAL_MESSAGES.responseBodyRequired } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('provide_referral_information', {
+    p_referral_id: input.referralId,
+    p_body: input.body.trim(),
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.informationProvided }
 }
