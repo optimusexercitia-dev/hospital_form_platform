@@ -1525,6 +1525,7 @@ export type Database = {
           granted_at: string
           granted_by: string | null
           level: string
+          max_confidentiality: string | null
           reason: string | null
           user_id: string
         }
@@ -1534,6 +1535,7 @@ export type Database = {
           granted_at?: string
           granted_by?: string | null
           level: string
+          max_confidentiality?: string | null
           reason?: string | null
           user_id: string
         }
@@ -1543,6 +1545,7 @@ export type Database = {
           granted_at?: string
           granted_by?: string | null
           level?: string
+          max_confidentiality?: string | null
           reason?: string | null
           user_id?: string
         }
@@ -2713,6 +2716,7 @@ export type Database = {
         Row: {
           created_at: string
           default_case_label: string | null
+          default_confidentiality_level: string
           default_visibility_policy: string
           display_name: string
           id: string
@@ -2725,6 +2729,7 @@ export type Database = {
         Insert: {
           created_at?: string
           default_case_label?: string | null
+          default_confidentiality_level?: string
           default_visibility_policy?: string
           display_name: string
           id?: string
@@ -2737,6 +2742,7 @@ export type Database = {
         Update: {
           created_at?: string
           default_case_label?: string | null
+          default_confidentiality_level?: string
           default_visibility_policy?: string
           display_name?: string
           id?: string
@@ -2762,6 +2768,7 @@ export type Database = {
           closed_at: string | null
           closed_by: string | null
           commission_id: string
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           department_id: string | null
@@ -2778,12 +2785,14 @@ export type Database = {
           status: string
           template_id: string | null
           updated_at: string
+          visibility_policy: string
         }
         Insert: {
           case_number: number
           closed_at?: string | null
           closed_by?: string | null
           commission_id: string
+          confidentiality_level?: string
           created_at?: string
           created_by?: string | null
           department_id?: string | null
@@ -2800,12 +2809,14 @@ export type Database = {
           status?: string
           template_id?: string | null
           updated_at?: string
+          visibility_policy?: string
         }
         Update: {
           case_number?: number
           closed_at?: string | null
           closed_by?: string | null
           commission_id?: string
+          confidentiality_level?: string
           created_at?: string
           created_by?: string | null
           department_id?: string | null
@@ -2822,6 +2833,7 @@ export type Database = {
           status?: string
           template_id?: string | null
           updated_at?: string
+          visibility_policy?: string
         }
         Relationships: [
           {
@@ -7669,6 +7681,7 @@ export type Database = {
           closed_at: string | null
           closed_by: string | null
           commission_id: string
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           department_id: string | null
@@ -7685,6 +7698,7 @@ export type Database = {
           status: string
           template_id: string | null
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -7897,6 +7911,7 @@ export type Database = {
           closed_at: string | null
           closed_by: string | null
           commission_id: string
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           department_id: string | null
@@ -7913,6 +7928,7 @@ export type Database = {
           status: string
           template_id: string | null
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -8287,6 +8303,7 @@ export type Database = {
           closed_at: string | null
           closed_by: string | null
           commission_id: string
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           department_id: string | null
@@ -8303,6 +8320,7 @@ export type Database = {
           status: string
           template_id: string | null
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -8313,6 +8331,7 @@ export type Database = {
       }
       create_case_from_template: {
         Args: {
+          p_case_type_id?: string
           p_department_id?: string
           p_department_other?: string
           p_label?: string
@@ -8323,6 +8342,7 @@ export type Database = {
           closed_at: string | null
           closed_by: string | null
           commission_id: string
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           department_id: string | null
@@ -8339,6 +8359,7 @@ export type Database = {
           status: string
           template_id: string | null
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -10618,6 +10639,7 @@ export type Database = {
           closed_at: string | null
           closed_by: string | null
           commission_id: string
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           department_id: string | null
@@ -10634,6 +10656,7 @@ export type Database = {
           status: string
           template_id: string | null
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -11449,6 +11472,7 @@ export type Database = {
           closed_at: string | null
           closed_by: string | null
           commission_id: string
+          confidentiality_level: string
           created_at: string
           created_by: string | null
           department_id: string | null
@@ -11465,6 +11489,7 @@ export type Database = {
           status: string
           template_id: string | null
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
