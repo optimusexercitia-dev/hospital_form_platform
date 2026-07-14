@@ -315,7 +315,9 @@ test('IV2-0 — seeded fixture: awaiting_follow_up (1 completed + 1 scheduled se
   const dbRow = await getInterviewRow(page, SEEDED_INTERVIEW_ID)
   expect(dbRow?.status).toBe('awaiting_follow_up')
   expect(dbRow?.interview_category).toBe('clinical_team')
-  expect(dbRow?.confidentiality_level).toBe('standard')
+  // ADR 0072 D7 (ETH·E1 BE-6) remapped the 3-value IV2 tag onto the 7-value
+  // taxonomy at O3: standard→non_phi_internal.
+  expect(dbRow?.confidentiality_level).toBe('non_phi_internal')
 
   const sessions = await getSessions(page, SEEDED_INTERVIEW_ID)
   expect(sessions.length).toBe(2)
@@ -365,9 +367,14 @@ test('IV2-1 — create requires interview_category (cannot submit without it); c
 
   await createDialog.getByPlaceholder(/Entrevista com a equipe/i).fill('Entrevista IV2-1')
 
-  // The confidentiality helper copy is visible and states the tag does not
-  // restrict access yet (mandatory pt-BR clarification — plan §2.6 / §6 risk).
-  await expect(createDialog.getByText(/não restringe o acesso/i)).toBeVisible()
+  // The confidentiality helper copy is visible. ADR 0072 D7/D5 (ETH·E1) made the
+  // tag genuinely enforcing for two tiers (legal_privileged/credentialing_sensitive
+  // require elevated clearance), so the old "does not restrict access yet" claim is
+  // no longer accurate — `CONFIDENTIALITY_HELPER_TEXT` was corrected accordingly
+  // (src/components/interviews/interview-labels.ts). Assert the new copy.
+  await expect(
+    createDialog.getByText(/exige autorização adicional para ser aberto/i),
+  ).toBeVisible()
 
   // Isolate: don't schedule a first session inline for this test.
   await createDialog.getByRole('checkbox', { name: /Agendar a primeira sessão agora/i }).uncheck()
@@ -393,7 +400,9 @@ test('IV2-1 — create requires interview_category (cannot submit without it); c
 
   const dbRow = await getInterviewRow(page, interviewId)
   expect(dbRow?.interview_category).toBe('witness')
-  expect(dbRow?.confidentiality_level).toBe('standard')
+  // Same O3 remap as IV2-0 — the create dialog's default is now non_phi_internal
+  // (still labeled "Padrão" — the pt-BR label text is unchanged, only the DB key is).
+  expect(dbRow?.confidentiality_level).toBe('non_phi_internal')
 
   // Server-level defense in depth: create_interview rejects a missing category (HC0B1).
   const chefeToken = await getOwnerToken(page, 'chefe.ccih@test.local')
