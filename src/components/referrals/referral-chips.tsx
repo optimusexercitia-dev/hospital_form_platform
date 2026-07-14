@@ -17,16 +17,22 @@ import {
   CircleDot,
   CircleSlash,
   Clock3,
+  CornerDownRight,
   FileEdit,
   Inbox,
+  Info,
+  MessageCircleQuestion,
+  MessageSquareText,
   Microscope,
   type LucideIcon,
 } from "lucide-react";
 
 import {
+  MESSAGE_TYPE_LABELS,
   REFERRAL_DIRECTION_LABELS,
   REFERRAL_STATUS_LABELS,
   REFERRAL_STATUS_TOKENS,
+  type MessageType,
   type ReferralDirection,
   type ReferralStatus,
 } from "@/lib/referrals/types";
@@ -51,6 +57,7 @@ const STATUS_ICON: Record<ReferralStatus, LucideIcon> = {
   accepted: CircleDot,
   rejected: CircleSlash,
   in_review: Microscope,
+  awaiting_information: MessageCircleQuestion,
   completed: CircleCheck,
   withdrawn: CircleSlash,
 };
@@ -102,6 +109,44 @@ export function ReferralTypeChip({
   return (
     <span className={cn(REFERRAL_META_CHIP_BASE, referralTypeChipClass(colorToken))}>
       {label}
+    </span>
+  );
+}
+
+/**
+ * Message-type chip on the dialogue thread (RV2 R1). Convey the kind by icon +
+ * text + tone (never colour alone): the `information_request` / `information_response`
+ * clarification pair carries a caution/primary tone; a `general` comment /
+ * `clarification` note stays quiet (metadata, not a control). PHI-FREE — the chip
+ * is the message KIND, never its body.
+ */
+export function ReferralMessageTypeChip({ type }: { type: MessageType }) {
+  const config: Record<
+    MessageType,
+    { icon: LucideIcon; className: string }
+  > = {
+    general: {
+      icon: MessageSquareText,
+      className: "border-border bg-muted text-muted-foreground",
+    },
+    information_request: {
+      icon: MessageCircleQuestion,
+      className: "border-warning/30 bg-warning/10 text-warning",
+    },
+    information_response: {
+      icon: CornerDownRight,
+      className: "border-primary/30 bg-primary/10 text-primary",
+    },
+    clarification: {
+      icon: Info,
+      className: "border-border bg-muted text-muted-foreground",
+    },
+  };
+  const { icon: Icon, className } = config[type];
+  return (
+    <span className={cn(CHIP_BASE, className)}>
+      <Icon aria-hidden="true" className="size-3.5" />
+      {MESSAGE_TYPE_LABELS[type]}
     </span>
   );
 }

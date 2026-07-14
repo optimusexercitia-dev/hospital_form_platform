@@ -34,6 +34,7 @@ const STATUS_FILTER_ORDER: ReferralStatus[] = [
   "received",
   "accepted",
   "in_review",
+  "awaiting_information",
   "completed",
   "rejected",
   "withdrawn",
@@ -217,7 +218,7 @@ export function ReferralsList({
         </section>
       ) : (
         <div className="animate-fade-in overflow-x-auto rounded-2xl border border-border bg-card shadow-xs">
-          <table className="w-full min-w-[820px] border-collapse text-sm">
+          <table className="w-full min-w-[940px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
                 <SortHeader
@@ -256,6 +257,12 @@ export function ReferralsList({
                   dir={sort.dir}
                   onClick={() => toggle("criado")}
                 />
+                <th
+                  scope="col"
+                  className="px-3 py-2.5 text-left text-[0.68rem] font-semibold tracking-wide text-muted-foreground uppercase"
+                >
+                  Última atividade
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -317,6 +324,15 @@ export function ReferralsList({
                   </td>
                   <td className="px-3 py-2.5 align-middle text-xs whitespace-nowrap text-muted-foreground tabular-nums">
                     {formatDate(r.createdAt)}
+                  </td>
+                  {/* RV2 R1: last thread activity — PHI-free metadata only (a
+                      timestamp, NEVER a message-body preview; plan §2.2). */}
+                  <td className="px-3 py-2.5 align-middle text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+                    {r.lastMessageAt ? (
+                      formatDate(r.lastMessageAt)
+                    ) : (
+                      <span className="text-muted-foreground/70">—</span>
+                    )}
                   </td>
                 </tr>
               ))}

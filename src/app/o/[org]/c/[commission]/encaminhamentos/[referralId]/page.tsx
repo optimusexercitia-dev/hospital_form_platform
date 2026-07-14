@@ -27,6 +27,8 @@ import {
 } from "@/components/referrals/referral-chips";
 import { ReferralSnapshot } from "@/components/referrals/referral-snapshot";
 import { ReferralReplyView } from "@/components/referrals/referral-reply-view";
+import { ReferralThread } from "@/components/referrals/referral-thread";
+import { ReferralComposer } from "@/components/referrals/referral-composer";
 import {
   ReferralActions,
   type LinkableTargetCase,
@@ -175,6 +177,17 @@ export default async function ReferralDetailPage({
   const inFlight = !RESOLVED_REFERRAL_STATUSES.has(detail.status);
   const backHref = commissionHref(org, commission, "encaminhamentos");
 
+  // RV2 R1: the dialogue thread + its gated composer. The waiting-on indicator is
+  // shown only while `awaiting_information`, resolving the PHI-free
+  // `waitingOnCommitteeId` to the source/target committee name (never a body).
+  const canSideActor = canManageTarget || canManageSource;
+  const waitingOnLabel =
+    detail.status === "awaiting_information" && detail.waitingOnCommitteeId
+      ? detail.waitingOnCommitteeId === detail.sourceCommissionId
+        ? `Aguardando informações da comissão de origem (${detail.sourceCommissionName ?? "origem"}).`
+        : `Aguardando informações da comissão de destino (${detail.targetCommissionName ?? "destino"}).`
+      : null;
+
   return (
     <SafetyMotion runKey={detail.id} className="flex flex-col gap-8">
       <header data-rise className="flex flex-col gap-4">
@@ -255,6 +268,27 @@ export default async function ReferralDetailPage({
             <ReferralSnapshot
               sharedItems={detail.sharedItems}
               documentUrls={documentUrls}
+            />
+          </div>
+
+          {/* RV2 R1: the two-way dialogue thread + the side/status-gated composer.
+              The read thread is server-rendered (PHI-safe: a restricted body shows
+              a placeholder, never the text); the composer is a client island shown
+              only to a side coordinator while the referral is non-terminal. */}
+          <div data-rise>
+            <ReferralThread
+              messages={detail.messages}
+              waitingOnLabel={waitingOnLabel}
+              composer={
+                inFlight && canSideActor ? (
+                  <ReferralComposer
+                    referralId={detail.id}
+                    status={detail.status}
+                    canManageTarget={canManageTarget}
+                    canManageSource={canManageSource}
+                  />
+                ) : null
+              }
             />
           </div>
 
