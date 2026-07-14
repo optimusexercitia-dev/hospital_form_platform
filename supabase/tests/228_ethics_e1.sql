@@ -15,7 +15,7 @@
 -- =============================================================================
 
 begin;
-select plan(40);
+select plan(84);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -382,6 +382,176 @@ select lives_ok(
   $$ select * from public.open_attachment('00000000-0000-0000-0000-0000000e0201') $$,
   'ceiling: a cleared reader opens the legal_privileged doc');
 reset role;
+
+-- ===========================================================================
+-- BE-5 — DEFINER write authority (ADR 0072 D6/D8). The ethics write spine gates
+-- on the case_participants flag + audit_trail for the audit assertions.
+-- ===========================================================================
+reset role;
+update app.feature_flags set enabled = true where key in ('case_participants', 'audit_trail');
+update app.feature_flags set enabled = false where key = 'case_access';
+
+-- (t19) anon must NOT execute any of the 10 new RPCs.
+select is(has_function_privilege('anon', 'public.add_case_participant(uuid,uuid,uuid,boolean,text)', 'EXECUTE'), false, 't19: anon cannot EXECUTE add_case_participant');
+select is(has_function_privilege('anon', 'public.remove_case_participant(uuid)', 'EXECUTE'), false, 't19: anon cannot EXECUTE remove_case_participant');
+select is(has_function_privilege('anon', 'public.set_primary_subject(uuid)', 'EXECUTE'), false, 't19: anon cannot EXECUTE set_primary_subject');
+select is(has_function_privilege('anon', 'public.set_case_participant_role(uuid,uuid)', 'EXECUTE'), false, 't19: anon cannot EXECUTE set_case_participant_role');
+select is(has_function_privilege('anon', 'public.create_professional_profile(uuid,text,text,text,text,text,text,uuid)', 'EXECUTE'), false, 't19: anon cannot EXECUTE create_professional_profile');
+select is(has_function_privilege('anon', 'public.update_professional_profile(uuid,text,text,text,text,text,text)', 'EXECUTE'), false, 't19: anon cannot EXECUTE update_professional_profile');
+select is(has_function_privilege('anon', 'public.set_case_confidentiality(uuid,text)', 'EXECUTE'), false, 't19: anon cannot EXECUTE set_case_confidentiality');
+select is(has_function_privilege('anon', 'public.declare_conflict(uuid,text,text)', 'EXECUTE'), false, 't19: anon cannot EXECUTE declare_conflict');
+select is(has_function_privilege('anon', 'public.record_recusal(uuid,uuid,text,uuid)', 'EXECUTE'), false, 't19: anon cannot EXECUTE record_recusal');
+select is(has_function_privilege('anon', 'public.lift_recusal(uuid,text)', 'EXECUTE'), false, 't19: anon cannot EXECUTE lift_recusal');
+
+-- (t19) authenticated MUST execute each (the grant lives).
+select is(has_function_privilege('authenticated', 'public.add_case_participant(uuid,uuid,uuid,boolean,text)', 'EXECUTE'), true, 't19: authenticated can EXECUTE add_case_participant');
+select is(has_function_privilege('authenticated', 'public.remove_case_participant(uuid)', 'EXECUTE'), true, 't19: authenticated can EXECUTE remove_case_participant');
+select is(has_function_privilege('authenticated', 'public.set_primary_subject(uuid)', 'EXECUTE'), true, 't19: authenticated can EXECUTE set_primary_subject');
+select is(has_function_privilege('authenticated', 'public.set_case_participant_role(uuid,uuid)', 'EXECUTE'), true, 't19: authenticated can EXECUTE set_case_participant_role');
+select is(has_function_privilege('authenticated', 'public.create_professional_profile(uuid,text,text,text,text,text,text,uuid)', 'EXECUTE'), true, 't19: authenticated can EXECUTE create_professional_profile');
+select is(has_function_privilege('authenticated', 'public.update_professional_profile(uuid,text,text,text,text,text,text)', 'EXECUTE'), true, 't19: authenticated can EXECUTE update_professional_profile');
+select is(has_function_privilege('authenticated', 'public.set_case_confidentiality(uuid,text)', 'EXECUTE'), true, 't19: authenticated can EXECUTE set_case_confidentiality');
+select is(has_function_privilege('authenticated', 'public.declare_conflict(uuid,text,text)', 'EXECUTE'), true, 't19: authenticated can EXECUTE declare_conflict');
+select is(has_function_privilege('authenticated', 'public.record_recusal(uuid,uuid,text,uuid)', 'EXECUTE'), true, 't19: authenticated can EXECUTE record_recusal');
+select is(has_function_privilege('authenticated', 'public.lift_recusal(uuid,text)', 'EXECUTE'), true, 't19: authenticated can EXECUTE lift_recusal');
+
+-- Fixtures: an external_person participant + a role that admits it.
+insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+values ('00000000-0000-0000-0000-0000000e0111', (select org_x from k), 'external_person', 'non_sensitive', 'Testemunha');
+insert into public.case_participant_roles
+  (id, organization_id, key, display_name, allowed_participant_types)
+values ('00000000-0000-0000-0000-0000000e0112', (select org_x from k), 'witness', 'Testemunha', array['external_person']);
+
+-- add_case_participant: coordinator OK; reader HC0E4; type/role mismatch HC0E3.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.add_case_participant(%L, '00000000-0000-0000-0000-0000000e0111',
+            '00000000-0000-0000-0000-0000000e0112') $$, (select cid from c_default)),
+  'add_case_participant: a coordinator links a participant');
+select throws_ok(
+  format($$ select public.add_case_participant(%L, '00000000-0000-0000-0000-0000000e0111',
+            '00000000-0000-0000-0000-0000000e0103') $$, (select cid from c_default)),
+  'HC0E3', null,
+  'add_case_participant: a role incompatible with the participant type raises HC0E3');
+reset role;
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.add_case_participant(%L, '00000000-0000-0000-0000-0000000e0111',
+            '00000000-0000-0000-0000-0000000e0112') $$, (select cid from c_default)),
+  'HC0E4', null,
+  'add_case_participant: a non-coordinator reader is denied (HC0E4)');
+-- case_participants stays SELECT-only: a direct authenticated INSERT is denied.
+select throws_ok(
+  format($$ insert into public.case_participants (case_id, participant_id, role_id)
+            values (%L, '00000000-0000-0000-0000-0000000e0111', '00000000-0000-0000-0000-0000000e0112') $$,
+          (select cid from c_default)),
+  '42501', null,
+  'case_participants stays SELECT-only: a direct authenticated INSERT is denied');
+reset role;
+
+-- set_case_confidentiality: coordinator OK; reader HC0E4; invalid level HC0E5.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.set_case_confidentiality(%L, 'ethics_investigation') $$, (select cid from c_default)),
+  'set_case_confidentiality: a coordinator reclassifies the case');
+select throws_ok(
+  format($$ select public.set_case_confidentiality(%L, 'bogus') $$, (select cid from c_default)),
+  'HC0E5', null,
+  'set_case_confidentiality: an invalid level raises HC0E5');
+reset role;
+select is((select confidentiality_level from public.cases where id = (select cid from c_default)),
+  'ethics_investigation', 'set_case_confidentiality persisted the new ceiling');
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.set_case_confidentiality(%L, 'legal_privileged') $$, (select cid from c_default)),
+  'HC0E4', null,
+  'set_case_confidentiality: a non-coordinator is denied (HC0E4)');
+
+-- declare_conflict: a case reader self-declares; a duplicate raises HC0E2.
+select lives_ok(
+  format($$ select public.declare_conflict(%L, 'personal_relationship', 'conheço o denunciado') $$,
+          (select cid from c_default)),
+  'declare_conflict: a case reader self-declares a conflict');
+select throws_ok(
+  format($$ select public.declare_conflict(%L, 'other', 'de novo') $$, (select cid from c_default)),
+  'HC0E2', null,
+  'declare_conflict: a second declaration by the same user raises HC0E2');
+reset role;
+
+-- record_recusal: coordinator recuses st_x2 → st_x2 immediately loses read; duplicate HC0E0.
+select is(app.can_read_case((select cid from c_default), (select st_x2 from k)), true,
+  'baseline: st_x2 can read c_default before the recusal');
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.record_recusal(%L, %L, 'conflito confirmado') $$,
+          (select cid from c_default), (select st_x2 from k)),
+  'record_recusal: a coordinator records a recusal');
+select throws_ok(
+  format($$ select public.record_recusal(%L, %L, 'de novo') $$,
+          (select cid from c_default), (select st_x2 from k)),
+  'HC0E0', null,
+  'record_recusal: a second LIVE recusal for the same user raises HC0E0');
+reset role;
+select is(app.can_read_case((select cid from c_default), (select st_x2 from k)), false,
+  'record_recusal takes effect immediately: st_x2 loses read via the deny-term');
+
+-- lift_recusal: coordinator lifts → read restored; a second lift raises HC0E1.
+create temp table rec on commit drop as
+  select id from public.case_recusals
+  where case_id = (select cid from c_default) and user_id = (select st_x2 from k) and lifted_at is null;
+grant select on rec to authenticated;
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.lift_recusal(%L, 'esclarecido') $$, (select id from rec)),
+  'lift_recusal: a coordinator lifts the recusal');
+select throws_ok(
+  format($$ select public.lift_recusal(%L, 'de novo') $$, (select id from rec)),
+  'HC0E1', null,
+  'lift_recusal: lifting an already-lifted recusal raises HC0E1');
+reset role;
+select is(app.can_read_case((select cid from c_default), (select st_x2 from k)), true,
+  'lift_recusal restores read for st_x2');
+
+-- create/update_professional_profile: coordinator OK; a plain member is denied (42501).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table prof on commit drop as
+  select public.create_professional_profile((select org_x from k), 'Dr. Teste', 'medico') as pid;
+grant select on prof to authenticated;
+select ok((select pid from prof) is not null,
+  'create_professional_profile: a coordinator creates a profile');
+select lives_ok(
+  format($$ select public.update_professional_profile(%L, 'Dr. Teste Corrigido') $$, (select pid from prof)),
+  'update_professional_profile: a coordinator corrects a profile');
+reset role;
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.create_professional_profile(%L, 'Dr. Intruso') $$, (select org_x from k)),
+  '42501', null,
+  'create_professional_profile: a plain member (non-coordinator) is denied (42501)');
+reset role;
+
+-- audit: each mutation emitted exactly ONE PHI-free row; the professional row has no payload.
+select is((select count(*)::int from public.audit_log
+           where action = 'case.participant_added' and entity_id = (select cid from c_default)), 1,
+  'audit: participant-add emitted exactly one row');
+select is((select count(*)::int from public.audit_log
+           where action = 'case.recusal_recorded' and entity_id = (select cid from c_default)), 1,
+  'audit: recusal-record emitted exactly one row');
+select is((select count(*)::int from public.audit_log
+           where action = 'case.confidentiality_changed' and entity_id = (select cid from c_default)), 1,
+  'audit: confidentiality-change emitted exactly one row');
+select ok(
+  not exists (select 1 from public.audit_log
+              where action = 'professional_profile.created' and metadata::text ilike '%Teste%'),
+  'audit (Rule 11): the professional_profile.created row carries NO identity payload');
 
 select * from finish();
 rollback;

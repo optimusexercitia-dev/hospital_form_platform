@@ -2504,6 +2504,7 @@ export type Database = {
           case_id: string
           conflict_declaration_id: string | null
           id: string
+          lift_reason_md: string | null
           lifted_at: string | null
           lifted_by: string | null
           reason_md: string | null
@@ -2516,6 +2517,7 @@ export type Database = {
           case_id: string
           conflict_declaration_id?: string | null
           id?: string
+          lift_reason_md?: string | null
           lifted_at?: string | null
           lifted_by?: string | null
           reason_md?: string | null
@@ -2528,6 +2530,7 @@ export type Database = {
           case_id?: string
           conflict_declaration_id?: string | null
           id?: string
+          lift_reason_md?: string | null
           lifted_at?: string | null
           lifted_by?: string | null
           reason_md?: string | null
@@ -7159,6 +7162,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      add_case_participant: {
+        Args: {
+          p_case_id: string
+          p_involvement_summary?: string
+          p_is_primary_subject?: boolean
+          p_participant_id: string
+          p_role_id: string
+        }
+        Returns: string
+      }
       add_interview_interviewer: {
         Args: {
           p_external_name?: string
@@ -8996,6 +9009,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_professional_profile: {
+        Args: {
+          p_affiliation_status?: string
+          p_full_name: string
+          p_license_number?: string
+          p_license_region?: string
+          p_org: string
+          p_professional_type?: string
+          p_specialty?: string
+          p_user_id?: string
+        }
+        Returns: string
+      }
       create_referral_draft: {
         Args: {
           p_description_md?: string
@@ -9141,6 +9167,14 @@ export type Database = {
           count: number
           day: string
         }[]
+      }
+      declare_conflict: {
+        Args: {
+          p_case_id: string
+          p_conflict_type: string
+          p_description_md: string
+        }
+        Returns: string
       }
       decline_referral: {
         Args: { p_note?: string; p_referral_id: string }
@@ -9417,6 +9451,10 @@ export type Database = {
         Returns: boolean
       }
       is_pqs_member_self: { Args: never; Returns: boolean }
+      lift_recusal: {
+        Args: { p_reason_md: string; p_recusal_id: string }
+        Returns: undefined
+      }
       link_meeting_case: {
         Args: {
           p_agenda_item_id?: string
@@ -10174,6 +10212,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      record_recusal: {
+        Args: {
+          p_case_id: string
+          p_conflict_declaration_id?: string
+          p_reason_md: string
+          p_user_id: string
+        }
+        Returns: string
+      }
       referrals_enabled: { Args: never; Returns: boolean }
       reject_document: {
         Args: { p_note?: string; p_version_id: string }
@@ -10202,6 +10249,10 @@ export type Database = {
       }
       remove_capa_measure: {
         Args: { p_measure_id: string }
+        Returns: undefined
+      }
+      remove_case_participant: {
+        Args: { p_case_participant_id: string }
         Returns: undefined
       }
       remove_interview_interviewer: {
@@ -10761,6 +10812,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_case_confidentiality: {
+        Args: { p_case_id: string; p_level: string }
+        Returns: undefined
+      }
       set_case_offered_outcomes: {
         Args: { p_case_id: string; p_outcome_ids: string[] }
         Returns: undefined
@@ -10797,6 +10852,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_case_participant_role: {
+        Args: { p_case_participant_id: string; p_role_id: string }
+        Returns: undefined
       }
       set_case_patient: {
         Args: {
@@ -11003,6 +11062,10 @@ export type Database = {
       set_pqs_rca_due_window: {
         Args: { p_days: number; p_hospital_id: string }
         Returns: number
+      }
+      set_primary_subject: {
+        Args: { p_case_participant_id: string }
+        Returns: undefined
       }
       set_process_outcomes: {
         Args: { p_outcome_ids: string[]; p_template_id: string }
@@ -12234,6 +12297,18 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      update_professional_profile: {
+        Args: {
+          p_affiliation_status?: string
+          p_full_name?: string
+          p_license_number?: string
+          p_license_region?: string
+          p_professional_type?: string
+          p_profile_id: string
+          p_specialty?: string
+        }
+        Returns: undefined
       }
       update_rca: {
         Args: {
