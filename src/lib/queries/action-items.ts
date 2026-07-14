@@ -43,6 +43,15 @@ export type ActionItemSource = 'case' | 'meeting' | 'manual'
 export type MyActionItemStatus = 'open' | 'in_progress' | 'done' | 'cancelled'
 
 /**
+ * Per-row read scope of a shared `action_items` hub row (ADR 0050). `committee`
+ * (flat membership — the default), `case_restricted` (follows `app.can_read_case`
+ * on `coalesce(source_case_id, case_id)`), or `assignees_only` (active assignment /
+ * `assigned_to`, plus staff_admin/org_admin). Exported once here and reused across
+ * the action-item query modules (`case-action-items`, the three satellites).
+ */
+export type VisibilityScope = 'committee' | 'case_restricted' | 'assignees_only'
+
+/**
  * One action item ASSIGNED TO the current user, unified across the case +
  * meeting sources. Read-only. `dueDate` is a DATE (`YYYY-MM-DD`) on both source
  * tables. Carries enough per row for the client to build a link to the source
@@ -57,6 +66,8 @@ export interface MyActionItem {
   /** Inline-preview body; `null` if none. */
   description: string | null
   status: MyActionItemStatus
+  /** Per-row read scope (ADR 0050); drives the visibility badge (§4.6). */
+  visibilityScope: VisibilityScope
   /**
    * ISO `YYYY-MM-DD`; `null` = no deadline. A past date on an active item
    * (`open`/`in_progress`) is overdue — computed client-side.
@@ -92,6 +103,7 @@ interface MyActionItemJson {
   title: string
   description: string | null
   status: MyActionItemStatus
+  visibility_scope: VisibilityScope
   due_date: string | null
   created_at: string
   created_by_name: string | null
@@ -147,6 +159,7 @@ export async function listMyActionItems(
     title: r.title,
     description: r.description,
     status: r.status,
+    visibilityScope: r.visibility_scope,
     dueDate: r.due_date,
     createdAt: r.created_at,
     createdByName: r.created_by_name,
