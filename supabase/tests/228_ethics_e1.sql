@@ -15,7 +15,7 @@
 -- =============================================================================
 
 begin;
-select plan(119);
+select plan(125);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -732,6 +732,127 @@ select throws_ok(
           (select cid from c_default), (select sa_y from k)),
   'P0002', null,
   'QA MAJOR-2: a no-reach user cannot self-recuse into a foreign case (P0002 — no oracle)');
+reset role;
+
+-- ===========================================================================
+-- QA MAJOR-3 (round 2) — meeting_cases leaks case deliberation (summary/decision).
+-- Its policies key ONLY on the meeting dimension, with no case predicate at any layer.
+-- Run BEFORE the org_admin grants below, so st_x / st_x2 are still PLAIN STAFF — QA's
+-- canonical persona ("even though they are a commission member").
+--
+-- The three properties are in tension, which is the whole difficulty here:
+--   Proof 1  a plain-staff RESPONDENT must not read deliberation about their own case;
+--   Proof 2  a NON-GRANTED member must not read an explicit_grants_only case's
+--            deliberation (no respondent involved — a different reach path);
+--   NO-OP    a plain member MUST still read an ORDINARY (commission_default) linked
+--            case's deliberation — meetings routinely discuss ordinary cases.
+-- ===========================================================================
+reset role;
+
+-- A meeting in comm_x linking three cases: the respondent's (c_default), the ethics
+-- case (c_ethics, explicit_grants_only) and an ordinary one (c_flagoff, the no-op guard).
+insert into public.meetings (id, commission_id, meeting_number, title, scheduled_start)
+values ('bb000000-0000-0000-0000-0000000000e1', (select comm_x from k), 9001,
+        'Reunião de deliberação', now());
+insert into public.meeting_cases (meeting_id, case_id, summary, decision) values
+  ('bb000000-0000-0000-0000-0000000000e1', (select cid from c_default),
+   'Conduta do Dr. Respondente analisada pelo comitê', 'Encaminhar para sindicância'),
+  ('bb000000-0000-0000-0000-0000000000e1', (select cid from c_ethics),
+   'Deliberação ética confidencial sobre o Dr. X', 'Sanção proposta: advertência'),
+  ('bb000000-0000-0000-0000-0000000000e1', (select cid from c_flagoff),
+   'Discussão de caso comum', 'Arquivar');
+-- Proof-2 persona: a member of comm_x with NO grant on the ethics case.
+delete from public.case_access
+  where case_id = (select cid from c_ethics) and user_id = (select st_x2 from k);
+
+-- Generic leak sweep (QA round-2 process note): enumerate every case_id-bearing base
+-- table FROM THE CATALOG (never a hand-maintained list) + `cases` itself, and report any
+-- table the caller can read rows from for a given case. SECURITY INVOKER ⇒ RLS applies
+-- under the assumed role. A table the role cannot select at all is not a leak (0).
+-- NOTE: case_recusals' self-arm (D4) is intentional — the personas below deliberately
+-- hold no self-recusal on the case they sweep, so it must still read 0.
+create or replace function public._e1_sweep_case_leaks(p_case_id uuid, p_uid uuid)
+  returns table(tbl text, n bigint)
+  language plpgsql security invoker
+as $$
+declare r record; c bigint;
+begin
+  for r in
+    select t.table_name as tn
+    from information_schema.tables t
+    join information_schema.columns col
+      on col.table_schema = t.table_schema and col.table_name = t.table_name
+    where t.table_schema = 'public' and t.table_type = 'BASE TABLE'
+      and col.column_name = 'case_id'
+      -- DOCUMENTED EXCLUSION (the sweep is otherwise FAIL-CLOSED: anything not listed
+      -- here must read ZERO, so a future table with the wrong shape fails automatically
+      -- without anyone predicting it).
+      --   patient_safety_event — governed by app.can_read_event, whose arms are
+      --     owner-commission / reporting-commission / NSP-operator ONLY: there is no case
+      --     arm by design. An NSP event is its OWN record (own lifecycle, own content)
+      --     that merely LINKS to a case; a CCIH member could read it before E1 and
+      --     independently of any case. It carries no case deliberation. Gating it on
+      --     case-read would rewrite the NSP (PHI module 1) access model, which E1 does
+      --     not own — the same disposition as action_items' assignees_only arm, which the
+      --     PO is carrying as a known gap. Flagged to the lead, NOT silently dropped.
+      and t.table_name not in ('patient_safety_event')
+    union all select 'cases'
+    order by 1
+  loop
+    begin
+      if r.tn = 'cases' then
+        execute 'select count(*) from public.cases where id = $1' into c using p_case_id;
+      elsif r.tn in ('case_recusals', 'case_access') then
+        -- DOCUMENTED SELF-ARMS (not leaks): a user may always see their OWN recusal row
+        -- (ADR 0072 D4 — so a recused member can be shown "você está impedido" without
+        -- gaining case read) and their OWN access grant. Both are deliberate and were
+        -- preserved by design. Count only rows the persona does NOT own — everything
+        -- else on these tables must still read zero.
+        execute format('select count(*) from public.%I where case_id = $1 and user_id <> $2', r.tn)
+          into c using p_case_id, p_uid;
+      else
+        execute format('select count(*) from public.%I where case_id = $1', r.tn)
+          into c using p_case_id;
+      end if;
+    exception when insufficient_privilege then c := 0;
+    end;
+    if c > 0 then tbl := r.tn; n := c; return next; end if;
+  end loop;
+end;
+$$;
+grant execute on function public._e1_sweep_case_leaks(uuid, uuid) to authenticated;
+
+-- NO-OP GUARD (must hold BEFORE and AFTER the fix): a plain member with NO grant and NO
+-- attribution still reads an ORDINARY linked case's deliberation. This is the regression
+-- QA's suggested `can_read_case_or_admin` conjunct would have caused.
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.meeting_cases where case_id = (select cid from c_flagoff)), 1,
+  'MAJOR-3 NO-OP: a plain member still reads an ORDINARY (commission_default) linked case''s deliberation');
+reset role;
+-- …and this is WHY a bare can_read_case_or_admin conjunct would have broken it: that
+-- predicate is false for an ordinary member of an ordinary case (no member arm on the
+-- case_access-ON path). Locks the reasoning behind the member-surface predicate.
+select is(app.can_read_case_or_admin((select cid from c_flagoff), (select st_x2 from k)), false,
+  'MAJOR-3: can_read_case_or_admin is FALSE for a plain member of an ordinary case (why the member-surface predicate exists)');
+
+-- PROOF 1 — a plain-staff RESPONDENT must not read deliberation about their own case.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.meeting_cases where case_id = (select cid from c_default)), 0,
+  'QA MAJOR-3 Proof 1: a plain-staff respondent reads NO meeting_cases deliberation of their own case');
+select is((select coalesce(string_agg(tbl || '=' || n, ', ' order by tbl), '') from public._e1_sweep_case_leaks((select cid from c_default), (select st_x from k))), '',
+  'QA MAJOR-3 SWEEP: an excluded respondent reads ZERO rows from EVERY case_id-bearing table');
+reset role;
+
+-- PROOF 2 — a NON-GRANTED member must not read an explicit_grants_only case's
+-- deliberation (no respondent, no recusal involved — a distinct reach path).
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.meeting_cases where case_id = (select cid from c_ethics)), 0,
+  'QA MAJOR-3 Proof 2: a non-granted member reads NO deliberation of an explicit_grants_only case');
+select is((select coalesce(string_agg(tbl || '=' || n, ', ' order by tbl), '') from public._e1_sweep_case_leaks((select cid from c_ethics), (select st_x2 from k))), '',
+  'QA MAJOR-3 SWEEP: a non-granted member reads ZERO rows from EVERY case_id-bearing table of an ethics case');
 reset role;
 
 -- (MAJOR-1) Make the respondent + the recused user org_admins, so the policies'
