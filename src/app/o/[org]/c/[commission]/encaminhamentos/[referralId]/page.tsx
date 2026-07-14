@@ -179,8 +179,11 @@ export default async function ReferralDetailPage({
 
   // RV2 R1: the dialogue thread + its gated composer. The waiting-on indicator is
   // shown only while `awaiting_information`, resolving the PHI-free
-  // `waitingOnCommitteeId` to the source/target committee name (never a body).
-  const canSideActor = canManageTarget || canManageSource;
+  // `waitingOnCommitteeId` to the source/target committee name (never a body). The
+  // composer gates on the door's COMPOSE-AUTHORITY flags (byte-for-gate parity with
+  // the R1 RPCs — so a target analyst, not just a coordinator, may compose), NOT
+  // the `staff_admin`-scoped canManage* used by the coordinator-only ReferralActions.
+  const canCompose = detail.canComposeAsSource || detail.canComposeAsTarget;
   const waitingOnLabel =
     detail.status === "awaiting_information" && detail.waitingOnCommitteeId
       ? detail.waitingOnCommitteeId === detail.sourceCommissionId
@@ -280,12 +283,12 @@ export default async function ReferralDetailPage({
               messages={detail.messages}
               waitingOnLabel={waitingOnLabel}
               composer={
-                inFlight && canSideActor ? (
+                inFlight && canCompose ? (
                   <ReferralComposer
                     referralId={detail.id}
                     status={detail.status}
-                    canManageTarget={canManageTarget}
-                    canManageSource={canManageSource}
+                    canComposeAsTarget={detail.canComposeAsTarget}
+                    canComposeAsSource={detail.canComposeAsSource}
                   />
                 ) : null
               }

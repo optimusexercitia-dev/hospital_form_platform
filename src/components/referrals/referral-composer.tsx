@@ -33,15 +33,17 @@ interface ComposerMode {
 
 /**
  * The dialogue composer (RV2 R1 — ADR 0037 Amendment 1). The write affordance for
- * the two-way clarification thread, gated by the viewer's SIDE (the RLS-backed
- * coordinator booleans the detail page already computes) AND the referral status —
- * mirroring the server RPCs, which re-check and raise HC0A0/HC0A1:
- *  - **Responder** (`provide_referral_information`): SOURCE coordinator, only while
+ * the two-way clarification thread, gated by the viewer's COMPOSE AUTHORITY (the
+ * `ReferralDetail.canComposeAs*` booleans, computed by the door with byte-for-gate
+ * parity with the R1 RPCs — so a target ANALYST, not just a coordinator, may
+ * compose) AND the referral status — mirroring the server RPCs, which re-check and
+ * raise HC0A0/HC0A1:
+ *  - **Responder** (`provide_referral_information`): SOURCE authority, only while
  *    `awaiting_information`.
- *  - **Solicitar informação** (`request_referral_information`): TARGET coordinator,
+ *  - **Solicitar informação** (`request_referral_information`): TARGET authority,
  *    only while `in_review`.
- *  - **Comentar** (`post_referral_message`, `general`): either side coordinator,
- *    while the referral is non-terminal.
+ *  - **Comentar** (`post_referral_message`, `general`): either side, while the
+ *    referral is non-terminal.
  *
  * A `"use client"` island fed plain props; renders nothing when no action is
  * available for this viewer/status. The RPC is the authority — this gating is a
@@ -50,15 +52,15 @@ interface ComposerMode {
 export function ReferralComposer({
   referralId,
   status,
-  canManageTarget,
-  canManageSource,
+  canComposeAsTarget,
+  canComposeAsSource,
 }: {
   referralId: string;
   status: ReferralStatus;
-  /** Viewer is a coordinator of the TARGET commission (or an admin). */
-  canManageTarget: boolean;
-  /** Viewer is a coordinator of the SOURCE commission (or an admin). */
-  canManageSource: boolean;
+  /** Viewer may compose as the TARGET (target coordinator OR assigned analyst). */
+  canComposeAsTarget: boolean;
+  /** Viewer may compose as the SOURCE (source coordinator). */
+  canComposeAsSource: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -67,9 +69,9 @@ export function ReferralComposer({
   const [fieldError, setFieldError] = useState<string | null>(null);
 
   const isResolved = RESOLVED_REFERRAL_STATUSES.has(status);
-  const canComment = (canManageTarget || canManageSource) && !isResolved;
-  const canRequest = canManageTarget && status === "in_review";
-  const canRespond = canManageSource && status === "awaiting_information";
+  const canComment = (canComposeAsTarget || canComposeAsSource) && !isResolved;
+  const canRequest = canComposeAsTarget && status === "in_review";
+  const canRespond = canComposeAsSource && status === "awaiting_information";
 
   // Priority order: the status-specific act first, then the general comment.
   const modes: ComposerMode[] = [];
