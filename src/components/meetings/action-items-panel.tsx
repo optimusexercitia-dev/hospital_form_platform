@@ -31,9 +31,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { ActionItemSatellites } from "@/components/action-items/action-item-satellites";
 import { ActionItemStatusBadge } from "./meeting-badges";
 import { ACTION_ITEM_STATUS_LABEL } from "./meeting-labels";
 import { ActionItemForm, type AssigneeOption } from "./action-item-form";
+import type { LinkableCase } from "./case-linker";
 import { ConfirmDeleteButton } from "./confirm-delete-button";
 import { useMeetingAction } from "./use-meeting-action";
 import { formatDueDate } from "./format";
@@ -65,18 +67,24 @@ function ActionItemRow({
   item,
   assignees,
   agendaItems,
+  cases,
   meetingId,
   canManage,
   canAdvance,
+  actionItemsEnabled,
 }: {
   item: MeetingActionItem;
   assignees: AssigneeOption[];
   agendaItems: MeetingAgendaItem[];
+  /** Same-commission cases — for the edit form's read-only cross-link display. */
+  cases: LinkableCase[];
   meetingId: string;
   /** staff_admin: full create/edit/delete + advance. */
   canManage: boolean;
-  /** This user may advance THIS item (assignee or staff_admin). */
+  /** This user may advance THIS item (assignee or staff_admin) — a stakeholder. */
   canAdvance: boolean;
+  /** Whether the shared `action_items` flag is ON (gates the satellite panel). */
+  actionItemsEnabled: boolean;
 }) {
   const { run, isPending, error } = useMeetingAction();
   const [editOpen, setEditOpen] = useState(false);
@@ -209,6 +217,16 @@ function ActionItemRow({
           item={item}
           assignees={assignees}
           agendaItems={agendaItems}
+          cases={cases}
+        />
+      )}
+
+      {actionItemsEnabled && (
+        <ActionItemSatellites
+          actionItemId={item.id}
+          itemTitle={item.title}
+          canManageReminders={canManage}
+          canContribute={canAdvance}
         />
       )}
     </li>
@@ -226,17 +244,30 @@ export function ActionItemsPanel({
   items,
   assignees,
   agendaItems,
+  cases = [],
   canManage,
   currentUserId,
+  actionItemsEnabled = false,
 }: {
   meetingId: string;
   items: MeetingActionItem[];
   assignees: AssigneeOption[];
   agendaItems: MeetingAgendaItem[];
+  /**
+   * Same-commission cases for the action-item cross-link picker (create) + the
+   * edit form's read-only link display. Default `[]` (members never author).
+   */
+  cases?: LinkableCase[];
   /** staff_admin of the meeting's commission. */
   canManage: boolean;
   /** The viewer's user id — an assignee may advance their own items. */
   currentUserId: string | null;
+  /**
+   * Whether the shared `action_items` flag is ON — gates the per-item satellite
+   * panel (reminders / updates / checklist). Default `false` keeps the panel
+   * dark if a caller omits it.
+   */
+  actionItemsEnabled?: boolean;
 }) {
   const [addOpen, setAddOpen] = useState(false);
 
@@ -286,12 +317,14 @@ export function ActionItemsPanel({
               item={item}
               assignees={assignees}
               agendaItems={agendaItems}
+              cases={cases}
               meetingId={meetingId}
               canManage={canManage}
               canAdvance={
                 canManage ||
                 (currentUserId != null && item.assignedTo === currentUserId)
               }
+              actionItemsEnabled={actionItemsEnabled}
             />
           ))}
         </ul>
@@ -305,6 +338,7 @@ export function ActionItemsPanel({
           meetingId={meetingId}
           assignees={assignees}
           agendaItems={agendaItems}
+          cases={cases}
         />
       )}
     </section>

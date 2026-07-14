@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Lock } from "lucide-react";
 
 import {
   createActionItem,
@@ -93,6 +94,21 @@ export function CaseActionItemForm({
 
           {state && !state.ok && !state.fieldErrors?.title && (
             <FormBanner tone="error">{state.error}</FormBanner>
+          )}
+
+          {mode === "edit" && (
+            /* Static disclosure (ADR 0050 §4.4): a case-sourced item is always
+               `case_restricted` — there is no visibility toggle here by design, so
+               state why. Non-interactive; no field is submitted. */
+            <div className="flex items-start gap-2 rounded-lg border border-border/70 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+              <Lock aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                <span className="font-medium text-foreground">
+                  Restrito ao caso.
+                </span>{" "}
+                Visível apenas a quem pode ver este caso.
+              </span>
+            </div>
           )}
 
           <label className="flex flex-col gap-1.5 text-sm">

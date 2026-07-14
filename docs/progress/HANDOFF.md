@@ -13,33 +13,27 @@ dark behind flags**; **remote deploy + the pilot DB reset are deferred to the en
 
 - **S0** design gate — ✅ signed off.
 - **S1 substrate** (MEM · SUP · N) — ✅ complete → [s1-substrate.md](s1-substrate.md).
-- **S2 pilot cores** — 🏗️ in progress. PO build order = **IV2 → RV2 → AI**.
+- **S2 pilot cores** — ✅ **ALL COMPLETE 2026-07-14.** PO build order = **IV2 → RV2 → AI**.
   - **IV2** (Interviews v2 sessions) — ✅ **complete + human-approved** (`phase(11-v2)`) → [iv2-interviews.md](iv2-interviews.md).
   - **RV2·R1** (Referrals v2 dialogue core) — ✅ **complete + human-approved** (`phase(rv2-r1)`) → [rv2-r1-referrals.md](rv2-r1-referrals.md). (R2–R5 governance = S4.)
-  - **AI** (action-items satellites + cross-link UI) — 🔜 **NEXT — not started.** This is the last S2 track.
-- **S3** ETH·E1 (access spine — releases the m2 flag gate; needs IV2 ✅ + MEM ✅ done) · **S4** ETH·E2 + RV2·R2–R5 + CH · **S5** ETH·E3a. Only Phases 18–19 stay post-pilot.
+  - **AI** (action-items satellites + cross-link UI **+ BE-6·N reminder→N scan arm**, PO-directed in-phase) — ✅ **complete + human-approved** (`phase(ai)`) → [ai-satellites.md](ai-satellites.md).
+- **S3** ETH·E1 (access spine — releases the m2 flag gate; needs IV2 ✅ + MEM ✅ done) — 🔜 **NEXT** · **S4** ETH·E2 + RV2·R2–R5 + CH · **S5** ETH·E3a. Only Phases 18–19 stay post-pilot.
+- **Pre-pilot follow-up (PO-directed 2026-07-14):** **BUG-AIF-001 / FUP-AI-1** — the platform-wide `router.refresh()`-in-`startTransition` deferred-flush stall (freezes a section's controls until reload; data always persists) — is scheduled **before pilot** as its own workstream (surfaced by the AI satellite panels but not AI-introduced; `useSatelliteAction` mirrors incumbent `useCaseAction`/`useMeetingAction`).
 
-## ▶ Resume here: open the AI track (last S2 track)
+## ▶ Resume here: open S3 — ETH·E1 access-spine
 
-**Spec:** [action-items-satellites.md](../plans/action-items-satellites.md) · ADR
-[0050](../decisions/0050-action-items-fold-visibility-scope-case-access-expiry.md) · SQLSTATE **`HC0I0–HC0I9`** ·
-flags `action_items` + `cases_extras` (both exist, ON). Migration window **`20260720000950+`** (current
-high-water = `20260720000940`).
+**S2 is done.** Next is **S3 = ETH·E1** (Ethics access-spine — releases the F1 `case_participants`/`case_types`
+**m2 flag gate** so ethics case data can go live). Both hard-ordering prereqs are satisfied: **MEM ✅** (memberships
+collapse, S1) and **IV2 ✅** (E1 folds in IV2's inert `confidentiality_level`/`relationship_to_case` columns).
 
-Two slices, one phase (they share `action-items-table.tsx` / `case-action-item-form.tsx` — one owner window):
-- **AI·sat** (spoke tables, PO-locked minimal set): **reminders** (pairs with N as a scan arm) · **updates-feed**
-  (`action_item_updates`) · **checklists** (`action_item_checklists`). Each = new table (FK `action_item_id`
-  CASCADE) + RLS **reusing `can_read_action_item` verbatim** (no new shape) + DEFINER `committee_*` RPCs +
-  `action_item.*` audit. **Write authority = stakeholders-only** (assignee / active assignment / `staff_admin`) —
-  PO-locked (S0 §J). CAPA stays isolated (not a satellite).
-- **AI·ui** (mostly FE over shipped backend): surface the existing `visibility_scope` (`committee`/`case_restricted`/
-  `assignees_only`) + `case_id` cross-link + coordinator `p_visibility_scope` override in
-  `case-action-item-form.tsx` / `action-items-table.tsx` / `meetings/action-item-form.tsx`; project
-  `visibility_scope` in `queries/action-items.ts` + `case-action-items.ts`. **No new RLS** — `can_read_action_item`
-  + the default-restrict guard already exist.
-- **S0-flagged open decisions to resolve at AI R0** (S0 §I AI): **O-1** `can_read_case(null,uid)` must be
-  **fail-closed** (a `case_restricted` item with no `case_id` must be invisible — security-verify + pgTAP-lock
-  before the visibility toggle ships); O-3 reminder-recipient case-read gap (defer to N+AI·sat jointly); O-4 cosmetic.
+**On opening E1, first research its spec** (don't build from memory): the settled spine is
+[s0-ratification.md](../plans/pre-pilot-release-s0-ratification.md) (§ Ethics E1/E2 decisions) and the sequenced
+plan [pre-pilot-release-scope-expansion.md](../plans/pre-pilot-release-scope-expansion.md) (S3 section); the E1 ADR
+authored at S0 lives under `docs/decisions/` (grep for the Ethics/E1 ADR). Confirm the SQLSTATE block, flag name,
+and migration high-water (**current = `20260720000970`**, next = `20260720000980+`) before spawning backend.
+
+Run the track with the same orchestration pattern below (contract-first backend → frontend → tester → lead-run
+`e2e:prod` → qa → human approval → Record).
 
 ## How to run the track (the pattern that's worked all of S1 + S2)
 

@@ -18,7 +18,16 @@ import { resolveCommissionSlugs } from '@/lib/notifications/routing-context'
 // Domain types
 // ---------------------------------------------------------------------------
 
-export type NotificationKind = 'capa' | 'signoff' | 'meeting'
+export type NotificationKind = 'capa' | 'signoff' | 'meeting' | 'action_item'
+
+/**
+ * The suppressible reminder SURFACES — a strict subset of {@link NotificationKind}.
+ * `action_item` is a kind but deliberately NOT a preference surface (S1 deferral,
+ * BE-6·N): action-item reminders are opt-in-by-config (a staff_admin creates the
+ * rule), so a global per-user mute is low-value and deferred. Preferences are
+ * keyed by this narrower type, not by NotificationKind.
+ */
+export type NotificationSurface = 'capa' | 'signoff' | 'meeting'
 
 export type NotificationMilestone =
   | 'assigned'
@@ -30,7 +39,11 @@ export type NotificationMilestone =
   | 'still_open'
   | 'upcoming'
 
-export type NotificationEntityType = 'capa_action' | 'response_section_signoff' | 'meeting'
+export type NotificationEntityType =
+  | 'capa_action'
+  | 'response_section_signoff'
+  | 'meeting'
+  | 'action_item'
 
 /** One notification, ready to render — `href` is pre-resolved (see module header). */
 export interface NotificationRow {
@@ -52,7 +65,7 @@ export interface NotificationRow {
 }
 
 export interface NotificationPreferenceRow {
-  surface: NotificationKind
+  surface: NotificationSurface
   /** Absence of a row means enabled — always returns all 3 surfaces, defaulting missing ones to true. */
   remindersEnabled: boolean
 }
@@ -142,7 +155,7 @@ export async function getUnreadCount(): Promise<number> {
  * the settings UI can render 3 toggles unconditionally.
  */
 export async function getPreferences(): Promise<NotificationPreferenceRow[]> {
-  const ALL_SURFACES: NotificationKind[] = ['capa', 'signoff', 'meeting']
+  const ALL_SURFACES: NotificationSurface[] = ['capa', 'signoff', 'meeting']
 
   const supabase = await createClient()
   const { data } = await supabase
@@ -163,8 +176,9 @@ export async function getPreferences(): Promise<NotificationPreferenceRow[]> {
 // ---------------------------------------------------------------------------
 
 async function resolveHrefs(rows: RawNotificationRow[]): Promise<NotificationRow[]> {
-  // Only signoff/meeting need a slug lookup; capa_action routes to a STATIC
-  // page (/conta/itens-de-acao, BUG-N-001) with no per-row resolution.
+  // Only signoff/meeting need a slug lookup; capa_action + action_item route to
+  // a STATIC page (/conta/itens-de-acao) with no per-row resolution — an
+  // assignee may lack workspace access, so the personal list is the safe target.
   const commissionIds = rows
     .filter((r) => r.commission_id !== null)
     .map((r) => r.commission_id as string)
@@ -175,8 +189,8 @@ async function resolveHrefs(rows: RawNotificationRow[]): Promise<NotificationRow
     const entityType = r.entity_type as NotificationEntityType
     let href = '#'
 
-    if (entityType === 'capa_action') {
-      // Static route — reachable by any assignee regardless of PQS standing.
+    if (entityType === 'capa_action' || entityType === 'action_item') {
+      // Static route — reachable by any assignee regardless of workspace access.
       href = notificationHref({ entityType, entityId: r.entity_id })
     } else if (r.commission_id) {
       const ctx = commissionSlugs.get(r.commission_id)

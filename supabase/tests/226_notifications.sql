@@ -41,11 +41,12 @@
 -- precedent). Meetings need the meetings flag ON.
 
 begin;
-select plan(52);
+select plan(69);
 
 update app.feature_flags set enabled = true where key = 'notifications';
 update app.feature_flags set enabled = true where key = 'patient_safety';
 update app.feature_flags set enabled = true where key = 'meetings';
+update app.feature_flags set enabled = true where key = 'action_items';
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -644,6 +645,201 @@ select ok(
   has_function_privilege('authenticated', 'public.list_my_assigned_capa_actions()', 'EXECUTE'),
   '18b. list_my_assigned_capa_actions IS authenticated-executable (t19 grant present)'
 );
+
+-- ---------------------------------------------------------------------------
+-- ---- 19) BE-6·N: action-item reminder scan arm (AI·sat × S1·N; plan §3 X-ζ;
+-- Open #3). Fixtures inserted directly as the test superuser (bypasses RLS) in
+-- comm_x: st_x is a plain staff member, sa_x is staff_admin. case_access is
+-- enabled so a case_restricted item's read gate is STRICT (staff_admin/grant,
+-- not flat membership) — the Open-#3 leak test needs that. ----
+-- ---------------------------------------------------------------------------
+update app.feature_flags set enabled = true where key = 'case_access';
+
+-- A real case in comm_x for the case_restricted security fixtures.
+create temp table ai_case on commit drop as select gen_random_uuid() as case_id;
+grant select on ai_case to authenticated;
+insert into public.cases (id, commission_id, case_number, label, created_by)
+  select (select case_id from ai_case), (select comm_x from k),
+         990001, 'Caso segurança AI', (select admin from k);
+
+-- Pre-generate item ids so assertions can reference them by name.
+create temp table aik on commit drop as select
+  gen_random_uuid() as before_ok, gen_random_uuid() as before_wrong,
+  gen_random_uuid() as onday, gen_random_uuid() as after_ok,
+  gen_random_uuid() as after_wrong, gen_random_uuid() as owner_fb,
+  gen_random_uuid() as unassigned, gen_random_uuid() as terminal,
+  gen_random_uuid() as case_noread, gen_random_uuid() as case_canread,
+  gen_random_uuid() as complete_it;
+grant select on aik to authenticated;
+
+-- Items (all manual, comm_x). status = global 'open' (non-terminal) except the
+-- terminal one which uses 'done'.
+insert into public.action_items
+  (id, commission_id, source_type, title, status_id, visibility_scope, case_id, assigned_to, due_date)
+select v.id, (select comm_x from k), 'manual', v.title,
+       app.action_item_status_by_key((select comm_x from k), v.status_key),
+       v.scope, v.case_id, v.assigned_to, v.due_date
+from (
+  values
+    ((select before_ok    from aik), 'AI antes (ok)',        'open',      'committee',       null::uuid,                      (select st_x from k), current_date + 3),
+    ((select before_wrong from aik), 'AI antes (data errada)','open',     'committee',       null,                            (select st_x from k), current_date + 5),
+    ((select onday        from aik), 'AI no dia',             'open',      'committee',       null,                            (select st_x from k), current_date),
+    ((select after_ok     from aik), 'AI depois (ok)',        'open',      'committee',       null,                            (select st_x from k), current_date - 2),
+    ((select after_wrong  from aik), 'AI depois (data errada)','open',    'committee',       null,                            (select st_x from k), current_date - 1),
+    ((select owner_fb     from aik), 'AI fallback dono',      'open',      'committee',       null,                            null,                 current_date),
+    ((select unassigned   from aik), 'AI sem responsável',    'open',      'committee',       null,                            null,                 current_date),
+    ((select terminal     from aik), 'AI concluído',          'done',      'committee',       null,                            (select st_x from k), current_date - 1),
+    ((select case_noread  from aik), 'AI caso sem leitura',   'open',      'case_restricted', (select case_id from ai_case),   (select st_x from k), current_date),
+    ((select case_canread from aik), 'AI caso com leitura',   'open',      'case_restricted', (select case_id from ai_case),   (select sa_x from k), current_date),
+    ((select complete_it  from aik), 'AI a concluir',         'open',      'committee',       null,                            (select st_x from k), current_date)
+) as v(id, title, status_key, scope, case_id, assigned_to, due_date);
+
+-- Active owner assignment for the fallback item (assigned_to is NULL there).
+insert into public.action_item_assignments (action_item_id, user_id, role)
+  select (select owner_fb from aik), (select st_x from k), 'owner';
+
+-- Reminder rules: before_due offset 3, on_due, after_due offset 2.
+insert into public.action_item_reminders (action_item_id, reminder_type, offset_days)
+values
+  ((select before_ok    from aik), 'before_due', 3),
+  ((select before_wrong from aik), 'before_due', 3),
+  ((select onday        from aik), 'on_due',     null),
+  ((select after_ok     from aik), 'after_due',  2),
+  ((select after_wrong  from aik), 'after_due',  2),
+  ((select owner_fb     from aik), 'on_due',     null),
+  ((select unassigned   from aik), 'on_due',     null),
+  ((select terminal     from aik), 'after_due',  1),
+  ((select case_noread  from aik), 'on_due',     null),
+  ((select case_canread from aik), 'on_due',     null),
+  ((select complete_it  from aik), 'on_due',     null);
+
+select public.compute_due_notifications();
+
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select before_ok from aik)
+       and user_id = (select st_x from k) and milestone = 'due_soon'),
+  1, '19a. before_due fires due_soon on due_date = today + offset_days'
+);
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select before_wrong from aik)),
+  0, '19b. before_due does NOT fire on a non-matching date'
+);
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select onday from aik)
+       and user_id = (select st_x from k) and milestone = 'due_soon'),
+  1, '19c. on_due fires due_soon on due_date = today'
+);
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select after_ok from aik)
+       and user_id = (select st_x from k) and milestone = 'overdue'),
+  1, '19d. after_due fires overdue on due_date = today - offset_days'
+);
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select after_wrong from aik)),
+  0, '19e. after_due does NOT fire on a non-matching date'
+);
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select owner_fb from aik)
+       and user_id = (select st_x from k)),
+  1, '19f. recipient falls back to the active owner assignment when assigned_to is NULL'
+);
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select unassigned from aik)),
+  0, '19g. an unassigned item with no owner emits nothing (no null-user row)'
+);
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select terminal from aik)),
+  0, '19h. a terminal (done) item never fires, even with an active matching reminder'
+);
+select is(
+  (select milestone || '|' || title from public.notifications
+     where entity_type = 'action_item' and entity_id = (select after_ok from aik) limit 1),
+  'overdue|Item de ação atrasado',
+  '19i. after_due carries milestone=overdue + the pt-BR overdue heading'
+);
+select is(
+  (select kind || '|' || body from public.notifications
+     where entity_type = 'action_item' and entity_id = (select before_ok from aik) limit 1),
+  'action_item|AI antes (ok)',
+  '19j. PHI-free: kind=action_item and body is the item''s own (config-level) title'
+);
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select case_noread from aik)),
+  0, '19k. Open #3: a case_restricted item whose recipient CANNOT read the case is NOT notified'
+);
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select case_canread from aik)
+       and user_id = (select sa_x from k)),
+  1, '19l. a case_restricted item whose recipient CAN read the case IS notified'
+);
+
+-- Idempotency: a second same-day scan adds no duplicate.
+select public.compute_due_notifications();
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select onday from aik)),
+  1, '19m. a second same-day scan is idempotent (one row per item/milestone/day)'
+);
+
+-- Resolve-on-complete (decision 9): completing an item with an open reminder
+-- stamps resolved_at. Proves the choke point fires on the COMPLETE path
+-- (complete_committee_action_item -> advance_committee_action_item). st_x is
+-- the assignee, so the HC037 authority gate passes.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select public.complete_committee_action_item((select complete_it from aik));
+reset role;
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select complete_it from aik)
+       and is_reminder = true and resolved_at is not null),
+  1, '19o. completing an item resolves its open reminder (drops out of the unresolved set)'
+);
+
+-- Arm flag gate: a fresh item created now (not seen by the scans above). With
+-- action_items OFF the arm emits nothing; ON, it fires.
+create temp table ai_flagoff on commit drop as select gen_random_uuid() as id;
+grant select on ai_flagoff to authenticated;
+insert into public.action_items
+  (id, commission_id, source_type, title, status_id, assigned_to, due_date)
+  select (select id from ai_flagoff), (select comm_x from k), 'manual', 'AI flag gate',
+         app.action_item_status_by_key((select comm_x from k), 'open'),
+         (select st_x from k), current_date;
+insert into public.action_item_reminders (action_item_id, reminder_type, offset_days)
+  values ((select id from ai_flagoff), 'on_due', null);
+
+update app.feature_flags set enabled = false where key = 'action_items';
+select public.compute_due_notifications();
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select id from ai_flagoff)),
+  0, '19p. with the action_items flag OFF the reminder arm emits nothing'
+);
+update app.feature_flags set enabled = true where key = 'action_items';
+select public.compute_due_notifications();
+select is(
+  (select count(*)::int from public.notifications
+     where entity_type = 'action_item' and entity_id = (select id from ai_flagoff)),
+  1, '19q. with the action_items flag back ON the reminder arm fires'
+);
+
+-- Engine gate: notifications OFF -> compute_due_notifications returns 0.
+update app.feature_flags set enabled = false where key = 'notifications';
+select is(
+  public.compute_due_notifications(), 0,
+  '19r. with the notifications flag OFF compute_due_notifications returns 0'
+);
+update app.feature_flags set enabled = true where key = 'notifications';
 
 select * from finish();
 rollback;

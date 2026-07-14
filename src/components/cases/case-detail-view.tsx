@@ -109,6 +109,7 @@ export function CaseDetailView({
   phaseResultOptions = [],
   outcomes = [],
   casesExtrasEnabled = false,
+  actionItemsEnabled = false,
   canAssignPhases = false,
   canEditMeta = false,
   departments = [],
@@ -166,6 +167,12 @@ export function CaseDetailView({
   outcomes?: CaseOutcome[];
   /** Whether `cases_extras` is on (gates the process-less offered-outcome editor). */
   casesExtrasEnabled?: boolean;
+  /**
+   * Whether the shared `action_items` flag is on — gates the per-item satellite
+   * panel (reminders / updates / checklist) on each case action item. Default
+   * `false`.
+   */
+  actionItemsEnabled?: boolean;
   /**
    * Whether the viewer may ACTIVATE / REASSIGN phases (ADR 0061) — resolved at the
    * host page via `canInCommission(access, 'assign_case_phases')`. OR-ed below with
@@ -371,6 +378,8 @@ export function CaseDetailView({
                 assignees={assignees}
                 phases={phaseOptions}
                 canWrite={caps.canWriteContent}
+                viewerId={viewerId}
+                actionItemsEnabled={actionItemsEnabled}
               />
             </div>
             {referralsModule && (

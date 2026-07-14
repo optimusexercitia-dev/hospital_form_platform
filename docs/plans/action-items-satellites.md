@@ -490,7 +490,7 @@ from the start, not a provisional shape.
 |---|---|---|---|
 | BE-1 | **Post the §2/§4 contract** as typed stubs (three satellite query modules + the widened `MyActionItem`/`CaseActionItem` types + the RPC signatures below) and commit, unblocking frontend. | — | one-line ack |
 | BE-2 | Migration: three satellite tables (§2.2–2.4) + RLS (verbatim `can_read_action_item` reuse) + audit triggers + `HC0I0–HC0I9` mapped in the action layer. | BE-1 | **one-line plan + ack** (X-ε pre-resolved; no new RLS shape) |
-| BE-3 | RPCs: the 11 `committee_*` satellite mutators (§2.2–2.4) — `revoke all … from public` + `grant … to authenticated, service_role` per t19. | BE-2 | one-line ack |
+| BE-3 | RPCs: the **8** `committee_*` satellite mutators (§2.2–2.4 — reminders 3 · updates 1 (append-only, no update/delete) · checklists 4; the earlier "11" was a miscount, corrected 2026-07-14 at lead ack) — `revoke all … from public` + `grant … to authenticated, service_role` per t19. | BE-2 | one-line ack |
 | BE-4 | `list_my_action_items` RPC widening (`visibility_scope` in both UNION arms' `jsonb_build_object`, §4.3) — additive `create or replace`, does not touch the `20260706`/`20260707` migration files. | BE-1 | one-line ack |
 | BE-5 | Regen `database.ts` (Rule 8); pgTAP (§7 below); confirm the `meetings/action-item-form.tsx` → `createMeetingActionItem`/`updateMeetingActionItem` → RPC `p_case_id`/`p_visibility_scope` wiring is complete end-to-end (§4.5's flagged research note) before frontend builds the toggle against it. | BE-2..4 | one-line ack |
 | BE-6 (deferred, sequenced with N) | Add the reminder `union all` scan arm (§3) to `compute_due_notifications()` — lands **only once N's engine migration exists**; not part of this phase's build. | N ships | one-line ack (additive arm onto an existing engine, per X-ζ) |
@@ -592,4 +592,14 @@ shape/order for callers that ignore the new key. Verdict to `docs/reviews/`.
    `can_read_case` filter on the scan arm is **N + AI·sat's joint call when N lands**, not
    resolvable at this design-only gate (the arm does not exist until then).
 4. **§4.4's static visibility disclosure on the case-sourced form.** Purely a UX-polish call — does
-   not affect any invariant either way. Lead may cut it without reopening this plan.
+   not affect any invariant either way. Lead may cut it without reopening this plan. **[RESOLVED
+   2026-07-14: INCLUDE it — lead call.]**
+
+5. **[Follow-up, post-pilot — logged 2026-07-14, NOT this phase]** Project `visibility_scope` onto the
+   read-side `MeetingActionItem` type (mirrors `CaseActionItem`, §4.2) so the meeting edit form can
+   display the item's **true stored** scope instead of the RPC-computed default. §4.5 deliberately
+   specs "defaulting to the RPC-computed value", and FE-2 is conformant + safe (edit submits
+   `p_visibility_scope` only on explicit change ⇒ `coalesce` keep-current ⇒ no silent clobber of a
+   prior override; the true scope is already visible via the FE-3 badge + case-panel surfaces). Adding
+   the projection is a display-accuracy nicety only — a small backend query-projection widening + an
+   FE default-source swap. Out of scope for a clean AI gate.

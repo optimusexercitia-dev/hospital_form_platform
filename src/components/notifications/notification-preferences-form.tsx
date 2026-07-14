@@ -7,12 +7,12 @@ import { Switch } from "@/components/ui/switch";
 import { setNotificationPreference } from "@/lib/notifications/actions";
 // Type-only — see notification-bell-client.tsx for why (server-only module).
 import type {
-  NotificationKind,
+  NotificationSurface,
   NotificationPreferenceRow,
 } from "@/lib/queries/notifications";
 
 const SURFACE_COPY: Record<
-  NotificationKind,
+  NotificationSurface,
   { title: string; reminder: string; always: string }
 > = {
   capa: {
@@ -33,7 +33,7 @@ const SURFACE_COPY: Record<
   },
 };
 
-const ORDER: NotificationKind[] = ["capa", "signoff", "meeting"];
+const ORDER: NotificationSurface[] = ["capa", "signoff", "meeting"];
 
 /**
  * S1·N (Phase 20; ADR 0076) reminder-preference toggles — 3 surfaces (CAPA /
@@ -50,14 +50,14 @@ export function NotificationPreferencesForm({
   preferences: NotificationPreferenceRow[];
 }) {
   const [enabledBySurface, setEnabledBySurface] = useState<
-    Record<NotificationKind, boolean>
+    Record<NotificationSurface, boolean>
   >(() =>
     Object.fromEntries(
       preferences.map((p) => [p.surface, p.remindersEnabled]),
-    ) as Record<NotificationKind, boolean>,
+    ) as Record<NotificationSurface, boolean>,
   );
   const [errorBySurface, setErrorBySurface] = useState<
-    Partial<Record<NotificationKind, string>>
+    Partial<Record<NotificationSurface, string>>
   >({});
   // Per-surface in-flight guard. NOT a native `disabled` on the fieldset: the
   // browser auto-blurs a focused control the instant it becomes disabled, so a
@@ -66,11 +66,11 @@ export function NotificationPreferencesForm({
   // toggled switch stays enabled and keeps focus; this set only prevents
   // duplicate requests for the SAME surface until its round-trip settles.
   const [pendingSurfaces, setPendingSurfaces] = useState<
-    ReadonlySet<NotificationKind>
+    ReadonlySet<NotificationSurface>
   >(() => new Set());
   const [, startTransition] = useTransition();
 
-  function toggle(surface: NotificationKind, next: boolean) {
+  function toggle(surface: NotificationSurface, next: boolean) {
     // Ignore a repeat toggle for a surface whose request is still in flight
     // (re-entrancy guard) — never by disabling the control, so focus is kept.
     if (pendingSurfaces.has(surface)) return;

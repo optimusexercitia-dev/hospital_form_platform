@@ -30,6 +30,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { ActionItemSatellites } from "@/components/action-items/action-item-satellites";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 import { CaseActionItemForm, type PhaseOption } from "./case-action-item-form";
 import { ConfirmDeleteButton } from "./confirm-delete-button";
@@ -69,17 +70,25 @@ function ActionItemRow({
   phases,
   caseId,
   canWrite,
+  viewerId,
+  actionItemsEnabled,
 }: {
   item: CaseActionItem;
   assignees: AssigneeOption[];
   phases: PhaseOption[];
   caseId: string;
   canWrite: boolean;
+  /** The viewer's user id — an assignee is a stakeholder for their own item. */
+  viewerId: string | null;
+  /** Whether the shared `action_items` flag is ON (gates the satellite panel). */
+  actionItemsEnabled: boolean;
 }) {
   const { run, isPending, error } = useCaseAction();
   const [editOpen, setEditOpen] = useState(false);
   const overdue = isItemOverdue(item);
   const isClosed = item.status === "done" || item.status === "cancelled";
+  const isStakeholder =
+    canWrite || (viewerId != null && item.assignedTo === viewerId);
 
   return (
     <li className="flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/20 p-3">
@@ -208,6 +217,15 @@ function ActionItemRow({
           phases={phases}
         />
       )}
+
+      {actionItemsEnabled && (
+        <ActionItemSatellites
+          actionItemId={item.id}
+          itemTitle={item.title}
+          canManageReminders={canWrite}
+          canContribute={isStakeholder}
+        />
+      )}
     </li>
   );
 }
@@ -225,6 +243,8 @@ export function CaseActionItemsPanel({
   assignees,
   phases,
   canWrite = true,
+  viewerId = null,
+  actionItemsEnabled = false,
 }: {
   caseId: string;
   items: CaseActionItem[];
@@ -236,6 +256,13 @@ export function CaseActionItemsPanel({
    * `false` to render the list without any mutating affordance.
    */
   canWrite?: boolean;
+  /** The viewer's user id — an assignee is a stakeholder for their own item. */
+  viewerId?: string | null;
+  /**
+   * Whether the shared `action_items` flag is ON — gates the per-item satellite
+   * panel (reminders / updates / checklist). Default `false` keeps it dark.
+   */
+  actionItemsEnabled?: boolean;
 }) {
   const [addOpen, setAddOpen] = useState(false);
 
@@ -287,6 +314,8 @@ export function CaseActionItemsPanel({
               phases={phases}
               caseId={caseId}
               canWrite={canWrite}
+              viewerId={viewerId}
+              actionItemsEnabled={actionItemsEnabled}
             />
           ))}
         </ul>

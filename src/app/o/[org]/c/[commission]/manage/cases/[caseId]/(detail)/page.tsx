@@ -19,6 +19,7 @@ import { CaseDetailView } from "@/components/cases/case-detail-view";
 import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents";
 import { listCaseTags, listCaseTagsForCase } from "@/lib/queries/case-tags";
 import { listCaseActionItems } from "@/lib/queries/case-action-items";
+import { actionItemsEnabled } from "@/lib/queries/action-items";
 import { listCaseInterviews, interviewsEnabled } from "@/lib/queries/interviews";
 import { listCaseMeetings } from "@/lib/queries/case-timeline";
 import { meetingsEnabled } from "@/lib/meetings/actions";
@@ -70,6 +71,7 @@ export default async function CaseDetailPage({
     phaseResultsOn,
     casesExtrasOn,
     meetingsOn,
+    actionItemsOn,
   ] = await Promise.all([
     interviewsEnabled(),
     patientSafetyEnabled(),
@@ -79,6 +81,7 @@ export default async function CaseDetailPage({
     phaseResultsEnabled(),
     casesExtrasEnabled(),
     meetingsEnabled(),
+    actionItemsEnabled(),
   ]);
 
   // The commission's outcome vocabulary — for the process-less offered-outcome
@@ -140,6 +143,7 @@ export default async function CaseDetailPage({
       phaseResultOptions={phaseResultOptions}
       outcomes={outcomes}
       casesExtrasEnabled={casesExtrasOn}
+      actionItemsEnabled={actionItemsOn}
       canAssignPhases={canInCommission(access, "assign_case_phases")}
     />
   );

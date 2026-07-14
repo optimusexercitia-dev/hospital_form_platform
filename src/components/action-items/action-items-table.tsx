@@ -14,6 +14,7 @@ import {
   ActionItemSourceBadge,
   ActionItemStatusBadge,
 } from "./action-item-badges";
+import { VisibilityScopeBadge } from "./visibility-badge";
 import { formatDateTime, formatDueDate, isOverdue } from "./format";
 
 /**
@@ -235,7 +236,8 @@ function ItemRow({
 
   return (
     <tr className="border-b border-border/70 align-top last:border-b-0 hover:bg-muted/30">
-      {/* Título + inline description preview. */}
+      {/* Título + inline description preview + read-scope badge (only for the
+          restricted scopes; `committee` renders nothing). */}
       <Td>
         <span className="font-medium text-foreground">{item.title}</span>
         {item.description ? (
@@ -243,6 +245,7 @@ function ItemRow({
             {item.description}
           </span>
         ) : null}
+        <VisibilityScopeBadge scope={item.visibilityScope} className="mt-1" />
       </Td>
 
       {/* Gerado de = neutral type badge + clickable label to the source detail. */}

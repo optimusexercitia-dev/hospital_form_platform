@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 
 import { createClient } from '@/lib/supabase/server'
 import { mapNotificationsError } from '@/lib/notifications/messages'
-import type { NotificationKind } from '@/lib/queries/notifications'
+import type { NotificationSurface } from '@/lib/queries/notifications'
 
 /**
  * S1·N (Phase 20; ADR 0076) server actions — every write routes through the
@@ -49,7 +49,7 @@ export async function markAllNotificationsRead(): Promise<NotificationActionStat
 
 /** Sets the caller's own reminder toggle for one surface. HC0C0 on an invalid surface. */
 export async function setNotificationPreference(
-  surface: NotificationKind,
+  surface: NotificationSurface,
   enabled: boolean,
 ): Promise<NotificationActionState> {
   const supabase = await createClient()

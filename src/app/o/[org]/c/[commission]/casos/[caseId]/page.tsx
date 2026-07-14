@@ -18,6 +18,7 @@ import { CaseDetailView } from "@/components/cases/case-detail-view";
 import { listCaseDocuments, listCaseEvents } from "@/lib/queries/case-documents";
 import { listCaseTags, listCaseTagsForCase } from "@/lib/queries/case-tags";
 import { listCaseActionItems } from "@/lib/queries/case-action-items";
+import { actionItemsEnabled } from "@/lib/queries/action-items";
 import { listCaseInterviews, interviewsEnabled } from "@/lib/queries/interviews";
 import { listCaseMeetings } from "@/lib/queries/case-timeline";
 import { meetingsEnabled } from "@/lib/meetings/actions";
@@ -82,6 +83,7 @@ export default async function StaffCaseDetailPage({
     narrativesOn,
     phaseResultsOn,
     meetingsOn,
+    actionItemsOn,
   ] = await Promise.all([
     interviewsEnabled(),
     patientSafetyEnabled(),
@@ -89,6 +91,7 @@ export default async function StaffCaseDetailPage({
     narrativesEnabled(),
     phaseResultsEnabled(),
     meetingsEnabled(),
+    actionItemsEnabled(),
   ]);
 
   // Post-conclusion result correction (phase-results feature; task #10) is
@@ -150,6 +153,7 @@ export default async function StaffCaseDetailPage({
       referralsModule={referralsModule}
       canManagePhaseResults={canManagePhaseResults}
       phaseResultOptions={phaseResultOptions}
+      actionItemsEnabled={actionItemsOn}
       canAssignPhases={canInCommission(access, "assign_case_phases")}
       canEditMeta={canEditMeta}
       departments={departments}

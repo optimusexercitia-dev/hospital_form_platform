@@ -13,6 +13,7 @@ import {
   listMeetingTypes,
 } from "@/lib/queries/meetings";
 import { listMeetingActionItems } from "@/lib/queries/meeting-action-items";
+import { actionItemsEnabled } from "@/lib/queries/action-items";
 import { meetingsEnabled } from "@/lib/meetings/actions";
 import { listMembers, sortMembers } from "@/lib/queries/members";
 import { listCasesBoard } from "@/lib/queries/cases";
@@ -68,15 +69,23 @@ export default async function MeetingDetailPage({
   // Content is editable only by a coordinator AND while the meeting is unlocked.
   const canEdit = isCoordinator && isEditableStatus(meeting.status);
 
-  const [agenda, attendees, caseLinks, signatures, attachments, actionItems] =
-    await Promise.all([
-      listMeetingAgenda(meetingId),
-      listMeetingAttendees(meetingId),
-      listMeetingCases(meetingId),
-      listMeetingSignatures(meetingId),
-      listMeetingAttachments(meetingId),
-      listMeetingActionItems(meetingId),
-    ]);
+  const [
+    agenda,
+    attendees,
+    caseLinks,
+    signatures,
+    attachments,
+    actionItems,
+    actionItemsOn,
+  ] = await Promise.all([
+    listMeetingAgenda(meetingId),
+    listMeetingAttendees(meetingId),
+    listMeetingCases(meetingId),
+    listMeetingSignatures(meetingId),
+    listMeetingAttachments(meetingId),
+    listMeetingActionItems(meetingId),
+    actionItemsEnabled(),
+  ]);
 
   // Coordinator-only authoring data: the roster (member picker, assignees), the
   // meeting types (edit dialog), the quorum settings, and linkable cases. Members
@@ -162,8 +171,10 @@ export default async function MeetingDetailPage({
         items={actionItems}
         assignees={memberOptions}
         agendaItems={agenda}
+        cases={linkableCases}
         canManage={isCoordinator}
         currentUserId={access.context.userId}
+        actionItemsEnabled={actionItemsOn}
       />
 
       <AttachmentsPanel

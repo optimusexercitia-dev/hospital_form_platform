@@ -96,6 +96,11 @@ export function nspHref(
  *     link must NOT depend on org/commission/capa-plan resolution — a static
  *     route dissolves the dead-'#' at the root (no per-recipient lookup can
  *     fail). `orgSlug`/`entityId` are unused here.
+ *   - `action_item` → the SAME static personal page `/conta/itens-de-acao`
+ *     (BE-6·N). A shared action-item reminder can reach an assignee who lacks
+ *     workspace access; the personal "Meus itens de ação" list is universally
+ *     reachable and is exactly where the notification should land. Same
+ *     rationale as `capa_action`; `orgSlug`/`entityId` unused.
  *   - `response_section_signoff` → the commission's sign-off queue
  *     (`/manage/assinaturas`); no per-response detail page exists, so
  *     `entityId` is unused for this branch.
@@ -107,20 +112,24 @@ export function nspHref(
  *   // /o/org-a/c/ccih/manage/assinaturas
  * @example notificationHref({ entityType: 'capa_action', entityId: actionId })
  *   // /conta/itens-de-acao
+ * @example notificationHref({ entityType: 'action_item', entityId: itemId })
+ *   // /conta/itens-de-acao
  */
 export function notificationHref(params: {
-  entityType: 'capa_action' | 'response_section_signoff' | 'meeting'
+  entityType: 'capa_action' | 'response_section_signoff' | 'meeting' | 'action_item'
   entityId: string
-  /** Required for 'response_section_signoff' and 'meeting'; unused for 'capa_action' (static route). */
+  /** Required for 'response_section_signoff' and 'meeting'; unused for the static 'capa_action'/'action_item' routes. */
   orgSlug?: string
-  /** Required for 'response_section_signoff' and 'meeting'; unused for 'capa_action' (static route). */
+  /** Required for 'response_section_signoff' and 'meeting'; unused for the static 'capa_action'/'action_item' routes. */
   commissionSlug?: string | null
 }): string {
   const { entityType, entityId, orgSlug, commissionSlug } = params
 
   switch (entityType) {
     case 'capa_action':
-      // Static — reachable by ANY assignee regardless of PQS standing (BUG-N-001).
+    case 'action_item':
+      // Static — reachable by ANY assignee regardless of workspace access
+      // (BUG-N-001 / BE-6·N).
       return '/conta/itens-de-acao'
     case 'meeting':
       return orgSlug && commissionSlug
