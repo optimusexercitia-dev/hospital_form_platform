@@ -95,6 +95,115 @@ export type Database = {
           },
         ]
       }
+      action_item_checklists: {
+        Row: {
+          action_item_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_done: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          action_item_id: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_done?: boolean
+          sort_order?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          action_item_id?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_done?: boolean
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_item_checklists_action_item_id_fkey"
+            columns: ["action_item_id"]
+            isOneToOne: false
+            referencedRelation: "action_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_item_checklists_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_item_checklists_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      action_item_reminders: {
+        Row: {
+          action_item_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          offset_days: number | null
+          reminder_type: string
+          updated_at: string
+        }
+        Insert: {
+          action_item_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          offset_days?: number | null
+          reminder_type: string
+          updated_at?: string
+        }
+        Update: {
+          action_item_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          offset_days?: number | null
+          reminder_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_item_reminders_action_item_id_fkey"
+            columns: ["action_item_id"]
+            isOneToOne: false
+            referencedRelation: "action_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_item_reminders_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       action_item_status_history: {
         Row: {
           action_item_id: string
@@ -203,6 +312,48 @@ export type Database = {
             columns: ["commission_id"]
             isOneToOne: false
             referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      action_item_updates: {
+        Row: {
+          action_item_id: string
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          update_type: string
+        }
+        Insert: {
+          action_item_id: string
+          author_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          update_type: string
+        }
+        Update: {
+          action_item_id?: string
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          update_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "action_item_updates_action_item_id_fkey"
+            columns: ["action_item_id"]
+            isOneToOne: false
+            referencedRelation: "action_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_item_updates_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -8311,6 +8462,75 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_committee_action_item_checklist: {
+        Args: {
+          p_action_item_id: string
+          p_sort_order?: number
+          p_title: string
+        }
+        Returns: {
+          action_item_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_done: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "action_item_checklists"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_committee_action_item_reminder: {
+        Args: {
+          p_action_item_id: string
+          p_offset_days?: number
+          p_reminder_type: string
+        }
+        Returns: {
+          action_item_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          offset_days: number | null
+          reminder_type: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "action_item_reminders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_committee_action_item_update: {
+        Args: {
+          p_action_item_id: string
+          p_body: string
+          p_update_type: string
+        }
+        Returns: {
+          action_item_id: string
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          update_type: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "action_item_updates"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_controlled_document: {
         Args: {
           p_commission: string
@@ -8818,6 +9038,14 @@ export type Database = {
         Returns: undefined
       }
       delete_committee_action_item: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      delete_committee_action_item_checklist: {
+        Args: { p_id: string }
+        Returns: undefined
+      }
+      delete_committee_action_item_reminder: {
         Args: { p_id: string }
         Returns: undefined
       }
@@ -11037,6 +11265,27 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      toggle_committee_action_item_checklist: {
+        Args: { p_id: string; p_is_done: boolean }
+        Returns: {
+          action_item_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_done: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "action_item_checklists"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       transfer_event_custody: {
         Args: {
           p_event_id: string
@@ -11338,6 +11587,46 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "action_items"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_committee_action_item_checklist: {
+        Args: { p_id: string; p_sort_order?: number; p_title: string }
+        Returns: {
+          action_item_id: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_done: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "action_item_checklists"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_committee_action_item_reminder: {
+        Args: { p_id: string; p_is_active: boolean }
+        Returns: {
+          action_item_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          offset_days: number | null
+          reminder_type: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "action_item_reminders"
           isOneToOne: true
           isSetofReturn: false
         }
