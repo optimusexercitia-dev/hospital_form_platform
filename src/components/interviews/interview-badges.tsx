@@ -73,10 +73,12 @@ export function InterviewCategoryBadge({
 }
 
 /**
- * The NON-ENFORCING confidentiality tag (IV2). Deliberately MUTED — never alarming,
- * never read as access control. Pairs a neutral tag icon with the label and carries
- * the mandatory "does not restrict access" clarification as a native tooltip
- * (`title`) plus screen-reader text, so the tag can never be mistaken for a gate.
+ * The confidentiality-level tag (E1 taxonomy; ADR 0072). Most levels are
+ * informational; the two ENFORCING levels (`legal_privileged` /
+ * `credentialing_sensitive`) render in the elevated `warning` tier (see
+ * `CONFIDENTIALITY_STYLE`). Pairs a tag icon with the label and carries the
+ * sensitivity/clearance clarification as a native tooltip (`title`) plus
+ * screen-reader text, so the meaning never rests on colour alone.
  */
 export function ConfidentialityBadge({
   level,

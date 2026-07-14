@@ -2,6 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { logAuditAccess } from '@/lib/audit/access'
 import { featureEnabled } from '@/lib/queries/feature-flags'
 import { listAttachments } from '@/lib/queries/attachments'
+// The one confidentiality taxonomy (X-δ): reuse the canonical client-safe union rather
+// than a parallel copy (type-only import — erased at build; no server-only coupling).
+import type { ConfidentialityLabel } from '@/lib/attachments/constants'
 
 /**
  * Interviews data-access (Phase 11 — Interviews; revised by IV2 / ADR 0070 —
@@ -56,11 +59,16 @@ export type InterviewCategory =
   | 'other'
 
 /**
- * A NON-ENFORCING confidentiality classification (IV2; default `standard`). It is a
- * forward hook only — it does NOT gate access yet (enforcement lands with E1). The
- * UI must label it as not-yet-gating.
+ * An interview's confidentiality classification on the platform's SINGLE confidentiality
+ * taxonomy (X-δ — one taxonomy, no parallel copies). IV2's inert 3-value tag
+ * (`standard`/`restricted`/`highly_restricted`) was remapped to this at E1 (BE-6, O3:
+ * `standard→non_phi_internal`, `restricted→peer_review_confidential`,
+ * `highly_restricted→ethics_investigation`) and is now ENFORCING — `legal_privileged`
+ * + `credentialing_sensitive` gate above ordinary case-read. A direct alias of the
+ * canonical {@link ConfidentialityLabel} (the client-safe source of truth) so it can
+ * never drift. English key; pt-BR label in the UI.
  */
-export type InterviewConfidentiality = 'standard' | 'restricted' | 'highly_restricted'
+export type InterviewConfidentiality = ConfidentialityLabel
 
 /**
  * A subject's relationship to the case (IV2 N2; fixed-enum CHECK), required at add.

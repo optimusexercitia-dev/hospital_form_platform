@@ -158,35 +158,62 @@ export const INTERVIEW_CATEGORY_ORDER: InterviewCategory[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Confidentiality (IV2 — NON-ENFORCING tag; the UI must say it does not gate access)
+// Confidentiality (E1 — access-regime taxonomy; ADR 0072). Remapped from IV2's
+// inert 3-value tag to the shared 7-value `ConfidentialityLabel` set (BE-6, O3:
+// standard→non_phi_internal, restricted→peer_review_confidential,
+// highly_restricted→ethics_investigation). MOSTLY informational, but
+// `legal_privileged` + `credentialing_sensitive` now ENFORCE (gate above ordinary
+// case-read) — the styling + helper copy below reflect that.
 // ---------------------------------------------------------------------------
 
 export const CONFIDENTIALITY_LABEL: Record<InterviewConfidentiality, string> = {
-  standard: "Padrão",
-  restricted: "Restrita",
-  highly_restricted: "Altamente restrita",
+  non_phi_internal: "Padrão",
+  phi_standard: "Dados de paciente",
+  phi_restricted: "Dados sensíveis",
+  peer_review_confidential: "Revisão por pares",
+  legal_privileged: "Sigilo jurídico",
+  ethics_investigation: "Investigação ética",
+  credentialing_sensitive: "Credenciamento",
 };
 
-/** Muted (NOT alarming) badge styling — the tag is informational, not a control. */
+/**
+ * Badge styling per confidentiality level (semantic tokens; always paired with the
+ * label text — never colour alone). Four visual tiers of increasing prominence:
+ * neutral (`muted`) → noted (`secondary`) → elevated (`accent`) → gated
+ * (`warning`, reserved for the two ENFORCING levels that require extra clearance —
+ * amber signals "attention/clearance", not an error).
+ */
 export const CONFIDENTIALITY_STYLE: Record<InterviewConfidentiality, string> = {
-  standard: "bg-muted text-muted-foreground",
-  restricted: "bg-secondary text-secondary-foreground",
-  highly_restricted: "bg-accent text-accent-foreground",
+  non_phi_internal: "bg-muted text-muted-foreground",
+  phi_standard: "bg-secondary text-secondary-foreground",
+  phi_restricted: "bg-accent text-accent-foreground",
+  peer_review_confidential: "bg-secondary text-secondary-foreground",
+  legal_privileged: "bg-warning/15 text-warning",
+  ethics_investigation: "bg-accent text-accent-foreground",
+  credentialing_sensitive: "bg-warning/15 text-warning",
 };
 
+/** Ascending-sensitivity order (mirrors the canonical `ConfidentialityLabel` union). */
 export const CONFIDENTIALITY_ORDER: InterviewConfidentiality[] = [
-  "standard",
-  "restricted",
-  "highly_restricted",
+  "non_phi_internal",
+  "phi_standard",
+  "phi_restricted",
+  "peer_review_confidential",
+  "legal_privileged",
+  "ethics_investigation",
+  "credentialing_sensitive",
 ];
 
 /**
- * MANDATORY helper copy for the confidentiality picker/badge. The tag is a
- * classification only — it does NOT restrict access yet (enforcement lands with
- * E1). This text must accompany the control so it never reads as access control.
+ * Helper copy for the confidentiality picker/badge. Most levels are informational
+ * (they signal sensitivity only), but `legal_privileged` + `credentialing_sensitive`
+ * became ENFORCING at E1 (ADR 0072) — opening that content needs extra clearance.
+ * The copy must neither oversell (it is NOT a blanket access control) nor understate
+ * (it must not claim it never restricts access). Full confidentiality-management UX
+ * is deferred to E2/E3.
  */
 export const CONFIDENTIALITY_HELPER_TEXT =
-  "Classificação informativa. Ainda não restringe o acesso — serve apenas para sinalizar a sensibilidade.";
+  "Classificação de sensibilidade. A maioria dos níveis é apenas informativa; conteúdo de sigilo jurídico ou de credenciamento exige autorização adicional para ser aberto.";
 
 // ---------------------------------------------------------------------------
 // Subject relationship to the case (IV2 — required at add; staff-only)

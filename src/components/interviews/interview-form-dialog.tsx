@@ -115,7 +115,7 @@ export function InterviewFormDialog({
   );
   const [confidentiality, setConfidentiality] =
     useState<InterviewConfidentiality>(
-      interview?.confidentialityLevel ?? "standard",
+      interview?.confidentialityLevel ?? "non_phi_internal",
     );
   const [categoryError, setCategoryError] = useState(false);
 
@@ -138,7 +138,7 @@ export function InterviewFormDialog({
       setTitle(interview?.title ?? "");
       setCasePhaseId(interview?.casePhaseId ?? "");
       setCategory(interview?.interviewCategory ?? "");
-      setConfidentiality(interview?.confidentialityLevel ?? "standard");
+      setConfidentiality(interview?.confidentialityLevel ?? "non_phi_internal");
       setScheduleFirst(true);
       setSessionType("initial");
       setModality("presencial");
