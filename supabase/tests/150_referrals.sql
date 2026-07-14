@@ -21,7 +21,7 @@
 -- SECURITY DEFINER RPC, so a DB-side test can observe them).
 
 begin;
-select plan(72);
+select plan(77);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -365,6 +365,47 @@ select is(app.can_read_case((select tgt_case from cs), (select admin from k)), t
   'QPS reads the referral-touched TARGET (B) live case');
 select is(app.can_read_case((select src_case from cs), (select sa_y from k)), false,
   'B coordinator CANNOT read A''s live source case (no target-commission term)');
+
+-- =========================================================================
+-- RV2 R1 fast-follow: get_referral_detail compose-authority flags (PHI-free),
+-- matching the EXACT post/request/provide RPC gates (incl. the target ANALYST arm).
+-- r1 is linked to tgt_case (status accepted), so referral_target_analyst is testable.
+-- =========================================================================
+-- Make st_y (plain target staff, NOT a coordinator) a TARGET ANALYST via a
+-- case_access grant on B's target case.
+insert into public.case_access (case_id, user_id, level, granted_by)
+  values ((select tgt_case from cs), (select st_y from k), 'read', (select sa_y from k));
+
+-- Source coordinator: compose-as-source true, compose-as-target false.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table cf_src on commit drop as select public.get_referral_detail((select id from r1)) as j;
+reset role;
+grant select on cf_src to authenticated;
+select is((select (j->>'can_compose_as_source')::boolean from cf_src), true,
+  'source coordinator gets can_compose_as_source = true');
+select is((select (j->>'can_compose_as_target')::boolean from cf_src), false,
+  'source coordinator gets can_compose_as_target = false');
+
+-- Target ANALYST (st_y via case_access, NOT a coordinator): compose-as-target true.
+select test_helpers.claims_for((select st_y from k), false);
+set local role authenticated;
+create temp table cf_analyst on commit drop as select public.get_referral_detail((select id from r1)) as j;
+reset role;
+grant select on cf_analyst to authenticated;
+select is((select (j->>'can_compose_as_target')::boolean from cf_analyst), true,
+  'target ANALYST (case_access, not coordinator) gets can_compose_as_target = true (analyst arm)');
+
+-- Plain source member (st_x, no analyst): both false.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+create temp table cf_plain on commit drop as select public.get_referral_detail((select id from r1)) as j;
+reset role;
+grant select on cf_plain to authenticated;
+select is((select (j->>'can_compose_as_source')::boolean from cf_plain), false,
+  'plain source member gets can_compose_as_source = false');
+select is((select (j->>'can_compose_as_target')::boolean from cf_plain), false,
+  'plain source member gets can_compose_as_target = false');
 
 -- =========================================================================
 -- close_case with a response_expected=false referral never blocks.

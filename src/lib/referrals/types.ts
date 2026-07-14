@@ -269,6 +269,14 @@ export interface ReferralDetail {
   waitingOnCommitteeId: string | null
   /** RV2 R1: last thread activity (PHI-free); `null` if no message yet. */
   lastMessageAt: string | null
+  /** RV2 R1: whether THIS viewer may compose as the SOURCE (= source coordinator).
+   * Computed by the door with the exact `provide_referral_information` authority.
+   * The composer gates "Responder" / source "Comentar" on this. PHI-free. */
+  canComposeAsSource: boolean
+  /** RV2 R1: whether THIS viewer may compose as the TARGET (= target coordinator OR
+   * the assigned target analyst). Computed with the exact `post`/`request` authority.
+   * The composer gates "Solicitar informação" / target "Comentar" on this. PHI-free. */
+  canComposeAsTarget: boolean
   /** The frozen snapshot rows B reads (narratives + documents). */
   sharedItems: SharedItem[]
   /** RV2 R1: the ordered dialogue thread. Message `body` is PHI-bearing and is

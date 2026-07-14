@@ -350,6 +350,8 @@ interface ReferralDetailJson {
   decline_note: string | null
   waiting_on_committee_id: string | null
   last_message_at: string | null
+  can_compose_as_source: boolean
+  can_compose_as_target: boolean
   messages: {
     id: string
     referral_id: string
@@ -504,6 +506,8 @@ export async function getReferralDetail(
     createdByName: d.created_by_name,
     waitingOnCommitteeId: d.waiting_on_committee_id,
     lastMessageAt: d.last_message_at,
+    canComposeAsSource: d.can_compose_as_source,
+    canComposeAsTarget: d.can_compose_as_target,
     sharedItems,
     messages,
     reply,
