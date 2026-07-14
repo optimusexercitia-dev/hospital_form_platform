@@ -1573,6 +1573,64 @@ export type Database = {
           },
         ]
       }
+      case_conflict_declarations: {
+        Row: {
+          case_id: string
+          conflict_type: string
+          declarant_id: string
+          declared_at: string
+          description_md: string | null
+          id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          case_id: string
+          conflict_type: string
+          declarant_id: string
+          declared_at?: string
+          description_md?: string | null
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          case_id?: string
+          conflict_type?: string
+          declarant_id?: string
+          declared_at?: string
+          description_md?: string | null
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_conflict_declarations_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_conflict_declarations_declarant_id_fkey"
+            columns: ["declarant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_conflict_declarations_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_events: {
         Row: {
           body: string
@@ -2437,6 +2495,81 @@ export type Database = {
             columns: ["result_override_id"]
             isOneToOne: false
             referencedRelation: "phase_results"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_recusals: {
+        Row: {
+          case_id: string
+          conflict_declaration_id: string | null
+          id: string
+          lifted_at: string | null
+          lifted_by: string | null
+          reason_md: string | null
+          recused_at: string
+          recused_by: string | null
+          source: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          conflict_declaration_id?: string | null
+          id?: string
+          lifted_at?: string | null
+          lifted_by?: string | null
+          reason_md?: string | null
+          recused_at?: string
+          recused_by?: string | null
+          source: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          conflict_declaration_id?: string | null
+          id?: string
+          lifted_at?: string | null
+          lifted_by?: string | null
+          reason_md?: string | null
+          recused_at?: string
+          recused_by?: string | null
+          source?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_recusals_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_recusals_conflict_declaration_id_fkey"
+            columns: ["conflict_declaration_id"]
+            isOneToOne: false
+            referencedRelation: "case_conflict_declarations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_recusals_lifted_by_fkey"
+            columns: ["lifted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_recusals_recused_by_fkey"
+            columns: ["recused_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_recusals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]

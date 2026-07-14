@@ -15,7 +15,7 @@
 -- =============================================================================
 
 begin;
-select plan(13);
+select plan(23);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -171,6 +171,90 @@ select throws_ok(
   'P0002', null,
   'create_case_from_template rejects a case_type that does not resolve in the case''s org');
 reset role;
+
+-- ===========================================================================
+-- BE-3 — case_conflict_declarations + case_recusals RLS (ADR 0072 D4).
+-- Uses c_default (a commission_default case in comm_x). Setup rows inserted as
+-- superuser (bypassing RLS); SELECT visibility asserted under each persona.
+-- ===========================================================================
+reset role;
+insert into public.case_conflict_declarations (case_id, declarant_id, conflict_type, description_md)
+values ((select cid from c_default), (select st_x from k), 'professional_relationship', 'conheço o denunciado');
+insert into public.case_recusals (case_id, user_id, source, reason_md)
+values ((select cid from c_default), (select st_x from k), 'coordinator', 'impedido pela coordenação');
+
+-- (14)+(15) conflict declaration: a case reader (coordinator) sees it; a foreign
+-- coordinator does not.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.case_conflict_declarations
+           where case_id = (select cid from c_default)), 1,
+  'a case coordinator SELECTs the conflict declaration (can_read_case arm)');
+reset role;
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.case_conflict_declarations
+           where case_id = (select cid from c_default)), 0,
+  'a foreign coordinator does NOT see the conflict declaration');
+reset role;
+
+-- (16)+(17)+(18) recusal: coordinator sees it; foreign does not; the RECUSED user
+-- sees their OWN recusal (self-arm).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.case_recusals
+           where case_id = (select cid from c_default)), 1,
+  'a case coordinator SELECTs the recusal (staff_admin coordinator arm)');
+reset role;
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.case_recusals
+           where case_id = (select cid from c_default)), 0,
+  'a foreign coordinator does NOT see the recusal');
+reset role;
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.case_recusals
+           where case_id = (select cid from c_default) and user_id = (select st_x from k)), 1,
+  'the recused user SELECTs their OWN recusal row (self-arm)');
+reset role;
+
+-- (19)+(20) DIRECT authenticated writes are denied (no write policy / grant — DEFINER-only).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ insert into public.case_conflict_declarations (case_id, declarant_id, conflict_type)
+            values (%L, %L, 'other') $$, (select cid from c_default), (select sa_x from k)),
+  '42501', null,
+  'a direct authenticated INSERT into case_conflict_declarations is denied (DEFINER-only)');
+select throws_ok(
+  format($$ insert into public.case_recusals (case_id, user_id, source)
+            values (%L, %L, 'self') $$, (select cid from c_default), (select sa_x from k)),
+  '42501', null,
+  'a direct authenticated INSERT into case_recusals is denied (DEFINER-only)');
+reset role;
+
+-- (21) one declaration per (case, declarant) — unique_violation.
+select throws_ok(
+  format($$ insert into public.case_conflict_declarations (case_id, declarant_id, conflict_type)
+            values (%L, %L, 'other') $$, (select cid from c_default), (select st_x from k)),
+  '23505', null,
+  'a second conflict declaration for the same (case, declarant) is rejected (unique)');
+
+-- (22) one LIVE recusal per (case, user) — partial unique_violation.
+select throws_ok(
+  format($$ insert into public.case_recusals (case_id, user_id, source)
+            values (%L, %L, 'self') $$, (select cid from c_default), (select st_x from k)),
+  '23505', null,
+  'a second LIVE recusal for the same (case, user) is rejected (partial unique)');
+
+-- (23) a LIFTED recusal + a fresh LIVE recusal for the same (case, user) coexist.
+update public.case_recusals set lifted_at = now(), lifted_by = (select sa_x from k)
+  where case_id = (select cid from c_default) and user_id = (select st_x from k) and lifted_at is null;
+select lives_ok(
+  format($$ insert into public.case_recusals (case_id, user_id, source)
+            values (%L, %L, 'coordinator') $$, (select cid from c_default), (select st_x from k)),
+  'a fresh LIVE recusal is allowed once the prior one is lifted (partial unique)');
 
 select * from finish();
 rollback;
