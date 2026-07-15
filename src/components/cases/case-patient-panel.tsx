@@ -14,16 +14,22 @@ import { CasePatientEditDialog } from "@/components/cases/case-patient-edit-dial
  * The LAZY, AUDITED isolated-PHI panel on the case detail (ADR 0038; Rule 12) —
  * the THIRD PHI module, modeled on the referral panel. Direct SELECT on
  * `case_patient` is REVOKED; the only door is the audited `revealCasePatient`
- * server action, which re-gates the BROAD `can_read_case` predicate and emits a
+ * server action, which re-gates `can_read_case_patient` (NOT the broader
+ * content-reach `can_read_case` — see the access nuance below) and emits a
  * `case_patient.read` audit row SERVER-SIDE. So we load ON CLICK — never on page
  * open — so the audited read fires exactly when a reader chooses to see the
  * identifiers.
  *
- * Access nuance (ADR 0038): the read scope here is DELIBERATELY looser than the
- * other two PHI modules — a phase/narrative assignee or a case grantee CAN reveal,
- * because they need the MRN to do the work. So `null` back (the rare out-of-scope
- * case) gets a calm "sem acesso" state, not a raw error. WRITES stay
- * coordinator-only: the edit affordance renders only when `canEdit`.
+ * Access nuance (ADR 0038, re-scoped by ADR 0078 M3): a plain phase/narrative
+ * assignee keeps full CONTENT reach (opens the case, works the phase) but is NOT
+ * entitled to PHI — `can_read_case_patient` only admits the commission's
+ * coordination (`staff_admin`) and holders of an explicit, unexpired `case_access`
+ * grant (M3 removed the bare-assignment arms; Context·1 / D10, defect ①). So `null`
+ * back (an assignee with no grant, or the rare fully-out-of-scope case) gets a
+ * calm "sem acesso" state, not a raw error — and the copy must name coordination +
+ * grant, never "responsáveis pelo caso" (that would restate the removed, over-broad
+ * rule). WRITES stay coordinator-only: the edit affordance renders only when
+ * `canEdit`.
  *
  * The reveal + save doors are injected as props (bound by the page to the case id),
  * keeping this client component free of any server-only import (Rule 9).
@@ -187,7 +193,8 @@ export function CasePatientPanel({
         <div className="flex flex-col gap-3">
           <p className="rounded-xl border border-dashed border-border bg-card/50 px-4 py-6 text-center text-sm text-muted-foreground text-pretty">
             Você não tem acesso à identificação do paciente deste caso. O acesso é
-            liberado à coordenação e aos responsáveis pelo caso.
+            liberado à coordenação da comissão e a quem tenha concessão
+            específica de acesso ao caso.
           </p>
           {editControl}
         </div>
