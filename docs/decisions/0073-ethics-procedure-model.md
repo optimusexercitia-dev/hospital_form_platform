@@ -7,6 +7,14 @@
 [S0 spine](../plans/pre-pilot-release-s0-ratification.md).
 **Build plan:** [`docs/phases/ethics-e2-procedure.md`](../phases/ethics-e2-procedure.md).
 
+**Amended (2026-07-14):** adds **§D13** (respondent targeted-submission door) and **§D14** (case-restricted
+hearings) — two capability additions the PO approved after the 0072/0073-vs-handoff evaluation. Both are
+**column + predicate + RPC** additions with **zero new tables**; the data model is otherwise unchanged. §D13
+closes a functional hole (a respondent could not submit a defense without gaining case read); §D14 closes a
+confidentiality leak (a recused/non-granted member could read hearing minutes via ordinary meeting
+membership). §D14 **re-opens** the X-η CH↔E2 meetings-file serialization (see §D14). The nine-table set,
+naming, and every other decision are unchanged.
+
 **Continues / depends on:**
 - **Continues ADR [0064](./0064-case-subject-generalization-participants.md)** (the E0 participant
   foundation) §"Open items" 2 — the ethics *procedure* table set it defers. E2 builds the
@@ -102,11 +110,13 @@ Objects that are merely *descriptive prose about the case* stay narrative/form.
 
 Net: **nine tables** (`ethics_case_details`, `ethics_allegations`, `ethics_findings`,
 `ethics_notifications`, `case_decisions`, `ethics_decision_details`, `case_votes`, `ethics_hearings`,
-`ethics_appeals`) + additive **columns on existing tables** (`responses.target_case_participant_id`;
-`professional_profiles.retention_pinned_at`/`_reason`/`redacted_at`/`_by` for §D9; **no** new
-`meetings` column — the hearing label reuses the `commission_meeting_types` catalog, §D8/O-7) + **two
-catalogs** (`ethics_allegation_categories`; `case_assignment_roles`) + a nullable
-`case_phases.assignment_role_id`. Everything else is form/narrative on surfaces that already exist.
+`ethics_appeals`) + additive **columns on existing tables** (`responses.target_case_participant_id` — now
+the **respondent targeted-submission seam**, §D13; `meetings.restricted_to_case_id` — the
+**case-restricted-hearing access root**, §D14; `professional_profiles.retention_pinned_at`/`_reason`/
+`redacted_at`/`_by` for §D9; the hearing **type label** still reuses the `commission_meeting_types` catalog
+with **no** `meeting_type` column, §D8/O-7) + **two catalogs** (`ethics_allegation_categories`;
+`case_assignment_roles`) + a nullable `case_phases.assignment_role_id`. **§D13 and §D14 add zero tables**
+(predicates, RPCs, and two columns only). Everything else is form/narrative on surfaces that already exist.
 
 ---
 
@@ -390,6 +400,11 @@ ethics-specific presence flags + type + outcome. `case_votes.meeting_id` may poi
 meeting so a vote records where it was cast. E2 does **not** re-model quorum
 (`commission_meeting_settings` stays authoritative).
 
+**★ (D14) The hearing's `meetings` row is now case-restricted.** `schedule_ethics_hearing` creates it via
+`create_case_restricted_meeting` (`restricted_to_case_id` = the case), so a recused/non-granted member
+cannot read the hearing or its minutes/attachments — the isolation guarantee D8 previously lacked. See §D14
+(and the X-η re-open it flags). `ethics_hearings`'s own columns are unchanged.
+
 > **★ X-η reconciliation — the S0 "add `meeting_type` column" contract is now a live question (Open
 > decision O-7).** S0 §E X-η says *"ETH·E2 adds a `meeting_type` column"* to Meetings. On verification
 > the meetings module **already carries a first-class, per-commission, user-managed meeting-type
@@ -473,7 +488,10 @@ Two additive extensions ADR 0064 §"Open items" 3/4 named:
   Statement) form attaches to a **specific participant**, not just a phase. Nullable (most forms target
   a phase, not a participant); when set, the form's read stays `can_read_case`-gated (no new RLS — the
   column is a projection/filter, not an access term). This is the mechanism by which the respondent's
-  **written defense** (a form/narrative, per the graduation table) is bound to the respondent.
+  **written defense** (a form/narrative, per the graduation table) is bound to the respondent. **§D13
+  upgrades this column from a projection into a narrow access door** (`can_access_targeted_response`) so the
+  respondent can actually *submit* that defense **without** gaining case read — the projection alone left
+  them unable to reach the form (0072 D3 hard-denies them).
   > **Naming note:** the case-phase form-response table is **`public.responses`** (columns
   > `form_version_id`, `commission_id`, `created_by`, `status`, `case_phase_id`, `submitted_at` —
   > baseline L4063), **not** `form_responses` (that is the *external design's* generic name, which the
@@ -502,7 +520,12 @@ Two additive extensions ADR 0064 §"Open items" 3/4 named:
 | `HC0F6` | prazo/notificação inválido ou já reconhecido (`ethics_notifications` acknowledge/cancel guard) |
 | `HC0F7` | perfil profissional protegido por retenção não pode ser eliminado (`redact_professional_profile` pin guard — CFM 20-yr) |
 | `HC0F8` | decisão não pode ser emitida sem quórum de votos (reserved — the D4 vote-quorum gate, if O-3 enforces it) |
-| `HC0F9` | reservado (E2 growth) |
+| `HC0F9` | usuário não autorizado a esta submissão dirigida (`submit_targeted_case_response` — caller is not the targeted participant, §D13) |
+
+> **Block note:** with `HC0F9` assigned to §D13, the `HC0F0–HC0F9` block is **fully allocated**. §D13's
+> `target_case_response` and §D14's restricted-meeting guards reuse `HC0F0` (invalid state / cross-case
+> link) and `HC0F1` (coordinator authority) — no further code needed. Any *future* ethics SQLSTATE requires
+> a new S0-ratified block.
 
 **New audit verbs** (mutation, via `app.audit_write`; PHI-free metadata — Rule 11; new verbs join the
 `log_audit_access` allow-list + `_audit_access_authorized` dispatch **only** for the read-doors, per §D):
@@ -510,6 +533,7 @@ Two additive extensions ADR 0064 §"Open items" 3/4 named:
 `ethics.finding_recorded`, `ethics.notification_issued`, `ethics.notification_acknowledged`,
 `ethics.hearing_scheduled`, `ethics.hearing_completed`, `case.vote_cast`, `case.decision_created`,
 `case.decision_issued`, `case.appeal_submitted`, `case.appeal_reviewed`,
+`case.response_targeted`, `case.targeted_response_submitted` (§D13), `case.restricted_meeting_created` (§D14),
 `professional_profile.retention_pinned`, `professional_profile.redacted`. All mutation verbs go through
 `app.audit_write` (not the read allow-list — the precedent is AI·sat's non-PHI mutation verbs); the
 allow-list gains only genuine cross-member/PHI **read** verbs if any E2 door reads across members (none
@@ -532,6 +556,147 @@ code (`HC000`, reused) exactly like every flagged RPC family; the E2 tables are 
 null so the meetings surface is unchanged; `case_decisions`/`case_votes` are engine-level but only E2
 writes them, so they too stay empty. No pre-E2 behavior changes. This is a pgTAP keystone.
 
+### D13 — Respondent targeted-submission door: `can_access_targeted_response` (a respondent files a defense without case read)
+
+D10 added `responses.target_case_participant_id` as a **projection/filter**. But ADR 0072 D3 **hard-denies**
+a respondent on both `can_read_case` **and** `can_write_case_content`. For the m2 keystone scenario — an
+internal doctor who is a platform user, complained about by a peer (0072 D1·1) — that leaves the respondent
+with **no path to submit their own defense**: the targeted form is `can_read_case`-gated, and they are
+denied. E1 correctly excludes them from the **investigation**; it left them unable to **respond**. D13 adds
+the **one narrow exception** — a targeted-submission door that authorizes a targeted participant to reach
+**only** their own response, **never** the case.
+
+**A separate predicate — never `can_read_case`, never a re-opening of the respondent hard-deny:**
+
+```
+app.can_access_targeted_response(p_response_id uuid, p_uid uuid) returns boolean
+  -- SECURITY DEFINER, base-table traversal (R6-safe). True iff ALL hold:
+  --   1. responses.target_case_participant_id is not null                 (the response IS targeted)
+  --   2. the targeted case_participants row is LIVE (removed_at is null) and resolves to p_uid via
+  --        professional_participants.professional_profile_id → professional_profiles.user_id = p_uid
+  --      (the only participant→user link that exists — a patient participant has no user, so only a
+  --       professional target is reachable; a respondent_doctor or a professional witness qualifies)
+  --   3. responses.status is in the op's allowed set   (in_progress → read+write ; submitted → read-only)
+```
+
+This predicate **never calls `app.can_read_case`** and **never weakens** the 0072 D2·0 respondent
+hard-deny. It is referenced by **exactly three RLS surfaces and nothing else**:
+
+- **`responses`** SELECT / UPDATE — an OR arm: `… OR app.can_access_targeted_response(id, auth.uid())`
+  (the UPDATE arm additionally requires `status = 'in_progress'`).
+- **`answers`** SELECT / INSERT / UPDATE — the same arm resolved through the parent response:
+  `… OR app.can_access_targeted_response(response_id, auth.uid())` (writes require the parent `in_progress`).
+- the **form definition** the wizard renders (`form_versions` / `form_sections` / `form_items`) — read via
+  the **existing published-form-version read** (form definitions are commission-scoped published artifacts,
+  not case PHI). If a build-plan ripple finds the respondent cannot reach the published version, a narrow
+  targeted arm is added **there and nowhere else**.
+
+It authorizes **only** that response, its answers, and the form definition. It does **not** authorize
+`cases`, `case_participants`, `ethics_allegations`, `ethics_findings`, `case_decisions`, `case_votes`,
+`ethics_notifications`, `ethics_hearings`, `meetings`, `case_narratives`, or `attachments` — a respondent
+who selects any of those still hits the 0072 hard-deny (zero rows).
+
+**RPCs (DEFINER, t19-guarded):**
+
+- `target_case_response(p_response_id, p_case_participant_id)` — **coordinator-gated**. Validates the
+  participant belongs to the **same** case as the response's `case_phase_id → case_phases → cases` chain and
+  that the case is ethics-typed; sets `target_case_participant_id`; audited `case.response_targeted`.
+  `HC0F1` (authority) / `HC0F0` (invalid state or cross-case participant).
+- `submit_targeted_case_response(p_response_id)` — **the targeted user** submits their own defense. Asserts
+  `can_access_targeted_response` (else **`HC0F9`** — *usuário não autorizado a esta submissão dirigida*) and
+  `status = 'in_progress'`, transitions to `submitted`, freezing answers via the existing
+  submitted-immutability guards. It does **not** call `submit_response` (that path checks
+  authorship / `can_write_case_content`, which the respondent fails by design). Audited
+  `case.targeted_response_submitted`.
+
+The **coordinator** creates the empty `in_progress` targeted response (ordinary phase-response creation +
+`target_case_response`), so the respondent never creates a case row; answer writes during `in_progress`
+ride the wizard's existing upsert path, now admitted by the `answers` targeted arm.
+
+**State machine + invariants (pgTAP keystones):**
+
+- created `in_progress` (coordinator, targeted at the respondent) → respondent reads + writes answers →
+  `submit_targeted_case_response` → `submitted` (read-only to the respondent; immutable).
+- The respondent reads/writes **only** the targeted response; every other case table returns zero rows.
+- **Another participant cannot open the respondent's draft** — the predicate resolves to a single `user_id`.
+- **Soft-removing/replacing the respondent participant** (`removed_at`) revokes future targeted access
+  (term 2 checks `removed_at is null`); already-submitted answers persist (immutable).
+- A **witness statement** (*Depoimento de testemunha*) reuses the identical door for a professional witness
+  who is a platform user — same predicate, same RPCs, no new mechanism.
+
+**Notice delivery stays out-of-band.** The respondent learns *what* to defend against via the
+`ethics_notifications` delivery channel (`delivery_method ∈ {email, letter, in_person, …}`) — an external
+send, **not** an in-app `can_read_case`-gated read. So D13 needs **no** notice-read door: the deadline object
+(D5) is delivered outside the platform; only the defense **form** is reachable in-app, through this door.
+
+**Zero new tables.** D13 is a predicate + two RPCs + three RLS arms over the **existing**
+`responses.target_case_participant_id` (D10). The data model is unchanged.
+
+### D14 — Case-restricted hearings: `meetings.restricted_to_case_id` + `can_read_meeting` (a recused/non-granted member cannot read the hearing)
+
+D8 rides a hearing on a `meetings` row, but a plain meeting's access is **ordinary meeting participation**,
+which is **not** `can_read_case`-gated. So a **recused** member (0072 denies their `can_read_case`) or a
+**non-granted** member of an `explicit_grants_only` ethics case could still read the hearing's **minutes,
+agenda, attendance, and attachments** through meeting membership — a confidentiality leak in exactly the
+population E1 exists to exclude. D14 closes it: a hearing meeting becomes **case-restricted**, and every
+meeting child inherits the `can_read_case` decision.
+
+**One additive column (the access root):**
+
+```sql
+alter table public.meetings
+  add column restricted_to_case_id uuid null references public.cases(id) on delete restrict;
+-- NULL  = ordinary meeting — access UNCHANGED (byte-for-byte today's rule).
+-- SET   = a case-restricted hearing — access delegates to can_read_case.
+```
+
+**One predicate (R6-safe, DEFINER over base tables):**
+
+```
+app.can_read_meeting(p_meeting_id uuid, p_uid uuid) returns boolean
+  -- if meetings.restricted_to_case_id is not null
+  --      → return app.can_read_case(restricted_to_case_id, p_uid);   -- respondent/recused/grant-gated
+  -- else → <the existing ordinary meeting-participation rule, verbatim>;   -- NO regression
+```
+
+**Every meeting-child SELECT policy delegates to `can_read_meeting`** — the meeting row,
+`meeting_agenda_items`, `meeting_attendees`, `meeting_cases`, minutes, `meeting_signatures`, meeting-owned
+`attachments`, and `meeting_action_items`. For an **ordinary** meeting the else-branch reproduces today's
+rule **exactly**, so **no non-ethics meeting loses or gains reach** (the flag-OFF / non-ethics invariant — a
+pgTAP keystone). For a **restricted** hearing, a recused or non-granted member reads **nothing** — the
+meeting, its minutes, and its attachments all vanish together.
+
+**Write authority + the D8 tie-in:**
+
+- `create_case_restricted_meeting(p_case_id, p_meeting_type_id, p_scheduled_at, p_title, …)` —
+  **coordinator-gated** DEFINER; creates a `meetings` row with `restricted_to_case_id = p_case_id` and
+  `meeting_type_id` = the seeded **`Audiência`** `commission_meeting_types` row (O-7 — still **no**
+  `meeting_type` column). `HC0F1` authority. Audited `case.restricted_meeting_created`.
+- **D8 amended:** `schedule_ethics_hearing` creates/attaches its `meetings` row **via**
+  `create_case_restricted_meeting`, so `ethics_hearings.meeting_id` always points at a meeting whose
+  `restricted_to_case_id` = the hearing's case. The ordinary `create_meeting` path is untouched (creates
+  unrestricted meetings only).
+- **Single-case invariant:** a restricted meeting links **only** its authorizing case — `link_meeting_case`
+  rejects (`HC0F0`) a `meeting_cases` insert whose `case_id ≠ restricted_to_case_id`. (Multi-case restricted
+  meetings are out of scope — Open decision **O-9**.)
+
+**`ethics_hearings` is unchanged.** Its presence flags (`respondent_present`, `complainant_present`,
+`legal_representative_present`), `hearing_type`, and `outcome_md` stay exactly as D8 defines them; D14 adds
+**no** `meeting_attendees` column — attendance semantics remain on `ethics_hearings`, and the isolation
+guarantee rides `restricted_to_case_id` alone. `case_votes.meeting_id` may still point at the hearing's (now
+restricted) meeting.
+
+> **★ X-η re-opens (flag for the lead).** O-7 had resolved E2 to touch **no** meetings DDL (reuse the
+> `commission_meeting_types` catalog), which shrank the CH↔E2 collision to seed-only. D14 **adds
+> `meetings.restricted_to_case_id`** — a genuine meetings-surface DDL edit — so the **original X-η
+> serialization is back on**: E2's `restricted_to_case_id` migration + the meeting-child policy rewrite must
+> **serialize against CH** (which reads `meetings.held_at` and edits the meetings-module files). There is no
+> *semantic* conflict (different columns; CH's cadence is unaffected by restriction), but the file-edit
+> serialization the plan §5 mandates now applies. Re-ratify at the lead sign-off.
+
+**Zero new tables.** D14 is one column + one predicate + one RPC + a meeting-child policy rewrite. The data
+model's table set is unchanged.
+
 ---
 
 ## The E2 lifecycle (how the tables compose)
@@ -543,8 +708,10 @@ denúncia recebida
   → issue_ethics_notification('respondent_notification', due_at = prazo de defesa)
        → N scan arm reminds the coordinator as due_at approaches (X-ζ)   [ethics.notification_issued]
   → respondent files a defense           → responses(target_case_participant_id = respondent)
+       (via the D13 targeted door — submits WITHOUT case read; 0072 hard-deny intact)  [case.targeted_response_submitted]
   → add_ethics_allegation × N            (each: category, description, severity)   [ethics.allegation_added]
-  → schedule_ethics_hearing → rides a meetings row (type='Audiência' via the catalog)  [ethics.hearing_scheduled]
+  → schedule_ethics_hearing → rides a CASE-RESTRICTED meetings row (D14: restricted_to_case_id;
+       type='Audiência' via the catalog) — recused/non-granted members cannot read it  [ethics.hearing_scheduled]
   → record_ethics_finding per allegation (substantiated / not / partial)     [ethics.finding_recorded]
   → create case_decisions (draft) → cast_case_vote × eligible members
        (recused/respondent REFUSED at the door — HC0F5, consumes E1)         [case.vote_cast]
@@ -581,10 +748,23 @@ below clearance. Every mutation emits **one** PHI-free audit row. A **foreign-co
   notice deadlines ride N (X-ζ); CRM/CFM reporting rides ADR-0037 referrals (§D7); hearings ride
   `meetings` (X-η). E2 adds ethics-*specific* tables + two columns + one catalog, and **consumes**
   everything else — the ADR-0064 "never a forked model" principle held end-to-end.
-- **No new case-read RLS shape.** Every E2 table is `can_read_case`-gated SELECT + DEFINER-RPC write —
-  the E1 pattern, verbatim. E2's only RLS-adjacent novelty is the **denormalized `case_id`** on
-  `ethics_findings` (for a base-table predicate) and the **retention-pin trigger** (a mutation trigger,
-  not an access term). QA's RLS review is a conformance check, not a re-litigation.
+- **The respondent can defend without reading the case (D13).** `can_access_targeted_response` is a door
+  that authorizes **only** the targeted response + its answers + the form definition — it never calls
+  `can_read_case` and never weakens the 0072 respondent hard-deny. This closes the functional hole where a
+  hard-denied respondent had no in-app path to submit a defense. Zero new tables.
+- **Hearings are confidential to the panel (D14).** `meetings.restricted_to_case_id` + `can_read_meeting`
+  make a hearing meeting **and all its children** (agenda, attendees, minutes, signatures, attachments)
+  inherit `can_read_case`, so a recused or non-granted member reads **nothing** of the hearing — closing the
+  leak where hearing minutes were reachable via ordinary meeting membership. Ordinary meetings are
+  byte-for-byte unchanged. Zero new tables.
+- **Case-read RLS shape unchanged; two narrow additive predicates.** Every E2 table stays
+  `can_read_case`-gated SELECT + DEFINER-RPC write — the E1 pattern, verbatim. The RLS novelties beyond that
+  are all narrow and conformance-checkable: the **denormalized `case_id`** on `ethics_findings`; the
+  **retention-pin trigger** (a mutation trigger); and two **additive access predicates** —
+  `can_access_targeted_response` (D13, a door that **never touches** `can_read_case`) and `can_read_meeting`
+  (D14, which **delegates to** `can_read_case` for restricted meetings and is a no-op for ordinary ones).
+  **Neither adds an administrator/membership `OR`-arm to `can_read_case` itself.** QA's RLS review remains a
+  conformance check, not a re-litigation.
 - **Flag-OFF byte-for-byte.** `ethics` OFF ⇒ empty dark tables, feature-unavailable RPCs, a zero-row scan
   arm, an unchanged meetings surface. A pgTAP keystone.
 - **Strict serialization.** E2 needs **E1** (recusal + confidentiality + participant-write), **N**
@@ -624,3 +804,12 @@ below clearance. Every mutation emits **one** PHI-free audit row. A **foreign-co
   issued-decision + `redact_professional_profile` (null identity, preserve row, barred while pinned).
   **Implements the ADR-0072 §7 recommendation that requires human sign-off at S0.** If the PO wants a
   different retention trigger or an active pre-decision erasure path, flag before BE build.
+- **O-8 — targeted-response creation authority (D13).** The **coordinator** creates the empty `in_progress`
+  targeted response, then `target_case_response` binds the respondent (**recommend** — keeps case-row
+  creation off the respondent, who is hard-denied). Alternative: a single `create_targeted_case_response`
+  that creates+targets in one call. Recommend the two-step (reuses ordinary phase-response creation).
+  Confirm at the build-plan contract.
+- **★ O-9 — multi-case restricted meetings (D14).** A restricted hearing links **only** its one authorizing
+  case (single-case invariant, `HC0F0`). A joint hearing over two related cases is out of scope; if a real
+  need appears it requires a multi-case restricted-meeting access rule (a `meeting_cases`-set predicate).
+  **Recommend defer** (no pilot need). Confirm.
