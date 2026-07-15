@@ -5937,6 +5937,7 @@ export type Database = {
           id: string
           license_number: string | null
           license_region: string | null
+          link_state: string
           organization_id: string
           professional_type: string | null
           specialty: string | null
@@ -5950,6 +5951,7 @@ export type Database = {
           id?: string
           license_number?: string | null
           license_region?: string | null
+          link_state?: string
           organization_id: string
           professional_type?: string | null
           specialty?: string | null
@@ -5963,6 +5965,7 @@ export type Database = {
           id?: string
           license_number?: string | null
           license_region?: string | null
+          link_state?: string
           organization_id?: string
           professional_type?: string | null
           specialty?: string | null
@@ -11253,6 +11256,10 @@ export type Database = {
       }
       set_process_outcomes: {
         Args: { p_outcome_ids: string[]; p_template_id: string }
+        Returns: undefined
+      }
+      set_professional_link_state: {
+        Args: { p_link_state: string; p_profile_id: string; p_user_id?: string }
         Returns: undefined
       }
       set_rca_factor_key: {

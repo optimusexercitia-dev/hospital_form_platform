@@ -36,6 +36,17 @@ export interface AddParticipantState extends ActionState {
   caseParticipantId?: string
 }
 
+/**
+ * B7 (ADR 0078 M1·1) — whether a professional's platform account is RESOLVED.
+ *
+ * `unknown` is the fail-closed default: the account is unresolved, so
+ * `app.is_case_respondent` cannot resolve and the case exclusion would be
+ * decorative. Such a profile CANNOT be seated as `respondent_doctor` (`HC0F0`).
+ * `linked` = the account is known. `no_account` = affirmed to have none, which
+ * makes the exclusion vacuously satisfied.
+ */
+export type ProfessionalLinkState = 'linked' | 'no_account' | 'unknown'
+
 /** A create action that returns the new `professional_profiles.id` on success. */
 export interface CreateProfessionalProfileState extends ActionState {
   profileId?: string
@@ -145,6 +156,35 @@ export async function updateProfessionalProfile(
   patch: ProfessionalProfilePatch,
 ): Promise<ActionState> {
   return notImplemented('updateProfessionalProfile', profileId, patch)
+}
+
+/**
+ * B7 — resolve a professional's platform-account linkage
+ * (`set_professional_link_state`; audited `professional_profile.link_state_changed`).
+ *
+ * Deliberately NOT folded into `updateProfessionalProfile`: this is the only write
+ * that touches the case-exclusion plane, so it keeps its own audited door while
+ * routine LGPD Art. 18 corrections stay clear of it.
+ *
+ * Why the UI needs this (ADR 0078 M1·1): `app.is_case_respondent` matches on
+ * `professional_profiles.user_id`, so a profile whose linkage is `unknown` is
+ * silently NOT excluded from its own case. `add_case_participant` /
+ * `setCaseParticipantRole` therefore REJECT an `unknown` profile as
+ * `respondent_doctor` with `HC0F0` — and this action is the coordinator's only
+ * remedy for that rejection. A seating flow that cannot reach it is a dead end.
+ *
+ * - `linked` requires `userId`; `no_account` / `unknown` require it to be absent.
+ * - `no_account` is an AUDITED HUMAN ASSERTION that no platform account exists —
+ *   it makes the exclusion vacuously satisfied, so it must never be a default.
+ * - Frozen once the professional is a live respondent on any case (`HC0F2`): the
+ *   linkage cannot be dissolved out from under an active exclusion.
+ */
+export async function setProfessionalLinkState(
+  profileId: string,
+  linkState: ProfessionalLinkState,
+  userId?: string,
+): Promise<ActionState> {
+  return notImplemented('setProfessionalLinkState', profileId, linkState, userId)
 }
 
 // Re-export the union type the participant forms bind to, so a form importing an

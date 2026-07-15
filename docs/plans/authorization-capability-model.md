@@ -4,7 +4,8 @@
 > **Branch:** `feat/authorization-capability-model` (off `main` `30c0e7c`)
 > **Sequencing:** **BEFORE S4** (ETH·E2 · RV2 R2–R5 · CH). Its own gate unit — **never** folded into
 > an in-flight S-stage (Stage A touches every case-content policy).
-> **SQLSTATE block:** `HC0G0–HC0G9` (collision-check at freeze)
+> **SQLSTATE block:** `HC0F0–HC0F9` — ⚠ **corrected from `HC0G0–HC0G9` at M1**: the collision-check
+> found `HC0G0–2` already held by `grant_role`/`revoke_role` (catalog-verified).
 > **Flag:** none. This program **retires** the `case_access` flag (ADR 0078 D9) and ships a single
 > authorization path. Reset-OK; no rollback target exists and none is wanted.
 > **Remote:** local only. Remote lands at the pilot reset, with separate user approval.
@@ -94,6 +95,37 @@ lose it.
 | **`app.can_write_attachment`'s `'case'` arm** keeps `is_commission_admin_of_for` — D4·1 removes the *read*, not this. | ⚠ **ADR 0078 A14 — needs a PO decision at Stage A.** Org admin could upload a case attachment they cannot read back. |
 | `app.can_read_action_item`'s `case_restricted` scope → `can_read_case`; `can_read_attachment`'s `'action_item'` arm → `can_read_action_item`. | Both **fixed for free**. Don't double-patch. |
 | `app.is_pqs_operator_of_for` = `nsp_coordinator OR pqs_member`. | The handoff's two NSP rows are **one row** until Stage D. Don't design for a distinction the schema can't make. |
+
+### M1 · ⛔ Migration 1 — **exclusion durability, FIRST** (ADR 0078 **Amendment 4 / A29**; PO-approved 2026-07-15)
+
+> **This supersedes the stage order below.** A0 + `qa` found the program's central invariant — *"no
+> positive arm can out-vote the hard-deny"* — **holds and is beside the point**: nothing stopped the
+> denied party from **deleting the row the deny reads**. **Three** self-serving mutators (A27), all
+> DEFINER + bare role + no self-check: `lift_recusal` (a recused coordinator lifts her **own** recusal)
+> · `remove_case_participant` / `set_case_participant_role` (the respondent removes his **own**
+> `respondent_doctor` row → **`can_read_case_patient` t** → he reads the **PHI of the case in which he
+> is the accused**). Both P0s **lead-verified from the catalog**; the second **proven live**, rolled back.
+>
+> **Until M1 lands, every exclusion keystone in Gate 1 is vacuous** — each asserts *"she cannot read X"*
+> against a row **the test never lets her touch**. Gate 1 is validated against those keystones. So M1
+> comes first.
+
+**Order inside M1 is binding:**
+1. **B7 first** — respondent linkage / resolved state. The mutator fix is `AND NOT
+   app.is_case_excluded(...)`, **meaningless until `is_case_respondent` resolves**. ⚠ **A20 is
+   unimplementable as the ADR specifies it** — no `user_id` write path, and `ON DELETE SET NULL`
+   defeats the attach-time check (A31·5). Resolve before authoring.
+2. `lift_recusal` + the **three** mutators — each gains a **self-check**, not merely an exclusion term.
+3. The **30-RPC** DEFINER exclusion sweep (A31·1 — *not* 13; the list of 13 held 15).
+4. **A30** — the `is_admin()`/platform_admin arm on case content (`set_case_offered_outcomes`, + any
+   sibling; **enumerate first**). PO: fold in.
+
+**Scope fence — M1 is exclusion durability ONLY.** The **A21 admin-arm removal is NOT folded in**
+(D4·3: resolver first). **Do not sweep** `close_case` / `cancel_case` / `set_case_outcome` /
+`update_case_narrative_body` — verified `prosecdef = f`, so **RLS already protects them** (A32).
+
+**Keystone, binding:** the over-grant twin for **each** mutator — *the denied party calls the door on
+her **own** row and it **raises***. A no-regression keystone cannot catch this (Risks table, row 1).
 
 ### A1 · pgTAP first (authored before the SQL)
 

@@ -449,7 +449,10 @@ using the ADR 0069 precedent and the catalog-driven swap pattern.
    path kind (base-table RLS · public RPC · `app` helper · Storage RLS · service-role server action).
 2. **pgTAP first.** The handoff §11 matrix maps ~1:1 to test cases, authored **before** the SQL,
    exercised as `authenticated` under real RLS/RPC privileges — **never only as `postgres`**.
-3. **SQLSTATE block `HC0G0–HC0G9`** (collision-checked at build-plan freeze).
+3. **SQLSTATE block `HC0F0–HC0F9`** — ⚠ **corrected from `HC0G0–HC0G9` at M1 (2026-07-15).** The
+   mandated collision-check found **`HC0G0`/`HC0G1`/`HC0G2` already held by `grant_role`/`revoke_role`**
+   (catalog-verified). `HC0F` is free repo-wide and is adjacent to the `HC0E` case-participants family.
+   *The "collision-checked at freeze" claim above was false — the check had never been run.*
 4. **Audit verbs:** `case_access.granted|changed|revoked|expired`, `referral_phi.approved|transmitted|read|amended|revoked`,
    membership lifecycle. **PHI-free metadata only** (Rule 11) — no names, MRNs, narrative bodies,
    attachment titles, or free-text notes.
@@ -1596,3 +1599,184 @@ own Committee"* is **not implementable**. **A20 is what makes Row zero real rath
 **category × `cases.visibility_policy` × `meetings.visibility_policy` × exclusion × content tier**.
 
 **Every PHI column still matches §4 or is stricter.** After A15 and A21, so does every content column.
+
+---
+
+## Amendment 4 (PO, 2026-07-15) — the A0 gate: Row zero is not **durable**
+
+Stage A0's catalog inventory + `qa`'s adversarial review of it. Both P0s below were **independently
+re-verified by the lead from the catalog** before this amendment was written. A0 stands at **CHANGES
+REQUESTED**; these decisions are ratified regardless of the revision's outcome.
+
+### A27 — ⛔ The exclusion model has **three self-serving mutators**. The deny needs no out-voting.
+
+The whole program rests on *"no positive arm can out-vote the hard-deny."* That invariant **holds**, and
+is **beside the point**: nothing stops the denied party from **deleting the row the deny reads**.
+
+| Door | Shape | Effect |
+|---|---|---|
+| `lift_recusal` | DEFINER · gate = `is_staff_admin_of OR is_commission_admin_of` · **no self-check** | A recused coordinator **lifts her own recusal** → `is_case_excluded` f → full reach. `record_recusal` gets the self-vs-other split right; this has none. |
+| `remove_case_participant` | *idem* | The respondent **removes his own `respondent_doctor` row** → `is_case_respondent` f → **`can_read_case_patient` t**. |
+| `set_case_participant_role` | *idem* | Same, by re-keying the role off `respondent_doctor`. |
+
+`is_case_respondent` resolves through `cp.removed_at is null` AND `r.key='respondent_doctor'` — **both
+mutable, neither self-checked**. The respondent doctor reads the **PHI of the case in which he is the
+accused** (proven live, rolled back). **Strictly worse than `lift_recusal`.**
+
+**A20 made Row zero *resolvable*. It does not make it *durable*.** B7 alone buys a keystone that
+**passes while the respondent deletes his own row**. This is [[no-regression-claim-needs-overgrant-twin]]'s
+lesson in a new shape: *every* exclusion keystone in Gate 1 asserts "she cannot read X" against a row
+**the test never lets her touch**.
+
+**Binding, generalized:** for **every** arm `is_case_excluded` resolves through, enumerate **every
+mutator of the rows it reads** and require a self-check. **An exclusion model is only as strong as its
+weakest mutator.**
+
+### A28 — Methodology: `prosecdef` belongs next to `pg_policies`
+
+A23 added `is_staff_admin_of*` + `member_can` to the inventory. **It never added `pg_proc.prosecdef`.**
+That one omission hid **all three** of A0's largest findings: a `SECURITY DEFINER` function's internal
+gate **replaces** RLS, so a **policy-shaped audit is structurally blind to it**. The ADR's own
+methodology finding said *file text lies*; this says **policies are not the population**.
+
+**Ratified into the binding methodology** (extends D13/A23): inventory `pg_proc` **including
+`prosecdef`**, and sweep **`pg_trigger`**. `qa` cleared the rest: no views, **zero** DEFINER functions
+with an unpinned `search_path`, no RLS-off tables, no partial column grants.
+
+### A29 — **Resequencing (PO-approved): exclusion durability lands FIRST, as one migration**
+
+Supersedes the plan's stage order. **Migration 1 = exclusion durability ONLY:**
+
+1. **B7 first** (respondent linkage / resolved state) — the mutator fixes are `AND NOT
+   app.is_case_excluded(...)`, which is **meaningless until `is_case_respondent` resolves**;
+2. then `lift_recusal` + the **three** self-serving mutators (A27);
+3. then the **30-RPC** DEFINER exclusion sweep (A31·1).
+
+**The A21 admin-arm removal is NOT folded in** — D4·3 requires the resolver first. Migration 1 buys
+exactly one thing: **the exclusion keystones stop being vacuous.** Everything in Gate 1 is validated
+against them, so they come first. This is the argument the plan's Risks table already accepts for B7
+alone, applied to the arm A0 found.
+
+### A30 — **`platform_admin` on case content (PO: fold in)**
+
+`set_case_offered_outcomes` carries an **`is_admin()`/platform_admin arm on case content** —
+contradicting CLAUDE.md's *"global superuser, **walled off from all tenant data**"* (§1) and never
+named in this ADR. **PO: fix inside this program** — same surface, same migration, same review.
+`backend` must first enumerate **every** platform_admin arm on tenant data; this is unlikely to be the
+only one.
+
+### A31 — Scope corrections to A0 (`qa`-verified; A0 revising)
+
+1. **DEFINER-without-exclusion = 30, not 13.** Ten RPCs (`conclude_narrative`, `reopen_narrative`,
+   `unassign_narrative`, `set_case_phase_result_override`, `update_case_meta`, `create_referral_draft`,
+   `conclude_meeting`, …) are DEFINER + bare role + **no gate at all**, filed as "REMOVE-ARM only".
+   Strip `is_commission_admin_of` and **`is_staff_admin_of` survives unqualified** — **verbatim the A22
+   defect**, applied to the policy layer but not to the RPC list.
+2. **37 is a FLOOR, not the population** — A0's headline query filtered on `is_commission_admin_of`,
+   **reproducing A23's blind spot exactly**. Re-enumerate over `is_staff_admin_of*` · `member_can` ·
+   `is_admin`.
+3. **Eight case-family `FOR ALL` policies → ELEVEN.** An **interview family**
+   (`case_interview_{interviewers,links,subjects}_write`) carries the admin arm over **PHI-bearing**
+   content and is named **nowhere**. The **`interview-attachments` bucket is gated `is_member_of`** —
+   member-wide, bypassing `can_read_attachment` **and** the confidentiality ceiling. **Keystone 22 fails
+   on it.**
+4. **Two `case_access` couplings, not one** (D5·4): `confidentiality_clearance_ok` also reads it
+   directly, feeding `can_read_interview`. **B1's hard cut breaks interview reads** unless repointed in
+   the same migration. 24 dependent functions, not 3 doors.
+5. **A20 is unimplementable as specified** — `update_professional_profile` has **no `user_id` write
+   path** (so `unknown → linked` has no door), and `ON DELETE SET NULL` defeats the attach-time check
+   afterward. "Only two functions touch it" is **FALSE** — four.
+6. **Plan A3 is already built.** A1's real work is a **seed** change (`ethics` is seeded
+   `explicit_grants_only` **today**). `create_case` **ignores** the type default that
+   `create_case_from_template` honours, and **nothing** writes `visibility_policy` post-creation — so
+   D11/A1's *"per-case coordinator override"* **has no door**. ⚠ Bears on Stage C.
+7. **Over-reach found and rejected:** `list_case_access` + `grant_member_capability` were marked
+   REMOVE-ARM against **A18** and the staffing line. *An Organization User configures a commission and
+   staffs it.* **Keystone 23 fails if the negatives over-reach.**
+8. **Category error:** `case_tag_report(p_commission_id, …)` has **no `case_id`** — the prescribed
+   exclusion gate is **unwritable**. Case-scoped gates ≠ commission-scoped per-row filters.
+
+### A32 — What A0 got right (recorded, so the gate is not read as a failure)
+
+21 claims verified, **0 refuted**; all reproducibility counts re-ran exactly (110 migrations · 93
+policies · **121** functions — the plan said 119). The **load-bearing negative holds**:
+`close_case` / `cancel_case` / `set_case_outcome` / `update_case_narrative_body` are genuinely
+`prosecdef = f`, so **RLS does protect them** — *do not sweep them*. Context·2 **survives** `4f23558`'s
+rewrite of `can_read_referral_phi`: its **text** is stale, its **fact** is not. **A22 confirmed —
+`4f23558` did *not* fix `action_items`.**
+
+### A33 — ⛔ BINDING: **mutation-test every keystone.** An over-grant twin is not enough.
+
+A0 + M1 produced **six** keystones that **could not fail** — including two ⭐ keystones, one of them
+**Rule 12**. Review did not find them; **reverting the fix and requiring the test to go red** found every
+one. **A test that cannot fail is not evidence.** [[no-regression-claim-needs-overgrant-twin]] said pair
+every no-regression claim with an over-grant twin; **M1 proves the twin itself can be vacuous.**
+
+**Four shapes, each green while asserting nothing:**
+1. **Wrong-arm fixture** (M1 tests 33/34): an earlier *positive* twin left the principal **self-recused**,
+   so every later assertion measured the **recusal** arm while the fix under test guarded the
+   **respondent** arm. *A fixture that leaves the principal denied by a **different arm** than the one
+   under test.*
+2. **Pre-existing deny** (A22 + closure): `app.guard_action_item` **hard-forces**
+   `visibility_scope := 'case_restricted'` for `source_type='case'`, whose arm delegates to
+   `can_read_case` — **which already carried the deny before M1**. The keystone proved a deny M1 didn't
+   make. Reachable shape is `source_type='manual'` + `case_id`.
+3. **Missing precondition** (`qa`'s own P0 fixture, offered as *"seeded and ready"*): the seeded
+   respondent is plain `staff`, so the door **correctly** raised on **authority** and `throws_ok` passed
+   it. Preconditions must be **narrow**: **respondent AND `staff_admin`**.
+4. **Un-keystoned deviation** — **the most fragile artifact on this program** (`can_write_interview`,
+   then door-2's linkage check): a fix the engineer was **right to invent** beyond spec gets **no test by
+   construction**, because nobody was owed one. *An unasserted fix is indistinguishable from no fix, and
+   "0 failures" says nothing.*
+
+**The structural defence (ratified):** give **authority** and **exclusion** distinct SQLSTATEs and check
+**authority FIRST** (`HC0E4` before `HC0F1`). A twin whose principal lacks the precondition then fails
+**loudly** instead of being caught. **This makes the vacuous keystone unwritable, not merely
+discouraged** — it caught one the author had just written.
+
+**And the inverse — `red` ≠ `abort`.** The harness twice reported *not-falsifiable* when the suite had
+**aborted** (a dropped trigger killed an INSERT derivation → coherence CHECK → the test never ran), and
+`qa`'s own regex printed `tests_run=0` from an unbalanced paren — it nearly filed *"nothing went red"* as
+evidence, **reproducing the exact false-negative it was auditing**. **Never accept "0 failures" until you
+have proven the tests RAN.** Neuter **one function at a time** — a global neuter reverts everything and
+proves nothing about any single keystone.
+
+### A34 — M1 as built (2026-07-15) — **the P0s are dead, behaviourally**
+
+`20260722000000_authz_m1_exclusion_durability.sql` (M1·1–3) + `20260722000100_authz_m1_gate_helper_deny.sql`
+(M1·4b + direct-check doors) + `229_authz_m1_exclusion_durability.sql` + a runnable mutation harness
+(`supabase/tests/mutation/m1-mutation-audit.sh`). **pgTAP 2610/2610** on a fresh reset; lint 0/0; scope
+exact (**121/93/42**). **8/8 confirmed dead behaviourally, rows surviving the denied party; 0 over-reach.**
+
+- **SQLSTATE `HC0G` → `HC0F`** — the block this ADR declared *"collision-checked at freeze"* **collided**:
+  `grant_role`/`revoke_role` hold `HC0G0–2`. **The check had never been run.**
+- **B7's own trap:** adding the `user_id` write path A31·5 demands **creates a sixth self-serving
+  mutator** (`can_manage_professional` admits any org `staff_admin` — *exactly the respondent twin's
+  precondition*). **M1·1 would have handed back the hole M1·2 closes.** Closed with a linkage freeze
+  (`HC0F2`) that binds **direct DML** too.
+- **B7's attach-time check binds BOTH doors** — §W-6 named only `add_case_participant`;
+  `set_case_participant_role` can **re-key *to*** `respondent_doctor` and bypass it.
+- **`record_recusal` deliberately did NOT get a blanket term** — recusal is **monotonically restrictive**;
+  a blanket term would deny an excluded party the ability to recuse **herself**. The exclusion binds the
+  **coordinator arm only**. *The one place the engineer argued for **less** gating — and was right,
+  proven both directions.*
+- **`case_participant_roles`:** UPDATE-freeze on `key` (`HC0F3`) + audit trigger — **not** a write-freeze
+  (`set_participant_patient` **INSERTs** an `affected_patient` row; a blanket freeze breaks patient
+  registration). No bypass: `DISABLE TRIGGER` and `session_replication_role` both `42501`.
+- **`dispose_case_phi` (Rule 12, found by `qa`):** the accused **could not read** the patient identifiers
+  and **could irreversibly destroy them**. Its twin (`can_write_attachment`) was fixed; it was missed.
+  ⚠ The first probe nearly cleared it — the `23514` it caught was **the reason-code check, not the gate**.
+  **Never accept an error code as proof of a gate.**
+- **`ON DELETE SET NULL` (A31·5) → `RESTRICT`.** Proven **unreachable today** (`profiles.id → auth.users`
+  is `ON DELETE RESTRICT` + `handle_new_user()` guarantees a profiles row, so the delete always fails on
+  `profiles_id_fkey` first). **Latent, not app-reachable** — so fail-closed cost nothing and it arms the
+  moment anyone relaxes that FK to CASCADE (**the conventional Supabase pattern**). Reversible in one line.
+
+**Carried (NOT done):** §3.6·A's remaining triage doors + §3.6·B per-row filters. **Durability is
+unaffected** — `qa` called **every** carried door the excluded party can reach and the deny held on all of
+them, except `dispose_case_phi` (fixed). `get_case_patient` is a **verified false alarm** (delegates to
+`get_participant_patient`, gated on `can_read_case_patient`) — **D4's false-positive class is real**, so
+the carry must stay **triage, not a fix list**: a text-filter sweep would over-reach and **keystone 23
+fails if the negatives over-reach**. ⚠ **`set_case_confidentiality` is genuinely UNVERIFIED** (`HC0E5` —
+gate or precondition?) — **do not record it as safe.**
+
