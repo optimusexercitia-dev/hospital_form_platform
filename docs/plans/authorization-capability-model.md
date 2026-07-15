@@ -175,9 +175,26 @@ split (`meeting_closed_sessions` = time block, no authority; `meeting_closed_ses
 reach resolves here; `..._item_readers` consulted only when `case_id IS NULL`). **Case authority is
 never out-voted by a reader list.**
 
-**C5 · Three tiers (A5).** Shell member-wide (it is the proof of propriety) · substance by case
-authority · **decision = member AND NOT excluded, uniform**. ⚠ `decision` needs its **own row/table** —
-different gate from `minutes_md`, and **RLS is row-level**.
+**C5 · Four tiers, one row, one RPC door (A7 — supersedes A5).** `meeting_closed_session_items` gets
+**no authenticated SELECT**; an audited DEFINER RPC projects the tiers the caller may see (the
+`get_case_patient` / `open_attachment` / `list_my_cases` pattern). Tiers: bare stub (`is_member_of`) ·
+propriety record — number, withdrawals, times (`is_member_of AND NOT app.is_case_respondent`) ·
+substance (`reach(meeting) AND has_case_capability(case_id,'read_case_content')`) · decision
+(`is_member_of AND NOT app.is_case_excluded`).
+
+> ⚠ **The asymmetry is load-bearing.** The propriety tier gates on **`is_case_respondent` ALONE**, not
+> `is_case_excluded`. The **recused must still see the process number** — her withdrawal *is* the
+> propriety record. Reaching for the familiar `is_case_excluded` here silently blinds every recused
+> member to the record of their own recusal. Keystone 10 catches it.
+
+**C6 · Reserved-session lifecycle (O7/O8).** Opening a reserved session is **coordinator-only** — it
+is an access-granting act (the opener picks the reader list for case-less subjects), so **not** an
+`administrativo` capability (contrast `schedule_meetings`; ADR 0061). **No separate signatures
+pre-pilot** — the meeting-level signature covers annexes.
+
+**Not built (O9):** no sub-group entity. A sub-group's investigation lives **solely in the Case**
+(phases/narratives/interviews) and surfaces to the plenary as the relator's report; their working
+meetings are `participants_only`.
 
 **FE (new in Gate 2):** reserved-session authoring + composed ata rendering with a non-identifying
 stub. Needs the `frontend` teammate + the `frontend-design` skill. Serialize file ownership against

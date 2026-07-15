@@ -697,12 +697,46 @@ must not see is the substance.
 investigation still sees *"Processo 052 — arquivado"*: the committee is a body and must know the
 outcomes of its own processes even when a sub-group did the work. The gate is **recusal, not grants**.
 
-⚠ **Schema consequence, not preference:** `minutes_md` (substance) and `decision` (outcome) carry
-**different gates on the same conceptual row**, and **RLS is row-level**. `decision` must therefore be
-its own row/table — it cannot be a column beside `minutes_md`.
-
 **Pauta titles need no derivation rule.** Since pautas name process numbers, the item shows the number
 when a case exists and *"Matéria reservada"* when it does not (pre-formal, which has no number).
+
+> ⚠ **A5 CORRECTED (see A7).** This section originally asserted that `decision` *must* be its own
+> row/table because it carries a different gate from `minutes_md` and RLS is row-level. That is true
+> only if the read path is base-table RLS. **A7 supersedes it:** the reserved ata is served by an
+> audited DEFINER RPC that projects per tier, so one storage row carries all tiers. The claim of a
+> forced split was wrong.
+
+## A7 — FOUR TIERS, one row, served by an RPC (supersedes A5's schema consequence)
+
+O6's resolution (the respondent does **not** see his own process number) adds a fourth tier and makes
+a base-table-RLS expression of this unworkable — four predicates over one conceptual row would need
+four tables.
+
+| Tier | Respondent | Recused | Other members | Predicate |
+|---|---|---|---|---|
+| **Bare stub** — *"3. Sessão reservada"* | allow | allow | allow | `is_member_of` |
+| **Propriety record** — process number · who withdrew and why · times | **deny** | allow | allow | `is_member_of AND NOT app.is_case_respondent` |
+| **Substance** — deliberation · evidence · relator's report | deny | deny | plenary: all · sub-group: granted | `reach(meeting) AND has_case_capability(case_id,'read_case_content')` |
+| **Decision** — *arquivado / instaurado / …* | deny | **deny** | allow | `is_member_of AND NOT app.is_case_excluded` |
+
+**Note the asymmetry — it is deliberate and load-bearing.** The **recused** sees the process number
+(she declared the conflict; her withdrawal is the propriety record). The **respondent** does not. So
+the propriety tier gates on **`app.is_case_respondent` alone**, *not* on `app.is_case_excluded`
+(= respondent OR recused). ETH·E1 already exposes the two as separate predicates, so the primitive
+exists — but a reader who reaches for the familiar `is_case_excluded` here will silently blind every
+recused member to the record of their own recusal.
+
+**Read path:** `meeting_closed_session_items` gets **no authenticated SELECT**. The ata is served by
+an audited `SECURITY DEFINER` RPC that projects the tiers the caller may see — the established pattern
+(`get_case_patient`, `open_attachment`, `list_my_cases`) and consistent with §6.3's audited-RPC-read
+rule. One row, one door, conditional projection.
+
+**Respondent renders as a stub, never as a gap.** A missing position (items 1,2,4,5) is both
+suspicious and uninformative; *"3. Sessão reservada"* is normal and reveals nothing. The respondent
+sees the bare stub only — no number, no withdrawal list, no times.
+
+> **Scope note:** this only arises when the respondent **is a committee member**. A respondent who is
+> not a member of the committee reaches no meeting surface at all (`is_member_of` fails first).
 
 ## A6 — O5 refined: existence is not secret *within* the committee
 
@@ -713,24 +747,27 @@ O5 **stands for the case board** — a member browsing cases must not stumble on
 **meeting surface deliberately reveals more**, because the committee is a body and its pauta is its
 own procedural record. Different surfaces, different purposes. **Recorded so it is not "fixed" later.**
 
-## Amendment 1 — open decisions
+## Amendment 1 — open decisions · **ALL RESOLVED** (PO, 2026-07-15)
 
-- **O6 — Does the respondent see the pauta?** If Dr. X is a committee member *and* the respondent in
-  process 047, the member-wide shell (A5) shows him *"3. Processo nº 047 — sessão reservada"* in his
-  own committee's pauta, while `app.is_case_respondent` hard-denies him the case. Due process arguably
-  **requires** he know he is being processed — but the two surfaces disagree and it must be deliberate.
-- **O7 — Signatures for reserved content.** `meeting_signatures` attests the meeting via
-  `app.can_sign_meeting` (keyed on `attendance = 'present'`). A `participants_only` meeting needs no
-  change (its participants *are* the signers). But does a **reserved session inside a plenary meeting**
-  get its own signature set, signed by its participants? **Lead recommendation: no pre-pilot** — the
-  meeting-level signature covers the record including annexes; revisit if practice demands.
-- **O8 — Who may open a reserved session?** It is an access-granting act for case-less subjects (the
-  opener chooses the reader list). **Lead recommendation: coordinator-only** — not an `administrativo`
-  delegated capability like `schedule_meetings`.
-- **O9 — Where does a sub-group meet?** Resolved by A2·1 (`participants_only`) for the *meeting*. Not
-  resolved: whether a sub-group's *investigation* should live wholly in the Case (phases, narratives,
-  interviews) and surface to the plenary as the relator's report. **Lead recommendation: yes** — the
-  sub-group's work *is* the Case; no sub-group entity is needed.
+- **O6 — Does the respondent see the pauta? → NO.** *"A respondent does not need to see his own
+  process number."* The propriety tier therefore gates on **`app.is_case_respondent` alone** — the
+  **recused still sees the number** (A7). The respondent renders a bare *"Sessão reservada"* stub,
+  never a gap. This answer added the fourth tier and **superseded A5's schema claim** → **A7**.
+- **O7 — Signatures for reserved content? → NOT PRE-PILOT.** *"Pre-pilot does not need signatures for
+  a reserved session."* The meeting-level signature (`app.can_sign_meeting`, keyed on
+  `attendance = 'present'`) covers the record including annexes. `participants_only` meetings need no
+  change — their participants *are* the signers. Revisit post-pilot if practice demands a separately
+  signed *ata em separado*.
+- **O8 — Who may open a reserved session? → COORDINATOR ONLY.** Not an `administrativo` delegated
+  capability, unlike `schedule_meetings`. Rationale: for a case-less subject the opener **chooses the
+  reader list**, so opening a reserved session is an **access-granting act**, and `administrativo` is
+  explicitly a *delegated-capability* role (ADR 0061), not an authority-granting one.
+- **O9 — Where does a sub-group's work live? → SOLELY IN THE CASE.** *"The subgroup's investigation
+  should live solely in the `Case`."* Phases, narratives, and interviews carry the investigation; it
+  surfaces to the plenary as the relator's report. **No sub-group entity is modelled.** The sub-group's
+  own working meetings use `visibility_policy = 'participants_only'` (A2·1); the plenary's reserved
+  item for that case exposes the report as **substance** (granted only) and the outcome as **decision**
+  (member AND NOT excluded) — A7.
 
 ## Amendment 1 — added test keystones
 
