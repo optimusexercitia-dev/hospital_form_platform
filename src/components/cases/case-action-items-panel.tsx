@@ -1,15 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
+  ArrowUpRight,
   CalendarClock,
   Check,
   ChevronDown,
+  ListChecks,
   ListTodo,
   Pencil,
   Plus,
   User,
 } from "lucide-react";
+
+import { commissionHref } from "@/lib/routing";
 
 import type {
   ActionItemStatus,
@@ -30,7 +35,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ActionItemSatellites } from "@/components/action-items/action-item-satellites";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 import { CaseActionItemForm, type PhaseOption } from "./case-action-item-form";
 import { ConfirmDeleteButton } from "./confirm-delete-button";
@@ -69,26 +73,27 @@ function ActionItemRow({
   assignees,
   phases,
   caseId,
+  org,
+  commission,
   canWrite,
-  viewerId,
   actionItemsEnabled,
 }: {
   item: CaseActionItem;
   assignees: AssigneeOption[];
   phases: PhaseOption[];
   caseId: string;
+  /** Org slug — plain string; the href is built here (never a closure prop). */
+  org: string;
+  /** Commission slug — plain string; the href is built here. */
+  commission: string;
   canWrite: boolean;
-  /** The viewer's user id — an assignee is a stakeholder for their own item. */
-  viewerId: string | null;
-  /** Whether the shared `action_items` flag is ON (gates the satellite panel). */
+  /** Whether the shared `action_items` flag is ON (gates the details link). */
   actionItemsEnabled: boolean;
 }) {
   const { run, isPending, error } = useCaseAction();
   const [editOpen, setEditOpen] = useState(false);
   const overdue = isItemOverdue(item);
   const isClosed = item.status === "done" || item.status === "cancelled";
-  const isStakeholder =
-    canWrite || (viewerId != null && item.assignedTo === viewerId);
 
   return (
     <li className="flex flex-col gap-2 rounded-xl border border-border/70 bg-muted/20 p-3">
@@ -219,12 +224,25 @@ function ActionItemRow({
       )}
 
       {actionItemsEnabled && (
-        <ActionItemSatellites
-          actionItemId={item.id}
-          itemTitle={item.title}
-          canManageReminders={canWrite}
-          canContribute={isStakeholder}
-        />
+        <div className="border-t border-border/60 pt-2">
+          <Link
+            href={commissionHref(org, commission, "itens-de-acao", item.id)}
+            aria-label={`Ver detalhes de ${item.title}`}
+            className="group inline-flex items-center gap-1.5 rounded-md py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+          >
+            <ListChecks aria-hidden="true" className="size-3.5" />
+            <span className="underline-offset-2 group-hover:underline">
+              Ver detalhes
+            </span>
+            <span className="text-muted-foreground/70">
+              — lembretes, atualizações e checklist
+            </span>
+            <ArrowUpRight
+              aria-hidden="true"
+              className="size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            />
+          </Link>
+        </div>
       )}
     </li>
   );
@@ -239,14 +257,19 @@ function ActionItemRow({
  */
 export function CaseActionItemsPanel({
   caseId,
+  org,
+  commission,
   items,
   assignees,
   phases,
   canWrite = true,
-  viewerId = null,
   actionItemsEnabled = false,
 }: {
   caseId: string;
+  /** Org slug — a plain string; rows build their own hrefs with `commissionHref`. */
+  org: string;
+  /** Commission slug — a plain string. */
+  commission: string;
   items: CaseActionItem[];
   assignees: AssigneeOption[];
   phases: PhaseOption[];
@@ -256,11 +279,10 @@ export function CaseActionItemsPanel({
    * `false` to render the list without any mutating affordance.
    */
   canWrite?: boolean;
-  /** The viewer's user id — an assignee is a stakeholder for their own item. */
-  viewerId?: string | null;
   /**
-   * Whether the shared `action_items` flag is ON — gates the per-item satellite
-   * panel (reminders / updates / checklist). Default `false` keeps it dark.
+   * Whether the shared `action_items` flag is ON — gates the per-item "Ver
+   * detalhes" link to the Action Item detail page (which hosts the reminders /
+   * updates / checklist satellites). Default `false` keeps it dark.
    */
   actionItemsEnabled?: boolean;
 }) {
@@ -313,8 +335,9 @@ export function CaseActionItemsPanel({
               assignees={assignees}
               phases={phases}
               caseId={caseId}
+              org={org}
+              commission={commission}
               canWrite={canWrite}
-              viewerId={viewerId}
               actionItemsEnabled={actionItemsEnabled}
             />
           ))}

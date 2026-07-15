@@ -1,3 +1,5 @@
+import { cache } from 'react'
+
 import { createClient } from '@/lib/supabase/server'
 
 /**
@@ -96,12 +98,31 @@ const ZERO: MemberOverview = {
 // ---------------------------------------------------------------------------
 
 /**
+ * Request-scoped memoized read of {@link getMemberOverviewUncached} (React
+ * `cache()`; same pattern + rationale as `getCaseDetail` in
+ * `@/lib/queries/cases`): the commission LAYOUT now reads `pendingActionItems`
+ * for its nav badge while the overview PAGE renders the full card set, so
+ * memoizing by `commissionId` collapses that double `get_member_overview` RPC to
+ * one per request.
+ *
+ * `cache()` is per-request and the RPC is self-scoped to `auth.uid()`, so this
+ * changes NOTHING about authorization or freshness — only the number of round
+ * trips. The underlying logic is untouched. Existing single-call sites are
+ * unaffected.
+ */
+export const getMemberOverview = cache(
+  async (commissionId: string): Promise<MemberOverview> => {
+    return getMemberOverviewUncached(commissionId)
+  },
+)
+
+/**
  * Load the caller's member overview for one commission in a single round-trip.
  * Backed by the SECURITY DEFINER `get_member_overview`, self-scoped to
  * `auth.uid()`. Returns an all-zero overview on error / unauthenticated
  * (fail-closed).
  */
-export async function getMemberOverview(
+async function getMemberOverviewUncached(
   commissionId: string,
 ): Promise<MemberOverview> {
   const supabase = await createClient()

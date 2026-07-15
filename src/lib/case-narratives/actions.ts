@@ -106,6 +106,11 @@ const MESSAGES = {
   typeArchived: 'Narrativa arquivada.',
   slotAdded: 'Narrativa adicionada ao processo.',
   narrativeAdded: 'Narrativa adicionada ao caso.',
+  narrativeDeleted: 'Narrativa excluída.',
+  // HC0D0 — only ad-hoc (avulsa) narratives may be deleted; a template-derived
+  // narrative is part of the process definition.
+  narrativeNotAdHoc:
+    'Apenas narrativas avulsas podem ser excluídas; esta narrativa faz parte do processo.',
   slotUpdated: 'Narrativa do processo atualizada.',
   slotRemoved: 'Narrativa removida do processo.',
   layoutReordered: 'Ordem do processo atualizada.',
@@ -135,6 +140,8 @@ const HC_NARRATIVE = 'HC054'
 const HC_CASE_TERMINAL = 'HC020' // assign/conclude/reopen on a terminal case
 const HC_NOT_MEMBER = 'HC021' // assignee not a member of the commission
 const HC_NARRATIVE_STATE = 'HC055' // narrative wrong lifecycle state
+// Ad-hoc narrative deletion (layout adjustments): the slot is template-derived.
+const HC_NOT_AD_HOC = 'HC0D0'
 
 const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
 const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
@@ -244,6 +251,8 @@ function mapNarrativeError(
       return MESSAGES.assigneeNotMember
     case HC_NARRATIVE_STATE:
       return MESSAGES.narrativeWrongState
+    case HC_NOT_AD_HOC:
+      return error.message || MESSAGES.narrativeNotAdHoc
     case PG_UNIQUE_VIOLATION:
       return MESSAGES.labelTaken
     case PG_FORBIDDEN:
@@ -845,4 +854,36 @@ export async function reopenNarrative(
 
   revalidateCase()
   return { ok: true, error: MESSAGES.reopened }
+}
+
+/**
+ * Delete an AD-HOC (avulsa) narrative from an OPEN case. Coordinator-only; the
+ * `delete_ad_hoc_case_narrative` RPC is the authority and re-checks everything
+ * server-side.
+ *
+ * The RPC REFUSES when the narrative is TEMPLATE-derived rather than `is_ad_hoc`
+ * (HC0D0), when the case is terminal (HC020), or when the caller is not a
+ * coordinator / is RECUSED from the case (42501).
+ *
+ * The narrative TYPE row that {@link addAdHocNarrative} may have minted inline is
+ * deliberately NOT garbage-collected — `case_narrative_types` is a shared
+ * per-commission catalog. Raw Postgres errors never reach the UI (CLAUDE.md §8).
+ */
+export async function deleteAdHocNarrative(
+  narrativeId: string,
+): Promise<ActionState> {
+  if (!narrativeId) return { ok: false, error: MESSAGES.missingNarrative }
+
+  if (!(await narrativesEnabled())) {
+    return { ok: false, error: MESSAGES.unavailable }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('delete_ad_hoc_case_narrative', {
+    p_narrative_id: narrativeId,
+  })
+  if (error) return { ok: false, error: mapNarrativeError(error) }
+
+  revalidateCase()
+  return { ok: true, error: MESSAGES.narrativeDeleted }
 }

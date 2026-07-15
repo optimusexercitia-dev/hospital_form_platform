@@ -102,6 +102,11 @@ export function CasePhaseList({
                   <CaseNarrativeCard
                     narrative={narrative}
                     canEdit={isOpen && caps.canManageLifecycle}
+                    // Removing an AD-HOC narrative is orthogonal to `case_access`:
+                    // adding one is gated on the narratives flag, not this one, so
+                    // an ad-hoc narrative can exist here — leaving it undeletable
+                    // in the flag-OFF branch would strand it.
+                    canDelete={narrative.isAdHoc && caps.canManageLifecycle}
                     showLifecycle={false}
                   />
                 );
@@ -132,6 +137,9 @@ export function CasePhaseList({
                   canEdit={editable}
                   canConclude={canConclude}
                   canReopen={canReopen}
+                  // Only an AD-HOC narrative is removable, by the same lifecycle
+                  // authority that adds one.
+                  canDelete={narrative.isAdHoc && caps.canManageLifecycle}
                   assignees={assignees}
                   canAssign={canAssign}
                   showLifecycle

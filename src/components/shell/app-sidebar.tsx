@@ -56,6 +56,13 @@ export interface SidebarCounts {
    * Drives the "Encaminhamentos" nav badge.
    */
   encaminhamentos: number;
+  /**
+   * "Meus itens de ação" — action items assigned to the caller that are not yet
+   * concluded, across the three sources (case / meeting / manual). Sourced from
+   * `getMemberOverview().pendingActionItems`; 0 when no action-item source flag
+   * is on.
+   */
+  meusItensDeAcao: number;
 }
 
 type CountKey = keyof SidebarCounts;
@@ -136,6 +143,7 @@ const NAV_GROUPS: NavGroup[] = [
         href: "meus-itens-de-acao",
         icon: ListTodo,
         roles: ["staff", "staff_admin"],
+        countKey: "meusItensDeAcao",
         requiresActionItems: true,
       },
       {

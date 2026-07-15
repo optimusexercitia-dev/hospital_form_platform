@@ -9371,6 +9371,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      delete_ad_hoc_case_narrative: {
+        Args: { p_narrative_id: string }
+        Returns: undefined
+      }
+      delete_ad_hoc_case_phase: {
+        Args: { p_phase_id: string }
+        Returns: undefined
+      }
       delete_capa_action_evidence: {
         Args: { p_evidence_id: string }
         Returns: undefined

@@ -374,11 +374,12 @@ export function CaseDetailView({
             <div data-rise className="order-2 lg:order-none">
               <CaseActionItemsPanel
                 caseId={c.id}
+                org={org}
+                commission={slug}
                 items={actionItems}
                 assignees={assignees}
                 phases={phaseOptions}
                 canWrite={caps.canWriteContent}
-                viewerId={viewerId}
                 actionItemsEnabled={actionItemsEnabled}
               />
             </div>

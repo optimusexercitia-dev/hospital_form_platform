@@ -168,6 +168,8 @@ export default async function MeetingDetailPage({
 
       <ActionItemsPanel
         meetingId={meeting.id}
+        org={org}
+        commission={slug}
         items={actionItems}
         assignees={memberOptions}
         agendaItems={agenda}

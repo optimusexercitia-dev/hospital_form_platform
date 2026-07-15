@@ -1,15 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import {
+  ArrowUpRight,
   CalendarClock,
   Check,
   ChevronDown,
+  ListChecks,
   ListTodo,
   Pencil,
   Plus,
   User,
 } from "lucide-react";
+
+import { commissionHref } from "@/lib/routing";
 
 import type {
   MeetingActionItem,
@@ -31,7 +36,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { ActionItemSatellites } from "@/components/action-items/action-item-satellites";
 import { ActionItemStatusBadge } from "./meeting-badges";
 import { ACTION_ITEM_STATUS_LABEL } from "./meeting-labels";
 import { ActionItemForm, type AssigneeOption } from "./action-item-form";
@@ -69,6 +73,8 @@ function ActionItemRow({
   agendaItems,
   cases,
   meetingId,
+  org,
+  commission,
   canManage,
   canAdvance,
   actionItemsEnabled,
@@ -79,11 +85,15 @@ function ActionItemRow({
   /** Same-commission cases — for the edit form's read-only cross-link display. */
   cases: LinkableCase[];
   meetingId: string;
+  /** Org slug — plain string; the href is built here (never a closure prop). */
+  org: string;
+  /** Commission slug — plain string; the href is built here. */
+  commission: string;
   /** staff_admin: full create/edit/delete + advance. */
   canManage: boolean;
   /** This user may advance THIS item (assignee or staff_admin) — a stakeholder. */
   canAdvance: boolean;
-  /** Whether the shared `action_items` flag is ON (gates the satellite panel). */
+  /** Whether the shared `action_items` flag is ON (gates the details link). */
   actionItemsEnabled: boolean;
 }) {
   const { run, isPending, error } = useMeetingAction();
@@ -222,12 +232,25 @@ function ActionItemRow({
       )}
 
       {actionItemsEnabled && (
-        <ActionItemSatellites
-          actionItemId={item.id}
-          itemTitle={item.title}
-          canManageReminders={canManage}
-          canContribute={canAdvance}
-        />
+        <div className="border-t border-border/60 pt-2">
+          <Link
+            href={commissionHref(org, commission, "itens-de-acao", item.id)}
+            aria-label={`Ver detalhes de ${item.title}`}
+            className="group inline-flex items-center gap-1.5 rounded-md py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+          >
+            <ListChecks aria-hidden="true" className="size-3.5" />
+            <span className="underline-offset-2 group-hover:underline">
+              Ver detalhes
+            </span>
+            <span className="text-muted-foreground/70">
+              — lembretes, atualizações e checklist
+            </span>
+            <ArrowUpRight
+              aria-hidden="true"
+              className="size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            />
+          </Link>
+        </div>
       )}
     </li>
   );
@@ -241,6 +264,8 @@ function ActionItemRow({
  */
 export function ActionItemsPanel({
   meetingId,
+  org,
+  commission,
   items,
   assignees,
   agendaItems,
@@ -250,6 +275,10 @@ export function ActionItemsPanel({
   actionItemsEnabled = false,
 }: {
   meetingId: string;
+  /** Org slug — a plain string; rows build their own hrefs with `commissionHref`. */
+  org: string;
+  /** Commission slug — a plain string. */
+  commission: string;
   items: MeetingActionItem[];
   assignees: AssigneeOption[];
   agendaItems: MeetingAgendaItem[];
@@ -263,9 +292,10 @@ export function ActionItemsPanel({
   /** The viewer's user id — an assignee may advance their own items. */
   currentUserId: string | null;
   /**
-   * Whether the shared `action_items` flag is ON — gates the per-item satellite
-   * panel (reminders / updates / checklist). Default `false` keeps the panel
-   * dark if a caller omits it.
+   * Whether the shared `action_items` flag is ON — gates the per-item "Ver
+   * detalhes" link to the Action Item detail page (which hosts the reminders /
+   * updates / checklist satellites). Default `false` keeps it dark if a caller
+   * omits it.
    */
   actionItemsEnabled?: boolean;
 }) {
@@ -319,6 +349,8 @@ export function ActionItemsPanel({
               agendaItems={agendaItems}
               cases={cases}
               meetingId={meetingId}
+              org={org}
+              commission={commission}
               canManage={canManage}
               canAdvance={
                 canManage ||

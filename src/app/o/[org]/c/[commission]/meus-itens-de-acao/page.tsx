@@ -47,8 +47,8 @@ export default async function MyActionItemsPage({
         </p>
         <h1 className="text-3xl text-balance">Meus itens de ação</h1>
         <p className="max-w-prose text-muted-foreground text-pretty">
-          As tarefas atribuídas a você em casos e reuniões desta comissão. Abra a
-          origem de um item para agir sobre ele.
+          As tarefas atribuídas a você nesta comissão. Abra um item para ver os
+          detalhes, os lembretes, as atualizações e o checklist.
         </p>
       </header>
 

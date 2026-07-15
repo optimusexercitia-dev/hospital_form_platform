@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
+import { featureEnabled } from '@/lib/queries/feature-flags'
 import { createClient } from '@/lib/supabase/server'
 import { getCasePatient } from '@/lib/queries/cases'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -90,6 +91,17 @@ const MESSAGES = {
   phaseActivated: 'Fase ativada e atribuída.',
   phaseSkipped: 'Fase marcada como não necessária.',
   adHocAdded: 'Fase adicional incluída.',
+  adHocDeleted: 'Fase excluída.',
+  // HC0D0 — only ad-hoc (avulsa) phases may be deleted; template phases are part
+  // of the process definition.
+  phaseNotAdHoc:
+    'Apenas fases avulsas podem ser excluídas; esta fase faz parte do processo.',
+  // HC0D1 — the PO rule: a phase with any response (any status) is never deleted
+  // and never cascades.
+  phaseHasResponses: 'Esta fase possui respostas e não pode ser excluída.',
+  // HC0D2 — another phase's recommend_when references this phase by position.
+  phaseHasDependents:
+    'Outra fase depende desta fase para ser recomendada; ajuste a recomendação antes de excluir.',
   phaseReassigned: 'Responsável atualizado.',
   caseClosed: 'Caso concluído.',
   caseCancelled: 'Caso cancelado.',
@@ -126,6 +138,10 @@ const HC_OUTCOME_REQUIRED = 'HC028'
 const HC_PHASES_UNSETTLED = 'HC031'
 // Process-less case creation — outcome/commission mismatch (create_case).
 const HC_COMMISSION_MISMATCH = 'HC030'
+// Ad-hoc slot deletion (layout adjustments):
+const HC_NOT_AD_HOC = 'HC0D0' // the slot is template-derived → not deletable
+const HC_PHASE_HAS_RESPONSES = 'HC0D1' // the phase has responses → never cascade
+const HC_PHASE_HAS_DEPENDENTS = 'HC0D2' // another phase's recommend_when needs it
 
 const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
 const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
@@ -216,6 +232,12 @@ function mapCaseError(error: { code?: string; message?: string } | null): string
       return error.message || MESSAGES.phasesUnsettled
     case HC_COMMISSION_MISMATCH:
       return error.message || MESSAGES.commissionMismatch
+    case HC_NOT_AD_HOC:
+      return error.message || MESSAGES.phaseNotAdHoc
+    case HC_PHASE_HAS_RESPONSES:
+      return error.message || MESSAGES.phaseHasResponses
+    case HC_PHASE_HAS_DEPENDENTS:
+      return error.message || MESSAGES.phaseHasDependents
     case PG_CHECK_VIOLATION:
       return error.message || MESSAGES.generic
     case PG_INSUFFICIENT_PRIVILEGE:
@@ -870,4 +892,38 @@ export async function setTemplateCollectsPatient(
     'page',
   )
   return { ok: true, error: MESSAGES.templateCollectsPatientSaved }
+}
+
+/**
+ * Delete an AD-HOC (avulsa) phase from an OPEN case. Coordinator-only; the
+ * `delete_ad_hoc_case_phase` RPC is the authority and re-checks everything
+ * server-side, so a hostile caller cannot route around this action.
+ *
+ * The RPC REFUSES (never cascades) when:
+ *   - the phase is TEMPLATE-derived rather than `is_ad_hoc` (HC0D0) — the process
+ *     definition is not editable per-case;
+ *   - the phase has ANY response, in any status (HC0D1) — response data is never
+ *     destroyed by a layout edit (the PO rule);
+ *   - another phase's `recommend_when` depends on this phase's position (HC0D2);
+ *   - the caller is not a coordinator, or is RECUSED from the case (42501).
+ *
+ * Mirrors {@link import('@/lib/cases/documents-actions').deleteCaseDocument}:
+ * flag check → rpc → revalidate → pt-BR `ActionState`. Raw Postgres errors never
+ * reach the UI (CLAUDE.md §8).
+ */
+export async function deleteAdHocPhase(phaseId: string): Promise<ActionState> {
+  if (!phaseId) return { ok: false, error: MESSAGES.missingPhase }
+
+  if (!(await featureEnabled('cases_multi_phase'))) {
+    return { ok: false, error: MESSAGES.generic }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('delete_ad_hoc_case_phase', {
+    p_phase_id: phaseId,
+  })
+  if (error) return { ok: false, error: mapCaseError(error) }
+
+  revalidateCases()
+  return { ok: true, error: MESSAGES.adHocDeleted }
 }

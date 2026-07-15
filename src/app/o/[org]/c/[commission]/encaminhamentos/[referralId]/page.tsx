@@ -35,6 +35,7 @@ import {
 } from "@/components/referrals/referral-actions";
 import { ReferralPatientPanel } from "@/components/referrals/referral-patient-panel";
 import { ReferralDisposeDialog } from "@/components/referrals/referral-dispose-dialog";
+import { ReferralDraftDelete } from "@/components/referrals/referral-draft-delete";
 import {
   formatCaseNumber,
   formatDateTime,
@@ -320,6 +321,23 @@ export default async function ReferralDetailPage({
                 replyOutcomes={replyOutcomes}
                 linkableCases={linkableCases}
                 linkedCaseNumber={detail.targetCaseNumber}
+              />
+            </div>
+          )}
+
+          {/* Discard an UNSENT draft. Source-commission coordinator only — the
+              same authority that sends/withdraws — and only while `draft`, which
+              is also pinned server-side by the delete. A draft has no recipient
+              yet, so this is the one referral state that can be removed outright
+              rather than withdrawn. */}
+          {detail.status === "draft" && canManageSource && (
+            <div data-rise>
+              <ReferralDraftDelete
+                referralId={detail.id}
+                org={org}
+                commission={commission}
+                sourceCaseId={detail.sourceCaseId}
+                referralCode={formatReferralCode(detail.code)}
               />
             </div>
           )}

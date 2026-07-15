@@ -25,6 +25,7 @@ import {
 import { FormBanner } from "@/components/auth/form-banner";
 import { NarrativeStatusPill } from "@/components/cases/narrative-status-pill";
 import { ConcludeNarrativeButton } from "@/components/cases/conclude-narrative-button";
+import { CaseNarrativeDelete } from "@/components/cases/case-narrative-delete";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 import type { CaseNarrative } from "@/lib/queries/cases";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,7 @@ export function CaseNarrativeCard({
   canEdit,
   canConclude = false,
   canReopen = false,
+  canDelete = false,
   assignees = [],
   canAssign = false,
   showLifecycle = true,
@@ -60,6 +62,13 @@ export function CaseNarrativeCard({
   narrative: CaseNarrative;
   /** Whether the viewer may edit the body now (Q14 + `aberta` + case open). */
   canEdit: boolean;
+  /**
+   * Whether the viewer may REMOVE this narrative — the parent passes
+   * `narrative.isAdHoc && caps.canManageLifecycle`. Only ad-hoc ("adicional")
+   * narratives are removable: a template-derived slot belongs to the case type,
+   * so it gets no affordance (the backend refuses it too). Default `false`.
+   */
+  canDelete?: boolean;
   /** Whether the viewer may conclude it (assignee/coordinator + `aberta`). */
   canConclude?: boolean;
   /** Whether the viewer may reopen it (coordinator + `concluida`). */
@@ -245,6 +254,12 @@ export function CaseNarrativeCard({
             <Pencil aria-hidden="true" />
             Editar
           </Button>
+        )}
+        {canDelete && !editing && (
+          <CaseNarrativeDelete
+            narrativeId={narrative.id}
+            narrativeLabel={heading}
+          />
         )}
         {showLifecycle && canReopen && !editing && (
           <Button

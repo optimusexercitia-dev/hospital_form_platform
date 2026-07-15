@@ -9,6 +9,7 @@ import {
 import { CoordinatorPhaseActions } from "@/components/cases/coordinator-phase-actions";
 import { PhaseResultBadge } from "@/components/cases/phase-result-badge";
 import { PhaseResultCorrectButton } from "@/components/cases/phase-result-correct-button";
+import { CasePhaseDelete } from "@/components/cases/case-phase-delete";
 import { resolvePhaseCorrectionOptions } from "@/components/cases/phase-result-options";
 import { formatDueDate, isOverdue } from "@/components/cases/format";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
@@ -130,6 +131,14 @@ export function CasePhaseArticle({
               })()}
           </div>
         </div>
+
+        {/* Ad-hoc phases are the only removable ones — a template-derived phase
+            belongs to the case type, so it gets NO delete affordance at all
+            (the backend refuses it too). Gated on the same lifecycle authority
+            that adds them. */}
+        {phase.isAdHoc && canManageLifecycle && (
+          <CasePhaseDelete phaseId={phase.id} phaseLabel={heading} />
+        )}
       </div>
 
       <CoordinatorPhaseActions

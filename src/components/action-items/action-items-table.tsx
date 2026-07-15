@@ -21,7 +21,7 @@ import { formatDateTime, formatDueDate, isOverdue } from "./format";
  * The interactive island of "Meus itens de ação" (`"use client"` — the server
  * page fetches the rows and passes them as plain props, mirroring the
  * WizardRunner / cases-table boundary). Read-only: acting on an item happens on
- * its linked source page.
+ * its own detail page.
  *
  * Client behaviors:
  *  - default filter = ACTIVE only (open + in_progress), a toggle reveals
@@ -30,12 +30,16 @@ import { formatDateTime, formatDueDate, isOverdue } from "./format";
  *  - default sort = due date ASC with overdue first and no-deadline last, then
  *    createdAt DESC — computed here, independent of the server's ordering.
  *
- * The link target per row is member-reachable by design: a case links to the
- * member case detail (`casos/{caseId}`, opened by any reader incl. an action-item
- * assignee), NOT the coordinator `manage/cases/...` route which would 404 for a
- * plain staff assignee. The case link is suppressed (rendered as plain text) when
- * `caseDetailLinkable` is false (the `case_access` flag is OFF and that route
- * 404s); the number + label still show.
+ * TWO distinct link targets, deliberately:
+ *  - the TITLE → the item's own detail page (`itens-de-acao/{id}`). Every source
+ *    has one — including `manual`, which has no parent and used to be a dead end.
+ *  - "Gerado de" → the item's SOURCE, which is what that column means. A case
+ *    links to the MEMBER case detail (`casos/{caseId}`, opened by any reader incl.
+ *    an action-item assignee), NOT the coordinator `manage/cases/...` route which
+ *    would 404 for a plain staff assignee. That link is suppressed (plain text)
+ *    when `caseDetailLinkable` is false (the `case_access` flag is OFF and the
+ *    route 404s); the number + label still show. `manual` has no source link by
+ *    definition.
  */
 export function ActionItemsTable({
   org,
@@ -236,10 +240,22 @@ function ItemRow({
 
   return (
     <tr className="border-b border-border/70 align-top last:border-b-0 hover:bg-muted/30">
-      {/* Título + inline description preview + read-scope badge (only for the
-          restricted scopes; `committee` renders nothing). */}
+      {/* Título — the row's primary affordance: a link to the item's OWN detail
+          page (every source has one, including `manual`). The description preview
+          + read-scope badge sit under it (`committee` scope renders nothing). */}
       <Td>
-        <span className="font-medium text-foreground">{item.title}</span>
+        <Link
+          href={commissionHref(org, commission, "itens-de-acao", item.id)}
+          className="group inline-flex items-start gap-1 font-medium text-foreground transition-colors hover:text-primary focus-visible:rounded-sm focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+        >
+          <span className="underline-offset-2 group-hover:underline">
+            {item.title}
+          </span>
+          <ArrowUpRight
+            aria-hidden="true"
+            className="mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-primary"
+          />
+        </Link>
         {item.description ? (
           <span className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
             {item.description}

@@ -220,9 +220,16 @@ export async function listCommissionReferrals(
   // Keyset (WS-6 P3): (created_at DESC, id DESC). The commission-membership OR-group
   // and the cursor OR-group are two separate `.or()` calls → PostgREST ANDs them, so
   // the result is (source OR target) AND (after-cursor) — the intended semantics.
+  //
+  // Drafts are EXCLUDED in BOTH directions: an unsent draft belongs only to the
+  // authoring case's detail card ({@link listCaseOutboundReferrals} is the sole
+  // legitimate draft surface). The hub lists referrals that are actually in flight.
+  // (RLS now also hides another committee's drafts — this is the product rule, not
+  // the security boundary.)
   let query = supabase
     .from('case_referral')
     .select(REFERRAL_LIST_SELECT)
+    .neq('status', 'draft')
     .or(
       `source_commission_id.eq.${commissionId},target_commission_id.eq.${commissionId}`,
     )
@@ -300,8 +307,12 @@ export async function listCaseOutboundReferrals(
 /**
  * The actionable-count badge for the commission's nav. Counts referrals needing
  * this commission's attention: incoming awaiting receive/accept/reply
- * (`sent/received/accepted/in_review` where this commission is the target) +
- * outgoing drafts (`draft` where this commission is the source). PHI-free.
+ * (`sent/received/accepted/in_review` where this commission is the target).
+ * PHI-free.
+ *
+ * The former outgoing-DRAFTS arm was dropped: drafts no longer surface in the
+ * encaminhamentos hub at all (they live only on the authoring case's detail card),
+ * so counting them here badged a number the hub could not explain.
  */
 export async function countCommissionReferralActionable(
   commissionId: string,
@@ -313,14 +324,8 @@ export async function countCommissionReferralActionable(
     .select('id', { count: 'exact', head: true })
     .eq('target_commission_id', commissionId)
     .in('status', ['sent', 'received', 'accepted', 'in_review'])
-  // Outgoing drafts this committee has not yet sent.
-  const drafts = await supabase
-    .from('case_referral')
-    .select('id', { count: 'exact', head: true })
-    .eq('source_commission_id', commissionId)
-    .eq('status', 'draft')
 
-  return (incoming.count ?? 0) + (drafts.count ?? 0)
+  return incoming.count ?? 0
 }
 
 // ---------------------------------------------------------------------------
@@ -832,9 +837,13 @@ export async function listAllReferrals(
   if (!(await isPqsMemberSelf())) return []
 
   const supabase = await createClient()
+  // Drafts excluded: the QPS dashboard is outside the authoring case, and an unsent
+  // draft is not yet a referral in flight (PQS CAN read drafts — ADR 0037 D6 — this
+  // is the dashboard's product rule, deliberately narrower than its read reach).
   let query = supabase
     .from('case_referral')
     .select(REFERRAL_LIST_SELECT)
+    .neq('status', 'draft')
     .order('created_at', { ascending: false })
 
   if (filters.status) query = query.eq('status', filters.status)
@@ -863,6 +872,11 @@ export async function listAllReferrals(
  * QPS macro flow metrics (open / awaiting-reply / concluded / declined / withdrawn
  * counts) for the dashboard headline + charts. Gated on `is_pqs_member_self()`
  * (zeros for a non-PQS caller). PHI-free aggregate.
+ *
+ * Drafts are EXCLUDED, matching {@link listAllReferrals}: an unsent draft is not a
+ * referral in flight, and counting it inflated `open` (which is
+ * "not resolved" — a draft is neither). Keeps the headline consistent with the list
+ * the user can actually drill into.
  */
 export async function referralFlowMetrics(): Promise<ReferralFlowMetrics> {
   const empty: ReferralFlowMetrics = {
@@ -879,6 +893,7 @@ export async function referralFlowMetrics(): Promise<ReferralFlowMetrics> {
   const { data } = await supabase
     .from('case_referral')
     .select('status, response_expected')
+    .neq('status', 'draft')
     .returns<{ status: string; response_expected: boolean }[]>()
 
   const rows = data ?? []

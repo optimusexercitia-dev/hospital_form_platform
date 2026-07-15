@@ -569,3 +569,41 @@ export async function provideReferralInformation(
   revalidateReferrals()
   return { ok: true, message: REFERRAL_MESSAGES.informationProvided }
 }
+
+/**
+ * Permanently DELETE an unsent referral draft. Source coordinator only.
+ *
+ * Unlike every other referral mutation this has no RPC: RLS is the sole authority
+ * (`case_referral_delete_draft_source` = `status = 'draft' AND
+ * app.can_manage_referral_source(id, auth.uid())`), backed by the
+ * `app.guard_referral_status` DELETE arm (`old.status <> 'draft'` → HC070).
+ *
+ * RLS reports NO error for a row the policy excludes — it simply deletes nothing.
+ * So we `.select()` the deleted rows and treat an empty result as a refusal, or the
+ * caller would get a success toast for a delete that never happened.
+ *
+ * On success the caller navigates away: the referral detail route will 404 once the
+ * row is gone, so both the source case AND the encaminhamentos hub are revalidated.
+ */
+export async function deleteReferralDraft(
+  referralId: string,
+): Promise<ReferralActionState> {
+  if (!referralId) return { ok: false, error: REFERRAL_MESSAGES.missingReferral }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('case_referral')
+    .delete()
+    .eq('id', referralId)
+    .eq('status', 'draft')
+    .select('id')
+
+  if (error) return { ok: false, error: mapReferralError(error) }
+  if (!data || data.length === 0) {
+    return { ok: false, error: REFERRAL_MESSAGES.draftDeleteBlocked }
+  }
+
+  // Revalidates the hub + referral detail + the source case + the QPS dashboard.
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.draftDeleted }
+}

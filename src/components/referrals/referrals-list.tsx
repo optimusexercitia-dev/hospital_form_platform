@@ -27,8 +27,13 @@ import {
 } from "./referral-chips";
 import { formatDate, formatReferralCode } from "./format";
 
-/** Status filter options in lifecycle order; "all" is the default sentinel. */
-const STATUS_FILTER_ORDER: ReferralStatus[] = [
+/**
+ * EVERY status in lifecycle order — the sort ranking's source. This must stay
+ * TOTAL over `ReferralStatus` (including `draft`) so `STATUS_RANK` is a complete
+ * map and the status sort can never compare against `undefined`, even though the
+ * hub no longer lists drafts.
+ */
+const STATUS_LIFECYCLE_ORDER: ReferralStatus[] = [
   "draft",
   "sent",
   "received",
@@ -40,12 +45,24 @@ const STATUS_FILTER_ORDER: ReferralStatus[] = [
   "withdrawn",
 ];
 
+/**
+ * Status FILTER options, in lifecycle order; "all" is the default sentinel.
+ *
+ * `draft` is deliberately absent: a draft is only visible on its authoring case's
+ * outbound card, never in this hub (the queries exclude it on BOTH directions —
+ * it was always meaningless in the receiving committee's inbox, since an unsent
+ * draft has no recipient). Offering a filter that can only ever return nothing is
+ * a dead end, so the vocabulary drops it.
+ */
+const STATUS_FILTER_ORDER: ReferralStatus[] = STATUS_LIFECYCLE_ORDER.filter(
+  (status) => status !== "draft",
+);
 
 type SortKey = "code" | "status" | "criado";
 type SortDir = "asc" | "desc";
 
 const STATUS_RANK: Record<ReferralStatus, number> = Object.fromEntries(
-  STATUS_FILTER_ORDER.map((s, i) => [s, i]),
+  STATUS_LIFECYCLE_ORDER.map((s, i) => [s, i]),
 ) as Record<ReferralStatus, number>;
 
 function SortHeader({

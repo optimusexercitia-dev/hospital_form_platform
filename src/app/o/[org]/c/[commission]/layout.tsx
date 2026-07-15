@@ -12,6 +12,7 @@ import { myPendingMeetingSignatures } from "@/lib/queries/meetings";
 import { meetingsEnabled } from "@/lib/meetings/actions";
 import { auditTrailEnabled } from "@/lib/queries/audit";
 import { actionItemsEnabled } from "@/lib/queries/action-items";
+import { getMemberOverview } from "@/lib/queries/overview";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
 import {
@@ -114,6 +115,7 @@ export default async function CommissionLayout({
     signoffQueue,
     pendingSignatures,
     referralsActionable,
+    memberOverview,
   ] = await Promise.all([
     caseAccessOn ? Promise.resolve([]) : listMyAssignedPhases(commissionId),
     caseAccessOn ? listMyCases(commissionId) : Promise.resolve([]),
@@ -130,6 +132,11 @@ export default async function CommissionLayout({
     referralsOn
       ? countCommissionReferralActionable(commissionId)
       : Promise.resolve(0),
+    // "Meus itens de ação" badge. Gated on the SAME composite flag as the nav
+    // item itself (`actionItemsOn`), so we never read for a disabled feature.
+    // `getMemberOverview` is `cache()`-wrapped and self-scoped to auth.uid(), so
+    // this dedupes with the overview page's own call — the badge is free.
+    actionItemsOn ? getMemberOverview(commissionId) : Promise.resolve(null),
   ]);
 
   const counts: SidebarCounts = {
@@ -145,6 +152,9 @@ export default async function CommissionLayout({
     // Referrals needing this commission's attention (incoming awaiting +
     // outgoing drafts); 0 when the flag is off or out of scope.
     encaminhamentos: referralsActionable,
+    // Action items assigned to this user and not yet concluded; 0 when no
+    // action-item source flag is on (the nav item is hidden then anyway).
+    meusItensDeAcao: memberOverview?.pendingActionItems ?? 0,
   };
 
   const roleLabel =

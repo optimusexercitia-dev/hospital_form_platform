@@ -17,11 +17,75 @@ import { ChecklistSection } from "./checklist-section";
 type LoadStatus = "idle" | "loading" | "ready" | "error";
 
 /**
+ * The three satellite sub-panels (reminders / updates / checklist) for one action
+ * item, rendered from data the CALLER owns. Purely presentational — it holds no
+ * data lifecycle of its own, so each host decides how the data arrives:
+ *  - {@link ActionItemSatellites} lazy-loads it behind a disclosure (the row
+ *    hosts, where eager-loading every row would be wasteful);
+ *  - the Action Item DETAIL page seeds it server-side and renders it expanded
+ *    (`ActionItemSatellitesPanel`), where the satellites ARE the page content.
+ *
+ * `onMutated` re-fetches after any section's write.
+ */
+export function ActionItemSatelliteSections({
+  actionItemId,
+  itemTitle,
+  data,
+  canManageReminders,
+  canContribute,
+  onMutated,
+}: {
+  actionItemId: string;
+  itemTitle: string;
+  data: ActionItemSatelliteData;
+  canManageReminders: boolean;
+  canContribute: boolean;
+  onMutated: () => void | Promise<void>;
+}) {
+  return (
+    <>
+      <div
+        className="animate-rise-in"
+        style={{ "--rise-delay": "0ms" } as React.CSSProperties}
+      >
+        <ReminderSection
+          actionItemId={actionItemId}
+          itemTitle={itemTitle}
+          reminders={data.reminders}
+          canManage={canManageReminders}
+          onMutated={onMutated}
+        />
+      </div>
+      <div
+        className="animate-rise-in"
+        style={{ "--rise-delay": "60ms" } as React.CSSProperties}
+      >
+        <UpdatesSection
+          actionItemId={actionItemId}
+          updates={data.updates}
+          canContribute={canContribute}
+          onMutated={onMutated}
+        />
+      </div>
+      <div
+        className="animate-rise-in"
+        style={{ "--rise-delay": "120ms" } as React.CSSProperties}
+      >
+        <ChecklistSection
+          actionItemId={actionItemId}
+          itemTitle={itemTitle}
+          checklist={data.checklist}
+          canContribute={canContribute}
+          onMutated={onMutated}
+        />
+      </div>
+    </>
+  );
+}
+
+/**
  * The per-item SATELLITE detail surface: a disclosure that reveals the reminder,
- * updates and checklist sub-panels for one action item. Reused by the case and
- * meeting action-item panels (both render items as rows — there is no standalone
- * item detail page), so the three satellites live wherever the item already
- * lives.
+ * updates and checklist sub-panels for one action item.
  *
  * Data is fetched LAZILY on first expand (via the `loadActionItemSatellites`
  * server action) rather than eagerly for every row of every panel, and re-fetched
@@ -132,43 +196,14 @@ export function ActionItemSatellites({
               </Button>
             </div>
           ) : data ? (
-            <>
-              <div
-                className="animate-rise-in"
-                style={{ "--rise-delay": "0ms" } as React.CSSProperties}
-              >
-                <ReminderSection
-                  actionItemId={actionItemId}
-                  itemTitle={itemTitle}
-                  reminders={data.reminders}
-                  canManage={canManageReminders}
-                  onMutated={refresh}
-                />
-              </div>
-              <div
-                className="animate-rise-in"
-                style={{ "--rise-delay": "60ms" } as React.CSSProperties}
-              >
-                <UpdatesSection
-                  actionItemId={actionItemId}
-                  updates={data.updates}
-                  canContribute={canContribute}
-                  onMutated={refresh}
-                />
-              </div>
-              <div
-                className="animate-rise-in"
-                style={{ "--rise-delay": "120ms" } as React.CSSProperties}
-              >
-                <ChecklistSection
-                  actionItemId={actionItemId}
-                  itemTitle={itemTitle}
-                  checklist={data.checklist}
-                  canContribute={canContribute}
-                  onMutated={refresh}
-                />
-              </div>
-            </>
+            <ActionItemSatelliteSections
+              actionItemId={actionItemId}
+              itemTitle={itemTitle}
+              data={data}
+              canManageReminders={canManageReminders}
+              canContribute={canContribute}
+              onMutated={refresh}
+            />
           ) : null}
         </div>
       )}

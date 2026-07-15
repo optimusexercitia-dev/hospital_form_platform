@@ -119,6 +119,12 @@ export const REFERRAL_MESSAGES = {
   referralUpdated: 'Encaminhamento atualizado.',
   referralSent: 'Encaminhamento enviado à comissão de destino.',
   referralWithdrawn: 'Encaminhamento retirado.',
+  draftDeleted: 'Rascunho de encaminhamento excluído.',
+  /** The DELETE matched no row: the referral is no longer a draft (already sent),
+   * the caller is not the source coordinator, or it is already gone. RLS is the
+   * authority and reports no error for a non-matching row — only 0 rows. */
+  draftDeleteBlocked:
+    'Não foi possível excluir: apenas a coordenação de origem pode excluir um rascunho ainda não enviado.',
   referralReceived: 'Encaminhamento recebido.',
   referralAccepted: 'Encaminhamento aceito.',
   referralDeclined: 'Encaminhamento recusado.',

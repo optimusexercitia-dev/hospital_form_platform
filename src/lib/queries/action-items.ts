@@ -92,6 +92,60 @@ export interface MyActionItem {
   meetingScheduledStart: string | null
 }
 
+/**
+ * ONE action item, with everything an Action Item DETAIL page header needs.
+ * Case + meeting + manual items are all rows of the shared `action_items` hub and
+ * `id` is a globally unique uuid, so this ONE getter serves all three sources —
+ * {@link ActionItemDetail.source} discriminates.
+ *
+ * PHI-free: the parent case/meeting contribute only NON-identifying label columns
+ * (number / label / scheduled_start), never answers or clinical free-text. This is
+ * a read of a committee-scoped governance row (RLS-scoped, not another member's
+ * PHI), so no audit row is emitted (Rule 11).
+ */
+export interface ActionItemDetail {
+  id: string
+  /** Which parent minted the item — drives the "voltar para" link + header label. */
+  source: ActionItemSource
+  title: string
+  description: string | null
+  /** The status KEY (stable, code-facing): `open` | `in_progress` | `done` | `cancelled`. */
+  status: MyActionItemStatus
+  /** The status LABEL (pt-BR, tenant-editable catalog text) — render THIS, not the key. */
+  statusLabel: string
+  /** `true` when the status is a terminal one (`done`/`cancelled`) per the catalog. */
+  statusIsTerminal: boolean
+  /** Per-row read scope (ADR 0050); drives the visibility badge. */
+  visibilityScope: VisibilityScope
+  /** `null` when the item is unassigned. */
+  assigneeId: string | null
+  /** The assignee's display name; `null` when unassigned / unresolved. */
+  assigneeName: string | null
+  /** ISO `YYYY-MM-DD`; `null` = no deadline. */
+  dueDate: string | null
+  /** ISO timestamp of completion; `null` while not completed. */
+  completedAt: string | null
+  createdAt: string
+  /** "Criado por" — the creator's display name; `null` if unresolved/system. */
+  createdByName: string | null
+
+  // --- parent ids, so the page can link back ---
+  /** ALWAYS set — the owning commission, for building the `/o/[org]/c/[commission]` href. */
+  commissionId: string
+  /** The parent case id when `source === 'case'`; else `null`. */
+  caseId: string | null
+  /** The case's per-commission counter ("Caso 0042"); `null` unless a case item. */
+  caseNumber: number | null
+  /** The case's NON-IDENTIFYING label; `null` if none / not a case item. */
+  caseLabel: string | null
+  /** The parent meeting id when `source === 'meeting'`; else `null`. */
+  meetingId: string | null
+  /** The meeting's per-commission counter ("Reunião 0007"); `null` unless a meeting item. */
+  meetingNumber: number | null
+  /** The meeting's planned start (ISO); `null` unless a meeting item. */
+  meetingScheduledStart: string | null
+}
+
 // ---------------------------------------------------------------------------
 // RPC row shape
 // ---------------------------------------------------------------------------
@@ -170,4 +224,109 @@ export async function listMyActionItems(
     meetingNumber: r.meeting_number,
     meetingScheduledStart: r.meeting_scheduled_start,
   }))
+}
+
+/** The FK-hinted embed row for {@link getActionItem}. */
+interface ActionItemDetailRow {
+  id: string
+  source_type: ActionItemSource
+  title: string
+  description: string | null
+  visibility_scope: VisibilityScope
+  due_date: string | null
+  completed_at: string | null
+  created_at: string
+  commission_id: string
+  assigned_to: string | null
+  case_id: string | null
+  source_case_id: string | null
+  source_meeting_id: string | null
+  status: { key: MyActionItemStatus; label: string; is_terminal: boolean } | null
+  assignee: { id: string; full_name: string | null } | null
+  author: { full_name: string | null } | null
+  source_case: { case_number: number | null; label: string | null } | null
+  case_ref: { case_number: number | null; label: string | null } | null
+  meeting: { meeting_number: number | null; scheduled_start: string | null } | null
+}
+
+/**
+ * ONE action item by id — the Action Item DETAIL page's header read. Serves all
+ * three sources (`case` | `meeting` | `manual`): they share the `action_items` hub
+ * and `id` is a globally unique uuid.
+ *
+ * RLS is the authority — `action_items_select` enforces the per-row
+ * `visibility_scope` (committee / case_restricted / assignees_only), so an
+ * unreadable item simply returns no row. Returns `null` (never throws) when the
+ * item is absent OR unreadable, so the page can `notFound()` — deliberately
+ * indistinguishable, so a 404-vs-403 does not leak the item's existence.
+ *
+ * Every `profiles` embed is FK-HINTED: `action_items` has THREE FKs to `profiles`
+ * (assigned_to / created_by / completed_by) and two to `cases` (case_id /
+ * source_case_id), so an un-hinted embed would fail with PGRST201 (ambiguous).
+ */
+export async function getActionItem(
+  actionItemId: string,
+): Promise<ActionItemDetail | null> {
+  if (!actionItemId) return null
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('action_items')
+    .select(
+      `id, source_type, title, description, visibility_scope, due_date,
+       completed_at, created_at, commission_id, assigned_to, case_id,
+       source_case_id, source_meeting_id,
+       status:action_item_statuses!action_items_status_fkey(key, label, is_terminal),
+       assignee:profiles!action_items_assigned_to_fkey(id, full_name),
+       author:profiles!action_items_created_by_fkey(full_name),
+       source_case:cases!action_items_source_case_fkey(case_number, label),
+       case_ref:cases!action_items_case_fkey(case_number, label),
+       meeting:meetings!action_items_source_meeting_fkey(meeting_number, scheduled_start)`,
+    )
+    .eq('id', actionItemId)
+    .maybeSingle<ActionItemDetailRow>()
+
+  if (error) {
+    // A swallowed error here would render "não encontrado" for what is really a
+    // broken query (e.g. PGRST204 after a migration) — log it, then fail closed.
+    console.error('[getActionItem] query failed', {
+      actionItemId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    })
+    return null
+  }
+  if (!data) return null
+
+  // The hub's shape CHECK pins a case item to `source_case_id`, but `case_id` is
+  // the legacy column some rows still carry — coalesce, exactly as the
+  // `action_items_select` RLS policy does.
+  const parentCase = data.source_case ?? data.case_ref
+  const caseId = data.source_case_id ?? data.case_id
+
+  return {
+    id: data.id,
+    source: data.source_type,
+    title: data.title,
+    description: data.description,
+    status: data.status?.key ?? 'open',
+    statusLabel: data.status?.label ?? '',
+    statusIsTerminal: data.status?.is_terminal ?? false,
+    visibilityScope: data.visibility_scope,
+    assigneeId: data.assigned_to,
+    assigneeName: data.assignee?.full_name ?? null,
+    dueDate: data.due_date,
+    completedAt: data.completed_at,
+    createdAt: data.created_at,
+    createdByName: data.author?.full_name ?? null,
+    commissionId: data.commission_id,
+    caseId,
+    caseNumber: parentCase?.case_number ?? null,
+    caseLabel: parentCase?.label ?? null,
+    meetingId: data.source_meeting_id,
+    meetingNumber: data.meeting?.meeting_number ?? null,
+    meetingScheduledStart: data.meeting?.scheduled_start ?? null,
+  }
 }
