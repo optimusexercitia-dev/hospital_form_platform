@@ -166,8 +166,9 @@ export default async function ReferralDetailPage({
     : 0;
 
   // LGPD-erasure affordance gate (BUG-NPH-002): the authoritative disposer probe,
-  // mirroring the `dispose_referral_phi` RPC gate exactly (admin / source
-  // commission-admin / PQS operator of EITHER endpoint hospital). Only asked when a
+  // mirroring the `dispose_referral_phi` RPC gate exactly (source commission-admin /
+  // PQS operator of EITHER endpoint hospital; the platform_admin arm was removed by
+  // ADR 0078 M2 — it could destroy referral PHI it cannot read). Only asked when a
   // PHI record exists (nothing to erase otherwise). PHI-free; safe-defaults false —
   // so the destructive control renders only for a caller the RPC would accept, never
   // dangling for e.g. a plain source-commission staff_admin.

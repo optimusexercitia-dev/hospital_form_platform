@@ -48,7 +48,13 @@ ever" rule.
 - **Commission**: the lowest unit (e.g., Infection Control). All forms, members, and
   responses belong to exactly one commission.
 - **Roles** (full definitions + RLS: ADR 0041, `docs/backend-state.md`):
-  - `platform_admin` — global superuser, walled off from all tenant data.
+  - `platform_admin` — global superuser. **May** administer **tenancy, identity, vocabulary and
+    audit** (orgs, hospitals, memberships, professional identity, catalogs, `audit_log`). **May NOT**
+    touch **commission content or PHI** — cases, responses, narratives, meetings, patient data.
+    *(The "noun rule" — PO-ruled 2026-07-15 from a 40-site catalog census; ADR 0078 A35. It replaces
+    "walled off from all tenant data", which was stated too absolutely: platform_admin genuinely reads
+    0 cases / 0 responses / 0 narratives / 0 meetings, but tenant **onboarding** requires the tenancy
+    arm, so the absolute form was false 12× and trained readers to ignore it.)*
   - `org_admin` / `hospital_admin` — manage an org / a single hospital and its
     commissions, users, members.
   - `staff_admin` (per commission) — builds/edits forms, manages that commission's

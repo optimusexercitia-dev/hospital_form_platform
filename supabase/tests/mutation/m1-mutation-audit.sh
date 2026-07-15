@@ -49,7 +49,7 @@ EOF
 run_case () {  # $1 = label, $2 = mutation SQL, $3 = expected-red test numbers (space sep)
   local label="$1" mut="$2" expect="$3"
   local f="$WORK/mut.sql"
-  awk -v marker="$MARKER" -v pre="$PRELUDE" -v mut="$mut" '
+  awk -v marker="${MARKER:-grant select on k to authenticated;}" -v pre="$PRELUDE" -v mut="$mut" '
     { print }
     index($0, marker) { print pre; print mut }
   ' "$SRC" > "$f"
@@ -113,3 +113,25 @@ alter table public.professional_profiles add constraint professional_profiles_us
   foreign key (user_id) references auth.users(id) on delete set null;
 EOF
 run_case "DEV3 FK ON DELETE RESTRICT" "$MUT_FK" "is ON DELETE RESTRICT"
+
+# =============================================================================
+# M2 — A30 bucket C (ADR 0078 A35): platform_admin loses the referral-PHI arm.
+# Lives in 189 (the referral/NSP fixture), so it runs with SRC overridden.
+# Reverting = putting the arm BACK; both keystones must go red.
+# =============================================================================
+run_m2 () {
+  SRC="supabase/tests/189_nsp_per_hospital_isolation.sql"   MARKER='grant select on personas to authenticated;' run_case "$@"
+}
+read -r -d '' MUT_M2 <<'EOF'
+do $z$ declare d text := pg_get_functiondef('public.dispose_referral_phi(uuid,text)'::regprocedure);
+begin execute replace(d, 'if not (', 'if not (app.is_admin() or '); end $z$;
+create or replace function public.can_dispose_referral_phi(p_referral_id uuid)
+returns boolean language sql stable security definer set search_path = app, public, pg_catalog as $z$
+  select app.is_admin() or exists (
+    select 1 from public.case_referral r where r.id = p_referral_id
+      and ( app.is_commission_admin_of(r.source_commission_id)
+         or app.is_pqs_operator_of(app.hospital_of_commission(r.source_commission_id))
+         or app.is_pqs_operator_of(app.hospital_of_commission(r.target_commission_id))));
+$z$;
+EOF
+run_m2 "M2 platform_admin referral-PHI arm" "$MUT_M2" "can_dispose_referral_phi is FALSE for a platform_admin|CANNOT dispose referral PHI|PHI row SURVIVES the platform_admin"

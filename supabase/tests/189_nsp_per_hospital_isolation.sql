@@ -30,7 +30,7 @@
 --   ref_b  (efa…b1): central-b ENC-0003 referral
 
 begin;
-select plan(43);
+select plan(53);
 
 update app.feature_flags set enabled = true where key = 'patient_index';
 -- dispose_referral_phi (§11) calls assert_referrals_enabled() first, so the
@@ -301,6 +301,65 @@ select is(
     where r.id = (select ref_x from personas)),
   true,
   'DISPOSAL SKELETON: case_referral row + code survive; has_patient=false, phi_disposed_at set');
+
+-- ============================================================================
+-- §11b: AUTHZ M2 / A30 bucket C (ADR 0078 A35) — platform_admin MUST NOT destroy
+--       referral PHI. Uses ref_b, which §11 leaves untouched (§11 disposes ref_x).
+--
+-- THE NOUN RULE: platform_admin MAY touch tenancy/identity/vocabulary/audit;
+-- NEVER commission content or PHI.
+--
+-- ⭐ The breach was DESTRUCTION, NOT DISCLOSURE — which is why every
+-- disclosure-shaped control missed it for so long. Proven on the live catalog
+-- before the fix: can_dispose = true, get_referral_patient = NULL (cannot read a
+-- single identifier), disposal SUCCEEDED, referral_patient 1 row → 0.
+-- ============================================================================
+-- The real platform_admin is platform@test.local (…b0). ⚠ NOT `admin` (…001) —
+-- that persona has profiles.is_admin = FALSE (catalog-checked). A keystone built
+-- on the wrong persona denies for the wrong reason and asserts nothing.
+select is((select is_admin from public.profiles
+           where id = '00000000-0000-0000-0000-0000000000b0'), true,
+  'M2 PRE: platform@test.local really IS a platform_admin (the arm under test is live for them)');
+select is((select count(*)::int from public.referral_patient
+           where referral_id = (select ref_b from personas)), 1,
+  'M2 PRE: ref_b still HAS its PHI row — the disposal has something to destroy');
+
+-- NEGATIVE — assert the ROW, not the error code. A `23514` reason-code check nearly
+-- cleared dispose_case_phi, so a VALID reason is used to reach the real gate.
+select test_helpers.claims_for('00000000-0000-0000-0000-0000000000b0'::uuid, true);
+set local role authenticated;
+select is(public.can_dispose_referral_phi((select ref_b from personas)), false,
+  'M2 ⭐: can_dispose_referral_phi is FALSE for a platform_admin (today: true)');
+select throws_ok(
+  format($$ select public.dispose_referral_phi(%L::uuid, 'retention_expired') $$, (select ref_b from personas)),
+  '42501', null,
+  'M2 ⭐ A30 bucket C: a platform_admin CANNOT dispose referral PHI (VALID reason — the gate, not the reason-code)');
+reset role;
+select is((select count(*)::int from public.referral_patient
+           where referral_id = (select ref_b from personas)), 1,
+  'M2 ⭐ RULE 12: …and the PHI row SURVIVES the platform_admin (today: 1 → 0, irreversibly)');
+select is((select phi_disposed_at is null from public.case_referral
+           where id = (select ref_b from personas)), true,
+  'M2: …and the referral is NOT marked disposed');
+
+-- ⛔ THE OVER-GRANT TWIN — MANDATORY, and the reason is structural: a deny that
+-- denies EVERYONE also denies platform_admin, so the negative above passes BY
+-- CONSTRUCTION unless the surviving population is proven to still dispose.
+-- Population enumerated from the catalog (not assumed): nspcoord.b · orgadmin.b ·
+-- pqs.b — i.e. is_commission_admin_of(source) OR is_pqs_operator_of(source|target).
+select is(public.can_dispose_referral_phi((select ref_b from personas)), false,
+  'M2 twin PRE: (as postgres/no claims) the predicate is not simply always-true');
+select test_helpers.claims_for((select pqs_b from personas), false);
+set local role authenticated;
+select is(public.can_dispose_referral_phi((select ref_b from personas)), true,
+  'M2 OVER-GRANT TWIN ⭐: the NON-ADMIN disposer (pqs.b, NSP operator) still CAN dispose');
+select lives_ok(
+  format($$ select public.dispose_referral_phi(%L::uuid, 'retention_expired') $$, (select ref_b from personas)),
+  'M2 OVER-GRANT TWIN ⭐: …and actually DOES dispose — the deletion did not deny everyone');
+reset role;
+select is((select count(*)::int from public.referral_patient
+           where referral_id = (select ref_b from personas)), 0,
+  'M2 OVER-GRANT TWIN: …and the lawful disposal took effect (LGPD/retention path intact)');
 
 -- ============================================================================
 -- §12: per-hospital EV sequences are independent (central-a EV-0001 + secundário-a

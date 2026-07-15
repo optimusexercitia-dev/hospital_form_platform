@@ -1705,6 +1705,45 @@ policies · **121** functions — the plan said 119). The **load-bearing negativ
 rewrite of `can_read_referral_phi`: its **text** is stale, its **fact** is not. **A22 confirmed —
 `4f23558` did *not* fix `action_items`.**
 
+### A35 — A30 ruled (PO, 2026-07-15): the **noun rule**, and CLAUDE.md §1 was the thing that was wrong
+
+A **40-site catalog census** (`docs/progress/authz-a30-platform-admin-inventory.md`) — **not 42**: the
+count was inflated by **three comment-only matches**, and those comments **document the arm's removal**
+(`-- ⟵ INFO-1: the is_admin() bypass is GONE`). *A `prosrc` text match counts `--` comments.* **The
+claim that "both confidentiality-ceiling helpers carry admin arms" is FALSE against this catalog.**
+Third time the program's own founding finding — **text is not truth** — bit the people who wrote it.
+
+**Population, not a floor:** `app.is_admin` is the **only** reader of the raw JWT claim; Storage clean
+(19 policies, 0 arms); ACLs clean; no trigger carries its own arm. ⚠ An `is_admin()` filter alone
+**misses `guard_profile_privileged_columns`** (reads the column directly); the naive transitive closure
+reports **177** because ~100 flow through `audit_write`, which only **stamps `actor_is_admin`** —
+**attribution, not authorization**. Name trap: `can_read_case_or_admin`'s "admin" is *commission*_admin.
+
+**Buckets: A=26 legitimate · B=7 tenant-non-PHI · C=5 PHI · D=1 · 1 not-an-arm.**
+
+**PO ruling 1 — the noun rule (adopted; 39/40 mechanical).** `platform_admin` **MAY** touch
+**tenancy · identity · vocabulary · audit**; **MAY NOT** touch **commission content or PHI**.
+⚠ The obvious line — *"never touches a table with `commission_id`"* — was **tested and REJECTED**: it
+strikes `commissions_admin_write` + `memberships_select` (**breaking tenant onboarding**) while
+**missing `professional_credentials`** (no such column). **Rule on the noun, not the column.**
+
+**PO ruling 2 — CLAUDE.md §1 amended.** Measured: platform_admin reads **0 of 7 cases · 0 of 13
+responses · 0 of 6 narratives · 0 meetings**. *"Walled off from all tenant data"* was **not a rule
+contradicted 42×** — it was a rule **stated too absolutely**, false 12×, which **trains readers to
+ignore it**. An aspirational rule in a binding rulebook is worse than an accurate narrow one.
+
+**PO ruling 3 — bucket C lands in M2, before the resolver.** **No arm reads Class-1 patient PHI**
+(`patient_identifiers` is denied at grant level). **The breach is DESTRUCTION, not disclosure** —
+platform_admin **destroyed referral PHI it cannot read** (1 row → 0, proven by execution, not by
+predicate). `dispose_referral_phi` / `can_dispose_referral_phi` are the **lone outliers**: the **four
+sibling disposal RPCs carry no arm**, so the correct shape is already proven. **~6 lines, subtractive**
+— it cannot conflict with a resolver that only **adds** paths. **Class-2 (professional identity) is
+deliberately excluded** — audited reads, a product decision; over-reach fails keystone 23. **B and D
+deferred.**
+
+⛔ **The fix needs its over-grant twin**: assert the **non-admin disposal population STILL disposes**,
+or the test **passes by construction** (A33).
+
 ### A33 — ⛔ BINDING: **mutation-test every keystone.** An over-grant twin is not enough.
 
 A0 + M1 produced **six** keystones that **could not fail** — including two ⭐ keystones, one of them

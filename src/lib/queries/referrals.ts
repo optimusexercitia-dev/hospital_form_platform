@@ -916,9 +916,10 @@ export async function referralFlowMetrics(): Promise<ReferralFlowMetrics> {
  * `referralId` — i.e. the FE gates the destructive "descartar dados do paciente"
  * affordance to entitled callers only, instead of dangling a control the RPC rejects
  * (BUG-NPH-002; ADR 0052 §6). Mirrors the `dispose_referral_phi` gate EXACTLY:
- * `is_admin() OR is_commission_admin_of(source) OR is_pqs_operator_of(either endpoint
- * hospital)`. A plain commission `staff_admin` is intentionally NOT entitled — PHI
- * erasure is an org-admin / NSP-operator action. Backed by the read-only DEFINER probe
+ * `is_commission_admin_of(source) OR is_pqs_operator_of(either endpoint hospital)`.
+ * A plain commission `staff_admin` is intentionally NOT entitled — PHI erasure is an
+ * org-admin / NSP-operator action. The platform_admin arm was REMOVED by ADR 0078 M2
+ * (A35): it could destroy referral PHI it cannot read. Backed by the read-only DEFINER probe
  * `can_dispose_referral_phi(referral)` (reads/mutates NO PHI); safe-default `false`
  * (called at render time, never throws). */
 export async function canDisposeReferralPhi(referralId: string): Promise<boolean> {
