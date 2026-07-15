@@ -195,6 +195,14 @@ schema, one rulebook.
 nothing merges ahead of its phase. Current sequencing / pilot plan: **ADR 0057** (build
 15 → 17 → 16; ship a pilot after Phase 16).
 
+> ⭐ **Before any authorization / RLS / security-test work, read
+> [docs/progress/authz-handoff.md §7](./docs/progress/authz-handoff.md)** — the ADR-0078 lessons.
+> They are **not** AUTHZ-specific and they cost six review rounds: **7 keystones that could not fail**
+> (review found none; *reverting the fix* found all), **6 ways "text is not truth"** beyond stale files
+> (a flag's `description` vs its `enabled` column; a `prosrc` regex matching **comments**; a persona
+> named `admin` with `is_admin = false`), and **`prosecdef` belongs beside `pg_policies`** — a DEFINER's
+> gate **replaces** RLS, so a policy-shaped audit is structurally blind to it.
+
 ## 6. Phase Gate (mandatory, in order)
 
 1. **Build complete** — all phase tasks done; lint, typecheck, unit tests pass locally.

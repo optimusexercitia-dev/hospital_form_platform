@@ -1,10 +1,27 @@
 # Session Handoff — Pre-Pilot Release Scope Expansion (ADR 0071)
 
-**Last updated:** 2026-07-14 · **Branch:** `pre-pilot-release-s0` (**local is ahead of origin — unpushed**) · **Author:** lead session.
+**Last updated:** 2026-07-15 · **Author:** lead session.
 **Read this first when resuming.** It's the current-state pointer; the authoritative status is
 [PROGRESS.md](../../PROGRESS.md), the settled spine is
 [pre-pilot-release-s0-ratification.md](../plans/pre-pilot-release-s0-ratification.md), and the sequenced plan is
 [pre-pilot-release-scope-expansion.md](../plans/pre-pilot-release-scope-expansion.md).
+
+> ## ▶ CURRENT WORK IS **AUTHZ**, NOT S4 — resume from **[authz-handoff.md](authz-handoff.md)**
+>
+> **Branch: `feat/authorization-capability-model`** (**pushed to origin**, `bed6eba`) — *not* the
+> `pre-pilot-release-s0` branch this file otherwise describes. **AUTHZ** (ADR
+> [0078](../decisions/0078-authorization-capability-model.md)) was **inserted BEFORE S4** by the PO
+> (Stage A rewires the `can_read_case*` predicates ETH·E2 builds on). **S4 does not start until AUTHZ's
+> Gate 1 exits.** Everything below about S0–S3 remains accurate history.
+>
+> **Gate 1 so far:** A0 ✅ closed · **M1 · M2 · M3 · M4 ✅ built, `qa`-approved, committed** ·
+> **A2 (resolver) ⏸ blocked + re-scoped — do NOT re-issue its original brief; read
+> [authz-handoff.md §4](authz-handoff.md) first.**
+>
+> ⭐ **[authz-handoff.md §7](authz-handoff.md) carries the LESSONS** — seven vacuous keystones, six
+> instances of "text is not truth", and why a *green* suite proved nothing. **They are not
+> AUTHZ-specific and they cost six review rounds.** Read them before any authorization, RLS, or
+> test-validity work anywhere in this repo.
 
 ## Where we are
 
