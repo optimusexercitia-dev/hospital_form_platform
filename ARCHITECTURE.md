@@ -299,8 +299,16 @@ may extend the schema but never contradict it. Cross-references elsewhere to
         doctor-under-review is LGPD personal data but **not** patient health PHI.
         Case-scoped RLS + **audited reads** (`professional_profile.read`, PHI-free
         metadata) — but **no** isolated single door, **no** reveal-on-demand.
-        Lives in `professional_profiles`. (No `dispose_*` path at E0 — the
-        CFM-retention-vs-erasure posture is designed in E1/E2; ADR 0064 M2.)
+        Lives in `professional_profiles`.
+        **Erasure posture (settled in ETH·E1, ADR 0072 §7; PO-signed 2026-07-14):**
+        professional-identity erasure is **retention-pinned** when the profile is a
+        respondent in a **decided** case (CFM-1821/2007, 20-yr floor);
+        **correction is always available** (`update_professional_profile`, audited);
+        **minimise-not-destroy redaction — not row deletion — is the erasure shape**,
+        designed with the decision model (E2). Accordingly there is **no `dispose_*`
+        / erasure path** on `professional_profiles` (E1 ships none by design — this
+        mirrors ADR 0035's PHI reconciliation rather than inventing a second,
+        conflicting erasure philosophy for the professional class).
       - **Attachments layer** (lands in **F2** / ADR 0063): two orthogonal columns
         on `attachments` — `sensitivity_tier ∈ {phi, standard}` is the *physical*
         PHI segregation (picks the bucket); `confidentiality_label` is the

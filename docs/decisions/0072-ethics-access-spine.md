@@ -1,6 +1,9 @@
 # 0072 — Ethics access spine: confidentiality, respondent-exclusion, recusal/COI & the m2 gate release
 
-**Date:** 2026-07-13 · **Status:** proposed (S0 design gate — DESIGN ONLY, not implemented).
+**Date:** 2026-07-13 · **Status:** ✅ **ACCEPTED — IMPLEMENTED** (human-approved + recorded 2026-07-14,
+`phase(E1)`; **the m2 gate is released**). As-built deltas + Q-rulings → **§As-built** at the foot of this ADR.
+Track record → [docs/progress/eth-e1-access-spine.md](../progress/eth-e1-access-spine.md) · review (3 rounds →
+APPROVED) → [docs/reviews/phase-ETH-E1-review.md](../reviews/phase-ETH-E1-review.md).
 **Owner:** platform lead → `backend`. **Gate unit:** ETH·E1 of the
 [Pre-Pilot Release Scope Expansion](../plans/pre-pilot-release-scope-expansion.md) (ADR
 [0071](./0071-pre-pilot-release-scope-expansion.md)); ratified against the
@@ -422,3 +425,83 @@ flag — but the recommendation is to defer it.)
   `highly_restricted→ethics_investigation`. Confirm at the build-plan contract freeze.
 - **O4 (settled here, listed for visibility) — M2 posture:** §7 — recommend minimise-not-destroy,
   retention-pin, no erasure path at E1. Human sign-off required at S0.
+
+---
+
+## As-built (2026-07-14 — E1 shipped; this section is authoritative over the design text above where they differ)
+
+**All four open decisions settled:** **O1** = the `case_access.max_confidentiality` **column** (not widening
+`level`) · **O2** = only `legal_privileged` + `credentialing_sensitive` gate above ordinary case-read
+(`ethics_investigation` stays at case-read) · **O3** = `standard→non_phi_internal`,
+`restricted→peer_review_confidential`, `highly_restricted→ethics_investigation` · **O4/M2** = **PO-signed at S0**
+— minimise-not-destroy, retention-pinned, **no erasure path**; QA verified zero erasure RPCs shipped (only
+`update_professional_profile`, the correction path).
+
+### Deltas from the design text
+
+1. **D1's create-time snapshot needed a door that didn't exist.** `create_case_from_template` is template-driven
+   and **never referenced `case_types`** — and no `case_type_id` column existed on `cases`/`process_templates`
+   (0064 D4's snapshot was never implemented). As-built: an **optional `p_case_type_id`** param snapshots the
+   type's `default_visibility_policy`/`default_confidentiality_level` onto the case when supplied **and** the
+   `case_types` flag is on; existing callers pass nothing and are unaffected. Full template→case_type plumbing is E2's.
+2. **D5's ceiling could NOT live inside `can_read_attachment`.** That dispatcher is keyed
+   `(owner_type, owner_id, uid)` — it never sees an individual attachment's `confidentiality_label`. As-built:
+   `can_read_attachment` is **unchanged** (owner-auth only); the ceiling rides a new
+   `app.attachment_confidentiality_ok(...)` applied at the **row-aware** paths — `open_attachment` (`HC0E6`) and
+   the `attachments` SELECT policy (so a privileged doc is simply **absent** from an uncleared reader's list).
+   A companion `app.confidentiality_rank()` orders the 7 labels (clearance ≥ label).
+3. **D2's "deny-terms cannot be out-voted" was TRUE of the predicate and FALSE of the policies consuming it.**
+   The single most important as-built lesson. `can_read_case` was correct from BE-4; three distinct **policy-layer**
+   shapes handed the row back anyway, each invisible to the method that found the previous one:
+   - **(a)** 9 `*_select` policies (+ E1's own `can_read_interview`) OR'd `is_commission_admin_of(...)` **outside**
+     the DEFINER → fixed by `app.can_read_case_or_admin()` (denies **first**, then ORs the admin arm).
+   - **(b)** `*_staff_admin_write` policies are **`FOR ALL` PERMISSIVE with a bare admin `USING` and no case
+     predicate at all** — they never name `can_read_case`, so no grep finds them; `FOR ALL` covers SELECT and
+     permissive policies OR together → fixed by `app.is_case_excluded()` as an `AND NOT` conjunct on 8
+     case-scoped write policies + 3 interview-family write policies + `case_access_select` (self-arm preserved).
+   - **(c)** `meeting_cases` — the case↔meeting join carrying `summary`+`decision` **deliberation free text** —
+     keyed on the **meeting** dimension with **zero** case predicate, reachable by **plain `staff`** (this ADR's
+     canonical persona). Found only by *sweeping all 15 `case_id` tables*. Fixed by
+     `app.can_reach_case_on_member_surface()` on `meeting_cases_select` (see 4).
+4. **D2·8's "member-facing reach surface" gating is now a first-class predicate.** `app.can_reach_case_on_member_surface`
+   implements D2·8 verbatim: **excluded → false** · **`explicit_grants_only` → `can_read_case_or_admin` only** ·
+   **`commission_default` → member-wide reach, unchanged**. The naïve `and can_read_case_or_admin(...)` on
+   `meeting_cases` would have **silently deleted ordinary members' reach** of ordinary meeting deliberation —
+   `can_read_case` has **no plain-member arm** on the `case_access`-ON path *by design*. Widening is structurally
+   impossible: the prior meeting-arms are preserved verbatim and the predicate is **AND**-ed on, so a conjunction
+   can only return a subset.
+5. **`record_recusal`'s self-arm had no authority gate** (D8 didn't specify one) — a foreign-org admin could write
+   a recusal into an unrelated org's case **and** its hash-chained audit trail, plus infer case existence.
+   As-built: a reach gate mirroring `declare_conflict`'s not-found posture — a real-but-unreachable case and a
+   random UUID now return **byte-identical SQLSTATE and message**, killing the oracle.
+6. **The `is_admin()` bypass arm was dropped from both clearance helpers** (provably inert — always AND-ed after a
+   predicate that walls off `platform_admin`; removed as a latent footgun). Clearance rides
+   `case_access.max_confidentiality` only.
+7. **D7·4 participant-roles M2M deferred to E2** — no §4 gate criterion covers it; its shape depends on E2's
+   decision model. `interview_topics`/`interview_summaries`/attendance/participant FKs all shipped.
+8. **A BEFORE trigger normalizes legacy 3-value confidentiality → 7-value** so IV2's `create_interview`/
+   `update_interview` keep working un-reproduced through the FE transition.
+
+### Q-rulings
+
+- **The flip is a MIGRATION, not a seed-only toggle** (D10 as written). Production is protected by the separately
+  user-authorized `db push` gate, not by keeping the flip out of migration history. Mirrors the `administrativo`
+  permanent-ON precedent.
+- **`CONFIDENTIALITY_ORDER` (FE) is DISPLAY order, not sensitivity order.** `confidentiality_rank()` ranks
+  `ethics_investigation`(4) **below** `legal_privileged`(5); the FE array's order is the reverse. **Never reorder
+  the array to "match" the rank** — that would let an `ethics_investigation` clearance open `legal_privileged`
+  docs. Documented in-file against a future "helpful" sort.
+- **A generic, catalog-driven leak sweep is now part of the pgTAP suite** (brought forward from E2 by the lead):
+  it enumerates every `case_id`-bearing base table from `information_schema`, under `set local role authenticated`,
+  for **both** persona classes (plain-staff respondent **and** non-granted member on an `explicit_grants_only`
+  case — (c) proved these are different reach paths), names offenders, and is **fail-closed** so a future
+  badly-shaped table fails automatically. Two known limits → PROGRESS follow-ups MINOR-A/MINOR-B.
+- **Three known gaps are OUT of E1's scope** (PO-directed → E2): `action_items.assignees_only`,
+  `patient_safety_event`'s missing case arm, and the privileged-doc ceiling's missing coordinator UX arm. See
+  the track record §4.
+
+### Rule 12 amendment (§7·3, now in force)
+
+ARCHITECTURE.md Rule 12's Class-2 bullet gains: *"professional-identity erasure is retention-pinned when the
+profile is a respondent in a decided case (CFM-1821/2007); correction is always available; minimise-not-destroy
+redaction — not row deletion — is the erasure shape, designed with the decision model (E2)."*
