@@ -108,90 +108,33 @@ governance R2–R5 and Charters. **E1 → E2 is strictly sequential** and E1's p
 - **S0 Design & Sequencing Gate** — ✅ signed off 2026-07-13 (spine + 6 specs + §I ledger block-ratified; PO full sign-off: M2 = minimise/don't-destroy · AI·O-2 = stakeholders-only). Full record → [s0-ratification.md](docs/plans/pre-pilot-release-s0-ratification.md).
 - **⚕️ Suite-health track** (parallel, non-blocking) — the `e2e:prod` gate carries a documented ~18–31 pre-existing flaky-red baseline (memory [[e2e-prod-build-flaky-baseline]]); real pay-down = per-test DB isolation / `retries=0` or a known-flaky allowlist. DEFERRED. Detail → [s1-substrate.md](docs/progress/s1-substrate.md).
 
-### Ad-hoc (out-of-phase) — Case "Reuniões" panel · ✅ complete — merged to `main` `fbe215f` (2026-07-12)
-
-**Case↔Meeting reverse link on the Case detail view.** A read-only "Reuniões" rail card on the case
-**Detalhes** tab listing every meeting the case was discussed in (reverse of the meeting's "Casos
-discutidos" `CaseLinker`). Reuses `listCaseMeetings` (`src/lib/queries/case-timeline.ts:170`) —
-**no migration/RLS/new-route**; pure frontend. Decisions (human-approved): read-only · right rail ·
-all meetings regardless of state · always render (empty state) · card gated on `meetingsEnabled()`.
-
-| Task | Owner | Status |
-| ---- | ----- | ------ |
-| FE — new `case-meetings-panel.tsx` rail card + wire `CaseDetailView` + both host pages (coordinator `(detail)` + staff `casos/[caseId]`) | frontend | ✅ built · `tsc`/`eslint --max-warnings=0`/`next build` clean (lead re-verified) |
-| E2E — focused `case-meetings-panel.spec.ts` (link→appears · row links out · empty state) | tester | ✅ 2/2 green (chromium dev loop, `--workers=1`) · 0 defects · screenshot proof |
-
-_Files:_ NEW `src/components/cases/case-meetings-panel.tsx` + NEW `e2e/case-meetings-panel.spec.ts`; EDIT `case-detail-view.tsx`, `manage/cases/[caseId]/(detail)/page.tsx`, `casos/[caseId]/page.tsx`. No backend/schema touched. Follow-up (optional, backend-owned): relocate `listCaseMeetings` out of `case-timeline.ts` to a home shared by both tabs. **Merged to `main`** (fast-forward `bf22926..fbe215f`; feature branch deleted; QA gate skipped by decision — no new schema/RLS/route). **Not pushed** to origin (`main` is 1 ahead of `origin/main`); `graphify-out/` graph refresh left uncommitted.
-
-> **F-cleanup — residual DB-hardening (D3 + D10 + D8 + D11): ✅ COMPLETE** (2026-07-12; merged → `main`
-> `5f81286`). pgTAP **2100/0** · `tsc` 0 · `next build` ok · **full E2E 51/51 green** · **QA ✅ APPROVED**
-> (0B/0M/2m/3i) [review](docs/reviews/f-cleanup-review.md). ADRs
-> [0068](docs/decisions/0068-result-engine-fk-junctions.md) (D3) ·
-> [0069](docs/decisions/0069-status-key-anglicization.md) (D11). Durable record →
-> [f-cleanup.md](docs/progress/f-cleanup.md).
-
-<!-- F-cleanup task detail rotated to docs/progress/f-cleanup.md (lead-playbook §5). -->
-
 ### 📋 Remaining pre-pilot work
 
 Expanded 2026-07-12 — ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md). The live phase is
 tracked under **🏗️ ACTIVE** above; this is the standing backlog behind it.
 
-· Phase 16 — Standards Crosswalk (🔜 **deferred** 2026-07-11, needs replanning)
-· **Phases 20–21** (Notifications & Escalation; Charters & Cadence — pulled pre-pilot)
-· **Referrals v2 — Governance arms R2–R5** (🔜 pre-pilot; R1 dialogue core ✅ shipped in S2 2026-07-14 — [record](docs/progress/rv2-r1-referrals.md); [plan](docs/plans/referrals-v2-dialogue-governance.md))
-· **Ethics track E1→E2→E3** — **E1 access-spine is the live phase** (ADR [0072](docs/decisions/0072-ethics-access-spine.md); see 🏗️ ACTIVE above); E2/E3 still need ADRs. ADR 0064 foundation done as F1.
-· **Action-items hub satellites** + **case cross-link UI**
-· **§6.1 single-`memberships` collapse** + **supersession correction engine** (ADR 0060 Gap 38)
-· the **Coolify app deploy** + the **remote `db push`** of the S1–S3 local-only migrations (deferred to the pilot by design — every S-phase builds local-first). ✅ done already: the pilot DB reset landing F1+F2+F3+F-cleanup (2026-07-12) and the origin push (`main` == `origin/main`, verified 2026-07-14)
-· **BUG-AIF-001 / FUP-AI-1** (PO-directed pre-pilot; own workstream, not yet started).
+· **S4** — **ETH·E2** procedure (ADR [0073](docs/decisions/0073-ethics-procedure-model.md); ⚠ has uncommitted out-of-session edits — reconcile first) · **Referrals v2 R2–R5** governance ([plan](docs/plans/referrals-v2-dialogue-governance.md)) · **CH** Charters (Phase 21)
+· **S5** — **ETH·E3a** terminology/UX (E3b needs Phase 16)
+· Phase 16 — Standards Crosswalk (🔜 **deferred** 2026-07-11, needs replanning; blocks E3b)
+· **BUG-AIF-001 / FUP-AI-1** (PO-directed pre-pilot; own workstream, not yet started)
+· the **Coolify app deploy** + the **remote `db push`** of the S1–S3 local-only migrations — deferred to the pilot by design (every S-phase builds local-first). **This is when the ETH·E1 m2 flag flip reaches production.**
 
-> **F3 — Flexible-Forms Foundation: ✅ COMPLETE** (2026-07-12; merged → `main`) — durable record →
-> [f3-flexible-forms.md](docs/progress/f3-flexible-forms.md).
+_Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP (supersession engine, ADR 0060 Gap 38) — 2026-07-13 · **S2** IV2 · RV2·R1 · AI satellites+cross-link — 2026-07-14 · **S3** ETH·E1 access-spine — 2026-07-14. Detail in the phase table + `docs/progress/`.
 
-<!-- F3 task detail rotated to docs/progress/f3-flexible-forms.md at the Record step (lead-playbook §5). -->
-
-> **F2 → F0 pointers below are prior-phase history; kept as one-line rotations.** 
-
-> **F2 — Centralized Attachments: ✅ COMPLETE** (approved 2026-07-11; `37057c0`). pgTAP **1957/1957** (208 = 50
-> keystones) · F2-surface E2E **24/24** (audited PHI door proven — one `attachment.read`/open, zero inline
-> `<a>` on PHI rows) · full suite **590p/24f** (F2-owned 14/14 green; 0 F2 reg, ≈ F1 baseline) · **QA
-> APPROVED** (0B/0M/3m/4i, all closed in fast-follow). Two bugs the gate caught + fixed: the ADR-0051 stale
-> symbol (`is_org_admin_of_commission`→`is_commission_admin_of`, 6 sites) and the `p_uid` dispatcher
-> contract fix (→ `_for` variants). BUG-AIF-001 (prod-standalone upload dialogs) is pre-existing /
-> cross-cutting, not F2. Durable record → [f2-attachments.md](docs/progress/f2-attachments.md).
-
-> **F1 — Case-Participants E0: ✅ COMPLETE** (approved 2026-07-10; commits `ef66b0a` build + `6805bd9`
-> QA-fix). pgTAP **1913/1913** · F1-surface E2E **54/54** (0 reg; marathon reds env-only) · **QA APPROVED**
-> (MAJOR-1 inert-RLS-grant defect fixed + K9-locked; PHI door untouched). Durable record →
-> [f1-case-participants.md](docs/progress/f1-case-participants.md).
-
-> **F0 — Foundations Design Gate: ✅ COMPLETE** (signed off 2026-07-10; commit `ea06bf4`). Durable record
-> = [ADR 0065](docs/decisions/0065-pre-pilot-foundations-conventions.md) (three polymorphism dialects
-> [closes D12] · one Rule-12 sensitivity taxonomy · disposal-compose order · catalog-vs-enum · freeze
-> principle · reference→participants bridge · supersession model) + ARCHITECTURE.md Appendices A/B.
-> `form_items.phi_policy` drop confirmed (C-ζ).
-
-**Pre-Pilot Foundations Program — ✅ COMPLETE (F0 ✅ · F1 ✅ · F2 ✅ · F3 ✅ · F-cleanup ✅ all on `main`; Phase 16 deferred, out of scope).** The product owner decided to land four structural initiatives before the
-pilot: ADR 0060 (flexible-forms), ADR 0063 (attachments 14e), ADR 0064 E0 (case-participants), and the
-DB-hardening Waves-3+4 remainder — reconciled into **one collision-free plan**:
-[pre-pilot-foundations-program](docs/plans/pre-pilot-foundations-program.md). Sequence:
-**F0 ✅ → F1 participants ✅ → F2 attachments ✅ → F3 flexible-forms ✅ → F-cleanup ✅ → pilot reset ✅.**
-**Phase 16 (Standards Crosswalk) was deferred by the PO 2026-07-11** (needs replanning before build) and
-dropped from this program's sequence entirely — no dependency ever forced it after F2 (§3/§8). The hard
-ordering constraint (**participants before attachments**) was satisfied. Six documented collision
-resolutions (§1) close hardening **D12**, supersede **D5**, and cancel **D6/§6.3**. All landed pre-pilot
-on a disposable DB, dark behind flags where a flag exists. Remaining pilot readiness (Coolify app deploy +
-origin push) is tracked under the [pre-pilot-release](docs/plans/pre-pilot-release-scope-expansion.md)
-umbrella, not this program.
-
-<!-- UI-batch · Administrativo · meeting-held-time · form-builder-batch · Phase 17 prose removed
-     2026-07-14: each was duplicated verbatim (with less detail) by its own row in "Completed work"
-     below, which is the canonical index. Durable records unchanged in docs/progress/. -->
+<!-- DEDUPE (continued 2026-07-14, at the S3·ETH·E1 Record):
+     Removed the ✅-COMPLETE blockquotes for F3 · F2 · F1 · F0 and the Pre-Pilot Foundations
+     Program block. Each was duplicated by its own row in "Completed work" below (the canonical
+     index) and/or by its Phase Status row above, with the durable detail already in
+     docs/progress/*.md. Same rationale as the earlier pass in this file, which removed:
+     UI-batch · Administrativo · meeting-held-time · form-builder-batch · Phase 17.
+     Durable records unchanged in docs/progress/. This section is the FORWARD backlog only —
+     completed work belongs in "Completed work (archived)" below, one line each. -->
 
 ---
 
 ### Completed work (archived to docs/progress/)
+
+- **Case "Reuniões" panel** (ad-hoc, out-of-phase; pure frontend — **no migration/RLS/route**) — read-only rail card on the Case **Detalhes** tab listing every meeting the case was discussed in (reverse of the meeting's "Casos discutidos" `CaseLinker`); reuses `listCaseMeetings` (`src/lib/queries/case-timeline.ts`). Human-approved decisions: read-only · right rail · all meetings regardless of state · always render (empty state) · gated on `meetingsEnabled()`. NEW `src/components/cases/case-meetings-panel.tsx` + `e2e/case-meetings-panel.spec.ts`. — ✅ 2026-07-12, merged → `main` `fbe215f`. _No separate docs/progress record: this line is the durable one._
 
 - **F3 — Flexible-Forms Foundation** (ADR [0060](docs/decisions/0060-flexible-forms-foundation.md); pre-pilot form-engine bones + frozen inert answer set + the one live feature = dual-evaluator ops `contains`/`not_contains`/`is_empty`/`is_not_empty`; item_type 10→15 inert; 5 inert answer tables incl. `answer_references→participants`; no flag, no phi_policy, no upload type) — ✅ **COMPLETE 2026-07-12**, QA APPROVED (0B/0M/0m · 4 INFO) [review](docs/reviews/phase-F3-review.md). pgTAP **2023** (`209` 38/38) · Vitest **356** (golden parity 81/81) · E2E **632p/6f → GREEN, 0 F3 reg**. Remote deploy deferred → pilot reset (needs F1 `participants`). Detail → [f3-flexible-forms.md](docs/progress/f3-flexible-forms.md).
 
@@ -265,9 +208,7 @@ umbrella, not this program.
 
 | Phase / Feature | Verdict | Report | Notes |
 | --------------- | ------- | ------ | ----- |
-| S3·ETH·E1 — Ethics access spine + m2 gate release (ADR 0072) | ✅ **APPROVED** (2026-07-14, round 3 · final) | [review](docs/reviews/phase-ETH-E1-review.md#re-review--round-3-2026-07-14-final) | 0 B · 0 M · **2 m (non-blocking, test-coverage only)**. All 3 Majors closed — **every exploit I wrote re-run by hand, all return 0**. **I was WRONG and backend was right to reject my recommended fix** — verified: `staff4.ccih` is a member (`true`) but `can_read_case_or_admin`=**false**, so my literal conjunct would have silently deleted ordinary members' reach of ordinary meeting deliberation (`can_read_case` has no plain-member arm on the case_access-ON path **by design**). Backend tested my recommendation before implementing it — correct engineering, caught my error. `can_reach_case_on_member_surface` is **faithful to D2·8, not a rationalization**: the ADR **names** "meeting case-labels" and specifies these exact 3 clauses; and it **structurally cannot widen reach** — the prior meeting-arms are preserved verbatim and the predicate is **AND**-ed on, so the policy is monotonically narrower (a conjunction can only subset its first conjunct); it even narrows cross-commission links. Proof 1 + Proof 2 → **0 rows**; no-op **real** (plain member still reads ordinary deliberation = 1). Also hand-verified the 2 keystones I'd only read: participant-write (reader → HC0E4; direct DML → 42501) + doc ceiling (coordinator w/o clearance on `legal_privileged` → false; `ethics_investigation` → true, O2 scope). **Exclusions reviewed on merits: `patient_safety_event` AGREED out of scope** — live `can_read_event` prosrc has 3 event-dimension arms and **zero case arm**; columns carry the event's own incident narrative (`title`/`description_md`), NOT case deliberation → gating it rewrites NSP/PHI-1 semantics E1 doesn't own (same class as `action_items`); residual = link-existence inference only (PO note, not a blocker). **Self-arm narrowing legitimate** — `user_id <> $2` excludes only the persona's OWN rows (D4 asymmetry + round-1 self-grant); another user's row is still counted, so the leak stays catchable. **Sweep fail-closed WHERE COVERED**: catalog-driven (not a hand list) so a new bad table fails automatically — but **measured vacuous on 4/14** tables (`action_items`, `case_conflict_declarations` ← E1's own table, `case_phase_offered_results`, `case_tag_assignments`) since it counts rows for a probe case. **m-A:** report zero-row tables as uncovered / seed probe rows. **m-B:** `action_items` isn't in the documented exclusion list but is the same accepted-gap class — passes only by fixture accident; will fail and look like a regression when someone seeds one. Neither blocks. **No 4th round warranted; m2 gate genuinely green.** Human sign-off still needs the §7 M2-posture PO decision + adjudicating the 2 known gaps. |
-| ~~S3·ETH·E1 — round 2~~ | ❌ CHANGES REQUESTED (2026-07-14) | [re-review](docs/reviews/phase-ETH-E1-review.md#re-review--round-2-2026-07-14) | **1 M (blocking, NEW)** · 0 m open · all round-1 findings **verified fixed by hand** (not trusted from test numbers). M-1 **closed** (my original exploit re-run: 1/1/4 → **0/0/0**, +phases/events 0; D4 asymmetry intact). M-1(b) backend's own catch is **real + correctly reasoned** — `FOR ALL` PERMISSIVE ORs SELECT back regardless of `cases_select`; a `can_read_case` grep structurally cannot surface a policy that never names it; interview family swept **0/0/0/0**. M-2 **closed + better than asked** — cross-tenant write gone AND the existence oracle closed (real-unreachable vs nonexistent now byte-identical `P0002`). No-op **verified**: non-excluded org_admin reads 1/4/1/2/3 and **writes** (`UPDATE 4`); staff_admin keeps ethics-case read. MINOR-2 routing correct — `confidentiality_rank` unchanged (ethics=4<legal=5; ethics clearance does NOT open legal). INFO-1 real (my first check false-positived on the removal comment). **NEW M-3 (blocking):** exhaustive sweep of all 15 `case_id` tables (not a grep) found a **third shape** — `meeting_cases` policies key on the **meeting** dimension w/ **no case predicate at all**, so `is_case_excluded` doesn't cover it. Carries `summary`+`decision` free text. Needs only **plain `staff`** (weaker than M-1's org_admin = the canonical m2 persona): proved a plain-staff respondent reads "conduta do Dr X analisada" + "Encaminhar para sindicancia"; and — **needing no respondent at all** — a non-granted member reads an `explicit_grants_only` ethics case's deliberation, breaking checklist items **1 AND 3**. Distinct from the deferred `action_items` gap (which I endorse deferring: org_admin-only, deliberate item-visibility model, no case content). Fix: `and app.can_read_case_or_admin(case_id, auth.uid())` on both policies (an `is_case_excluded` conjunct alone fixes proof 1 but NOT proof 2); verify no-op for `commission_default`. Backend's 119/119+2531/2531 is real but green while M-3 is open (org_admin personas, cases-family only). |
-| ~~S3·ETH·E1 — round 1~~ | ❌ CHANGES REQUESTED (2026-07-14) | [report](docs/reviews/phase-ETH-E1-review.md) | 0 B · **2 M (both blocking)** · 3 m · 2 Info. **M-1 (m2 keystone):** deny is correct *inside* `can_read_case` but **out-voted at the RLS policy layer** — `cases_select` + 9 case-child policies (+ E1's own `can_read_interview`) OR `is_commission_admin_of` **outside** the DEFINER. Reproduced locally: a respondent_doctor / recused user who is `org_admin` gets `can_read_case=false` yet reads `cases` (1), `case_interviews` (1), `case_narratives` (4) via PostgREST. ADR 0072 D2 "exclusion cannot be out-voted by any positive arm" falsified; pgTAP asserts the *predicate*, never a table-level select, and no persona is an admin. Mitigating: `get_case_detail` correctly denies (UI/E2E ACs genuinely pass); flip is local-only, no real ethics data. **M-2:** `record_recusal` self-arm has **no authority gate** (`declare_conflict` has one) → reproduced: Rede B org_admin writes a `case_recusals` row + an audit row into a Rede A case; also a platform-wide case-existence oracle. **Right:** R6 clean (base-table DEFINER, no recursion); `commission_default` byte-for-byte (arm-for-arm diff); new tables `authenticated: SELECT`-only w/ no write grant (lockdown enforced at the *grant*, both directions); t19 clean on all 13 RPCs; **M2 posture exact** (no `dispose_*`/erasure anywhere, correction-only); both accepted deviations shipped as claimed (D5 ceiling denies the uploading coordinator w/o clearance; roles-M2M deferred with nothing half-built); blank-badge fix complete (7/7 keys, type-widen makes it compiler-enforced, helper text no longer false). m: stale "NON-ENFORCING" comment `queries/interviews.ts:165`; `CONFIDENTIALITY_ORDER` "ascending" comment contradicts `confidentiality_rank`; `confidentiality_rank` missing the t19 pair. Info: inert-but-undocumented `is_admin()` arm in the 2 clearance helpers; test-evidence composition accepted (2nd full `e2e:prod` skip is fine — M-1 is a coverage-*shape* gap, not a run-count gap). |
+| S3·ETH·E1 — Ethics access spine + m2 gate release (ADR 0072) | CHANGES→CHANGES→✅ **APPROVED** (2026-07-14, round 3) | [review](docs/reviews/phase-ETH-E1-review.md) | 0 B · 0 M · 2 m (test-coverage only → E2). **3 rounds, 3 RLS leak shapes — each invisible to the method that found the last** (grep-visible admin-OR · grep-invisible bare-admin `FOR ALL` · `meeting_cases` with no case predicate, plain-staff reachable). Round-by-round detail + every exploit repro → the review doc; the transferable lesson → [eth-e1-access-spine.md](docs/progress/eth-e1-access-spine.md) §3. |
 | AI track — Action-Items Satellites + Cross-Link UI (ADR 0050) | ✅ **APPROVED** (2026-07-14) | [report](docs/reviews/phase-AI-review.md) | 0 B · 0 M · 1 minor (optional test-hardening) · 3 Info. Exactly the 3 PO-locked satellites (reminders/updates/checklists), 0 of the 6 deferred; CAPA fully isolated. All 3 SELECT policies verbatim `can_read_action_item` (no drift, no per-satellite disjunct); no authenticated write policy → DEFINER-RPC-only writes. O-1 fail-closed (`can_read_case(null)`=false before any admin arm) + pgTAP `227` locks null-case invisible even to staff_admin (satellite stricter than hub). O-2 bodies match ratified gate: reminders staff_admin/commission_admin (HC0I0), updates/checklists reader-with-a-stake (HC0I1/2). `list_my_action_items` widening additive (one key, both arms, order preserved). t19 on all 8 RPCs; audit structural-only (body/title excluded, not in PHI-read allow-list); Rules 7/9/10 + strict-TS clean; tsc+lint 0/0. FE-2 hard-guards `case_restricted`+no-case (belt to DB suspenders). minor: direct-DML-denied not pgTAP-asserted (safe by construction — coverage nit). Info: `is_commission_admin_of_for` is the post-ADR-0051 canonical name (not drift). |
 | AI track — BE-6·N reminder→N scan arm (delta; ADR 0076 × 0050) | ✅ **APPROVED** (2026-07-14) | [report](docs/reviews/phase-AI-review.md#be-6n-delta-review--remindern-scan-arm-2026-07-14) | 0 B · 0 M · 0 m · 3 Info. Open #3 notify gate = **verbatim** `can_read_action_item(item,recipient)` (same shared fn as hub/satellite SELECT — drift structurally impossible); pgTAP 19k/19l lock both directions on a real `case_restricted` case w/ `case_access` ON. Recipient `coalesce(assigned_to, active owner)` null-safe (19f/19g); title/body PHI-free, no case/answer/patient join (19j). CHECK widening additive (`kind`/`entity_type` += action_item; milestone untouched). `compute_due_notifications` create-or-replace, service_role-only, no new public RPC (no t19). `advance_` rebuilt from LIVE def = identical to fold body except swept `is_commission_admin_of` + terminal resolve call; source-aware HC027/HC037 authority intact; 187 green. resolve-on-complete single-choke-point covers complete (delegates)+cancel (19o). Audit-exempt per ADR 0076 dec 13. database.ts nil diff; Rules 8/9/10 clean. Info: cancel-path resolve covered-by-construction not separately asserted; owner-fallback LIMIT-1 arbitrary (harmless); 19k/19l use 2 recipients not 1-user-2-items. |
 | S2·RV2·R1 — Referrals v2: dialogue core (ADR 0037 Amendment 1) | ✅ **APPROVED** (2026-07-14) | [report](docs/reviews/rv2-r1-referrals-review.md) | 0 B · 0 M · 1 minor (**fixed**) · 2 Info. Option B body-PHI (stricter than siblings, door-only), `audit_write` routing, `close_case` correction, byte-for-gate compose-authority parity (incl. analyst arm) all verified. M-1 fixed (`post` rejects state-driving types, `…000940`, pgTAP). Full detail → review + [rv2-r1-referrals.md](docs/progress/rv2-r1-referrals.md). |
