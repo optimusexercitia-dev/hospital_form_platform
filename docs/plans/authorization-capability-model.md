@@ -144,15 +144,54 @@ before calling regression) · `qa` APPROVED · human approval.
 
 ## Gate 2 — Behaviour changes (C · F-min · NSP)
 
-### C1 · Meeting boundary — **strict** (D6)
+### C · Meeting confidentiality — see **ADR 0078 Amendment 1**
 
-Meeting content: bare commission membership → **Coordinator OR Meeting Participation**
-(`meeting_attendees`). `meeting_cases.summary` / `.decision`: **both** meeting and case authority.
-Review existing `minutes_md` for case/PHI duplication **before** enabling the tighter policy.
+> ⚠ **Stage C was substantially re-scoped on 2026-07-15** after a PO domain interview. Conjunct A
+> (all meeting content → attendees) is **withdrawn**; the ethics `visibility_policy` default was
+> **corrected**; two ungated content surfaces were found. Read Amendment 1 before building.
+> Sequence as **separate migrations** inside Gate 2 so a red is attributable.
 
-> **Regression watch.** The member arm (A2) is what keeps CCIH's routine meeting readable. Keystone 4
-> tests **both directions**: `commission_default` reads (no regression) · `explicit_grants_only`
-> reveals nothing, not even existence.
+**C0 · Correct the ethics default (A1).** `case_types.default_visibility_policy` for ethics →
+**`commission_default`** (plenary is the norm; sub-group is a per-case override). Seed-only; no
+schema. Plenary complaints are then member-wide with ADR 0072's respondent/recusal hard-denies doing
+all the protective work.
+
+**C1 · Conjunct B — case-specific meeting fields (D6, retained).** `meeting_cases.summary` /
+`.decision` require **both** meeting reach and `read_case_content`.
+
+**C2 · 2b — close the agenda-item leak (A3).** `meeting_agenda_items.discussion_notes` / `.resolution`
+are member-wide **and PHI-bearing today**; gate them through the item's case link
+(`meeting_cases.agenda_item_id`). Conjunct B alone does **not** close this.
+
+**C3 · `meetings.visibility_policy` (A2·1).** New enum `('commission_default','participants_only')`.
+`reach(meeting) = is_member_of(commission) AND (visibility_policy='commission_default' OR is attendee)`.
+The "Nova reunião" *Participantes* section already builds the roster — it just has no authorization
+meaning today. Binding: `is_member_of` stays AND-ed (no cross-committee guests); **no coordinator
+OR-arm** (a recused coordinator must not read a sub-group meeting); `participants_only` **requires a
+non-empty roster, enforced in the DB**.
+
+**C4 · 2a — `meeting_closed_sessions` (A4).** Case-less pre-formal discussion **only**. Block/subject
+split (`meeting_closed_sessions` = time block, no authority; `meeting_closed_session_items` = substance,
+reach resolves here; `..._item_readers` consulted only when `case_id IS NULL`). **Case authority is
+never out-voted by a reader list.**
+
+**C5 · Three tiers (A5).** Shell member-wide (it is the proof of propriety) · substance by case
+authority · **decision = member AND NOT excluded, uniform**. ⚠ `decision` needs its **own row/table** —
+different gate from `minutes_md`, and **RLS is row-level**.
+
+**FE (new in Gate 2):** reserved-session authoring + composed ata rendering with a non-identifying
+stub. Needs the `frontend` teammate + the `frontend-design` skill. Serialize file ownership against
+`backend`.
+
+> **Regression watch.** D11's member arm keeps CCIH's routine meeting *and* plenary ethics readable.
+> Keystones 10–16 test both directions — especially **10** (Ana reads item 5, not item 4's substance
+> or decision, but sees item 4's shell incl. her own recorded withdrawal).
+
+> ⚠ **Inventory item:** check `meetings_staff_admin_write` for `FOR ALL` — if it is, it grants SELECT
+> and a recused coordinator reads around C3. ADR 0072 delta 3's second shape; invisible to grep.
+
+**Open (ADR 0078 A1 §open):** O6 respondent-sees-pauta · O7 reserved-session signatures · O8 who may
+open a reserved session · O9 sub-group investigation lives in the Case.
 
 ### F1 · Referral predicate split + write gate (D7)
 

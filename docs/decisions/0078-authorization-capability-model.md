@@ -509,3 +509,244 @@ pilot reset, with separate user approval.
    `restricted ⇒ standard` enforced by CHECK; PUBLIC execute revoked; the three unreachable `source`
    values are **unreachable** (D5·5).
 9. `_case_caps` ↔ `case_capabilities` ↔ `has_case_capability` agree across the full matrix (D2).
+
+---
+
+# Amendment 1 — Meeting confidentiality, corrected against real committee practice
+
+**Date:** 2026-07-15 (same day) · **Status:** 🟢 **ACCEPTED**
+**Trigger:** a PO domain interview walked a concrete scenario — *an ethics complaint about an
+altercation between two doctors* — through the model end-to-end. It found **one factual error in
+D11**, showed that **D6's meeting rule was aimed at the wrong threat**, and surfaced two content
+surfaces the original ADR never gated. The body above is left intact; this amendment is the record
+of what changed and why.
+
+> **Why an amendment and not a rewrite.** D6 was ratified strictly at the PO's explicit direction,
+> over the lead's recommendation. That ruling was made on an incomplete picture that the lead
+> presented. Rewriting the body would erase both the original decision and the evidence that
+> overturned it.
+
+## A1 — D11 CORRECTION: the ethics default was backwards
+
+D11's table reads *"Ethics complaint" → `explicit_grants_only`*. **This is wrong.**
+
+Per the PO (2026-07-15): **most ethics complaints are handled by the plenary**; a sub-group handles
+only specific scenarios. Both must be supported.
+
+| | Was (wrong) | Is |
+|---|---|---|
+| `case_types.default_visibility_policy` for ethics | `explicit_grants_only` | **`commission_default`** |
+| Sub-group handling | (the assumed norm) | **per-case override** to `explicit_grants_only`, set by the coordinator |
+
+**No schema change** — `case_types.default_visibility_policy` was already a creation-time default and
+`cases.visibility_policy` was already per-case overridable (D11/E). Only the seeded default was
+backwards.
+
+**The architecture was already right; the domain assumption was wrong.** For a plenary complaint,
+`commission_default` + D11's member arm means every member reads it, and ADR 0072's
+respondent/recusal hard-denies — evaluated first, unable to be out-voted — do **all** the protective
+work. That is a Comissão de Ética Médica, modelled exactly. **The member arm is not an edge case for
+ethics; it is the main path.** The threat is the **respondent** and the **recused**, never "members
+in general".
+
+## A2 — D6 REPLACED: conjunct A is dropped as a universal rule
+
+D6 repointed **all** meeting content from commission membership to Meeting Participation
+("conjunct A"), and gated case-specific fields on case authority ("conjunct B").
+
+**Conjunct B stands, strict, unchanged.** **Conjunct A is withdrawn** and replaced by an opt-in
+per-meeting policy. Five findings forced this:
+
+1. **It does not solve the problem it was introduced for.** A confidential case discussed in a
+   meeting with eight attendees is read by all eight — including the six with no business in it.
+   Attendance and case-authority are unrelated dimensions.
+2. **It actively breaks ETH·E1's recusal guarantee.** Dr. Ana is recused from process 47 and leads
+   process 52. She attends the meeting (present for item 5, withdrew for item 4), so
+   `attendance = 'present'` — and conjunct A therefore hands her the full ata **including the case she
+   is formally recused from**. It routes around ADR 0072's central invariant via the meeting surface.
+   She cannot be marked absent to fix this: `attendance = 'present'` drives quorum in
+   `conclude_meeting` and signature eligibility in `app.can_sign_meeting`, so protecting the case
+   would falsify the quorum of a meeting she legitimately attended.
+3. **Attendance is a fact; authorization is a policy.** Fusing them means a secretary *correcting the
+   attendance record* silently mutates who may read the ata.
+4. **It amputates the ata's purpose.** Minutes exist so that those *absent* learn what was decided.
+5. **It has a silent access cliff.** `create_meeting` does not auto-seed the roster, and
+   `seed_selected_meeting_attendees` seeds only a subset — so an unseeded meeting would be readable
+   by nobody, and a non-invited member would be locked out of the institutional record forever.
+
+### A2·1 — `meetings.visibility_policy` (the replacement)
+
+Mirrors `cases.visibility_policy`. The UI hook **already exists** — the "Nova reunião" dialog's
+*Participantes* section (`seed_selected_meeting_attendees`) already builds a sub-group roster; today
+that roster carries **no authorization meaning at all**, because `meetings_select` is
+`is_member_of(commission_id) OR is_commission_admin_of(commission_id)`.
+
+```sql
+meetings.visibility_policy ∈ ('commission_default', 'participants_only')
+```
+
+```
+reach(meeting) = app.is_member_of(commission)
+                 AND ( meetings.visibility_policy = 'commission_default'
+                         OR principal is an attendee of the meeting )
+```
+
+- **Plenary meeting** → `commission_default` → every member reads the ata (today's behaviour, **no
+  regression**); reserved items gated per-case underneath.
+- **Sub-group meeting** → `participants_only` → only the selected participants read it.
+
+This *is* conjunct A — **opt-in per meeting rather than universal** — which answers every objection
+above: absent members keep the ata on ordinary meetings; unseeded meetings need no roster; and for a
+`participants_only` meeting the roster **is** the deliberate access decision, chosen at creation, so
+correcting it *should* change access.
+
+**Binding constraints:**
+- `app.is_member_of` stays AND-ed. **A coordinator cannot invite someone from another committee**
+  (PO, 2026-07-15). An invited outsider would have a roster row and no access.
+- **No coordinator OR-arm on `reach(meeting)`.** A coordinator recused from the sub-group's case must
+  not read that meeting. To manage it, they must be a participant — and if recused, another member
+  runs it.
+- `visibility_policy = 'participants_only'` **requires a non-empty roster** (enforced in the DB, not
+  only the dialog) — otherwise the access cliff of finding 5 returns.
+- ⚠ **Stage-A inventory item:** `meetings_staff_admin_write` must be checked for `FOR ALL`. If it is
+  `FOR ALL` PERMISSIVE it grants SELECT and a recused coordinator reads around the above — precisely
+  ADR 0072 delta 3's second shape, invisible to grep.
+
+## A3 — 2b: the agenda-item leak (exists TODAY; conjunct B alone does not close it)
+
+`meeting_agenda_items.discussion_notes` and `.resolution` are gated **member-wide** and are
+**PHI-BEARING** by their own column comments. So a scribe minuting a reserved item has two boxes —
+`meeting_cases.summary` (which conjunct B gates) and `agenda_items.discussion_notes` (gated by
+nothing) — and the ungated one is the more natural place to type.
+
+Gate them through the item's case link (`meeting_cases.agenda_item_id`, which already exists), on the
+same rule as `meeting_cases`. Small; closes a live hole; lands in Stage C.
+
+## A4 — 2a: `meeting_closed_sessions`, for case-less pre-formal discussion ONLY
+
+**Justification (PO):** the most sensitive conversation happens *before* anything is formalized —
+*"should we even open a case about this?"*. If the platform has no home for it, it moves off-platform
+and the governance record is lost entirely. For an accreditation product an **unminuted** conversation
+is worse than an over-broadly-readable one.
+
+Once A1/A2 land, **2a's scope narrows to exactly one scenario**. The four real cases decompose:
+
+| Scenario | Mechanism | New schema |
+|---|---|---|
+| Plenary meeting · reserved item · **plenary case** | conjunct B + member arm (recused denied by case authority) | none |
+| Plenary meeting · reserved item · **sub-group case** | conjunct B (granted only) | none |
+| **Sub-group meeting** | `meetings.visibility_policy = 'participants_only'` (A2·1) | one enum column |
+| Plenary meeting · **pre-formal discussion, no case** | **`meeting_closed_sessions`** | **2a — this only** |
+
+### A4·1 — Shape: separate the *block* from the *subject*
+
+The PO chose "a reserved session may span several agenda items". Physically, if Ana must leave for
+item 3 but stay for item 4, those are two different room compositions — so a multi-item session can
+only be a **time block**, never an **access unit**. Therefore:
+
+```
+meeting_agenda_items                    -- the pauta skeleton. Member-wide. ALWAYS.
+  position, is_closed, title            -- title = the process number (A5)
+
+meeting_closed_sessions                 -- the reserved BLOCK. May span items.
+  meeting_id, position, opened_at, closed_at
+  -- governance metadata ("reserved 15h00–15h40"). Carries NO authorization.
+
+meeting_closed_session_items            -- the SUBSTANCE, per subject. REACH RESOLVES HERE.
+  closed_session_id, agenda_item_id (unique), case_id (nullable)
+  subject_title, minutes_md
+
+meeting_closed_session_item_readers     -- consulted ONLY when case_id IS NULL
+  item_id, principal_id
+```
+
+```
+reach(item substance) =
+    reach(meeting)                                            -- A2·1
+    AND ( item.case_id IS NULL
+            ? principal is on that item's reader list
+            : app.has_case_capability(item.case_id, uid, 'read_case_content') )
+```
+
+**Direction is non-negotiable:** for a subject with a `case_id`, **case authority governs and the
+reader list is never consulted**. Otherwise a coordinator adding someone to a reserved roster would
+hand them a case they are recused from — rebuilding the hole ETH·E1 closed, one table over. The reader
+list governs **only** case-less subjects.
+
+**Graduation path:** a reserved subject starts `case_id = NULL` with a reader list; when the committee
+resolves to open a case, setting `case_id` migrates it onto case authority permanently — and the
+deliberation that *created* the case stays attached to it.
+
+## A5 — Three tiers of meeting content (not two)
+
+Per the PO: **pautas are named by process number**, and **only non-recused members see the outcome of
+a decision**.
+
+| Tier | Content | Reach |
+|---|---|---|
+| **Procedural shell** | item exists · *"Processo nº 047"* · reserved · who withdrew and why · times | **all members, including the recused** — `is_member_of` |
+| **Substance** | deliberation · evidence · relator's report | case authority (plenary ⇒ all non-excluded members; sub-group ⇒ granted only) |
+| **Decision** | *arquivado / instaurado / encaminhado ao CRM* | **member AND NOT excluded** — uniform, regardless of `visibility_policy` |
+
+**The shell must be visible — it is the proof of propriety.** The ata *must* record *"Dra. Ana
+declarou-se impedida e retirou-se às 15h00."* Remove it and the committee cannot demonstrate the
+deliberation was untainted. Ana knows item 3 exists — **she declared the conflict herself**. What she
+must not see is the substance.
+
+**The decision tier is BROADER than the substance tier.** A member who cannot read process 52's
+investigation still sees *"Processo 052 — arquivado"*: the committee is a body and must know the
+outcomes of its own processes even when a sub-group did the work. The gate is **recusal, not grants**.
+
+⚠ **Schema consequence, not preference:** `minutes_md` (substance) and `decision` (outcome) carry
+**different gates on the same conceptual row**, and **RLS is row-level**. `decision` must therefore be
+its own row/table — it cannot be a column beside `minutes_md`.
+
+**Pauta titles need no derivation rule.** Since pautas name process numbers, the item shows the number
+when a case exists and *"Matéria reservada"* when it does not (pre-formal, which has no number).
+
+## A6 — O5 refined: existence is not secret *within* the committee
+
+O5 ruled that a member cannot discover an `explicit_grants_only` case exists. Real practice diverges:
+a sub-group case appears **by number in the pauta**, and its **outcome is member-wide** (A5).
+
+O5 **stands for the case board** — a member browsing cases must not stumble on process 52. The
+**meeting surface deliberately reveals more**, because the committee is a body and its pauta is its
+own procedural record. Different surfaces, different purposes. **Recorded so it is not "fixed" later.**
+
+## Amendment 1 — open decisions
+
+- **O6 — Does the respondent see the pauta?** If Dr. X is a committee member *and* the respondent in
+  process 047, the member-wide shell (A5) shows him *"3. Processo nº 047 — sessão reservada"* in his
+  own committee's pauta, while `app.is_case_respondent` hard-denies him the case. Due process arguably
+  **requires** he know he is being processed — but the two surfaces disagree and it must be deliberate.
+- **O7 — Signatures for reserved content.** `meeting_signatures` attests the meeting via
+  `app.can_sign_meeting` (keyed on `attendance = 'present'`). A `participants_only` meeting needs no
+  change (its participants *are* the signers). But does a **reserved session inside a plenary meeting**
+  get its own signature set, signed by its participants? **Lead recommendation: no pre-pilot** — the
+  meeting-level signature covers the record including annexes; revisit if practice demands.
+- **O8 — Who may open a reserved session?** It is an access-granting act for case-less subjects (the
+  opener chooses the reader list). **Lead recommendation: coordinator-only** — not an `administrativo`
+  delegated capability like `schedule_meetings`.
+- **O9 — Where does a sub-group meet?** Resolved by A2·1 (`participants_only`) for the *meeting*. Not
+  resolved: whether a sub-group's *investigation* should live wholly in the Case (phases, narratives,
+  interviews) and surface to the plenary as the relator's report. **Lead recommendation: yes** — the
+  sub-group's work *is* the Case; no sub-group entity is needed.
+
+## Amendment 1 — added test keystones
+
+10. **Recusal survives the meeting surface** — Ana, recused from case 47 and lead on case 52, attends
+    a plenary meeting covering both: she reads item 5 in full, sees item 4's shell (including her own
+    recorded withdrawal), and reads **neither** item 4's substance **nor** its decision.
+11. **Plenary ethics case is member-wide** — a non-excluded member reads a `commission_default` ethics
+    complaint and its meeting section, with **no regression** vs today (A1).
+12. **`participants_only` meeting** — a non-participant member reads **nothing**; an invited
+    non-member of the commission reads nothing; a **recused coordinator** who is not a participant
+    reads nothing (incl. via any `FOR ALL` write policy).
+13. **Empty roster** — `visibility_policy = 'participants_only'` with no attendees is **rejected at
+    write time**, not silently unreadable.
+14. **Agenda-item leak closed** — deliberation written to `meeting_agenda_items.discussion_notes` on a
+    case-linked item is gated identically to `meeting_cases.summary` (A3).
+15. **Reader list never out-votes case authority** — adding a recused principal to a reserved item's
+    reader list on a **case-linked** subject grants nothing (A4·1).
+16. **Decision tier** — a member without substance reach on a sub-group case still reads the decision;
+    a **recused** member reads neither (A5).
