@@ -287,6 +287,13 @@ This project has a knowledge graph at `graphify-out/`.
   usually much smaller than GRAPH_REPORT.md or raw grep.
 - Read `graphify-out/GRAPH_REPORT.md` only for broad architecture review.
 - After modifying code, run `graphify update .` (AST-only, no API cost).
+- ⛔ **Exception, binding: graphify does NOT index SQL — and migration file text is STALE by design**
+  (some migrations rewrite function bodies at runtime via `pg_get_functiondef()` + `replace()` +
+  `execute`). For **any** schema / RLS / RPC / authorization question the **live catalog is the sole
+  truth**: `pg_proc` (incl. **`prosecdef`** — a DEFINER's gate *replaces* RLS), `pg_policies`,
+  `pg_policy`, `pg_trigger`, and the **ACLs**. Never graphify it, never grep it, never read the
+  migration file and believe it. Reading files here has already produced a confident **false P0** and
+  burned an external auditor. ADR 0078 A28; the `Bash` graphify hook is off for this reason.
 
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know

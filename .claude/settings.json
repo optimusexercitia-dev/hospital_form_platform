@@ -9,16 +9,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "graphify",
-            "args": ["hook-guard", "search"]
-          }
-        ]
-      },
-      {
+        "_comment": "The Bash hook-guard is DELIBERATELY OFF (ADR 0078 A28, 2026-07-15). It injected 'MANDATORY: run graphify before grepping' into EVERY Bash call, including the `docker exec ... psql` calls that are the ONLY valid way to audit authorization here — graphify does not index SQL, and this program's founding finding is that file text is stale, so the live catalog (pg_proc/pg_policies/prosecdef) is the sole truth. An agent that COMPLIED with the hook would answer authorization questions from a stale index. Read|Glob stays ON: graphify-first for app-code files is correct and deliberate. Re-enable only if graphify ever indexes SQL.",
         "matcher": "Read|Glob",
         "hooks": [
           {
