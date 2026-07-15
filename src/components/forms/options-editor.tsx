@@ -29,6 +29,16 @@ import {
 import { generateOptionCode } from "@/lib/forms/option-code";
 
 /**
+ * A local-only row identity — never persisted (see `rowKeys` below). Avoid
+ * `crypto.randomUUID()`: the Web Crypto API is only exposed in secure
+ * contexts (HTTPS/localhost), so it throws on a plain-HTTP deployment and
+ * takes the whole builder down the instant a choice-type block renders.
+ */
+function nextRowKey(): string {
+  return `row_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+}
+
+/**
  * Controlled editor for the discrete option list of a choice-type input
  * (`multiple_choice` / `dropdown` / `checkbox`). Add, edit, remove, and reorder
  * (up/down — no drag-and-drop in v1) the options.
@@ -145,7 +155,7 @@ export function OptionsEditor({
   // it can never leak into the DB payload (submission reads named fields off
   // `cleanOptions`, not this array — see item-editor-dialog.tsx).
   const [rowKeys, setRowKeys] = useState<string[]>(() =>
-    options.map(() => crypto.randomUUID()),
+    options.map(() => nextRowKey()),
   );
 
   // The reserved "Outros" row is backend-managed and never author-editable — hide
@@ -259,7 +269,7 @@ export function OptionsEditor({
 
   function add() {
     onChange([...options, blankOption(options.length)]);
-    setRowKeys((prev) => [...prev, crypto.randomUUID()]);
+    setRowKeys((prev) => [...prev, nextRowKey()]);
   }
 
   return (
