@@ -67,6 +67,21 @@ run_case () {  # $1 = label, $2 = mutation SQL, $3 = expected-red test numbers (
   printf '%-46s expect-red[%s]  %s\n' "$label" "$expect" "$verdict"
 }
 
+# ---------------------------------------------------------------------------
+# PREFLIGHT — bootstrap our own prerequisites. `supabase db reset` drops pgtap and
+# test_helpers (both are created transiently by `supabase test db`), so running this
+# harness straight after a reset otherwise aborts EVERY case and reports a uniform
+# "NOT PROVEN" that looks like 22 broken keystones instead of a missing extension.
+# The ABSENT-vs-GREEN split caught it — but a harness that needs a specific run order
+# is a harness that will be misread. Make it self-sufficient.
+# ---------------------------------------------------------------------------
+docker exec "$DB" psql -U postgres -d postgres -q -c "create extension if not exists pgtap;" >/dev/null 2>&1
+docker cp supabase/tests/00_setup.sql "$DB:/tmp/_mut_setup.sql" >/dev/null 2>&1
+MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -q -f //tmp/_mut_setup.sql >/dev/null 2>&1
+if ! docker exec "$DB" psql -U postgres -d postgres -tAc "select 1 from pg_extension where extname='pgtap'" 2>/dev/null | grep -q 1; then
+  echo "PREFLIGHT FAILED: pgtap unavailable — every result below would be a false NOT PROVEN. Aborting."; exit 1
+fi
+
 echo "=== M1 MUTATION AUDIT — every ⭐ keystone must go RED when its fix is reverted ==="
 
 run_case "M1·3 freeze (trg key)"        "drop trigger trg_guard_case_participant_role_key on public.case_participant_roles;" "an org_admin CANNOT re-key|PHI door stays SHUT"
@@ -135,3 +150,37 @@ returns boolean language sql stable security definer set search_path = app, publ
 $z$;
 EOF
 run_m2 "M2 platform_admin referral-PHI arm" "$MUT_M2" "can_dispose_referral_phi is FALSE for a platform_admin|CANNOT dispose referral PHI|PHI row SURVIVES the platform_admin"
+
+# =============================================================================
+# M3 — defect ① (ADR 0078): bare assignment must not confer patient identifiers.
+# Lives in 230 (its own fixture). Reverting = putting the two assignment arms BACK.
+# ⚠ A NARROWING, so BOTH directions are mutation-proven: the negatives must go red
+# when the arms return, AND the positive/content twins must STAY GREEN (a mutation
+# that reddens everything would mean the keystones are just measuring the function).
+# =============================================================================
+run_m3 () {
+  SRC="supabase/tests/230_authz_m3_assignment_phi.sql"   MARKER='grant select on k to authenticated;' run_case "$@"
+}
+read -r -d '' MUT_M3 <<'EOF'
+create or replace function app.can_read_case_patient(p_case_id uuid, p_uid uuid)
+returns boolean language plpgsql stable security definer set search_path = app, public, pg_catalog as $z$
+declare v_commission uuid;
+begin
+  select commission_id into v_commission from public.cases where id = p_case_id;
+  if v_commission is null then return false; end if;
+  if app.is_case_respondent(p_case_id, p_uid) then return false; end if;
+  if app.is_recused_from_case(p_case_id, p_uid) then return false; end if;
+  if not app.feature_enabled('case_access') then
+    if (select visibility_policy from public.cases where id = p_case_id) = 'explicit_grants_only' then
+      return app.is_staff_admin_of_for(v_commission, p_uid);
+    end if;
+    return app.is_member_of_for(v_commission, p_uid);
+  end if;
+  return app.is_staff_admin_of_for(v_commission, p_uid)
+    or exists (select 1 from public.case_access ca where ca.case_id = p_case_id and ca.user_id = p_uid
+               and (ca.expires_at is null or ca.expires_at > now()))
+    or exists (select 1 from public.case_phases cp where cp.case_id = p_case_id and cp.assigned_to = p_uid)
+    or exists (select 1 from public.case_narratives cn where cn.case_id = p_case_id and cn.assigned_to = p_uid);
+end; $z$;
+EOF
+run_m3 "M3 defect-1 bare-assignment PHI arms" "$MUT_M3" "BARE NARRATIVE ASSIGNEE cannot reach the PHI door|audited door returns NULL|BARE PHASE ASSIGNEE cannot reach the PHI door|no longer references case_phases|nor case_narratives"

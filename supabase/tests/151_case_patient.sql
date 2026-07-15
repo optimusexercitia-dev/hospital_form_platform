@@ -158,8 +158,14 @@ reset role;
 -- =========================================================================
 select is(app.can_read_case_patient((select case_x from cs), (select sa_x from k)), true,
   'can_read_case_patient: coordinator → true');
-select is(app.can_read_case_patient((select case_x from cs), (select st_x from k)), true,
-  'can_read_case_patient: phase ASSIGNEE → true (the broad scope; assignees need the MRN)');
+-- ⬅ ADR 0078 defect ① / M3 (2026-07-15): FLIPPED true → false. A bare phase
+-- assignment no longer confers patient identifiers — the ADR's confirmed defect ①
+-- ("a bare phase or narrative assignment ... unqualified"), one of the three
+-- justifications for the program. Assignment is CONTENT reach, never PHI
+-- (Context·1 / D10); the assignee KEEPS can_read_case. Narrowing + positive twins
+-- + mutation-proof live in 230_authz_m3_assignment_phi.sql.
+select is(app.can_read_case_patient((select case_x from cs), (select st_x from k)), false,
+  'can_read_case_patient: phase ASSIGNEE → FALSE (ADR 0078 defect ①/M3: assignment is content, never PHI)');
 select is(app.can_read_case_patient((select case_x from cs), (select admin from k)), false,
   'can_read_case_patient: platform_admin → FALSE (PHI identifier; admin term dropped)');
 select is(app.can_read_case_patient((select case_x from cs), (select st_x2 from k)), false,
@@ -204,22 +210,29 @@ select is(
   1::bigint, 'an entitled coordinator read writes exactly one case_patient.read row');
 
 -- =========================================================================
--- get_participant_patient door: one case_patient.read for an entitled ASSIGNEE (broad).
+-- get_participant_patient door: one case_patient.read for an ENTITLED reader.
+--
+-- ⬅ ADR 0078 defect ① / M3: the persona was the phase ASSIGNEE, who is no longer
+-- entitled. The assertion being made here is RULE 11 ("an entitled read emits
+-- exactly ONE audit row"), and that coverage must SURVIVE — so it is re-pointed to
+-- a genuinely entitled reader (the coordinator) rather than flipped to expect null,
+-- which would have silently deleted the Rule 11 assertion. The assignee's new
+-- null-and-no-audit behaviour is asserted in 230_authz_m3_assignment_phi.sql.
 -- =========================================================================
 create temp table a2 on commit drop as
   select (select count(*) from public.audit_log where action = 'case_patient.read') as before;
 grant select on a2 to authenticated;
-select test_helpers.claims_for((select st_x from k), false);
+select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 create temp table p_assignee on commit drop as
   select public.get_participant_patient((select pid from pw)) as j;
 reset role;
 grant select on p_assignee to authenticated;
 select is((select p_assignee.j->>'mrn' from p_assignee), 'MRN-9',
-  'get_participant_patient returns the identifiers to the phase ASSIGNEE (broad read)');
+  'get_participant_patient returns the identifiers to an ENTITLED reader (coordinator)');
 select is(
   (select count(*) from public.audit_log where action = 'case_patient.read') - (select before from a2),
-  1::bigint, 'an entitled assignee read writes exactly one case_patient.read row');
+  1::bigint, 'an entitled read writes exactly one case_patient.read row (Rule 11 — coverage preserved)');
 
 -- =========================================================================
 -- The case_patient.updated mutation-audit row carries NO identifier (metadata={}),

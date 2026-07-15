@@ -526,53 +526,110 @@ test('AC-2b: clicking "Exibir identificação" reveals PHI and emits exactly one
 })
 
 // ---------------------------------------------------------------------------
-// AC-3 — Role restrictions: assignee can reveal, cannot edit;
+// AC-3 — Role restrictions: assignment confers CONTENT reach, never PHI;
 //         coordinator can add/edit (upsert), enforcing name-or-MRN floor
 //
-// 3a: Phase assignee (staff1.ccih) sees the panel and CAN reveal but has NO
-//     edit affordance AND `set_case_patient` is refused (42501).
-// 3b: Write-grantee (staff3.ccih) can reveal but also has no edit affordance.
-// 3c: Coordinator (chefe.ccih) has the edit button; saving without name AND mrn
-//     is rejected with the name-or-MRN floor error.
-// 3d: A foreign commission member (chefe.farm) calling get_case_patient → null
-//     (no audit row).
+// ⬅ ADR 0078 defect ① / M3 (2026-07-15). `app.can_read_case_patient` no longer
+//    carries the `case_phases.assigned_to` / `case_narratives.assigned_to` arms:
+//    a BARE assignee read patient identifiers unqualified, which was one of the
+//    three justifications for the authorization-capability program. Assignment is
+//    CONTENT reach, never PHI (Context·1 / D10). `app.can_read_case` KEEPS both
+//    arms, so the assignee's content reach is untouched — that pairing is the
+//    whole point of M3 and AC-3a-reach asserts it explicitly.
+//
+// 3a:       Phase assignee (staff1.ccih) sees the panel but revealing yields NO
+//           identifiers and emits NO `case_patient.read` audit row, AND still has
+//           no edit affordance (that half of AC-3a predates M3 and survives it).
+// 3a-reach: The M3 pairing — the same assignee KEEPS case content while LOSING
+//           patient identifiers, at the canonical server door and in the UI.
+// 3a-rpc:   `set_case_patient` by the assignee → 42501 (writes were always
+//           coordinator-only; unchanged by M3).
+// 3b:       Write-grantee (staff3.ccih) — the POSITIVE TWIN for the grant arm:
+//           still reveals PHI and emits exactly one audit row; still cannot edit.
+// 3c:       Coordinator (chefe.ccih) has the edit button; saving without name AND
+//           mrn is rejected with the name-or-MRN floor error.
+// 3d:       A foreign commission member (chefe.farm) calling get_case_patient →
+//           null (no audit row).
+//
+// The UI-level positive twin (an entitled reader reveals PHI and emits exactly
+// one audit row) is AC-2b (coordinator); AC-3b is the RPC-level twin for the
+// grant arm. Neither is duplicated here.
 // ---------------------------------------------------------------------------
 
-test('AC-3a: phase assignee can reveal identifiers but has no edit affordance', async ({
+test('AC-3a: phase assignee canNOT reveal identifiers (ADR 0078 M3 / defect ①) and has no edit affordance', async ({
   page,
   request,
 }) => {
+  const before = await auditRowsFor(request, 'case_patient.read', CASE_A_ID)
+
   await signInAs(page, 'staff1.ccih@test.local')
-  // Phase assignees use the staff route (can_read_case via assignment)
+  // Phase assignees use the staff route (can_read_case via assignment — still true)
   await page.goto(`/o/rede-a/c/ccih/casos/${CASE_A_ID}`)
 
-  // The panel must be visible (patient_enabled=true)
-  const panelHeading = page.getByRole('heading', { name: /Identificação do paciente/i })
-    .or(page.getByText(/Identificação do paciente/i))
+  // The panel still renders (patient_enabled=true) — M3 narrowed the PHI DOOR, not
+  // the panel's mount condition. What changed is what comes back through it.
+  await expect(
+    page.getByRole('heading', { name: /Identificação do paciente/i }),
+  ).toBeVisible({ timeout: 10_000 })
 
-  if (!await panelHeading.isVisible({ timeout: 8_000 }).catch(() => false)) {
-    // The staff route may not expose the patient panel — skip if not implemented
-    // but verify via RPC that the assignee can read
-    const token = await getToken(request, 'staff1.ccih@test.local')
-    const resp = await rpc(request, 'get_case_patient', token, { p_case_id: CASE_A_ID })
-    expect(resp.ok()).toBeTruthy()
-    const body = await resp.json()
-    expect(body).not.toBeNull()
-    return
-  }
-
-  // Reveal button is accessible
+  // The reveal button is still offered; clicking it now yields the denied state.
   const revealBtn = page.getByRole('button', { name: /exibir identificação/i })
-  if (await revealBtn.isVisible({ timeout: 5_000 }).catch(() => false)) {
-    await revealBtn.click()
-    await page.waitForTimeout(1_500)
-    await expect(page.getByText(new RegExp(PHI_NAME, 'i'))).toBeVisible({ timeout: 8_000 })
-  }
+  await expect(revealBtn).toBeVisible({ timeout: 8_000 })
+  await revealBtn.click()
+  await page.waitForTimeout(2_000) // allow the server-action round-trip to settle
 
-  // Edit button must NOT be visible (assignees cannot edit)
+  // ⚠ Deliberately NOT asserting the pt-BR denial copy: the panel's current string
+  // ("o acesso é liberado à coordenação e aos responsáveis pelo caso") wrongly tells
+  // a denied assignee he should have access and is being corrected separately. The
+  // DURABLE facts are the two below — absence of identifiers, absence of the audit
+  // row — and they hold whatever the copy says.
+
+  // (1) No identifiers reach the client — not on screen, not in the payload.
+  const html = await page.content()
+  expect(html).not.toContain(PHI_NAME)
+  expect(html).not.toContain(PHI_MRN)
+
+  // (2) Rule 11: a DENIED read must not audit as a read. No new row.
+  const after = await auditRowsFor(request, 'case_patient.read', CASE_A_ID)
+  expect(after.length).toBe(before.length)
+
+  // (3) Pre-M3 claim that SURVIVES: assignees never had an edit affordance either.
   const editBtn = page.getByRole('button', { name: /editar identificação/i })
     .or(page.getByRole('button', { name: /adicionar identificação/i }))
   await expect(editBtn).not.toBeVisible({ timeout: 3_000 })
+})
+
+test('AC-3a-reach: phase assignee KEEPS case content but LOSES patient identifiers (ADR 0078 M3 pairing)', async ({
+  page,
+  request,
+}) => {
+  const before = await auditRowsFor(request, 'case_patient.read', CASE_A_ID)
+  const token = await getToken(request, 'staff1.ccih@test.local')
+
+  // CONTENT — `can_read_case` keeps both assignment arms, so the canonical case
+  // door still opens for a bare phase assignee. If M3 had over-narrowed (taking
+  // content with PHI), this is what would catch it.
+  const detailResp = await rpc(request, 'get_case_detail', token, { p_case_id: CASE_A_ID })
+  expect(detailResp.ok(), `get_case_detail failed: ${await detailResp.text()}`).toBeTruthy()
+  const detail = await detailResp.json()
+  expect(detail, 'phase assignee LOST case content — M3 over-narrowed').not.toBeNull()
+
+  // PHI — the same assignee, the same case, the standard-PHI door: denied.
+  const phiResp = await rpc(request, 'get_case_patient', token, { p_case_id: CASE_A_ID })
+  expect(phiResp.ok()).toBeTruthy()
+  expect(await phiResp.json()).toBeNull()
+
+  // …and the denial emitted no read audit row (Rule 11).
+  expect((await auditRowsFor(request, 'case_patient.read', CASE_A_ID)).length).toBe(before.length)
+
+  // The same pairing through the UI: the case detail opens and renders the case's
+  // own content (its label), while carrying no identifiers.
+  await signInAs(page, 'staff1.ccih@test.local')
+  await page.goto(`/o/rede-a/c/ccih/casos/${CASE_A_ID}`)
+  await expect(page.getByText(/Óbito UTI leito 7/i).first()).toBeVisible({ timeout: 10_000 })
+  const html = await page.content()
+  expect(html).not.toContain(PHI_NAME)
+  expect(html).not.toContain(PHI_MRN)
 })
 
 test('AC-3a-rpc: set_case_patient by phase assignee → 42501 (permission denied)', async ({
@@ -590,16 +647,35 @@ test('AC-3a-rpc: set_case_patient by phase assignee → 42501 (permission denied
   expect(body).toMatch(/42501|insufficient_privilege|permission denied/i)
 })
 
-test('AC-3b: write grantee can reveal via RPC but has no edit affordance', async ({
+test('AC-3b: write grantee STILL reveals PHI + emits exactly one audit row (M3 positive twin) but has no edit affordance', async ({
   request,
 }) => {
   const token = await getToken(request, 'staff3.ccih@test.local')
+  const before = await auditRowsFor(request, 'case_patient.read', CASE_A_ID)
 
-  // Can read (broad can_read_case includes grantees)
+  // ⬅ ADR 0078 defect ① / M3 — THE POSITIVE TWIN for the surviving grant arm.
+  // M3 is a NARROWING, and a narrowing that denied everyone would pass its negative
+  // (AC-3a) BY CONSTRUCTION. So the entitled path is the real risk and must be
+  // asserted: a `case_access` grantee still reads PHI.
+  //
+  // This also PINS today's behaviour that the grant arm does NOT filter
+  // `case_access.level` — a read-level grant still confers PHI. That is the OTHER
+  // half of defect ①, deliberately left for `case_access_grants.read_standard_phi`
+  // at Stage B (B1), mirroring the migration header + pgTAP 230. Pinned here so
+  // B1's change shows up as a FAILING assertion rather than a silent drift.
   const readResp = await rpc(request, 'get_case_patient', token, { p_case_id: CASE_A_ID })
   expect(readResp.ok()).toBeTruthy()
   const body = await readResp.json()
-  expect(body).not.toBeNull()
+  expect(body, 'M3 over-narrowed: a case_access grantee lost PHI').not.toBeNull()
+  expect(JSON.stringify(body)).toContain(PHI_MRN)
+
+  // Rule 11: an ENTITLED read emits exactly ONE case_patient.read row.
+  const after = await auditRowsFor(request, 'case_patient.read', CASE_A_ID)
+  expect(after.length - before.length).toBe(1)
+  // …and that row carries no identifier in its metadata.
+  const metaStr = JSON.stringify(after[0].metadata ?? {})
+  expect(metaStr).not.toContain(PHI_NAME)
+  expect(metaStr).not.toContain(PHI_MRN)
 
   // Cannot write — set_case_patient → 42501
   const writeResp = await rpc(request, 'set_case_patient', token, {

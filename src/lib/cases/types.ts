@@ -19,8 +19,10 @@
  *
  * **PHI posture (Rule 12 / ADR 0038).** Patient identifiers live ONLY on
  * {@link CasePatient}, loaded through the audited `getCasePatient` door (emits
- * `case_patient.read`). The READ scope is `can_read_case_patient` (assignees need
- * the MRN); WRITES are coordinators-only. Minimum-necessary identifiers only.
+ * `case_patient.read`). The READ scope is `can_read_case_patient`; WRITES are
+ * coordinators-only. ⚠ ADR 0078 defect ① / M3: a bare phase/narrative ASSIGNMENT no
+ * longer confers patient identifiers (assignment is content reach, never PHI —
+ * Context·1 / D10). Reach is coordinator or an explicit `case_access` grant. Minimum-necessary identifiers only.
  */
 
 // ---------------------------------------------------------------------------

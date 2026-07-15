@@ -156,7 +156,10 @@ select is(
    where cp.case_id = (select case_x from cs)),
   2, 'K3: the case carries TWO patient_identifiers rows (N-per-case)');
 
-select test_helpers.claims_for((select st_x from k), false);   -- broad-read assignee
+-- ⬅ ADR 0078 defect ① / M3: was the phase ASSIGNEE ("broad-read"), who no longer
+-- reaches PHI. K3 asserts the LIST door returns BOTH patients to an in-scope reader —
+-- that coverage is preserved by re-pointing to a genuinely in-scope reader.
+select test_helpers.claims_for((select sa_x from k), false);   -- entitled reader (coordinator)
 set local role authenticated;
 create temp table listp on commit drop as
   select public.get_case_patients((select case_x from cs)) as j;

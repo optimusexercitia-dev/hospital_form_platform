@@ -1705,6 +1705,65 @@ policies · **121** functions — the plan said 119). The **load-bearing negativ
 rewrite of `can_read_referral_phi`: its **text** is stale, its **fact** is not. **A22 confirmed —
 `4f23558` did *not* fix `action_items`.**
 
+### A36 — ⛔ A2 was BLOCKED at authoring. **An unconsumed bit cannot have an over-grant twin.**
+
+`backend` refused to author A2 and returned four catalog-proven contradictions instead. **The refusal
+was correct and it reshaped the stage.** The founding failure mode, **inverted**: D11's member arm was a
+**widening sold as a no-op**; A2 as scoped was **three narrowings packaged as *"a thin projection."***
+
+**The question it forced: is D11's source table DESCRIPTIVE (today) or PRESCRIPTIVE (the target)?**
+**Answer: PRESCRIPTIVE** — `case_assignment` conferring PHI is **this ADR's own confirmed defect ①**
+(Context, above: *"a grant deliberately issued **read-only opens patient identifiers**, and a bare phase
+or narrative…"*), one of the **three justifications for the whole program**. Encoding today's behaviour
+as the target would have enshrined the defect the ADR exists to kill. **Lead-verified:**
+```
+app.can_read_case_patient:
+  if not feature_enabled('case_access') then return is_staff_admin_of_for(...)
+  else  is_staff_admin_of_for(...) OR case_access grant
+     OR case_phases.assigned_to = p_uid        ← bare assignment
+     OR case_narratives.assigned_to = p_uid    ← confers PHI
+```
+
+**The structural finding (the reason A2's scope was withdrawn):** A2 as written projects only
+`can_read_case`, leaving `can_read_case_patient` untouched — so the **`read_standard_phi` bit ships
+computed but UNCONSUMED, therefore UNFALSIFIABLE**. The narrowing would then land in a later unit
+**silently, with no failing test in between** — A24·1's shape, one rung up. **Two of the four would fail
+loudly (228 test 24 catches them); the PHI one would not. That is the one that matters.**
+
+**PO ruling: M3 first — narrow defect ① BEFORE the resolver exists**, as its own small subtractive
+migration (the M1/M2 shape). A2 then becomes a byte-for-byte swap over **already-correct** semantics —
+the only way it stays a reviewable **mechanism** swap. ⚠ **M3 is a NARROWING, not a denial: the positive
+twin is the whole risk.** A narrowing that denies everyone passes its negative **by construction**; and
+the assignee must **keep `can_read_case`** (content) while losing **only** PHI — keystone both
+directions.
+
+**The other three, recorded (they bind A2, not M3):**
+1. **The member arm is flag-conditional** — with `case_access` **ON** (today's live state) `can_read_case`
+   has **no** member arm; the **OFF** branch has one, and **228 test 24 asserts it byte-for-byte**.
+   **A15 is consistent.** The resolver **must carry the branch**.
+2. **The org arm has NO source in A24's table**, yet `can_read_case` carries `is_commission_admin_of_for`
+   **today**. If the resolver omits it while `can_read_case` becomes a projection, **A4's removal executes
+   inside A2** — which D4·3 forbids and A5 gates. **Ships as a resolver source; A4 removes it.**
+3. ~~**`nsp_referral_touched` is INERT today** — `case_referrals` flag = `f`.~~ ⛔ **RETRACTED — FALSE.
+   `case_referrals` is `enabled = t`; `app.feature_enabled('case_referrals')` returns TRUE**
+   (lead-verified). **A24·1 was RIGHT; this amendment was wrong**, and the error ran in the
+   **urgency-suppressing** direction.
+
+   **How it happened — the SIXTH instance of *text is not truth*, and it fooled everyone.** The flag
+   **row's own `description` says *"Ships OFF; enabled at Phase 22 completion"*** while the row's
+   `enabled` column says `t`. `backend` — *the author of the "text is not truth" rule* — reported `f`;
+   the **lead wrote it into this ADR without verifying it** (having verified its other three claims);
+   `qa` caught it from the catalog. **`baseline.sql` force-sets it `true` in EVERY environment**
+   (`on conflict do update set enabled = excluded.enabled`), so it has never actually shipped off.
+   ⚠ **A flag's `description` is prose. Only the `enabled` column is the flag.**
+
+   **So the arm is LIVE, not latent:** `pqs.a/b`, `pqsdual.a`, `nspcoord.a/b` (and `admin@test.local` —
+   **`is_admin = f`**, another name trap) each read **PHI on 4 cases *solely* through it**, while D11's
+   source table says `nsp_referral_touched` confers **content only**. Its removal is **D8/N1, scheduled
+   for Gate 2** — so this is a *known* removal, not a new defect; what was wrong was calling it inert.
+   **`nsp_referral_touched` is REQUIRED as an A2 source** (A24·1): without it **Stage A silently revokes
+   live NSP content reach**.
+
 ### A35 — A30 ruled (PO, 2026-07-15): the **noun rule**, and CLAUDE.md §1 was the thing that was wrong
 
 A **40-site catalog census** (`docs/progress/authz-a30-platform-admin-inventory.md`) — **not 42**: the

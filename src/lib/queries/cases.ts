@@ -1246,8 +1246,11 @@ function mapCasePatient(row: CasePatientJson): CasePatient {
  * The ISOLATED patient PHI for ONE patient participant — THE AUDITED READ (Rule 12
  * Class 1; ADR 0038 re-keyed by ADR 0064 E0 / F1). Routes through the
  * `get_participant_patient` SECURITY DEFINER RPC (direct SELECT on `patient_identifiers`
- * is revoked); the RPC re-gates with the BROAD `can_read_case_patient` predicate
- * (assignees need the MRN) and emits `case_patient.read`. Returns `null` when no PHI
+ * is revoked); the RPC re-gates with `can_read_case_patient`
+ * and emits `case_patient.read`. ⚠ That predicate is NO LONGER "broad": ADR 0078
+ * defect ① / M3 removed the bare phase/narrative assignment arms — assignment is
+ * CONTENT reach, never PHI (Context·1 / D10). An assignee who is not a coordinator
+ * and holds no case_access grant now gets `null` here. Returns `null` when no PHI
  * exists OR the caller is out of scope (no audit row then). The on-demand reveal is the
  * ONLY place this is read — never on a list/board.
  */
