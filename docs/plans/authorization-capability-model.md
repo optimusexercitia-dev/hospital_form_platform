@@ -1,0 +1,199 @@
+# Build plan — Authorization Capability Model
+
+> **ADR:** [0078](../decisions/0078-authorization-capability-model.md) (ACCEPTED 2026-07-15)
+> **Branch:** `feat/authorization-capability-model` (off `main` `30c0e7c`)
+> **Sequencing:** **BEFORE S4** (ETH·E2 · RV2 R2–R5 · CH). Its own gate unit — **never** folded into
+> an in-flight S-stage (Stage A touches every case-content policy).
+> **SQLSTATE block:** `HC0G0–HC0G9` (collision-check at freeze)
+> **Flag:** none. This program **retires** the `case_access` flag (ADR 0078 D9) and ships a single
+> authorization path. Reset-OK; no rollback target exists and none is wanted.
+> **Remote:** local only. Remote lands at the pilot reset, with separate user approval.
+
+## Ownership
+
+| Unit | Owner | Model |
+|---|---|---|
+| Migrations, RLS, RPCs, `app` helpers, seed rework | `backend` | Opus (multi-file authorization refactor) |
+| pgTAP suites | `backend` (authored **before** the SQL) | Opus |
+| `src/lib/queries` + capability contract types | `backend` | — |
+| UI capability consumption (`CaseCapabilities`, sources/expiry surfacing) | `frontend` | Sonnet |
+| E2E specs | `tester` | — |
+| Gate review | `qa` | — |
+| Full `e2e:prod` runs | **lead** (subagents cannot — 18–40 min > foreground cap) | — |
+
+**File ownership is binding.** Stage A/B are `backend`-only. Frontend work starts only after Gate 1
+is green (the capability object's shape is a Stage-A output).
+
+---
+
+## Gate 1 — Security spine (Stages A + B)
+
+All the risk lives here. If the spine is wrong, everything after is built on sand.
+
+### A0 · Migration contract — **catalog-driven** (no SQL until this is reviewed)
+
+> **Binding, per ADR 0078's METHODOLOGY FINDING.** Migration **file text is stale**:
+> `20260709000200` rewrites function bodies off the live catalog via
+> `pg_get_functiondef()` + `replace()` + `execute`. During evaluation a file-reading agent produced a
+> confident **false P0**. An external auditor tripped on the same rewrite. graphify does not index
+> SQL. **Inventory from `pg_proc` / `pg_policies` / `pg_depend` — never grep, never files.**
+
+1. Enumerate every call site of: `can_read_case`, `can_read_case_patient`, `can_write_case_content`,
+   `can_read_case_or_admin`, `is_case_excluded`, `can_reach_case_on_member_surface`,
+   `is_commission_admin_of*` on clinical tables, `can_read_attachment`,
+   `attachment_confidentiality_ok`, `can_read_referral_phi`, meeting / `meeting_cases` policies,
+   patient-identifier doors, Storage object policies.
+2. Classify each by **replacement capability** AND **path kind**: base-table RLS · public RPC ·
+   `app` helper · Storage RLS · service-role server action.
+3. Flag the three shapes ADR 0072 delta 3 found (invisible to grep): `*_select` policies OR-ing an
+   admin arm **outside** the DEFINER; `FOR ALL` PERMISSIVE `*_staff_admin_write` policies with **no
+   case predicate**; case↔meeting joins keyed on the wrong dimension.
+4. **Deliverable:** `docs/progress/authz-capability-inventory.md`. **Lead + `qa` review before any SQL.**
+
+### A1 · pgTAP first (authored before the SQL)
+
+New suite `229_authz_capabilities.sql`, **extending** — never replacing — `228_ethics_e1`'s
+catalog-driven generic leak sweep, now per-capability. Everything as `authenticated` under real
+RLS/RPC privileges; **never only as `postgres`**. Covers ADR 0078's nine test keystones.
+
+### A2 · The resolver
+
+- `app._case_caps(p_case_id uuid, p_user_id uuid) returns integer` — **private bitmask core**, the
+  single semantic source. Fail-closed order: null → inactive (**D3**) → tenant anchors →
+  **hard-deny (respondent/recusal, before every positive arm)** → union sources → lifecycle → bitmask.
+- `app.case_capabilities(...) returns jsonb` — app projection.
+- `app.has_case_capability(..., p_capability text) returns boolean` — RLS projection, **bit test only**.
+- **R6 binding:** every term computed inside the DEFINER over **base tables**. Never an RLS-gated read.
+- DEFINER posture: `app` schema, owner + `search_path` pinned, `REVOKE ALL … FROM PUBLIC`, explicit
+  grants only where RLS evaluation needs it.
+
+**Sources** (ADR 0078 D11): `committee_coordinator` · **`committee_member_default`** ·
+`case_assignment` · `manual_grant`. (`nsp_investigation` / `referral` / `break_glass` reserved.)
+
+**The member arm:** `active member AND cases.visibility_policy = 'commission_default' AND NOT excluded
+⇒ read_case_content` — **never** `read_standard_phi`, **never** `write_case_content`.
+
+**Write arms (D10):** `write_case_content` = Coordinator OR active explicit write grant. **No
+assignment arm** — a deliberate divergence from the handoff; do not "fix" it.
+
+### A3 · `case_types.default_visibility_policy`
+
+Creation-time default only. `cases.visibility_policy` stays the **sole runtime authority**. Not a
+second switch.
+
+### A4 · Repoint policies (only after A0 is reviewed and A1 is red-then-green)
+
+Remove `is_commission_admin_of*` from `can_read_case` (D4·1) and from `can_read_attachment`'s
+**`'interview'`** arm. **Keep** the `'meeting'` arm (D4·2). Case attachments are fixed for free via
+`can_read_case`.
+
+### A5 · ⛔ Performance gate — **exit criterion, before policies repoint**
+
+`EXPLAIN (ANALYZE, BUFFERS)` with representative multi-hospital volumes on: case board · case detail ·
+meeting detail · attachment listing · referral inbox. Index every FK and every RLS-predicate column;
+`(select auth.uid())` in policies. **The bitmask core exists to keep per-row cost at today's
+`can_read_case` level — prove it, don't assume it.**
+
+### B1 · `case_access_grants` (hard cut)
+
+Drop `case_access`. Create with: capability-per-column · tenant-safe composite FK to the case's
+org/hospital anchor · **column-per-scope** source FKs (ADR 0065 App-A dialect-1) · `revoked_at` /
+`revoked_by` soft revocation · constrained `reason_code` · surrogate `id` PK + partial unique index on
+the active `(case_id, principal_id, source, source_entity_id)` · active partial indexes on
+`(case_id, principal_id)` and `(principal_id, expires_at) where revoked_at is null` · RLS from
+creation · explicit privileges in the same migration.
+
+CHECKs: `write ⇒ read` · `restricted ⇒ standard` · non-empty · time · revoke-shape ·
+`source in ('manual_grant','nsp_investigation','referral','break_glass')` (**only `manual_grant`
+reachable**; pgTAP asserts the rest unreachable).
+
+### B2 · Re-cut the doors
+
+`grant_case_access` / `revoke_case_access` / `list_case_access` against the new shape. No direct
+authenticated DML. `REVOKE ALL … FROM PUBLIC` then explicit grant. **`list_case_access` must project
+the clearance** (today it omits `max_confidentiality`). Coordinator may issue `read_restricted_phi`
+**without holding it** (D5·6 — the bootstrap); "can't delegate what you don't hold" applies to Content
+and Standard PHI only.
+
+### B3 · ⛔ BLOCKING — repoint `attachment_confidentiality_ok`
+
+It reads `public.case_access` **directly**. Dropping that table silently drops ADR 0072's
+confidentiality ceiling. Repoint to `case_access_grants` **in the same migration**. The 7-value
+taxonomy and the 0072 O2 ruling (only `legal_privileged` + `credentialing_sensitive` gate above
+ordinary case-read) are unchanged.
+⚠ `CONFIDENTIALITY_ORDER` (FE) is **display** order, **not** sensitivity order.
+
+### B4 · Retire the `case_access` flag (D9)
+
+Delete the flag row, both OFF branches, and `assert_case_access_enabled()`. Rewrite pgTAP's flag-OFF
+cases as `visibility_policy` cases — what they were really testing.
+
+### B5 · Seed rework + type regen
+
+`supabase/seed.sql` grants → `case_access_grants`; **no PHI inferred** from any legacy read/write
+grant. Then `supabase gen types typescript --linked > src/lib/types/database.ts` (Rule 8).
+
+### Gate 1 exit
+
+Lint 0/0 · typecheck · Vitest · **`next build`** (a real build — BUG-FBE-005: a client value-import
+from `src/lib/queries/*` aborts the build while tsc/lint/vitest all pass) · pgTAP green ·
+**full `e2e:prod` once, triaged against the flaky baseline** (~18–27 pre-existing flakes — triage
+before calling regression) · `qa` APPROVED · human approval.
+
+---
+
+## Gate 2 — Behaviour changes (C · F-min · NSP)
+
+### C1 · Meeting boundary — **strict** (D6)
+
+Meeting content: bare commission membership → **Coordinator OR Meeting Participation**
+(`meeting_attendees`). `meeting_cases.summary` / `.decision`: **both** meeting and case authority.
+Review existing `minutes_md` for case/PHI duplication **before** enabling the tighter policy.
+
+> **Regression watch.** The member arm (A2) is what keeps CCIH's routine meeting readable. Keystone 4
+> tests **both directions**: `commission_default` reads (no regression) · `explicit_grants_only`
+> reveals nothing, not even existence.
+
+### F1 · Referral predicate split + write gate (D7)
+
+Split into `can_read_referral_metadata` · `can_read_referral_phi` · `can_write_referral_response` ·
+`can_manage_referral_phi_disclosure` · `can_amend_referral_phi_snapshot`. Gate the `referral_patient`
+write on `can_manage_referral_phi_disclosure` (**source coordinator only**). Remove
+`set_referral_patient` from the public API. Repoint the `referral_attachments_obj_select` Storage
+policy off `can_read_referral_phi`.
+
+### N1 · Drop the NSP PHI arm (D8)
+
+Remove the `is_pqs_operator_of_for` arm from **`can_read_case_patient`** only. **Keep** it in
+`can_read_case` (content reach) until Stage D, post-pilot.
+
+### G1 · Cleanup
+
+Retire `can_read_case_or_admin` and `can_reach_case_on_member_surface` (both redundant under the new
+model). Type regen. `supabase db advisors` / MCP `get_advisors`. Update ARCHITECTURE.md Rule 12 +
+`docs/backend-state.md`.
+
+### Gate 2 exit
+
+Same bar as Gate 1.
+
+---
+
+## Risks
+
+| Risk | Mitigation |
+|---|---|
+| **File text ≠ live catalog** — produced a false P0 during evaluation; burned an external auditor | A0 is catalog-driven and reviewed **before** SQL |
+| **A correct predicate ≠ correct policies** (ADR 0072 delta 3) | Extend 0072's catalog-driven leak sweep per-capability; assert **rows read** under `set local role`, not the predicate's return value |
+| **Resolver per-row cost** on `answers` / `case_narratives` / interviews | Bitmask core (D2); A5 is a hard exit criterion before repointing |
+| **Stage B silently drops the 0072 ceiling** | B3 blocking, same migration |
+| **Strict C regresses ordinary committees** | Member arm (A2) + keystone 4 both directions |
+| **Shared local stack** — `TaskStop` does not reap the e2e gate's process tree; the branch can swap underneath | One owner for the stack; verify `git branch --show-current` before every commit |
+| **Scope creep into D/E/F-full** | Explicitly post-pilot in ADR 0078. Do not build investigations, row-aware attachments, or disclosure governance here |
+
+## Post-pilot backlog (do not build now)
+
+Stage D (NSP Investigations) · Stage E (attachment sensitivity: row-aware `can_read_attachment` +
+tier→clearance mapping) · F-full (disclosure governance, `approved_fields`, versioned snapshots,
+minimum-necessary field scoping) · break-glass workflow · `pqs_*` → `nsp_*` rename · session
+revocation on deactivation.
