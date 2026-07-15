@@ -238,8 +238,8 @@ umbrella, not this program.
 
 ## Test Run Summary
 
-<!-- Full historical run log (Phases 0–MT, ~78 rows) archived → docs/progress/test-run-archive.md.
-     Keep only the most recent gate's rows here. -->
+<!-- Full historical run log (Phases 0 → S2, 133 rows) archived → docs/progress/test-run-archive.md.
+     Keep only the most recent gate's rows here; rotate the rest to the archive at each §6 Record. -->
 
 | Date | Phase | Specs | Passed | Failed | Notes |
 | ---- | ----- | ----- | ------ | ------ | ----- |
