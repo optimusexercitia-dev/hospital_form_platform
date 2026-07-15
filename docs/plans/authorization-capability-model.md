@@ -366,6 +366,17 @@ Tiers, corrected: bare stub (`reach(meeting)`) · propriety record — number, w
 has_case_capability(case_id,'read_case_deliberation')`) · decision (`reach(meeting) AND NOT
 app.is_case_excluded`).
 
+> ⏸ **BLOCKED ON A PARKED PO DECISION — ADR 0078 A26. Do not author this RPC until it is answered.**
+> The propriety tier as written projects **who withdrew and why** to every member. Combined with the
+> pauta's process number and the meeting date, that is **verbatim the inference D11 declares must not be
+> available** (*"a case number plus a date plus a sudden recusal identifies the respondent"*). Benign for
+> a **plenary** case (the members watched him leave); **sharp** for a **sub-group** case (the plenary was
+> not in the room, yet the tier is member-wide).
+>
+> **The obvious default answers it permissively and silently.** Raise A26 with the PO **before** C5, not
+> after. The answer may make the propriety tier `visibility_policy`-dependent, which changes this
+> predicate.
+
 > ⚠ **The asymmetry is load-bearing.** The propriety tier gates on **`is_case_respondent` ALONE**, not
 > `is_case_excluded`. The **recused must still see the process number** — her withdrawal *is* the
 > propriety record. Reaching for the familiar `is_case_excluded` here silently blinds every recused

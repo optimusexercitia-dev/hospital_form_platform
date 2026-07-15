@@ -1527,6 +1527,49 @@ deny for a recused coordinator**, and precisely the arm A22 found unguarded.
 31. **Coordinator does not hold `read_restricted_phi`** (A24·7) — they may **issue** it; they do not
     **have** it.
 
+## A26 — ⏸ PARKED to Gate 2 (PO, 2026-07-15): does the propriety record name the respondent?
+
+The adversarial review's strongest **surviving** finding. Amendment 3 does not resolve it.
+
+**D11 states the threat model itself:**
+
+> *"in a small committee, a case number plus a date plus a sudden recusal identifies the respondent,
+> and the respondent is a committee member."*
+
+**A7's propriety tier then publishes all three, member-wide:**
+
+| D11's named ingredient | Where the model publishes it |
+|---|---|
+| the **process number** | the pauta names it — A5, A7 propriety tier |
+| the **date** | the meeting itself |
+| **a sudden recusal** | *"who withdrew and why"* — the propriety tier, `reach(meeting) AND NOT is_case_respondent` |
+| *(bonus)* the **outcome** | the decision tier, `reach(meeting) AND NOT is_case_excluded` |
+
+**A6 prices only two of these** — the number and the outcome. It never prices the **withdrawal list**,
+which is the ingredient that turns a number into a **name**. A6's closing line — *"Recorded so it is
+not 'fixed' later"* — therefore defends a disclosure it never assessed.
+
+**It is not symmetric across the two case shapes:**
+
+| Case shape | Assessment |
+|---|---|
+| **Plenary** (`commission_default`) | **Benign.** The members were in the room and watched him withdraw. The ata exists to tell the *absent* what the *present* witnessed. It leaks nothing the committee does not already know. |
+| **Sub-group** (`explicit_grants_only`) | **Sharp.** The plenary was **not** in the room. Yet the propriety tier is member-wide — so every member reads *"Processo 052 — Dr. Carlos declarou-se impedido e retirou-se às 15h00"* and learns who 052 is about. That is **exactly** the inference D11 says must not be available. |
+
+> ⛔ **Do not resolve this by accident while building C5.** Whoever authors the reserved-session RPC
+> must decide what the propriety tier projects, and the obvious default — project the withdrawal list
+> to every member — **silently answers this question in the permissive direction**. If C5 lands before
+> the decision, the decision has been made.
+
+**The question, when it is taken up:** does the propriety record name **who** withdrew, or only **that**
+the item was reserved and that quorum held — and **does the answer differ by `cases.visibility_policy`**?
+A5's constraint is binding and cuts the other way: the ata *must* prove the deliberation was untainted
+(*"Dra. Ana declarou-se impedida e retirou-se às 15h00"*), and A2's finding 2 forbids falsifying the
+attendance record to protect a case. Whether that proof requires **names in front of every member**, or
+only in front of those with substance reach, is the open part.
+
+**Gate 1 does not depend on it.** Stage C does.
+
 ---
 
 ## Appendix B — Default access matrix (supersedes Appendix A)
