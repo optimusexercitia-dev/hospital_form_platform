@@ -19,7 +19,7 @@
 -- =============================================================================
 
 begin;
-select plan(23);
+select plan(25);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -66,6 +66,13 @@ select is((select exists (select 1 from public.case_access
   'PRE ⭐: the assignee holds NO case_access grant — the assignment arm is his ONLY reach');
 select is(app.feature_enabled('case_access'), true,
   'PRE: case_access flag is ON — this is today''s LIVE branch');
+-- ⭐ ADR 0078 M4: assert the rest too, don't assume them. `case_patient` gates the
+-- PHI writer this suite's whole fixture depends on; `case_referrals` OFF pins the
+-- branch where the (LIVE) PQS referral arm cannot confound the assignee measurement.
+select is(app.feature_enabled('case_patient'), true,
+  'FLAG: case_patient is ON — else set_participant_patient rejects and the fixture is empty');
+select is(app.feature_enabled('case_referrals'), false,
+  'FLAG: case_referrals is OFF here — pins out the LIVE PQS referral-PHI arm so only the assignment arm is measured');
 select is((select count(*)::int from public.patient_identifiers), 1,
   'PRE: the PHI exists — there is something to read');
 

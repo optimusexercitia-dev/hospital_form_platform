@@ -7,11 +7,18 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  * (`~/.claude/plans/option-b-considering-what-stateless-emerson.md §Verification`)
  * into Playwright + PostgREST assertions.
  *
- * **Feature flag.** The `case_patient` flag ships ON in this local seed (it was
- * already flipped during the smoke-test phase). `case_referrals` is OFF in seed;
- * the suite flips it ON/OFF around the referral-prefill test (AC-4). The other
- * required flags (`audit_trail`, `case_access`, `cases_multi_phase`, `patient_safety`)
- * are ON in the seed and remain so throughout.
+ * **Feature flags.** `case_patient`, `case_referrals` and `patient_index` are all
+ * ON after a fresh `db reset` — `20260620000000_baseline.sql` force-sets each to TRUE,
+ * and baseline is a MIGRATION, so that holds in every environment including production.
+ * (Each flag's `description` column still narrates "Ships OFF"; that prose is STALE and
+ * is not the state. Trust the catalog: `select key, enabled from app.feature_flags`.)
+ * The other required flags (`audit_trail`, `case_access`, `cases_multi_phase`,
+ * `patient_safety`) are likewise ON and remain so throughout.
+ *
+ * The suite still drives flags mid-run where a test needs it — AC-8a/AC-8b flip
+ * `case_patient` OFF to assert flag-OFF behaviour, and AC-4 flips `case_referrals`.
+ * What it must never do is *restore* a guessed value: beforeAll CAPTURES the real
+ * pre-spec state and afterAll puts that back. See captureFeatureFlags().
  *
  * **Seeded fixtures (after `supabase db reset --local`):**
  *   Caso 0001  id d0000000-0000-0000-0000-0000000000c1
@@ -44,7 +51,7 @@ test.use({ viewport: { width: 1280, height: 900 } })
 // NSP-per-org (ADR 0042): the case_referrals (AC-4) and patient_safety/NSP (AC-5)
 // modules are now provisioned per-org and their flags return true, so the multi-org
 // pilot skip is removed. The case flows here are commission-scoped at
-// /o/rede-a/c/ccih/manage/cases/... and the case_patient flag is ON in the seed.
+// /o/rede-a/c/ccih/manage/cases/... and case_patient is ON after a fresh reset.
 
 test.beforeEach(async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
@@ -77,6 +84,10 @@ const PHI_MRN  = 'PRT-CP-SPEC-0001'   // written by this spec's beforeAll
 
 // Disposable IDs created in beforeAll for builder-toggle test
 let draftTemplateId: string   // a new DRAFT template created by the spec
+
+// Flag state as it existed BEFORE this spec ran, captured in beforeAll and put back
+// verbatim in afterAll. Never hardcode the restore value — see captureFeatureFlags().
+let flagsBeforeSpec: Map<string, boolean>
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -179,21 +190,83 @@ async function setFeatureFlag(flagKey: string, enabled: boolean) {
   )
 }
 
+/**
+ * Read the CURRENT enabled state of the given flags straight from the catalog.
+ *
+ * Why this exists: a teardown must restore what the environment ACTUALLY had, not
+ * what a comment believes it had. This spec previously hardcoded `false` on the
+ * grounds that the three PHI flags "ship OFF" — they do not. `20260620000000_baseline.sql`
+ * force-sets `case_patient`, `case_referrals` and `patient_index` to TRUE (via
+ * `on conflict do update set enabled = excluded.enabled`), and baseline is a MIGRATION,
+ * so that is the state in EVERY environment, production included. The "Ships OFF" prose
+ * survives only in each flag's `description` column, which is stale narration, not state.
+ * Restoring a hardcoded `false` therefore drove the stack into a configuration no
+ * environment ships and left it there — silently disarming the live `case_referrals`
+ * PHI arm for anything that ran afterwards.
+ *
+ * Capturing the real value means this teardown cannot go stale when a default changes.
+ *
+ * Output-parsing note: `supabase db query` wraps rows in JSON and appends CLI notices,
+ * so we tag each row with a `FLAGCAP:` sentinel and regex for that rather than parsing
+ * the envelope. Throws if a key has no row — a silent no-restore is the bug we are fixing.
+ */
+async function captureFeatureFlags(flagKeys: string[]): Promise<Map<string, boolean>> {
+  const { execSync } = await import('child_process')
+  const keyList = flagKeys.map((k) => `'${k}'`).join(',')
+  const out = execSync(
+    `npx supabase db query --local "SELECT 'FLAGCAP:' || key || '=' || enabled::text AS probe FROM app.feature_flags WHERE key IN (${keyList})"`,
+    { cwd: process.cwd(), stdio: 'pipe' },
+  ).toString()
+
+  const captured = new Map<string, boolean>()
+  for (const m of Array.from(out.matchAll(/FLAGCAP:([a-z_]+)=(true|false)/g))) {
+    captured.set(m[1], m[2] === 'true')
+  }
+  const missing = flagKeys.filter((k) => !captured.has(k))
+  if (missing.length > 0) {
+    throw new Error(
+      `captureFeatureFlags: no app.feature_flags row for [${missing.join(', ')}] — ` +
+        'cannot capture a value to restore in afterAll.',
+    )
+  }
+  return captured
+}
+
+/** Restore every captured flag to the exact value it held before this spec ran. */
+async function restoreFeatureFlags(captured: Map<string, boolean>) {
+  for (const [flagKey, enabled] of Array.from(captured)) {
+    try {
+      await setFeatureFlag(flagKey, enabled)
+    } catch {
+      // best-effort — a teardown must never mask a real test failure
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Suite setup — create a draft template for builder-toggle tests
 // ---------------------------------------------------------------------------
 
 test.beforeAll(async ({ request }) => {
-  // Enable case_patient feature flag — it ships OFF in seed; set_case_patient RPC will
-  // reject with 23514 ("o registro de identificação do paciente do caso não está disponível")
-  // if we call it while the flag is OFF (which is the state after supabase db reset).
+  // Capture the pre-spec state of every flag this suite touches, so afterAll can put
+  // back exactly what it found. `case_referrals` is included because AC-4 flips it and
+  // a mid-way failure must not leave it changed.
+  flagsBeforeSpec = await captureFeatureFlags([
+    'case_patient',
+    'patient_index',
+    'case_referrals',
+  ])
+
+  // Force case_patient ON for the duration of the suite. It is already ON in every
+  // environment (baseline force-sets it), but AC-8a/AC-8b deliberately flip it OFF
+  // mid-suite to test flag-OFF behaviour, so assert the ON precondition explicitly
+  // rather than inheriting it. set_case_patient rejects with 23514 while it is OFF.
   await setFeatureFlag('case_patient', true)
 
-  // Enable patient_index (Phase 23) — ships OFF in seed. The create-dialog
-  // regression test (AC-9) exercises the encounter-key derivation + patient_xref
-  // cross-committee mirror, which the real prod deploy runs with the flag ON
-  // (b1e6dd3: "patient_index live on remote … flag ON"). The derivation trigger is
-  // always-on, but enabling the flag matches prod and the task contract.
+  // Force patient_index ON. The create-dialog regression test (AC-9) exercises the
+  // encounter-key derivation + patient_xref cross-committee mirror. The derivation
+  // trigger is always-on; the flag gates the RPCs + UI, and prod runs it ON
+  // (b1e6dd3: "patient_index live on remote … flag ON").
   await setFeatureFlag('patient_index', true)
 
   // Enable patient_enabled on Caso 0001 — the seed.sql inserts Caso 0001 without
@@ -272,23 +345,11 @@ test.afterAll(async ({ request }) => {
       },
     )
   }
-  // Restore case_patient flag to OFF (seed default — flag ships OFF)
-  try {
-    await setFeatureFlag('case_patient', false)
-  } catch {
-    // best-effort
-  }
-  // Restore patient_index flag to OFF (seed default — flag ships OFF)
-  try {
-    await setFeatureFlag('patient_index', false)
-  } catch {
-    // best-effort
-  }
-  // Restore case_referrals flag to OFF (in case AC-4 left it ON and the test failed mid-way)
-  try {
-    await setFeatureFlag('case_referrals', false)
-  } catch {
-    // best-effort
+  // Put case_patient / patient_index / case_referrals back to the values they actually
+  // held before this spec ran (captured in beforeAll). This covers AC-8a/AC-8b leaving
+  // case_patient OFF and AC-4 leaving case_referrals ON after a mid-way failure.
+  if (flagsBeforeSpec) {
+    await restoreFeatureFlags(flagsBeforeSpec)
   }
 })
 
@@ -844,7 +905,10 @@ test('AC-4: referral wizard pre-fills from case_patient (source=case)', async ({
 
     await page.keyboard.press('Escape')
   } finally {
-    await setFeatureFlag('case_referrals', false)
+    // Restore what case_referrals actually held before the suite ran, not a hardcoded
+    // `false`. It is ON in every environment (baseline force-sets it), so a `false` here
+    // left AC-5..AC-9 running against a needlessly disarmed referral-PHI arm.
+    await setFeatureFlag('case_referrals', flagsBeforeSpec?.get('case_referrals') ?? true)
     await new Promise((r) => setTimeout(r, 400))
   }
 })

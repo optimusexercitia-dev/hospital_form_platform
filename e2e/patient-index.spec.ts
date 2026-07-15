@@ -6,8 +6,13 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  * Test contract: translates the 11 acceptance criteria from the phase-23 plan
  * into Playwright + PostgREST assertions.
  *
- * **Feature flag.** The `patient_index` flag ships OFF in seed. This spec flips
- * it ON in `beforeAll` and OFF in `afterAll` via the `setFeatureFlag` helper.
+ * **Feature flag.** `patient_index` is ON after a fresh `db reset` —
+ * `20260620000000_baseline.sql` force-sets it (and `case_patient` / `case_referrals`)
+ * to TRUE, and baseline is a MIGRATION, so that holds in every environment including
+ * production. (The flag's `description` column still narrates "Ships OFF"; that prose
+ * is STALE and is not the state. Trust `select key, enabled from app.feature_flags`.)
+ * This spec asserts the flag ON in `beforeAll` and restores the CAPTURED pre-spec state
+ * in `afterAll` — never a hardcoded value. See captureFeatureFlags().
  * The HMAC derivation triggers are ALWAYS-ON (keys already exist after
  * `supabase db reset`), so NO backfill is needed — only the flag flip.
  *
@@ -200,28 +205,88 @@ async function setFeatureFlag(flagKey: string, enabled: boolean) {
   )
 }
 
+/**
+ * Read the CURRENT enabled state of the given flags straight from the catalog.
+ *
+ * Why this exists: a teardown must restore what the environment ACTUALLY had, not what
+ * a comment believes it had. This spec previously hardcoded `false` on the grounds that
+ * `patient_index` "ships OFF" — it does not. `20260620000000_baseline.sql` force-sets
+ * `patient_index`, `case_patient` and `case_referrals` to TRUE (via `on conflict do
+ * update set enabled = excluded.enabled`), and baseline is a MIGRATION, so that is the
+ * state in EVERY environment, production included. The "Ships OFF" prose survives only
+ * in each flag's `description` column — stale narration, not state.
+ *
+ * Capturing the real value means this teardown cannot go stale when a default changes.
+ *
+ * Output-parsing note: `supabase db query` wraps rows in JSON and appends CLI notices,
+ * so we tag each row with a `FLAGCAP:` sentinel and regex for that rather than parsing
+ * the envelope. Throws if a key has no row — a silent no-restore is the bug we are fixing.
+ */
+async function captureFeatureFlags(flagKeys: string[]): Promise<Map<string, boolean>> {
+  const { execSync } = await import('child_process')
+  const keyList = flagKeys.map((k) => `'${k}'`).join(',')
+  const out = execSync(
+    `npx supabase db query --local "SELECT 'FLAGCAP:' || key || '=' || enabled::text AS probe FROM app.feature_flags WHERE key IN (${keyList})"`,
+    { cwd: process.cwd(), stdio: 'pipe' },
+  ).toString()
+
+  const captured = new Map<string, boolean>()
+  for (const m of Array.from(out.matchAll(/FLAGCAP:([a-z_]+)=(true|false)/g))) {
+    captured.set(m[1], m[2] === 'true')
+  }
+  const missing = flagKeys.filter((k) => !captured.has(k))
+  if (missing.length > 0) {
+    throw new Error(
+      `captureFeatureFlags: no app.feature_flags row for [${missing.join(', ')}] — ` +
+        'cannot capture a value to restore in afterAll.',
+    )
+  }
+  return captured
+}
+
+/** Restore every captured flag to the exact value it held before this spec ran. */
+async function restoreFeatureFlags(captured: Map<string, boolean>) {
+  for (const [flagKey, enabled] of Array.from(captured)) {
+    try {
+      await setFeatureFlag(flagKey, enabled)
+    } catch {
+      // best-effort — a teardown must never mask a real test failure
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Suite setup/teardown — flag lifecycle
 // ---------------------------------------------------------------------------
 
+// Flag state as it existed BEFORE this spec ran; put back verbatim in afterAll.
+let flagsBeforeSpec: Map<string, boolean>
+
 test.beforeAll(async () => {
-  // Flip `patient_index` ON. The derivation triggers are ALWAYS-ON — keys +
-  // patient_xref exist right after `db reset` without any backfill. Only the
-  // RPCs + UI (search page, referral hint) are flag-gated.
+  // Capture the pre-spec state of every flag this suite touches. `case_referrals` is
+  // included because AC-3 flips it, and `case_patient` because beforeAll forces it ON.
+  flagsBeforeSpec = await captureFeatureFlags([
+    'patient_index',
+    'case_patient',
+    'case_referrals',
+  ])
+
+  // Force `patient_index` ON for the suite (AC-7 deliberately flips it OFF mid-run, so
+  // assert the precondition rather than inheriting it). The derivation triggers are
+  // ALWAYS-ON — keys + patient_xref exist right after `db reset` without any backfill.
+  // Only the RPCs + UI (search page, referral hint) are flag-gated.
   await setFeatureFlag('patient_index', true)
-  // Ensure case_patient is ON (required by set_case_patient in AC-6; ON in seed,
-  // but guard against a prior test suite run having left it OFF).
+  // Ensure case_patient is ON (required by set_case_patient in AC-6).
   await setFeatureFlag('case_patient', true)
   // Short pause for PostgREST schema-cache refresh
   await new Promise((r) => setTimeout(r, 800))
 })
 
 test.afterAll(async () => {
-  // Restore flag to OFF (seed default)
-  try {
-    await setFeatureFlag('patient_index', false)
-  } catch {
-    // best-effort
+  // Put patient_index / case_patient / case_referrals back to the values they actually
+  // held before this spec ran (captured in beforeAll) — never a hardcoded guess.
+  if (flagsBeforeSpec) {
+    await restoreFeatureFlags(flagsBeforeSpec)
   }
 })
 
@@ -389,7 +454,10 @@ test('AC-3: referral ENC-0001 detail shows count-only "aparece em N outros regis
     const html = await page.content()
     expect(html).not.toContain(TEST_MRN)
   } finally {
-    await setFeatureFlag('case_referrals', false)
+    // Restore what case_referrals actually held before the suite ran (ON in every
+    // environment — baseline force-sets it). Hardcoding `false` here used to leave the
+    // live PQS referral-PHI arm silently disarmed for everything that ran afterwards.
+    await setFeatureFlag('case_referrals', flagsBeforeSpec?.get('case_referrals') ?? true)
     await new Promise((r) => setTimeout(r, 400))
   }
 })

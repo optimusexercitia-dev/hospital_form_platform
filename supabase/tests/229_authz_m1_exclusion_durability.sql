@@ -27,7 +27,7 @@
 -- =============================================================================
 
 begin;
-select plan(86);
+select plan(89);
 
 update app.feature_flags set enabled = true
   where key in ('cases_multi_phase', 'case_participants', 'audit_trail');
@@ -48,6 +48,21 @@ create temp table k on commit drop as
          app.org_of_commission((v->>'comm_x')::uuid) as org_x
   from ctx;
 grant select on k to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- ⭐ FLAG ASSERTIONS (ADR 0078 M4). The updates above are an ASSUMPTION until
+-- asserted. This suite's keystones depend on these exact states — `audit_trail`
+-- especially: app.audit_write RETURNS EARLY when it is off, so M1·3's "the
+-- permitted path emits an audit row" keystone would be measuring the flag, not the
+-- trigger. Assert, never assume: a reading is not a fact until it is pinned to the
+-- state you are claiming about, and a flag's `description` is prose — only
+-- `enabled` is the flag (six descriptions lied about exactly this; ADR 0078 M4).
+select is(app.feature_enabled('case_participants'), true,
+  'FLAG: case_participants is ON — the exclusion-plane RPCs are reachable');
+select is(app.feature_enabled('audit_trail'), true,
+  'FLAG: audit_trail is ON — else audit_write returns early and M1·3(c) measures the flag, not the trigger');
+select is(app.feature_enabled('case_access'), false,
+  'FLAG: case_access is OFF — this suite pins the legacy-belt branch of can_read_case*');
 
 -- ---------------------------------------------------------------------------
 -- FIXTURE · one case in comm_x; st_x is its respondent_doctor.

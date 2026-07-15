@@ -4,9 +4,13 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  * `case_phase_results` — Per-phase categorical result for multi-phase cases
  * (with ruleset, computed path, and manual override).
  *
- * Feature flag: `case_phase_results` ships OFF in the seed. The suite flips
- * it ON in beforeAll and restores it in afterAll. `case_access` is also enabled
- * for AC-5 (staff route test).
+ * Feature flag: `case_phase_results` is ON after a fresh `db reset` (the baseline
+ * migration force-sets it, so that holds in every environment; the flag's stale
+ * `description` prose still claims otherwise — trust the catalog, not the prose).
+ * The suite asserts it ON in beforeAll and DELIBERATELY does NOT flip it back in
+ * afterAll — restoring a hardcoded `false` would drive the stack into a state no
+ * environment ships and contaminate every spec that ran afterwards. See the note in
+ * afterAll. `case_access` is also enabled for AC-5 (staff route test).
  *
  * ──────────────────────────────────────────────────────────────────────────────
  * HERMETICITY DESIGN
@@ -611,10 +615,16 @@ test.afterAll(async () => {
   // residue if this fails.
   await purgeLeftoverState()
 
-  // Migration 20260624130000_feature_flags_default_on.sql changed the defaults:
-  // case_phase_results and case_access both ship ON after db reset.
-  // Do NOT restore to false — that would contaminate subsequent specs.
-  // Flags are intentionally left ON (their new default) after this suite.
+  // case_phase_results and case_access are both ON after a fresh `db reset`.
+  // (The old 20260624130000_feature_flags_default_on.sql that set this is GONE —
+  // folded into the baseline squash. The live source of truth is now
+  // 20260620000000_baseline.sql, which force-sets the flags via
+  // `on conflict do update set enabled = excluded.enabled`. Verify against the
+  // catalog — `select key, enabled from app.feature_flags` — not against each
+  // flag's `description` column, whose "Ships OFF" prose is stale narration.)
+  //
+  // Do NOT restore to false — that would contaminate subsequent specs by driving
+  // the stack into a state no environment ships. Flags are intentionally left ON.
 })
 
 // ---------------------------------------------------------------------------
