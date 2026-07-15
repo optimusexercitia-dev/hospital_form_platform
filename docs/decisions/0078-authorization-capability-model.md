@@ -169,9 +169,16 @@ Fail-closed evaluation order inside `_case_caps`:
 4. HARD DENY (ADR 0072, preserved verbatim, BEFORE every positive arm):
      app.is_case_respondent | app.is_recused_from_case  → 0
 5. union positive sources (D11)
-6. apply lifecycle restrictions to write bits
+6. apply lifecycle restrictions to write bits          ⛔ DELETED — Amendment 3 (A24·3)
 7. return the bitmask
 ```
+
+> ⛔ **Step 6 is DELETED.** "Lifecycle" is defined **nowhere** in this ADR, and **D10 says write =
+> Coordinator OR active write grant, *"Full stop."*** Catalog: terminal-freeze lives in the
+> `app.guard_case_status` trigger (`HC025`) with an `app.in_case_rpc` escape hatch a `STABLE` resolver
+> cannot replicate, and `can_write_case_content` has **no status check at all**. Inventing one here
+> **narrows beyond today** and breaks every close-case RPC that writes content in the same
+> transaction. **The order is six steps. The trigger stays.**
 
 **R6 is binding.** Every participant/recusal/grant term is computed **inside** the `SECURITY DEFINER`
 over **base tables** — never an RLS-gated read (which recurses). This ADR does not relax the ADR-0064
@@ -261,9 +268,22 @@ read_meeting_case_section(meeting, case, user)
     AND has_case_capability(case, user, 'read_case_content')
 ```
 
-Meeting content reads repoint from bare commission membership to **Coordinator or Meeting
-Participation** (`meeting_attendees`). Case-specific meeting fields (`meeting_cases.summary` /
+~~Meeting content reads repoint from bare commission membership to **Coordinator or Meeting
+Participation** (`meeting_attendees`).~~ Case-specific meeting fields (`meeting_cases.summary` /
 `.decision`) require **both** authorities.
+
+> ⛔ **CONJUNCT A (the struck sentence) IS WITHDRAWN — see Amendment 1 (A2 / A2·1).** Replaced by
+> **`meetings.visibility_policy`**, opt-in per meeting. Implementing the struck text hands a **recused
+> member** the ata of the case she is recused from (she is `attendance = 'present'`, which drives
+> quorum), creates the unseeded-meeting access cliff, and installs the coordinator OR-arm A2·1
+> forbids. **Conjunct B — the surviving sentence — stands, strict.**
+>
+> ⚠ **And its case capability changed:** the rule is
+> `reach(meeting) AND has_case_capability(case, 'read_case_deliberation')` — **not**
+> `read_case_content` (Amendment 3, A15).
+>
+> **D6 is the entire named scope of Stage C in the staging table below. It is the first thing an
+> implementer opens. Read Amendments 1 and 3 before building any of it.**
 
 > **PO decision, recorded.** This is a **product tightening that removes reach pilot users would
 > otherwise have**, on a live feature. The lead and ADR 0077 both recommended the softer option (b);
@@ -351,8 +371,14 @@ this later.
 active member of the case's commission
   AND cases.visibility_policy = 'commission_default'
   AND NOT excluded (respondent/recused — evaluated first, step 4)
-⇒ read_case_content        — and NEVER read_standard_phi, NEVER write_case_content
+⇒ read_case_content        — and NEVER read_standard_phi, NEVER write_case_content     ⛔ WRONG
 ```
+
+> ⛔ **`⇒ read_case_content` IS A WIDENING — see Amendment 3 (A15).** Verified: today an ordinary
+> member reads **one** row type (`meeting_cases`, via the *one* policy consuming
+> `can_reach_case_on_member_surface`); `read_case_content` gates **~12 tables**, two of them labelled
+> **PHI-BEARING free text** by the schema. **The arm confers `read_case_deliberation`** — the minuted
+> discussion only. The case file stays with the coordinator, the assignees, and explicit grants.
 
 Without it, strict D6 makes a routine CCIH meeting unreadable to the twelve members who were *in the
 room*: `can_read_case` has **no plain-member arm** on the `case_access`-ON path, which is exactly why
@@ -361,19 +387,36 @@ room*: `can_read_case` has **no plain-member arm** on the `case_access`-ON path,
 legitimately confers that for ordinary cases. Ethics stays grant-only. PHI is never implied.
 
 **One authority, not two.** `case_types` gains **`default_visibility_policy`**, a **creation-time
-default only** ("Ethics complaint" → `explicit_grants_only`; "Infection event" → `commission_default`).
+default only** (~~"Ethics complaint" → `explicit_grants_only`~~; "Infection event" → `commission_default`).
 `cases.visibility_policy` remains the **sole runtime authority** the resolver reads, and a coordinator
-may still override one case. This deliberately avoids a second authorization switch — two knobs over
+may still override one case.
+
+> ⛔ **THE ETHICS DEFAULT ABOVE IS WRONG — see Amendment 1 (A1).** It is
+> **`commission_default`**; sub-group handling is a **per-case override**. Most ethics complaints are
+> handled by the **plenary** (PO, 2026-07-15). This is a one-token value that goes straight into
+> `seed.sql` — seeded from the struck text, every ethics complaint is created invisible to the
+> plenary that actually handles it, the member arm never fires, and nothing tests it. This deliberately avoids a second authorization switch — two knobs over
 one semantic is where leaks breed. It also reuses predicates already proven by ETH·E1's pgTAP.
 
 **Derived (resolves ADR 0077's O5):** for a **member**, `view_case_overview` reach **==**
 `read_case_content` reach. The existence of an `explicit_grants_only` case is **not discoverable** —
 in a small committee, a case number plus a date plus a sudden recusal identifies the respondent, and
 the respondent is a committee member. `view_case_overview`'s *extra* reach exists for Organization
-Users and NSP (PHI-free aggregates), not members. Consequently
+Users and NSP (PHI-free aggregates), not members. ~~Consequently
 **`app.can_reach_case_on_member_surface` becomes redundant** — its semantics *are*
 `has_case_capability(case, uid, 'read_case_content')` under this model, minus the admin arm D4 removes
-anyway — and it **retires at Stage G**, with the member surfaces becoming capability-resolved.
+anyway — and it **retires at Stage G**, with the member surfaces becoming capability-resolved.~~
+
+> ⛔ **The redundancy claim is FALSE and the retirement is WITHDRAWN — Amendment 3 (A15·2).**
+> `can_reach_case_on_member_surface` is consumed by **exactly one** policy (`meeting_cases_select`);
+> `read_case_content` will gate **twelve tables**. Its semantics are **`read_case_deliberation`**,
+> exactly — ETH·E1 built the right predicate. **It survives as that bit's projection.**
+>
+> ⚠ **Scoping, also amended.** *"Existence is not discoverable"* holds **only for the case board**
+> (A6): the pauta names process numbers and the decision tier is member-wide, both deliberately.
+> And `view_case_overview` reach is **NOT** `read_case_content` reach for a member — the lattice rung
+> breaks (A16); a member reads the ata section **without** the board row, which is today's behaviour.
+> `view_case_overview` ships as a **reserved, unconsumed bit** (A16).
 
 ### D12 — Terminology: docs only
 
@@ -428,6 +471,16 @@ touches every case-content policy and would collide with any concurrent policy w
 **Two gates** (PO decision): the risk is concentrated in A+B, and an independent green bar there
 actually buys something. Stages land as **separate reviewable migrations** — never one combined.
 
+> ⛔ **THE SCOPE AND DIFFICULTY COLUMNS BELOW ARE STALE — Amendments 2 and 3.** **Stage A** is
+> materially bigger: D4·1 is a **no-op** as scoped there (**A21** — the admin arm's real read path is
+> eight `FOR ALL` policies, plus the case RPCs and `can_write_attachment`'s `'case'` arm). **Stage C**
+> absorbed `meetings.visibility_policy` + the roster constraint (A2·1), the agenda-item gate (A3),
+> **four new tables** (A4·1), a four-tier DEFINER RPC (A7), the Organization User's removal (A8–A11),
+> and the re-cut of **four more `FOR ALL` policies** (A13) — it is now the **largest stage in the
+> program**, not "Medium". **Amendment 2's and 3's work has no row in this table at all.** The plan's
+> Gate-2 section is authoritative for Stage C; the two-gate split's rationale ("risk is concentrated in
+> A+B") survives, but **A+B is bigger than it looks here**.
+
 | Gate | Stages | Scope | Difficulty | Exit |
 |---|---|---|---|---|
 | **1** | **A** | `_case_caps` bitmask core + projections (D2); `is_active` outer gate (D3); remove admin arm from Case Content + interview attachments (D4); member arm + `case_types.default_visibility_policy` (D11) | **Medium-High** | authorized clinical users retain access; inactive users and Organization Users cannot read Case Content; **`EXPLAIN (ANALYZE, BUFFERS)` on case board / case detail / meeting detail / attachment listing / referral inbox — gated BEFORE policies repoint** |
@@ -469,12 +522,24 @@ pilot reset, with separate user approval.
   patient identifiers. This is the change that justifies the program.
 - **Access becomes explainable.** `sources[]` + `expiresAt` on the capability object let the UI say
   *why* access exists and when it lapses — today that is unanswerable.
-- **Users lose access they would have had.** Organization/hospital admins lose case content (D4) and
+- **Users lose access they would have had.** ~~Organization/hospital admins lose case content (D4) and
   interview attachments (D4·2); ordinary members lose meeting case sections for cases they are not
-  involved in **and** whose type is `explicit_grants_only` (D6+D11); NSP loses automatic PHI (D8).
+  involved in **and** whose type is `explicit_grants_only` (D6+D11); NSP loses automatic PHI (D8).~~
   None are bugs; all are **clinical-workflow changes** requiring PO socialization before the pilot.
-- **Ordinary committees are unaffected.** D11's member arm means CCIH's routine meeting reads exactly
-  as it does today. The tightening bites precisely where it should.
+- ~~**Ordinary committees are unaffected.** D11's member arm means CCIH's routine meeting reads exactly
+  as it does today. The tightening bites precisely where it should.~~
+
+> ⛔ **BOTH BULLETS ARE STALE — see Amendments 2 and 3.** This list is the **named input to "PO
+> socialization before the pilot"**, so its being short is the whole failure. The actual losses:
+> Organization Users lose **case content AND case write AND the case RPCs** (A21), the **entire
+> meeting surface AND meeting management** (A8), meeting + interview attachments (A9, D4·2), and
+> `committee` / `assignees_only` action items (A11) — keeping only configuration, staffing, the grant
+> door (A18), and the audit log. Members lose meeting case sections on `explicit_grants_only` cases and
+> on `participants_only` meetings. NSP loses automatic PHI (D8).
+>
+> ⛔ **"Ordinary committees are unaffected" was FALSE** — D11's member arm was a widening from one
+> table to twelve (A15). **After A15 it is true**, which is the point of the correction: the claim now
+> describes the design instead of excusing it.
 - **Performance is a gated risk, not a footnote.** D2's bitmask core keeps per-row cost at today's
   level; `EXPLAIN (ANALYZE, BUFFERS)` is a **Stage-A exit criterion**, gated *before* policies repoint.
   Index every FK and every RLS-predicate column; use `(select auth.uid())`.
@@ -504,9 +569,17 @@ pilot reset, with separate user approval.
    every `case_id`-bearing table, both persona classes, fail-closed, **extended per-capability**.
 4. **The member arm, both directions:** a CCIH member reads a `commission_default` case's meeting
    section (**no regression**); the same member reads **nothing** of an `explicit_grants_only` case —
-   not content, not overview, not its existence.
-5. Meeting: attendee without case access cannot read the linked case section; case reader without
-   participation cannot read the meeting.
+   not content, not overview, ~~not its existence~~.
+   > ⚠ **Scope it to the CASE BOARD (A6).** On the **meeting** surface the pauta names the process
+   > number and the decision tier is member-wide — **deliberately**. Applied to the meeting surface
+   > this keystone asserts the direct negation of keystones **10** and **16**.
+   > ⛔ **This keystone cannot detect the A15 widening** — it asserts *no regression*, and a widening
+   > passes that by construction. **Keystone 22 is its missing other half.**
+5. Meeting: attendee without case access cannot read the linked case section; ~~case reader without
+   participation cannot read the meeting~~.
+   > ⛔ **The struck clause asserts conjunct A, which A2 withdrew.** It fails on every
+   > `commission_default` meeting, and the "fix" would be to reinstate conjunct A. Its **first** clause
+   > stands. See keystone 21.
 6. Referral: target cannot overwrite the transmitted identity; `set_referral_patient` is gone;
    metadata reader sees no PHI body, path, or sensitive title.
 7. NSP: an operator on a referral-touched case reads content but **not** patient identifiers (D8).
@@ -650,8 +723,8 @@ item 3 but stay for item 4, those are two different room compositions — so a m
 only be a **time block**, never an **access unit**. Therefore:
 
 ```
-meeting_agenda_items                    -- the pauta skeleton. Member-wide. ALWAYS.
-  position, is_closed, title            -- title = the process number (A5)
+meeting_agenda_items                    -- the pauta skeleton. Member-wide. ALWAYS.   ⛔ see below
+  position, is_closed, title            -- title = the process number (A5)            ⛔ see below
 
 meeting_closed_sessions                 -- the reserved BLOCK. May span items.
   meeting_id, position, opened_at, closed_at
@@ -659,11 +732,24 @@ meeting_closed_sessions                 -- the reserved BLOCK. May span items.
 
 meeting_closed_session_items            -- the SUBSTANCE, per subject. REACH RESOLVES HERE.
   closed_session_id, agenda_item_id (unique), case_id (nullable)
-  subject_title, minutes_md
+  subject_title, minutes_md             -- ⚠ needs a DECISION field too — A7, one row per tier
 
 meeting_closed_session_item_readers     -- consulted ONLY when case_id IS NULL
   item_id, principal_id
 ```
+
+> ⛔ **"Member-wide. ALWAYS" + "title = the process number" contradicts A7/O6.** A7's **propriety
+> tier** denies the **respondent** the process number (`is_member_of AND NOT is_case_respondent`), and
+> **O6 ruled exactly that** (*"a respondent does not need to see his own process number"*). Landed as
+> written — a permissive member-wide SELECT with the number in `title` — **the respondent reads his own
+> process number straight off the skeleton table**, defeating O6 through the adjacent-column route A3
+> and A11 both warn about. **Keystone 10 does not catch it** (it tests the *recused* Ana, not the
+> respondent).
+>
+> ⚠ **`minutes_md` alone is not enough.** A7 supersedes A5's forced split — *one storage row carries
+> all four tiers* — but never amended this column list, which has **no decision field** and nowhere for
+> the propriety tier's *"who withdrew and why"*. Authored from this list, the RPC has no decision to
+> project.
 
 ```
 reach(item substance) =
@@ -723,6 +809,22 @@ four tables.
 | **Propriety record** — process number · who withdrew and why · times | **deny** | allow | allow | `is_member_of AND NOT app.is_case_respondent` |
 | **Substance** — deliberation · evidence · relator's report | deny | deny | plenary: all · sub-group: granted | `reach(meeting) AND has_case_capability(case_id,'read_case_content')` |
 | **Decision** — *arquivado / instaurado / …* | deny | **deny** | allow | `is_member_of AND NOT app.is_case_excluded` |
+
+> ⛔ **THREE CORRECTIONS — this table is NOT implementable as written (Amendment 3).**
+>
+> 1. **`read_case_content` → `read_case_deliberation`** in the substance tier (**A15**).
+> 2. **`is_member_of` → `reach(meeting)`** in the stub, propriety and decision tiers. As written, three
+>    of four tiers ignore `meetings.visibility_policy`, so the RPC projects a **`participants_only`
+>    sub-group meeting's stub, propriety record and decision to every non-participant member** — and to
+>    the **recused coordinator keystone 12 names explicitly**. Contradicts A2·1.
+> 3. **Every tier needs A4·1's `case_id IS NULL` branch (A24·4).** At `case_id IS NULL` — *the only
+>    scenario A4 exists for* — `is_case_respondent(NULL,·)` and `is_case_excluded(NULL,·)` are both
+>    **false**, so propriety and decision **allow every member**; and `_case_caps(NULL,·)` fails closed
+>    at step 3, so substance **denies everyone, including the reader list**. A7 superseded A5 and
+>    **silently dropped A4·1's reader list**. Case-less: substance and decision follow the **reader
+>    list**; the propriety tier is **EMPTY** (no number, no recusal record exists), not "allow".
+>
+> **This is a table. Tables get implemented literally.** → keystones 12, 30.
 
 **Note the asymmetry — it is deliberate and load-bearing.** The **recused** sees the process number
 (she declared the conflict; her withdrawal is the propriety record). The **respondent** does not. So
@@ -991,3 +1093,463 @@ closed.**
 condition **is** the design.
 
 **Every PHI column matches §4 or is stricter.** That is the program's justification, and it holds.
+
+> ⚠ **Appendix A is SUPERSEDED by Amendment 3** — the Committee Member row's "Committee Case Content"
+> cell described the widened member arm (A15) and the Organization User's cells described a boundary
+> that `FOR ALL` policies did not actually deliver (A21). **See Appendix B.**
+
+---
+
+# Amendment 3 — The member arm was a widening; five holes closed; D4·1's true scope
+
+**Date:** 2026-07-15 (same day) · **Status:** 🟢 **ACCEPTED** (PO, 2026-07-15)
+
+**Trigger:** a **pre-implementation contradiction review** requested by the PO before Gate 1 began —
+the lead plus three independent reviewers (internal-consistency, implementability, adversarial). Every
+load-bearing claim was then **re-verified against the live catalog** by the lead before acceptance.
+
+> **This amendment corrects the ADR's single most important decision, and the error was the lead's.**
+> D11's member arm — sold in the body as "the decision that makes D6 workable" and in Consequences as
+> a no-op for ordinary committees — was a **widening**. Two of the three reviewers found it
+> independently. It is recorded here in full rather than quietly patched, because the *way* it got in
+> is the reusable lesson: **a no-regression claim that no test can falsify.**
+
+---
+
+## A15 — D11's member arm was a WIDENING. Corrected to `read_case_deliberation`
+
+**The error, catalog-verified 2026-07-15:**
+
+| Fact | Verified from |
+|---|---|
+| `can_reach_case_on_member_surface` is consumed by **exactly one policy**: `meeting_cases_select` | `pg_policies` |
+| `app.can_read_case`'s live (`case_access`-ON) path has **no plain-member arm** — `staff_admin OR org_admin OR grant OR phase-assignment OR narrative-assignment` | `pg_proc` |
+| `case_narratives.body_md` and `case_interviews.summary_md` are **"PHI-BEARING free text"** | `pg_description` — the schema's own column comments |
+
+So **today** an ordinary member with no grant and no assignment reads exactly **one row type** of a
+case: `meeting_cases.summary` / `.decision`. That is ADR 0072 D2·8's deliberate member-wide reach to
+minuted deliberation. D11 promoted it to `read_case_content` — which will gate **every case-content
+table** (~12), including the two columns above.
+
+**Two body claims are therefore FALSE and are struck:**
+- D11: *"`app.can_reach_case_on_member_surface` becomes redundant — its semantics **are**
+  `has_case_capability(case, uid, 'read_case_content')`."* One gates a single meeting policy; the
+  other gates twelve tables.
+- Consequences: *"**Ordinary committees are unaffected.** … CCIH's routine meeting reads exactly as it
+  does today."*
+
+**Why no test would have caught it.** Keystones 4 and 11 assert **no regression**. A widening passes
+every no-regression test *by construction*. There was no keystone asserting the member arm does not
+**over**-grant — the exact sin D10 refuses ("a **widening** shipped inside a least-privilege
+program"), committed one decision later. → **keystone 22.**
+
+**Root cause, stated so it is not repeated.** D6 needed a member arm for **meeting** reach; the lead
+gave it a capability that reaches **everything**. Compounding it: the PO's *"most complaints are
+handled as a plenary; some need a sub-group"* answers **who is excluded** — plenary vs sub-group,
+i.e. `commission_default` vs `explicit_grants_only`. The lead extrapolated it into *"and therefore
+every plenary member reads the whole case file,"* which the PO never said, and **A1 was then built on
+that extrapolation**. The `visibility_policy` axis and the how-much-does-a-member-read axis are
+**independent**; the lead collapsed them.
+
+### A15·1 — The decision (PO, 2026-07-15)
+
+> *"The meeting section only."*
+
+A new case capability — **`read_case_deliberation`** — carries the member arm:
+
+```
+active member of the case's commission
+  AND cases.visibility_policy = 'commission_default'
+  AND NOT excluded (respondent/recused — evaluated first, step 4)
+⇒ read_case_deliberation
+     — NEVER read_case_content, NEVER read_standard_phi, NEVER write_case_content
+```
+
+It gates **exactly three surfaces**, all of them *case discussion minuted in a meeting*:
+
+1. `meeting_cases.summary` / `.decision`
+2. case-linked `meeting_agenda_items.discussion_notes` / `.resolution` (A3 / C2)
+3. `meeting_closed_session_items` **substance** tier (A7)
+
+**The case file — narratives, interviews, phases, participants, events — stays with the coordinator,
+the assignees (`case_assignment`), and explicit grants.** A member who needs the file gets a
+`manual_grant`: reasoned, expiring, audited.
+
+**D6 keeps its shape exactly** — both authorities required, only the case capability changes:
+
+```
+read_meeting_case_section = reach(meeting) AND has_case_capability(case, 'read_case_deliberation')
+```
+
+### A15·2 — `can_reach_case_on_member_surface` is **UN-RETIRED**
+
+D11 retired it at Stage G as "redundant". That was true only under the widened arm. Its semantics —
+deny excluded first · `explicit_grants_only` → grants only · `commission_default` → member-wide —
+**are** `read_case_deliberation`, exactly. ETH·E1 built the right predicate three days ago.
+
+**It survives as the resolver's projection of the `read_case_deliberation` bit.** D11's Stage-G
+retirement is **withdrawn**; Stage G shrinks. (`can_read_case_or_admin` still retires — A21 removes
+its admin arm outright.)
+
+## A16 — The capability lattice is a **partial order**, not a chain
+
+**PO decision:** a member does **not** see a `commission_default` case on the **board**. Today's
+behaviour, preserved.
+
+```
+write_case_content ⇒ read_case_content ⇒ { view_case_overview , read_case_deliberation }
+read_case_deliberation ⇏ view_case_overview      ← the rung that breaks, deliberately
+read_restricted_phi ⇒ read_standard_phi
+```
+
+**Verified to match today exactly:** a grant-holder reads the board row **and** the ata section
+(`can_read_case` true ⇒ both); an ordinary member reads the ata section **without** the board row
+(`can_read_case` false, `can_reach_case_on_member_surface` true).
+
+**`view_case_overview` has no consumer pre-pilot.** Its only stated purpose — Organization User / NSP
+PHI-free aggregates — is post-pilot (A8), and A21 removes the Organization User from cases entirely.
+It ships as a **RESERVED bit**, documented as such (D5·5's "reserve the shape" precedent). It is
+**not** wired to `cases_select`. The implementability review flagged it as dead on arrival; with A16
+it is dead **on purpose**.
+
+## A17 — What A15 fixes elsewhere (no further decisions needed)
+
+| Was | Now |
+|---|---|
+| **A1's mechanism** — "commission_default + member arm ⇒ every member reads it" | Members read the **minuted deliberation**, not the file. A1's *conclusion* stands (plenary is the norm; recusal does the protective work); only its mechanism narrows. |
+| **A4·1's graduation path** — adversary finding: setting `case_id` published the pre-formal deliberation to the whole committee, by default | **CLOSED.** After graduation the substance rides case authority, and ordinary members have no content reach. The reserved discussion stays reserved. |
+| **A4's decomposition row 1** — *plenary meeting · reserved item · plenary case* | **Works for the first time.** Substance = `read_case_deliberation`; recused denied by case authority. |
+| **A7's substance tier** | `reach(meeting) AND has_case_capability(case_id, 'read_case_deliberation')` |
+| **Respondent fail-open (A20)** | **Not fixed by A15** — see A20. Narrowing the arm did not shrink it. |
+
+## A18 — Grant door: the exclusion gate, and the Organization User's one surviving arm
+
+**Catalog-verified.** `public.grant_case_access` gates on:
+
+```sql
+if not (app.is_staff_admin_of(v_commission) or app.is_commission_admin_of(v_commission)) then
+  raise exception 'sem permissão' using errcode = '42501';
+```
+
+A bare role check — **no exclusion**. ETH·E1 guarded the ACL's **read** (`case_access_select` carries
+`AND NOT is_case_excluded`) and left the **write door** role-gated. So Dr. Ana, coordinator, recused
+from case 47, resolves to zero capabilities and reads nothing — **and then revokes the relator's
+access and grants her own resident write.** She cannot read the investigation into her co-author, but
+she picks who does. D5·3's *"re-cut against the new shape"* means the **table's** shape and silently
+preserves this.
+
+**Decision:** `grant_case_access` / `revoke_case_access` gain **`AND NOT app.is_case_excluded(p_case,
+auth.uid())`**.
+
+**The deadlock, and the PO's resolution.** If `manage_case_access` resolves through `_case_caps`, step
+4 strips it from Ana — and on a **single-coordinator commission nobody can staff case 47 at all**.
+
+> **PO decision: the Organization User keeps its arm on the grant/revoke doors — and ONLY there.**
+> Never on reading case content, PHI, meetings, or action items.
+
+**Safe by construction, not by policy:** the door already requires
+`app.is_member_of_for(v_commission, p_user)` — the **grantee must be a member of the commission**, and
+an Organization User is not one. **They cannot grant themselves.** Every grant carries
+`reason_code` + expiry + audit. This is D5·6's own distinction: *a delegating authority need not hold
+what it delegates.* D4 is scoped to **Content and PHI**; granting is neither.
+
+Rejected: *"appoint a second coordinator"* — it solves a narrow problem by handing someone **blanket
+read on every case in the committee**, which is a far larger grant than one audited, expiring one, and
+lands as manual work at the exact moment a conflict has just been declared.
+
+**`manage_case_access` therefore gains the source and consumer it was missing** (the implementability
+review found it had neither):
+
+| | |
+|---|---|
+| **Source** | `committee_coordinator` **OR** `organization_user` — both **minus exclusion** |
+| **Consumer** | `grant_case_access` · `revoke_case_access` · `list_case_access` |
+
+## A19 — The confidentiality "ceiling" is a data-destroying trap, not a ceiling
+
+**Catalog-verified, 2026-07-15:**
+
+- `public.reclassify_attachment(p_id, p_new_tier, p_new_label)` accepts **any** label (it validates
+  only tier/label compatibility for `phi_standard` / `phi_restricted`).
+- **No function anywhere writes `max_confidentiality`.** The only two that reference it —
+  `app.attachment_confidentiality_ok`, `app.confidentiality_clearance_ok` — are **readers**.
+  `app._grant_case_access_unchecked` inserts `(case_id, user_id, level, granted_by, granted_at,
+  expires_at, reason)`; `public.grant_case_access` has **no clearance parameter**.
+- There is **no admin bypass** (QA removed it deliberately — *"INFO-1: the is_admin() bypass is GONE.
+  Clearance rides case_access ONLY"*) and **no coordinator bypass**.
+- The single non-null value in the live table came from **`seed.sql`**.
+
+**Therefore:** the moment anyone labels an attachment `legal_privileged` or `credentialing_sensitive`,
+it becomes **permanently unreadable by every human being** — including the coordinator who uploaded
+it. On a meeting-owned attachment it fails closed harder still (*"gated label, no clearance plane: fail
+closed"*).
+
+**D5·4's "⛔ BLOCKING — the ceiling migrates, it does not vanish" aims at nothing.** There is no
+working ceiling to preserve. **D5·6's "exactly what `max_confidentiality` does today" describes a
+mechanism that has never granted anybody anything.**
+
+**Two orthogonal planes, which D5·4 collapses:**
+
+| Plane | Covers | Ceiling's view |
+|---|---|---|
+| `read_restricted_phi` (**boolean**) | `phi_restricted` — **rank 2** | passes through **untouched** (only ranks 5/6 gate) |
+| `max_confidentiality` (**ranked**) | `legal_privileged` **5** · `credentialing_sensitive` **6** | `rank(clearance) >= rank(label)` |
+
+A boolean cannot carry `rank >= label`; collapsing them would grant `credentialing_sensitive` to
+anyone cleared for `legal_privileged`.
+
+### A19·1 — Decision (PO)
+
+1. **Fence the trap now.** `reclassify_attachment` **rejects** `legal_privileged` /
+   `credentialing_sensitive` pre-pilot — one CHECK.
+2. `case_access_grants` carries **`max_confidentiality` as a ranked, RESERVED column** (D5·5's
+   "reserve the shape" precedent), **not** collapsed into `read_restricted_phi`.
+3. **Stage E** — already post-pilot, already scoped as *"row-aware `can_read_attachment` +
+   tier→clearance mapping"* — builds the write path, the grant-dialog selector, and the **unfencing**
+   together. Splitting them ships a parameter nobody can call.
+4. **D5·4 downgrades from ⛔ BLOCKING-repoint to carry-the-column.** The plan's B3 is rewritten.
+
+## A20 — ⛔ Row zero rests on a nullable column that nothing enforces
+
+**Catalog-verified.** `app.is_case_respondent` requires the full chain:
+
+```sql
+join public.professional_participants pp on pp.participant_id = cp.participant_id
+join public.professional_profiles     prof on prof.id = pp.professional_profile_id
+where cp.removed_at is null and r.key = 'respondent_doctor' and prof.user_id = p_uid
+```
+
+`public.professional_profiles.user_id` is **NULLABLE**, and **only two functions in the entire
+database touch it** — `is_case_respondent` (reads) and `create_professional_profile`. **Nothing
+requires the linkage.**
+
+Unlinked ⇒ `is_case_respondent` **permanently false** ⇒ `is_case_excluded` **permanently false** ⇒
+**every exclusion gate silently passes the respondent.**
+
+**Live today, not introduced by this ADR:** `can_reach_case_on_member_surface` denies excluded first,
+that check no-ops, the member arm fires — and an unlinked respondent who is a committee member reads
+the plenary's minuted deliberation **about himself**. `create_case` takes no respondent argument
+(`add_case_participant` runs later), so there is a window even when the linkage eventually arrives.
+
+**A15 does NOT fix this.** The narrowed member arm confers exactly `read_case_deliberation`, which is
+exactly what the unlinked respondent wrongly gets.
+
+> **Why it outranks its blast radius:** C2's agenda gate, A7's four tiers, A18's grant door, and
+> Appendix A/B's **Row zero** all resolve through this one predicate. The model's most load-bearing
+> invariant — *"no positive arm at any layer can out-vote the deny"* — is **out-voted from underneath
+> by an unfilled column.**
+
+**Decision (PO): resolve it at the moment he is named.**
+
+`professional_profiles` gains an explicit **resolved state**: `linked` (to a platform account) ·
+`no_account` (affirmatively marked) · **`unknown`** (the default). A profile in **`unknown`** state
+**cannot be attached to a case as `respondent_doctor`** — `add_case_participant` rejects it. The
+committee must answer *"is this person a user of this platform?"* exactly when they name him, which is
+precisely when they know.
+
+**Row zero now rests on a constraint, not on someone remembering.** → **keystone 25.**
+
+## A21 — ⛔ **D4·1 IS A NO-OP AS SPECIFIED.** Its true scope
+
+**Catalog-verified:**
+
+```
+cases_select            :: SELECT :: app.can_read_case_or_admin(id, (select auth.uid()))
+cases_staff_admin_write :: ALL    :: (app.is_staff_admin_of(commission_id)
+                                       OR app.is_commission_admin_of(commission_id))
+                                      AND (NOT app.is_case_excluded(id, auth.uid()))
+```
+
+Both **PERMISSIVE**, so they **OR**; a **`FOR ALL`** policy's `USING` clause **applies to SELECT**.
+**Removing the admin arm from `can_read_case` changes nothing** — `cases_staff_admin_write` hands the
+Organization User every case row straight back.
+
+**Eight case tables carry this shape:** `cases` · `case_narratives` · `case_phases` · `case_events` ·
+`case_offered_outcomes` · `case_tag_assignments` · `case_phase_allowed_results` ·
+`case_phase_offered_results`.
+
+**Stage A's exit criterion — *"Organization Users cannot read Case Content"* — would be FALSE**, and
+would **test green** if the tests exercise only `can_read_case`.
+
+> **A13's shape generalizes.** It is not a meeting quirk — it is this repo's `*_staff_admin_write`
+> convention, and it is the **real read boundary** for Organization Users on every case table. A13
+> found four meeting policies and stopped. There are eight more.
+
+**One genuinely good finding:** ETH·E1 put `AND NOT is_case_excluded` on **all eight**, so the recusal
+invariant **holds** here. That makes `action_items_staff_admin_write` the **single** place it was
+missed (→ A22).
+
+### A21·1 — Decision (PO): **remove read AND write**
+
+Read and write cannot be separated here without splitting eight `FOR ALL` policies per-command, which
+yields **A14's smell eight times over** ("write what you cannot read") and invites write-path-as-read-path
+probing (constraint violations, `RETURNING`, upsert conflicts).
+
+**The admin arm leaves:**
+- `app.can_read_case` (D4·1 as originally written)
+- **the eight case-family `FOR ALL` policies** (new)
+- **`app.can_write_attachment`'s `'case'` arm → A14 RESOLVED** (new)
+- **the case RPCs** — `create_case` · `create_case_from_template` · `update_case_meta` · `close_case` ·
+  `cancel_case` · `set_case_confidentiality` · `add_case_participant` · `assign_narrative` ·
+  `activate_phase` · … — **enumerate exhaustively at A0**; the catalog lists 119 functions referencing
+  the arm and **most are legitimate**.
+
+**Retained** (the A10 line, extended) — commission-level **configuration**, all `FOR ALL`, all
+correctly without an exclusion term because they are not case-scoped: `case_tags` · `case_outcomes` ·
+`case_narrative_types` · `process_template*` — plus membership/role management, **the grant door
+(A18)**, `audit_log`, forms, indicators, controlled documents, `commission_meeting_types` /
+`commission_meeting_settings` (A10).
+
+> **The line, sayable in one sentence:**
+> *An Organization User **configures** a commission and **staffs** it. They never touch its cases.*
+
+**⚠ Stage A is materially bigger than the body claimed.** The staging table's Stage-A scope and
+difficulty are restated in the plan.
+
+## A22 — `action_items_staff_admin_write`: the one place ETH·E1's exclusion was missed
+
+**Catalog-verified:**
+
+```
+action_items_staff_admin_write :: ALL :: (app.is_staff_admin_of(commission_id)
+                                           OR app.is_commission_admin_of(commission_id))
+```
+
+`FOR ALL`, **no case term, no exclusion term**. A **recused coordinator** reads `case_restricted`
+action items — including **A11's own example string**, *"Notificar o Dr. X da decisão do processo
+047."* `action_items_select` gates that scope correctly on `can_read_case` (which hard-denies); the
+write policy ORs it straight back.
+
+**A11's claim that `case_restricted` is "fixed for free by D4·1" is WRONG.** D4·1 removes
+`is_commission_admin_of`; **`is_staff_admin_of` survives unqualified** — and `is_staff_admin_of` is
+the arm that matters for a recused coordinator.
+
+**Fix (lands with C7):** mirror ETH·E1's six siblings —
+`AND NOT app.is_case_excluded(coalesce(source_case_id, case_id), auth.uid())` — **plus** A11's
+admin-arm removal. → **keystone 27.**
+
+Same shape, also flagged for A0: `case_recusals_select` OR-s a bare
+`app.is_staff_admin_of_for(app.commission_of_case(case_id), auth.uid())` **after** a correct deny.
+
+## A23 — ⚠ The Stage-A inventory has a blind spot: `is_staff_admin_of*`
+
+D13·1 enumerates **`is_commission_admin_of*`** on clinical tables. But **A13 itself proves
+`is_commission_admin_of` ≠ `staff_admin`** (it is `org_admin OR hospital_admin` **only**). So the
+inventory as written **never looks at `is_staff_admin_of*`** — the **only arm that can out-vote the
+deny for a recused coordinator**, and precisely the arm A22 found unguarded.
+
+**Binding additions to A0 (D13·1):**
+1. Inventory **`is_staff_admin_of*`** and **`app.member_can(...)`** alongside `is_commission_admin_of*`.
+2. Enumerate **every `FOR ALL` PERMISSIVE policy** on any case-, meeting-, or action-item-bearing
+   table — **whether or not it names an admin arm**. A `FOR ALL` policy is a **read** policy.
+3. For each, record: does it carry a **case predicate**? an **exclusion term**? If either is missing,
+   it is a finding, not a footnote.
+
+## A24 — Resolver corrections (from the implementability review; lead rulings, no PO call needed)
+
+1. **NSP content arm has NO source in D11.** D8 orders NSP content reach **kept**; D11 lists only
+   `nsp_investigation` *(post-pilot, Stage D)*. Built literally, `_case_caps` **silently revokes all
+   NSP content reach at Stage A** — a Gate-2 behaviour change executed inside Gate 1, which D8 and
+   Appendix A both forbid, and which only a Gate-2 keystone would catch.
+   **Fix:** D11 gains **`nsp_referral_touched`** — live pre-pilot; `app.is_pqs_operator_of_for(hospital
+   of the case's commission)` + a `case_referral` touching the case + `feature_enabled('case_referrals')`;
+   confers **`read_case_content` only**, *never* `read_standard_phi` (D8). Retired by Stage D.
+2. **`can_read_case` = projection, NOT survivor.** D2 says one semantic source; D4·1 and plan N1 say
+   *"remove from / keep in `can_read_case`"*, implying it keeps its own body. Both cannot hold — two
+   bodies means two independently-maintained hard-deny orders, i.e. exactly the drift D2 exists to
+   prevent. **Ruling:** `can_read_case` becomes a **thin projection** of `_case_caps` (the
+   `read_case_content` bit). D4·1/N1's wording describes the **effect**, not an in-place edit.
+3. **Step 6's "lifecycle" is UNDEFINED — and is DELETED.** The word appears nowhere else in this ADR,
+   and **D10 says write = Coordinator OR active write grant, *"Full stop."*** Catalog: terminal-freeze
+   lives in the **`app.guard_case_status` trigger** (`HC025`) with an `app.in_case_rpc` escape hatch a
+   `STABLE` resolver cannot replicate, and **`can_write_case_content` has no status check at all**.
+   **Ruling: step 6 is deleted; the trigger stays.** Adding a status term to `_case_caps` would
+   **narrow beyond today** and break every case-closing RPC that writes content in the same
+   transaction. `_case_caps`'s order becomes **six steps**.
+4. **A7's four tiers break at `case_id IS NULL`** — the *only* scenario A4 exists for.
+   `is_case_respondent(NULL, ·)` and `is_case_excluded(NULL, ·)` are both **false** ⇒ the propriety and
+   decision tiers **allow every member**; `_case_caps(NULL, ·)` fails closed at step 3 ⇒ substance
+   **denies everyone, including the reader list**. A7 superseded A5 and **silently dropped A4·1's
+   reader list**.
+   **Fix:** every tier carries A4·1's branch. For a case-less subject: **substance → the reader list**;
+   **propriety tier is EMPTY** (no process number, no recusal record exists — *"Matéria reservada"*),
+   not "allow"; **decision → the reader list**. → **keystone 30.**
+5. **D3's coverage claim is FALSE for action-item assignment.** `can_read_action_item`'s
+   `assignees_only` arms (`assigned_to = p_uid`; `action_item_assignments`) are **raw table checks with
+   no `is_active`** and have **no case to resolve**, so `_case_caps` step 2 cannot reach them — this is
+   **Context·3's exact defect, unaddressed**. D3's *"therefore"* asserts a closure it does not deliver.
+   **Fix:** `can_read_action_item` gets its own `is_active` gate. → **keystone 28.**
+6. **D11's table mixes two kinds of thing** and its "Persisted where" header hides it.
+   **Resolver-computed arms:** `committee_coordinator` · `committee_member_default` ·
+   `case_assignment` · `nsp_referral_touched`. **`case_access_grants.source` column values:**
+   `manual_grant` (reachable) · `nsp_investigation` · `referral` · `break_glass` (**reserved,
+   unreachable — D5·5**).
+   **`referral` is a reserved column value, NOT a live source.** D11's unparenthesised row was wrong;
+   D5·5 governs. Referral analyst reach is **computed** by F-min's split predicates, not by a grant row.
+7. **D11 never says what each source CONFERS** — only the member arm has an explicit mapping.
+   **Fix:** D11 gains a capability column. Binding:
+   - `case_assignment` ⇒ **`read_case_content` + `read_case_deliberation` ONLY** — never PHI
+     (Context·1's headline), never write (D10).
+   - `committee_coordinator` ⇒ all **except `read_restricted_phi`** — they **delegate it without
+     holding it** (D5·6). An implementer wiring "coordinator = full authority" hands them the
+     restricted bit; **no keystone catches that today** → keystone 31.
+   - `committee_member_default` ⇒ **`read_case_deliberation` ONLY** (A15).
+   - `nsp_referral_touched` ⇒ **`read_case_content` ONLY** (D8).
+
+## A25 — Amendment 3 keystones
+
+22. **⭐ The member arm does not OVER-grant** — the negative keystones 4/11 structurally could not
+    catch (A15). An ordinary member of a `commission_default` case reads the ata section and
+    **nothing else**: not `cases`, not `case_narratives`, not `case_phases`, not `case_participants`,
+    not `case_events`, not interviews, not attachments. Asserted as **rows read** under
+    `set local role`, over **every** case-bearing table — not as a predicate's return value.
+23. **Organization User cannot read a case through the write policy** (A21) — for each of the **eight**
+    `FOR ALL` case policies an `org_admin`/`hospital_admin` reads **zero rows**, and cannot create,
+    edit, cancel, or attach to a case. **Configuration still works** (`case_tags`, `case_outcomes`,
+    `case_narrative_types`) and **the grant door still works** (A18) — the negatives must not over-reach.
+24. **Recused coordinator cannot grant** (A18) — `grant_case_access` / `revoke_case_access` raise for
+    her; the Organization User fallback **succeeds** and **cannot grant itself** (not a member of the
+    commission).
+25. **Unlinked respondent is rejected** (A20) — a `professional_profiles` row in `unknown` state
+    cannot be attached as `respondent_doctor`; and a **linked** respondent reads **no** deliberation
+    about his own case, on any surface.
+26. **Gated labels are fenced** (A19) — `reclassify_attachment` rejects `legal_privileged` /
+    `credentialing_sensitive`; **no attachment can be made permanently unreadable.**
+27. **Recused coordinator reads no action item** (A22) — `case_restricted`, `committee`, and
+    `assignees_only` all denied, **including via the `FOR ALL` write policy**.
+28. **Deactivated assignee reads no action item** (A24·5) — the `assignees_only` raw arms honour
+    `is_active`.
+29. **NSP keeps content, loses PHI — from Stage A** (A24·1) — an NSP operator on a referral-touched
+    case reads content **after Gate 1**, not only after Gate 2, and never patient identifiers.
+30. **Case-less reserved item** (A24·4) — the reader list reads the substance; a non-reader member
+    reads the **bare stub only**; **nobody** receives a propriety record or a decision that does not
+    exist.
+31. **Coordinator does not hold `read_restricted_phi`** (A24·7) — they may **issue** it; they do not
+    **have** it.
+
+---
+
+## Appendix B — Default access matrix (supersedes Appendix A)
+
+Handoff §4's shape, **post-Amendment 3**. `✓` = matches §4 · `⚠` = diverges.
+
+| User category | Hospital-wide Case Overview | Committee Case Content | Case write | Meeting metadata | Meeting content | Standard PHI | Restricted PHI |
+|---|---|---|---|---|---|---|---|
+| **Organization User** | ⚠ none — no aggregate door pre-pilot (§4: *Aggregate*) | **No** ✓ (A21 — *really*, this time) | **No** ✓ (A21) | ⚠ **None** — stricter than §4 (A8) | **No** ✓ (A8) | No ✓ | No ✓ |
+| **NSP Coordinator** | ⚠ none — not hospital-wide | ⚠ blanket on referral-touched cases (no purpose/expiry) — `nsp_referral_touched`, retires at Stage D | **No** | No | No | **No** ✓ *(stricter)* | No ✓ |
+| **NSP Member** | ⚠ *identical — `is_pqs_operator_of_for` cannot distinguish them* | ⚠ *identical* | **No** | No | No | **No** ✓ | No ✓ |
+| **Committee Coordinator** | Own committee ✓ | Yes, own committee — **unless excluded** | Yes — **unless excluded** | Yes ✓ | `commission_default`: yes · `participants_only`: **participant only** | Yes ✓ | ⚠ **issues it without holding it** (D5·6) |
+| **Committee Member** | ⚠ **only where involved/granted** — *not* the whole docket (A16) | ⚠ **only where assigned or granted** (A15 — **the member arm confers NO case content**) | ⚠ grant only — no assignment arm (D10) | `commission_default`: yes · `participants_only`: participant only | *idem* | Grant only ✓ | Grant only ✓ |
+
+**The member arm now appears in NO cell of this table** — because `read_case_deliberation` is a
+*meeting-surface* capability, and §4's shape has no column for it. That is the clearest possible
+statement of A15: **the arm never belonged in the Case Content column.**
+
+**Row zero — the override §4's shape cannot express.** A **respondent** or a **recused** member
+resolves to **zero capabilities**, before every positive arm. §4's flat *"Committee Coordinator: Yes,
+own Committee"* is **not implementable**. **A20 is what makes Row zero real rather than decorative.**
+
+**Three axes §4's shape hides.** §4 is a function of *category* alone. Ours is a function of
+**category × `cases.visibility_policy` × `meetings.visibility_policy` × exclusion × content tier**.
+
+**Every PHI column still matches §4 or is stricter.** After A15 and A21, so does every content column.
