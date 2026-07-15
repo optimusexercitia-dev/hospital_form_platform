@@ -199,10 +199,15 @@ and surviving grants. Session revocation on deactivation is a **companion applic
 2. **Attachments.** `can_read_attachment` is owner-keyed; its `'case'` arm delegates to
    `can_read_case`, so **case attachments are fixed for free** by (1). Its `'interview'` arm carries
    its own admin term — **removed** (interview attachments are case-linked and PHI-capable, exactly
-   what D4 exists to kill). Its `'meeting'` arm **keeps** its admin term: meeting attachments are
+   what D4 exists to kill). ~~Its `'meeting'` arm **keeps** its admin term: meeting attachments are
    governance artifacts (agendas, minutes, accreditation evidence) that admins have a legitimate
    PHI-free reason to read, and `attachment_confidentiality_ok` already fails closed for gated labels
-   on meeting-owned rows. **D4 is about clinical access, not about administration.**
+   on meeting-owned rows. **D4 is about clinical access, not about administration.**~~
+
+   > ⚠ **D4·2's meeting arm is REVERSED — see Amendment 2 (A8/A9).** The struck rationale does not
+   > survive the PO's 2026-07-15 decision that Organization Users lose the **entire** meeting surface:
+   > an admin who cannot read the ata must not read it as a PDF. The `'meeting'` arm is **removed**
+   > from `can_read_attachment` and `can_write_attachment`. **The `'interview'` half above stands.**
 3. `app.can_read_case_or_admin` collapses to `can_read_case` and is **retired at Stage G**. This does
    not undo 0072 — 0072 fixed the *ordering* (deny-before-admin); D4 removes the *arm*. Sequencing:
    D4 lands **after** the resolver, never as a standalone policy edit.
@@ -787,3 +792,202 @@ own procedural record. Different surfaces, different purposes. **Recorded so it 
     reader list on a **case-linked** subject grants nothing (A4·1).
 16. **Decision tier** — a member without substance reach on a sub-group case still reads the decision;
     a **recused** member reads neither (A5).
+
+---
+
+# Amendment 2 — Organization Users lose the meeting surface (D4 extended · **D4·2 REVERSED**)
+
+**Date:** 2026-07-15 (same day) · **Status:** 🟢 **ACCEPTED** (PO, 2026-07-15)
+
+**Trigger:** the PO asked for our plan's equivalent of the handoff's **§4 default access matrix**
+(→ **Appendix A**). Building it exposed that our plan gives Organization Users **more** meeting reach
+than the handoff's own target — *full* metadata and *full* content, where §4 says *Aggregate* and
+*No* — and that **D4·2 contradicted itself**: it kept admins' reach to meeting *attachments* on a
+rationale (agendas, minutes, accreditation evidence) that the rest of the model does not support.
+Verification against the **live catalog** then confirmed A2·1's flagged inventory item and found
+three arms no document had named.
+
+> **The matrix earned its keep.** Neither the handoff, ADR 0077, nor this ADR's body caught the D4·2
+> contradiction. Rendering the model in the *shape the partner chose* made it visible in one row.
+
+## A8 — Principle: administration is not a **meeting** source either
+
+D4 established that org/hospital administration ceases to be a **Case Content** source. It is hereby
+extended: administration ceases to be a **meeting** source.
+
+An Organization User (`org_admin` · `hospital_admin`) reads **no meeting record** — no metadata, no
+ata, no agenda, no attendance, no signatures, no meeting attachments — and **cannot manage meetings**
+(PO: *"Org admins lose meeting management too"*). This is a **deliberate divergence in the strict
+direction**: handoff §4 allows them *aggregate* metadata; we give them **nothing** pre-pilot, because
+the aggregate door does not exist yet and a base-table arm is not an aggregate.
+
+**Their legitimate signal is real and is deferred, not denied.** "Did CCIH meet 11 of its 12 scheduled
+sessions? Was quorum reached? How many action items are overdue?" is a genuine governance KPI and an
+accreditation artifact. It is served **post-pilot** by a purpose-built PHI-free aggregate door,
+alongside Stage D's hospital aggregates — **never** by reading the ata. Until it ships, Organization
+Users have no meeting surface at all. **That gap is accepted, not overlooked.**
+
+## A9 — **D4·2 is REVERSED**
+
+D4·2 kept the `'meeting'` arm on `app.can_read_attachment`, reasoning that meeting attachments are
+governance artifacts admins have a legitimate PHI-free reason to read. **That rationale does not
+survive A8.** An admin who cannot read the ata must not read the ata **as a PDF** — that is a *seam*,
+not a boundary, and precisely the kind that fails a surveyor's question.
+
+Removed from the `'meeting'` arm of **`app.can_read_attachment`** and **`app.can_write_attachment`**,
+and from both Storage policies (`meeting_attachments_select_member`,
+`meeting_attachments_insert_staff_admin` — verified to carry it, 2026-07-15).
+
+**D4·2's other half stands unchanged:** the `'interview'` arm still loses its admin term at Stage A
+(plan A4), and case attachments are still fixed for free through `can_read_case`.
+
+## A10 — Scope: the **record** goes, the **configuration** stays
+
+| Loses the `is_commission_admin_of` arm | Where |
+|---|---|
+| `meetings` | `meetings_select` · `meetings_staff_admin_write` (⚠ `FOR ALL` — A13) |
+| `meeting_agenda_items` | `_select` · `_staff_admin_write` (⚠ `FOR ALL`) |
+| `meeting_attendees` | `_select` · `_staff_admin_write` (⚠ `FOR ALL`) |
+| `meeting_cases` | `_select` · `_staff_admin_write` (⚠ `FOR ALL`) |
+| `meeting_signatures` | `_select` |
+| Storage | `meeting_attachments_select_member` · `meeting_attachments_insert_staff_admin` |
+| Helpers | `app.assert_meeting_staff_admin` (the guard on `create_meeting` / `conclude_meeting` / `reopen_meeting`) · `app.can_read_attachment` + `app.can_write_attachment` (`'meeting'` arms) |
+
+**Retained deliberately — stated here so it is not "tidied up" later:**
+
+| Kept | Why |
+|---|---|
+| `commission_meeting_types` · `commission_meeting_settings` | **Configuration**, which handoff §2.1 grants Organization Users explicitly. Defining that *"Reunião Ordinária"* exists is administration; reading what was said in one is not. Also keeps commission setup end-to-end. |
+| `public.dispose_meeting_minutes` | **PO decision.** A *retention* act, not a read. Verified from the catalog: `returns void`, nulls `minutes_md`, redacts agenda items, audits, and **returns no content**. |
+| `audit_log_select` | Rule 11 oversight, PHI-free. **See A12.** |
+
+**What they lose beyond reading:** `meetings_staff_admin_write` is `FOR ALL` and
+`app.assert_meeting_staff_admin` is `is_staff_admin_of OR is_commission_admin_of` — so the arm's
+removal also stops Organization Users **scheduling, concluding, and reopening** meetings. Intended
+(PO). No lockout exists: `is_staff_admin_of` plus `administrativo`'s `schedule_meetings` capability
+cover scheduling from inside the commission, and an org admin who needs a meeting scheduled appoints
+the coordinator who schedules it.
+
+## A11 — Action items: the adjacent channel (**the A3 pattern, again**)
+
+`public.action_items` carries `source_meeting_id`, `source_agenda_item_id`, and a free-text
+`description`. Under `app.can_read_action_item`, **two of three** visibility scopes keep the admin arm:
+
+| Scope | Today | Under this amendment |
+|---|---|---|
+| `committee` | `is_member_of_for OR is_commission_admin_of_for` | **admin arm removed** (PO) |
+| `assignees_only` | `is_staff_admin_of_for OR is_commission_admin_of_for OR assigned` | **admin arm removed** (PO) |
+| `case_restricted` | `can_read_case` | **fixed for free** by D4·1 |
+
+Without this, an item minuted out of a reserved session — *"Notificar o Dr. X da decisão do processo
+047"* — walks straight out to an Organization User **after every meeting table is closed**. Close one
+box and the scribe types in the other: **exactly A3's finding, one table further out.**
+
+Also repoint: `action_items_select` · `action_items_staff_admin_write` (⚠ `FOR ALL`) ·
+`app.can_write_attachment`'s `'action_item'` arm (an admin who cannot read a committee action item
+must not attach to it). `app.can_read_attachment`'s `'action_item'` arm delegates to
+`can_read_action_item` and is **fixed for free**.
+
+## A12 — The residue: stated, not claimed away
+
+`audit_log_select` carries the admin arm and **keeps** it. So an Organization User can still infer
+that meeting X exists and who touched it. **"Zero meeting metadata" is therefore not literally
+achieved, and should not be** — audit oversight is a distinct, legitimate, PHI-free purpose that is
+itself audited. This is A6's principle applied again: *different surfaces, different purposes.*
+Recorded so no one later "closes" it and blinds the audit trail.
+
+## A13 — ⚠ CONFIRMED FROM THE LIVE CATALOG (was an inventory item; now a finding)
+
+A2·1 flagged: *"`meetings_staff_admin_write` must be checked for `FOR ALL`."* **Verified 2026-07-15
+against `pg_policies`. It is — and so are three siblings.**
+
+Permissive policies **OR** together, and a `FOR ALL` policy's `USING` clause **applies to SELECT**.
+Therefore **repointing the `*_select` policies alone changes nothing**:
+
+| Policy | `FOR ALL`? | Case/attendee predicate? |
+|---|---|---|
+| `meetings_staff_admin_write` | ✅ | ❌ **none** |
+| `meeting_agenda_items_staff_admin_write` | ✅ | ❌ **none** |
+| `meeting_attendees_staff_admin_write` | ✅ | ❌ **none** |
+| `meeting_cases_staff_admin_write` | ✅ | ✅ `can_read_case_or_admin` (hard-denies correctly) |
+
+**Consequences — each defeats a Stage-C sub-step as written:**
+
+1. **C3 is a no-op without this.** A `participants_only` meeting stays readable by every
+   `staff_admin` — **including a recused coordinator**, the exact principal A2·1's binding constraint
+   forbids.
+2. **C2 is a no-op without this.** `meeting_agenda_items.discussion_notes` stays member-wide via the
+   write policy, so A3's leak survives its own fix.
+3. **A third arm no document names.** `meetings_staff_admin_write` OR-s
+   **`app.member_can(commission_id, 'schedule_meetings')`** — so an **ordinary member holding the
+   `administrativo` delegated capability** reads every `participants_only` meeting. ADR 0061 scoped
+   that capability to *scheduling*; a `FOR ALL` policy silently promoted it to *reading*.
+
+**Correction to A2·1's wording.** It says *"no **coordinator** OR-arm on `reach(meeting)`."* Verified:
+`app.is_commission_admin_of` = `org_admin OR hospital_admin` **only — it does not include
+`staff_admin`**. The coordinator reaches meetings through `app.is_member_of`
+(= `has_role_any('commission', …)`), which A2·1 keeps AND-ed. **The rule A2·1 states is correct and
+works for the reason given; the arm it names is the Organization User's.** Under this amendment that
+arm goes anyway — but for A8's reason, not A2·1's.
+
+> This is ADR 0072 delta 3's **second shape**, alive, on the exact tables Stage C targets — and
+> invisible to grep. It is the third time this program has been saved by reading the catalog
+> (cf. the false P0 in the METHODOLOGY FINDING).
+
+## A14 — Flagged, **NOT decided**: `can_write_attachment`'s `'case'` arm
+
+`app.can_write_attachment`'s **`'case'`** arm is `is_staff_admin_of_for OR is_commission_admin_of_for`.
+D4·1 removes admins' case-attachment **read** (via `can_read_case`) but **not this write arm** — so
+after Gate 1 an Organization User could **upload a case attachment they cannot read back**.
+
+Not a confidentiality leak, but under D4's own principle (*administration is not a Case Content
+source*) **writing** case content is harder to justify than reading it. **Out of scope for this
+amendment; an A0 inventory item requiring a PO decision at Stage A.**
+
+## Amendment 2 — added test keystones
+
+17. **Organization User has no meeting surface** — an `org_admin` and a `hospital_admin` of the owning
+    org/hospital read **nothing** from `meetings`, `meeting_agenda_items`, `meeting_attendees`,
+    `meeting_cases`, `meeting_signatures`, or meeting attachments (Storage included), and **cannot**
+    create, conclude, or reopen a meeting. Asserted as **rows read** under `set local role`, per the
+    ETH·E1 lesson — never by a predicate's return value.
+18. **`FOR ALL` cannot out-vote the boundary** (A13) — for each of the four policies, a principal
+    denied by the `*_select` rule reads **zero rows** with the write policy in place. Includes the
+    **recused coordinator** on a `participants_only` meeting and the **`schedule_meetings`
+    delegate**, who must read nothing.
+19. **Action items do not leak the meeting** (A11) — an `org_admin` reads no `committee`-scope or
+    `assignees_only`-scope action item, nor its attachments; a `case_restricted` item follows
+    `can_read_case`.
+20. **Configuration survives** (A10) — an `org_admin` still reads and writes
+    `commission_meeting_types` / `commission_meeting_settings`, still calls `dispose_meeting_minutes`,
+    and still reads `audit_log`. **The negative tests must not over-reach.**
+21. **No coordinator/member regression** — a `staff_admin` and an ordinary `staff` member read their
+    `commission_default` meeting exactly as today. A8 removes the Organization User, **nobody else**.
+
+---
+
+## Appendix A — Default access matrix: the handoff's §4 vs. ours
+
+Rendered in the handoff's own shape for comparability. `✓` = matches §4 · `⚠` = diverges.
+**Post-Amendment 2.**
+
+| User category | Hospital-wide Case Overview | Committee Case Content | Case write | Meeting metadata | Meeting content | Standard PHI | Restricted PHI |
+|---|---|---|---|---|---|---|---|
+| **Organization User** | ⚠ none — no aggregate door pre-pilot (§4: *Aggregate*) | **No** ✓ | No ✓ | ⚠ **None** — stricter than §4's *Aggregate* (A8) | **No** ✓ (A8) | No ✓ | No ✓ |
+| **NSP Coordinator** | ⚠ none — not hospital-wide | ⚠ blanket on referral-touched cases (no purpose/expiry) | **No** | No | No | **No** ✓ *(stricter)* | No ✓ |
+| **NSP Member** | ⚠ *identical to Coordinator — `is_pqs_operator_of_for` cannot distinguish them* | ⚠ *identical* | **No** | No | No | **No** ✓ | No ✓ |
+| **Committee Coordinator** | Own committee ✓ | Yes, own committee — **unless excluded** | Yes — **unless excluded** | Yes ✓ | `commission_default`: yes · `participants_only`: **participant only** | Yes ✓ | ⚠ **delegates without holding** (D5·6) |
+| **Committee Member** | == content reach (O5/A6) | ⚠ **`commission_default`: YES** (member arm) · `explicit_grants_only`: grant/assignment | ⚠ **grant only — no assignment arm** (D10) | Member-wide | `commission_default`: all · `participants_only`: participants | Grant only ✓ | Grant only ✓ |
+
+**Row zero — the override §4's shape cannot express.** A **respondent** or a **recused** member
+resolves to **zero capabilities**, evaluated *before* every positive arm (`_case_caps` step 4, ADR
+0072). §4's flat *"Committee Coordinator: Yes, own Committee"* is **not implementable** — a recused
+coordinator gets nothing. **Anyone reading §4 as the literal spec will reintroduce the hole ETH·E1
+closed.**
+
+**Two axes §4's shape also hides.** §4 is a function of *category* alone. Ours is a function of
+**category × `cases.visibility_policy` × `meetings.visibility_policy` × exclusion × content tier**
+(A7). Six of §4's cells collapse a genuine condition into the word *"Conditional"*; in this model the
+condition **is** the design.
+
+**Every PHI column matches §4 or is stricter.** That is the program's justification, and it holds.

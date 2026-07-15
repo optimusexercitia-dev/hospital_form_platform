@@ -50,6 +50,23 @@ All the risk lives here. If the spine is wrong, everything after is built on san
    case predicate**; case↔meeting joins keyed on the wrong dimension.
 4. **Deliverable:** `docs/progress/authz-capability-inventory.md`. **Lead + `qa` review before any SQL.**
 
+#### A0 · Findings already CONFIRMED from the catalog (2026-07-15) — start here, then extend
+
+Verified via `pg_policies` / `pg_proc` during the ADR 0078 Amendment-2 evaluation. **Do not re-derive;
+do verify nothing has moved.** Blast radius of `is_commission_admin_of`: **93 policies, 119 functions**
+— most of them *legitimate* Organization-User administration (forms, indicators, documents, process
+templates, titles). **Do not sweep the arm globally.** Only the surfaces named in ADR 0078 D4 / A8–A11
+lose it.
+
+| Finding | Impact |
+|---|---|
+| **`is_commission_admin_of` = `org_admin OR hospital_admin` ONLY** — *not* `staff_admin`. The coordinator reaches meetings via `is_member_of` (= `has_role_any('commission',…)`). | Renames Amendment 1 A2·1's "coordinator OR-arm" → it is the **Organization User's** arm. |
+| **Four `FOR ALL` PERMISSIVE write policies** — `meetings_` · `meeting_agenda_items_` · `meeting_attendees_` · `meeting_cases_staff_admin_write`. Permissive policies OR; `FOR ALL` `USING` applies to SELECT. | **C2 and C3 are no-ops** unless these are re-cut in the same migration. Only `meeting_cases_` carries a case predicate. |
+| **`meetings_staff_admin_write` has a third arm:** `member_can(commission_id,'schedule_meetings')` — named in no document. | An `administrativo` delegate reads every `participants_only` meeting. ADR 0061 scoped that capability to *scheduling*. |
+| **`app.can_write_attachment`'s `'case'` arm** keeps `is_commission_admin_of_for` — D4·1 removes the *read*, not this. | ⚠ **ADR 0078 A14 — needs a PO decision at Stage A.** Org admin could upload a case attachment they cannot read back. |
+| `app.can_read_action_item`'s `case_restricted` scope → `can_read_case`; `can_read_attachment`'s `'action_item'` arm → `can_read_action_item`. | Both **fixed for free**. Don't double-patch. |
+| `app.is_pqs_operator_of_for` = `nsp_coordinator OR pqs_member`. | The handoff's two NSP rows are **one row** until Stage D. Don't design for a distinction the schema can't make. |
+
 ### A1 · pgTAP first (authored before the SQL)
 
 New suite `229_authz_capabilities.sql`, **extending** — never replacing — `228_ethics_e1`'s
@@ -84,8 +101,17 @@ second switch.
 ### A4 · Repoint policies (only after A0 is reviewed and A1 is red-then-green)
 
 Remove `is_commission_admin_of*` from `can_read_case` (D4·1) and from `can_read_attachment`'s
-**`'interview'`** arm. **Keep** the `'meeting'` arm (D4·2). Case attachments are fixed for free via
-`can_read_case`.
+**`'interview'`** arm. Case attachments are fixed for free via `can_read_case`.
+
+> ⚠ **The `'meeting'` arm also goes — but in Stage C, not here.** ADR 0078 **Amendment 2 (A9) reverses
+> D4·2**; the removal is sequenced with the rest of the meeting family in **C7** so the whole
+> "Organization User loses meetings" change is one reviewable unit with one test story. `can_read_attachment`
+> is rewritten twice across the program (A4, then C7) — that is intended, not drift.
+>
+> ⚠ **A14 — needs a PO decision before this step lands.** `app.can_write_attachment`'s **`'case'`**
+> arm keeps `is_commission_admin_of_for`, so after A4 an Organization User can upload a case
+> attachment they cannot read back. Not a leak; hard to justify under D4's principle. **Ask, don't
+> assume** — the ADR deliberately leaves it open.
 
 ### A5 · ⛔ Performance gate — **exit criterion, before policies repoint**
 
@@ -197,18 +223,52 @@ pre-pilot** — the meeting-level signature covers annexes.
 meetings are `participants_only`.
 
 **FE (new in Gate 2):** reserved-session authoring + composed ata rendering with a non-identifying
-stub. Needs the `frontend` teammate + the `frontend-design` skill. Serialize file ownership against
+stub. **Plus C7's fallout:** an Organization User navigating into a commission must not be offered a
+meetings surface that now returns empty — hide the route/tab rather than render a silent zero-state,
+and keep the **configuration** screens (meeting types/settings) reachable, since those they still own
+(A10). Needs the `frontend` teammate + the `frontend-design` skill. Serialize file ownership against
 `backend`.
 
 > **Regression watch.** D11's member arm keeps CCIH's routine meeting *and* plenary ethics readable.
 > Keystones 10–16 test both directions — especially **10** (Ana reads item 5, not item 4's substance
 > or decision, but sees item 4's shell incl. her own recorded withdrawal).
 
-> ⚠ **Inventory item:** check `meetings_staff_admin_write` for `FOR ALL` — if it is, it grants SELECT
-> and a recused coordinator reads around C3. ADR 0072 delta 3's second shape; invisible to grep.
+**C7 · Organization Users lose the meeting surface (ADR 0078 Amendment 2 — A8/A9/A10/A11).**
+Remove the `is_commission_admin_of` arm from the **meeting record**: `meetings` · `meeting_agenda_items`
+· `meeting_attendees` · `meeting_cases` · `meeting_signatures` (**`_select` AND the `FOR ALL`
+`_staff_admin_write` — C8**), both Storage policies (`meeting_attachments_select_member` /
+`_insert_staff_admin`), `app.assert_meeting_staff_admin` (so scheduling/concluding/reopening go too —
+PO), and the `'meeting'` arms of `app.can_read_attachment` + `app.can_write_attachment` (**reverses
+D4·2**).
 
-**Open (ADR 0078 A1 §open):** O6 respondent-sees-pauta · O7 reserved-session signatures · O8 who may
-open a reserved session · O9 sub-group investigation lives in the Case.
+**Also the adjacent channel (A11):** `app.can_read_action_item`'s **`committee`** and
+**`assignees_only`** scopes lose the arm, plus `action_items_select` / `action_items_staff_admin_write`
+(`FOR ALL`) and `can_write_attachment`'s `'action_item'` arm. Otherwise a reserved-session item
+(*"Notificar o Dr. X da decisão do processo 047"*) walks out **after every meeting table is closed** —
+A3's pattern, one table further out. `case_restricted` → `can_read_case`: **fixed for free**.
+
+> ⛔ **Do NOT sweep `is_commission_admin_of` globally.** 93 policies / 119 functions carry it and
+> **most are legitimate Organization-User administration**. **Explicitly KEEP:**
+> `commission_meeting_types` · `commission_meeting_settings` (handoff §2.1 grants *configuration*) ·
+> `dispose_meeting_minutes` (a retention act — verified `returns void`, no content) ·
+> `audit_log_select` (Rule 11 oversight; A12 — **"zero meeting metadata" is not the goal**).
+> Keystone 20 fails if the negatives over-reach.
+
+**C8 · ⚠ CONFIRMED — re-cut the four `FOR ALL` write policies (ADR 0078 A13).**
+Was an inventory item; **verified against the live catalog 2026-07-15**. `meetings_` ·
+`meeting_agenda_items_` · `meeting_attendees_` · `meeting_cases_staff_admin_write` are **all `FOR ALL`
+PERMISSIVE**; permissive policies OR and `FOR ALL` `USING` applies to SELECT. **Without C8, C2 and C3
+are no-ops that test green against the `*_select` policies while the rows return through the side
+door.** Only `meeting_cases_` carries a case predicate.
+
+> **Third arm, named nowhere:** `meetings_staff_admin_write` OR-s
+> `app.member_can(commission_id,'schedule_meetings')` → an `administrativo` delegate reads every
+> `participants_only` meeting. ADR 0061 scoped that capability to **scheduling**; the `FOR ALL`
+> silently promoted it to **reading**. Keystone 18.
+
+**Amendment 1's opens (O6–O9): ALL RESOLVED** (PO, 2026-07-15) — respondent does **not** see the
+process number (→ A7's fourth tier); no reserved-session signatures pre-pilot; **coordinator-only**
+opening; no sub-group entity. See ADR 0078 Amendment 1 §open.
 
 ### F1 · Referral predicate split + write gate (D7)
 
