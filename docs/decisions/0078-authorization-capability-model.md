@@ -157,8 +157,31 @@ app.has_case_capability(p_case_id uuid, p_user_id uuid, p_capability text) retur
 ```
 
 `_case_caps` is the single semantic source and the only place the truth table is tested.
-`has_case_capability` is a bit test — an int, no allocation. Per-row cost stays what `can_read_case`
-costs **today**, so there is no performance regression to defend.
+`has_case_capability` is a bit test — an int, no allocation. ~~Per-row cost stays what `can_read_case`
+costs **today**, so there is no performance regression to defend.~~
+
+> ⛔ **THE STRUCK SENTENCE IS AN ASSUMPTION, NOT A MEASUREMENT — AND A2's STRUCTURE ARGUES AGAINST IT**
+> (`qa`, A2 review, 2026-07-16 — MAJOR-1, filed against **A5**, not A2). *"No performance regression to
+> defend"* was **never measured**, and it is the justification for the entire bitmask design. Two
+> structural reasons it is likely false:
+> 1. **`_case_caps` has NO short-circuit.** It computes `v_coord`, `v_orgadmin` **and** `v_member`, plus
+>    up to **4 `EXISTS`**, on **every** call. Today's `can_read_case` is a **short-circuiting `OR`** — a
+>    coordinator costs **one** arm. The resolver makes the cheapest principal pay for the most expensive.
+> 2. **`has_case_capability` re-runs the WHOLE resolver per bit test.** `STABLE` does not memoize across
+>    **row-correlated** args (`case_id` varies per row) — which is D2's own opening argument, turned back
+>    on it.
+>
+> **Measured: 0.55 ms/row vs 0.054 ms for a single arm — ~10×.** `qa` **correctly declined to call this
+> a regression**: the pre-image was not measurable to it, so ~10×-vs-one-arm is **not** the same claim as
+> ~10×-vs-today's-body. ⚠ **This is exactly the comparison A5 must make and must not fudge.**
+>
+> **⛔ BINDING ON A5 — the pre-image is NOT recoverable from file text** (M5b rewrites `can_read_case` at
+> runtime via `pg_get_functiondef()` + `replace()`; **reading the migration gives a body that never
+> ran**). **Get it the only way that works: move `20260729000000_authz_a2_capability_resolver.sql` out of
+> `supabase/migrations/`, `supabase db reset --local`, and `EXPLAIN (ANALYZE, BUFFERS)` the OLD body —
+> then restore and re-reset.** Compare **old body vs resolver**, per D4·3's gated surfaces (case board,
+> case detail, meeting detail, attachment listing, referral inbox). **A4 repoints ~12 tables onto this
+> resolver; A5 is the gate that must run BEFORE it does, and A5 is a HARD exit criterion.**
 
 Fail-closed evaluation order inside `_case_caps`:
 
