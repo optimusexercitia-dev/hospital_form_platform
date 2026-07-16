@@ -226,8 +226,29 @@ and surviving grants. Session revocation on deactivation is a **companion applic
    administrative authority and PHI-free aggregates; they lose case content. (They never had PHI —
    Context.) If such a person must participate clinically they hold a Committee role or an explicit
    grant — independently revocable.
+> ⛔ **D4·2's "fixed for free" IS FALSE AT THE BYTES LAYER — and the hard deny does not reach Storage
+> at all.** Found by `backend` at A4's contract, **proven by execution** by both `backend` and the lead
+> (2026-07-16). True for the `attachments` **metadata** table. **False for the bytes**: they live in
+> `storage.objects` under **`case_documents_select_member`**, whose qual is
+> `bucket_id = 'case-documents' AND (is_commission_admin_of(folder[1]) OR is_member_of(folder[1]) OR
+> can_read_snapshot_document(...))` — it carries **its own org arm**, **never routes `can_read_attachment`
+> or `can_read_case`**, and has **no exclusion term**. ⭐ **The defect is the ANCHOR, not a missing `AND`:
+> `folder[1]` is a COMMISSION id, so the policy is commission-scoped and CANNOT test case-level exclusion
+> — it never knows which case the bytes belong to.** ⚡ **Measured:** a member **recused** from an
+> **`explicit_grants_only`** case, with **`can_read_case = false`**, **reads the case-document bytes**;
+> `platform_admin` reads 0 (the control). ⇒ **every commission member reads every case file, and
+> `explicit_grants_only` is defeated at the bytes layer, on PHI-capable artifacts.**
+> **Same shape: `interview_attachments_obj_select_member`.**
+> ⭐ **The general form — the finding this program was missing: ADR 0072's hard deny lives INSIDE the
+> case read predicates. EVERY door that authorizes without calling one is outside the perimeter by
+> construction** (the grant doors, the two storage policies, `interview_sessions_write`,
+> `case_interviews_{update,delete,insert}`). **Its own unit — "the exclusion perimeter" — PO-sequenced
+> after A5.** `docs/progress/authz-handoff.md` §5. **A4's population takes the two storage policies'
+> ORG arm; the exclusion half is that unit's.**
+
 2. **Attachments.** `can_read_attachment` is owner-keyed; its `'case'` arm delegates to
-   `can_read_case`, so **case attachments are fixed for free** by (1). Its `'interview'` arm carries
+   `can_read_case`, so ~~**case attachments are fixed for free** by (1)~~ **(⛔ metadata only — see
+   above)**. Its `'interview'` arm carries
    its own admin term — **removed** (interview attachments are case-linked and PHI-capable, exactly
    what D4 exists to kill). ~~Its `'meeting'` arm **keeps** its admin term: meeting attachments are
    governance artifacts (agendas, minutes, accreditation evidence) that admins have a legitimate
@@ -1591,6 +1612,25 @@ deny for a recused coordinator**, and precisely the arm A22 found unguarded.
     `FOR ALL` case policies an `org_admin`/`hospital_admin` reads **zero rows**, and cannot create,
     edit, cancel, or attach to a case. **Configuration still works** (`case_tags`, `case_outcomes`,
     `case_narrative_types`) and **the grant door still works** (A18) — the negatives must not over-reach.
+    > ⛔ **THE EIGHT ARE ALL REAL; THE CLOSURE IS WRONG. The population is ~19** (`backend`, A4 contract,
+    > 2026-07-16 — each addition **proven by execution with a control**, not read). **§7.9: closed over
+    > what?** A21 closed over *"case tables named `case_*` carrying a `case_id`"* and therefore missed:
+    > the **interview family** — `case_interview_subjects_write` (⚡ `orgadmin.a` reads the interview
+    > subject **"Dr. Fulano de Tal (denunciado)"** on the `explicit_grants_only` ethics case; control:
+    > `staff2` reads 2, not 3), `case_interview_links_write`, `case_interview_interviewers_write`,
+    > `interview_sessions_write`, `case_interviews_{update,delete,insert}`; **`action_items_staff_admin_write`**
+    > (⚡ `orgadmin.a` reads the `case_restricted` item carrying **A11's own example string** — *"Notificar
+    > o Dr. X da decisão do processo 047."*; control: `staff2` reads 0) — ⚠ **SCOPE it to
+    > `case_restricted`, do NOT delete the arm**: `visibility_scope='committee'` is legitimate commission
+    > governance, and deleting it is the over-reach this keystone exists to forbid; and the **two storage
+    > policies** (see the D4·2 amendment). ⛔ **The mechanical filter fails LIVE and in BOTH directions:
+    > a `policy_names_a_case` column test buckets `cases` ITSELF as *not* case material** (its policy uses
+    > `commission_id`/`id`, never `case_id`) **while bucketing `process_templates` beside it** — the same
+    > `commission_id` line A30 tested and rejected, reproduced in the opposite direction. **Rule on the
+    > noun.** ⚠ **Name-trap pair, opposite rulings:** `phase_results` is a **commission picklist**
+    > (`commission_id, label, color_token, …`) → **KEEP**; `case_phase_offered_results` is keyed by
+    > `case_id` → **NARROW**. Both tables are **empty**, so a row probe reads zero **vacuously** (§7.10) —
+    > **this ruling rests on the schema, and it says so rather than dressing itself as measured.**
 24. **Recused coordinator cannot grant** (A18) — `grant_case_access` / `revoke_case_access` raise for
     her; the Organization User fallback **succeeds** and **cannot grant itself** (not a member of the
     commission).
