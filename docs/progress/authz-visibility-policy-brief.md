@@ -84,14 +84,38 @@ corrected default; and Q3 has no implementable "yes" branch without new schema.
 
 The codebase already knows this pattern and applied it to **less** sensitive columns:
 
-| Column | Raw-table write | RPC door | Audited |
-|---|---|---|---|
-| `status` (workflow) | **blocked** — `guard_case_status()` raises *"case status changes must go through the case RPCs"* | yes | yes |
-| `confidentiality_level` | open | **yes** — `set_case_confidentiality` + app action (`src/lib/case-recusals/actions.ts:101`) | — |
-| **`visibility_policy`** (**the authorization column**) | **open** | **none** | **no** |
+| Column | Raw-table write | DB door (RPC) | Audited | **Product surface** |
+|---|---|---|---|---|
+| `status` (workflow) | **blocked** — `guard_case_status()` raises *"case status changes must go through the case RPCs"* | yes | yes | yes |
+| `confidentiality_level` | open | **yes** — `set_case_confidentiality` (M1-fixed) | via the RPC's explicit `audit_write` | ⛔ **NO — the action is a `notImplemented` STUB that throws** |
+| **`visibility_policy`** (**the authorization column**) | **open** | **none** | **no** | **no** |
+
+⛔ **Correction (2026-07-16, post-M6) — the `confidentiality_level` row above originally read "yes — RPC
+**+ app action** (`src/lib/case-recusals/actions.ts:101`)". That was WRONG, and it is the fifth
+inferred-arrow error in this brief (§7.11).** I grepped `set_case_confidentiality`, got 2 hits
+(generated types + `actions.ts:101`), and concluded an app action **exists and works**. I never read the
+body. It is:
+
+```ts
+export async function setCaseConfidentiality(caseId, level): Promise<ActionState> {
+  return notImplemented('setCaseConfidentiality', caseId, level)   // throws
+}
+```
+
+**A grep hit is a symbol, not a behaviour.** All four ethics actions (`declareConflict`,
+`recordRecusal`, `liftRecusal`, `setCaseConfidentiality`) are **deliberate contract-first stubs**:
+*"signatures are the frozen contract the E2/E3 ethics UI binds to. **Bodies land in BE-5**."* **Zero UI
+binds to any of them** (measured: 0 references across `src/app` + `src/components`), and two sibling
+files (`participants/actions.ts`, `interviews/actions.ts`) are stubbed the same way.
+
+**What this changes:** the contrast is **weaker than I sold it**. `status` is genuinely protected
+end-to-end. `confidentiality_level` has a **working DB door and no product door** — i.e. **the same
+posture M6 just gave `visibility_policy`**. So M6 did not fall short of the house standard; **it met it
+exactly.** The real gap is `visibility_policy`'s *raw-write + silence*, which M6 closed, not its missing
+UI — which no sibling has either.
 
 `src/` touches `visibility_policy` in generated types and one read-only query. **There is no product
-surface to set it at all** — no RPC, no server action, no UI.
+surface to set it** — and, correctly, none was expected at this layer (see §9).
 
 ## 4. Correction to my own prior reporting
 
@@ -213,7 +237,33 @@ Q1 seed fix · Q2 `set_case_visibility` (**no flag** — §6b·2) · Q3 forward-
 
 **Scorecard for this brief:** four claims of mine falsified before a line of SQL was written — *"no door"*
 (§4), *"blocks A3"* (§4), *"must precede A2"* (§5), *"divergence becomes unreachable"* (§6b·3) — plus one
-missed term I had on screen (§6b·1). Three were caught by a probe, two by `backend`. **Every one was an
-arrow inferred between two verified facts** (§7.11). The four *decisions* survived all five corrections
-intact, which is the only reassuring thing here: the recommendations were right, and **every stated reason
-for them was wrong**.
+missed term I had on screen (§6b·1), plus **the stub** (§3). Three were caught by a probe, two by
+`backend`, one by reading a body I had only grepped. **Every one was an arrow inferred between two
+verified facts** (§7.11). The four *decisions* survived all six corrections intact, which is the only
+reassuring thing here: the recommendations were right, and **every stated reason for them was wrong**.
+
+---
+
+## 9. The app action — deferred to ETH·E2, deliberately (2026-07-16)
+
+`qa`'s **MINOR-2** — *"Option B promised 'one app action'; the door exists only in generated types"* — is
+**my error in §6, not a gap in M6.** Corrected here rather than built:
+
+- **All four sibling ethics actions are frozen `notImplemented` stubs by design** (§3), bodies scheduled
+  for **BE-5**. Building a real `setCaseVisibility` beside four throwing stubs would break the
+  contract-first pattern, not honour it.
+- **Nothing to host it.** **0** UI references bind to any of the four (measured across `src/app` +
+  `src/components`). The **E2/E3 ethics UI does not exist yet** — that is precisely what the stubs are
+  waiting for.
+- **The sequencing forbids it.** `S3 ETH·E1 ✅` → **▶ AUTHZ (here)** → **`S4 = ETH·E2 · RV2 R2–R5 · CH`**.
+  AUTHZ was PO-sequenced **before** S4 *because* **"Stage A rewires the `can_read_case*` predicates ETH·E2
+  builds on"**. Building E2's UI mid-AUTHZ — **with A2, the resolver rewrite, still unstarted** — binds a
+  surface to predicates that are about to be replaced. That is the exact collision the sequencing exists
+  to prevent.
+
+**Decision: the `setCaseVisibility` action + the coordinator control land in ETH·E2 (S4), with its four
+siblings, once the resolver is final.** Recorded here **and** in the handoff so the promise in §6 is not
+silently dropped — the risk of deferral is amnesia, not error.
+
+**M6's scope was right as built.** It closed a raw-write hole and a Rule 11 silence at the layer that owns
+them. It did not "forget" a UI; **no sibling has one, and the unit that builds them is next.**
