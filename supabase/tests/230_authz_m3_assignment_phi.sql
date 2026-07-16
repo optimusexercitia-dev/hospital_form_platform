@@ -184,6 +184,18 @@ update app.feature_flags set enabled = true where key = 'case_access';
 
 -- ===========================================================================
 -- STRUCTURAL — catalog facts, so a refactor cannot silently restore the arms.
+--
+-- ⚠ WEAKENED BY ADR 0078 A2 — READ BEFORE TRUSTING THESE TWO. `can_read_case_patient`
+-- is now a thin projection of app._case_caps, so its body names no table at all and
+-- these regexes pass almost by construction. They still guard THIS body (an arm
+-- smuggled back in here would fire them), but **the risk has MOVED**: the bare
+-- assignment arm could be re-added inside `_case_caps` conferring `read_standard_phi`,
+-- and NO text regex can catch that — once every arm lives in one function, "which arm
+-- confers which bit" is not text-separable.
+-- ⇒ The load-bearing evidence for defect ① is now BEHAVIOURAL: tests 20-22 below, and
+--   234's K5 (both legs: assignment KEEPS content, gains NO PHI), which is
+--   MUTATION-PROVEN to go RED when the arm is reverted — a guarantee this regex never
+--   had. Do not treat a green here as proof of defect ①.
 -- ===========================================================================
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname = 'app' and p.proname = 'can_read_case_patient'
@@ -196,10 +208,15 @@ select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.
 
 -- ⛔ SCOPE FENCE: can_read_case KEEPS both assignment arms — assignment is content
 -- reach (D10). If this ever hits 0, M3 over-reached into A2's territory.
+-- ⛔ REPOINTED TO THE RESOLVER BY ADR 0078 A2. `can_read_case` is now a thin projection
+-- of app._case_caps (A24·2), so its own body names no arm at all. The arms MOVED; they
+-- were not removed. Behaviour is identical (392-cell A/B: LOST = 0, GAINED = 0) and
+-- 234's K5 pins both legs with a mutation proof. The fence follows the mechanism.
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-           where n.nspname = 'app' and p.proname = 'can_read_case'
-             and p.prosrc ~ 'case_phases' and p.prosrc ~ 'case_narratives'), 1,
-  'M3 SCOPE FENCE ⭐: can_read_case KEEPS its assignment arms — M3 narrowed PHI ONLY');
+           where n.nspname = 'app' and p.proname = '_case_caps'
+             and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'case_phases'
+             and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'case_narratives'), 1,
+  'M3 SCOPE FENCE ⭐ (A2): the resolver KEEPS the assignment arms — M3 narrowed PHI ONLY');
 
 select * from finish();
 rollback;

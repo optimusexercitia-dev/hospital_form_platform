@@ -28,7 +28,7 @@
 -- =============================================================================
 
 begin;
-select plan(79);
+select plan(80);   -- +1 at A2: the resolver's own is_active gate (the delegation must terminate)
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -410,16 +410,29 @@ select is(app.can_read_action_item('00000000-0000-0000-0000-0000000a5005', (sele
 -- ===========================================================================
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname = 'app' and p.proname = 'can_read_case'
-             and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'is_active'), 1,
-  'M5 STRUCTURAL ⭐: can_read_case calls is_active in CODE (comments stripped — a comment match would be a vacuous green)');
+             and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'is_active|has_case_capability'), 1,
+  'M5 STRUCTURAL ⭐: can_read_case is is_active-gated in CODE — directly or through the resolver (comments stripped — a comment match would be a vacuous green)');
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname = 'app' and p.proname = 'can_read_case_patient'
-             and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'is_active'), 1,
-  'M5 STRUCTURAL ⭐: can_read_case_patient calls is_active in CODE');
+             and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'is_active|has_case_capability'), 1,
+  'M5 STRUCTURAL ⭐: can_read_case_patient is is_active-gated in CODE');
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname = 'app' and p.proname = 'can_write_case_content'
+             and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'is_active|has_case_capability'), 1,
+  'M5 STRUCTURAL ⭐: can_write_case_content is is_active-gated in CODE');
+-- ⛔ AND THE DELEGATION MUST TERMINATE IN A REAL GATE. The three assertions above now
+-- accept `has_case_capability` because ADR 0078 A2 moved the gate into app._case_caps
+-- (A24·2: these bodies became thin projections; the gate did not disappear, it MOVED —
+-- proven behaviourally by the tests above, which still pass, and by the 392-cell A/B:
+-- LOST = 0, GAINED = 0). Without the line below, "delegates to has_case_capability"
+-- would be satisfied by a resolver that never gates at all — §7.9's exact failure:
+-- THREE independent transitive text sweeps once reported a function GATED because a
+-- helper appeared in its display chip and never in its WHERE. A delegation claim is
+-- only worth the gate it terminates in.
+select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'app' and p.proname = '_case_caps'
              and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'is_active'), 1,
-  'M5 STRUCTURAL ⭐: can_write_case_content calls is_active in CODE');
+  'M5 STRUCTURAL ⭐ (A2): …and the resolver they delegate to calls is_active in CODE — the delegation terminates in a real gate');
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname = 'app' and p.proname = 'can_read_action_item'
              and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'is_active'), 1,
@@ -433,10 +446,16 @@ select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.
 -- ⛔ SCOPE FENCE — M3 must survive M5 untouched. can_read_case KEEPS its two
 -- assignment arms (assignment is CONTENT reach, D10); can_read_case_patient must
 -- NOT regain them.
+-- ⛔ REPOINTED TO THE RESOLVER BY A2. The arms did not go away — they MOVED into
+-- app._case_caps (A24·2), so the fence must follow the mechanism to its new home or it
+-- silently stops fencing anything. Behaviour is unchanged (392-cell A/B: LOST = 0,
+-- GAINED = 0) and 234's K5 pins both legs (assignment KEEPS content, gains no PHI) with
+-- a mutation proving it goes RED when the arm is reverted.
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-           where n.nspname = 'app' and p.proname = 'can_read_case'
-             and p.prosrc ~ 'case_phases' and p.prosrc ~ 'case_narratives'), 1,
-  'M5 SCOPE FENCE ⭐: can_read_case KEEPS both assignment arms — M5 gated them, it did not remove them (M3/D10 intact)');
+           where n.nspname = 'app' and p.proname = '_case_caps'
+             and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'case_phases'
+             and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'case_narratives'), 1,
+  'M5 SCOPE FENCE ⭐ (A2): the resolver KEEPS both assignment arms — M5 gated them, it did not remove them (M3/D10 intact)');
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where n.nspname = 'app' and p.proname = 'can_read_case_patient'
              and p.prosrc ~ 'case_phases'), 0,
