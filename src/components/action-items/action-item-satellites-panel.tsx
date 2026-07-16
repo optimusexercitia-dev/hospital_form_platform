@@ -12,13 +12,13 @@ import { ActionItemSatelliteSections } from "./action-item-satellites";
  * The PAGE-level satellite surface: reminders / updates / checklist for one
  * action item, always visible.
  *
- * The sibling {@link ActionItemSatellites} exists for ROW hosts, where the
- * satellites are incidental to a list — hence its disclosure + lazy fetch +
- * retry. On the Action Item detail page the satellites ARE the content, so none
- * of that machinery earns its place: the server page already loaded the data and
- * seeds `initialData`, so the sections paint with the first frame — no spinner,
- * no expand click, no error state to design (a failed read is the page's
- * `error.tsx`, not a per-panel retry).
+ * The action-item ROWS (meeting + case panels) don't embed these — each row
+ * renders a "Ver detalhes" link out to this detail page instead. Here the
+ * satellites ARE the content, so there is no disclosure / lazy fetch / retry
+ * machinery: the server page already loaded the data and seeds `initialData`, so
+ * the sections paint with the first frame — no spinner, no expand click, no error
+ * state to design (a failed read is the page's `error.tsx`, not a per-panel
+ * retry).
  *
  * It stays a Client Component only because the three sections mutate and need a
  * refresh callback: `onMutated` re-fetches through the same
