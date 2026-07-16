@@ -301,12 +301,14 @@ test('POS-3 assign_case_phases: activation + reassignment land; the assignee get
     }, { timeout: 15_000 })
     .toBe(`active:${UID_STAFF1}`)
 
-  // DB truth (design revert): assignment writes NO case_access row for the assignee.
+  // DB truth (design revert): assignment writes NO case_access_grants row for the
+  // assignee. (ADR 0078 Stage B renamed case_access → case_access_grants,
+  // user_id → principal_id; the invariant under test is unchanged.)
   await expect
     .poll(async () => {
-      const rows = await dbQuery(page.request, 'case_access', {
+      const rows = await dbQuery(page.request, 'case_access_grants', {
         case_id: `eq.${caseId}`,
-        user_id: `eq.${UID_STAFF1}`,
+        principal_id: `eq.${UID_STAFF1}`,
       })
       return rows.length
     }, { timeout: 15_000 })
@@ -333,7 +335,8 @@ test('POS-3 assign_case_phases: activation + reassignment land; the assignee get
   })
   expect(reassignRes.ok(), `reassign_phase as Administrativo: ${await reassignRes.text()}`).toBeTruthy()
 
-  // The reassignment LANDS (assigned_to → staff4) and STILL writes no case_access row.
+  // The reassignment LANDS (assigned_to → staff4) and STILL writes no
+  // case_access_grants row.
   await expect
     .poll(async () => {
       const rows = await dbQuery<{ assigned_to: string | null }>(page.request, 'case_phases', {
@@ -344,9 +347,9 @@ test('POS-3 assign_case_phases: activation + reassignment land; the assignee get
     .toBe(UID_STAFF4)
   await expect
     .poll(async () => {
-      const rows = await dbQuery(page.request, 'case_access', {
+      const rows = await dbQuery(page.request, 'case_access_grants', {
         case_id: `eq.${caseId}`,
-        user_id: `eq.${UID_STAFF4}`,
+        principal_id: `eq.${UID_STAFF4}`,
       })
       return rows.length
     }, { timeout: 15_000 })

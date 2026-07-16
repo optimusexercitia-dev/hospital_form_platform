@@ -78,8 +78,8 @@ select is((select count(*)::int from public.attachments), 0,
   'WALL: platform sees 0 attachments (folded case_documents)');
 select is((select count(*)::int from public.case_narratives), 0,
   'WALL: platform sees 0 case_narratives');
-select is((select count(*)::int from public.case_access), 0,
-  'WALL: platform sees 0 case_access');
+select is((select count(*)::int from public.case_access_grants), 0,
+  'WALL: platform sees 0 case_access_grants');
 -- Case action items were folded into the shared action_items hub (migration
 -- 20260707; source_type='case'). The old case_action_items table is dropped, so
 -- assert the WALL over the hub's case-sourced rows instead (same intent).

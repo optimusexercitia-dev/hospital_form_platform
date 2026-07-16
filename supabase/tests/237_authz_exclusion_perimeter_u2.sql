@@ -103,7 +103,7 @@ values ('00000000-0000-0000-0000-0000000c8601',(select comm_x from k),'case','AI
         null,'committee',(select sa_x from k));
 
 -- ── PRE-FLIGHT (assert the fixture, never assume it) ─────────────────────────
-select is(app.feature_enabled('case_access'), true, 'FLAG: case_access ON');
+select is((select exists (select 1 from app.feature_flags where key = 'case_access')), false, 'B4: case_access flag RETIRED');
 select is(app.is_case_excluded('00000000-0000-0000-0000-0000000c8001', (select st_x from k)), true,
   'PRE ⭐ leg 1/2: st_x EXCLUDED via RESPONDENT leg');
 select is(app.is_staff_admin_of_for((select comm_x from k), (select st_x from k)), true,

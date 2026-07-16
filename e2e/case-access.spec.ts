@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 
 /**
  * Case Access Control & "Meus Casos" — E2E spec (ADR 0033, feature-flagged
@@ -14,11 +14,16 @@ import { test, expect, type Page } from '@playwright/test'
  *  AC-6  Narrative lifecycle (fill focused editor → Concluir → coordinator reopens).
  *  AC-7  PHI boundary (read-grantee sees PHI-free chip; click-through denied).
  *  AC-8  Audit (case.opened row on non-coordinator open; none on coordinator open).
- *  AC-9  Flag OFF — SKIPPED (ships ON; flag-OFF covered by pgTAP 615/615).
+ *  AC-9  RETIRED — `case_access` is no longer a feature flag at all (ADR 0078 B4
+ *        dropped the row); see SB-5 below for what replaced it.
  *  AC-10 Keyboard-only: Meus Casos → narrative editor flow.
  *  AC-N1 Narrative attribution via card DropdownMenu (assign / clear).
  *  AC-N2 Negative: no inline access panel heading; no select[id^="narrative-assignee-"].
  *  AC-11 Full regression suite green (run separately as the gate).
+ *  SB-1..SB-5  ADR 0078 Stage B acceptance battery (case_access_grants hard cut):
+ *        content/write grant ⇏ PHI, read_standard_phi grant ⇒ PHI, list_case_access's
+ *        clearance columns, the U1 recused-coordinator grant-door exclusion, and the
+ *        retired flag itself. See the block comment above SB-1 for detail.
  *
  * UI SHAPE (Case Access Control refinement, 2026-06-19):
  *  - Access roster is NO LONGER inline on the case body. It lives behind a top-bar
@@ -39,9 +44,15 @@ import { test, expect, type Page } from '@playwright/test'
  *   chefe.ccih@test.local  — COORDINATOR (staff_admin)
  *   staff1.ccih@test.local — phase assignee → attribution-derived FULL READ; fills Phase 1 only
  *   staff2.ccih@test.local — narrative assignee (Resumo Clínico) → attribution-derived FULL READ; writes that narrative only
- *   multi@test.local       — standalone READ grant (viewer; editors hidden)
- *   staff3.ccih@test.local — standalone WRITE grant (collaborator; un-attributed content write; no lifecycle/phase-fill)
+ *   multi@test.local       — standalone READ grant (viewer; editors hidden; content only, no PHI)
+ *   staff3.ccih@test.local — standalone WRITE grant (collaborator; un-attributed content write; no lifecycle/phase-fill; content only, no PHI)
  *   staff4.ccih@test.local — BOUNDARY: no attribution, no grant → notFound()
+ *
+ * ADR 0078 Stage B (2026-07-16): `case_access` was HARD-CUT to `case_access_grants`
+ * (capability-per-column; PHI is now a distinct `read_standard_phi`/`read_restricted_phi`
+ * pair, never inferred from a read/write grant) and its feature flag was RETIRED
+ * (dropped from `app.feature_flags`, not merely forced ON). `upsertGrant`/`clearGrant`
+ * below write the new table; see the SB-1..SB-5 battery for the acceptance coverage.
  *
  * Password for all: Test1234!
  */
@@ -150,9 +161,17 @@ async function caseOpenedCount(): Promise<number> {
 }
 
 /**
- * Directly upsert a case_access grant row via the service role (bypasses the
+ * Directly upsert a `case_access_grants` row via the service role (bypasses the
  * grant_case_access RPC's future-expiry validation so we can seed an EXPIRED
  * grant). `expiresAt` is an ISO timestamptz or null. Used by the expiry ACs.
+ *
+ * ADR 0078 Stage B (B1): `case_access` was HARD-CUT to `case_access_grants` —
+ * capability-per-column (`read_case_content`/`read_case_deliberation`/
+ * `write_case_content`/`read_standard_phi`/`read_restricted_phi`), keyed by
+ * `principal_id` (not `user_id`). A plain read/write grant here mirrors what
+ * `grant_case_access` itself would insert with no PHI params: content +
+ * deliberation (+ write, iff `level==='write'`), PHI columns left at their
+ * `false` default — this helper grants UI/content access, never PHI.
  */
 async function upsertGrant(
   caseId: string,
@@ -161,9 +180,9 @@ async function upsertGrant(
   expiresAt: string | null,
   reason: string | null = null,
 ): Promise<void> {
-  // Delete any prior row for this (case,user), then insert the new one.
+  // Delete any prior row for this (case,principal), then insert the new one.
   await fetch(
-    `${SUPABASE_URL}/rest/v1/case_access?case_id=eq.${caseId}&user_id=eq.${userId}`,
+    `${SUPABASE_URL}/rest/v1/case_access_grants?case_id=eq.${caseId}&principal_id=eq.${userId}`,
     {
       method: 'DELETE',
       headers: {
@@ -172,7 +191,7 @@ async function upsertGrant(
       },
     },
   )
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/case_access`, {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/case_access_grants`, {
     method: 'POST',
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
@@ -182,8 +201,12 @@ async function upsertGrant(
     },
     body: JSON.stringify({
       case_id: caseId,
-      user_id: userId,
-      level,
+      principal_id: userId,
+      source: 'manual_grant',
+      read_case_content: true,
+      read_case_deliberation: true,
+      write_case_content: level === 'write',
+      reason_code: 'coordinator_grant',
       granted_by: UID_CHEFE,
       expires_at: expiresAt,
       reason,
@@ -194,10 +217,10 @@ async function upsertGrant(
   }
 }
 
-/** Delete any case_access grant for (case,user) via the service role. */
+/** Delete any case_access_grants row for (case,principal) via the service role. */
 async function clearGrant(caseId: string, userId: string): Promise<void> {
   await fetch(
-    `${SUPABASE_URL}/rest/v1/case_access?case_id=eq.${caseId}&user_id=eq.${userId}`,
+    `${SUPABASE_URL}/rest/v1/case_access_grants?case_id=eq.${caseId}&principal_id=eq.${userId}`,
     {
       method: 'DELETE',
       headers: {
@@ -673,12 +696,18 @@ test('AC-3g keyboard-only: grant dialog is fully keyboard-operable (level → ex
   await expect(grantDialog).toHaveCount(0, { timeout: 10_000 })
 
   // DB truth: staff4 now holds a WRITE grant with a future expiry + the reason.
+  // ADR 0078 Stage B: `case_access` → `case_access_grants`, `level` text replaced by
+  // the `write_case_content` capability column (a write grant ⇒ write_case_content=true).
   await page.waitForTimeout(1_000)
-  const rows = await dbQuery<{ level: string; expires_at: string | null; reason: string | null }>(
-    'case_access',
-    { case_id: `eq.${CASE_ID}`, user_id: `eq.${UID_STAFF4}` },
-  )
-  expect(rows[0]?.level).toBe('write')
+  const rows = await dbQuery<{
+    write_case_content: boolean
+    expires_at: string | null
+    reason: string | null
+  }>('case_access_grants', {
+    case_id: `eq.${CASE_ID}`,
+    principal_id: `eq.${UID_STAFF4}`,
+  })
+  expect(rows[0]?.write_case_content).toBe(true)
   expect(rows[0]?.expires_at).toBeTruthy()
   expect(rows[0]?.reason).toContain('Colaboração')
 
@@ -1008,12 +1037,283 @@ test('AC-8 audit: non-coordinator open writes case.opened row; coordinator open 
 })
 
 // ---------------------------------------------------------------------------
-// AC-9 — Flag OFF — SKIPPED
+// AC-9 (RETIRED) — the `case_access` feature flag no longer exists.
+//
+// ADR 0078 Stage B (B4) DROPPED the `app.feature_flags` row for `case_access`
+// entirely — it isn't merely "ships ON", there is no key to flip. The old
+// flag-OFF skip is replaced below by SB-5, which asserts the row is gone and
+// that case reach is governed solely by can_read_case's own arms.
 // ---------------------------------------------------------------------------
 
-test.skip('AC-9 flag OFF: with case_access OFF behavior is unchanged (skipped — ships ON; flag-OFF covered by pgTAP 615/615)', async () => {
-  // This test intentionally skipped per spec: the flag ships ON; the
-  // pgTAP truth-table covers the OFF fallback (can_read_case → is_member_of).
+// ---------------------------------------------------------------------------
+// AUTHZ Stage B — case_access_grants acceptance (ADR 0078 B1)
+//
+// `case_access` was HARD-CUT to `case_access_grants` — capability-per-column
+// (read_case_content / read_case_deliberation / write_case_content /
+// read_standard_phi / read_restricted_phi) instead of a `level` enum. Proved
+// directly against the RPC doors (grant_case_access / list_case_access) so
+// these hold independently of any UI:
+//   SB-1  A content/write grant does NOT confer PHI (defect ①·2 closed).
+//   SB-2  A grant carrying read_standard_phi=true DOES confer PHI.
+//   SB-3  list_case_access projects max_confidentiality/read_standard_phi/
+//         read_restricted_phi alongside the legacy level/granted_at/expires_at/
+//         reason shape.
+//   SB-4  A recused coordinator's grant_case_access is rejected (U1 exclusion
+//         gate, HC0F1) — she cannot hand a third party access to a case she
+//         cannot read herself. Uses the seeded ethics fixture case (a
+//         DIFFERENT case than Caso 0001/0002 this file otherwise touches, so
+//         recusing chefe.ccih there has zero effect on the rest of this file).
+//   SB-5  No case_access flag-OFF path exists any more — the flag row itself
+//         is gone from app.feature_flags.
+// Each test grants/recuses only what it needs and reverts it, so this battery
+// leaves every shared persona (staff4 the boundary persona, chefe the CCIH
+// coordinator) exactly as it found them for the rest of the suite.
+// ---------------------------------------------------------------------------
+
+const ETHICS_CASE_ID = 'ca000000-0000-0000-0000-0000000000e1' // seeded fixture; chefe.ccih is its coordinator too
+
+/** Obtain a JWT for a persona (RLS/RPC authority evaluated under it). */
+async function getToken(request: APIRequestContext, email: string, pw = PW): Promise<string> {
+  const resp = await request.post(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+    headers: { apikey: SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json' },
+    data: { email, password: pw },
+  })
+  expect(resp.ok(), `getToken(${email}) failed: ${resp.status()}`).toBeTruthy()
+  return ((await resp.json()) as { access_token: string }).access_token
+}
+
+/** Call a public RPC under a persona JWT. Returns the raw Response. */
+async function rpc(
+  request: APIRequestContext,
+  fn: string,
+  bearer: string,
+  body: Record<string, unknown>,
+) {
+  return request.post(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${bearer}`,
+      'Content-Type': 'application/json',
+    },
+    data: body,
+  })
+}
+
+/**
+ * Ensure Caso 0001 has patient_enabled=true + a known case_patient/PHI value.
+ * Idempotent (PATCH + upsert RPC) — safe to call from more than one test. Never
+ * assume another spec file's beforeAll already did this (order-fragile); each
+ * test that needs PHI present calls this itself.
+ */
+async function ensureCasePatientPhi(request: APIRequestContext): Promise<void> {
+  await request.patch(`${SUPABASE_URL}/rest/v1/cases?id=eq.${CASE_ID}`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    data: { patient_enabled: true },
+  })
+  const chefeToken = await getToken(request, 'chefe.ccih@test.local')
+  const resp = await rpc(request, 'set_case_patient', chefeToken, {
+    p_case_id: CASE_ID,
+    p_name: 'Paciente Teste Silva',
+    p_mrn: 'PRT-CA-STAGEB-0001',
+  })
+  expect(resp.ok(), `ensureCasePatientPhi: set_case_patient failed: ${await resp.text()}`).toBeTruthy()
+}
+
+/** Direct catalog read — app.feature_flags has no PostgREST exposure. */
+async function caseAccessFlagRowExists(): Promise<boolean> {
+  const { execSync } = await import('child_process')
+  const out = execSync(
+    `npx supabase db query --local "SELECT 'FLAGCHECK:' || count(*)::text AS probe FROM app.feature_flags WHERE key = 'case_access'"`,
+    { cwd: process.cwd(), stdio: 'pipe' },
+  ).toString()
+  const m = out.match(/FLAGCHECK:(\d+)/)
+  if (!m) throw new Error(`caseAccessFlagRowExists: could not parse probe output: ${out}`)
+  return Number(m[1]) > 0
+}
+
+test('SB-1: a content/write grant via grant_case_access does NOT confer PHI (defect ①·2 closed)', async ({
+  request,
+}) => {
+  await ensureCasePatientPhi(request)
+  const chefeToken = await getToken(request, 'chefe.ccih@test.local')
+  try {
+    const grantResp = await rpc(request, 'grant_case_access', chefeToken, {
+      p_case: CASE_ID,
+      p_user: UID_STAFF4,
+      p_level: 'write',
+    })
+    expect(grantResp.ok(), `grant_case_access failed: ${await grantResp.text()}`).toBeTruthy()
+
+    const staff4Token = await getToken(request, 'staff4.ccih@test.local')
+    const phiResp = await rpc(request, 'get_case_patient', staff4Token, { p_case_id: CASE_ID })
+    expect(phiResp.ok()).toBeTruthy()
+    expect(await phiResp.json(), 'a content/write-only grant leaked PHI').toBeNull()
+  } finally {
+    await clearGrant(CASE_ID, UID_STAFF4)
+  }
+})
+
+test('SB-2: a grant with read_standard_phi=true DOES confer PHI', async ({ request }) => {
+  await ensureCasePatientPhi(request)
+  const chefeToken = await getToken(request, 'chefe.ccih@test.local')
+  try {
+    const grantResp = await rpc(request, 'grant_case_access', chefeToken, {
+      p_case: CASE_ID,
+      p_user: UID_STAFF4,
+      p_level: 'read',
+      p_read_standard_phi: true,
+    })
+    expect(grantResp.ok(), `grant_case_access failed: ${await grantResp.text()}`).toBeTruthy()
+
+    const staff4Token = await getToken(request, 'staff4.ccih@test.local')
+    const phiResp = await rpc(request, 'get_case_patient', staff4Token, { p_case_id: CASE_ID })
+    expect(phiResp.ok()).toBeTruthy()
+    const body = await phiResp.json()
+    expect(body, 'read_standard_phi=true grant did not reveal PHI').not.toBeNull()
+    expect(JSON.stringify(body)).toContain('PRT-CA-STAGEB-0001')
+  } finally {
+    await clearGrant(CASE_ID, UID_STAFF4)
+    // Verify the revert actually landed (§7.3 — never trust an unverified teardown).
+    const staff4Token = await getToken(request, 'staff4.ccih@test.local')
+    const verify = await rpc(request, 'get_case_patient', staff4Token, { p_case_id: CASE_ID })
+    expect(verify.ok()).toBeTruthy()
+    expect(await verify.json()).toBeNull()
+  }
+})
+
+test('SB-3: list_case_access projects the clearance columns (max_confidentiality/read_standard_phi/read_restricted_phi)', async ({
+  request,
+}) => {
+  const chefeToken = await getToken(request, 'chefe.ccih@test.local')
+  try {
+    const grantResp = await rpc(request, 'grant_case_access', chefeToken, {
+      p_case: CASE_ID,
+      p_user: UID_STAFF4,
+      p_level: 'read',
+      p_read_standard_phi: true,
+    })
+    expect(grantResp.ok(), `grant_case_access failed: ${await grantResp.text()}`).toBeTruthy()
+
+    const listResp = await rpc(request, 'list_case_access', chefeToken, { p_case: CASE_ID })
+    expect(listResp.ok(), `list_case_access failed: ${await listResp.text()}`).toBeTruthy()
+    const rows = (await listResp.json()) as Array<{
+      user_id: string
+      level: string
+      read_standard_phi: boolean
+      read_restricted_phi: boolean
+      max_confidentiality: string | null
+    }>
+    const row = rows.find((r) => r.user_id === UID_STAFF4)
+    expect(row, 'granted row missing from list_case_access').toBeTruthy()
+    expect(row?.level).toBe('read')
+    expect(row?.read_standard_phi).toBe(true)
+    expect(row?.read_restricted_phi).toBe(false)
+    // max_confidentiality is the orthogonal RESERVED ceiling — not set by this grant.
+    expect(row?.max_confidentiality).toBeNull()
+  } finally {
+    await clearGrant(CASE_ID, UID_STAFF4)
+  }
+})
+
+test('SB-4: a recused coordinator cannot grant_case_access on the case she is recused from (U1 exclusion gate)', async ({
+  request,
+}) => {
+  const chefeToken = await getToken(request, 'chefe.ccih@test.local')
+
+  // Recuse chefe.ccih from the SEEDED ETHICS case only (Caso 0001/0002 used
+  // throughout the rest of this file are untouched — recusal is per-case), via a
+  // DIRECT service-role insert rather than the `record_recusal` RPC.
+  //
+  // Why not record_recusal + lift_recusal (the ethics-e1-access-spine.spec.ts
+  // pattern)? That pattern recuses a NON-coordinator (multi) and lifts it AS the
+  // (unexcluded) coordinator. Here the coordinator herself must be the excluded
+  // party, and post-M1 `lift_recusal` DELIBERATELY refuses a recused principal
+  // lifting her own recusal — "a recused coordinator lifts her own recusal" was
+  // the exact defect M1 closed (see authz-handoff.md §1). A self-recuse-then-
+  // self-lift round trip would therefore always fail teardown by design, so the
+  // fixture is written/cleared directly (mirrors upsertGrant/clearGrant above).
+  const insertResp = await request.post(`${SUPABASE_URL}/rest/v1/case_recusals`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    data: {
+      case_id: ETHICS_CASE_ID,
+      user_id: UID_CHEFE,
+      source: 'self',
+      reason_md: 'Conflito declarado (SB-4 probe).',
+      recused_by: UID_CHEFE,
+    },
+  })
+  expect(insertResp.ok(), `SB-4 setup: case_recusals insert failed: ${await insertResp.text()}`).toBeTruthy()
+  const recusalId = ((await insertResp.json()) as Array<{ id: string }>)[0].id
+
+  try {
+    // CONTROL: the recusal actually holds — chefe cannot read the case herself.
+    // A vacuous keystone (§7.1) would skip this and assert only the grant denial.
+    // get_case_detail RAISES `no_data_found` (P0002) for a denied reader — unlike
+    // get_case_patient, which returns null. PostgREST treats P0002 as an INTERNAL
+    // (5xx) error class and deliberately returns an OPAQUE, non-JSON body for it
+    // (unlike 42501/HC0F1, which map to 4xx with structured JSON) — reproduced
+    // directly against Kong: 500 "Something went wrong", no parseable body. So the
+    // control checks the response FAILED, not its (intentionally opaque) content —
+    // meaningful here because chefe reads this exact case successfully everywhere
+    // else in this suite (she is its coordinator), so a failure immediately after
+    // inserting her own recusal row is not a vacuous read.
+    const detailResp = await rpc(request, 'get_case_detail', chefeToken, { p_case_id: ETHICS_CASE_ID })
+    expect(
+      detailResp.ok(),
+      'fixture invalid: recusal did not take (chefe can still read the case)',
+    ).toBeFalsy()
+
+    // U1: grant_case_access must RAISE (authority-first means the precondition-less
+    // twin fails loudly), not silently no-op.
+    const grantResp = await rpc(request, 'grant_case_access', chefeToken, {
+      p_case: ETHICS_CASE_ID,
+      p_user: UID_STAFF4,
+      p_level: 'read',
+    })
+    expect(
+      grantResp.ok(),
+      'recused coordinator was able to grant_case_access — U1 regression',
+    ).toBeFalsy()
+    expect(JSON.stringify(await grantResp.json())).toMatch(/HC0F1/i)
+  } finally {
+    // Direct service-role delete — never trust an unverified teardown (§7.3):
+    // confirm zero LIVE rows remain rather than assuming the DELETE landed.
+    await request.delete(`${SUPABASE_URL}/rest/v1/case_recusals?id=eq.${recusalId}`, {
+      headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` },
+    })
+    const remaining = await dbQuery<{ id: string }>('case_recusals', {
+      id: `eq.${recusalId}`,
+    })
+    expect(remaining.length, 'SB-4 teardown did not remove the recusal fixture').toBe(0)
+  }
+})
+
+test('SB-5: no case_access flag-OFF path exists — the flag row is gone; case reach is unconditional', async ({
+  page,
+}) => {
+  // The catalog: `case_access` is no longer even a row in app.feature_flags (ADR
+  // 0078 B4 retired it) — there is no "OFF" state left to simulate.
+  expect(
+    await caseAccessFlagRowExists(),
+    'case_access flag row still exists in app.feature_flags — B4 not applied?',
+  ).toBe(false)
+
+  // Behavioural corroboration: a plain member with no grant/attribution still gets
+  // the ordinary denial — reach is governed entirely by can_read_case's own arms,
+  // never by a feature-flag kill-switch.
+  await signInAs(page, 'staff4.ccih@test.local')
+  await page.goto(`${BASE}/casos/${CASE_ID}`)
+  await expect(page.getByText(/não encontramos esta página/i)).toBeVisible({ timeout: 10_000 })
+  await signOut(page)
 })
 
 // ---------------------------------------------------------------------------

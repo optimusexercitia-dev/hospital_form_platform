@@ -181,10 +181,10 @@ select lives_ok(
   'activate_phase: the holder (assign_case_phases) can activate + assign a phase');
 reset role;
 select ok(
-  not exists (select 1 from public.case_access
-              where case_id = (select case_id from cs) and user_id = (select st_x2 from k)
-                and level = 'write'),
-  'activate_phase does NOT grant the assignee case_access write (revised ADR 0061)');
+  not exists (select 1 from public.case_access_grants
+              where case_id = (select case_id from cs) and principal_id = (select st_x2 from k)
+                and write_case_content),
+  'activate_phase does NOT grant the assignee a write grant (revised ADR 0061)');
 select ok(
   not app.can_write_case_content((select case_id from cs), (select st_x2 from k)),
   'activate_phase: the assignee has NO case-content write');
@@ -201,9 +201,9 @@ select lives_ok(
   'reassign_phase: the holder can reassign the phase');
 reset role;
 select ok(
-  not exists (select 1 from public.case_access
-              where case_id = (select case_id from cs) and user_id = (select st_x from k)
-                and level = 'write'),
+  not exists (select 1 from public.case_access_grants
+              where case_id = (select case_id from cs) and principal_id = (select st_x from k)
+                and write_case_content),
   'reassign_phase does NOT grant the new assignee case_access write (revised ADR 0061)');
 select ok(
   not app.can_write_case_content((select case_id from cs), (select st_x from k)),
@@ -330,10 +330,10 @@ reset role;
 -- The self-grant row exists at level READ (revised model — the mechanism is
 -- case_access, not a can_read_case arm; read-only, NOT write).
 select ok(
-  exists (select 1 from public.case_access
-          where case_id = (select case_id from cs3) and user_id = (select st_x from k)
-            and level = 'read'),
-  'create_case: a non-coordinator creator self-grants case_access READ');
+  exists (select 1 from public.case_access_grants
+          where case_id = (select case_id from cs3) and principal_id = (select st_x from k)
+            and read_case_content and not write_case_content),
+  'create_case: a non-coordinator creator self-grants a READ grant');
 -- can_read_case is true for the creator (via the read grant); content-write is FALSE.
 select ok(app.can_read_case((select case_id from cs3), (select st_x from k)),
   'can_read_case: the creator can read their self-granted case (no creator arm needed)');

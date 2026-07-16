@@ -307,9 +307,9 @@ select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.start_or_resume_phase(%L) $$, (select id from cp where position = 1)),
-  'HC022',
+  'P0002',
   null,
-  'start_or_resume_phase rejects a caller who is not the assignee (P0022)'
+  'start_or_resume_phase rejects a non-reader (Stage B: a member with no grant/attribution cannot even see the phase → not-found, before the assignee check)'
 );
 reset role;
 
@@ -561,13 +561,15 @@ reset role;
 -- caller who is not a staff_admin of the case's commission — a plain staff
 -- member, even of the SAME commission, gets nothing (no header, no phases, no
 -- in-progress answers). Faster feedback than the E2E.
-select test_helpers.claims_for((select st_x from k), false);
+-- Stage B: get_case_detail re-gates to can_read_case, and st_x is the phase assignee
+-- (a genuine reader now), so use a true NON-reader — st_y, a foreign-commission member.
+select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.get_case_detail(%L) $$, (select cid from cse)),
   'P0002',
   null,
-  'get_case_detail leaks nothing to a non-staff_admin caller (raises not-found)'
+  'get_case_detail leaks nothing to a non-reader caller (raises not-found)'
 );
 reset role;
 

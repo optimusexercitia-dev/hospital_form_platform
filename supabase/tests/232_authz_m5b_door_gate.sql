@@ -91,8 +91,8 @@ select set_config('request.jwt.claims', '', true);
 -- ===========================================================================
 -- FLAGS + PRE-FLIGHT — asserted, never assumed (§7.3).
 -- ===========================================================================
-select is(app.feature_enabled('case_access'), true,
-  'FLAG: case_access ON — list_my_cases asserts it and would raise otherwise');
+select is((select exists (select 1 from app.feature_flags where key = 'case_access')), false,
+  'B4: the case_access flag is RETIRED — the single always-on path (list_my_cases no longer asserts it)');
 select is(app.feature_enabled('cases_extras'), true,
   'FLAG: cases_extras ON — else get_member_overview counts 0 and every twin below is vacuous');
 select is(app.feature_enabled('action_items'), true,

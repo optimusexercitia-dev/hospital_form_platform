@@ -267,8 +267,8 @@ select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.update_case_narrative_body(%L, 'hack') $$, (select nid from cn)),
-  '42501', null,
-  'update_case_narrative_body rejects a plain member (42501)'
+  'P0002', null,
+  'update_case_narrative_body rejects a non-attributed member (P0002 — Stage B: the flag-OFF 42501 inline path is gone, a non-reader gets not-found)'
 );
 reset role;
 

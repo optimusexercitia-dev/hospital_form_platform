@@ -12,8 +12,10 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  * and baseline is a MIGRATION, so that holds in every environment including production.
  * (Each flag's `description` column still narrates "Ships OFF"; that prose is STALE and
  * is not the state. Trust the catalog: `select key, enabled from app.feature_flags`.)
- * The other required flags (`audit_trail`, `case_access`, `cases_multi_phase`,
- * `patient_safety`) are likewise ON and remain so throughout.
+ * The other required flags (`audit_trail`, `cases_multi_phase`, `patient_safety`) are
+ * likewise ON and remain so throughout. `case_access` is NOT a flag any more — ADR 0078
+ * Stage B (B1) retired it; the cases/case-access surface is now permanently on and the
+ * key has no `app.feature_flags` row at all.
  *
  * The suite still drives flags mid-run where a test needs it — AC-8a/AC-8b flip
  * `case_patient` OFF to assert flag-OFF behaviour, and AC-4 flips `case_referrals`.
@@ -28,8 +30,10 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  *                           unit="UTI Adulto", sex="female", attending="Dra. Helena Costa"
  *              Phase 1: concluida, assigned to staff1.ccih (phase assignee → can_read_case)
  *              Phase 2: pendente, unassigned
- *              write-grant: staff3.ccih (write grantee → can_read_case)
- *              read-grant:  multi@test.local
+ *              write-grant: staff3.ccih (write grantee → can_read_case; CONTENT ONLY —
+ *                           ADR 0078 Stage B: no read_standard_phi/read_restricted_phi set,
+ *                           so this grant does NOT confer PHI reach)
+ *              read-grant:  multi@test.local (same: content only, no PHI)
  *   Template  "Investigação de Óbito (M&M)" — status=active, collects_patient=true (CCIH)
  *
  * **Personas (password Test1234!):**
@@ -74,6 +78,7 @@ const COMM_A = 'a0000000-0000-0000-0000-0000000000a1' // CCIH
 
 // Personas (UUIDs)
 const UID_CHEFE_A = '00000000-0000-0000-0000-000000000002'
+const UID_STAFF3_CCIH = '00000000-0000-0000-0000-000000000009' // write grantee (content-only)
 
 // Seed fixture
 const CASE_A_ID = 'd0000000-0000-0000-0000-0000000000c1' // Caso 0001, PHI-enabled
@@ -587,16 +592,25 @@ test('AC-2b: clicking "Exibir identificação" reveals PHI and emits exactly one
 })
 
 // ---------------------------------------------------------------------------
-// AC-3 — Role restrictions: assignment confers CONTENT reach, never PHI;
-//         coordinator can add/edit (upsert), enforcing name-or-MRN floor
+// AC-3 — Role restrictions: assignment AND a content/write grant confer CONTENT
+//         reach, never PHI; coordinator can add/edit (upsert), enforcing the
+//         name-or-MRN floor
 //
-// ⬅ ADR 0078 defect ① / M3 (2026-07-15). `app.can_read_case_patient` no longer
-//    carries the `case_phases.assigned_to` / `case_narratives.assigned_to` arms:
-//    a BARE assignee read patient identifiers unqualified, which was one of the
-//    three justifications for the authorization-capability program. Assignment is
-//    CONTENT reach, never PHI (Context·1 / D10). `app.can_read_case` KEEPS both
-//    arms, so the assignee's content reach is untouched — that pairing is the
-//    whole point of M3 and AC-3a-reach asserts it explicitly.
+// ⬅ ADR 0078 defect ① / M3 (2026-07-15) + Stage B / B1 (2026-07-16), CLOSING
+//    defect ①'s SECOND half. `app.can_read_case_patient` no longer carries the
+//    `case_phases.assigned_to` / `case_narratives.assigned_to` arms (M3): a BARE
+//    assignee read patient identifiers unqualified. `app.can_read_case` KEEPS
+//    both arms, so the assignee's content reach is untouched — that pairing is
+//    the whole point of M3 and AC-3a-reach asserts it explicitly.
+//
+//    B1 (`case_access_grants`, the `case_access` hard cut) closed the OTHER half:
+//    pre-B1, ANY grant (read OR write) conferred PHI unconditionally — AC-3b used
+//    to PIN that as today's behaviour, deliberately, so this migration would show
+//    up as a FAILING assertion rather than silent drift. It has now landed: PHI is
+//    a PER-COLUMN capability (`read_standard_phi` / `read_restricted_phi`), never
+//    inferred from content or write. A plain `grant_case_access(...)` call (no PHI
+//    params) grants content + deliberation (+ write, if `p_level='write'`) and
+//    LEAVES BOTH PHI COLUMNS FALSE.
 //
 // 3a:       Phase assignee (staff1.ccih) sees the panel but revealing yields NO
 //           identifiers and emits NO `case_patient.read` audit row, AND still has
@@ -605,16 +619,19 @@ test('AC-2b: clicking "Exibir identificação" reveals PHI and emits exactly one
 //           patient identifiers, at the canonical server door and in the UI.
 // 3a-rpc:   `set_case_patient` by the assignee → 42501 (writes were always
 //           coordinator-only; unchanged by M3).
-// 3b:       Write-grantee (staff3.ccih) — the POSITIVE TWIN for the grant arm:
-//           still reveals PHI and emits exactly one audit row; still cannot edit.
+// 3b:       Write-grantee (staff3.ccih, content-only per Stage B) — does NOT
+//           reveal PHI and emits NO audit row; still cannot edit. THE FLIP.
+// 3b-phi:   The Stage-B POSITIVE TWIN — a grant carrying `read_standard_phi=true`
+//           DOES reveal PHI and emits exactly one audit row. Proves B1 grants the
+//           capability it claims, not merely that it withholds it.
 // 3c:       Coordinator (chefe.ccih) has the edit button; saving without name AND
 //           mrn is rejected with the name-or-MRN floor error.
 // 3d:       A foreign commission member (chefe.farm) calling get_case_patient →
 //           null (no audit row).
 //
 // The UI-level positive twin (an entitled reader reveals PHI and emits exactly
-// one audit row) is AC-2b (coordinator); AC-3b is the RPC-level twin for the
-// grant arm. Neither is duplicated here.
+// one audit row) is AC-2b (coordinator); AC-3b-phi is the RPC-level twin for the
+// PHI-grant arm. Neither is duplicated here.
 // ---------------------------------------------------------------------------
 
 test('AC-3a: phase assignee canNOT reveal identifiers (ADR 0078 M3 / defect ①) and has no edit affordance', async ({
@@ -708,37 +725,34 @@ test('AC-3a-rpc: set_case_patient by phase assignee → 42501 (permission denied
   expect(body).toMatch(/42501|insufficient_privilege|permission denied/i)
 })
 
-test('AC-3b: write grantee STILL reveals PHI + emits exactly one audit row (M3 positive twin) but has no edit affordance', async ({
+test('AC-3b: write grantee (content-only, Stage B) does NOT reveal PHI and emits NO audit row; still cannot edit — THE FLIP', async ({
   request,
 }) => {
   const token = await getToken(request, 'staff3.ccih@test.local')
   const before = await auditRowsFor(request, 'case_patient.read', CASE_A_ID)
 
-  // ⬅ ADR 0078 defect ① / M3 — THE POSITIVE TWIN for the surviving grant arm.
-  // M3 is a NARROWING, and a narrowing that denied everyone would pass its negative
-  // (AC-3a) BY CONSTRUCTION. So the entitled path is the real risk and must be
-  // asserted: a `case_access` grantee still reads PHI.
-  //
-  // This also PINS today's behaviour that the grant arm does NOT filter
-  // `case_access.level` — a read-level grant still confers PHI. That is the OTHER
-  // half of defect ①, deliberately left for `case_access_grants.read_standard_phi`
-  // at Stage B (B1), mirroring the migration header + pgTAP 230. Pinned here so
-  // B1's change shows up as a FAILING assertion rather than a silent drift.
+  // ⬅ ADR 0078 Stage B / B1 (2026-07-16) — THE FLIP. Pre-B1 this test asserted the
+  // OPPOSITE: any case_access grant (read OR write) conferred PHI unconditionally,
+  // deliberately PINNED so B1's change would show up as a FAILING assertion rather
+  // than silent drift (see the old migration header + pgTAP 230 comments). B1 closed
+  // defect ①'s second half: PHI is now a PER-COLUMN capability
+  // (`case_access_grants.read_standard_phi` / `read_restricted_phi`), never inferred
+  // from a content or write grant. staff3.ccih's seeded grant (seed.sql) sets ONLY
+  // read_case_content/read_case_deliberation/write_case_content — both PHI columns
+  // stay false — so the standard-PHI door must now deny her.
   const readResp = await rpc(request, 'get_case_patient', token, { p_case_id: CASE_A_ID })
   expect(readResp.ok()).toBeTruthy()
-  const body = await readResp.json()
-  expect(body, 'M3 over-narrowed: a case_access grantee lost PHI').not.toBeNull()
-  expect(JSON.stringify(body)).toContain(PHI_MRN)
+  expect(
+    await readResp.json(),
+    'B1 regression: a content/write-only grant leaked PHI again',
+  ).toBeNull()
 
-  // Rule 11: an ENTITLED read emits exactly ONE case_patient.read row.
+  // Rule 11: a DENIED read must not audit as a read. No new row.
   const after = await auditRowsFor(request, 'case_patient.read', CASE_A_ID)
-  expect(after.length - before.length).toBe(1)
-  // …and that row carries no identifier in its metadata.
-  const metaStr = JSON.stringify(after[0].metadata ?? {})
-  expect(metaStr).not.toContain(PHI_NAME)
-  expect(metaStr).not.toContain(PHI_MRN)
+  expect(after.length).toBe(before.length)
 
-  // Cannot write — set_case_patient → 42501
+  // Still cannot write — set_case_patient → 42501 (unchanged by Stage B; writes were
+  // always coordinator-only).
   const writeResp = await rpc(request, 'set_case_patient', token, {
     p_case_id: CASE_A_ID,
     p_name: 'Tentativa grantee',
@@ -747,6 +761,63 @@ test('AC-3b: write grantee STILL reveals PHI + emits exactly one audit row (M3 p
   expect(writeResp.ok()).toBeFalsy()
   const errBody = JSON.stringify(await writeResp.json())
   expect(errBody).toMatch(/42501|insufficient_privilege|permission denied/i)
+})
+
+test('AC-3b-phi: grant_case_access with read_standard_phi=true DOES reveal PHI (Stage B positive twin)', async ({
+  request,
+}) => {
+  const chefeToken = await getToken(request, 'chefe.ccih@test.local')
+  const token = await getToken(request, 'staff3.ccih@test.local')
+
+  try {
+    // Elevate staff3's existing content/write grant to also carry read_standard_phi.
+    // grant_case_access → app._grant_case_access_unchecked is a full-row UPSERT (ON
+    // CONFLICT DO UPDATE over every capability column keyed on case+principal+source),
+    // so this REPLACES the seeded row rather than adding a second one.
+    const grantResp = await rpc(request, 'grant_case_access', chefeToken, {
+      p_case: CASE_A_ID,
+      p_user: UID_STAFF3_CCIH,
+      p_level: 'write',
+      p_read_standard_phi: true,
+    })
+    expect(
+      grantResp.ok(),
+      `grant_case_access(read_standard_phi=true) failed: ${await grantResp.text()}`,
+    ).toBeTruthy()
+
+    const before = await auditRowsFor(request, 'case_patient.read', CASE_A_ID)
+    const readResp = await rpc(request, 'get_case_patient', token, { p_case_id: CASE_A_ID })
+    expect(readResp.ok()).toBeTruthy()
+    const body = await readResp.json()
+    expect(body, 'a read_standard_phi=true grant did not reveal PHI').not.toBeNull()
+    expect(JSON.stringify(body)).toContain(PHI_MRN)
+
+    // Rule 11: an ENTITLED read emits exactly ONE case_patient.read row, PHI-free metadata.
+    const after = await auditRowsFor(request, 'case_patient.read', CASE_A_ID)
+    expect(after.length - before.length).toBe(1)
+    const metaStr = JSON.stringify(after[0].metadata ?? {})
+    expect(metaStr).not.toContain(PHI_NAME)
+    expect(metaStr).not.toContain(PHI_MRN)
+  } finally {
+    // Revert staff3 back to the seed shape (content + write, NO PHI) so she stays a
+    // clean content-only grantee for AC-3c/AC-3d below and every other spec that
+    // shares this seeded fixture. grant_case_access is a full-row upsert, so calling
+    // it again WITHOUT the PHI param restores the column to its default (false) —
+    // never trust a teardown you haven't verified (§7.3 of authz-handoff.md), so the
+    // revert is asserted, not assumed.
+    const revertResp = await rpc(request, 'grant_case_access', chefeToken, {
+      p_case: CASE_A_ID,
+      p_user: UID_STAFF3_CCIH,
+      p_level: 'write',
+    })
+    expect(
+      revertResp.ok(),
+      `revert grant_case_access failed: ${await revertResp.text()}`,
+    ).toBeTruthy()
+    const verifyResp = await rpc(request, 'get_case_patient', token, { p_case_id: CASE_A_ID })
+    expect(verifyResp.ok()).toBeTruthy()
+    expect(await verifyResp.json(), 'teardown did not actually revoke PHI reach').toBeNull()
+  }
 })
 
 test('AC-3c: coordinator has edit affordance + name-or-MRN floor enforced server-side', async ({

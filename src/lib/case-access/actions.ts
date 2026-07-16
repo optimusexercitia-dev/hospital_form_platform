@@ -26,7 +26,6 @@
 import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
-import { featureEnabled } from '@/lib/queries/feature-flags'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database } from '@/lib/types/database'
@@ -81,7 +80,8 @@ function mapError(error: { code?: string; message?: string } | null): string {
     case PG_FORBIDDEN:
       return MESSAGES.forbidden
     case PG_CHECK_VIOLATION:
-      // The flag-off gate (assert_case_access_enabled) raises check_violation.
+      // case_access_grants shape CHECKs (e.g. write⇒read, restricted⇒standard) raise
+      // check_violation; the retired case_access flag-off gate (ADR 0078 B4) no longer does.
       return MESSAGES.unavailable
     default:
       return MESSAGES.generic
@@ -93,13 +93,14 @@ function mapError(error: { code?: string; message?: string } | null): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Feature-flag gate for the case-access surface. Calls the SECURITY DEFINER
- * `public.case_access_enabled()` read so the gate is authoritative server-side
- * (the flag lives in the locked-down `app` schema). Fails closed.
+ * Whether the case-access surface is enabled. ADR 0078 Stage B (B4/D9) RETIRED the
+ * `case_access` feature flag and shipped a single authorization path — cases are
+ * permanently ON. This helper is now a constant (kept `async` for its many `await`
+ * call sites, and kept as the single seam so the dead "Minhas fases" flag-OFF branches
+ * can be removed in the Gate-2 frontend cleanup without re-plumbing every caller).
  */
 export async function caseAccessEnabled(): Promise<boolean> {
-  // P4 (WS-6): delegate to the consolidated, request-memoized flag read.
-  return featureEnabled('case_access')
+  return true
 }
 
 /** Authorize a case-access action: admin, or a staff_admin of THAT commission. */

@@ -50,8 +50,8 @@ create temp table k on commit drop as
   from ctx;
 grant select on k to authenticated;
 
-select is(app.feature_enabled('case_access'), true,
-  'FLAG: case_access is ON — assert the state, never claim it (§7.3)');
+select is((select exists (select 1 from app.feature_flags where key = 'case_access')), false,
+  'B4: the case_access flag is RETIRED — assert the state, never claim it (§7.3)');
 select is(app.feature_enabled('case_referrals'), true,
   'FLAG: case_referrals is ON — the NSP arm K6 leans on is LIVE');
 
@@ -99,8 +99,7 @@ values ('00000000-0000-0000-0000-0000000a4020', 'REF-A4-1',
         'Notificação', 'Assunto A4', 'sent', false, false, (select sa_x from k));
 
 -- sa_y is MADE a READ grantee on c1 (foreign coordinator, so the grant is his ONLY arm).
-insert into public.case_access (case_id, user_id, level, granted_by)
-values ('00000000-0000-0000-0000-0000000a4001', (select sa_y from k), 'read', (select sa_x from k));
+select test_helpers.grant_ca('00000000-0000-0000-0000-0000000a4001', (select sa_y from k), 'read', (select sa_x from k), null, null, true);
 
 -- Config the org_admin STILL governs (the positive twins) — rows in comm_x.
 insert into public.case_tags (id, commission_id, name)
@@ -291,7 +290,7 @@ reset role;
 -- K8 — everyone else's reach is UNCHANGED (the narrowing bound ONLY the org arm).
 -- ===========================================================================
 select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a4001', (select sa_y from k)), true,
-  'K8 ⭐ POSITIVE: the READ grantee still reaches PHI — untouched by A4');
+  'K8 ⭐ POSITIVE: a read_standard_phi grantee still reaches PHI — untouched by A4');
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
 select is((select count(*)::int from public.meeting_cases where case_id = '00000000-0000-0000-0000-0000000a4001'), 1,

@@ -100,10 +100,8 @@ values
   ((select phase_x from cs), (select case_x from cs), 1, (select form_u from k),
    (select ver_u from k), 'active', (select st_x from k), '{}');
 
-insert into public.case_access (case_id, user_id, level, granted_by)
-values
-  ((select case_x from cs), (select gx_r from p), 'read',  (select sa_x from k)),
-  ((select case_x from cs), (select gx_w from p), 'write', (select sa_x from k));
+select test_helpers.grant_ca((select case_x from cs), (select gx_r from p), 'read',  (select sa_x from k));
+select test_helpers.grant_ca((select case_x from cs), (select gx_w from p), 'write', (select sa_x from k));
 
 -- ===========================================================================
 -- (1) CREATE authority — can_write_case_content (ADR 0033 D4)

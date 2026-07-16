@@ -32,7 +32,7 @@ create or replace function app._mut_u1(p_what text) returns void
 declare d text;
 begin
   if p_what = 'revert_grant' then
-    d := pg_get_functiondef('public.grant_case_access(uuid,uuid,text,timestamptz,text)'::regprocedure);
+    d := pg_get_functiondef('public.grant_case_access(uuid,uuid,text,timestamptz,text,boolean,boolean)'::regprocedure);
     d := replace(d, 'perform app.assert_not_case_excluded(p_case);', 'null;');
     execute d;
 

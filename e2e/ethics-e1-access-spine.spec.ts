@@ -54,7 +54,8 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  *
  * Runs against the LOCAL Supabase stack + the dev server (fast loop) — no
  * `waitForLoadState('networkidle')` (purged repo-wide; web-first assertions only).
- * Serial: several tests mutate shared `case_access`/`case_recusals` fixture state.
+ * Serial: several tests mutate shared `case_access_grants`/`case_recusals` fixture
+ * state (ADR 0078 Stage B renamed `case_access` → `case_access_grants`).
  */
 
 test.describe.configure({ mode: 'serial' })
@@ -223,7 +224,16 @@ async function dbDelete(table: string, params: Record<string, string>): Promise<
   })
 }
 
-/** Upsert a `case_access` grant (delete-then-insert; mirrors case-access.spec.ts). */
+/**
+ * Upsert a `case_access_grants` row (delete-then-insert; mirrors case-access.spec.ts).
+ *
+ * ADR 0078 Stage B (B1): `case_access` was HARD-CUT to `case_access_grants` —
+ * capability-per-column, keyed by `principal_id` (not `user_id`). A plain
+ * read/write `level` here maps to content + deliberation (+ write, iff level ===
+ * 'write'); PHI columns are left at their `false` default — this helper is a
+ * content/administrative grant, never a PHI grant. `maxConfidentiality` maps
+ * straight onto the (unchanged) `max_confidentiality` column.
+ */
 async function upsertCaseAccess(opts: {
   caseId: string
   userId: string
@@ -231,8 +241,8 @@ async function upsertCaseAccess(opts: {
   maxConfidentiality?: string | null
   reason?: string | null
 }): Promise<void> {
-  await dbDelete('case_access', { case_id: `eq.${opts.caseId}`, user_id: `eq.${opts.userId}` })
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/case_access`, {
+  await dbDelete('case_access_grants', { case_id: `eq.${opts.caseId}`, principal_id: `eq.${opts.userId}` })
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/case_access_grants`, {
     method: 'POST',
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
@@ -242,8 +252,12 @@ async function upsertCaseAccess(opts: {
     },
     body: JSON.stringify({
       case_id: opts.caseId,
-      user_id: opts.userId,
-      level: opts.level,
+      principal_id: opts.userId,
+      source: 'manual_grant',
+      read_case_content: true,
+      read_case_deliberation: true,
+      write_case_content: opts.level === 'write',
+      reason_code: 'coordinator_grant',
       granted_by: UID_CHEFE,
       max_confidentiality: opts.maxConfidentiality ?? null,
       reason: opts.reason ?? null,
@@ -253,7 +267,7 @@ async function upsertCaseAccess(opts: {
 }
 
 async function clearCaseAccess(caseId: string, userId: string): Promise<void> {
-  await dbDelete('case_access', { case_id: `eq.${caseId}`, user_id: `eq.${userId}` })
+  await dbDelete('case_access_grants', { case_id: `eq.${caseId}`, principal_id: `eq.${userId}` })
 }
 
 /** A real JWT for a persona (RLS is evaluated under it). */

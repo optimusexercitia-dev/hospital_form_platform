@@ -9,8 +9,9 @@ select plan(5);
 
 -- Enable both feature flags for this transaction.
 update app.feature_flags set enabled = true where key in ('cases_multi_phase', 'cases_extras');
--- Member-read model for case_events (see 144_case_access for the ACL behavior).
-update app.feature_flags set enabled = false where key = 'case_access';
+-- ADR 0078 Stage B: the flag-OFF "member-read" model is GONE. A case member reads case
+-- content only via a grant/assignment/coordination now (member arm = deliberation only).
+-- The reader below (st_x) is made a grantee so "an authorized member reads events" holds.
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -44,6 +45,9 @@ create temp table cse on commit drop as
   select (public.create_case_from_template((select tid from tpl), 'Caso Docs')).id as cid;
 reset role;
 grant select on cse to authenticated;
+
+-- Stage B: st_x is a plain member — make him a case grantee so he can read case content.
+select test_helpers.grant_ca((select cid from cse), (select st_x from k), 'read', (select sa_x from k));
 
 -- =========================================================================
 -- 1) CASE_EVENTS: staff_admin can insert an event; staff can read

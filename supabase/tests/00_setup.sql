@@ -301,6 +301,38 @@ begin
 end;
 $$;
 
+-- ADR 0078 Stage B: the legacy `case_access(level)` shape is gone. This helper
+-- translates a legacy read/write grant into a `case_access_grants` row EXACTLY as
+-- the B5 seed + the data migration do (read→content+deliberation, write→+write,
+-- NO PHI inferred; max_confidentiality carried as the orthogonal ceiling). Test
+-- fixtures that used to `insert into public.case_access (...)` call this instead.
+create or replace function test_helpers.grant_ca(
+  p_case uuid, p_user uuid, p_level text default 'read',
+  p_granted_by uuid default null,
+  p_expires_at timestamptz default null,
+  p_max_conf text default null,
+  p_read_standard_phi boolean default false,
+  p_read_restricted_phi boolean default false)
+returns void
+language sql
+as $$
+  insert into public.case_access_grants
+    (case_id, principal_id, source, read_case_content, read_case_deliberation,
+     write_case_content, read_standard_phi, read_restricted_phi,
+     max_confidentiality, granted_by, expires_at, reason_code)
+  values
+    (p_case, p_user, 'manual_grant', true, true,
+     (p_level = 'write'),
+     (p_read_standard_phi or p_read_restricted_phi), p_read_restricted_phi,
+     p_max_conf, p_granted_by, p_expires_at, 'coordinator_grant')
+  on conflict (case_id, principal_id, source, source_entity_id) where revoked_at is null
+  do update set write_case_content    = excluded.write_case_content,
+                read_standard_phi      = excluded.read_standard_phi,
+                read_restricted_phi    = excluded.read_restricted_phi,
+                max_confidentiality    = excluded.max_confidentiality,
+                expires_at             = excluded.expires_at;
+$$;
+
 -- act_as switches into the authenticated role, which then needs to call
 -- reset_role()/act_as() again; grant it access to the helper schema.
 grant usage on schema test_helpers to authenticated;

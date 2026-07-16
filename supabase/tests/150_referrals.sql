@@ -389,8 +389,7 @@ select is(app.can_read_case((select src_case from cs), (select sa_y from k)), fa
 -- =========================================================================
 -- Make st_y (plain target staff, NOT a coordinator) a TARGET ANALYST via a
 -- case_access grant on B's target case.
-insert into public.case_access (case_id, user_id, level, granted_by)
-  values ((select tgt_case from cs), (select st_y from k), 'read', (select sa_y from k));
+select test_helpers.grant_ca((select tgt_case from cs), (select st_y from k), 'read', (select sa_y from k));
 
 -- Source coordinator: compose-as-source true, compose-as-target false.
 select test_helpers.claims_for((select sa_x from k), false);

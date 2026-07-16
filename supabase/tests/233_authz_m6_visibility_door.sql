@@ -66,8 +66,8 @@ grant select on k to authenticated;
 -- ---------------------------------------------------------------------------
 select is(app.feature_enabled('audit_trail'), true,
   'FLAG: audit_trail is ON — else audit_write returns early and M6·6 measures the flag, not the door');
-select is(app.feature_enabled('case_access'), true,
-  'FLAG: case_access is ON — pins the LIVE arm of can_read_case* (their visibility_policy branches are the flag-OFF belt and are dead here)');
+select is((select exists (select 1 from app.feature_flags where key = 'case_access')), false,
+  'B4: the case_access flag is RETIRED — can_read_case* has a single path now');
 
 -- ---------------------------------------------------------------------------
 -- FIXTURE · one case in comm_x, explicitly explicit_grants_only.

@@ -103,7 +103,7 @@ select set_config('app.in_referral_rpc', 'off', true);
 -- ===========================================================================
 -- PRE-FLIGHT — the fixture is load-bearing; assert it, never assume it.
 -- ===========================================================================
-select is(app.feature_enabled('case_access'), true, 'FLAG: case_access ON (pins the live grant-door arm)');
+select is((select exists (select 1 from app.feature_flags where key = 'case_access')), false, 'B4: case_access flag RETIRED (the grant-door arm is always live)');
 select is(app.is_case_excluded('00000000-0000-0000-0000-0000000f7001', (select st_x from k)), true,
   'PRE ⭐ leg 1/2: st_x is EXCLUDED via the RESPONDENT leg');
 select is(app.is_staff_admin_of_for((select comm_x from k), (select st_x from k)), true,

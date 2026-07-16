@@ -28,7 +28,7 @@
 -- reverting the fix found every one.
 -- =============================================================================
 begin;
-select plan(62);   -- +1: A4 (20260730) inverted K2 and added the manage_case_access twin
+select plan(54);   -- ADR 0078 Stage B: K3/K12 (the retired flag-OFF branch, 8 assertions) removed
 
 update app.feature_flags set enabled = true
   where key in ('case_access', 'case_referrals', 'case_patient', 'case_participants',
@@ -62,8 +62,8 @@ grant select on k to authenticated;
 -- `description` is prose, and believing the prose put a false claim into a permanent
 -- ADR and called a LIVE PHI arm inert.
 -- ---------------------------------------------------------------------------
-select is(app.feature_enabled('case_access'), true,
-  'FLAG: case_access is ON — pins TODAY''s live branch (the flag-OFF arms are dead code here; K3/K12 flip it explicitly)');
+select is((select exists (select 1 from app.feature_flags where key = 'case_access')), false,
+  'B4: the case_access flag is RETIRED — a single always-on path (the S5L flag-OFF arms are deleted, D9)');
 select is(app.feature_enabled('case_referrals'), true,
   'FLAG ⭐: case_referrals is ON — the NSP arm is LIVE, not inert (its description says "Ships OFF"; the enabled column is the flag)');
 select is(app.feature_enabled('case_patient'), true,
@@ -108,9 +108,10 @@ values ('00000000-0000-0000-0000-0000000a2020', 'REF-A2-1',
         '00000000-0000-0000-0000-0000000a2001', (select comm_x from k), (select comm_y from k),
         'Notificação', 'Assunto A2', 'sent', false, false, (select sa_x from k));
 
--- sa_y is MADE a READ grantee on c1 (a foreign coordinator, so the grant is his ONLY arm).
-insert into public.case_access (case_id, user_id, level, granted_by)
-values ('00000000-0000-0000-0000-0000000a2001', (select sa_y from k), 'read', (select sa_x from k));
+-- sa_y is MADE a grantee on c1 with read_standard_phi (a foreign coordinator, so the
+-- grant is his ONLY arm). PHI is now a per-column grant — K10 needs him to reach PHI.
+select test_helpers.grant_ca('00000000-0000-0000-0000-0000000a2001', (select sa_y from k), 'read',
+       (select sa_x from k), null, null, true);
 
 -- A meeting that discusses c1 and c2 — the ONE surface `read_case_deliberation` gates.
 insert into public.meetings (id, commission_id, meeting_number, title, scheduled_start)
@@ -128,8 +129,8 @@ select is(app.is_staff_admin_of_for((select comm_x from k), (select st_x from k)
   'PRE ⭐: the plain member is NOT a coordinator');
 select is(app.is_member_of_for((select comm_x from k), (select st_x from k)), true,
   'PRE ⭐: …but he IS an active member — the member arm is genuinely available to him');
-select is((select exists (select 1 from public.case_access
-           where case_id = '00000000-0000-0000-0000-0000000a2001' and user_id = (select st_x from k))), false,
+select is((select exists (select 1 from public.case_access_grants
+           where case_id = '00000000-0000-0000-0000-0000000a2001' and principal_id = (select st_x from k))), false,
   'PRE ⭐: the plain member holds NO grant — nothing else can confound his cells');
 select is(app.is_case_excluded('00000000-0000-0000-0000-0000000a2001', (select st_x from k)), false,
   'PRE ⭐: the plain member is NOT excluded — a poisoned fixture would mask a widening (proven trap)');
@@ -265,14 +266,14 @@ select throws_ok(
 reset role;
 
 -- ===========================================================================
--- K7 — the grant still confers PHI. ⚠ `level` is deliberately NOT filtered: the real
--- capability is case_access_grants.read_standard_phi (B1). This PINS today's behaviour
--- on a READ grant so B1 lands as a VISIBLE failing assertion rather than a silent drop.
+-- K7 — a manual_grant confers PHI iff read_standard_phi is set (B1 — DEFECT ①·2
+-- CLOSED). sa_y holds a read_standard_phi grant, so he reaches PHI via the COLUMN, not
+-- the read level; a plain read/write grant never does (230 / 238 prove the flip).
 -- ===========================================================================
 select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a2001', (select sa_y from k)), true,
-  'K7 ⭐ (defect ① half 2, pinned to B1): an unexpired READ grantee still reaches the PHI door');
+  'K7 ⭐ (defect ①·2 CLOSED): a read_standard_phi grantee reaches the PHI door — via the column, not the read level');
 select is(app.can_write_case_content('00000000-0000-0000-0000-0000000a2001', (select sa_y from k)), false,
-  'K7 twin: …but a READ grant confers no WRITE — level IS filtered for the write bit (only the read bits ignore it)');
+  'K7 twin: …but the grant confers no WRITE (write is a disjoint chain — A16)');
 
 -- ===========================================================================
 -- K8 — ⭐ THE LATTICE RUNG THAT BREAKS: read_case_deliberation ⇏ view_case_overview.
@@ -327,15 +328,14 @@ values ('00000000-0000-0000-0000-0000000a2041', (select org_x from k), 'responde
 insert into public.case_participants (case_id, participant_id, role_id, is_primary_subject)
 values ('00000000-0000-0000-0000-0000000a2002', '00000000-0000-0000-0000-0000000a2040',
         '00000000-0000-0000-0000-0000000a2041', true);
-insert into public.case_access (case_id, user_id, level, granted_by)
-values ('00000000-0000-0000-0000-0000000a2002', (select sa_x from k), 'write', (select sa_x from k));
+select test_helpers.grant_ca('00000000-0000-0000-0000-0000000a2002', (select sa_x from k), 'write', (select sa_x from k));
 
 select is(app.is_case_respondent('00000000-0000-0000-0000-0000000a2002', (select sa_x from k)), true,
   'K9 PRE ⭐ leg 1: the principal IS the respondent of c2');
 select is(app.is_staff_admin_of_for((select comm_x from k), (select sa_x from k)), true,
   'K9 PRE ⭐ leg 2: …and IS the coordinator — so a denial below CANNOT be a lack of authority (the vacuity trap)');
-select is((select exists (select 1 from public.case_access
-           where case_id = '00000000-0000-0000-0000-0000000a2002' and user_id = (select sa_x from k))), true,
+select is((select exists (select 1 from public.case_access_grants
+           where case_id = '00000000-0000-0000-0000-0000000a2002' and principal_id = (select sa_x from k))), true,
   'K9 PRE ⭐ leg 3: …and holds a WRITE grant on c2 — the deny must out-vote BOTH positive arms');
 select is(app._case_caps('00000000-0000-0000-0000-0000000a2002', (select sa_x from k)), 0,
   'K9 ⭐⭐ THE HARD DENY: the respondent resolves to ZERO capabilities — coordinator AND grant notwithstanding');
@@ -378,40 +378,13 @@ select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a2001', (sel
   'K10 ⭐ RESTORED: reactivation restores reach — the gate reads the CURRENT state, not a one-way latch');
 
 -- ===========================================================================
--- K3 + K12 — ⛔ source (b): the `case_access` flag-OFF branch. DEAD CODE at runtime
--- (the flag is ON and unflippable in any real environment) and DELETED at Stage B (D9)
--- — carried here ONLY so A2 is a FAITHFUL swap.
---
--- K3 re-pins `228` test 24 (content). K12 is NEW: **nothing pinned the PHI half.**
--- Measured, flag OFF vs ON: PHI reach 27 -> 54 of 196 cells — the flag-OFF member arm
--- DOUBLES PHI reach. D9 scheduled both OFF branches for deletion but describes the
--- blast radius as "member-wide read", not "member-wide read INCLUDING PATIENT
--- IDENTIFIERS" — so a Stage-B author would not know Rule 12 is in scope. K12 makes
--- Stage B's deletion a visible RED.
+-- ⛔ K3 + K12 REMOVED (ADR 0078 B4/D9). They tested the `case_access` flag-OFF branch
+-- (source b) — the S5L legacy member arm that conferred CONTENT and PATIENT IDENTIFIERS
+-- to every member. Stage B DELETES that arm and RETIRES the flag, so there is no second
+-- body to pin. The surviving member arm confers read_case_deliberation ONLY (A15),
+-- never content, never PHI — proven by the member keystones above (flag-independent).
+-- The defect ①·2 flip those pins existed to make visible now lands in K7 (above) + 230.
 -- ===========================================================================
-update app.feature_flags set enabled = false where key = 'case_access';
-select is(app.feature_enabled('case_access'), false,
-  'K3/K12 PRE ⭐: the flag is genuinely OFF — assert the state, never claim it (both readings were once "correct" and neither was a fact)');
-
-select is(app.can_read_case('00000000-0000-0000-0000-0000000a2001', (select st_x from k)), true,
-  'K3 ⭐ source (b) (re-pins 228 t24): with case_access OFF, a clean member reads the case — byte-for-byte');
-select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a2001', (select st_x from k)), true,
-  'K12 ⭐⭐ NEW — the arm nothing pinned: with case_access OFF a PLAIN MEMBER reads PATIENT IDENTIFIERS (Rule 12). Deleted at Stage B (D9) — this must go RED there, deliberately');
-select test_helpers.claims_for((select st_x from k), false);
-set local role authenticated;
-select is((select (public.get_case_patient('00000000-0000-0000-0000-0000000a2001'))->>'mrn'), 'MRN-A2-001',
-  'K12 ⭐ ROWS: …and actually reads the MRN through the audited door — the widening is real, not theoretical');
-reset role;
-select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a2002', (select st_x from k)), false,
-  'K12 ⭐ THE TWIN (§7.7): …and reads NO PHI on the explicit_grants_only case — the E1 belt holds even with the flag OFF');
-select is(app.can_read_case('00000000-0000-0000-0000-0000000a2002', (select st_x from k)), false,
-  'K12 twin: …and no content on it either — ethics stays coordinator/grant-only in BOTH flag states');
-select is(app.can_write_case_content('00000000-0000-0000-0000-0000000a2001', (select sa_x from k)), true,
-  'K3 ⭐ ASYMMETRY: can_write_case_content has NO flag branch — the coordinator still writes with case_access OFF (wiring this inside the flag arm would LOSE 8 cells)');
-
-update app.feature_flags set enabled = true where key = 'case_access';
-select is(app.feature_enabled('case_access'), true,
-  'K3/K12 POST ⭐: the flag is restored — a suite that corrupts shared state is green and corrupting simultaneously (proven: 17/17 GREEN while corrupting)');
 
 select * from finish();
 rollback;

@@ -19,7 +19,7 @@
 -- =============================================================================
 
 begin;
-select plan(25);
+select plan(22);   -- ADR 0078 Stage B: pin FLIPPED (read grant ⇏ PHI) + dead flag-OFF branch removed
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -61,11 +61,11 @@ values ('00000000-0000-0000-0000-0000000a3003', '00000000-0000-0000-0000-0000000
 -- ===========================================================================
 select is(app.is_staff_admin_of_for((select comm_x from k), (select st_x2 from k)), false,
   'PRE ⭐: the assignee is NOT staff_admin — no coordinator arm to confound the test');
-select is((select exists (select 1 from public.case_access
-           where case_id = '00000000-0000-0000-0000-0000000a3001' and user_id = (select st_x2 from k))), false,
-  'PRE ⭐: the assignee holds NO case_access grant — the assignment arm is his ONLY reach');
-select is(app.feature_enabled('case_access'), true,
-  'PRE: case_access flag is ON — this is today''s LIVE branch');
+select is((select exists (select 1 from public.case_access_grants
+           where case_id = '00000000-0000-0000-0000-0000000a3001' and principal_id = (select st_x2 from k))), false,
+  'PRE ⭐: the assignee holds NO grant — the assignment arm is his ONLY reach');
+select is((select exists (select 1 from app.feature_flags where key = 'case_access')), false,
+  'PRE: the case_access flag is RETIRED (Stage B) — a single always-on path');
 -- ⭐ ADR 0078 M4: assert the rest too, don't assume them. `case_patient` gates the
 -- PHI writer this suite's whole fixture depends on; `case_referrals` OFF pins the
 -- branch where the (LIVE) PQS referral arm cannot confound the assignee measurement.
@@ -123,64 +123,36 @@ select is((select (public.get_case_patient('00000000-0000-0000-0000-0000000a3001
   'M3 POSITIVE TWIN ⭐: …and actually READS the MRN through the audited door');
 reset role;
 
--- An explicit grant still confers PHI. ⚠ NOTE: level is NOT filtered — see the
--- migration; that half of defect ① is NOT fixable on today's shape and is
--- deliberately left. This twin therefore uses a READ grant on purpose: it pins
--- the CURRENT behaviour so Stage B's change is visible rather than silent.
-insert into public.case_access (case_id, user_id, level, granted_by)
-values ('00000000-0000-0000-0000-0000000a3001', (select sa_y from k), 'read', (select sa_x from k));
+-- ⭐ ADR 0078 STAGE B — DEFECT ①·2 CLOSED, and THIS is the pin that was left to flip.
+-- The old pin asserted "a read grant STILL reaches PHI" and warned it was the deferred
+-- half of defect ①. Stage B closes it: PHI is a per-column grant now, so a plain READ
+-- (or WRITE) grant NO LONGER confers PHI. The flip is the visible landing.
+select test_helpers.grant_ca('00000000-0000-0000-0000-0000000a3001', (select sa_y from k), 'read', (select sa_x from k));
+select is(app.can_read_case('00000000-0000-0000-0000-0000000a3001', (select sa_y from k)), true,
+  'M3 POSITIVE TWIN ⭐: a read grantee STILL reaches case content (reach preserved)');
+select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a3001', (select sa_y from k)), false,
+  'M3 ⭐ DEFECT ①·2 FLIP: a plain READ grant NO LONGER confers PHI (was true under case_access.level)');
+
+-- The NEW capability: an explicit read_standard_phi grant DOES confer PHI (per column,
+-- not via write) — and the narrowing did not deny everyone.
+select test_helpers.grant_ca('00000000-0000-0000-0000-0000000a3001', (select sa_y from k), 'read',
+       (select sa_x from k), null, null, true);
 select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a3001', (select sa_y from k)), true,
-  'M3 POSITIVE TWIN ⭐: an explicit case_access grantee still reaches the PHI door');
+  'M3 ⭐ NEW CAPABILITY: a manual_grant with read_standard_phi=true confers PHI');
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
 select is((select (public.get_case_patient('00000000-0000-0000-0000-0000000a3001'))->>'mrn'), 'MRN-M3-001',
-  'M3 POSITIVE TWIN ⭐: …and actually READS it (the narrowing did not deny everyone)');
+  'M3 POSITIVE TWIN ⭐: …and actually READS it through the audited door');
 reset role;
 
--- An EXPIRED grant must not — the expiry term survives the edit untouched.
-update public.case_access set expires_at = now() - interval '1 day'
- where case_id = '00000000-0000-0000-0000-0000000a3001' and user_id = (select sa_y from k);
-select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a3001', (select sa_y from k)), false,
-  'M3: an EXPIRED grant confers no PHI — the expiry term is intact');
-update public.case_access set expires_at = null
- where case_id = '00000000-0000-0000-0000-0000000a3001' and user_id = (select sa_y from k);
-
 -- ===========================================================================
--- ⛔ BOTH FLAG BRANCHES. case_access OFF is a different body entirely; leaving it
--- unproven would let the narrowing silently miss (or over-apply on) that path.
+-- ⛔ THE FLAG-OFF BRANCH IS GONE (ADR 0078 B4/D9). The old "case_access OFF" section
+-- here tested the S5L legacy member arm — which conferred PATIENT IDENTIFIERS to every
+-- member and which Stage B DELETES. There is no second body to prove any more: the
+-- member arm confers read_case_deliberation ONLY (A15), never PHI, at every
+-- visibility_policy. That invariant is owned + mutation-proven by 234/238, not re-pinned
+-- here (M3's scope is the assignment arm).
 -- ===========================================================================
-update app.feature_flags set enabled = false where key = 'case_access';
-
--- The OFF branch has NO assignment arm to begin with (commission_default → member-wide).
--- So the assignee KEEPS PHI here — via the MEMBER arm, not the assignment arm.
--- ⚠ Asserting "false" here would be WRONG and would silently narrow the member arm,
--- which is A15/A2's business, NOT M3's. Scope fence, asserted.
-select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a3001', (select st_x2 from k)), true,
-  'M3 SCOPE FENCE ⭐: flag OFF, the assignee keeps PHI via the MEMBER arm — M3 does NOT touch it (A15/A2 owns it)');
-select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a3001', (select sa_x from k)), true,
-  'M3 flag OFF: the coordinator keeps PHI');
-
--- explicit_grants_only on the OFF branch → staff_admin ONLY (the E1 belt), unchanged.
--- ⚠ FIXTURE ONLY — these two writes are state SETUP, not assertions; no keystone below
--- changed. ADR 0078 M6 added app.guard_case_visibility, which confines visibility_policy
--- writes to public.set_case_visibility via the app.in_case_rpc GUC — exactly as
--- guard_case_status has always confined `status`. Fixture writes therefore open the same
--- GUC, which is the established convention here (110_case_status, 114_phase_blockers,
--- 160_phase_results all do this). Using the RPC instead would drag M3's fixture through
--- M6's authority + exclusion gates and couple these suites for no gain.
-select set_config('app.in_case_rpc', 'on', true);
-update public.cases set visibility_policy = 'explicit_grants_only'
- where id = '00000000-0000-0000-0000-0000000a3001';
-select set_config('app.in_case_rpc', 'off', true);
-select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a3001', (select st_x2 from k)), false,
-  'M3 flag OFF + explicit_grants_only: the assignee gets NO PHI (E1 belt intact)');
-select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a3001', (select sa_x from k)), true,
-  'M3 flag OFF + explicit_grants_only: the coordinator keeps PHI (belt intact)');
-select set_config('app.in_case_rpc', 'on', true);
-update public.cases set visibility_policy = 'commission_default'
- where id = '00000000-0000-0000-0000-0000000a3001';
-select set_config('app.in_case_rpc', 'off', true);
-update app.feature_flags set enabled = true where key = 'case_access';
 
 -- ===========================================================================
 -- STRUCTURAL — catalog facts, so a refactor cannot silently restore the arms.

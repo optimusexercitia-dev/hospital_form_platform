@@ -974,10 +974,15 @@ begin
   end if;
 
   -- Standalone grants: multi = read (viewer), staff3 = write (collaborator).
-  insert into public.case_access (case_id, user_id, level, granted_by) values
-    (v_case1, v_multi,    'read',  v_chefe_a),
-    (v_case1, v_staff_a3, 'write', v_chefe_a)
-  on conflict (case_id, user_id) do update set level = excluded.level;
+  -- ADR 0078 Stage B: case_access_grants, per-column. NO PHI inferred from read/write.
+  insert into public.case_access_grants
+    (case_id, principal_id, source, read_case_content, read_case_deliberation,
+     write_case_content, reason_code, granted_by)
+  values
+    (v_case1, v_multi,    'manual_grant', true, true, false, 'coordinator_grant', v_chefe_a),
+    (v_case1, v_staff_a3, 'manual_grant', true, true, true,  'coordinator_grant', v_chefe_a)
+  on conflict (case_id, principal_id, source, source_entity_id) where revoked_at is null
+  do update set write_case_content = excluded.write_case_content;
 end $$;
 
 -- ===========================================================================
@@ -2142,15 +2147,21 @@ begin
   on conflict do nothing;
 
   -- A granted member who is RECUSED: read grant + a LIVE recusal (tester lifts to restore).
-  insert into public.case_access (case_id, user_id, level, granted_by)
-  values (v_case, v_recu, 'read', v_chefe) on conflict do nothing;
+  insert into public.case_access_grants
+    (case_id, principal_id, source, read_case_content, read_case_deliberation, reason_code, granted_by)
+  values (v_case, v_recu, 'manual_grant', true, true, 'coordinator_grant', v_chefe)
+  on conflict (case_id, principal_id, source, source_entity_id) where revoked_at is null do nothing;
   insert into public.case_recusals (id, case_id, user_id, source, reason_md, recused_by)
   values ('fe000000-0000-0000-0000-0000000000e1', v_case, v_recu, 'coordinator', 'Conflito declarado', v_chefe)
   on conflict do nothing;
 
   -- Coordinator clearance so the legal_privileged doc is openable by chefe.ccih.
-  insert into public.case_access (case_id, user_id, level, max_confidentiality, granted_by)
-  values (v_case, v_chefe, 'read', 'legal_privileged', v_chefe) on conflict do nothing;
+  -- max_confidentiality is the orthogonal RESERVED ceiling (carried, not inferred).
+  insert into public.case_access_grants
+    (case_id, principal_id, source, read_case_content, read_case_deliberation,
+     max_confidentiality, reason_code, granted_by)
+  values (v_case, v_chefe, 'manual_grant', true, true, 'legal_privileged', 'coordinator_grant', v_chefe)
+  on conflict (case_id, principal_id, source, source_entity_id) where revoked_at is null do nothing;
 
   -- A gated legal_privileged document + an ordinary ethics_investigation document (O2).
   insert into public.attachments

@@ -10,7 +10,9 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  * The suite asserts it ON in beforeAll and DELIBERATELY does NOT flip it back in
  * afterAll — restoring a hardcoded `false` would drive the stack into a state no
  * environment ships and contaminate every spec that ran afterwards. See the note in
- * afterAll. `case_access` is also enabled for AC-5 (staff route test).
+ * afterAll. The AC-5 staff route test needs case content reachable; that's now
+ * unconditional (ADR 0078 B4 retired the `case_access` flag entirely — cases are
+ * permanently on) so there is nothing left to flip for it.
  *
  * ──────────────────────────────────────────────────────────────────────────────
  * HERMETICITY DESIGN
@@ -289,7 +291,7 @@ test.beforeAll(async ({ request }) => {
 
   // 1. Enable feature flags.
   await setFeatureFlag('case_phase_results', true)
-  await setFeatureFlag('case_access', true)
+  // `case_access` is no longer a flag (ADR 0078 B4 retired the row) — nothing to set.
   await new Promise((r) => setTimeout(r, 600)) // let flag propagation settle
 
   // 2. Create our OWN form in CCIH commission (service role — bypasses RLS).
@@ -615,7 +617,8 @@ test.afterAll(async () => {
   // residue if this fails.
   await purgeLeftoverState()
 
-  // case_phase_results and case_access are both ON after a fresh `db reset`.
+  // case_phase_results is ON after a fresh `db reset` (case_access is no longer a
+  // flag at all — ADR 0078 B4 retired the row; cases are permanently on).
   // (The old 20260624130000_feature_flags_default_on.sql that set this is GONE —
   // folded into the baseline squash. The live source of truth is now
   // 20260620000000_baseline.sql, which force-sets the flags via

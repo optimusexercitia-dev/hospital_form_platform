@@ -172,9 +172,11 @@ select ok(app.can_write_attachment('meeting', (select id from mtg), (select sa_x
   '1.3: staff_admin CAN write a meeting attachment');
 select ok(not app.can_write_attachment('meeting', (select id from mtg), (select st_x from k)),
   '1.4: plain member CANNOT write a meeting attachment');
--- case arm (member-read model — case_access OFF)
+-- case arm — Stage B: a plain member is no longer a case-reader; make st_x a grantee
+-- so the positive holds (the member≠case-reader divergence is proven at 1.10-1.13).
+select test_helpers.grant_ca((select cid from cse), (select st_x from k), 'read', (select sa_x from k));
 select ok(app.can_read_attachment('case', (select cid from cse), (select st_x from k)),
-  '1.5: comm_x member CAN read a case attachment (member-read)');
+  '1.5: a comm_x case GRANTEE CAN read a case attachment');
 select ok(not app.can_read_attachment('case', (select cid from cse), (select st_y from k)),
   '1.6: comm_y foreigner CANNOT read a case attachment');
 select ok(app.can_write_attachment('case', (select cid from cse), (select sa_x from k)),

@@ -33,9 +33,11 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  * case-phase-result specs) under a deterministic title tag, and DELETES them in
  * afterAll. No app code, migrations, or seed are touched.
  *
- * All feature flags default ON in the seed baseline (cases_extras / meetings /
- * case_access); one test flips `case_access` OFF to prove the case link degrades
- * to plain text, and restores it.
+ * All feature flags default ON in the seed baseline (cases_extras / meetings).
+ * `case_access` is no longer a flag at all — ADR 0078 B4 retired the row (cases
+ * are permanently on), so the flag-OFF "case link degrades to plain text" case
+ * this file used to carry (AC-7b) no longer has an OFF state to exercise and was
+ * removed; AC-7 alone now covers the case-link behaviour.
  *
  * Persona passwords: Test1234!  ·  Run with --project=chromium --workers=1
  * against a freshly `supabase db reset`-seeded stack.
@@ -215,11 +217,10 @@ const T_OTHER_ASSIGNEE = `${TAG} Item de outro usuário (staff2)`
 const T_OTHER_COMMISSION = `${TAG} Item de outra comissão (staff1 Farmácia)`
 
 test.beforeAll(async ({ request }) => {
-  // Ensure the three flags are ON (seed default; defensive against a prior
-  // aborted run that flipped case_access OFF and failed to restore).
+  // Ensure the flags are ON (seed default). `case_access` is no longer a flag
+  // (ADR 0078 B4 retired the row) — nothing left to defensively restore for it.
   await setFeatureFlag('cases_extras', true)
   await setFeatureFlag('meetings', true)
-  await setFeatureFlag('case_access', true)
 
   // Idempotent cleanup of any leftover rows from a prior aborted run.
   await teardownFixtures(request)
@@ -364,8 +365,6 @@ test.beforeAll(async ({ request }) => {
 
 test.afterAll(async ({ request }) => {
   await teardownFixtures(request)
-  // Always restore case_access ON (seed default) in case a test flipped it.
-  await setFeatureFlag('case_access', true)
 })
 
 async function teardownFixtures(request: APIRequestContext) {
@@ -447,10 +446,14 @@ test('AC-2/3: lists only own items in this commission, mixed case+meeting source
     page.getByRole('cell').filter({ hasText: 'Reunião' }).first(),
   ).toBeVisible()
   // The manual item renders the "Avulso" badge and — being a standalone task —
-  // carries NO source link in its "Gerado de" cell.
+  // carries NO source link in its "Gerado de" cell. Scope the assertion to that
+  // column (td[1]): the Título cell (td[0]) now always carries the item's OWN
+  // self-link, so counting links across the whole row would spuriously find 1.
   const manualRow = page.getByRole('row').filter({ hasText: T_MANUAL_ACTIVE })
   await expect(manualRow).toContainText('Avulso')
-  await expect(manualRow.getByRole('link')).toHaveCount(0)
+  await expect(
+    manualRow.locator('td').nth(1).getByRole('link'),
+  ).toHaveCount(0)
 
   // "Atribuído por" resolves the creator display name (Chefe CCIH).
   const overdueRow = page.getByRole('row').filter({ hasText: T_CASE_OVERDUE })
@@ -585,27 +588,33 @@ test('AC-6: sort order (overdue first, earliest due, no-deadline last) + overdue
 })
 
 // AC-7: "Gerado de" link — case item → member-reachable case route (NOT 404) for
-//       a plain staff assignee; meeting item → meetings/{id}; and (below, AC-7b)
-//       the case link degrades to plain text when case_access is OFF.
+//       a plain staff assignee; meeting item → meetings/{id}.
+//       (AC-7b, "case link degrades to plain text when case_access is OFF", was
+//       REMOVED — ADR 0078 B4 retired the flag and `caseAccessEnabled()` is now a
+//       hardcoded `true` [src/lib/case-access/actions.ts], so that branch is no
+//       longer reachable by any input; there is nothing left to assert.)
 test('AC-7: case link → member case route; meeting link → meetings/{id}', async ({
   page,
 }) => {
   await signInAs(page, 'staff1.ccih@test.local')
   await page.goto(`/o/${ORG_A}/c/${COMM_CCIH}/meus-itens-de-acao`)
 
-  // Meeting link target.
+  // Meeting link target — the "Gerado de" SOURCE link lives in td[1]. Scope to
+  // that column: td[0] (Título) now always carries the item's OWN self-link, so a
+  // bare row-level `.first()` would resolve to that self-link, not the source link.
   const meetingRow = page
     .getByRole('row')
     .filter({ hasText: T_MEETING_ACTIVE })
-  const meetingLink = meetingRow.getByRole('link').first()
+  const meetingLink = meetingRow.locator('td').nth(1).getByRole('link')
   await expect(meetingLink).toHaveAttribute(
     'href',
     new RegExp(`/o/${ORG_A}/c/${COMM_CCIH}/meetings/[0-9a-f-]+$`),
   )
 
-  // Case link target — the MEMBER route casos/{id} (not manage/cases).
+  // Case link target — the MEMBER route casos/{id} (not manage/cases). Same td[1]
+  // ("Gerado de" column) scoping as the meeting source link above.
   const caseRow = page.getByRole('row').filter({ hasText: T_CASE_OVERDUE })
-  const caseLink = caseRow.getByRole('link').first()
+  const caseLink = caseRow.locator('td').nth(1).getByRole('link')
   await expect(caseLink).toHaveAttribute(
     'href',
     new RegExp(`/o/${ORG_A}/c/${COMM_CCIH}/casos/${SEEDED_CASE_ID}$`),
@@ -626,34 +635,6 @@ test('AC-7: case link → member case route; meeting link → meetings/{id}', as
   await expect(
     page.getByRole('heading', { name: /Caso 0001/, level: 1 }),
   ).toBeVisible()
-})
-
-// AC-7b: case link degrades to plain (non-link) text when case_access is OFF.
-test('AC-7b: case link degrades to plain text when case_access is OFF', async ({
-  page,
-  request,
-}) => {
-  await setFeatureFlag('case_access', false)
-  try {
-    await signInAs(page, 'staff1.ccih@test.local')
-    await page.goto(`/o/${ORG_A}/c/${COMM_CCIH}/meus-itens-de-acao`)
-
-    // The case row still shows its number/label, but with NO link.
-    const caseRow = page.getByRole('row').filter({ hasText: T_CASE_OVERDUE })
-    await expect(caseRow).toBeVisible()
-    await expect(caseRow).toContainText('Caso')
-    await expect(caseRow.getByRole('link')).toHaveCount(0)
-
-    // The meeting row's link is unaffected by case_access.
-    const meetingRow = page
-      .getByRole('row')
-      .filter({ hasText: T_MEETING_ACTIVE })
-    await expect(meetingRow.getByRole('link')).toHaveCount(1)
-  } finally {
-    await setFeatureFlag('case_access', true)
-    // Best-effort: touch request so lint doesn't flag the unused fixture.
-    void request
-  }
 })
 
 // AC-8: read-only — no status-change controls on this page.
@@ -943,12 +924,15 @@ test('AC-15: keyboard-only — operate the toggle + source filter + reach a link
   // Resolved items now visible.
   await expect(page.getByRole('cell', { name: T_CASE_DONE })).toBeVisible()
 
-  // Tab to a source link and confirm it receives focus (keyboard-reachable).
+  // Tab to a source link and confirm it receives focus (keyboard-reachable). Scope
+  // to the "Gerado de" column (td[1]) so this targets the source link, not the
+  // Título self-link that now sits earlier in the row.
   const meetingLink = page
     .getByRole('row')
     .filter({ hasText: T_MEETING_ACTIVE })
+    .locator('td')
+    .nth(1)
     .getByRole('link')
-    .first()
   await meetingLink.focus()
   await expect(meetingLink).toBeFocused()
 })

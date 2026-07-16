@@ -59,44 +59,30 @@ begin
     d := replace(d, 'if app.is_recused_from_case(p_case_id, p_uid) then', 'if false then');
   elsif p_what = 'assignment_confers_phi' then
     -- Re-add the bare-assignment PHI arm that M3 deleted (this ADR's defect (1)).
+    -- ADR 0078 Stage B: the S4 assignment arm is anchored on the narrative-exists clause
+    -- (unique to S4; the manual_grant LOOP has the same cap bits but a different context).
     d := replace(d,
-      'v_caps := v_caps | app._cap_bit(''read_case_content'')
-                       | app._cap_bit(''read_case_deliberation'');
-    end if;
-
-  else',
-      'v_caps := v_caps | app._cap_bit(''read_case_content'')
-                       | app._cap_bit(''read_standard_phi'')
-                       | app._cap_bit(''read_case_deliberation'');
-    end if;
-
-  else');
+      'where cn.case_id = p_case_id and cn.assigned_to = p_uid) then
+    v_caps := v_caps | app._cap_bit(''read_case_content'')
+                     | app._cap_bit(''read_case_deliberation'');',
+      'where cn.case_id = p_case_id and cn.assigned_to = p_uid) then
+    v_caps := v_caps | app._cap_bit(''read_case_content'')
+                     | app._cap_bit(''read_standard_phi'')
+                     | app._cap_bit(''read_case_deliberation'');');
   elsif p_what = 'assignment_confers_write' then
     -- Add the assignment arm D10 deliberately withholds from the write bit.
     d := replace(d,
-      'v_caps := v_caps | app._cap_bit(''read_case_content'')
-                       | app._cap_bit(''read_case_deliberation'');
-    end if;
-
-  else',
-      'v_caps := v_caps | app._cap_bit(''read_case_content'')
-                       | app._cap_bit(''write_case_content'')
-                       | app._cap_bit(''read_case_deliberation'');
-    end if;
-
-  else');
-  elsif p_what = 'grant_level_filtered' then
-    -- Filter the read grant on level (the "fix" A16 forbids: it would encode
-    -- write => read_standard_phi on disjoint chains). K7 pins today's behaviour.
-    d := replace(d,
-      'where ca.case_id = p_case_id and ca.user_id = p_uid
-        and (ca.expires_at is null or ca.expires_at > now())
-    );
-    if v_grant then',
-      'where ca.case_id = p_case_id and ca.user_id = p_uid and ca.level = ''write''
-        and (ca.expires_at is null or ca.expires_at > now())
-    );
-    if v_grant then');
+      'where cn.case_id = p_case_id and cn.assigned_to = p_uid) then
+    v_caps := v_caps | app._cap_bit(''read_case_content'')
+                     | app._cap_bit(''read_case_deliberation'');',
+      'where cn.case_id = p_case_id and cn.assigned_to = p_uid) then
+    v_caps := v_caps | app._cap_bit(''read_case_content'')
+                     | app._cap_bit(''write_case_content'')
+                     | app._cap_bit(''read_case_deliberation'');');
+  elsif p_what = 'drop_grant_phi' then
+    -- ADR 0078 Stage B: PHI is a per-column grant. Remove the read_standard_phi arm of
+    -- the manual_grant loop → a read_standard_phi grantee no longer reaches PHI (new K7).
+    d := replace(d, 'if v_g.read_standard_phi then', 'if false then');
   elsif p_what = 'coordinator_holds_rrp' then
     d := replace(d,
       '| app._cap_bit(''write_case_content'')
@@ -197,9 +183,9 @@ run_case "K6  no assignment arm on write (D10)" \
   "select app._mut_a2('assignment_confers_write');" \
   "K6 .* .D10.: the assignee canNOT write case content"
 
-run_case "K7  grant confers PHI [B1 pin]" \
-  "select app._mut_a2('grant_level_filtered');" \
-  "K7 .* pinned to B1.: an unexpired READ grantee still reaches the PHI door"
+run_case "K7  grant PHI is per-column [B1 closed]" \
+  "select app._mut_a2('drop_grant_phi');" \
+  "K7 .* a read_standard_phi grantee reaches the PHI door"
 
 run_case "K8  RCD does NOT imply VCO (A16)" \
   "select app._mut_a2('deliberation_implies_overview');" \
@@ -217,13 +203,8 @@ run_case "K11 coordinator does NOT hold RRP" \
   "select app._mut_a2('coordinator_holds_rrp');" \
   "K11 .* .ADR keystone 31.: the coordinator does NOT hold read_restricted_phi"
 
-# ⭐ K3 and K12 share ONE source (case_access_flag_off_legacy) — the lead's C4 ruling:
-# both flag-OFF branches are the same predicate, so the fallback confers RCC + RSP
-# together. Reverting that single source must take BOTH red, which is exactly what
-# proves they are one source and not two.
-run_case "K3+K12 flag-OFF legacy source (b)" \
-  "select app._mut_a2('drop_legacy_flag_off');" \
-  "K3 .* source .b. .re-pins 228 t24.|K12 .* the arm nothing pinned|K12 .* ROWS"
+# ⛔ K3+K12 REMOVED (ADR 0078 Stage B): they tested the case_access flag-OFF legacy arm
+# (source b), which B4/D9 DELETED — the flag is retired. There is no second body to pin.
 
 # The member-default source is A15's whole correction. Dropping it must break the
 # deliberation surface WITHOUT touching content (which the coordinator/grant arms hold).

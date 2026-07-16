@@ -26,7 +26,7 @@
 --   §12 case_access untouched by the collapse.
 
 begin;
-select plan(64);
+select plan(65);   -- ADR 0078 Stage B: +1 (case_access_grants successor assertion)
 
 update app.feature_flags set enabled = true where key = 'audit_trail';
 update app.feature_flags set enabled = true where key = 'patient_safety';
@@ -432,15 +432,17 @@ select is(
   1, '11.3: exactly one row after a duplicate grant (no duplicate)');
 
 -- ============================================================================
--- §12 · case_access untouched by the collapse (no role/memberships coupling)
+-- §12 · the per-case ACL is untouched by the collapse (no role/memberships coupling).
+-- ADR 0078 Stage B replaced case_access with case_access_grants (per-capability).
 -- ============================================================================
-select has_table('public', 'case_access', '12.1: case_access still exists (kept separate, S0 §F.2)');
-select hasnt_column('public', 'case_access', 'role',
-  '12.2: case_access has NO role column (it is a per-case involvement ACL, not a role table)');
+select hasnt_table('public', 'case_access', '12.1: legacy case_access is RETIRED (Stage B hard cut)');
+select has_table('public', 'case_access_grants', '12.1b: case_access_grants is its per-capability successor');
+select hasnt_column('public', 'case_access_grants', 'role',
+  '12.2: case_access_grants has NO role column (a per-case capability ACL, not a role table)');
 select is(
   (select count(*)::int from information_schema.columns
-   where table_schema='public' and table_name='case_access' and column_name='level'),
-  1, '12.3: case_access retains its level column (read/write involvement grade)');
+   where table_schema='public' and table_name='case_access_grants' and column_name='level'),
+  0, '12.3: no `level` column — involvement is per-capability now (read_case_content, write_case_content, …)');
 
 select * from finish();
 rollback;

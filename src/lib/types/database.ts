@@ -1518,55 +1518,92 @@ export type Database = {
           },
         ]
       }
-      case_access: {
+      case_access_grants: {
         Row: {
           case_id: string
           expires_at: string | null
           granted_at: string
           granted_by: string | null
-          level: string
+          id: string
           max_confidentiality: string | null
+          principal_id: string
+          read_case_content: boolean
+          read_case_deliberation: boolean
+          read_restricted_phi: boolean
+          read_standard_phi: boolean
           reason: string | null
-          user_id: string
+          reason_code: string
+          revoked_at: string | null
+          revoked_by: string | null
+          source: string
+          source_entity_id: string | null
+          write_case_content: boolean
         }
         Insert: {
           case_id: string
           expires_at?: string | null
           granted_at?: string
           granted_by?: string | null
-          level: string
+          id?: string
           max_confidentiality?: string | null
+          principal_id: string
+          read_case_content?: boolean
+          read_case_deliberation?: boolean
+          read_restricted_phi?: boolean
+          read_standard_phi?: boolean
           reason?: string | null
-          user_id: string
+          reason_code?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          source?: string
+          source_entity_id?: string | null
+          write_case_content?: boolean
         }
         Update: {
           case_id?: string
           expires_at?: string | null
           granted_at?: string
           granted_by?: string | null
-          level?: string
+          id?: string
           max_confidentiality?: string | null
+          principal_id?: string
+          read_case_content?: boolean
+          read_case_deliberation?: boolean
+          read_restricted_phi?: boolean
+          read_standard_phi?: boolean
           reason?: string | null
-          user_id?: string
+          reason_code?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          source?: string
+          source_entity_id?: string | null
+          write_case_content?: boolean
         }
         Relationships: [
           {
-            foreignKeyName: "case_access_case_id_fkey"
+            foreignKeyName: "case_access_grants_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "case_access_granted_by_fkey"
+            foreignKeyName: "case_access_grants_granted_by_fkey"
             columns: ["granted_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "case_access_user_id_fkey"
-            columns: ["user_id"]
+            foreignKeyName: "case_access_grants_principal_id_fkey"
+            columns: ["principal_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_access_grants_revoked_by_fkey"
+            columns: ["revoked_by"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -8146,7 +8183,6 @@ export type Database = {
         }[]
       }
       capa_viewer_can_manage: { Args: { p_capa_id: string }; Returns: boolean }
-      case_access_enabled: { Args: never; Returns: boolean }
       case_action_items_kpis: {
         Args: { p_commission_id: string }
         Returns: {
@@ -9522,7 +9558,9 @@ export type Database = {
         Args: {
           p_case: string
           p_expires_at?: string
-          p_level: string
+          p_level?: string
+          p_read_restricted_phi?: boolean
+          p_read_standard_phi?: boolean
           p_reason?: string
           p_user: string
         }
@@ -9714,6 +9752,9 @@ export type Database = {
           expires_at: string
           granted_at: string
           level: string
+          max_confidentiality: string
+          read_restricted_phi: boolean
+          read_standard_phi: boolean
           reason: string
           user_id: string
         }[]

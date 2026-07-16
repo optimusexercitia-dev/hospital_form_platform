@@ -76,17 +76,18 @@ values ('00000000-0000-0000-0000-0000000a5003', '00000000-0000-0000-0000-0000000
 insert into public.case_phases (id, case_id, position, title, form_id, form_version_id, assigned_to)
 select '00000000-0000-0000-0000-0000000a5004', '00000000-0000-0000-0000-0000000a5001', 1,
        'Apuração', (select form_u from k), (select ver_u from k), (select st_x from k);
-insert into public.case_access (case_id, user_id, level, granted_by)
-values ('00000000-0000-0000-0000-0000000a5001', (select st_y from k), 'read', (select sa_x from k)),
-       ('00000000-0000-0000-0000-0000000a5001', (select sa_y from k), 'write', (select sa_x from k));
+-- st_y holds a read_standard_phi grant (defect ①·2 closed: PHI is per-column now), so
+-- the is_active gate on the PHI door is genuinely testable on him.
+select test_helpers.grant_ca('00000000-0000-0000-0000-0000000a5001', (select st_y from k), 'read',  (select sa_x from k), null, null, true);
+select test_helpers.grant_ca('00000000-0000-0000-0000-0000000a5001', (select sa_y from k), 'write', (select sa_x from k));
 
 -- ===========================================================================
 -- FLAGS — asserted, never assumed (§7.3: a reading is not a fact until pinned to
 -- the state you claim about). The shared stack is reset constantly and an e2e
 -- teardown has driven these into a state no environment ships.
 -- ===========================================================================
-select is(app.feature_enabled('case_access'), true,
-  'FLAG ⭐: case_access is ON — this is today''s LIVE branch, the one carrying the raw arms');
+select is((select exists (select 1 from app.feature_flags where key = 'case_access')), false,
+  'B4 ⭐: the case_access flag is RETIRED — the single always-on path carrying the raw arms');
 select is(app.feature_enabled('case_referrals'), false,
   'FLAG: case_referrals is OFF here — pins out the LIVE PQS referral arm so ONLY the raw arm is measured');
 select is(app.feature_enabled('case_patient'), true,
@@ -186,7 +187,7 @@ select is(app.can_reach_case_on_member_surface('00000000-0000-0000-0000-0000000a
 select is(app.can_read_case('00000000-0000-0000-0000-0000000a5001', (select st_y from k)), true,
   'M5 TWIN ⭐: the ACTIVE read-grantee reads the case');
 select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a5001', (select st_y from k)), true,
-  'M5 TWIN ⭐ + SCOPE FENCE: the ACTIVE read-grantee reaches the PHI door — defect ①''s second half is DELIBERATELY still open (B1 owns it; 230 pins it). M5 must NOT close it here.');
+  'M5 TWIN ⭐: the ACTIVE read_standard_phi grantee reaches the PHI door (defect ①·2 closed at B1 — PHI is per-column; the is_active gate is what M5 tests here)');
 select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 select is((select (public.get_case_patient('00000000-0000-0000-0000-0000000a5001'))->>'mrn'), 'MRN-M5-001',
@@ -217,12 +218,12 @@ update public.profiles set suspended_until = null where id = (select st_y from k
 
 -- An EXPIRED grant still confers nothing — the pre-existing expiry term must
 -- survive the edit untouched.
-update public.case_access set expires_at = now() - interval '1 day'
- where case_id = '00000000-0000-0000-0000-0000000a5001' and user_id = (select st_y from k);
+update public.case_access_grants set expires_at = now() - interval '1 day'
+ where case_id = '00000000-0000-0000-0000-0000000a5001' and principal_id = (select st_y from k);
 select is(app.can_read_case('00000000-0000-0000-0000-0000000a5001', (select st_y from k)), false,
   'M5: an EXPIRED grant still confers nothing — the expiry term is intact after the edit');
-update public.case_access set expires_at = null
- where case_id = '00000000-0000-0000-0000-0000000a5001' and user_id = (select st_y from k);
+update public.case_access_grants set expires_at = null
+ where case_id = '00000000-0000-0000-0000-0000000a5001' and principal_id = (select st_y from k);
 
 -- ===========================================================================
 -- can_write_case_content · the WRITE-grant raw arm.

@@ -78,10 +78,15 @@ select set_config('app.in_referral_rpc', 'off', true);
 create or replace function pg_temp.set_grant(p_expires timestamptz)
 returns void language plpgsql as $$
 begin
-  delete from public.case_access
-    where case_id = (select case_x from cs) and user_id = (select st_x from k);
-  insert into public.case_access (case_id, user_id, level, granted_by, expires_at)
-  values ((select case_x from cs), (select st_x from k), 'write', (select sa_x from k), p_expires);
+  delete from public.case_access_grants
+    where case_id = (select case_x from cs) and principal_id = (select st_x from k);
+  -- Stage B: PHI is a per-column grant now, so set read_standard_phi too — 183 gates
+  -- EVERY consulter (incl. the PHI door) on expiry, and a write grant alone confers no PHI.
+  insert into public.case_access_grants
+    (case_id, principal_id, source, read_case_content, read_case_deliberation,
+     write_case_content, read_standard_phi, granted_by, expires_at)
+  values ((select case_x from cs), (select st_x from k), 'manual_grant', true, true, true, true,
+          (select sa_x from k), p_expires);
 end $$;
 
 -- ===========================================================================
@@ -161,8 +166,8 @@ select is((select d->0->>'my_role' from myc), 'collaborator',
 -- ===========================================================================
 -- REVOKED (deleted) grant → still denies (the row is GONE, not merely expired).
 -- ===========================================================================
-delete from public.case_access
-  where case_id = (select case_x from cs) and user_id = (select st_x from k);
+delete from public.case_access_grants
+  where case_id = (select case_x from cs) and principal_id = (select st_x from k);
 select ok(not app.can_read_case((select case_x from cs), (select st_x from k)),
   'revoked grant: can_read_case → FALSE (row deleted)');
 

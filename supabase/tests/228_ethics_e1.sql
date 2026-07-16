@@ -99,13 +99,13 @@ select is(
   'non_phi_internal',
   'case_types.default_confidentiality_level defaults to non_phi_internal');
 
--- (6) case_access.max_confidentiality CHECK rejects an out-of-vocabulary value.
+-- (6) case_access_grants.max_confidentiality CHECK rejects an out-of-vocabulary value.
 select throws_ok(
-  format($$ insert into public.case_access (case_id, user_id, level, max_confidentiality, granted_by)
-            values (%L, %L, 'read', 'bogus', %L) $$,
-          (select cid from c_default), (select st_x from k), (select sa_x from k)),
+  format($$ insert into public.case_access_grants (case_id, principal_id, read_case_content, max_confidentiality)
+            values (%L, %L, true, 'bogus') $$,
+          (select cid from c_default), (select st_x from k)),
   '23514', null,
-  'case_access.max_confidentiality CHECK rejects an out-of-vocabulary value');
+  'case_access_grants.max_confidentiality CHECK rejects an out-of-vocabulary value');
 
 -- (7)+(8)+(9) confidentiality_rank is monotonic; unknown label → null.
 select ok(
@@ -282,9 +282,14 @@ values ((select cid from c_default), '00000000-0000-0000-0000-0000000e0101',
 
 update app.feature_flags set enabled = false where key = 'case_access';
 
--- (24) commission_default member arm intact: a clean member reads the case.
+-- ADR 0078 Stage B: the flag-OFF member-read model is gone (member arm = deliberation
+-- ONLY). st_x2 is made a case GRANTEE so the read-based assertions below (24, 31, and
+-- the declare_conflict/recusal block) hold under the always-on model.
+select test_helpers.grant_ca((select cid from c_default), (select st_x2 from k), 'read', (select sa_x from k));
+
+-- (24) a case grantee reads the case (commission_default).
 select is(app.can_read_case((select cid from c_default), (select st_x2 from k)), true,
-  'commission_default: a clean member still reads the case (byte-for-byte)');
+  'commission_default: a case grantee reads the case');
 -- (25)+(26)+(27) the respondent is HARD-DENIED on read, PHI door, and write.
 select is(app.can_read_case((select cid from c_default), (select st_x from k)), false,
   'respondent-exclusion: the respondent_doctor cannot read their own case');
@@ -296,8 +301,7 @@ select is(app.can_write_case_content((select cid from c_default), (select st_x f
 -- (28) respondent beats a POSITIVE arm: even holding a case_access grant (case_access
 -- ON), the respondent is denied — the deny-terms precede every grant arm.
 update app.feature_flags set enabled = true where key = 'case_access';
-insert into public.case_access (case_id, user_id, level, granted_by)
-values ((select cid from c_default), (select st_x from k), 'read', (select sa_x from k));
+select test_helpers.grant_ca((select cid from c_default), (select st_x from k), 'read', (select sa_x from k));
 select is(app.can_read_case((select cid from c_default), (select st_x from k)), false,
   'respondent-exclusion beats a grant: a respondent with a case_access grant is still denied');
 
@@ -319,7 +323,7 @@ reset role;
 update public.case_recusals set lifted_at = now() where case_id = (select cid from c_default)
   and user_id = (select st_x2 from k) and lifted_at is null;
 select is(app.can_read_case((select cid from c_default), (select st_x2 from k)), true,
-  'recusal lift restores read (commission_default member arm intact)');
+  'recusal lift restores read (the grant is intact — the lift removes only the deny)');
 
 -- explicit_grants_only block on c_ethics (case_access ON).
 update app.feature_flags set enabled = true where key = 'case_access';
@@ -327,18 +331,17 @@ update app.feature_flags set enabled = true where key = 'case_access';
 select is(app.can_read_case((select cid from c_ethics), (select st_x2 from k)), false,
   'explicit_grants_only: a member without a grant cannot read the ethics case');
 -- (33) a coordinator grant opens it.
-insert into public.case_access (case_id, user_id, level, granted_by)
-values ((select cid from c_ethics), (select st_x2 from k), 'read', (select sa_x from k));
+select test_helpers.grant_ca((select cid from c_ethics), (select st_x2 from k), 'read', (select sa_x from k));
 select is(app.can_read_case((select cid from c_ethics), (select st_x2 from k)), true,
   'explicit_grants_only: a case_access grant opens the ethics case');
 
--- explicit_grants_only belt with case_access OFF.
+-- ADR 0078 Stage B: the "flag-OFF belt" is gone. The grant from (33) applies at every
+-- policy now, so (34) the grantee READS the ethics case and (35) the coordinator too.
 update app.feature_flags set enabled = false where key = 'case_access';
--- (34) member is suppressed; (35) coordinator keeps read.
-select is(app.can_read_case((select cid from c_ethics), (select st_x2 from k)), false,
-  'explicit_grants_only belt (case_access OFF): a member is still suppressed');
+select is(app.can_read_case((select cid from c_ethics), (select st_x2 from k)), true,
+  'explicit_grants_only: the grant applies regardless of the retired flag — the grantee reads');
 select is(app.can_read_case((select cid from c_ethics), (select sa_x from k)), true,
-  'explicit_grants_only belt (case_access OFF): the coordinator keeps read');
+  'explicit_grants_only: the coordinator keeps read');
 
 -- Document confidentiality ceiling (attachments ON, case_access ON) on c_default.
 update app.feature_flags set enabled = true where key in ('case_access', 'attachments');
@@ -371,8 +374,7 @@ select is((select count(*)::int from public.attachments
 reset role;
 
 -- (38)+(39) a clearance grant (max_confidentiality >= legal_privileged) opens both.
-insert into public.case_access (case_id, user_id, level, max_confidentiality, granted_by)
-values ((select cid from c_default), (select sa_x from k), 'read', 'legal_privileged', (select sa_x from k));
+select test_helpers.grant_ca((select cid from c_default), (select sa_x from k), 'read', (select sa_x from k), null, 'legal_privileged');
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is((select count(*)::int from public.attachments
@@ -576,9 +578,7 @@ select is(has_function_privilege('authenticated', 'public.record_session_attenda
 
 -- Fixtures: a plain (no-clearance) read grant for st_x2 on c_default; a case
 -- participant on c_default; another on c_ethics (for the cross-case validation).
-insert into public.case_access (case_id, user_id, level, granted_by)
-values ((select cid from c_default), (select st_x2 from k), 'read', (select sa_x from k))
-on conflict do nothing;
+select test_helpers.grant_ca((select cid from c_default), (select st_x2 from k), 'read', (select sa_x from k));
 insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
 values ('00000000-0000-0000-0000-0000000e0121', (select org_x from k), 'external_person', 'non_sensitive', 'Entrevistado');
 insert into public.case_participants (id, case_id, participant_id, role_id)
@@ -762,8 +762,8 @@ insert into public.meeting_cases (meeting_id, case_id, summary, decision) values
   ('bb000000-0000-0000-0000-0000000000e1', (select cid from c_flagoff),
    'Discussão de caso comum', 'Arquivar');
 -- Proof-2 persona: a member of comm_x with NO grant on the ethics case.
-delete from public.case_access
-  where case_id = (select cid from c_ethics) and user_id = (select st_x2 from k);
+delete from public.case_access_grants
+  where case_id = (select cid from c_ethics) and principal_id = (select st_x2 from k);
 
 -- Generic leak sweep (QA round-2 process note): enumerate every case_id-bearing base
 -- table FROM THE CATALOG (never a hand-maintained list) + `cases` itself, and report any
@@ -802,13 +802,17 @@ begin
     begin
       if r.tn = 'cases' then
         execute 'select count(*) from public.cases where id = $1' into c using p_case_id;
-      elsif r.tn in ('case_recusals', 'case_access') then
-        -- DOCUMENTED SELF-ARMS (not leaks): a user may always see their OWN recusal row
+      elsif r.tn = 'case_recusals' then
+        -- DOCUMENTED SELF-ARM (not a leak): a user may always see their OWN recusal row
         -- (ADR 0072 D4 — so a recused member can be shown "você está impedido" without
-        -- gaining case read) and their OWN access grant. Both are deliberate and were
-        -- preserved by design. Count only rows the persona does NOT own — everything
-        -- else on these tables must still read zero.
-        execute format('select count(*) from public.%I where case_id = $1 and user_id <> $2', r.tn)
+        -- gaining case read). Count only rows the persona does NOT own.
+        execute 'select count(*) from public.case_recusals where case_id = $1 and user_id <> $2'
+          into c using p_case_id, p_uid;
+      elsif r.tn = 'case_access_grants' then
+        -- DOCUMENTED SELF-ARM (ADR 0078 Stage B): a principal may see their OWN grant
+        -- (case_access_grants_select_own; principal_id, not user_id). Everything else must
+        -- read zero — an excluded respondent must not see OTHER principals' grants.
+        execute 'select count(*) from public.case_access_grants where case_id = $1 and principal_id <> $2'
           into c using p_case_id, p_uid;
       else
         execute format('select count(*) from public.%I where case_id = $1', r.tn)

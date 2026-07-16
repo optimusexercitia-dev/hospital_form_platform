@@ -39,13 +39,21 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  * test's item is reused by nothing else, but the reminder/updates/checklist tests
  * share one item across §7.5 -> §7.6, and §7.7 depends on §7.3's fixture existing).
  * Run with --project=chromium --workers=1 against a freshly `supabase db reset`
- * stack (flags `action_items` + `cases_extras` + `case_access` all ON per seed).
+ * stack (flags `action_items` + `cases_extras` both ON per seed; `case_access` is
+ * no longer a flag at all — ADR 0078 B4 retired it, cases are permanently on).
  */
 
 test.describe.configure({ mode: 'serial' })
 test.use({ viewport: { width: 1280, height: 900 } })
 
 test.beforeEach(async ({ page }) => {
+  // These are heavy serial flows (multi-persona sign-in cycles + several satellite
+  // mutations, each followed by a full detail-page reload) and, on the `next dev`
+  // quick-loop, the first one to reach the Action Item detail route also pays its
+  // one-time compile. The default 30s per-test budget is too tight for that; give
+  // it headroom. Harmless on the prod-standalone gate, where the route is
+  // pre-compiled and the flow is much faster. See `SATELLITE_REVEAL_TIMEOUT_MS`.
+  test.setTimeout(120_000)
   await page.emulateMedia({ reducedMotion: 'reduce' })
 })
 
@@ -298,52 +306,82 @@ async function openEditDialog(page: Page, title: string) {
   return dialog
 }
 
-/** Expand (if needed) a row's "Acompanhamento" satellite disclosure; returns the row locator. */
+/**
+ * Reveal wait for the satellite panel. The satellites live on the item's DETAIL
+ * page (`itens-de-acao/[itemId]`); on the `next dev` quick-loop the FIRST
+ * navigation there COMPILES the route, which routinely exceeds the default expect
+ * timeout, whereas the prod-standalone gate (`npm run e2e:prod`) serves a
+ * pre-compiled route where this is effectively instant. Size the wait for the dev
+ * worst case — it is a ceiling, not a fixed delay, so it costs nothing on prod.
+ */
+const SATELLITE_REVEAL_TIMEOUT_MS = 30_000
+
+/**
+ * Reveal an item's satellite sub-panels (Lembretes / Atualizações / Checklist)
+ * and return the always-expanded "Acompanhamento" panel region — the caller reads
+ * each sub-section off it with `getByRole('region', { name })`.
+ *
+ * Since commit 4f23558 ("layout adjustments") the satellites no longer live in an
+ * in-row disclosure: the meeting and case action-item ROWS only carry a "Ver
+ * detalhes" link out to the item's DETAIL page (`itens-de-acao/[itemId]`), where
+ * `ActionItemSatellitesPanel` renders all three sub-panels expanded and
+ * server-seeded. So "opening" the satellites is now navigating to that page via
+ * the row's link. The three sub-sections are the exact same components the old
+ * disclosure hosted (`ReminderSection`/`UpdatesSection`/`ChecklistSection`), so
+ * every in-panel assertion below is unchanged.
+ */
 async function openSatellites(page: Page, title: string) {
-  const row = itemRow(page, title)
-  const btn = row.getByRole('button', { name: `Acompanhamento de ${title}` })
-  if ((await btn.getAttribute('aria-expanded')) !== 'true') {
-    await btn.click()
-  }
-  await expect(row.getByRole('region', { name: 'Lembretes' })).toBeVisible({ timeout: 10_000 })
-  return row
+  await itemRow(page, title)
+    .getByRole('link', { name: `Ver detalhes de ${title}` })
+    .click()
+  const panel = page.getByRole('region', { name: 'Acompanhamento', exact: true })
+  await expect(panel.getByRole('region', { name: 'Lembretes' })).toBeVisible({
+    timeout: SATELLITE_REVEAL_TIMEOUT_MS,
+  })
+  return panel
 }
 
 /**
- * Reload the meeting page and re-expand a row's satellite disclosure. REQUIRED
- * between successive satellite mutations on the prod-standalone build: each
- * satellite section shares ONE `isPending` (from `useSatelliteAction`), and every
- * composer input/select/button/switch/checkbox in that section is
- * `disabled={isPending}`. `useSatelliteAction.run()` calls `router.refresh()`
- * inside the same transition right after its own mutation succeeds — on prod
- * (under the `c/[commission]/loading.tsx` ancestor boundary) that refresh can
- * stall indefinitely, so `isPending` never clears and the WHOLE section's
- * controls stay disabled until a fresh navigation. Confirmed via manual repro:
- * the mutation itself always persists correctly (DB truth-read + reload both
- * show it), no console/page error fires — this is the display/interactivity
- * layer only. A pure content read (text/count) right after a mutation is safe
- * in place (it doesn't depend on the element being enabled); only the NEXT
- * interaction needs this reload first. See §7.4 for the fullest example.
+ * Like {@link openSatellites}, but reaches the detail page by keyboard (focus the
+ * row's "Ver detalhes" link, activate with Enter) rather than a mouse click — used
+ * by the keyboard-only test (§7.11) so every touch point stays mouse-free (and it
+ * proves the link is keyboard-reachable).
+ */
+async function openSatellitesByKeyboard(page: Page, title: string) {
+  const link = itemRow(page, title).getByRole('link', { name: `Ver detalhes de ${title}` })
+  await link.focus()
+  await expect(link).toBeFocused()
+  await page.keyboard.press('Enter')
+  const panel = page.getByRole('region', { name: 'Acompanhamento', exact: true })
+  await expect(panel.getByRole('region', { name: 'Lembretes' })).toBeVisible({
+    timeout: SATELLITE_REVEAL_TIMEOUT_MS,
+  })
+  return panel
+}
+
+/**
+ * Reload the item's detail page and return its "Acompanhamento" panel — REQUIRED
+ * between successive satellite mutations. Each section's `useSatelliteAction.run()`
+ * still calls `router.refresh()` right after its own write; on the prod-standalone
+ * build (under the `c/[commission]/loading.tsx` ancestor boundary) that refresh can
+ * stall indefinitely, so the section's shared `isPending` never clears and every
+ * composer control stays `disabled={isPending}`. The mutation's CONTENT always
+ * persists — the panel's `onMutated` re-fetch (`setData`) runs before that refresh,
+ * and a DB truth-read confirms it — so a pure content read right after a mutation
+ * is safe in place; only the NEXT interaction needs this fresh load. See §7.4 for
+ * the fullest example. (A hard reload here — not a `goto(meetingUrl)` + re-expand —
+ * because the satellites are the detail page's own content since 4f23558.)
  */
 async function reopenSatellites(page: Page, title: string) {
-  await page.goto(meetingUrl())
-  return openSatellites(page, title)
-}
-
-/**
- * Like {@link reopenSatellites}, but the re-expand is keyboard-driven (focus +
- * Enter) rather than a click — used by the keyboard-only test (§7.11) so every
- * touch point, including the reload scaffolding between sub-sections, stays
- * mouse-free.
- */
-async function reopenSatellitesByKeyboard(page: Page, title: string) {
-  await page.goto(meetingUrl())
-  const row = itemRow(page, title)
-  const disclosureBtn = row.getByRole('button', { name: `Acompanhamento de ${title}` })
-  await disclosureBtn.focus()
-  await page.keyboard.press('Enter')
-  await expect(row.getByRole('region', { name: 'Lembretes' })).toBeVisible({ timeout: 10_000 })
-  return row
+  await page.reload()
+  // The detail page's <h1> is the item title — confirm the reload landed on the
+  // right item before touching its controls.
+  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
+  const panel = page.getByRole('region', { name: 'Acompanhamento', exact: true })
+  await expect(panel.getByRole('region', { name: 'Lembretes' })).toBeVisible({
+    timeout: SATELLITE_REVEAL_TIMEOUT_MS,
+  })
+  return panel
 }
 
 // ---------------------------------------------------------------------------
@@ -353,7 +391,7 @@ async function reopenSatellitesByKeyboard(page: Page, title: string) {
 test.beforeAll(async ({ request }) => {
   await setFeatureFlag('action_items', true)
   await setFeatureFlag('cases_extras', true)
-  await setFeatureFlag('case_access', true)
+  // `case_access` is no longer a flag (ADR 0078 B4 retired the row) — nothing to set.
 
   await teardownFixtures(request)
 
@@ -372,7 +410,6 @@ test.afterAll(async ({ request }) => {
   await teardownFixtures(request)
   await setFeatureFlag('action_items', true)
   await setFeatureFlag('cases_extras', true)
-  await setFeatureFlag('case_access', true)
 })
 
 async function teardownFixtures(request: APIRequestContext) {
@@ -580,12 +617,13 @@ test('§7.4: reminder CRUD as staff_admin; HC0I0 for a plain member; on_due/offs
   await page.goto(meetingUrl())
   await createMeetingActionItemUI(page, { title: T_REMINDER }) // committee scope (default)
   // Fresh navigation before touching the row — see the §7.2 comment on the
-  // prod-standalone deferred-flush class (`openSatellites` below needs the row
-  // actually attached to the DOM).
+  // prod-standalone deferred-flush class (the create's in-place refresh can stall,
+  // so the row + its "Ver detalhes" link that `openSatellites` clicks may not be
+  // present in place; a fresh `goto` renders them server-side).
   await page.goto(meetingUrl())
 
-  const row = await openSatellites(page, T_REMINDER)
-  const reminders = row.getByRole('region', { name: 'Lembretes' })
+  const panel = await openSatellites(page, T_REMINDER)
+  const reminders = panel.getByRole('region', { name: 'Lembretes' })
   // Scoped to the `<ul>` of reminder ROWS — the composer's "Quando avisar"
   // <select> renders an option with the SAME text as the on_due row
   // ("No dia do prazo"), so text lookups must exclude the select to stay
@@ -640,8 +678,8 @@ test('§7.4: reminder CRUD as staff_admin; HC0I0 for a plain member; on_due/offs
   await signOut(page)
   await signInAs(page, STAFF4_CCIH_EMAIL)
   await page.goto(meetingUrl())
-  const staff4Row = await openSatellites(page, T_REMINDER)
-  const staff4Reminders = staff4Row.getByRole('region', { name: 'Lembretes' })
+  const staff4Panel = await openSatellites(page, T_REMINDER)
+  const staff4Reminders = staff4Panel.getByRole('region', { name: 'Lembretes' })
   await expect(staff4Reminders.getByText('3 dias antes do prazo')).toBeVisible()
   await expect(staff4Reminders.getByLabel('Quando avisar')).toHaveCount(0)
   await expect(staff4Reminders.getByRole('button', { name: 'Adicionar' })).toHaveCount(0)
@@ -691,8 +729,8 @@ test('§7.5: updates feed — assignee posts (stakeholder), append-only, no edit
   await signOut(page)
   await signInAs(page, STAFF1_CCIH_EMAIL)
   await page.goto(meetingUrl())
-  const row = await openSatellites(page, T_STAKE)
-  const updates = row.getByRole('region', { name: 'Atualizações' })
+  const panel = await openSatellites(page, T_STAKE)
+  const updates = panel.getByRole('region', { name: 'Atualizações' })
   // Scoped to the `<ol>` feed — the composer's "Tipo de atualização" <select>
   // renders an option with the same text as the posted chip ("Progresso"), so
   // text lookups must exclude the select to stay strict-mode-safe.
@@ -718,8 +756,8 @@ test('§7.5: updates feed — assignee posts (stakeholder), append-only, no edit
   await signOut(page)
   await signInAs(page, STAFF4_CCIH_EMAIL)
   await page.goto(meetingUrl())
-  const staff4Row = await openSatellites(page, T_STAKE)
-  const staff4Updates = staff4Row.getByRole('region', { name: 'Atualizações' })
+  const staff4Panel = await openSatellites(page, T_STAKE)
+  const staff4Updates = staff4Panel.getByRole('region', { name: 'Atualizações' })
   await expect(
     staff4Updates.getByText('Atualização via E2E — progresso registrado.'),
   ).toBeVisible()
@@ -742,8 +780,8 @@ test('§7.6: checklist — assignee create/toggle/edit/delete (stakeholder); sta
 }) => {
   await signInAs(page, STAFF1_CCIH_EMAIL) // reuses T_STAKE from the previous test (same assignee)
   await page.goto(meetingUrl())
-  const row = await openSatellites(page, T_STAKE)
-  const checklist = row.getByRole('region', { name: 'Checklist' })
+  const panel = await openSatellites(page, T_STAKE)
+  const checklist = panel.getByRole('region', { name: 'Checklist' })
 
   await checklist.getByLabel('Título da nova subtarefa').fill('Etapa via E2E')
   await checklist.getByRole('button', { name: 'Adicionar' }).click()
@@ -781,8 +819,8 @@ test('§7.6: checklist — assignee create/toggle/edit/delete (stakeholder); sta
   await signOut(page)
   await signInAs(page, STAFF4_CCIH_EMAIL)
   await page.goto(meetingUrl())
-  const staff4Row = await openSatellites(page, T_STAKE)
-  const staff4Checklist = staff4Row.getByRole('region', { name: 'Checklist' })
+  const staff4Panel = await openSatellites(page, T_STAKE)
+  const staff4Checklist = staff4Panel.getByRole('region', { name: 'Checklist' })
   await expect(staff4Checklist.getByLabel('Título da nova subtarefa')).toHaveCount(0)
 
   const itemId = await actionItemIdByTitle(request, T_STAKE)
@@ -892,43 +930,40 @@ test('§7.11: keyboard-only — open the panel, operate a control in each sub-se
   // the keyboard-only claim below, which starts from here with real key events).
   await page.goto(meetingUrl())
 
-  const row = itemRow(page, T_KEYBOARD)
-  const disclosureBtn = row.getByRole('button', { name: `Acompanhamento de ${T_KEYBOARD}` })
-
-  // Reach + operate the disclosure by keyboard.
-  await disclosureBtn.focus()
-  await expect(disclosureBtn).toBeFocused()
-  await page.keyboard.press('Enter')
-  await expect(disclosureBtn).toHaveAttribute('aria-expanded', 'true')
-  await expect(row.getByRole('region', { name: 'Lembretes' })).toBeVisible({ timeout: 10_000 })
-
-  // Tab order sanity: the very next Tab from the disclosure lands on the first
-  // focusable control inside the now-expanded region (the reminder type select).
-  await page.keyboard.press('Tab')
-  const reminderSelect = row.getByLabel('Quando avisar')
-  await expect(reminderSelect).toBeFocused()
+  // Reach the item's detail page (where the satellites live since 4f23558) by
+  // keyboard — focus the row's "Ver detalhes" link and activate it with Enter.
+  // The old in-row disclosure's open-by-Enter + Tab-order-to-first-control check
+  // is gone with the disclosure itself: on the detail page the three sub-panels
+  // are always-expanded page content, so there is nothing to open — see
+  // `openSatellites`. The keyboard-only claim (operate a control in each
+  // sub-section without the mouse) is fully preserved below.
+  const panel = await openSatellitesByKeyboard(page, T_KEYBOARD)
 
   // Operate the reminder select by keyboard (a focused native <select> jumps to
   // the option matching a typed letter — standard type-ahead, and the only
   // option starting with "N") and submit — a control fully driven without the
   // mouse.
+  const reminders = panel.getByRole('region', { name: 'Lembretes' })
+  const reminderSelect = reminders.getByLabel('Quando avisar')
+  await reminderSelect.focus()
+  await expect(reminderSelect).toBeFocused()
   await page.keyboard.press('n') // "No dia do prazo"
   await expect(reminderSelect).toHaveValue('on_due')
-  const reminders = row.getByRole('region', { name: 'Lembretes' })
-  await reminders.getByRole('button', { name: 'Adicionar' }).focus()
-  await expect(reminders.getByRole('button', { name: 'Adicionar' })).toBeFocused()
+  const addReminder = reminders.getByRole('button', { name: 'Adicionar' })
+  await addReminder.focus()
+  await expect(addReminder).toBeFocused()
   await page.keyboard.press('Enter')
-  // Scoped to the row `<ul>` — the composer's own <select> still carries an
+  // Scoped to the region `<ul>` — the composer's own <select> still carries an
   // option with this same text, which would otherwise strict-mode-violate.
   await expect(
     reminders.locator('ul').getByText('No dia do prazo', { exact: true }),
   ).toBeVisible()
 
-  // Updates section: reload + re-open (keyboard-driven — see `reopenSatellites`
-  // on why: the reminder mutation above can leave a control's `isPending` stuck
-  // true on prod) before reaching the Mensagem field, then type + submit.
-  const rowAfterReminder = await reopenSatellitesByKeyboard(page, T_KEYBOARD)
-  const updates = rowAfterReminder.getByRole('region', { name: 'Atualizações' })
+  // Updates section: reload (clears any control's `isPending` stuck true on prod
+  // after the reminder mutation — see `reopenSatellites`) before reaching the
+  // Mensagem field, then type + submit.
+  const panelAfterReminder = await reopenSatellites(page, T_KEYBOARD)
+  const updates = panelAfterReminder.getByRole('region', { name: 'Atualizações' })
   const messageField = updates.getByLabel('Mensagem')
   await messageField.focus()
   await expect(messageField).toBeFocused()
@@ -939,11 +974,11 @@ test('§7.11: keyboard-only — open the panel, operate a control in each sub-se
   await page.keyboard.press('Enter')
   await expect(updates.getByText('Nota via teclado — sem uso do mouse.')).toBeVisible()
 
-  // Checklist: reload + re-open again, then reach the new-subtask input by
-  // keyboard, type, submit with Enter (the input's own onKeyDown handler — a
-  // keyboard-native submit path).
-  const rowAfterUpdate = await reopenSatellitesByKeyboard(page, T_KEYBOARD)
-  const checklist = rowAfterUpdate.getByRole('region', { name: 'Checklist' })
+  // Checklist: reload again, then reach the new-subtask input by keyboard, type,
+  // submit with Enter (the input's own onKeyDown handler — a keyboard-native
+  // submit path).
+  const panelAfterUpdate = await reopenSatellites(page, T_KEYBOARD)
+  const checklist = panelAfterUpdate.getByRole('region', { name: 'Checklist' })
   const newSubtaskInput = checklist.getByLabel('Título da nova subtarefa')
   await newSubtaskInput.focus()
   await expect(newSubtaskInput).toBeFocused()

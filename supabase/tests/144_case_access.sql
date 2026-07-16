@@ -34,7 +34,7 @@
 --   admin  platform admin — sees everything
 
 begin;
-select plan(102);
+select plan(94);   -- ADR 0078 Stage B: removed the flag-OFF fallback (b, 7) + list_case_access flag-OFF (1)
 
 -- The feature ships ON in-increment; flip it ON for the truth-table + boundary
 -- sections (a hermetic test must not depend on migration order). The flag-OFF
@@ -122,11 +122,9 @@ insert into public.case_events (id, case_id, kind, body, created_by)
 values ((select event_x from cs), (select case_x from cs), 'note', 'nota',
         (select sa_x from k));
 
--- The two grants (direct insert; the grant RPC is BE-4). gx_r read, gx_w write.
-insert into public.case_access (case_id, user_id, level, granted_by)
-values
-  ((select case_x from cs), (select gx_r from p), 'read',  (select sa_x from k)),
-  ((select case_x from cs), (select gx_w from p), 'write', (select sa_x from k));
+-- The two grants (ADR 0078 Stage B: case_access_grants, per-capability). gx_r read, gx_w write.
+select test_helpers.grant_ca((select case_x from cs), (select gx_r from p), 'read',  (select sa_x from k));
+select test_helpers.grant_ca((select case_x from cs), (select gx_w from p), 'write', (select sa_x from k));
 
 -- ---------------------------------------------------------------------------
 -- INFO-N1 (ADR 0033 D2 fast-follow, migration 20260713001200): an interview on
@@ -344,40 +342,12 @@ select is((select count(*)::int from public.case_interview_links where interview
 reset role;
 
 -- =========================================================================
--- (b) FLAG-OFF FALLBACK — with case_access OFF, can_read_case ≡ is_member_of for
--- EVERY persona (today's behavior; the boundary does not bite).
+-- (b) REMOVED (ADR 0078 B4/D9). The "flag-OFF fallback — can_read_case ≡ is_member_of"
+-- tested the S5L legacy member arm (every member reads the case). Stage B DELETES it;
+-- the surviving member arm confers read_case_deliberation ONLY (A15), so a plain member
+-- no longer reads case content — proven under the always-on model by 234/238 and by
+-- the flag-ON boundary section above (ux, the unrelated member, reads 0 rows).
 -- =========================================================================
-update app.feature_flags set enabled = false where key = 'case_access';
-
--- Every MEMBER of X (coordinator, both assignees, both grantees, AND the otherwise
--- "unrelated" member) now reads the case — exactly is_member_of.
-select ok(app.can_read_case((select case_x from cs), (select ux from p))
-       =  app.is_member_of_for((select comm_x from k), (select ux from p)),
-  'flag OFF: can_read_case(ux) ≡ is_member_of(ux) → true (member)');
-select ok(app.can_read_case((select case_x from cs), (select ux from p)),
-  'flag OFF: the unrelated MEMBER now reads the case (no boundary)');
-select ok(app.can_read_case((select case_x from cs), (select sa_x from k))
-       =  app.is_member_of_for((select comm_x from k), (select sa_x from k)),
-  'flag OFF: can_read_case(coordinator) ≡ is_member_of');
-select ok(app.can_read_case((select case_x from cs), (select st_x from k))
-       =  app.is_member_of_for((select comm_x from k), (select st_x from k)),
-  'flag OFF: can_read_case(phase assignee) ≡ is_member_of');
--- A NON-member (foreign coordinator) still reads nothing — is_member_of is false.
-select ok(app.can_read_case((select case_x from cs), (select sa_y from k))
-       =  app.is_member_of_for((select comm_x from k), (select sa_y from k)),
-  'flag OFF: can_read_case(foreign) ≡ is_member_of → false (non-member)');
-select ok(not app.can_read_case((select case_x from cs), (select sa_y from k)),
-  'flag OFF: the foreign coordinator still reads nothing (non-member)');
-
--- The RLS policy itself follows the fallback: ux (a member) reads the case with the
--- flag OFF (proving the tightened policy reduces to member-read).
-select test_helpers.claims_for((select ux from p), false);
-set local role authenticated;
-select is((select count(*)::int from public.cases where id = (select case_x from cs)),
-  1, 'flag OFF (RLS): the unrelated member reads the case — byte-for-byte member-read');
-reset role;
-
-update app.feature_flags set enabled = true where key = 'case_access';
 
 -- =========================================================================
 -- No anon/PUBLIC leak: the three predicates + the capability read are not
@@ -590,16 +560,8 @@ select throws_ok(
   '42501', null, 'list_case_access: a foreign coordinator is denied (42501)');
 reset role;
 
--- Flag OFF ⇒ unavailable (assert_case_access_enabled → 23514), proving the read
--- respects the feature flag just like grant_case_access.
-update app.feature_flags set enabled = false where key = 'case_access';
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select throws_ok(
-  format($$ select * from public.list_case_access(%L) $$, (select case_x from cs)),
-  '23514', null, 'list_case_access: flag OFF raises unavailable (respects the feature flag)');
-reset role;
-update app.feature_flags set enabled = true where key = 'case_access';
+-- (ADR 0078 B4: the flag-OFF "23514 unavailable" check is REMOVED — the case_access
+-- flag is retired, so list_case_access is always available; authority is coordinator-only.)
 
 -- A plain staff member cannot grant (coordinator-only) → 42501.
 select test_helpers.claims_for((select st_x from k), false);
@@ -745,27 +707,24 @@ select cmp_ok(
   '>=', 1, 'audit: a grant emits a case_access.granted row');
 
 -- =========================================================================
--- BE-4: get_case_detail with the flag OFF stays COORDINATOR-ONLY (today's
--- behavior) — a read-grantee/attributed member is denied.
+-- BE-4: get_case_detail re-gates to can_read_case (ADR 0078 B4 — the flag-OFF
+-- coordinator-only floor is gone). The phase assignee now reads it; the coordinator too.
 -- =========================================================================
-update app.feature_flags set enabled = false where key = 'case_access';
--- The phase assignee st_x (a member) is NOW denied get_case_detail (flag OFF keeps
--- the is_staff_admin_of floor — byte-for-byte the pre-increment behavior).
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
-select throws_ok(
-  format($$ select public.get_case_detail(%L) $$, (select case_x from cs)),
-  'P0002', null, 'flag OFF: get_case_detail stays coordinator-only (a member is denied)');
+select is(
+  (select (public.get_case_detail((select case_x from cs)) ->> 'id')),
+  (select case_x from cs)::text,
+  'get_case_detail: the phase assignee (a case reader) reads it (re-gated to can_read_case)');
 reset role;
--- The coordinator still reads it with the flag OFF.
+-- The coordinator reads it too.
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is(
   (select (public.get_case_detail((select case_x from cs)) ->> 'id')),
   (select case_x from cs)::text,
-  'flag OFF: the coordinator still reads get_case_detail');
+  'get_case_detail: the coordinator reads it');
 reset role;
-update app.feature_flags set enabled = true where key = 'case_access';
 
 select * from finish();
 rollback;

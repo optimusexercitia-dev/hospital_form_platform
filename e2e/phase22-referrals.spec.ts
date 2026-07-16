@@ -391,7 +391,12 @@ test.beforeAll(async ({ request }) => {
   const reviewResp = await rpc(request, 'start_referral_review', chefeBToken, { p_referral_id: r1ReferralId })
   expect(reviewResp.ok(), `R1 beforeAll: start_referral_review failed: ${await reviewResp.text()}`).toBeTruthy()
 
-  const accessResp = await request.post(`${SUPABASE_URL}/rest/v1/case_access`, {
+  // ADR 0078 Stage B: `case_access` was HARD-CUT to `case_access_grants`
+  // (capability-per-column, `principal_id` not `user_id`). A plain read grant here
+  // (content + deliberation, no PHI columns) is exactly what `grant_case_access`
+  // itself would insert with no PHI params — this reader test needs content reach
+  // only, never PHI.
+  const accessResp = await request.post(`${SUPABASE_URL}/rest/v1/case_access_grants`, {
     headers: {
       apikey: SUPABASE_SERVICE_KEY,
       Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
@@ -400,12 +405,15 @@ test.beforeAll(async ({ request }) => {
     },
     data: {
       case_id: r1CaseId,
-      user_id: '00000000-0000-0000-0000-000000000006', // staff1.farm
-      level: 'read',
+      principal_id: '00000000-0000-0000-0000-000000000006', // staff1.farm
+      source: 'manual_grant',
+      read_case_content: true,
+      read_case_deliberation: true,
+      reason_code: 'coordinator_grant',
       granted_by: '00000000-0000-0000-0000-000000000005', // chefe.farm
     },
   })
-  expect(accessResp.ok(), `R1 beforeAll: case_access grant failed: ${await accessResp.text()}`).toBeTruthy()
+  expect(accessResp.ok(), `R1 beforeAll: case_access_grants grant failed: ${await accessResp.text()}`).toBeTruthy()
 })
 
 // ---------------------------------------------------------------------------
