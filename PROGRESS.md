@@ -212,6 +212,7 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 
 | Phase / Feature | Verdict | Report | Notes |
 | --------------- | ------- | ------ | ----- |
+| AUTHZ · A4 — org admin ceases to be a Case Content source | ✅ **APPROVED** (2026-07-16, r1) — 0 P0/0M/0min/2info | [review](docs/reviews/authz-a4-review.md) | LOST=120/GAINED=0 **lead-reproduced**; PHI control 0/0; 4th fn target (`can_write_interview`) load-bearing |
 | AUTHZ · A2 — the capability resolver (`_case_caps` + projections) | ✅ **APPROVED** (2026-07-16, r1) — 0 P0; 1 MAJOR filed against **A5** (per-row cost ~10×, unmeasured pre-image) | [review](docs/reviews/authz-a2-review.md) | LOST=0/GAINED=0 **lead-reproduced** over 1568 cells |
 | AUTHZ · M6 — `cases.visibility_policy` guarded door (ADR 0078 A1/A27; PO Q1–Q4) | ✅ **APPROVED** (2026-07-16, r1) — 0B/0M/3min/2info | [review](docs/reviews/authz-m6-review.md) | |
 | AUTHZ · M5 — defect ③: the `is_active` outer gate | ⚠ **CHANGES REQUESTED** (2026-07-15) — 1 P1 ("CLOSED" over-claimed); **resolved by M5b**, which produced §7.9 | [review](docs/reviews/authz-m5-review.md) | |
