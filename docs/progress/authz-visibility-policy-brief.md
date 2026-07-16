@@ -11,7 +11,7 @@ executed probes as `set local role authenticated`. No claim below is from migrat
 
 | # | Question | My recommendation |
 |---|---|---|
-| **Q1** | Does A1's ethics correction (`explicit_grants_only` → `commission_default`) land in `seed.sql` **now**, before A2? | **Yes — it must precede A2's diff.** See §5. |
+| **Q1** | Does A1's ethics correction (`explicit_grants_only` → `commission_default`) land in `seed.sql` **now**? | **Yes** — A1 ruled it, it never landed, it is one token. ⛔ **NOT because it blocks A2 — my "must precede A2" claim is RETRACTED and false; see §5.** It is independent of A2; M6-first is a risk call, not a correctness one. |
 | **Q2** | **Who** may change a case's visibility after creation, and through what door? | A **guarded RPC** (`set_case_visibility`), coordinator-only, audited — mirroring the `set_case_confidentiality` door that already exists. |
 | **Q3** | When a case type's default is corrected, do **existing** cases move? | **No — forward-only, per-case override.** Today this is not merely undesirable but *unimplementable* (§3, D4). |
 
@@ -105,20 +105,44 @@ This also corrects **"blocks A3"** from the same message. A3 (the agenda-item le
 column's semantics through the case rule; it does not independently depend on the decision. **A2 is the
 real coupling.**
 
-## 5. Why this must precede A2 (the sequencing consequence)
+## 5. Sequencing vs A2 — ⛔ my first answer here was WRONG
 
-A2's member arm keys on `cases.visibility_policy = 'commission_default'` as the **sole runtime
-authority** (ADR 0078 D11/E, line 372). A2's proof obligation is a full-population
-`LOST = 0 / GAINED = 0` equivalence diff.
+**Retracted (2026-07-16, same day, before any work started).** This section originally read: *"the seed
+correction changes A2's diff population, so it must land BEFORE A2 or the `LOST=0/GAINED=0` proof expires
+on contact."* **That is false, and it is the third claim in this brief's lifetime that I asserted from an
+assumed data-flow instead of a probe.**
 
-That diff runs over the live population — **today 6 `commission_default` / 1 `explicit_grants_only`**.
-Applying A1's seed correction *changes that population*. So:
+The seeded ethics **case** does not derive its policy from the type default. `seed.sql:2115–2119` inserts
+the case with `visibility_policy = 'explicit_grants_only'` **directly** (superuser insert, bypassing RLS).
+`case_types.default_visibility_policy` is read **only** by `create_case_from_template`, at runtime, for
+cases created through it — and **no seeded case is created that way**.
 
-> If A2's diff runs first, it proves equivalence over a population that is about to change, and the
-> proof expires the moment the seed is fixed.
+Probed, not reasoned:
 
-This is **§7.9** — *a closure is only closed over the population you applied the rule to* — arriving one
-unit early, which is the only reason it is worth interrupting A2 for.
+| | `commission_default` | `explicit_grants_only` |
+|---|---|---|
+| before flipping the **type** default | 6 | 1 |
+| after flipping the **type** default | **6** | **1** |
+
+`case_types` carries **no triggers** (`(none)`), and `cases` has no FK to it, so nothing propagates.
+**The seed fix is provably inert for every existing case.**
+
+**Consequences:**
+- **This unit does NOT block A2.** The two are independent: A2 *reads* `cases.visibility_policy`; this unit
+  changes a *type* default and adds a write door. The diff population is untouched either way.
+- They are still **serialized** — both are `backend`'s, both touch `supabase/migrations/` (file-ownership,
+  CLAUDE.md §4). Order is a scheduling choice, not a correctness constraint.
+- **M6-first is still defensible** — but on *risk* grounds (D1 is a proven live widening; D2 is a Rule 11
+  hole; the unit is small and has an exact model to mirror), **not** on the sequencing grounds I claimed.
+- The decisions in §1 are **unaffected**. Q1/Q2/Q3/Q4 stand exactly as approved.
+
+**The irony is the lesson.** §7.9 and §7.10 are my own entries, and I invoked §7.9 *here* to justify an
+urgency I had inferred rather than measured. A borrowed lesson is not a probe.
+
+**One real interaction survives** (forward-only, Q3, in action): once the type default is corrected, an
+ethics case created via `create_case_from_template` becomes `commission_default` where it was
+`explicit_grants_only`. That is the intended behaviour change, and any E2E that creates an ethics case
+**through that RPC** will see it. Seeded fixtures will not.
 
 ## 6. Options
 
