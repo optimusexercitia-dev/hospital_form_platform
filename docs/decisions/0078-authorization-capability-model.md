@@ -183,6 +183,29 @@ costs **today**, so there is no performance regression to defend.~~
 > case detail, meeting detail, attachment listing, referral inbox). **A4 repoints ~12 tables onto this
 > resolver; A5 is the gate that must run BEFORE it does, and A5 is a HARD exit criterion.**
 
+> ✅ **A5 RAN AND PASSED — no migration (`backend`, lead-corroborated, 2026-07-16).** Measured
+> `EXPLAIN (ANALYZE, BUFFERS)` on a **2005-case** synthetic dataset (4× re-measured), pre-image captured
+> by moving **both A2 and A4** out (A4 sits on A2) + `db reset`, median of 5, as `authenticated`.
+> **Resolver is parity-or-FASTER on every legitimate surface and strictly LINEAR** (per-row cost flat 1×
+> → 4×; every `EXISTS` index-backed). Pre-A2 vs resolver: cases/coordinator **1.02×**, cases/member
+> **0.73× (faster)**, narratives/member **0.75×**. **`qa`'s MAJOR-1 ~10× was resolver-vs-a-single-arm; on
+> the real surface vs the real pre-A2 body it does not exist** — the member path is *faster* because A4
+> collapsed the `can_read_case_or_admin` wrapper (a second deny body) the pre-A2 member read paid for.
+> **Lead corroboration (independent, in-txn, 2005 cases):** member **0.496 ms/row** / coordinator
+> **0.183 ms/row** — matching `backend`'s 0.59 / 0.205 within noise; the plan shows **Bitmap Index Scan**
+> (the linearity mechanism) and the coordinator's resolver InitPlan reads **"never executed"** (the
+> `is_staff_admin_of` permissive-sibling short-circuit, proven not asserted). ⚠ **Report correction, verdict
+> unaffected:** *"the case board has 0 resolver cost"* is true **only for coordinators** — `list_cases_board`
+> filters non-coordinators with `(v_is_coordinator OR app.can_read_case(...))` **per row**, and the plain
+> RLS `cases` path does the same, so a **non-coordinator member pays the resolver per row on the board**;
+> `backend` measured exactly that path (cases/member, faster + linear), so PASS holds. **Referral inbox is
+> correctly out of scope** — `can_read_referral*` never call the resolver (verified). ⭐ **Deferred, PO
+> ruling: dropping `manage_case_access`** — measured **~19%** of per-row cost (`is_commission_admin_of_for`
+> traverses the tenancy hierarchy; `backend` *measured* this rather than inferring it, having wrongly
+> guessed "cheap" first — §7.11), **0 consumers** (proven at A4), so droppable — **but it is a RESERVED
+> bit, a semantic change needing its own keystone + `qa`. Not required for the gate** (A5 passes without
+> it). A separate follow-up, not folded into A5.
+
 Fail-closed evaluation order inside `_case_caps`:
 
 ```
