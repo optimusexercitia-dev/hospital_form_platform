@@ -25,13 +25,13 @@ because until they do, **every exclusion keystone in Gate 1 is vacuous**.
 | **M2** — platform_admin PHI destruction | ✅ built · `qa` APPROVED · committed `f0a25cb` |
 | **M3** — defect ① (assignment ⇏ PHI) | ✅ built · `qa` APPROVED · committed `bee1026` |
 | **M4** — false flag prose + e2e teardown | ✅ built · committed `bed6eba` |
-| **M5** — defect ③ (`is_active` outer gate) | ✅ built · lead-verified behaviourally · committed `11a5ffd` · `qa` **not yet run** |
+| **M5** — defect ③ (`is_active` outer gate) | ✅ built `11a5ffd` · `qa` **CHANGES REQUESTED** (P1: the closed set was a floor) → **M5b** `d3813a1` gates the 5 doors · lead-verified behaviourally both rounds |
 | **A2** — the resolver | ⏸ **NOT STARTED — was BLOCKED and re-scoped.** See §4. |
 | A4 · A5 · Gate-1 exit | 🔜 after A2 |
 
-**Gate:** pgTAP **2740/2740** on a fresh `db reset` · **mutation: M1 22/22 + M5 9 cases / 21 patterns
-RED-PROVEN** (`supabase/tests/mutation/{m1,m5}-mutation-audit.sh`) · lint 0/0 · typecheck ✅ ·
-**116 migrations**. **Local only — remote lands at the pilot reset, with separate user approval.**
+**Gate:** pgTAP **2773/2773** · **mutation: M1 22/22 + M5/M5b 15/15 RED-PROVEN**
+(`supabase/tests/mutation/{m1,m5}-mutation-audit.sh`) · lint 0/0 · typecheck ✅ · **117 migrations**.
+**Local only — remote lands at the pilot reset, with separate user approval.**
 
 ### M5 (2026-07-15) — defect ③ closed; **all three founding defects now narrowed or pinned**
 
@@ -368,6 +368,42 @@ content** — **conflating them is what made two keystones vacuous.**
   got in too.**
 
 **If a claim cannot be falsified by a test, it is not a claim — it is a hope.**
+
+### 7.9 A closure is only closed over the population you applied the rule to (M5b, 2026-07-15)
+
+§7.5 said the caller set was never the population — **`{helpers} ∪ {direct-arm-checkers}`** is. M5 closed on
+exactly that rule and **was still a floor**, because it applied the rule to **one schema**:
+*{`app.*` functions touching a raw-arm table}* = **17**. The **`public.*` DEFINER RPCs read the raw arms
+directly**, and `prosecdef = t` ⇒ **RLS never applies to them**. **A28, fourth time.** `list_my_cases`
+inlines `grant OR phase_asg OR narr_asg` under a bare `auth.uid()` and delegates to **no** predicate — so
+`can_read_case = f` while the door served **2 rows**. **The closure claim read like a closure** — it named
+a rule, counted a population, triaged every member — **and was wrong because of its `WHERE` clause.**
+It is left in the M5 migration as an annotated specimen.
+**Apply: state the population's SCOPE, then attack the scope.** *"Closed over what?"* is the question.
+
+**⛔ THREE INDEPENDENT TEXT SWEEPS FAILED IN THE SAME DIRECTION.** `qa`'s transitive-`is_active` graph
+reported `list_my_cases` **GATED**; `backend`'s reproduced it; the cause is that `is_staff_admin_of_for`
+appears in the function's **`my_role` display chip**, never in its `WHERE`. `backend`'s wrapper check also
+matched `is_staff_admin_of_for` against `is_commission_admin_of` and returned `f`, **inventing** an ungated
+admin arm that delegates fine. **A wrong regex invents findings as readily as it hides them.** Only
+`set local role authenticated` + calling the door caught any of it. **§7.2 is not "read the catalog" — it
+is "run the thing."** `qa` filed this against its own method, unprompted; that is the behaviour to copy.
+
+### 7.10 ⛔ A metric that reads the SAME before and after is not measuring the change (lead, M5b)
+
+**The lead nearly filed a false P0 against a correct fix.** `list_my_cases` returns **scalar `jsonb`**
+(`proretset = f`), so `select count(*) from list_my_cases(…)` is **always 1** — one row holding an array.
+The lead read `1` **pre**-fix and reported it to the PO as evidence of the leak, then read `1` **post**-fix
+and nearly called M5b incomplete. The true metric is **`jsonb_array_length(...)`**: `2 → 0 → 0 → 2`
+(active → deactivated → suspended → restored). `qa` and `backend` both had the right number (**2**) the
+whole time; the lead's disagreed with both and he trusted his own.
+
+**The tell was there and was missed: the reading did not MOVE.** A probe that returns the same value on
+both sides of a change is measuring **the wrong thing** — that invariance is the alarm, not a coincidence.
+Same trap, same session: `backend`'s first `list_cases_board` "DENIED" was its own
+`jsonb_array_length(record)` **type error**, not a denial.
+**Apply: before trusting a probe, run it where it MUST differ (the positive twin) and require it to move.**
+A probe that never goes non-zero is `throws_ok` catching the wrong error, one layer out.
 
 ---
 
