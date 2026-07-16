@@ -210,6 +210,26 @@ repoint every case-content policy onto a resolver that is too slow.
 6. **The `Bash` graphify hook-guard is OFF** (`.claude/settings.json`) — it injected *"MANDATORY: run
    graphify before grepping"* into every `psql` call. graphify **does not index SQL**. The exception is
    now binding in **CLAUDE.md**.
+7. **`visibility_policy` (2026-07-16):** ① land A1's ethics seed correction now · ② a new guarded,
+   coordinator-only, audited `set_case_visibility` RPC mirroring `set_case_confidentiality` · ③
+   **forward-only** — no `case_type_id` schema, no retroactive migration · ④ fix D1 + D2 in-unit.
+   **All four shipped in M6.**
+8. **The `setCaseVisibility` app action + coordinator control → ETH·E2 (S4)**, with its four siblings,
+   once the resolver is final. **Not built in M6, deliberately.** The contrast that justified M6 —
+   *"`confidentiality_level` has an RPC **and an app action**"* — was **false**: all four ethics actions
+   (`declareConflict`, `recordRecusal`, `liftRecusal`, `setCaseConfidentiality`) are **contract-first
+   stubs that throw**, with **0 UI bound to any**. M6 met the house standard exactly; **no sibling has a
+   product door either.** Building one real action beside four frozen stubs, with **A2 unstarted**,
+   would have bound UI to predicates about to be replaced — the exact collision the S3 → AUTHZ → S4
+   sequencing exists to prevent.
+9. ⭐ **A2 → `qa` → A4 → A5 → the grant-door unit (PO, 2026-07-16).** The **recused-coordinator grant
+   hole** (A18/keystone 24 — see §5) is sequenced **AFTER A5**, as **its own unit**, before pilot.
+   **Rationale: it is a WRITE door; A2/A4/A5 are the READ resolver.** Folding it into A2 would have been
+   the M7 mistake — and note the symmetry, because it is the whole lesson of this session: **the
+   flag-OFF legacy PHI arm was NOT worth a bespoke migration ahead of A2 (dead code, unreachable, D9
+   already deletes it), while the grant hole IS worth its own unit (live, reachable, nothing deletes
+   it).** Same question, opposite answers, and **the deciding fact is reachability — measured, never
+   inferred.** *Neither answer is derivable from how alarming the finding sounds.*
 
 ---
 
@@ -220,10 +240,13 @@ found by an **independent check** — never by careful reading. Reading code was
 
 ### 7.1 A test that cannot fail is not evidence — MUTATION-TEST IT
 
-**Seven keystones on this program could not fail**, two of them ⭐, one **Rule 12**. **Review found
-none of them. Reverting the fix and requiring the test to go red found every one.**
+**NINE keystones on this program could not fail**, two of them ⭐, one **Rule 12**. **Review found
+none of them. Reverting the fix and requiring the test to go red found every one.** *(Was seven; **A2's
+audit found two more — in the author's OWN brand-new keystones, written by the engineer who has been
+applying this lesson all program, in the unit whose brief quotes it.** The count keeps rising because
+the audit keeps running. That is the argument.)*
 
-An over-grant twin is **necessary but not sufficient — the twin itself can be vacuous.** Five shapes,
+An over-grant twin is **necessary but not sufficient — the twin itself can be vacuous.** Six shapes,
 each green while asserting nothing:
 
 1. **Wrong-arm fixture** — an earlier *positive* twin left the principal **self-recused**, so every later
@@ -242,6 +265,24 @@ each green while asserting nothing:
 5. **Defensive branching (Playwright)** — the failing assertion sat inside
    `if (!panel.isVisible()) { …; return }`, so the UI half could skip entirely. **It converts "not
    implemented" into "passing."** Worth sweeping `e2e/` for.
+6. **⭐ NEW (A2, 2026-07-16) — THE PERMISSIVE SIBLING. A positive row-assertion is satisfiable by ANY
+   policy on the table, not the one you are testing.** Postgres **OR**s permissive policies together, so
+   *"principal X reads row R"* proves **nothing** about predicate P unless P is the **only** grant of R.
+   Both of A2's vacuous keystones are this: **K1** asserted the coordinator reads the `cases` row and
+   stayed **GREEN with the coordinator source deleted** — `cases_staff_admin_write` is **`FOR ALL`
+   PERMISSIVE** and grants SELECT on `(is_staff_admin_of OR is_commission_admin_of) AND NOT
+   is_case_excluded`, **never touching the resolver**. **K9** asserted the respondent reads **zero**
+   `cases` rows and stayed **GREEN with the hard deny dropped** — `can_read_case_or_admin` carries its
+   **own** deny and does not delegate (shape 2's cousin: *a deny the code under test didn't make*).
+   ⚠ **The direction matters and inverts:** a **positive** assertion is faked by a permissive **sibling
+   grant**; a **negative** is faked by a **sibling deny** — so **neither polarity is safe**, and the
+   table you assert on decides which. **Fix:** assert on a table reached **ONLY** through the predicate
+   under test (`case_participants` here — `cases` itself is hopeless: it carries a `FOR ALL` write
+   policy). **Before writing a row-assertion, list every policy on that table and prove yours is the
+   only path.** ⛔ **`FOR ALL` PERMISSIVE policies are this program's single most persistent structural
+   blind spot** — they hid A21/keystone 23, they are why A4 must narrow **policies not sources** (F2),
+   and now they have faked two keystones. **If a table has one, assume your assertion is vacuous until
+   you have mutation-proven otherwise.**
 
 **The structural defence that works:** give **authority** and **exclusion** distinct SQLSTATEs and check
 **authority FIRST** (`HC0E4` before `HC0F1`). A twin whose principal lacks the precondition then fails
