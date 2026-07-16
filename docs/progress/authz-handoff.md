@@ -25,12 +25,35 @@ because until they do, **every exclusion keystone in Gate 1 is vacuous**.
 | **M2** — platform_admin PHI destruction | ✅ built · `qa` APPROVED · committed `f0a25cb` |
 | **M3** — defect ① (assignment ⇏ PHI) | ✅ built · `qa` APPROVED · committed `bee1026` |
 | **M4** — false flag prose + e2e teardown | ✅ built · committed `bed6eba` |
+| **M5** — defect ③ (`is_active` outer gate) | ✅ built · lead-verified behaviourally · committed `11a5ffd` · `qa` **not yet run** |
 | **A2** — the resolver | ⏸ **NOT STARTED — was BLOCKED and re-scoped.** See §4. |
 | A4 · A5 · Gate-1 exit | 🔜 after A2 |
 
-**Gate:** pgTAP **2661/2661** on a fresh `db reset` · **mutation audit 22/22 RED-PROVEN**
-(`supabase/tests/mutation/m1-mutation-audit.sh`) · lint 0/0 · typecheck ✅ · **115 migrations**.
-**Local only — remote lands at the pilot reset, with separate user approval.**
+**Gate:** pgTAP **2740/2740** on a fresh `db reset` · **mutation: M1 22/22 + M5 9 cases / 21 patterns
+RED-PROVEN** (`supabase/tests/mutation/{m1,m5}-mutation-audit.sh`) · lint 0/0 · typecheck ✅ ·
+**116 migrations**. **Local only — remote lands at the pilot reset, with separate user approval.**
+
+### M5 (2026-07-15) — defect ③ closed; **all three founding defects now narrowed or pinned**
+
+PO-ruled sequencing: the `is_active` gate lands as its **own subtractive migration before the
+resolver**, extending A29/A35/A36 to the last founding defect. The ADR scoped it *inside* Stage A
+(D3) — building it there would have put a **narrowing inside the unit sold as a mechanism swap**, the
+exact shape that got A2 blocked, and would have wrecked A2's `LOST=0 / GAINED=0` equivalence proof by
+forcing a mixed-axis claim (§7.7).
+
+**Seven functions gated** (`can_read_case` · `_patient` · `can_write_case_content` ·
+`can_read_action_item` · **`can_write_case_narrative`** · **`referral_target_analyst`** ·
+**`can_write_attachment`**). The last three were **beyond the brief** — `backend` closed the set
+(*{functions whose body touches a raw-arm table}* = 17) instead of enumerating it (§7.5).
+`referral_target_analyst` was **Rule 12**: all three arms raw, no role wrapper, the **sole ungated
+route to referral PHI**. `can_write_case_narrative` was flagged in **M1's own migration text** and
+deferred to "the Stage-A/G sweep" — this was that sweep; a deactivated assignee was **writing PHI**.
+
+**Two of the brief's six were deliberately NOT gated** — `can_read_case_or_admin` and
+`can_reach_case_on_member_surface` are **pure delegation**; every arm resolves to an already-gated
+predicate, so a gate there is a provable no-op, **unfalsifiable under A33's one-function-at-a-time
+rule**, and a wasted per-row `profiles` lookup on the member surface (A5 is a hard criterion). They
+carry behavioural keystones instead. **Recorded so nobody "fixes" it.**
 
 ### What M1–M3 actually fixed (all live on `main` before this branch)
 
@@ -103,6 +126,18 @@ SPECS="e2e/foo.spec.ts" RESET=1 npm run e2e:prod    # targeted loop
    so catalog ≠ branch until fast-forwarded. **Check both**, not just git.
 6. `supabase db reset --local` may print `Error status 502` **after a successful reset** — it's the CLI's
    version check. Exit 0. Cosmetic.
+7. **⛔ macOS ships BSD awk, and it silently broke the mutation harness.** `awk -v x="<multi-line>"`
+   **dies on BSD awk** (`awk: newline in string`, `awk version 20200816`) — it emitted a garbage script,
+   so **`m1-mutation-audit.sh` never ran on this machine**: M1 read **22/22 `ABSENT(aborted)`**, not
+   22/22 RED-PROVEN. The recorded M1 figure was reproducible **only on a GNU-awk box**. Fixed at M5 with
+   a portable `head`/`tail` split in both harnesses; **M1 re-verified 22/22 on BSD awk** (which also
+   re-proves M1's denies on the three functions M5 rewrote). ⚠ **It was never a false green** — the
+   tri-state reported `ABSENT`, which is the only reason it was caught. **That tri-state is the design
+   feature.** A harness that reports pass/fail instead of pass/fail/**didn't-run** would have printed
+   "22/22" over a script that never executed — §7.1's *`red` ≠ `abort`*, in the tooling this time.
+   Two smaller traps caught the same session: Postgres regex uses **`\y`, not `\b`** (`\b` is
+   *backspace* — a `case_access\b` sweep silently under-reports), and a `docker cp` before a reset left
+   an empty file that diff rendered as **"all 196 rows LOST."**
 
 ---
 
@@ -144,11 +179,12 @@ repoint every case-content policy onto a resolver that is too slow.
 
 | Item | State |
 |---|---|
-| **A2 → A4 → A5 → Gate-1 exit** | next |
+| **A2 → A4 → A5 → Gate-1 exit** | next. **A2 is now a genuine mechanism swap** — all three founding defects are narrowed (M3 ①, M5 ③) or pinned (① half 2 → B1), so A2's proof is a clean full-population equivalence: **`LOST = 0, GAINED = 0`**. Any loss means A2 smuggled a narrowing. |
+| **`qa` review of M5** | **not run.** M1/M2/M3 each got one and **every round found real P0s**; M5 is the first unit to skip it so far. |
 | **A30 buckets B (7 tenant-non-PHI arms) + D (1)** | **deferred by PO**; bucket C (PHI) shipped in M2. Census: `authz-a30-platform-admin-inventory.md` |
 | **§3.6 carry** — remaining triage doors + per-row filters | `qa` verified **durability is unaffected** (it called every carried door the excluded party can reach; the deny held). **Keep it triage, NOT a fix list** — `get_case_patient` is a **verified false alarm**, and a text-filter sweep would over-reach (**keystone 23 fails if the negatives over-reach**). |
 | **Defect ①'s second half** (`case_access` grant has no PHI filter) | **Deliberately deferred to B1.** `case_access.level` is `('read','write')` = **write authority**; filtering PHI on it would encode `write ⇒ read_standard_phi`, which **A16 puts on disjoint chains**. The real capability is `case_access_grants.read_standard_phi`. **`230` + e2e `AC-3b` PIN today's behaviour so B1 lands as a VISIBLE failing assertion.** |
-| **`visibility_policy` has no runtime door** | `create_case` ignores the type default that `create_case_from_template` honours, and **nothing writes it post-creation** — so D11/A1's *"per-case coordinator override"* is unreachable. **Bears on Stage C. Needs a PO call.** |
+| **⛔ `visibility_policy`: the two creation doors DISAGREE** | **Catalog-verified 2026-07-15 (lead), sharpened from "no runtime door" — it is worse than that.** `cases` has **no FK to `case_types`**; the type is a **creation-time parameter only**. `create_case_from_template` honours `case_types.default_visibility_policy`; **`create_case` never touches the column**, so it takes the column default **`commission_default`**. ⇒ **the same case type gets OPPOSITE visibility depending on which RPC created it**, and **nothing writes it post-creation**, so it can never be corrected. Live: 6 `commission_default` / 1 `explicit_grants_only`. **`ethics` is still seeded `explicit_grants_only` — the value A1 ruled WRONG** (A31·6; the one-token seed fix never landed). **Bears on A2, not just Stage C** — A2's member arm keys on this column, so the arm's behaviour for the ADR's own worked example (the ethics complaint) is decided by an accident of the creation door. **Needs a PO call before A3.** |
 | **Full `e2e:prod`** | run at the merge gate (M1 ran it: 274/1/1, triaged) |
 | **Remote deploy** | **pilot reset only**, with explicit user approval. Nothing here touched remote. |
 
@@ -345,4 +381,4 @@ content** — **conflating them is what made two keystones vacuous.**
 | **A30 platform_admin census** | [authz-a30-platform-admin-inventory.md](authz-a30-platform-admin-inventory.md) |
 | **Reviews** (A0 · M1 · M2 · M3) | [authz-a0-inventory-review.md](../reviews/authz-a0-inventory-review.md) · [authz-m1-review.md](../reviews/authz-m1-review.md) · [authz-m2-review.md](../reviews/authz-m2-review.md) · [authz-m3-review.md](../reviews/authz-m3-review.md) |
 | **Mutation harness** | `supabase/tests/mutation/m1-mutation-audit.sh` (runnable; 22 cases) |
-| **Keystones** | `supabase/tests/229_*` (M1) · `230_*` (M3) · `189_*` §11b (M2) |
+| **Keystones** | `supabase/tests/229_*` (M1) · `230_*` (M3) · `231_*` (M5) · `189_*` §11b (M2) |
