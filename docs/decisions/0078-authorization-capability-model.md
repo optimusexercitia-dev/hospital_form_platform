@@ -336,6 +336,24 @@ The flag is `true` in the baseline with `on conflict do update set enabled = exc
 **unreachable in any real environment**, and D11's member arm **subsumes its behaviour**. It is not a
 kill switch: OFF means *every member reads every case*, a worse state than the defect being fixed.
 
+> ⛔ **"MEMBER-WIDE READ" UNDERSTATES IT — THE SECOND OFF BRANCH CONFERS PATIENT IDENTIFIERS (Rule 12).**
+> Amended 2026-07-16 (`backend`, A2 contract C5; lead-verified from `pg_get_functiondef`). This decision
+> already said **"both OFF branches"** — correctly — but described them in **content** terms only, so a
+> Stage-B author retiring the flag would not know **Rule 12 is in the blast radius**. Stated plainly:
+> **`app.can_read_case_patient`'s OFF branch returns `is_member_of_for` for a `commission_default` case
+> — a plain committee member reads `name` / `mrn` / `date_of_birth`.** Both OFF branches carry the E1
+> belt (`explicit_grants_only` → coordinators only); both fall through to member-wide underneath it.
+> Measured at A2's contract: flipping the flag off takes `can_read_case_patient` from **27 → 54**
+> reachable cells of 196. **Deleting the flag deletes a live-if-reachable PHI arm — that is a feature of
+> D9, not a side effect, and it is the strongest argument for doing it.**
+>
+> ⚠ **Nothing tested this branch until A2.** `228` t24 pins `can_read_case` at flag-OFF; **no test
+> pinned `can_read_case_patient` at flag-OFF** — the arm's own unreachability is why nobody was ever
+> owed a test for it (§7.1·4). **A2 carries it faithfully** (removing it inside A2 would be a narrowing
+> smuggled into a mechanism swap — D4·3) **as a NAMED source, `case_access_flag_off_legacy` ⇒
+> `read_case_content` + `read_standard_phi`, pinned by keystone K12 both legs.** Stage B's deletion then
+> lands as a **visible red**, not a silent drop. **Do not preserve this branch when retiring the flag.**
+
 The flag, both OFF branches, and the `assert_case_access_enabled()` guards are **deleted at Stage B**
 (a flag guarding a dropped table is nonsense). pgTAP's flag-OFF cases are rewritten as
 `visibility_policy` cases — which is what they were really testing. Precedent: `administrativo`'s
@@ -417,6 +435,17 @@ anyway — and it **retires at Stage G**, with the member surfaces becoming capa
 > And `view_case_overview` reach is **NOT** `read_case_content` reach for a member — the lattice rung
 > breaks (A16); a member reads the ata section **without** the board row, which is today's behaviour.
 > `view_case_overview` ships as a **reserved, unconsumed bit** (A16).
+
+> ⭐ **`read_restricted_phi` is RESERVED too — same status, stated because it wasn't** (`backend`, A2
+> contract C7, 2026-07-16). A2 ships **three** of seven bits unconsumed, and until now only **one** was
+> blessed. `read_restricted_phi` has **no live consumer**: `can_read_case_patient` **ignores
+> `max_confidentiality`**, whose ceiling governs **documents**, not the patient store — so a wrong RRP
+> wiring has **zero blast radius today**, and **keystone 31 is falsifiable against the resolver but
+> asserts nothing about reach.** That is acceptable, and it is **not** A36's unconsumed-bit problem:
+> that rule forbids a **narrowing** shipped as an uncomsumed bit, landing silently in a later unit with
+> no failing test in between. A reserved bit with no consumer is a **placeholder**, not a removal in
+> disguise. **The distinction is the direction of the risk** — `read_standard_phi` unconsumed *would*
+> have been A36's problem, which is exactly why M3 preceded A2.
 
 ### D12 — Terminology: docs only
 
@@ -1499,6 +1528,35 @@ deny for a recused coordinator**, and precisely the arm A22 found unguarded.
    - `committee_member_default` ⇒ **`read_case_deliberation` ONLY** (A15).
    - `nsp_referral_touched` ⇒ **`read_case_content` ONLY** (D8).
 
+   > ⛔ **THIS TABLE MAPS 4 OF THE 7 LIVE SOURCES.** Amended 2026-07-16 (`backend`, A2 contract C4/C6;
+   > lead-verified). A24·7 fixed *"D11 never says what each source confers"* — but only for the four
+   > **resolver-computed** arms, leaving the three the catalog actually carries unmapped. **A2 cannot
+   > wire a source that has no row, and inventing one silently is exactly A36's failure mode.** The
+   > missing three, wired to **today's** semantics (A2 is a mechanism swap — it ships what is live, not
+   > what is wanted):
+   > - **`org_admin`** (`is_commission_admin_of_for`) ⇒ **`read_case_content` + `read_case_deliberation`**.
+   >   **Never PHI** — verified: `can_read_case_patient` carries **no org arm** on either branch. Never
+   >   write. **Ships as an A2 source; A4 removes it** (D4·3 — omitting it executes A4's removal inside
+   >   A2). ⚠ Consequence of the no-PHI finding: **A4 touches `can_read_case_patient` zero.**
+   > - **`manual_grant`** (unexpired `case_access` row, `level` **unfiltered**) ⇒ **`read_case_content` +
+   >   `read_case_deliberation` + `read_standard_phi`**; with **`level = 'write'`** ⇒ **+
+   >   `write_case_content`**. The `read_standard_phi` cell **is defect ①'s second half** — deliberately
+   >   **pinned, not fixed** (`230` + e2e `AC-3b`), so **B1** lands as a visible failing assertion. The
+   >   target draws these from `case_access_grants` **columns**; today's `case_access` has only `level`.
+   > - **`case_access_flag_off_legacy`** (`NOT feature_enabled('case_access')` **AND** `visibility_policy
+   >   <> 'explicit_grants_only'` **AND** `is_member_of_for`) ⇒ **`read_case_content` +
+   >   `read_standard_phi`**. ⛔ **NOT a target-state source — D9 DELETES IT AT STAGE B.** It exists so
+   >   A2 is a faithful swap. Pinned by **K12**. See the D9 amendment for why it confers PHI.
+   >
+   > ⭐ **Why `committee_member_default`'s "ONLY" is nonetheless CORRECT — and why A36·1 needed care.**
+   > There are **two** member arms and this ADR conflated them: `can_reach_case_on_member_surface`
+   > (`is_member_of_for`, **no flag term**, live, 74/196) ⇒ `read_case_deliberation` — **A15 is exactly
+   > right about this arm**; and `can_read_case`'s **flag-OFF** arm ⇒ `read_case_content`. Same
+   > principal, same shape, **different capability**, reachable only at `case_access = f`. A24·7's
+   > **"ONLY"** cannot express the second, so "carry the branch" (A36·1) and "honour A24·7 verbatim"
+   > read as contradictory. **Resolution: the flag term belongs to the SOURCE, not the capability.**
+   > The flag-OFF behaviour becomes its own doomed source row (above) and A15 survives **verbatim**.
+
 ## A25 — Amendment 3 keystones
 
 22. **⭐ The member arm does not OVER-grant** — the negative keystones 4/11 structurally could not
@@ -1715,14 +1773,35 @@ was correct and it reshaped the stage.** The founding failure mode, **inverted**
 **Answer: PRESCRIPTIVE** — `case_assignment` conferring PHI is **this ADR's own confirmed defect ①**
 (Context, above: *"a grant deliberately issued **read-only opens patient identifiers**, and a bare phase
 or narrative…"*), one of the **three justifications for the whole program**. Encoding today's behaviour
-as the target would have enshrined the defect the ADR exists to kill. **Lead-verified:**
+as the target would have enshrined the defect the ADR exists to kill. ~~**Lead-verified:**~~
 ```
-app.can_read_case_patient:
+app.can_read_case_patient:                                          ⛔ PRE-M3 + WRONG — see below
   if not feature_enabled('case_access') then return is_staff_admin_of_for(...)
   else  is_staff_admin_of_for(...) OR case_access grant
      OR case_phases.assigned_to = p_uid        ← bare assignment
      OR case_narratives.assigned_to = p_uid    ← confers PHI
 ```
+
+> ⛔ **THE "LEAD-VERIFIED" QUOTE ABOVE IS WRONG ON THE FLAG-OFF BRANCH, AND IT UNDERSTATES PHI REACH**
+> (found by `backend` at A2's contract, 2026-07-16; lead re-verified from `pg_get_functiondef`). The two
+> assignment arms are now **deleted by M3** — that half is merely historical. **The flag-OFF line is a
+> real error.** The live branch is **two** branches, and the lead quoted the first while omitting the
+> fallthrough underneath it:
+> ```
+> if not app.feature_enabled('case_access') then
+>   if visibility_policy = 'explicit_grants_only' then
+>     return app.is_staff_admin_of_for(...);        ← the E1 belt — what the quote showed
+>   end if;
+>   return app.is_member_of_for(...);               ← ⛔ MEMBER-WIDE **PATIENT IDENTIFIERS** — omitted
+> end if;
+> ```
+> **Reading a branch and reporting it as the branch.** The error ran in the **urgency-suppressing**
+> direction — the same direction as A36·3's "inert" claim, on the same predicate, in the same amendment.
+> ⚠ **A quote is a reading, not a fact** (§7.3): this one was pasted into the ADR as `Lead-verified` and
+> then cited as ground truth for three months. **Un-reachable is not the same as un-true.** The arm is
+> dead code (**D9**: no PostgREST door — `app` is unserved; **no ACL on `app.feature_flags` at all**; no
+> function writes it; baseline force-sets `case_access = true`), which is *why* it survived unread — but
+> A2 must carry it faithfully, and **A2 keystone K12 pins it, which nothing did before**.
 
 **The structural finding (the reason A2's scope was withdrawn):** A2 as written projects only
 `can_read_case`, leaving `can_read_case_patient` untouched — so the **`read_standard_phi` bit ships

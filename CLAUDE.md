@@ -36,10 +36,17 @@ retention; the BAA is the *infrastructure* safeguard, not the governing law — 
 [0035](./docs/decisions/0035-lgpd-anvisa-regulatory-posture.md)). PHI is collected
 minimum-necessary and confined to **exactly three isolated modules** — patient-safety
 / NSP (`event_patient`), inter-committee **referral** (`referral_patient`), and
-**case** (`case_patient`) — each behind the tightest RLS, PHI-access-audited, and
-protected by platform at-rest encryption (column-level encryption **declined**). ADRs
-0030 / 0035 / 0037 / 0038. This **reverses** the platform's former "no patient data,
-ever" rule.
+**case** (`patient_identifiers`, anchored on `patient_participants`) — each behind the
+tightest RLS, PHI-access-audited, and protected by platform at-rest encryption
+(column-level encryption **declined**). ADRs 0030 / 0035 / 0037 / 0038. This
+**reverses** the platform's former "no patient data, ever" rule.
+
+> ⚠ **`case_patient` is a FEATURE-FLAG KEY, not a table** — this rule named it as one
+> until 2026-07-16 and it cost a teammate a probe mid-audit. The case module's PHI
+> lives in **`patient_identifiers`** (the payload — same columns as its two siblings:
+> `name`, `mrn`, `date_of_birth`, …) keyed to **`patient_participants`**. The predicate
+> `app.can_read_case_patient` and the flag both carry the `case_patient` name; **no
+> relation does.** Verify against the catalog, never against this sentence (ADR 0078 C2).
 
 ### Core domain concepts
 
@@ -156,7 +163,7 @@ rules:
 9. **Data access via `src/lib/queries/`** — no inline supabase-js.
 10. **User-facing text pt-BR**; code, comments, commits, docs in English.
 11. **Auditability** — append-only, tamper-evident trail; every mutation emits a row; reads of another member's data + every PHI read are logged (records *that* + *who*, never payloads/PHI).
-12. **PHI / HIPAA** — see §1: three isolated **Class-1 patient-PHI** modules (`event_patient` / `referral_patient` / `case_patient`) under identical isolation + audited-single-door safeguards. A distinct **Class-2 professional-identity** class (`professional_profiles`; case-scoped RLS + audited reads, no single door) lands in F1 (ADR 0064/0065); others hold none by design.
+12. **PHI / HIPAA** — see §1: three isolated **Class-1 patient-PHI** modules (`event_patient` / `referral_patient` / **`patient_identifiers`+`patient_participants`** — ⚠ *not* `case_patient`, which is a flag key, see §1) under identical isolation + audited-single-door safeguards. A distinct **Class-2 professional-identity** class (`professional_profiles`; case-scoped RLS + audited reads, no single door) lands in F1 (ADR 0064/0065); others hold none by design.
 
 ## 4. Agent Team
 

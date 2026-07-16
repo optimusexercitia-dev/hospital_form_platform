@@ -267,6 +267,24 @@ The rule was *"file text is stale; read the catalog."* True, and **too narrow**.
    removal comment (it quoted the deleted arm, so the self-check matched the comment and the migration
    refused to apply) — **and again inside the comment warning about it**. **You cannot quote the string
    you are asserting the absence of.**
+   > ⛔ **THIRD STRIKE, 2026-07-16 — and this time it was the lead, in a brief that cites this very
+   > instance, one hour after using this trap to close `backend`'s MINOR-1.** The A2 brief reported
+   > *"`can_read_case_patient` has **5** DEFINER consumers"*. It has **3**: `lift_recusal` and
+   > `remove_case_participant` match **only inside `--` comments**. The **control** run was
+   > comment-inflated too (`can_read_case` → "15", really 4 policies + 10 callers). ⚠ **The conclusion
+   > survived and that is the danger** — 3 vs 5, still all DEFINER, still 0 policies, so nothing looked
+   > wrong. **A method failure with a surviving conclusion leaves no evidence.** `backend` caught it.
+   > ⭐ **§7.11, demonstrated on this page: this section's own *How to apply* has said "Strip comments
+   > before any `prosrc` regex" since the day it was written.** Reading the rule, citing the rule, and
+   > *teaching* the rule to a teammate all failed to apply it. **Stop treating this as discipline.
+   > Paste the idiom:**
+   > ```sql
+   > with b as (select p.oid, p.proname, p.prosecdef,
+   >                   regexp_replace(p.prosrc, '--[^\n]*', '', 'g') as src   -- ⬅ non-negotiable
+   >            from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   >            where n.nspname in ('app','public'))
+   > select proname, prosecdef from b where src ~ '\ytarget_name\y';  -- \y, NOT \b
+   > ```
 3. **Stale claims live in TypeScript too** — two files and a component asserted a gate *"Mirrors
    dispose_referral_phi EXACTLY: `is_admin()` OR …"* long after the arm was gone.
 4. **A plausible variable name is not a role.** The `admin` persona (`…001`) has **`is_admin = false`**;
