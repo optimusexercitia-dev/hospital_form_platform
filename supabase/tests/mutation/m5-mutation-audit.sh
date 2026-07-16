@@ -85,7 +85,25 @@ run_case () {  # $1 = label, $2 = mutation SQL, $3 = expected-red patterns (| se
 # otherwise abort EVERY case and print a uniform "NOT PROVEN" that reads like broken
 # keystones rather than a missing extension.
 # ---------------------------------------------------------------------------
+PGTAP_WAS_PRESENT=$(docker exec "$DB" psql -U postgres -d postgres -tAc "select count(*) from pg_extension where extname='pgtap'" 2>/dev/null | tr -d '[:space:]')
 docker exec "$DB" psql -U postgres -d postgres -q -c "create extension if not exists pgtap;" >/dev/null 2>&1
+
+# ---------------------------------------------------------------------------
+# CLEANUP — leave the stack as we found it. The preflight above installs pgtap into
+# `public` OUTSIDE any transaction, so it PERSISTS after this harness exits, and the
+# NEXT `supabase test db` then reads t19 RED ("no public function is anon-executable")
+# on 1079 pgtap-owned functions. That is a FALSE red: read-only, zero app leaks, not
+# a regression — but the next person chases it, and "2740/2740" becomes reproducible
+# only on a fresh reset. A harness that silently changes the stack it audits is a
+# harness that manufactures findings. Drop it ONLY if we installed it.
+# ---------------------------------------------------------------------------
+cleanup_pgtap () {
+  if [ "${PGTAP_WAS_PRESENT:-0}" = "0" ]; then
+    docker exec "$DB" psql -U postgres -d postgres -q -c "drop extension if exists pgtap cascade;" >/dev/null 2>&1
+  fi
+}
+trap cleanup_pgtap EXIT
+
 docker cp supabase/tests/00_setup.sql "$DB:/tmp/_mut_setup.sql" >/dev/null 2>&1
 MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -q -f //tmp/_mut_setup.sql >/dev/null 2>&1
 if ! docker exec "$DB" psql -U postgres -d postgres -tAc "select 1 from pg_extension where extname='pgtap'" 2>/dev/null | grep -q 1; then
@@ -145,3 +163,43 @@ run_case "M5 STRUCTURAL can_read_case (comments)" \
 run_case "M5 STRUCTURAL 3-beyond-brief" \
   "select app._mut_ungate('app.referral_target_analyst(uuid,uuid)');" \
   "the three functions BEYOND the brief"
+
+# ===========================================================================
+# M5b — THE DOORS (232). A33: I found these arms myself, so nobody was owed a test
+# for them — §7.1·4 calls that the most fragile class on this program. Each door's
+# gate is reverted ALONE and its keystones must go RED.
+#
+# ⚠ The same isolation argument as above, and it is sharper here: these are
+# `public.*` DEFINER RPCs, so their gate REPLACES RLS. Neutering app.is_active
+# globally would open the role arms too and prove nothing about any single door.
+# ===========================================================================
+SRC="supabase/tests/232_authz_m5b_door_gate.sql"
+echo
+echo "=== M5b DOOR AUDIT (232) — every door's gate reverted ALONE ==="
+
+run_case "M5b list_my_cases (gate)" \
+  "select app._mut_ungate('public.list_my_cases(uuid)');" \
+  "DEACTIVATED phase assignee gets ZERO rows from list_my_cases|a SUSPENDED phase assignee gets ZERO rows"
+
+run_case "M5b list_my_action_items (gate)" \
+  "select app._mut_ungate('public.list_my_action_items(uuid)');" \
+  "and ZERO from list_my_action_items"
+
+run_case "M5b get_member_overview (gate)" \
+  "select app._mut_ungate('public.get_member_overview(uuid)');" \
+  "get_member_overview counts ZERO cases|and ZERO pending action items|the overview counts ZERO for him too"
+
+run_case "M5b conclude_narrative (HC0F4 gate)" \
+  "select app._mut_ungate('public.conclude_narrative(uuid)');" \
+  "DEACTIVATED narrative assignee CANNOT conclude|a SUSPENDED narrative assignee cannot conclude"
+
+run_case "M5b advance_committee_action_item (gate)" \
+  "select app._mut_ungate('public.advance_committee_action_item(uuid,uuid,text)');" \
+  "DEACTIVATED action-item assignee CANNOT advance|a SUSPENDED action-item assignee cannot advance"
+
+# The CLOSURE fence: list_cases_board is gated FOR FREE by 231's can_read_case gate,
+# not by any door change. Reverting can_read_case's gate must reopen it — which is
+# what proves "fixed for free" is a real mechanism and not an assumption.
+run_case "M5b closure: board via can_read_case" \
+  "select app._mut_ungate('app.can_read_case(uuid,uuid)');" \
+  "serves a DEACTIVATED one ZERO rows"

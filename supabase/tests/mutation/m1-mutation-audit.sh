@@ -86,7 +86,25 @@ run_case () {  # $1 = label, $2 = mutation SQL, $3 = expected-red test numbers (
 # The ABSENT-vs-GREEN split caught it — but a harness that needs a specific run order
 # is a harness that will be misread. Make it self-sufficient.
 # ---------------------------------------------------------------------------
+PGTAP_WAS_PRESENT=$(docker exec "$DB" psql -U postgres -d postgres -tAc "select count(*) from pg_extension where extname='pgtap'" 2>/dev/null | tr -d '[:space:]')
 docker exec "$DB" psql -U postgres -d postgres -q -c "create extension if not exists pgtap;" >/dev/null 2>&1
+
+# ---------------------------------------------------------------------------
+# CLEANUP — leave the stack as we found it. The preflight above installs pgtap into
+# `public` OUTSIDE any transaction, so it PERSISTS after this harness exits, and the
+# NEXT `supabase test db` then reads t19 RED ("no public function is anon-executable")
+# on 1079 pgtap-owned functions. That is a FALSE red: read-only, zero app leaks, not
+# a regression — but the next person chases it, and "2740/2740" becomes reproducible
+# only on a fresh reset. A harness that silently changes the stack it audits is a
+# harness that manufactures findings. Drop it ONLY if we installed it.
+# ---------------------------------------------------------------------------
+cleanup_pgtap () {
+  if [ "${PGTAP_WAS_PRESENT:-0}" = "0" ]; then
+    docker exec "$DB" psql -U postgres -d postgres -q -c "drop extension if exists pgtap cascade;" >/dev/null 2>&1
+  fi
+}
+trap cleanup_pgtap EXIT
+
 docker cp supabase/tests/00_setup.sql "$DB:/tmp/_mut_setup.sql" >/dev/null 2>&1
 MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -q -f //tmp/_mut_setup.sql >/dev/null 2>&1
 if ! docker exec "$DB" psql -U postgres -d postgres -tAc "select 1 from pg_extension where extname='pgtap'" 2>/dev/null | grep -q 1; then

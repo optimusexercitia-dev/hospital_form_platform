@@ -55,6 +55,25 @@
 -- update_case_narrative_body are `prosecdef = f`, so RLS already protects them.
 -- A32. Verified in the live catalog, not assumed.
 -- =============================================================================
+-- ⛔⛔ RETRACTED — READ THIS BEFORE THE PARAGRAPH BELOW. The claim "THE SET WAS
+-- CLOSED" is FALSE and is WITHDRAWN. It closed over the `app.*` schema, i.e. over
+-- PREDICATES only. The `public.*` DEFINER RPCs were excluded, and `prosecdef = t`
+-- means RLS DOES NOT APPLY TO THEM — so five more instances of defect ③ shipped
+-- through this file's own scope: list_my_cases · list_my_action_items ·
+-- get_member_overview · conclude_narrative · advance_committee_action_item. They
+-- are closed by 20260727000000 (M5b), whose header carries the accurate population
+-- and the method that finds it.
+--
+-- The paragraph below is left standing, uncorrected, ON PURPOSE — as the specimen.
+-- It is a textbook §7.5 floor that reads exactly like a closure: it names a rule,
+-- counts a population, triages every member, and is WRONG, because the rule was
+-- applied to one schema. And it is A28 again (a DEFINER's gate replaces RLS ⇒ a
+-- predicate-shaped audit is structurally blind), the fourth time on this program.
+-- The lesson is not "count better" — it is that a closure claim over authorization
+-- is only worth what its BEHAVIOURAL proof is worth. Two independent TEXT sweeps
+-- then misread list_my_cases as gated, in the same direction, because a role helper
+-- appears in its display chip. Only `set local role authenticated` caught it.
+--
 -- ⛔ THE SET WAS CLOSED, NOT ENUMERATED (§7.5). Counting call sites never
 -- converged on this program (five rounds, five floors). The closable set here is
 -- {functions whose body touches a RAW ARM TABLE} — case_access, *.assigned_to,
