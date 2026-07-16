@@ -145,10 +145,20 @@ insert into public.case_interview_subjects (interview_id, external_name, externa
 values ('00000000-0000-0000-0000-0000000a4060', 'Dr. Fulano (denunciado)', 'Hospital A', 'respondent');
 
 -- A case-document storage object under comm_x / c2 (the K4 byte-level case material).
-insert into storage.buckets (id, name) values ('case-documents','case-documents') on conflict (id) do nothing;
+-- Two anchors: the legacy `case-documents` (commission-anchored) proves A4 removed the
+-- ORG arm there; the live `attachments` bucket (owner-anchored `case/{caseId}/…`, where
+-- ALL product uploads land post-F2) is where the coordinator twin now reads (the legacy
+-- `is_member_of` member arm was CLOSED by the Exclusion Perimeter Unit 1 — see 236).
+insert into storage.buckets (id, name) values
+  ('case-documents','case-documents'),
+  ('attachments','attachments') on conflict (id) do nothing;
 insert into storage.objects (bucket_id, name, owner)
 values ('case-documents',
         (select comm_x from k)::text || '/00000000-0000-0000-0000-0000000a4002/laudo-sigiloso.pdf',
+        (select sa_x from k));
+insert into storage.objects (bucket_id, name, owner)
+values ('attachments',
+        'case/00000000-0000-0000-0000-0000000a4002/laudo-sigiloso.pdf',
         (select sa_x from k));
 
 -- ===========================================================================
@@ -216,9 +226,11 @@ select is((select count(*)::int from public.action_items where id = '00000000-00
 reset role;
 
 -- ===========================================================================
--- K4 — byte-level case material. The org_admin reads ZERO case-document bytes; the
--- coordinator still reads them. (The `is_member_of` bypass is a SEPARATE defect — the
--- Exclusion Perimeter unit, after A5 — NOT tested here.)
+-- K4 — byte-level case material. The org_admin reads ZERO case-document bytes.
+-- (The `is_member_of` bypass on the LEGACY `case-documents` bucket is now CLOSED by the
+-- Exclusion Perimeter Unit 1 — 236. The coordinator twin therefore moved to the live
+-- `attachments` store, where product case documents actually live post-F2 and where the
+-- coordinator legitimately reads via `can_read_attachment` → `can_read_case`.)
 -- ===========================================================================
 select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
@@ -230,9 +242,9 @@ reset role;
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is((select count(*)::int from storage.objects
-           where bucket_id = 'case-documents'
-             and name = (select comm_x from k)::text || '/00000000-0000-0000-0000-0000000a4002/laudo-sigiloso.pdf'), 1,
-  'K4 ⭐ POSITIVE TWIN: …and the coordinator STILL reads the bytes — the object is real and reachable (the zero above is not vacuous)');
+           where bucket_id = 'attachments'
+             and name = 'case/00000000-0000-0000-0000-0000000a4002/laudo-sigiloso.pdf'), 1,
+  'K4 ⭐ POSITIVE TWIN: …and the coordinator STILL reads the bytes in the LIVE `attachments` store — the object is real and reachable (the zero above is not vacuous)');
 reset role;
 
 -- ===========================================================================
