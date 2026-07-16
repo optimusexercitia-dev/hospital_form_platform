@@ -1571,6 +1571,22 @@ deny for a recused coordinator**, and precisely the arm A22 found unguarded.
 24. **Recused coordinator cannot grant** (A18) — `grant_case_access` / `revoke_case_access` raise for
     her; the Organization User fallback **succeeds** and **cannot grant itself** (not a member of the
     commission).
+    > ⛔ **THIS KEYSTONE DESCRIBES A DOOR THAT DOES NOT EXIST. THEY DO NOT RAISE FOR HER.** Found by
+    > `backend` at A2's contract; **proven by execution** (lead, 2026-07-16, fresh reset, rolled back).
+    > All three doors — `grant_case_access` · `revoke_case_access` · `list_case_access` — gate on
+    > `is_staff_admin_of or is_commission_admin_of` → `42501` with **no exclusion/recusal/respondent
+    > term** (comment-stripped, control column proving the probe sees the authority term), and `144` +
+    > `183` carry **zero** recusal assertions. **The exploit:** recuse the coordinator from her own case
+    > — **her own reach goes `false` on both `can_read_case` and `can_read_case_patient`, so the hard
+    > deny genuinely works** — then she calls `grant_case_access(case, third_party, 'read')`: **it
+    > succeeds, and the third party's `can_read_case_patient` goes `false` → `true`.** She can revoke a
+    > legitimate grant too. ⭐ **Recusal gates READING, not ADMINISTERING** — a keystone written as a
+    > prediction and never run reads exactly like one that passed. **Bounded** by `is_member_of_for`
+    > (grantee must be a member) and by the hard deny (she cannot grant reach to herself or the
+    > respondent), **not bounded** for any third party — and a `case_access` row confers
+    > `read_standard_phi` today. **Its own unit, before pilot. NOT foldable into A2** (a read resolver
+    > cannot fix a write door), and **not the flag-OFF arm's situation** — that one is dead code D9
+    > deletes; this is live and nothing deletes it. Tracked: `docs/progress/authz-handoff.md` §5.
 25. **Unlinked respondent is rejected** (A20) — a `professional_profiles` row in `unknown` state
     cannot be attached as `respondent_doctor`; and a **linked** respondent reads **no** deliberation
     about his own case, on any surface.
