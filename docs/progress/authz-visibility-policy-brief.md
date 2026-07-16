@@ -164,6 +164,35 @@ D3 and D4 are separable and I would **not** fold them into B:
 
 ---
 
+## 6b. Corrections from `backend`'s plan review (2026-07-16, all three lead-verified)
+
+`backend` reviewed this brief before building and corrected it three times. Recording them here rather
+than rewriting the sections above — the errors are the evidence.
+
+1. **⛔ The exclusion is ALREADY in the RLS — so the RPC's exclusion check is PARITY, not hygiene.**
+   `cases_staff_admin_write`'s qual is
+   `((is_staff_admin_of OR is_commission_admin_of) AND (NOT is_case_excluded(id, auth.uid())))`.
+   **I printed that line in my own probe output (§3, D1) and still told `backend` "the authority set is
+   unchanged".** It is not: an authority-only RPC would be **wider** than the raw `PATCH` it replaces.
+   `assert_not_case_excluded` is **load-bearing for `LOST = 0`**.
+
+2. **No feature flag on the RPC** — `backend`'s call, and it is right. `can_reach_case_on_member_surface`
+   contains **no `feature_enabled` call** (verified: `prosrc ~ 'feature_enabled'` = **`f`**), so the column
+   governs reach unconditionally. A flag-gated door + an unconditional guard trigger = a case **frozen at
+   whatever policy it holds, with the correction door switched off** — i.e. *literally the lockout this
+   brief wrongly reported as already existing* (§4). **Invariant adopted: the door's availability must
+   equal the column's liveness.** Borrowing `set_case_confidentiality`'s `assert_case_participants_enabled()`
+   would be §7.8 — `case_participants` governs the roster, not visibility.
+
+3. **⛔ §3 D4 / §6's D3 note — my "divergence becomes unreachable" hypothesis is FALSIFIED.**
+   I reasoned: after the seed fix, `ethics` is the only `case_type` row, so every default is
+   `commission_default`, so the two creation doors can no longer disagree. `backend` probed it:
+   `case_types_admin_write` is `FOR ALL` to `authenticated` on `is_admin() OR is_org_admin_of(organization_id)`
+   — an **`org_admin` mints a new type carrying `explicit_grants_only`** (`INSERT 0 1`) **and flips the ethics
+   row back** (`UPDATE 1`). *"The only row is `commission_default`"* (true) **+** *"so divergence can't happen"*
+   (**inferred — assumes a closed row set**). `case_types` is a **runtime-writable catalog**, not a constant.
+   **This is §7.11's arrow again — committed while writing §7.11 down.** D3 stays **reported, not fixed** (Q3).
+
 ## 7. What I need from you
 
 1. **Q1** — confirm the seed fix lands now, ahead of A2. *(Recommend yes.)*
@@ -173,3 +202,18 @@ D3 and D4 are separable and I would **not** fold them into B:
    "yes" costs D4's schema.)*
 4. **D1/D2 severity** — these are live on the branch but **not on remote** (nothing pushed). Do you want
    them fixed inside this brief's unit, or filed as their own bug with a `tester` repro first?
+
+---
+
+## 8. Status
+
+**All four approved by the PO, 2026-07-16** → building as **M6** (`backend`), local only.
+Q1 seed fix · Q2 `set_case_visibility` (**no flag** — §6b·2) · Q3 forward-only, D3/D4 reported not fixed
+(**and D3's "unreachable" hypothesis is dead** — §6b·3) · Q4 D1+D2 in-unit.
+
+**Scorecard for this brief:** four claims of mine falsified before a line of SQL was written — *"no door"*
+(§4), *"blocks A3"* (§4), *"must precede A2"* (§5), *"divergence becomes unreachable"* (§6b·3) — plus one
+missed term I had on screen (§6b·1). Three were caught by a probe, two by `backend`. **Every one was an
+arrow inferred between two verified facts** (§7.11). The four *decisions* survived all five corrections
+intact, which is the only reassuring thing here: the recommendations were right, and **every stated reason
+for them was wrong**.
