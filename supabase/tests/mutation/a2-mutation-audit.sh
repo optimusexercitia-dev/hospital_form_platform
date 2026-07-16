@@ -47,6 +47,17 @@ begin
     d := replace(d, 'if v_orgadmin then', 'if false then');
   elsif p_what = 'drop_member_default' then
     d := replace(d, 'if v_member and not v_eg then', 'if false then');
+  elsif p_what = 'member_ignores_visibility' then
+    -- ⭐ MINOR-2 (post-Gate-1) — the visibility_policy arm. A2 relocated this arm OUT of
+    -- can_reach_case_on_member_surface (m6's old target, now vacuous) INTO _case_caps, so
+    -- the falsifiability proof for `cases.visibility_policy` lands HERE. WIDEN the member
+    -- arm to fire regardless of visibility_policy (drop the `and not v_eg` guard) — i.e.
+    -- behave as if every case were commission_default. A plain member must then GAIN
+    -- read_case_deliberation on the explicit_grants_only ETHICS case (c2) he must not
+    -- reach: 234's K8-twin ("reads NO ata section for the explicit_grants_only case")
+    -- goes RED. This is the exact over-grant m6's policy_arm case used to prove before
+    -- the arm moved.
+    d := replace(d, 'if v_member and not v_eg then', 'if v_member then');
   elsif p_what = 'drop_legacy_flag_off' then
     d := replace(d, 'if not v_eg and v_member then', 'if false then');
   elsif p_what = 'drop_nsp' then
@@ -211,6 +222,13 @@ run_case "K11 coordinator does NOT hold RRP" \
 run_case "K8  member_default source (A15)" \
   "select app._mut_a2('drop_member_default');" \
   "K8 .* POSITIVE: the ordinary member DOES read the ata section|K8 positive twin"
+
+# ⭐ MINOR-2 — the visibility_policy arm, relocated here from m6 (see the PRELUDE note).
+# Widening the member arm to ignore explicit_grants_only must hand a plain member the
+# ethics case's deliberation, which he must NOT reach — K8-twin goes RED.
+run_case "Kv  member ignores visibility (EG)" \
+  "select app._mut_a2('member_ignores_visibility');" \
+  "reads NO ata section for the explicit_grants_only case"
 
 echo
 echo "=== CONTROL — an UNMUTATED run must be fully GREEN. If this prints anything other"

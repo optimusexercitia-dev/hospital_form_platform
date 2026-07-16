@@ -112,22 +112,25 @@ fi
 
 echo "=== M5 MUTATION AUDIT — every ⭐ keystone must go RED when ITS gate is reverted ==="
 
-# 1 · can_read_case — three raw arms. Reverting its gate must reopen all three, both
-#     halves of is_active, AND the two delegating wrappers (which is what proves the
-#     delegation fence is a real claim rather than an assumption).
-run_case "M5 can_read_case (gate)" \
-  "select app._mut_ungate('app.can_read_case(uuid,uuid)');" \
-  "DEACTIVATED phase assignee no longer reads|SUSPENDED phase assignee no longer reads|DEACTIVATED narrative assignee no longer reads the case|DEACTIVATED grantee no longer reads the case|the wrapper denies the deactivated assignee too|the member surface denies him as well"
-
-# 2 · can_read_case_patient — ⭐ RULE 12. Both the predicate and the audited door.
-run_case "M5 can_read_case_patient (gate)" \
-  "select app._mut_ungate('app.can_read_case_patient(uuid,uuid)');" \
-  "DEACTIVATED grantee no longer reaches the PHI door|the audited door returns NULL|a SUSPENDED grantee reaches no PHI either"
-
-# 3 · can_write_case_content — the write-grant raw arm.
-run_case "M5 can_write_case_content (gate)" \
-  "select app._mut_ungate('app.can_write_case_content(uuid,uuid)');" \
-  "DEACTIVATED write-grantee no longer writes case content|a SUSPENDED write-grantee cannot write either"
+# ---------------------------------------------------------------------------
+# ⛔ RETIRED (MINOR-2, post-Gate-1) — three cases that mutated the is_active gate of
+# `can_read_case`, `can_read_case_patient`, and `can_write_case_content`. A2 turned
+# those three into THIN PROJECTIONS of app._case_caps and RELOCATED the is_active gate
+# into the resolver (verified in the live catalog: none of the three now contains an
+# `app.is_active(` call). So `_mut_ungate` raised MUTATION NO-OP on each and the cases
+# read ABSENT(aborted) — the exact vacuity A33 exists to catch, in the audit itself.
+#
+# NOT retargeted onto _case_caps: the relocated gate is a SINGLE line
+# (`if not app.is_active(p_uid) then return 0`) at STEP 2 of _case_caps, and it is
+# ALREADY mutation-proven falsifiable by a2-mutation-audit.sh's K10 (`drop_outer_gate`),
+# which reverts that exact line and requires 234's K10 keystone (a DEACTIVATED grantee
+# resolves to ZERO caps AND reaches no PHI) to go RED. Retargeting all three here would
+# mutate the identical line K10 already mutates — the duplication §7.1 warns against.
+# The behavioural pins these cases used to prove (231's "DEACTIVATED assignee/grantee no
+# longer reads" family) still RUN in the pgTAP suite as regression assertions; only
+# their MUTATION proof-of-record consolidates onto a2 K10. The is_active gate on the
+# functions that KEPT it (below) is still proven here.
+# ---------------------------------------------------------------------------
 
 # 4 · can_read_action_item — ⭐ A24·5, the arm no resolver can ever reach.
 run_case "M5 can_read_action_item (A24.5 gate)" \
@@ -157,9 +160,12 @@ run_case "M5 referral_target_analyst (gate)" \
 # Reverting the gate removes the CALL but leaves every comment untouched, so a
 # comment-matching assertion would go GREEN here and be caught as NOT PROVEN.
 # ---------------------------------------------------------------------------
-run_case "M5 STRUCTURAL can_read_case (comments)" \
-  "select app._mut_ungate('app.can_read_case(uuid,uuid)');" \
-  "can_read_case calls is_active in CODE"
+# ⛔ RETIRED (MINOR-2): "M5 STRUCTURAL can_read_case (comments)" mutated can_read_case,
+# which no longer holds the gate (thin projection) — the mutation NO-OPs and its 231
+# keystone label was itself updated at A2 to "is_active-gated in CODE — directly or
+# through the resolver". The structural presence of the relocated gate is asserted by
+# 234 and its call-through is proven by a2 K10. This structural-over-referral case stays,
+# because referral_target_analyst KEPT its own is_active gate.
 run_case "M5 STRUCTURAL 3-beyond-brief" \
   "select app._mut_ungate('app.referral_target_analyst(uuid,uuid)');" \
   "the three functions BEYOND the brief"
@@ -197,9 +203,8 @@ run_case "M5b advance_committee_action_item (gate)" \
   "select app._mut_ungate('public.advance_committee_action_item(uuid,uuid,text)');" \
   "DEACTIVATED action-item assignee CANNOT advance|a SUSPENDED action-item assignee cannot advance"
 
-# The CLOSURE fence: list_cases_board is gated FOR FREE by 231's can_read_case gate,
-# not by any door change. Reverting can_read_case's gate must reopen it — which is
-# what proves "fixed for free" is a real mechanism and not an assumption.
-run_case "M5b closure: board via can_read_case" \
-  "select app._mut_ungate('app.can_read_case(uuid,uuid)');" \
-  "serves a DEACTIVATED one ZERO rows"
+# ⛔ RETIRED (MINOR-2): "M5b closure: board via can_read_case" mutated can_read_case's
+# own gate to prove list_cases_board is "fixed for free". A2 relocated that gate into
+# _case_caps, so the mutation NO-OPs here. The board inherits the gate through
+# can_read_case -> _case_caps, and reverting the _case_caps gate (a2 K10) reopens every
+# _case_caps consumer at once — the board among them. Proof-of-record: a2 K10.

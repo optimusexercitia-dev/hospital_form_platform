@@ -58,10 +58,6 @@ begin
     d := replace(d, $q$p_policy is null or p_policy not in ('commission_default', 'explicit_grants_only')$q$, 'false');
   elsif p_what = 'audit' then
     d := replace(d, 'app.audit_write(', 'app._mut_audit_noop(');
-  elsif p_what = 'policy_arm' then
-    -- the visibility branch of the member-surface resolver -> always take the
-    -- member-wide arm, i.e. behave as if every case were commission_default.
-    d := replace(d, $q$if v_policy = 'explicit_grants_only' then$q$, 'if false then');
   else
     raise exception 'unknown mutation %', p_what;
   end if;
@@ -152,11 +148,19 @@ run_case "D2 explicit audit_write" \
   "select app._mut_revert('public.set_case_visibility(uuid,text)', 'audit');" \
   "emits EXACTLY ONE audit row"
 
-# --- The behavioural arm. If the resolver stops honouring the column, M6-7 must break.
-#     This audits the POSITIVE twin too: the (2/3) leg is the one that must MOVE.
-run_case "resolver: visibility arm (M6-7)" \
-  "select app._mut_revert('app.can_reach_case_on_member_surface(uuid,uuid)', 'policy_arm');" \
-  "a plain member does NOT reach the case"
+# --- The behavioural arm has MOVED. ⛔ RETIRED (MINOR-2, post-Gate-1): this case
+#     mutated `can_reach_case_on_member_surface`'s OWN `if v_policy = 'explicit_grants_only'`
+#     branch, but A2 relocated the visibility_policy arm OUT of that predicate (now a thin
+#     projection: `select app.has_case_capability(...,'read_case_deliberation')`) INTO
+#     app._case_caps (`v_eg := (v_policy = 'explicit_grants_only')` / `if v_member and not
+#     v_eg then`). The old branch is gone, so the `replace()` no longer landed — the case
+#     read GREEN while asserting nothing (the mutated body was byte-identical to the
+#     original — §7.1's textbook vacuous mutation). The arm's mutation proof now lives
+#     where the arm lives: a2-mutation-audit.sh's `member_ignores_visibility` case widens
+#     the member arm to ignore explicit_grants_only and requires 234's K8-twin (a plain
+#     member reads NO ata section for the ethics case) to go RED. This file keeps the
+#     DOOR + guard-trigger cases above (set_case_visibility / guard_case_visibility) —
+#     those are M6's actual subject and are still live and RED-PROVEN.
 
 echo
 echo "=== CONTROL — an UNMUTATED run must be fully GREEN. If this prints anything other"
