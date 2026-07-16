@@ -209,16 +209,21 @@ select is(
   0,
   'org_admin A: dashboard_form_totals on rede-b commission returns 0');
 
--- Sees rede-a cases (CCIH has seeded cases), 0 of rede-b.
-select ok(
+-- ⛔ UPDATED BY A4 (20260730): cases are the EXCEPTION to "org_admin sees all of its
+-- org". A4 (D4·1/A21) removed the org arm from the case policies — an Organization User
+-- ceases to be a Case Content source. So org_admin A now reads ZERO cases in its OWN
+-- org too, not only rede-b. The noun rule holds: it still sees commissions, responses,
+-- and audit (above/below) — it just does not touch cases.
+select is(
   (select count(*)::int from public.cases
-   where commission_id = (select comm_ccih from personas)) > 0,
-  'org_admin A: sees ≥1 CCIH cases');
+   where commission_id = (select comm_ccih from personas)),
+  0,
+  'org_admin A: sees 0 CCIH cases — A4 removed the org-admin case-content arm (was ≥1 pre-A4)');
 select is(
   (select count(*)::int from public.cases
    where commission_id = (select comm_qual from personas)),
   0,
-  'org_admin A: sees 0 rede-b cases');
+  'org_admin A: sees 0 rede-b cases (isolation held before A4; now moot — 0 everywhere)');
 
 -- Audit: reads org-a chain, zero org-b rows.
 select is(

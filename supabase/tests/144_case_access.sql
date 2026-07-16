@@ -283,7 +283,11 @@ reset role;
 -- =========================================================================
 -- (c′) INFO-N1 — the interview graph now case-scopes SELECT to can_read_case
 -- (parent + 3 children). Boundary: a bare member reads NOTHING; a case-worker
--- (grant OR attribution) reads them; an org_admin reads them (preserved arm).
+-- (grant OR attribution) reads them.
+-- ⛔ UPDATED BY A4 (20260730): the org-admin arm is NO LONGER "preserved" — A4
+-- removed it. The graph routes can_read_interview -> can_read_case_or_admin (which A4
+-- collapsed to can_read_case) and can_write_interview (whose org arm A4 also removed),
+-- so an org_admin reads ZERO interview material now. See block (c) below.
 -- =========================================================================
 -- (a) ux — a bare member with NO attribution/grant (not yet granted) — reads 0.
 select test_helpers.claims_for((select ux from p), false);
@@ -321,18 +325,22 @@ select is((select count(*)::int from public.case_interview_subjects where interv
   1, 'INFO-N1: attributed case-worker reads the interview subject (child via case_of_interview)');
 reset role;
 
--- (c) oa — an org_admin of the case''s org, NOT a commission member — reads the
--- interview + every child via the preserved org-admin arm.
+-- (c) oa — an org_admin of the case''s org, NOT a commission member. ⛔ POST-A4 he reads
+-- ZERO interview material (was 1 on every row pre-A4 via the org-admin arm). This is
+-- D4·2's whole point: interviews are case-linked, PHI-capable material, and an
+-- Organization User ceases to be a Case Content source. The removal spans BOTH the read
+-- path (can_read_case_or_admin collapsed) AND the write predicate the FOR ALL policies
+-- route (can_write_interview's org arm), so all four children go to 0 together.
 select test_helpers.claims_for((select oa from ivt), false);
 set local role authenticated;
 select is((select count(*)::int from public.case_interviews where id = (select iv from ivt)),
-  1, 'INFO-N1: org_admin reads the case_interviews row (org-admin arm)');
+  0, 'INFO-N1 (A4): org_admin reads ZERO case_interviews rows — the org-admin arm was removed');
 select is((select count(*)::int from public.case_interview_subjects where interview_id = (select iv from ivt)),
-  1, 'INFO-N1: org_admin reads the interview subject (org-admin arm)');
+  0, 'INFO-N1 (A4): org_admin reads ZERO interview subjects — via can_write_interview''s removed org arm');
 select is((select count(*)::int from public.case_interview_interviewers where interview_id = (select iv from ivt)),
-  1, 'INFO-N1: org_admin reads the interviewer (org-admin arm)');
+  0, 'INFO-N1 (A4): org_admin reads ZERO interviewers');
 select is((select count(*)::int from public.case_interview_links where interview_id = (select iv from ivt)),
-  1, 'INFO-N1: org_admin reads the interview link (org-admin arm)');
+  0, 'INFO-N1 (A4): org_admin reads ZERO interview links');
 reset role;
 
 -- =========================================================================

@@ -631,8 +631,15 @@ values ('00000000-0000-0000-0000-0000000f0801', (select comm_x from k),
 
 select is(app.can_write_interview('00000000-0000-0000-0000-0000000f0801', (select st_x from k)), false,
   'M1·4b ⭐: a respondent-coordinator CANNOT write an interview of her own case (8 callers ride this)');
-select is(app.can_write_interview('00000000-0000-0000-0000-0000000f0801', (select sa_y from k)), true,
-  'M1·4b POSITIVE TWIN: a clean coordinator still writes the interview (no reach deleted)');
+-- ⛔ TWIN PRINCIPAL CHANGED sa_y -> sa_x BY A4 (20260730), mirroring the narrative twin
+-- above (line ~463): sa_y is a CLEAN ORG_ADMIN, and pre-A4 he wrote interviews via
+-- can_write_interview's ORG arm. A4 REMOVED that arm (an Organization User ceases to be a
+-- Case Content source; interview write is case material — A21·1). So the "no reach
+-- deleted by M1" twin must now use a clean STAFF_ADMIN — sa_x, whose recusal was lifted
+-- above — exactly as the narrative twin already does. (sa_y's interview write is GONE by
+-- design; that is 235 K2's territory, not an M1 regression.)
+select is(app.can_write_interview('00000000-0000-0000-0000-0000000f0801', (select sa_x from k)), true,
+  'M1·4b POSITIVE TWIN: a clean staff_admin still writes the interview (M1 deleted no reach; A4 removed the ORG arm, not the staff arm)');
 
 -- …and the delegation: can_write_attachment's `interview` arm routes here, so it
 -- is denied FOR FREE. Asserted, not assumed — the same closure claim as test 53.

@@ -890,12 +890,20 @@ select is((select count(*)::int from public.case_interviews where case_id = (sel
   'QA MAJOR-1 (policy layer): a recused user who is org_admin reads NO case_interviews rows');
 reset role;
 
--- CONTROL: a clean org_admin (neither respondent nor recused) STILL reads the case —
--- the deny must not collaterally break the legitimate commission-admin arm.
+-- CONTROL (⛔ UPDATED BY A4, 20260730): pre-A4 a clean org_admin (neither respondent nor
+-- recused) STILL read the case — the control that the recusal/respondent deny did not
+-- collaterally break the legitimate commission-admin arm. A4 (D4·1/A21) has now REMOVED
+-- that arm entirely: an Organization User ceases to be a Case Content source, so a CLEAN
+-- org_admin reads ZERO too. The MAJOR-1 pair now converges — respondent-org-admin AND
+-- clean-org-admin both read 0 — for DIFFERENT reasons (the deny vs the removed arm). The
+-- deny's INDEPENDENT proof now lives in 234 K9 (a respondent who is coordinator AND
+-- grantee — non-org arms — still resolves to 0): post-A4 the respondent-org-admin blocks
+-- above are over-determined (0 from the deny OR the removed arm), so they no longer
+-- ISOLATE the deny. They remain correct (0 either way); the isolation moved to K9.
 select test_helpers.claims_for((select sa_y from k), false);
 set local role authenticated;
-select is((select count(*)::int from public.cases where id = (select cid from c_default)), 1,
-  'QA MAJOR-1 control: a clean org_admin still reads the case (admin arm intact)');
+select is((select count(*)::int from public.cases where id = (select cid from c_default)), 0,
+  'QA MAJOR-1 control (A4): a clean org_admin now reads ZERO cases — the commission-admin arm was REMOVED by A4 (was 1 pre-A4)');
 reset role;
 
 select * from finish();

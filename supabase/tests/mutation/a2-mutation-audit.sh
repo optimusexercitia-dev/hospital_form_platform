@@ -177,9 +177,13 @@ run_case "K1  coordinator source" \
   "select app._mut_a2('drop_coordinator');" \
   "K1 coordinator: reads case content|K1 coordinator: reaches the PHI door|K1 coordinator .* ROWS: reads the case row"
 
-run_case "K2  org-admin source (a) [A4 removes]" \
+# ⛔ POST-A4 (20260730): the org branch no longer confers CONTENT — only manage_case_access.
+# `drop_orgadmin` (if v_orgadmin -> if false) now inverts THAT bit, so K2's RED target is
+# the manage_case_access twin, not the removed content assertion. (a4-mutation-audit.sh
+# covers the content removal by RESTORING the arm and requiring 235's K1 to go red.)
+run_case "K2  org-admin source (a) [A4: manage bit only]" \
   "select app._mut_a2('drop_orgadmin');" \
-  "K2 .* source .a.: the ORG-ADMIN still reads case content"
+  "K2 .* THE ARM A4 KEEPS: the org_admin STILL holds manage_case_access"
 
 run_case "K4  nsp_referral_touched (c)" \
   "select app._mut_a2('drop_nsp');" \

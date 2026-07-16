@@ -28,7 +28,7 @@
 -- reverting the fix found every one.
 -- =============================================================================
 begin;
-select plan(61);
+select plan(62);   -- +1: A4 (20260730) inverted K2 and added the manage_case_access twin
 
 update app.feature_flags set enabled = true
   where key in ('case_access', 'case_referrals', 'case_patient', 'case_participants',
@@ -201,15 +201,23 @@ select is(app.has_case_capability('00000000-0000-0000-0000-0000000a2001', (selec
   'K11 twin: …but he DOES hold manage_case_access — the non-holding above is not a blanket denial');
 
 -- ===========================================================================
--- K2 — the org-admin arm (source (a)) SURVIVES A2. A4 removes it, not A2.
--- Omitting it here would execute A4's removal inside A2 (D4·3 forbids; A5 gates).
+-- K2 — the org-admin arm (source (a)). ⛔ UPDATED BY A4 (20260730): A4 has now REMOVED
+-- this source. At A2 this asserted `can_read_case = true` ("A2 must NOT execute A4's
+-- removal"); A4 landed the removal, so the assertion is INVERTED here to track the live
+-- truth (the behaviour changed, the test follows it). The comprehensive negative +
+-- positive twins live in 235. The one arm A4 KEEPS is manage_case_access (A24·2: A4's
+-- scope is Content and PHI; granting is neither) — asserted below so this block still
+-- has a live positive, and so the a2-mutation-audit's `drop_orgadmin` case has a
+-- non-vacuous RED target (it now inverts THIS bit, not the removed content bit).
 -- ===========================================================================
-select is(app.can_read_case('00000000-0000-0000-0000-0000000a2001', (select st_y from k)), true,
-  'K2 ⭐ source (a): the ORG-ADMIN still reads case content — A2 must NOT execute A4''s removal');
+select is(app.can_read_case('00000000-0000-0000-0000-0000000a2001', (select st_y from k)), false,
+  'K2 ⭐ source (a) — A4 REMOVED IT: the org_admin no longer reads case content (D4·1). Full twins in 235');
+select is(app.has_case_capability('00000000-0000-0000-0000-0000000a2001', (select st_y from k), 'manage_case_access'), true,
+  'K2 ⭐ THE ARM A4 KEEPS: the org_admin STILL holds manage_case_access (0 consumers today — A36 — kept on SCOPE grounds, A24·2)');
 select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a2001', (select st_y from k)), false,
-  'K2 twin ⭐: …and the org_admin reaches NO PHI — the PHI door never carried an org arm (Rule 12)');
+  'K2 twin ⭐: …and reaches NO PHI — the PHI door never carried an org arm (Rule 12), unchanged by A4');
 select is(app.can_write_case_content('00000000-0000-0000-0000-0000000a2001', (select st_y from k)), false,
-  'K2 twin: …and cannot write case content — the org arm is read-only');
+  'K2 twin: …and cannot write case content — the org arm never conferred write');
 
 -- ===========================================================================
 -- K4 — source (c): nsp_referral_touched is LIVE. Without it Stage A silently revokes
