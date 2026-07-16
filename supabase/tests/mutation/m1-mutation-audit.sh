@@ -49,10 +49,21 @@ EOF
 run_case () {  # $1 = label, $2 = mutation SQL, $3 = expected-red test numbers (space sep)
   local label="$1" mut="$2" expect="$3"
   local f="$WORK/mut.sql"
-  awk -v marker="${MARKER:-grant select on k to authenticated;}" -v pre="$PRELUDE" -v mut="$mut" '
-    { print }
-    index($0, marker) { print pre; print mut }
-  ' "$SRC" > "$f"
+  # ⛔ HARNESS LESSON 4 (found while building the M5 sibling): this injection used
+  # `awk -v pre="$PRELUDE"`, and BSD awk (macOS) rejects ANY multi-line -v value with
+  # "newline in string". The awk then emitted a garbage script and EVERY case aborted:
+  # this file reported 22/22 ABSENT on a Mac while its recorded result was 22/22
+  # RED-PROVEN on a GNU-awk machine. The tri-state is the only reason that surfaced as
+  # NOT PROVEN instead of silence — but a harness whose result depends on which awk is
+  # installed is a harness that will be misread. head/tail is portable to both.
+  local mark="${MARKER:-grant select on k to authenticated;}"
+  local line
+  line=$(grep -n "$mark" "$SRC" | head -1 | cut -d: -f1)
+  if [ -z "$line" ]; then
+    printf '%-46s *** HARNESS ERROR: marker not found in %s ***\n' "$label" "$SRC"; return
+  fi
+  { head -n "$line" "$SRC"; printf '%s\n' "$PRELUDE"; printf '%s\n' "$mut";
+    tail -n +$((line+1)) "$SRC"; } > "$f"
   docker cp "$f" "$DB:/tmp/mut.sql" >/dev/null
   local out
   out=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/mut.sql 2>&1)

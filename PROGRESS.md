@@ -78,6 +78,74 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
+### ▶ AUTHZ · Gate 1 · M5 — defect ③: the `is_active` outer gate (`backend`, 2026-07-15)
+
+Migration `20260726000000_authz_m5_is_active_gate` + `supabase/tests/231_authz_m5_is_active_gate.sql` (**79 tests,
+authored RED before the SQL — 18 M5 assertions failed pre-fix while every PRE-flight/TWIN/RESTORE passed**, so the
+fixture was real and the reach was real). Gate: fresh reset **116 files / 116 registered** · pgTAP **2740/2740 PASS**
+(= 2661 + 79, `Files=94 Tests=2740`, proven RAN not merely exit-0) · **M5 mutation audit 9 cases / 21 patterns
+RED-PROVEN** (`supabase/tests/mutation/m5-mutation-audit.sh`) · **M1 audit re-run 22/22 RED-PROVEN** · lint 0/0 ·
+typecheck ✅ · types **byte-identical** (only `app.*` bodies changed; no public surface).
+
+**The defect, catalog-proven live:** `app.is_active` was never called inline by any case predicate — only reached
+*transitively* through the role wrappers. So every **raw table arm** was ungated. Proven before the fix: a
+deactivated grantee **read the MRN through the audited door** (Rule 12); deactivated phase/narrative assignees read
+case content; a deactivated write-grantee wrote it; a deactivated assignee read action items — **and every one of
+those also held with a live SUSPENSION**.
+
+**⭐ THE SET WAS CLOSED, NOT ENUMERATED (§7.5) — and the brief's six was materially incomplete.** The closable set is
+*{functions whose body touches a raw-arm table}* = **17** (comments stripped; ⚠ my own first sweep used `case_access\b`
+and silently under-reported — Postgres ARE uses `\y`, `\b` is backspace). Triage: **7 gated** · **6 fixed for free**
+(all arms delegate to a gated predicate — `can_read_case_or_admin`, `can_reach_case_on_member_surface`,
+`can_read_attachment`, `can_write_action_item_stake`, and the two confidentiality **conjuncts**, which return TRUE for
+every non-gated label and so cannot grant reach alone) · **4 not authorization at all** (audit emitters,
+`guard_case_phase_status`).
+
+**Three functions gated that the brief did not list:**
+1. **`can_write_case_narrative`** — **M1's own migration flagged this arm and deferred it to "the Stage-A/G sweep
+   rather than smuggled in". This is that sweep.** `body_md` is PHI-bearing free text by its own column comment ⇒ a
+   deactivated assignee was **writing PHI**.
+2. **`referral_target_analyst`** — ⭐ **Rule 12.** All THREE arms raw, **no role wrapper at all**; its only caller
+   `can_read_referral_phi` has its other four arms gated ⇒ this was the **sole ungated route to referral PHI**. The
+   brief's *defect statement* names "referral analyst"; only its function list omitted it. The B3 work M1 deferred is
+   the `can_read_referral{,_phi}` **split** — a different axis (C6: gating and removing are orthogonal).
+3. **`can_write_attachment`** — its `action_item` arm carries the same two raw assignee arms and, unlike
+   `can_write_action_item_stake`, gates on **no** read-check first.
+
+**⛔ Two functions DELIBERATELY NOT gated, asserted:** `can_read_case_or_admin` + `can_reach_case_on_member_surface`
+are pure delegation. A gate there is a **provable no-op**, hence **unfalsifiable under A33's one-function-at-a-time
+rule**, and a wasted per-row `profiles` lookup on the member surface (**A5 is a hard per-row-cost criterion**). `231`
+asserts their denial **behaviourally** instead, in both directions — and those assertions go **RED** when
+`can_read_case`'s gate is reverted, so the delegation claim is falsifiable rather than assumed.
+
+**Proof (§7.7 — a narrowing's danger is binding TOO MUCH).** Pre-M5 bodies captured from the **live**
+`pg_get_functiondef` and reverted **transactionally** (DDL is transactional), so the diff is exact and free of the
+shadow-fn cross-call contamination:
+- **Baseline, unmodified seed — 196 (case,user) pairs + 28 action-item + 168 narrative pairs: IDENTICAL. LOST 0,
+  GAINED 0.** No over-reach.
+- **Counterfactual** (the seed's own inactive personas hold **zero arms** and are a **vacuous fixture** — §7.1·1+·3 —
+  so the raw-arm holders were deactivated instead): **5 rows changed, GAINED = 0, ACTIVE principals LOST = 0 rows.**
+  Every loser is exactly an inactive/suspended principal on a raw arm: `multi@`/`…c1` grant:read (**lost read AND
+  PHI**) · `staff1.ccih`/`…c1`+`…c2` phase_asg · `staff2.ccih`/`…c1` narr_asg · `staff3.ccih`/`…c1` **suspended**
+  (lost read+PHI+write).
+
+**⭐ A24·5's fixture did not exist either.** The seed has **1** action item, scope `committee` (**not**
+`assignees_only`), and `action_item_assignments` is **EMPTY** ⇒ the `assignees_only` arms are entirely unexercised and
+a keystone on the seeded item would measure the already-gated `committee` arm. `231` **builds** the fixture, and
+asserts the scope post-insert because **`guard_action_item` hard-forces `visibility_scope := 'case_restricted'` for
+`source_type='case'`** — the §7.1·2 trigger trap, live in this table.
+
+**⛔ Scope fence held:** no resolver, no `case_access_grants`, no A21 removal, flag untouched. **Defect ①'s second
+half stays open by design** — `231` re-pins it (an **ACTIVE** read-grantee still reads the MRN) so B1 lands visibly.
+
+**⚠ HARNESS BUG FOUND + FIXED (`m1-mutation-audit.sh`, the one modified file).** Its `awk -v pre="$PRELUDE"`
+injection dies on **BSD awk (macOS)** — *"newline in string"* for any multi-line `-v` — emitting a garbage script so
+**every case aborts**. On this machine M1 read **22/22 ABSENT**, i.e. **the recorded "22/22 RED-PROVEN" was not
+reproducible here at all**; it must have come from a GNU-awk box. Not a false green — the tri-state reported
+`ABSENT(aborted)`, which is the only reason it surfaced (§7.1's `red ≠ abort`, live). Replaced with a portable
+`head`/`tail` split in both harnesses → **M1 back to 22/22 RED-PROVEN**, which also re-proves M1's denies on the three
+functions M5 rewrote. **Harness lesson 4: a harness whose result depends on which `awk` is installed will be misread.**
+
 ### ▶ AUTHZ · M4 — the gated-off myth: **FIVE** false flag descriptions corrected (`backend`, 2026-07-15)
 
 Migration `20260725000000_authz_m4_feature_flag_descriptions` — **`description` only, zero `enabled` changes**
