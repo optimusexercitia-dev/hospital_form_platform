@@ -11050,6 +11050,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_case_visibility: {
+        Args: { p_case_id: string; p_policy: string }
+        Returns: undefined
+      }
       set_document_version_file: {
         Args: {
           p_expiry_date?: string

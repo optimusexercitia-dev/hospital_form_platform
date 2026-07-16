@@ -78,6 +78,64 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
+### ▶ AUTHZ · M6 — `visibility_policy`: the guarded door (D1+D2 CLOSED) (`backend`, 2026-07-16)
+
+Migration `20260728000000_authz_m6_visibility_policy_door` + `supabase/tests/233_authz_m6_visibility_door.sql`
+(**29/29, all 29 proven to RUN**) + `supabase/tests/mutation/m6-mutation-audit.sh` (**6/6 RED-PROVEN**, control
+green). Gate: **pgTAP 2802/2802** fresh reset (`Files=96`) · lint 0/0 · typecheck ✅ · **118 migrations** · types
+regenerated `--local`. **Local only — nothing pushed, no `e2e:prod`.**
+
+**Shipped (PO Q1–Q4, approved 2026-07-16).** `public.set_case_visibility(uuid,text)` — authority `HC0F5` →
+exclusion `HC0F1` → validation `HC0F6` (**M1·4 order, preserved deliberately**), explicit
+`app.audit_write('case.visibility_changed')`, `REVOKE ALL FROM PUBLIC` before `GRANT`. **New**
+`app.guard_case_visibility` trigger (`BEFORE UPDATE OF visibility_policy`, `check_violation` mirroring
+`guard_case_status`'s precedent — **`guard_case_status` itself untouched**, it is a keystone). Seed: ethics
+**type** default → `commission_default` (A1's ruling, never landed); **the E1 case's direct insert at
+`seed.sql:2115` deliberately untouched** — it is now the seed's model of A1's per-case override.
+
+**⛔ NO FEATURE FLAG — deliberate, and I overruled the model on it.** `set_case_confidentiality` opens with
+`assert_case_participants_enabled()`; this door does not. `app.can_reach_case_on_member_surface` reads the column
+with **no `feature_enabled` call**, so the column's effect is unconditional and the guard must be too — a
+flag-gated door then builds a **LOCKOUT** (flag OFF ⇒ the column still governs reach and the only correction door
+is switched off, freezing every case at whatever policy it holds). That is **§7.7's bind-too-much**, and borrowing
+the model's gate is **§7.8** — `case_participants` governs the **roster**, not visibility. **Invariant recorded for
+the next author: the door's availability must equal the column's liveness.**
+
+**⭐ The exclusion line is the EQUALITY, not defence-in-depth.** Live qual of `cases_staff_admin_write`:
+`(is_staff_admin_of OR is_commission_admin_of) AND (NOT is_case_excluded(id, auth.uid()))` — **RLS already carried
+the exclusion term**, and the RPC is `prosecdef = t` so RLS never applies to it. Authority **alone** would have made
+the door **WIDER** than the raw PATCH it closes (`LOST=0` while `GAINED` went to 1). The brief asserted parity while
+**printing the qual that disproved its own reasoning**; parity holds, for a different reason. **Proven by mutation:**
+revert that one line and *the accused doctor re-opens the case in which he is accused* — `not ok 14: caught no
+exception / wanted HC0F1`, `not ok 15: have commission_default`, **26 tests proven RAN**.
+
+**Equivalence MEASURED, not inferred (§7.11).** Full A/B reach matrix, **196 cells** (7 cases × 28 users), computed
+with the guard+door dropped and the seed fix undone **on the live catalog** in a rolled-back tx: **LOST = 0,
+GAINED = 0** — and **74/196 cells reachable**, so the matrix had something to lose (an all-`f` matrix shows LOST=0
+**vacuously**; §7.10 requires the probe to be able to move).
+
+**⚠ The fixture was the hard part — §7.1 trap #3, caught before it shipped.** **No seeded persona is both excluded
+AND authorized:** `staff1`/`staff4` excluded but plain `staff`; `chefe`/`orgadmin.a` authorized but not excluded. An
+exclusion keystone on any seeded persona therefore raises **HC0F5, never HC0F1** — **green while asserting nothing**.
+`233` **makes** the respondent a `staff_admin` and asserts **both legs** (`PRE ⭐`) before the door is called.
+
+**⛔ D3 — the PO's hypothesis is FALSIFIED (reported, NOT fixed; Q3 forward-only holds).** *"After the seed fix ethics
+is the only type and every default is `commission_default`, so D3's divergence may be unreachable"*: *"only row"*
+(**true**) + *"so divergence can't happen"* (**inferred — assumes a CLOSED row set**). `case_types_admin_write` is
+`FOR ALL` on `is_admin() OR is_org_admin_of(...)`; **probed as `orgadmin.a`: minted a type carrying
+`explicit_grants_only` (`INSERT 0 1`) and flipped the ethics row back (`UPDATE 1`).** `case_types` is a
+**runtime-writable catalog, not a fixture.** **§7.11's arrow — inside the very unit whose brief recorded §7.11.**
+D3 is **unreached, not unreachable**: **no caller anywhere passes `p_case_type_id`** (default `NULL`), so the type
+default is read by **nothing** at runtime — which is also why **E2E exposure is zero** (`ethics-e1-access-spine` uses
+the seeded direct-insert case, not the template door). **No spec edited; none needed editing.**
+
+**`230` fixture note (disclosed).** My guard blocked two **fixture** writes in M3's suite (line ~165) — §7.7 landing
+live: the narrowing bound something legitimate. Wrapped them in `set_config('app.in_case_rpc', …)`, **the
+established convention** (`110_case_status`, `114_phase_blockers`, `160_phase_results` all do it, because
+`guard_case_status` forces the identical problem on `status`). **No assertion touched.** `230` went **20/25-aborting
+→ 25/25 all ran**, and its `explicit_grants_only ⇒ no PHI` keystone only passes **if the fixture write LANDED** — so
+it self-verifies rather than being masked.
+
 ### ▶ AUTHZ · Gate 1 · M5b — defect ③ AT THE DOORS: `qa`'s P1, and my closure was a floor (`backend`, 2026-07-15)
 
 Migration `20260727000000_authz_m5b_door_is_active_gate` + `supabase/tests/232_authz_m5b_door_gate.sql` (**33 tests,

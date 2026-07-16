@@ -161,14 +161,25 @@ select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a3001', (sel
   'M3 flag OFF: the coordinator keeps PHI');
 
 -- explicit_grants_only on the OFF branch → staff_admin ONLY (the E1 belt), unchanged.
+-- ⚠ FIXTURE ONLY — these two writes are state SETUP, not assertions; no keystone below
+-- changed. ADR 0078 M6 added app.guard_case_visibility, which confines visibility_policy
+-- writes to public.set_case_visibility via the app.in_case_rpc GUC — exactly as
+-- guard_case_status has always confined `status`. Fixture writes therefore open the same
+-- GUC, which is the established convention here (110_case_status, 114_phase_blockers,
+-- 160_phase_results all do this). Using the RPC instead would drag M3's fixture through
+-- M6's authority + exclusion gates and couple these suites for no gain.
+select set_config('app.in_case_rpc', 'on', true);
 update public.cases set visibility_policy = 'explicit_grants_only'
  where id = '00000000-0000-0000-0000-0000000a3001';
+select set_config('app.in_case_rpc', 'off', true);
 select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a3001', (select st_x2 from k)), false,
   'M3 flag OFF + explicit_grants_only: the assignee gets NO PHI (E1 belt intact)');
 select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a3001', (select sa_x from k)), true,
   'M3 flag OFF + explicit_grants_only: the coordinator keeps PHI (belt intact)');
+select set_config('app.in_case_rpc', 'on', true);
 update public.cases set visibility_policy = 'commission_default'
  where id = '00000000-0000-0000-0000-0000000a3001';
+select set_config('app.in_case_rpc', 'off', true);
 update app.feature_flags set enabled = true where key = 'case_access';
 
 -- ===========================================================================

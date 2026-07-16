@@ -2103,8 +2103,15 @@ begin
   insert into public.case_types
     (id, organization_id, key, display_name, primary_subject_kind,
      default_visibility_policy, default_confidentiality_level)
+  -- ADR 0078 A1 / M6·Q1: the ethics TYPE defaults to `commission_default`. A1 ruled
+  -- that ethics visibility is a PER-CASE decision, not a type-wide one, and this line
+  -- carried the value A1 called wrong (the correction was ruled but never landed).
+  -- ⛔ This default is INERT for every case below: `case_types` has no triggers, `cases`
+  -- has no FK to it, and the E1 case at :2115 inserts its policy DIRECTLY. Measured
+  -- across this flip: cases 6/1 → 6/1. It is read ONLY by create_case_from_template,
+  -- at runtime. The per-case override lives at :2117 and is the model of A1's ruling.
   values (v_ctype, v_org, 'ethics', 'Ética', 'professional',
-          'explicit_grants_only', 'ethics_investigation')
+          'commission_default', 'ethics_investigation')
   on conflict do nothing;
 
   insert into public.case_participant_roles
