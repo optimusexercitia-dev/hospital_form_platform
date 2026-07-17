@@ -221,16 +221,17 @@ select is(app.can_write_case_content('00000000-0000-0000-0000-0000000a2001', (se
   'K2 twin: …and cannot write case content — the org arm never conferred write');
 
 -- ===========================================================================
--- K4 — source (c): nsp_referral_touched is LIVE. Without it Stage A silently revokes
--- live NSP content reach. Its PHI half is a KNOWN, SCHEDULED removal (D8/N1, Gate 2) —
--- pinned here so Gate 2 lands as a visible RED, not a silent drop.
+-- K4 — source (c): nsp_referral_touched is LIVE for CONTENT. Without it Stage A silently
+-- revokes live NSP content reach. Its PHI half was REMOVED at D8/N1 (Gate 2) — the pin
+-- below now asserts the post-removal truth (content-only), and 247 K-N1a/K-N1d carry the
+-- mutation-falsifiable version of it.
 -- ===========================================================================
 select is(app.can_read_case('00000000-0000-0000-0000-0000000a2001', (select u_nsp from k)), true,
   'K4 ⭐ source (c): the NSP operator reads content on a referral-touched case (the arm is LIVE — the flag''s prose lied)');
 select is(app.can_read_case('00000000-0000-0000-0000-0000000a2002', (select u_nsp from k)), false,
   'K4 twin ⭐: …and reads NOTHING on the case no referral touches — the arm is referral-scoped, not blanket NSP authority');
-select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a2001', (select u_nsp from k)), true,
-  'K4 ⛔ PINS TODAY: the NSP arm ALSO confers PHI today, though A24·7 says content-only. Its removal is D8/N1 (Gate 2) — this assertion must go RED there, deliberately');
+select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a2001', (select u_nsp from k)), false,
+  'K4 ⭐ (D8/N1 LANDED): the NSP arm no longer confers PHI — content reach retained, patient-identifier arm removed. NSP obtains case PHI only via an explicit grant until Stage D');
 
 -- ===========================================================================
 -- K5 — assignment: content YES, PHI NO (defect ①/M3), write NO (D10).

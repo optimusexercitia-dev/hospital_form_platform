@@ -265,15 +265,16 @@ select is(app.can_write_case_content('00000000-0000-0000-0000-0000000a4002', (se
 
 -- ===========================================================================
 -- K6 — A4 bound ONLY the org arm. u_nsp is org_admin AND a PQS operator on a
--- referral-touched case: content+PHI SURVIVE through the NSP arm (S6). Dropping S6 would
--- flip these (proven RED by the mutation audit).
+-- referral-touched case: CONTENT survives through the NSP arm (S6). The S6 PHI half was
+-- removed at D8/N1, so PHI does NOT survive here — but that removal is orthogonal to A4
+-- (S6 content, the point of this keystone, is untouched by both A4 and N1).
 -- ===========================================================================
 select is(app.is_commission_admin_of_for((select comm_x from k), (select u_nsp from k)), true,
   'K6 PRE ⭐: u_nsp IS an org_admin (so his surviving reach is NOT the org arm — that would confound the point)');
 select is(app.can_read_case('00000000-0000-0000-0000-0000000a4001', (select u_nsp from k)), true,
   'K6 ⭐ POSITIVE: content SURVIVES on the referral-touched case — A4 removed the org arm, the NSP arm (S6) is untouched');
-select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a4001', (select u_nsp from k)), true,
-  'K6 ⭐ POSITIVE: …and PHI survives too (the S6 arm confers it today — D8/N1 removes it at Gate 2, not A4)');
+select is(app.can_read_case_patient('00000000-0000-0000-0000-0000000a4001', (select u_nsp from k)), false,
+  'K6 ⭐ (D8/N1 LANDED): PHI does NOT survive — the S6 arm no longer confers it; this is N1''s removal, orthogonal to A4 (S6 content above is what A4 leaves intact)');
 
 -- ===========================================================================
 -- K7 — the grant door STILL works (keystone 23) and cannot grant itself (A18 bound).

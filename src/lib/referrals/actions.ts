@@ -183,9 +183,11 @@ export async function removeReferralSharedItem(
 
 /**
  * Upsert the ISOLATED patient PHI on a referral (Rule 12; same 9-arg shape as
- * `setEventPatient`). Entitlement is source-coordinator/QPS/target-analyst while
- * not concluded (the RPC raises HC078 otherwise); the write is audited WITHOUT
- * copying any identifier into the audit metadata.
+ * `setEventPatient`). Write authority is the SOURCE coordinator ONLY (disclosure for a
+ * new snapshot, amend for an existing one) while not concluded — read never implies
+ * write (ADR 0078 D7 defect ②; the RPC raises HC078 otherwise). Routes through the
+ * `save_referral_patient` public door; the underlying `set_referral_patient` helper is
+ * off the public API. The write is audited WITHOUT copying any identifier into metadata.
  */
 export async function setReferralPatient(
   referralId: string,
@@ -197,7 +199,7 @@ export async function setReferralPatient(
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc('set_referral_patient', {
+  const { error } = await supabase.rpc('save_referral_patient', {
     p_referral_id: referralId,
     p_name: input.name ?? undefined,
     p_mrn: input.mrn ?? undefined,

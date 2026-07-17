@@ -112,7 +112,9 @@ select public.add_referral_shared_item(
   (select id from r1), 'narrative', (select narr from cs), null);
 select public.add_referral_shared_item(
   (select id from r1), 'document', null, (select doc from cs));
-select public.set_referral_patient(
+-- ADR 0078 D7/F1: set_referral_patient left the public API; the SOURCE coordinator
+-- writes the snapshot through the save_referral_patient door.
+select public.save_referral_patient(
   (select id from r1), 'Paciente Teste', 'MRN-9', null, 70, 'male', null, 'UTI', 'Dr X');
 reset role;
 
