@@ -67,6 +67,15 @@ export default async function CommissionLayout({
   // staff_admin role is the coordinator. (Platform admins were 404'd above and
   // never get coordinator powers in a tenant area.)
   const isCoordinator = access.role === "staff_admin";
+  // Whether the caller actually HOLDS a membership in this commission, vs. a
+  // commission-admin (org_admin/hospital_admin) whose coordinator `role` is
+  // resolved, not held (see getCommissionAccessByOrg). Mirrors the resolver's own
+  // `memberRole` derivation. Gates the member-participation "Reuniões" nav item:
+  // ADR 0078 C7 gives a non-member an empty meeting record, so the surface is
+  // hidden for them (config under Configurações → Reuniões stays reachable).
+  const isCommissionMember = access.context.memberships.some(
+    (m) => m.commission.id === commissionId,
+  );
 
   // The meetings feature flag gates the "Reuniões" nav item + its pending-
   // signatures badge. When off, skip the pending-signatures read entirely.
@@ -177,6 +186,7 @@ export default async function CommissionLayout({
         email={access.context.email}
         roleLabel={roleLabel}
         counts={counts}
+        isCommissionMember={isCommissionMember}
         meetingsEnabled={meetingsOn}
         auditEnabled={auditOn}
         patientSafetyEnabled={patientSafetyOn}

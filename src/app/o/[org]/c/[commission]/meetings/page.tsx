@@ -43,6 +43,20 @@ export default async function MeetingsListPage({
     notFound();
   }
 
+  // ADR 0078 C7: the meetings surface is for actual commission MEMBERS. A
+  // commission-admin without a membership row (org_admin/hospital_admin whose
+  // coordinator `role` is resolved, not held) now gets an EMPTY meeting record, so
+  // we hide the route rather than render a silent zero-state. Mirrors the
+  // resolver's own `memberRole` derivation and the sidebar's `requiresMembership`
+  // gate; Configurações → Reuniões (meeting-type/settings) stays reachable. UX gate
+  // only — RLS/C7 is the security boundary.
+  const isCommissionMember = access.context.memberships.some(
+    (m) => m.commission.id === access.commission.id,
+  );
+  if (!isCommissionMember) {
+    notFound();
+  }
+
   // Who may schedule meetings: a coordinator OR (ADR 0061) an Administrativo with
   // `schedule_meetings`. Drives the "Nova reunião" affordance + the picker roster.
   const canSchedule = canInCommission(access, "schedule_meetings");

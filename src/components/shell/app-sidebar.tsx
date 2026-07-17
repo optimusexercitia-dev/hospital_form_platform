@@ -96,6 +96,14 @@ interface NavItem {
    * The two form an inverse pair so exactly one shows; OFF preserves today's nav.
    */
   caseAccess?: "on" | "off";
+  /**
+   * When true, the item renders only for an actual commission MEMBER — hidden for
+   * a commission-admin (org_admin/hospital_admin) whose coordinator role is
+   * resolved without a membership row. Used by "Reuniões": ADR 0078 C7 gives such
+   * a non-member an empty meeting record, so the member-participation surface is
+   * hidden for them (their config access under Configurações is unaffected).
+   */
+  requiresMembership?: boolean;
 }
 
 interface NavGroup {
@@ -171,6 +179,7 @@ const NAV_GROUPS: NavGroup[] = [
         roles: ["staff", "staff_admin"],
         countKey: "reunioesPendentes",
         requiresFeature: "meetings",
+        requiresMembership: true,
       },
       {
         label: "Eventos de segurança",
@@ -258,6 +267,7 @@ export function AppSidebar({
   roleLabel,
   counts,
   notificationBell,
+  isCommissionMember = true,
   meetingsEnabled = false,
   auditEnabled = false,
   patientSafetyEnabled = false,
@@ -283,6 +293,13 @@ export function AppSidebar({
   email: string;
   roleLabel: string;
   counts: SidebarCounts;
+  /**
+   * Whether the caller actually holds a membership in this commission (vs. a
+   * commission-admin whose coordinator role is resolved without a membership row).
+   * Defaults `true` (fail-open — this is a convenience gate, not a security
+   * boundary). Gates `requiresMembership` items (currently "Reuniões", ADR 0078 C7).
+   */
+  isCommissionMember?: boolean;
   /**
    * The S1·N (Phase 20) notification bell, pre-rendered by the Server
    * Component parent (`CommissionLayout`) — a Client Component like this one
@@ -348,6 +365,9 @@ export function AppSidebar({
     // The "Minhas fases" / "Meus Casos" inverse pair: one shows per the flag.
     if (item.caseAccess === "on" && !caseAccessEnabled) return false;
     if (item.caseAccess === "off" && caseAccessEnabled) return false;
+    // Member-participation items (Reuniões) hide for a resolved-but-not-held
+    // coordinator (ADR 0078 C7). Scoped strictly to items that opt in.
+    if (item.requiresMembership && !isCommissionMember) return false;
     return role === null || item.roles.includes(role);
   };
 

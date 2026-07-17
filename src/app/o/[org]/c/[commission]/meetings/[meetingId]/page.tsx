@@ -5,12 +5,14 @@ import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
   getMeetingDetail,
   getMeetingSettings,
+  listClosedSessions,
   listMeetingAgenda,
   listMeetingAttachments,
   listMeetingAttendees,
   listMeetingCases,
   listMeetingSignatures,
   listMeetingTypes,
+  listReservedSessionItems,
 } from "@/lib/queries/meetings";
 import { listMeetingActionItems } from "@/lib/queries/meeting-action-items";
 import { actionItemsEnabled } from "@/lib/queries/action-items";
@@ -25,6 +27,7 @@ import { CaseLinker } from "@/components/meetings/case-linker";
 import { ActionItemsPanel } from "@/components/meetings/action-items-panel";
 import { AttachmentsPanel } from "@/components/meetings/attachments-panel";
 import { SignaturesPanel } from "@/components/meetings/signatures-panel";
+import { ReservedSessionsPanel } from "@/components/meetings/reserved-sessions-panel";
 import { isEditableStatus } from "@/components/meetings/meeting-labels";
 
 export const metadata: Metadata = {
@@ -59,6 +62,21 @@ export default async function MeetingDetailPage({
     notFound();
   }
 
+  // ADR 0078 C7: the meetings surface is for actual commission MEMBERS. A
+  // commission-admin without a membership row (an org_admin/hospital_admin whose
+  // coordinator `role` is resolved, not held — see getCommissionAccessByOrg) now
+  // gets an EMPTY meeting record, so we hide the route rather than render a silent
+  // zero-state. This mirrors the resolver's own `memberRole` derivation and gates
+  // the nav item the same way; the meeting-type/settings config (Configurações →
+  // Reuniões) stays reachable via its own route. UX gate only — RLS/C7 is the
+  // security boundary.
+  const isCommissionMember = access.context.memberships.some(
+    (m) => m.commission.id === access.commission.id,
+  );
+  if (!isCommissionMember) {
+    notFound();
+  }
+
   const meeting = await getMeetingDetail(meetingId);
   if (!meeting || meeting.commissionId !== access.commission.id) {
     notFound();
@@ -77,6 +95,8 @@ export default async function MeetingDetailPage({
     attachments,
     actionItems,
     actionItemsOn,
+    closedSessions,
+    reservedItems,
   ] = await Promise.all([
     listMeetingAgenda(meetingId),
     listMeetingAttendees(meetingId),
@@ -85,6 +105,12 @@ export default async function MeetingDetailPage({
     listMeetingAttachments(meetingId),
     listMeetingActionItems(meetingId),
     actionItemsEnabled(),
+    // Reserved (closed) sessions + their tier-projected items (ADR 0078 C5). Read
+    // for EVERY member; the `get_reserved_session_items` RPC masks each row to the
+    // caller's tier, so the panel renders the projection — full substance/decision
+    // where authorized, else the non-identifying stub.
+    listClosedSessions(meetingId),
+    listReservedSessionItems(meetingId),
   ]);
 
   // Coordinator-only authoring data: the roster (member picker, assignees), the
@@ -164,6 +190,15 @@ export default async function MeetingDetailPage({
         agendaItems={agenda}
         canEdit={canEdit}
         org={org} slug={slug}
+      />
+
+      <ReservedSessionsPanel
+        meetingId={meeting.id}
+        sessions={closedSessions}
+        items={reservedItems}
+        canEdit={canEdit}
+        cases={linkableCases}
+        members={memberOptions}
       />
 
       <ActionItemsPanel
