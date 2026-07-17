@@ -4711,6 +4711,144 @@ export type Database = {
           },
         ]
       }
+      meeting_closed_session_item_readers: {
+        Row: {
+          created_at: string
+          id: string
+          item_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_closed_session_item_readers_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_closed_session_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_closed_session_item_readers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_closed_session_items: {
+        Row: {
+          case_id: string | null
+          closed_session_id: string
+          created_at: string
+          decision: string | null
+          ended_at: string | null
+          id: string
+          position: number
+          quorum_met: boolean
+          started_at: string | null
+          substance: string | null
+          withdrawals: string | null
+        }
+        Insert: {
+          case_id?: string | null
+          closed_session_id: string
+          created_at?: string
+          decision?: string | null
+          ended_at?: string | null
+          id?: string
+          position?: number
+          quorum_met?: boolean
+          started_at?: string | null
+          substance?: string | null
+          withdrawals?: string | null
+        }
+        Update: {
+          case_id?: string | null
+          closed_session_id?: string
+          created_at?: string
+          decision?: string | null
+          ended_at?: string | null
+          id?: string
+          position?: number
+          quorum_met?: boolean
+          started_at?: string | null
+          substance?: string | null
+          withdrawals?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_closed_session_items_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_closed_session_items_closed_session_id_fkey"
+            columns: ["closed_session_id"]
+            isOneToOne: false
+            referencedRelation: "meeting_closed_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_closed_sessions: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          id: string
+          label: string | null
+          meeting_id: string
+          opened_at: string
+          opened_by: string | null
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          label?: string | null
+          meeting_id: string
+          opened_at?: string
+          opened_by?: string | null
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          id?: string
+          label?: string | null
+          meeting_id?: string
+          opened_at?: string
+          opened_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_closed_sessions_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meeting_closed_sessions_opened_by_fkey"
+            columns: ["opened_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_signatures: {
         Row: {
           attendee_id: string
@@ -4815,6 +4953,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          visibility_policy: string
         }
         Insert: {
           cancelled_at?: string | null
@@ -4846,6 +4985,7 @@ export type Database = {
           status?: string
           title: string
           updated_at?: string
+          visibility_policy?: string
         }
         Update: {
           cancelled_at?: string | null
@@ -4877,6 +5017,7 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
+          visibility_policy?: string
         }
         Relationships: [
           {
@@ -7619,6 +7760,18 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      add_reserved_item: {
+        Args: {
+          p_case_id?: string
+          p_decision?: string
+          p_quorum_met?: boolean
+          p_reader_uids?: string[]
+          p_session_id: string
+          p_substance?: string
+          p_withdrawals?: string
+        }
+        Returns: string
+      }
       add_template_narrative: {
         Args: {
           p_instructions?: string
@@ -8138,6 +8291,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -8486,6 +8640,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -9074,6 +9229,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -9090,24 +9246,7 @@ export type Database = {
           p_resolution?: string
           p_title: string
         }
-        Returns: {
-          created_at: string
-          created_by: string | null
-          description: string | null
-          discussion_notes: string | null
-          id: string
-          meeting_id: string
-          position: number
-          resolution: string | null
-          title: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "meeting_agenda_items"
-          isOneToOne: true
-          isSetofReturn: false
-        }
+        Returns: string
       }
       create_meeting_type: {
         Args: {
@@ -9500,6 +9639,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -9523,6 +9663,24 @@ export type Database = {
         }[]
       }
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
+      get_case_meeting_links: {
+        Args: { p_case_id: string }
+        Returns: {
+          agenda_item_id: string | null
+          case_id: string
+          created_at: string
+          decision: string | null
+          id: string
+          meeting_id: string
+          summary: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "meeting_cases"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_case_patient: { Args: { p_case_id: string }; Returns: Json }
       get_case_patients: { Args: { p_case_id: string }; Returns: Json }
       get_case_professional: {
@@ -9531,6 +9689,45 @@ export type Database = {
       }
       get_event_patient: { Args: { p_event_id: string }; Returns: Json }
       get_feature_flags: { Args: never; Returns: Json }
+      get_meeting_agenda_items: {
+        Args: { p_meeting_id: string }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          discussion_notes: string | null
+          id: string
+          meeting_id: string
+          position: number
+          resolution: string | null
+          title: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "meeting_agenda_items"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      get_meeting_cases: {
+        Args: { p_meeting_id: string }
+        Returns: {
+          agenda_item_id: string | null
+          case_id: string
+          created_at: string
+          decision: string | null
+          id: string
+          meeting_id: string
+          summary: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "meeting_cases"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       get_member_overview: { Args: { p_commission: string }; Returns: Json }
       get_participant_patient: {
         Args: { p_participant_id: string }
@@ -9549,6 +9746,22 @@ export type Database = {
       get_referral_snapshot_document_path: {
         Args: { p_shared_item_id: string }
         Returns: string
+      }
+      get_reserved_session_items: {
+        Args: { p_meeting_id: string }
+        Returns: {
+          case_id: string
+          closed_session_id: string
+          decision: string
+          ended_at: string
+          id: string
+          item_position: number
+          process_number: number
+          quorum_met: boolean
+          started_at: string
+          substance: string
+          withdrawals: string
+        }[]
       }
       get_response_for_signoff: {
         Args: { p_response_id: string }
@@ -9662,21 +9875,7 @@ export type Database = {
           p_meeting_id: string
           p_summary?: string
         }
-        Returns: {
-          agenda_item_id: string | null
-          case_id: string
-          created_at: string
-          decision: string | null
-          id: string
-          meeting_id: string
-          summary: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "meeting_cases"
-          isOneToOne: true
-          isSetofReturn: false
-        }
+        Returns: string
       }
       link_referral_case: {
         Args: { p_referral_id: string; p_target_case_id?: string }
@@ -9885,6 +10084,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -10020,6 +10220,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      open_reserved_session: { Args: { p_meeting_id: string }; Returns: string }
       patient_access_audit: {
         Args: { p_encounter?: string; p_hospital_id?: string; p_mrn?: string }
         Returns: Json
@@ -10647,6 +10848,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -11223,6 +11425,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -11263,6 +11466,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -12391,6 +12595,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"
@@ -12407,24 +12612,7 @@ export type Database = {
           p_resolution?: string
           p_title: string
         }
-        Returns: {
-          created_at: string
-          created_by: string | null
-          description: string | null
-          discussion_notes: string | null
-          id: string
-          meeting_id: string
-          position: number
-          resolution: string | null
-          title: string
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "meeting_agenda_items"
-          isOneToOne: true
-          isSetofReturn: false
-        }
+        Returns: string
       }
       update_meeting_attendee: {
         Args: {
@@ -12486,6 +12674,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          visibility_policy: string
         }
         SetofOptions: {
           from: "*"

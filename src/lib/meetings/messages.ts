@@ -122,6 +122,8 @@ export const MEETING_MESSAGES = {
   actionItemAdvanced: 'Item de ação atualizado.',
   actionItemCompleted: 'Item de ação concluído.',
   actionItemRemoved: 'Item de ação removido.',
+  reservedSessionOpened: 'Sessão reservada aberta.',
+  reservedItemAdded: 'Item de sessão reservada adicionado.',
 } as const
 
 /**

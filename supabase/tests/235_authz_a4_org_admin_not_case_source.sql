@@ -220,8 +220,13 @@ select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
 select is((select count(*)::int from public.action_items where id = '00000000-0000-0000-0000-0000000a4051'), 0,
   'K3 ⭐ ROWS: the org_admin reads ZERO case_restricted action items (A11''s own example string)');
-select is((select count(*)::int from public.action_items where id = '00000000-0000-0000-0000-0000000a4050'), 1,
-  'K3 ⭐ POSITIVE TWIN: …but STILL reads the `committee` item — the scoping did NOT over-reach into governance');
+-- ⭐ UPDATED for ADR 0078 C7/A11 (Q2 reconciliation): A4/K23 kept the org_admin's
+-- `committee` action-item arm as commission governance; Amendment 2 (A11/K19)
+-- supersedes it for the meeting-ADJACENT action-item channel — the Organization
+-- User loses `committee` and `assignees_only` too. K23 still protects the case
+-- CONFIG tables (case_tags/outcomes/narrative_types — asserted elsewhere here).
+select is((select count(*)::int from public.action_items where id = '00000000-0000-0000-0000-0000000a4050'), 0,
+  'K3 → C7/A11: the org_admin reads ZERO `committee` action items too (Amendment 2 supersedes A4 for this channel)');
 reset role;
 
 -- ===========================================================================

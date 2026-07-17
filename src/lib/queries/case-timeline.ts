@@ -172,25 +172,30 @@ export async function listCaseMeetings(
 ): Promise<CaseMeetingLink[]> {
   const supabase = await createClient()
 
+  // ADR 0078 C1: summary/decision are REVOKE'd from direct reads. The projection
+  // RPC masks them per the case's deliberation/exclusion tiers and only returns
+  // links for meetings the caller reaches; it requires can_read_case(caseId).
   const { data, error } = await supabase
-    .from('meeting_cases')
-    .select(
-      `id, summary, decision,
-       meetings:meeting_id ( ${MEETING_LIST_COLUMNS} )`,
-    )
-    .eq('case_id', caseId)
-    .returns<CaseMeetingLinkRow[]>()
+    .rpc('get_case_meeting_links', { p_case_id: caseId })
+    .returns<(Pick<CaseMeetingLinkRow, 'id' | 'summary' | 'decision'> & { meeting_id: string })[]>()
 
   if (error || !data) return []
 
+  const meetingIds = [...new Set(data.map((r) => r.meeting_id))]
+  const { data: meetingRows } = meetingIds.length
+    ? await supabase
+        .from('meetings')
+        .select(MEETING_LIST_COLUMNS)
+        .in('id', meetingIds)
+        .returns<MeetingRow[]>()
+    : { data: [] as MeetingRow[] }
+  const meetingMap = new Map((meetingRows ?? []).map((m) => [m.id, m]))
+
   return data
-    .filter(
-      (r): r is CaseMeetingLinkRow & { meetings: MeetingRow } =>
-        r.meetings != null,
-    )
+    .filter((r) => meetingMap.has(r.meeting_id))
     .map((r) => ({
       linkId: r.id,
-      meeting: mapMeetingListItem(r.meetings),
+      meeting: mapMeetingListItem(meetingMap.get(r.meeting_id)!),
       summary: r.summary,
       decision: r.decision,
     }))

@@ -518,7 +518,9 @@ export async function createAgendaItem(
   return {
     ok: true,
     error: MEETING_MESSAGES.agendaItemAdded,
-    agendaItemId: data.id,
+    // ADR 0078 C2: create_meeting_agenda_item now returns the id scalar (its row
+    // type carried REVOKE'd columns that RETURNING * could no longer read).
+    agendaItemId: data,
   }
 }
 
@@ -837,7 +839,8 @@ export async function linkMeetingCase(
   if (error || !data) return { ok: false, error: mapMeetingError(error) }
 
   revalidateMeetings()
-  return { ok: true, error: MEETING_MESSAGES.caseLinked, caseLinkId: data.id }
+  // ADR 0078 C1: link_meeting_case now returns the id scalar.
+  return { ok: true, error: MEETING_MESSAGES.caseLinked, caseLinkId: data }
 }
 
 /** Remove a case link (only while unlocked). staff_admin-only. */
@@ -1392,3 +1395,52 @@ export type {
   QuorumRuleType,
 } from '@/lib/queries/meetings'
 export type { MeetingActionItemStatus } from '@/lib/queries/meeting-action-items'
+
+/** Open a reserved (closed) session on a meeting. Coordinator-only (RPC-enforced). */
+export async function openReservedSession(
+  meetingId: string,
+): Promise<ActionState & { sessionId?: string }> {
+  if (!(await meetingsEnabled())) {
+    return { ok: false, error: MEETING_MESSAGES.unavailable }
+  }
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('open_reserved_session', {
+    p_meeting_id: meetingId,
+  })
+  if (error || !data) return { ok: false, error: mapMeetingError(error) }
+  revalidateMeetings()
+  return { ok: true, error: MEETING_MESSAGES.reservedSessionOpened, sessionId: data }
+}
+
+/** Input for a reserved-session item; `readerUids` populates the reader list for case-less items. */
+export interface ReservedItemInput {
+  caseId?: string | null
+  substance?: string | null
+  decision?: string | null
+  withdrawals?: string | null
+  quorumMet?: boolean
+  readerUids?: string[] | null
+}
+
+/** Add a reserved-session item. Coordinator-only; the exclusion + member-reader rules are RPC-enforced. */
+export async function addReservedItem(
+  sessionId: string,
+  input: ReservedItemInput,
+): Promise<ActionState & { itemId?: string }> {
+  if (!(await meetingsEnabled())) {
+    return { ok: false, error: MEETING_MESSAGES.unavailable }
+  }
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('add_reserved_item', {
+    p_session_id: sessionId,
+    p_case_id: input.caseId ?? undefined,
+    p_substance: input.substance ?? undefined,
+    p_decision: input.decision ?? undefined,
+    p_withdrawals: input.withdrawals ?? undefined,
+    p_quorum_met: input.quorumMet ?? undefined,
+    p_reader_uids: input.readerUids ?? undefined,
+  })
+  if (error || !data) return { ok: false, error: mapMeetingError(error) }
+  revalidateMeetings()
+  return { ok: true, error: MEETING_MESSAGES.reservedItemAdded, itemId: data }
+}

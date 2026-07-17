@@ -394,20 +394,19 @@ never out-voted by a reader list.**
 > one row carries all four tiers but never amended it. Add both.
 
 Tiers, corrected: bare stub (`reach(meeting)`) · propriety record — number, withdrawals, times
-(`reach(meeting) AND NOT app.is_case_respondent`) · substance (`reach(meeting) AND
-has_case_capability(case_id,'read_case_deliberation')`) · decision (`reach(meeting) AND NOT
-app.is_case_excluded`).
+(`reach(meeting) AND NOT app.is_case_respondent`; **A26: the withdrawal *names* additionally require
+`read_case_deliberation` when `cases.visibility_policy = 'explicit_grants_only'`** — the number/times stay
+at `reach`) · substance (`reach(meeting) AND has_case_capability(case_id,'read_case_deliberation')`) ·
+decision (`reach(meeting) AND NOT app.is_case_excluded`).
 
-> ⏸ **BLOCKED ON A PARKED PO DECISION — ADR 0078 A26. Do not author this RPC until it is answered.**
-> The propriety tier as written projects **who withdrew and why** to every member. Combined with the
-> pauta's process number and the meeting date, that is **verbatim the inference D11 declares must not be
-> available** (*"a case number plus a date plus a sudden recusal identifies the respondent"*). Benign for
-> a **plenary** case (the members watched him leave); **sharp** for a **sub-group** case (the plenary was
-> not in the room, yet the tier is member-wide).
->
-> **The obvious default answers it permissively and silently.** Raise A26 with the PO **before** C5, not
-> after. The answer may make the propriety tier `visibility_policy`-dependent, which changes this
-> predicate.
+> ✅ **A26 RESOLVED (PO, 2026-07-16): the propriety tier is `cases.visibility_policy`-dependent.**
+> Name *who withdrew and why* member-wide **only** for `commission_default` (plenary) cases. For
+> `explicit_grants_only` (sub-group) cases the withdrawal identity requires **`read_case_deliberation`**
+> (substance reach); a member without it gets only the non-identifying stub (item reserved, quorum held,
+> times — no name). Keys on **`cases.visibility_policy`**, NOT `meetings.visibility_policy`. This closes
+> D11's number+date+recusal inference for the plenary-at-large while satisfying A5 for the body that
+> deliberated. → new keystone: a plenary member reads a sub-group case's reserved-item stub but NOT its
+> withdrawal name; a plenary case's withdrawal name stays member-wide. See ADR 0078 A26.
 
 > ⚠ **The asymmetry is load-bearing.** The propriety tier gates on **`is_case_respondent` ALONE**, not
 > `is_case_excluded`. The **recused must still see the process number** — her withdrawal *is* the

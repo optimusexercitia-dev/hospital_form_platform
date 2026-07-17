@@ -1690,9 +1690,20 @@ deny for a recused coordinator**, and precisely the arm A22 found unguarded.
 31. **Coordinator does not hold `read_restricted_phi`** (A24·7) — they may **issue** it; they do not
     **have** it.
 
-## A26 — ⏸ PARKED to Gate 2 (PO, 2026-07-15): does the propriety record name the respondent?
+## A26 — ✅ RESOLVED (PO, 2026-07-16): the propriety record is visibility_policy-dependent
 
-The adversarial review's strongest **surviving** finding. Amendment 3 does not resolve it.
+**Ruling (PO, 2026-07-16).** The propriety tier names *who withdrew and why* **member-wide only for
+`commission_default` (plenary) cases**. For `explicit_grants_only` (sub-group) cases the withdrawal
+identity requires **substance reach (`read_case_deliberation`)**; a member without it sees only the
+non-identifying stub (item reserved, quorum held, times — no name). It keys on **`cases.visibility_policy`**
+(the case shape), *not* `meetings.visibility_policy`. This satisfies A5 for the body that actually
+deliberated (plenary case → the whole plenary watched it; sub-group case → the substance-reach holders who
+ran it) while closing D11's number+date+recusal re-identification for the plenary-at-large. C5's
+propriety-tier predicate is therefore split by case visibility; the parked question below is answered by
+this ruling.
+
+*Original finding (retained for rationale):* The adversarial review's strongest **surviving** finding.
+Amendment 3 does not resolve it.
 
 **D11 states the threat model itself:**
 

@@ -653,14 +653,11 @@ export async function listMeetingAgenda(
 ): Promise<MeetingAgendaItem[]> {
   const supabase = await createClient()
 
+  // ADR 0078 C2: title/discussion_notes/resolution are REVOKE'd from direct
+  // reads; the tiered projection RPC masks them per case authority (process
+  // number hidden from the respondent, deliberation gated on read_case_deliberation).
   const { data, error } = await supabase
-    .from('meeting_agenda_items')
-    .select(
-      `id, meeting_id, position, title, description, discussion_notes,
-       resolution, created_by, created_at, updated_at`,
-    )
-    .eq('meeting_id', meetingId)
-    .order('position', { ascending: true })
+    .rpc('get_meeting_agenda_items', { p_meeting_id: meetingId })
     .returns<AgendaRow[]>()
 
   if (error || !data) return []
@@ -765,27 +762,31 @@ export async function listMeetingCases(
 ): Promise<MeetingCaseLink[]> {
   const supabase = await createClient()
 
+  // ADR 0078 C1: summary/decision are REVOKE'd from direct reads; the tiered
+  // projection RPC masks them (summary → read_case_deliberation; decision →
+  // any non-excluded meeting-reacher). The row skeleton is member-wide on the
+  // meeting surface (A6). The case HEADER (number/label) is fetched separately
+  // and stays RLS-scoped (cases_select = can_read_case) — a viewer who cannot
+  // read the linked case sees the link flagged restricted.
   const { data, error } = await supabase
-    .from('meeting_cases')
-    .select(
-      `id, meeting_id, case_id, agenda_item_id, summary, decision,
-       cases:case_id ( case_number, label )`,
-    )
-    .eq('meeting_id', meetingId)
-    .returns<CaseLinkRow[]>()
+    .rpc('get_meeting_cases', { p_meeting_id: meetingId })
+    .returns<Omit<CaseLinkRow, 'cases'>[]>()
 
   if (error || !data) return []
+
+  const caseIds = [...new Set(data.map((r) => r.case_id))]
+  const { data: caseRows } = caseIds.length
+    ? await supabase.from('cases').select('id, case_number, label').in('id', caseIds)
+    : { data: [] as { id: string; case_number: number; label: string | null }[] }
+  const caseMap = new Map((caseRows ?? []).map((c) => [c.id, c]))
 
   return data.map((r) => ({
     id: r.id,
     meetingId: r.meeting_id,
     caseId: r.case_id,
-    // The embedded `cases` join is RLS-scoped (cases_select = can_read_case under
-    // ADR 0033); a null embed means the viewer cannot read the linked case → the
-    // linkage row stays, the case identity is withheld + flagged restricted.
-    caseNumber: r.cases?.case_number ?? null,
-    caseLabel: r.cases?.label ?? null,
-    restricted: r.cases == null,
+    caseNumber: caseMap.get(r.case_id)?.case_number ?? null,
+    caseLabel: caseMap.get(r.case_id)?.label ?? null,
+    restricted: !caseMap.has(r.case_id),
     agendaItemId: r.agenda_item_id,
     summary: r.summary,
     decision: r.decision,
@@ -918,5 +919,90 @@ export async function myPendingMeetingSignatures(): Promise<
     title: r.title,
     scheduledStart: r.scheduled_start,
     attendeeId: r.attendee_id,
+  }))
+}
+
+/** One reserved (closed) session block on a meeting — a time block, no substance. */
+export interface ClosedSession {
+  id: string
+  meetingId: string
+  label: string | null
+  openedBy: string | null
+  openedAt: string
+  closedAt: string | null
+}
+
+/** The reserved-session blocks on a meeting (ADR 0078 C4), ordered by open time. */
+export async function listClosedSessions(
+  meetingId: string,
+): Promise<ClosedSession[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('meeting_closed_sessions')
+    .select('id, meeting_id, label, opened_by, opened_at, closed_at')
+    .eq('meeting_id', meetingId)
+    .order('opened_at', { ascending: true })
+    .returns<
+      {
+        id: string
+        meeting_id: string
+        label: string | null
+        opened_by: string | null
+        opened_at: string
+        closed_at: string | null
+      }[]
+    >()
+  if (error || !data) return []
+  return data.map((r) => ({
+    id: r.id,
+    meetingId: r.meeting_id,
+    label: r.label,
+    openedBy: r.opened_by,
+    openedAt: r.opened_at,
+    closedAt: r.closed_at,
+  }))
+}
+
+/**
+ * One reserved-session item, tier-projected by ADR 0078 C5's DEFINER RPC:
+ * `processNumber`/`withdrawals`/`substance`/`decision` are `null` when the caller
+ * lacks that tier (the RPC is the sole read path). The Stage-C frontend task may
+ * refine these field shapes.
+ */
+export interface ReservedSessionItem {
+  id: string
+  closedSessionId: string
+  caseId: string | null
+  position: number
+  quorumMet: boolean
+  startedAt: string | null
+  endedAt: string | null
+  processNumber: number | null
+  withdrawals: string | null
+  substance: string | null
+  decision: string | null
+}
+
+/** The reserved-session items of a meeting, masked per tier via `get_reserved_session_items`. */
+export async function listReservedSessionItems(
+  meetingId: string,
+): Promise<ReservedSessionItem[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('get_reserved_session_items', {
+    p_meeting_id: meetingId,
+  })
+  if (error || !data) return []
+  return data.map((r) => ({
+    id: r.id,
+    closedSessionId: r.closed_session_id,
+    caseId: r.case_id,
+    position: r.item_position,
+    quorumMet: r.quorum_met,
+    startedAt: r.started_at,
+    endedAt: r.ended_at,
+    processNumber: r.process_number,
+    withdrawals: r.withdrawals,
+    substance: r.substance,
+    decision: r.decision,
   }))
 }

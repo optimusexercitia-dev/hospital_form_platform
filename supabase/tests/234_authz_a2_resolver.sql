@@ -292,9 +292,13 @@ select is((select count(*)::int from public.cases
 select is((select count(*)::int from public.case_narratives
            where case_id = '00000000-0000-0000-0000-0000000a2001'), 0,
   'K8 ⭐: …and ZERO narratives — the member arm confers the minuted discussion ONLY');
+-- ⭐ UPDATED for ADR 0078 C1/A6: the meeting SURFACE is member-wide — the member
+-- reads the ata ROW skeleton for the explicit_grants_only case (pre-C1 this was 0;
+-- the keystone-4 scope note flags count=0 on the meeting surface as the direct
+-- negation of keystones 10/16). The SUMMARY masking is proven in 241 (C1 keystone).
 select is((select count(*)::int from public.meeting_cases
-           where case_id = '00000000-0000-0000-0000-0000000a2002'), 0,
-  'K8 twin: …and reads NO ata section for the explicit_grants_only case — ethics stays grant-only');
+           where case_id = '00000000-0000-0000-0000-0000000a2002'), 1,
+  'K8 twin (C1/A6): the member reads the ata ROW skeleton for the explicit_grants_only case — content masked, skeleton member-wide');
 reset role;
 select is(app.has_case_capability('00000000-0000-0000-0000-0000000a2001', (select st_x from k), 'view_case_overview'),
           false,
