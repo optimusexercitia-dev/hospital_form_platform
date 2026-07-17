@@ -293,6 +293,15 @@ above; add a mutation case (revert the conjunct → 115 must go red) so the fix 
 - **BUG-PROD-ACTIONS classification — I concur.** Read-only/direct-RPC paths return in 100–900 ms
   while UI mutations hang; reproduced on `phase10-meetings` and `cases-extras`, both of which predate
   Stage C. It is app-wide and not a Gate-2 defect. Its own P0 pre-pilot unit is the right call.
+  - **✅ RESOLVED 2026-07-17 (post-Gate-2 version-drift audit).** Root cause found: BUG-PROD-ACTIONS was
+    **not a live app defect** — it was **BUG-AIF-001** (Next **16.2.9**'s deferred-`router.refresh()` hang,
+    fixed upstream by PR #95391), reproduced because the local `node_modules/next` had silently drifted to
+    16.2.9 while `package.json`/lockfile correctly declared **16.3.0-preview.5** and the `e2e:prod` gate
+    reused a standalone built against the stale runtime. `npm ci` → 16.3 (verified) + a force-rebuilt
+    standalone clears it (8/8 green); the "app-wide" reach across `phase10-meetings`/`cases-extras` was the
+    tell that it was framework-level, not Gate-2 code. The `useMeetingAction` shape above is correct as-is —
+    **nothing to fix in the app.** The ~18–27 "prod flaky baseline" was the same drift and collapses to ≈0
+    on a toolchain-verified 16.3 build.
 
 ---
 

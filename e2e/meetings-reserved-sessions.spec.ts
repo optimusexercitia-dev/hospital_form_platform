@@ -284,13 +284,16 @@ async function openFreshReservedSession(page: Page) {
   const addItemButtons = page.getByRole('button', { name: 'Adicionar item' })
   const countBefore = await addItemButtons.count()
   await openBtn.click()
-  // 25s, not 10s: the meeting detail page's post-mutation `router.refresh()`
-  // re-fetches a dozen-plus parallel queries (agenda/attendees/cases/signatures/
-  // attachments/action items/closed sessions/reserved items + coordinator-only
-  // roster/types/settings/board) — phase10-meetings.spec.ts uses 20_000-25_000
-  // for every post-mutation wait on this SAME page for the same reason. 10s
-  // reproduced a real, deterministic (not flaky) timeout under prod-standalone
-  // load, twice, while passing in well under 10s on dev every time.
+  // 25s matches the suite-wide convention for a post-mutation `router.refresh()`
+  // wait on this heavy page (phase10-meetings.spec.ts uses 20_000-25_000 for every
+  // such wait; the page re-fetches a dozen-plus parallel queries).
+  // NOTE (2026-07-17): an earlier version of this comment attributed an observed 10s
+  // failure to that query load. That "deterministic prod-standalone timeout" was in
+  // fact BUG-AIF-001 — Next 16.2.9's deferred `router.refresh()` never committing on
+  // the standalone build — reproduced only because the local `node_modules` had
+  // drifted to 16.2.9. It is FIXED in 16.3.0-preview.5 (this branch's declared
+  // version). The generous timeout is kept purely as house-standard headroom, NOT to
+  // mask a hang (25s would not reliably clear a 21-31s hang anyway).
   await expect(addItemButtons).toHaveCount(countBefore + 1, { timeout: 25_000 })
   return addItemButtons.last()
 }

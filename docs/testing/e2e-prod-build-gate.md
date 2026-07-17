@@ -97,6 +97,16 @@ SPECS="e2e/phase8-dashboard.spec.ts e2e/phi-remediation.spec.ts" npm run e2e:pro
 > change MUST pass `REBUILD=1`**, and check the log says *"building standalone" / "Compiled successfully"*
 > before trusting the result. (Same family as ADR 0078 §7.2 — the text said one thing, the build did another.)
 
+> **Update (2026-07-17):** found and fixed one concrete mechanism behind the false negative above.
+> The `auto` drift check explicitly excluded `package.json` from the files it watches
+> (`| grep -v -e 'package\.json$'`) and never watched `package-lock.json` at all — so bumping a
+> dependency and reinstalling (e.g. `next` 16.2.9 → 16.3.0-preview.5) never counted as drift, and a
+> batched gate run silently reused the pre-bump standalone build, executing the whole suite against
+> the old `next` runtime baked into `.next/standalone`. Fixed in `scripts/e2e-prod-gate.sh`:
+> `package.json`/`package-lock.json` changes now trigger a rebuild like any other watched path.
+> **`REBUILD=1` remains the recommended belt-and-suspenders for a fix-verification run** — this closes
+> the dependency-bump gap specifically, not every possible drift-detection edge case.
+
 Requires bash (Git Bash on Windows; run `bash scripts/e2e-prod-gate.sh` directly if `npm run`
 can't find bash) + local Supabase up/seeded. The **server restart between batches** is the
 resource-buildup fix; the per-batch `db reset` (default on) is the orthogonal contamination

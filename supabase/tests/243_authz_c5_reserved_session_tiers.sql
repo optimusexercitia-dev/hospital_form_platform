@@ -205,10 +205,24 @@ select set_config('request.jwt.claims', '', true);
 -- an artifact of the fixture.
 -- =============================================================================
 reset role;
-insert into public.meetings (id, commission_id, meeting_number, title, scheduled_start, status)
-values ('00000000-0000-0000-0000-00000000c5f0', (select comm_x from k), 9764, 'Ata distribuída', now(), 'distributed');
+-- ⚠ FIXTURE ORDER (BUG-GATE2-243-FIXTURELOCK). The reserved session must be planted
+-- while the meeting is still EDITABLE, then the meeting walked to 'distributed'.
+-- Creating the meeting 'distributed' first and THEN inserting the closed session trips
+-- the very MAJOR-2 child lock under test (guard_meeting_child_lock → 23514) at SETUP,
+-- aborting the file before keystones 28-31 ever run (a green-by-never-running trap —
+-- authz-handoff §7.15). The status walk mirrors the real conclude→sign→distribute path
+-- (guard_meeting_status only permits ordered transitions); `app.in_meeting_rpc` is the
+-- flag those RPCs set, required for any non-status raw edit to pass the guard.
+insert into public.meetings (id, commission_id, meeting_number, title, scheduled_start)
+values ('00000000-0000-0000-0000-00000000c5f0', (select comm_x from k), 9764, 'Ata distribuída', now());
 insert into public.meeting_closed_sessions (id, meeting_id, opened_by)
 values ('00000000-0000-0000-0000-00000000c5f1', '00000000-0000-0000-0000-00000000c5f0', (select sa_x from k));
+select set_config('app.in_meeting_rpc', 'on', true);
+update public.meetings set status = 'held'         where id = '00000000-0000-0000-0000-00000000c5f0';
+update public.meetings set status = 'in_signature' where id = '00000000-0000-0000-0000-00000000c5f0';
+update public.meetings set status = 'signed'       where id = '00000000-0000-0000-0000-00000000c5f0';
+update public.meetings set status = 'distributed'  where id = '00000000-0000-0000-0000-00000000c5f0';
+select set_config('app.in_meeting_rpc', 'off', true);
 
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;

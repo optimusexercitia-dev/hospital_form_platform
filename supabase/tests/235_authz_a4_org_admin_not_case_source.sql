@@ -387,6 +387,11 @@ select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select is((select count(*)::int from public.cases where id = '00000000-0000-0000-0000-0000000a4001'), 0,
   'K1·DENY (BASE TABLE twin): …and the base table denies him his own respondent case');
+-- BASE-TABLE no-over-reach twin (BUG-GATE2-235-PLANCOUNT: the intended 42nd assertion —
+-- pairs the base layer with the board no-over-reach below, exactly as the base DENY above
+-- pairs with the board DENY; without it the plan counted 42 but only 41 ran).
+select is((select count(*)::int from public.cases where id = '00000000-0000-0000-0000-0000000a4002'), 1,
+  'K1·DENY NO-OVER-REACH (BASE TABLE twin): …while the SAME coordinator still reads the OTHER case at the base table — the hard deny is scoped to HIS case, not a board lockout');
 select is((select count(*)::int from public.list_cases_board((select comm_x from k))
            where case_id = '00000000-0000-0000-0000-0000000a4001'), 0,
   'K1·DENY ⭐⭐ THE BOARD: a COORDINATOR reads ZERO of his OWN RESPONDENT case through list_cases_board — the fast-path no longer skips the hard deny (was: it returned it)');

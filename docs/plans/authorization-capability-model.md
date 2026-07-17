@@ -322,6 +322,19 @@ from `src/lib/queries/*` aborts the build while tsc/lint/vitest all pass) · pgT
 **full `e2e:prod` once, triaged against the flaky baseline** (~18–27 pre-existing flakes — triage
 before calling regression) · `qa` APPROVED · human approval.
 
+> ⚠ **CORRECTION (2026-07-17, post-Gate-2 version-drift audit): the "~18–27 flaky baseline" was NOT
+> real flake — it was BUG-AIF-001.** During Gate 2 the local `node_modules/next` had silently drifted to
+> **16.2.9** (lockfile/`package.json` correctly declared **16.3.0-preview.5**), and the `e2e:prod` gate
+> reused a `.next/standalone` built against the stale runtime (its drift-check watched neither
+> `package.json` nor `package-lock.json` — now fixed). 16.2.9 is the exact version whose
+> deferred-`router.refresh()` hang IS BUG-AIF-001, so the standalone faithfully reproduced an
+> already-fixed bug across every mutation-dialog spec (`hospital-admin-tier.md` itself attributed "24 =
+> pre-existing BUG-AIF-001" to this baseline). On a **clean 16.3 build** (`npm ci` → 16.3, verified) the
+> baseline collapses to ≈0–2. **Do not carry `~18–27` forward as an accepted baseline; run the gate on a
+> toolchain-verified 16.3 standalone and treat any residual > ~2 as a real signal.** See
+> [authz-handoff.md §7.16](../progress/authz-handoff.md) and
+> [e2e-prod-build-gate.md](../testing/e2e-prod-build-gate.md).
+
 ---
 
 ## Gate 2 — Behaviour changes (C · F-min · NSP)
@@ -519,6 +532,16 @@ Retire `can_read_case_or_admin` (A21 removes its admin arm, collapsing it into `
 > **exactly one** policy, while `read_case_content` gates **twelve tables**. Its semantics **are**
 > `read_case_deliberation`, exactly — ETH·E1 built the right predicate. **It survives as that bit's
 > projection.** Stage G shrinks accordingly.
+>
+> ⚠ **UPDATE (2026-07-17, post-Gate-2 audit — catalog-verified): `can_reach_case_on_member_surface` is
+> now ORPHANED DEAD CODE.** The "exactly one policy" that justified keeping it was `meeting_cases_select`
+> — and **Stage C's C1 re-cut `meeting_cases_select` to `can_reach_meeting AND NOT is_case_respondent`,
+> dropping the case-reach conjunct** that consumed it. Live catalog: the function still exists (returns
+> `has_case_capability(...,'read_case_deliberation')`) but **0 policies and 0 live function bodies
+> reference it** (its only mentions are stale comments, incl. its own body claiming
+> `meeting_cases_select` consumes it). **No security impact** — it grants nothing because nothing calls
+> it. Cleanup (post-pilot, low priority): either re-consume it or drop it, applying Stage G's own
+> dead-code discipline. The Gate-1 keep-decision was correct *at the time*; C1 invalidated its premise.
 
 Type regen. `supabase db advisors` / MCP `get_advisors`. Update ARCHITECTURE.md Rule 12 +
 `docs/backend-state.md`.

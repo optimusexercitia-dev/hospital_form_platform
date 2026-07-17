@@ -59,6 +59,17 @@ trap 'stop_server' EXIT
 
 [ -f .env.local ] || { echo "FATAL: .env.local not found"; exit 1; }
 
+# --- verify the installed toolchain matches the lockfile (BUG-PROD-ACTIONS, authz-handoff.md §7.16:
+#     node_modules/next silently drifted to a stale version while package.json/lockfile were correct,
+#     and the standalone build faithfully baked in the stale one) ---
+declared_next="$(node -p "require('./package.json').dependencies.next" 2>/dev/null)"
+installed_next="$(node -p "require('./node_modules/next/package.json').version" 2>/dev/null)"
+if [ -z "$installed_next" ] || [ "$installed_next" != "$declared_next" ]; then
+  echo "FATAL: node_modules/next ($installed_next) != package.json's declared next ($declared_next)."
+  echo "       Toolchain drift — run \`npm ci\` before gating."
+  exit 3
+fi
+
 # --- build/stage standalone ONCE (server restarts reuse it; only the running server accumulates) ---
 need_build=0
 case "$REBUILD" in
@@ -66,7 +77,7 @@ case "$REBUILD" in
   0) need_build=0 ;;
   *) if [ ! -f .next/standalone/server.js ]; then need_build=1
      else
-       drift="$(find src supabase next.config.ts next.config.mjs next.config.js package.json 2>/dev/null -newer .next/standalone/server.js -type f | grep -v -e 'package\.json$' | head -1)"
+       drift="$(find src supabase next.config.ts next.config.mjs next.config.js package.json package-lock.json 2>/dev/null -newer .next/standalone/server.js -type f | head -1)"
        [ -n "$drift" ] && need_build=1
      fi ;;
 esac
