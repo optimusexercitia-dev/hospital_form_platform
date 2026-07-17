@@ -34,6 +34,30 @@ export const metadata: Metadata = {
  * everyone else gets `notFound()` rather than an empty board.
  *
  * The board carries STATUS ONLY — never answers (the Phase-7 invariant).
+ *
+ * ADR 0078 Gate-2 fallout: `list_cases_board` now filters every row through
+ * `app.can_read_case` with no coordinator fast-path, so a principal whose only
+ * standing here is ADMINISTRATION — an org_admin/hospital_admin, resolved to the
+ * coordinator `staff_admin` role by {@link getCommissionAccessByOrg} but holding
+ * no membership row — gets exactly zero rows back. That board reads as "this
+ * commission has no cases" when it means "you may not see this", so we 404 it.
+ *
+ * The 404 keys on the principal's REACH, never on the row count: a genuine
+ * coordinator of a brand-new commission with zero cases must still get the empty
+ * state below. `hasCaseStanding` is that reach — a real membership (the
+ * resolver's own `memberRole` arm, mirroring the meetings route's C7 gate) OR an
+ * Administrativo appointment (ADR 0061).
+ *
+ * The Administrativo arm is not redundant: `appoint_administrativo` requires a
+ * `staff` membership, but nothing REVOKES the appointment when that membership is
+ * later removed (no FK, no cascade trigger), and `app.member_can` gates on the
+ * capability row alone. Such an orphaned Administrativo keeps `create_cases` at
+ * the DB and still reads any case they were granted or assigned (`_case_caps` S3 /
+ * S4 need no membership), so a membership-only predicate would 404 someone the
+ * database still serves rows to.
+ *
+ * UX gate only — `can_read_case` is the authority (Rule 1). The rows are already
+ * correct with or without this check; it only decides empty-state vs. 404.
  */
 export default async function CasesBoardPage({
   params,
@@ -52,6 +76,15 @@ export default async function CasesBoardPage({
   if (!access || !canInCommission(access, "create_cases")) {
     notFound();
   }
+
+  const isCommissionMember = access.context.memberships.some(
+    (m) => m.commission.id === access.commission.id,
+  );
+  const hasCaseStanding = isCommissionMember || access.isAdministrativo;
+  if (!hasCaseStanding) {
+    notFound();
+  }
+
   const canCreateCases = canInCommission(access, "create_cases");
 
   const [

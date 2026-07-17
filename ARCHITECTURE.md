@@ -17,8 +17,21 @@ may extend the schema but never contradict it. Cross-references elsewhere to
 2. **Schema (canonical — Backend may extend, not contradict):**
    - `profiles(id → auth.users, full_name, is_admin, is_active)` — profiles
      are NEVER deleted (responses reference them); deactivate via `is_active`
-   - `commissions(id, name, slug, created_by, created_at)`
-   - `commission_members(commission_id, user_id, role ∈ {staff, staff_admin})`
+   - `commissions(id, name, slug, created_by, created_at, hospital_id, organization_id,`
+     `  updated_at)` — a commission belongs to one hospital, a hospital to one org (ADR 0041)
+   - `memberships(id, principal_id → profiles, organization_id, hospital_id, commission_id,`
+     `  role, title_id, granted_by, granted_at, expires_at)` — the **single multi-scope
+     membership table** (ADR 0041): org, hospital **and** commission standing all live here.
+     `role` is **`text` + CHECK, not an enum**: {`org_admin`, `nsp_org_admin`,
+     `hospital_admin`, `nsp_coordinator`, `pqs_member`, `staff_admin`, `staff`}. A second
+     CHECK enforces **scope exclusivity** per role — org roles carry `organization_id` only;
+     hospital roles carry `organization_id` + `hospital_id`; `staff`/`staff_admin` carry
+     `commission_id` **only** (`organization_id` and `hospital_id` MUST be NULL). `title_id`
+     requires `commission_id`.
+     > ⚠ There is **no `commission_members` table and no `user_id` column** — this rule named
+     > both until 2026-07-17, when a lead probe raised `relation "public.commission_members"
+     > does not exist` mid-audit. Same class as the `case_patient` scar (CLAUDE.md §1) and as
+     > ADR 0078 §7.2. The catalog is the only truth here; never trust this line.
    - `forms(id, commission_id, title, description, created_by)`
    - `form_versions(id, form_id, version_number, status ∈ {draft, published, archived}, published_at,`
      `  approved_by, approved_at, effective_date, review_due_date,  -- Phase 17 publish metadata`

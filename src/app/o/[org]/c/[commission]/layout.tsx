@@ -76,6 +76,12 @@ export default async function CommissionLayout({
   const isCommissionMember = access.context.memberships.some(
     (m) => m.commission.id === commissionId,
   );
+  // Standing in this commission's CASE CONTENT: a membership OR an Administrativo
+  // appointment (ADR 0061 — its capabilities survive a membership revocation, and
+  // the board still serves such a principal their granted/assigned cases). False
+  // only for an administration-only principal, whom the board 404s post-Gate-2.
+  // Gates the "Casos" nav item; see manage/cases/page.tsx for the same predicate.
+  const hasCaseStanding = isCommissionMember || access.isAdministrativo;
 
   // The meetings feature flag gates the "Reuniões" nav item + its pending-
   // signatures badge. When off, skip the pending-signatures read entirely.
@@ -187,6 +193,7 @@ export default async function CommissionLayout({
         roleLabel={roleLabel}
         counts={counts}
         isCommissionMember={isCommissionMember}
+        hasCaseStanding={hasCaseStanding}
         meetingsEnabled={meetingsOn}
         auditEnabled={auditOn}
         patientSafetyEnabled={patientSafetyOn}

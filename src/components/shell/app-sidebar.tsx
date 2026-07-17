@@ -104,6 +104,21 @@ interface NavItem {
    * hidden for them (their config access under Configurações is unaffected).
    */
   requiresMembership?: boolean;
+  /**
+   * When true, the item renders only for a caller with standing in this
+   * commission's CASE CONTENT — a member OR an Administrativo (ADR 0061) — and is
+   * hidden for one whose only standing is ADMINISTRATION of the commission
+   * (org_admin/hospital_admin, whom the resolver maps to `staff_admin` without a
+   * membership row). Used by "Casos": post-ADR-0078 Gate 2 the board filters every
+   * row through `app.can_read_case`, which returns nothing for an administration-only
+   * principal, so the route 404s them (see manage/cases/page.tsx) and the item must
+   * not link there.
+   *
+   * Deliberately NOT `requiresMembership`: that predicate is membership-only and
+   * would also hide the item from an Administrativo whose membership was later
+   * revoked — a principal the board still admits and still serves rows to.
+   */
+  requiresCaseStanding?: boolean;
 }
 
 interface NavGroup {
@@ -214,6 +229,10 @@ const NAV_GROUPS: NavGroup[] = [
         icon: FolderOpen,
         roles: ["staff_admin"],
         countKey: "casos",
+        // ADR 0078 Gate-2 fallout: the board returns zero rows to an
+        // administration-only principal and its route now 404s them, so the item
+        // must not link there (see manage/cases/page.tsx).
+        requiresCaseStanding: true,
       },
       {
         label: "Assinaturas",
@@ -268,6 +287,7 @@ export function AppSidebar({
   counts,
   notificationBell,
   isCommissionMember = true,
+  hasCaseStanding = true,
   meetingsEnabled = false,
   auditEnabled = false,
   patientSafetyEnabled = false,
@@ -300,6 +320,15 @@ export function AppSidebar({
    * boundary). Gates `requiresMembership` items (currently "Reuniões", ADR 0078 C7).
    */
   isCommissionMember?: boolean;
+  /**
+   * Whether the caller has standing in this commission's CASE CONTENT: a
+   * membership OR an Administrativo appointment (ADR 0061). False for a principal
+   * whose only standing is ADMINISTRATION (an org_admin/hospital_admin resolved to
+   * `staff_admin` without a membership row) — the cases board 404s exactly those.
+   * Defaults `true` (fail-open — a convenience gate, not a security boundary).
+   * Gates `requiresCaseStanding` items (currently "Casos").
+   */
+  hasCaseStanding?: boolean;
   /**
    * The S1·N (Phase 20) notification bell, pre-rendered by the Server
    * Component parent (`CommissionLayout`) — a Client Component like this one
@@ -368,6 +397,9 @@ export function AppSidebar({
     // Member-participation items (Reuniões) hide for a resolved-but-not-held
     // coordinator (ADR 0078 C7). Scoped strictly to items that opt in.
     if (item.requiresMembership && !isCommissionMember) return false;
+    // Case-content items (Casos) hide for an administration-only principal, whose
+    // board is empty and whose route 404s (ADR 0078 Gate 2).
+    if (item.requiresCaseStanding && !hasCaseStanding) return false;
     return role === null || item.roles.includes(role);
   };
 

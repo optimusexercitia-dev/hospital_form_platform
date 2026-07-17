@@ -153,7 +153,7 @@ storage work — it is authoritative.** "Architecture Rule N" refers to its numb
 rules:
 
 1. **RLS is the security boundary** — explicit policies on every table; service-role keys server-side only; never rely on UI hiding.
-2. **Canonical schema** — `profiles`, `commissions`, `commission_members`, `forms`, `form_versions`, `form_sections`, `form_items`, `responses`, `answers`, `response_section_signoffs` (+ sections-integrity rules); extend, never contradict.
+2. **Canonical schema** — `profiles`, `commissions`, `memberships`, `forms`, `form_versions`, `form_sections`, `form_items`, `responses`, `answers`, `response_section_signoffs` (+ sections-integrity rules); extend, never contradict. ⚠ **`memberships` is the single multi-scope table** (org + hospital + commission; keyed `principal_id`, **not** `user_id`) — **`commission_members` does not exist**, though this rule named it until 2026-07-17. Detail + the scope-exclusivity CHECK: ARCHITECTURE.md §2.
 3. **Response lifecycle & resume** — `in_progress` → `submitted` via the `submit_response` RPC (the authority); one draft per user/version; condition evaluator mirrored SQL ↔ TS.
 4. **Sign-offs** — per (response, section); `signoff_role` gated by RLS; only while `in_progress`.
 5. **Published versions are IMMUTABLE** — editing clones to a new draft, preserving `question_key`s + conditions.
