@@ -4,7 +4,152 @@
 **Commits under review:** `fee5283` · `456d008` · `ac57a20` · `01d9ef2` · `bb22b45` · `17a8d08`
 **Catalog state:** 138 migration files = 138 registered rows (verified — the catalog IS this branch).
 
-## VERDICT: ⛔ **CHANGES REQUESTED**
+## VERDICT: ⛔ **CHANGES REQUESTED** → **superseded by the Re-review (2026-07-17) below: ✅ APPROVED**
+
+---
+
+# ═══════════════════════════════════════════════════════════════════════════
+## Re-review (2026-07-17) — VERDICT: ✅ **APPROVED**
+# ═══════════════════════════════════════════════════════════════════════════
+
+**Reviewer:** `qa` · **Date:** 2026-07-17 · **Branch:** `feat/authorization-capability-model`
+**Fix commits assessed by EFFECT (not by diff text):** `b91b41a` (qa fix wave) · `cf93a15`
+(cases-board 404). E2E/docs-only commits `ae87f24` · `2698696` not authz behaviour.
+**Catalog state:** 146 migration files = 146 registered rows (verified — the catalog IS this branch).
+**pgTAP authz suite:** `00_setup` + `228` + `229–249` = **Files=23, Tests=772, Result: PASS**
+(`All tests successful` ⇒ no bad-plan aborts; every planned assertion RAN — §7.15 satisfied). DB
+verified clean before/after (CCIH = 5 cases, 0 stray closed sessions); all probes ran in
+rolled-back transactions or with restore-and-verify.
+
+Every finding below was re-probed **behaviourally against the live catalog** — the exploit reproduced,
+not the predicate's return value inspected — each with a **positive control** so a false "0 rows" from a
+broken fixture cannot masquerade as a fix. **All of P0 + MAJOR-1/2/3 are behaviourally CLOSED; MINOR-1
+is substantively addressed.**
+
+### Finding 1 — P0 (org user reads the meeting surface) → **CLOSED**
+
+**Catalog.** All four surfaces have the org-admin arm removed:
+- The three DEFINER read doors `get_meeting_agenda_items` / `get_meeting_cases` /
+  `get_reserved_session_items` (and `get_case_meeting_links`) — comment-stripped `prosrc` no longer
+  matches `is_commission_admin_of` (all `f`).
+- Policies `meeting_agenda_items_select` = `can_reach_meeting(...)`; `meeting_closed_sessions_select`
+  = `can_reach_meeting(...)`; `meeting_cases_select` = `can_reach_meeting(...) AND NOT
+  is_case_respondent(...)`.
+- The load-bearing predicate `app.can_reach_meeting` = `is_member_of_for(commission_of_meeting, uid)
+  AND (visibility='commission_default' OR attendee)` — **requires commission membership**, which
+  org_admin does not hold, so dropping the explicit arm is not cosmetic.
+
+**Behaviour** (as `orgadmin.a`, preconditions asserted `is_commission_admin_of(CCIH)=t`,
+`is_member=f`, `can_reach_meeting=f` — identical to the prior review):
+
+| Surface | Prior review (org admin) | Now (org admin) | Positive control (member `chefe.ccih`) |
+|---|---|---|---|
+| `get_meeting_agenda_items` | 2 rows | **0** | 2 |
+| `get_meeting_cases` | 1 row (leaked `decision`) | **0** | 1 |
+| `get_reserved_session_items` | 1 row (**process_number + `Arquivado`**) | **0** | 1 (process_number, decision) |
+| `meeting_closed_sessions` (base policy) | leaked | **0** | 1 |
+
+The reserved-session probe used a made closed-session fixture (inserted, so the data provably exists);
+org admin read **0**, the member read the full stub — a discriminating control, not an empty DB.
+
+**DEFINER-door sweep (Open Risk #1 / §7.14), meeting-surface class.** Of every `prosecdef=t`
+`authenticated`-EXEC function whose comment-stripped body touches a meeting-content table, only
+`dispose_case_phi` and `dispose_meeting_minutes` still mention `is_commission_admin_of` — both are
+**write/disposal** doors (`provolatile='v'`) where org-admin authority is legitimate administration
+(A10), **not a content read**. Every meeting-surface *read* door (`get_meeting_*`,
+`get_reserved_session_items`, `get_case_meeting_links`, `get_member_overview`,
+`my_pending_meeting_signatures`) has the arm removed. **Keystone:** `245` K17·DOOR now **calls all three
+DEFINER doors as the org_admin `st_y`** asserting 0 (not only the base tables), + K17·MGMT (conclude
+blocked), K19·DOOR (write blocked), K20 no-over-reach (config survives) — all green and all RAN.
+
+> **Scope note (not a Gate-2 blocker):** the *full* 110-function `prosecdef` door audit across all of
+> Gate 1 + every amendment is tracked as its own pre-pilot P0 (**AUDIT-DOOR-BLINDNESS**, §7.14). This
+> re-review closes the C7/P0 **meeting-surface** class behaviourally; the program-wide door sweep is
+> that separate unit's charge, not a Stage-C regression.
+
+### Finding 2 — MAJOR-1 (`meeting_agenda_items.description` unmasked) → **CLOSED**
+
+**Catalog.** `_project_meeting_agenda_item` now sets `r.description := null` under `not
+has_case_capability(read_case_deliberation)` — the substance tier, same predicate as
+`discussion_notes`/`resolution`. Column grants: `description` has **no SELECT** for `authenticated`
+(revoked, matching `discussion_notes`/`resolution`/`title`).
+
+**Behaviour.** Reader `ativo.registro` (member, `read_case_deliberation=f` on the linked
+`explicit_grants_only` case) reads the case-linked agenda item (position 1) with `description`
+**masked (empty)**; position 2 (not case-linked) keeps its `description`; positive control `chefe.ccih`
+(has deliberation) reads position 1's `description` in full. Prior review: the respondent read it in
+full. Targeted masking, controlled — CLOSED.
+
+### Finding 3 — MAJOR-2 (reserved content escapes the meeting child lock) → **CLOSED**
+
+**Catalog.** Three guard triggers now attached (BEFORE INSERT/UPDATE/DELETE, enabled):
+`meeting_closed_sessions` → `guard_meeting_child_lock`; `meeting_closed_session_items` and
+`_item_readers` → `guard_reserved_child_lock` (resolves the meeting via session/item joins). Both
+raise `check_violation` when meeting `status IN ('in_signature','signed','distributed','cancelled')`.
+
+**Behaviour** (meeting driven to `distributed`):
+
+| Write | Prior review | Now |
+|---|---|---|
+| direct INSERT `meeting_closed_sessions` | — | **BLOCKED** (23514) |
+| direct INSERT `meeting_closed_session_items` | — | **BLOCKED** (23514) |
+| `add_reserved_item` RPC | SUCCEEDED | **BLOCKED** (23514) |
+| `open_reserved_session` RPC | SUCCEEDED | **BLOCKED** (23514) |
+
+Positive control: on a `held` (editable) meeting the closed-session INSERT **succeeds** — the guard
+does not over-block legitimate authoring. Content can no longer be appended to a signed+distributed
+ata — CLOSED.
+
+### Finding 4 — MAJOR-3 / 228 adjudication → **CLOSED** (predicate correct + mutation-proven falsifiable)
+
+**Catalog.** Row layer `meeting_cases_select` = `can_reach_meeting(...) AND NOT
+is_case_respondent(case_id, ...)` — my required correction (**`NOT is_case_respondent`, not
+`is_case_excluded`**). Projection `_project_meeting_case` keeps `is_case_excluded` **only** on the
+`decision` column, `summary` masked on `read_case_deliberation` — exactly the disposition I ruled;
+nothing changed in the projection, correctly.
+
+**228 rewrite.** Proof 1 (test 115) asserts a plain-staff respondent reads **0** `meeting_cases` rows
+of his own case; the SWEEP asserts 0 across every `case_id`-bearing table; Proof 2 (tests 910/913/916)
+is rewritten **column-level** with a PRE precondition (`st_x2 is NOT the respondent`): the non-granted
+member **reads the row**, `summary` **masked**, `decision` **non-null** — pinning A26/K16 (Open Risk #2
+now has its keystone).
+
+**Falsifiability (the required mutation case).** I reverted the conjunct
+(`ALTER POLICY meeting_cases_select … USING (can_reach_meeting(...))`) and re-ran `228`: **test 115
+went RED** (`# Failed test 115: QA MAJOR-3 Proof 1`), 2 failures. Restored byte-identical and re-ran:
+`228` **green**. The keystone is genuinely falsifiable — not vacuous.
+
+### Finding 5 — MINOR-1 (respondent gets times/`case_id` from the reserved door) → **substantively addressed; rides as a noted MINOR**
+
+`get_reserved_session_items` now gates `started_at`/`ended_at` **and** `process_number` on `not
+is_case_respondent` — the respondent gets **no times, no number** (the prior review's core "no times"
+concern is fixed). The lone residual is `i.case_id` returned raw, but on a respondent's own item that
+is **his own** case identifier — no re-identification of others; A26's non-identifying stub. **Not
+blocking.** If the PO wants the stub fully anonymised, gate `case_id` on `not is_case_respondent` too;
+otherwise amend A7's tier row so the documents agree.
+
+### Open risks
+
+- **#1** meeting-surface class **closed**; program-wide door audit tracked as AUDIT-DOOR-BLINDNESS
+  (pre-pilot, separate unit).
+- **#2** A26 **now pinned** by 228 Proof 2 (column-level, member reads row / summary masked / decision
+  non-null).
+- **#3** composed-ata freeze: MAJOR-2 closes the **live** integrity gap (no post-distribution reserved
+  writes). Whether `meeting_signatures.content_hash` should *cover* reserved items is a PO refinement,
+  not a live leak — note it, do not block.
+
+### Verdict
+
+**✅ APPROVED.** P0 + MAJOR-1 + MAJOR-2 + MAJOR-3 are behaviourally closed with discriminating positive
+controls and a mutation-proven keystone; the authz pgTAP suite is 772/772 with every assertion proven
+to have run. MINOR-1 is substantively addressed and rides as a noted MINOR (per the project's
+"clear MINORs before record" norm, the PO may want the `case_id`/A7 reconciliation folded in at close).
+
+---
+
+# ── ORIGINAL REVIEW (2026-07-17) — CHANGES REQUESTED · superseded above, kept for the audit trail ──
+
+## VERDICT (original): ⛔ **CHANGES REQUESTED**
 
 One **P0** (an Organization User reads a sub-group ethics case's process number and outcome off the
 reserved-session door), two **MAJOR**, plus the 228 adjudication — which I resolve **in the lead's
