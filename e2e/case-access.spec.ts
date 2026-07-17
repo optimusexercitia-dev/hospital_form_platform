@@ -313,12 +313,22 @@ test('AC-2 boundary: staff4 (no attribution, no grant) gets notFound() at case r
   await expect(page.getByRole('heading', { name: /caso\s*0001/i })).toHaveCount(0)
   await expect(page.getByText(/Óbito UTI leito 7/i)).toHaveCount(0)
 
-  // Meus Casos must be empty (no card for Caso 0001).
+  // Meus Casos must not surface the BOUNDARY case (Caso 0001) — asserted by
+  // IDENTITY, not by global emptiness. ⚠ This spec shares the prod-standalone
+  // gate's per-BATCH-reset DB (no per-test reset) with `administrativo.spec.ts`,
+  // whose subject IS the `administrativo` delegate reassigning work to staff4 —
+  // the seed's documented "reassign target". Running in the same batch, staff4 can
+  // legitimately hold an unrelated attributed case, so "the list is empty" is
+  // non-deterministic. The authorization boundary this test guards is exact and
+  // narrower: staff4 (no attribution/grant on Caso 0001) never reaches Caso 0001.
   await page.goto(`${BASE}/meus-casos`)
   await page.waitForURL(`${BASE}/meus-casos`)
-  await expect(page.getByText(/nenhum caso acessível/i)).toBeVisible({ timeout: 10_000 })
-  // Extra safety: no link to the case.
-  await expect(page.getByRole('link', { name: /ver caso completo/i })).toHaveCount(0)
+  // The page rendered (not a 404/error boundary) …
+  await expect(page.getByRole('heading', { name: 'Meus Casos' })).toBeVisible({ timeout: 10_000 })
+  // … but never Caso 0001 or its content, regardless of any unrelated attribution
+  // a sibling may have granted staff4.
+  await expect(page.getByText('Caso 0001')).toHaveCount(0)
+  await expect(page.getByText(/Óbito UTI leito 7/i)).toHaveCount(0)
 
   await signOut(page)
 })
