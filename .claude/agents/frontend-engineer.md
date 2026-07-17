@@ -45,6 +45,12 @@ table + the current phase's tasks); completed-phase detail is archived under
   bundle-size decisions. Follow it where it doesn't conflict with our binding rules
   (CLAUDE.md / ARCHITECTURE.md). If the skill isn't present in your environment, don't
   block.
+- **Consult the `vercel-composition-patterns` skill** via the Skill tool when
+  designing or extending a shared component's props API — e.g. a form item,
+  section, or satellite-panel component picking up a 3rd/4th boolean prop, or any
+  case where compound components / render props / a context provider would give a
+  cleaner API than prop proliferation. Follow it where it doesn't conflict with our
+  binding rules. If the skill isn't present in your environment, don't block.
 - The frontend design should be interactive and engaging, with micro animations using things like GSAP and three.js to make it a true experience for the users.
 - Server Components by default; add `"use client"` only where interaction
   genuinely requires it.
