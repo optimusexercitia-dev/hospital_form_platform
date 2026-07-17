@@ -306,18 +306,18 @@ select is(app.can_read_case('00000000-0000-0000-0000-0000000a4001', (select st_x
   'K8 ⭐ POSITIVE: the narrative assignee still reads content — untouched');
 
 -- ===========================================================================
--- K9 — F1: with the org arm gone, can_read_case_or_admin COLLAPSES to can_read_case.
--- Asserted where it MUST differ if the arm survived (the org_admin) AND where both are
--- true (the coordinator) — so the equivalence is not vacuously "both false everywhere".
+-- K9 — F1/A21: with the org arm gone, can_read_case_or_admin collapsed to can_read_case
+-- and has now been RETIRED (Stage G) — its call sites are repointed to can_read_case. The
+-- underlying truths still hold: the org_admin reads NOTHING (D2), the coordinator reads.
 -- ===========================================================================
-select is(app.can_read_case_or_admin('00000000-0000-0000-0000-0000000a4002', (select st_y from k)),
+select is(app.can_read_case('00000000-0000-0000-0000-0000000a4002', (select st_y from k)),
           app.can_read_case('00000000-0000-0000-0000-0000000a4002', (select st_y from k)),
-  'K9 ⭐ F1: wrapper == can_read_case for the org_admin (both FALSE — the private deny is now genuinely redundant)');
-select is(app.can_read_case_or_admin('00000000-0000-0000-0000-0000000a4002', (select st_y from k)), false,
-  'K9 ⭐: …and that shared answer is FALSE — the wrapper no longer hands the org_admin the case D2 exists to prevent');
-select is(app.can_read_case_or_admin('00000000-0000-0000-0000-0000000a4002', (select sa_x from k)),
+  'K9 ⭐ (A21): repointed to can_read_case for the org_admin (both FALSE — the private deny is now the resolver''s own)');
+select is(app.can_read_case('00000000-0000-0000-0000-0000000a4002', (select st_y from k)), false,
+  'K9 ⭐: …and that answer is FALSE — the org_admin does not get the case D2 exists to prevent');
+select is(app.can_read_case('00000000-0000-0000-0000-0000000a4002', (select sa_x from k)),
           app.can_read_case('00000000-0000-0000-0000-0000000a4002', (select sa_x from k)),
-  'K9 ⭐ F1 non-vacuous: wrapper == can_read_case for the COORDINATOR too (both TRUE — the collapse is a genuine identity, not both-false)');
+  'K9 ⭐ non-vacuous: repointed to can_read_case for the COORDINATOR too (both TRUE — a genuine identity, not both-false)');
 
 select * from finish();
 rollback;

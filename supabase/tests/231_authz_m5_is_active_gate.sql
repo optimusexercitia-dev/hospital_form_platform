@@ -161,21 +161,21 @@ update public.profiles set is_active = false where id = (select st_x2 from k);
 select is(app.can_read_case('00000000-0000-0000-0000-0000000a5001', (select st_x2 from k)), false,
   'M5 ⭐ defect ③: a DEACTIVATED narrative assignee no longer reads the case');
 
--- ⛔ THE DELEGATION FENCE. can_read_case_or_admin and
--- can_reach_case_on_member_surface get NO gate of their own: every arm they carry
--- delegates to an already-gated predicate (catalog-verified — see the migration).
--- These four assert that delegation actually holds, in BOTH directions, so a
--- future raw arm on either wrapper shows up as a failure here.
-select is(app.can_read_case_or_admin('00000000-0000-0000-0000-0000000a5001', (select st_x2 from k)), false,
-  'M5 ⭐ DELEGATION: the wrapper denies the deactivated assignee too — it inherits the gate, it does not bypass it');
+-- ⛔ THE DELEGATION FENCE. can_reach_case_on_member_surface gets NO gate of its own:
+-- every arm it carries delegates to an already-gated predicate (catalog-verified — see
+-- the migration). These assert that delegation actually holds, in BOTH directions, so a
+-- future raw arm shows up as a failure here. (A21 retired can_read_case_or_admin; its
+-- delegation legs are repointed to can_read_case — byte-equivalent.)
+select is(app.can_read_case('00000000-0000-0000-0000-0000000a5001', (select st_x2 from k)), false,
+  'M5 ⭐ DELEGATION: can_read_case denies the deactivated assignee too — it inherits the gate, it does not bypass it');
 select is(app.can_reach_case_on_member_surface('00000000-0000-0000-0000-0000000a5001', (select st_x2 from k)), false,
   'M5 ⭐ DELEGATION: the member surface denies him as well — no ungated path around the gate');
 
 update public.profiles set is_active = true where id = (select st_x2 from k);
 select is(app.can_read_case('00000000-0000-0000-0000-0000000a5001', (select st_x2 from k)), true,
   'M5 RESTORE ⭐: the narrative assignee reads again once reactivated');
-select is(app.can_read_case_or_admin('00000000-0000-0000-0000-0000000a5001', (select st_x2 from k)), true,
-  'M5 DELEGATION TWIN: …and the wrapper grants him again (the fence is not a blanket deny)');
+select is(app.can_read_case('00000000-0000-0000-0000-0000000a5001', (select st_x2 from k)), true,
+  'M5 DELEGATION TWIN: …and can_read_case grants him again (the fence is not a blanket deny)');
 select is(app.can_reach_case_on_member_surface('00000000-0000-0000-0000-0000000a5001', (select st_x2 from k)), true,
   'M5 DELEGATION TWIN: …and so does the member surface');
 
@@ -468,9 +468,9 @@ select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.
 -- lookup on the member surface (A5 is a hard per-row-cost criterion). Asserted so
 -- that "add it everywhere" is a visible change rather than a silent one.
 select is((select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-           where n.nspname = 'app' and p.proname in ('can_read_case_or_admin', 'can_reach_case_on_member_surface')
+           where n.nspname = 'app' and p.proname in ('can_reach_case_on_member_surface')
              and regexp_replace(p.prosrc, '--[^\n]*', '', 'g') ~ 'is_active'), 0,
-  'M5 SCOPE FENCE ⭐: the two pure-delegating wrappers carry NO redundant gate — they inherit it (asserted behaviourally above)');
+  'M5 SCOPE FENCE ⭐: the pure-delegating member-surface wrapper carries NO redundant gate — it inherits it (asserted behaviourally above; can_read_case_or_admin retired by A21)');
 
 select * from finish();
 rollback;

@@ -837,8 +837,8 @@ reset role;
 -- …and this is WHY a bare can_read_case_or_admin conjunct would have broken it: that
 -- predicate is false for an ordinary member of an ordinary case (no member arm on the
 -- case_access-ON path). Locks the reasoning behind the member-surface predicate.
-select is(app.can_read_case_or_admin((select cid from c_flagoff), (select st_x2 from k)), false,
-  'MAJOR-3: can_read_case_or_admin is FALSE for a plain member of an ordinary case (why the member-surface predicate exists)');
+select is(app.can_read_case((select cid from c_flagoff), (select st_x2 from k)), false,
+  'MAJOR-3: can_read_case is FALSE for a plain member of an ordinary case (why the member-surface predicate exists — A21 retired the can_read_case_or_admin wrapper, byte-equivalent here)');
 
 -- PROOF 1 — a plain-staff RESPONDENT must not read deliberation about their own case.
 select test_helpers.claims_for((select st_x from k), false);
