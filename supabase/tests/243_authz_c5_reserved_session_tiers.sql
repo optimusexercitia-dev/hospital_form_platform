@@ -11,7 +11,10 @@
 -- case_id IS NULL: substance+decision follow the READER LIST; propriety is EMPTY.
 -- =============================================================================
 begin;
-select plan(24);
+-- 24 → 31: Gate-2 fix wave — MAJOR-2 (the child lock on the three reserved tables,
+-- with the agenda sibling as the control + a status-gate no-over-reach twin) and
+-- MINOR-1 (the respondent's times).
+select plan(31);
 
 update app.feature_flags set enabled = true
   where key in ('meetings', 'case_participants', 'case_access', 'case_patient');
@@ -134,6 +137,18 @@ select is((select process_number from public.get_reserved_session_items('0000000
   'PROPRIETY ⭐: the respondent reads NULL process number (he must not read his own)');
 select is((select withdrawals from public.get_reserved_session_items('00000000-0000-0000-0000-00000000c5a0') where id='00000000-0000-0000-0000-00000000c5aa'), null,
   'PROPRIETY ⭐: …and NULL withdrawals');
+-- ⭐ MINOR-1 (Gate-2 fix wave). A7's tier row for the respondent reads: the bare stub —
+-- "no number, no withdrawal list, NO TIMES." The door projected started_at/ended_at to
+-- him anyway. A26 later reclassifies times as the non-identifying stub, but A26 was
+-- ruling on the MEMBER, not the respondent, so A7 is UNSUPERSEDED here (see the recused
+-- member's K10 stub above, which still reads times — she is not the respondent).
+select is((select started_at from public.get_reserved_session_items('00000000-0000-0000-0000-00000000c5a0') where id='00000000-0000-0000-0000-00000000c5aa'), null,
+  'MINOR-1 ⭐: …and NULL started_at (A7: the respondent gets the bare stub — no times)');
+select is((select ended_at from public.get_reserved_session_items('00000000-0000-0000-0000-00000000c5a0') where id='00000000-0000-0000-0000-00000000c5aa'), null,
+  'MINOR-1 ⭐: …and NULL ended_at');
+-- …but the STUB still renders — A7's "stub, never a gap".
+select is((select count(*)::int from public.get_reserved_session_items('00000000-0000-0000-0000-00000000c5a0') where id='00000000-0000-0000-0000-00000000c5aa'), 1,
+  'MINOR-1 NO-OVER-REACH ⭐: …yet the respondent STILL sees the reserved item STUB (A7: a stub, never a gap)');
 reset role;
 select set_config('request.jwt.claims', '', true);
 
@@ -163,6 +178,68 @@ select is((select process_number from public.get_reserved_session_items('0000000
   'CASE-LESS ⭐: propriety is EMPTY for a case-less item (no number, even for a member)');
 select is((select count(*)::int from public.get_reserved_session_items('00000000-0000-0000-0000-00000000c5d0')), 0,
   'K12 ⭐: st_x2 (non-attendee) reads NOTHING from the participants_only meeting''s reserved session');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+-- =============================================================================
+-- MAJOR-2 ⭐⭐ — reserved-session content must obey the meeting child lock.
+--
+-- `app.guard_meeting_child_lock` was attached to meeting_agenda_items /
+-- _attendees / _cases and to NONE of the three reserved tables, while
+-- open_reserved_session / add_reserved_item gate on is_staff_admin_of with NO
+-- status check. Measured on a `distributed` meeting, in one transaction:
+--     AGENDA INSERT       → BLOCKED 23514
+--     open_reserved_session → SUCCEEDED
+--     add_reserved_item     → SUCCEEDED     ← the integrity gap
+-- Ordinary agenda content could not be authored into a signed+distributed ata;
+-- the most confidential content in the model could. The composed ata renders the
+-- reserved tiers and meeting_signatures.content_hash signs the record, so a
+-- coordinator could append deliberation to an already-signed, already-distributed
+-- ata WITHOUT invalidating the signature. For an accreditation product whose
+-- value is the integrity of the governance record, that is the whole ballgame.
+--
+-- Fixed at the TABLE layer (triggers), not in the RPCs: an RPC-only gate is
+-- bypassable whenever the table carries broad DML (BUG-SUP-002).
+-- The AGENDA sibling below is the CONTROL that discriminates: it proves the lock
+-- is genuinely engaged for this meeting, so a green reserved assertion cannot be
+-- an artifact of the fixture.
+-- =============================================================================
+reset role;
+insert into public.meetings (id, commission_id, meeting_number, title, scheduled_start, status)
+values ('00000000-0000-0000-0000-00000000c5f0', (select comm_x from k), 9764, 'Ata distribuída', now(), 'distributed');
+insert into public.meeting_closed_sessions (id, meeting_id, opened_by)
+values ('00000000-0000-0000-0000-00000000c5f1', '00000000-0000-0000-0000-00000000c5f0', (select sa_x from k));
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+-- CONTROL: the lock IS engaged on this meeting for ordinary content.
+select throws_ok(
+  $$ insert into public.meeting_agenda_items (meeting_id, position, title)
+     values ('00000000-0000-0000-0000-00000000c5f0', 9, 'x') $$,
+  '23514', null,
+  'MAJOR-2 CONTROL ⭐: the coordinator CANNOT author an agenda item into a distributed ata (the lock is engaged — this is what discriminates)');
+-- THE FIX: the same coordinator cannot append reserved deliberation either.
+select throws_ok(
+  $$ select public.open_reserved_session('00000000-0000-0000-0000-00000000c5f0') $$,
+  '23514', null,
+  'MAJOR-2 ⭐⭐: …and CANNOT open a reserved session on it (was: SUCCEEDED)');
+select throws_ok(
+  $$ select public.add_reserved_item('00000000-0000-0000-0000-00000000c5f1',
+       '00000000-0000-0000-0000-00000000c5c1', 'APENSO', 'DEC', null, true, null) $$,
+  '23514', null,
+  'MAJOR-2 ⭐⭐: …nor append a reserved ITEM to it (was: SUCCEEDED — deliberation into a signed+distributed ata)');
+reset role;
+select set_config('request.jwt.claims', '', true);
+
+-- NO-OVER-REACH twin: the lock must bite on LOCKED statuses only. The reserved
+-- session on the OPEN meeting (the C5 fixture above) stays writable, so this is a
+-- status gate and not a blanket denial of the reserved workflow.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $$ select public.add_reserved_item('00000000-0000-0000-0000-00000000c5b0',
+       '00000000-0000-0000-0000-00000000c5c1', 'AINDA_EDITAVEL', 'DEC', null, true, null) $$,
+  'MAJOR-2 NO-OVER-REACH ⭐: the coordinator STILL appends a reserved item to an OPEN meeting (the guard is a STATUS gate, not a lockout)');
 reset role;
 select set_config('request.jwt.claims', '', true);
 

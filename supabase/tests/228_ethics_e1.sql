@@ -15,7 +15,10 @@
 -- =============================================================================
 
 begin;
-select plan(125);
+-- 125 → 132: Gate-2 fix wave. Proof 2 (was 2 row-count tests) is rewritten COLUMN-LEVEL
+-- as 9 (4 preconditions + row + summary-mask + decision-visible + column-REVOKE + sweep)
+-- and becomes A26/K16's only pin. See the Proof-2 block for the full rationale.
+select plan(132);
 
 -- cases RPCs need cases_multi_phase; case_types toggled per-test for the snapshot gate.
 update app.feature_flags set enabled = true
@@ -771,7 +774,12 @@ delete from public.case_access_grants
 -- under the assumed role. A table the role cannot select at all is not a leak (0).
 -- NOTE: case_recusals' self-arm (D4) is intentional — the personas below deliberately
 -- hold no self-recusal on the case they sweep, so it must still read 0.
-create or replace function public._e1_sweep_case_leaks(p_case_id uuid, p_uid uuid)
+-- p_licensed_tables — tables whose ROW is deliberately readable for this persona, so the
+-- row-count sweep would report a false leak. Passing a table here is a CLAIM that its
+-- payload is closed by COLUMN masking instead, and every use below pairs it with explicit
+-- masking assertions. The sweep stays fail-closed for every table not named.
+create or replace function public._e1_sweep_case_leaks(p_case_id uuid, p_uid uuid,
+                                                       p_licensed_tables text[])
   returns table(tbl text, n bigint)
   language plpgsql security invoker
 as $$
@@ -796,6 +804,13 @@ begin
       --     not own — the same disposition as action_items' assignees_only arm, which the
       --     PO is carrying as a known gap. Flagged to the lead, NOT silently dropped.
       and t.table_name not in ('patient_safety_event')
+      -- DOCUMENTED PER-CALL LICENCE (see p_licensed_tables). Used for meeting_cases at
+      -- Proof 2: A6 rules meeting LINKAGE a procedural record — a member may know a case
+      -- was on the pauta — and A26 (PO) makes the `decision` tier MEMBER-WIDE. The row is
+      -- therefore legitimately readable and its payload is closed by column masking
+      -- (`summary` via read_case_deliberation) + the base-table column REVOKE, not by
+      -- hiding the row. Asserted explicitly at the call site rather than assumed here.
+      and not (t.table_name = any (p_licensed_tables))
     union all select 'cases'
     order by 1
   loop
@@ -824,7 +839,7 @@ begin
   end loop;
 end;
 $$;
-grant execute on function public._e1_sweep_case_leaks(uuid, uuid) to authenticated;
+grant execute on function public._e1_sweep_case_leaks(uuid, uuid, text[]) to authenticated;
 
 -- NO-OP GUARD (must hold BEFORE and AFTER the fix): a plain member with NO grant and NO
 -- attribution still reads an ORDINARY linked case's deliberation. This is the regression
@@ -843,20 +858,71 @@ select is(app.can_read_case((select cid from c_flagoff), (select st_x2 from k)),
 -- PROOF 1 — a plain-staff RESPONDENT must not read deliberation about their own case.
 select test_helpers.claims_for((select st_x from k), false);
 set local role authenticated;
+-- ⭐ PROOF 1 STANDS AS WRITTEN — the CODE was wrong (qa `authz-gate-2-review.md` §4).
+-- meeting_cases_select was `can_reach_meeting(...)` alone, so the respondent read the
+-- linkage for his own case. summary/decision were masked, so the PAYLOAD was safe — but
+-- meeting_cases has no stub role: its unmasked columns ARE the linkage (case_id /
+-- meeting_id / agenda_item_id), the process number's UUID equivalent, and agenda_item_id
+-- walked to that item's then-unmasked `description` (MAJOR-1). A7/O6 gives the respondent
+-- the bare stub only. Fixed by 20260816000300 with `AND NOT app.is_case_respondent(...)`
+-- — NOT is_case_excluded, which would blind every RECUSED member (keystone 10).
 select is((select count(*)::int from public.meeting_cases where case_id = (select cid from c_default)), 0,
   'QA MAJOR-3 Proof 1: a plain-staff respondent reads NO meeting_cases deliberation of their own case');
-select is((select coalesce(string_agg(tbl || '=' || n, ', ' order by tbl), '') from public._e1_sweep_case_leaks((select cid from c_default), (select st_x from k))), '',
+-- No licence for the respondent: meeting_cases stays IN the sweep and must read 0, so the
+-- fail-closed design still covers him.
+select is((select coalesce(string_agg(tbl || '=' || n, ', ' order by tbl), '') from public._e1_sweep_case_leaks((select cid from c_default), (select st_x from k), '{}'::text[])), '',
   'QA MAJOR-3 SWEEP: an excluded respondent reads ZERO rows from EVERY case_id-bearing table');
 reset role;
 
--- PROOF 2 — a NON-GRANTED member must not read an explicit_grants_only case's
--- deliberation (no respondent, no recusal involved — a distinct reach path).
+-- PROOF 2 — REWRITTEN COLUMN-LEVEL. ⭐ THE TEST WAS WRONG, NOT THE CODE
+-- (qa `authz-gate-2-review.md` §4; PO-ruled).
+--
+-- This test used to assert a non-granted member reads ZERO meeting_cases rows for an
+-- explicit_grants_only case. A26 (the later PO ruling), A5's decision tier, A6 and
+-- KEYSTONE 16 all say the opposite — K16: "a member without substance reach on a
+-- sub-group case STILL READS THE DECISION." If the old assertion were satisfied, K16
+-- would necessarily fail. Two keystones from one ADR cannot both hold; A26 wins.
+--
+-- ⭐⭐ THESE ASSERTIONS ARE A26/K16's ONLY PIN. Nothing else in the suite pins the
+-- member-wide widening. Without them a future reviewer reads the same "leak", "fixes" it,
+-- and SILENTLY REVERSES A PO RULING (qa open risk 2). The row being visible here is
+-- CORRECT AND DELIBERATE. Do not "tidy" it into a zero-row assertion — if this test ever
+-- looks like a leak to you, read A26 and A6 first.
+--
+-- ⚠ Persona hygiene (§7.1, the falsely-CONFIRMING direction): qa's first probe used a
+-- persona carrying a SEEDED RECUSAL on this exact case, so it measured the RECUSAL arm
+-- (is_case_excluded) and read decision = NULL — apparent confirmation that the code
+-- already denied. It did not. st_x2 is the clean persona; his preconditions are asserted
+-- immediately below so this can never silently happen again.
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
-select is((select count(*)::int from public.meeting_cases where case_id = (select cid from c_ethics)), 0,
-  'QA MAJOR-3 Proof 2: a non-granted member reads NO deliberation of an explicit_grants_only case');
-select is((select coalesce(string_agg(tbl || '=' || n, ', ' order by tbl), '') from public._e1_sweep_case_leaks((select cid from c_ethics), (select st_x2 from k))), '',
-  'QA MAJOR-3 SWEEP: a non-granted member reads ZERO rows from EVERY case_id-bearing table of an ethics case');
+-- PRECONDITIONS — prove which arm we are measuring before we measure it.
+select is(app.is_case_respondent((select cid from c_ethics), (select st_x2 from k)), false,
+  'Proof 2 PRE ⭐: st_x2 is NOT the respondent — his cell measures the NON-GRANTED MEMBER arm');
+select is(app.is_case_excluded((select cid from c_ethics), (select st_x2 from k)), false,
+  'Proof 2 PRE ⭐: …and NOT excluded (no seeded recusal — the trap that poisoned qa''s first probe)');
+select is(app.has_case_capability((select cid from c_ethics), (select st_x2 from k), 'read_case_deliberation'), false,
+  'Proof 2 PRE ⭐: …and holds NO read_case_deliberation — so `summary` MUST mask');
+select is(app.is_member_of_for((select comm_x from k), (select st_x2 from k)), true,
+  'Proof 2 PRE ⭐: …but IS a member — the principal A26 licenses');
+
+-- The ROW is readable — A6 (linkage is a procedural record) + A26 (decision member-wide).
+select is((select count(*)::int from public.meeting_cases where case_id = (select cid from c_ethics)), 1,
+  'QA MAJOR-3 Proof 2 ⭐ A26/K16 PIN: a non-granted member DOES read the meeting_cases ROW of an ethics case (A6: linkage is procedural, not substance)');
+-- …and the PAYLOAD is closed by COLUMN masking, not by hiding the row.
+select is((select summary from public.get_meeting_cases('bb000000-0000-0000-0000-0000000000e1')
+            where case_id = (select cid from c_ethics)), null,
+  'QA MAJOR-3 Proof 2 ⭐: …with `summary` MASKED (A15/C1 — substance needs read_case_deliberation)');
+select isnt((select decision from public.get_meeting_cases('bb000000-0000-0000-0000-0000000000e1')
+              where case_id = (select cid from c_ethics)), null,
+  'QA MAJOR-3 Proof 2 ⭐ A26/K16 PIN: …and `decision` VISIBLE — the member-wide outcome tier is a DELIBERATE PO widening, not a leak');
+-- Defence in depth: the row is readable, the columns are not — the base table REVOKEs both.
+select is(has_column_privilege('authenticated', 'public.meeting_cases', 'summary', 'select'), false,
+  'QA MAJOR-3 Proof 2: `meeting_cases.summary` is REVOKEd from authenticated (column REVOKE + RPC projection)');
+-- The sweep, with meeting_cases licensed (documented in _e1_sweep_case_leaks) — EVERY
+-- other case_id-bearing table must still read ZERO.
+select is((select coalesce(string_agg(tbl || '=' || n, ', ' order by tbl), '') from public._e1_sweep_case_leaks((select cid from c_ethics), (select st_x2 from k), '{meeting_cases}'::text[])), '',
+  'QA MAJOR-3 SWEEP: a non-granted member reads ZERO rows from EVERY case_id-bearing table of an ethics case (meeting_cases licensed by A6/A26, masking asserted above)');
 reset role;
 
 -- (MAJOR-1) Make the respondent + the recused user org_admins, so the policies'

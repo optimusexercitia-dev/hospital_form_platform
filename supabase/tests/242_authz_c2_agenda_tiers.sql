@@ -11,7 +11,9 @@
 -- Falsifiable: dropping the title mask → the respondent reads his process number → RED.
 -- =============================================================================
 begin;
-select plan(16);
+-- 16 → 21: Gate-2 MAJOR-1 — `description` joins the substance tier (+ a PHI-BEARING
+-- closure guard that pins the class rather than the four column names).
+select plan(21);
 
 update app.feature_flags set enabled = true
   where key in ('meetings', 'case_participants', 'case_access', 'case_patient');
@@ -33,14 +35,14 @@ values ('00000000-0000-0000-0000-0000000c2e91', (select comm_x from k), 9751, (s
 insert into public.meetings (id, commission_id, meeting_number, title, scheduled_start)
 values ('00000000-0000-0000-0000-0000000c2a30', (select comm_x from k), 9752, 'Plenária C2', now());
 
--- Case-linked agenda item (title = process number; notes/resolution = substance).
-insert into public.meeting_agenda_items (id, meeting_id, position, title, discussion_notes, resolution)
+-- Case-linked agenda item (title = process number; description/notes/resolution = substance).
+insert into public.meeting_agenda_items (id, meeting_id, position, title, description, discussion_notes, resolution)
 values ('00000000-0000-0000-0000-0000000c2b41', '00000000-0000-0000-0000-0000000c2a30', 1,
-        'Processo 099', 'NOTAS_DELIB', 'RESOLUCAO');
+        'Processo 099', 'DESCRICAO_DELIB', 'NOTAS_DELIB', 'RESOLUCAO');
 -- Non-case-linked agenda item (member-wide, no masking).
-insert into public.meeting_agenda_items (id, meeting_id, position, title, discussion_notes)
+insert into public.meeting_agenda_items (id, meeting_id, position, title, description, discussion_notes)
 values ('00000000-0000-0000-0000-0000000c2c42', '00000000-0000-0000-0000-0000000c2a30', 2,
-        'Aprovacao da ata', 'rotina');
+        'Aprovacao da ata', 'pauta rotineira', 'rotina');
 insert into public.meeting_cases (meeting_id, case_id, agenda_item_id)
 values ('00000000-0000-0000-0000-0000000c2a30', '00000000-0000-0000-0000-0000000c2e91', '00000000-0000-0000-0000-0000000c2b41');
 
@@ -78,10 +80,30 @@ select is(app.has_case_capability('00000000-0000-0000-0000-0000000c2e91', (selec
   'PRE ⭐: the grantee HAS deliberation');
 
 -- STRUCTURAL — direct read REVOKE'd.
+-- ⭐ MAJOR-1 (Gate-2 fix wave): `description` JOINED this list. It carries the
+-- IDENTICAL "PHI-BEARING free text (WS B; Rule 11/12)" column comment as the other
+-- three, yet it was neither masked nor REVOKEd — has_column_privilege(authenticated,
+-- …, 'description', 'select') was TRUE and a respondent read it in full for his own
+-- case's agenda item. With the other three closed it was the ONLY free-text field
+-- left on a case-linked agenda item — i.e. the natural place to type. The set had
+-- been ENUMERATED to the brief's names, not CLOSED over the population (§7.5 / A11's
+-- "adjacent-column route"). PO ruled it SUBSTANCE, so it masks on the same predicate
+-- as discussion_notes and the comment stays true.
 select is((select count(*)::int from information_schema.column_privileges
-           where table_name='meeting_agenda_items' and column_name in ('title','discussion_notes','resolution')
+           where table_name='meeting_agenda_items'
+             and column_name in ('title','description','discussion_notes','resolution')
              and grantee='authenticated' and privilege_type='SELECT'), 0,
-  'C2 STRUCTURAL: authenticated has NO direct SELECT on title/discussion_notes/resolution');
+  'C2 STRUCTURAL ⭐: authenticated has NO direct SELECT on title/description/discussion_notes/resolution');
+-- Closure guard: pin the CLASS, not the four names. EVERY column whose comment claims
+-- PHI-BEARING must actually be closed to authenticated — so the next column someone
+-- adds with that comment cannot repeat MAJOR-1 silently.
+select is((select coalesce(string_agg(a.attname, ', ' order by a.attname), '')
+           from pg_attribute a
+           where a.attrelid = 'public.meeting_agenda_items'::regclass and a.attnum > 0
+             and not a.attisdropped
+             and col_description(a.attrelid, a.attnum) like '%PHI-BEARING%'
+             and has_column_privilege('authenticated', a.attrelid, a.attname, 'select')), '',
+  'C2 STRUCTURAL ⭐⭐ CLOSURE: NO column commented PHI-BEARING is directly SELECTable by authenticated (pins the class MAJOR-1 escaped through, not the enumeration)');
 
 -- RESPONDENT: title masked (NEW keystone), substance masked.
 select test_helpers.claims_for((select st_x from k), false);
@@ -92,6 +114,13 @@ select is((select title from public.get_meeting_agenda_items('00000000-0000-0000
 select is((select discussion_notes from public.get_meeting_agenda_items('00000000-0000-0000-0000-0000000c2a30')
            where id='00000000-0000-0000-0000-0000000c2b41'), null,
   'K14 ⭐: …and NULL discussion_notes');
+-- ⭐⭐ MAJOR-1's keystone. THE EXACT READ qa PROVED: this respondent read
+-- `description` IN FULL for his own case's agenda item while the other three
+-- columns masked correctly. It also broke the 228-Proof-1 chain: the respondent's
+-- meeting_cases row gave him agenda_item_id, which walked straight here.
+select is((select description from public.get_meeting_agenda_items('00000000-0000-0000-0000-0000000c2a30')
+           where id='00000000-0000-0000-0000-0000000c2b41'), null,
+  'MAJOR-1 ⭐⭐: …and NULL description — the respondent no longer reads free text about his own case (was: returned in full)');
 select is((select count(*)::int from public.get_meeting_agenda_items('00000000-0000-0000-0000-0000000c2a30')
            where id='00000000-0000-0000-0000-0000000c2b41'), 1,
   'A6 ⭐: …but still sees the agenda ROW (skeleton member-wide)');
@@ -107,6 +136,9 @@ select is((select title from public.get_meeting_agenda_items('00000000-0000-0000
 select is((select discussion_notes from public.get_meeting_agenda_items('00000000-0000-0000-0000-0000000c2a30')
            where id='00000000-0000-0000-0000-0000000c2b41'), null,
   'K14 ⭐: …but NULL discussion_notes without deliberation');
+select is((select description from public.get_meeting_agenda_items('00000000-0000-0000-0000-0000000c2a30')
+           where id='00000000-0000-0000-0000-0000000c2b41'), null,
+  'MAJOR-1 ⭐: …and NULL description — substance tier, same predicate as discussion_notes');
 -- Non-case-linked item is member-wide.
 select is((select title from public.get_meeting_agenda_items('00000000-0000-0000-0000-0000000c2a30')
            where id='00000000-0000-0000-0000-0000000c2c42'), 'Aprovacao da ata',
@@ -114,6 +146,11 @@ select is((select title from public.get_meeting_agenda_items('00000000-0000-0000
 select is((select discussion_notes from public.get_meeting_agenda_items('00000000-0000-0000-0000-0000000c2a30')
            where id='00000000-0000-0000-0000-0000000c2c42'), 'rotina',
   'NO-REGRESSION: …and its notes');
+-- ⭐ MAJOR-1's NO-OVER-REACH twin: masking `description` must not swallow ordinary
+-- pauta planning. A non-case-linked item carries no case substance and stays member-wide.
+select is((select description from public.get_meeting_agenda_items('00000000-0000-0000-0000-0000000c2a30')
+           where id='00000000-0000-0000-0000-0000000c2c42'), 'pauta rotineira',
+  'MAJOR-1 NO-OVER-REACH ⭐: …and a non-case-linked item''s description is STILL member-wide (pauta planning is not substance)');
 reset role;
 select set_config('request.jwt.claims', '', true);
 
@@ -126,6 +163,9 @@ select is((select discussion_notes from public.get_meeting_agenda_items('0000000
 select is((select resolution from public.get_meeting_agenda_items('00000000-0000-0000-0000-0000000c2a30')
            where id='00000000-0000-0000-0000-0000000c2b41'), 'RESOLUCAO',
   'K14 POSITIVE: …and the resolution');
+select is((select description from public.get_meeting_agenda_items('00000000-0000-0000-0000-0000000c2a30')
+           where id='00000000-0000-0000-0000-0000000c2b41'), 'DESCRICAO_DELIB',
+  'MAJOR-1 POSITIVE ⭐: …and the description — the deny is a TIER, not a blanket (read_case_deliberation still reads it)');
 reset role;
 select set_config('request.jwt.claims', '', true);
 

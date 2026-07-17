@@ -27,7 +27,10 @@
 -- matching keystone must go RED. A test that cannot fail is not evidence (§7.1).
 -- =============================================================================
 begin;
-select plan(33);
+-- 33 → 42: Gate-2 wave fixes a GATE-1 ESCAPE. K1 was policy-shaped (base tables only)
+-- and its title claimed more than it proved — `list_cases_board`'s DEFINER fast-path
+-- falsified it. +2 K1·DOOR, +7 K1·DENY (the coordinator/hard-deny arm).
+select plan(42);
 
 update app.feature_flags set enabled = true
   where key in ('case_access', 'case_referrals', 'case_patient', 'case_participants',
@@ -182,8 +185,25 @@ select is(app.can_read_case('00000000-0000-0000-0000-0000000a4001', (select st_y
 
 select test_helpers.claims_for((select st_y from k), false);
 set local role authenticated;
+-- ⚠ TITLE CORRECTED (Gate-2 wave). This assertion previously claimed the org_admin
+-- "no longer reads the explicit_grants_only case" — but it only proves the BASE
+-- TABLE denies him. That claim was FALSIFIED THROUGH THE DOOR: `list_cases_board`
+-- (prosecdef = t ⇒ RLS never runs) returned him all 5 cases, including the
+-- explicit_grants_only ethics case, while this line read 0. The base-table
+-- assertion is kept as the TWIN; the door is asserted immediately below. A
+-- policy-shaped test over a DEFINER-door surface is not a keystone.
 select is((select count(*)::int from public.cases where id = '00000000-0000-0000-0000-0000000a4002'), 0,
-  'K1 ⭐ ROWS: reads ZERO `cases` rows — through the FOR ALL write policy A21 found (the permissive sibling), now narrowed');
+  'K1 ⭐ ROWS (BASE TABLE twin): reads ZERO `cases` rows — through the FOR ALL write policy A21 found (the permissive sibling), now narrowed');
+-- ⭐⭐ K1·DOOR — THE PATH THE PRODUCT ACTUALLY USES.
+-- `list_cases_board` computed a "coordinator fast-path" boolean and used it to
+-- SHORT-CIRCUIT the per-row `app.can_read_case` filter, so it never called the
+-- resolver and was outside the perimeter by construction (D4's "general form").
+-- A Gate-1 escape (A4/D4·1) that shipped to `main`; found by the Gate-2 sweep.
+select is((select count(*)::int from public.list_cases_board((select comm_x from k))
+           where case_id = '00000000-0000-0000-0000-0000000a4002'), 0,
+  'K1·DOOR ⭐⭐ (D4·1): the org_admin reads ZERO of the explicit_grants_only case THROUGH list_cases_board — the fast-path no longer short-circuits can_read_case');
+select is((select count(*)::int from public.list_cases_board((select comm_x from k))), 0,
+  'K1·DOOR ⭐⭐: …and ZERO cases on the board at all (was: 5, incl. the ethics case + another case''s adverse outcome)');
 select is((select count(*)::int from public.case_narratives where case_id = '00000000-0000-0000-0000-0000000a4002'), 0,
   'K1 ⭐ ROWS: ZERO case_narratives');
 select is((select count(*)::int from public.case_phases where case_id = '00000000-0000-0000-0000-0000000a4002'), 0,
@@ -318,6 +338,63 @@ select is(app.can_read_case('00000000-0000-0000-0000-0000000a4002', (select st_y
 select is(app.can_read_case('00000000-0000-0000-0000-0000000a4002', (select sa_x from k)),
           app.can_read_case('00000000-0000-0000-0000-0000000a4002', (select sa_x from k)),
   'K9 ⭐ non-vacuous: repointed to can_read_case for the COORDINATOR too (both TRUE — a genuine identity, not both-false)');
+
+-- ===========================================================================
+-- K1·DENY ⭐⭐ — THE BOARD'S *OTHER* BROKEN ARM: the coordinator fast-path also
+-- skipped ADR 0072 D2's HARD DENY. This is the half that proves cutting only the
+-- org arm would have been INSUFFICIENT.
+--
+-- `app._case_caps` carries `-- STEP 4 — HARD DENY, before every positive arm`,
+-- with `if app.is_case_respondent(...)` at STEP 4 and
+-- `v_coord := app.is_staff_admin_of_for(...)` a POSITIVE ARM at STEP 5, AFTER it.
+-- `list_cases_board` recomputed coordinator-ness itself and never called the
+-- resolver, so STEP 4 never ran. Measured before the fix:
+--     is_staff_admin_of = t · is_case_respondent = t
+--     app.can_read_case = FALSE        ← the deny WORKS at the resolver
+--     cases base-table RLS = 0 rows    ← and the policy honours it
+--     list_cases_board  → RETURNED HIS OWN RESPONDENT CASE
+-- Deliberately placed at the END of the file: it mutates sa_x's participation, so
+-- running it earlier would perturb every coordinator assertion above.
+-- ===========================================================================
+reset role;
+-- respondent_doctor is org-scoped; bootstrap's org ships none (the same-org guard
+-- trg_assert_participant_same_org_as_case rejects the seed org's role).
+insert into public.case_participant_roles (id, organization_id, key, display_name, allowed_participant_types)
+values ('00000000-0000-0000-0000-0000000a4090', (select org_x from k), 'respondent_doctor',
+        'Denunciado', array['professional'])
+on conflict do nothing;
+insert into public.professional_profiles (id, organization_id, full_name, user_id)
+values ('00000000-0000-0000-0000-0000000a4091', (select org_x from k), 'Dr. Coordenador', (select sa_x from k));
+insert into public.participants (id, organization_id, participant_type, sensitivity_class, display_name)
+values ('00000000-0000-0000-0000-0000000a4092', (select org_x from k), 'professional',
+        'professional_identity', 'Dr. Coordenador');
+insert into public.professional_participants (participant_id, professional_profile_id)
+values ('00000000-0000-0000-0000-0000000a4092', '00000000-0000-0000-0000-0000000a4091');
+-- sa_x (the COORDINATOR) becomes the RESPONDENT of the commission_default case.
+insert into public.case_participants (case_id, participant_id, role_id)
+values ('00000000-0000-0000-0000-0000000a4001', '00000000-0000-0000-0000-0000000a4092',
+        '00000000-0000-0000-0000-0000000a4090');
+
+-- PRECONDITIONS — prove which arms are live before measuring.
+select is(app.is_staff_admin_of_for((select comm_x from k), (select sa_x from k)), true,
+  'K1·DENY PRE ⭐: sa_x IS the commission''s coordinator — the arm the fast-path trusted');
+select is(app.is_case_respondent('00000000-0000-0000-0000-0000000a4001', (select sa_x from k)), true,
+  'K1·DENY PRE ⭐: …and IS the respondent of his own case');
+select is(app.can_read_case('00000000-0000-0000-0000-0000000a4001', (select sa_x from k)), false,
+  'K1·DENY PRE ⭐⭐: …so app.can_read_case is FALSE — _case_caps'' STEP-4 hard deny beats the STEP-5 coordinator arm (ADR 0072 D2)');
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.cases where id = '00000000-0000-0000-0000-0000000a4001'), 0,
+  'K1·DENY (BASE TABLE twin): …and the base table denies him his own respondent case');
+select is((select count(*)::int from public.list_cases_board((select comm_x from k))
+           where case_id = '00000000-0000-0000-0000-0000000a4001'), 0,
+  'K1·DENY ⭐⭐ THE BOARD: a COORDINATOR reads ZERO of his OWN RESPONDENT case through list_cases_board — the fast-path no longer skips the hard deny (was: it returned it)');
+-- NO-OVER-REACH twin: the deny is scoped to HIS case, not a lockout of the board.
+select is((select count(*)::int from public.list_cases_board((select comm_x from k))
+           where case_id = '00000000-0000-0000-0000-0000000a4002'), 1,
+  'K1·DENY NO-OVER-REACH ⭐: …while the SAME coordinator still reads the OTHER case on the board (a scoped deny, not a lockout)');
+reset role;
 
 select * from finish();
 rollback;

@@ -894,10 +894,26 @@ const CASES_BOARD_CAP = 200
 
 /**
  * The cases board for a commission: one row per case + each case's phases'
- * STATUS summary (no answers). Backed by the SECURITY DEFINER
- * `list_cases_board`, internally gated by `is_staff_admin_of`, so it returns an
- * empty page for non-staff_admins (no leak). Ordered by the RPC (most recent
- * first).
+ * STATUS summary (no answers). Backed by the SECURITY DEFINER `list_cases_board`.
+ * Ordered by the RPC (most recent first).
+ *
+ * AUTHORIZATION: every row is filtered by `app.can_read_case` — the single case-read
+ * boundary, including ADR 0072 D2's hard deny (a respondent or recused user reads
+ * nothing, *even if* they coordinate the commission). Callers therefore see exactly
+ * the cases they may read: a coordinator effectively the whole board, a grantee or
+ * assignee their subset, an Organization User **none** (A4/D4·1 — administration is
+ * not a case source).
+ *
+ * ⚠ The previous version of this comment said the RPC was "internally gated by
+ * `is_staff_admin_of`, so it returns an empty page for non-staff_admins (no leak)".
+ * BOTH halves were false, and the second is the dangerous one — it described an
+ * invariant the code never had (grantees and assignees always got rows) and would
+ * have made an empty board look like the security model working. The RPC did carry
+ * an `is_staff_admin_of OR is_commission_admin_of` fast-path, but it SHORT-CIRCUITED
+ * the per-row filter rather than gating the call: it returned an org_admin an
+ * `explicit_grants_only` ethics case, and returned a coordinator his OWN respondent
+ * case, both with `can_read_case = false`. Removed in the ADR-0078 Gate-2 wave; a
+ * board keystone now pins it. Do not re-add a coordinator short-circuit for speed.
  *
  * CAPPED, NOT keyset-cursored (WS-6 P3 condition-b): the board UI is column-per-
  * status, which a flat cursor can't page. Returns a `Page` for shape uniformity

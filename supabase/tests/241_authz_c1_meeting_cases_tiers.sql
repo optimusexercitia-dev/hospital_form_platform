@@ -14,7 +14,9 @@
 -- summary → RED.
 -- =============================================================================
 begin;
-select plan(15);
+-- 15 → 16: Gate-2 fix wave adds K10·ROW, the base-table twin. Every assertion here
+-- read through the DEFINER RPC, so the whole file was blind to meeting_cases_select.
+select plan(16);
 
 update app.feature_flags set enabled = true
   where key in ('meetings', 'case_participants', 'case_access', 'case_patient');
@@ -98,6 +100,22 @@ select is((select summary from public.get_meeting_cases('00000000-0000-0000-0000
 select is((select count(*)::int from public.get_meeting_cases('00000000-0000-0000-0000-0000000c1a30')
            where case_id='00000000-0000-0000-0000-0000000c1cd1'), 1,
   'K10 ⭐: …but still sees the row SHELL (she is a meeting-reacher)');
+-- ⭐⭐ K10·ROW — THE BASE-TABLE TWIN, AND THE ONLY GUARD ON THE is_case_excluded TRAP.
+--
+-- The K10 assertion above reads through `get_meeting_cases`, which is prosecdef = t
+-- ⇒ RLS NEVER RUNS ⇒ it is STRUCTURALLY BLIND to `meeting_cases_select`. Measured:
+-- mutating that policy to `AND NOT app.is_case_excluded(...)` leaves every assertion
+-- above GREEN. So K10, as written, does NOT protect the asymmetry it exists for.
+--
+-- The Gate-2 fix added `AND NOT app.is_case_respondent(case_id, auth.uid())` to
+-- meeting_cases_select. A7 warns twice, in bold, that a reader will reach for the
+-- familiar `is_case_excluded` here — and `is_case_excluded` = respondent OR RECUSED
+-- (catalog-verified), so that swap silently blinds every recused member to the record
+-- of her own recusal. This assertion is what goes RED when someone makes it.
+-- ⛔ Read the ROW at the BASE TABLE. Never re-express this through the RPC.
+select is((select count(*)::int from public.meeting_cases
+           where case_id='00000000-0000-0000-0000-0000000c1cd1'), 1,
+  'K10·ROW ⭐⭐ TRAP GUARD: the RECUSED member still reads the meeting_cases ROW at the BASE TABLE — meeting_cases_select denies the RESPONDENT only (NOT is_case_excluded, which would blind her to her own recusal)');
 reset role;
 select set_config('request.jwt.claims', '', true);
 

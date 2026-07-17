@@ -147,12 +147,24 @@ export interface MeetingAgendaItem {
   meetingId: string
   /** 0-based order within the meeting (deferrable-unique). */
   position: number
+  /**
+   * ⚠ MASKED AT RUNTIME despite this type. On a case-linked item the title IS the
+   * process number, so `app._project_meeting_agenda_item` nulls it for a RESPONDENT
+   * of any linked case (A7/O6). The DB column is NOT NULL, so the generated row type
+   * says `string` and this mapping inherits the lie — treat it as possibly null.
+   * Reported to the lead in the Gate-2 fix wave; widening it touches UI callers.
+   */
   title: string
-  /** Planned description, set when scheduling; `null` if absent. */
+  /**
+   * Planned description; `null` if absent OR MASKED. Substance tier — the RPC nulls
+   * it without `read_case_deliberation` on every linked case (Gate-2 MAJOR-1: it is
+   * PHI-BEARING by its own column comment and was the last unmasked free-text field
+   * on a case-linked agenda item). `authenticated` has no direct SELECT on it.
+   */
   description: string | null
-  /** What was discussed (filled during/after the meeting); `null` if absent. */
+  /** What was discussed; `null` if absent OR masked (substance tier — as `description`). */
   discussionNotes: string | null
-  /** The decision/outcome for this item; `null` if absent. */
+  /** The decision/outcome for this item; `null` if absent OR masked (substance tier). */
   resolution: string | null
   createdBy: string | null
   createdAt: string
