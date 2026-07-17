@@ -1,3 +1,10 @@
 # Shell scripts MUST stay LF — with core.autocrlf=true, a CRLF checkout breaks
 # bash (Git Bash) on Windows with `$'\r': command not found` errors.
 *.sh text eol=lf
+
+# SQL MUST stay LF — several migrations rewrite live function bodies at runtime via
+# pg_get_functiondef() + replace() on LF-anchored strings (e.g. the exclusion-perimeter
+# guard injections). With core.autocrlf=true a CRLF checkout stores \r into prosrc, the
+# LF anchor fails to match, and `supabase db reset` aborts mid-run. Keep migrations,
+# pgTAP tests, and seed byte-identical to the index (which is already LF).
+*.sql text eol=lf
