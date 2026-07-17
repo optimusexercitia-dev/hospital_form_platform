@@ -74,9 +74,13 @@ select is(
   (select count(*)::int from public.forms where commission_id = (select comm_etica from p)),
   0, 'RLS PROOF: ha1 reads ZERO forms of the sibling-hospital commission');
 -- meetings + cases (more swapped surfaces)
-select ok(
-  (select count(*)::int from public.meetings where commission_id = (select comm_ccih from p)) >= 1,
-  'RLS: ha1 reads CCIH meetings');
+-- C7 / Amendment 2: meetings_select is now pure is_member_of (no admin arm —
+-- catalog-confirmed). An Organization User (org_admin AND hospital_admin) loses the
+-- meeting surface; a hospital_admin is NOT a commission member, so reads ZERO
+-- commission meetings — same as org_admin.
+select is(
+  (select count(*)::int from public.meetings where commission_id = (select comm_ccih from p)),
+  0, 'C7: ha1 (hospital_admin, non-member) reads ZERO CCIH meetings — Org Users lost the meeting surface');
 select is(
   (select count(*)::int from public.cases where commission_id = (select comm_qual_b from p)),
   0, 'RLS PROOF: ha1 reads ZERO cases of the other-org commission');

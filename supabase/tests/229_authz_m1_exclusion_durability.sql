@@ -551,8 +551,8 @@ select is((select app.can_read_case('00000000-0000-0000-0000-0000000f0001', (sel
 
 select is(app.can_read_action_item('00000000-0000-0000-0000-0000000f0701', (select st_x from k)), false,
   'M1·4b A22 ⭐: the deny BEATS the assignees_only arm — an excluded assignee reads nothing of her own case');
-select is(app.can_read_action_item('00000000-0000-0000-0000-0000000f0701', (select sa_y from k)), true,
-  'M1·4b POSITIVE TWIN: a clean coordinator still reads the action item');
+select is(app.can_read_action_item('00000000-0000-0000-0000-0000000f0701', (select sa_y from k)), false,
+  'M1·4b (C7 / A11⊃A4): sa_y (a CLEAN org_admin) does NOT read the action item — C7 removed the org/commission-admin arm from action_items (_select); same reconciliation as 235 K3');
 
 -- ⭐ FIXED FOR FREE, asserted rather than assumed (the closure argument, §W-2.3):
 -- can_read_attachment's `action_item` arm delegates to can_read_action_item and
@@ -708,8 +708,8 @@ reset role;
 -- and only the `case` and `interview` arms were asserted. Unguarded until now.
 select is(app.can_write_attachment('action_item', '00000000-0000-0000-0000-0000000f0701', (select st_x from k)), false,
   'DEVIATION 2 ⭐: can_write_attachment''s action_item arm DENIES the excluded party (case_of_action_item)');
-select is(app.can_write_attachment('action_item', '00000000-0000-0000-0000-0000000f0701', (select sa_y from k)), true,
-  'DEVIATION 2 POSITIVE TWIN: a clean coordinator still writes the action item''s attachment');
+select is(app.can_write_attachment('action_item', '00000000-0000-0000-0000-0000000f0701', (select sa_y from k)), false,
+  'DEVIATION 2 (C7 / A11⊃A4): sa_y (a CLEAN org_admin) does NOT write the action item''s attachment — C7 removed the org/commission-admin arm from action_items (_staff_admin_write)');
 -- OVER-REACH TWIN: a COMMITTEE item with no case anchor must stay writable —
 -- case_of_action_item returns null there and is_case_excluded(null, …) is false.
 select is(app.can_write_attachment('action_item', '00000000-0000-0000-0000-0000000f0702', (select st_x from k)), true,

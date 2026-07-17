@@ -244,8 +244,9 @@ export function ReservedItemForm({
                 </span>
               </legend>
               <p className="text-xs text-muted-foreground">
-                Além da coordenação, apenas os membros marcados poderão ler este
-                item.
+                Apenas os membros marcados poderão ler este item. A coordenação
+                não tem acesso automático — adicione seu próprio nome à lista
+                para manter o acesso.
               </p>
               {members.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-4 text-center text-xs text-muted-foreground">

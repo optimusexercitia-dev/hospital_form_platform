@@ -84,10 +84,18 @@ standalone once, then per batch pre-starts `node .next/standalone/server.js` and
 npm run e2e:prod                 # full suite, batched (default 6 specs/batch, fresh DB+server each)
 BATCH_SIZE=4 npm run e2e:prod    # smaller batches → more restarts (use if a batch still collapses)
 RESET=0      npm run e2e:prod    # server-restart ONLY, keep the DB (faster; contamination may reappear)
-REBUILD=1    npm run e2e:prod    # force a fresh `next build` (otherwise auto-detects source drift)
+REBUILD=1    npm run e2e:prod    # force a fresh `next build` — ⚠ ALWAYS pass when verifying a fix (see below)
 RETRIES=0    npm run e2e:prod    # stricter: no per-test retry
 SPECS="e2e/phase8-dashboard.spec.ts e2e/phi-remediation.spec.ts" npm run e2e:prod   # gate a subset
 ```
+
+> ⚠ **`REBUILD=1` is NOT optional when you are verifying a fix.** This doc previously claimed the gate
+> "auto-detects source drift". **It does not do so reliably** — observed 2026-07-17 (ADR 0078 Gate 2)
+> printing *"reusing existing standalone build"* after real source changes, so the re-run silently
+> validated **stale code** and its failure looked like a legitimate red. That burned a full debug cycle
+> chasing a fix that had never actually been built. **Any `e2e:prod` run whose purpose is to confirm a
+> change MUST pass `REBUILD=1`**, and check the log says *"building standalone" / "Compiled successfully"*
+> before trusting the result. (Same family as ADR 0078 §7.2 — the text said one thing, the build did another.)
 
 Requires bash (Git Bash on Windows; run `bash scripts/e2e-prod-gate.sh` directly if `npm run`
 can't find bash) + local Supabase up/seeded. The **server restart between batches** is the

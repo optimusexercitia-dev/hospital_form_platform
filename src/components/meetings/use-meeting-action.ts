@@ -5,6 +5,24 @@ import { useRouter } from "next/navigation";
 
 import type { ActionState } from "@/lib/meetings/actions";
 
+/** Shown when an action fails without its own pt-BR message (CLAUDE.md §8 — a raw
+ *  Supabase/Postgres/runtime error NEVER reaches the UI). */
+const FALLBACK_ERROR = "Não foi possível concluir. Tente novamente.";
+
+/**
+ * Next.js signals `redirect()` / `notFound()` from a Server Action by THROWING a
+ * control-flow error carrying a `NEXT_*` digest. Those must reach the framework —
+ * swallowing one would silently break the navigation. No meetings action redirects
+ * today; this keeps the shared hook safe if one ever does.
+ */
+function isNextControlFlowError(error: unknown): boolean {
+  if (typeof error !== "object" || error === null || !("digest" in error)) {
+    return false;
+  }
+  const digest = (error as { digest?: unknown }).digest;
+  return typeof digest === "string" && digest.startsWith("NEXT_");
+}
+
 /**
  * Runs a one-shot meetings action (the button-driven, plain-arg lifecycle /
  * advance / delete actions) that returns an {@link ActionState}, surfaces a
@@ -26,15 +44,26 @@ export function useMeetingAction() {
     ) => {
       setError(null);
       startTransition(async () => {
-        const result = await thunk();
-        if (!result.ok) {
-          setError(
-            result.error ?? "Não foi possível concluir. Tente novamente.",
-          );
-          return;
+        try {
+          const result = await thunk();
+          if (!result.ok) {
+            setError(result.error ?? FALLBACK_ERROR);
+            return;
+          }
+          options?.onSuccess?.();
+          router.refresh();
+        } catch (err) {
+          // A Server Action can REJECT (runtime/serialization/network failure)
+          // instead of returning `{ ok: false }`. Without this catch the rejection
+          // escapes the transition: no message is surfaced AND `isPending` never
+          // clears, leaving the trigger stuck on its pending label. Defensive
+          // hardening — NOT the cause of BUG-STAGEC-OPEN (verified: with this
+          // catch in a prod build the alert region stays empty, i.e. the action
+          // does not reject; that hang is the in-transition `router.refresh()`
+          // never committing).
+          if (isNextControlFlowError(err)) throw err;
+          setError(FALLBACK_ERROR);
         }
-        options?.onSuccess?.();
-        router.refresh();
       });
     },
     [router],

@@ -204,8 +204,8 @@ export function ReservedSessionsPanel({
       <p className="text-xs text-muted-foreground text-pretty">
         Parte fechada da reunião para casos sensíveis. Cada item só é revelado a
         quem tem autorização — itens vinculados a um caso seguem quem já pode
-        lê-lo; itens sem caso, apenas os leitores indicados e a coordenação. Os
-        demais veem que houve deliberação reservada, sem seu conteúdo.
+        lê-lo; itens sem caso, apenas os leitores indicados. Os demais veem que
+        houve deliberação reservada, sem seu conteúdo.
       </p>
 
       {orderedSessions.length === 0 ? (
