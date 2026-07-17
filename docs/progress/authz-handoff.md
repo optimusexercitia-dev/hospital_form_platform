@@ -1,7 +1,7 @@
 # Session Handoff — Authorization Capability Model (ADR 0078)
 
-**Last updated:** 2026-07-15 · **Branch:** `feat/authorization-capability-model`
-(**pushed to origin**, 7 commits, `bed6eba`) · **Author:** lead session.
+**Last updated:** 2026-07-17 · **Branch:** `feat/authorization-capability-model`
+(**local ahead of origin** — Gate-2 commits unpushed) · **Author:** lead session.
 
 **Read this first when resuming AUTHZ.** Authoritative status stays [PROGRESS.md](../../PROGRESS.md);
 the decision record is ADR [0078](../decisions/0078-authorization-capability-model.md)
@@ -15,8 +15,14 @@ the decision record is ADR [0078](../decisions/0078-authorization-capability-mod
 
 ## 1. Where we are
 
-Gate 1 of ADR 0078. **PO-resequenced (A29):** small subtractive migrations land **before** the resolver,
-because until they do, **every exclusion keystone in Gate 1 is vacuous**.
+**Gate 1 AND Gate 2 both COMPLETE — human-approved 2026-07-17.** Gate 2 (Stage C meeting-confidentiality ·
+F1 referral split · N1 NSP-PHI arm · G-cleanup) passed its qa **re-review** (P0 + 3 MAJOR behaviourally
+closed, mutation-proven; **MINOR-1 rides noted**) + human approval — [review](../reviews/authz-gate-2-review.md).
+**▶ NEXT: S4** (ETH·E2 · RV2 R2–R5 · CH). The program-wide `prosecdef` door audit
+(**AUDIT-DOOR-BLINDNESS**, §7 below) remains an open **pre-pilot P0**.
+
+_Historical (Gate 1): PO-resequenced (A29) so small subtractive migrations landed **before** the resolver —
+until they did, **every Gate-1 exclusion keystone was vacuous**._
 
 | Unit | State |
 |---|---|
