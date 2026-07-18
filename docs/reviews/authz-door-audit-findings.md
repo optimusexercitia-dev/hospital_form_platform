@@ -7,7 +7,7 @@ gate (open it so it grants/allows regardless), run the FULL pgTAP suite, read
 **BLIND** = suite stayed `PASS` (no keystone exercises it — a work-list item).
 **ERROR** = run shape != baseline (harness bug: fix the neutralization, not a result).
 
-Baseline: Files=112, Tests=3186, Result: PASS.
+Baseline: Files=115, Tests=3288, Result: PASS.
 Policies swept: 171 (real qual). Policies skipped (qual=true, vacuous): 8.
 
 ## BLIND — the work-list (no keystone exercises these)
@@ -15,10 +15,8 @@ Policies swept: 171 (real qual). Policies skipped (qual=true, vacuous): 8.
 | gate / policy | arm | direction | verdict | note |
 |---|---|---|---|---|
 | app.can_read_document_object(p_name text, p_uid uuid) | predicate | positive | BLIND |  |
-| app.can_read_document_of_version(p_version_id uuid, p_uid uuid) | predicate | positive | BLIND |  |
 | app.can_read_referral(p_referral_id uuid, p_uid uuid) | predicate | positive | BLIND |  |
 | app.can_read_xref_row(p_commission_id uuid, p_uid uuid) | predicate | positive | BLIND |  |
-| app.can_sign_section(p_response_id uuid, p_section_id uuid, p_signer uuid) | predicate | positive | BLIND |  |
 | app.has_role(p_scope_type text, p_scope_id uuid, p_role text) | predicate | positive | BLIND |  |
 | app.is_admin_for(p_user_id uuid) | predicate | positive | BLIND |  |
 | app.is_hospital_admin_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | BLIND |  |
@@ -32,25 +30,14 @@ Policies swept: 171 (real qual). Policies skipped (qual=true, vacuous): 8.
 | answer_risk_matrix.answer_risk_matrix_select (SELECT) | policy | open->true | BLIND |  |
 | attachment_references.attachment_references_select (SELECT) | policy | open->true | BLIND |  |
 | attachment_subjects.attachment_subjects_select (SELECT) | policy | open->true | BLIND |  |
-| capa_action.capa_action_select (SELECT) | policy | open->true | BLIND |  |
 | capa_action_evidence.capa_action_evidence_select (SELECT) | policy | open->true | BLIND |  |
-| capa_action_evidence.capa_action_evidence_write (ALL) | policy | open->true | BLIND |  |
 | capa_action_task.capa_action_task_select (SELECT) | policy | open->true | BLIND |  |
-| capa_action_task.capa_action_task_write (ALL) | policy | open->true | BLIND |  |
 | capa_effectiveness.capa_effectiveness_select (SELECT) | policy | open->true | BLIND |  |
-| capa_effectiveness.capa_effectiveness_write (ALL) | policy | open->true | BLIND |  |
 | capa_measure.capa_measure_select (SELECT) | policy | open->true | BLIND |  |
-| capa_measure.capa_measure_write (ALL) | policy | open->true | BLIND |  |
 | capa_measure_result.capa_measure_result_select (SELECT) | policy | open->true | BLIND |  |
-| capa_measure_result.capa_measure_result_write (ALL) | policy | open->true | BLIND |  |
-| case_participant_roles.case_participant_roles_admin_write (ALL) | policy | open->true | BLIND |  |
-| case_participant_roles.case_participant_roles_select (SELECT) | policy | open->true | BLIND |  |
 | case_phase_allowed_results.case_phase_allowed_results_select (SELECT) | policy | open->true | BLIND |  |
-| case_phase_allowed_results.case_phase_allowed_results_staff_admin_write (ALL) | policy | open->true | BLIND |  |
 | case_phase_offered_results.case_phase_offered_results_select (SELECT) | policy | open->true | BLIND |  |
-| case_phase_offered_results.case_phase_offered_results_staff_admin_write (ALL) | policy | open->true | BLIND |  |
 | case_tag_assignments.case_tag_assignments_select (SELECT) | policy | open->true | BLIND |  |
-| case_tag_assignments.case_tag_assignments_staff_admin_write (ALL) | policy | open->true | BLIND |  |
 | case_type_terminology.case_type_terminology_admin_write (ALL) | policy | open->true | BLIND |  |
 | case_type_terminology.case_type_terminology_select (SELECT) | policy | open->true | BLIND |  |
 | commission_administrativo_capabilities.commission_administrativo_capabilities_select (SELECT) | policy | open->true | BLIND |  |
@@ -58,8 +45,6 @@ Policies swept: 171 (real qual). Policies skipped (qual=true, vacuous): 8.
 | commission_meeting_settings.meeting_settings_staff_admin_write (ALL) | policy | open->true | BLIND |  |
 | commission_meeting_types.meeting_types_select (SELECT) | policy | open->true | BLIND |  |
 | commission_meeting_types.meeting_types_staff_admin_write (ALL) | policy | open->true | BLIND |  |
-| document_approvals.document_approvals_select (SELECT) | policy | open->true | BLIND |  |
-| event_custody.event_custody_select (SELECT) | policy | open->true | BLIND |  |
 | event_patient.event_patient_select (SELECT) | policy | open->true | BLIND |  |
 | event_triage_sentinel_flags.event_triage_sentinel_flags_select (SELECT) | policy | open->true | BLIND |  |
 | form_item_options.form_item_options_select (SELECT) | policy | open->true | BLIND |  |
@@ -69,8 +54,6 @@ Policies swept: 171 (real qual). Policies skipped (qual=true, vacuous): 8.
 | form_matrix_rows.form_matrix_rows_select (SELECT) | policy | open->true | BLIND |  |
 | indicator_measurements.indicator_measurements_select (SELECT) | policy | open->true | BLIND |  |
 | interview_session_attendance.interview_session_attendance_select (SELECT) | policy | open->true | BLIND |  |
-| interview_sessions.interview_sessions_select (SELECT) | policy | open->true | BLIND |  |
-| interview_sessions.interview_sessions_write (ALL) | policy | open->true | BLIND |  |
 | interview_summaries.interview_summaries_select (SELECT) | policy | open->true | BLIND |  |
 | interview_topics.interview_topics_select (SELECT) | policy | open->true | BLIND |  |
 | meeting_closed_sessions.meeting_closed_sessions_select (SELECT) | policy | open->true | BLIND |  |
@@ -91,19 +74,12 @@ Policies swept: 171 (real qual). Policies skipped (qual=true, vacuous): 8.
 | process_templates.process_templates_staff_admin_write (ALL) | policy | open->true | BLIND |  |
 | professional_categories.professional_categories_admin_write (ALL) | policy | open->true | BLIND |  |
 | professional_participants.professional_participants_select (SELECT) | policy | open->true | BLIND |  |
-| professional_profiles.professional_profiles_select (SELECT) | policy | open->true | BLIND |  |
 | rca_evidence.rca_evidence_select (SELECT) | policy | open->true | BLIND |  |
-| rca_evidence.rca_evidence_write (ALL) | policy | open->true | BLIND |  |
 | rca_factors.rca_factors_select (SELECT) | policy | open->true | BLIND |  |
-| rca_factors.rca_factors_write (ALL) | policy | open->true | BLIND |  |
 | rca_members.rca_members_select (SELECT) | policy | open->true | BLIND |  |
-| rca_members.rca_members_write (ALL) | policy | open->true | BLIND |  |
 | rca_root_causes.rca_root_causes_select (SELECT) | policy | open->true | BLIND |  |
-| rca_root_causes.rca_root_causes_write (ALL) | policy | open->true | BLIND |  |
 | rca_timeline_entries.rca_timeline_select (SELECT) | policy | open->true | BLIND |  |
-| rca_timeline_entries.rca_timeline_write (ALL) | policy | open->true | BLIND |  |
 | rca_why_chains.rca_why_chains_select (SELECT) | policy | open->true | BLIND |  |
-| rca_why_chains.rca_why_chains_write (ALL) | policy | open->true | BLIND |  |
 | referral_reply_attachment.referral_reply_attachment_select_readable (SELECT) | policy | open->true | BLIND |  |
 | referral_types.referral_types_write_admin (ALL) | policy | open->true | BLIND |  |
 | reply_outcomes.reply_outcomes_write_admin (ALL) | policy | open->true | BLIND |  |
@@ -119,67 +95,69 @@ Policies swept: 171 (real qual). Policies skipped (qual=true, vacuous): 8.
 | public.can_dispose_referral_phi(p_referral_id uuid) | predicate | positive | COVERED | 189_nsp_per_hospital_isolation.sql |
 | app.can_manage_professional(p_org uuid, p_uid uuid) | predicate | positive | COVERED | 228_ethics_e1.sql |
 | app.can_manage_referral_phi_disclosure(p_referral_id uuid, p_uid uuid) | predicate | positive | COVERED | 246_authz_f1_referral_split.sql |
-| app.can_manage_referral_source(p_referral_id uuid, p_uid uuid) | predicate | positive | COVERED | 246_authz_f1_referral_split.sql |
-| app.can_manage_referral_target(p_referral_id uuid, p_uid uuid) | predicate | positive | COVERED | 246_authz_f1_referral_split.sql |
+| app.can_manage_referral_source(p_referral_id uuid, p_uid uuid) | predicate | positive | COVERED | 246_authz_f1_referral_split.sql,250_authz_p0_isolation.sql |
+| app.can_manage_referral_target(p_referral_id uuid, p_uid uuid) | predicate | positive | COVERED | 246_authz_f1_referral_split.sql,250_authz_p0_isolation.sql |
 | app.can_reach_case_on_member_surface(p_case_id uuid, p_uid uuid) | predicate | positive | COVERED | 231_authz_m5_is_active_gate.sql,233_authz_m6_visibility_door.sql |
 | app.can_reach_meeting(p_meeting_id uuid, p_uid uuid) | predicate | positive | COVERED | 171_cross_org_isolation.sql,239_authz_c8_meeting_for_all_recut.sql,240_authz_c3_meeting_visibility.sql,243_authz_c5_reserved_session_tiers.sql,245_authz_c7_org_user_meeting_surface.sql |
 | app.can_read_action_item(p_action_item_id uuid, p_uid uuid) | predicate | positive | COVERED | 113_case_action_items.sql,208_attachments.sql,226_notifications.sql,227_action_item_satellites.sql,229_authz_m1_exclusion_durability.sql,231_authz_m5_is_active_gate.sql,245_authz_c7_org_user_meeting_surface.sql |
 | app.can_read_attachment(p_owner_type text, p_owner_id uuid, p_uid uuid) | predicate | positive | COVERED | 144_case_access.sql,171_cross_org_isolation.sql,191_grant_hardening.sql,208_attachments.sql,229_authz_m1_exclusion_durability.sql |
-| app.can_read_capa(p_capa_id uuid, p_user_id uuid) | predicate | positive | COVERED | 110_indicators.sql,143_capa.sql,171_cross_org_isolation.sql,196_capa_tenant_anchor.sql |
-| app.can_read_case(p_case_id uuid, p_uid uuid) | predicate | positive | COVERED | 110_case_status.sql,111_case_docs_events.sql,113_case_action_items.sql,116_case_narratives.sql,121_interviews.sql,144_case_access.sql,150_referrals.sql,171_cross_org_isolation.sql,177_processless_cases.sql,183_case_access_expiry.sql,184_hospital_admin_isolation.sql,199_perf_sweep_wave2.sql,205_administrativo.sql,207_case_participants_e0.sql,208_attachments.sql,226_notifications.sql,227_action_item_satellites.sql,228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,231_authz_m5_is_active_gate.sql,232_authz_m5b_door_gate.sql,234_authz_a2_resolver.sql,235_authz_a4_org_admin_not_case_source.sql,249_authz_g_retire_can_read_case_or_admin.sql,90_cases.sql |
+| app.can_read_capa(p_capa_id uuid, p_user_id uuid) | predicate | positive | COVERED | 110_indicators.sql,143_capa.sql,171_cross_org_isolation.sql,196_capa_tenant_anchor.sql,252_authz_p0_isolation.sql |
+| app.can_read_case(p_case_id uuid, p_uid uuid) | predicate | positive | COVERED | 110_case_status.sql,111_case_docs_events.sql,113_case_action_items.sql,116_case_narratives.sql,121_interviews.sql,144_case_access.sql,150_referrals.sql,171_cross_org_isolation.sql,177_processless_cases.sql,183_case_access_expiry.sql,184_hospital_admin_isolation.sql,199_perf_sweep_wave2.sql,205_administrativo.sql,207_case_participants_e0.sql,208_attachments.sql,226_notifications.sql,227_action_item_satellites.sql,228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,231_authz_m5_is_active_gate.sql,232_authz_m5b_door_gate.sql,234_authz_a2_resolver.sql,235_authz_a4_org_admin_not_case_source.sql,249_authz_g_retire_can_read_case_or_admin.sql,252_authz_p0_isolation.sql,90_cases.sql |
 | app.can_read_case_patient(p_case_id uuid, p_uid uuid) | predicate | positive | COVERED | 151_case_patient.sql,171_cross_org_isolation.sql,183_case_access_expiry.sql,207_case_participants_e0.sql,228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,230_authz_m3_assignment_phi.sql,231_authz_m5_is_active_gate.sql,234_authz_a2_resolver.sql,235_authz_a4_org_admin_not_case_source.sql,238_authz_b_case_access_grants.sql,247_authz_n1_nsp_drop_case_phi.sql |
-| app.can_read_event(p_event_id uuid, p_user_id uuid) | predicate | positive | COVERED | 110_indicators.sql,140_patient_safety.sql,142_rca.sql,143_capa.sql,171_cross_org_isolation.sql,191_grant_hardening.sql,196_capa_tenant_anchor.sql |
+| app.can_read_document_of_version(p_version_id uuid, p_uid uuid) | predicate | positive | COVERED | 252_authz_p0_isolation.sql |
+| app.can_read_event(p_event_id uuid, p_user_id uuid) | predicate | positive | COVERED | 110_indicators.sql,140_patient_safety.sql,142_rca.sql,143_capa.sql,171_cross_org_isolation.sql,191_grant_hardening.sql,196_capa_tenant_anchor.sql,252_authz_p0_isolation.sql |
 | app.can_read_event_patient(p_event_id uuid, p_user_id uuid) | predicate | positive | COVERED | 145_pqs_membership.sql,171_cross_org_isolation.sql,189_nsp_per_hospital_isolation.sql,191_grant_hardening.sql,247_authz_n1_nsp_drop_case_phi.sql |
-| app.can_read_interview(p_interview_id uuid, p_uid uuid) | predicate | positive | COVERED | 121_interviews.sql,144_case_access.sql,171_cross_org_isolation.sql,228_ethics_e1.sql,235_authz_a4_org_admin_not_case_source.sql |
-| app.can_read_professional_profile(p_profile_id uuid, p_uid uuid) | predicate | positive | COVERED | 207_case_participants_e0.sql |
+| app.can_read_interview(p_interview_id uuid, p_uid uuid) | predicate | positive | COVERED | 121_interviews.sql,144_case_access.sql,171_cross_org_isolation.sql,228_ethics_e1.sql,235_authz_a4_org_admin_not_case_source.sql,252_authz_p0_isolation.sql |
+| app.can_read_professional_profile(p_profile_id uuid, p_uid uuid) | predicate | positive | COVERED | 207_case_participants_e0.sql,252_authz_p0_isolation.sql |
 | app.can_read_referral_metadata(p_referral_id uuid, p_uid uuid) | predicate | positive | COVERED | 171_cross_org_isolation.sql |
 | app.can_read_referral_phi(p_referral_id uuid, p_uid uuid) | predicate | positive | COVERED | 150_referrals.sql,152_patient_index.sql,171_cross_org_isolation.sql,183_case_access_expiry.sql,189_nsp_per_hospital_isolation.sql,197_phi_disposal_closure.sql,231_authz_m5_is_active_gate.sql,246_authz_f1_referral_split.sql |
 | app.can_read_signoff(p_response_id uuid) | predicate | positive | COVERED | 171_cross_org_isolation.sql |
 | app.can_read_snapshot_document(p_object_name text, p_uid uuid) | predicate | positive | COVERED | 235_authz_a4_org_admin_not_case_source.sql,236_authz_exclusion_perimeter_u1.sql |
-| app.can_sign_meeting(p_attendee_id uuid, p_signer uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3176) |
+| app.can_sign_meeting(p_attendee_id uuid, p_signer uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3278) |
+| app.can_sign_section(p_response_id uuid, p_section_id uuid, p_signer uuid) | predicate | positive | COVERED | 251_authz_p0_isolation.sql |
 | app.can_write_action_item_stake(p_action_item_id uuid, p_uid uuid) | predicate | positive | COVERED | 227_action_item_satellites.sql |
 | app.can_write_attachment(p_owner_type text, p_owner_id uuid, p_uid uuid) | predicate | positive | COVERED | 208_attachments.sql,229_authz_m1_exclusion_durability.sql,231_authz_m5_is_active_gate.sql |
-| app.can_write_capa(p_capa_id uuid, p_uid uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3162) |
+| app.can_write_capa(p_capa_id uuid, p_uid uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3264) |
 | app.can_write_case_content(p_case_id uuid, p_uid uuid) | predicate | positive | COVERED | 111_case_docs_events.sql,112_case_tags.sql,113_case_action_items.sql,144_case_access.sql,171_cross_org_isolation.sql,183_case_access_expiry.sql,205_administrativo.sql,228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,231_authz_m5_is_active_gate.sql,234_authz_a2_resolver.sql |
 | app.can_write_case_narrative(p_narrative_id uuid, p_uid uuid) | predicate | positive | COVERED | 144_case_access.sql,183_case_access_expiry.sql,229_authz_m1_exclusion_durability.sql,231_authz_m5_is_active_gate.sql |
-| app.can_write_interview(p_interview_id uuid, p_uid uuid) | predicate | positive | COVERED | 121_interviews.sql,144_case_access.sql,228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,235_authz_a4_org_admin_not_case_source.sql |
-| app.can_write_rca(p_rca_id uuid, p_uid uuid) | predicate | positive | COVERED | 142_rca.sql |
+| app.can_write_interview(p_interview_id uuid, p_uid uuid) | predicate | positive | COVERED | 121_interviews.sql,144_case_access.sql,228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,235_authz_a4_org_admin_not_case_source.sql,250_authz_p0_isolation.sql,251_authz_p0_isolation.sql,252_authz_p0_isolation.sql |
+| app.can_write_rca(p_rca_id uuid, p_uid uuid) | predicate | positive | COVERED | 142_rca.sql,251_authz_p0_isolation.sql,252_authz_p0_isolation.sql |
 | app.can_write_referral_response(p_referral_id uuid, p_uid uuid) | predicate | positive | COVERED | 246_authz_f1_referral_split.sql |
-| app.has_case_capability(p_case_id uuid, p_uid uuid, p_cap text) | predicate | positive | COVERED | 110_case_status.sql,111_case_docs_events.sql,112_case_tags.sql,113_case_action_items.sql,116_case_narratives.sql,121_interviews.sql,144_case_access.sql,150_referrals.sql,151_case_patient.sql,171_cross_org_isolation.sql,177_processless_cases.sql,183_case_access_expiry.sql,184_hospital_admin_isolation.sql,199_perf_sweep_wave2.sql,205_administrativo.sql,207_case_participants_e0.sql,208_attachments.sql,226_notifications.sql,227_action_item_satellites.sql,228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,230_authz_m3_assignment_phi.sql,231_authz_m5_is_active_gate.sql,232_authz_m5b_door_gate.sql,233_authz_m6_visibility_door.sql,234_authz_a2_resolver.sql,235_authz_a4_org_admin_not_case_source.sql,238_authz_b_case_access_grants.sql,241_authz_c1_meeting_cases_tiers.sql,242_authz_c2_agenda_tiers.sql,243_authz_c5_reserved_session_tiers.sql,247_authz_n1_nsp_drop_case_phi.sql,249_authz_g_retire_can_read_case_or_admin.sql,90_cases.sql |
-| app.has_role(p_scope_type text, p_scope_id uuid, p_role text, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3088) |
-| app.has_role_any(p_scope_type text, p_scope_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3161) |
-| app.is_active(p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3163) |
-| app.is_admin() | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3175) |
+| app.has_case_capability(p_case_id uuid, p_uid uuid, p_cap text) | predicate | positive | COVERED | 110_case_status.sql,111_case_docs_events.sql,112_case_tags.sql,113_case_action_items.sql,116_case_narratives.sql,121_interviews.sql,144_case_access.sql,150_referrals.sql,151_case_patient.sql,171_cross_org_isolation.sql,177_processless_cases.sql,183_case_access_expiry.sql,184_hospital_admin_isolation.sql,199_perf_sweep_wave2.sql,205_administrativo.sql,207_case_participants_e0.sql,208_attachments.sql,226_notifications.sql,227_action_item_satellites.sql,228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,230_authz_m3_assignment_phi.sql,231_authz_m5_is_active_gate.sql,232_authz_m5b_door_gate.sql,233_authz_m6_visibility_door.sql,234_authz_a2_resolver.sql,235_authz_a4_org_admin_not_case_source.sql,238_authz_b_case_access_grants.sql,241_authz_c1_meeting_cases_tiers.sql,242_authz_c2_agenda_tiers.sql,243_authz_c5_reserved_session_tiers.sql,247_authz_n1_nsp_drop_case_phi.sql,249_authz_g_retire_can_read_case_or_admin.sql,252_authz_p0_isolation.sql,90_cases.sql |
+| app.has_role(p_scope_type text, p_scope_id uuid, p_role text, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3190) |
+| app.has_role_any(p_scope_type text, p_scope_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3263) |
+| app.is_active(p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3265) |
+| app.is_admin() | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3277) |
 | app.is_case_excluded(p_case_id uuid, p_uid uuid) | predicate | deny | COVERED | 229_authz_m1_exclusion_durability.sql,233_authz_m6_visibility_door.sql,235_authz_a4_org_admin_not_case_source.sql,236_authz_exclusion_perimeter_u1.sql,237_authz_exclusion_perimeter_u2.sql,238_authz_b_case_access_grants.sql,241_authz_c1_meeting_cases_tiers.sql,243_authz_c5_reserved_session_tiers.sql,244_authz_c6_reserved_session_lifecycle.sql |
 | app.is_case_respondent(p_case_id uuid, p_uid uuid) | predicate | deny | COVERED | 228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,233_authz_m6_visibility_door.sql,234_authz_a2_resolver.sql,235_authz_a4_org_admin_not_case_source.sql,236_authz_exclusion_perimeter_u1.sql,237_authz_exclusion_perimeter_u2.sql,242_authz_c2_agenda_tiers.sql,243_authz_c5_reserved_session_tiers.sql |
-| app.is_commission_admin_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3180) |
-| app.is_commission_admin_of_for(p_commission_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3180) |
+| app.is_commission_admin_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3282) |
+| app.is_commission_admin_of_for(p_commission_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3282) |
 | app.is_document_approver_of(p_document_id uuid, p_uid uuid) | predicate | positive | COVERED | 200_controlled_documents.sql |
 | app.is_document_version_approver(p_version_id uuid, p_uid uuid) | predicate | positive | COVERED | 200_controlled_documents.sql |
-| app.is_entitled_document_approver(p_hospital uuid, p_user uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3163) |
-| app.is_hospital_admin_of(p_hospital_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3183) |
+| app.is_entitled_document_approver(p_hospital uuid, p_user uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3265) |
+| app.is_hospital_admin_of(p_hospital_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3285) |
 | app.is_hospital_member_of(p_hospital_id uuid) | predicate | positive | COVERED | 201_hospital_departments.sql,224_memberships_collapse.sql |
-| app.is_member_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3183) |
-| app.is_member_of_for(p_commission_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3164) |
+| app.is_member_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3285) |
+| app.is_member_of_for(p_commission_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3266) |
 | app.is_nsp_coordinator_of(p_hospital_id uuid) | predicate | positive | COVERED | 141_event_triage.sql,145_pqs_membership.sql,176_nsp_per_org_b_support.sql,189_nsp_per_hospital_isolation.sql |
-| app.is_nsp_coordinator_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3135) |
-| app.is_nsp_org_admin_of(p_org_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3183) |
-| app.is_nsp_org_admin_of_for(p_org_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3183) |
-| app.is_org_admin_of(p_org_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3183) |
+| app.is_nsp_coordinator_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3237) |
+| app.is_nsp_org_admin_of(p_org_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3285) |
+| app.is_nsp_org_admin_of_for(p_org_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3285) |
+| app.is_org_admin_of(p_org_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3285) |
 | app.is_org_admin_of_for(p_org_id uuid, p_user_id uuid) | predicate | positive | COVERED | 170_multitenancy_hierarchy.sql,180_user_registration.sql |
 | app.is_org_level_admin_within(p_org_id uuid) | predicate | positive | COVERED | 170_multitenancy_hierarchy.sql,176_nsp_per_org_b_support.sql,188_hospital_user_mgmt.sql,224_memberships_collapse.sql |
-| app.is_org_member(p_org_id uuid) | predicate | positive | COVERED | 170_multitenancy_hierarchy.sql,176_nsp_per_org_b_support.sql,188_hospital_user_mgmt.sql,207_case_participants_e0.sql,224_memberships_collapse.sql |
+| app.is_org_member(p_org_id uuid) | predicate | positive | COVERED | 170_multitenancy_hierarchy.sql,176_nsp_per_org_b_support.sql,188_hospital_user_mgmt.sql,207_case_participants_e0.sql,224_memberships_collapse.sql,252_authz_p0_isolation.sql |
 | app.is_pqs_member_of(p_hospital_id uuid) | predicate | positive | COVERED | 141_event_triage.sql,145_pqs_membership.sql |
 | app.is_pqs_member_of_any(p_user_id uuid) | predicate | positive | COVERED | 145_pqs_membership.sql,189_nsp_per_hospital_isolation.sql,224_memberships_collapse.sql |
-| app.is_pqs_member_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3135) |
+| app.is_pqs_member_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3237) |
 | app.is_pqs_operator_in_org(p_org_id uuid) | predicate | positive | COVERED | 170_multitenancy_hierarchy.sql,176_nsp_per_org_b_support.sql,188_hospital_user_mgmt.sql |
 | app.is_pqs_operator_in_org_for(p_org_id uuid, p_user_id uuid) | predicate | positive | COVERED | 170_multitenancy_hierarchy.sql,176_nsp_per_org_b_support.sql,188_hospital_user_mgmt.sql |
-| app.is_pqs_operator_of(p_hospital_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3183) |
-| app.is_pqs_operator_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3135) |
+| app.is_pqs_operator_of(p_hospital_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3285) |
+| app.is_pqs_operator_of_for(p_hospital_id uuid, p_user_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3237) |
 | app.is_recused_from_case(p_case_id uuid, p_uid uuid) | predicate | deny | COVERED | 228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,236_authz_exclusion_perimeter_u1.sql,237_authz_exclusion_perimeter_u2.sql,238_authz_b_case_access_grants.sql,241_authz_c1_meeting_cases_tiers.sql,243_authz_c5_reserved_session_tiers.sql,244_authz_c6_reserved_session_lifecycle.sql |
-| app.is_staff_admin_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3139) |
-| app.is_staff_admin_of_for(p_commission_id uuid, p_user_id uuid) | predicate | positive | COVERED | 110_case_status.sql,111_case_docs_events.sql,112_case_tags.sql,113_case_action_items.sql,116_case_narratives.sql,121_interviews.sql,144_case_access.sql,145_pqs_membership.sql,150_referrals.sql,151_case_patient.sql,152_patient_index.sql,171_cross_org_isolation.sql,177_processless_cases.sql,183_case_access_expiry.sql,184_hospital_admin_isolation.sql,189_nsp_per_hospital_isolation.sql,191_grant_hardening.sql,197_phi_disposal_closure.sql,199_perf_sweep_wave2.sql,205_administrativo.sql,207_case_participants_e0.sql,208_attachments.sql,224_memberships_collapse.sql,226_notifications.sql,227_action_item_satellites.sql,228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,230_authz_m3_assignment_phi.sql,231_authz_m5_is_active_gate.sql,232_authz_m5b_door_gate.sql,233_authz_m6_visibility_door.sql,234_authz_a2_resolver.sql,235_authz_a4_org_admin_not_case_source.sql,238_authz_b_case_access_grants.sql,239_authz_c8_meeting_for_all_recut.sql,241_authz_c1_meeting_cases_tiers.sql,242_authz_c2_agenda_tiers.sql,243_authz_c5_reserved_session_tiers.sql,246_authz_f1_referral_split.sql,247_authz_n1_nsp_drop_case_phi.sql,249_authz_g_retire_can_read_case_or_admin.sql,90_cases.sql |
-| app.referral_target_analyst(p_referral_id uuid, p_uid uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=112 Tests=3176) |
+| app.is_staff_admin_of(p_commission_id uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3241) |
+| app.is_staff_admin_of_for(p_commission_id uuid, p_user_id uuid) | predicate | positive | COVERED | 110_case_status.sql,111_case_docs_events.sql,112_case_tags.sql,113_case_action_items.sql,116_case_narratives.sql,121_interviews.sql,144_case_access.sql,145_pqs_membership.sql,150_referrals.sql,151_case_patient.sql,152_patient_index.sql,171_cross_org_isolation.sql,177_processless_cases.sql,183_case_access_expiry.sql,184_hospital_admin_isolation.sql,189_nsp_per_hospital_isolation.sql,191_grant_hardening.sql,197_phi_disposal_closure.sql,199_perf_sweep_wave2.sql,205_administrativo.sql,207_case_participants_e0.sql,208_attachments.sql,224_memberships_collapse.sql,226_notifications.sql,227_action_item_satellites.sql,228_ethics_e1.sql,229_authz_m1_exclusion_durability.sql,230_authz_m3_assignment_phi.sql,231_authz_m5_is_active_gate.sql,232_authz_m5b_door_gate.sql,233_authz_m6_visibility_door.sql,234_authz_a2_resolver.sql,235_authz_a4_org_admin_not_case_source.sql,238_authz_b_case_access_grants.sql,239_authz_c8_meeting_for_all_recut.sql,241_authz_c1_meeting_cases_tiers.sql,242_authz_c2_agenda_tiers.sql,243_authz_c5_reserved_session_tiers.sql,246_authz_f1_referral_split.sql,247_authz_n1_nsp_drop_case_phi.sql,249_authz_g_retire_can_read_case_or_admin.sql,250_authz_p0_isolation.sql,251_authz_p0_isolation.sql,252_authz_p0_isolation.sql,90_cases.sql |
+| app.referral_target_analyst(p_referral_id uuid, p_uid uuid) | predicate | positive | ERROR | run-shape!=baseline (Files=115 Tests=3278) |
 | action_item_assignments.action_item_assignments_select (SELECT) | policy | open->true | COVERED | 113_case_action_items.sql |
 | action_item_checklists.action_item_checklists_select (SELECT) | policy | open->true | COVERED | 227_action_item_satellites.sql |
 | action_item_reminders.action_item_reminders_select (SELECT) | policy | open->true | COVERED | 227_action_item_satellites.sql |
@@ -193,7 +171,13 @@ Policies swept: 171 (real qual). Policies skipped (qual=true, vacuous): 8.
 | answers.answers_write_own_draft (ALL) | policy | open->true | COVERED | 171_cross_org_isolation.sql,172_phaseb_rls_rewrite.sql,198_perf_hardening.sql,40_rls.sql |
 | attachments.attachments_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql,171_cross_org_isolation.sql,228_ethics_e1.sql |
 | audit_log.audit_log_select (SELECT) | policy | open->true | COVERED | 130_audit.sql,171_cross_org_isolation.sql,185_audit_4tier.sql,199_perf_sweep_wave2.sql |
-| capa_action.capa_action_write (ALL) | policy | open->true | COVERED | 196_capa_tenant_anchor.sql |
+| capa_action.capa_action_select (SELECT) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| capa_action.capa_action_write (ALL) | policy | open->true | COVERED | 196_capa_tenant_anchor.sql,252_authz_p0_isolation.sql |
+| capa_action_evidence.capa_action_evidence_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| capa_action_task.capa_action_task_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| capa_effectiveness.capa_effectiveness_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| capa_measure.capa_measure_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| capa_measure_result.capa_measure_result_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | capa_plan.capa_plan_select (SELECT) | policy | open->true | COVERED | 143_capa.sql,171_cross_org_isolation.sql |
 | case_access_grants.case_access_grants_select_own (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,228_ethics_e1.sql,238_authz_b_case_access_grants.sql |
 | case_conflict_declarations.case_conflict_declarations_select (SELECT) | policy | open->true | COVERED | 228_ethics_e1.sql |
@@ -215,24 +199,31 @@ Policies swept: 171 (real qual). Policies skipped (qual=true, vacuous): 8.
 | case_offered_outcomes.case_offered_outcomes_staff_admin_write (ALL) | policy | open->true | COVERED | 177_processless_cases.sql |
 | case_outcomes.case_outcomes_select (SELECT) | policy | open->true | COVERED | 115_case_outcomes.sql |
 | case_outcomes.case_outcomes_staff_admin_write (ALL) | policy | open->true | COVERED | 115_case_outcomes.sql |
+| case_participant_roles.case_participant_roles_admin_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| case_participant_roles.case_participant_roles_select (SELECT) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | case_participants.case_participants_select (SELECT) | policy | open->true | COVERED | 207_case_participants_e0.sql,228_ethics_e1.sql,234_authz_a2_resolver.sql |
+| case_phase_allowed_results.case_phase_allowed_results_staff_admin_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| case_phase_offered_results.case_phase_offered_results_staff_admin_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | case_phases.case_phases_select (SELECT) | policy | open->true | COVERED | 144_case_access.sql,171_cross_org_isolation.sql,228_ethics_e1.sql |
 | case_phases.case_phases_staff_admin_write (ALL) | policy | open->true | COVERED | 144_case_access.sql,171_cross_org_isolation.sql,228_ethics_e1.sql |
 | case_recusals.case_recusals_select (SELECT) | policy | open->true | COVERED | 228_ethics_e1.sql |
 | case_referral.case_referral_select_readable (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
+| case_tag_assignments.case_tag_assignments_staff_admin_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | case_tags.case_tags_select (SELECT) | policy | open->true | COVERED | 112_case_tags.sql |
 | case_tags.case_tags_staff_admin_write (ALL) | policy | open->true | COVERED | 112_case_tags.sql |
 | case_types.case_types_admin_write (ALL) | policy | open->true | COVERED | 207_case_participants_e0.sql |
 | case_types.case_types_select (SELECT) | policy | open->true | COVERED | 207_case_participants_e0.sql |
 | cases.cases_select (SELECT) | policy | open->true | COVERED | 110_case_status.sql,144_case_access.sql,171_cross_org_isolation.sql,184_hospital_admin_isolation.sql,198_perf_hardening.sql,228_ethics_e1.sql,234_authz_a2_resolver.sql,235_authz_a4_org_admin_not_case_source.sql,249_authz_g_retire_can_read_case_or_admin.sql,90_cases.sql |
-| cases.cases_staff_admin_write (ALL) | policy | open->true | ERROR | run-shape!=baseline (Files=112 Tests=3179) |
+| cases.cases_staff_admin_write (ALL) | policy | open->true | ERROR | run-shape!=baseline (Files=115 Tests=3281) |
 | commission_administrativos.commission_administrativos_select (SELECT) | policy | open->true | COVERED | 205_administrativo.sql |
 | commission_member_titles.member_titles_select (SELECT) | policy | open->true | COVERED | 184_hospital_admin_isolation.sql |
 | commission_member_titles.member_titles_staff_admin_write (ALL) | policy | open->true | COVERED | 184_hospital_admin_isolation.sql |
-| commissions.commissions_admin_write (ALL) | policy | open->true | ERROR | run-shape!=baseline (Files=112 Tests=3183) |
-| commissions.commissions_select_member_or_admin (SELECT) | policy | open->true | ERROR | run-shape!=baseline (Files=112 Tests=3183) |
+| commissions.commissions_admin_write (ALL) | policy | open->true | ERROR | run-shape!=baseline (Files=115 Tests=3285) |
+| commissions.commissions_select_member_or_admin (SELECT) | policy | open->true | ERROR | run-shape!=baseline (Files=115 Tests=3285) |
 | controlled_document_versions.controlled_document_versions_select (SELECT) | policy | open->true | COVERED | 200_controlled_documents.sql |
 | controlled_documents.controlled_documents_select (SELECT) | policy | open->true | COVERED | 200_controlled_documents.sql |
+| document_approvals.document_approvals_select (SELECT) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| event_custody.event_custody_select (SELECT) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | event_triage.event_triage_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
 | form_items.form_items_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
 | form_items.form_items_staff_admin_write (ALL) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
@@ -247,6 +238,8 @@ Policies swept: 171 (real qual). Policies skipped (qual=true, vacuous): 8.
 | hospitals.hospitals_select (SELECT) | policy | open->true | COVERED | 170_multitenancy_hierarchy.sql,188_hospital_user_mgmt.sql |
 | hospitals.hospitals_write (ALL) | policy | open->true | COVERED | 170_multitenancy_hierarchy.sql,188_hospital_user_mgmt.sql |
 | indicators.indicators_select (SELECT) | policy | open->true | COVERED | 110_indicators.sql |
+| interview_sessions.interview_sessions_select (SELECT) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| interview_sessions.interview_sessions_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | meeting_agenda_items.meeting_agenda_items_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,239_authz_c8_meeting_for_all_recut.sql,240_authz_c3_meeting_visibility.sql,245_authz_c7_org_user_meeting_surface.sql |
 | meeting_attendees.meeting_attendees_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,239_authz_c8_meeting_for_all_recut.sql,245_authz_c7_org_user_meeting_surface.sql |
 | meeting_cases.meeting_cases_select (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql,228_ethics_e1.sql,239_authz_c8_meeting_for_all_recut.sql,240_authz_c3_meeting_visibility.sql,245_authz_c7_org_user_meeting_surface.sql |
@@ -260,9 +253,16 @@ Policies swept: 171 (real qual). Policies skipped (qual=true, vacuous): 8.
 | phase_results.phase_results_select (SELECT) | policy | open->true | COVERED | 160_phase_results.sql |
 | phase_results.phase_results_staff_admin_write (ALL) | policy | open->true | COVERED | 160_phase_results.sql |
 | professional_credentials.professional_credentials_select (SELECT) | policy | open->true | COVERED | 180_user_registration.sql |
+| professional_profiles.professional_profiles_select (SELECT) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | profiles.profiles_admin_select (SELECT) | policy | open->true | COVERED | 180_user_registration.sql,188_hospital_user_mgmt.sql,45_email_denorm.sql |
 | profiles.profiles_select_self_or_admin (SELECT) | policy | open->true | COVERED | 180_user_registration.sql,188_hospital_user_mgmt.sql,45_email_denorm.sql |
 | rca.rca_select (SELECT) | policy | open->true | COVERED | 142_rca.sql,171_cross_org_isolation.sql |
+| rca_evidence.rca_evidence_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| rca_factors.rca_factors_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| rca_members.rca_members_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| rca_root_causes.rca_root_causes_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| rca_timeline_entries.rca_timeline_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
+| rca_why_chains.rca_why_chains_write (ALL) | policy | open->true | COVERED | 252_authz_p0_isolation.sql |
 | referral_messages.referral_messages_select_phi (SELECT) | policy | open->true | COVERED | 150_referrals.sql |
 | referral_reply.referral_reply_select_phi (SELECT) | policy | open->true | COVERED | 171_cross_org_isolation.sql |
 | referral_shared_item.referral_shared_item_select_phi (SELECT) | policy | open->true | COVERED | 150_referrals.sql,171_cross_org_isolation.sql,246_authz_f1_referral_split.sql |

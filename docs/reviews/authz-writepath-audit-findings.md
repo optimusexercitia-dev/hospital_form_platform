@@ -8,7 +8,7 @@ policy check set to `true`), run the FULL pgTAP suite, read `Result:`.
 writer). **BLIND** = suite stayed `PASS` (no keystone exercises it — a work-list item).
 **ERROR** = run shape != baseline (harness bug: fix the neutralization, not a result).
 
-Baseline: Files=112, Tests=3186, Result: PASS.
+Baseline: Files=115, Tests=3288, Result: PASS.
 Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`,
 `assert_condition_value_codes`). Arm 2 write policies: from the embedded snapshot.
 
@@ -16,34 +16,8 @@ Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`
 
 | gate / policy | arm | direction | verdict | note |
 |---|---|---|---|---|
-| app.assert_session_writable(uuid) | guard | authz-open | BLIND |  |
-| app.assert_referral_draft_writable(uuid) | guard | authz-open | BLIND |  |
-| app.assert_referral_target_acts(uuid,text[]) | guard | authz-open | BLIND |  |
-| capa_plan.capa_plan_delete (DELETE) | policy | open->true | BLIND |  |
-| capa_plan.capa_plan_update (UPDATE) | policy | open->true | BLIND |  |
-| case_interviews.case_interviews_delete (DELETE) | policy | open->true | BLIND |  |
-| case_interviews.case_interviews_update (UPDATE) | policy | open->true | BLIND |  |
-| case_referral.case_referral_delete_draft_source (DELETE) | policy | open->true | BLIND |  |
-| case_referral.case_referral_insert_source_coord (INSERT) | policy | open->true | BLIND |  |
-| case_referral.case_referral_update_coord (UPDATE) | policy | open->true | BLIND |  |
-| meeting_agenda_items.meeting_agenda_items_staff_admin_delete (DELETE) | policy | open->true | BLIND |  |
-| meeting_agenda_items.meeting_agenda_items_staff_admin_update (UPDATE) | policy | open->true | BLIND |  |
-| meeting_attendees.meeting_attendees_staff_admin_delete (DELETE) | policy | open->true | BLIND |  |
-| meeting_attendees.meeting_attendees_staff_admin_insert (INSERT) | policy | open->true | BLIND |  |
-| meeting_attendees.meeting_attendees_staff_admin_update (UPDATE) | policy | open->true | BLIND |  |
-| meeting_cases.meeting_cases_staff_admin_delete (DELETE) | policy | open->true | BLIND |  |
-| meeting_cases.meeting_cases_staff_admin_insert (INSERT) | policy | open->true | BLIND |  |
-| meeting_cases.meeting_cases_staff_admin_update (UPDATE) | policy | open->true | BLIND |  |
-| meeting_signatures.meeting_signatures_insert (INSERT) | policy | open->true | BLIND |  |
-| meetings.meetings_staff_admin_delete (DELETE) | policy | open->true | BLIND |  |
-| meetings.meetings_staff_admin_insert (INSERT) | policy | open->true | BLIND |  |
-| meetings.meetings_staff_admin_update (UPDATE) | policy | open->true | BLIND |  |
 | notification_preferences.notification_preferences_update_own (UPDATE) | policy | open->true | BLIND |  |
 | notifications.notifications_update_own (UPDATE) | policy | open->true | BLIND |  |
-| profiles.profiles_admin_insert (INSERT) | policy | open->true | BLIND |  |
-| rca.rca_delete (DELETE) | policy | open->true | BLIND |  |
-| rca.rca_update (UPDATE) | policy | open->true | BLIND |  |
-| response_section_signoffs.signoffs_insert (INSERT) | policy | open->true | BLIND |  |
 | responses.responses_delete_own_draft (DELETE) | policy | open->true | BLIND |  |
 
 ## COVERED (asserted-through) + ERROR (harness bug) + SKIPPED (vacuous)
@@ -52,12 +26,38 @@ Arm 1 guards: 7 (excluded non-authz validators: `assert_meeting_roster_nonempty`
 |---|---|---|---|---|
 | app.assert_capa_writable(uuid) | guard | authz-open | COVERED | 143_capa.sql |
 | app.assert_meeting_staff_admin(uuid) | guard | authz-open | COVERED | 206_meeting_held_time.sql |
-| app.assert_interview_writable(uuid) | guard | authz-open | COVERED | 121_interviews.sql |
+| app.assert_interview_writable(uuid) | guard | authz-open | COVERED | 121_interviews.sql,250_authz_p0_isolation.sql |
 | app.assert_rca_writable(uuid) | guard | authz-open | COVERED | 142_rca.sql |
+| app.assert_session_writable(uuid) | guard | authz-open | COVERED | 250_authz_p0_isolation.sql |
+| app.assert_referral_draft_writable(uuid) | guard | authz-open | COVERED | 250_authz_p0_isolation.sql |
+| app.assert_referral_target_acts(uuid,text[]) | guard | authz-open | COVERED | 250_authz_p0_isolation.sql |
+| capa_plan.capa_plan_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| capa_plan.capa_plan_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| case_interviews.case_interviews_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
 | case_interviews.case_interviews_insert (INSERT) | policy | open->true | COVERED | 236_authz_exclusion_perimeter_u1.sql |
-| meeting_agenda_items.meeting_agenda_items_staff_admin_insert (INSERT) | policy | open->true | COVERED | 245_authz_c7_org_user_meeting_surface.sql |
+| case_interviews.case_interviews_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| case_referral.case_referral_delete_draft_source (DELETE) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
+| case_referral.case_referral_insert_source_coord (INSERT) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
+| case_referral.case_referral_update_coord (UPDATE) | policy | open->true | COVERED | 250_authz_p0_isolation.sql |
+| meeting_agenda_items.meeting_agenda_items_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_agenda_items.meeting_agenda_items_staff_admin_insert (INSERT) | policy | open->true | COVERED | 245_authz_c7_org_user_meeting_surface.sql,252_authz_p0_isolation.sql |
+| meeting_agenda_items.meeting_agenda_items_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_attendees.meeting_attendees_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_attendees.meeting_attendees_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_attendees.meeting_attendees_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_cases.meeting_cases_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_cases.meeting_cases_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_cases.meeting_cases_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meeting_signatures.meeting_signatures_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meetings.meetings_staff_admin_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meetings.meetings_staff_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| meetings.meetings_staff_admin_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
 | notification_preferences.notification_preferences_insert_own (INSERT) | policy | open->true | COVERED | 226_notifications.sql |
-| profiles.profiles_admin_update (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=112 Tests=3178) |
-| profiles.profiles_update_self (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=112 Tests=3178) |
+| profiles.profiles_admin_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| profiles.profiles_admin_update (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=115 Tests=3280) |
+| profiles.profiles_update_self (UPDATE) | policy | open->true | ERROR | run-shape!=baseline (Files=115 Tests=3280) |
+| rca.rca_delete (DELETE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| rca.rca_update (UPDATE) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
+| response_section_signoffs.signoffs_insert (INSERT) | policy | open->true | COVERED | 251_authz_p0_isolation.sql |
 | responses.responses_insert_own (INSERT) | policy | open->true | COVERED | 198_perf_hardening.sql |
 | responses.responses_update_own_draft (UPDATE) | policy | open->true | COVERED | 198_perf_hardening.sql |
