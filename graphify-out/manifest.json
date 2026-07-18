@@ -3775,8 +3775,8 @@
     "semantic_hash": ""
   },
   "src/lib/types/database.ts": {
-    "mtime": 1784389079.7812524,
-    "ast_hash": "10db56d734a305f9e7362d0a375ef0c7",
+    "mtime": 1784403213.972526,
+    "ast_hash": "c7dc159537d363334ec8538deaaac1cd",
     "semantic_hash": ""
   },
   "src/lib/types/pagination.test.ts": {
@@ -4510,8 +4510,8 @@
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1784388650.5200286,
-    "ast_hash": "18000fe654d726550019b175ae3b807e",
+    "mtime": 1784389334.4146357,
+    "ast_hash": "fc1869ba82cd1387e0246e1a579a71fd",
     "semantic_hash": ""
   },
   "README.md": {
@@ -6615,8 +6615,8 @@
     "semantic_hash": ""
   },
   "docs/phases/ethics-e2-procedure.md": {
-    "mtime": 1784388641.5503838,
-    "ast_hash": "5a53e8866775f17f5da61c77259a58c0",
+    "mtime": 1784389325.380967,
+    "ast_hash": "6eb31c10e893e0c09af2c413224d5263",
     "semantic_hash": ""
   },
   "docs/phases/ethics-e3-surfacing.md": {
@@ -7747,6 +7747,21 @@
   "supabase/tests/mutation/be5-retention-mutation-audit.sh": {
     "mtime": 1784389056.0173867,
     "ast_hash": "f1050972da5167590852433d3c330bdd",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260817000500_ethics_e2_rpcs.sql": {
+    "mtime": 1784403069.257902,
+    "ast_hash": "f61753325226e2c9d590be16a80eb3da",
+    "semantic_hash": ""
+  },
+  "supabase/tests/258_ethics_e2_rpcs.sql": {
+    "mtime": 1784403152.033515,
+    "ast_hash": "97f1ead7cb620ca3ee595e9fb52c2ce4",
+    "semantic_hash": ""
+  },
+  "supabase/tests/mutation/be6-rpc-authority-mutation-audit.sh": {
+    "mtime": 1784403191.1825922,
+    "ast_hash": "a4bb0fb10fe36e0701cc5a6a694639f9",
     "semantic_hash": ""
   }
 }

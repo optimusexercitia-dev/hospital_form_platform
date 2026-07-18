@@ -1610,6 +1610,41 @@ export type Database = {
           },
         ]
       }
+      case_assignment_roles: {
+        Row: {
+          display_name: string
+          id: string
+          is_active: boolean
+          key: string
+          organization_id: string
+          position: number
+        }
+        Insert: {
+          display_name: string
+          id?: string
+          is_active?: boolean
+          key: string
+          organization_id: string
+          position?: number
+        }
+        Update: {
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          organization_id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_assignment_roles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_conflict_declarations: {
         Row: {
           case_id: string
@@ -2485,6 +2520,7 @@ export type Database = {
         Row: {
           activated_at: string | null
           assigned_to: string | null
+          assignment_role_id: string | null
           blocks: number[]
           case_id: string
           completed_at: string | null
@@ -2516,6 +2552,7 @@ export type Database = {
         Insert: {
           activated_at?: string | null
           assigned_to?: string | null
+          assignment_role_id?: string | null
           blocks?: number[]
           case_id: string
           completed_at?: string | null
@@ -2547,6 +2584,7 @@ export type Database = {
         Update: {
           activated_at?: string | null
           assigned_to?: string | null
+          assignment_role_id?: string | null
           blocks?: number[]
           case_id?: string
           completed_at?: string | null
@@ -2581,6 +2619,13 @@ export type Database = {
             columns: ["assigned_to"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_phases_assignment_role_id_fkey"
+            columns: ["assignment_role_id"]
+            isOneToOne: false
+            referencedRelation: "case_assignment_roles"
             referencedColumns: ["id"]
           },
           {
@@ -7950,6 +7995,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      acknowledge_ethics_notification: {
+        Args: { p_notification_id: string }
+        Returns: undefined
+      }
       acknowledge_event: {
         Args: { p_event_id: string }
         Returns: {
@@ -7996,6 +8045,7 @@ export type Database = {
         Returns: {
           activated_at: string | null
           assigned_to: string | null
+          assignment_role_id: string | null
           blocks: number[]
           case_id: string
           completed_at: string | null
@@ -8078,6 +8128,7 @@ export type Database = {
         Returns: {
           activated_at: string | null
           assigned_to: string | null
+          assignment_role_id: string | null
           blocks: number[]
           case_id: string
           completed_at: string | null
@@ -8225,6 +8276,16 @@ export type Database = {
           p_is_primary_subject?: boolean
           p_participant_id: string
           p_role_id: string
+        }
+        Returns: string
+      }
+      add_ethics_allegation: {
+        Args: {
+          p_alleged_event_date?: string
+          p_case_id: string
+          p_category_id: string
+          p_description_md: string
+          p_severity?: string
         }
         Returns: string
       }
@@ -8641,6 +8702,10 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      archive_case_assignment_role: {
+        Args: { p_role_id: string }
+        Returns: undefined
+      }
       archive_case_narrative_type: {
         Args: { p_narrative_type_id: string }
         Returns: {
@@ -8697,6 +8762,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      archive_ethics_allegation_category: {
+        Args: { p_category_id: string }
+        Returns: undefined
+      }
+      archive_ethics_sanction_type: {
+        Args: { p_type_id: string }
+        Returns: undefined
       }
       archive_event_type: {
         Args: { p_id: string }
@@ -8922,6 +8995,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      cancel_ethics_notification: {
+        Args: { p_notification_id: string }
+        Returns: undefined
       }
       cancel_event: {
         Args: { p_event_id: string }
@@ -9225,6 +9302,17 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      complete_ethics_hearing: {
+        Args: {
+          p_complainant_present?: boolean
+          p_hearing_id: string
+          p_legal_representative_present?: boolean
+          p_outcome_md: string
+          p_respondent_present?: boolean
+          p_summary_md: string
+        }
+        Returns: undefined
       }
       complete_rca: {
         Args: { p_rca_id: string }
@@ -9552,6 +9640,19 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_case_assignment_role: {
+        Args: { p_display_name: string; p_key: string; p_org: string }
+        Returns: string
+      }
+      create_case_decision: {
+        Args: {
+          p_case_id: string
+          p_decision_type: string
+          p_rationale_md?: string
+          p_summary_md: string
+        }
+        Returns: string
+      }
       create_case_from_template: {
         Args: {
           p_case_type_id?: string
@@ -9801,6 +9902,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      create_ethics_allegation_category: {
+        Args: { p_display_name: string; p_key: string; p_org: string }
+        Returns: string
+      }
+      create_ethics_sanction_type: {
+        Args: { p_display_name: string; p_key: string; p_org: string }
+        Returns: string
       }
       create_event_type: {
         Args: {
@@ -10230,6 +10339,10 @@ export type Database = {
           day: string
         }[]
       }
+      decide_admissibility: {
+        Args: { p_case_id: string; p_rationale_md: string; p_status: string }
+        Returns: undefined
+      }
       declare_conflict: {
         Args: {
           p_case_id: string
@@ -10597,6 +10710,20 @@ export type Database = {
         Returns: boolean
       }
       is_pqs_member_self: { Args: never; Returns: boolean }
+      issue_decision: { Args: { p_decision_id: string }; Returns: undefined }
+      issue_ethics_notification: {
+        Args: {
+          p_case_id: string
+          p_delivery_method: string
+          p_due_at?: string
+          p_notes_md?: string
+          p_notification_type: string
+          p_recipient_participant_id?: string
+          p_recipient_user_id?: string
+          p_related_document_id?: string
+        }
+        Returns: string
+      }
       lift_recusal: {
         Args: { p_reason_md: string; p_recusal_id: string }
         Returns: undefined
@@ -11151,6 +11278,7 @@ export type Database = {
         Returns: {
           activated_at: string | null
           assigned_to: string | null
+          assignment_role_id: string | null
           blocks: number[]
           case_id: string
           completed_at: string | null
@@ -11316,6 +11444,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      record_ethics_finding: {
+        Args: {
+          p_allegation_id: string
+          p_evidence_summary_md?: string
+          p_finding: string
+          p_rationale_md?: string
+        }
+        Returns: string
       }
       record_indicator_measurement: {
         Args: {
@@ -11745,6 +11882,15 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      review_ethics_appeal: {
+        Args: {
+          p_appeal_id: string
+          p_outcome?: string
+          p_outcome_rationale_md?: string
+          p_status: string
+        }
+        Returns: undefined
+      }
       revoke_administrativo: {
         Args: { p_commission_id: string; p_user_id: string }
         Returns: undefined
@@ -12047,6 +12193,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_case_phase_assignment_role: {
+        Args: { p_phase_id: string; p_role_id: string }
+        Returns: undefined
+      }
       set_case_phase_result_override: {
         Args: {
           p_case_phase_id: string
@@ -12086,6 +12236,22 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      set_ethics_decision_details: {
+        Args: {
+          p_appeal_allowed?: boolean
+          p_appeal_deadline?: string
+          p_decision_id: string
+          p_external_reporting_deadline?: string
+          p_external_reporting_required?: boolean
+          p_external_reporting_target?: string
+          p_remediation_description_md?: string
+          p_remediation_required?: boolean
+          p_sanction_end_date?: string
+          p_sanction_start_date?: string
+          p_sanction_type_id?: string
+        }
+        Returns: undefined
       }
       set_event_patient: {
         Args: {
@@ -12416,6 +12582,7 @@ export type Database = {
         Returns: {
           activated_at: string | null
           assigned_to: string | null
+          assignment_role_id: string | null
           blocks: number[]
           case_id: string
           completed_at: string | null
@@ -12592,6 +12759,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      submit_ethics_appeal: {
+        Args: {
+          p_appeal_reason_md: string
+          p_case_id: string
+          p_decision_id: string
+          p_submitted_by_participant_id?: string
+        }
+        Returns: string
       }
       submit_rca_for_review: {
         Args: { p_rca_id: string }
@@ -13092,6 +13268,17 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      update_ethics_allegation: {
+        Args: {
+          p_allegation_id: string
+          p_alleged_event_date?: string
+          p_category_id?: string
+          p_description_md?: string
+          p_severity?: string
+          p_status?: string
+        }
+        Returns: undefined
       }
       update_event: {
         Args: {
@@ -13802,6 +13989,32 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      upsert_ethics_case_details: {
+        Args: {
+          p_case_id: string
+          p_complaint_channel?: string
+          p_complaint_received_at?: string
+          p_summary_md?: string
+        }
+        Returns: {
+          admissibility_decided_at: string | null
+          admissibility_decided_by: string | null
+          admissibility_rationale_md: string | null
+          admissibility_status: string
+          case_id: string
+          complaint_channel: string | null
+          complaint_received_at: string | null
+          created_at: string
+          summary_md: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "ethics_case_details"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       validate_visible_when: {
         Args: { p_form_version_id: string }
         Returns: boolean
@@ -13816,6 +14029,10 @@ export type Database = {
           broken_seq: number
           ok: boolean
         }[]
+      }
+      void_decision: {
+        Args: { p_decision_id: string; p_reason: string }
+        Returns: undefined
       }
       withdraw_referral: {
         Args: { p_referral_id: string }
