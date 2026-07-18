@@ -3775,8 +3775,8 @@
     "semantic_hash": ""
   },
   "src/lib/types/database.ts": {
-    "mtime": 1784384667.9676855,
-    "ast_hash": "24330e03a7efe9fdd3c3ee128c73ef68",
+    "mtime": 1784385807.940001,
+    "ast_hash": "1b92404f36615e1bbf032c242a819a5a",
     "semantic_hash": ""
   },
   "src/lib/types/pagination.test.ts": {
@@ -4100,8 +4100,8 @@
     "semantic_hash": ""
   },
   "supabase/seed.sql": {
-    "mtime": 1784326411.4866278,
-    "ast_hash": "b990f29248b1f1349986648a9b943e34",
+    "mtime": 1784385565.78008,
+    "ast_hash": "047ac17f51fdc169b7871f59470b053f",
     "semantic_hash": ""
   },
   "supabase/tests/00_setup.sql": {
@@ -4510,8 +4510,8 @@
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1784384241.755972,
-    "ast_hash": "0772c02bfcf09bd54c81431f7b52236b",
+    "mtime": 1784385151.9028845,
+    "ast_hash": "d1198b2ac0b4b18a99bbd043535edd05",
     "semantic_hash": ""
   },
   "README.md": {
@@ -6615,8 +6615,8 @@
     "semantic_hash": ""
   },
   "docs/phases/ethics-e2-procedure.md": {
-    "mtime": 1784384222.5100996,
-    "ast_hash": "0bfbebdae81165cc95967983b9e9902a",
+    "mtime": 1784385142.2926185,
+    "ast_hash": "9b52c212d090d2b9dba3830aeb77e2c4",
     "semantic_hash": ""
   },
   "docs/phases/ethics-e3-surfacing.md": {
@@ -7595,13 +7595,13 @@
     "semantic_hash": ""
   },
   "src/lib/ethics/actions.ts": {
-    "mtime": 1784383762.0332978,
-    "ast_hash": "ef5ef4dd913c1c92d33b4a12d3e49301",
+    "mtime": 1784385851.997599,
+    "ast_hash": "811ca08811c0a67708063299cc4b5fd7",
     "semantic_hash": ""
   },
   "src/lib/queries/ethics.ts": {
-    "mtime": 1784383678.1873143,
-    "ast_hash": "791ce76bf1bf6264c4c1b0934322c127",
+    "mtime": 1784385837.725493,
+    "ast_hash": "fd559b8af73c1292e5f893b6a73a4f55",
     "semantic_hash": ""
   },
   "supabase/tests/250_authz_p0_isolation.sql": {
@@ -7687,6 +7687,21 @@
   "supabase/tests/253_ethics_e2_intake.sql": {
     "mtime": 1784384631.5463057,
     "ast_hash": "cc308514680834d3d06a3f1e704ffc0c",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260817000100_ethics_e2_decisions_votes.sql": {
+    "mtime": 1784385542.710936,
+    "ast_hash": "505a5beb8fe831289f31e214eff6bbf2",
+    "semantic_hash": ""
+  },
+  "supabase/tests/254_ethics_e2_votes.sql": {
+    "mtime": 1784385702.7711997,
+    "ast_hash": "71a76440b6320c9f0d3abad6f357f95c",
+    "semantic_hash": ""
+  },
+  "supabase/tests/mutation/be3-cast-vote-mutation-audit.sh": {
+    "mtime": 1784385771.4849432,
+    "ast_hash": "7c5f85fbc826d8a2a9a5ec59ca6675b4",
     "semantic_hash": ""
   }
 }

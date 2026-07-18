@@ -1668,6 +1668,60 @@ export type Database = {
           },
         ]
       }
+      case_decisions: {
+        Row: {
+          case_id: string
+          created_at: string
+          decided_at: string | null
+          decided_by: string | null
+          decision_type: string
+          id: string
+          rationale_md: string | null
+          status: string
+          summary_md: string
+          updated_at: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_type: string
+          id?: string
+          rationale_md?: string | null
+          status?: string
+          summary_md: string
+          updated_at?: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          decided_at?: string | null
+          decided_by?: string | null
+          decision_type?: string
+          id?: string
+          rationale_md?: string | null
+          status?: string
+          summary_md?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_decisions_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_decisions_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_events: {
         Row: {
           body: string
@@ -2965,6 +3019,71 @@ export type Database = {
           },
         ]
       }
+      case_votes: {
+        Row: {
+          case_id: string
+          created_at: string
+          decision_id: string
+          id: string
+          meeting_id: string | null
+          rationale_md: string | null
+          vote: string
+          voted_at: string
+          voter_id: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          decision_id: string
+          id?: string
+          meeting_id?: string | null
+          rationale_md?: string | null
+          vote: string
+          voted_at?: string
+          voter_id: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          decision_id?: string
+          id?: string
+          meeting_id?: string | null
+          rationale_md?: string | null
+          vote?: string
+          voted_at?: string
+          voter_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_votes_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_votes_decision_id_fkey"
+            columns: ["decision_id"]
+            isOneToOne: false
+            referencedRelation: "case_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_votes_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_votes_voter_id_fkey"
+            columns: ["voter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cases: {
         Row: {
           case_number: number
@@ -3643,6 +3762,102 @@ export type Database = {
           },
         ]
       }
+      ethics_decision_details: {
+        Row: {
+          appeal_allowed: boolean
+          appeal_deadline: string | null
+          case_id: string
+          created_at: string
+          decision_id: string
+          decision_letter_document_id: string | null
+          external_reporting_completed_at: string | null
+          external_reporting_deadline: string | null
+          external_reporting_referral_id: string | null
+          external_reporting_required: boolean
+          external_reporting_target: string | null
+          remediation_description_md: string | null
+          remediation_required: boolean
+          sanction_end_date: string | null
+          sanction_start_date: string | null
+          sanction_type_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          appeal_allowed?: boolean
+          appeal_deadline?: string | null
+          case_id: string
+          created_at?: string
+          decision_id: string
+          decision_letter_document_id?: string | null
+          external_reporting_completed_at?: string | null
+          external_reporting_deadline?: string | null
+          external_reporting_referral_id?: string | null
+          external_reporting_required?: boolean
+          external_reporting_target?: string | null
+          remediation_description_md?: string | null
+          remediation_required?: boolean
+          sanction_end_date?: string | null
+          sanction_start_date?: string | null
+          sanction_type_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          appeal_allowed?: boolean
+          appeal_deadline?: string | null
+          case_id?: string
+          created_at?: string
+          decision_id?: string
+          decision_letter_document_id?: string | null
+          external_reporting_completed_at?: string | null
+          external_reporting_deadline?: string | null
+          external_reporting_referral_id?: string | null
+          external_reporting_required?: boolean
+          external_reporting_target?: string | null
+          remediation_description_md?: string | null
+          remediation_required?: boolean
+          sanction_end_date?: string | null
+          sanction_start_date?: string | null
+          sanction_type_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ethics_decision_details_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_decision_details_decision_id_fkey"
+            columns: ["decision_id"]
+            isOneToOne: true
+            referencedRelation: "case_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_decision_details_decision_letter_document_id_fkey"
+            columns: ["decision_letter_document_id"]
+            isOneToOne: false
+            referencedRelation: "attachments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_decision_details_external_reporting_referral_id_fkey"
+            columns: ["external_reporting_referral_id"]
+            isOneToOne: false
+            referencedRelation: "case_referral"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_decision_details_sanction_type_id_fkey"
+            columns: ["sanction_type_id"]
+            isOneToOne: false
+            referencedRelation: "ethics_sanction_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ethics_findings: {
         Row: {
           allegation_id: string
@@ -3700,6 +3915,41 @@ export type Database = {
             columns: ["decided_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ethics_sanction_types: {
+        Row: {
+          display_name: string
+          id: string
+          is_active: boolean
+          key: string
+          organization_id: string
+          position: number
+        }
+        Insert: {
+          display_name: string
+          id?: string
+          is_active?: boolean
+          key: string
+          organization_id: string
+          position?: number
+        }
+        Update: {
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          organization_id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ethics_sanction_types_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -8570,6 +8820,10 @@ export type Database = {
       }
       case_viewer_capabilities: { Args: { p_case_id: string }; Returns: Json }
       cases_extras_enabled: { Args: never; Returns: boolean }
+      cast_case_vote: {
+        Args: { p_decision_id: string; p_rationale_md?: string; p_vote: string }
+        Returns: string
+      }
       clone_form_version: {
         Args: { p_source_version_id: string }
         Returns: string

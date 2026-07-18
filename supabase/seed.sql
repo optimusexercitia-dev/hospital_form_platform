@@ -2175,3 +2175,18 @@ begin
           'attachments', 'case/' || v_case || '/nota.pdf', 'standard', 'ethics_investigation')
   on conflict do nothing;
 end $eth$;
+
+-- ETH·E2 (ADR 0073 D3) — seed the CEM sanction vocabulary for EVERY organization
+-- (org-scoped catalog; ethics_decision_details.sanction_type_id FKs here). Runs after
+-- the tenant tree exists; org-agnostic so any seeded org gets the standard CFM/CEM set.
+insert into public.ethics_sanction_types (organization_id, key, display_name, position)
+select o.id, v.key, v.display_name, v.position
+from public.organizations o
+cross join (values
+  ('advertencia_confidencial',  'Advertência confidencial',              1),
+  ('censura_confidencial',      'Censura confidencial',                  2),
+  ('censura_publica',           'Censura pública em publicação oficial', 3),
+  ('suspensao_exercicio',       'Suspensão do exercício profissional',   4),
+  ('cassacao_exercicio',        'Cassação do exercício profissional',    5)
+) as v(key, display_name, position)
+on conflict (organization_id, key) do nothing;

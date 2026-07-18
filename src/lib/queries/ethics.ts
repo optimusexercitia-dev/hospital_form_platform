@@ -116,11 +116,19 @@ export type DecisionStatus =
 export type VoteValue = 'approve' | 'reject' | 'abstain'
 
 /**
- * `ethics_decision_details.sanction_type` — free text per the §2.1 DDL (NO
- * CHECK, NO catalog table), despite ADR 0073 §D3's prose describing a "CEM
- * vocabulary" catalog. See the module header's reconciliation-gap note.
+ * One `ethics_sanction_types` row (D3; lead ruling 4 — the CEM sanction vocabulary
+ * IS a catalog, org-scoped, seeded advertência/censura/suspensão/cassação). Mirrors
+ * {@link AllegationCategory} / {@link CaseAssignmentRole}.
+ * `ethics_decision_details.sanction_type_id` FKs here (nullable — null = no sanction).
  */
-export type SanctionType = string
+export interface SanctionType {
+  id: string
+  organizationId: string
+  key: string
+  displayName: string
+  isActive: boolean
+  position: number
+}
 
 /** `ethics_decision_details.external_reporting_target` (D3). */
 export type ExternalReportingTarget =
@@ -266,6 +274,10 @@ export interface CaseVote {
 /** `ethics_decision_details` (D3) — the 1:1 ethics extension of a `case_decisions` row. */
 export interface EthicsDecisionDetails {
   decisionId: string
+  /** `ethics_sanction_types.id`, or `null` (no sanction). */
+  sanctionTypeId: string | null
+  /** The sanction resolved LIVE against the catalog (label propagates), or `null`
+   * when unset / archived-away. Same shape as {@link EthicsAllegation.category}. */
   sanctionType: SanctionType | null
   sanctionStartDate: string | null
   sanctionEndDate: string | null

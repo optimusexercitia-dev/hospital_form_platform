@@ -12,7 +12,6 @@ import type {
   HearingType,
   NotificationDeliveryMethod,
   NotificationType,
-  SanctionType,
   VoteValue,
 } from '@/lib/queries/ethics'
 
@@ -147,7 +146,8 @@ export interface UpdateEthicsAllegationInput {
 /** Fields for `set_ethics_decision_details` (D3 — the CRM/CFM hand-off is
  * modeled explicitly, never a free string; §D7). */
 export interface SetEthicsDecisionDetailsInput {
-  sanctionType?: SanctionType | null
+  /** `ethics_sanction_types.id`, or `null` (no sanction). Catalog FK per lead ruling 4. */
+  sanctionTypeId?: string | null
   sanctionStartDate?: string | null
   sanctionEndDate?: string | null
   remediationRequired?: boolean
