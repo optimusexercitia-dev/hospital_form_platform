@@ -3,9 +3,15 @@ import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { getCaseDetail } from "@/lib/queries/cases";
-import { getEthicsCaseProcedure } from "@/lib/queries/ethics";
+import {
+  getEthicsCaseProcedure,
+  listCaseRecusals,
+  listEthicsAllegationCategories,
+  listEthicsSanctionTypes,
+} from "@/lib/queries/ethics";
 import { listMembers, sortMembers } from "@/lib/queries/members";
 import { EthicsCoordinatorControls } from "@/components/ethics/ethics-coordinator-controls";
+import { EthicsProcedure } from "@/components/ethics/ethics-procedure";
 
 export const metadata: Metadata = {
   title: "Processo ético",
@@ -45,9 +51,16 @@ export default async function EthicsProcedurePage({
     notFound();
   }
 
-  const members = sortMembers(await listMembers(access.commission.id)).map(
-    (m) => ({ userId: m.userId, name: m.fullName ?? m.email ?? "Membro" }),
-  );
+  const [membersRaw, categories, sanctionTypes, recusals] = await Promise.all([
+    listMembers(access.commission.id),
+    listEthicsAllegationCategories(access.organization.id),
+    listEthicsSanctionTypes(access.organization.id),
+    listCaseRecusals(caseId),
+  ]);
+  const members = sortMembers(membersRaw).map((m) => ({
+    userId: m.userId,
+    name: m.fullName ?? m.email ?? "Membro",
+  }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -56,6 +69,13 @@ export default async function EthicsProcedurePage({
         confidentialityLevel={detail.confidentialityLevel}
         visibilityPolicy={detail.visibilityPolicy}
         members={members}
+      />
+      <EthicsProcedure
+        caseId={caseId}
+        procedure={procedure}
+        categories={categories}
+        sanctionTypes={sanctionTypes}
+        recusals={recusals}
       />
     </div>
   );

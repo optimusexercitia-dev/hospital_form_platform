@@ -18,6 +18,7 @@ import type {
   ConflictType,
   VisibilityPolicy,
 } from "@/lib/queries/cases";
+import type { CaseStatusColorToken } from "@/lib/cases/case-status";
 
 /**
  * pt-BR label vocabulary for the ETH·E2 procedure surface (ADR 0073). The DB
@@ -179,6 +180,13 @@ export const ADMISSIBILITY_DECISION_OPTIONS: {
   { value: "inadmissible", label: ADMISSIBILITY_STATUS_LABELS.inadmissible },
 ];
 
+export const COMPLAINT_CHANNEL_OPTIONS: {
+  value: ComplaintChannel;
+  label: string;
+}[] = (
+  ["internal", "patient", "external_body", "anonymous", "other"] as ComplaintChannel[]
+).map((value) => ({ value, label: COMPLAINT_CHANNEL_LABELS[value] }));
+
 export const ALLEGATION_STATUS_OPTIONS: {
   value: AllegationStatus;
   label: string;
@@ -297,8 +305,6 @@ export const CONFLICT_TYPE_OPTIONS: { value: ConflictType; label: string }[] = (
 ).map((value) => ({ value, label: CONFLICT_TYPE_LABELS[value] }));
 
 // --- Status → palette token (reuses the shared CaseStatusBadge vocabulary) ---
-
-import type { CaseStatusColorToken } from "@/lib/cases/case-status";
 
 export const ADMISSIBILITY_STATUS_TOKENS: Record<
   AdmissibilityStatus,
