@@ -118,6 +118,22 @@ mig `20260817000000`, pgTAP `253` 23/23 (fresh reset), catalog RLS mirrored `cas
    **authority-passing commission members** (else `HC0J5` fires down the authority path and the keystone asserts
    nothing); **mutation-prove each keystone goes RED** when the hard-check is neutralized; keep the structural
    double-lock (the excluded voter reads **0** decision rows under `set local role`).
+   **✅ BE-3 built `d40672e`** — mig `20260817000100`, pgTAP `254` 25/25; mutation `be3-cast-vote-audit` RED-PROVEN
+   (exclusion `HC0J5`×2 red / authority stays green / `HC0J4` red — separable, non-vacuous).
+
+7. **BE-3b APPROVED (2026-07-18) — the D13 targeted-submission door** (window `20260817000200`). Shape:
+   `app.can_access_targeted_response` (DEFINER, base-table, R6 — **never** `can_read_case` /
+   `can_write_case_content` / `is_case_respondent` / the case row) + `responses`/`answers` OR-arms +
+   `target_case_response` (coordinator, `HC0J1`/`HC0J0`) + `submit_targeted_case_response` (targeted user,
+   `HC0J9`; does **not** call `submit_response`) + the `responses.target_case_participant_id` column. **Binding
+   requirements:** (a) **enumerate the live `responses`/`answers` policies (post-SUP) from `pg_policies` FIRST** —
+   confirm the OR-arm lands disjunctively and **no existing arm already grants respondent reach**; (b) the
+   **over-grant mutation twin** — widening any of the 3 predicate conjuncts must make a **different** user's
+   response reachable (RED), plus the "reaches nothing else" keystone (**0** rows of `cases`/`case_participants`/
+   `ethics_*`/`case_decisions`/`case_votes`/`meetings`/`case_narratives`/`attachments` under `set local role`);
+   (c) if the targeted (esp. **non-member**) respondent cannot reach the published `form_versions`/`_sections`/
+   `_items` to render the wizard, add a narrow targeted arm **there and nowhere else** (§D13). Only a `linked`
+   profile (`user_id` not null) can use the door — no-account respondents respond out-of-band (add a keystone).
 
 ---
 
