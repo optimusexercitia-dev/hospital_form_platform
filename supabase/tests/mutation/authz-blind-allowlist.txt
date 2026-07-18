@@ -56,8 +56,8 @@
 #   * READ-PREDICATE backstops (no reachable public policy to assert through):
 #     can_read_referral (RPC-internal only), can_read_document_object (Storage RLS,
 #     not a public table), can_read_xref_row (patient_xref — no grant, door-only).
-#     can_sign_section is already COVERED (251 signoffs_insert);
-#     can_read_document_of_version is COVERED (252 document_approvals_select).
+#     (can_sign_section [251 signoffs_insert] and can_read_document_of_version
+#     [252 document_approvals_select] were PRUNED from this list — now COVERED.)
 #   * BENIGN PREDICATE WRAPPERS (pure delegation to a COVERED base predicate — no
 #     independent gate): is_*_of_self, is_admin_for, is_hospital_admin_of_for,
 #     has_role(text,uuid,text), is_pqs_writer_of.
@@ -80,10 +80,8 @@ answer_matrix_cells.answer_matrix_cells_select (SELECT)
 answer_references.answer_references_select (SELECT)
 answer_risk_matrix.answer_risk_matrix_select (SELECT)
 app.can_read_document_object(p_name text, p_uid uuid)
-app.can_read_document_of_version(p_version_id uuid, p_uid uuid)
 app.can_read_referral(p_referral_id uuid, p_uid uuid)
 app.can_read_xref_row(p_commission_id uuid, p_uid uuid)
-app.can_sign_section(p_response_id uuid, p_section_id uuid, p_signer uuid)
 app.has_role(p_scope_type text, p_scope_id uuid, p_role text)
 app.is_admin_for(p_user_id uuid)
 app.is_hospital_admin_of_for(p_hospital_id uuid, p_user_id uuid)
