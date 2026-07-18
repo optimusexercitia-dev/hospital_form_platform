@@ -75,11 +75,43 @@ This plan was authored 2026-07-13, **before** ADR 0073's D13/D14 amendment (2026
 
 ---
 
+## ✅ Lead rulings (2026-07-18, after BE-1) — binding for BE-2/BE-3/BE-6/BE-10
+
+BE-1 (contract stubs, commit `ada4c97`) surfaced 5 gaps; rulings (catalog-verified where noted):
+
+1. **"Ethics-typed" ≡ `exists(select 1 from public.ethics_case_details where case_id = X)`.** Catalog-verified:
+   `public.cases` has **no `case_type_id`** (only `template_id`, no FK to `case_types`); `create_case_from_template`
+   snapshots the type's defaults but never persists the type — there is no durable case→type link. `ethics_case_details`
+   (BE-2, the D1 1:1 table) is the **canonical ethics-case marker**; `upsert_ethics_case_details` marks a case ethics.
+   Every "ethics-only" E2 RPC (incl. D13's `target_case_response` validation) asserts `exists(ethics_case_details)`
+   (R6-safe base-table check) — **not** a `cases.case_type_id` FK (out of E2's additive scope + would touch the
+   authorization-sensitive `cases` table). **§0's `case_type_id` anchor is corrected below.**
+2. **D13's `target_case_response` SUPERSEDES D10's `set_response_target_participant` — build ONE RPC.** Same
+   signature + same `responses.target_case_participant_id` write; ADR 0073 D0's "D13 *upgrades* this column" is
+   supersession. Build only the D13 door (coordinator-gated, same-case + ethics-typed validation, with
+   `submit_targeted_case_response` + `can_access_targeted_response`). **Do not** build `set_response_target_participant`.
+3. **BE-10 CREATES the 5th app-action stub `setCaseVisibility`** (the live `public.set_case_visibility` door exists;
+   no `src/` action wraps it) and wires all five (`setCaseVisibility`/`setCaseConfidentiality`/`declareConflict`/
+   `recordRecusal`/`liftRecusal`). Those doors raise **0078's `HC0F5`/`HC0F6`** — map those, not `HC0J·`.
+4. **`sanction_type` → catalog `ethics_sanction_types` (org-scoped), seeded with the CEM vocabulary** (per O-2 +
+   consistency with `ethics_allegation_categories`); `sanctionType: string` (catalog key) is forward-compatible.
+   Firm at the BE-3 plan.
+5. Extra closed-union types BE-1 added (`ComplaintChannel`/`AllegationSeverity`/`NotificationDeliveryMethod`/
+   `NotificationStatus`) — **kept** (real DDL CHECKs).
+
+**BE-2 APPROVED** as outlined: flag `('ethics',false)` + `ethics_allegation_categories` → `ethics_case_details` →
+`ethics_allegations` → `ethics_findings`; CHECKs verbatim; one SELECT policy per table on
+`app.can_read_case(case_id, auth.uid())`; `ethics_findings` on its **denormalized** `case_id`; catalog SELECT
+org-scoped **mirroring a named live precedent** (cite it in the migration); SELECT grant to `authenticated`
+(F1 MAJOR-1); `HC0J0`/`HC0J2`/`HC0J3`. One cohesive migration, window `20260817000000+`.
+
+---
+
 ## 0. Source anchors (what already exists — E2 extends/consumes, never re-creates)
 
 | Surface | Where (source of truth) | E2 action |
 |---|---|---|
-| `public.cases` (root; `case_type_id`, `commission_id`, `organization_id`, `confidentiality_level`/`visibility_policy` from E1) | baseline; E1 migration | **parent** of every E2 table (`case_id` FK) |
+| `public.cases` (root; `commission_id`, `organization_id`, `confidentiality_level`/`visibility_policy` from E1 — ⚠ **no `case_type_id`**, only `template_id`; "ethics-typed" = `exists(ethics_case_details)`, ruling 1) | baseline; E1 migration | **parent** of every E2 table (`case_id` FK) |
 | `app.can_read_case(p_case_id, p_uid)` (live, w/ E1 deny-terms) | `20260710000000_nsp_per_hospital.sql` L569 | **SELECT gate** for every E2 table (no change to the predicate) |
 | `app.is_recused_from_case` / `app.is_case_respondent` (**new in E1**) | E1 migration (ADR 0072 §2.2) | **consumed** by `cast_case_vote` (HC0J5 vote-exclusion — §D4) |
 | `app.commission_of_case(p_case_id)` | baseline L1629 | RPC authority + `audit_write` `p_commission` |
