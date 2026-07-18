@@ -3493,6 +3493,217 @@ export type Database = {
           },
         ]
       }
+      ethics_allegation_categories: {
+        Row: {
+          display_name: string
+          id: string
+          is_active: boolean
+          key: string
+          organization_id: string
+          position: number
+        }
+        Insert: {
+          display_name: string
+          id?: string
+          is_active?: boolean
+          key: string
+          organization_id: string
+          position?: number
+        }
+        Update: {
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          organization_id?: string
+          position?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ethics_allegation_categories_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ethics_allegations: {
+        Row: {
+          allegation_category_id: string
+          alleged_event_date: string | null
+          case_id: string
+          created_at: string
+          created_by: string | null
+          description_md: string
+          id: string
+          severity: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          allegation_category_id: string
+          alleged_event_date?: string | null
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          description_md: string
+          id?: string
+          severity?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          allegation_category_id?: string
+          alleged_event_date?: string | null
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          description_md?: string
+          id?: string
+          severity?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ethics_allegations_allegation_category_id_fkey"
+            columns: ["allegation_category_id"]
+            isOneToOne: false
+            referencedRelation: "ethics_allegation_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_allegations_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_allegations_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ethics_case_details: {
+        Row: {
+          admissibility_decided_at: string | null
+          admissibility_decided_by: string | null
+          admissibility_rationale_md: string | null
+          admissibility_status: string
+          case_id: string
+          complaint_channel: string | null
+          complaint_received_at: string | null
+          created_at: string
+          summary_md: string | null
+          updated_at: string
+        }
+        Insert: {
+          admissibility_decided_at?: string | null
+          admissibility_decided_by?: string | null
+          admissibility_rationale_md?: string | null
+          admissibility_status?: string
+          case_id: string
+          complaint_channel?: string | null
+          complaint_received_at?: string | null
+          created_at?: string
+          summary_md?: string | null
+          updated_at?: string
+        }
+        Update: {
+          admissibility_decided_at?: string | null
+          admissibility_decided_by?: string | null
+          admissibility_rationale_md?: string | null
+          admissibility_status?: string
+          case_id?: string
+          complaint_channel?: string | null
+          complaint_received_at?: string | null
+          created_at?: string
+          summary_md?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ethics_case_details_admissibility_decided_by_fkey"
+            columns: ["admissibility_decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_case_details_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: true
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ethics_findings: {
+        Row: {
+          allegation_id: string
+          case_id: string
+          created_at: string
+          decided_at: string
+          decided_by: string | null
+          evidence_summary_md: string | null
+          finding: string
+          id: string
+          rationale_md: string | null
+          updated_at: string
+        }
+        Insert: {
+          allegation_id: string
+          case_id: string
+          created_at?: string
+          decided_at?: string
+          decided_by?: string | null
+          evidence_summary_md?: string | null
+          finding: string
+          id?: string
+          rationale_md?: string | null
+          updated_at?: string
+        }
+        Update: {
+          allegation_id?: string
+          case_id?: string
+          created_at?: string
+          decided_at?: string
+          decided_by?: string | null
+          evidence_summary_md?: string | null
+          finding?: string
+          id?: string
+          rationale_md?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ethics_findings_allegation_id_fkey"
+            columns: ["allegation_id"]
+            isOneToOne: true
+            referencedRelation: "ethics_allegations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_findings_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_findings_decided_by_fkey"
+            columns: ["decided_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_custody: {
         Row: {
           assigned_by: string | null
@@ -7172,63 +7383,9 @@ export type Database = {
       }
     }
     Views: {
-      pg_all_foreign_keys: {
-        Row: {
-          fk_columns: unknown[] | null
-          fk_constraint_name: unknown
-          fk_schema_name: unknown
-          fk_table_name: unknown
-          fk_table_oid: unknown
-          is_deferrable: boolean | null
-          is_deferred: boolean | null
-          match_type: string | null
-          on_delete: string | null
-          on_update: string | null
-          pk_columns: unknown[] | null
-          pk_constraint_name: unknown
-          pk_index_name: unknown
-          pk_schema_name: unknown
-          pk_table_name: unknown
-          pk_table_oid: unknown
-        }
-        Relationships: []
-      }
-      tap_funky: {
-        Row: {
-          args: string | null
-          is_definer: boolean | null
-          is_strict: boolean | null
-          is_visible: boolean | null
-          kind: unknown
-          langoid: unknown
-          name: unknown
-          oid: unknown
-          owner: unknown
-          returns: string | null
-          returns_set: boolean | null
-          schema: unknown
-          volatility: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
-      _cleanup: { Args: never; Returns: boolean }
-      _contract_on: { Args: { "": string }; Returns: unknown }
-      _currtest: { Args: never; Returns: number }
-      _db_privs: { Args: never; Returns: unknown[] }
-      _extensions: { Args: never; Returns: unknown[] }
-      _get: { Args: { "": string }; Returns: number }
-      _get_latest: { Args: { "": string }; Returns: number[] }
-      _get_note: { Args: { "": string }; Returns: string }
-      _is_verbose: { Args: never; Returns: boolean }
-      _prokind: { Args: { p_oid: unknown }; Returns: unknown }
-      _query: { Args: { "": string }; Returns: string }
-      _refine_vol: { Args: { "": string }; Returns: string }
-      _retval: { Args: { "": string }; Returns: string }
-      _table_privs: { Args: never; Returns: unknown[] }
-      _temptypes: { Args: { "": string }; Returns: string }
-      _todo: { Args: never; Returns: string }
       accept_referral: {
         Args: { p_referral_id: string }
         Returns: {
@@ -8478,42 +8635,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      col_is_null:
-        | {
-            Args: {
-              column_name: unknown
-              description?: string
-              schema_name: unknown
-              table_name: unknown
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              column_name: unknown
-              description?: string
-              table_name: unknown
-            }
-            Returns: string
-          }
-      col_not_null:
-        | {
-            Args: {
-              column_name: unknown
-              description?: string
-              schema_name: unknown
-              table_name: unknown
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              column_name: unknown
-              description?: string
-              table_name: unknown
-            }
-            Returns: string
-          }
       commission_overview: {
         Args: never
         Returns: {
@@ -9676,20 +9797,6 @@ export type Database = {
         Args: { p_section_id: string; p_target_section_id: string }
         Returns: undefined
       }
-      diag:
-        | {
-            Args: { msg: unknown }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.diag(msg => text), public.diag(msg => anyelement). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
-        | {
-            Args: { msg: string }
-            Returns: {
-              error: true
-            } & "Could not choose the best candidate function between: public.diag(msg => text), public.diag(msg => anyelement). Try renaming the parameters or the function itself in the database so function overloading can be resolved"
-          }
-      diag_test_name: { Args: { "": string }; Returns: string }
       discard_response: { Args: { p_response_id: string }; Returns: undefined }
       dispose_attachment_phi: {
         Args: { p_id: string; p_reason: string }
@@ -9752,9 +9859,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      do_tap:
-        | { Args: never; Returns: string[] }
-        | { Args: { "": string }; Returns: string[] }
       documents_due_for_review: {
         Args: { p_commission: string }
         Returns: {
@@ -9769,12 +9873,6 @@ export type Database = {
           title: string
         }[]
       }
-      fail:
-        | { Args: never; Returns: string }
-        | { Args: { "": string }; Returns: string }
-      findfuncs: { Args: { "": string }; Returns: string[] }
-      finish: { Args: { exception_on_failure?: boolean }; Returns: string[] }
-      format_type_string: { Args: { "": string }; Returns: string }
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_case_meeting_links: {
         Args: { p_case_id: string }
@@ -9910,7 +10008,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      has_unique: { Args: { "": string }; Returns: string }
       hospital_document_register: {
         Args: {
           p_doc_type?: string
@@ -9943,7 +10040,6 @@ export type Database = {
           total: number
         }[]
       }
-      in_todo: { Args: never; Returns: boolean }
       indicator_kpis: {
         Args: { p_commission: string }
         Returns: {
@@ -9968,7 +10064,6 @@ export type Database = {
         Returns: boolean
       }
       interviews_enabled: { Args: never; Returns: boolean }
-      is_empty: { Args: { "": string }; Returns: string }
       is_nsp_coordinator_of_self: {
         Args: { p_hospital_id: string }
         Returns: boolean
@@ -9979,7 +10074,6 @@ export type Database = {
         Returns: boolean
       }
       is_pqs_member_self: { Args: never; Returns: boolean }
-      isnt_empty: { Args: { "": string }; Returns: string }
       lift_recusal: {
         Args: { p_reason_md: string; p_recusal_id: string }
         Returns: undefined
@@ -10135,7 +10229,6 @@ export type Database = {
           version_number: number
         }[]
       }
-      lives_ok: { Args: { "": string }; Returns: string }
       log_audit_access: {
         Args: {
           p_action: string
@@ -10223,7 +10316,6 @@ export type Database = {
           title: string
         }[]
       }
-      no_plan: { Args: never; Returns: boolean[] }
       no_show_session: {
         Args: { p_reason?: string; p_session_id: string }
         Returns: {
@@ -10299,7 +10391,6 @@ export type Database = {
       nsp_org_capa_rollup: { Args: { p_org_id: string }; Returns: Json }
       nsp_org_event_rollup: { Args: { p_org_id: string }; Returns: Json }
       nsp_org_roster: { Args: { p_org_id: string }; Returns: Json }
-      num_failed: { Args: never; Returns: number }
       open_attachment: {
         Args: { p_id: string }
         Returns: {
@@ -10341,10 +10432,6 @@ export type Database = {
         }
       }
       open_reserved_session: { Args: { p_meeting_id: string }; Returns: string }
-      os_name: { Args: never; Returns: string }
-      pass:
-        | { Args: never; Returns: string }
-        | { Args: { "": string }; Returns: string }
       patient_access_audit: {
         Args: { p_encounter?: string; p_hospital_id?: string; p_mrn?: string }
         Returns: Json
@@ -10355,9 +10442,6 @@ export type Database = {
         Args: { p_entity_id: string; p_module: string }
         Returns: number
       }
-      pg_version: { Args: never; Returns: string }
-      pg_version_num: { Args: never; Returns: number }
-      pgtap_version: { Args: never; Returns: number }
       post_referral_message: {
         Args: {
           p_body?: string
@@ -11175,9 +11259,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      runtests:
-        | { Args: never; Returns: string[] }
-        | { Args: { "": string }; Returns: string[] }
       save_narrative_body: {
         Args: { p_body_md: string; p_narrative: string }
         Returns: undefined
@@ -11793,9 +11874,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      skip:
-        | { Args: { "": string }; Returns: string }
-        | { Args: { how_many: number; why: string }; Returns: string }
       skip_phase: {
         Args: { p_case_phase_id: string }
         Returns: {
@@ -12071,16 +12149,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      throws_ok: { Args: { "": string }; Returns: string }
-      todo:
-        | { Args: { how_many: number }; Returns: boolean[] }
-        | { Args: { how_many: number; why: string }; Returns: boolean[] }
-        | { Args: { why: string }; Returns: boolean[] }
-        | { Args: { how_many: number; why: string }; Returns: boolean[] }
-      todo_end: { Args: never; Returns: boolean[] }
-      todo_start:
-        | { Args: never; Returns: boolean[] }
-        | { Args: { "": string }; Returns: boolean[] }
       toggle_committee_action_item_checklist: {
         Args: { p_id: string; p_is_done: boolean }
         Returns: {
@@ -13250,9 +13318,7 @@ export type Database = {
       [_ in never]: never
     }
     CompositeTypes: {
-      _time_trial_type: {
-        a_time: number | null
-      }
+      [_ in never]: never
     }
   }
 }

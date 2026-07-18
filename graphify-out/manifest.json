@@ -3775,8 +3775,8 @@
     "semantic_hash": ""
   },
   "src/lib/types/database.ts": {
-    "mtime": 1784325106.2630606,
-    "ast_hash": "88eddab76f3c6a938d3e9005ab8f8985",
+    "mtime": 1784384667.9676855,
+    "ast_hash": "24330e03a7efe9fdd3c3ee128c73ef68",
     "semantic_hash": ""
   },
   "src/lib/types/pagination.test.ts": {
@@ -4510,8 +4510,8 @@
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1784383113.4563155,
-    "ast_hash": "de453782c446ec908c149b4913aee840",
+    "mtime": 1784384241.755972,
+    "ast_hash": "0772c02bfcf09bd54c81431f7b52236b",
     "semantic_hash": ""
   },
   "README.md": {
@@ -6615,8 +6615,8 @@
     "semantic_hash": ""
   },
   "docs/phases/ethics-e2-procedure.md": {
-    "mtime": 1784382756.8357613,
-    "ast_hash": "56f7f1f366aacf87a09a536f69279d08",
+    "mtime": 1784384222.5100996,
+    "ast_hash": "0bfbebdae81165cc95967983b9e9902a",
     "semantic_hash": ""
   },
   "docs/phases/ethics-e3-surfacing.md": {
@@ -7677,6 +7677,16 @@
   "supabase/tests/mutation/authz-neverclled-door-allowlist.txt": {
     "mtime": 1784376322.7687519,
     "ast_hash": "b06d26346104561ea5d02a195b5beb70",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260817000000_ethics_e2_intake_tables.sql": {
+    "mtime": 1784384535.6000102,
+    "ast_hash": "eb39f4ce85f16b7fd05997c3e4375e7d",
+    "semantic_hash": ""
+  },
+  "supabase/tests/253_ethics_e2_intake.sql": {
+    "mtime": 1784384631.5463057,
+    "ast_hash": "cc308514680834d3d06a3f1e704ffc0c",
     "semantic_hash": ""
   }
 }
