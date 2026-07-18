@@ -92,14 +92,55 @@ run_case "KS6 case_referral_delete_draft_source" \
   "alter policy case_referral_delete_draft_source on public.case_referral using (true);" \
   "KS6a"
 
+# =============================================================================
+# BATCH 2 — the remaining direct-DML write policies (SRC=251). Each case opens ONE
+# write policy (INSERT->with check(true); DELETE->using(true); UPDATE->both) and
+# requires the matching `<polname> DENY` keystone to redden. Reader-non-writer
+# principals (ADR 0079) make each UPDATE/DELETE redness attributable to the write
+# policy, not the SELECT gate.
+# =============================================================================
 echo
-echo "=== CONTROL — no mutation: every keystone GREEN (proves the harness is not a red-generator) ==="
-docker cp "$SRC" "$DB:/tmp/_noop_250.sql" >/dev/null
-control=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/_noop_250.sql 2>&1)
-if echo "$control" | grep -qE "^not ok"; then
-  echo "*** CONTROL FAILED — 250 has a failing assertion WITHOUT any mutation ***"
-  echo "$control" | grep -E "^not ok"
-else
-  ok=$(echo "$control" | grep -cE "^ok")
-  echo "CONTROL: all green ($ok ok, 0 not ok)"
-fi
+echo "--- BATCH 2 (251) ---"
+B2=supabase/tests/251_authz_p0_isolation.sql
+run251 () { SRC="$B2" run_case "$@"; }
+
+# meeting family
+run251 "meetings_insert"          "alter policy meetings_staff_admin_insert on public.meetings with check (true);"                          "meetings_staff_admin_insert DENY"
+run251 "meetings_update"          "alter policy meetings_staff_admin_update on public.meetings using (true) with check (true);"             "meetings_staff_admin_update DENY"
+run251 "meetings_delete"          "alter policy meetings_staff_admin_delete on public.meetings using (true);"                                "meetings_staff_admin_delete DENY"
+run251 "meeting_cases_insert"     "alter policy meeting_cases_staff_admin_insert on public.meeting_cases with check (true);"                 "meeting_cases_staff_admin_insert DENY"
+run251 "meeting_cases_update"     "alter policy meeting_cases_staff_admin_update on public.meeting_cases using (true) with check (true);"    "meeting_cases_staff_admin_update DENY"
+run251 "meeting_cases_delete"     "alter policy meeting_cases_staff_admin_delete on public.meeting_cases using (true);"                       "meeting_cases_staff_admin_delete DENY"
+run251 "meeting_attendees_insert" "alter policy meeting_attendees_staff_admin_insert on public.meeting_attendees with check (true);"         "meeting_attendees_staff_admin_insert DENY"
+run251 "meeting_attendees_update" "alter policy meeting_attendees_staff_admin_update on public.meeting_attendees using (true) with check (true);" "meeting_attendees_staff_admin_update DENY"
+run251 "meeting_attendees_delete" "alter policy meeting_attendees_staff_admin_delete on public.meeting_attendees using (true);"              "meeting_attendees_staff_admin_delete DENY"
+run251 "meeting_agenda_update"    "alter policy meeting_agenda_items_staff_admin_update on public.meeting_agenda_items using (true) with check (true);" "meeting_agenda_items_staff_admin_update DENY"
+run251 "meeting_agenda_delete"    "alter policy meeting_agenda_items_staff_admin_delete on public.meeting_agenda_items using (true);"         "meeting_agenda_items_staff_admin_delete DENY"
+run251 "meeting_signatures_insert" "alter policy meeting_signatures_insert on public.meeting_signatures with check (true);"                  "meeting_signatures_insert DENY"
+# rca / capa / interviews
+run251 "rca_update"               "alter policy rca_update on public.rca using (true) with check (true);"                                     "rca_update DENY"
+run251 "rca_delete"               "alter policy rca_delete on public.rca using (true);"                                                      "rca_delete DENY"
+run251 "capa_plan_update"         "alter policy capa_plan_update on public.capa_plan using (true) with check (true);"                        "capa_plan_update DENY"
+run251 "capa_plan_delete"         "alter policy capa_plan_delete on public.capa_plan using (true);"                                          "capa_plan_delete DENY"
+run251 "case_interviews_update"   "alter policy case_interviews_update on public.case_interviews using (true) with check (true);"           "case_interviews_update DENY"
+run251 "case_interviews_delete"   "alter policy case_interviews_delete on public.case_interviews using (true);"                             "case_interviews_delete DENY"
+# signoffs / profiles
+run251 "signoffs_insert"          "alter policy signoffs_insert on public.response_section_signoffs with check (true);"                      "signoffs_insert DENY"
+run251 "profiles_admin_insert"    "alter policy profiles_admin_insert on public.profiles with check (true);"                                 "profiles_admin_insert DENY"
+# NOTE: responses_delete_own_draft and notification_preferences_update_own are NOT
+# keystoned — they are backstopped (guard_submitted_response trigger; select_own) so
+# reverting their RLS policy reddens nothing. They stay in authz-blind-allowlist.txt.
+
+echo
+echo "=== CONTROL — no mutation: every keystone GREEN in BOTH files (harness is not a red-generator) ==="
+for f in "$SRC" "$B2"; do
+  docker cp "$f" "$DB:/tmp/_noop_p0b.sql" >/dev/null
+  control=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/_noop_p0b.sql 2>&1)
+  if echo "$control" | grep -qE "^not ok"; then
+    echo "*** CONTROL FAILED — $f has a failing assertion WITHOUT any mutation ***"
+    echo "$control" | grep -E "^not ok"
+  else
+    ok=$(echo "$control" | grep -cE "^ok")
+    echo "CONTROL $(basename "$f"): all green ($ok ok, 0 not ok)"
+  fi
+done

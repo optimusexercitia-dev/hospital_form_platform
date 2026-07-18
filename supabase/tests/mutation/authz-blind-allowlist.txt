@@ -21,6 +21,20 @@
 #   app.assert_referral_target_acts(uuid,text[]), and the case_referral insert/update/
 #   delete_draft policies. Do NOT re-add those without removing their keystone first.
 #
+# FIX-C Batch 2 (2026-07-18) removed 20 more, now COVERED by
+#   supabase/tests/251_authz_p0_isolation.sql (meeting family incl. signatures; rca
+#   update/delete; capa_plan update/delete; case_interviews update/delete; sign-offs
+#   insert; profiles admin-insert). Two policies the batch reviewed stay BELOW as
+#   BACKSTOPPED (reverting their RLS policy reddens nothing, so not force-keystoned):
+#     * responses.responses_delete_own_draft (DELETE) — the status='in_progress' term
+#       is independently enforced by trigger guard_submitted_response (a submitted
+#       response cannot be deleted regardless of RLS); the created_by term is
+#       SELECT-masked (only creator/commission_admin see a draft; the admin deletes via
+#       the FOR ALL responses_admin_all).
+#     * notification_preferences.notification_preferences_update_own (UPDATE) — fully
+#       backstopped by select_own: a reassign to another user is blocked by the SELECT
+#       policy (the new row must stay visible), not by this policy's WITH CHECK.
+#
 # Low-severity / backstop notes (triage doc §"Allowlisted"):
 #   * event_patient.*, patient_xref.* SELECT and notifications.* write are DOOR-ONLY
 #     backstops — the SELECT grant is revoked so PostgREST cannot expose the base table;
@@ -56,10 +70,6 @@ capa_measure.capa_measure_select (SELECT)
 capa_measure.capa_measure_write (ALL)
 capa_measure_result.capa_measure_result_select (SELECT)
 capa_measure_result.capa_measure_result_write (ALL)
-capa_plan.capa_plan_delete (DELETE)
-capa_plan.capa_plan_update (UPDATE)
-case_interviews.case_interviews_delete (DELETE)
-case_interviews.case_interviews_update (UPDATE)
 case_participant_roles.case_participant_roles_admin_write (ALL)
 case_participant_roles.case_participant_roles_select (SELECT)
 case_phase_allowed_results.case_phase_allowed_results_select (SELECT)
@@ -90,20 +100,8 @@ interview_sessions.interview_sessions_select (SELECT)
 interview_sessions.interview_sessions_write (ALL)
 interview_summaries.interview_summaries_select (SELECT)
 interview_topics.interview_topics_select (SELECT)
-meeting_agenda_items.meeting_agenda_items_staff_admin_delete (DELETE)
-meeting_agenda_items.meeting_agenda_items_staff_admin_update (UPDATE)
-meeting_attendees.meeting_attendees_staff_admin_delete (DELETE)
-meeting_attendees.meeting_attendees_staff_admin_insert (INSERT)
-meeting_attendees.meeting_attendees_staff_admin_update (UPDATE)
-meeting_cases.meeting_cases_staff_admin_delete (DELETE)
-meeting_cases.meeting_cases_staff_admin_insert (INSERT)
-meeting_cases.meeting_cases_staff_admin_update (UPDATE)
 meeting_closed_sessions.meeting_closed_sessions_select (SELECT)
-meeting_signatures.meeting_signatures_insert (INSERT)
 meeting_signatures.meeting_signatures_select (SELECT)
-meetings.meetings_staff_admin_delete (DELETE)
-meetings.meetings_staff_admin_insert (INSERT)
-meetings.meetings_staff_admin_update (UPDATE)
 notification_preferences.notification_preferences_select_own (SELECT)
 notification_preferences.notification_preferences_update_own (UPDATE)
 notifications.notifications_update_own (UPDATE)
@@ -123,13 +121,10 @@ process_templates.process_templates_staff_admin_write (ALL)
 professional_categories.professional_categories_admin_write (ALL)
 professional_participants.professional_participants_select (SELECT)
 professional_profiles.professional_profiles_select (SELECT)
-profiles.profiles_admin_insert (INSERT)
 public.is_nsp_coordinator_of_self(p_hospital_id uuid)
 public.is_nsp_org_admin_of_self(p_org_id uuid)
 public.is_pqs_member_of_self(p_hospital_id uuid)
 public.is_pqs_member_self()
-rca.rca_delete (DELETE)
-rca.rca_update (UPDATE)
 rca_evidence.rca_evidence_select (SELECT)
 rca_evidence.rca_evidence_write (ALL)
 rca_factors.rca_factors_select (SELECT)
@@ -145,5 +140,4 @@ rca_why_chains.rca_why_chains_write (ALL)
 referral_reply_attachment.referral_reply_attachment_select_readable (SELECT)
 referral_types.referral_types_write_admin (ALL)
 reply_outcomes.reply_outcomes_write_admin (ALL)
-response_section_signoffs.signoffs_insert (INSERT)
 responses.responses_delete_own_draft (DELETE)
