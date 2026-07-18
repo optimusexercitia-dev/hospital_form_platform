@@ -7558,6 +7558,7 @@ export type Database = {
           status: string
           submitted_at: string | null
           supersedes_id: string | null
+          target_case_participant_id: string | null
           updated_at: string
         }
         Insert: {
@@ -7571,6 +7572,7 @@ export type Database = {
           status?: string
           submitted_at?: string | null
           supersedes_id?: string | null
+          target_case_participant_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -7584,6 +7586,7 @@ export type Database = {
           status?: string
           submitted_at?: string | null
           supersedes_id?: string | null
+          target_case_participant_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -7627,6 +7630,13 @@ export type Database = {
             columns: ["supersedes_id"]
             isOneToOne: false
             referencedRelation: "responses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "responses_target_case_participant_id_fkey"
+            columns: ["target_case_participant_id"]
+            isOneToOne: false
+            referencedRelation: "case_participants"
             referencedColumns: ["id"]
           },
         ]
@@ -11552,6 +11562,7 @@ export type Database = {
           status: string
           submitted_at: string | null
           supersedes_id: string | null
+          target_case_participant_id: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -12182,6 +12193,7 @@ export type Database = {
           status: string
           submitted_at: string | null
           supersedes_id: string | null
+          target_case_participant_id: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -12204,6 +12216,7 @@ export type Database = {
           status: string
           submitted_at: string | null
           supersedes_id: string | null
+          target_case_participant_id: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -12349,6 +12362,7 @@ export type Database = {
           status: string
           submitted_at: string | null
           supersedes_id: string | null
+          target_case_participant_id: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -12357,6 +12371,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      submit_targeted_case_response: {
+        Args: { p_response_id: string }
+        Returns: undefined
       }
       supersede_document: {
         Args: { p_document_id: string }
@@ -12394,6 +12412,7 @@ export type Database = {
           status: string
           submitted_at: string | null
           supersedes_id: string | null
+          target_case_participant_id: string | null
           updated_at: string
         }
         SetofOptions: {
@@ -12402,6 +12421,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      target_case_response: {
+        Args: { p_case_participant_id: string; p_response_id: string }
+        Returns: undefined
       }
       toggle_committee_action_item_checklist: {
         Args: { p_id: string; p_is_done: boolean }
