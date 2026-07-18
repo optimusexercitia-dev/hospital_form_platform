@@ -149,16 +149,39 @@ keystone · qa APPROVED · human approval → Record.
 - **PO directed:** BUG-AIF-001/FUP-AI-1 → pre-pilot (own workstream, not yet started) · the **three ETH·E1 known
   gaps → ETH·E2** (see Follow-ups).
 
-### ▶ NEXT — S4 · ETH·E2 procedure · RV2 R2–R5 · CH (Charters, Phase 21)
+### 🏗️ ACTIVE — S4 · ETH·E2 (procedure) — opened 2026-07-18 · branch `feat/eth-e2-procedure`
 
-**S3 is done.** S4 opens the ethics *procedure* model (ADR [0073](docs/decisions/0073-ethics-procedure-model.md),
-build plan `docs/phases/ethics-e2-procedure.md`, `HC0F0–HC0F9` — **block fully allocated**), plus Referrals-v2
-governance R2–R5 and Charters. **E1 → E2 is strictly sequential** and E1's prerequisites are now satisfied.
-**E2 inherits** the three known gaps + the two sweep Minors below.
+**S4 order (PO 2026-07-18): ETH·E2 first**, then RV2 R2–R5 + CH. E1→E2 strictly sequential (E1 done). ADR
+[0073](docs/decisions/0073-ethics-procedure-model.md) + [build plan](docs/phases/ethics-e2-procedure.md) are
+**reconciled to ADR [0078](docs/decisions/0078-authorization-capability-model.md)** (top Amendment 2026-07-18 +
+build-plan addendum): SQLSTATE `HC0F·`→**`HC0J·`**; **D14 reconciled onto Stage C `participants_only`** (parallel
+`can_read_meeting`/policy-rewrite WITHDRAWN — hearings are `participants_only` meetings via E2's own door);
+`legal_privileged` decision letters → **Stage E** (0078 A19/B3 fence); **E2 gains the 5 ethics coordinator
+app-actions + UI** (`set_case_visibility`/`_confidentiality`/`declare_conflict`/`record_recusal`/`lift_recusal` —
+handoff PO decision 8). Inherited E1 gaps are **lighter**: GAP-1 (action-item `assignees_only`) substantially
+closed by 0078; GAP-3 (privileged-doc ceiling) defers with Stage E; GAP-2 (NSP link-inference) post-pilot; the 2
+sweep Minors overlap the ADR-0079 P0 invariant. Contract-first (BE-1 posts §2 stubs first). Migration window
+`20260817000000+`.
 
-> ⚠ **Note for whoever opens S4:** ADR 0073 has **uncommitted local edits** (a §D13/§D14 amendment: respondent
-> targeted-submission door + case-restricted hearings) authored **outside this session** — they were present in the
-> working tree throughout E1 and were deliberately left untouched. Reconcile/commit them before building E2.
+| # | Task | Owner | Plan review | Status |
+|---|------|-------|-------------|--------|
+| BE-1 | Post §2 typed contract (queries + `ethics/actions.ts` + types) as stubs; commit early | backend | one-line ack | 🔜 |
+| BE-2 | Mig: `ethics` flag OFF; `ethics_case_details`/`ethics_allegations`(+cat)/`ethics_findings` + RLS/grants + `HC0J0/2/3` | backend | **full** | ⏳ |
+| BE-3 | Mig: `case_decisions`/`ethics_decision_details`/`case_votes`; `cast_case_vote` recusal+respondent gate `HC0J4/5` | backend | **full** (E1-consumption keystone) | ⏳ |
+| BE-3b | **NEW (D13):** `can_access_targeted_response` + `responses`/`answers` OR-arms + `target_case_response`/`submit_targeted_case_response` `HC0J9` | backend | **full** | ⏳ |
+| BE-4 | Mig: `ethics_notifications`/`ethics_hearings`/`ethics_appeals`; **`schedule_ethics_hearing` = `participants_only` meeting door** (D14→Stage C); "Audiência" seed | backend | **full** | ⏳ |
+| BE-5 | M2 retention-pin trigger + `redact_professional_profile` (`link_state`-aware, B7) `HC0J7` | backend | **full** (novel trigger) | ⏳ |
+| BE-6 | RPCs: admissibility/allegations/findings/decision/issue/notifications/hearings/appeals/assignment-role; t19 | backend | **full** | ⏳ |
+| BE-7 | N scan arm (`ethics_notice_due`) — additive, idempotent, PHI-free | backend | one-line ack | ⏳ |
+| BE-8 | Modified read `get_case_detail` (or `get_ethics_case_procedure`); hub (X-ε) + referral (§D7) consumption | backend | one-line ack | ⏳ |
+| BE-10 | **NEW:** wire the 5 ethics coordinator app-actions to the live DEFINER doors (pt-BR `HC0*` mapping; no new SQL) | backend | one-line ack | ⏳ |
+| BE-9 | Flag flip `ethics`→ON + `FeatureFlags` + regen types + pgTAP fresh reset + seed | backend | one-line ack | ⏳ |
+| FE | Coordinator controls (recusal/COI/visibility/confidentiality) + minimal procedure UI (off §2 contract; `frontend-design`) | frontend | — | ⏳ (after BE-1) |
+| E2E | Acceptance §4 (minus the Stage-E `legal_privileged` item) + one keyboard flow | tester | — | ⏳ |
+| QA | Requirements + RLS conformance (`set local role`, not "revert `can_read_case`") | qa | — | ⏳ |
+
+Serial: BE-2→BE-6; BE-3b after BE-2; BE-5 after BE-3; BE-7 after N (live). Reconciliation detail → ADR 0073
+Amendment + build-plan addendum.
 
 ---
 

@@ -15,6 +15,75 @@ confidentiality leak (a recused/non-granted member could read hearing minutes vi
 membership). §D14 **re-opens** the X-η CH↔E2 meetings-file serialization (see §D14). The nine-table set,
 naming, and every other decision are unchanged.
 
+**Amended (2026-07-18) — reconciled to ADR [0078](./0078-authorization-capability-model.md) (authorization
+capability model; ACCEPTED 2026-07-17, live on `main`; the AUDIT-DOOR-BLINDNESS P0 that followed it closed
+2026-07-18).** ADR 0073 and its build plan were authored 2026-07-13/14, **before** 0078 replaced the
+case-authorization spine (the `app._case_caps` bitmask resolver + the `case_access` → `case_access_grants`
+hard cut + the Stage-C meeting-confidentiality model). E2 builds on the **post-0078** surface. **No table is
+added or removed — the nine-table set is unchanged.** The seven reconciliation deltas (each catalog-verified
+against `main`, 146/146 migrations):
+
+1. **SQLSTATE `HC0F0–HC0F9` → `HC0J0–HC0J9`.** 0078 took `HC0F0–HC0F6` (live). E2's block is relocated to
+   `HC0J·` (catalog-verified free); §D11's table and every `HC0J·` reference in this ADR are the remapped
+   values. RV2 keeps `HC0A·`; CH moves to `HC0K·` (scope-expansion plan §3.1).
+2. **§D14 reconciled onto Stage C — the parallel `can_read_meeting` + meeting-child-policy rewrite is
+   WITHDRAWN (PO-approved 2026-07-18).** D14 predates 0078 Stage C, which **already** rewrote every
+   meeting-child SELECT policy (`meetings.visibility_policy ∈ {commission_default, participants_only}`,
+   `app.can_reach_meeting`, the `meeting_closed_sessions` reserved-session tiers,
+   `meeting_cases_select = can_reach_meeting AND NOT is_case_respondent`). Building D14's *"every meeting-child
+   policy delegates to `can_read_meeting`"* would **replace/regress** that shipped model. **Superseded design:**
+   `schedule_ethics_hearing` creates the hearing as a **`participants_only` meeting** whose attendee roster is
+   the eligible panel (which excludes the recused + the respondent by construction — they are not eligible
+   voters). Stage C then delivers D14's isolation: a non-attendee (recused / non-granted / respondent) fails
+   `can_reach_meeting` and reads **nothing** of the meeting record, agenda, attendees, signatures, or minutes;
+   the case-linked `meeting_cases` substance is already `NOT is_case_respondent` + `read_case_deliberation`-
+   gated. **Dropped:** `meetings.restricted_to_case_id`, `app.can_read_meeting`, the meeting-child policy
+   rewrite, `create_case_restricted_meeting`, the single-case invariant. **Kept:** the requirement + the O-7a
+   "Audiência" seed. **Mechanism (catalog-verified):** no product RPC creates a `participants_only` meeting
+   today (`create_meeting` always inserts `commission_default`), so E2's own `schedule_ethics_hearing` DEFINER
+   door inserts the meeting with `visibility_policy='participants_only'` + the panel roster (the
+   `app.trg_meetings_roster` non-empty-roster guard applies). **E2 does not edit `create_meeting`, so the X-η
+   CH↔E2 collision shrinks back to seed-only** (the D14-reopened serialization is retired). **Residual, accepted
+   pre-pilot:** a member recused *after* being rostered still reads the meeting *shell* (not the case
+   substance, which stays exclusion-gated); a post-pilot hardening may add `restricted_to_case_id` as an
+   **additive** conjunct, never a rewrite. §D8's `create_case_restricted_meeting` reference is superseded by
+   this door.
+3. **§D3 decision-letter confidentiality — `legal_privileged`/`credentialing_sensitive` defer to Stage E
+   (post-pilot).** 0078 A19/B3 **fenced** those two labels (`reclassify_attachment` rejects them) and made the
+   `max_confidentiality` clearance a RESERVED column whose write-path ships in Stage E, post-pilot. So
+   pre-pilot E2 **cannot** create a `legal_privileged` decision letter and there is no clearance to gate it
+   below. Pre-pilot, `ethics_decision_details.decision_letter_document_id` rides the **ordinary case-
+   confidentiality gate** (`can_read_case` + the case's `confidentiality_level`), like every case attachment;
+   the *"legal_privileged decision letter invisible below clearance"* acceptance criterion **moves to Stage E**.
+4. **E2 gains the ethics coordinator app-actions + UI (AUTHZ handoff PO decision 8).** The five DEFINER doors
+   `set_case_visibility` / `set_case_confidentiality` / `declare_conflict` / `record_recusal` / `lift_recusal`
+   are **live** (E1 + M6), but their app actions throw `notImplemented` with **no UI bound** (verified:
+   `src/lib/case-recusals/actions.ts`). PO decision 8 routed *"the `setCaseVisibility` app action + coordinator
+   control, with its four siblings"* to **E2**. E2 wires the five server actions to their live doors + builds
+   the **coordinator controls** (declare-conflict / record-recusal / lift-recusal / set-visibility / set-
+   confidentiality). Terminology/dashboards stay E3a.
+5. **§D0 mapping fix.** D0 mapped the design's `case_access_grants` → *"our shipped `case_access`."* 0078's hard
+   cut **inverted** this — our table **is** `case_access_grants` now; `case_access` is dropped. (Doc only.)
+6. **The inherited E1 gaps are lighter post-0078.** (a) the `action_items` `assignees_only` leak
+   (respondent-who-is-org_admin) is **substantially closed** — `can_read_action_item` now carries the
+   `is_active` outer gate + an `is_case_excluded(anchor_case)` deny and C7/A11 removed the org-admin arm
+   (E2 confirms + keystones); (b) the privileged-doc coordinator-clearance affordance **defers with Stage E**
+   (fenced labels, no such doc pre-pilot); (c) the `patient_safety_event` link-inference residual stays
+   **post-pilot** (Stage D). The two test-only sweep Minors overlap the **AUDIT-DOOR-BLINDNESS P0 standing
+   invariant** (ADR 0079) — E2 verifies subsumption rather than re-implementing.
+7. **`can_read_case` is now a thin projection of `_case_caps`'s `read_case_content` bit (0078 A24·2).** It
+   **still exists** as a function, so *"every E2 table is `can_read_case`-gated SELECT"* remains **correct and
+   unchanged**. Conformance: an E2 isolation keystone is validated by asserting **rows read under `set local
+   role`** (the 0072/0079 discipline), **not** by "reverting `can_read_case`." Ethics tables are **case
+   content** (`read_case_content`), the correct tier — not `read_case_deliberation` (the minuted discussion).
+
+Everything else — the nine tables, D1–D13, the graduation test, the M2 retention-pin/redaction (§D9), the
+recusal-excluding vote (§D4), the referral hand-off (§D7), hub consumption (§D6) — stands, now expressed over
+the 0078 surface. ⚠ **§D9 note:** `professional_profiles` shipped 0078's **`link_state`** column (B7:
+`linked`/`no_account`/`unknown`; `add_case_participant` rejects an `unknown` profile as `respondent_doctor`).
+E2's `redact_professional_profile` sets `link_state` (a redacted profile → `no_account`, `user_id` nulled) on
+top of the retention columns, and the pin trigger must not fight B7.
+
 **Continues / depends on:**
 - **Continues ADR [0064](./0064-case-subject-generalization-participants.md)** (the E0 participant
   foundation) §"Open items" 2 — the ethics *procedure* table set it defers. E2 builds the
@@ -128,7 +197,9 @@ Every E2 table is a **child of `cases`** keyed by `case_id` (with the one 1:1 de
 by `decision_id`), annotating the shared engine exactly as ADR 0064 D0 mandates. There is **no
 `ethics_cases` root, no `committee_cases` rename** (the external design's generic names —
 `committee_cases`, `users`, `case_access_grants`, `committee_meetings` — map to our shipped
-`cases`, `profiles`, `case_access`, `meetings`). The generic `case_decisions` + `case_votes` are
+`cases`, `profiles`, `case_access_grants`, `meetings`). *(Amended 2026-07-18: our per-case ACL table **is**
+`case_access_grants` now — ADR 0078's `case_access` → `case_access_grants` hard cut adopted the design's name;
+the pre-0078 `case_access` this line originally cited is dropped.)* The generic `case_decisions` + `case_votes` are
 **engine-level** (M&M and credentialing will reuse them); only the `ethics_*` extension tables are
 ethics-specific. This keeps audit, ACL, documents, timeline, dashboards, and referrals **unforked**.
 
@@ -263,7 +334,7 @@ enum; **we do not**. Recusal is an **access fact enforced by E1**, not a ballot 
 
 - `cast_case_vote(p_decision_id, p_vote, p_rationale_md)` is a **`SECURITY DEFINER`** RPC that, before
   inserting, **hard-checks** `app.is_recused_from_case(v_case_id, auth.uid())` (E1 D-note) and
-  `app.is_case_respondent(v_case_id, auth.uid())` — either true ⇒ `raise … HC0F5` (*membro impedido não
+  `app.is_case_respondent(v_case_id, auth.uid())` — either true ⇒ `raise … HC0J5` (*membro impedido não
   pode votar*). A recused/respondent user **cannot even reach** the vote (E1 already denies their
   `can_read_case`, so they cannot open the deliberation), and the RPC is the belt: even if some future
   arm surfaced the decision, the vote is refused at the door.
@@ -456,8 +527,8 @@ shape as `dispose_case_phi`**:
 
 ```
 public.redact_professional_profile(p_profile_id uuid, p_reason text) returns void
-  -- 1. GUARD: raise HC0F7 if retention_pinned_at is not null (a pinned profile cannot be redacted).
-  -- 2. GUARD: raise HC0F7 if the profile is a respondent in ANY case with an issued decision
+  -- 1. GUARD: raise HC0J7 if retention_pinned_at is not null (a pinned profile cannot be redacted).
+  -- 2. GUARD: raise HC0J7 if the profile is a respondent in ANY case with an issued decision
   --    (belt: base-table check even if the pin column were somehow clear).
   -- 3. REDACT (not delete): null the identity fields (full_name → 'Profissional (dados removidos)',
   --    license_number/license_region/specialty → null, user_id → null), PRESERVE the row + its id +
@@ -507,24 +578,28 @@ Two additive extensions ADR 0064 §"Open items" 3/4 named:
   the assignment-role lands on `case_phases` directly or on a separate phase-assignment table — a
   placement call for the build plan (recommend a nullable `case_phases.assignment_role_id` FK, minimal).
 
-### D11 — SQLSTATE block `HC0F0–HC0F9` (S0 §B) + audit verbs
+### D11 — SQLSTATE block `HC0J0–HC0J9` (S0 §B) + audit verbs
+
+> **⚠ SQLSTATE block relocated `HC0J0–HC0J9` → `HC0J0–HC0J9` (Amendment 2026-07-18).** ADR 0078 took
+> `HC0J0–HC0J6` (live in the catalog). E2's block is `HC0J·`; every code below and every `HC0J·` reference
+> throughout this ADR is the remapped value (`HC0J0`→`HC0J0` … one-for-one).
 
 | Code | Meaning (pt-BR message) |
 |---|---|
-| `HC0F0` | ação inválida para o status atual do processo ético (lifecycle guard — admissibility/decision/appeal state) |
-| `HC0F1` | apenas a coordenação pode gerenciar este processo ético (write-authority gate where a distinct code aids UX vs 42501) |
-| `HC0F2` | categoria de alegação inválida (`ethics_allegations.allegation_category` catalog check) |
-| `HC0F3` | já existe uma conclusão para esta alegação (`ethics_findings unique(allegation_id)`) |
-| `HC0F4` | já existe um voto deste membro para esta decisão (`case_votes unique(decision_id, voter_id)`) |
-| `HC0F5` | membro impedido (recusado ou denunciado) não pode votar (recusal/respondent vote-exclusion — consumes E1) |
-| `HC0F6` | prazo/notificação inválido ou já reconhecido (`ethics_notifications` acknowledge/cancel guard) |
-| `HC0F7` | perfil profissional protegido por retenção não pode ser eliminado (`redact_professional_profile` pin guard — CFM 20-yr) |
-| `HC0F8` | decisão não pode ser emitida sem quórum de votos (reserved — the D4 vote-quorum gate, if O-3 enforces it) |
-| `HC0F9` | usuário não autorizado a esta submissão dirigida (`submit_targeted_case_response` — caller is not the targeted participant, §D13) |
+| `HC0J0` | ação inválida para o status atual do processo ético (lifecycle guard — admissibility/decision/appeal state) |
+| `HC0J1` | apenas a coordenação pode gerenciar este processo ético (write-authority gate where a distinct code aids UX vs 42501) |
+| `HC0J2` | categoria de alegação inválida (`ethics_allegations.allegation_category` catalog check) |
+| `HC0J3` | já existe uma conclusão para esta alegação (`ethics_findings unique(allegation_id)`) |
+| `HC0J4` | já existe um voto deste membro para esta decisão (`case_votes unique(decision_id, voter_id)`) |
+| `HC0J5` | membro impedido (recusado ou denunciado) não pode votar (recusal/respondent vote-exclusion — consumes E1) |
+| `HC0J6` | prazo/notificação inválido ou já reconhecido (`ethics_notifications` acknowledge/cancel guard) |
+| `HC0J7` | perfil profissional protegido por retenção não pode ser eliminado (`redact_professional_profile` pin guard — CFM 20-yr) |
+| `HC0J8` | decisão não pode ser emitida sem quórum de votos (reserved — the D4 vote-quorum gate, if O-3 enforces it) |
+| `HC0J9` | usuário não autorizado a esta submissão dirigida (`submit_targeted_case_response` — caller is not the targeted participant, §D13) |
 
-> **Block note:** with `HC0F9` assigned to §D13, the `HC0F0–HC0F9` block is **fully allocated**. §D13's
-> `target_case_response` and §D14's restricted-meeting guards reuse `HC0F0` (invalid state / cross-case
-> link) and `HC0F1` (coordinator authority) — no further code needed. Any *future* ethics SQLSTATE requires
+> **Block note:** with `HC0J9` assigned to §D13, the `HC0J0–HC0J9` block is **fully allocated**. §D13's
+> `target_case_response` and §D14's restricted-meeting guards reuse `HC0J0` (invalid state / cross-case
+> link) and `HC0J1` (coordinator authority) — no further code needed. Any *future* ethics SQLSTATE requires
 > a new S0-ratified block.
 
 **New audit verbs** (mutation, via `app.audit_write`; PHI-free metadata — Rule 11; new verbs join the
@@ -601,9 +676,9 @@ who selects any of those still hits the 0072 hard-deny (zero rows).
 - `target_case_response(p_response_id, p_case_participant_id)` — **coordinator-gated**. Validates the
   participant belongs to the **same** case as the response's `case_phase_id → case_phases → cases` chain and
   that the case is ethics-typed; sets `target_case_participant_id`; audited `case.response_targeted`.
-  `HC0F1` (authority) / `HC0F0` (invalid state or cross-case participant).
+  `HC0J1` (authority) / `HC0J0` (invalid state or cross-case participant).
 - `submit_targeted_case_response(p_response_id)` — **the targeted user** submits their own defense. Asserts
-  `can_access_targeted_response` (else **`HC0F9`** — *usuário não autorizado a esta submissão dirigida*) and
+  `can_access_targeted_response` (else **`HC0J9`** — *usuário não autorizado a esta submissão dirigida*) and
   `status = 'in_progress'`, transitions to `submitted`, freezing answers via the existing
   submitted-immutability guards. It does **not** call `submit_response` (that path checks
   authorship / `can_write_case_content`, which the respondent fails by design). Audited
@@ -633,6 +708,19 @@ send, **not** an in-app `can_read_case`-gated read. So D13 needs **no** notice-r
 `responses.target_case_participant_id` (D10). The data model is unchanged.
 
 ### D14 — Case-restricted hearings: `meetings.restricted_to_case_id` + `can_read_meeting` (a recused/non-granted member cannot read the hearing)
+
+> ⛔ **SUPERSEDED 2026-07-18 (see the top Amendment §2). The mechanism below — `meetings.restricted_to_case_id`
+> + `app.can_read_meeting` + "every meeting-child policy delegates to `can_read_meeting`" — is WITHDRAWN.**
+> It predates ADR 0078 Stage C, which already rewrote every meeting-child policy (`visibility_policy`,
+> `can_reach_meeting`, `meeting_closed_sessions` tiers); building D14 literally would regress that shipped
+> model. **Replacement (PO-approved):** `schedule_ethics_hearing` creates the hearing as a **`participants_only`
+> meeting** (Stage C) whose attendee roster is the eligible panel — which excludes the recused + respondent by
+> construction — so Stage C's `can_reach_meeting` makes the hearing, its agenda, attendees, signatures, and
+> minutes invisible to every non-attendee, and the case-linked `meeting_cases` substance stays
+> `read_case_deliberation`/`NOT is_case_respondent`-gated. E2 keeps its own `schedule_ethics_hearing` DEFINER
+> door (it inserts `visibility_policy='participants_only'` + the roster; `create_meeting` is untouched, so the
+> X-η CH↔E2 collision returns to seed-only). The detailed design in the rest of §D14 is retained for history
+> only — **do not build it.**
 
 D8 rides a hearing on a `meetings` row, but a plain meeting's access is **ordinary meeting participation**,
 which is **not** `can_read_case`-gated. So a **recused** member (0072 denies their `can_read_case`) or a
@@ -671,13 +759,13 @@ meeting, its minutes, and its attachments all vanish together.
 - `create_case_restricted_meeting(p_case_id, p_meeting_type_id, p_scheduled_at, p_title, …)` —
   **coordinator-gated** DEFINER; creates a `meetings` row with `restricted_to_case_id = p_case_id` and
   `meeting_type_id` = the seeded **`Audiência`** `commission_meeting_types` row (O-7 — still **no**
-  `meeting_type` column). `HC0F1` authority. Audited `case.restricted_meeting_created`.
+  `meeting_type` column). `HC0J1` authority. Audited `case.restricted_meeting_created`.
 - **D8 amended:** `schedule_ethics_hearing` creates/attaches its `meetings` row **via**
   `create_case_restricted_meeting`, so `ethics_hearings.meeting_id` always points at a meeting whose
   `restricted_to_case_id` = the hearing's case. The ordinary `create_meeting` path is untouched (creates
   unrestricted meetings only).
 - **Single-case invariant:** a restricted meeting links **only** its authorizing case — `link_meeting_case`
-  rejects (`HC0F0`) a `meeting_cases` insert whose `case_id ≠ restricted_to_case_id`. (Multi-case restricted
+  rejects (`HC0J0`) a `meeting_cases` insert whose `case_id ≠ restricted_to_case_id`. (Multi-case restricted
   meetings are out of scope — Open decision **O-9**.)
 
 **`ethics_hearings` is unchanged.** Its presence flags (`respondent_present`, `complainant_present`,
@@ -714,7 +802,7 @@ denúncia recebida
        type='Audiência' via the catalog) — recused/non-granted members cannot read it  [ethics.hearing_scheduled]
   → record_ethics_finding per allegation (substantiated / not / partial)     [ethics.finding_recorded]
   → create case_decisions (draft) → cast_case_vote × eligible members
-       (recused/respondent REFUSED at the door — HC0F5, consumes E1)         [case.vote_cast]
+       (recused/respondent REFUSED at the door — HC0J5, consumes E1)         [case.vote_cast]
   → issue_decision → status='issued'
        → ethics_decision_details (sanction, appeal_deadline, external_reporting_target)
        → trg_pin_respondent_retention fires → professional_profiles.retention_pinned_at  [.retention_pinned]
@@ -727,9 +815,11 @@ denúncia recebida
 
 Every read on this trajectory is **`can_read_case`-gated (E1)** — the respondent never sees their own
 case, a recused member loses read the moment `record_recusal` runs, a non-granted member of an
-`explicit_grants_only` ethics case sees nothing, and a `legal_privileged` decision letter is invisible
-below clearance. Every mutation emits **one** PHI-free audit row. A **foreign-commission** user reads
-**nothing** (the tenant boundary + `can_read_case`).
+`explicit_grants_only` ethics case sees nothing, and the decision letter is invisible per the case's
+`confidentiality_level`. Every mutation emits **one** PHI-free audit row. A **foreign-commission** user reads
+**nothing** (the tenant boundary + `can_read_case`). *(Amended 2026-07-18: the original "a `legal_privileged`
+decision letter is invisible below clearance" is deferred to Stage E — 0078 A19/B3 fenced that label + reserved
+the clearance ceiling post-pilot; pre-pilot the decision letter rides the ordinary case-confidentiality gate.)*
 
 ---
 
@@ -739,7 +829,7 @@ below clearance. Every mutation emits **one** PHI-free audit row. A **foreign-co
   formal votes, the CRM/CFM-aware decision, notices-with-deadlines, hearings, and appeals are addressable
   rows — queryable by dashboards (E3a), remindable by N (X-ζ), and auditable as a CFM-1821/2007 record.
 - **Recusal is enforced at the ballot, not offered as one.** `case_votes` has no `'recused'` value;
-  `cast_case_vote` refuses a recused/respondent voter (HC0F5) on top of E1 already denying their case
+  `cast_case_vote` refuses a recused/respondent voter (HC0J5) on top of E1 already denying their case
   read — the m2 exclusion extends cleanly into deliberation.
 - **The M2 loop closes.** The retention-pin trigger + `redact_professional_profile` implement exactly the
   ADR-0072 §7 recommendation (minimise-not-destroy, pin-on-decision, no deletion) — the erasure shape E1
@@ -782,7 +872,7 @@ below clearance. Every mutation emits **one** PHI-free audit row. A **foreign-co
   catalog** (dialect-2, ADR 0065) — committees add categories/sanctions without a migration, and the CEM
   sanction vocabulary is Brazil-specific + versioned by CFM resolution. Confirm.
 - **★ O-3 — vote quorum gate.** Enforce a quorum of eligible-member votes before `issue_decision`
-  (reusing `commission_meeting_settings` quorum, X-η) — **HC0F8** — or leave vote-tallying advisory and
+  (reusing `commission_meeting_settings` quorum, X-η) — **HC0J8** — or leave vote-tallying advisory and
   let the coordinator issue on judgment. **Security/correctness-adjacent** (a decision issued without
   quorum is a defensibility hole). Recommend **enforce**; confirm the quorum source.
 - **★ O-4 — CRM/CFM on-platform vs off-platform (D7).** Confirm whether the pilot's CRM/CFM/legal targets
@@ -810,6 +900,6 @@ below clearance. Every mutation emits **one** PHI-free audit row. A **foreign-co
   that creates+targets in one call. Recommend the two-step (reuses ordinary phase-response creation).
   Confirm at the build-plan contract.
 - **★ O-9 — multi-case restricted meetings (D14).** A restricted hearing links **only** its one authorizing
-  case (single-case invariant, `HC0F0`). A joint hearing over two related cases is out of scope; if a real
+  case (single-case invariant, `HC0J0`). A joint hearing over two related cases is out of scope; if a real
   need appears it requires a multi-case restricted-meeting access rule (a `meeting_cases`-set predicate).
   **Recommend defer** (no pilot need). Confirm.

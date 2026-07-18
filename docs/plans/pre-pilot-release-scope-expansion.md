@@ -13,6 +13,25 @@ pilot reset. No back-compat migrations.
 polymorphism dialects · one Rule-12 sensitivity taxonomy · catalog-vs-enum · freeze principle ·
 reference→participants bridge · **supersession model §8**) + ARCHITECTURE.md Appendices A/B.
 
+> **⚠ Reconciled to ADR [0078](../decisions/0078-authorization-capability-model.md) (2026-07-18).** S0–S3 +
+> the AUTHZ capability model + the AUDIT-DOOR-BLINDNESS P0 are all **shipped + human-approved** (PROGRESS.md);
+> **S4 is the active stage.** 0078 replaced the case-authorization spine (the `app._case_caps` bitmask resolver
+> · `case_access` → `case_access_grants` hard cut · Stage-C meeting-confidentiality · the F1 referral-predicate
+> split) *after* every S4 spec was authored, so each S4 track carries a reconciliation:
+> - **ETH·E2** — full detail in ADR [0073](../decisions/0073-ethics-procedure-model.md)'s top Amendment
+>   (2026-07-18) + the [E2 build plan](../phases/ethics-e2-procedure.md) addendum: SQLSTATE `HC0F·`→`HC0J·`;
+>   **D14 reconciled onto Stage C `participants_only`** (the parallel `can_read_meeting`/policy-rewrite
+>   withdrawn); `legal_privileged` decision letters → Stage E; **E2 gains the 5 ethics coordinator app-actions +
+>   UI** (handoff PO decision 8).
+> - **RV2 R2–R5** — re-point onto the F1 five-way split (R2 = `can_read_referral`→`_metadata` rename; **R3**
+>   `resolve`/`reopen` writes → `can_write_referral_response`; R4 inherits `referral_target_analyst`
+>   re-anchored on `case_access_grants`; **R5** snapshot re-disclosure overlaps 0078's **reserved post-pilot
+>   F-full** → trim R5 to notes-only + receipts + redaction, defer context-versions). Folded in when RV2 starts.
+> - **CH** — SQLSTATE `HC0D·`→`HC0K·`; **`meeting_cadence_status` must be scoped to commission members and
+>   deny Organization Users** (it is exactly the org-admin meeting-KPI 0078 A8 deferred post-pilot); cadence
+>   counts `commission_default` plenary meetings only; the list indicator sources from the DEFINER RPC, not the
+>   RLS-filtered visible list. Folded in when CH starts.
+
 ADR 0071 is a **re-sequencing** decision: it pulls twelve already-specified initiatives into the pre-pilot
 release. This plan does **not** re-design them — it **sequences** them into one collision-free build order,
 resolves the places where two tracks touch the same schema surface (§2), lists the specs still to author
@@ -216,6 +235,10 @@ the Foundations Program §1). 🔴 = design-review-before-code; 🟢 = one-line 
 - **Resolution:** different columns (CH reads `held_at`; E2 adds `meeting_type`) — no schema conflict. Both
   edit the meetings surface, so **serialize file edits** (§7). CH does **not** re-model quorum.
 - **Owner:** CH (read-only on meetings) · ETH·E2 (adds `meeting_type`).
+- ⚠ **Reconciled 2026-07-18 (ADR 0078):** E2 adds **no** `meeting_type` column (O-7a: seed an "Audiência"
+  `commission_meeting_types` row) and — D14 reconciled onto Stage C — adds **no** `meetings` DDL at all
+  (hearings are `participants_only` meetings via E2's own door). **The CH↔E2 collision shrinks to seed-only.**
+  Separately, CH's `meeting_cadence_status` DEFINER door must be **member-scoped** (0078 A8 — see the banner).
 
 ### X-θ · `responses` immutability + aggregation — SUP × Phase-15 indicators × dashboards  🟢
 - **Collision:** SUP adds `responses.supersedes_id` + a latest-in-chain filter to **every submitted-answer
@@ -242,9 +265,9 @@ S0 produces the missing ADRs/plans and records the cross-track contracts so S1�
 | Referrals v2 (RV2) | **HC0A0–HC0A9** (already reserved by its plan) |
 | Interviews v2 (IV2) | reuse `HC038`/`HC041` + **HC0B0–HC0B9** |
 | Notifications (N) | **HC0C0–HC0C9** |
-| Charters (CH) | **HC0D0–HC0D9** |
+| Charters (CH) | **HC0K0–HC0K9** ⚠ *(reconciled 2026-07-18: was `HC0D·`; `HC0D0–2` are held by `delete_ad_hoc_case_*`)* |
 | Ethics E1 | **HC0E0–HC0E9** |
-| Ethics E2 | **HC0F0–HC0F9** |
+| Ethics E2 | **HC0J0–HC0J9** ⚠ *(reconciled 2026-07-18: was `HC0F·`; ADR 0078 took `HC0F0–6`)* |
 | Memberships §6.1 (MEM) | **HC0G0–HC0G9** |
 | Supersession (SUP) | **HC0H0–HC0H9** |
 | Action-items satellites (AI·sat) | **HC0I0–HC0I9** (AI·ui needs none) |

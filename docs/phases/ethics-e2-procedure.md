@@ -7,8 +7,8 @@
 the ethics procedure UI — E3a surfaces terminology/dashboards; E2 ships the backend + minimal FE per the
 lead's call) · **Flag:** **E2 owns `ethics`** (create OFF, flip ON at gate; S0 §F.4). E1 already flipped
 `case_participants` + `case_types`.
-· **SQLSTATE:** `HC0F0–HC0F9` (S0 §B). · **Migration window:** `20260720000000+` (latest shipped
-`20260719000800`; reset-OK, forward-only, additive).
+· **SQLSTATE:** `HC0J0–HC0J9` (relocated from `HC0F·` — see the reconciliation addendum). · **Migration
+window:** `20260817000000+` (latest shipped `20260816000700`, post-AUTHZ; reset-OK, forward-only, additive).
 
 This clears the §6 gate bar — **new tables** (the ethics procedure set), **new DEFINER write RPCs**, a
 **mutation trigger** (the M2 retention-pin), and a **flag flip** — but introduces **no new case-read RLS
@@ -26,13 +26,62 @@ spine E2 rides), then this plan's §2 contract, then the source anchors in §0. 
 
 ---
 
+## ⚠ Reconciliation addendum (2026-07-18) — ADR 0078 + the D13/D14 amendment (READ FIRST)
+
+This plan was authored 2026-07-13, **before** ADR 0073's D13/D14 amendment (2026-07-14) and **before** ADR
+[0078](../decisions/0078-authorization-capability-model.md) shipped + was human-approved (2026-07-17). ADR
+0073's top **Amendment (2026-07-18)** is binding; read it first. The build deltas vs §3's tasks:
+
+- **SQLSTATE `HC0F·` → `HC0J·`** (already remapped throughout this plan; 0078 holds `HC0F·`). CH uses `HC0K·`,
+  RV2 `HC0A·` — no overlap. The `20260720…` timestamps in §2.1/§4 are illustrative; use the live tail
+  (`20260817000000+`).
+- **NEW · BE-3b — §D13 targeted-submission door** (the amendment added D13 *after* this plan; §3 has no task
+  for it). Build `app.can_access_targeted_response` (base-table, **never calls `can_read_case`**, never weakens
+  the 0072 respondent hard-deny) + the OR-arms on `responses`/`answers` SELECT/UPDATE/INSERT + RPCs
+  `target_case_response` (coordinator; `HC0J1`/`HC0J0`) and `submit_targeted_case_response` (targeted user;
+  `HC0J9`). Verify the live 5 `responses` + 2 `answers` policies (post-SUP) admit the arm cleanly. **full review.**
+- **BE-4 · hearings reconciled onto Stage C (D14 superseded).** `schedule_ethics_hearing` is E2's own DEFINER
+  door that inserts a **`participants_only`** meeting (`visibility_policy='participants_only'` + the eligible-
+  panel roster into `meeting_attendees`) — **NOT** `restricted_to_case_id` / `can_read_meeting` / any
+  meeting-child policy rewrite (all WITHDRAWN). `create_meeting` is untouched; `app.trg_meetings_roster`
+  already enforces the non-empty roster; Stage C's `can_reach_meeting` gives the isolation (non-attendees —
+  recused/respondent/non-granted — read nothing). O-7a "Audiência" seed unchanged ⇒ **meetings touch = the seed
+  row + E2's own door only; the X-η CH↔E2 serialization returns to seed-only.** For a *plenary* meeting with a
+  reserved ethics item, Stage C already ships `open_reserved_session`/`add_reserved_item`/`get_reserved_session_items`
+  — E2 **consumes**, never rebuilds.
+- **§D3 decision letter** rides the **ordinary case-confidentiality gate** pre-pilot; the `legal_privileged` /
+  clearance-ceiling path (acceptance §4.10) **moves to Stage E** — 0078 A19/B3 fenced `legal_privileged` /
+  `credentialing_sensitive` and reserved `max_confidentiality` post-pilot. Drop the `legal_privileged` assertion
+  from §4.10; keep the ordinary-gate + foreign-commission + non-granted-member assertions.
+- **NEW scope · the 5 ethics coordinator app-actions + UI (AUTHZ handoff PO decision 8).** The DEFINER doors
+  `set_case_visibility` / `set_case_confidentiality` / `declare_conflict` / `record_recusal` / `lift_recusal`
+  are **live**; their app actions throw `notImplemented` (`src/lib/case-recusals/actions.ts`) with **no UI**.
+  E2 adds **BE-10** (wire the 5 server actions to their live doors, pt-BR `HC0*`→message mapping — no new SQL)
+  + **FE** (coordinator recusal / COI / visibility / confidentiality controls on the case, `frontend`-owned,
+  `frontend-design` skill). Terminology/dashboards stay E3a.
+- **§D9 redaction × B7 `link_state`.** `professional_profiles` now carries `link_state`
+  (`linked`/`no_account`/`unknown`; `add_case_participant` rejects an `unknown` profile as `respondent_doctor`).
+  `redact_professional_profile` sets `link_state='no_account'` (nulls `user_id`) alongside the retention
+  columns; the pin trigger must not fight B7.
+- **Inherited E1 gaps are lighter** (ADR 0073 Amendment §6): GAP-1 (action-item `assignees_only`) is
+  substantially closed by 0078 (`can_read_action_item` gained `is_active` + `is_case_excluded(anchor)`, org-arm
+  removed) — **verify + keystone, don't rebuild**; GAP-3 (privileged-doc ceiling) **defers with Stage E**;
+  GAP-2 (NSP link-inference) **post-pilot**; the 2 sweep Minors → **verify the ADR-0079 P0 standing invariant
+  subsumes them** rather than re-implementing.
+- **Conformance (QA/pgTAP):** `can_read_case` is now a projection of `_case_caps`'s `read_case_content` bit
+  (0078 A24·2) — the §2.4 "gate every table on `can_read_case`" is still correct. Assert E2 isolation by **rows
+  read under `set local role`** (0072/0079 discipline), **not** by "reverting `can_read_case`." Every E2 table
+  is `read_case_content`-tier — never `read_case_deliberation` (that gates the minuted meeting discussion).
+
+---
+
 ## 0. Source anchors (what already exists — E2 extends/consumes, never re-creates)
 
 | Surface | Where (source of truth) | E2 action |
 |---|---|---|
 | `public.cases` (root; `case_type_id`, `commission_id`, `organization_id`, `confidentiality_level`/`visibility_policy` from E1) | baseline; E1 migration | **parent** of every E2 table (`case_id` FK) |
 | `app.can_read_case(p_case_id, p_uid)` (live, w/ E1 deny-terms) | `20260710000000_nsp_per_hospital.sql` L569 | **SELECT gate** for every E2 table (no change to the predicate) |
-| `app.is_recused_from_case` / `app.is_case_respondent` (**new in E1**) | E1 migration (ADR 0072 §2.2) | **consumed** by `cast_case_vote` (HC0F5 vote-exclusion — §D4) |
+| `app.is_recused_from_case` / `app.is_case_respondent` (**new in E1**) | E1 migration (ADR 0072 §2.2) | **consumed** by `cast_case_vote` (HC0J5 vote-exclusion — §D4) |
 | `app.commission_of_case(p_case_id)` | baseline L1629 | RPC authority + `audit_write` `p_commission` |
 | `app.is_staff_admin_of_for(p_commission, p_uid)` | baseline L3318 | coordinator authority gate in every write RPC |
 | `public.responses` (case-phase form responses; `case_phase_id`, `commission_id`, `status`, `submitted_at`) | baseline L4063 | **add** `target_case_participant_id` FK (§D10) |
@@ -264,30 +313,30 @@ arm's hot path); `professional_profiles(id) where retention_pinned_at is not nul
   case-read term (E1 owns them). E2's `cast_case_vote` **consumes** `is_recused_from_case` /
   `is_case_respondent` inside the RPC body (not RLS).
 
-### 2.3 RPCs (all: `assert ethics flag` · `REVOKE ALL FROM PUBLIC` → `GRANT authenticated, service_role` · pt-BR errors · `HC0F·`)
+### 2.3 RPCs (all: `assert ethics flag` · `REVOKE ALL FROM PUBLIC` → `GRANT authenticated, service_role` · pt-BR errors · `HC0J·`)
 
 **Admissibility / intake (D1):**
 - `public.upsert_ethics_case_details(p_case_id uuid, p_complaint_channel text default null, p_complaint_received_at timestamptz default null, p_summary_md text default null) returns public.ethics_case_details`
-- `public.decide_admissibility(p_case_id uuid, p_status text, p_rationale_md text) returns void` (coordinator; `HC0F0` bad status)
+- `public.decide_admissibility(p_case_id uuid, p_status text, p_rationale_md text) returns void` (coordinator; `HC0J0` bad status)
 
 **Allegations / findings (D2):**
-- `public.add_ethics_allegation(p_case_id uuid, p_category_id uuid, p_description_md text, p_severity text default null, p_alleged_event_date date default null) returns uuid` (`HC0F2` bad category)
+- `public.add_ethics_allegation(p_case_id uuid, p_category_id uuid, p_description_md text, p_severity text default null, p_alleged_event_date date default null) returns uuid` (`HC0J2` bad category)
 - `public.update_ethics_allegation(p_allegation_id uuid, …fields…, p_status text default null) returns void`
-- `public.record_ethics_finding(p_allegation_id uuid, p_finding text, p_rationale_md text default null, p_evidence_summary_md text default null) returns uuid` (`HC0F3` finding-exists)
+- `public.record_ethics_finding(p_allegation_id uuid, p_finding text, p_rationale_md text default null, p_evidence_summary_md text default null) returns uuid` (`HC0J3` finding-exists)
 - allegation-category catalog CRUD: `public.create_ethics_allegation_category(...)` / `archive_ethics_allegation_category(...)` (org/staff_admin)
 
 **Decision / votes (D3/D4):**
-- `public.create_case_decision(p_case_id uuid, p_decision_type text, p_summary_md text, p_rationale_md text default null) returns uuid` (coordinator; case admissible — `HC0F0`)
+- `public.create_case_decision(p_case_id uuid, p_decision_type text, p_summary_md text, p_rationale_md text default null) returns uuid` (coordinator; case admissible — `HC0J0`)
 - `public.set_ethics_decision_details(p_decision_id uuid, …sanction/remediation/external_reporting/appeal fields…) returns void`
 - `public.cast_case_vote(p_decision_id uuid, p_vote text, p_rationale_md text default null) returns uuid`
-  — **hard-checks `is_recused_from_case` / `is_case_respondent` → `HC0F5`**; `unique(decision_id,voter_id)` → `HC0F4`; caller must be an eligible member of the case's commission.
-- `public.issue_decision(p_decision_id uuid) returns void` — coordinator; `draft/voted → 'issued'`, stamps `decided_*`; **fires the retention-pin trigger** (§D9); (optional O-3) requires vote quorum → `HC0F8`.
+  — **hard-checks `is_recused_from_case` / `is_case_respondent` → `HC0J5`**; `unique(decision_id,voter_id)` → `HC0J4`; caller must be an eligible member of the case's commission.
+- `public.issue_decision(p_decision_id uuid) returns void` — coordinator; `draft/voted → 'issued'`, stamps `decided_*`; **fires the retention-pin trigger** (§D9); (optional O-3) requires vote quorum → `HC0J8`.
 - `public.void_decision(p_decision_id uuid, p_reason text) returns void`
 
 **Notifications (D5):**
 - `public.issue_ethics_notification(p_case_id uuid, p_notification_type text, p_delivery_method text, p_recipient_participant_id uuid default null, p_recipient_user_id uuid default null, p_due_at timestamptz default null, p_related_document_id uuid default null, p_notes_md text default null) returns uuid`
-- `public.acknowledge_ethics_notification(p_notification_id uuid) returns void` (`HC0F6`)
-- `public.cancel_ethics_notification(p_notification_id uuid) returns void` (`HC0F6`)
+- `public.acknowledge_ethics_notification(p_notification_id uuid) returns void` (`HC0J6`)
+- `public.cancel_ethics_notification(p_notification_id uuid) returns void` (`HC0J6`)
 
 **Hearings (D8):**
 - `public.schedule_ethics_hearing(p_case_id uuid, p_hearing_type text, p_meeting_id uuid default null, p_scheduled_at timestamptz default null) returns uuid`
@@ -298,7 +347,7 @@ arm's hot path); `professional_profiles(id) where retention_pinned_at is not nul
 - `public.review_ethics_appeal(p_appeal_id uuid, p_status text, p_outcome text default null, p_outcome_rationale_md text default null) returns void` (coordinator)
 
 **M2 redaction (D9) — the E1-deferred erasure path:**
-- `public.redact_professional_profile(p_profile_id uuid, p_reason text) returns void` — coordinator/org-admin; **`HC0F7`** if `retention_pinned_at is not null` OR the profile is a respondent in any case with an `issued` decision; nulls identity fields, preserves row + linkages + audit; audited `professional_profile.redacted`.
+- `public.redact_professional_profile(p_profile_id uuid, p_reason text) returns void` — coordinator/org-admin; **`HC0J7`** if `retention_pinned_at is not null` OR the profile is a respondent in any case with an `issued` decision; nulls identity fields, preserves row + linkages + audit; audited `professional_profile.redacted`.
 
 **Assignment-role catalog (D10):** `public.create_case_assignment_role(...)` / `archive_case_assignment_role(...)`; `public.set_case_phase_assignment_role(p_phase_id uuid, p_role_id uuid) returns void`.
 
@@ -348,7 +397,7 @@ narrows an existing grant). Specifics:
   `setEthicsDecisionDetails`, `castCaseVote`, `issueDecision`, `issueEthicsNotification`,
   `acknowledgeEthicsNotification`, `scheduleEthicsHearing`, `completeEthicsHearing`, `submitEthicsAppeal`,
   `reviewEthicsAppeal`, `redactProfessionalProfile`, `setResponseTargetParticipant`, …). pt-BR error
-  mapping from `HC0F·` (Rule 8/10; raw Postgres never reaches the UI).
+  mapping from `HC0J·` (Rule 8/10; raw Postgres never reaches the UI).
 
 ---
 
@@ -357,11 +406,11 @@ narrows an existing grant). Specifics:
 | # | Task | Depends | Plan review |
 |---|------|---------|-------------|
 | BE-1 | **Post the §2 contract** as typed stubs (queries + `ethics/actions.ts` + types) and commit, unblocking any FE (E2 UI / E3a). | E1, N, AI gated | one-line ack |
-| BE-2 | Migration: create the `ethics` flag (OFF); `ethics_case_details`, `ethics_allegations`(+category catalog), `ethics_findings` — tables, CHECKs, `unique(allegation_id)`, denormalized `case_id`, RLS §2.4, grants. + `HC0F0`/`HC0F2`/`HC0F3`. | BE-1 | **full** (new tables + RLS shape confirm) |
-| BE-3 | Migration: `case_decisions` + `ethics_decision_details` + `case_votes` (tables, CHECKs, `unique(decision_id,voter_id)`, RLS §2.4). RPC `cast_case_vote` with the **recusal/respondent hard-check** (consumes E1) + `HC0F4`/`HC0F5`. | BE-2 | **full** (the vote-exclusion — the E1-consumption keystone) |
-| BE-4 | Migration: `ethics_notifications` + `ethics_hearings` + `ethics_appeals` (tables, RLS). Hearing↔meeting: **O-7** — seed an "Audiência" `commission_meeting_types` row (option a) or the `meetings` column (option b, serialized with CH). + `HC0F6`. | BE-3 | **full** if O-7=column (meetings DDL); else **one-line ack** (additive tables mirroring BE-2/3) |
-| BE-5 | **M2 retention-pin + redaction** (§D9): `professional_profiles` pin/redaction columns; `app.trg_pin_respondent_retention` on `case_decisions` (AFTER UPDATE → 'issued', base-table respondent traversal, idempotent); `redact_professional_profile` RPC with the pin guard `HC0F7`. Audit `professional_profile.retention_pinned`/`.redacted`. | BE-3 | **full** (novel trigger + the M2 erasure path — the ADR-0072 §7 sign-off item) |
-| BE-6 | RPCs: admissibility, allegations/findings, decision/issue (+ optional O-3 quorum `HC0F8`), notifications, hearings, appeals, assignment-role, `set_response_target_participant`. `responses.target_case_participant_id` + `case_phases.assignment_role_id` + `case_assignment_roles` columns/catalog. t19 REVOKE→GRANT each. + `HC0F1`. | BE-2..5 | **full** (DEFINER write authority breadth) |
+| BE-2 | Migration: create the `ethics` flag (OFF); `ethics_case_details`, `ethics_allegations`(+category catalog), `ethics_findings` — tables, CHECKs, `unique(allegation_id)`, denormalized `case_id`, RLS §2.4, grants. + `HC0J0`/`HC0J2`/`HC0J3`. | BE-1 | **full** (new tables + RLS shape confirm) |
+| BE-3 | Migration: `case_decisions` + `ethics_decision_details` + `case_votes` (tables, CHECKs, `unique(decision_id,voter_id)`, RLS §2.4). RPC `cast_case_vote` with the **recusal/respondent hard-check** (consumes E1) + `HC0J4`/`HC0J5`. | BE-2 | **full** (the vote-exclusion — the E1-consumption keystone) |
+| BE-4 | Migration: `ethics_notifications` + `ethics_hearings` + `ethics_appeals` (tables, RLS). Hearing↔meeting: **O-7** — seed an "Audiência" `commission_meeting_types` row (option a) or the `meetings` column (option b, serialized with CH). + `HC0J6`. | BE-3 | **full** if O-7=column (meetings DDL); else **one-line ack** (additive tables mirroring BE-2/3) |
+| BE-5 | **M2 retention-pin + redaction** (§D9): `professional_profiles` pin/redaction columns; `app.trg_pin_respondent_retention` on `case_decisions` (AFTER UPDATE → 'issued', base-table respondent traversal, idempotent); `redact_professional_profile` RPC with the pin guard `HC0J7`. Audit `professional_profile.retention_pinned`/`.redacted`. | BE-3 | **full** (novel trigger + the M2 erasure path — the ADR-0072 §7 sign-off item) |
+| BE-6 | RPCs: admissibility, allegations/findings, decision/issue (+ optional O-3 quorum `HC0J8`), notifications, hearings, appeals, assignment-role, `set_response_target_participant`. `responses.target_case_participant_id` + `case_phases.assignment_role_id` + `case_assignment_roles` columns/catalog. t19 REVOKE→GRANT each. + `HC0J1`. | BE-2..5 | **full** (DEFINER write authority breadth) |
 | BE-7 | **N scan arm** (§D5, X-ζ): add the ethics-notice `union all` branch (+ appeal-deadline + external-reporting-deadline date-equality branches) to `compute_due_notifications()`; name the `kind='ethics_notice_due'` + `entity_type='ethics_notification'` values in N's domains. Idempotent, additive. | BE-6, N live | **one-line ack** (additive arm onto an existing engine, X-ζ) |
 | BE-8 | Modified read: `get_case_detail` (or `get_ethics_case_procedure`) — ethics procedure fields, submitted-only + every existing field + E1 fields preserved. Sanctions/remediation → `create_committee_action_item` (X-ε consumption); CRM/CFM → `create_referral_draft` wiring (§D7). Audit verbs on `audit_write`. | BE-6 | one-line ack (projection + hub/referral consumption + Rule-11 mirror) |
 | BE-9 | **Flag flip** `ethics` → ON (one-line migration) + add `ethics` to the `FeatureFlags` interface; regen `database.ts`; pgTAP (§4) on a fresh reset; seed personas (an ethics case type from E1's seed + an admissible ethics case + allegations/findings + a recused member + an issued decision that pins a respondent-doctor profile + a due notice). | BE-8 | **one-line ack** (flag-flip mirrors the approved pattern) |
@@ -382,20 +431,20 @@ fullest review + the most pgTAP. BE-7 (N arm) runs after N is live (S1, so alrea
    intercepted + in-app), **idempotent** (no dup for the same due date). pgTAP: the arm selects exactly
    the due `ethics_notifications` set; idempotency by `(user_id, kind, entity_id, created_at::date)`.
 2. **Allegations/findings:** `add_ethics_allegation` × N (distinct categories); `record_ethics_finding`
-   per allegation; a **second** finding on the same allegation → `HC0F3` (`unique(allegation_id)`).
+   per allegation; a **second** finding on the same allegation → `HC0J3` (`unique(allegation_id)`).
 3. **Hearing:** `schedule_ethics_hearing` rides a `meetings` row (type "Audiência" via the catalog, O-7a);
    `complete_ethics_hearing` records presence flags + outcome.
 4. **Vote (the recusal keystone):** eligible members `cast_case_vote`. A **recused** member (E1
-   `record_recusal`) calling `cast_case_vote` → **`HC0F5`** (and their case detail already `notFound()`
-   via E1). The **respondent** (if somehow reachable) → `HC0F5`. A **second** vote by the same member →
-   `HC0F4`. pgTAP: `is_recused_from_case` true ⇒ `cast_case_vote` raises; `eligible_voters` excludes
+   `record_recusal`) calling `cast_case_vote` → **`HC0J5`** (and their case detail already `notFound()`
+   via E1). The **respondent** (if somehow reachable) → `HC0J5`. A **second** vote by the same member →
+   `HC0J4`. pgTAP: `is_recused_from_case` true ⇒ `cast_case_vote` raises; `eligible_voters` excludes
    recused + respondent.
 5. **Decision → retention-pin:** `create_case_decision` + `set_ethics_decision_details`
    (sanction + `external_reporting_target='cfm'` + `appeal_deadline`); `issue_decision` → status `issued`.
    pgTAP: the `respondent_doctor`'s `professional_profiles.retention_pinned_at` **is now set** (the
    trigger fired); the pin is **idempotent** (issuing a second decision does not error / re-pin); audit
    emits `professional_profile.retention_pinned` (PHI-free).
-6. **Redaction bar (M2):** `redact_professional_profile` on the **pinned** respondent → **`HC0F7`**
+6. **Redaction bar (M2):** `redact_professional_profile` on the **pinned** respondent → **`HC0J7`**
    (barred). `redact_professional_profile` on a **non-respondent, unpinned** profile → succeeds: identity
    nulled, **row + `case_participants` linkage + audit preserved** (pgTAP: the row still exists, `id`
    unchanged, `full_name` redacted, audit `professional_profile.redacted` present, **no** raw identity in
@@ -427,9 +476,9 @@ fullest review + the most pgTAP. BE-7 (N arm) runs after N is live (S1, so alrea
 **pgTAP file** (new, e.g. `supabase/tests/2xx_ethics_e2.sql`, on a **fresh reset** — memory
 `pgtap-needs-fresh-reset-vs-e2e-leftovers`): every E2 table's `can_read_case` SELECT boundary
 (NEG: foreign-commission / non-granted member / respondent; POS: granted member / coordinator); the
-`case_votes` recusal+respondent exclusion (HC0F5) + `unique(decision_id,voter_id)` (HC0F4); the
-`ethics_findings unique(allegation_id)` (HC0F3); the **retention-pin trigger** (fires on issue, idempotent,
-respondent-scoped) + the **redaction bar** (HC0F7 on pinned, success-with-preservation on eligible); the
+`case_votes` recusal+respondent exclusion (HC0J5) + `unique(decision_id,voter_id)` (HC0J4); the
+`ethics_findings unique(allegation_id)` (HC0J3); the **retention-pin trigger** (fires on issue, idempotent,
+respondent-scoped) + the **redaction bar** (HC0J7 on pinned, success-with-preservation on eligible); the
 **N scan-arm** selection + idempotency; **t19 REVOKE guards on every new RPC**; the **flag-OFF fallback**;
 and the audit-verb emission (one row, PHI-free). This file is the E2 gate.
 
