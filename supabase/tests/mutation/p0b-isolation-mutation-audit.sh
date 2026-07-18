@@ -131,9 +131,49 @@ run251 "profiles_admin_insert"    "alter policy profiles_admin_insert on public.
 # keystoned — they are backstopped (guard_submitted_response trigger; select_own) so
 # reverting their RLS policy reddens nothing. They stay in authz-blind-allowlist.txt.
 
+# =============================================================================
+# BATCH 3 (SRC=252) — clinical/case-content write families + read reps. FOR-ALL
+# write policies open using+with check(true); INSERT policies with check(true);
+# SELECT policies using(true). Reader-non-writer principals make each redness
+# attributable to the WRITE/READ gate under test.
+# =============================================================================
 echo
-echo "=== CONTROL — no mutation: every keystone GREEN in BOTH files (harness is not a red-generator) ==="
-for f in "$SRC" "$B2"; do
+echo "--- BATCH 3 (252) ---"
+B3=supabase/tests/252_authz_p0_isolation.sql
+run252 () { SRC="$B3" run_case "$@"; }
+
+# rca family (_write FOR ALL)
+run252 "rca_evidence_write"     "alter policy rca_evidence_write on public.rca_evidence using(true) with check(true);"           "rca_evidence_write DENY"
+run252 "rca_factors_write"      "alter policy rca_factors_write on public.rca_factors using(true) with check(true);"             "rca_factors_write DENY"
+run252 "rca_members_write"      "alter policy rca_members_write on public.rca_members using(true) with check(true);"             "rca_members_write DENY"
+run252 "rca_root_causes_write"  "alter policy rca_root_causes_write on public.rca_root_causes using(true) with check(true);"     "rca_root_causes_write DENY"
+run252 "rca_timeline_write"     "alter policy rca_timeline_write on public.rca_timeline_entries using(true) with check(true);"   "rca_timeline_write DENY"
+run252 "rca_why_chains_write"   "alter policy rca_why_chains_write on public.rca_why_chains using(true) with check(true);"       "rca_why_chains_write DENY"
+# capa family (_write FOR ALL)
+run252 "capa_action_write"          "alter policy capa_action_write on public.capa_action using(true) with check(true);"                   "capa_action_write DENY"
+run252 "capa_action_evidence_write" "alter policy capa_action_evidence_write on public.capa_action_evidence using(true) with check(true);" "capa_action_evidence_write DENY"
+run252 "capa_action_task_write"     "alter policy capa_action_task_write on public.capa_action_task using(true) with check(true);"         "capa_action_task_write DENY"
+run252 "capa_measure_write"         "alter policy capa_measure_write on public.capa_measure using(true) with check(true);"                 "capa_measure_write DENY"
+run252 "capa_measure_result_write"  "alter policy capa_measure_result_write on public.capa_measure_result using(true) with check(true);"   "capa_measure_result_write DENY"
+run252 "capa_effectiveness_write"   "alter policy capa_effectiveness_write on public.capa_effectiveness using(true) with check(true);"     "capa_effectiveness_write DENY"
+# case content
+run252 "case_participant_roles_admin_write" "alter policy case_participant_roles_admin_write on public.case_participant_roles using(true) with check(true);" "case_participant_roles_admin_write DENY"
+run252 "case_phase_allowed_results_write"   "alter policy case_phase_allowed_results_staff_admin_write on public.case_phase_allowed_results using(true) with check(true);" "case_phase_allowed_results_staff_admin_write DENY"
+run252 "case_phase_offered_results_write"   "alter policy case_phase_offered_results_staff_admin_write on public.case_phase_offered_results using(true) with check(true);" "case_phase_offered_results_staff_admin_write DENY"
+run252 "case_tag_assignments_write"         "alter policy case_tag_assignments_staff_admin_write on public.case_tag_assignments using(true) with check(true);" "case_tag_assignments_staff_admin_write DENY"
+run252 "interview_sessions_write"           "alter policy interview_sessions_write on public.interview_sessions using(true) with check(true);" "interview_sessions_write DENY"
+run252 "meeting_agenda_items_insert"        "alter policy meeting_agenda_items_staff_admin_insert on public.meeting_agenda_items with check(true);" "meeting_agenda_items_staff_admin_insert DENY"
+# read reps (_select)
+run252 "event_custody_select"           "alter policy event_custody_select on public.event_custody using(true);"                       "event_custody_select DENY"
+run252 "capa_action_select"             "alter policy capa_action_select on public.capa_action using(true);"                           "capa_action_select DENY"
+run252 "professional_profiles_select"   "alter policy professional_profiles_select on public.professional_profiles using(true);"       "professional_profiles_select DENY"
+run252 "interview_sessions_select"      "alter policy interview_sessions_select on public.interview_sessions using(true);"             "interview_sessions_select DENY"
+run252 "case_participant_roles_select"  "alter policy case_participant_roles_select on public.case_participant_roles using(true);"      "case_participant_roles_select DENY"
+run252 "document_approvals_select"      "alter policy document_approvals_select on public.document_approvals using(true);"             "document_approvals_select DENY"
+
+echo
+echo "=== CONTROL — no mutation: every keystone GREEN in ALL files (harness is not a red-generator) ==="
+for f in "$SRC" "$B2" "$B3"; do
   docker cp "$f" "$DB:/tmp/_noop_p0b.sql" >/dev/null
   control=$(MSYS_NO_PATHCONV=1 docker exec "$DB" psql -U postgres -d postgres -t -A -f //tmp/_noop_p0b.sql 2>&1)
   if echo "$control" | grep -qE "^not ok"; then

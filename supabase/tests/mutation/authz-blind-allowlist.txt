@@ -35,6 +35,37 @@
 #       backstopped by select_own: a reassign to another user is blocked by the SELECT
 #       policy (the new row must stay visible), not by this policy's WITH CHECK.
 #
+# FIX-C Batch 3 (2026-07-18, final) removed 22 more, now COVERED by
+#   supabase/tests/252_authz_p0_isolation.sql (rca_* _write ×6, capa_* _write ×6,
+#   case_participant_roles/_phase_*/_tag _write, interview_sessions_write, +
+#   representative reads event_custody/capa_action/professional_profiles/
+#   interview_sessions/case_participant_roles/document_approvals _select). What
+#   STAYS below, with rationale:
+#   * REPRESENTED-BY-GROUP (read-only, identical predicate to a keystoned rep):
+#     rca_{factors,members,root_causes,timeline_entries,why_chains,evidence}_select
+#     (can_read_event — rep event_custody_select); capa_{action_evidence,action_task,
+#     measure,measure_result,effectiveness}_select (can_read_capa — rep
+#     capa_action_select); professional_participants_select (can_read_professional_
+#     profile — rep professional_profiles_select); case_phase_*/_tag _select
+#     (can_read_case, separately COVERED). meeting_closed_sessions/attachment_subjects/
+#     answer_matrix_cells _select — same, plus intricate parent fixtures; repped by
+#     their predicate group.
+#   * BACKSTOPPED / UNREACHABLE true-writes: notifications_update_own (NO direct-DML
+#     grant to authenticated — door-only, PostgREST cannot reach it);
+#     responses_delete_own_draft + notification_preferences_update_own (see below).
+#   * READ-PREDICATE backstops (no reachable public policy to assert through):
+#     can_read_referral (RPC-internal only), can_read_document_object (Storage RLS,
+#     not a public table), can_read_xref_row (patient_xref — no grant, door-only).
+#     can_sign_section is already COVERED (251 signoffs_insert);
+#     can_read_document_of_version is COVERED (252 document_approvals_select).
+#   * BENIGN PREDICATE WRAPPERS (pure delegation to a COVERED base predicate — no
+#     independent gate): is_*_of_self, is_admin_for, is_hospital_admin_of_for,
+#     has_role(text,uuid,text), is_pqs_writer_of.
+#   * LOW-SEVERITY config / catalog writes+reads: process_template_*,
+#     case_type_terminology, form_item_options, commission_meeting_types/settings,
+#     referral_types, reply_outcomes, professional_categories, indicator_measurements,
+#     document_approvals(write). Tracked follow-up backlog, not leaks.
+#
 # Low-severity / backstop notes (triage doc §"Allowlisted"):
 #   * event_patient.*, patient_xref.* SELECT and notifications.* write are DOOR-ONLY
 #     backstops — the SELECT grant is revoked so PostgREST cannot expose the base table;
@@ -59,25 +90,14 @@ app.is_hospital_admin_of_for(p_hospital_id uuid, p_user_id uuid)
 app.is_pqs_writer_of(p_hospital_id uuid)
 attachment_references.attachment_references_select (SELECT)
 attachment_subjects.attachment_subjects_select (SELECT)
-capa_action.capa_action_select (SELECT)
 capa_action_evidence.capa_action_evidence_select (SELECT)
-capa_action_evidence.capa_action_evidence_write (ALL)
 capa_action_task.capa_action_task_select (SELECT)
-capa_action_task.capa_action_task_write (ALL)
 capa_effectiveness.capa_effectiveness_select (SELECT)
-capa_effectiveness.capa_effectiveness_write (ALL)
 capa_measure.capa_measure_select (SELECT)
-capa_measure.capa_measure_write (ALL)
 capa_measure_result.capa_measure_result_select (SELECT)
-capa_measure_result.capa_measure_result_write (ALL)
-case_participant_roles.case_participant_roles_admin_write (ALL)
-case_participant_roles.case_participant_roles_select (SELECT)
 case_phase_allowed_results.case_phase_allowed_results_select (SELECT)
-case_phase_allowed_results.case_phase_allowed_results_staff_admin_write (ALL)
 case_phase_offered_results.case_phase_offered_results_select (SELECT)
-case_phase_offered_results.case_phase_offered_results_staff_admin_write (ALL)
 case_tag_assignments.case_tag_assignments_select (SELECT)
-case_tag_assignments.case_tag_assignments_staff_admin_write (ALL)
 case_type_terminology.case_type_terminology_admin_write (ALL)
 case_type_terminology.case_type_terminology_select (SELECT)
 commission_administrativo_capabilities.commission_administrativo_capabilities_select (SELECT)
@@ -85,8 +105,6 @@ commission_meeting_settings.meeting_settings_select (SELECT)
 commission_meeting_settings.meeting_settings_staff_admin_write (ALL)
 commission_meeting_types.meeting_types_select (SELECT)
 commission_meeting_types.meeting_types_staff_admin_write (ALL)
-document_approvals.document_approvals_select (SELECT)
-event_custody.event_custody_select (SELECT)
 event_patient.event_patient_select (SELECT)
 event_triage_sentinel_flags.event_triage_sentinel_flags_select (SELECT)
 form_item_options.form_item_options_select (SELECT)
@@ -96,8 +114,6 @@ form_matrix_columns.form_matrix_columns_select (SELECT)
 form_matrix_rows.form_matrix_rows_select (SELECT)
 indicator_measurements.indicator_measurements_select (SELECT)
 interview_session_attendance.interview_session_attendance_select (SELECT)
-interview_sessions.interview_sessions_select (SELECT)
-interview_sessions.interview_sessions_write (ALL)
 interview_summaries.interview_summaries_select (SELECT)
 interview_topics.interview_topics_select (SELECT)
 meeting_closed_sessions.meeting_closed_sessions_select (SELECT)
@@ -120,23 +136,16 @@ process_templates.process_templates_select (SELECT)
 process_templates.process_templates_staff_admin_write (ALL)
 professional_categories.professional_categories_admin_write (ALL)
 professional_participants.professional_participants_select (SELECT)
-professional_profiles.professional_profiles_select (SELECT)
 public.is_nsp_coordinator_of_self(p_hospital_id uuid)
 public.is_nsp_org_admin_of_self(p_org_id uuid)
 public.is_pqs_member_of_self(p_hospital_id uuid)
 public.is_pqs_member_self()
 rca_evidence.rca_evidence_select (SELECT)
-rca_evidence.rca_evidence_write (ALL)
 rca_factors.rca_factors_select (SELECT)
-rca_factors.rca_factors_write (ALL)
 rca_members.rca_members_select (SELECT)
-rca_members.rca_members_write (ALL)
 rca_root_causes.rca_root_causes_select (SELECT)
-rca_root_causes.rca_root_causes_write (ALL)
 rca_timeline_entries.rca_timeline_select (SELECT)
-rca_timeline_entries.rca_timeline_write (ALL)
 rca_why_chains.rca_why_chains_select (SELECT)
-rca_why_chains.rca_why_chains_write (ALL)
 referral_reply_attachment.referral_reply_attachment_select_readable (SELECT)
 referral_types.referral_types_write_admin (ALL)
 reply_outcomes.reply_outcomes_write_admin (ALL)
