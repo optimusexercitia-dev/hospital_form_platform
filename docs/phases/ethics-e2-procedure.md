@@ -172,6 +172,11 @@ mig `20260817000000`, pgTAP `253` 23/23 (fresh reset), catalog RLS mirrored `cas
    the guard's exact predicate before SQL. **Mutation-prove both keystones RED** (idempotency guard; `HC0J7` bar).
    `ethics`-flag-gating the redaction is acceptable pre-pilot (decouple post-pilot if LGPD erasure of a
    non-ethics professional is needed).
+   **✅ BE-5 built `04d9f62`** — mig `20260817000400`; pgTAP `257` 18/18; mutation RED-PROVEN (idempotency guard
+   + `HC0J7` bar). `guard_professional_linkage` verified: pin passes untouched (retention-columns-only); redaction
+   got the `app.in_redaction_rpc` GUC exception (respondent-freeze intact) — result coherent with the link CHECK.
+   All 5 ethics pgTAP files green (23/25/26/21/18). ⭐ **The full-review gates are complete** — BE-6+ are
+   mechanical/light (RPC breadth + N arm + read + app-actions + flag), gated by the authority-matrix spot-check.
 
 ---
 
