@@ -3775,8 +3775,8 @@
     "semantic_hash": ""
   },
   "src/lib/types/database.ts": {
-    "mtime": 1784387252.350929,
-    "ast_hash": "f466ebea39696969ae6fc3ab55f1edc1",
+    "mtime": 1784388353.3679905,
+    "ast_hash": "0578a233918db42ea12cfc164fd0caa0",
     "semantic_hash": ""
   },
   "src/lib/types/pagination.test.ts": {
@@ -4510,8 +4510,8 @@
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1784386198.1202896,
-    "ast_hash": "441a377eed62144a1ef3719516e0ebfa",
+    "mtime": 1784387853.5623946,
+    "ast_hash": "1f0f96f639e52e7b58bd3b5d0f24bf68",
     "semantic_hash": ""
   },
   "README.md": {
@@ -6615,8 +6615,8 @@
     "semantic_hash": ""
   },
   "docs/phases/ethics-e2-procedure.md": {
-    "mtime": 1784386187.9198067,
-    "ast_hash": "c8d8a409208be5076074485c7dd39dfe",
+    "mtime": 1784387843.0816915,
+    "ast_hash": "685e6136ad269bd9738e2717f940d949",
     "semantic_hash": ""
   },
   "docs/phases/ethics-e3-surfacing.md": {
@@ -7717,6 +7717,21 @@
   "supabase/tests/mutation/be3b-targeted-door-mutation-audit.sh": {
     "mtime": 1784387228.8452709,
     "ast_hash": "484842a93cbd424b0dc5d0f1827637e6",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260817000300_ethics_e2_notifications_hearings_appeals.sql": {
+    "mtime": 1784388176.5932817,
+    "ast_hash": "7a2f4bf5adeaeb2f56c69b1cc79ed79d",
+    "semantic_hash": ""
+  },
+  "supabase/tests/256_ethics_e2_hearings.sql": {
+    "mtime": 1784388280.5759854,
+    "ast_hash": "d2fe7a461eec7c82abaa0387f0425264",
+    "semantic_hash": ""
+  },
+  "supabase/tests/mutation/be4-hearing-roster-mutation-audit.sh": {
+    "mtime": 1784388328.125941,
+    "ast_hash": "5b955b19df30e485ed58944c476dfdea",
     "semantic_hash": ""
   }
 }

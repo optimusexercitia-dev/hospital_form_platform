@@ -3708,6 +3708,83 @@ export type Database = {
           },
         ]
       }
+      ethics_appeals: {
+        Row: {
+          appeal_reason_md: string
+          case_id: string
+          created_at: string
+          decision_id: string
+          id: string
+          outcome: string | null
+          outcome_rationale_md: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          submitted_at: string
+          submitted_by_participant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          appeal_reason_md: string
+          case_id: string
+          created_at?: string
+          decision_id: string
+          id?: string
+          outcome?: string | null
+          outcome_rationale_md?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by_participant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          appeal_reason_md?: string
+          case_id?: string
+          created_at?: string
+          decision_id?: string
+          id?: string
+          outcome?: string | null
+          outcome_rationale_md?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          submitted_at?: string
+          submitted_by_participant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ethics_appeals_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_appeals_decision_id_fkey"
+            columns: ["decision_id"]
+            isOneToOne: false
+            referencedRelation: "case_decisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_appeals_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_appeals_submitted_by_participant_id_fkey"
+            columns: ["submitted_by_participant_id"]
+            isOneToOne: false
+            referencedRelation: "case_participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ethics_case_details: {
         Row: {
           admissibility_decided_at: string | null
@@ -3915,6 +3992,169 @@ export type Database = {
             columns: ["decided_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ethics_hearings: {
+        Row: {
+          case_id: string
+          complainant_present: boolean | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          hearing_type: string
+          id: string
+          legal_representative_present: boolean | null
+          meeting_id: string | null
+          outcome_md: string | null
+          respondent_present: boolean | null
+          scheduled_at: string | null
+          summary_md: string | null
+          updated_at: string
+        }
+        Insert: {
+          case_id: string
+          complainant_present?: boolean | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          hearing_type: string
+          id?: string
+          legal_representative_present?: boolean | null
+          meeting_id?: string | null
+          outcome_md?: string | null
+          respondent_present?: boolean | null
+          scheduled_at?: string | null
+          summary_md?: string | null
+          updated_at?: string
+        }
+        Update: {
+          case_id?: string
+          complainant_present?: boolean | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          hearing_type?: string
+          id?: string
+          legal_representative_present?: boolean | null
+          meeting_id?: string | null
+          outcome_md?: string | null
+          respondent_present?: boolean | null
+          scheduled_at?: string | null
+          summary_md?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ethics_hearings_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_hearings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_hearings_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "meetings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ethics_notifications: {
+        Row: {
+          acknowledged_at: string | null
+          case_id: string
+          created_at: string
+          created_by: string | null
+          delivery_method: string
+          due_at: string | null
+          id: string
+          notes_md: string | null
+          notification_type: string
+          recipient_participant_id: string | null
+          recipient_user_id: string | null
+          related_document_id: string | null
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          delivery_method: string
+          due_at?: string | null
+          id?: string
+          notes_md?: string | null
+          notification_type: string
+          recipient_participant_id?: string | null
+          recipient_user_id?: string | null
+          related_document_id?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          delivery_method?: string
+          due_at?: string | null
+          id?: string
+          notes_md?: string | null
+          notification_type?: string
+          recipient_participant_id?: string | null
+          recipient_user_id?: string | null
+          related_document_id?: string | null
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ethics_notifications_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_notifications_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_notifications_recipient_participant_id_fkey"
+            columns: ["recipient_participant_id"]
+            isOneToOne: false
+            referencedRelation: "case_participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_notifications_recipient_user_id_fkey"
+            columns: ["recipient_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ethics_notifications_related_document_id_fkey"
+            columns: ["related_document_id"]
+            isOneToOne: false
+            referencedRelation: "attachments"
             referencedColumns: ["id"]
           },
         ]
@@ -11605,6 +11845,15 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      schedule_ethics_hearing: {
+        Args: {
+          p_case_id: string
+          p_hearing_type: string
+          p_meeting_id?: string
+          p_scheduled_at?: string
+        }
+        Returns: string
       }
       schedule_session: {
         Args: {
