@@ -154,6 +154,24 @@ mig `20260817000000`, pgTAP `253` 23/23 (fresh reset), catalog RLS mirrored `cas
    respondent** (ADR 0073 D4 + 0078 O9 "surfaces to the plenary"); if the intended CEM/CFM procedure is
    **sub-group-only** for restricted cases, scope the body to `read_case_deliberation` — a one-function retrofit.
    `commission_default` (the ethics default) is unaffected.
+   **✅ BE-4 built `54ce537`** — mig `20260817000300`, pgTAP `256` 21/21; hearing-roster mutation RED-PROVEN
+   (recused/respondent rostered → reach → red). Roster-then-flip dance works (`guard_meeting_status` allows the
+   visibility-only UPDATE); O-7a "Audiência" seeded via `seed_default_meeting_types` + backfill, **no** meetings DDL.
+
+9. **BE-5 APPROVED (2026-07-18) — M2 retention-pin + redaction (the last full-review gate).** Columns
+   (`retention_pinned_at`/`_reason`/`redacted_at`/`_by` + partial index) + `app.trg_pin_respondent_retention`
+   (AFTER UPDATE ON `case_decisions` → `status='issued'`; R6 respondent traversal `case_participants →
+   case_participant_roles('respondent_doctor') → professional_participants → professional_profiles`; **idempotent**
+   `where retention_pinned_at is null`; PHI-free `professional_profile.retention_pinned` audit) +
+   `redact_professional_profile` (**bar `HC0J7`** on pinned OR respondent-in-any-issued-decision-case;
+   **minimise-not-destroy** → placeholder name / null license / null `user_id` / `link_state='no_account'`;
+   **preserve row + `case_participants` linkage + audit, never DELETE**; the PO-signed-off M2 posture). ⛔ **Binding:
+   verify `guard_professional_linkage` against the catalog FIRST** — the pin (retention-columns-only) should pass;
+   if the **redaction** (nulls `user_id`) is blocked by the linkage freeze, add a **redaction-aware GUC exception**
+   (`app.in_redaction_rpc`, mirroring `app.in_meeting_rpc`) — **NOT** a weakening of the respondent-freeze; report
+   the guard's exact predicate before SQL. **Mutation-prove both keystones RED** (idempotency guard; `HC0J7` bar).
+   `ethics`-flag-gating the redaction is acceptable pre-pilot (decouple post-pilot if LGPD erasure of a
+   non-ethics professional is needed).
 
 ---
 
