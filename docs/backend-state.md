@@ -370,6 +370,31 @@ to the second with **no respondent involved**).
    ordinary members' reach of ordinary cases**. Use **`can_reach_case_on_member_surface`** there;
    use `can_read_case_or_admin` only where an admin/coordinator **authority** arm is what you mean.
 
+## E2 — Ethics Procedure (S4·ETH·E2, 2026-07-18; ADR 0073; migrations `20260817000000`–`…000700`; flag `ethics` ON **seed-only** — local, remote OFF till pilot)
+
+Full disciplinary procedure layered on E1's case-access spine. **Per-task ledger + test triage →
+[progress/eth-e2-procedure.md](progress/eth-e2-procedure.md); QA crux review → [reviews/eth-e2-review.md](reviews/eth-e2-review.md).**
+
+- **Tables (9, all `read_case_content`-tier — one SELECT policy = verbatim `can_read_case`, no authenticated write policy):**
+  `ethics_case_details`, `ethics_allegations` (+`ethics_allegation_categories`), `ethics_findings`, `case_decisions`,
+  `ethics_decision_details` (+`ethics_sanction_types`), `case_votes`, `ethics_notifications`, `ethics_hearings`,
+  `ethics_appeals` (+ `case_assignment_roles` catalog; `case_phases.assignment_role_id`).
+- **Write surface = `HC0J·` DEFINER doors** (authority-first `HC0J1`, distinct SQLSTATE from exclusions; anon-revoked; owner
+  postgres): admissibility, allegation/finding CRUD, decision lifecycle — `issue_decision` = quorum `HC0J8`, where
+  **`required = greatest(coalesce(commission_meeting_settings.quorum_value, ceil(app.eligible_voters(case)/2)), 1)`** and it
+  fires the M2 pin; `cast_case_vote` (`HC0J4/5` recused+respondent exclusion); notifications; `schedule_ethics_hearing`
+  (rides a `participants_only` meeting); appeals; `target_case_response`/`submit_targeted_case_response` (D13, `HC0J9`);
+  catalog CRUD (org-authority `42501`); `redact_professional_profile` (`HC0J7`, minimise-not-destroy, barred while pinned).
+- **M2 retention:** `issue_decision` pins the respondent's `professional_profiles` row (idempotent, PHI-free audit); redaction
+  nulls identity via the `app.in_redaction_rpc` GUC exception to the `guard_professional_linkage` freeze.
+- **Reads:** `get_ethics_case_procedure(case)` (DEFINER, `can_read_case`-gated, null when unreadable/non-ethics/flag-off);
+  `listEthicsSanctionTypes`/`listCaseRecusals`/`listEthicsAllegationCategories`/`listCaseAssignmentRoles`. N ethics scan arm =
+  `app.compute_due_ethics_notifications` (flag-gated, PHI-free). Consumption: `assign_ethics_remediation`, `open_ethics_external_referral`.
+- **PHI:** Class-2 professional identity, no patient PHI. **Data-access:** `src/lib/queries/ethics.ts`, `src/lib/ethics/actions.ts`,
+  coordinator controls in `src/lib/case-recusals/actions.ts`; UI = the `etica` tab + `src/components/ethics/**`.
+- **Follow-ups (QA info):** INFO-1 respondent direct-`PATCH` of own targeted-response status skips the submit-audit row;
+  INFO-2 org_admin case-phase responses via the pre-existing `responses` arm.
+
 ## Migrations (forward-only, additive)
 
 | Range | Phase | What landed |

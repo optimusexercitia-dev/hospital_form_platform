@@ -1,11 +1,24 @@
 # 0073 — Ethics procedure model: admissibility → notice → allegations/findings → hearing → vote → decision → appeal
 
-**Date:** 2026-07-13 · **Status:** proposed (S0 design gate — DESIGN ONLY, not implemented).
+**Date:** 2026-07-13 · **Status:** ✅ **BUILT + gate-passed + human-approved 2026-07-18** (As-built below); ff-merged to `main`. *(Originally: proposed S0 design gate.)*
 **Owner:** platform lead → `backend`. **Gate unit:** ETH·E2 of the
 [Pre-Pilot Release Scope Expansion](../plans/pre-pilot-release-scope-expansion.md) (ADR
 [0071](./0071-pre-pilot-release-scope-expansion.md)); ratified against the
 [S0 spine](../plans/pre-pilot-release-s0-ratification.md).
 **Build plan:** [`docs/phases/ethics-e2-procedure.md`](../phases/ethics-e2-procedure.md).
+
+**As-built (Record 2026-07-18).** ETH·E2 shipped through the full Phase Gate (build → E2E 20/20 + full-suite
+green → QA APPROVED 0 P0/0 MAJOR → PO approval) and ff-merged to `main`. Commits `ada4c97`…`2adb169`;
+migrations `20260817000000`–`…000700`; SQLSTATE `HC0J·`; pgTAP `253`–`259`; E2E `e2e/ethics-e2-procedure.spec.ts`;
+QA report [`docs/reviews/eth-e2-review.md`](../reviews/eth-e2-review.md).
+- **O-3 quorum — RESOLVED (was left open).** `issue_decision` issues only when `votes_cast >= required`, where
+  **`required = greatest(coalesce(commission_meeting_settings.quorum_value, ceil(eligible/2)), 1)`** — i.e. the
+  commission's configured `quorum_value` if set, else a simple majority of `app.eligible_voters(case)`, floored at 1.
+  `eligible_voters` = active commission members − recused − respondent. Under-quorum → `HC0J8`. (Catalog-verified.)
+- **Follow-ups (QA info, non-blocking):** **INFO-1** — a respondent can `PATCH` their *own* targeted-response
+  `status` directly via PostgREST, bypassing the `submit_targeted_case_response` audit row (self-scoped +
+  non-escalating, but an audit-completeness gap worth closing). **INFO-2** — org_admin sees case-phase responses
+  via the pre-existing `responses` admin arm, not a D13 widening.
 
 **Amended (2026-07-14):** adds **§D13** (respondent targeted-submission door) and **§D14** (case-restricted
 hearings) — two capability additions the PO approved after the 0072/0073-vs-handoff evaluation. Both are

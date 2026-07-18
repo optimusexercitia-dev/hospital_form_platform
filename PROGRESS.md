@@ -149,19 +149,17 @@ keystone · qa APPROVED · human approval → Record.
 - **PO directed:** BUG-AIF-001/FUP-AI-1 → pre-pilot (own workstream, not yet started) · the **three ETH·E1 known
   gaps → ETH·E2** (see Follow-ups).
 
-### 🏗️ ACTIVE — S4 · ETH·E2 (procedure) — opened 2026-07-18 · branch `feat/eth-e2-procedure`
+### ✅ COMPLETE — S4 · ETH·E2 (procedure) — gate-passed + human-approved 2026-07-18 → `main`
 
-**S4 order (PO 2026-07-18): ETH·E2 first**, then RV2 R2–R5 + CH. E1→E2 strictly sequential (E1 done). ADR
-[0073](docs/decisions/0073-ethics-procedure-model.md) + [build plan](docs/phases/ethics-e2-procedure.md) are
-**reconciled to ADR [0078](docs/decisions/0078-authorization-capability-model.md)** (top Amendment 2026-07-18 +
-build-plan addendum): SQLSTATE `HC0F·`→**`HC0J·`**; **D14 reconciled onto Stage C `participants_only`** (parallel
-`can_read_meeting`/policy-rewrite WITHDRAWN — hearings are `participants_only` meetings via E2's own door);
-`legal_privileged` decision letters → **Stage E** (0078 A19/B3 fence); **E2 gains the 5 ethics coordinator
-app-actions + UI** (`set_case_visibility`/`_confidentiality`/`declare_conflict`/`record_recusal`/`lift_recusal` —
-handoff PO decision 8). Inherited E1 gaps are **lighter**: GAP-1 (action-item `assignees_only`) substantially
-closed by 0078; GAP-3 (privileged-doc ceiling) defers with Stage E; GAP-2 (NSP link-inference) post-pilot; the 2
-sweep Minors overlap the ADR-0079 P0 invariant. Contract-first (BE-1 posts §2 stubs first). Migration window
-`20260817000000+`.
+Full ethics disciplinary procedure (intake → admissibility → allegations/findings → decisions → quorum votes →
+issue → notifications → `participants_only` hearings → appeals) + 5 coordinator controls + the coordinator-gated
+"Processo ético" UI tab. Reconciled to ADR 0078 (`HC0F·`→`HC0J·`; hearings on Stage-C `participants_only`;
+`legal_privileged` letter → Stage E; 5 coordinator app-actions wired). **Full per-task ledger, test-gate triage,
+and QA verdict rotated → [docs/progress/eth-e2-procedure.md](docs/progress/eth-e2-procedure.md).** Commits
+`ada4c97`…`2adb169`; migs `20260817000000`–`…000700`; pgTAP `253`–`259`; E2E 20/20; QA **APPROVED**
+([review](docs/reviews/eth-e2-review.md)). Non-blocking follow-ups: **INFO-1** (respondent direct-`PATCH` of own
+targeted-response status skips the submit-audit row — self-scoped) · **INFO-2** (org_admin case-phase responses
+via the pre-existing `responses` arm).
 
 | # | Task | Owner | Plan review | Status |
 |---|------|-------|-------------|--------|
@@ -181,26 +179,8 @@ sweep Minors overlap the ADR-0079 P0 invariant. Contract-first (BE-1 posts §2 s
 | E2E | Acceptance §4 (minus the Stage-E `legal_privileged` item) + one keyboard flow | tester | — | ✅ **COMPLETE 2026-07-18** — `e2e/ethics-e2-procedure.spec.ts` (new, 20 tests) **20/20 chromium**, prod-standalone, 2× fresh-reset runs both green. **0 product bugs filed** — every failure during authoring was a spec-selector/assumption bug, fixed in the spec (see file header + commit). **CAVEAT A RESOLVED — environmental, not a product bug**: GATE-C/GATE-D open a real dialog (state + handler) after navigating to both `/manage/cases/[id]` (Detalhes) and `.../etica` under real Chromium — the React tree hydrates and is interactive on the exact route frontend's mcp-browser preview reported stuck. **CAVEAT B resolved** — this run is the authoritative interactive+visual pass (frontend's screenshot tool was down). Full §4 lifecycle driven as REAL writes (admissibility → 2 allegations/finding[+HC0J3 dup-negative] → decision → details[sanction/remediation/external-CFM/appeal deadline] → votes[chefe via **keyboard-only**, quorum satisfied via a DYNAMICALLY-COMPUTED live eligible-voter set — not hardcoded — for 100% turnout regardless of the actual HC0J8 threshold; HC0J5×2 + HC0J4 negatives via direct RPC] → issue[Emitida; M2 retention-pin fires on the respondent's `professional_profiles`; `redact_professional_profile` HC0J7-barred while pinned] → hearing[participants_only meeting verified] → notification[+cancel] → appeal[submit + review]). Part 1 coordinator controls (declare conflict, record+lift recusal via the roster incl. the SEEDED entry, set confidentiality, set visibility) all pass; `cases.confidentiality_level`/`visibility_policy` round-tripped back to seed values through the SAME UI door + an `afterAll` service-role safety net — **re-verified `ethics-e1-access-spine.spec.ts` 13/13 (+1 skip) on the SAME post-run DB, no reset between** → zero cross-spec contamination. Stage-E `legal_privileged` decision-letter item correctly NOT exercised (unbuilt). |
 | QA | Requirements + RLS conformance (`set local role`, not "revert `can_read_case`") | qa | — | ✅ **APPROVED** (2026-07-18, r1) — 0 P0/0 MAJOR/1 min(doc)/3 info; crux verified live ([review](docs/reviews/eth-e2-review.md)) |
 
-Serial: BE-2→BE-6; BE-3b after BE-2; BE-5 after BE-3; BE-7 after N (live). Reconciliation detail → ADR 0073
-Amendment + build-plan addendum.
-
-> ⚠ **Pre-existing full-suite pgTAP flakiness (NOT E2 — do not attribute):** the full local suite (3438 tests)
-> has **8 order-dependent failures** in `250/251/252_authz_p0_isolation` (meeting-attendee/agenda + capa +
-> doc-approval reader-non-writer keystones). Lead-proven pre-existing: E2's test files (253–259) run *after*
-> them, E2 alters *none* of their RLS policies, and their assertions read hardcoded fixture ids untouched by
-> E2's seed; backend confirmed identical failures at branch base `c318cc1`. They pass individually ⇒ classic
-> inter-test pollution from a file ≤249. **Own triage item before the phase-gate full-suite green declaration.**
-
-> ✅ **Full Playwright suite — lead-run green declaration (Phase Gate §6.2), 2026-07-18.** `npm run e2e:prod` =
-> **638 passed / 66 failed / 0 flaky** raw. **All 66 lead-triaged to environmental infra — ZERO deterministic E2
-> regression:** batches 3/5/9 = Windows server batch-collapse (`net::ERR_CONNECTION_REFUSED`, whole-batch cliffs).
-> Isolated re-run of all 18 affected spec files (small batches, fresh server each) = **221 passed / 0 connection-refused**;
-> **ethics-e2 20/20** + every case/referral/`phase7-cases`/blast-radius spec GREEN. The only residual deterministic
-> reds — 7 in `notifications.spec.ts` at its `open_capa_plan` setup — are **GoTrue login rate-limiting under batched
-> load** (its 8-persona setup): ROOT-CAUSED by reproducing the test's exact path (GoTrue password login → REST
-> `open_capa_plan`) directly on the E2 DB → **HTTP 200**, and `phase14d-capa` (104/104) uses the identical REST call.
-> E2 touches neither auth nor capa (`open_capa_plan` intact in catalog; capa_plan triggers unchanged; notifications
-> CHECKs preserve `capa`/`capa_action`). **Pre-existing test-infra fragility, NOT an E2 blocker** — same class as the pgTAP 8.
+> **Test-gate triage (66 raw E2E reds → 0 deterministic E2 regression; 8 pre-existing pgTAP), the per-task commit
+> ledger, and the QA crux findings are in the rotated record → [docs/progress/eth-e2-procedure.md](docs/progress/eth-e2-procedure.md).**
 
 ---
 
