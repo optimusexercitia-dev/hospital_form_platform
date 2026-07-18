@@ -16,13 +16,28 @@ import { cn } from "@/lib/utils";
  *
  * The Timeline tab href preserves nothing from the URL; its own search params
  * (`view`/`density`/`types`) are managed by the timeline shell once there.
+ *
+ * `showEthics` adds a "Processo ético" tab (ETH·E2; ADR 0073) — surfaced only when
+ * the case is ethics-typed (the layout resolves it via `getEthicsCaseProcedure`),
+ * so a non-ethics case never sees it.
  */
-export function CaseTabs({ org, slug, caseId }: { org: string; slug: string; caseId: string }) {
+export function CaseTabs({
+  org,
+  slug,
+  caseId,
+  showEthics = false,
+}: {
+  org: string;
+  slug: string;
+  caseId: string;
+  showEthics?: boolean;
+}) {
   const pathname = usePathname();
   const base = commissionHref(org, slug, "manage", "cases", caseId);
   const tabs = [
     { href: base, label: "Detalhes" },
     { href: `${base}/timeline`, label: "Linha do tempo" },
+    ...(showEthics ? [{ href: `${base}/etica`, label: "Processo ético" }] : []),
   ];
 
   return (

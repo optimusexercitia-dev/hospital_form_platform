@@ -29,6 +29,7 @@ import { listNarrativeTypes } from "@/lib/queries/case-narratives";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { loadCasePatientForNotify } from "@/lib/cases/actions";
+import { getEthicsCaseProcedure } from "@/lib/queries/ethics";
 
 /**
  * Shared shell for a case's two tabs — **Detalhes** (default child) and **Linha
@@ -77,18 +78,29 @@ export default async function CaseDetailLayout({
   // (any member may raise a safety event regardless of case state). Loaded once here
   // in the spine and reused by both the access roster and (when open) the
   // lifecycle-actions assignee picker.
-  const [members, accessEnabled, patientSafetyOn, casePatientOn, accessGrants] =
-    await Promise.all([
-      listMembers(access.commission.id),
-      caseAccessEnabled(),
-      patientSafetyEnabled(),
-      casePatientEnabled(),
-      // The stored read/write grant rows for the access roster's per-member badge
-      // (coordinator/admin-gated — safe here, the layout already requires
-      // staff_admin). Used only when the access button renders.
-      listCaseAccessGrants(caseId),
-    ]);
+  const [
+    members,
+    accessEnabled,
+    patientSafetyOn,
+    casePatientOn,
+    accessGrants,
+    ethicsProcedure,
+  ] = await Promise.all([
+    listMembers(access.commission.id),
+    caseAccessEnabled(),
+    patientSafetyEnabled(),
+    casePatientEnabled(),
+    // The stored read/write grant rows for the access roster's per-member badge
+    // (coordinator/admin-gated — safe here, the layout already requires
+    // staff_admin). Used only when the access button renders.
+    listCaseAccessGrants(caseId),
+    // The ethics procedure envelope (ETH·E2; ADR 0073) — `null` unless the case is
+    // ethics-typed AND the `ethics` flag is on. Drives the "Processo ético" tab.
+    // React `cache()`-memoized, so the `etica` page's own read reuses this.
+    getEthicsCaseProcedure(caseId),
+  ]);
   const sortedMembers = sortMembers(members);
+  const showEthics = ethicsProcedure !== null;
 
   // The NSP dialog seeds its patient panel from this case's identifiers only when
   // the case COLLECTS PHI and the `case_patient` flag is on (ADR 0038 — value copy
@@ -249,7 +261,7 @@ export default async function CaseDetailLayout({
           )}
         </div>
 
-        <CaseTabs org={org} slug={slug} caseId={caseId} />
+        <CaseTabs org={org} slug={slug} caseId={caseId} showEthics={showEthics} />
       </header>
 
       {children}
