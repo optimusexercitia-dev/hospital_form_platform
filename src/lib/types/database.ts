@@ -8906,6 +8906,16 @@ export type Database = {
         Args: { p_case_id: string; p_tag_id: string }
         Returns: undefined
       }
+      assign_ethics_remediation: {
+        Args: {
+          p_assigned_to?: string
+          p_decision_id: string
+          p_description?: string
+          p_due_date?: string
+          p_title: string
+        }
+        Returns: string
+      }
       assign_hospital_admin: {
         Args: { p_hospital: string; p_user: string }
         Returns: undefined
@@ -10534,6 +10544,7 @@ export type Database = {
         Args: { p_participant_id: string }
         Returns: Json
       }
+      get_ethics_case_procedure: { Args: { p_case_id: string }; Returns: Json }
       get_event_patient: { Args: { p_event_id: string }; Returns: Json }
       get_feature_flags: { Args: never; Returns: Json }
       get_meeting_agenda_items: {
@@ -11080,6 +11091,16 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      open_ethics_external_referral: {
+        Args: {
+          p_decision_id: string
+          p_description_md: string
+          p_referral_type_id: string
+          p_subject: string
+          p_target_commission_id: string
+        }
+        Returns: string
       }
       open_reserved_session: { Args: { p_meeting_id: string }; Returns: string }
       patient_access_audit: {

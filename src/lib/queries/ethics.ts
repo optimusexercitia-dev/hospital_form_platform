@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { cache } from 'react'
+import { createClient } from '@/lib/supabase/server'
 
 /**
  * Ethics procedure — read projection (ETH·E2; ADR 0073; Architecture Rule 9).
@@ -55,16 +56,6 @@ import { cache } from 'react'
  *    resolves it one way or the other.
  * =======================================================================================
  */
-
-// ---------------------------------------------------------------------------
-// Not-implemented stub helper (BE-1). References every arg so the frozen
-// param names stay lint-clean; BE-2..BE-8 replace each body with the real
-// RPC call (mirrors `src/lib/case-recusals/actions.ts`).
-// ---------------------------------------------------------------------------
-
-function notImplemented(fn: string, ..._args: unknown[]): never {
-  throw new Error(`${fn} not implemented (ETH·E2 BE-2..BE-8 — contract stub)`)
-}
 
 // ---------------------------------------------------------------------------
 // Domain unions — the FROZEN vocabulary (ASCII storage values; pt-BR labels
@@ -427,7 +418,14 @@ export interface EthicsCaseProcedure {
  */
 export const getEthicsCaseProcedure = cache(
   async (caseId: string): Promise<EthicsCaseProcedure | null> => {
-    return notImplemented('getEthicsCaseProcedure', caseId)
+    const supabase = await createClient()
+    const { data, error } = await supabase.rpc('get_ethics_case_procedure', {
+      p_case_id: caseId,
+    })
+    if (error || !data) return null
+    // The DEFINER RPC returns the camelCase envelope verbatim (can_read_case-gated;
+    // `null` when unreadable / not ethics-typed / the flag is off).
+    return data as unknown as EthicsCaseProcedure
   },
 )
 
@@ -438,7 +436,22 @@ export const getEthicsCaseProcedure = cache(
 export async function listEthicsAllegationCategories(
   organizationId: string,
 ): Promise<AllegationCategory[]> {
-  return notImplemented('listEthicsAllegationCategories', organizationId)
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('ethics_allegation_categories')
+    .select('id, organization_id, key, display_name, is_active, position')
+    .eq('organization_id', organizationId)
+    .eq('is_active', true)
+    .order('position')
+  if (error || !data) return []
+  return data.map((r) => ({
+    id: r.id,
+    organizationId: r.organization_id,
+    key: r.key,
+    displayName: r.display_name,
+    isActive: r.is_active,
+    position: r.position,
+  }))
 }
 
 /**
@@ -449,5 +462,19 @@ export async function listEthicsAllegationCategories(
 export async function listCaseAssignmentRoles(
   organizationId: string,
 ): Promise<CaseAssignmentRole[]> {
-  return notImplemented('listCaseAssignmentRoles', organizationId)
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('case_assignment_roles')
+    .select('id, organization_id, key, display_name, is_active')
+    .eq('organization_id', organizationId)
+    .eq('is_active', true)
+    .order('key')
+  if (error || !data) return []
+  return data.map((r) => ({
+    id: r.id,
+    organizationId: r.organization_id,
+    key: r.key,
+    displayName: r.display_name,
+    isActive: r.is_active,
+  }))
 }

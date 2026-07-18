@@ -3775,8 +3775,8 @@
     "semantic_hash": ""
   },
   "src/lib/types/database.ts": {
-    "mtime": 1784403213.972526,
-    "ast_hash": "c7dc159537d363334ec8538deaaac1cd",
+    "mtime": 1784403750.8387039,
+    "ast_hash": "82029d0972843378577e5faf8747b810",
     "semantic_hash": ""
   },
   "src/lib/types/pagination.test.ts": {
@@ -7025,8 +7025,8 @@
     "semantic_hash": ""
   },
   "src/lib/case-recusals/actions.ts": {
-    "mtime": 1784075553.040092,
-    "ast_hash": "4e53df904537ea4ccb497353c0d3df81",
+    "mtime": 1784403786.1854649,
+    "ast_hash": "144f567d05139c243ca5a35afb696d83",
     "semantic_hash": ""
   },
   "src/lib/participants/actions.ts": {
@@ -7600,8 +7600,8 @@
     "semantic_hash": ""
   },
   "src/lib/queries/ethics.ts": {
-    "mtime": 1784385837.725493,
-    "ast_hash": "fd559b8af73c1292e5f893b6a73a4f55",
+    "mtime": 1784403840.4250028,
+    "ast_hash": "330182343a4341314b1663a549a2fe7b",
     "semantic_hash": ""
   },
   "supabase/tests/250_authz_p0_isolation.sql": {
@@ -7762,6 +7762,16 @@
   "supabase/tests/mutation/be6-rpc-authority-mutation-audit.sh": {
     "mtime": 1784403191.1825922,
     "ast_hash": "a4bb0fb10fe36e0701cc5a6a694639f9",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260817000600_ethics_e2_scan_projection.sql": {
+    "mtime": 1784403699.823557,
+    "ast_hash": "a300eb50d8be37ee2524dbae54dac0ac",
+    "semantic_hash": ""
+  },
+  "supabase/tests/259_ethics_e2_scan_projection.sql": {
+    "mtime": 1784403920.2979062,
+    "ast_hash": "7960d71702d88890f52f00d0aed302a8",
     "semantic_hash": ""
   }
 }
