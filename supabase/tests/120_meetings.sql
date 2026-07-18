@@ -27,11 +27,13 @@ create temp table k on commit drop as
 grant select on k to authenticated;
 
 -- =========================================================================
--- Seed-on-commission: comm_x got the 2 default types + 1 settings row.
+-- Seed-on-commission: comm_x got the 3 default types + 1 settings row.
+-- (Ordinária, Extraordinária, Audiência — the last added by ETH·E2 O-7a,
+-- ADR 0073, so schedule_ethics_hearing can label the hearing meeting.)
 -- =========================================================================
 select is(
   (select count(*)::int from public.commission_meeting_types where commission_id = (select comm_x from k)),
-  2, 'seed-on-commission: comm_x has 2 default meeting types');
+  3, 'seed-on-commission: comm_x has 3 default meeting types (incl. Audiência)');
 select is(
   (select count(*)::int from public.commission_meeting_settings where commission_id = (select comm_x from k)),
   1, 'seed-on-commission: comm_x has 1 settings row');

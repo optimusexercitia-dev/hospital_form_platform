@@ -1982,6 +1982,11 @@ update app.feature_flags set enabled = true where key = 'response_correction';
 -- instruction, so local/E2E stays ON even if a future migration edit ever
 -- changes the flip's shape.
 update app.feature_flags set enabled = true where key = 'notifications';
+-- ETH·E2 (ADR 0073) — the ethics procedure flag. SEED-ONLY (local/E2E), mirroring the
+-- m2 case_participants/case_types precedent: E2 creates the flag OFF in its migration and
+-- ships NO committed `_enable` migration, so remote/prod stays OFF until the deliberate
+-- pilot flip. This line makes the whole ethics procedure surface reachable for local E2E.
+update app.feature_flags set enabled = true where key = 'ethics';
 -- ---------------------------------------------------------------------------
 do $cd$
 declare
@@ -2174,6 +2179,27 @@ begin
   values ('a7000000-0000-0000-0000-0000000000e2', 'case', v_case, 'Nota do processo ético',
           'attachments', 'case/' || v_case || '/nota.pdf', 'standard', 'ethics_investigation')
   on conflict do nothing;
+
+  -- ETH·E2 (ADR 0073) — mark the case ETHICS-TYPED (ethics_case_details is the canonical
+  -- marker, Lead ruling 1) + the procedure catalogs the E2E acceptance flow needs. PHI-free
+  -- (professional personas only). admissibility stays 'pending' so the tester exercises
+  -- decide_admissibility → the full decision → vote → issue path. The eligible panel is
+  -- computed live (CCIH members minus the recused staff1 minus the respondent staff4);
+  -- sanction types are already seeded org-wide (BE-3 CEM cross-join at the file tail).
+  insert into public.ethics_case_details (case_id, complaint_channel, complaint_received_at, summary_md)
+  values (v_case, 'internal', now() - interval '10 days', 'Denúncia de conduta profissional (fixture E2).')
+  on conflict (case_id) do nothing;
+
+  insert into public.ethics_allegation_categories (id, organization_id, key, display_name, position)
+  values ('ec000000-0000-0000-0000-0000000000e1', v_org, 'professional_misconduct', 'Conduta profissional inadequada', 1),
+         ('ec000000-0000-0000-0000-0000000000e2', v_org, 'breach_of_confidentiality', 'Quebra de confidencialidade', 2)
+  on conflict (organization_id, key) do nothing;
+
+  insert into public.case_assignment_roles (id, organization_id, key, display_name, position)
+  values ('ea000000-0000-0000-0000-0000000000e1', v_org, 'relator', 'Relator', 1),
+         ('ea000000-0000-0000-0000-0000000000e2', v_org, 'revisor', 'Revisor', 2),
+         ('ea000000-0000-0000-0000-0000000000e3', v_org, 'presidente', 'Presidente', 3)
+  on conflict (organization_id, key) do nothing;
 end $eth$;
 
 -- ETH·E2 (ADR 0073 D3) — seed the CEM sanction vocabulary for EVERY organization

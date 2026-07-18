@@ -44,10 +44,12 @@ create temp table k on commit drop as
 grant select on k to authenticated;
 
 -- ---------------------------------------------------------------------------
--- (1) the ethics feature flag ships OFF.
+-- (1) the ethics feature flag EXISTS (created by the BE-2 migration). Its migration
+-- default is OFF (remote/prod), but seed.sql forces it ON for local/E2E (BE-9), so we
+-- assert existence — a value assertion here would be seed-dependent.
 -- ---------------------------------------------------------------------------
-select is((select enabled from app.feature_flags where key = 'ethics'), false,
-  'BE-2: the ethics feature flag is seeded OFF');
+select ok((select enabled from app.feature_flags where key = 'ethics') is not null,
+  'BE-2: the ethics feature flag exists (created by the migration)');
 
 -- ---------------------------------------------------------------------------
 -- Fixture (superuser). An explicit_grants_only ethics case in comm_x, marked
