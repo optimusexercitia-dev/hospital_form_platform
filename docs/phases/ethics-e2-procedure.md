@@ -103,7 +103,21 @@ BE-1 (contract stubs, commit `ada4c97`) surfaced 5 gaps; rulings (catalog-verifi
 `ethics_allegations` → `ethics_findings`; CHECKs verbatim; one SELECT policy per table on
 `app.can_read_case(case_id, auth.uid())`; `ethics_findings` on its **denormalized** `case_id`; catalog SELECT
 org-scoped **mirroring a named live precedent** (cite it in the migration); SELECT grant to `authenticated`
-(F1 MAJOR-1); `HC0J0`/`HC0J2`/`HC0J3`. One cohesive migration, window `20260817000000+`.
+(F1 MAJOR-1); `HC0J0`/`HC0J2`/`HC0J3`. One cohesive migration, window `20260817000000+`. **✅ BE-2 built `d4f47ba`** —
+mig `20260817000000`, pgTAP `253` 23/23 (fresh reset), catalog RLS mirrored `case_participant_roles` (SELECT arm only).
+
+6. **BE-3 APPROVED (2026-07-18) with refinements** (window `20260817000100`). Tables `case_decisions` +
+   `ethics_decision_details` (**denormalize `case_id`** onto it, matching `ethics_findings`) + `case_votes`
+   (`case_id` + `decision_id`; the RPC enforces `case_votes.case_id = the decision's case_id`). **`ethics_sanction_types`
+   org-scoped catalog IS created in BE-3** (ruling 4); `ethics_decision_details.sanction_type_id` = **nullable FK**
+   (null = no sanction); update the TS type (`sanctionTypeId: string | null` + resolved label in the projection).
+   `case_decisions.decision_type` = **free text** pre-pilot (engine-level; a catalog is a post-pilot refinement).
+   `app.eligible_voters(p_case_id)` built here (R6-safe, base tables). ⛔ **`cast_case_vote` is NON-VACUITY-CRITICAL**
+   — the M6/`233` + [[no-regression-claim-needs-overgrant-twin]] trap: **authority (member) checked FIRST** with a
+   **SQLSTATE distinct from `HC0J5`**; the pgTAP fixture MUST make the recused voter **and** the respondent voter
+   **authority-passing commission members** (else `HC0J5` fires down the authority path and the keystone asserts
+   nothing); **mutation-prove each keystone goes RED** when the hard-check is neutralized; keep the structural
+   double-lock (the excluded voter reads **0** decision rows under `set local role`).
 
 ---
 

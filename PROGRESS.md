@@ -166,8 +166,8 @@ sweep Minors overlap the ADR-0079 P0 invariant. Contract-first (BE-1 posts §2 s
 | # | Task | Owner | Plan review | Status |
 |---|------|-------|-------------|--------|
 | BE-1 | Post §2 typed contract (queries + `ethics/actions.ts` + types) as stubs; commit early | backend | one-line ack | ✅ `ada4c97` (5 gaps surfaced → [lead rulings](docs/phases/ethics-e2-procedure.md); tsc/lint clean) |
-| BE-2 | Mig: `ethics` flag OFF; `ethics_case_details`/`ethics_allegations`(+cat)/`ethics_findings` + RLS/grants + `HC0J0/2/3` | backend | **full** | ⏳ |
-| BE-3 | Mig: `case_decisions`/`ethics_decision_details`/`case_votes`; `cast_case_vote` recusal+respondent gate `HC0J4/5` | backend | **full** (E1-consumption keystone) | ⏳ |
+| BE-2 | Mig: `ethics` flag OFF; `ethics_case_details`/`ethics_allegations`(+cat)/`ethics_findings` + RLS/grants | backend | **full** ✅ approved | ✅ `d4f47ba` (mig `20260817000000`; pgTAP `253` 23/23 fresh reset; catalog RLS ⟵ `case_participant_roles`) |
+| BE-3 | Mig: `case_decisions`/`ethics_decision_details`(+`ethics_sanction_types` catalog)/`case_votes`; `cast_case_vote` recusal+respondent gate `HC0J4/5` + `eligible_voters` | backend | **full** ✅ approved (E1-consumption keystone; **non-vacuity-critical**) | 🏗️ building |
 | BE-3b | **NEW (D13):** `can_access_targeted_response` + `responses`/`answers` OR-arms + `target_case_response`/`submit_targeted_case_response` `HC0J9` | backend | **full** | ⏳ |
 | BE-4 | Mig: `ethics_notifications`/`ethics_hearings`/`ethics_appeals`; **`schedule_ethics_hearing` = `participants_only` meeting door** (D14→Stage C); "Audiência" seed | backend | **full** | ⏳ |
 | BE-5 | M2 retention-pin trigger + `redact_professional_profile` (`link_state`-aware, B7) `HC0J7` | backend | **full** (novel trigger) | ⏳ |
