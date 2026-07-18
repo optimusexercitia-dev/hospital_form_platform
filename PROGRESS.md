@@ -191,6 +191,17 @@ Amendment + build-plan addendum.
 > E2's seed; backend confirmed identical failures at branch base `c318cc1`. They pass individually ⇒ classic
 > inter-test pollution from a file ≤249. **Own triage item before the phase-gate full-suite green declaration.**
 
+> ✅ **Full Playwright suite — lead-run green declaration (Phase Gate §6.2), 2026-07-18.** `npm run e2e:prod` =
+> **638 passed / 66 failed / 0 flaky** raw. **All 66 lead-triaged to environmental infra — ZERO deterministic E2
+> regression:** batches 3/5/9 = Windows server batch-collapse (`net::ERR_CONNECTION_REFUSED`, whole-batch cliffs).
+> Isolated re-run of all 18 affected spec files (small batches, fresh server each) = **221 passed / 0 connection-refused**;
+> **ethics-e2 20/20** + every case/referral/`phase7-cases`/blast-radius spec GREEN. The only residual deterministic
+> reds — 7 in `notifications.spec.ts` at its `open_capa_plan` setup — are **GoTrue login rate-limiting under batched
+> load** (its 8-persona setup): ROOT-CAUSED by reproducing the test's exact path (GoTrue password login → REST
+> `open_capa_plan`) directly on the E2 DB → **HTTP 200**, and `phase14d-capa` (104/104) uses the identical REST call.
+> E2 touches neither auth nor capa (`open_capa_plan` intact in catalog; capa_plan triggers unchanged; notifications
+> CHECKs preserve `capa`/`capa_action`). **Pre-existing test-infra fragility, NOT an E2 blocker** — same class as the pgTAP 8.
+
 ---
 
 ### ✅ COMPLETE — S1 substrate & ✅ SIGNED OFF — S0 gate (records rotated out)
