@@ -134,6 +134,26 @@ mig `20260817000000`, pgTAP `253` 23/23 (fresh reset), catalog RLS mirrored `cas
    (c) if the targeted (esp. **non-member**) respondent cannot reach the published `form_versions`/`_sections`/
    `_items` to render the wizard, add a narrow targeted arm **there and nowhere else** (§D13). Only a `linked`
    profile (`user_id` not null) can use the door — no-account respondents respond out-of-band (add a keystone).
+   **✅ BE-3b built `5ff03e1`** — mig `20260817000200`, pgTAP `255` 26/26; mutation `be3b-targeted-door` RED-PROVEN.
+   **2 findings blessed:** (i) the `link_state='linked'` conjunct was **vacuous** (`app.guard_professional_linkage`
+   enforces `user_id NOT NULL ⇔ linked`, so `user_id = p_uid` already implies it) → dropped; (ii) a targeted submit
+   tripped `sync_case_phase_on_submit → recompute_recommendations → assert_not_case_excluded` (U2 perimeter) →
+   an **early-return guard for `target_case_participant_id is not null`** (additive; non-targeted unchanged) —
+   correct: a respondent's filing must not drive the committee workflow or bypass exclusion.
+
+8. **BE-4 APPROVED (2026-07-18).** Tables `ethics_notifications`/`ethics_hearings`/`ethics_appeals` (additive,
+   `can_read_case` SELECT + DEFINER-write) + `HC0J6` (constraint-backed) + the O-7a "Audiência" seed (**no**
+   meetings DDL). The reconciled **`schedule_ethics_hearing` participants_only door**, two binding constraints:
+   (a) **`app.trg_meetings_roster` fires BEFORE INSERT and asserts a non-empty roster for `participants_only`
+   (lead-verified)** — so insert the meeting **`commission_default`** → insert the panel roster into
+   `meeting_attendees` → **UPDATE `visibility_policy='participants_only'`** (verify `guard_meeting_status` allows a
+   visibility-only update on a fresh meeting); (b) keystone: a **non-attendee** (recused/respondent/non-granted)
+   reads **nothing** of the hearing meeting under `set local role`, + the mutation twin (widen the roster with an
+   excluded uid → RED). Roster = `eligible_voters`. ⚠ **Noted edge (non-blocking, PO-confirm):** for
+   `explicit_grants_only` (sub-group) ethics cases the vote body / hearing roster = **all members − recused −
+   respondent** (ADR 0073 D4 + 0078 O9 "surfaces to the plenary"); if the intended CEM/CFM procedure is
+   **sub-group-only** for restricted cases, scope the body to `read_case_deliberation` — a one-function retrofit.
+   `commission_default` (the ethics default) is unaffected.
 
 ---
 
