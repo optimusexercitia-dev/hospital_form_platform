@@ -175,13 +175,20 @@ sweep Minors overlap the ADR-0079 P0 invariant. Contract-first (BE-1 posts §2 s
 | BE-7 | N scan arm (`ethics_notice_due`) — additive, idempotent, PHI-free | backend | one-line ack | ✅ `2c9314e` (mig `20260817000600`; pgTAP `259` 9/9; `app.compute_due_ethics_notifications`, flag-gated, PHI-free — title/body = notice TYPE only) |
 | BE-8 | Modified read `get_case_detail` (or `get_ethics_case_procedure`); hub (X-ε) + referral (§D7) consumption | backend | one-line ack | ✅ `2c9314e` (`get_ethics_case_procedure` can_read_case-gated, null when unreadable/off; `assign_ethics_remediation`+`open_ethics_external_referral` consumption) |
 | BE-10 | **NEW:** wire the 5 ethics coordinator app-actions to the live DEFINER doors (pt-BR `HC0*` mapping; no new SQL) | backend | one-line ack | ✅ `2c9314e` (5 actions in `case-recusals/actions.ts` + `mapCoordinatorError`; **`setCaseVisibility` created** → live `set_case_visibility` door, verified L178/L183) |
-| BE-9 | Flag flip `ethics`→ON + `FeatureFlags` + regen types + pgTAP fresh reset + seed | backend | one-line ack | ⛔ **HELD for lead** — flag verified OFF (`feature_enabled('ethics')=f`); flip belongs in **seed (local-only, remote stays OFF till pilot)**; lead inspects seed diff + **full**-suite pgTAP before accepting, then FE/tester |
-| FE | Coordinator controls (recusal/COI/visibility/confidentiality) + minimal procedure UI (off §2 contract; `frontend-design`) | frontend | — | ⏳ (after BE-1) |
+| BE-9 | Flag flip `ethics`→ON + `FeatureFlags` + regen types + pgTAP fresh reset + seed | backend | one-line ack | ✅ **ACCEPTED** `22e7d34` — flip **seed-only** (`seed.sql:1989`; lead-verified no migration enables it → remote/prod OFF till pilot); PHI-free fixtures on case `…-e1`; full suite **3438t / 8f** (all 8 lead-proven pre-existing, see note); ethics 253–259 RAN flag-ON (254's 25 keystones incl. HC0J5 exclusion) |
+| FE | Coordinator controls (recusal/COI/visibility/confidentiality) + minimal procedure UI (off §2 contract; `frontend-design`) | frontend | — | 🏗️ **ACTIVE** (spawned 2026-07-18; backend build complete, contract frozen) |
 | E2E | Acceptance §4 (minus the Stage-E `legal_privileged` item) + one keyboard flow | tester | — | ⏳ |
 | QA | Requirements + RLS conformance (`set local role`, not "revert `can_read_case`") | qa | — | ⏳ |
 
 Serial: BE-2→BE-6; BE-3b after BE-2; BE-5 after BE-3; BE-7 after N (live). Reconciliation detail → ADR 0073
 Amendment + build-plan addendum.
+
+> ⚠ **Pre-existing full-suite pgTAP flakiness (NOT E2 — do not attribute):** the full local suite (3438 tests)
+> has **8 order-dependent failures** in `250/251/252_authz_p0_isolation` (meeting-attendee/agenda + capa +
+> doc-approval reader-non-writer keystones). Lead-proven pre-existing: E2's test files (253–259) run *after*
+> them, E2 alters *none* of their RLS policies, and their assertions read hardcoded fixture ids untouched by
+> E2's seed; backend confirmed identical failures at branch base `c318cc1`. They pass individually ⇒ classic
+> inter-test pollution from a file ≤249. **Own triage item before the phase-gate full-suite green declaration.**
 
 ---
 
