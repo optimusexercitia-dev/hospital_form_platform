@@ -6819,6 +6819,10 @@ export type Database = {
           link_state: string
           organization_id: string
           professional_type: string | null
+          redacted_at: string | null
+          redacted_by: string | null
+          retention_pin_reason: string | null
+          retention_pinned_at: string | null
           specialty: string | null
           updated_at: string
           user_id: string | null
@@ -6833,6 +6837,10 @@ export type Database = {
           link_state?: string
           organization_id: string
           professional_type?: string | null
+          redacted_at?: string | null
+          redacted_by?: string | null
+          retention_pin_reason?: string | null
+          retention_pinned_at?: string | null
           specialty?: string | null
           updated_at?: string
           user_id?: string | null
@@ -6847,6 +6855,10 @@ export type Database = {
           link_state?: string
           organization_id?: string
           professional_type?: string | null
+          redacted_at?: string | null
+          redacted_by?: string | null
+          retention_pin_reason?: string | null
+          retention_pinned_at?: string | null
           specialty?: string | null
           updated_at?: string
           user_id?: string | null
@@ -6857,6 +6869,13 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_profiles_redacted_by_fkey"
+            columns: ["redacted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -11347,6 +11366,10 @@ export type Database = {
           p_session_id: string
         }
         Returns: string
+      }
+      redact_professional_profile: {
+        Args: { p_profile_id: string; p_reason: string }
+        Returns: undefined
       }
       referrals_enabled: { Args: never; Returns: boolean }
       reject_document: {

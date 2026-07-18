@@ -3775,8 +3775,8 @@
     "semantic_hash": ""
   },
   "src/lib/types/database.ts": {
-    "mtime": 1784388353.3679905,
-    "ast_hash": "0578a233918db42ea12cfc164fd0caa0",
+    "mtime": 1784389079.7812524,
+    "ast_hash": "10db56d734a305f9e7362d0a375ef0c7",
     "semantic_hash": ""
   },
   "src/lib/types/pagination.test.ts": {
@@ -4510,8 +4510,8 @@
     "semantic_hash": ""
   },
   "PROGRESS.md": {
-    "mtime": 1784387853.5623946,
-    "ast_hash": "1f0f96f639e52e7b58bd3b5d0f24bf68",
+    "mtime": 1784388650.5200286,
+    "ast_hash": "18000fe654d726550019b175ae3b807e",
     "semantic_hash": ""
   },
   "README.md": {
@@ -6615,8 +6615,8 @@
     "semantic_hash": ""
   },
   "docs/phases/ethics-e2-procedure.md": {
-    "mtime": 1784387843.0816915,
-    "ast_hash": "685e6136ad269bd9738e2717f940d949",
+    "mtime": 1784388641.5503838,
+    "ast_hash": "5a53e8866775f17f5da61c77259a58c0",
     "semantic_hash": ""
   },
   "docs/phases/ethics-e3-surfacing.md": {
@@ -7732,6 +7732,21 @@
   "supabase/tests/mutation/be4-hearing-roster-mutation-audit.sh": {
     "mtime": 1784388328.125941,
     "ast_hash": "5b955b19df30e485ed58944c476dfdea",
+    "semantic_hash": ""
+  },
+  "supabase/migrations/20260817000400_ethics_e2_retention_pin_redaction.sql": {
+    "mtime": 1784388906.1724985,
+    "ast_hash": "97026dd08a21f5e42f9beb38e4f7fb41",
+    "semantic_hash": ""
+  },
+  "supabase/tests/257_ethics_e2_retention.sql": {
+    "mtime": 1784389015.1385455,
+    "ast_hash": "3b77d726a615a7758e40a3963211c378",
+    "semantic_hash": ""
+  },
+  "supabase/tests/mutation/be5-retention-mutation-audit.sh": {
+    "mtime": 1784389056.0173867,
+    "ast_hash": "f1050972da5167590852433d3c330bdd",
     "semantic_hash": ""
   }
 }
