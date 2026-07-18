@@ -1,0 +1,149 @@
+# authz-blind-allowlist.txt — the standing BLIND allowlist for the AUDIT-DOOR-BLINDNESS
+# P0 invariant (ADR 0078 §7.14 / §7.4). One authz gate per line, keyed EXACTLY as the
+# neutralization sweeps emit it (the `gate / policy` column of
+# docs/reviews/authz-{door,writepath}-audit-findings.md):
+#   * predicate/guard : app.<fn>(<identity args>)      e.g. app.can_read_referral(p_referral_id uuid, p_uid uuid)
+#   * RLS policy       : <table>.<polname> (<CMD>)      e.g. capa_plan.capa_plan_delete (DELETE)
+#
+# CONTRACT (enforced by supabase/tests/mutation/p0-authz-invariant.sh):
+#   the sweep's BLIND set MUST be a SUBSET of this file. A BLIND that is NOT listed here
+#   fails the gate (non-zero exit) — that is a NEW un-keystoned authz gate, the exact
+#   door-blindness regression the known-3 rode. Either add a keystone (preferred) or, if
+#   it is a genuine backstop, add it here WITH justification in the same commit.
+#
+# This is a TRACKED FOLLOW-UP BACKLOG, not a silent cap (§ "no silent caps"): every line
+# is an authz gate no keystone yet exercises. FIX-C burns it down batch by batch; each
+# gate that gets a mutation-proven keystone is DELETED from this file in the same commit.
+#
+# Seeded 2026-07-18 from the committed door+writepath findings (122 BLINDs) MINUS the 6
+# FIX-C Batch-1 gates now COVERED by supabase/tests/250_authz_p0_isolation.sql:
+#   app.assert_session_writable(uuid), app.assert_referral_draft_writable(uuid),
+#   app.assert_referral_target_acts(uuid,text[]), and the case_referral insert/update/
+#   delete_draft policies. Do NOT re-add those without removing their keystone first.
+#
+# Low-severity / backstop notes (triage doc §"Allowlisted"):
+#   * event_patient.*, patient_xref.* SELECT and notifications.* write are DOOR-ONLY
+#     backstops — the SELECT grant is revoked so PostgREST cannot expose the base table;
+#     the audited SECURITY DEFINER door is the live boundary. Blind base policy = defense
+#     -in-depth, not a leak.
+#   * form_*, process_template_*, case_type_terminology, commission_meeting_*,
+#     referral_types, reply_outcomes, professional_categories, indicator_measurements,
+#     document_approvals, commission_administrativo_capabilities = low-severity config /
+#     catalog reads.
+
+answer_matrix_cells.answer_matrix_cells_select (SELECT)
+answer_references.answer_references_select (SELECT)
+answer_risk_matrix.answer_risk_matrix_select (SELECT)
+app.can_read_document_object(p_name text, p_uid uuid)
+app.can_read_document_of_version(p_version_id uuid, p_uid uuid)
+app.can_read_referral(p_referral_id uuid, p_uid uuid)
+app.can_read_xref_row(p_commission_id uuid, p_uid uuid)
+app.can_sign_section(p_response_id uuid, p_section_id uuid, p_signer uuid)
+app.has_role(p_scope_type text, p_scope_id uuid, p_role text)
+app.is_admin_for(p_user_id uuid)
+app.is_hospital_admin_of_for(p_hospital_id uuid, p_user_id uuid)
+app.is_pqs_writer_of(p_hospital_id uuid)
+attachment_references.attachment_references_select (SELECT)
+attachment_subjects.attachment_subjects_select (SELECT)
+capa_action.capa_action_select (SELECT)
+capa_action_evidence.capa_action_evidence_select (SELECT)
+capa_action_evidence.capa_action_evidence_write (ALL)
+capa_action_task.capa_action_task_select (SELECT)
+capa_action_task.capa_action_task_write (ALL)
+capa_effectiveness.capa_effectiveness_select (SELECT)
+capa_effectiveness.capa_effectiveness_write (ALL)
+capa_measure.capa_measure_select (SELECT)
+capa_measure.capa_measure_write (ALL)
+capa_measure_result.capa_measure_result_select (SELECT)
+capa_measure_result.capa_measure_result_write (ALL)
+capa_plan.capa_plan_delete (DELETE)
+capa_plan.capa_plan_update (UPDATE)
+case_interviews.case_interviews_delete (DELETE)
+case_interviews.case_interviews_update (UPDATE)
+case_participant_roles.case_participant_roles_admin_write (ALL)
+case_participant_roles.case_participant_roles_select (SELECT)
+case_phase_allowed_results.case_phase_allowed_results_select (SELECT)
+case_phase_allowed_results.case_phase_allowed_results_staff_admin_write (ALL)
+case_phase_offered_results.case_phase_offered_results_select (SELECT)
+case_phase_offered_results.case_phase_offered_results_staff_admin_write (ALL)
+case_tag_assignments.case_tag_assignments_select (SELECT)
+case_tag_assignments.case_tag_assignments_staff_admin_write (ALL)
+case_type_terminology.case_type_terminology_admin_write (ALL)
+case_type_terminology.case_type_terminology_select (SELECT)
+commission_administrativo_capabilities.commission_administrativo_capabilities_select (SELECT)
+commission_meeting_settings.meeting_settings_select (SELECT)
+commission_meeting_settings.meeting_settings_staff_admin_write (ALL)
+commission_meeting_types.meeting_types_select (SELECT)
+commission_meeting_types.meeting_types_staff_admin_write (ALL)
+document_approvals.document_approvals_select (SELECT)
+event_custody.event_custody_select (SELECT)
+event_patient.event_patient_select (SELECT)
+event_triage_sentinel_flags.event_triage_sentinel_flags_select (SELECT)
+form_item_options.form_item_options_select (SELECT)
+form_item_options.form_item_options_staff_admin_write (ALL)
+form_item_validations.form_item_validations_select (SELECT)
+form_matrix_columns.form_matrix_columns_select (SELECT)
+form_matrix_rows.form_matrix_rows_select (SELECT)
+indicator_measurements.indicator_measurements_select (SELECT)
+interview_session_attendance.interview_session_attendance_select (SELECT)
+interview_sessions.interview_sessions_select (SELECT)
+interview_sessions.interview_sessions_write (ALL)
+interview_summaries.interview_summaries_select (SELECT)
+interview_topics.interview_topics_select (SELECT)
+meeting_agenda_items.meeting_agenda_items_staff_admin_delete (DELETE)
+meeting_agenda_items.meeting_agenda_items_staff_admin_update (UPDATE)
+meeting_attendees.meeting_attendees_staff_admin_delete (DELETE)
+meeting_attendees.meeting_attendees_staff_admin_insert (INSERT)
+meeting_attendees.meeting_attendees_staff_admin_update (UPDATE)
+meeting_cases.meeting_cases_staff_admin_delete (DELETE)
+meeting_cases.meeting_cases_staff_admin_insert (INSERT)
+meeting_cases.meeting_cases_staff_admin_update (UPDATE)
+meeting_closed_sessions.meeting_closed_sessions_select (SELECT)
+meeting_signatures.meeting_signatures_insert (INSERT)
+meeting_signatures.meeting_signatures_select (SELECT)
+meetings.meetings_staff_admin_delete (DELETE)
+meetings.meetings_staff_admin_insert (INSERT)
+meetings.meetings_staff_admin_update (UPDATE)
+notification_preferences.notification_preferences_select_own (SELECT)
+notification_preferences.notification_preferences_update_own (UPDATE)
+notifications.notifications_update_own (UPDATE)
+patient_xref.patient_xref_select_pqs (SELECT)
+process_template_narratives.process_template_narratives_select (SELECT)
+process_template_narratives.process_template_narratives_staff_admin_write (ALL)
+process_template_outcomes.process_template_outcomes_select (SELECT)
+process_template_outcomes.process_template_outcomes_staff_admin_write (ALL)
+process_template_phase_allowed_results.process_template_phase_allowed_results_select (SELECT)
+process_template_phase_allowed_results.process_template_phase_allowed_results_staff_admin_write (ALL)
+process_template_phase_offered_results.process_template_phase_offered_results_select (SELECT)
+process_template_phase_offered_results.process_template_phase_offered_results_staff_admin_write (ALL)
+process_template_phases.process_template_phases_select (SELECT)
+process_template_phases.process_template_phases_staff_admin_write (ALL)
+process_templates.process_templates_select (SELECT)
+process_templates.process_templates_staff_admin_write (ALL)
+professional_categories.professional_categories_admin_write (ALL)
+professional_participants.professional_participants_select (SELECT)
+professional_profiles.professional_profiles_select (SELECT)
+profiles.profiles_admin_insert (INSERT)
+public.is_nsp_coordinator_of_self(p_hospital_id uuid)
+public.is_nsp_org_admin_of_self(p_org_id uuid)
+public.is_pqs_member_of_self(p_hospital_id uuid)
+public.is_pqs_member_self()
+rca.rca_delete (DELETE)
+rca.rca_update (UPDATE)
+rca_evidence.rca_evidence_select (SELECT)
+rca_evidence.rca_evidence_write (ALL)
+rca_factors.rca_factors_select (SELECT)
+rca_factors.rca_factors_write (ALL)
+rca_members.rca_members_select (SELECT)
+rca_members.rca_members_write (ALL)
+rca_root_causes.rca_root_causes_select (SELECT)
+rca_root_causes.rca_root_causes_write (ALL)
+rca_timeline_entries.rca_timeline_select (SELECT)
+rca_timeline_entries.rca_timeline_write (ALL)
+rca_why_chains.rca_why_chains_select (SELECT)
+rca_why_chains.rca_why_chains_write (ALL)
+referral_reply_attachment.referral_reply_attachment_select_readable (SELECT)
+referral_types.referral_types_write_admin (ALL)
+reply_outcomes.reply_outcomes_write_admin (ALL)
+response_section_signoffs.signoffs_insert (INSERT)
+responses.responses_delete_own_draft (DELETE)

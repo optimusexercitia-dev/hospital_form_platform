@@ -55,6 +55,7 @@
 | **ETH·E1** | **Ethics Access Spine — m2 gate release** *(ADR [0072](docs/decisions/0072-ethics-access-spine.md))* — makes the F1 subject layer safe for real ethics data + releases the m2 gate (`case_participants`+`case_types` ON); respondent-exclusion + recusal hard-denies; `explicit_grants_only` visibility; 7-value confidentiality + doc ceiling; no new UI → [detail](docs/progress/eth-e1-access-spine.md) | ✅ complete | ✅ Vitest 369/369 | ✅ pgTAP 91f/2537 · E2E 13/13+1 skip · e2e:prod triaged | ✅ APPROVED (R3) [review](docs/reviews/phase-ETH-E1-review.md) | ✅ 2026-07-14 | 2026-07-14 | 14 commits `167b269`…`02bd2db` (remote deferred) |
 | **AUTHZ** | ADR 0078 Gate 1 — capability model | ✅ **COMPLETE — human-approved 2026-07-16** (Stage A/B: M1–M6 + A2 `_case_caps` resolver + A4 policy-narrowing + A5 + U1/U2 exclusion perimeter + `case_access → case_access_grants` hard cut). Lead-verified equivalence 196 cells → 2 = intended PHI closure (LOST=0/GAINED=0); pgTAP 2981/2981. State + lessons → [handoff](docs/progress/authz-handoff.md) · [units](docs/progress/authz-gate1-units.md) | ✅ | ✅ pgTAP 2981 · e2e 0-regress | ✅ APPROVED [review](docs/reviews/authz-b-series-review.md) | ✅ 2026-07-16 | 2026-07-16 | `87858f7` (local) |
 | **AUTHZ · Gate 2** | ADR 0078 Gate 2 — Stage C (meeting confidentiality) · F1 (referral split) · N1 (NSP PHI arm) · G1 (cleanup) | ✅ **COMPLETE — human-approved 2026-07-17.** qa APPROVED re-review (P0 + 3 MAJOR behaviourally closed, mutation-proven; MINOR-1 rides noted). Version-drift audit: local `next` had drifted to 16.2.9 vs the 16.3 lockfile ⇒ BUG-PROD-ACTIONS + the "~18–27 flaky baseline" were env drift, not Gate-2 defects. Detail → [review](docs/reviews/authz-gate-2-review.md) · [handoff](docs/progress/authz-handoff.md) · [backend-state](docs/backend-state.md) | ✅ | ✅ pgTAP 772/772 authz · e2e green | ✅ APPROVED (re-review) | ✅ 2026-07-17 | 2026-07-17 | `f07341f` |
+| **AUDIT-DOOR-BLINDNESS · P0** | ADR 0078 §7.14 — door-level re-audit + a standing keystone-coverage invariant; **blocks S4** | 🏗️ **in progress** — opened 2026-07-17, branch `fix/authz-audit-door-blindness`. Pre-req eol defect fixed (`a32be9c`: `*.sql text eol=lf` — a CRLF checkout was aborting `db reset` on `20260801000000`; clean 146/146 reset restored, **pilot reset unblocked**). Population (live catalog): **294** auth-reachable `public` DEFINER doors · 231 `app` (internal) · **212** RLS policies / 125 tables. Detail → Current Phase Tasks. | 🏗️ | – | – | – | – | – |
 
 > **Accreditation & Quality-Governance Track (13–21)** — planned 2026-06-17; specs in
 > [PHASES.md](PHASES.md) (§ Accreditation track), rationale in ADR
@@ -78,6 +79,50 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 <!-- Lead recreates this table at the start of each phase. At the §6 Record step the
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
+
+### 🏗️ ACTIVE — AUDIT-DOOR-BLINDNESS · P0 *(branch `fix/authz-audit-door-blindness`)*
+
+PO-directed 2026-07-17 (§7.14): **a keystone that checks one authorization layer and infers the adjacent one
+is blind by construction** — proven 5× in one day, two inside gates recorded PASSED (C7 K17/`245`, `241` K10,
+`235` K1). **S4 (ETH·E2 · RV2 R2–R5 · CH) is queued behind this** and cleared only when the door-level re-audit
++ the standing invariant are green + human-approved.
+
+**Pre-req FIXED (2026-07-17, `a32be9c`):** clean `supabase db reset` was aborting on
+`20260801000000_authz_exclusion_perimeter_u2` — `core.autocrlf=true` checked out 140/146 migrations CRLF,
+storing `\r` into `prosrc`, so its LF-anchored `pg_get_functiondef()+replace()` guard injection matched
+nothing. Fix: `*.sql text eol=lf` in `.gitattributes` (mirrors the existing `*.sh` rule); working tree
+re-materialized LF; **146/146 reset clean.** Also unblocks the pilot reset.
+
+**Population (live catalog, post-reset):** **294** `authenticated`-reachable `public` DEFINER doors (the
+surfaces the product `.rpc()`s) · 231 `app` DEFINER (internal, PostgREST-unexposed — reachable only
+transitively) · **212** RLS policies on 125 tables · 112 pgTAP files + 7 mutation harnesses.
+
+**Units (planned):**
+- **P0-U0 (lead):** catalog-driven coverage floor — instrument the ordered pgTAP run (`track_functions=all` +
+  `pg_stat_user_functions`) to compute every reachable `public` door NEVER called by a test (the blind-door
+  work-list) + a static scan for the policy arm (each policy needs a base-table keystone under `set local
+  role`). Close the set, don't enumerate (§7.5). Floor catches "never exercised"; U2/qa handle "called-but-not-
+  asserted-through".
+- **P0-U1:** the standing invariant as a final pgTAP file — FAILS if any reachable `public` DEFINER door has 0
+  test calls, or any policy lacks a base-table keystone. Codifies §7.14 against regression.
+- **P0-U2 (backend):** re-assert each blind keystone through the surface the PRODUCT calls (keep the base-table
+  twin); fix any real leak the door-audit surfaces. Mutation-test each (§7.1) — a keystone that can't go RED is
+  not one.
+- **P0-U3 (qa, independent):** door-level verification; every fix reverted must turn a keystone RED.
+
+**Gate:** full pgTAP green on a fresh reset (incl. the new invariant) · a mutation proof for every new/altered
+keystone · qa APPROVED · human approval → Record.
+
+**✅ P0-U0 SWEEP DONE (2026-07-17) — 292 neutralization cases, oracle proven (neutralize gate → suite `FAIL`=asserted-through / `PASS`=BLIND). Harnesses: `supabase/tests/mutation/p0-authz-{door,writepath}-audit.sh`; data → scratchpad `authz-audit/`.**
+- **Read/door arm (252):** 135 COVERED · **93 BLIND** (13 predicate + 80 policy) · 24 ERROR. Reachability triage: only 2 (`event_patient`,`patient_xref`) door-only (grant revoked = backstop); ~52 SELECT policies `authenticated`-reachable = live boundary **but gated by correct-looking, separately-COVERED predicates** (untested-not-leaking); rest low-severity config/catalog.
+- **Write arm (40):** 9 COVERED · **29 BLIND** (26 write policy + 3 guards `assert_session_writable`/`assert_referral_draft_writable`/`assert_referral_target_acts`) · 2 ERROR. **13/14 write-blind tables DIRECT-DML reachable** (live boundary — higher risk: subtler `with_check`, [[d11]]-class staleness history).
+- **26 ERROR total** = the highest-usage predicates (`is_commission_admin_of`=67 doors, `is_member_of`, `is_active`, `is_admin`, `is_staff_admin_of`, `has_role`, `is_org_admin_of`…) where blunt `→true` aborted a fixture (§7.15 run-shape guard) = **UNDETERMINED**, need bespoke neutralization.
+- **No live leak surfaced.** Door-blindness = platform-wide coverage debt, not just Gate-1. **FIX-A ✅** (26 ERROR reclassified via runlogs → **all COVERED**; every neutralized run was `Result: FAIL` with keystone failures — zero blind core predicates; `can_sign_meeting` thin-1-keystone nit). Full triage + fix brief → **[authz-door-audit-triage.md](docs/reviews/authz-door-audit-triage.md)**.
+- **PO-scoped fix (2026-07-18):** standing invariant + high-risk keystones (26 direct-DML write policies + 3 write-guards + 5 read-predicates + PHI-adjacent read reps, each **mutation-proven**) + low-severity config/catalog **allowlisted** (invariant surfaces them as follow-up, no silent drop). **▶ FIX-B/C building (`backend`, DB single-owner).**
+  - **FIX-B ✅ (backend, 2026-07-18) — the standing invariant.** `supabase/tests/mutation/p0-authz-invariant.sh`: ARM 1 asserts sweep BLIND ⊆ `authz-blind-allowlist.txt` (116 entries = 122 committed blinds − the 6 Batch-1 fixes; new blind ⇒ non-zero exit; `FROMFINDINGS=1` fast mode); ARM 2 never-called-door floor (`track_functions=all` + full suite) asserts every authenticated-reachable `public prosecdef` door has calls>0 except `authz-neverclled-door-allowlist.txt` (93-door E2E-only baseline). **ARM 2 HOLDS.** ADR 0079.
+  - **FIX-C Batch 1 ✅ (backend, 2026-07-18) — 3 write-guards + `case_referral` write family.** `supabase/tests/250_authz_p0_isolation.sql` (14 assertions, 14/14 green) covers `assert_session_writable` (HC039), `assert_referral_draft_writable` (HC071), `assert_referral_target_acts` (HC072) + policies `case_referral_insert_source_coord`/`_update_coord`/`_delete_draft_source`. Each DENY has a POSITIVE twin; **all 6 mutation-proven RED** (`p0b-isolation-mutation-audit.sh`) and confirmed BLIND→**COVERED** by the writepath subset sweep. Full suite **113/3200 PASS**. **No leak found.** [[d11]] fail-closed term verified live (source coord DOES delete draft). Key finding: write-policy keystones need a *reader-non-writer* principal (UPDATE/DELETE…WHERE also apply the SELECT policy) — ADR 0079. **▶ Awaiting lead verification before remaining FIX-C batches.**
+
+---
 
 ### ✅ AUTHZ · Gate 1 + Gate 2 — COMPLETE (human-approved 2026-07-17)
 
