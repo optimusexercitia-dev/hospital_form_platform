@@ -478,3 +478,92 @@ export async function listCaseAssignmentRoles(
     isActive: r.is_active,
   }))
 }
+
+/**
+ * The organization's active sanction-type catalog (D3; the CEM vocabulary —
+ * advertência/censura/suspensão/cassação), for the decision's sanction picker.
+ * `[]` on any error / no rows. Mirrors {@link listEthicsAllegationCategories}.
+ */
+export async function listEthicsSanctionTypes(
+  organizationId: string,
+): Promise<SanctionType[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('ethics_sanction_types')
+    .select('id, organization_id, key, display_name, is_active, position')
+    .eq('organization_id', organizationId)
+    .eq('is_active', true)
+    .order('position')
+  if (error || !data) return []
+  return data.map((r) => ({
+    id: r.id,
+    organizationId: r.organization_id,
+    key: r.key,
+    displayName: r.display_name,
+    isActive: r.is_active,
+    position: r.position,
+  }))
+}
+
+// ---------------------------------------------------------------------------
+// Recusal roster (ADR 0072 D4 · E1) — the coordinator control read.
+// ---------------------------------------------------------------------------
+
+/** One row of the coordinator's recusal roster: WHO is recused, whether the
+ * recusal is active or lifted, why, and when. `liftedAt === null` ⇒ active/live
+ * (the member currently loses case-read via the E1 `can_read_case` deny-term). */
+export interface CaseRecusalRosterEntry {
+  /** `case_recusals.id` — the row the lift RPC targets. */
+  id: string
+  caseId: string
+  /** The recused member (`case_recusals.user_id`). */
+  userId: string
+  /** The member's display name resolved from `profiles`, or `null` if unreadable. */
+  userName: string | null
+  reasonMd: string | null
+  source: 'self' | 'coordinator' | 'conflict'
+  recusedAt: string
+  /** `null` while the recusal is LIVE; set once soft-lifted (read restored). */
+  liftedAt: string | null
+}
+
+/**
+ * The recusal roster for a case (ADR 0072 D4; the coordinator control). Reads
+ * `case_recusals` RLS-scoped: the existing `case_recusals_select` policy already
+ * admits the coordinator via its `is_staff_admin_of_for(commission_of_case, …)`
+ * arm (plus the self-arm), so NO new grant/policy is needed — the lift WRITE stays
+ * coordinator-gated (`lift_recusal`, HC0E1, unchanged). Member names are resolved in
+ * a second query (three FKs `case_recusals → profiles` make an embed PGRST201-
+ * ambiguous). `[]` on any error / no rows / no read authority.
+ */
+export async function listCaseRecusals(
+  caseId: string,
+): Promise<CaseRecusalRosterEntry[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('case_recusals')
+    .select('id, case_id, user_id, reason_md, source, recused_at, lifted_at')
+    .eq('case_id', caseId)
+    .order('recused_at')
+  if (error || !data || data.length === 0) return []
+
+  const userIds = [...new Set(data.map((r) => r.user_id))]
+  const { data: profiles } = await supabase
+    .from('profiles')
+    .select('id, full_name')
+    .in('id', userIds)
+  const nameById = new Map(
+    (profiles ?? []).map((p) => [p.id, p.full_name] as const),
+  )
+
+  return data.map((r) => ({
+    id: r.id,
+    caseId: r.case_id,
+    userId: r.user_id,
+    userName: nameById.get(r.user_id) ?? null,
+    reasonMd: r.reason_md,
+    source: r.source as 'self' | 'coordinator' | 'conflict',
+    recusedAt: r.recused_at,
+    liftedAt: r.lifted_at,
+  }))
+}

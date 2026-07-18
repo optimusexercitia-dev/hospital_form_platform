@@ -1,5 +1,8 @@
 'use server'
 
+import { revalidatePath } from 'next/cache'
+
+import { createClient } from '@/lib/supabase/server'
 import type {
   AdmissibilityStatus,
   AllegationSeverity,
@@ -16,56 +19,19 @@ import type {
 } from '@/lib/queries/ethics'
 
 /**
- * Ethics procedure write authority (ETH·E2; ADR 0073 §2.3). Every mutation
- * below is a planned `SECURITY DEFINER` RPC (never a direct table write): each
- * REVOKEs PUBLIC then GRANTs `authenticated, service_role` (t19), asserts the
- * `ethics` flag, and authorizes per ADR 0073 (mostly coordinator-gated —
- * `is_staff_admin_of_for`/admin — a few self-service per D13/D4). SQLSTATEs
- * are the `HC0J0–HC0J9` block (D11; relocated from the pre-0078 `HC0F·` — see
- * ADR 0073's 2026-07-18 Amendment §1).
+ * Ethics procedure write actions (ETH·E2; ADR 0073 §2.3, wired in BE-11).
  *
- * ============================ CONTRACT-FIRST STUB (BE-1) ============================
- * Signatures + input shapes are the frozen contract `frontend` (E2's own
- * minimal UI + E3a) binds to. Bodies land across BE-2..BE-9 (build-plan §3) —
- * each `notImplemented(...)` call names the RPC it will wrap. All user-facing
- * strings will be pt-BR (Rule 10); raw Postgres errors never reach the UI
- * (CLAUDE.md §8) — the real bodies get a `mapEthicsError` helper mirroring
- * `mapNarrativeError` (`src/lib/case-narratives/actions.ts`) once HC0J·
- * messages are authored at BE-6. Reads live in `src/lib/queries/ethics.ts`
- * (Rule 9); the `case_votes` recusal/respondent exclusion (HC0J5) and the M2
- * retention-pin/redaction (HC0J7) are the two highest-risk bodies (BE-3/BE-5 —
- * full plan review, not a one-line ack).
+ * Every mutation below is a `SECURITY DEFINER` RPC (never a direct table write): each
+ * REVOKEs PUBLIC then GRANTs `authenticated, service_role` (t19), asserts the `ethics`
+ * flag (HC000), and authorizes per ADR 0073 — case procedure RPCs are coordinator-gated
+ * via `app.assert_ethics_coordinator` (HC0J1, authority-first + distinct from every
+ * exclusion code); org-catalog CRUD gates on `can_manage_professional` (42501); a few are
+ * self-service (D13/D4). SQLSTATEs are the `HC0J0–HC0J9` block (D11). Raw Postgres errors
+ * never reach the UI (CLAUDE.md §8) — {@link mapEthicsError} maps to pt-BR (preferring the
+ * RPC's own message, the `mapNarrativeError` / `mapCoordinatorError` precedent).
  *
- * **Scope note — the 5 already-live ethics-coordinator doors are OUT of this
- * file.** `set_case_confidentiality` / `declare_conflict` / `record_recusal` /
- * `lift_recusal` are ALREADY stubbed in `src/lib/case-recusals/actions.ts`
- * (ETH·E1 BE-1) and get WIRED, not recreated, at BE-10 — do not duplicate them
- * here. **Gap found while verifying that claim (report this to the lead):**
- * only 4 of the 5 are stubbed there. `set_case_visibility(p_case_id uuid,
- * p_policy text)` IS live in the catalog (`public`, `prosecdef=true`, HC0F5/
- * HC0F6 — the ADR-0078 M1·4 authority-first block), but grep across `src/`
- * finds NO `setCaseVisibility` action anywhere — not in
- * `case-recusals/actions.ts`, not here, not stubbed at all. BE-10 needs a
- * fifth stub before it can "wire" this door; flagged, not fixed here (out of
- * this file's declared scope per the spawn brief).
- *
- * **Naming collision found while authoring D13 (report this to the lead):**
- * ADR 0073's original §2.3 "Respondent-statement targeting (D10)" names
- * `set_response_target_participant(p_response_id, p_case_participant_id)`
- * (coordinator OR the response's writer, both `can_write_case_content`, no
- * stated cross-case/case-type validation). The 2026-07-18 Amendment's §D13
- * then adds `target_case_response(p_response_id, p_case_participant_id)` —
- * IDENTICAL signature, same column it writes (`target_case_participant_id`),
- * but COORDINATOR-ONLY (narrower — drops the "or the writer" arm) and adds a
- * same-case + ethics-typed validation the D10 spec never mentioned. D0's own
- * text ("D13 upgrades this column from a projection into a narrow access
- * door") reads as `target_case_response` SUPERSEDING `set_response_target_
- * participant`, not living beside it — two RPCs writing the same column under
- * different authority would be a real correctness hazard (which one does a
- * form's targeting button call?). This file stubs ONLY `targetCaseResponse`
- * (the D13 name, per this task's explicit instruction); `setResponseTarget
- * Participant` is deliberately NOT stubbed. Needs an explicit lead ruling
- * before BE-6 implements the RPC.
+ * Reads live in `src/lib/queries/ethics.ts` (Rule 9). Signatures are the FROZEN contract
+ * `frontend` compiles against — BE-11 fills bodies only.
  */
 
 // ---------------------------------------------------------------------------
@@ -183,17 +149,51 @@ export interface CompleteEthicsHearingInput {
 }
 
 // ---------------------------------------------------------------------------
-// Not-implemented stub helper (BE-1). References every arg so the frozen
-// param names stay lint-clean; the listed BE-N task replaces each body with
-// the real RPC call.
+// Error mapping + revalidation (pt-BR; prefer the door's own message).
 // ---------------------------------------------------------------------------
 
-function notImplemented(fn: string, ..._args: unknown[]): never {
-  throw new Error(`${fn} not implemented (ETH·E2 — contract stub)`)
+const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
+
+const MESSAGES = {
+  generic: 'Não foi possível concluir. Tente novamente.',
+  unavailable: 'O módulo de ética não está disponível.',
+  forbidden: 'Você não tem permissão para esta ação.',
+  notFound: 'Registro não encontrado.',
+} as const
+
+/** Map an ethics RPC error to friendly pt-BR (prefer the RPC's own message). */
+function mapEthicsError(error: { code?: string; message?: string } | null): string {
+  if (!error) return MESSAGES.generic
+  switch (error.code) {
+    case 'HC000': // ethics flag off
+      return MESSAGES.unavailable
+    case 'HC0J1': // coordinator authority
+      return error.message || MESSAGES.forbidden
+    case 'HC0J0': // invalid lifecycle/state
+    case 'HC0J2': // invalid allegation category
+    case 'HC0J3': // a finding already exists
+    case 'HC0J4': // duplicate vote
+    case 'HC0J5': // membro impedido (recused / respondent) cannot vote
+    case 'HC0J6': // notification already acknowledged/cancelled
+    case 'HC0J7': // retention-pinned profile cannot be redacted
+    case 'HC0J8': // no vote quorum
+    case 'HC0J9': // not the targeted participant
+      return error.message || MESSAGES.generic
+    case '42501':
+      return error.message || MESSAGES.forbidden
+    case 'P0002':
+      return error.message || MESSAGES.notFound
+    default:
+      return MESSAGES.generic
+  }
+}
+
+function revalidateCase(): void {
+  revalidatePath(CASE_PATH, 'page')
 }
 
 // ---------------------------------------------------------------------------
-// Admissibility / intake (D1) — BE-2 / BE-6
+// Admissibility / intake (D1)
 // ---------------------------------------------------------------------------
 
 /** Create/update the case's admissibility-intake extension (`upsert_ethics_
@@ -206,7 +206,35 @@ export async function upsertEthicsCaseDetails(
     summaryMd?: string | null
   },
 ): Promise<UpsertEthicsCaseDetailsState> {
-  return notImplemented('upsertEthicsCaseDetails', caseId, input)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('upsert_ethics_case_details', {
+    p_case_id: caseId,
+    p_complaint_channel: input?.complaintChannel ?? undefined,
+    p_complaint_received_at: input?.complaintReceivedAt ?? undefined,
+    p_summary_md: input?.summaryMd ?? undefined,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | Record<string, unknown>
+    | null
+    | undefined
+  const details: EthicsCaseDetails | undefined = row
+    ? {
+        caseId: row.case_id as string,
+        admissibilityStatus: row.admissibility_status as AdmissibilityStatus,
+        admissibilityDecidedAt: (row.admissibility_decided_at as string) ?? null,
+        admissibilityDecidedBy: (row.admissibility_decided_by as string) ?? null,
+        admissibilityRationaleMd:
+          (row.admissibility_rationale_md as string) ?? null,
+        complaintChannel: (row.complaint_channel as ComplaintChannel) ?? null,
+        complaintReceivedAt: (row.complaint_received_at as string) ?? null,
+        summaryMd: (row.summary_md as string) ?? null,
+        createdAt: row.created_at as string,
+        updatedAt: row.updated_at as string,
+      }
+    : undefined
+  return { ok: true, details }
 }
 
 /** Decide admissibility (`decide_admissibility`; coordinator-gated). An
@@ -217,11 +245,19 @@ export async function decideAdmissibility(
   status: AdmissibilityStatus,
   rationaleMd: string,
 ): Promise<ActionState> {
-  return notImplemented('decideAdmissibility', caseId, status, rationaleMd)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('decide_admissibility', {
+    p_case_id: caseId,
+    p_status: status,
+    p_rationale_md: rationaleMd,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
-// Allegations / findings (D2) — BE-2 / BE-6
+// Allegations / findings (D2)
 // ---------------------------------------------------------------------------
 
 /** Add an allegation to an ethics case (`add_ethics_allegation`;
@@ -234,14 +270,17 @@ export async function addEthicsAllegation(
   severity?: AllegationSeverity | null,
   allegedEventDate?: string | null,
 ): Promise<AddAllegationState> {
-  return notImplemented(
-    'addEthicsAllegation',
-    caseId,
-    categoryId,
-    descriptionMd,
-    severity,
-    allegedEventDate,
-  )
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('add_ethics_allegation', {
+    p_case_id: caseId,
+    p_category_id: categoryId,
+    p_description_md: descriptionMd,
+    p_severity: severity ?? undefined,
+    p_alleged_event_date: allegedEventDate ?? undefined,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true, allegationId: data ?? undefined }
 }
 
 /** Edit an allegation (`update_ethics_allegation`; coordinator-gated). */
@@ -249,7 +288,18 @@ export async function updateEthicsAllegation(
   allegationId: string,
   input: UpdateEthicsAllegationInput,
 ): Promise<ActionState> {
-  return notImplemented('updateEthicsAllegation', allegationId, input)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('update_ethics_allegation', {
+    p_allegation_id: allegationId,
+    p_category_id: input.categoryId ?? undefined,
+    p_description_md: input.descriptionMd ?? undefined,
+    p_severity: input.severity ?? undefined,
+    p_alleged_event_date: input.allegedEventDate ?? undefined,
+    p_status: input.status ?? undefined,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 /** Record the (current) finding on an allegation (`record_ethics_finding`;
@@ -261,13 +311,16 @@ export async function recordEthicsFinding(
   rationaleMd?: string | null,
   evidenceSummaryMd?: string | null,
 ): Promise<RecordFindingState> {
-  return notImplemented(
-    'recordEthicsFinding',
-    allegationId,
-    finding,
-    rationaleMd,
-    evidenceSummaryMd,
-  )
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('record_ethics_finding', {
+    p_allegation_id: allegationId,
+    p_finding: finding,
+    p_rationale_md: rationaleMd ?? undefined,
+    p_evidence_summary_md: evidenceSummaryMd ?? undefined,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true, findingId: data ?? undefined }
 }
 
 /** Add an allegation-category catalog entry (org/staff_admin-gated). Returns
@@ -277,24 +330,31 @@ export async function createEthicsAllegationCategory(
   key: string,
   displayName: string,
 ): Promise<CreateAllegationCategoryState> {
-  return notImplemented(
-    'createEthicsAllegationCategory',
-    organizationId,
-    key,
-    displayName,
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc(
+    'create_ethics_allegation_category',
+    { p_org: organizationId, p_key: key, p_display_name: displayName },
   )
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true, categoryId: data ?? undefined }
 }
 
 /** Soft-archive an allegation-category catalog entry (`is_active = false`). */
 export async function archiveEthicsAllegationCategory(
   categoryId: string,
 ): Promise<ActionState> {
-  return notImplemented('archiveEthicsAllegationCategory', categoryId)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('archive_ethics_allegation_category', {
+    p_category_id: categoryId,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
-// Decision / votes (D3 / D4) — BE-3 / BE-6 (the vote-exclusion is the
-// highest-risk body: full plan review, not a one-line ack)
+// Decision / votes (D3 / D4)
 // ---------------------------------------------------------------------------
 
 /** Open a decision on an ethics case (`create_case_decision`;
@@ -306,13 +366,16 @@ export async function createCaseDecision(
   summaryMd: string,
   rationaleMd?: string | null,
 ): Promise<CreateDecisionState> {
-  return notImplemented(
-    'createCaseDecision',
-    caseId,
-    decisionType,
-    summaryMd,
-    rationaleMd,
-  )
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('create_case_decision', {
+    p_case_id: caseId,
+    p_decision_type: decisionType,
+    p_summary_md: summaryMd,
+    p_rationale_md: rationaleMd ?? undefined,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true, decisionId: data ?? undefined }
 }
 
 /** Set/update the ethics extension of a decision (`set_ethics_decision_
@@ -322,7 +385,27 @@ export async function setEthicsDecisionDetails(
   decisionId: string,
   input: SetEthicsDecisionDetailsInput,
 ): Promise<ActionState> {
-  return notImplemented('setEthicsDecisionDetails', decisionId, input)
+  const supabase = await createClient()
+  // NOTE: decisionLetterDocumentId is part of the frozen input contract but the
+  // set_ethics_decision_details RPC does not accept it yet — the decision-letter /
+  // legal_privileged clearance path defers to Stage E (0078 A19/B3; ADR 0073 Amendment
+  // §3). Passing the fields the RPC supports; the doc id is a no-op until Stage E.
+  const { error } = await supabase.rpc('set_ethics_decision_details', {
+    p_decision_id: decisionId,
+    p_sanction_type_id: input.sanctionTypeId ?? undefined,
+    p_sanction_start_date: input.sanctionStartDate ?? undefined,
+    p_sanction_end_date: input.sanctionEndDate ?? undefined,
+    p_remediation_required: input.remediationRequired ?? undefined,
+    p_remediation_description_md: input.remediationDescriptionMd ?? undefined,
+    p_external_reporting_required: input.externalReportingRequired ?? undefined,
+    p_external_reporting_target: input.externalReportingTarget ?? undefined,
+    p_external_reporting_deadline: input.externalReportingDeadline ?? undefined,
+    p_appeal_allowed: input.appealAllowed ?? undefined,
+    p_appeal_deadline: input.appealDeadline ?? undefined,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 /**
@@ -340,7 +423,15 @@ export async function castCaseVote(
   vote: VoteValue,
   rationaleMd?: string | null,
 ): Promise<CastVoteState> {
-  return notImplemented('castCaseVote', decisionId, vote, rationaleMd)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('cast_case_vote', {
+    p_decision_id: decisionId,
+    p_vote: vote,
+    p_rationale_md: rationaleMd ?? undefined,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true, voteId: data ?? undefined }
 }
 
 /** Issue a decision (`issue_decision`; coordinator-gated): `draft`/`voted` →
@@ -348,7 +439,13 @@ export async function castCaseVote(
  * on every `respondent_doctor` of the case. `HC0J8` if a vote-quorum gate is
  * enforced (O-3, optional) and not met. */
 export async function issueDecision(decisionId: string): Promise<ActionState> {
-  return notImplemented('issueDecision', decisionId)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('issue_decision', {
+    p_decision_id: decisionId,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 /** Void a decision (`void_decision`; coordinator-gated). */
@@ -356,11 +453,18 @@ export async function voidDecision(
   decisionId: string,
   reason: string,
 ): Promise<ActionState> {
-  return notImplemented('voidDecision', decisionId, reason)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('void_decision', {
+    p_decision_id: decisionId,
+    p_reason: reason,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
-// Notifications (D5) — BE-4 / BE-6
+// Notifications (D5)
 // ---------------------------------------------------------------------------
 
 /** Issue a formal notice (`issue_ethics_notification`; coordinator-gated).
@@ -369,7 +473,20 @@ export async function voidDecision(
 export async function issueEthicsNotification(
   input: IssueEthicsNotificationInput,
 ): Promise<IssueNotificationState> {
-  return notImplemented('issueEthicsNotification', input)
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('issue_ethics_notification', {
+    p_case_id: input.caseId,
+    p_notification_type: input.notificationType,
+    p_delivery_method: input.deliveryMethod,
+    p_recipient_participant_id: input.recipientParticipantId ?? undefined,
+    p_recipient_user_id: input.recipientUserId ?? undefined,
+    p_due_at: input.dueAt ?? undefined,
+    p_related_document_id: input.relatedDocumentId ?? undefined,
+    p_notes_md: input.notesMd ?? undefined,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true, notificationId: data ?? undefined }
 }
 
 /** Acknowledge a notice (`acknowledge_ethics_notification`). `HC0J6` if
@@ -377,7 +494,13 @@ export async function issueEthicsNotification(
 export async function acknowledgeEthicsNotification(
   notificationId: string,
 ): Promise<ActionState> {
-  return notImplemented('acknowledgeEthicsNotification', notificationId)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('acknowledge_ethics_notification', {
+    p_notification_id: notificationId,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 /** Cancel a pending notice (`cancel_ethics_notification`; coordinator-gated).
@@ -385,14 +508,20 @@ export async function acknowledgeEthicsNotification(
 export async function cancelEthicsNotification(
   notificationId: string,
 ): Promise<ActionState> {
-  return notImplemented('cancelEthicsNotification', notificationId)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('cancel_ethics_notification', {
+    p_notification_id: notificationId,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
-// Hearings (D8) — BE-4 / BE-6. `schedule_ethics_hearing` creates the
-// `meetings` row itself (`visibility_policy='participants_only'` + the
-// eligible-panel roster) — it does NOT call `create_meeting` (D14
-// reconciliation onto Stage C; ADR 0073's 2026-07-18 Amendment §2).
+// Hearings (D8). `schedule_ethics_hearing` creates the `meetings` row itself
+// (`visibility_policy='participants_only'` + the eligible-panel roster) — it
+// does NOT call `create_meeting` (D14 reconciliation onto Stage C; ADR 0073's
+// 2026-07-18 Amendment §2).
 // ---------------------------------------------------------------------------
 
 /** Schedule a hearing (`schedule_ethics_hearing`; coordinator-gated). Creates
@@ -405,13 +534,16 @@ export async function scheduleEthicsHearing(
   meetingId?: string | null,
   scheduledAt?: string | null,
 ): Promise<ScheduleHearingState> {
-  return notImplemented(
-    'scheduleEthicsHearing',
-    caseId,
-    hearingType,
-    meetingId,
-    scheduledAt,
-  )
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('schedule_ethics_hearing', {
+    p_case_id: caseId,
+    p_hearing_type: hearingType,
+    p_meeting_id: meetingId ?? undefined,
+    p_scheduled_at: scheduledAt ?? undefined,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true, hearingId: data ?? undefined }
 }
 
 /** Record hearing outcome (`complete_ethics_hearing`; coordinator-gated). */
@@ -419,11 +551,23 @@ export async function completeEthicsHearing(
   hearingId: string,
   input: CompleteEthicsHearingInput,
 ): Promise<ActionState> {
-  return notImplemented('completeEthicsHearing', hearingId, input)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('complete_ethics_hearing', {
+    p_hearing_id: hearingId,
+    p_summary_md: input.summaryMd,
+    p_outcome_md: input.outcomeMd,
+    p_respondent_present: input.respondentPresent ?? undefined,
+    p_complainant_present: input.complainantPresent ?? undefined,
+    p_legal_representative_present:
+      input.legalRepresentativePresent ?? undefined,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
-// Appeals (D-appeals) — BE-4 / BE-6
+// Appeals (D-appeals)
 // ---------------------------------------------------------------------------
 
 /** Submit an appeal against an `issued`/`appealed` decision
@@ -435,13 +579,16 @@ export async function submitEthicsAppeal(
   appealReasonMd: string,
   submittedByParticipantId?: string | null,
 ): Promise<SubmitAppealState> {
-  return notImplemented(
-    'submitEthicsAppeal',
-    caseId,
-    decisionId,
-    appealReasonMd,
-    submittedByParticipantId,
-  )
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('submit_ethics_appeal', {
+    p_case_id: caseId,
+    p_decision_id: decisionId,
+    p_appeal_reason_md: appealReasonMd,
+    p_submitted_by_participant_id: submittedByParticipantId ?? undefined,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true, appealId: data ?? undefined }
 }
 
 /** Review an appeal (`review_ethics_appeal`; coordinator-gated). */
@@ -451,18 +598,20 @@ export async function reviewEthicsAppeal(
   outcome?: string | null,
   outcomeRationaleMd?: string | null,
 ): Promise<ActionState> {
-  return notImplemented(
-    'reviewEthicsAppeal',
-    appealId,
-    status,
-    outcome,
-    outcomeRationaleMd,
-  )
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('review_ethics_appeal', {
+    p_appeal_id: appealId,
+    p_status: status,
+    p_outcome: outcome ?? undefined,
+    p_outcome_rationale_md: outcomeRationaleMd ?? undefined,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
-// M2 redaction (D9) — BE-5. The platform's FIRST professional-erasure path;
-// full plan review (novel trigger + the ADR-0072 §7 human-signed-off posture).
+// M2 redaction (D9)
 // ---------------------------------------------------------------------------
 
 /**
@@ -482,11 +631,18 @@ export async function redactProfessionalProfile(
   profileId: string,
   reason: string,
 ): Promise<ActionState> {
-  return notImplemented('redactProfessionalProfile', profileId, reason)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('redact_professional_profile', {
+    p_profile_id: profileId,
+    p_reason: reason,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
-// Assignment-role vocabulary + phase assignment (D10) — BE-6
+// Assignment-role vocabulary + phase assignment (D10)
 // ---------------------------------------------------------------------------
 
 /** Add a case-assignment-role catalog entry (org/staff_admin-gated). Returns
@@ -496,19 +652,28 @@ export async function createCaseAssignmentRole(
   key: string,
   displayName: string,
 ): Promise<CreateAssignmentRoleState> {
-  return notImplemented(
-    'createCaseAssignmentRole',
-    organizationId,
-    key,
-    displayName,
-  )
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('create_case_assignment_role', {
+    p_org: organizationId,
+    p_key: key,
+    p_display_name: displayName,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true, roleId: data ?? undefined }
 }
 
 /** Soft-archive a case-assignment-role catalog entry. */
 export async function archiveCaseAssignmentRole(
   roleId: string,
 ): Promise<ActionState> {
-  return notImplemented('archiveCaseAssignmentRole', roleId)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('archive_case_assignment_role', {
+    p_role_id: roleId,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 /** Set (or clear, `roleId = null`) a phase's assignment role
@@ -517,13 +682,20 @@ export async function setCasePhaseAssignmentRole(
   phaseId: string,
   roleId: string | null,
 ): Promise<ActionState> {
-  return notImplemented('setCasePhaseAssignmentRole', phaseId, roleId)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('set_case_phase_assignment_role', {
+    p_phase_id: phaseId,
+    p_role_id: roleId ?? undefined,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
 // D13 — respondent targeted-submission door (`app.can_access_targeted_
 // response`; never `can_read_case`, never a re-opening of the 0072 D2·0
-// respondent hard-deny). BE-3b — full review.
+// respondent hard-deny).
 // ---------------------------------------------------------------------------
 
 /**
@@ -545,7 +717,14 @@ export async function targetCaseResponse(
   responseId: string,
   caseParticipantId: string,
 ): Promise<ActionState> {
-  return notImplemented('targetCaseResponse', responseId, caseParticipantId)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('target_case_response', {
+    p_response_id: responseId,
+    p_case_participant_id: caseParticipantId,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }
 
 /**
@@ -561,5 +740,11 @@ export async function targetCaseResponse(
 export async function submitTargetedCaseResponse(
   responseId: string,
 ): Promise<ActionState> {
-  return notImplemented('submitTargetedCaseResponse', responseId)
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('submit_targeted_case_response', {
+    p_response_id: responseId,
+  })
+  if (error) return { ok: false, error: mapEthicsError(error) }
+  revalidateCase()
+  return { ok: true }
 }

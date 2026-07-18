@@ -12215,7 +12215,7 @@ export type Database = {
         Returns: undefined
       }
       set_case_phase_assignment_role: {
-        Args: { p_phase_id: string; p_role_id: string }
+        Args: { p_phase_id: string; p_role_id?: string }
         Returns: undefined
       }
       set_case_phase_result_override: {
