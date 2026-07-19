@@ -149,30 +149,18 @@ keystone · qa APPROVED · human approval → Record.
 - **PO directed:** BUG-AIF-001/FUP-AI-1 → pre-pilot (own workstream, not yet started) · the **three ETH·E1 known
   gaps → ETH·E2** (see Follow-ups).
 
-### 🏗️ ACTIVE — S4 · RV2·R2–R5 (Referrals v2 governance) — opened 2026-07-18
+### ✅ COMPLETE — S4 · RV2·R2–R5 (Referrals v2 governance) — gate-passed + human-approved 2026-07-19 → `main`
 
-**PO decisions (2026-07-18):** build **FULL R2→R5 now** · **R3 = full `answered`/`resolved` lifecycle**
-(governance-correct; amends ADR 0037 D4/D5) · R5 trims to **notes + receipts + redaction** (context-versions
-**deferred** — overlaps 0078's reserved post-pilot F-full) · QPS does **not** read internal notes (default).
-R1 dialogue core already shipped (S2). Plan: [referrals-v2-dialogue-governance.md](docs/plans/referrals-v2-dialogue-governance.md) §3.
-
-**Reconciled to ADR 0078 (F1 five-way referral-predicate split) — catalog-verified 2026-07-19 on the live stack:**
-R2 metadata fields project through **`can_read_referral_metadata`** (`can_read_referral` is now a thin wrapper over it);
-R3 resolve/reopen are **SOURCE-coordinator** actions → **`can_manage_referral_source`** (the banner's `can_write_referral_response`
-was wrong — that = `can_manage_referral_target`, target side; corrected); R4 `referral_target_analyst` re-anchored on
-`case_access_grants`; SQLSTATE `HC0A·` (authority `42501`-first, distinct from state codes); flag `case_referrals` (OFF till pilot).
-
-| Increment | Scope | Owner | Status |
-|---|---|---|---|
-| R2 · Triage/SLA (PHI-free) | priority · requested-action vocab · due/overdue · non-PHI decline-reason | backend+FE | ✅ **ACCEPTED** `8d2125b` — keystone live-verified (metadata-tier reader sees 5 triage fields; `decline_note` denied under `set local role`); pgTAP 111/111 |
-| R3 · Resolution cycles 🔴 | `answered`/`resolved` lifecycle · reopen · parent lineage | backend+FE | ✅ **ACCEPTED** `dd5d090` — authority-first (`42501` before `HC0A5`) verified in-body; `summary_md` PHI-revoked; close-gate `+answered`/`−draft`; pgTAP 139/139 (K1/K3/K4 mutation-proven). ⚠ FE follow-up: add `answered`/`resolved` to `referral-chips.tsx:53` |
-| R4 · Responsibility/multi-link | `referral_assignments` + `referral_case_links` (assignment ≠ access) | backend+FE | ✅ **ACCEPTED** `b9cad33` — both keystones mutation-proven (assign≠access test 166; link≠access test 164) + **no residue** (all 4 read predicates catalog-clean); 42501-first; pgTAP 174/174 |
-| R5 · Private notes/disclosure | internal-notes (source≠target keystone) + receipts + redaction | backend+FE | ✅ **ACCEPTED** `c301a14` — keystone LIVE-proven (source↔target cross-side denied; QPS reads referral but DENIED notes, non-vacuous); no-PQS-arm predicate; `body` PHI-revoked; pgTAP 212/212 (K-R5-1 5 tests mutation-proven) |
-| FE (R2–R5 UI) | 7 new panels/pages (assignment · internal-notes · related-cases · resolutions · lineage · redact-dialog · thread-item · "Minhas atribuições") + chips fix | frontend | ✅ **VERIFIED** `027db02` — 20 files, tsc 0 · lint 0/0 · `next build` green |
-| E2E gate | R1 40/40 + governance 29/29 (prod-standalone) · full-suite = **0 RV2 regression** (33 reds all flaky-baseline: server-collapse ×24 + GoTrue login ×7 + RV2-unrelated patient-index ×1 + AC-7 dispose **confirmed-flake** via 32/32 isolation) | tester/lead | ✅ **PASSED** |
-| QA review | r1 → **CHANGES REQUESTED** (1 MAJOR note-read audit gap + 1 MINOR a11y; 0 P0) → both FIXED (`1885159` PHI-free `referral.note_viewed` audit; `1893cb6` checkbox `aria-describedby`) + lead-verified (catalog+live+pgTAP 217/217+**E2E gov 29/29**) → **r2 re-review** | qa | 🏗️ r2 |
-
-**Progress:** ALL 4 backend increments accepted (git+catalog+live): **R2** `8d2125b` · **R3** `dd5d090` · **R4** `b9cad33` · **R5** `c301a14` (source≠target≠QPS notes keystone live-proven). Backend contract COMPLETE + frozen. **FE VERIFIED** (`027db02`; tsc 0 · lint 0/0 · `next build` green — the FE process exited before reporting but the commit is complete + clean-scoped). **E2E GATE PASSED** (referrals R1 40 + gov 29 green; full-suite 0 RV2 regression — 33 reds all flaky-baseline + AC-7 dispose confirmed-flake via isolation). **▶ Next: QA** (`docs/reviews/rv2-r2-r5-review.md`) → PO approval → ff-merge. Local only, not pushed.
+**ff-merged to `main` (`a61aae3`, 2026-07-19); branch `feat/rv2-governance` deleted.** Full detail →
+**[docs/progress/rv2-r2-r5-governance.md](docs/progress/rv2-r2-r5-governance.md)**; backend surface → **`docs/backend-state.md` §RV2**.
+R2 `8d2125b` · R3 `dd5d090` · R4 `b9cad33` · R5 `c301a14` · FE `027db02` (+ audit fix `1885159`, a11y `1893cb6`).
+Each increment git+catalog+**live `set local role`**-verified, keystones mutation-proven (R2 `decline_note` PHI-gate ·
+R3 authority-first `42501` · R4 assignment/link≠access **0-residue** · R5 **source≠target≠QPS** notes + Rule 11
+note-read audit). Gate: governance E2E **29/29** + R1 40/40 · pgTAP `150_referrals` **217/217** · full-suite **0 RV2
+regression** · **QA APPROVED** (0 P0/MAJOR after 1 fix round — QA caught a Rule 11 audit gap, re-proven live).
+Local only — origin push + Coolify deploy + pilot reset DEFERRED; `case_referrals` OFF till pilot. Follow-ups
+(non-blocking): `189` pgTAP stale-fixture baseline (RV2-unrelated, cleanup flagged) · notes-SSR hardening (INFO).
+**▶ Next S4 track: CH (Committee Charters), SQLSTATE `HC0K·`.**
 
 ---
 

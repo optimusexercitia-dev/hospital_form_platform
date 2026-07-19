@@ -395,6 +395,26 @@ Full disciplinary procedure layered on E1's case-access spine. **Per-task ledger
 - **Follow-ups (QA info):** INFO-1 respondent direct-`PATCH` of own targeted-response status skips the submit-audit row;
   INFO-2 org_admin case-phase responses via the pre-existing `responses` arm.
 
+## RV2 — Referrals v2 Governance R2–R5 (S4, 2026-07-19; ADR 0037/0078/0079; migrations `20260817001000`–`…002200`; flag `case_referrals` OFF till pilot) → `main` `a61aae3`
+
+Extends S2·RV2·R1 (dialogue core). Full record → `progress/rv2-r2-r5-governance.md`.
+
+**Tables (RLS-on; PHI columns column-REVOKED from `authenticated`):**
+- `referral_requested_actions` — R2 vocab (read `true`, write `is_admin()`); mirrors `referral_types`.
+- `referral_resolutions` — R3; `summary_md` **PHI-REVOKED**; SELECT `can_read_referral_metadata`; partial-unique `(referral_id) WHERE reopened_at IS NULL` (one active); writes DEFINER-only.
+- `referral_assignments`, `referral_case_links` — R4; SELECT `can_read_referral_metadata`; **in NO read predicate** (assignment ≠ access / link ≠ access); writes DEFINER-only.
+- `referral_internal_notes` — R5; `body` **PHI-REVOKED**; SELECT `can_read_referral_internal_note` (source≠target≠QPS); writes DEFINER-only.
+- `referral_read_receipts` — R5; PK `(message_id, user_id)`; SELECT `can_read_referral_metadata` of the message's referral.
+- `case_referral +=` `priority`, `requested_action_id/_label`, `response_due_at`, `decline_reason_code` (R2, PHI-free); status `+= answered, resolved` (R3); `parent_referral_id` self-FK, CHECK ≠ self (R3).
+
+**Predicates (`app.`):** `referral_is_overdue` (R2, SQL↔TS mirror) · `can_read_referral_internal_note` (R5 keystone — source-member OR target-member-once-sent; **NO PQS arm**; the sole `referral_internal_notes` SELECT policy) · `can_read_referral_internal_notes` (plural — R5 audit-entitlement ONLY; no PQS arm; in **0** RLS policies). `can_manage_referral_source`/`_target` (= `is_staff_admin_of_for(source|target)`) gate resolve/reopen/assign/redact.
+
+**RPCs (all DEFINER, t19 = REVOKE PUBLIC + GRANT authenticated/service_role):** R2 — `set_referral_deadline`, `create/update_referral_requested_action`, `create_referral_draft`(+`parent`), `decline_referral`(+reason). R3 — `resolve_referral`, `reopen_referral`, `conclude_referral`(→answered), `close_case`(+answered block). R4 — `assign/update/cancel_referral_assignment`, `list_my_referral_assignments`, `link_referral_related_case`, `unlink_referral_case`. R5 — `create/list_referral_internal_note(s)`, `redact_referral_message/note`, `record_referral_message_receipt`, `dispose_referral_phi` (extended — purges all 4 referral PHI columns). `list_referral_internal_notes` emits **`referral.note_viewed`** PHI-free audit via `log_audit_access → app._audit_access_authorized → app.audit_write` (Rule 11; fires only when ≥1 note served).
+
+**SQLSTATEs:** `HC0A3` vocab · `HC0A4` deadline · `HC0A5` resolve/reopen state · `HC0A6` lineage · `HC0A7` assignment · `HC0A8` link · `HC0A9` redaction. **Authority = `42501`, checked FIRST** (ADR-0078 non-vacuity).
+
+**Follow-ups:** `189` pgTAP stale-fixture baseline (RV2-unrelated) · notes-SSR hardening (INFO) · pilot `case_referrals` enablement + origin push + deploy.
+
 ## Migrations (forward-only, additive)
 
 | Range | Phase | What landed |
