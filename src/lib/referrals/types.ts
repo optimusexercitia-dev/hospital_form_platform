@@ -78,6 +78,27 @@ export type ReferralPatientSex = 'female' | 'male' | 'other' | 'unknown'
  * stored column. */
 export type ReferralDirection = 'incoming' | 'outgoing'
 
+/**
+ * Triage priority (RV2 R2). PHI-free metadata stored verbatim in
+ * `case_referral.priority` (DB CHECK-enforced; default `routine`). Drives the
+ * hub/inbox/QPS priority badge + aging sort.
+ */
+export type ReferralPriority = 'routine' | 'high' | 'urgent' | 'critical'
+
+/**
+ * A PHI-FREE structured decline reason (RV2 R2), stored in
+ * `case_referral.decline_reason_code` (DB CHECK-enforced). DISTINCT from the
+ * PHI free-text {@link DeclineReferralInput.note} (`decline_note`, column-REVOKED)
+ * — this code is visible to metadata-tier readers; the note is PHI-gated.
+ */
+export type ReferralDeclineReasonCode =
+  | 'outside_jurisdiction'
+  | 'duplicate'
+  | 'wrong_committee'
+  | 'insufficient_information'
+  | 'conflict_of_interest'
+  | 'other'
+
 // ---------------------------------------------------------------------------
 // pt-BR display labels (Rule 10) — UI maps the stored slug → label
 // ---------------------------------------------------------------------------
@@ -141,12 +162,72 @@ export const REFERRAL_DIRECTION_LABELS: Record<ReferralDirection, string> = {
   outgoing: 'Enviados',
 }
 
+/** pt-BR labels for the triage-priority badge / selector (RV2 R2). */
+export const REFERRAL_PRIORITY_LABELS: Record<ReferralPriority, string> = {
+  routine: 'Rotina',
+  high: 'Alta',
+  urgent: 'Urgente',
+  critical: 'Crítica',
+}
+
+/** Priority → design-token name (Rule 10); the UI maps it to a `Badge` variant. */
+export const REFERRAL_PRIORITY_TOKENS: Record<ReferralPriority, string> = {
+  routine: 'muted',
+  high: 'info',
+  urgent: 'warning',
+  critical: 'destructive',
+}
+
+/** pt-BR labels for the PHI-free structured decline reason (RV2 R2). */
+export const REFERRAL_DECLINE_REASON_LABELS: Record<
+  ReferralDeclineReasonCode,
+  string
+> = {
+  outside_jurisdiction: 'Fora da competência da comissão',
+  duplicate: 'Encaminhamento duplicado',
+  wrong_committee: 'Comissão incorreta',
+  insufficient_information: 'Informações insuficientes',
+  conflict_of_interest: 'Conflito de interesse',
+  other: 'Outro motivo',
+}
+
 /** The set of statuses that do NOT block source-case conclusion (Decision 5).
  * Mirrors the `close_case` HC076 gate's resolved set; exported so the UI can
  * label which in-flight referrals are blocking. */
 export const RESOLVED_REFERRAL_STATUSES: ReadonlySet<ReferralStatus> = new Set<
   ReferralStatus
 >(['completed', 'rejected', 'withdrawn'])
+
+/**
+ * The statuses for which an SLA deadline can NEVER be overdue (RV2 R2): a
+ * pre-flight `draft` (no deadline in play yet) OR any terminal state. The MIRROR
+ * of the SQL `app.referral_is_overdue` exclusion set — keep the two in agreement.
+ */
+const OVERDUE_EXCLUDED_STATUSES: ReadonlySet<ReferralStatus> = new Set<
+  ReferralStatus
+>(['draft', 'completed', 'rejected', 'withdrawn'])
+
+/**
+ * Whether a referral's SLA deadline is overdue (RV2 R2). The TS mirror of the SQL
+ * predicate `app.referral_is_overdue(response_due_at, status)`: a deadline strictly
+ * in the past AND a status that is neither pre-flight nor terminal. A null deadline,
+ * an unparseable one, or an excluded status is never overdue. PHI-free.
+ *
+ * NB the platform's phase-level `isOverdue` (`src/components/cases/format.ts`) is a
+ * DATE-ONLY, `CasePhaseStatus`-typed helper — its signature does not fit a referral
+ * `timestamptz` deadline + {@link ReferralStatus}, so this is a dedicated referral
+ * helper carrying the same "overdue" concept, kept byte-for-byte in step with the SQL.
+ */
+export function isReferralOverdue(
+  dueAt: string | null,
+  status: ReferralStatus,
+): boolean {
+  if (!dueAt) return false
+  if (OVERDUE_EXCLUDED_STATUSES.has(status)) return false
+  const due = Date.parse(dueAt)
+  if (Number.isNaN(due)) return false
+  return due < Date.now()
+}
 
 // ---------------------------------------------------------------------------
 // Configurable vocabularies (seeded, admin-managed; Decisions 8 & 10)
@@ -185,6 +266,23 @@ export interface ReplyOutcome {
   isActive: boolean
 }
 
+/**
+ * One `referral_requested_actions` row (RV2 R2) — the seeded, admin-managed
+ * "what is asked of the target committee" vocabulary. PHI-FREE. The source
+ * coordinator picks one when opening/editing a referral; the label is snapshotted
+ * onto `case_referral.requested_action_label` so a later vocab edit never rewrites
+ * history.
+ */
+export interface ReferralRequestedAction {
+  id: string
+  key: string
+  label: string
+  description: string | null
+  colorToken: string | null
+  position: number
+  isActive: boolean
+}
+
 // ---------------------------------------------------------------------------
 // Domain types — the referral / snapshot / reply / PHI contract
 // ---------------------------------------------------------------------------
@@ -211,6 +309,15 @@ export interface ReferralListItem {
   /** Optional design-token name for the type chip; `null` = default. */
   typeColorToken: string | null
   responseExpected: boolean
+  /** RV2 R2: triage priority (PHI-free) — drives the priority badge + aging sort. */
+  priority: ReferralPriority
+  /** RV2 R2: snapshot of the requested-action label (PHI-free); `null` if none. */
+  requestedActionLabel: string | null
+  /** RV2 R2: the SLA deadline (PHI-free); `null` if none set. */
+  responseDueAt: string | null
+  /** RV2 R2: whether the deadline is overdue NOW (computed via
+   * {@link isReferralOverdue}; never a stored flag). */
+  overdue: boolean
   sourceCommissionId: string
   sourceCommissionName: string | null
   targetCommissionId: string
@@ -253,6 +360,19 @@ export interface ReferralDetail {
   typeLabel: string
   typeColorToken: string | null
   responseExpected: boolean
+  /** RV2 R2: triage priority (PHI-free metadata). */
+  priority: ReferralPriority
+  /** RV2 R2: the picked requested-action id (PHI-free); `null` if none. */
+  requestedActionId: string | null
+  /** RV2 R2: snapshot of the requested-action label (PHI-free); `null` if none. */
+  requestedActionLabel: string | null
+  /** RV2 R2: the SLA deadline (PHI-free); `null` if none set. */
+  responseDueAt: string | null
+  /** RV2 R2: whether the deadline is overdue NOW (computed, never stored). */
+  overdue: boolean
+  /** RV2 R2: PHI-FREE structured decline reason (distinct from the PHI
+   * `declineNote`); set only on a `rejected` referral, `null` otherwise. */
+  declineReasonCode: ReferralDeclineReasonCode | null
   sourceCommissionId: string
   sourceCommissionName: string | null
   targetCommissionId: string
@@ -470,6 +590,14 @@ export interface CreateReferralInput {
   descriptionMd: string | null
   /** Whether a structured reply is expected (defaults from the type). */
   responseExpected: boolean
+  /** RV2 R2: triage priority (PHI-free). OPTIONAL/additive — the RPC defaults to
+   * `routine` when omitted, so pre-R2 FE callers keep compiling. */
+  priority?: ReferralPriority
+  /** RV2 R2: the picked requested-action id (PHI-free); omit/`null` for none. */
+  requestedActionId?: string | null
+  /** RV2 R2: an optional SLA deadline (ISO timestamp; PHI-free). A past date is
+   * rejected by the RPC (HC0A4). */
+  responseDueAt?: string | null
 }
 
 /** Editable draft fields (only while `draft`; HC070 otherwise). */
@@ -478,6 +606,41 @@ export interface UpdateReferralInput {
   subject: string
   descriptionMd: string | null
   responseExpected: boolean
+  /** RV2 R2: triage priority (PHI-free; defaults `routine` when omitted). */
+  priority?: ReferralPriority
+  /** RV2 R2: the picked requested-action id (PHI-free); omit/`null` for none. */
+  requestedActionId?: string | null
+  /** RV2 R2: an optional SLA deadline (ISO timestamp; PHI-free). Past → HC0A4. */
+  responseDueAt?: string | null
+}
+
+/** Set/update the SLA deadline on an in-flight referral (RV2 R2). Either
+ * coordinator (source or target); non-terminal only; a past date → HC0A4. */
+export interface SetReferralDeadlineInput {
+  referralId: string
+  /** ISO timestamp; `null` clears the deadline. */
+  responseDueAt: string | null
+}
+
+/** Create one `referral_requested_actions` vocabulary row (RV2 R2; admin only —
+ * HC0A3 otherwise). PHI-free. */
+export interface CreateRequestedActionInput {
+  key: string
+  label: string
+  description: string | null
+  colorToken: string | null
+  position: number
+}
+
+/** Edit one `referral_requested_actions` vocabulary row (RV2 R2; admin only —
+ * HC0A3 otherwise). `isActive: false` soft-retires it. PHI-free. */
+export interface UpdateRequestedActionInput {
+  id: string
+  label: string
+  description: string | null
+  colorToken: string | null
+  position: number | null
+  isActive: boolean | null
 }
 
 /** Add one frozen snapshot item to a draft (Decision 3/9). Exactly one of
@@ -543,8 +706,11 @@ export interface ConcludeReferralInput {
 /** Decline a referral with an optional note (Decision 4). */
 export interface DeclineReferralInput {
   referralId: string
-  /** Optional short pt-BR note shown to the source (free text). */
+  /** Optional short pt-BR note shown to the source (PHI-bearing free text). */
   note: string | null
+  /** RV2 R2: optional PHI-FREE structured decline reason (shown to metadata-tier
+   * readers; distinct from the PHI-gated {@link note}). OPTIONAL/additive. */
+  declineReasonCode?: ReferralDeclineReasonCode | null
 }
 
 /** Post a free-form thread message (RV2 R1 — "Comentar"). The RPC gates a PHI

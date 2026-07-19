@@ -43,9 +43,13 @@ import {
   decodeCursor,
   encodeCursor,
 } from '@/lib/types/pagination'
+import {
+  isReferralOverdue,
+} from '@/lib/referrals/types'
 import type {
   MessageType,
   ReferralDashboardFilters,
+  ReferralDeclineReasonCode,
   ReferralDetail,
   ReferralDirection,
   ReferralFlowMetrics,
@@ -53,7 +57,9 @@ import type {
   ReferralMessage,
   ReferralPatient,
   ReferralPatientSex,
+  ReferralPriority,
   ReferralReply,
+  ReferralRequestedAction,
   ReferralStatus,
   ReferralType,
   ReplyOutcome,
@@ -68,8 +74,11 @@ export type {
   SharedItemKind,
   ReferralPatientSex,
   ReferralDirection,
+  ReferralPriority,
+  ReferralDeclineReasonCode,
   ReferralType,
   ReplyOutcome,
+  ReferralRequestedAction,
   ReferralListItem,
   ReferralDetail,
   SharedItem,
@@ -82,10 +91,14 @@ export type {
 export {
   REFERRAL_STATUS_LABELS,
   REFERRAL_STATUS_TOKENS,
+  REFERRAL_PRIORITY_LABELS,
+  REFERRAL_PRIORITY_TOKENS,
+  REFERRAL_DECLINE_REASON_LABELS,
   SHARED_ITEM_KIND_LABELS,
   REFERRAL_PATIENT_SEX_LABELS,
   REFERRAL_DIRECTION_LABELS,
   RESOLVED_REFERRAL_STATUSES,
+  isReferralOverdue,
 } from '@/lib/referrals/types'
 
 const SIGNED_URL_TTL_SECONDS = 3600
@@ -102,6 +115,7 @@ const SIGNED_URL_TTL_SECONDS = 3600
  * the correct PHI-free signal every reader sees (a reply exists iff `completed`). */
 const REFERRAL_LIST_SELECT =
   'id, code, status, subject, type_label, response_expected, ' +
+  'priority, requested_action_label, response_due_at, ' +
   'source_commission_id, target_commission_id, source_case_id, target_case_id, ' +
   'has_patient, sent_at, last_message_at, created_at, referral_type_id, ' +
   'source_commission_name, target_commission_name, ' +
@@ -116,6 +130,9 @@ interface ReferralListRow {
   subject: string
   type_label: string
   response_expected: boolean
+  priority: string
+  requested_action_label: string | null
+  response_due_at: string | null
   source_commission_id: string
   target_commission_id: string
   source_case_id: string
@@ -152,6 +169,12 @@ function mapReferralListItem(
     typeLabel: r.type_label,
     typeColorToken: r.referral_type?.color_token ?? null,
     responseExpected: r.response_expected,
+    priority: r.priority as ReferralPriority,
+    requestedActionLabel: r.requested_action_label,
+    responseDueAt: r.response_due_at,
+    // Overdue is COMPUTED (never a stored flag) — the TS mirror of the SQL
+    // app.referral_is_overdue predicate.
+    overdue: isReferralOverdue(r.response_due_at, r.status as ReferralStatus),
     sourceCommissionId: r.source_commission_id,
     sourceCommissionName: r.source_commission_name,
     targetCommissionId: r.target_commission_id,
@@ -341,6 +364,11 @@ interface ReferralDetailJson {
   referral_type_id: string | null
   type_label: string
   response_expected: boolean
+  priority: string
+  requested_action_id: string | null
+  requested_action_label: string | null
+  response_due_at: string | null
+  decline_reason_code: string | null
   source_commission_id: string
   source_commission_name: string | null
   target_commission_id: string
@@ -498,6 +526,12 @@ export async function getReferralDetail(
     typeLabel: d.type_label,
     typeColorToken: null,
     responseExpected: d.response_expected,
+    priority: d.priority as ReferralPriority,
+    requestedActionId: d.requested_action_id,
+    requestedActionLabel: d.requested_action_label,
+    responseDueAt: d.response_due_at,
+    overdue: isReferralOverdue(d.response_due_at, d.status as ReferralStatus),
+    declineReasonCode: d.decline_reason_code as ReferralDeclineReasonCode | null,
     sourceCommissionId: d.source_commission_id,
     sourceCommissionName: d.source_commission_name,
     targetCommissionId: d.target_commission_id,
@@ -678,6 +712,40 @@ export async function listReplyOutcomes(): Promise<ReplyOutcome[]> {
     .eq('is_active', true)
     .order('position', { ascending: true })
     .returns<ReplyOutcomeRow[]>()
+
+  return (data ?? []).map((r) => ({
+    id: r.id,
+    key: r.key,
+    label: r.label,
+    description: r.description,
+    colorToken: r.color_token,
+    position: r.position,
+    isActive: r.is_active,
+  }))
+}
+
+interface RequestedActionRow {
+  id: string
+  key: string
+  label: string
+  description: string | null
+  color_token: string | null
+  position: number
+  is_active: boolean
+}
+
+/** The active requested-action vocabulary (RV2 R2), ordered by `position`. Drives
+ * the wizard's "o que se pede" picker. PHI-free; any authenticated caller reads it. */
+export async function listReferralRequestedActions(): Promise<
+  ReferralRequestedAction[]
+> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('referral_requested_actions')
+    .select('id, key, label, description, color_token, position, is_active')
+    .eq('is_active', true)
+    .order('position', { ascending: true })
+    .returns<RequestedActionRow[]>()
 
   return (data ?? []).map((r) => ({
     id: r.id,

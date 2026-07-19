@@ -16,6 +16,7 @@ import type {
   ConcludeReferralInput,
   CreateReferralInput,
   CreateReferralState,
+  CreateRequestedActionInput,
   DeclineReferralInput,
   LinkReferralCaseInput,
   PostReferralMessageInput,
@@ -23,8 +24,10 @@ import type {
   ReferralActionState,
   ReferralPatient,
   RequestReferralInfoInput,
+  SetReferralDeadlineInput,
   SetReferralPatientInput,
   UpdateReferralInput,
+  UpdateRequestedActionInput,
 } from '@/lib/referrals/types'
 
 // Result + input shapes live in the CLIENT-SAFE `@/lib/referrals/types` (a
@@ -88,6 +91,10 @@ export async function createReferralDraft(
     p_subject: input.subject.trim(),
     p_response_expected: input.responseExpected,
     p_description_md: input.descriptionMd ?? undefined,
+    // RV2 R2: PHI-free triage (priority defaults routine; action/due optional).
+    p_priority: input.priority ?? undefined,
+    p_requested_action_id: input.requestedActionId ?? undefined,
+    p_response_due_at: input.responseDueAt ?? undefined,
   })
   if (error || !data) {
     // Log the RAW Postgres error server-side (code never reaches the UI — §8). A
@@ -129,11 +136,34 @@ export async function updateReferralDraft(
     p_subject: input.subject.trim(),
     p_description_md: input.descriptionMd ?? undefined,
     p_response_expected: input.responseExpected,
+    // RV2 R2: PHI-free triage.
+    p_priority: input.priority ?? undefined,
+    p_requested_action_id: input.requestedActionId ?? undefined,
+    p_response_due_at: input.responseDueAt ?? undefined,
   })
   if (error) return { ok: false, error: mapReferralError(error) }
 
   revalidateReferrals()
   return { ok: true, message: REFERRAL_MESSAGES.referralUpdated }
+}
+
+/** Set/update the SLA deadline on an in-flight referral (RV2 R2). Either
+ * coordinator (source or target); the RPC rejects a past date (HC0A4) and a
+ * terminal/draft status (HC070). `responseDueAt: null` clears the deadline. */
+export async function setReferralDeadline(
+  input: SetReferralDeadlineInput,
+): Promise<ReferralActionState> {
+  if (!input.referralId) return { ok: false, error: REFERRAL_MESSAGES.missingReferral }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('set_referral_deadline', {
+    p_referral_id: input.referralId,
+    p_response_due_at: input.responseDueAt ?? undefined,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.deadlineSet }
 }
 
 /** Freeze one snapshot item (narrative or document) onto a draft. Exactly one of
@@ -305,6 +335,8 @@ export async function declineReferral(
   const { error } = await supabase.rpc('decline_referral', {
     p_referral_id: input.referralId,
     p_note: input.note ?? undefined,
+    // RV2 R2: PHI-free structured reason (distinct from the PHI note).
+    p_decline_reason_code: input.declineReasonCode ?? undefined,
   })
   if (error) return { ok: false, error: mapReferralError(error) }
 
@@ -608,4 +640,56 @@ export async function deleteReferralDraft(
   // Revalidates the hub + referral detail + the source case + the QPS dashboard.
   revalidateReferrals()
   return { ok: true, message: REFERRAL_MESSAGES.draftDeleted }
+}
+
+// ---------------------------------------------------------------------------
+// Requested-action vocabulary CRUD (RV2 R2) — admin only (HC0A3)
+// ---------------------------------------------------------------------------
+
+/** Create one requested-action vocabulary row (RV2 R2). Admin only — the RPC
+ * raises HC0A3 otherwise. PHI-free. */
+export async function createReferralRequestedAction(
+  input: CreateRequestedActionInput,
+): Promise<ReferralActionState> {
+  if (!input.key?.trim() || !input.label?.trim()) {
+    return { ok: false, error: REFERRAL_MESSAGES.vocabKeyLabelRequired }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('create_referral_requested_action', {
+    p_key: input.key.trim(),
+    p_label: input.label.trim(),
+    p_description: input.description ?? undefined,
+    p_color_token: input.colorToken ?? undefined,
+    p_position: input.position,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.vocabSaved }
+}
+
+/** Edit one requested-action vocabulary row (RV2 R2; `isActive: false` retires it).
+ * Admin only — the RPC raises HC0A3 otherwise. PHI-free. */
+export async function updateReferralRequestedAction(
+  input: UpdateRequestedActionInput,
+): Promise<ReferralActionState> {
+  if (!input.id) return { ok: false, error: REFERRAL_MESSAGES.vocabKeyLabelRequired }
+  if (!input.label?.trim()) {
+    return { ok: false, error: REFERRAL_MESSAGES.vocabKeyLabelRequired }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('update_referral_requested_action', {
+    p_id: input.id,
+    p_label: input.label.trim(),
+    p_description: input.description ?? undefined,
+    p_color_token: input.colorToken ?? undefined,
+    p_position: input.position ?? undefined,
+    p_is_active: input.isActive ?? undefined,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.vocabSaved }
 }

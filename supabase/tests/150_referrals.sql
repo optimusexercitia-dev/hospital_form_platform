@@ -21,7 +21,7 @@
 -- SECURITY DEFINER RPC, so a DB-side test can observe them).
 
 begin;
-select plan(82);
+select plan(111);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -644,6 +644,167 @@ select lives_ok(
   $$ select public.post_referral_message((select id from r3), 'clarification', 'um esclarecimento') $$,
   'M-1: post_referral_message still accepts a clarification message');
 reset role;
+
+-- =========================================================================
+-- RV2 R2 — Triage, SLA & requested-action (ALL PHI-free metadata; plan §3 R2).
+-- The keystone: the PHI-free triage fields (priority / requested_action /
+-- response_due_at / decline_reason_code) are visible to a METADATA-tier reader
+-- (the current metadata predicate can_read_referral_metadata) with NO PHI leak,
+-- while decline_note stays PHI-gated (column-REVOKED). Overdue predicate ==
+-- isReferralOverdue. Vocab CRUD HC0A3; past deadline HC0A4.
+-- =========================================================================
+
+-- ---- PHI-free column grants: the five triage columns are directly SELECTable by
+--      authenticated; the PHI decline_note stays column-REVOKED. ----
+select is(has_column_privilege('authenticated', 'public.case_referral', 'priority', 'SELECT'),
+  true, 'R2: authenticated CAN direct-SELECT the PHI-free case_referral.priority');
+select is(has_column_privilege('authenticated', 'public.case_referral', 'requested_action_id', 'SELECT'),
+  true, 'R2: authenticated CAN direct-SELECT requested_action_id');
+select is(has_column_privilege('authenticated', 'public.case_referral', 'requested_action_label', 'SELECT'),
+  true, 'R2: authenticated CAN direct-SELECT requested_action_label');
+select is(has_column_privilege('authenticated', 'public.case_referral', 'response_due_at', 'SELECT'),
+  true, 'R2: authenticated CAN direct-SELECT response_due_at');
+select is(has_column_privilege('authenticated', 'public.case_referral', 'decline_reason_code', 'SELECT'),
+  true, 'R2: authenticated CAN direct-SELECT the PHI-free decline_reason_code');
+-- BOUNDARY KEYSTONE (mutation-provable): decline_note stays column-REVOKED. Neutralize
+-- it (`grant select (decline_note) on public.case_referral to authenticated;`) and the
+-- direct-SELECT assertion below (and this) flip RED — the REVOKE is load-bearing.
+select is(has_column_privilege('authenticated', 'public.case_referral', 'decline_note', 'SELECT'),
+  false, 'R2 keystone: the PHI decline_note is NOT directly SELECTable (column-REVOKED)');
+
+-- ---- t19 REVOKE guards for the new public.* RPCs ----
+select is(has_function_privilege('public',
+  'public.create_referral_requested_action(text,text,text,text,integer)', 'execute'), false,
+  't19: PUBLIC cannot execute create_referral_requested_action');
+select is(has_function_privilege('public',
+  'public.update_referral_requested_action(uuid,text,text,text,integer,boolean)', 'execute'), false,
+  't19: PUBLIC cannot execute update_referral_requested_action');
+select is(has_function_privilege('public',
+  'public.set_referral_deadline(uuid,timestamptz)', 'execute'), false,
+  't19: PUBLIC cannot execute set_referral_deadline');
+
+-- ---- Overdue predicate == isReferralOverdue (past + non-terminal = overdue) ----
+select is(app.referral_is_overdue(now() - interval '1 day', 'in_review'), true,
+  'R2 overdue: a past deadline on a non-terminal referral is overdue');
+select is(app.referral_is_overdue(now() + interval '1 day', 'in_review'), false,
+  'R2 overdue: a future deadline is NOT overdue');
+select is(app.referral_is_overdue(now() - interval '1 day', 'completed'), false,
+  'R2 overdue: a past deadline on a TERMINAL referral is not overdue');
+select is(app.referral_is_overdue(null, 'in_review'), false,
+  'R2 overdue: a null deadline is never overdue');
+
+-- ---- A draft carrying triage (priority + requested-action + future due) ----
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table r4 on commit drop as
+  select * from public.create_referral_draft(
+    (select src_case from cs), (select comm_y from k),
+    (select type_parecer from voc), 'Triagem R2',
+    true, null, 'urgent',
+    (select id from public.referral_requested_actions where key = 'review'),
+    now() + interval '7 days');
+reset role;
+grant select on r4 to authenticated;
+select is((select priority from r4), 'urgent', 'R2: create_referral_draft stores the priority');
+select is((select requested_action_label from r4), 'Emitir parecer',
+  'R2: create_referral_draft snapshots the requested_action_label');
+
+-- ---- Metadata-tier reader (plain staff of source A; NON-PHI) sees the triage
+--      fields directly, but the PHI decline_note is denied (42501). ----
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is((select priority from public.case_referral where id = (select id from r4)),
+  'urgent', 'R2 keystone: a metadata-tier reader sees priority (PHI-free) on a direct SELECT');
+select throws_ok(
+  $$ select decline_note from public.case_referral where id = (select id from r4) $$,
+  '42501', null,
+  'R2 keystone: a metadata-tier reader''s direct SELECT of decline_note is DENIED (PHI column-REVOKED)');
+-- The audited door projects the PHI-free triage to a metadata reader too.
+create temp table md_r4 on commit drop as
+  select public.get_referral_detail((select id from r4)) as j;
+reset role;
+grant select on md_r4 to authenticated;
+select is((select md_r4.j->>'priority' from md_r4), 'urgent',
+  'R2: the audited door projects priority to a metadata-tier reader');
+
+-- ---- decline_reason_code (PHI-free) vs decline_note (PHI): a declined referral ----
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table r5 on commit drop as
+  select * from public.create_referral_draft(
+    (select src_case from cs), (select comm_y from k),
+    (select type_parecer from voc), 'Recusa R2', true,
+    'Motivo do encaminhamento para exercício da recusa.');
+select public.send_referral((select id from r5));
+reset role;
+grant select on r5 to authenticated;
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select public.receive_referral((select id from r5));
+-- Decline with BOTH the PHI note and the PHI-free structured reason.
+select public.decline_referral((select id from r5), 'NOTA-SENSIVEL', 'wrong_committee');
+reset role;
+select is((select decline_reason_code from public.case_referral where id = (select id from r5)),
+  'wrong_committee', 'R2: decline_referral stores the PHI-free decline_reason_code');
+
+-- Metadata reader via the door → decline_reason_code populated, decline_note NULL.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+create temp table md_r5 on commit drop as
+  select public.get_referral_detail((select id from r5)) as j;
+reset role;
+grant select on md_r5 to authenticated;
+select is((select md_r5.j->>'decline_reason_code' from md_r5), 'wrong_committee',
+  'R2 keystone: a metadata-tier reader gets the PHI-free decline_reason_code via the door');
+select ok((select md_r5.j->>'decline_note' from md_r5) is null,
+  'R2 keystone: a metadata-tier reader gets decline_note = NULL (PHI stays gated)');
+
+-- PHI reader (target coordinator) via the door → BOTH populated.
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+create temp table phi_r5 on commit drop as
+  select public.get_referral_detail((select id from r5)) as j;
+reset role;
+grant select on phi_r5 to authenticated;
+select is((select phi_r5.j->>'decline_note' from phi_r5), 'NOTA-SENSIVEL',
+  'R2: a PHI reader gets the populated decline_note via the door');
+select is((select phi_r5.j->>'decline_reason_code' from phi_r5), 'wrong_committee',
+  'R2: a PHI reader also gets the PHI-free decline_reason_code');
+
+-- ---- Requested-action vocab CRUD (HC0A3): admin only ----
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.create_referral_requested_action('custom_x', 'Ação X') $$,
+  'HC0A3', null, 'R2: a non-admin cannot create a requested-action (HC0A3)');
+reset role;
+select test_helpers.claims_for((select admin from k), true);
+set local role authenticated;
+select lives_ok(
+  $$ select public.create_referral_requested_action('custom_x', 'Ação X') $$,
+  'R2: an admin (is_admin claim) can create a requested-action');
+reset role;
+
+-- ---- SLA deadline (set_referral_deadline): coordinator-gated (HC072), past → HC0A4 ----
+-- r3 is in_review (non-terminal). A plain staff member cannot set a deadline.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.set_referral_deadline((select id from r3), now() + interval '3 days') $$,
+  'HC072', null, 'R2: a non-coordinator cannot set the SLA deadline (HC072)');
+reset role;
+-- The target coordinator: a past date is rejected (HC0A4); a future date lands.
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.set_referral_deadline((select id from r3), now() - interval '1 day') $$,
+  'HC0A4', null, 'R2: a past SLA deadline is rejected (HC0A4)');
+select lives_ok(
+  $$ select public.set_referral_deadline((select id from r3), now() + interval '5 days') $$,
+  'R2: the coordinator sets a future SLA deadline');
+reset role;
+select ok((select response_due_at from public.case_referral where id = (select id from r3)) is not null,
+  'R2: set_referral_deadline persists response_due_at');
 
 select * from finish();
 rollback;

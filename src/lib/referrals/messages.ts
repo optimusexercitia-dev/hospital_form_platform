@@ -50,6 +50,12 @@ export const HC_MESSAGE_SHAPE = 'HC0A0'
  * needs `awaiting_information`). */
 export const HC_INFORMATION_WRONG_STATE = 'HC0A1'
 
+// RV2 R2 (triage / SLA): HC0A3 vocab CRUD, HC0A4 past-date deadline.
+/** requested-action vocabulary CRUD violation (not admin, or invalid/blank shape). */
+export const HC_REQUESTED_ACTION_CRUD = 'HC0A3'
+/** A response deadline (`response_due_at`) was set in the past. */
+export const HC_DEADLINE_IN_PAST = 'HC0A4'
+
 /** Generic Postgres SQLSTATEs the referral RPCs/policies may surface. */
 export const PG_CHECK_VIOLATION = '23514'
 export const PG_FORBIDDEN = '42501'
@@ -85,6 +91,7 @@ export const REFERRAL_MESSAGES = {
   messageBodyRequired: 'Escreva uma mensagem.',
   requestBodyRequired: 'Descreva a informação solicitada.',
   responseBodyRequired: 'Informe a resposta à solicitação.',
+  vocabKeyLabelRequired: 'Informe a chave e o rótulo da ação solicitada.',
 
   // Lifecycle / domain (mapped from HC070–HC079)
   referralWrongState:
@@ -113,6 +120,10 @@ export const REFERRAL_MESSAGES = {
     'Não foi possível enviar a mensagem neste encaminhamento.',
   informationWrongState:
     'O encaminhamento não está no estado necessário para esta solicitação.',
+  // RV2 R2 triage / SLA (HC0A3–HC0A4)
+  requestedActionCrud:
+    'Não foi possível alterar o vocabulário de ações solicitadas.',
+  deadlineInPast: 'O prazo de resposta não pode estar no passado.',
 
   // Success
   referralDrafted: 'Rascunho de encaminhamento criado.',
@@ -141,6 +152,9 @@ export const REFERRAL_MESSAGES = {
   messagePosted: 'Mensagem enviada.',
   informationRequested: 'Solicitação de informação enviada à origem.',
   informationProvided: 'Resposta enviada à comissão de destino.',
+  // RV2 R2 triage / SLA
+  deadlineSet: 'Prazo de resposta atualizado.',
+  vocabSaved: 'Vocabulário de ações solicitadas atualizado.',
 } as const
 
 /**
@@ -184,6 +198,10 @@ export function mapReferralError(
       return error.message || REFERRAL_MESSAGES.messageShape
     case HC_INFORMATION_WRONG_STATE:
       return error.message || REFERRAL_MESSAGES.informationWrongState
+    case HC_REQUESTED_ACTION_CRUD:
+      return error.message || REFERRAL_MESSAGES.requestedActionCrud
+    case HC_DEADLINE_IN_PAST:
+      return error.message || REFERRAL_MESSAGES.deadlineInPast
     case PG_FORBIDDEN:
       return REFERRAL_MESSAGES.forbidden
     case PG_NO_DATA_FOUND:

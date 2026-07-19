@@ -2753,6 +2753,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           decline_note: string | null
+          decline_reason_code: string | null
           description_md: string | null
           has_patient: boolean
           id: string
@@ -2760,9 +2761,13 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          priority: string
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
           response_expected: boolean
           sent_at: string | null
           sent_by: string | null
@@ -2789,6 +2794,7 @@ export type Database = {
           decided_at?: string | null
           decided_by?: string | null
           decline_note?: string | null
+          decline_reason_code?: string | null
           description_md?: string | null
           has_patient?: boolean
           id?: string
@@ -2796,9 +2802,13 @@ export type Database = {
           phi_disposed_at?: string | null
           phi_disposed_by?: string | null
           phi_disposed_reason?: string | null
+          priority?: string
           received_at?: string | null
           received_by?: string | null
           referral_type_id?: string | null
+          requested_action_id?: string | null
+          requested_action_label?: string | null
+          response_due_at?: string | null
           response_expected?: boolean
           sent_at?: string | null
           sent_by?: string | null
@@ -2825,6 +2835,7 @@ export type Database = {
           decided_at?: string | null
           decided_by?: string | null
           decline_note?: string | null
+          decline_reason_code?: string | null
           description_md?: string | null
           has_patient?: boolean
           id?: string
@@ -2832,9 +2843,13 @@ export type Database = {
           phi_disposed_at?: string | null
           phi_disposed_by?: string | null
           phi_disposed_reason?: string | null
+          priority?: string
           received_at?: string | null
           received_by?: string | null
           referral_type_id?: string | null
+          requested_action_id?: string | null
+          requested_action_label?: string | null
+          response_due_at?: string | null
           response_expected?: boolean
           sent_at?: string | null
           sent_by?: string | null
@@ -2872,6 +2887,13 @@ export type Database = {
             columns: ["referral_type_id"]
             isOneToOne: false
             referencedRelation: "referral_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_referral_requested_action_id_fkey"
+            columns: ["requested_action_id"]
+            isOneToOne: false
+            referencedRelation: "referral_requested_actions"
             referencedColumns: ["id"]
           },
           {
@@ -7610,6 +7632,42 @@ export type Database = {
           },
         ]
       }
+      referral_requested_actions: {
+        Row: {
+          color_token: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          color_token?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          color_token?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          position?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       referral_shared_item: {
         Row: {
           created_at: string
@@ -7961,6 +8019,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           decline_note: string | null
+          decline_reason_code: string | null
           description_md: string | null
           has_patient: boolean
           id: string
@@ -7968,9 +8027,13 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          priority: string
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
           response_expected: boolean
           sent_at: string | null
           sent_by: string | null
@@ -9498,6 +9561,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           decline_note: string | null
+          decline_reason_code: string | null
           description_md: string | null
           has_patient: boolean
           id: string
@@ -9505,9 +9569,13 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          priority: string
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
           response_expected: boolean
           sent_at: string | null
           sent_by: string | null
@@ -10206,7 +10274,10 @@ export type Database = {
       create_referral_draft: {
         Args: {
           p_description_md?: string
+          p_priority?: string
           p_referral_type_id: string
+          p_requested_action_id?: string
+          p_response_due_at?: string
           p_response_expected?: boolean
           p_source_case_id: string
           p_subject: string
@@ -10221,6 +10292,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           decline_note: string | null
+          decline_reason_code: string | null
           description_md: string | null
           has_patient: boolean
           id: string
@@ -10228,9 +10300,13 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          priority: string
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
           response_expected: boolean
           sent_at: string | null
           sent_by: string | null
@@ -10251,6 +10327,32 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_referral_requested_action: {
+        Args: {
+          p_color_token?: string
+          p_description?: string
+          p_key: string
+          p_label: string
+          p_position?: number
+        }
+        Returns: {
+          color_token: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_requested_actions"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -10362,7 +10464,11 @@ export type Database = {
         Returns: string
       }
       decline_referral: {
-        Args: { p_note?: string; p_referral_id: string }
+        Args: {
+          p_decline_reason_code?: string
+          p_note?: string
+          p_referral_id: string
+        }
         Returns: {
           code: string
           concluded_at: string | null
@@ -10372,6 +10478,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           decline_note: string | null
+          decline_reason_code: string | null
           description_md: string | null
           has_patient: boolean
           id: string
@@ -10379,9 +10486,13 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          priority: string
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
           response_expected: boolean
           sent_at: string | null
           sent_by: string | null
@@ -10760,6 +10871,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           decline_note: string | null
+          decline_reason_code: string | null
           description_md: string | null
           has_patient: boolean
           id: string
@@ -10767,9 +10879,13 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          priority: string
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
           response_expected: boolean
           sent_at: string | null
           sent_by: string | null
@@ -11178,6 +11294,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           decline_note: string | null
+          decline_reason_code: string | null
           description_md: string | null
           has_patient: boolean
           id: string
@@ -11185,9 +11302,13 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          priority: string
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
           response_expected: boolean
           sent_at: string | null
           sent_by: string | null
@@ -11346,6 +11467,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           decline_note: string | null
+          decline_reason_code: string | null
           description_md: string | null
           has_patient: boolean
           id: string
@@ -11353,9 +11475,13 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          priority: string
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
           response_expected: boolean
           sent_at: string | null
           sent_by: string | null
@@ -11869,6 +11995,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           decline_note: string | null
+          decline_reason_code: string | null
           description_md: string | null
           has_patient: boolean
           id: string
@@ -11876,9 +12003,13 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          priority: string
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
           response_expected: boolean
           sent_at: string | null
           sent_by: string | null
@@ -12103,6 +12234,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           decline_note: string | null
+          decline_reason_code: string | null
           description_md: string | null
           has_patient: boolean
           id: string
@@ -12110,9 +12242,13 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          priority: string
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
           response_expected: boolean
           sent_at: string | null
           sent_by: string | null
@@ -12515,6 +12651,56 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_referral_deadline: {
+        Args: { p_referral_id: string; p_response_due_at?: string }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          decline_reason_code: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          last_message_at: string | null
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
+          priority: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          source_commission_name: string | null
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          target_commission_name: string | null
+          type_label: string
+          updated_at: string
+          waiting_on_committee_id: string | null
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       set_referral_patient: {
         Args: {
           p_age_years?: number
@@ -12697,6 +12883,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           decline_note: string | null
+          decline_reason_code: string | null
           description_md: string | null
           has_patient: boolean
           id: string
@@ -12704,9 +12891,13 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          priority: string
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
           response_expected: boolean
           sent_at: string | null
           sent_by: string | null
@@ -13843,8 +14034,11 @@ export type Database = {
       update_referral_draft: {
         Args: {
           p_description_md?: string
+          p_priority?: string
           p_referral_id: string
           p_referral_type_id: string
+          p_requested_action_id?: string
+          p_response_due_at?: string
           p_response_expected?: boolean
           p_subject: string
         }
@@ -13857,6 +14051,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           decline_note: string | null
+          decline_reason_code: string | null
           description_md: string | null
           has_patient: boolean
           id: string
@@ -13864,9 +14059,13 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          priority: string
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
           response_expected: boolean
           sent_at: string | null
           sent_by: string | null
@@ -13887,6 +14086,33 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_referral_requested_action: {
+        Args: {
+          p_color_token?: string
+          p_description?: string
+          p_id: string
+          p_is_active?: boolean
+          p_label: string
+          p_position?: number
+        }
+        Returns: {
+          color_token: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          position: number
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_requested_actions"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -14066,6 +14292,7 @@ export type Database = {
           decided_at: string | null
           decided_by: string | null
           decline_note: string | null
+          decline_reason_code: string | null
           description_md: string | null
           has_patient: boolean
           id: string
@@ -14073,9 +14300,13 @@ export type Database = {
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
+          priority: string
           received_at: string | null
           received_by: string | null
           referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
           response_expected: boolean
           sent_at: string | null
           sent_by: string | null
