@@ -109,6 +109,42 @@ export type ReferralDeclineReasonCode =
   | 'conflict_of_interest'
   | 'other'
 
+/**
+ * RV2 R4: the role a reviewer holds on a referral assignment (`referral_assignments
+ * .assignment_role`, DB CHECK-enforced). PHI-free governance metadata.
+ */
+export type ReferralAssignmentRole =
+  | 'referral_coordinator'
+  | 'primary_reviewer'
+  | 'secondary_reviewer'
+  | 'clinical_reviewer'
+  | 'legal_reviewer'
+  | 'committee_chair'
+
+/**
+ * RV2 R4: an assignment's workflow status (`referral_assignments.status`, DB
+ * CHECK-enforced; default `pending`). PHI-free. DISTINCT from {@link ReferralStatus}
+ * (the referral lifecycle) — an assignment tracks ONE reviewer's task, not the
+ * referral.
+ */
+export type ReferralAssignmentStatus =
+  | 'pending'
+  | 'accepted'
+  | 'in_progress'
+  | 'completed'
+  | 'cancelled'
+
+/**
+ * RV2 R4: the typed relationship of a related-case pointer
+ * (`referral_case_links.relationship_type`, DB CHECK-enforced). PHI-free. The link
+ * is a POINTER ONLY — it grants NO access to the linked case.
+ */
+export type ReferralCaseRelationship =
+  | 'related_case'
+  | 'follow_up_case'
+  | 'escalated_case'
+  | 'duplicate_case'
+
 // ---------------------------------------------------------------------------
 // pt-BR display labels (Rule 10) — UI maps the stored slug → label
 // ---------------------------------------------------------------------------
@@ -203,6 +239,55 @@ export const REFERRAL_DECLINE_REASON_LABELS: Record<
   insufficient_information: 'Informações insuficientes',
   conflict_of_interest: 'Conflito de interesse',
   other: 'Outro motivo',
+}
+
+/** pt-BR labels for the assignment-role badge / selector (RV2 R4). */
+export const REFERRAL_ASSIGNMENT_ROLE_LABELS: Record<
+  ReferralAssignmentRole,
+  string
+> = {
+  referral_coordinator: 'Coordenação do encaminhamento',
+  primary_reviewer: 'Revisor(a) principal',
+  secondary_reviewer: 'Revisor(a) secundário(a)',
+  clinical_reviewer: 'Revisor(a) clínico(a)',
+  legal_reviewer: 'Revisor(a) jurídico(a)',
+  committee_chair: 'Presidência da comissão',
+}
+
+/** pt-BR labels for the assignment-status badge (RV2 R4). */
+export const REFERRAL_ASSIGNMENT_STATUS_LABELS: Record<
+  ReferralAssignmentStatus,
+  string
+> = {
+  pending: 'Pendente',
+  accepted: 'Aceita',
+  in_progress: 'Em andamento',
+  completed: 'Concluída',
+  cancelled: 'Cancelada',
+}
+
+/** Assignment-status → design-token name (Rule 10); the UI maps it to a `Badge`
+ * variant rather than hard-coding a colour. */
+export const REFERRAL_ASSIGNMENT_STATUS_TOKENS: Record<
+  ReferralAssignmentStatus,
+  string
+> = {
+  pending: 'muted',
+  accepted: 'info',
+  in_progress: 'warning',
+  completed: 'success',
+  cancelled: 'muted',
+}
+
+/** pt-BR labels for the typed related-case relationship (RV2 R4). */
+export const REFERRAL_CASE_RELATIONSHIP_LABELS: Record<
+  ReferralCaseRelationship,
+  string
+> = {
+  related_case: 'Caso relacionado',
+  follow_up_case: 'Caso de acompanhamento',
+  escalated_case: 'Caso escalado',
+  duplicate_case: 'Caso duplicado',
 }
 
 /** The set of statuses that do NOT block source-case conclusion (Decision 5; RV2
@@ -430,6 +515,12 @@ export interface ReferralDetail {
    * every metadata-tier reader; each row's PHI `summaryMd` is `null` unless the
    * viewer is a PHI reader. */
   resolutions: ReferralResolution[]
+  /** RV2 R4: WHO is responsible on either side (PHI-free). Visible to every
+   * metadata-tier reader; a row grants NO access — it is a task pointer only. */
+  assignments: ReferralAssignment[]
+  /** RV2 R4: TYPED related-case pointers (PHI-free). Each is a pointer ONLY — it
+   * grants NO access to the linked case. */
+  links: ReferralCaseLink[]
   sentAt: string | null
   receivedAt: string | null
   decidedAt: string | null
@@ -554,6 +645,75 @@ export interface ReferralResolution {
   reopenedAt: string | null
   reopenedById: string | null
   reopenedReason: string | null
+}
+
+/**
+ * One responsibility assignment on a referral (`referral_assignments`), RV2 R4.
+ * PHI-FREE governance metadata — WHO is responsible on the source OR target side.
+ * ASSIGNMENT ≠ ACCESS: holding this row grants NO read of the referral (the read
+ * predicates do not consult it). Visible to any metadata-tier reader of the referral.
+ */
+export interface ReferralAssignment {
+  id: string
+  referralId: string
+  /** The referral's source OR target commission (RPC-enforced). */
+  commissionId: string
+  assigneeUserId: string
+  assigneeName: string | null
+  assignmentRole: ReferralAssignmentRole
+  status: ReferralAssignmentStatus
+  /** Optional per-assignment due date (PHI-free); `null` if none. */
+  dueAt: string | null
+  assignedById: string | null
+  assignedByName: string | null
+  assignedAt: string
+  completedAt: string | null
+  cancelledAt: string | null
+}
+
+/**
+ * One TYPED related-case pointer on a referral (`referral_case_links`), RV2 R4.
+ * PHI-FREE. A POINTER ONLY — it grants NO access to {@link caseId}; the primary
+ * target link remains `case_referral.target_case_id`. Visible to any metadata-tier
+ * reader of the referral.
+ */
+export interface ReferralCaseLink {
+  id: string
+  referralId: string
+  caseId: string
+  /** The linked case's human number, if the reader may resolve it; `null` otherwise. */
+  caseNumber: number | null
+  /** The acting coordinator's side (source or target) that recorded the link. */
+  commissionId: string
+  relationshipType: ReferralCaseRelationship
+  createdById: string | null
+  createdByName: string | null
+  createdAt: string
+}
+
+/**
+ * One row of the CALLER's own assignments list ({@link listMyReferralAssignments},
+ * RV2 R4) — an assignment joined to its referral's NON-PHI pointer metadata. Task
+ * pointers ONLY: never any PHI (no bodies, no patient identifiers). Backs the
+ * "Minhas atribuições de encaminhamento" list.
+ */
+export interface MyReferralAssignment {
+  id: string
+  referralId: string
+  commissionId: string
+  assignmentRole: ReferralAssignmentRole
+  status: ReferralAssignmentStatus
+  dueAt: string | null
+  assignedById: string | null
+  assignedAt: string
+  completedAt: string | null
+  cancelledAt: string | null
+  /** PHI-free referral pointers (the task's referral, for the list row + link). */
+  referralCode: string
+  referralSubject: string
+  referralStatus: ReferralStatus
+  referralPriority: ReferralPriority
+  referralResponseDueAt: string | null
 }
 
 /**
@@ -820,4 +980,38 @@ export interface ProvideReferralInfoInput {
   referralId: string
   /** PHI-bearing response text (required, non-blank). */
   body: string
+}
+
+/** Assign a reviewer to a referral on one side (RV2 R4). The actor must be a
+ * coordinator of `commissionId`'s side (source or target) — the RPC raises 42501
+ * for any other actor (checked FIRST), and HC0A7 for an invalid commission/role or
+ * a non-member assignee. `commissionId` must be the referral's source OR target. */
+export interface AssignReferralReviewerInput {
+  referralId: string
+  /** The referral's source OR target commission (the assignee's side). */
+  commissionId: string
+  assigneeUserId: string
+  assignmentRole: ReferralAssignmentRole
+  /** Optional per-assignment due date (ISO timestamp; PHI-free). */
+  dueAt?: string | null
+}
+
+/** Edit an assignment's status / due / role (RV2 R4). Coordinator of the
+ * assignment's commission side only (42501 otherwise, checked FIRST); an invalid
+ * status/role is HC0A7. All fields optional — omit to leave unchanged. */
+export interface UpdateReferralAssignmentInput {
+  assignmentId: string
+  status?: ReferralAssignmentStatus | null
+  dueAt?: string | null
+  assignmentRole?: ReferralAssignmentRole | null
+}
+
+/** Record a TYPED related-case pointer on a referral (RV2 R4). The actor must be a
+ * coordinator of EITHER side (42501 otherwise); the relationship must be valid, the
+ * case must exist, and the (referral, case, relationship) triple must be unique
+ * (HC0A8 otherwise). Grants NO access to `caseId` — a pointer only. */
+export interface LinkReferralRelatedCaseInput {
+  referralId: string
+  caseId: string
+  relationshipType: ReferralCaseRelationship
 }

@@ -21,7 +21,7 @@
 -- SECURITY DEFINER RPC, so a DB-side test can observe them).
 
 begin;
-select plan(139);
+select plan(174);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -1030,6 +1030,246 @@ select public.conclude_referral((select id from r8), null, null, true);
 reset role;
 select is((select status from public.case_referral where id = (select id from r8)),
   'completed', 'R3: a no-reply acknowledgment concludes straight to completed (terminal)');
+
+-- =========================================================================
+-- RV2 R4 — Responsibility & multi-linkage (ADR 0037 D-R4). ADDITIVE tables:
+--   referral_assignments (WHO is responsible) + referral_case_links (typed
+--   related-case pointers). The core guarantees:
+--   * assign/link authority is checked FIRST → 42501, never HC0A7/HC0A8 (K-R4-3
+--     non-vacuity); domain errors are HC0A7 (assignment) / HC0A8 (link).
+--   * ASSIGNMENT ≠ ACCESS: an assignment row grants NO referral read (K-R4-1).
+--   * LINK ≠ CASE ACCESS: a referral_case_link grants NO read of the linked case
+--     (K-R4-2).
+--   * list_my_referral_assignments is self-scoped + PHI-free (K-R4-4).
+-- =========================================================================
+-- A fresh source case in A + a DRAFT referral A→B (assign/link do not gate on
+-- status). st_x2 (a member of A) is the source reviewer; org_b for the stranger.
+create temp table k4 on commit drop as
+  select (v->>'st_x2')::uuid as st_x2, (v->>'org_b')::uuid as org_b from ctx;
+grant select on k4 to authenticated;
+
+create temp table cs5 on commit drop as select gen_random_uuid() as src5;
+grant select on cs5 to authenticated;
+insert into public.cases (id, commission_id, case_number, label, created_by)
+values ((select src5 from cs5), (select comm_x from k), 9401, 'Caso A5', (select sa_x from k));
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table r9 on commit drop as
+  select * from public.create_referral_draft(
+    (select src5 from cs5), (select comm_y from k),
+    (select type_parecer from voc), 'Responsabilidade R4', true,
+    'Descrição para viabilizar o envio.');
+reset role;
+grant select on r9 to authenticated;
+
+-- ---- K-R4-3: assign authority is NON-VACUOUS (referral valid, role valid,
+--      assignee IS a member of the side — so the ONLY failure is authority) ----
+-- A plain SOURCE staff assigning on the SOURCE side is denied 42501 (authority),
+-- NOT HC0A7. st_x2 is a genuine member of A, so the domain checks would pass.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.assign_referral_reviewer(%L, %L, %L, 'primary_reviewer') $$,
+    (select id from r9), (select comm_x from k), (select st_x2 from k4)),
+  '42501', null,
+  'R4·K-R4-3: a plain SOURCE staff assigning on the source side is denied 42501 (authority, not HC0A7)');
+reset role;
+-- The coordinator of the OTHER side (target) assigning on the SOURCE side → 42501.
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.assign_referral_reviewer(%L, %L, %L, 'primary_reviewer') $$,
+    (select id from r9), (select comm_x from k), (select st_x2 from k4)),
+  '42501', null,
+  'R4·K-R4-3: the coordinator of the OTHER (target) side assigning on the source side is denied 42501');
+reset role;
+
+-- ---- Happy path: the source coordinator assigns a member of A ----
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table asg1 on commit drop as
+  select * from public.assign_referral_reviewer(
+    (select id from r9), (select comm_x from k), (select st_x2 from k4), 'primary_reviewer');
+reset role;
+grant select on asg1 to authenticated;
+select is((select status from asg1), 'pending', 'R4: assign creates a pending assignment');
+select is((select commission_id from asg1), (select comm_x from k),
+  'R4: the assignment is attributed to the source commission');
+
+-- The TARGET coordinator assigns a member of B (either side works independently).
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+create temp table asg2 on commit drop as
+  select * from public.assign_referral_reviewer(
+    (select id from r9), (select comm_y from k), (select st_y from k), 'clinical_reviewer');
+reset role;
+grant select on asg2 to authenticated;
+select is((select status from asg2), 'pending', 'R4: the target coordinator assigns on the target side');
+
+-- ---- HC0A7 domain errors (checked AFTER authority) ----
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.assign_referral_reviewer(%L, %L, %L, 'bogus_role') $$,
+    (select id from r9), (select comm_x from k), (select st_x2 from k4)),
+  'HC0A7', null, 'R4: an invalid assignment_role is rejected (HC0A7)');
+select throws_ok(
+  format($$ select public.assign_referral_reviewer(%L, %L, %L, 'primary_reviewer') $$,
+    (select id from r9), (select comm_x from k), (select st_y from k)),
+  'HC0A7', null, 'R4: an assignee who is not a member of the commission is rejected (HC0A7)');
+select throws_ok(
+  format($$ select public.assign_referral_reviewer(%L, %L, %L, 'primary_reviewer') $$,
+    (select id from r9), gen_random_uuid(), (select st_x2 from k4)),
+  'HC0A7', null, 'R4: a commission that is neither side of the referral is rejected (HC0A7)');
+reset role;
+
+-- ---- update_referral_assignment: authority-first + status transitions ----
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.update_referral_assignment(%L, 'in_progress') $$, (select id from asg1)),
+  '42501', null, 'R4: a non-coordinator cannot update an assignment (42501)');
+reset role;
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.update_referral_assignment(%L, 'bogus_status') $$, (select id from asg1)),
+  'HC0A7', null, 'R4: an invalid assignment status is rejected (HC0A7)');
+select lives_ok(
+  format($$ select public.update_referral_assignment(%L, 'in_progress') $$, (select id from asg1)),
+  'R4: the source coordinator advances the assignment to in_progress');
+select is((select status from public.referral_assignments where id = (select id from asg1)),
+  'in_progress', 'R4: the assignment status is updated');
+select public.update_referral_assignment((select id from asg1), 'completed');
+reset role;
+select ok((select completed_at from public.referral_assignments where id = (select id from asg1)) is not null,
+  'R4: →completed sets completed_at');
+
+-- ---- cancel_referral_assignment: authority-first ----
+select test_helpers.claims_for((select st_y from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.cancel_referral_assignment(%L) $$, (select id from asg2)),
+  '42501', null, 'R4: a non-coordinator cannot cancel an assignment (42501)');
+reset role;
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select public.cancel_referral_assignment((select id from asg2));
+reset role;
+select is((select status from public.referral_assignments where id = (select id from asg2)),
+  'cancelled', 'R4: cancel sets status = cancelled');
+select ok((select cancelled_at from public.referral_assignments where id = (select id from asg2)) is not null,
+  'R4: cancel sets cancelled_at');
+
+-- ---- link_referral_related_case: authority-first + HC0A8 domain ----
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.link_referral_related_case(%L, %L, 'related_case') $$,
+    (select id from r9), (select tgt_case from cs)),
+  '42501', null, 'R4: a non-coordinator cannot link a related case (42501)');
+reset role;
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table link1 on commit drop as
+  select * from public.link_referral_related_case(
+    (select id from r9), (select tgt_case from cs), 'related_case');
+reset role;
+grant select on link1 to authenticated;
+select is((select relationship_type from link1), 'related_case', 'R4: link stores the relationship type');
+select is((select commission_id from link1), (select comm_x from k),
+  'R4: the link is attributed to the acting (source) coordinator''s side');
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.link_referral_related_case(%L, %L, 'bogus_rel') $$,
+    (select id from r9), (select tgt_case from cs)),
+  'HC0A8', null, 'R4: an invalid relationship type is rejected (HC0A8)');
+select throws_ok(
+  format($$ select public.link_referral_related_case(%L, %L, 'related_case') $$,
+    (select id from r9), gen_random_uuid()),
+  'HC0A8', null, 'R4: a non-existent related case is rejected (HC0A8)');
+select throws_ok(
+  format($$ select public.link_referral_related_case(%L, %L, 'related_case') $$,
+    (select id from r9), (select tgt_case from cs)),
+  'HC0A8', null, 'R4: a duplicate (referral, case, relationship) link is rejected (HC0A8)');
+reset role;
+-- The TARGET coordinator can also link (either side).
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.link_referral_related_case(%L, %L, 'follow_up_case') $$,
+    (select id from r9), (select tgt_case from cs)),
+  'R4: the target coordinator can also link a related case (either side)');
+reset role;
+
+-- ---- K-R4-2: a referral_case_link grants NO access to the linked case ----
+-- st_x is a plain member of A (source) → reads r9 metadata (non-vacuity), but has
+-- NO case ACL on case B — the link from r9 to case B does NOT let st_x read it.
+select ok(app.can_read_referral_metadata((select id from r9), (select st_x from k)),
+  'R4·K-R4-2 (non-vacuity): st_x CAN read the referral metadata');
+select ok(not app.can_read_case((select tgt_case from cs), (select st_x from k)),
+  'R4·K-R4-2: the referral_case_link grants st_x NO read of the linked case B');
+
+-- ---- K-R4-1: an assignment row grants NO referral read ----
+-- A stranger (no membership/coordinator/analyst/QPS anywhere) with an assignment
+-- row on r9 is still DENIED by can_read_referral_metadata AND can_read_referral_phi.
+create temp table strg on commit drop as select gen_random_uuid() as uid;
+grant select on strg to authenticated;
+-- The on_auth_user_created trigger auto-creates the matching profiles row (FK
+-- target); no profile update is needed (the tenant-org check is deferred to COMMIT,
+-- which never runs — this suite rolls back).
+insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
+values ('00000000-0000-0000-0000-000000000000', (select uid from strg),
+        'authenticated', 'authenticated', (select uid from strg) || '@test', now(), now());
+-- Direct insert (as the test owner — bypasses RLS/grants) so we isolate exactly the
+-- "assignment exists but no access" condition.
+insert into public.referral_assignments (referral_id, commission_id, assignee_user_id, assignment_role, status)
+values ((select id from r9), (select comm_x from k), (select uid from strg), 'primary_reviewer', 'pending');
+select is((select count(*)::int from public.referral_assignments
+           where referral_id = (select id from r9) and assignee_user_id = (select uid from strg)),
+  1, 'R4·K-R4-1 (non-vacuity): the stranger DOES have an assignment row on r9');
+select ok(not app.can_read_referral_metadata((select id from r9), (select uid from strg)),
+  'R4·K-R4-1: an assignment row grants the stranger NO referral METADATA read');
+select ok(not app.can_read_referral_phi((select id from r9), (select uid from strg)),
+  'R4·K-R4-1: an assignment row grants the stranger NO referral PHI read');
+
+-- ---- K-R4-4: list_my_referral_assignments is self-scoped + PHI-free ----
+-- st_x2 holds asg1 (source reviewer). The list returns ONLY st_x2's assignment;
+-- st_y's asg2 (target) is absent; and no PHI key leaks (task pointers only).
+select test_helpers.claims_for((select st_x2 from k4), false);
+set local role authenticated;
+create temp table mylist on commit drop as
+  select public.list_my_referral_assignments() as j;
+reset role;
+grant select on mylist to authenticated;
+select is((select jsonb_array_length(mylist.j) from mylist), 1,
+  'R4·K-R4-4: the caller sees exactly their own assignment (1)');
+select is((select mylist.j->0->>'id' from mylist), (select id from asg1)::text,
+  'R4·K-R4-4: the returned assignment is the caller''s own (asg1)');
+select ok((select not (mylist.j @> jsonb_build_array(jsonb_build_object('id', (select id from asg2)))) from mylist),
+  'R4·K-R4-4: another user''s assignment (asg2) is absent from the caller''s list');
+select ok((select not (mylist.j->0 ? 'referral_description_md') and not (mylist.j->0 ? 'summary_md') from mylist),
+  'R4·K-R4-4: the list carries NO PHI keys (task pointers only)');
+select is((select mylist.j->0->>'referral_code' from mylist), (select code from r9),
+  'R4·K-R4-4: the list carries the PHI-free referral code pointer');
+
+-- ---- get_referral_detail exposes the PHI-free assignments + links arrays ----
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table det_r9 on commit drop as
+  select public.get_referral_detail((select id from r9)) as j;
+reset role;
+grant select on det_r9 to authenticated;
+-- 3 rows: asg1 (st_x2) + asg2 (st_y, cancelled) + the K-R4-1 stranger row inserted
+-- directly above. All are metadata-visible (an assignment row grants no access, but
+-- IS visible to a metadata-tier reader of the referral).
+select is((select jsonb_array_length(det_r9.j->'assignments') from det_r9), 3,
+  'R4: the detail door exposes all assignment rows (metadata-visible)');
+select is((select jsonb_array_length(det_r9.j->'links') from det_r9), 2,
+  'R4: the detail door exposes both typed case-links');
 
 select * from finish();
 rollback;

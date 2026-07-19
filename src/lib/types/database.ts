@@ -7417,6 +7417,136 @@ export type Database = {
           },
         ]
       }
+      referral_assignments: {
+        Row: {
+          assigned_at: string
+          assigned_by: string | null
+          assignee_user_id: string
+          assignment_role: string
+          cancelled_at: string | null
+          commission_id: string
+          completed_at: string | null
+          due_at: string | null
+          id: string
+          referral_id: string
+          status: string
+        }
+        Insert: {
+          assigned_at?: string
+          assigned_by?: string | null
+          assignee_user_id: string
+          assignment_role: string
+          cancelled_at?: string | null
+          commission_id: string
+          completed_at?: string | null
+          due_at?: string | null
+          id?: string
+          referral_id: string
+          status?: string
+        }
+        Update: {
+          assigned_at?: string
+          assigned_by?: string | null
+          assignee_user_id?: string
+          assignment_role?: string
+          cancelled_at?: string | null
+          commission_id?: string
+          completed_at?: string | null
+          due_at?: string | null
+          id?: string
+          referral_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_assignments_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_assignments_assignee_user_id_fkey"
+            columns: ["assignee_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_assignments_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_assignments_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "case_referral"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_case_links: {
+        Row: {
+          case_id: string
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          referral_id: string
+          relationship_type: string
+        }
+        Insert: {
+          case_id: string
+          commission_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          referral_id: string
+          relationship_type: string
+        }
+        Update: {
+          case_id?: string
+          commission_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          referral_id?: string
+          relationship_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_case_links_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_case_links_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_case_links_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_case_links_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "case_referral"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       referral_messages: {
         Row: {
           body: string
@@ -9098,6 +9228,34 @@ export type Database = {
         Args: { p_org: string; p_user: string }
         Returns: undefined
       }
+      assign_referral_reviewer: {
+        Args: {
+          p_assignee_user_id: string
+          p_assignment_role: string
+          p_commission_id: string
+          p_due_at?: string
+          p_referral_id: string
+        }
+        Returns: {
+          assigned_at: string
+          assigned_by: string | null
+          assignee_user_id: string
+          assignment_role: string
+          cancelled_at: string | null
+          commission_id: string
+          completed_at: string | null
+          due_at: string | null
+          id: string
+          referral_id: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_assignments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       audit_trail_enabled: { Args: never; Returns: boolean }
       can_dispose_referral_phi: {
         Args: { p_referral_id: string }
@@ -9271,6 +9429,28 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "meetings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cancel_referral_assignment: {
+        Args: { p_assignment_id: string }
+        Returns: {
+          assigned_at: string
+          assigned_by: string | null
+          assignee_user_id: string
+          assignment_role: string
+          cancelled_at: string | null
+          commission_id: string
+          completed_at: string | null
+          due_at: string | null
+          id: string
+          referral_id: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_assignments"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -11010,6 +11190,28 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      link_referral_related_case: {
+        Args: {
+          p_case_id: string
+          p_referral_id: string
+          p_relationship_type: string
+        }
+        Returns: {
+          case_id: string
+          commission_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          referral_id: string
+          relationship_type: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_case_links"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       list_addable_commission_members: {
         Args: { p_commission_id: string; p_search?: string }
         Returns: {
@@ -11081,6 +11283,7 @@ export type Database = {
       }
       list_my_cases: { Args: { p_commission: string }; Returns: Json }
       list_my_nsp_hospitals: { Args: never; Returns: Json }
+      list_my_referral_assignments: { Args: never; Returns: Json }
       list_org_eligible_users: { Args: { p_org_id: string }; Returns: Json }
       list_pqs_members: { Args: { p_hospital_id: string }; Returns: Json }
       list_referral_target_commissions: {
@@ -13382,6 +13585,7 @@ export type Database = {
         Args: { p_case_link_id: string }
         Returns: undefined
       }
+      unlink_referral_case: { Args: { p_link_id: string }; Returns: undefined }
       update_capa_action: {
         Args: {
           p_action_id: string
@@ -14239,6 +14443,33 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "rca_timeline_entries"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_referral_assignment: {
+        Args: {
+          p_assignment_id: string
+          p_assignment_role?: string
+          p_due_at?: string
+          p_status?: string
+        }
+        Returns: {
+          assigned_at: string
+          assigned_by: string | null
+          assignee_user_id: string
+          assignment_role: string
+          cancelled_at: string | null
+          commission_id: string
+          completed_at: string | null
+          due_at: string | null
+          id: string
+          referral_id: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_assignments"
           isOneToOne: true
           isSetofReturn: false
         }

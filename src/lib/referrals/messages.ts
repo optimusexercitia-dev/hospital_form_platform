@@ -65,6 +65,16 @@ export const HC_RESOLUTION_WRONG_STATE = 'HC0A5'
  * different organization, or is not readable by the creator. */
 export const HC_PARENT_LINEAGE_INVALID = 'HC0A6'
 
+// RV2 R4 (responsibility & multi-linkage): HC0A7 assignment, HC0A8 case-link.
+/** Assignment domain error: the commission is neither side of the referral, the
+ * assignment role/status is invalid, or the assignee is not a member of the
+ * commission. DISTINCT from the 42501 authority failure, which is raised FIRST. */
+export const HC_ASSIGNMENT_DOMAIN = 'HC0A7'
+/** Case-link domain error: an invalid relationship type, a missing related case, or
+ * a duplicate (referral, case, relationship) link. DISTINCT from the 42501 authority
+ * failure, which is raised FIRST. */
+export const HC_CASE_LINK_DOMAIN = 'HC0A8'
+
 /** Generic Postgres SQLSTATEs the referral RPCs/policies may surface. */
 export const PG_CHECK_VIOLATION = '23514'
 export const PG_FORBIDDEN = '42501'
@@ -102,6 +112,11 @@ export const REFERRAL_MESSAGES = {
   responseBodyRequired: 'Informe a resposta à solicitação.',
   vocabKeyLabelRequired: 'Informe a chave e o rótulo da ação solicitada.',
   reopenReasonRequired: 'Informe o motivo da reabertura.',
+  assigneeRequired: 'Selecione o responsável.',
+  assignmentRoleRequired: 'Selecione o papel do responsável.',
+  relationshipTypeRequired: 'Selecione o tipo de relação do caso.',
+  relatedCaseRequired: 'Selecione o caso a relacionar.',
+  missingAssignment: 'Atribuição não encontrada.',
 
   // Lifecycle / domain (mapped from HC070–HC079)
   referralWrongState:
@@ -139,6 +154,11 @@ export const REFERRAL_MESSAGES = {
     'O encaminhamento não está no estado necessário para esta ação de resolução.',
   parentLineageInvalid:
     'O encaminhamento vinculado é inválido ou você não tem acesso a ele.',
+  // RV2 R4 responsibility & multi-linkage (HC0A7–HC0A8)
+  assignmentDomain:
+    'Não foi possível registrar a atribuição. Verifique a comissão, o papel e se o responsável é membro.',
+  caseLinkDomain:
+    'Não foi possível vincular o caso. Verifique o tipo de relação e se o caso já não está vinculado.',
 
   // Success
   referralDrafted: 'Rascunho de encaminhamento criado.',
@@ -173,6 +193,12 @@ export const REFERRAL_MESSAGES = {
   // RV2 R3 resolution cycles
   referralResolved: 'Encaminhamento resolvido.',
   referralReopened: 'Encaminhamento reaberto.',
+  // RV2 R4 responsibility & multi-linkage
+  assignmentCreated: 'Responsável atribuído ao encaminhamento.',
+  assignmentUpdated: 'Atribuição atualizada.',
+  assignmentCancelled: 'Atribuição cancelada.',
+  relatedCaseLinked: 'Caso relacionado vinculado ao encaminhamento.',
+  relatedCaseUnlinked: 'Vínculo de caso relacionado removido.',
 } as const
 
 /**
@@ -224,6 +250,10 @@ export function mapReferralError(
       return error.message || REFERRAL_MESSAGES.resolutionWrongState
     case HC_PARENT_LINEAGE_INVALID:
       return error.message || REFERRAL_MESSAGES.parentLineageInvalid
+    case HC_ASSIGNMENT_DOMAIN:
+      return error.message || REFERRAL_MESSAGES.assignmentDomain
+    case HC_CASE_LINK_DOMAIN:
+      return error.message || REFERRAL_MESSAGES.caseLinkDomain
     case PG_FORBIDDEN:
       return REFERRAL_MESSAGES.forbidden
     case PG_NO_DATA_FOUND:

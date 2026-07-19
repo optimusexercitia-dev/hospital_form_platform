@@ -48,6 +48,12 @@ import {
 } from '@/lib/referrals/types'
 import type {
   MessageType,
+  MyReferralAssignment,
+  ReferralAssignment,
+  ReferralAssignmentRole,
+  ReferralAssignmentStatus,
+  ReferralCaseLink,
+  ReferralCaseRelationship,
   ReferralDashboardFilters,
   ReferralDeclineReasonCode,
   ReferralDetail,
@@ -86,6 +92,12 @@ export type {
   ReferralReply,
   ReferralReplyAttachment,
   ReferralResolution,
+  ReferralAssignment,
+  ReferralAssignmentRole,
+  ReferralAssignmentStatus,
+  ReferralCaseLink,
+  ReferralCaseRelationship,
+  MyReferralAssignment,
   ReferralPatient,
   ReferralDashboardFilters,
   ReferralFlowMetrics,
@@ -96,6 +108,10 @@ export {
   REFERRAL_PRIORITY_LABELS,
   REFERRAL_PRIORITY_TOKENS,
   REFERRAL_DECLINE_REASON_LABELS,
+  REFERRAL_ASSIGNMENT_ROLE_LABELS,
+  REFERRAL_ASSIGNMENT_STATUS_LABELS,
+  REFERRAL_ASSIGNMENT_STATUS_TOKENS,
+  REFERRAL_CASE_RELATIONSHIP_LABELS,
   SHARED_ITEM_KIND_LABELS,
   REFERRAL_PATIENT_SEX_LABELS,
   REFERRAL_DIRECTION_LABELS,
@@ -428,6 +444,32 @@ interface ReferralDetailJson {
     reopened_by: string | null
     reopened_reason: string | null
   }[]
+  assignments: {
+    id: string
+    referral_id: string
+    commission_id: string
+    assignee_user_id: string
+    assignee_name: string | null
+    assignment_role: string
+    status: string
+    due_at: string | null
+    assigned_by: string | null
+    assigned_by_name: string | null
+    assigned_at: string
+    completed_at: string | null
+    cancelled_at: string | null
+  }[]
+  links: {
+    id: string
+    referral_id: string
+    case_id: string
+    case_number: number | null
+    commission_id: string
+    relationship_type: string
+    created_by: string | null
+    created_by_name: string | null
+    created_at: string
+  }[]
   reply: {
     referral_id: string
     reply_outcome_id: string | null
@@ -549,6 +591,34 @@ export async function getReferralDetail(
     reopenedReason: rr.reopened_reason,
   }))
 
+  const assignments: ReferralAssignment[] = (d.assignments ?? []).map((a) => ({
+    id: a.id,
+    referralId: a.referral_id,
+    commissionId: a.commission_id,
+    assigneeUserId: a.assignee_user_id,
+    assigneeName: a.assignee_name,
+    assignmentRole: a.assignment_role as ReferralAssignmentRole,
+    status: a.status as ReferralAssignmentStatus,
+    dueAt: a.due_at,
+    assignedById: a.assigned_by,
+    assignedByName: a.assigned_by_name,
+    assignedAt: a.assigned_at,
+    completedAt: a.completed_at,
+    cancelledAt: a.cancelled_at,
+  }))
+
+  const links: ReferralCaseLink[] = (d.links ?? []).map((l) => ({
+    id: l.id,
+    referralId: l.referral_id,
+    caseId: l.case_id,
+    caseNumber: l.case_number,
+    commissionId: l.commission_id,
+    relationshipType: l.relationship_type as ReferralCaseRelationship,
+    createdById: l.created_by,
+    createdByName: l.created_by_name,
+    createdAt: l.created_at,
+  }))
+
   return {
     id: d.id,
     code: d.code,
@@ -585,6 +655,8 @@ export async function getReferralDetail(
     sharedItems,
     messages,
     resolutions,
+    assignments,
+    links,
     reply,
     sentAt: d.sent_at,
     receivedAt: d.received_at,
@@ -594,6 +666,60 @@ export async function getReferralDetail(
     createdAt: d.created_at,
     updatedAt: d.updated_at,
   }
+}
+
+// ---------------------------------------------------------------------------
+// Responsibility (RV2 R4) — the caller's own assignments (task pointers, PHI-free)
+// ---------------------------------------------------------------------------
+
+interface MyReferralAssignmentJson {
+  id: string
+  referral_id: string
+  commission_id: string
+  assignment_role: string
+  status: string
+  due_at: string | null
+  assigned_by: string | null
+  assigned_at: string
+  completed_at: string | null
+  cancelled_at: string | null
+  referral_code: string
+  referral_subject: string
+  referral_status: string
+  referral_priority: string
+  referral_response_due_at: string | null
+}
+
+/**
+ * The CALLER's own referral assignments (RV2 R4) — the "Minhas atribuições de
+ * encaminhamento" list. Routes through the `list_my_referral_assignments` DEFINER
+ * RPC, which filters on `auth.uid()` and joins ONLY PHI-free referral pointer
+ * metadata (code, subject, status, priority, due). Task pointers only — never PHI.
+ * `[]` on any error (fail-safe).
+ */
+export async function listMyReferralAssignments(): Promise<MyReferralAssignment[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('list_my_referral_assignments')
+  if (error || !data) return []
+
+  const rows = data as unknown as MyReferralAssignmentJson[]
+  return rows.map((r) => ({
+    id: r.id,
+    referralId: r.referral_id,
+    commissionId: r.commission_id,
+    assignmentRole: r.assignment_role as ReferralAssignmentRole,
+    status: r.status as ReferralAssignmentStatus,
+    dueAt: r.due_at,
+    assignedById: r.assigned_by,
+    assignedAt: r.assigned_at,
+    completedAt: r.completed_at,
+    cancelledAt: r.cancelled_at,
+    referralCode: r.referral_code,
+    referralSubject: r.referral_subject,
+    referralStatus: r.referral_status as ReferralStatus,
+    referralPriority: r.referral_priority as ReferralPriority,
+    referralResponseDueAt: r.referral_response_due_at,
+  }))
 }
 
 interface ReferralPatientJson {

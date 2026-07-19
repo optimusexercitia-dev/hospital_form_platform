@@ -13,12 +13,14 @@ import type { PhiDisposeReason } from '@/lib/cases/types'
 import type {
   AddReplyAttachmentInput,
   AddSharedItemInput,
+  AssignReferralReviewerInput,
   ConcludeReferralInput,
   CreateReferralInput,
   CreateReferralState,
   CreateRequestedActionInput,
   DeclineReferralInput,
   LinkReferralCaseInput,
+  LinkReferralRelatedCaseInput,
   PostReferralMessageInput,
   ProvideReferralInfoInput,
   ReferralActionState,
@@ -28,6 +30,7 @@ import type {
   ResolveReferralInput,
   SetReferralDeadlineInput,
   SetReferralPatientInput,
+  UpdateReferralAssignmentInput,
   UpdateReferralInput,
   UpdateRequestedActionInput,
 } from '@/lib/referrals/types'
@@ -506,6 +509,140 @@ export async function reopenReferral(
 
   revalidateReferrals()
   return { ok: true, message: REFERRAL_MESSAGES.referralReopened }
+}
+
+// ---------------------------------------------------------------------------
+// Responsibility & multi-linkage (RV2 R4) — assignments + typed case-links
+// ---------------------------------------------------------------------------
+
+/**
+ * Assign a reviewer to a referral on one side (RV2 R4). The actor must coordinate
+ * `commissionId`'s side (source or target) — the RPC raises 42501 for any other
+ * actor, checked BEFORE any domain validation; an invalid commission/role or a
+ * non-member assignee raises HC0A7. ASSIGNMENT ≠ ACCESS: this grants the assignee
+ * NO read of the referral.
+ */
+export async function assignReferralReviewer(
+  input: AssignReferralReviewerInput,
+): Promise<ReferralActionState> {
+  if (!input.referralId) return { ok: false, error: REFERRAL_MESSAGES.missingReferral }
+  if (!input.commissionId) return { ok: false, error: REFERRAL_MESSAGES.missingCommission }
+  if (!input.assigneeUserId) {
+    return { ok: false, fieldErrors: { assigneeUserId: REFERRAL_MESSAGES.assigneeRequired } }
+  }
+  if (!input.assignmentRole) {
+    return { ok: false, fieldErrors: { assignmentRole: REFERRAL_MESSAGES.assignmentRoleRequired } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('assign_referral_reviewer', {
+    p_referral_id: input.referralId,
+    p_commission_id: input.commissionId,
+    p_assignee_user_id: input.assigneeUserId,
+    p_assignment_role: input.assignmentRole,
+    p_due_at: input.dueAt ?? undefined,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.assignmentCreated }
+}
+
+/**
+ * Edit an assignment's status / due / role (RV2 R4). Coordinator of the
+ * assignment's commission side only (42501 otherwise, checked FIRST); an invalid
+ * status/role raises HC0A7. All mutable fields are optional — omit to leave a field
+ * unchanged.
+ */
+export async function updateReferralAssignment(
+  input: UpdateReferralAssignmentInput,
+): Promise<ReferralActionState> {
+  if (!input.assignmentId) {
+    return { ok: false, error: REFERRAL_MESSAGES.missingAssignment }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('update_referral_assignment', {
+    p_assignment_id: input.assignmentId,
+    p_status: input.status ?? undefined,
+    p_due_at: input.dueAt ?? undefined,
+    p_assignment_role: input.assignmentRole ?? undefined,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.assignmentUpdated }
+}
+
+/**
+ * Cancel an assignment (RV2 R4; status → cancelled). Coordinator of the
+ * assignment's commission side only (42501 otherwise).
+ */
+export async function cancelReferralAssignment(
+  assignmentId: string,
+): Promise<ReferralActionState> {
+  if (!assignmentId) return { ok: false, error: REFERRAL_MESSAGES.missingAssignment }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('cancel_referral_assignment', {
+    p_assignment_id: assignmentId,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.assignmentCancelled }
+}
+
+/**
+ * Record a TYPED related-case pointer on a referral (RV2 R4). The actor must
+ * coordinate EITHER side (42501 otherwise); an invalid relationship, a missing
+ * case, or a duplicate (referral, case, relationship) triple raises HC0A8. The
+ * link is a POINTER only — it grants NO access to the linked case.
+ */
+export async function linkReferralRelatedCase(
+  input: LinkReferralRelatedCaseInput,
+): Promise<ReferralActionState> {
+  if (!input.referralId) return { ok: false, error: REFERRAL_MESSAGES.missingReferral }
+  if (!input.caseId) {
+    return { ok: false, fieldErrors: { caseId: REFERRAL_MESSAGES.relatedCaseRequired } }
+  }
+  if (!input.relationshipType) {
+    return {
+      ok: false,
+      fieldErrors: { relationshipType: REFERRAL_MESSAGES.relationshipTypeRequired },
+    }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('link_referral_related_case', {
+    p_referral_id: input.referralId,
+    p_case_id: input.caseId,
+    p_relationship_type: input.relationshipType,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.relatedCaseLinked }
+}
+
+/**
+ * Remove a typed related-case pointer (RV2 R4). Coordinator of the link's
+ * commission side only (42501 otherwise). Distinct from {@link linkReferralCase}
+ * (the PRIMARY target link) — this only removes an ADDITIONAL typed pointer.
+ */
+export async function unlinkReferralCase(
+  linkId: string,
+): Promise<ReferralActionState> {
+  if (!linkId) return { ok: false, error: REFERRAL_MESSAGES.missingSharedItem }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('unlink_referral_case', {
+    p_link_id: linkId,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.relatedCaseUnlinked }
 }
 
 // ---------------------------------------------------------------------------
