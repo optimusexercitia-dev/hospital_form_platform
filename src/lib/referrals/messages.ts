@@ -56,6 +56,15 @@ export const HC_REQUESTED_ACTION_CRUD = 'HC0A3'
 /** A response deadline (`response_due_at`) was set in the past. */
 export const HC_DEADLINE_IN_PAST = 'HC0A4'
 
+// RV2 R3 (resolution cycles / lineage): HC0A5 wrong-state, HC0A6 invalid parent.
+/** resolve/reopen called in the wrong status (resolve needs `answered`; reopen
+ * needs `resolved`). DISTINCT from the 42501 authority failure, which is raised
+ * FIRST — so a wrong-actor denial is 42501, never HC0A5 (ADR 0078 non-vacuity). */
+export const HC_RESOLUTION_WRONG_STATE = 'HC0A5'
+/** create_referral_draft parent lineage invalid: the parent does not exist, is in a
+ * different organization, or is not readable by the creator. */
+export const HC_PARENT_LINEAGE_INVALID = 'HC0A6'
+
 /** Generic Postgres SQLSTATEs the referral RPCs/policies may surface. */
 export const PG_CHECK_VIOLATION = '23514'
 export const PG_FORBIDDEN = '42501'
@@ -92,6 +101,7 @@ export const REFERRAL_MESSAGES = {
   requestBodyRequired: 'Descreva a informação solicitada.',
   responseBodyRequired: 'Informe a resposta à solicitação.',
   vocabKeyLabelRequired: 'Informe a chave e o rótulo da ação solicitada.',
+  reopenReasonRequired: 'Informe o motivo da reabertura.',
 
   // Lifecycle / domain (mapped from HC070–HC079)
   referralWrongState:
@@ -124,6 +134,11 @@ export const REFERRAL_MESSAGES = {
   requestedActionCrud:
     'Não foi possível alterar o vocabulário de ações solicitadas.',
   deadlineInPast: 'O prazo de resposta não pode estar no passado.',
+  // RV2 R3 resolution cycles / lineage (HC0A5–HC0A6)
+  resolutionWrongState:
+    'O encaminhamento não está no estado necessário para esta ação de resolução.',
+  parentLineageInvalid:
+    'O encaminhamento vinculado é inválido ou você não tem acesso a ele.',
 
   // Success
   referralDrafted: 'Rascunho de encaminhamento criado.',
@@ -155,6 +170,9 @@ export const REFERRAL_MESSAGES = {
   // RV2 R2 triage / SLA
   deadlineSet: 'Prazo de resposta atualizado.',
   vocabSaved: 'Vocabulário de ações solicitadas atualizado.',
+  // RV2 R3 resolution cycles
+  referralResolved: 'Encaminhamento resolvido.',
+  referralReopened: 'Encaminhamento reaberto.',
 } as const
 
 /**
@@ -202,6 +220,10 @@ export function mapReferralError(
       return error.message || REFERRAL_MESSAGES.requestedActionCrud
     case HC_DEADLINE_IN_PAST:
       return error.message || REFERRAL_MESSAGES.deadlineInPast
+    case HC_RESOLUTION_WRONG_STATE:
+      return error.message || REFERRAL_MESSAGES.resolutionWrongState
+    case HC_PARENT_LINEAGE_INVALID:
+      return error.message || REFERRAL_MESSAGES.parentLineageInvalid
     case PG_FORBIDDEN:
       return REFERRAL_MESSAGES.forbidden
     case PG_NO_DATA_FOUND:

@@ -23,7 +23,9 @@ import type {
   ProvideReferralInfoInput,
   ReferralActionState,
   ReferralPatient,
+  ReopenReferralInput,
   RequestReferralInfoInput,
+  ResolveReferralInput,
   SetReferralDeadlineInput,
   SetReferralPatientInput,
   UpdateReferralInput,
@@ -95,6 +97,8 @@ export async function createReferralDraft(
     p_priority: input.priority ?? undefined,
     p_requested_action_id: input.requestedActionId ?? undefined,
     p_response_due_at: input.responseDueAt ?? undefined,
+    // RV2 R3: optional parent-referral lineage (HC0A6 if invalid/unauthorized).
+    p_parent_referral_id: input.parentReferralId ?? undefined,
   })
   if (error || !data) {
     // Log the RAW Postgres error server-side (code never reaches the UI — §8). A
@@ -446,6 +450,62 @@ export async function concludeReferral(
 
   revalidateReferrals()
   return { ok: true, message: REFERRAL_MESSAGES.referralConcluded }
+}
+
+// ---------------------------------------------------------------------------
+// Resolution cycles (RV2 R3) — source-side resolve / reopen
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a referral: the SOURCE coordinator formally confirms closure
+ * (`answered → resolved`), appending a resolution row + clearing `waiting_on`
+ * (RV2 R3). Source-coordinator only — the RPC raises 42501 for any other actor,
+ * checked BEFORE the state; a referral not in `answered` raises HC0A5.
+ */
+export async function resolveReferral(
+  input: ResolveReferralInput,
+): Promise<ReferralActionState> {
+  if (!input.referralId) {
+    return { ok: false, error: REFERRAL_MESSAGES.missingReferral }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('resolve_referral', {
+    p_referral_id: input.referralId,
+    p_summary_md: input.summaryMd ?? undefined,
+    p_follow_up: input.followUpRequired ?? undefined,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.referralResolved }
+}
+
+/**
+ * Reopen a resolved referral (`resolved → in_review`), marking the active
+ * resolution reopened; the next resolve appends a new resolution number
+ * (append-only). Source-coordinator only (42501 otherwise, checked before the
+ * state); requires `resolved` (HC0A5 otherwise). The reason is required.
+ */
+export async function reopenReferral(
+  input: ReopenReferralInput,
+): Promise<ReferralActionState> {
+  if (!input.referralId) {
+    return { ok: false, error: REFERRAL_MESSAGES.missingReferral }
+  }
+  if (!input.reason?.trim()) {
+    return { ok: false, fieldErrors: { reason: REFERRAL_MESSAGES.reopenReasonRequired } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('reopen_referral', {
+    p_referral_id: input.referralId,
+    p_reason: input.reason.trim(),
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.referralReopened }
 }
 
 // ---------------------------------------------------------------------------

@@ -21,7 +21,7 @@
 -- SECURITY DEFINER RPC, so a DB-side test can observe them).
 
 begin;
-select plan(111);
+select plan(139);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -805,6 +805,231 @@ select lives_ok(
 reset role;
 select ok((select response_due_at from public.case_referral where id = (select id from r3)) is not null,
   'R2: set_referral_deadline persists response_due_at');
+
+-- =========================================================================
+-- RV2 R3 — Resolution cycles, reopening & parent lineage (ADR 0037 D4/D5/D15).
+--   * conclude (reply-expected) → answered (not completed); waiting_on = source.
+--   * close_case: answered BLOCKS (K1), resolved RELEASES (K2).
+--   * resolve authority is checked FIRST → 42501, never HC0A5 (K3 non-vacuity).
+--   * summary_md is PHI (column-REVOKED); non-PHI history visible (K4).
+--   * one active resolution + append-only across reopen (K5).
+--   * a child referral shares NOTHING from its parent (D15, K6).
+-- =========================================================================
+-- A fresh BARE source case in A (no phases/outcomes → close_case can succeed) +
+-- a reply-expecting referral driven to `answered`.
+create temp table cs3 on commit drop as select gen_random_uuid() as src3;
+grant select on cs3 to authenticated;
+insert into public.cases (id, commission_id, case_number, label, created_by)
+values ((select src3 from cs3), (select comm_x from k), 9301, 'Caso A3', (select sa_x from k));
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table r6 on commit drop as
+  select * from public.create_referral_draft(
+    (select src3 from cs3), (select comm_y from k),
+    (select type_parecer from voc), 'Resolução R3', true,
+    'Descrição para viabilizar o envio.');
+select public.send_referral((select id from r6));
+reset role;
+grant select on r6 to authenticated;
+
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select public.receive_referral((select id from r6));
+select public.accept_referral((select id from r6));
+select public.start_referral_review((select id from r6));
+-- conclude (reply-expected) → answered (NOT completed); waiting_on = source (A owes).
+select public.conclude_referral((select id from r6), (select outcome_procede from voc), 'Parecer emitido');
+reset role;
+
+select is((select status from public.case_referral where id = (select id from r6)),
+  'answered', 'R3: conclude (reply-expected) lands answered (not completed)');
+select is((select waiting_on_committee_id from public.case_referral where id = (select id from r6)),
+  (select comm_x from k), 'R3: answered sets waiting_on = source commission (A owes the resolution)');
+
+-- ---- K1: answered BLOCKS close_case (HC076) ----
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.close_case((select src3 from cs3)) $$,
+  'HC076', null,
+  'R3·K1: an answered reply-expecting referral BLOCKS close_case (HC076)');
+reset role;
+
+-- ---- K3: resolve authority is NON-VACUOUS (referral IS state-valid = answered) ----
+-- A target coordinator resolving an answered referral is denied 42501 (AUTHORITY,
+-- checked FIRST), NOT HC0A5 (which would be the state error).
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.resolve_referral((select id from r6)) $$,
+  '42501', null,
+  'R3·K3: a TARGET coordinator resolving an ANSWERED referral is denied 42501 (authority, not state)');
+reset role;
+-- A plain SOURCE staff member (not the coordinator) is likewise denied 42501.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.resolve_referral((select id from r6)) $$,
+  '42501', null,
+  'R3·K3: a plain SOURCE staff resolving an ANSWERED referral is denied 42501 (authority)');
+reset role;
+
+-- ---- K2: resolve → resolved RELEASES the close-gate ----
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select public.resolve_referral((select id from r6), 'Resumo da resolução SENSIVEL', false);
+reset role;
+select is((select status from public.case_referral where id = (select id from r6)),
+  'resolved', 'R3·K2: resolve_referral moves answered → resolved');
+select ok((select waiting_on_committee_id from public.case_referral where id = (select id from r6)) is null,
+  'R3·K2: resolve clears waiting_on');
+select is((select count(*)::int from public.referral_resolutions where referral_id = (select id from r6)),
+  1, 'R3·K2: resolve appends exactly one resolution row');
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $$ select public.close_case((select src3 from cs3)) $$,
+  'R3·K2: with the referral resolved, close_case succeeds (resolved releases the gate)');
+reset role;
+
+-- ---- K4: summary_md is PHI (column-REVOKED); non-PHI history is visible ----
+-- A metadata-tier reader (plain source staff) sees the row's non-PHI columns but a
+-- direct SELECT of summary_md is DENIED (42501); the door nulls it. A PHI reader
+-- (source coordinator) gets summary_md via the audited door.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is((select resolution_number from public.referral_resolutions
+           where referral_id = (select id from r6) order by resolution_number limit 1),
+  1, 'R3·K4: a metadata-tier reader sees the resolution row non-PHI cols (resolution_number)');
+select throws_ok(
+  $$ select summary_md from public.referral_resolutions where referral_id = (select id from r6) $$,
+  '42501', null,
+  'R3·K4: a metadata-tier reader''s direct SELECT of summary_md is DENIED (PHI column-REVOKED)');
+create temp table md_r6 on commit drop as
+  select public.get_referral_detail((select id from r6)) as j;
+reset role;
+grant select on md_r6 to authenticated;
+select ok((select (md_r6.j->'resolutions'->0->>'summary_md') from md_r6) is null,
+  'R3·K4: the audited door serves summary_md = NULL to a metadata-tier reader');
+select is((select (md_r6.j->'resolutions'->0->>'resolution_number') from md_r6), '1',
+  'R3·K4: the door still serves the non-PHI resolution history to a metadata-tier reader');
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table phi_r6 on commit drop as
+  select public.get_referral_detail((select id from r6)) as j;
+reset role;
+grant select on phi_r6 to authenticated;
+select is((select (phi_r6.j->'resolutions'->0->>'summary_md') from phi_r6),
+  'Resumo da resolução SENSIVEL', 'R3·K4: a PHI reader gets summary_md via the audited door');
+
+-- ---- K5: one active resolution + append-only across reopen ----
+-- The partial-unique index rejects a 2nd ACTIVE (reopened_at IS NULL) resolution.
+-- (Run as the test owner — bypasses RLS/grants — to exercise the INDEX directly.)
+select throws_ok(
+  format($$ insert into public.referral_resolutions
+    (referral_id, resolution_number, resolved_by_commission_id, resolved_by_user_id, resolved_at)
+    values (%L, 99, %L, %L, now()) $$,
+    (select id from r6), (select comm_x from k), (select sa_x from k)),
+  '23505', null,
+  'R3·K5: a 2nd ACTIVE resolution (reopened_at IS NULL) violates the partial-unique index (23505)');
+-- Through the RPC, a 2nd resolve without reopen is blocked by the state guard first (HC0A5).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.resolve_referral((select id from r6)) $$,
+  'HC0A5', null,
+  'R3·K5: a 2nd resolve without reopen is blocked (HC0A5 — status resolved, not answered)');
+-- Reopen (source coordinator) → in_review; the prior resolution row is preserved.
+select public.reopen_referral((select id from r6), 'Reabertura para nova análise');
+reset role;
+select is((select status from public.case_referral where id = (select id from r6)),
+  'in_review', 'R3·K5: reopen moves resolved → in_review');
+select is((select waiting_on_committee_id from public.case_referral where id = (select id from r6)),
+  (select comm_y from k), 'R3·K5: reopen sets waiting_on = target');
+select ok((select reopened_at from public.referral_resolutions
+           where referral_id = (select id from r6) and resolution_number = 1) is not null,
+  'R3·K5: reopen marks the prior resolution row reopened (append-only; row preserved)');
+-- Re-conclude → answered, then resolve → resolution_number 2 (append-only).
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select public.conclude_referral((select id from r6), (select outcome_procede from voc), 'Novo parecer');
+reset role;
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select public.resolve_referral((select id from r6), 'Segunda resolução', false);
+reset role;
+select is((select max(resolution_number)::int from public.referral_resolutions where referral_id = (select id from r6)),
+  2, 'R3·K5: after reopen, the next resolve appends resolution_number 2');
+select is((select count(*)::int from public.referral_resolutions where referral_id = (select id from r6)),
+  2, 'R3·K5: append-only — both resolution rows are preserved');
+
+-- ---- K6: parent lineage shares NOTHING automatically (ADR 0037 D15) ----
+-- r3 (from the R1 block) has exactly one frozen shared item — the parent.
+select is((select count(*)::int from public.referral_shared_item where referral_id = (select id from r3)),
+  1, 'R3·K6 (non-vacuity): the PARENT r3 has exactly one shared item');
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table r7 on commit drop as
+  select * from public.create_referral_draft(
+    (select src2 from cs2), (select comm_y from k),
+    (select type_parecer from voc), 'Filho (lineage)', true,
+    null, 'routine', null, null,
+    (select id from r3));  -- p_parent_referral_id
+reset role;
+grant select on r7 to authenticated;
+select is((select parent_referral_id from r7), (select id from r3),
+  'R3·K6: the child stores parent_referral_id');
+select is((select count(*)::int from public.referral_shared_item where referral_id = (select id from r7)),
+  0, 'R3·K6 (D15): the child has ZERO shared items — nothing copied from the parent');
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table cd_r7 on commit drop as
+  select public.get_referral_detail((select id from r7)) as j;
+reset role;
+grant select on cd_r7 to authenticated;
+select is((select jsonb_array_length(cd_r7.j->'shared_items') from cd_r7), 0,
+  'R3·K6 (D15): the child detail door exposes NO shared items from the parent');
+select is((select cd_r7.j->>'parent_referral_id' from cd_r7), (select id from r3)::text,
+  'R3·K6: the child detail door exposes parent_referral_id');
+
+-- ---- HC0A6: an invalid parent_referral_id is rejected ----
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  $$ select public.create_referral_draft(
+       (select src2 from cs2), (select comm_y from k),
+       (select type_parecer from voc), 'Filho inválido', true,
+       null, 'routine', null, null, gen_random_uuid()) $$,
+  'HC0A6', null,
+  'R3: create_referral_draft rejects a non-existent parent_referral_id (HC0A6)');
+reset role;
+
+-- ---- No-reply acknowledgment still concludes straight to completed (terminal) ----
+create temp table cs4 on commit drop as select gen_random_uuid() as src4;
+grant select on cs4 to authenticated;
+insert into public.cases (id, commission_id, case_number, label, created_by)
+values ((select src4 from cs4), (select comm_x from k), 9302, 'Caso A4', (select sa_x from k));
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table r8 on commit drop as
+  select * from public.create_referral_draft(
+    (select src4 from cs4), (select comm_y from k),
+    (select type_ciencia from voc), 'Ciência R3', false,
+    'Descrição para viabilizar o envio.');
+select public.send_referral((select id from r8));
+reset role;
+grant select on r8 to authenticated;
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select public.receive_referral((select id from r8));
+select public.accept_referral((select id from r8));
+select public.start_referral_review((select id from r8));
+select public.conclude_referral((select id from r8), null, null, true);
+reset role;
+select is((select status from public.case_referral where id = (select id from r8)),
+  'completed', 'R3: a no-reply acknowledgment concludes straight to completed (terminal)');
 
 select * from finish();
 rollback;

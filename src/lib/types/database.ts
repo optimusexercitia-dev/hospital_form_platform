@@ -2758,6 +2758,7 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -2799,6 +2800,7 @@ export type Database = {
           has_patient?: boolean
           id?: string
           last_message_at?: string | null
+          parent_referral_id?: string | null
           phi_disposed_at?: string | null
           phi_disposed_by?: string | null
           phi_disposed_reason?: string | null
@@ -2840,6 +2842,7 @@ export type Database = {
           has_patient?: boolean
           id?: string
           last_message_at?: string | null
+          parent_referral_id?: string | null
           phi_disposed_at?: string | null
           phi_disposed_by?: string | null
           phi_disposed_reason?: string | null
@@ -2873,6 +2876,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_referral_parent_referral_id_fkey"
+            columns: ["parent_referral_id"]
+            isOneToOne: false
+            referencedRelation: "case_referral"
             referencedColumns: ["id"]
           },
           {
@@ -7668,6 +7678,90 @@ export type Database = {
         }
         Relationships: []
       }
+      referral_resolutions: {
+        Row: {
+          created_at: string
+          final_reply_id: string | null
+          follow_up_required: boolean
+          id: string
+          referral_id: string
+          reopened_at: string | null
+          reopened_by: string | null
+          reopened_reason: string | null
+          resolution_number: number
+          resolved_at: string
+          resolved_by_commission_id: string
+          resolved_by_user_id: string | null
+          summary_md: string | null
+        }
+        Insert: {
+          created_at?: string
+          final_reply_id?: string | null
+          follow_up_required?: boolean
+          id?: string
+          referral_id: string
+          reopened_at?: string | null
+          reopened_by?: string | null
+          reopened_reason?: string | null
+          resolution_number: number
+          resolved_at?: string
+          resolved_by_commission_id: string
+          resolved_by_user_id?: string | null
+          summary_md?: string | null
+        }
+        Update: {
+          created_at?: string
+          final_reply_id?: string | null
+          follow_up_required?: boolean
+          id?: string
+          referral_id?: string
+          reopened_at?: string | null
+          reopened_by?: string | null
+          reopened_reason?: string | null
+          resolution_number?: number
+          resolved_at?: string
+          resolved_by_commission_id?: string
+          resolved_by_user_id?: string | null
+          summary_md?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_resolutions_final_reply_id_fkey"
+            columns: ["final_reply_id"]
+            isOneToOne: false
+            referencedRelation: "referral_reply"
+            referencedColumns: ["referral_id"]
+          },
+          {
+            foreignKeyName: "referral_resolutions_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "case_referral"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_resolutions_reopened_by_fkey"
+            columns: ["reopened_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_resolutions_resolved_by_commission_id_fkey"
+            columns: ["resolved_by_commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_resolutions_resolved_by_user_id_fkey"
+            columns: ["resolved_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       referral_shared_item: {
         Row: {
           created_at: string
@@ -8024,6 +8118,7 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -9566,6 +9661,7 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -10274,6 +10370,7 @@ export type Database = {
       create_referral_draft: {
         Args: {
           p_description_md?: string
+          p_parent_referral_id?: string
           p_priority?: string
           p_referral_type_id: string
           p_requested_action_id?: string
@@ -10297,6 +10394,7 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -10483,6 +10581,7 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -10876,6 +10975,7 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -11299,6 +11399,7 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -11472,6 +11573,7 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -11908,6 +12010,57 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reopen_referral: {
+        Args: { p_reason: string; p_referral_id: string }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          decline_reason_code: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          last_message_at: string | null
+          parent_referral_id: string | null
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
+          priority: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          source_commission_name: string | null
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          target_commission_name: string | null
+          type_label: string
+          updated_at: string
+          waiting_on_committee_id: string | null
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reopen_triage: {
         Args: { p_event_id: string }
         Returns: {
@@ -12000,6 +12153,62 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
+          priority: string
+          received_at: string | null
+          received_by: string | null
+          referral_type_id: string | null
+          requested_action_id: string | null
+          requested_action_label: string | null
+          response_due_at: string | null
+          response_expected: boolean
+          sent_at: string | null
+          sent_by: string | null
+          source_case_id: string
+          source_commission_id: string
+          source_commission_name: string | null
+          status: string
+          subject: string
+          target_case_id: string | null
+          target_commission_id: string
+          target_commission_name: string | null
+          type_label: string
+          updated_at: string
+          waiting_on_committee_id: string | null
+          withdrawn_at: string | null
+          withdrawn_by: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "case_referral"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      resolve_referral: {
+        Args: {
+          p_follow_up?: boolean
+          p_referral_id: string
+          p_summary_md?: string
+        }
+        Returns: {
+          code: string
+          concluded_at: string | null
+          concluded_by: string | null
+          created_at: string
+          created_by: string | null
+          decided_at: string | null
+          decided_by: string | null
+          decline_note: string | null
+          decline_reason_code: string | null
+          description_md: string | null
+          has_patient: boolean
+          id: string
+          last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -12239,6 +12448,7 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -12667,6 +12877,7 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -12888,6 +13099,7 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -14056,6 +14268,7 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null
@@ -14297,6 +14510,7 @@ export type Database = {
           has_patient: boolean
           id: string
           last_message_at: string | null
+          parent_referral_id: string | null
           phi_disposed_at: string | null
           phi_disposed_by: string | null
           phi_disposed_reason: string | null

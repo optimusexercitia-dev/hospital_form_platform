@@ -60,6 +60,7 @@ import type {
   ReferralPriority,
   ReferralReply,
   ReferralRequestedAction,
+  ReferralResolution,
   ReferralStatus,
   ReferralType,
   ReplyOutcome,
@@ -84,6 +85,7 @@ export type {
   SharedItem,
   ReferralReply,
   ReferralReplyAttachment,
+  ReferralResolution,
   ReferralPatient,
   ReferralDashboardFilters,
   ReferralFlowMetrics,
@@ -369,6 +371,7 @@ interface ReferralDetailJson {
   requested_action_label: string | null
   response_due_at: string | null
   decline_reason_code: string | null
+  parent_referral_id: string | null
   source_commission_id: string
   source_commission_name: string | null
   target_commission_id: string
@@ -409,6 +412,21 @@ interface ReferralDetailJson {
     frozen_mime_type: string | null
     frozen_size_bytes: number | null
     position: number
+  }[]
+  resolutions: {
+    id: string
+    referral_id: string
+    resolution_number: number
+    resolved_by_commission_id: string
+    resolved_by_user_id: string | null
+    resolved_by_name: string | null
+    summary_md: string | null
+    follow_up_required: boolean
+    final_reply_id: string | null
+    resolved_at: string
+    reopened_at: string | null
+    reopened_by: string | null
+    reopened_reason: string | null
   }[]
   reply: {
     referral_id: string
@@ -515,6 +533,22 @@ export async function getReferralDetail(
     createdAt: m.created_at,
   }))
 
+  const resolutions: ReferralResolution[] = (d.resolutions ?? []).map((rr) => ({
+    id: rr.id,
+    referralId: rr.referral_id,
+    resolutionNumber: rr.resolution_number,
+    resolvedByCommissionId: rr.resolved_by_commission_id,
+    resolvedByUserId: rr.resolved_by_user_id,
+    resolvedByName: rr.resolved_by_name,
+    summaryMd: rr.summary_md,
+    followUpRequired: rr.follow_up_required,
+    finalReplyId: rr.final_reply_id,
+    resolvedAt: rr.resolved_at,
+    reopenedAt: rr.reopened_at,
+    reopenedById: rr.reopened_by,
+    reopenedReason: rr.reopened_reason,
+  }))
+
   return {
     id: d.id,
     code: d.code,
@@ -532,6 +566,7 @@ export async function getReferralDetail(
     responseDueAt: d.response_due_at,
     overdue: isReferralOverdue(d.response_due_at, d.status as ReferralStatus),
     declineReasonCode: d.decline_reason_code as ReferralDeclineReasonCode | null,
+    parentReferralId: d.parent_referral_id,
     sourceCommissionId: d.source_commission_id,
     sourceCommissionName: d.source_commission_name,
     targetCommissionId: d.target_commission_id,
@@ -549,6 +584,7 @@ export async function getReferralDetail(
     canComposeAsTarget: d.can_compose_as_target,
     sharedItems,
     messages,
+    resolutions,
     reply,
     sentAt: d.sent_at,
     receivedAt: d.received_at,

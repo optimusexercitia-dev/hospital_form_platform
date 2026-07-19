@@ -19,6 +19,10 @@
  * `referral_shared_item.kind`. All user-facing strings are pt-BR, resolved via
  * the label maps below (Rule 10).
  *
+ * RV2 R3 adds the `answered → resolved` resolution split + `parent_referral_id`
+ * lineage (ADR 0037 D4/D5/D15); the PHI-bearing resolution narrative
+ * ({@link ReferralResolution.summaryMd}) arrives only via the audited detail door.
+ *
  * **PHI posture (Rule 12 / ADR 0037).** The list/hub/dashboard shapes
  * ({@link ReferralListItem}) are PHI-FREE by construction. Patient identifiers
  * live ONLY on {@link ReferralPatient}, loaded through the audited
@@ -33,11 +37,15 @@
 
 /**
  * The referral lifecycle (Decision 4). A drives `draft → sent` and the
- * `→ withdrawn` withdrawal; B drives `received → accepted/rejected → in_review →
- * completed` (conclusion delivers the reply). The pt-BR slugs are the stored
- * `case_referral.status` values; DB-enforced by `app.guard_referral_status`
- * (HC070 wrong-state). The RESOLVED set (a referral no longer "in flight" for
- * the close-case gate) is `completed / rejected / withdrawn`.
+ * `→ withdrawn` withdrawal; B drives `received → accepted/rejected → in_review`.
+ * RV2 R3 (ADR 0037 D4/D5) splits the conclusion: a reply-expecting referral
+ * concludes to `answered` (B delivered the formal response; A owes the next move),
+ * then the SOURCE committee `resolve`s it to `resolved`; a no-reply acknowledgment
+ * still concludes straight to `completed`. A `resolved` referral may be reopened
+ * (`→ in_review`). The pt-BR slugs are the stored `case_referral.status` values;
+ * DB-enforced by `app.guard_referral_status` (HC070 wrong-state). The RESOLVED set
+ * (a referral no longer "in flight" for the close-case gate) is
+ * `completed / resolved / rejected / withdrawn` — `answered` still BLOCKS.
  */
 export type ReferralStatus =
   | 'draft'
@@ -47,6 +55,8 @@ export type ReferralStatus =
   | 'rejected'
   | 'in_review'
   | 'awaiting_information'
+  | 'answered'
+  | 'resolved'
   | 'completed'
   | 'withdrawn'
 
@@ -112,6 +122,8 @@ export const REFERRAL_STATUS_LABELS: Record<ReferralStatus, string> = {
   rejected: 'Recusada',
   in_review: 'Em análise',
   awaiting_information: 'Aguardando informação',
+  answered: 'Respondida',
+  resolved: 'Resolvida',
   completed: 'Concluída',
   withdrawn: 'Retirada',
 }
@@ -130,6 +142,8 @@ export const REFERRAL_STATUS_TOKENS: Record<ReferralStatus, string> = {
   rejected: 'destructive',
   in_review: 'warning',
   awaiting_information: 'warning',
+  answered: 'info',
+  resolved: 'success',
   completed: 'success',
   withdrawn: 'muted',
 }
@@ -191,21 +205,24 @@ export const REFERRAL_DECLINE_REASON_LABELS: Record<
   other: 'Outro motivo',
 }
 
-/** The set of statuses that do NOT block source-case conclusion (Decision 5).
- * Mirrors the `close_case` HC076 gate's resolved set; exported so the UI can
- * label which in-flight referrals are blocking. */
+/** The set of statuses that do NOT block source-case conclusion (Decision 5; RV2
+ * R3 adds `resolved`). Mirrors the `close_case` HC076 gate's release set — the
+ * block set is every OTHER reply-expected status, INCLUDING `answered` (A must
+ * resolve first). Exported so the UI can label which in-flight referrals block. */
 export const RESOLVED_REFERRAL_STATUSES: ReadonlySet<ReferralStatus> = new Set<
   ReferralStatus
->(['completed', 'rejected', 'withdrawn'])
+>(['completed', 'resolved', 'rejected', 'withdrawn'])
 
 /**
- * The statuses for which an SLA deadline can NEVER be overdue (RV2 R2): a
- * pre-flight `draft` (no deadline in play yet) OR any terminal state. The MIRROR
- * of the SQL `app.referral_is_overdue` exclusion set — keep the two in agreement.
+ * The statuses for which an SLA deadline can NEVER be overdue (RV2 R2; RV2 R3
+ * adds the terminal `resolved`): a pre-flight `draft` (no deadline in play yet) OR
+ * any terminal state. `answered` is NOT excluded — A still owes the resolution, so
+ * a late confirmation is meaningfully overdue. The MIRROR of the SQL
+ * `app.referral_is_overdue` exclusion set — keep the two in agreement.
  */
 const OVERDUE_EXCLUDED_STATUSES: ReadonlySet<ReferralStatus> = new Set<
   ReferralStatus
->(['draft', 'completed', 'rejected', 'withdrawn'])
+>(['draft', 'completed', 'rejected', 'withdrawn', 'resolved'])
 
 /**
  * Whether a referral's SLA deadline is overdue (RV2 R2). The TS mirror of the SQL
@@ -373,6 +390,10 @@ export interface ReferralDetail {
   /** RV2 R2: PHI-FREE structured decline reason (distinct from the PHI
    * `declineNote`); set only on a `rejected` referral, `null` otherwise. */
   declineReasonCode: ReferralDeclineReasonCode | null
+  /** RV2 R3: PHI-FREE lineage back-pointer to the referral this one was forwarded
+   * from ("Encaminhar adiante"); `null` if not a child. D15 — a child shares
+   * NOTHING from its parent automatically. */
+  parentReferralId: string | null
   sourceCommissionId: string
   sourceCommissionName: string | null
   targetCommissionId: string
@@ -402,8 +423,13 @@ export interface ReferralDetail {
   /** RV2 R1: the ordered dialogue thread. Message `body` is PHI-bearing and is
    * `null` for a metadata-only reader (the audited door nulls it). */
   messages: ReferralMessage[]
-  /** The delivered reply, or `null` until `completed`. */
+  /** The delivered reply, or `null` until `answered`/`completed`. */
   reply: ReferralReply | null
+  /** RV2 R3: the append-only resolution history (ordered by `resolutionNumber`);
+   * empty until the source first `resolve`s. The non-PHI history is visible to
+   * every metadata-tier reader; each row's PHI `summaryMd` is `null` unless the
+   * viewer is a PHI reader. */
+  resolutions: ReferralResolution[]
   sentAt: string | null
   receivedAt: string | null
   decidedAt: string | null
@@ -497,6 +523,37 @@ export interface ReferralReplyAttachment {
   uploadedById: string | null
   uploadedByName: string | null
   createdAt: string
+}
+
+/**
+ * One resolution-cycle row (`referral_resolutions`), RV2 R3. Append-only: each
+ * source `resolve` inserts a row with the next {@link resolutionNumber}; a
+ * `reopen` marks the active row ({@link reopenedAt}) and the next resolve appends
+ * another. The non-PHI history (number, timestamps, follow-up, reopen info) is
+ * visible to metadata-tier readers; {@link summaryMd} is PHI-bearing clinical free
+ * text served ONLY through the audited detail door — `null` for a metadata reader.
+ */
+export interface ReferralResolution {
+  id: string
+  referralId: string
+  /** 1-based, monotonically increasing per referral (append-only). */
+  resolutionNumber: number
+  /** The SOURCE commission that resolved (always the referral's source). */
+  resolvedByCommissionId: string
+  resolvedByUserId: string | null
+  resolvedByName: string | null
+  /** PHI-bearing resolution narrative (sanitized Markdown); `null` for a
+   * metadata-only reader or when the source resolved without a summary. */
+  summaryMd: string | null
+  followUpRequired: boolean
+  /** The `referral_reply` this resolution confirmed (`null` if none). */
+  finalReplyId: string | null
+  resolvedAt: string
+  /** Set when this resolution was later reopened; `null` while it is the active
+   * (current) resolution. */
+  reopenedAt: string | null
+  reopenedById: string | null
+  reopenedReason: string | null
 }
 
 /**
@@ -598,6 +655,31 @@ export interface CreateReferralInput {
   /** RV2 R2: an optional SLA deadline (ISO timestamp; PHI-free). A past date is
    * rejected by the RPC (HC0A4). */
   responseDueAt?: string | null
+  /** RV2 R3: OPTIONAL parent-referral lineage ("Encaminhar adiante"). Additive —
+   * omit/`null` for a root referral. The RPC validates the parent exists, is
+   * same-organization, and is readable by the creator (HC0A6 otherwise); D15 — the
+   * child shares NOTHING from the parent automatically. */
+  parentReferralId?: string | null
+}
+
+/** Resolve a referral: the SOURCE coordinator formally confirms closure
+ * (`answered → resolved`), appending a resolution row (RV2 R3). Authority-gated
+ * (42501 for a non-source actor); requires `answered` (HC0A5 otherwise). */
+export interface ResolveReferralInput {
+  referralId: string
+  /** OPTIONAL PHI-bearing resolution narrative (sanitized Markdown). */
+  summaryMd?: string | null
+  /** Whether a follow-up is still required (defaults false). */
+  followUpRequired?: boolean
+}
+
+/** Reopen a resolved referral (`resolved → in_review`), marking the active
+ * resolution reopened (RV2 R3). Authority-gated (42501); requires `resolved`
+ * (HC0A5 otherwise). The reason is required. */
+export interface ReopenReferralInput {
+  referralId: string
+  /** Required pt-BR reason for reopening (governance metadata, non-PHI). */
+  reason: string
 }
 
 /** Editable draft fields (only while `draft`; HC070 otherwise). */
