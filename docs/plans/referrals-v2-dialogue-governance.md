@@ -14,6 +14,23 @@ contradict), Rule 6 (storage immutability), Rule 10 (pt-BR UI / English code), R
 [referral_data_model_evaluation.md](../design/temp/referral_data_model_evaluation.md) ·
 partner handoff [inter_committee_referral_data_model.md](../design/temp/inter_committee_referral_data_model.md).
 
+> **⚠ Reconciled to ADR [0078](../decisions/0078-authorization-capability-model.md) (2026-07-18; catalog-verified
+> on the live stack). PO-locked (2026-07-18): build FULL R2→R5; R3 = full `answered`/`resolved` lifecycle; R5 trims
+> to notes+receipts+redaction (context-versions **DEFERRED** — overlaps 0078's reserved post-pilot F-full); QPS
+> excludes internal notes.** The F1 five-way referral-predicate split is LIVE (catalog-confirmed): `can_read_referral`
+> (legacy, still present), **`can_read_referral_metadata`** (metadata tier), `can_read_referral_phi` (PHI door),
+> **`can_write_referral_response`** (write gate), **`referral_target_analyst`** (re-anchored on `case_access_grants`),
+> + the `can_manage_referral_{source,target,phi_disclosure}` family. Per-increment reconciliation:
+> - **R2** — PHI-free triage fields project through **`can_read_referral_metadata`** (⚠ verify vs `can_read_referral`
+>   at build — both exist; gate metadata-tier fields on the *current* metadata predicate). HC0A3/HC0A4.
+> - **R3** — `resolve_referral`/`reopen_referral` writes gate on **`can_write_referral_response`**. Status CHECK
+>   **+= `answered`,`resolved`**; close_case release set → `NOT IN (completed,resolved,rejected,withdrawn)`. HC0A5/HC0A6.
+> - **R4** — assignments/links grant **no** extra read; the primary target link stays `case_referral.target_case_id`
+>   (read by `referral_target_analyst`, now `case_access_grants`-anchored). ⚠ a `link_referral_case` RPC already exists
+>   — R4's `referral_case_links` is the ADDITIONAL typed-links table; reconcile naming at build. HC0A7/HC0A8.
+> - **R5** — internal-notes keystone (source≠target) via a new `can_read_referral_internal_note`; **context-versions
+>   DEFERRED**; keep receipts + redaction. HC0A9.
+
 ---
 
 ## 0. Why
