@@ -23,8 +23,11 @@ partner handoff [inter_committee_referral_data_model.md](../design/temp/inter_co
 > + the `can_manage_referral_{source,target,phi_disclosure}` family. Per-increment reconciliation:
 > - **R2** — PHI-free triage fields project through **`can_read_referral_metadata`** (⚠ verify vs `can_read_referral`
 >   at build — both exist; gate metadata-tier fields on the *current* metadata predicate). HC0A3/HC0A4.
-> - **R3** — `resolve_referral`/`reopen_referral` writes gate on **`can_write_referral_response`**. Status CHECK
->   **+= `answered`,`resolved`**; close_case release set → `NOT IN (completed,resolved,rejected,withdrawn)`. HC0A5/HC0A6.
+> - **R3** — `resolve_referral`/`reopen_referral` are **SOURCE-coordinator** actions → gate on **`app.can_manage_referral_source`**
+>   (catalog-corrected 2026-07-19: `can_write_referral_response` = `can_manage_referral_target`, the *target* side — wrong for resolve;
+>   authority fails **`42501`-first**, distinct from state). Status CHECK **+= `answered`,`resolved`** + `parent_referral_id`;
+>   `conclude_referral` reply-expected → `answered` (else `completed`); source `resolve_referral` → `resolved`; `reopen_referral` → `in_review`.
+>   close_case block set = R1 set **+ `answered`** (`answered` blocks, `resolved` releases; **`draft` stays non-blocking**). HC0A5/HC0A6.
 > - **R4** — assignments/links grant **no** extra read; the primary target link stays `case_referral.target_case_id`
 >   (read by `referral_target_analyst`, now `case_access_grants`-anchored). ⚠ a `link_referral_case` RPC already exists
 >   — R4's `referral_case_links` is the ADDITIONAL typed-links table; reconcile naming at build. HC0A7/HC0A8.

@@ -156,19 +156,21 @@ keystone · qa APPROVED · human approval → Record.
 **deferred** — overlaps 0078's reserved post-pilot F-full) · QPS does **not** read internal notes (default).
 R1 dialogue core already shipped (S2). Plan: [referrals-v2-dialogue-governance.md](docs/plans/referrals-v2-dialogue-governance.md) §3.
 
-**Reconciled to ADR 0078 (F1 five-way referral-predicate split) — ⚠ catalog-verify the exact names at build:**
-R2 `can_read_referral`→`can_read_referral_metadata`; R3 resolve/reopen writes → `can_write_referral_response`;
-R4 `referral_target_analyst` re-anchored on `case_access_grants`; SQLSTATE `HC0A·`; flag `case_referrals` (stays OFF till pilot).
+**Reconciled to ADR 0078 (F1 five-way referral-predicate split) — catalog-verified 2026-07-19 on the live stack:**
+R2 metadata fields project through **`can_read_referral_metadata`** (`can_read_referral` is now a thin wrapper over it);
+R3 resolve/reopen are **SOURCE-coordinator** actions → **`can_manage_referral_source`** (the banner's `can_write_referral_response`
+was wrong — that = `can_manage_referral_target`, target side; corrected); R4 `referral_target_analyst` re-anchored on
+`case_access_grants`; SQLSTATE `HC0A·` (authority `42501`-first, distinct from state codes); flag `case_referrals` (OFF till pilot).
 
 | Increment | Scope | Owner | Status |
 |---|---|---|---|
-| R2 · Triage/SLA (PHI-free) | priority · requested-action vocab · due/overdue · non-PHI decline-reason | backend+FE | ⏳ pending stack |
-| R3 · Resolution cycles 🔴 | `answered`/`resolved` lifecycle · reopen · parent lineage | backend+FE | ⏳ |
+| R2 · Triage/SLA (PHI-free) | priority · requested-action vocab · due/overdue · non-PHI decline-reason | backend+FE | ✅ **ACCEPTED** `8d2125b` — keystone live-verified (metadata-tier reader sees 5 triage fields; `decline_note` denied under `set local role`); pgTAP 111/111 |
+| R3 · Resolution cycles 🔴 | `answered`/`resolved` lifecycle · reopen · parent lineage | backend+FE | 🏗️ **building** (`feat/rv2-governance`; lead-locked design D-R3-1…7) |
 | R4 · Responsibility/multi-link | `referral_assignments` + `referral_case_links` (assignment ≠ access) | backend+FE | ⏳ |
 | R5 · Private notes/disclosure | internal-notes (source≠target keystone) + receipts + redaction | backend+FE | ⏳ |
 | FE / E2E / QA | per-increment UI · extend `phase22-referrals.spec` · RLS conformance | frontend/tester/qa | ⏳ |
 
-**Prereq:** local Docker stack is down — needs restart + `supabase start`, then lead catalog-verifies the F1 split before backend builds R2 (contract-first).
+**Progress:** stack up · F1 split catalog-verified · **R2 accepted** (`8d2125b` — git + catalog + live `set local role`) · **R3 building** (the 🔴 state-machine increment; lead-authored design locked in the plan banner + brief). Local only, not pushed.
 
 ---
 
