@@ -168,9 +168,10 @@ was wrong — that = `can_manage_referral_target`, target side; corrected); R4 `
 | R3 · Resolution cycles 🔴 | `answered`/`resolved` lifecycle · reopen · parent lineage | backend+FE | ✅ **ACCEPTED** `dd5d090` — authority-first (`42501` before `HC0A5`) verified in-body; `summary_md` PHI-revoked; close-gate `+answered`/`−draft`; pgTAP 139/139 (K1/K3/K4 mutation-proven). ⚠ FE follow-up: add `answered`/`resolved` to `referral-chips.tsx:53` |
 | R4 · Responsibility/multi-link | `referral_assignments` + `referral_case_links` (assignment ≠ access) | backend+FE | ✅ **ACCEPTED** `b9cad33` — both keystones mutation-proven (assign≠access test 166; link≠access test 164) + **no residue** (all 4 read predicates catalog-clean); 42501-first; pgTAP 174/174 |
 | R5 · Private notes/disclosure | internal-notes (source≠target keystone) + receipts + redaction | backend+FE | ✅ **ACCEPTED** `c301a14` — keystone LIVE-proven (source↔target cross-side denied; QPS reads referral but DENIED notes, non-vacuous); no-PQS-arm predicate; `body` PHI-revoked; pgTAP 212/212 (K-R5-1 5 tests mutation-proven) |
-| FE / E2E / QA | per-increment UI · extend `phase22-referrals.spec` · RLS conformance | frontend/tester/qa | ⏳ |
+| FE (R2–R5 UI) | 7 new panels/pages (assignment · internal-notes · related-cases · resolutions · lineage · redact-dialog · thread-item · "Minhas atribuições") + chips fix | frontend | ✅ **VERIFIED** `027db02` — 20 files, tsc 0 · lint 0/0 · `next build` green |
+| E2E / QA | extend `phase22-referrals.spec` (R2–R5) · RLS conformance · lead runs full `e2e:prod` gate | tester/qa | 🏗️ tester next |
 
-**Progress:** ALL 4 backend increments accepted (git+catalog+live): **R2** `8d2125b` · **R3** `dd5d090` · **R4** `b9cad33` · **R5** `c301a14` (source≠target≠QPS notes keystone live-proven). Backend contract COMPLETE + frozen. **▶ Next: FE phase** (R2–R5 UI + the `referral-chips.tsx` answered/resolved fix) → tester → QA → gate. Local only, not pushed.
+**Progress:** ALL 4 backend increments accepted (git+catalog+live): **R2** `8d2125b` · **R3** `dd5d090` · **R4** `b9cad33` · **R5** `c301a14` (source≠target≠QPS notes keystone live-proven). Backend contract COMPLETE + frozen. **FE VERIFIED** (`027db02`; tsc 0 · lint 0/0 · `next build` green — the FE process exited before reporting but the commit is complete + clean-scoped). **▶ Next: tester** (extend `phase22-referrals` R2–R5) → QA → gate. Local only, not pushed.
 
 ---
 
