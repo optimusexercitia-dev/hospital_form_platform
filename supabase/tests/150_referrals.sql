@@ -21,7 +21,7 @@
 -- SECURITY DEFINER RPC, so a DB-side test can observe them).
 
 begin;
-select plan(174);
+select plan(212);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -1270,6 +1270,240 @@ select is((select jsonb_array_length(det_r9.j->'assignments') from det_r9), 3,
   'R4: the detail door exposes all assignment rows (metadata-visible)');
 select is((select jsonb_array_length(det_r9.j->'links') from det_r9), 2,
   'R4: the detail door exposes both typed case-links');
+
+-- =========================================================================
+-- RV2 R5 — Private internal notes, read receipts & redaction (ADR 0037 D-R5).
+--   * K-R5-1 (THE security keystone): an internal note is readable ONLY by a
+--     member of its OWNING committee side — source↔target NEVER cross, QPS reads
+--     NEITHER (no QPS arm on can_read_referral_internal_note).
+--   * K-R5-2: the note body is column-REVOKED from authenticated (door-only).
+--   * K-R5-3: redaction is append-only + renders [redigido] (row not deleted).
+--   * K-R5-4: redact authority is checked FIRST → 42501, never HC0A9 (non-vacuity).
+--   * K-R5-5: a receipt is self-scoped (user_id = auth.uid(), never forgeable).
+-- =========================================================================
+
+-- ---- Fixture: a SENT + in_review referral (r10) with a note on EACH side ----
+create temp table cs6 on commit drop as select gen_random_uuid() as src6;
+grant select on cs6 to authenticated;
+insert into public.cases (id, commission_id, case_number, label, created_by)
+values ((select src6 from cs6), (select comm_x from k), 9501, 'Caso A6', (select sa_x from k));
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table r10 on commit drop as
+  select * from public.create_referral_draft(
+    (select src6 from cs6), (select comm_y from k),
+    (select type_parecer from voc), 'Notas internas R5', true,
+    'Descrição para viabilizar o envio.');
+select public.send_referral((select id from r10));
+reset role;
+grant select on r10 to authenticated;
+
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select public.receive_referral((select id from r10));
+select public.accept_referral((select id from r10));
+select public.start_referral_review((select id from r10));
+reset role;
+select is((select status from public.case_referral where id = (select id from r10)),
+  'in_review', 'R5 fixture: r10 reaches in_review (target-side notes become readable)');
+
+-- ---- create_referral_internal_note authority (42501 FIRST) + domain (HC0A9) ----
+-- A QPS operator (admin — member of NEITHER committee) cannot author a note.
+select test_helpers.claims_for((select admin from k), true);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.create_referral_internal_note(%L, %L, 'nota do QPS') $$,
+    (select id from r10), (select comm_x from k)),
+  '42501', null,
+  'R5: a QPS operator (member of neither side) cannot author an internal note (42501)');
+reset role;
+-- A member of the WRONG side (st_y, target) cannot author on the SOURCE side.
+select test_helpers.claims_for((select st_y from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.create_referral_internal_note(%L, %L, 'nota do lado errado') $$,
+    (select id from r10), (select comm_x from k)),
+  '42501', null,
+  'R5: a member of the other side cannot author on the source side (42501)');
+reset role;
+-- A valid owning-side member with a BLANK body → HC0A9 (domain AFTER authority).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.create_referral_internal_note(%L, %L, '   ') $$,
+    (select id from r10), (select comm_x from k)),
+  'HC0A9', null,
+  'R5: a blank internal-note body is rejected (HC0A9, checked after authority)');
+-- Happy: the SOURCE coordinator authors a source-side note.
+create temp table note_src on commit drop as
+  select * from public.create_referral_internal_note(
+    (select id from r10), (select comm_x from k), 'CORPO-NOTA-ORIGEM');
+reset role;
+grant select on note_src to authenticated;
+select is((select committee_id from note_src), (select comm_x from k),
+  'R5: a source-side note is owned by the source committee');
+-- The TARGET coordinator authors a target-side note.
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+create temp table note_tgt on commit drop as
+  select * from public.create_referral_internal_note(
+    (select id from r10), (select comm_y from k), 'CORPO-NOTA-DESTINO');
+reset role;
+grant select on note_tgt to authenticated;
+select is((select committee_id from note_tgt), (select comm_y from k),
+  'R5: a target-side note is owned by the target committee');
+
+-- ---- K-R5-1: source ≠ target ≠ QPS (THE security keystone) ----
+-- Owning-side reads OK.
+select ok(app.can_read_referral_internal_note((select id from note_src), (select sa_x from k)),
+  'R5·K-R5-1: the owning SOURCE coordinator reads their source note (OK)');
+select ok(app.can_read_referral_internal_note((select id from note_src), (select st_x from k)),
+  'R5·K-R5-1 (non-vacuity): a plain SOURCE member reads the source note (membership suffices)');
+select ok(app.can_read_referral_internal_note((select id from note_tgt), (select sa_y from k)),
+  'R5·K-R5-1: the owning TARGET coordinator reads their target note (OK)');
+-- Cross-side reads DENIED.
+select ok(not app.can_read_referral_internal_note((select id from note_tgt), (select sa_x from k)),
+  'R5·K-R5-1: a SOURCE member is DENIED the TARGET-owned note (cross-side)');
+select ok(not app.can_read_referral_internal_note((select id from note_src), (select sa_y from k)),
+  'R5·K-R5-1: a TARGET member is DENIED the SOURCE-owned note (cross-side)');
+-- QPS reads NEITHER — with non-vacuity that QPS genuinely reads the referral metadata.
+select ok(app.can_read_referral_metadata((select id from r10), (select admin from k)),
+  'R5·K-R5-1 (non-vacuity): the QPS operator CAN read the referral metadata');
+select ok(not app.can_read_referral_internal_note((select id from note_src), (select admin from k)),
+  'R5·K-R5-1: the QPS operator is DENIED the SOURCE note (no QPS arm)');
+select ok(not app.can_read_referral_internal_note((select id from note_tgt), (select admin from k)),
+  'R5·K-R5-1: the QPS operator is DENIED the TARGET note (no QPS arm)');
+
+-- ---- K-R5-2: the note body is column-REVOKED (door-only) ----
+select ok(not has_column_privilege('authenticated', 'public.referral_internal_notes', 'body', 'SELECT'),
+  'R5·K-R5-2: authenticated has NO direct SELECT on referral_internal_notes.body');
+select ok(has_column_privilege('authenticated', 'public.referral_internal_notes', 'committee_id', 'SELECT'),
+  'R5·K-R5-2 (non-vacuity): the PHI-free columns ARE selectable');
+
+-- ---- list_referral_internal_notes: door renders the body; side-scoped ----
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table notes_src on commit drop as
+  select public.list_referral_internal_notes((select id from r10)) as j;
+reset role;
+grant select on notes_src to authenticated;
+select is((select jsonb_array_length(notes_src.j) from notes_src), 1,
+  'R5·K-R5-1: the source coordinator''s note list carries ONLY the source note (1)');
+select is((select notes_src.j->0->>'body' from notes_src), 'CORPO-NOTA-ORIGEM',
+  'R5: the audited door serves the (non-redacted) note body to the owning side');
+
+-- ---- K-R5-4: redact authority is checked FIRST (42501, not HC0A9) ----
+-- st_y is a plain TARGET member (NOT coordinator); note_tgt is valid + non-redacted,
+-- so if authority were dropped the redact would proceed — the ONLY failure is authority.
+select test_helpers.claims_for((select st_y from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.redact_referral_note(%L, 'motivo') $$, (select id from note_tgt)),
+  '42501', null,
+  'R5·K-R5-4: a plain owning-side member redacting a note is denied 42501 (authority, not HC0A9)');
+reset role;
+
+-- ---- K-R5-3: redaction is append-only + renders [redigido] ----
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.redact_referral_note(%L, 'contém dados sensíveis') $$, (select id from note_src)),
+  'R5·K-R5-3: the source coordinator redacts the source note');
+-- A second redaction is rejected (append-only).
+select throws_ok(
+  format($$ select public.redact_referral_note(%L, 'de novo') $$, (select id from note_src)),
+  'HC0A9', null,
+  'R5·K-R5-3: a second redaction of the same note is rejected (HC0A9)');
+-- The door now renders [redigido] to the owning side; the row is NOT deleted.
+create temp table notes_src2 on commit drop as
+  select public.list_referral_internal_notes((select id from r10)) as j;
+reset role;
+grant select on notes_src2 to authenticated;
+select is((select notes_src2.j->0->>'body' from notes_src2), '[redigido]',
+  'R5·K-R5-3: a redacted note renders [redigido] via the door (even to the owning side)');
+select is((select count(*)::int from public.referral_internal_notes where id = (select id from note_src)),
+  1, 'R5·K-R5-3: the redacted row is NOT deleted (append-only)');
+select ok((select redacted_by from public.referral_internal_notes where id = (select id from note_src)) = (select sa_x from k),
+  'R5·K-R5-3: redacted_by records the coordinator');
+select is((select redacted_reason from public.referral_internal_notes where id = (select id from note_src)),
+  'contém dados sensíveis', 'R5·K-R5-3: redacted_reason is recorded');
+-- The real body STAYS in the table (append-only; distinct from disposal's purge).
+select is((select body from public.referral_internal_notes where id = (select id from note_src)),
+  'CORPO-NOTA-ORIGEM', 'R5·K-R5-3: the real body is retained server-side (audited who/why)');
+
+-- ---- Message redaction: authority (42501) + append-only ([redigido]) ----
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table msg1 on commit drop as
+  select * from public.post_referral_message((select id from r10), 'general', 'MENSAGEM-ORIGINAL');
+reset role;
+grant select on msg1 to authenticated;
+-- A plain member (non-coordinator) cannot redact a message.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.redact_referral_message(%L, 'motivo') $$, (select id from msg1)),
+  '42501', null,
+  'R5: a non-coordinator cannot redact a thread message (42501)');
+reset role;
+-- A coordinator of either side redacts it; a second redaction is rejected.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.redact_referral_message(%L, 'contém PHI') $$, (select id from msg1)),
+  'R5: a coordinator redacts a thread message');
+select throws_ok(
+  format($$ select public.redact_referral_message(%L, 'de novo') $$, (select id from msg1)),
+  'HC0A9', null,
+  'R5: a second message redaction is rejected (HC0A9)');
+create temp table det_r10 on commit drop as
+  select public.get_referral_detail((select id from r10)) as j;
+reset role;
+grant select on det_r10 to authenticated;
+select is((select det_r10.j->'messages'->0->>'body' from det_r10), '[redigido]',
+  'R5: the detail door renders a redacted message body as [redigido]');
+select is((select body from public.referral_messages where id = (select id from msg1)),
+  'MENSAGEM-ORIGINAL', 'R5: the redacted message''s real body is retained server-side');
+
+-- ---- K-R5-5: read receipts are self-scoped (never forgeable) ----
+-- st_y (a target member = metadata reader) records their OWN receipt on msg1.
+select test_helpers.claims_for((select st_y from k), false);
+set local role authenticated;
+select lives_ok(
+  format($$ select public.record_referral_message_receipt(%L, 'read') $$, (select id from msg1)),
+  'R5·K-R5-5: a metadata-tier reader records their own receipt');
+-- An invalid event is rejected (HC0A9).
+select throws_ok(
+  format($$ select public.record_referral_message_receipt(%L, 'bogus') $$, (select id from msg1)),
+  'HC0A9', null,
+  'R5: an invalid receipt event is rejected (HC0A9)');
+reset role;
+-- The receipt is keyed to st_y — and to NO other user (self-scope).
+select is((select count(*)::int from public.referral_read_receipts where message_id = (select id from msg1)),
+  1, 'R5·K-R5-5: exactly one receipt row exists for the message');
+select ok((select user_id from public.referral_read_receipts where message_id = (select id from msg1)) = (select st_y from k),
+  'R5·K-R5-5: the receipt is keyed to the caller (st_y) — never forgeable');
+select ok((select read_at from public.referral_read_receipts
+           where message_id = (select id from msg1) and user_id = (select st_y from k)) is not null,
+  'R5·K-R5-5: the read_at timestamp was recorded');
+-- A non-reader (the R4 stranger — no membership on r10) cannot record a receipt.
+select test_helpers.claims_for((select uid from strg), false);
+set local role authenticated;
+select throws_ok(
+  format($$ select public.record_referral_message_receipt(%L, 'read') $$, (select id from msg1)),
+  '42501', null,
+  'R5·K-R5-5: a non-reader of the referral cannot record a receipt (42501)');
+reset role;
+-- The detail door exposes the PHI-free read_receipts array.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table det_r10b on commit drop as
+  select public.get_referral_detail((select id from r10)) as j;
+reset role;
+grant select on det_r10b to authenticated;
+select is((select jsonb_array_length(det_r10b.j->'read_receipts') from det_r10b), 1,
+  'R5: the detail door exposes the PHI-free read_receipts array');
 
 select * from finish();
 rollback;

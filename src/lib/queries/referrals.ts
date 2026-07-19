@@ -59,11 +59,13 @@ import type {
   ReferralDetail,
   ReferralDirection,
   ReferralFlowMetrics,
+  ReferralInternalNote,
   ReferralListItem,
   ReferralMessage,
   ReferralPatient,
   ReferralPatientSex,
   ReferralPriority,
+  ReferralReadReceipt,
   ReferralReply,
   ReferralRequestedAction,
   ReferralResolution,
@@ -414,6 +416,7 @@ interface ReferralDetailJson {
     sender_user_name: string | null
     message_type: string
     body: string | null
+    redacted_at: string | null
     created_at: string
   }[]
   shared_items: {
@@ -469,6 +472,14 @@ interface ReferralDetailJson {
     created_by: string | null
     created_by_name: string | null
     created_at: string
+  }[]
+  read_receipts: {
+    message_id: string
+    user_id: string
+    user_name: string | null
+    delivered_at: string | null
+    read_at: string | null
+    acknowledged_at: string | null
   }[]
   reply: {
     referral_id: string
@@ -572,7 +583,17 @@ export async function getReferralDetail(
     senderUserName: m.sender_user_name,
     messageType: m.message_type as MessageType,
     body: m.body,
+    redactedAt: m.redacted_at,
     createdAt: m.created_at,
+  }))
+
+  const readReceipts: ReferralReadReceipt[] = (d.read_receipts ?? []).map((rc) => ({
+    messageId: rc.message_id,
+    userId: rc.user_id,
+    userName: rc.user_name,
+    deliveredAt: rc.delivered_at,
+    readAt: rc.read_at,
+    acknowledgedAt: rc.acknowledged_at,
   }))
 
   const resolutions: ReferralResolution[] = (d.resolutions ?? []).map((rr) => ({
@@ -657,6 +678,7 @@ export async function getReferralDetail(
     resolutions,
     assignments,
     links,
+    readReceipts,
     reply,
     sentAt: d.sent_at,
     receivedAt: d.received_at,
@@ -719,6 +741,57 @@ export async function listMyReferralAssignments(): Promise<MyReferralAssignment[
     referralStatus: r.referral_status as ReferralStatus,
     referralPriority: r.referral_priority as ReferralPriority,
     referralResponseDueAt: r.referral_response_due_at,
+  }))
+}
+
+// ---------------------------------------------------------------------------
+// Private internal notes (RV2 R5) — side-private; the K-R5-1 security keystone
+// ---------------------------------------------------------------------------
+
+interface ReferralInternalNoteJson {
+  id: string
+  referral_id: string
+  committee_id: string
+  author_user_id: string | null
+  author_name: string | null
+  body: string
+  created_at: string
+  redacted_at: string | null
+  redacted_by: string | null
+  redacted_by_name: string | null
+  redacted_reason: string | null
+}
+
+/**
+ * The private internal notes THIS caller may read (RV2 R5) — their committee side
+ * ONLY. Routes through the `list_referral_internal_notes` DEFINER door, which
+ * re-applies `app.can_read_referral_internal_note` per row (source members see source
+ * notes; target members see target notes; QPS sees NEITHER — the K-R5-1 keystone).
+ * The PHI `body` is column-REVOKED from direct SELECT, so this door is the ONLY read
+ * path; a redacted note's body arrives as `'[redigido]'`. `[]` on any error.
+ */
+export async function listReferralInternalNotes(
+  referralId: string,
+): Promise<ReferralInternalNote[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('list_referral_internal_notes', {
+    p_referral_id: referralId,
+  })
+  if (error || !data) return []
+
+  const rows = data as unknown as ReferralInternalNoteJson[]
+  return rows.map((n) => ({
+    id: n.id,
+    referralId: n.referral_id,
+    committeeId: n.committee_id,
+    authorUserId: n.author_user_id,
+    authorName: n.author_name,
+    body: n.body,
+    createdAt: n.created_at,
+    redactedAt: n.redacted_at,
+    redactedById: n.redacted_by,
+    redactedByName: n.redacted_by_name,
+    redactedReason: n.redacted_reason,
   }))
 }
 

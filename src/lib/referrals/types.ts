@@ -521,6 +521,10 @@ export interface ReferralDetail {
   /** RV2 R4: TYPED related-case pointers (PHI-free). Each is a pointer ONLY — it
    * grants NO access to the linked case. */
   links: ReferralCaseLink[]
+  /** RV2 R5: PHI-FREE read receipts (delivery/read/ack per message + user), visible to
+   * every metadata-tier reader. Internal notes are NOT here — they are side-private and
+   * loaded only via {@link listReferralInternalNotes}. */
+  readReceipts: ReferralReadReceipt[]
   sentAt: string | null
   receivedAt: string | null
   decidedAt: string | null
@@ -546,10 +550,61 @@ export interface ReferralMessage {
   senderUserId: string | null
   senderUserName: string | null
   messageType: MessageType
-  /** PHI-bearing message text; `null` for a metadata-only reader. */
+  /** PHI-bearing message text; `null` for a metadata-only reader. RV2 R5: once the
+   * message is redacted this is the literal string `'[redigido]'` (rendered by the
+   * door to EVERY reader — the real body stays server-side, audited who/why). */
   body: string | null
+  /** RV2 R5: when a coordinator redacted this message (append-only); `null` if not
+   * redacted. PHI-free — drives the `[redigido]` badge. */
+  redactedAt: string | null
   createdAt: string
 }
+
+/**
+ * One private per-committee internal note (`referral_internal_notes`), RV2 R5. The
+ * SECURITY KEYSTONE: a note is owned by exactly ONE committee side ({@link committeeId})
+ * and is readable ONLY by a member of THAT side — source members never read a
+ * target-owned note and vice-versa, and QPS reads NEITHER (K-R5-1, enforced by
+ * `app.can_read_referral_internal_note` + column-REVOKED `body`). Loaded ONLY via the
+ * audited {@link listReferralInternalNotes} door. {@link body} is PHI-bearing; once
+ * redacted it renders `'[redigido]'` (the real body stays, append-only + audited).
+ */
+export interface ReferralInternalNote {
+  id: string
+  referralId: string
+  /** The OWNING committee side (source OR target). Only its members read this note. */
+  committeeId: string
+  authorUserId: string | null
+  authorName: string | null
+  /** PHI-bearing note text; `'[redigido]'` once redacted. */
+  body: string
+  createdAt: string
+  /** When a coordinator redacted this note (append-only); `null` if not redacted. */
+  redactedAt: string | null
+  redactedById: string | null
+  redactedByName: string | null
+  /** PHI-free governance reason for the redaction; `null` if not redacted. */
+  redactedReason: string | null
+}
+
+/**
+ * One read receipt (`referral_read_receipts`) for a (message, user) pair, RV2 R5.
+ * PHI-FREE — delivery/read/ack timestamps only. A user records ONLY their OWN receipt
+ * (never forgeable — K-R5-5). Projected on {@link ReferralDetail.readReceipts} to every
+ * metadata-tier reader; the UI derives per-message read/ack indicators from these.
+ */
+export interface ReferralReadReceipt {
+  messageId: string
+  userId: string
+  userName: string | null
+  deliveredAt: string | null
+  readAt: string | null
+  acknowledgedAt: string | null
+}
+
+/** The receipt event a reader records on a message (RV2 R5). `delivered` = the message
+ * reached the reader's client; `read` = opened; `acknowledged` = explicitly confirmed. */
+export type ReferralReceiptEvent = 'delivered' | 'read' | 'acknowledged'
 
 /**
  * One frozen snapshot row (`referral_shared_item`). For a `narrative`,
@@ -1014,4 +1069,43 @@ export interface LinkReferralRelatedCaseInput {
   referralId: string
   caseId: string
   relationshipType: ReferralCaseRelationship
+}
+
+/** Create a private internal note on ONE committee side (RV2 R5). The actor must be a
+ * member of `committeeId` (which must be the referral's source OR target) — the RPC
+ * raises 42501 for any other actor (checked FIRST); a blank body raises HC0A9. The
+ * note is readable ONLY by members of `committeeId` (K-R5-1). */
+export interface CreateReferralInternalNoteInput {
+  referralId: string
+  /** The OWNING committee side (referral source OR target); the actor must be a member. */
+  committeeId: string
+  /** PHI-bearing note text (required, non-blank). */
+  body: string
+}
+
+/** Redact a private internal note (RV2 R5 — append-only). The actor must be a
+ * coordinator of the note's OWNING side (42501 otherwise, checked FIRST); an
+ * already-redacted note raises HC0A9. Sets who/why + renders `[redigido]`; the real
+ * body is retained server-side, distinct from disposal (which purges). */
+export interface RedactReferralNoteInput {
+  noteId: string
+  /** PHI-free governance reason for the redaction. */
+  reason: string
+}
+
+/** Redact a thread message (RV2 R5 — append-only). The actor must be a coordinator of
+ * EITHER side (42501 otherwise, checked FIRST); an already-redacted message raises
+ * HC0A9. Renders `[redigido]` via the detail door; the real body is retained. */
+export interface RedactReferralMessageInput {
+  messageId: string
+  /** PHI-free governance reason for the redaction. */
+  reason: string
+}
+
+/** Record the caller's OWN receipt on a message (RV2 R5). The actor must be a
+ * metadata-tier reader of the message's referral (42501 otherwise). Self-scoped — a
+ * user can never forge another's receipt (K-R5-5). */
+export interface RecordReferralReceiptInput {
+  messageId: string
+  event: ReferralReceiptEvent
 }

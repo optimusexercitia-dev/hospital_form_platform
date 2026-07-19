@@ -75,6 +75,12 @@ export const HC_ASSIGNMENT_DOMAIN = 'HC0A7'
  * failure, which is raised FIRST. */
 export const HC_CASE_LINK_DOMAIN = 'HC0A8'
 
+// RV2 R5 (private internal notes, receipts & redaction): HC0A9 domain error.
+/** R5 domain error: a blank internal-note body, an already-redacted note/message, or
+ * an invalid receipt event. DISTINCT from the 42501 authority failure, which is raised
+ * FIRST — a wrong actor on a domain-valid request yields 42501, never HC0A9. */
+export const HC_INTERNAL_NOTE_DOMAIN = 'HC0A9'
+
 /** Generic Postgres SQLSTATEs the referral RPCs/policies may surface. */
 export const PG_CHECK_VIOLATION = '23514'
 export const PG_FORBIDDEN = '42501'
@@ -117,6 +123,10 @@ export const REFERRAL_MESSAGES = {
   relationshipTypeRequired: 'Selecione o tipo de relação do caso.',
   relatedCaseRequired: 'Selecione o caso a relacionar.',
   missingAssignment: 'Atribuição não encontrada.',
+  noteBodyRequired: 'Escreva a nota interna.',
+  redactReasonRequired: 'Informe o motivo da tarja.',
+  missingNote: 'Nota interna não encontrada.',
+  missingMessage: 'Mensagem não encontrada.',
 
   // Lifecycle / domain (mapped from HC070–HC079)
   referralWrongState:
@@ -159,6 +169,9 @@ export const REFERRAL_MESSAGES = {
     'Não foi possível registrar a atribuição. Verifique a comissão, o papel e se o responsável é membro.',
   caseLinkDomain:
     'Não foi possível vincular o caso. Verifique o tipo de relação e se o caso já não está vinculado.',
+  // RV2 R5 private notes / receipts / redaction (HC0A9)
+  internalNoteDomain:
+    'Não foi possível concluir. A nota está vazia ou o conteúdo já foi tarjado.',
 
   // Success
   referralDrafted: 'Rascunho de encaminhamento criado.',
@@ -199,6 +212,10 @@ export const REFERRAL_MESSAGES = {
   assignmentCancelled: 'Atribuição cancelada.',
   relatedCaseLinked: 'Caso relacionado vinculado ao encaminhamento.',
   relatedCaseUnlinked: 'Vínculo de caso relacionado removido.',
+  // RV2 R5 private notes / receipts / redaction
+  noteCreated: 'Nota interna registrada.',
+  noteRedacted: 'Nota interna tarjada.',
+  messageRedacted: 'Mensagem tarjada.',
 } as const
 
 /**
@@ -254,6 +271,8 @@ export function mapReferralError(
       return error.message || REFERRAL_MESSAGES.assignmentDomain
     case HC_CASE_LINK_DOMAIN:
       return error.message || REFERRAL_MESSAGES.caseLinkDomain
+    case HC_INTERNAL_NOTE_DOMAIN:
+      return error.message || REFERRAL_MESSAGES.internalNoteDomain
     case PG_FORBIDDEN:
       return REFERRAL_MESSAGES.forbidden
     case PG_NO_DATA_FOUND:

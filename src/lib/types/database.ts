@@ -7547,6 +7547,71 @@ export type Database = {
           },
         ]
       }
+      referral_internal_notes: {
+        Row: {
+          author_user_id: string | null
+          body: string
+          committee_id: string
+          created_at: string
+          id: string
+          redacted_at: string | null
+          redacted_by: string | null
+          redacted_reason: string | null
+          referral_id: string
+        }
+        Insert: {
+          author_user_id?: string | null
+          body: string
+          committee_id: string
+          created_at?: string
+          id?: string
+          redacted_at?: string | null
+          redacted_by?: string | null
+          redacted_reason?: string | null
+          referral_id: string
+        }
+        Update: {
+          author_user_id?: string | null
+          body?: string
+          committee_id?: string
+          created_at?: string
+          id?: string
+          redacted_at?: string | null
+          redacted_by?: string | null
+          redacted_reason?: string | null
+          referral_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_internal_notes_author_user_id_fkey"
+            columns: ["author_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_internal_notes_committee_id_fkey"
+            columns: ["committee_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_internal_notes_redacted_by_fkey"
+            columns: ["redacted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_internal_notes_referral_id_fkey"
+            columns: ["referral_id"]
+            isOneToOne: false
+            referencedRelation: "case_referral"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       referral_messages: {
         Row: {
           body: string
@@ -7662,6 +7727,45 @@ export type Database = {
             columns: ["referral_id"]
             isOneToOne: true
             referencedRelation: "case_referral"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referral_read_receipts: {
+        Row: {
+          acknowledged_at: string | null
+          delivered_at: string | null
+          message_id: string
+          read_at: string | null
+          user_id: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          delivered_at?: string | null
+          message_id: string
+          read_at?: string | null
+          user_id: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          delivered_at?: string | null
+          message_id?: string
+          read_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referral_read_receipts_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "referral_messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referral_read_receipts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -10609,6 +10713,26 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_referral_internal_note: {
+        Args: { p_body: string; p_committee_id: string; p_referral_id: string }
+        Returns: {
+          author_user_id: string | null
+          body: string
+          committee_id: string
+          created_at: string
+          id: string
+          redacted_at: string | null
+          redacted_by: string | null
+          redacted_reason: string | null
+          referral_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_internal_notes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       create_referral_requested_action: {
         Args: {
           p_color_token?: string
@@ -11286,6 +11410,10 @@ export type Database = {
       list_my_referral_assignments: { Args: never; Returns: Json }
       list_org_eligible_users: { Args: { p_org_id: string }; Returns: Json }
       list_pqs_members: { Args: { p_hospital_id: string }; Returns: Json }
+      list_referral_internal_notes: {
+        Args: { p_referral_id: string }
+        Returns: Json
+      }
       list_referral_target_commissions: {
         Args: { p_source_commission_id: string }
         Returns: {
@@ -11947,6 +12075,22 @@ export type Database = {
         }
         Returns: string
       }
+      record_referral_message_receipt: {
+        Args: { p_event: string; p_message_id: string }
+        Returns: {
+          acknowledged_at: string | null
+          delivered_at: string | null
+          message_id: string
+          read_at: string | null
+          user_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_read_receipts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       record_session_attendance: {
         Args: {
           p_attendance_status?: string
@@ -11959,6 +12103,50 @@ export type Database = {
       redact_professional_profile: {
         Args: { p_profile_id: string; p_reason: string }
         Returns: undefined
+      }
+      redact_referral_message: {
+        Args: { p_message_id: string; p_reason: string }
+        Returns: {
+          body: string
+          created_at: string
+          id: string
+          in_reply_to_message_id: string | null
+          message_type: string
+          redacted_at: string | null
+          redacted_by: string | null
+          redacted_reason: string | null
+          referral_id: string
+          sender_commission_id: string
+          sender_user_id: string | null
+          sequence_number: number
+          supersedes_message_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_messages"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      redact_referral_note: {
+        Args: { p_note_id: string; p_reason: string }
+        Returns: {
+          author_user_id: string | null
+          body: string
+          committee_id: string
+          created_at: string
+          id: string
+          redacted_at: string | null
+          redacted_by: string | null
+          redacted_reason: string | null
+          referral_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "referral_internal_notes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       referrals_enabled: { Args: never; Returns: boolean }
       reject_document: {

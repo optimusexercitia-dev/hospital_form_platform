@@ -16,6 +16,7 @@ import type {
   AssignReferralReviewerInput,
   ConcludeReferralInput,
   CreateReferralInput,
+  CreateReferralInternalNoteInput,
   CreateReferralState,
   CreateRequestedActionInput,
   DeclineReferralInput,
@@ -23,6 +24,9 @@ import type {
   LinkReferralRelatedCaseInput,
   PostReferralMessageInput,
   ProvideReferralInfoInput,
+  RecordReferralReceiptInput,
+  RedactReferralMessageInput,
+  RedactReferralNoteInput,
   ReferralActionState,
   ReferralPatient,
   ReopenReferralInput,
@@ -643,6 +647,107 @@ export async function unlinkReferralCase(
 
   revalidateReferrals()
   return { ok: true, message: REFERRAL_MESSAGES.relatedCaseUnlinked }
+}
+
+// ---------------------------------------------------------------------------
+// Private internal notes, receipts & redaction (RV2 R5)
+// ---------------------------------------------------------------------------
+
+/**
+ * Create a private internal note on ONE committee side (RV2 R5). The actor must be a
+ * member of `committeeId` (the referral's source OR target) — the RPC raises 42501
+ * for any other actor (incl. QPS of neither side), and HC0A9 for a blank body. The
+ * note is readable ONLY by members of `committeeId` (the K-R5-1 security keystone).
+ */
+export async function createReferralInternalNote(
+  input: CreateReferralInternalNoteInput,
+): Promise<ReferralActionState> {
+  if (!input.referralId) return { ok: false, error: REFERRAL_MESSAGES.missingReferral }
+  if (!input.committeeId) return { ok: false, error: REFERRAL_MESSAGES.missingCommission }
+  if (!input.body || !input.body.trim()) {
+    return { ok: false, fieldErrors: { body: REFERRAL_MESSAGES.noteBodyRequired } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('create_referral_internal_note', {
+    p_referral_id: input.referralId,
+    p_committee_id: input.committeeId,
+    p_body: input.body,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.noteCreated }
+}
+
+/**
+ * Redact a private internal note (RV2 R5 — append-only). The actor must be a
+ * coordinator of the note's OWNING side (42501 otherwise, checked FIRST); an
+ * already-redacted note raises HC0A9. The real body is retained server-side (audited
+ * who/why) and rendered `[redigido]` — distinct from disposal, which purges.
+ */
+export async function redactReferralNote(
+  input: RedactReferralNoteInput,
+): Promise<ReferralActionState> {
+  if (!input.noteId) return { ok: false, error: REFERRAL_MESSAGES.missingNote }
+  if (!input.reason || !input.reason.trim()) {
+    return { ok: false, fieldErrors: { reason: REFERRAL_MESSAGES.redactReasonRequired } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('redact_referral_note', {
+    p_note_id: input.noteId,
+    p_reason: input.reason,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.noteRedacted }
+}
+
+/**
+ * Redact a thread message (RV2 R5 — append-only). The actor must be a coordinator of
+ * EITHER side (42501 otherwise, checked FIRST); an already-redacted message raises
+ * HC0A9. The real body is retained; the detail door renders `[redigido]`.
+ */
+export async function redactReferralMessage(
+  input: RedactReferralMessageInput,
+): Promise<ReferralActionState> {
+  if (!input.messageId) return { ok: false, error: REFERRAL_MESSAGES.missingMessage }
+  if (!input.reason || !input.reason.trim()) {
+    return { ok: false, fieldErrors: { reason: REFERRAL_MESSAGES.redactReasonRequired } }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('redact_referral_message', {
+    p_message_id: input.messageId,
+    p_reason: input.reason,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  revalidateReferrals()
+  return { ok: true, message: REFERRAL_MESSAGES.messageRedacted }
+}
+
+/**
+ * Record the caller's OWN receipt on a message (RV2 R5). The actor must be a
+ * metadata-tier reader of the message's referral (42501 otherwise). Self-scoped: the
+ * receipt is always keyed to `auth.uid()` — a user can never forge another's (K-R5-5).
+ * Returns silently (no toast) — this is a background indicator, not a user action.
+ */
+export async function recordReferralMessageReceipt(
+  input: RecordReferralReceiptInput,
+): Promise<ReferralActionState> {
+  if (!input.messageId) return { ok: false, error: REFERRAL_MESSAGES.missingMessage }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('record_referral_message_receipt', {
+    p_message_id: input.messageId,
+    p_event: input.event,
+  })
+  if (error) return { ok: false, error: mapReferralError(error) }
+
+  return { ok: true }
 }
 
 // ---------------------------------------------------------------------------
