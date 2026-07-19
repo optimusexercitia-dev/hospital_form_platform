@@ -3,9 +3,14 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, FolderOpen } from "lucide-react";
 
-import type { ReferralListItem } from "@/lib/referrals/types";
+import {
+  REFERRAL_PRIORITY_LABELS,
+  type ReferralListItem,
+} from "@/lib/referrals/types";
 import { cn } from "@/lib/utils";
 import {
+  ReferralOverdueChip,
+  ReferralPriorityChip,
   ReferralStatusChip,
   ReferralTypeChip,
   ResponseExpectedChip,
@@ -13,6 +18,7 @@ import {
 import {
   formatCaseNumber,
   formatDate,
+  formatDateTime,
   formatReferralCode,
 } from "./format";
 import { RESOLVED_REFERRAL_STATUSES } from "@/lib/referrals/types";
@@ -156,11 +162,13 @@ function RowGroup({
             <span className="truncate font-medium text-foreground">
               {r.subject}
             </span>
-            {r.responseExpected && inFlight && (
-              <span className="mt-0.5">
-                <ResponseExpectedChip />
-              </span>
-            )}
+            <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+              {r.priority !== "routine" && (
+                <ReferralPriorityChip priority={r.priority} />
+              )}
+              {r.overdue && <ReferralOverdueChip />}
+              {r.responseExpected && inFlight && <ResponseExpectedChip />}
+            </div>
           </div>
         </td>
         <td className="max-w-[16rem] px-3 py-2.5 align-middle text-muted-foreground">
@@ -206,6 +214,36 @@ function RowGroup({
                     <span className="text-muted-foreground/70">
                       Sem vínculo
                     </span>
+                  )
+                }
+              />
+              <Detail
+                label="Prioridade"
+                value={REFERRAL_PRIORITY_LABELS[r.priority]}
+              />
+              <Detail
+                label="Ação solicitada"
+                value={
+                  r.requestedActionLabel ?? (
+                    <span className="text-muted-foreground/70">—</span>
+                  )
+                }
+              />
+              <Detail
+                label="Prazo de resposta"
+                value={
+                  r.responseDueAt ? (
+                    <span
+                      className={cn(
+                        "tabular-nums",
+                        r.overdue && "font-medium text-destructive",
+                      )}
+                    >
+                      {formatDateTime(r.responseDueAt)}
+                      {r.overdue ? " · vencido" : ""}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground/70">Sem prazo</span>
                   )
                 }
               />

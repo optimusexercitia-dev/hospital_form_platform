@@ -37,7 +37,11 @@ import { CaseMeetingsPanel } from "@/components/cases/case-meetings-panel";
 import type { CaseMeetingLink } from "@/lib/queries/case-timeline";
 import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
 import { CaseOutboundReferralsCard } from "@/components/referrals/case-outbound-referrals-card";
-import type { ReferralListItem, ReferralType } from "@/lib/referrals/types";
+import type {
+  ReferralListItem,
+  ReferralRequestedAction,
+  ReferralType,
+} from "@/lib/referrals/types";
 import type {
   PickableDocument,
   PickableNarrative,
@@ -57,6 +61,8 @@ import type { MyCaseRole } from "@/lib/queries/cases";
 export interface CaseReferralsModule {
   referrals: ReferralListItem[];
   referralTypes: ReferralType[];
+  /** RV2 R2: the active requested-action vocabulary for the wizard's "o que se pede". */
+  requestedActions: ReferralRequestedAction[];
   targetCommissions: ReferralTargetCommission[];
   narratives: PickableNarrative[];
   documents: PickableDocument[];
@@ -105,6 +111,7 @@ export function CaseDetailView({
   withHeader,
   backHref,
   referralsModule,
+  forwardParentReferralId = null,
   canManagePhaseResults = false,
   phaseResultOptions = [],
   outcomes = [],
@@ -142,6 +149,10 @@ export function CaseDetailView({
    * rendered. Assembled + gated by the host page.
    */
   referralsModule?: CaseReferralsModule | null;
+  /** RV2 R3: the parent referral id when this case-detail was reached via an
+   * "Encaminhar adiante" deep-link — threaded to the outbound card, which opens the
+   * send wizard in forward mode. `null`/absent otherwise. */
+  forwardParentReferralId?: string | null;
   /** The viewer's user id — for the per-narrative assignee check (Q14). */
   viewerId: string | null;
   /** The viewer's role chip (shown in the self-contained header only). */
@@ -392,9 +403,11 @@ export function CaseDetailView({
                   referrals={referralsModule.referrals}
                   canManageLifecycle={caps.canManageLifecycle}
                   referralTypes={referralsModule.referralTypes}
+                  requestedActions={referralsModule.requestedActions}
                   targetCommissions={referralsModule.targetCommissions}
                   narratives={referralsModule.narratives}
                   documents={referralsModule.documents}
+                  forwardParentReferralId={forwardParentReferralId}
                 />
               </div>
             )}

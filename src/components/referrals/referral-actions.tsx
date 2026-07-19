@@ -3,12 +3,15 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  BadgeCheck,
+  CalendarClock,
   CheckCircle2,
   CircleSlash,
   Inbox,
   Link2,
   Microscope,
   Paperclip,
+  RotateCcw,
   Send,
   Undo2,
 } from "lucide-react";
@@ -19,13 +22,18 @@ import {
   declineReferral,
   linkReferralCase,
   receiveReferral,
+  reopenReferral,
+  resolveReferral,
+  setReferralDeadline,
   startReferralReview,
   withdrawReferral,
 } from "@/lib/referrals/actions";
 import { REFERRAL_MESSAGES } from "@/lib/referrals/messages";
-import type {
-  ReferralStatus,
-  ReplyOutcome,
+import {
+  REFERRAL_DECLINE_REASON_LABELS,
+  type ReferralDeclineReasonCode,
+  type ReferralStatus,
+  type ReplyOutcome,
 } from "@/lib/referrals/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -72,6 +80,7 @@ export function ReferralActions({
   referralId,
   status,
   responseExpected,
+  responseDueAt,
   canManageTarget,
   canManageSource,
   replyOutcomes,
@@ -81,6 +90,9 @@ export function ReferralActions({
   referralId: string;
   status: ReferralStatus;
   responseExpected: boolean;
+  /** RV2 R2: the current SLA deadline (ISO), or `null`. Drives the deadline
+   * dialog's initial value + the "Definir"/"Alterar" button label. */
+  responseDueAt: string | null;
   /** Viewer is a coordinator of the TARGET commission (or an admin). */
   canManageTarget: boolean;
   /** Viewer is a coordinator of the SOURCE commission (or an admin). */
@@ -97,6 +109,9 @@ export function ReferralActions({
 
   const [linkOpen, setLinkOpen] = useState(false);
   const [declineOpen, setDeclineOpen] = useState(false);
+  const [resolveOpen, setResolveOpen] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
+  const [deadlineOpen, setDeadlineOpen] = useState(false);
 
   /** Run a no-arg transition action, surfacing its mapped pt-BR error. */
   function run(action: () => Promise<{ ok: boolean; error?: string }>) {
@@ -119,8 +134,32 @@ export function ReferralActions({
   const sourceCanWithdraw =
     canManageSource &&
     ["sent", "received", "accepted", "in_review"].includes(status);
+  // RV2 R3: the SOURCE coordinator formally confirms closure (`answered → resolved`)
+  // or reopens a resolved referral (`resolved → in_review`). The RPC re-checks
+  // authority (42501) and state (HC0A5); this gating is a convenience.
+  const sourceCanResolve = canManageSource && status === "answered";
+  const sourceCanReopen = canManageSource && status === "resolved";
+  // RV2 R2: either coordinator may set/update the SLA deadline while the referral is
+  // in flight (non-terminal, post-draft). `answered` still counts — A owes the move.
+  const canSetDeadline =
+    (canManageTarget || canManageSource) &&
+    [
+      "sent",
+      "received",
+      "accepted",
+      "in_review",
+      "awaiting_information",
+      "answered",
+    ].includes(status);
 
-  if (!targetCanAct && !sourceCanWithdraw) return null;
+  if (
+    !targetCanAct &&
+    !sourceCanWithdraw &&
+    !sourceCanResolve &&
+    !sourceCanReopen &&
+    !canSetDeadline
+  )
+    return null;
 
   return (
     <section
@@ -197,6 +236,47 @@ export function ReferralActions({
           </Button>
         )}
 
+        {/* SOURCE resolve — confirm closure once the target has answered (RV2 R3). */}
+        {sourceCanResolve && (
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => setResolveOpen(true)}
+            disabled={isPending}
+          >
+            <BadgeCheck aria-hidden="true" />
+            Resolver
+          </Button>
+        )}
+
+        {/* SOURCE reopen — reopen a resolved referral for a new cycle (RV2 R3). */}
+        {sourceCanReopen && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setReopenOpen(true)}
+            disabled={isPending}
+          >
+            <RotateCcw aria-hidden="true" />
+            Reabrir
+          </Button>
+        )}
+
+        {/* SLA deadline — either coordinator, while in flight (RV2 R2). */}
+        {canSetDeadline && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setDeadlineOpen(true)}
+            disabled={isPending}
+          >
+            <CalendarClock aria-hidden="true" />
+            {responseDueAt ? "Alterar prazo" : "Definir prazo"}
+          </Button>
+        )}
+
         {/* SOURCE withdraw — while the referral is still in flight. */}
         {sourceCanWithdraw && (
           <Button
@@ -248,6 +328,30 @@ export function ReferralActions({
           cases={linkableCases}
         />
       )}
+
+      {/* RV2 R3: source resolve / reopen dialogs. */}
+      {canManageSource && (
+        <ResolveDialog
+          open={resolveOpen}
+          onOpenChange={setResolveOpen}
+          referralId={referralId}
+        />
+      )}
+      {canManageSource && (
+        <ReopenDialog
+          open={reopenOpen}
+          onOpenChange={setReopenOpen}
+          referralId={referralId}
+        />
+      )}
+
+      {/* RV2 R2: set/update the SLA deadline (either coordinator). */}
+      <DeadlineDialog
+        open={deadlineOpen}
+        onOpenChange={setDeadlineOpen}
+        referralId={referralId}
+        current={responseDueAt}
+      />
     </section>
   );
 }
@@ -393,6 +497,9 @@ function DeclineDialog({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [reasonCode, setReasonCode] = useState<ReferralDeclineReasonCode | "">(
+    "",
+  );
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -400,6 +507,7 @@ function DeclineDialog({
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
+      setReasonCode("");
       setNote("");
       setError(null);
     }
@@ -412,6 +520,7 @@ function DeclineDialog({
       const result = await declineReferral({
         referralId,
         note: note.trim() || null,
+        declineReasonCode: reasonCode || null,
       });
       if (!result.ok) {
         setError(result.error ?? REFERRAL_MESSAGES.generic);
@@ -434,9 +543,38 @@ function DeclineDialog({
         </DialogHeader>
         <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
           {error && <FormBanner tone="error">{error}</FormBanner>}
+          {/* RV2 R2: a PHI-free structured reason (visible to metadata-tier
+              readers), distinct from the optional PHI-bearing note below. */}
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">
-              Motivo{" "}
+              Motivo da recusa{" "}
+              <span className="font-normal text-muted-foreground">
+                (opcional)
+              </span>
+            </span>
+            <NativeSelect
+              value={reasonCode}
+              onChange={(e) =>
+                setReasonCode(e.target.value as ReferralDeclineReasonCode | "")
+              }
+              className="py-2"
+            >
+              <option value="">Não especificar</option>
+              {(
+                Object.entries(REFERRAL_DECLINE_REASON_LABELS) as [
+                  ReferralDeclineReasonCode,
+                  string,
+                ][]
+              ).map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ))}
+            </NativeSelect>
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium">
+              Observação{" "}
               <span className="font-normal text-muted-foreground">
                 (opcional)
               </span>
@@ -446,7 +584,7 @@ function DeclineDialog({
               onChange={(e) => setNote(e.target.value)}
               rows={3}
               className={FIELD_CLASS}
-              placeholder="Por que o encaminhamento está sendo recusado…"
+              placeholder="Detalhe para a comissão de origem, se necessário…"
             />
           </label>
           <DialogFooter>
@@ -566,6 +704,331 @@ function LinkCaseDialog({
             </Button>
             <Button type="submit" size="lg" disabled={isPending || cases.length === 0}>
               {isPending ? "Vinculando…" : "Vincular"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** ISO timestamp → a `datetime-local` value (`YYYY-MM-DDTHH:mm`, local wall-clock);
+ * `null`/unparseable → `""` (empty input). */
+function isoToLocalInput(iso: string | null): string {
+  if (!iso) return "";
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return "";
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+}
+
+/** The current local wall-clock as a `datetime-local` value, for the input's `min`. */
+function nowLocalInput(): string {
+  return isoToLocalInput(new Date().toISOString());
+}
+
+/**
+ * Resolve dialog (RV2 R3): the SOURCE coordinator confirms closure
+ * (`answered → resolved`) with an OPTIONAL resolution summary (PHI-bearing) + a
+ * follow-up flag. Appends a resolution row (append-only history).
+ */
+function ResolveDialog({
+  open,
+  onOpenChange,
+  referralId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  referralId: string;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [summary, setSummary] = useState("");
+  const [followUp, setFollowUp] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setSummary("");
+      setFollowUp(false);
+      setError(null);
+    }
+  }
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    startTransition(async () => {
+      const result = await resolveReferral({
+        referralId,
+        summaryMd: summary.trim() || null,
+        followUpRequired: followUp,
+      });
+      if (!result.ok) {
+        setError(result.error ?? REFERRAL_MESSAGES.generic);
+        return;
+      }
+      onOpenChange(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Resolver encaminhamento</DialogTitle>
+          <DialogDescription>
+            Confirme o encerramento após a resposta da comissão de destino. Você
+            pode registrar um resumo da resolução e indicar se há acompanhamento
+            pendente.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
+          {error && <FormBanner tone="error">{error}</FormBanner>}
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium">
+              Resumo da resolução{" "}
+              <span className="font-normal text-muted-foreground">
+                (opcional)
+              </span>
+            </span>
+            <textarea
+              value={summary}
+              onChange={(e) => setSummary(e.target.value)}
+              rows={4}
+              className={FIELD_CLASS}
+              placeholder="Como o encaminhamento foi encerrado. Aceita Markdown."
+            />
+          </label>
+          <label className="flex items-start gap-2.5 text-sm">
+            <input
+              type="checkbox"
+              checked={followUp}
+              onChange={(e) => setFollowUp(e.target.checked)}
+              className="mt-0.5 size-4 rounded border-input accent-[var(--primary)] focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="font-medium">Requer acompanhamento</span>
+              <span className="text-xs text-muted-foreground text-pretty">
+                Marque se ainda há uma pendência a acompanhar após a resolução.
+              </span>
+            </span>
+          </label>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={() => onOpenChange(false)}
+              disabled={isPending}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" size="lg" disabled={isPending}>
+              <BadgeCheck aria-hidden="true" />
+              {isPending ? "Resolvendo…" : "Resolver"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Reopen dialog (RV2 R3): the SOURCE coordinator reopens a resolved referral
+ * (`resolved → in_review`) with a REQUIRED reason. The next resolve appends a new
+ * resolution number (append-only history).
+ */
+function ReopenDialog({
+  open,
+  onOpenChange,
+  referralId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  referralId: string;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [reason, setReason] = useState("");
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setReason("");
+      setFieldError(null);
+      setError(null);
+    }
+  }
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setFieldError(null);
+    if (!reason.trim()) {
+      setFieldError(REFERRAL_MESSAGES.reopenReasonRequired);
+      return;
+    }
+    startTransition(async () => {
+      const result = await reopenReferral({ referralId, reason: reason.trim() });
+      if (!result.ok) {
+        if (result.fieldErrors?.reason) setFieldError(result.fieldErrors.reason);
+        else setError(result.error ?? REFERRAL_MESSAGES.generic);
+        return;
+      }
+      onOpenChange(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Reabrir encaminhamento</DialogTitle>
+          <DialogDescription>
+            A análise volta ao estado &ldquo;Em análise&rdquo; para um novo ciclo.
+            Informe o motivo da reabertura.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
+          {error && <FormBanner tone="error">{error}</FormBanner>}
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium">Motivo da reabertura</span>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              required
+              className={FIELD_CLASS}
+              placeholder="Por que o encaminhamento está sendo reaberto…"
+              aria-invalid={fieldError ? true : undefined}
+              aria-describedby={fieldError ? "referral-reopen-error" : undefined}
+            />
+            {fieldError && (
+              <span
+                id="referral-reopen-error"
+                role="alert"
+                className="text-sm font-medium text-destructive"
+              >
+                {fieldError}
+              </span>
+            )}
+          </label>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={() => onOpenChange(false)}
+              disabled={isPending}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" size="lg" disabled={isPending}>
+              <RotateCcw aria-hidden="true" />
+              {isPending ? "Reabrindo…" : "Reabrir"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/**
+ * Deadline dialog (RV2 R2): either coordinator sets/updates/clears the SLA response
+ * deadline while the referral is in flight. A past date is rejected by the RPC
+ * (HC0A4); an empty value clears the deadline.
+ */
+function DeadlineDialog({
+  open,
+  onOpenChange,
+  referralId,
+  current,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  referralId: string;
+  current: string | null;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setValue(isoToLocalInput(current));
+      setError(null);
+    }
+  }
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const iso = value.trim() ? new Date(value).toISOString() : null;
+    startTransition(async () => {
+      const result = await setReferralDeadline({
+        referralId,
+        responseDueAt: iso,
+      });
+      if (!result.ok) {
+        setError(result.error ?? REFERRAL_MESSAGES.generic);
+        return;
+      }
+      onOpenChange(false);
+      router.refresh();
+    });
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Prazo de resposta</DialogTitle>
+          <DialogDescription>
+            Defina a data-limite para a comissão de destino responder. Deixe em
+            branco para remover o prazo.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
+          {error && <FormBanner tone="error">{error}</FormBanner>}
+          <label className="flex flex-col gap-1.5 text-sm">
+            <span className="font-medium">Prazo</span>
+            <input
+              type="datetime-local"
+              value={value}
+              min={nowLocalInput()}
+              onChange={(e) => setValue(e.target.value)}
+              className={FIELD_CLASS}
+            />
+          </label>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              onClick={() => onOpenChange(false)}
+              disabled={isPending}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" size="lg" disabled={isPending}>
+              <CalendarClock aria-hidden="true" />
+              {isPending ? "Salvando…" : "Salvar prazo"}
             </Button>
           </DialogFooter>
         </form>

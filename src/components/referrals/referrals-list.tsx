@@ -21,6 +21,8 @@ import {
 import { cn } from "@/lib/utils";
 import { NativeSelect } from "@/components/ui/native-select";
 import {
+  ReferralOverdueChip,
+  ReferralPriorityChip,
   ReferralStatusChip,
   ReferralTypeChip,
   ResponseExpectedChip,
@@ -235,7 +237,7 @@ export function ReferralsList({
         </section>
       ) : (
         <div className="animate-fade-in overflow-x-auto rounded-2xl border border-border bg-card shadow-xs">
-          <table className="w-full min-w-[940px] border-collapse text-sm">
+          <table className="w-full min-w-[1060px] border-collapse text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/40">
                 <SortHeader
@@ -278,6 +280,12 @@ export function ReferralsList({
                   scope="col"
                   className="px-3 py-2.5 text-left text-[0.68rem] font-semibold tracking-wide text-muted-foreground uppercase"
                 >
+                  Prazo
+                </th>
+                <th
+                  scope="col"
+                  className="px-3 py-2.5 text-left text-[0.68rem] font-semibold tracking-wide text-muted-foreground uppercase"
+                >
                   Última atividade
                 </th>
               </tr>
@@ -299,14 +307,21 @@ export function ReferralsList({
                       >
                         {r.subject}
                       </Link>
-                      {r.responseExpected &&
-                        !["completed", "rejected", "withdrawn"].includes(
-                          r.status,
-                        ) && (
-                          <span className="mt-0.5">
-                            <ResponseExpectedChip />
-                          </span>
+                      {r.requestedActionLabel && (
+                        <span className="truncate text-xs text-muted-foreground">
+                          {r.requestedActionLabel}
+                        </span>
+                      )}
+                      <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                        {r.priority !== "routine" && (
+                          <ReferralPriorityChip priority={r.priority} />
                         )}
+                        {r.overdue && <ReferralOverdueChip />}
+                        {r.responseExpected &&
+                          !["completed", "rejected", "withdrawn"].includes(
+                            r.status,
+                          ) && <ResponseExpectedChip />}
+                      </div>
                     </div>
                   </td>
                   <td className="px-3 py-2.5 align-middle">
@@ -341,6 +356,26 @@ export function ReferralsList({
                   </td>
                   <td className="px-3 py-2.5 align-middle text-xs whitespace-nowrap text-muted-foreground tabular-nums">
                     {formatDate(r.createdAt)}
+                  </td>
+                  {/* RV2 R2: SLA deadline — overdue rows read in destructive tone
+                      (icon + "vencido" text carry the meaning too; never colour
+                      alone). */}
+                  <td
+                    className={cn(
+                      "px-3 py-2.5 align-middle text-xs whitespace-nowrap tabular-nums",
+                      r.overdue
+                        ? "font-medium text-destructive"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {r.responseDueAt ? (
+                      <>
+                        {formatDate(r.responseDueAt)}
+                        {r.overdue ? " · vencido" : ""}
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground/70">—</span>
+                    )}
                   </td>
                   {/* RV2 R1: last thread activity — PHI-free metadata only (a
                       timestamp, NEVER a message-body preview; plan §2.2). */}

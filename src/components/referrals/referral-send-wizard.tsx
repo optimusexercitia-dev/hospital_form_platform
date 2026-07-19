@@ -20,9 +20,12 @@ import {
   setReferralPatient,
 } from "@/lib/referrals/actions";
 import { REFERRAL_MESSAGES } from "@/lib/referrals/messages";
-import type {
-  ReferralPatient,
-  ReferralType,
+import {
+  REFERRAL_PRIORITY_LABELS,
+  type ReferralPatient,
+  type ReferralPriority,
+  type ReferralRequestedAction,
+  type ReferralType,
 } from "@/lib/referrals/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -95,6 +98,36 @@ const STEPS: { id: StepId; label: string }[] = [
   { id: "review", label: "Revisão" },
 ];
 
+/** Priority options in ascending severity (RV2 R2), for the wizard's select. */
+const PRIORITY_ORDER: ReferralPriority[] = [
+  "routine",
+  "high",
+  "urgent",
+  "critical",
+];
+
+/** Convert a `datetime-local` value (`YYYY-MM-DDTHH:mm`, local wall-clock) to an
+ * ISO timestamp for the SLA deadline; `""` → `null` (no deadline). Best-effort — an
+ * unparseable value yields `null` rather than throwing (the RPC also rejects a past
+ * date via HC0A4). */
+function localDateTimeToIso(value: string): string | null {
+  if (!value.trim()) return null;
+  const ms = Date.parse(value);
+  if (Number.isNaN(ms)) return null;
+  return new Date(ms).toISOString();
+}
+
+/** The current local wall-clock as a `datetime-local` value (`YYYY-MM-DDTHH:mm`),
+ * used as the deadline input's `min` so a past date can't be picked (the RPC also
+ * rejects it via HC0A4). */
+function nowLocalInput(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours(),
+  )}:${pad(d.getMinutes())}`;
+}
+
 /** Map a {@link SafetyEventPrefill} patient into the editable draft (strings). */
 function prefillToDraft(patient: ReferralPatient): ReferralPatientDraft {
   return {
@@ -132,9 +165,11 @@ export function ReferralSendWizard({
   sourceCaseId,
   sourceCaseNumber,
   referralTypes,
+  requestedActions,
   targetCommissions,
   narratives,
   documents,
+  parentReferralId,
   onLoadSafetyPrefill,
 }: {
   open: boolean;
@@ -142,9 +177,15 @@ export function ReferralSendWizard({
   sourceCaseId: string;
   sourceCaseNumber: number | null;
   referralTypes: ReferralType[];
+  /** RV2 R2: the active requested-action vocabulary ("o que se pede"). */
+  requestedActions: ReferralRequestedAction[];
   targetCommissions: ReferralTargetCommission[];
   narratives: PickableNarrative[];
   documents: PickableDocument[];
+  /** RV2 R3: when set, this draft is a FORWARD ("Encaminhar adiante") — the new
+   * referral's `parent_referral_id` lineage back-pointer. `null`/absent for a root
+   * referral. The child shares NOTHING from the parent automatically (D15). */
+  parentReferralId?: string | null;
   /** Lazily loads the linked-safety-event PHI pre-fill on the patient step (an
    * AUDITED read — see {@link SafetyEventPrefill}). Absent when the case can never
    * have a prefill. Returns `null` when none / out of scope. */
@@ -165,6 +206,11 @@ export function ReferralSendWizard({
   const [subject, setSubject] = useState("");
   const [description, setDescription] = useState("");
   const [responseExpected, setResponseExpected] = useState(true);
+  // RV2 R2 triage fields (PHI-free): priority (defaults `routine`), the picked
+  // requested-action, and an optional SLA deadline (local wall-clock in the input).
+  const [priority, setPriority] = useState<ReferralPriority>("routine");
+  const [requestedActionId, setRequestedActionId] = useState("");
+  const [responseDueAt, setResponseDueAt] = useState("");
 
   // Step 2 selection: source ids the coordinator picked (kept local; each toggle
   // calls the freeze/remove RPC so the server stays the source of truth).
@@ -191,6 +237,11 @@ export function ReferralSendWizard({
       targetCommissions.find((c) => c.id === targetCommissionId)?.name ?? null,
     [targetCommissions, targetCommissionId],
   );
+  const requestedActionLabel = useMemo(
+    () =>
+      requestedActions.find((a) => a.id === requestedActionId)?.label ?? null,
+    [requestedActions, requestedActionId],
+  );
 
   // Reset the whole wizard when it (re)opens.
   const [wasOpen, setWasOpen] = useState(false);
@@ -205,6 +256,9 @@ export function ReferralSendWizard({
       setSubject("");
       setDescription("");
       setResponseExpected(true);
+      setPriority("routine");
+      setRequestedActionId("");
+      setResponseDueAt("");
       setPickedNarratives(new Set());
       setPickedDocuments(new Set());
       setPatient(EMPTY_REFERRAL_PATIENT_DRAFT);
@@ -264,6 +318,12 @@ export function ReferralSendWizard({
         subject: subject.trim(),
         descriptionMd: description.trim() || null,
         responseExpected,
+        // RV2 R2 triage (PHI-free): priority defaults `routine`; action/due optional.
+        priority,
+        requestedActionId: requestedActionId || null,
+        responseDueAt: localDateTimeToIso(responseDueAt),
+        // RV2 R3: forward lineage ("Encaminhar adiante"); null for a root referral.
+        parentReferralId: parentReferralId ?? null,
       });
       if (!result.ok || !result.referralId) {
         setError(result.error ?? REFERRAL_MESSAGES.generic);
@@ -382,14 +442,15 @@ export function ReferralSendWizard({
       <DialogContent className="max-h-[92svh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>
-            Encaminhar{" "}
+            {parentReferralId ? "Encaminhar adiante" : "Encaminhar"}{" "}
             {sourceCaseNumber != null
               ? `Caso ${String(sourceCaseNumber).padStart(4, "0")}`
               : "caso"}
           </DialogTitle>
           <DialogDescription>
-            Compartilhe uma visão selecionada deste caso com outra comissão para
-            análise ou ciência.
+            {parentReferralId
+              ? "Encaminhe este caso a outra comissão, mantendo o vínculo de origem com o encaminhamento anterior. O novo encaminhamento não compartilha automaticamente nada do anterior."
+              : "Compartilhe uma visão selecionada deste caso com outra comissão para análise ou ciência."}
           </DialogDescription>
         </DialogHeader>
 
@@ -516,6 +577,68 @@ export function ReferralSendWizard({
                 className={FIELD_CLASS}
                 placeholder="Contexto para a comissão de destino. Aceita Markdown."
               />
+            </label>
+
+            {/* RV2 R2 triage — priority + what is asked of the target committee. */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium">Prioridade</span>
+                <NativeSelect
+                  value={priority}
+                  onChange={(e) =>
+                    setPriority(e.target.value as ReferralPriority)
+                  }
+                  className="py-2"
+                >
+                  {PRIORITY_ORDER.map((p) => (
+                    <option key={p} value={p}>
+                      {REFERRAL_PRIORITY_LABELS[p]}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </label>
+
+              <label className="flex flex-col gap-1.5 text-sm">
+                <span className="font-medium">
+                  Ação solicitada{" "}
+                  <span className="font-normal text-muted-foreground">
+                    (opcional)
+                  </span>
+                </span>
+                <NativeSelect
+                  value={requestedActionId}
+                  onChange={(e) => setRequestedActionId(e.target.value)}
+                  className="py-2"
+                  disabled={requestedActions.length === 0}
+                >
+                  <option value="">Não especificar</option>
+                  {requestedActions.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.label}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </label>
+            </div>
+
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="font-medium">
+                Prazo de resposta{" "}
+                <span className="font-normal text-muted-foreground">
+                  (opcional)
+                </span>
+              </span>
+              <input
+                type="datetime-local"
+                value={responseDueAt}
+                min={nowLocalInput()}
+                onChange={(e) => setResponseDueAt(e.target.value)}
+                className={FIELD_CLASS}
+              />
+              <span className="text-xs text-muted-foreground">
+                Data-limite para a comissão de destino responder. Deixe em branco
+                se não houver prazo.
+              </span>
             </label>
 
             <label className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/20 p-3 text-sm">
@@ -795,6 +918,40 @@ export function ReferralSendWizard({
                   {responseExpected ? "Aguarda resposta" : "Apenas ciência"}
                 </dd>
               </div>
+              <div className="flex flex-col gap-0.5">
+                <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                  Prioridade
+                </dt>
+                <dd className="text-sm text-foreground">
+                  {REFERRAL_PRIORITY_LABELS[priority]}
+                </dd>
+              </div>
+              {requestedActionLabel && (
+                <div className="flex flex-col gap-0.5">
+                  <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    Ação solicitada
+                  </dt>
+                  <dd className="text-sm text-foreground">
+                    {requestedActionLabel}
+                  </dd>
+                </div>
+              )}
+              {responseDueAt.trim() && (
+                <div className="flex flex-col gap-0.5">
+                  <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                    Prazo de resposta
+                  </dt>
+                  <dd className="text-sm text-foreground tabular-nums">
+                    {new Intl.DateTimeFormat("pt-BR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }).format(new Date(responseDueAt))}
+                  </dd>
+                </div>
+              )}
               <div className="flex flex-col gap-0.5">
                 <dt className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                   Itens compartilhados

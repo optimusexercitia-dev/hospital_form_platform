@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   listCaseOutboundReferrals,
+  listReferralRequestedActions,
   listReferralTargetCommissions,
   listReferralTypes,
   referralsEnabled,
@@ -47,11 +48,13 @@ export async function buildCaseReferralsModule(
   if (!(await referralsEnabled())) return null;
 
   const caseId = detail.case.id;
-  const [referrals, referralTypes, targetCommissions] = await Promise.all([
-    listCaseOutboundReferrals(caseId),
-    listReferralTypes(),
-    listReferralTargetCommissions(detail.case.commissionId),
-  ]);
+  const [referrals, referralTypes, requestedActions, targetCommissions] =
+    await Promise.all([
+      listCaseOutboundReferrals(caseId),
+      listReferralTypes(),
+      listReferralRequestedActions(),
+      listReferralTargetCommissions(detail.case.commissionId),
+    ]);
 
   const narratives = detail.narratives
     .filter((n) => (n.bodyMd ?? "").trim().length > 0)
@@ -71,6 +74,7 @@ export async function buildCaseReferralsModule(
   return {
     referrals,
     referralTypes,
+    requestedActions,
     targetCommissions,
     narratives,
     documents: pickableDocuments,

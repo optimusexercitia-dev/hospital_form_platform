@@ -5,7 +5,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeftRight, Send } from "lucide-react";
 
-import type { ReferralListItem, ReferralType } from "@/lib/referrals/types";
+import type {
+  ReferralListItem,
+  ReferralRequestedAction,
+  ReferralType,
+} from "@/lib/referrals/types";
 import { Button } from "@/components/ui/button";
 import {
   ReferralStatusChip,
@@ -48,9 +52,11 @@ export function CaseOutboundReferralsCard({
   referrals,
   canManageLifecycle,
   referralTypes,
+  requestedActions,
   targetCommissions,
   narratives,
   documents,
+  forwardParentReferralId,
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -61,11 +67,24 @@ export function CaseOutboundReferralsCard({
   /** Whether the viewer may send referrals (coordinator/admin; mirrors `close_case`). */
   canManageLifecycle: boolean;
   referralTypes: ReferralType[];
+  /** RV2 R2: the requested-action vocabulary for the wizard. */
+  requestedActions: ReferralRequestedAction[];
   targetCommissions: ReferralTargetCommission[];
   narratives: PickableNarrative[];
   documents: PickableDocument[];
+  /** RV2 R3: when this case-detail was reached via an "Encaminhar adiante"
+   * deep-link (`?encaminharDe=<referralId>`), the parent referral id to seed the new
+   * draft's lineage — the wizard opens automatically in forward mode. `null`
+   * otherwise. */
+  forwardParentReferralId?: string | null;
 }) {
-  const [wizardOpen, setWizardOpen] = useState(false);
+  // Auto-open the wizard in forward mode on arrival via an "Encaminhar adiante"
+  // deep-link. Initialized once (a full navigation mounts fresh); a later
+  // router.refresh() preserves this client state, so the wizard is not re-opened
+  // after a forward is sent + closed.
+  const [wizardOpen, setWizardOpen] = useState(
+    Boolean(forwardParentReferralId) && canManageLifecycle,
+  );
 
   return (
     <section
@@ -150,9 +169,11 @@ export function CaseOutboundReferralsCard({
           sourceCaseId={sourceCaseId}
           sourceCaseNumber={sourceCaseNumber}
           referralTypes={referralTypes}
+          requestedActions={requestedActions}
           targetCommissions={targetCommissions}
           narratives={narratives}
           documents={documents}
+          parentReferralId={forwardParentReferralId ?? null}
           onLoadSafetyPrefill={() => loadCaseSafetyPrefill(sourceCaseId)}
         />
       )}

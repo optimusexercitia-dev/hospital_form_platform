@@ -1,8 +1,10 @@
-import { EyeOff, MessagesSquare } from "lucide-react";
+import { MessagesSquare } from "lucide-react";
 
-import type { ReferralMessage } from "@/lib/referrals/types";
-import { ReferralMessageTypeChip } from "./referral-chips";
-import { formatDateTime } from "./format";
+import type {
+  ReferralMessage,
+  ReferralReadReceipt,
+} from "@/lib/referrals/types";
+import { ReferralThreadItem } from "./referral-thread-item";
 
 /**
  * The inter-committee dialogue thread (RV2 R1 — ADR 0037 Amendment 1). Renders the
@@ -22,10 +24,20 @@ import { formatDateTime } from "./format";
  */
 export function ReferralThread({
   messages,
+  readReceipts,
+  viewerUserId,
+  canRedact,
   waitingOnLabel,
   composer,
 }: {
   messages: ReferralMessage[];
+  /** RV2 R5: PHI-free read/ack receipts across all messages (grouped per message
+   * here for the per-message indicators). */
+  readReceipts: ReferralReadReceipt[];
+  /** The viewing user's id (for the "have I read/acked?" receipt checks). */
+  viewerUserId: string | null;
+  /** RV2 R5: whether the viewer may redact a message (a coordinator of either side). */
+  canRedact: boolean;
   /** Waiting-on indicator text while `awaiting_information`; `null` otherwise. */
   waitingOnLabel: string | null;
   /** The gated write affordance (a client island), or `null` for read-only viewers. */
@@ -34,6 +46,14 @@ export function ReferralThread({
   const ordered = [...messages].sort(
     (a, b) => a.sequenceNumber - b.sequenceNumber,
   );
+
+  // Group receipts by message id for the per-message indicators.
+  const receiptsByMessage = new Map<string, ReferralReadReceipt[]>();
+  for (const rc of readReceipts) {
+    const list = receiptsByMessage.get(rc.messageId);
+    if (list) list.push(rc);
+    else receiptsByMessage.set(rc.messageId, [rc]);
+  }
 
   return (
     <section
@@ -67,41 +87,14 @@ export function ReferralThread({
       ) : (
         <ul className="flex flex-col gap-3">
           {ordered.map((m, i) => (
-            <li
+            <ReferralThreadItem
               key={m.id}
-              className="flex animate-rise-in flex-col gap-1.5 rounded-xl border border-border/70 bg-muted/20 p-4"
-              style={{ "--rise-delay": `${i * 50}ms` } as React.CSSProperties}
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-xs text-muted-foreground">
-                  #{m.sequenceNumber}
-                </span>
-                <span className="text-sm font-medium text-foreground">
-                  {m.senderCommissionName ?? "Comissão"}
-                </span>
-                <ReferralMessageTypeChip type={m.messageType} />
-                <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-                  {formatDateTime(m.createdAt)}
-                </span>
-              </div>
-
-              {m.senderUserName && (
-                <span className="text-xs text-muted-foreground">
-                  por {m.senderUserName}
-                </span>
-              )}
-
-              {m.body === null ? (
-                <p className="inline-flex items-center gap-1.5 text-sm text-muted-foreground italic">
-                  <EyeOff aria-hidden="true" className="size-3.5" />
-                  Conteúdo restrito — você não tem acesso ao teor desta mensagem.
-                </p>
-              ) : (
-                <p className="text-sm whitespace-pre-wrap text-foreground text-pretty">
-                  {m.body}
-                </p>
-              )}
-            </li>
+              message={m}
+              receipts={receiptsByMessage.get(m.id) ?? []}
+              viewerUserId={viewerUserId}
+              canRedact={canRedact}
+              index={i}
+            />
           ))}
         </ul>
       )}

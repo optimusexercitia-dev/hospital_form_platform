@@ -46,10 +46,15 @@ export const metadata: Metadata = {
  */
 export default async function CaseDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ org: string; commission: string; caseId: string }>;
+  searchParams: Promise<{ encaminharDe?: string }>;
 }) {
   const { org, commission, caseId } = await params;
+  // RV2 R3: an "Encaminhar adiante" deep-link seeds the forward wizard's parent
+  // referral id (the new draft's lineage back-pointer). Absent for a normal visit.
+  const { encaminharDe } = await searchParams;
   const slug = commission;
   const access = await getCommissionAccessByOrg(org, commission);
 
@@ -139,6 +144,7 @@ export default async function CaseDetailPage({
       withHeader={false}
       backHref={commissionHref(org, commission, "manage", "cases")}
       referralsModule={referralsModule}
+      forwardParentReferralId={encaminharDe ?? null}
       canManagePhaseResults={phaseResultsOn}
       phaseResultOptions={phaseResultOptions}
       outcomes={outcomes}

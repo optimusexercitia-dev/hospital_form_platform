@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ArrowLeftRight } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeftRight, UserRound } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
@@ -76,6 +77,13 @@ export default async function CommissionReferralsPage({
           privado. Para encaminhar um caso, abra o caso e use{" "}
           <span className="font-medium text-foreground">Encaminhar caso</span>.
         </p>
+        <Link
+          href="/conta/encaminhamentos"
+          className="inline-flex w-fit items-center gap-1.5 rounded text-sm font-medium text-primary underline-offset-2 hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+        >
+          <UserRound aria-hidden="true" className="size-4" />
+          Minhas atribuições de encaminhamento
+        </Link>
       </header>
 
       <ReferralsHubSections

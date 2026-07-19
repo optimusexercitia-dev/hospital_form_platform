@@ -11,29 +11,40 @@
  */
 
 import {
+  AlarmClockOff,
   ArrowDownLeft,
+  ArrowUp,
   ArrowUpRight,
+  BadgeCheck,
+  ChevronsUp,
   CircleCheck,
   CircleDot,
   CircleSlash,
   Clock3,
   CornerDownRight,
   FileEdit,
+  Flag,
   Inbox,
   Info,
   MessageCircleQuestion,
+  MessageSquareReply,
   MessageSquareText,
   Microscope,
+  Target,
+  TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
 
 import {
   MESSAGE_TYPE_LABELS,
   REFERRAL_DIRECTION_LABELS,
+  REFERRAL_PRIORITY_LABELS,
+  REFERRAL_PRIORITY_TOKENS,
   REFERRAL_STATUS_LABELS,
   REFERRAL_STATUS_TOKENS,
   type MessageType,
   type ReferralDirection,
+  type ReferralPriority,
   type ReferralStatus,
 } from "@/lib/referrals/types";
 import { cn } from "@/lib/utils";
@@ -48,8 +59,9 @@ const CHIP_BASE =
 
 /** Lifecycle-ordered icon per status (paired with the pt-BR label — never colour
  * alone). `rascunho` = draft, `enviada` = sent, `recebida` = inbox, `aceita` =
- * dot, `em_analise` = microscope, `concluida` = check, `recusada` = slash,
- * `retirada` = slash (withdrawn). */
+ * dot, `em_analise` = microscope, `respondida` = reply, `resolvida` = badge-check,
+ * `concluida` = check, `recusada` = slash, `retirada` = slash (withdrawn). RV2 R3
+ * widened the union with `answered` + `resolved` (the resolution split). */
 const STATUS_ICON: Record<ReferralStatus, LucideIcon> = {
   draft: FileEdit,
   sent: ArrowUpRight,
@@ -58,6 +70,8 @@ const STATUS_ICON: Record<ReferralStatus, LucideIcon> = {
   rejected: CircleSlash,
   in_review: Microscope,
   awaiting_information: MessageCircleQuestion,
+  answered: MessageSquareReply,
+  resolved: BadgeCheck,
   completed: CircleCheck,
   withdrawn: CircleSlash,
 };
@@ -163,6 +177,71 @@ export function ResponseExpectedChip() {
     >
       <Clock3 aria-hidden="true" className="size-3.5" />
       Aguarda resposta
+    </span>
+  );
+}
+
+/** Triage-priority icon per severity (RV2 R2). Severity conveyed by icon SHAPE +
+ * text + tone (never colour alone). `routine` = flag, `high` = up, `urgent` =
+ * double-up, `critical` = alert triangle. */
+const PRIORITY_ICON: Record<ReferralPriority, LucideIcon> = {
+  routine: Flag,
+  high: ArrowUp,
+  urgent: ChevronsUp,
+  critical: TriangleAlert,
+};
+
+/**
+ * The triage-priority chip (RV2 R2) — icon + pt-BR label + tone resolved from the
+ * contract's {@link REFERRAL_PRIORITY_TOKENS} map (reusing the status chip's token
+ * → class resolver). Callers may hide it for the quiet `routine` default; it always
+ * renders whatever priority it is given. PHI-free.
+ */
+export function ReferralPriorityChip({
+  priority,
+}: {
+  priority: ReferralPriority;
+}) {
+  const Icon = PRIORITY_ICON[priority];
+  return (
+    <span
+      className={cn(
+        CHIP_BASE,
+        referralStatusChipClass(REFERRAL_PRIORITY_TOKENS[priority]),
+      )}
+    >
+      <Icon aria-hidden="true" className="size-3.5" />
+      {REFERRAL_PRIORITY_LABELS[priority]}
+    </span>
+  );
+}
+
+/** The SLA overdue chip (RV2 R2) — a firm "Atrasado" pill for a referral past its
+ * response deadline (computed via `isReferralOverdue`; never a stored flag).
+ * Destructive tone + a distinct icon (never colour alone). PHI-free. */
+export function ReferralOverdueChip() {
+  return (
+    <span
+      className={cn(
+        CHIP_BASE,
+        "border-destructive/30 bg-destructive/10 text-destructive",
+      )}
+    >
+      <AlarmClockOff aria-hidden="true" className="size-3.5" />
+      Prazo vencido
+    </span>
+  );
+}
+
+/**
+ * The requested-action chip (RV2 R2) — the snapshotted "o que se pede" label a
+ * quiet metadata pill (with a Target icon so it reads as a request, not a state).
+ * PHI-free. */
+export function ReferralRequestedActionChip({ label }: { label: string }) {
+  return (
+    <span className={cn(REFERRAL_META_CHIP_BASE, referralTypeChipClass(null))}>
+      <Target aria-hidden="true" className="size-3.5" />
+      {label}
     </span>
   );
 }

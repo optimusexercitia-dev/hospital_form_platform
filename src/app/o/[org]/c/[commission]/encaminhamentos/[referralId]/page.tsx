@@ -2,7 +2,13 @@ import { commissionHref } from "@/lib/routing";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Building2, FolderOpen } from "lucide-react";
+import {
+  ArrowLeft,
+  Building2,
+  CalendarClock,
+  CircleSlash,
+  FolderOpen,
+} from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
@@ -10,23 +16,30 @@ import {
   getReferralAttachmentUrl,
   getReferralDetail,
   getReferralDocumentUrl,
+  listReferralInternalNotes,
   listReplyOutcomes,
   referralsEnabled,
 } from "@/lib/queries/referrals";
 import { revealReferralPatient } from "@/lib/referrals/actions";
 import { patientXrefCount } from "@/lib/queries/patient-index";
 import { listCasesBoard } from "@/lib/queries/cases";
+import { listMembers } from "@/lib/queries/members";
 import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { SafetyMotion } from "@/components/safety/safety-motion";
 import {
   ReferralDirectionChip,
+  ReferralOverdueChip,
+  ReferralPriorityChip,
+  ReferralRequestedActionChip,
   ReferralStatusChip,
   ReferralTypeChip,
   ResponseExpectedChip,
 } from "@/components/referrals/referral-chips";
 import { ReferralSnapshot } from "@/components/referrals/referral-snapshot";
 import { ReferralReplyView } from "@/components/referrals/referral-reply-view";
+import { ReferralResolutions } from "@/components/referrals/referral-resolutions";
+import { ReferralLineageCard } from "@/components/referrals/referral-lineage";
 import { ReferralThread } from "@/components/referrals/referral-thread";
 import { ReferralComposer } from "@/components/referrals/referral-composer";
 import {
@@ -34,6 +47,9 @@ import {
   type LinkableTargetCase,
 } from "@/components/referrals/referral-actions";
 import { ReferralPatientPanel } from "@/components/referrals/referral-patient-panel";
+import { ReferralAssignmentPanel } from "@/components/referrals/referral-assignment-panel";
+import { ReferralRelatedCasesPanel } from "@/components/referrals/referral-related-cases-panel";
+import { ReferralInternalNotesPanel } from "@/components/referrals/referral-internal-notes-panel";
 import { ReferralDisposeDialog } from "@/components/referrals/referral-dispose-dialog";
 import { ReferralDraftDelete } from "@/components/referrals/referral-draft-delete";
 import {
@@ -41,7 +57,10 @@ import {
   formatDateTime,
   formatReferralCode,
 } from "@/components/referrals/format";
-import { RESOLVED_REFERRAL_STATUSES } from "@/lib/referrals/types";
+import {
+  REFERRAL_DECLINE_REASON_LABELS,
+  RESOLVED_REFERRAL_STATUSES,
+} from "@/lib/referrals/types";
 
 export const metadata: Metadata = {
   title: "Encaminhamento",
@@ -150,6 +169,44 @@ export default async function ReferralDetailPage({
       label: row.case.label,
     }));
 
+  // RV2 R4 responsibility & multi-linkage. The viewer coordinates AT MOST one side
+  // (their route's commission is source XOR target); on that side they may assign
+  // reviewers (from that commission's roster) and record typed related-case pointers
+  // (from that commission's case board). Loaded only for a coordinator — a plain
+  // member gets read-only panels (empty picker sources).
+  const canManageEitherSide = canManageTarget || canManageSource;
+  const [assignableMembers, { rows: relatableBoard }] = await Promise.all([
+    canManageEitherSide
+      ? listMembers(myCommissionId)
+      : Promise.resolve([]),
+    canManageEitherSide
+      ? listCasesBoard(myCommissionId)
+      : Promise.resolve({ rows: [], nextCursor: null }),
+  ]);
+  const assignMembers = assignableMembers.map((m) => ({
+    userId: m.userId,
+    fullName: m.fullName,
+  }));
+  const relatableCases = relatableBoard.map((row) => ({
+    id: row.case.id,
+    caseNumber: row.case.caseNumber,
+    label: row.case.label,
+  }));
+
+  // RV2 R5 private internal notes (side-private; the K-R5-1 keystone). The viewer's
+  // OWN committee side is the referral's source OR target commission that equals the
+  // route's commission; a viewer of neither side (e.g. a QPS drill-in) has `null` and
+  // the door already returns `[]` for them. The audited door returns only the
+  // caller's-side notes, so passing them to the panel never crosses the wall.
+  const myNoteCommitteeId =
+    myCommissionId === detail.sourceCommissionId ||
+    myCommissionId === detail.targetCommissionId
+      ? myCommissionId
+      : null;
+  const internalNotes = myNoteCommitteeId
+    ? await listReferralInternalNotes(detail.id)
+    : [];
+
   // The audited PHI reveal door, bound to this referral. `revealReferralPatient` is
   // a `"use server"` action wrapping the `get_referral_patient` RPC (which emits the
   // `referral_patient.read` audit row server-side and returns NULL for an unentitled
@@ -178,6 +235,18 @@ export default async function ReferralDetailPage({
 
   const inFlight = !RESOLVED_REFERRAL_STATUSES.has(detail.status);
   const backHref = commissionHref(org, commission, "encaminhamentos");
+
+  // RV2 R3 lineage: a link back to the parent this referral was forwarded from
+  // (RLS re-gates at the target), and — for the target coordinator who has linked a
+  // case — an "Encaminhar adiante" deep-link that pre-opens the send wizard on that
+  // linked case, seeding the new draft's `parent_referral_id`.
+  const parentHref = detail.parentReferralId
+    ? commissionHref(org, commission, "encaminhamentos", detail.parentReferralId)
+    : null;
+  const forwardHref =
+    canManageTarget && detail.targetCaseId
+      ? `${commissionHref(org, commission, "manage", "cases", detail.targetCaseId)}?encaminharDe=${detail.id}`
+      : null;
 
   // RV2 R1: the dialogue thread + its gated composer. The waiting-on indicator is
   // shown only while `awaiting_information`, resolving the PHI-free
@@ -216,6 +285,15 @@ export default async function ReferralDetailPage({
                 colorToken={detail.typeColorToken}
               />
               <ReferralDirectionChip direction={detail.direction} />
+              {detail.priority !== "routine" && (
+                <ReferralPriorityChip priority={detail.priority} />
+              )}
+              {detail.requestedActionLabel && (
+                <ReferralRequestedActionChip
+                  label={detail.requestedActionLabel}
+                />
+              )}
+              {detail.overdue && <ReferralOverdueChip />}
               {detail.responseExpected && inFlight && <ResponseExpectedChip />}
             </div>
           </div>
@@ -238,6 +316,21 @@ export default async function ReferralDetailPage({
                   : ""}
               </span>
             </div>
+            {/* RV2 R2: the SLA deadline, read in a firm tone once overdue (the
+                overdue chip above already flags it — icon + text carry it too). */}
+            {detail.responseDueAt && (
+              <div
+                className={`inline-flex items-center gap-1.5 tabular-nums ${
+                  detail.overdue ? "font-medium text-destructive" : ""
+                }`}
+              >
+                <CalendarClock aria-hidden="true" className="size-4" />
+                <span>
+                  Prazo de resposta: {formatDateTime(detail.responseDueAt)}
+                  {detail.overdue ? " · vencido" : ""}
+                </span>
+              </div>
+            )}
           </dl>
 
           <p className="text-sm text-muted-foreground tabular-nums">
@@ -246,6 +339,16 @@ export default async function ReferralDetailPage({
               : `Criado em ${formatDateTime(detail.createdAt)}`}
             {detail.createdByName ? ` por ${detail.createdByName}` : ""}
           </p>
+
+          {/* RV2 R2: the PHI-free structured decline reason on a rejected referral
+              (distinct from the PHI-gated decline note). */}
+          {detail.status === "rejected" && detail.declineReasonCode && (
+            <p className="inline-flex w-fit items-center gap-1.5 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-sm text-destructive">
+              <CircleSlash aria-hidden="true" className="size-4" />
+              Motivo da recusa:{" "}
+              {REFERRAL_DECLINE_REASON_LABELS[detail.declineReasonCode]}
+            </p>
+          )}
         </div>
       </header>
 
@@ -283,6 +386,9 @@ export default async function ReferralDetailPage({
           <div data-rise>
             <ReferralThread
               messages={detail.messages}
+              readReceipts={detail.readReceipts}
+              viewerUserId={access.context.userId}
+              canRedact={canManageEitherSide}
               waitingOnLabel={waitingOnLabel}
               composer={
                 inFlight && canCompose ? (
@@ -306,25 +412,86 @@ export default async function ReferralDetailPage({
               />
             </div>
           )}
-        </div>
 
-        <div className="flex flex-col gap-6 lg:sticky lg:top-8">
-          {/* Entitled coordinator actions — wrapper omitted when null to avoid a
-              phantom flex gap that misaligns the right column with the left. */}
-          {(canManageTarget || canManageSource) && inFlight && (
+          {/* RV2 R3: the append-only resolution history (renders nothing until the
+              source first resolves). */}
+          {detail.resolutions.length > 0 && (
             <div data-rise>
-              <ReferralActions
+              <ReferralResolutions resolutions={detail.resolutions} />
+            </div>
+          )}
+
+          {/* RV2 R4: WHO is responsible (assignments) + typed related-case pointers.
+              Both are PHI-free governance metadata visible to any reader; the
+              coordinator of the viewer's side gets the write controls. */}
+          <div data-rise>
+            <ReferralAssignmentPanel
+              referralId={detail.id}
+              assignments={detail.assignments}
+              canManage={canManageEitherSide}
+              myCommissionId={myCommissionId}
+              members={assignMembers}
+            />
+          </div>
+
+          <div data-rise>
+            <ReferralRelatedCasesPanel
+              referralId={detail.id}
+              links={detail.links}
+              canManage={canManageEitherSide}
+              myCommissionId={myCommissionId}
+              relatableCases={relatableCases}
+            />
+          </div>
+
+          {/* RV2 R5: the PRIVATE per-committee internal notes (K-R5-1) — visible only
+              to the viewer's own side; renders nothing for a QPS/neither-side reader. */}
+          {myNoteCommitteeId && (
+            <div data-rise>
+              <ReferralInternalNotesPanel
                 referralId={detail.id}
-                status={detail.status}
-                responseExpected={detail.responseExpected}
-                canManageTarget={canManageTarget}
-                canManageSource={canManageSource}
-                replyOutcomes={replyOutcomes}
-                linkableCases={linkableCases}
-                linkedCaseNumber={detail.targetCaseNumber}
+                committeeId={myNoteCommitteeId}
+                notes={internalNotes}
+                canCreate={true}
+                canRedact={canManageEitherSide}
               />
             </div>
           )}
+        </div>
+
+        <div className="flex flex-col gap-6 lg:sticky lg:top-8">
+          {/* RV2 R3: lineage — parent back-link + "Encaminhar adiante" forward
+              affordance. Renders nothing when neither applies. */}
+          {(parentHref || forwardHref) && (
+            <div data-rise>
+              <ReferralLineageCard
+                parentHref={parentHref}
+                forwardHref={forwardHref}
+              />
+            </div>
+          )}
+
+          {/* Entitled coordinator actions — wrapper omitted when null to avoid a
+              phantom flex gap that misaligns the right column with the left.
+              Rendered while in flight AND when `resolved` (so the source may
+              REOPEN — RV2 R3; `resolved` is otherwise terminal). The component
+              itself no-ops to null when nothing is actionable for this viewer. */}
+          {(canManageTarget || canManageSource) &&
+            (inFlight || detail.status === "resolved") && (
+              <div data-rise>
+                <ReferralActions
+                  referralId={detail.id}
+                  status={detail.status}
+                  responseExpected={detail.responseExpected}
+                  responseDueAt={detail.responseDueAt}
+                  canManageTarget={canManageTarget}
+                  canManageSource={canManageSource}
+                  replyOutcomes={replyOutcomes}
+                  linkableCases={linkableCases}
+                  linkedCaseNumber={detail.targetCaseNumber}
+                />
+              </div>
+            )}
 
           {/* Discard an UNSENT draft. Source-commission coordinator only — the
               same authority that sends/withdraws — and only while `draft`, which
