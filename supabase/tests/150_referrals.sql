@@ -21,7 +21,7 @@
 -- SECURITY DEFINER RPC, so a DB-side test can observe them).
 
 begin;
-select plan(212);
+select plan(217);
 
 -- Flags ON for the whole test (hermetic; must not depend on migration order).
 update app.feature_flags set enabled = true where key = 'case_referrals';
@@ -1504,6 +1504,73 @@ reset role;
 grant select on det_r10b to authenticated;
 select is((select jsonb_array_length(det_r10b.j->'read_receipts') from det_r10b), 1,
   'R5: the detail door exposes the PHI-free read_receipts array');
+
+-- ---- Rule 11: list_referral_internal_notes AUDITS internal-note reads --------
+-- QA MAJOR-1. The PHI note body is served ONLY through this DEFINER door, so the
+-- door must emit `referral.note_viewed` (PHI-free: referral_id + note_count; WHO =
+-- actor_id column) whenever it serves ≥1 note — and NOTHING when it serves 0.
+--   (a) an authorized note read emits EXACTLY ONE PHI-free note_viewed row.
+--   (b) a cross-side / unauthorized reader (0 notes) emits ZERO note_viewed rows.
+-- MUTATION-PROOF: delete the log_audit_access call in list_referral_internal_notes
+-- → assertion (a) delta flips 1→0 and goes RED; restore → green.
+
+-- (a) sa_y (target coordinator) reads note_tgt (never redacted) → 1 note served.
+create temp table nv_base on commit drop as
+  select count(*)::int as c from public.audit_log
+   where action = 'referral.note_viewed' and entity_id = (select id from r10);
+grant select on nv_base to authenticated;
+
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select public.list_referral_internal_notes((select id from r10));
+reset role;
+
+select is(
+  (select count(*)::int from public.audit_log
+     where action = 'referral.note_viewed' and entity_id = (select id from r10))
+    - (select c from nv_base),
+  1,
+  'R5·Rule11(a): an authorized internal-note read emits EXACTLY ONE referral.note_viewed row');
+
+create temp table nv_row on commit drop as
+  select metadata, summary, actor_id
+  from public.audit_log
+  where action = 'referral.note_viewed' and entity_id = (select id from r10)
+  order by seq desc limit 1;
+grant select on nv_row to authenticated;
+
+select ok(
+  (select metadata ? 'referral_id' and metadata ? 'note_count' from nv_row)
+  and (select (metadata->>'referral_id') = (select id from r10)::text from nv_row)
+  and (select (metadata->>'note_count')::int >= 1 from nv_row)
+  and (select metadata::text not like '%CORPO-NOTA%' from nv_row)
+  and (select summary not like '%CORPO-NOTA%' from nv_row),
+  'R5·Rule11(a): the note_viewed payload is PHI-FREE (referral_id + note_count; no body)');
+
+select ok((select actor_id from nv_row) = (select sa_y from k),
+  'R5·Rule11(a): the note_viewed audit records WHO read (actor_id = caller)');
+
+-- (b) the R4 stranger (member of NEITHER side) is served 0 notes → NO audit row.
+create temp table nv_base2 on commit drop as
+  select count(*)::int as c from public.audit_log
+   where action = 'referral.note_viewed' and entity_id = (select id from r10);
+grant select on nv_base2 to authenticated;
+
+select test_helpers.claims_for((select uid from strg), false);
+set local role authenticated;
+create temp table notes_none on commit drop as
+  select public.list_referral_internal_notes((select id from r10)) as j;
+reset role;
+grant select on notes_none to authenticated;
+
+select is((select jsonb_array_length(notes_none.j) from notes_none), 0,
+  'R5·Rule11(b): a stranger (member of neither side) is served 0 internal notes');
+select is(
+  (select count(*)::int from public.audit_log
+     where action = 'referral.note_viewed' and entity_id = (select id from r10))
+    - (select c from nv_base2),
+  0,
+  'R5·Rule11(b): a 0-note read emits ZERO referral.note_viewed rows (no PHI read → no audit)');
 
 select * from finish();
 rollback;
