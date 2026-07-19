@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useId, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -193,6 +193,11 @@ export function ReferralSendWizard({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+
+  // Stable ids so the "Aguardar resposta" checkbox is labelled by its title only
+  // and describes its helper text via aria-describedby (accessible name a11y).
+  const responseExpectedId = useId();
+  const responseExpectedHelpId = useId();
 
   const [step, setStep] = useState<StepId>("details");
   const [error, setError] = useState<string | null>(null);
@@ -641,22 +646,29 @@ export function ReferralSendWizard({
               </span>
             </label>
 
-            <label className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/20 p-3 text-sm">
+            <div className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/20 p-3 text-sm">
               <input
+                id={responseExpectedId}
                 type="checkbox"
                 checked={responseExpected}
                 onChange={(e) => setResponseExpected(e.target.checked)}
+                aria-describedby={responseExpectedHelpId}
                 className="mt-0.5 size-4 rounded border-input accent-[var(--primary)] focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
               />
               <span className="flex flex-col gap-0.5">
-                <span className="font-medium">Aguardar resposta</span>
-                <span className="text-xs text-muted-foreground text-pretty">
+                <label htmlFor={responseExpectedId} className="font-medium">
+                  Aguardar resposta
+                </label>
+                <span
+                  id={responseExpectedHelpId}
+                  className="text-xs text-muted-foreground text-pretty"
+                >
                   A comissão de destino deverá registrar um resultado. Enquanto a
                   resposta estiver pendente, o caso de origem não pode ser
                   encerrado.
                 </span>
               </span>
-            </label>
+            </div>
 
             <div className="flex justify-end gap-2 pt-1">
               <Button
