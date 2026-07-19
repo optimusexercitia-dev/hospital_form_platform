@@ -14,7 +14,16 @@ predicate return values. Migrations registered == files (158 == 158); `case_refe
 
 ---
 
-## VERDICT: ⛔ CHANGES REQUESTED
+## VERDICT: ✅ APPROVED (r2, 2026-07-19)
+
+Both r1 findings are **fixed and independently re-verified live** against the catalog. See the
+**Re-review (r2)** section at the end for the evidence. **0 P0 / 0 MAJOR / 0 MINOR / 1 INFO** (an
+optional defense-in-depth hardening item, non-blocking). The full R2–R5 access-control core is
+airtight and proven live under `set local role`. The r1 body below is retained for the record.
+
+---
+
+## r1 verdict (historical): ⛔ CHANGES REQUESTED
 
 One **MAJOR** conformance gap (a PHI-read door with no audit, violating Rule 11 + the plan's
 own audited-door invariant) and one **MINOR** a11y polish. **No P0** — the access-control
@@ -161,3 +170,57 @@ confidentiality breach — the access-control keystone holds — so it is MAJOR,
 
 Everything else — the entire access-control surface (R4 residue-free, R5 source≠target≠QPS keystone,
 PHI REVOKEs, R3 authority-first non-vacuity, redaction, t19 grants) — is verified live and correct.
+
+---
+
+## Re-review (r2) — 2026-07-19 — VERDICT: ✅ APPROVED
+
+Both r1 findings re-verified independently against the live catalog (migrations registered ==
+files, 159 == 159). Fix commits `1885159` (MAJOR-1) and `1893cb6` (MINOR-2) present on
+`feat/rv2-governance`.
+
+### MAJOR-1 — internal-note read audit — FIXED, proven live
+`list_referral_internal_notes` now emits `log_audit_access('referral.note_viewed', …)` when
+`jsonb_array_length(result) > 0`, with a **PHI-free** payload `{referral_id, note_count}`. The
+dispatch is wired: `app._audit_access_authorized` case `'referral.note_viewed'` →
+`app.can_read_referral_internal_notes(entity, uid)` (line 65–66) — so the verb is authorized and
+written, not a silent no-op.
+
+- **New predicate `app.can_read_referral_internal_notes` (plural) is audit-only:** body =
+  `is_active AND (source member OR (non-draft AND target member))`, **no PQS arm**; appears in
+  **0 RLS policies** (`pg_policies` count = 0). It gates only the audit write. Because it is
+  *coarser* than the per-note singular keystone (any served note ⇒ the reader is a member of that
+  side ⇒ the plural predicate is true), the audit **never silently drops** when a body is served.
+- **Live end-to-end (rolled-back txn, flag enabled):** source member (`...003`) reads → 1 note
+  served → **exactly one** `referral.note_viewed` row, `actor_id = ...003` (the reader),
+  `metadata = {note_count:1, referral_id:…}`, **no body/summary leaked**. QPS operator (`...001`)
+  reads → **0 notes served → 0 new audit rows** (fires only when ≥1 note is served).
+- **No collateral damage:** the singular keystone `can_read_referral_internal_note` is unchanged
+  (still no PQS arm), still the sole SELECT-policy predicate on `referral_internal_notes` (K-R5-1
+  source≠target≠QPS intact); `list_referral_internal_notes` t19 grants clean (PUBLIC revoked,
+  authenticated + service_role granted). The plural predicate's PUBLIC-execute is consistent with
+  the entire `app.*` predicate family (the `app` schema is not PostgREST-exposed) — not a finding.
+
+### MINOR-2 — send-wizard checkbox a11y — FIXED
+`referral-send-wizard.tsx` (~L649–669): the checkbox is no longer label-wrapped; it carries an
+`id` with a dedicated `<label htmlFor>` reading only **"Aguardar resposta"** and binds the helper
+paragraph via `aria-describedby`. Accessible name is now exactly the title; helper is a
+description. Resolved.
+
+### INFO-3 — idempotency keys — confirmed intentional (PO-locked trim).
+
+### INFO (new, non-blocking) — defense-in-depth for the notes read
+The audited notes read currently runs in the RSC render path. Moving it to a client-triggered
+Server Action would keep note bodies out of the SSR HTML (defense-in-depth) and decouple the
+PHI-read audit from render. It works correctly today (write-during-render verified by the FE
+engineer; governance E2E 29/29 green), so this is a **hardening suggestion, not a defect** — log
+for a future pass at the team's discretion.
+
+**Test posture (informational):** pgTAP `150_referrals` 217/217 on a fresh reset, with the
+note-audit non-vacuity mutation-proven (neutralize the door's audit → tests 213–215 go red);
+governance E2E 29/29 on prod-standalone with both fixes. The `189/250/251/252` pgTAP reds are the
+pre-existing baseline (RV2 touched none; `189` is a stale seed fixture flagged for separate
+cleanup).
+
+**Final: all R2–R5 acceptance criteria met; security core proven live; 0 open P0/MAJOR/MINOR.
+APPROVED.**
