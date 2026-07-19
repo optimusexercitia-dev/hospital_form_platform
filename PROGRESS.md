@@ -149,6 +149,29 @@ keystone · qa APPROVED · human approval → Record.
 - **PO directed:** BUG-AIF-001/FUP-AI-1 → pre-pilot (own workstream, not yet started) · the **three ETH·E1 known
   gaps → ETH·E2** (see Follow-ups).
 
+### 🏗️ ACTIVE — S4 · RV2·R2–R5 (Referrals v2 governance) — opened 2026-07-18
+
+**PO decisions (2026-07-18):** build **FULL R2→R5 now** · **R3 = full `answered`/`resolved` lifecycle**
+(governance-correct; amends ADR 0037 D4/D5) · R5 trims to **notes + receipts + redaction** (context-versions
+**deferred** — overlaps 0078's reserved post-pilot F-full) · QPS does **not** read internal notes (default).
+R1 dialogue core already shipped (S2). Plan: [referrals-v2-dialogue-governance.md](docs/plans/referrals-v2-dialogue-governance.md) §3.
+
+**Reconciled to ADR 0078 (F1 five-way referral-predicate split) — ⚠ catalog-verify the exact names at build:**
+R2 `can_read_referral`→`can_read_referral_metadata`; R3 resolve/reopen writes → `can_write_referral_response`;
+R4 `referral_target_analyst` re-anchored on `case_access_grants`; SQLSTATE `HC0A·`; flag `case_referrals` (stays OFF till pilot).
+
+| Increment | Scope | Owner | Status |
+|---|---|---|---|
+| R2 · Triage/SLA (PHI-free) | priority · requested-action vocab · due/overdue · non-PHI decline-reason | backend+FE | ⏳ pending stack |
+| R3 · Resolution cycles 🔴 | `answered`/`resolved` lifecycle · reopen · parent lineage | backend+FE | ⏳ |
+| R4 · Responsibility/multi-link | `referral_assignments` + `referral_case_links` (assignment ≠ access) | backend+FE | ⏳ |
+| R5 · Private notes/disclosure | internal-notes (source≠target keystone) + receipts + redaction | backend+FE | ⏳ |
+| FE / E2E / QA | per-increment UI · extend `phase22-referrals.spec` · RLS conformance | frontend/tester/qa | ⏳ |
+
+**Prereq:** local Docker stack is down — needs restart + `supabase start`, then lead catalog-verifies the F1 split before backend builds R2 (contract-first).
+
+---
+
 ### ✅ COMPLETE — S4 · ETH·E2 (procedure) — gate-passed + human-approved 2026-07-18 → `main`
 
 Full ethics disciplinary procedure (intake → admissibility → allegations/findings → decisions → quorum votes →
