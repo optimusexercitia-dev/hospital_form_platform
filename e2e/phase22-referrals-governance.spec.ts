@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import { test, expect, type Page, type APIRequestContext } from '@playwright/test'
 
 /**
@@ -54,6 +55,28 @@ if (!SUPABASE_SERVICE_KEY) {
   )
 }
 
+// Mirrors `e2e/answer-model-v2.spec.ts`'s `DB_CONTAINER`/`sql()` — fixture-setup-only
+// escape hatch for `case_referral`'s `guard_referral_status` trigger (live-catalog
+// verified: it raises HC070 "encaminhamentos enviados são imutáveis fora das RPCs" on
+// ANY direct UPDATE — even service-role REST — once a referral has left `draft`,
+// checking `current_setting('app.in_referral_rpc', true) = 'on'`, a flag only the RPCs
+// themselves set). `session_replication_role = replica` disables triggers for this one
+// psql session so R2-3/R2-4 can backdate `response_due_at` to prove the overdue
+// predicate — a state `set_referral_deadline` cannot produce itself, since it calls
+// `app.assert_referral_due_future()` and rejects a past date (HC0A4) by design.
+const DB_CONTAINER = 'supabase_db_azkbbhskturikxpgmafq'
+
+/** Run SQL as postgres via docker exec — fixture setup ONLY (never to bypass an RPC
+ * whose authority/domain checks are under test). */
+function sql(query: string): string {
+  const escaped = query.replace(/"/g, '\\"')
+  return execSync(`docker exec ${DB_CONTAINER} psql -U postgres -d postgres -tA -c "${escaped}"`, {
+    encoding: 'utf8',
+  })
+    .toString()
+    .trim()
+}
+
 const COMM_A = 'a0000000-0000-0000-0000-0000000000a1' // CCIH  (source)
 const COMM_B = 'b0000000-0000-0000-0000-0000000000b1' // Farmácia (target)
 
@@ -100,6 +123,13 @@ async function setReferralsFlag(req: APIRequestContext, enabled: boolean) {
 // ---------------------------------------------------------------------------
 
 async function signInAs(page: Page, email: string, password = 'Test1234!') {
+  // Several tests in this file switch personas mid-test (e.g. R2-2 source →
+  // target coordinator, R2-5 coordinator → plain staff). `src/proxy.ts`'s
+  // AUTHED_REDIRECT_AWAY bounces an authenticated session straight OUT of
+  // `/login` back to `/`, so the E-mail field never renders on a second
+  // sign-in unless the prior session is cleared first — mirrors the same fix
+  // in `e2e/answer-model-v2.spec.ts`'s `signInAs`.
+  await page.context().clearCookies()
   await page.goto('/login')
   await page.getByLabel('E-mail').fill(email)
   await page.locator('input[name="password"]').fill(password)
@@ -138,27 +168,6 @@ async function rpc(
     },
     data: body,
   })
-}
-
-/** Service-role direct-table PATCH — used ONLY to seed test STATE (e.g. backdating a
- * PHI-free `response_due_at` to prove the overdue predicate), never to bypass an RPC
- * whose authority/domain checks are under test. */
-async function patchRow(
-  req: APIRequestContext,
-  table: string,
-  filter: string,
-  body: Record<string, unknown>,
-) {
-  const resp = await req.patch(`${SUPABASE_URL}/rest/v1/${table}?${filter}`, {
-    headers: {
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=minimal',
-    },
-    data: body,
-  })
-  expect(resp.ok(), `patchRow(${table}) failed: ${resp.status()} ${await resp.text()}`).toBeTruthy()
 }
 
 async function createCase(
@@ -512,16 +521,22 @@ test('R2-1: send wizard sets priority / requested-action / response_due_at; revi
   await wizard.getByRole('combobox', { name: /Tipo de encaminhamento/ }).selectOption({ index: 1 })
   await wizard.getByRole('combobox', { name: /Comiss[ãa]o de destino/ }).selectOption(COMM_B)
   await wizard.getByRole('textbox', { name: /Assunto/ }).fill(subject)
+  // r2CaseId is a bare case with no narratives/documents to pick in step 2, so
+  // send_referral's "description OR ≥1 shared item" CHECK (23514) requires a
+  // description here — the field's "(opcional)" label is relative to the
+  // narrative/document alternative, not unconditionally optional.
+  await wizard.getByRole('textbox', { name: /Descrição/ }).fill(`Descrição sintética via assistente — ${subject}.`)
   await wizard.getByRole('combobox', { name: /Prioridade/ }).selectOption('urgent')
   await wizard.getByRole('combobox', { name: /Ação solicitada/ }).selectOption(r2RequestedAction.id)
   const dueLocal = futureLocalInput(5)
   await wizard.getByRole('textbox', { name: /Prazo de resposta/ }).fill(dueLocal)
   await wizard.getByRole('button', { name: 'Continuar' }).click()
 
-  // Step 2 (Conteúdo) → step 3 (Paciente) — no items picked, subject alone is enough
-  // (send_referral's shared-item-or-description requirement is met by the wizard's
-  // own non-empty "Descrição" default text is NOT filled here, so leave a note).
-  await expect(wizard.getByRole('heading', { name: 'Conteúdo' })).toBeVisible({ timeout: 10_000 })
+  // Step 2 (Conteúdo) → step 3 (Paciente) — no items picked; the step-1 description
+  // above satisfies send_referral's content requirement.
+  // "Conteúdo" is the STEP-INDICATOR label (an `<ol aria-label="Etapas">` listitem),
+  // not a heading — step 2 itself renders "Narrativas" / "Documentos" (h3) headings.
+  await expect(wizard.getByRole('heading', { name: 'Narrativas' })).toBeVisible({ timeout: 10_000 })
   await wizard.getByRole('button', { name: 'Continuar' }).click()
 
   // Step 3 (Paciente) → step 4 (Revisão)
@@ -564,21 +579,25 @@ test('R2-2: hub (both source and target) shows priority, requested-action and du
 
 test('R2-3: a past response_due_at on an in-flight referral renders the OVERDUE badge (hub + detail)', async ({
   page,
-  request,
 }) => {
-  await patchRow(
-    request,
-    'case_referral',
-    `id=eq.${r2OverdueReferralId}`,
-    { response_due_at: pastIso(2) },
+  // Direct REST PATCH is rejected (HC070 — `case_referral` is immutable outside its
+  // RPCs, live-catalog verified via `guard_referral_status`), and the "set deadline"
+  // RPC itself rejects a past date (HC0A4) — so backdating for this fixture needs the
+  // trigger-bypassing `sql()` helper, not a REST/RPC call.
+  sql(
+    `set session_replication_role = replica; update public.case_referral set response_due_at = '${pastIso(2)}' where id = '${r2OverdueReferralId}';`,
   )
 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/encaminhamentos')
   const row = page.locator('tr').filter({ hasText: `RV2 R2 — atraso positivo (${RUN_TAG})` })
   await expect(row).toBeVisible({ timeout: 10_000 })
-  await expect(row.getByText(/^Prazo vencido$/)).toBeVisible()
-  await expect(row.getByText(/vencido/)).toBeVisible()
+  // The overdue CHIP (exact "Prazo vencido") and the separate "Prazo" column cell
+  // (e.g. "18/07/2026 · vencido") BOTH contain "vencido" — `.last()` targets the
+  // date-column cell specifically (it follows the chip in DOM order), so this is a
+  // genuinely distinct assertion from the exact-match chip check above, not a
+  // redundant/ambiguous re-check (unscoped, it strict-mode-violates on the 2 matches).
+  await expect(row.getByText(/vencido/).last()).toBeVisible()
 
   await page.goto(`/o/rede-a/c/ccih/encaminhamentos/${r2OverdueReferralId}`)
   await expect(page.locator('span').filter({ hasText: /^Prazo vencido$/ }).first()).toBeVisible({
@@ -589,13 +608,9 @@ test('R2-3: a past response_due_at on an in-flight referral renders the OVERDUE 
 
 test('R2-4: isReferralOverdue mirror — a terminal (withdrawn) referral with a past due date is NEVER overdue', async ({
   page,
-  request,
 }) => {
-  await patchRow(
-    request,
-    'case_referral',
-    `id=eq.${r2ExcludedReferralId}`,
-    { response_due_at: pastIso(3) },
+  sql(
+    `set session_replication_role = replica; update public.case_referral set response_due_at = '${pastIso(3)}' where id = '${r2ExcludedReferralId}';`,
   )
 
   await signInAs(page, 'chefe.ccih@test.local')
@@ -702,7 +717,10 @@ test('R3-3: a plain (non-coordinator) staff member cannot resolve — 42501, aut
   const resp = await rpc(request, 'resolve_referral', staff1, {
     p_referral_id: r3ReferralId,
     p_summary_md: 'Tentativa não autorizada (R3-3).',
-    p_follow_up_required: false,
+    // Live-catalog signature: p_referral_id, p_summary_md, p_follow_up (NOT
+    // p_follow_up_required — that name resolves to no function → PGRST202, masking
+    // this test's actual 42501 assertion).
+    p_follow_up: false,
   })
   expect(resp.ok()).toBeFalsy()
   const body = await resp.json() as Record<string, unknown>
@@ -753,7 +771,7 @@ test('R3-5: close_case now SUCCEEDS on the gate fixture once its referral is res
   const resolveResp = await rpc(request, 'resolve_referral', chefeA, {
     p_referral_id: r3GateReferralId,
     p_summary_md: null,
-    p_follow_up_required: false,
+    p_follow_up: false,
   })
   expect(resolveResp.ok(), `resolve_referral failed: ${await resolveResp.text()}`).toBeTruthy()
 
@@ -825,10 +843,14 @@ test('R3-8: "Encaminhar adiante" creates a child referral carrying parent lineag
   await wizard.getByRole('combobox', { name: /Tipo de encaminhamento/ }).selectOption({ index: 1 })
   await wizard.getByRole('combobox', { name: /Comiss[ãa]o de destino/ }).selectOption(COMM_A)
   await wizard.getByRole('textbox', { name: /Assunto/ }).fill(subject)
+  // r3TargetCaseId is a bare case with no narratives/documents to pick in step 2, so
+  // send_referral's "description OR ≥1 shared item" CHECK (23514) requires a
+  // description here (mirrors R2-1's fix).
+  await wizard.getByRole('textbox', { name: /Descrição/ }).fill(`Descrição sintética via assistente — ${subject}.`)
   const responseToggle = wizard.getByRole('checkbox', { name: /Aguardar resposta/ })
   if (await responseToggle.isChecked()) await responseToggle.uncheck()
   await wizard.getByRole('button', { name: 'Continuar' }).click()
-  await expect(wizard.getByRole('heading', { name: 'Conteúdo' })).toBeVisible({ timeout: 10_000 })
+  await expect(wizard.getByRole('heading', { name: 'Narrativas' })).toBeVisible({ timeout: 10_000 })
   await wizard.getByRole('button', { name: 'Continuar' }).click()
   await expect(wizard.getByRole('button', { name: 'Continuar' })).toBeVisible({ timeout: 10_000 })
   await wizard.getByRole('button', { name: 'Continuar' }).click()
@@ -844,7 +866,13 @@ test('R3-8: "Encaminhar adiante" creates a child referral carrying parent lineag
   await expect(parentLink).toBeVisible({ timeout: 10_000 })
   await parentLink.click()
   await page.waitForURL(new RegExp(r3ReferralId), { timeout: 10_000 })
-  await expect(page.getByText(`RV2 R3 — ciclo de resolução (${RUN_TAG})`)).toBeVisible()
+  // Plain getByText is ambiguous here: draftAndSend's auto-description
+  // ("Descrição sintética — <subject>.") embeds the subject as a substring, so an
+  // unanchored text match resolves to BOTH the page's <h1> subject heading and that
+  // description <p>. Scope to the heading — the page-identity signal under test.
+  await expect(
+    page.getByRole('heading', { name: `RV2 R3 — ciclo de resolução (${RUN_TAG})` }),
+  ).toBeVisible()
 })
 
 // ===========================================================================
@@ -931,7 +959,12 @@ test('R4-6: coordinator relates a typed case link; it renders with number + rela
   await page.getByRole('button', { name: /relacionar caso/i }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
-  await dialog.getByLabel('Caso').selectOption(r4RelatedCaseId)
+  // Plain getByLabel('Caso') (substring match) is ambiguous in this dialog: the
+  // sibling "Tipo de relação" select's DEFAULT option is `related_case` = "Caso
+  // relacionado", and Chromium folds a <select>'s current-option text into its
+  // computed accessible name — so that select's name also contains "Caso". Anchor
+  // to the start (only the "Caso" field's own name begins with it).
+  await dialog.getByLabel(/^Caso/).selectOption(r4RelatedCaseId)
   await dialog.getByLabel(/Tipo de relação/).selectOption('follow_up_case')
   await dialog.getByRole('button', { name: /^Relacionar$/ }).click()
   await expect(dialog).toBeHidden({ timeout: 15_000 })
@@ -968,8 +1001,11 @@ test('R4-8: a related-case link grants NO case access — the other side still c
   const chefeA = await getToken(request, 'chefe.ccih@test.local')
   const detailResp = await rpc(request, 'get_referral_detail', chefeA, { p_referral_id: r4ReferralId })
   expect(detailResp.ok()).toBeTruthy()
-  const detail = (await detailResp.json()) as { links?: Array<{ caseId: string }> }
-  const linkIds = (detail.links ?? []).map((l) => l.caseId)
+  // Direct RPC call — raw Postgres JSON, snake_case (the camelCase `caseId` on the
+  // TS `ReferralCaseLink` domain type only exists after the app query layer maps
+  // it; live-verified the raw shape carries `case_id`).
+  const detail = (await detailResp.json()) as { links?: Array<{ case_id: string }> }
+  const linkIds = (detail.links ?? []).map((l) => l.case_id)
   expect(linkIds).toContain(r4RelatedCaseId)
 
   // But CCIH (source) still cannot read Farmácia's related case content — RLS unmoved.
@@ -1072,8 +1108,17 @@ test('R5-3: a coordinator redacts their own note — renders [redigido], origina
   await expect(dialog).toBeHidden({ timeout: 15_000 })
 
   await expect(page.getByText('[redigido]').first()).toBeVisible({ timeout: 10_000 })
-  const html = await page.content()
-  expect(html).not.toContain('Nota interna da origem — só CCIH deve ver isto')
+  // A locator-based absence check, NOT page.content(): Next.js's RSC hydration
+  // payload embeds the pre-redaction server render in inline <script> tags that
+  // linger in the raw HTML even after router.refresh() swaps the VISIBLE DOM to
+  // "[redigido]" — page.content() (a full HTML string dump, including those
+  // scripts) can still "contain" the original text although nothing renders it.
+  // getByText only matches actual rendered nodes, so this reflects what the user
+  // (and R2-5/R5-2's sibling checks, which test content never server-rendered
+  // for that viewer at all — a different scenario) actually sees.
+  await expect(
+    page.getByText('Nota interna da origem — só CCIH deve ver isto (R5-1).'),
+  ).toHaveCount(0)
 })
 
 test('R5-4: a coordinator redacts a thread message — renders [redigido] to every reader', async ({
@@ -1101,8 +1146,10 @@ test('R5-4: a coordinator redacts a thread message — renders [redigido] to eve
   await expect(dialog).toBeHidden({ timeout: 15_000 })
 
   await expect(thread.getByText('[redigido]').first()).toBeVisible({ timeout: 10_000 })
-  const html = await page.content()
-  expect(html).not.toContain('Mensagem a ser tarjada em seguida')
+  // Locator-based, not page.content() — see R5-3's comment: the RSC hydration
+  // payload can retain the pre-redaction text in the raw HTML string even after
+  // the visible DOM correctly swaps to "[redigido]".
+  await expect(thread.getByText('Mensagem a ser tarjada em seguida')).toHaveCount(0)
 })
 
 test('R5-5: read receipts — a non-author reader auto-records "read"; "Confirmar ciência" records "acknowledged"', async ({
