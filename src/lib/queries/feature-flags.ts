@@ -43,6 +43,9 @@ export interface FeatureFlags {
   // + case-type config. Flipped ON at E1 (BE-8) once respondent-exclusion RLS landed.
   case_participants: boolean
   case_types: boolean
+  // S4·CH (ADR 0080): committee charters + meeting cadence. Seeded OFF in the CH-BE-2
+  // migration; flipped ON at the CH gate; `seed.sql` forces ON for local/E2E.
+  charters: boolean
 }
 
 /** A flag key. */
@@ -114,4 +117,16 @@ export async function responseCorrectionEnabled(): Promise<boolean> {
  */
 export async function notificationsEnabled(): Promise<boolean> {
   return featureEnabled('notifications')
+}
+
+/**
+ * Whether the S4·CH Committee Charters & Meeting Cadence feature (Phase 21, ADR
+ * 0080) is ON. Thin per-flag wrapper over {@link featureEnabled} (consistent with
+ * the other per-flag `*Enabled()` readers), so callers avoid an `as FeatureFlagKey`
+ * cast. Request-memoized via {@link getFeatureFlags}. Seeded OFF in the CH-BE-2 core
+ * migration; flips ON at the CH gate; `seed.sql` forces it ON for local/E2E. The
+ * flag ROW does not exist until CH-BE-2 lands, so this reads `false` until then.
+ */
+export async function chartersEnabled(): Promise<boolean> {
+  return featureEnabled('charters')
 }
