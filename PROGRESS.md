@@ -179,7 +179,9 @@ one Phase Gate; local-first, migrations `20260818000000+`.
 - **b5 notifications (7f):** all the `openFreshCapaPlan` REST *setup* helper (not a notif-count assertion), 0 conn errors → DB-state cascade from the b3/b4 chaos; re-verifying clean.
 - **🔴 REAL: `phase17-documents.spec.ts:620`** — CH-BE-5 seeded Farmácia's regimento as code **`DOC-0001`**; CCIH's pre-existing política is also `DOC-0001` (per-commission codes). The hospital_admin docs page aggregates both central-a commissions → `getByText('DOC-0001')` matches 2 → strict-mode violation. App behavior is CORRECT; the **spec locator is brittle** → **tester scopes line 620** (a pre-existing latent brittleness CH's valid seed exposed; not an app/seed defect).
 
-**▶ Active: isolated re-run (charters-cadence + phase17 + notifications + infra-victims, fresh server/reset per small batch) to confirm CH green + notifications-is-infra + phase17-is-the-lone-break; then tester fixes `phase17:620`, re-gate, CH-QA.**
+**Re-run + stack triage (2026-07-20):** isolated re-run proved **`charters-cadence` 10/10 GREEN on the prod build** (AC-1a→AC-7 all ok, ran before a server collapse). Both gate runs' reset-failures + collapses traced to a **degraded local stack** (5h uptime, `supabase_vector` restart-loop, containers cycling). **Lead restarted the stack** (`supabase stop`/`start` + clean `db reset --local`, exit 0 — all CH migrations + seed applied) → reset works again; db/auth/rest healthy. notifications + phase17-beyond-620 couldn't get a clean read under the degraded stack — re-confirming on the fresh stack.
+
+**▶ Active: CH-TEST-fix (tester) — scope `phase17-documents.spec.ts:620` to the intended overdue CCIH `DOC-0001` (the hospital_admin page now legitimately shows 2 `DOC-0001` — CCIH política overdue + Farmácia regimento review-due 2027, valid app behavior); validate phase17 + notifications green on the fresh stack. Then lead re-gate → CH-QA.**
 
 ---
 
