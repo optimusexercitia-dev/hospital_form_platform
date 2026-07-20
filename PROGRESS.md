@@ -161,9 +161,9 @@ one Phase Gate; local-first, migrations `20260818000000+`.
 
 | # | Task | Owner | Status |
 |---|------|-------|--------|
-| CH-BE-1 | Post §3 typed contract (`charters.ts` stubs + types + `feature-flags.charters`); commit early | backend | ⏳ active |
-| CH-BE-2 | Mig `…000000`: `commission_charters` + RLS (member-read, no write policy) + `charters` flag OFF + touch trigger + `charter.upserted` audit verb; pgTAP RLS | backend | 🔜 |
-| CH-BE-3 | Mig `…000100`: `upsert_commission_charter`/`meeting_cadence_status`/`suggest_carry_forward` (t19); pgTAP cadence×freq×state + carry-forward + authority | backend | 🔜 |
+| CH-BE-1 | Post §3 typed contract (`charters.ts` stubs + types + `feature-flags.charters`); commit early | backend | ✅ `458aedb` — lead-verified (tsc/lint green; 4 files, no churn). Contract camelCase (repo convention); pure `src/lib/charters/types.ts` split (dodges BUG-FBE-005 for the client badge/carry-forward); `upsertCharter → CharterUpsertResult` union. All 3 calls blessed. |
+| CH-BE-2 | Mig `…000000`: `commission_charters` + RLS (member-read, no write policy) + `charters` flag OFF + touch trigger + `charter.upserted` audit verb; pgTAP RLS | backend | ✅ `565e2f6` — **lead-verified live catalog**: 1 SELECT policy `app.is_member_of` + no write policy; `authenticated` SELECT-only grant; schema/PK/CHECK/FKs per §2; touch trigger `app.touch_updated_at`; `app.feature_flags.charters`=f; audit has no verb allow-list (TS-registry only, verb added). pgTAP `260` 11/11 (row-visibility + positive twin); 8 authz reds proven baseline. |
+| CH-BE-3 | Mig `…000100`: `upsert_commission_charter`/`meeting_cadence_status`/`suggest_carry_forward` (t19); pgTAP cadence×freq×state + carry-forward + authority | backend | ⏳ active |
 | CH-BE-4 | Mig `…000200`: `compute_due_charter_notifications` arm + CHECK widening + aggregator call; pgTAP idempotent + recipient + PHI-free | backend | 🔜 |
 | CH-BE-5 | `charters.ts` impl + regen types + seed (charter rows, a published regimento doc, meeting dates spanning the 4 states) | backend | 🔜 |
 | CH-FE-1 | `manage/charter` page (frequency + regimento link/create + cadence badge) | frontend | 🔜 |
@@ -172,7 +172,7 @@ one Phase Gate; local-first, migrations `20260818000000+`.
 | CH-QA | Requirements + RLS conformance (`set local role`) | qa | 🔜 |
 | Record | PROGRESS + `backend-state.md` + reconcile accreditation-track §21 + graphify `update .` + `phase(CH): complete` | lead | 🔜 |
 
-**▶ Active: CH-BE-1 (backend, contract-first) — spawned 2026-07-20.**
+**▶ Active: CH-BE-3 (backend, migration `20260818000100` — the 3 DEFINER RPCs + pgTAP, keystones mutation-proven).**
 
 ---
 
