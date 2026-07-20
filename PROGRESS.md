@@ -164,15 +164,15 @@ one Phase Gate; local-first, migrations `20260818000000+`.
 | CH-BE-1 | Post §3 typed contract (`charters.ts` stubs + types + `feature-flags.charters`); commit early | backend | ✅ `458aedb` — lead-verified (tsc/lint green; 4 files, no churn). Contract camelCase (repo convention); pure `src/lib/charters/types.ts` split (dodges BUG-FBE-005 for the client badge/carry-forward); `upsertCharter → CharterUpsertResult` union. All 3 calls blessed. |
 | CH-BE-2 | Mig `…000000`: `commission_charters` + RLS (member-read, no write policy) + `charters` flag OFF + touch trigger + `charter.upserted` audit verb; pgTAP RLS | backend | ✅ `565e2f6` — **lead-verified live catalog**: 1 SELECT policy `app.is_member_of` + no write policy; `authenticated` SELECT-only grant; schema/PK/CHECK/FKs per §2; touch trigger `app.touch_updated_at`; `app.feature_flags.charters`=f; audit has no verb allow-list (TS-registry only, verb added). pgTAP `260` 11/11 (row-visibility + positive twin); 8 authz reds proven baseline. |
 | CH-BE-3 | Mig `…000100`: `upsert_commission_charter`/`meeting_cadence_status`/`suggest_carry_forward` (t19); pgTAP cadence×freq×state + carry-forward + authority | backend | ✅ `109ef50` — **lead-verified live**: all 3 t19 (DEFINER/owner postgres/search_path pinned/EXECUTE auth+svc only). Bodies: upsert authority-FIRST `is_staff_admin_of` HC0K0 → link HC0K1 → audit; cadence §4 math (inclusive) + `commission_default`; carry-forward `can_read_action_item` filter. pgTAP `261` 29/29; **mutation harness re-run by lead → KS_AUTHORITY/KS_MEMBER/KS_FILTER all RED-PROVEN, control 29 green.** |
-| CH-BE-4 | Mig `…000200`: `compute_due_charter_notifications` arm + CHECK widening + aggregator call; pgTAP idempotent + recipient + PHI-free | backend | ⏳ active |
-| CH-BE-5 | `charters.ts` impl + regen types + seed (charter rows, a published regimento doc, meeting dates spanning the 4 states) | backend | 🔜 |
+| CH-BE-4 | Mig `…000200`: `compute_due_charter_notifications` arm + CHECK widening + aggregator call; pgTAP idempotent + recipient + PHI-free | backend | ✅ `37a63dc` — **lead-verified live**: `kind`+=charter/`entity_type`+=commission (existing preserved); aggregator wired; body = em_atraso inline (strict `>`, exact §4 windows), staff_admin recipients, PHI-free body, weekly dedup on `(user_id,dedup_key)`. `enqueue_notification` is opt-OUT (delivers by default, no seed trap); gated charters+notifications. pgTAP `262` 10/10. |
+| CH-BE-5 | `charters.ts` impl + regen types + seed (charter rows, a published regimento doc, meeting dates spanning the 4 states) | backend | ⏳ active |
 | CH-FE-1 | `manage/charter` page (frequency + regimento link/create + cadence badge) | frontend | 🔜 |
 | CH-FE-2 | Meetings-list cadence indicator + schedule-flow carry-forward step | frontend | 🔜 |
 | CH-TEST | `e2e/charters-cadence.spec.ts` (§9) + one keyboard flow. **Carry-forward: exercise a literal `case_restricted`/`participants_only` action item ABSENT from the suggestion end-to-end** (CH-BE-3 pgTAP proved the filter mechanism via an `assignees_only` item; this is the integration-level confidentiality proof). | tester | 🔜 |
 | CH-QA | Requirements + RLS conformance (`set local role`) | qa | 🔜 |
 | Record | PROGRESS + `backend-state.md` + reconcile accreditation-track §21 + graphify `update .` + `phase(CH): complete` | lead | 🔜 |
 
-**▶ Active: CH-BE-4 (backend, migration `20260818000200` — cadence-overdue notifications arm + CHECK widening + aggregator call).**
+**▶ Active: CH-BE-5 (backend, LAST BE unit — wire `charters.ts` bodies + regen `database.ts` + seed the 4 cadence states + a published regimento).**
 
 ---
 
