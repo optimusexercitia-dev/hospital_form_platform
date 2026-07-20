@@ -174,7 +174,12 @@ one Phase Gate; local-first, migrations `20260818000000+`.
 
 **E2E/FE cadence anchors (seeded, lead-verified):** `em_dia`=Farmácia e Terapêutica (`b0…b1`, mensal, +regimento `d0c…f1`) · `em_atraso`=Farmácia B (`c0…c2`, semanal) · `sem_reunioes`=Qualidade e Segurança (`c0…c1`, mensal) · `sem_regimento`=CCIH (`a0…a1`, no charter). **Seed additions to triage at CH-TEST** (backend flagged; specs untouched): Farmácia gained 1 charter+1 regimento doc+1 held meeting; Farmácia B gained 1 charter+1 stale meeting (its staff_admin now gets a `charter/overdue` notification); Qualidade B gained 1 charter row.
 
-**▶ Active: full `e2e:prod` declare-green gate (lead background run, REBUILD+RESET) — then CH-QA.**
+**⚠ e2e:prod gate #1 RED — triaged (2026-07-20):** 590p / 81f / 2 flaky, 11 batches. **Build compiled clean** (no CH build break). **Failures = infra + ONE real spec-brittleness regression:**
+- **Infra (not regressions):** b3 + b10 `reset FAILED` (so `charters-cadence` never ran); b4 (**97** `ERR_CONNECTION`) + b6 (44) = server collapses — even `home.spec` failed (server down). b1/b2/b7/b9/b11 fully green (400+ tests). Documented Windows reset/collapse flakiness ([[e2e-prod-build-flaky-baseline]]).
+- **b5 notifications (7f):** all the `openFreshCapaPlan` REST *setup* helper (not a notif-count assertion), 0 conn errors → DB-state cascade from the b3/b4 chaos; re-verifying clean.
+- **🔴 REAL: `phase17-documents.spec.ts:620`** — CH-BE-5 seeded Farmácia's regimento as code **`DOC-0001`**; CCIH's pre-existing política is also `DOC-0001` (per-commission codes). The hospital_admin docs page aggregates both central-a commissions → `getByText('DOC-0001')` matches 2 → strict-mode violation. App behavior is CORRECT; the **spec locator is brittle** → **tester scopes line 620** (a pre-existing latent brittleness CH's valid seed exposed; not an app/seed defect).
+
+**▶ Active: isolated re-run (charters-cadence + phase17 + notifications + infra-victims, fresh server/reset per small batch) to confirm CH green + notifications-is-infra + phase17-is-the-lone-break; then tester fixes `phase17:620`, re-gate, CH-QA.**
 
 ---
 
