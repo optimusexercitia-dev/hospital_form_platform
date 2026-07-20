@@ -615,9 +615,20 @@ test('AC-6: past-due document surfaces in the commission review-due list and hos
   ).toBeVisible({ timeout: 10_000 })
 
   // Hospital register (as hospital_admin): DOC-0001 present + flagged review-overdue.
+  // Codes are per-commission (each commission's first doc is DOC-0001) — S4·CH
+  // seeded Farmácia's regimento as ITS first doc (review-due 2027-06-20, not
+  // overdue), so this hospital-admin rollup now legitimately shows two DOC-0001
+  // rows (Farmácia's regimento + CCIH's "Política de Higienização das Mãos").
+  // A bare `getByText('DOC-0001')` is ambiguous; scope to the row that ALSO
+  // carries the overdue chip — deterministically CCIH's, mirroring the `<li>`
+  // pattern above (line 601-603) on this page's `<tr>`-based table.
   await signInAs(page, 'hospitaladmin.a1@test.local')
   await page.goto('/o/rede-a/manage/documentos')
-  await expect(page.getByText('DOC-0001')).toBeVisible({ timeout: 15_000 })
+  const doc0001OverdueRow = page
+    .locator('tr')
+    .filter({ hasText: 'DOC-0001' })
+    .filter({ hasText: /vencida/i })
+  await expect(doc0001OverdueRow).toBeVisible({ timeout: 15_000 })
 })
 
 test('AC-6b: an overdue published form joins the review-due list (form arm)', async ({ page }) => {
@@ -819,11 +830,18 @@ test('AC-9: a foreign-hospital user cannot be named approver (pt-BR error)', asy
 // ===========================================================================
 
 test('AC-10: hospital_admin sees the cross-commission register; a foreign-hospital admin sees empty', async ({ page }) => {
-  // hospital_admin of central-a sees CCIH's DOC-0001/DOC-0002.
+  // hospital_admin of central-a sees CCIH's DOC-0001/DOC-0002. Codes are
+  // per-commission, so DOC-0001 alone is no longer unique on this
+  // cross-commission page — Farmácia (same hospital) now also has a
+  // DOC-0001 (its S4·CH regimento). Anchor on DOC-0002 (still unique;
+  // Farmácia has only the one doc) to find CCIH's own per-commission table,
+  // then assert DOC-0001 is in THAT same table.
   await signInAs(page, 'hospitaladmin.a1@test.local')
   await page.goto('/o/rede-a/manage/documentos')
-  await expect(page.getByText('DOC-0001')).toBeVisible({ timeout: 15_000 })
-  await expect(page.getByText('DOC-0002')).toBeVisible()
+  const doc0002Row = page.locator('tr').filter({ hasText: 'DOC-0002' })
+  await expect(doc0002Row).toBeVisible({ timeout: 15_000 })
+  const ccihTable = page.locator('table').filter({ has: doc0002Row })
+  await expect(ccihTable.locator('tr').filter({ hasText: 'DOC-0001' })).toBeVisible()
 
   // A foreign-org admin (rede-b) reaching rede-a's hospital register → 404 (no leak).
   await signInAs(page, 'orgadmin.b@test.local')
