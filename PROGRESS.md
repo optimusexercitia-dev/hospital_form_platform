@@ -30,7 +30,7 @@
 | 18    | Self-Assessment & Internal Audit | 🔜 not started | – | – | – | – | – | – |
 | 19    | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
 | 20    | Notifications & Escalation *(**pulled pre-pilot** 2026-07-12 — ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md))* | 🔜 not started (pre-pilot) | – | – | – | – | – | – |
-| 21    | Committee Charters & Cadence *(**pulled pre-pilot** 2026-07-12 — ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md))* | 🔜 not started (pre-pilot) | – | – | – | – | – | – |
+| 21    | Committee Charters & Cadence *(**pulled pre-pilot** 2026-07-12 — ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md); S4·CH build ADR [0080](docs/decisions/0080-committee-charters-cadence-model.md) / [plan](docs/plans/charters-cadence.md))* | 🏗️ in progress (S4·CH, started 2026-07-20) | – | – | – | – | – | – |
 | 22    | Inter-Committee Case Referrals | ✅ complete | ✅ | ✅ 29/29 + full 276/326 | ✅ APPROVED 2026-06-21 | ✅ 2026-06-21 | 2026-06-21 | `768b9f1` |
 | 23    | Patient Identity & Cross-Committee Linkage (MRN/encounter) | ✅ complete | ✅ | ✅ E2E 15/15 + pgTAP 10/10 sweep | ✅ APPROVED 2026-06-22 | ✅ 2026-06-22 | 2026-06-22 | `da4d127` |
 | MT    | **Multi-Tenancy** — organizations → hospitals → commissions; `platform_admin` vs `org_admin`; RLS rewrite + 3-tier audit + multi-org PHI guard. ADR [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md). | ✅ complete | ✅ | ✅ pgTAP 1029 + E2E 292/0 | ✅ APPROVED 2026-06-25 [review](docs/reviews/multitenancy-review.md) | ✅ 2026-06-25 | 2026-06-25 | `ee35299…82ea157` |
@@ -149,6 +149,33 @@ keystone · qa APPROVED · human approval → Record.
 - **PO directed:** BUG-AIF-001/FUP-AI-1 → pre-pilot (own workstream, not yet started) · the **three ETH·E1 known
   gaps → ETH·E2** (see Follow-ups).
 
+### 🏗️ IN PROGRESS — S4 · CH (Committee Charters & Meeting Cadence, Phase 21) — started 2026-07-20
+
+**Design ratified 2026-07-20** (grilling → ADR [0080](docs/decisions/0080-committee-charters-cadence-model.md);
+build plan [charters-cadence.md](docs/plans/charters-cadence.md)). The regimento **is** a `doc_type='regimento'`
+controlled document; `commission_charters` is a thin cadence-config row (frequency + optional doc link). 4-state
+cadence (`em_dia`/`em_atraso`/`sem_reunioes`/`sem_regimento`), DEFINER + member-scoped over `held_at` +
+`visibility_policy='commission_default'`; carry-forward suggestion (confidentiality-filtered); one cadence-overdue
+N arm. SQLSTATE **`HC0K·`**; flag **`charters`** seed-OFF (prod OFF till pilot). No PHI (Rule 12). Contract-first;
+one Phase Gate; local-first, migrations `20260818000000+`.
+
+| # | Task | Owner | Status |
+|---|------|-------|--------|
+| CH-BE-1 | Post §3 typed contract (`charters.ts` stubs + types + `feature-flags.charters`); commit early | backend | ⏳ active |
+| CH-BE-2 | Mig `…000000`: `commission_charters` + RLS (member-read, no write policy) + `charters` flag OFF + touch trigger + `charter.upserted` audit verb; pgTAP RLS | backend | 🔜 |
+| CH-BE-3 | Mig `…000100`: `upsert_commission_charter`/`meeting_cadence_status`/`suggest_carry_forward` (t19); pgTAP cadence×freq×state + carry-forward + authority | backend | 🔜 |
+| CH-BE-4 | Mig `…000200`: `compute_due_charter_notifications` arm + CHECK widening + aggregator call; pgTAP idempotent + recipient + PHI-free | backend | 🔜 |
+| CH-BE-5 | `charters.ts` impl + regen types + seed (charter rows, a published regimento doc, meeting dates spanning the 4 states) | backend | 🔜 |
+| CH-FE-1 | `manage/charter` page (frequency + regimento link/create + cadence badge) | frontend | 🔜 |
+| CH-FE-2 | Meetings-list cadence indicator + schedule-flow carry-forward step | frontend | 🔜 |
+| CH-TEST | `e2e/charters-cadence.spec.ts` (§9) + one keyboard flow | tester | 🔜 |
+| CH-QA | Requirements + RLS conformance (`set local role`) | qa | 🔜 |
+| Record | PROGRESS + `backend-state.md` + reconcile accreditation-track §21 + graphify `update .` + `phase(CH): complete` | lead | 🔜 |
+
+**▶ Active: CH-BE-1 (backend, contract-first) — spawned 2026-07-20.**
+
+---
+
 ### ✅ COMPLETE — S4 · RV2·R2–R5 (Referrals v2 governance) — gate-passed + human-approved 2026-07-19 → `main`
 
 **ff-merged to `main` (`a61aae3`, 2026-07-19); branch `feat/rv2-governance` deleted.** Full detail →
@@ -210,7 +237,7 @@ via the pre-existing `responses` arm).
 Expanded 2026-07-12 — ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md). The live phase is
 tracked under **🏗️ ACTIVE** above; this is the standing backlog behind it.
 
-· **S4** — **ETH·E2** procedure (ADR [0073](docs/decisions/0073-ethics-procedure-model.md); ⚠ has uncommitted out-of-session edits — reconcile first) · **Referrals v2 R2–R5** governance ([plan](docs/plans/referrals-v2-dialogue-governance.md)) · **CH** Charters (Phase 21)
+· **S4** — ✅ **ETH·E2** procedure (2026-07-18) + ✅ **Referrals v2 R2–R5** governance (2026-07-19), both → `main`; **CH** Charters (Phase 21) 🏗️ **in progress** (started 2026-07-20 — ADR [0080](docs/decisions/0080-committee-charters-cadence-model.md) / [plan](docs/plans/charters-cadence.md))
 · **S5** — **ETH·E3a** terminology/UX (E3b needs Phase 16)
 · Phase 16 — Standards Crosswalk (🔜 **deferred** 2026-07-11, needs replanning; blocks E3b)
 · **BUG-AIF-001 / FUP-AI-1** (PO-directed pre-pilot; own workstream, not yet started)
