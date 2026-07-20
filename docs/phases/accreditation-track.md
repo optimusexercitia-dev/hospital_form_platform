@@ -617,6 +617,17 @@ body. Feature-flagged behind `notifications`.
   set across each source; idempotency guard; escalation threshold.
 
 ### Phase 21 — Committee Charters & Meeting Cadence (Regimentos & Periodicidade de Reuniões) *(**pulled pre-pilot** 2026-07-12 — ADR [0071](../decisions/0071-pre-pilot-release-scope-expansion.md); built as track **CH**, stage **S4**, of the [pre-pilot-release plan](../plans/pre-pilot-release-scope-expansion.md) — soft-depends on Phase 20 for review/cadence reminders)*
+
+> ✅ **BUILT 2026-07-20 — this spec is SUPERSEDED where it differs from the as-built.** The charter model,
+> reconciled acceptance, and 5 spec-vs-catalog drift corrections are in ADR
+> [0080](../decisions/0080-committee-charters-cadence-model.md) + build plan
+> [charters-cadence.md](../plans/charters-cadence.md); record →
+> [ch-charters-cadence.md](../progress/ch-charters-cadence.md). **Key deltas from the text below:** the regimento is
+> **delegated to a `doc_type='regimento'` controlled document** (no inline purpose/scope/authority/membership
+> Markdown, no charter-owned dates); cadence keys on **`held_at` + `visibility_policy='commission_default'`** (not a
+> "realizada"/plenary meeting-type); carry-forward reads the **`action_items` hub** (not `meeting_action_items`);
+> the cadence-overdue reminder is the **only** N arm shipped (review-due deferred).
+
 Each commission carries a **charter (regimento)** — purpose, scope, authority, membership,
 and a **required meeting frequency** — and the platform **tracks adherence to that cadence**
 (e.g. CCIH must meet monthly) and **carries forward** unresolved agenda items + open action

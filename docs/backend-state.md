@@ -415,6 +415,49 @@ Extends S2·RV2·R1 (dialogue core). Full record → `progress/rv2-r2-r5-governa
 
 **Follow-ups:** `189` pgTAP stale-fixture baseline (RV2-unrelated) · notes-SSR hardening (INFO) · pilot `case_referrals` enablement + origin push + deploy.
 
+## CH — Committee Charters & Cadence (S4, 2026-07-20; ADR 0080; migrations `20260818000000`–`…000200`; flag `charters` seed-ON / prod-OFF) → `main`
+
+Per-commission charter = `meeting_frequency` + optional link to the commission's regimento (a `doc_type='regimento'`
+Phase-17 controlled doc — content/dates live on the doc, not inline). Full record → `progress/ch-charters-cadence.md`.
+**No PHI (Rule 12).**
+
+**Table (RLS-on):**
+- `commission_charters` — `commission_id` PK (1:1 → `commissions`, CASCADE); `meeting_frequency` NOT NULL CHECK ∈
+  {semanal,quinzenal,mensal,bimestral,trimestral}; nullable `controlled_document_id` (→ `controlled_documents`, SET
+  NULL); `created_by`, `created_at`, `updated_at` (trigger `app.touch_updated_at`). **One SELECT policy
+  `app.is_member_of(commission_id)`; NO INSERT/UPDATE/DELETE policy** (sole write door = the DEFINER RPC);
+  `authenticated` = SELECT-only grant. `sem_regimento` = no row.
+
+**Predicates:** reuses `app.is_member_of` (SELECT + read RPCs), `app.is_staff_admin_of` (write authority — NOT the
+broader `is_commission_admin_of`), `app.can_read_action_item` (carry-forward confidentiality filter). No new predicate.
+
+**RPCs (all DEFINER, t19 = REVOKE PUBLIC + GRANT authenticated/service_role; flag-gate first via
+`app.assert_charters_enabled` → `HC000`):**
+- `upsert_commission_charter(p_commission, p_meeting_frequency, p_controlled_document_id default null)` — **authority
+  `is_staff_admin_of` FIRST (`HC0K0`)** → regimento-link validity `HC0K1` (same-commission + `doc_type='regimento'`) →
+  upsert → audit `charter.upserted` (config metadata, PHI-free). Returns camelCase row.
+- `meeting_cadence_status(p_commission)` — member `HC0K2` → `{status,lastHeldAt,meetingFrequency}`; over base tables
+  `max(held_at)` where `held_at IS NOT NULL AND visibility_policy='commission_default'`; calendar-interval windows,
+  **inclusive** `em_dia` boundary; states `em_dia`/`em_atraso`/`sem_reunioes`/`sem_regimento`.
+- `suggest_carry_forward(p_commission)` — member `HC0K2` → `{agendaItems,actionItems}`: unresolved agenda from the
+  most-recent held `commission_default` meeting + open non-terminal meeting-sourced action items, each through
+  `can_read_action_item`. Pure read (FE copies ticked agenda via the existing `create_meeting_agenda_item`).
+
+**Notifications:** `app.compute_due_charter_notifications()` (X-ζ arm in `compute_due_notifications`, gated on
+`feature_enabled('charters')`) — each `em_atraso` commission → each `staff_admin` gets `kind='charter'` /
+`entity_type='commission'` / `milestone='overdue'` / `is_reminder=true`, weekly dedup
+`charter_cadence:{commission}:{IYYY-IW}`, PHI-free body. `notifications` `kind` CHECK += `charter`, `entity_type`
+CHECK += `commission`. Opt-out delivery (no seed trap).
+
+**SQLSTATEs:** `HC0K0` authority · `HC0K1` bad regimento link · `HC0K2` non-member · `HC000` flag-off. **Authority
+checked FIRST** (ADR-0078 non-vacuity); keystones KS_AUTHORITY/KS_MEMBER/KS_FILTER mutation-proven RED
+(`supabase/tests/mutation/ch-be3-mutation-audit.sh`).
+
+**Follow-ups (QA INFO, non-blocking):** audit metadata breadth (`{meeting_frequency,has_regimento}` config context) ·
+no pt-BR `HC000` map in `mapCharterError` (flag-off not user-reachable) · read-layer error/no-row → null · pilot
+`charters` enablement + origin push + deploy. Note: controlled-doc `code` is **per-commission** (Farmácia's regimento
+is legitimately `DOC-0001`, same as CCIH's — cross-commission rollups must not assume code uniqueness).
+
 ## Migrations (forward-only, additive)
 
 | Range | Phase | What landed |
