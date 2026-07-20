@@ -188,6 +188,10 @@ export type AuditAction =
   | 'attachment.deleted'
   | 'attachment.phi_disposed'
   | 'attachment.read'
+  // charters & cadence — S4·CH (ADR 0080). Commission-level config; emitted by the
+  // upsert_commission_charter DEFINER RPC (CH-BE-3) with entity_type 'commission'
+  // (entity_id = commission_id). PHI-free metadata (Rule 12).
+  | 'charter.upserted'
 
 // ---------------------------------------------------------------------------
 // pt-BR display labels (Rule 10) — UI maps the ASCII slug → label
@@ -300,6 +304,7 @@ export const AUDIT_ACTION_LABELS: Record<AuditAction, string> = {
   'attachment.deleted': 'Anexo removido',
   'attachment.phi_disposed': 'Dados do anexo descartados',
   'attachment.read': 'Anexo (PHI) aberto',
+  'charter.upserted': 'Regimento e cadência atualizados',
 }
 
 // ---------------------------------------------------------------------------
