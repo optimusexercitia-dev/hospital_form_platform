@@ -2216,3 +2216,77 @@ cross join (values
   ('cassacao_exercicio',        'Cassação do exercício profissional',    5)
 ) as v(key, display_name, position)
 on conflict (organization_id, key) do nothing;
+
+-- ===========================================================================
+-- S4·CH (ADR 0080) — Committee Charters & Meeting Cadence fixtures.
+-- ===========================================================================
+-- The `charters` flag is forced ON for local/E2E (the migration keeps it OFF for
+-- prod). The four cadence states are each demonstrable by one commission:
+--   em_dia        = Farmácia   (b0..b1) — charter mensal + a recent held commission_default
+--                   meeting + a PUBLISHED regimento controlled document linked.
+--   em_atraso     = Farmácia B (c0..c2) — charter semanal + a STALE (30d) held meeting.
+--   sem_reunioes  = Qualidade B(c0..c1) — charter mensal, NO qualifying meeting.
+--   sem_regimento = CCIH       (a0..a1) — NO charter row (intentionally omitted; CCIH's
+--                   existing meeting/docs fixtures are left untouched).
+-- storage_path is NULL on the regimento version (BUG-DOC-002 — no real bytes seedable),
+-- mirroring the existing controlled-docs seed; the E2E asserts the review-due date.
+-- No PHI (Rule 12): commission names + frequencies + meeting dates only.
+-- ---------------------------------------------------------------------------
+update app.feature_flags set enabled = true where key = 'charters';
+
+do $ch$
+declare
+  v_farm     uuid := 'b0000000-0000-0000-0000-0000000000b1';  -- Farmácia (em_dia)
+  v_farm_sa  uuid := '00000000-0000-0000-0000-000000000005';  -- chefe.farm (staff_admin)
+  v_farmb    uuid := 'c0000000-0000-0000-0000-0000000000c2';  -- Farmácia B (em_atraso)
+  v_farmb_sa uuid := '00000000-0000-0000-0000-0000000000b3';  -- staff.qual.b (staff_admin of Farmácia B)
+  v_qualb    uuid := 'c0000000-0000-0000-0000-0000000000c1';  -- Qualidade B (sem_reunioes)
+  v_qualb_sa uuid := '00000000-0000-0000-0000-0000000000b2';  -- orgadmin.b (staff_admin of Qualidade B)
+  v_reg_doc  uuid := 'd0c00000-0000-0000-0000-0000000000f1';  -- deterministic regimento doc id
+  v_reg_ver  uuid;
+begin
+  -- 1) Published regimento controlled document for Farmácia (doc_type='regimento').
+  --    Direct insert requires the in-RPC GUC + a JWT sub (mirrors the DOC-000x seed).
+  perform set_config('request.jwt.claims',
+    jsonb_build_object('sub', v_farm_sa, 'role', 'authenticated')::text, true);
+  perform set_config('app.in_controlled_docs_rpc', 'on', true);
+
+  insert into public.controlled_documents
+    (id, commission_id, code, title, doc_type, review_cycle_months, status, created_by)
+  values
+    (v_reg_doc, v_farm, 'REG-0001', 'Regimento Interno da Comissão de Farmácia',
+     'regimento', 12, 'effective', v_farm_sa);
+
+  insert into public.controlled_document_versions
+    (document_id, version_number, storage_path, summary_of_changes_md,
+     effective_date, review_due_date, status, created_by)
+  values
+    (v_reg_doc, 1, null, 'Versão inicial do regimento.',
+     current_date - 30, current_date + 335, 'effective', v_farm_sa)  -- review_due in the FUTURE
+  returning id into v_reg_ver;
+
+  update public.controlled_documents set current_version_id = v_reg_ver where id = v_reg_doc;
+
+  perform set_config('app.in_controlled_docs_rpc', 'off', true);
+  perform set_config('request.jwt.claims', '', true);
+
+  -- 2) Charters (direct insert — RLS-exempt owner; created_by = the staff_admin).
+  insert into public.commission_charters
+    (commission_id, meeting_frequency, controlled_document_id, created_by)
+  values (v_farm, 'mensal', v_reg_doc, v_farm_sa);        -- em_dia (linked regimento)
+  insert into public.commission_charters (commission_id, meeting_frequency, created_by)
+  values (v_farmb, 'semanal', v_farmb_sa);                -- em_atraso
+  insert into public.commission_charters (commission_id, meeting_frequency, created_by)
+  values (v_qualb, 'mensal', v_qualb_sa);                 -- sem_reunioes
+  -- CCIH (a0..a1): NO charter row → sem_regimento (intentionally omitted).
+
+  -- 3) Meetings (commission_default, held). guard_meeting_status is UPDATE/DELETE-only,
+  --    so a direct `held` insert passes; meeting_number auto-mints.
+  insert into public.meetings
+    (commission_id, title, modality, scheduled_start, status, visibility_policy, held_at, created_by)
+  values
+    (v_farm,  'Reunião de Farmácia — recente',  'presencial',
+     now() - interval '2 days',  'held', 'commission_default', now() - interval '2 days',  v_farm_sa),
+    (v_farmb, 'Reunião de Farmácia B — antiga', 'presencial',
+     now() - interval '30 days', 'held', 'commission_default', now() - interval '30 days', v_farmb_sa);
+end $ch$;

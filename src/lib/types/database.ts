@@ -3354,6 +3354,55 @@ export type Database = {
           },
         ]
       }
+      commission_charters: {
+        Row: {
+          commission_id: string
+          controlled_document_id: string | null
+          created_at: string
+          created_by: string | null
+          meeting_frequency: string
+          updated_at: string
+        }
+        Insert: {
+          commission_id: string
+          controlled_document_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          meeting_frequency: string
+          updated_at?: string
+        }
+        Update: {
+          commission_id?: string
+          controlled_document_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          meeting_frequency?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "commission_charters_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: true
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_charters_controlled_document_id_fkey"
+            columns: ["controlled_document_id"]
+            isOneToOne: false
+            referencedRelation: "controlled_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commission_charters_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commission_meeting_settings: {
         Row: {
           commission_id: string
@@ -11513,6 +11562,7 @@ export type Database = {
         }
       }
       mark_notification_read: { Args: { p_id: string }; Returns: undefined }
+      meeting_cadence_status: { Args: { p_commission: string }; Returns: Json }
       meetings_enabled: { Args: never; Returns: boolean }
       my_pending_meeting_signatures: {
         Args: never
@@ -13639,6 +13689,7 @@ export type Database = {
         Args: { p_response_id: string }
         Returns: undefined
       }
+      suggest_carry_forward: { Args: { p_commission: string }; Returns: Json }
       supersede_document: {
         Args: { p_document_id: string }
         Returns: {
@@ -14867,6 +14918,14 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      upsert_commission_charter: {
+        Args: {
+          p_commission: string
+          p_controlled_document_id?: string
+          p_meeting_frequency: string
+        }
+        Returns: Json
       }
       upsert_ethics_case_details: {
         Args: {
