@@ -17,9 +17,12 @@ import {
 import { listMeetingActionItems } from "@/lib/queries/meeting-action-items";
 import { actionItemsEnabled } from "@/lib/queries/action-items";
 import { meetingsEnabled } from "@/lib/meetings/actions";
+import { chartersEnabled } from "@/lib/queries/feature-flags";
+import { getCarryForwardSuggestions } from "@/lib/queries/charters";
 import { listMembers, sortMembers } from "@/lib/queries/members";
 import { listCasesBoard } from "@/lib/queries/cases";
 import { MeetingHeader } from "@/components/meetings/meeting-header";
+import { CarryForwardPanel } from "@/components/charters/carry-forward-panel";
 import { MeetingMinutesEditor } from "@/components/meetings/meeting-minutes-editor";
 import { AgendaPanel } from "@/components/meetings/agenda-panel";
 import { AttendeesPanel } from "@/components/meetings/attendees-panel";
@@ -132,6 +135,17 @@ export default async function MeetingDetailPage({
         : Promise.resolve({ rows: [], nextCursor: null }),
     ]);
 
+  // Carry-forward suggestions (S4·CH, ADR 0080 D7): unresolved agenda + open action
+  // items from the last held plenary, shown beside the agenda when planning THIS
+  // meeting. Gated on the `charters` flag AND agenda-edit capability (`canEdit`) —
+  // the panel copies into the agenda, so a member/locked meeting never sees it. The
+  // read is a pure, confidentiality-filtered DEFINER (member-scoped).
+  const chartersOn = await chartersEnabled();
+  const carryForward =
+    chartersOn && canEdit
+      ? await getCarryForwardSuggestions(access.commission.id)
+      : null;
+
   const memberOptions = sortMembers(members).map((m) => ({
     userId: m.userId,
     name: m.fullName ?? m.email ?? "Membro",
@@ -166,6 +180,10 @@ export default async function MeetingDetailPage({
       />
 
       <AgendaPanel meetingId={meeting.id} items={agenda} canEdit={canEdit} />
+
+      {carryForward && (
+        <CarryForwardPanel meetingId={meeting.id} suggestions={carryForward} />
+      )}
 
       <AttendeesPanel
         meeting={meeting}

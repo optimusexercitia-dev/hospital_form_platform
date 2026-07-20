@@ -6,8 +6,11 @@ import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session
 import { listMeetings, listMeetingTypes } from "@/lib/queries/meetings";
 import { listMembers } from "@/lib/queries/members";
 import { meetingsEnabled } from "@/lib/meetings/actions";
+import { chartersEnabled } from "@/lib/queries/feature-flags";
+import { getMeetingCadenceStatus } from "@/lib/queries/charters";
 import { MeetingsList } from "@/components/meetings/meetings-list";
 import { NewMeetingButton } from "@/components/meetings/meeting-form-dialog";
+import { CadenceStatusBadge } from "@/components/charters/cadence-status-badge";
 import { CursorPagination } from "@/components/shared/cursor-pagination";
 
 export const metadata: Metadata = {
@@ -61,7 +64,12 @@ export default async function MeetingsListPage({
   // `schedule_meetings`. Drives the "Nova reunião" affordance + the picker roster.
   const canSchedule = canInCommission(access, "schedule_meetings");
 
-  const [{ rows: meetings, nextCursor }, meetingTypes, members] =
+  // The live meeting-cadence indicator (S4·CH, ADR 0080): sourced from the
+  // member-scoped `getMeetingCadenceStatus` RPC — NOT derived from the visible
+  // meeting rows — so it is consistent regardless of the caller's meeting
+  // visibility. Gated on the `charters` flag; `null` (non-member / off) → omit.
+  const chartersOn = await chartersEnabled();
+  const [{ rows: meetings, nextCursor }, meetingTypes, members, cadence] =
     await Promise.all([
       listMeetings(access.commission.id, { cursor }),
       listMeetingTypes(access.commission.id),
@@ -70,6 +78,9 @@ export default async function MeetingsListPage({
       canSchedule
         ? listMembers(access.commission.id)
         : Promise.resolve([]),
+      chartersOn
+        ? getMeetingCadenceStatus(access.commission.id)
+        : Promise.resolve(null),
     ]);
 
   return (
@@ -84,6 +95,14 @@ export default async function MeetingsListPage({
             Agende reuniões, registre atas, presenças e quórum, vincule casos e
             colete assinaturas eletrônicas. Nunca registre dados de paciente.
           </p>
+          {cadence && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className="text-xs font-medium text-muted-foreground">
+                Cadência das reuniões:
+              </span>
+              <CadenceStatusBadge status={cadence.status} />
+            </div>
+          )}
         </div>
         {canSchedule && (
           <NewMeetingButton
