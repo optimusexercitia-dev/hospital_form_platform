@@ -5,12 +5,29 @@ import { ChevronLeft } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { createControlledDocument } from "@/lib/documents/actions";
+import type { DocType } from "@/lib/documents/types";
 import { commissionHref } from "@/lib/routing";
 import { DocumentEditor } from "@/components/documents/document-editor";
 
 export const metadata: Metadata = {
   title: "Novo documento controlado",
 };
+
+const DOC_TYPES = new Set<DocType>([
+  "politica",
+  "pop",
+  "protocolo",
+  "regimento",
+  "manual",
+  "outro",
+]);
+
+/** Validate a raw `?docType=` param against the known union, else drop it. */
+function asDocType(value: string | undefined): DocType | undefined {
+  return value && DOC_TYPES.has(value as DocType)
+    ? (value as DocType)
+    : undefined;
+}
 
 /**
  * New controlled document (Phase 17, F2 — create). Coordinator area (flag + role
@@ -23,10 +40,13 @@ export const metadata: Metadata = {
  */
 export default async function NewDocumentPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ org: string; commission: string }>;
+  searchParams: Promise<{ docType?: string }>;
 }) {
   const { org, commission } = await params;
+  const { docType } = await searchParams;
   const access = await getCommissionAccessByOrg(org, commission);
   if (!access || access.role !== "staff_admin") {
     notFound();
@@ -62,6 +82,7 @@ export default async function NewDocumentPage({
         org={org}
         commission={commission}
         listHref={listHref}
+        defaultDocType={asDocType(docType)}
       />
     </div>
   );

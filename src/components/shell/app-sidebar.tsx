@@ -14,6 +14,7 @@ import {
   FileText,
   FolderOpen,
   Gauge,
+  Gavel,
   Layers,
   LayoutDashboard,
   ListChecks,
@@ -81,7 +82,8 @@ interface NavItem {
     | "patient_safety"
     | "case_referrals"
     | "quality_indicators"
-    | "controlled_docs";
+    | "controlled_docs"
+    | "charters";
   /**
    * When true, the item renders only if `actionItemsEnabled` is on — the composite
    * flag `cases_extras OR meetings OR action_items` resolved by the layout (the
@@ -257,6 +259,13 @@ const NAV_GROUPS: NavGroup[] = [
         requiresFeature: "controlled_docs",
       },
       {
+        label: "Regimento & Cadência",
+        href: "manage/charter",
+        icon: Gavel,
+        roles: ["staff_admin"],
+        requiresFeature: "charters",
+      },
+      {
         label: "Trilha de auditoria",
         href: "manage/audit",
         icon: ScrollText,
@@ -296,6 +305,7 @@ export function AppSidebar({
   actionItemsEnabled = false,
   qualityIndicatorsEnabled = false,
   controlledDocsEnabled = false,
+  chartersEnabled = false,
   isNspCoordinator = false,
   isPqsMember = false,
 }: {
@@ -362,6 +372,8 @@ export function AppSidebar({
   qualityIndicatorsEnabled?: boolean;
   /** Whether the `controlled_docs` flag is on (gates the "Documentos" item, Phase 17). */
   controlledDocsEnabled?: boolean;
+  /** Whether the `charters` flag is on (gates the "Regimento & Cadência" item, Phase 21). */
+  chartersEnabled?: boolean;
   /** Whether the current user is the org's NSP coordinator (curates the PQS roster). */
   isNspCoordinator?: boolean;
   /** Whether the current user is enrolled as a PQS member (may read PHI in the console). */
@@ -390,6 +402,7 @@ export function AppSidebar({
       return false;
     if (item.requiresFeature === "controlled_docs" && !controlledDocsEnabled)
       return false;
+    if (item.requiresFeature === "charters" && !chartersEnabled) return false;
     if (item.requiresActionItems && !actionItemsEnabled) return false;
     // The "Minhas fases" / "Meus Casos" inverse pair: one shows per the flag.
     if (item.caseAccess === "on" && !caseAccessEnabled) return false;

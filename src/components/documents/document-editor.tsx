@@ -64,6 +64,7 @@ export function DocumentEditor({
   commission,
   listHref,
   existing,
+  defaultDocType,
 }: {
   createAction?: CreateAction;
   updateAction?: UpdateAction;
@@ -74,6 +75,12 @@ export function DocumentEditor({
   listHref: string;
   /** When present, the editor updates this document's header instead of creating. */
   existing?: ControlledDocument;
+  /**
+   * Pre-selects the document `Tipo` when CREATING (e.g. the charter page hands off
+   * with `regimento` pre-filled). Ignored when editing (`existing` wins). Defaults
+   * to `pop` when absent, preserving the plain-create behavior.
+   */
+  defaultDocType?: DocType;
 }) {
   const router = useRouter();
   const isEditing = Boolean(existing);
@@ -97,6 +104,7 @@ export function DocumentEditor({
       createAction={createAction!}
       commissionId={commissionId}
       listHref={listHref}
+      defaultDocType={defaultDocType}
       onCreated={(id) => router.push(detailHref(id))}
     />
   );
@@ -106,11 +114,13 @@ function CreateForm({
   createAction,
   commissionId,
   listHref,
+  defaultDocType,
   onCreated,
 }: {
   createAction: CreateAction;
   commissionId: string;
   listHref: string;
+  defaultDocType?: DocType;
   onCreated: (id: string) => void;
 }) {
   const [state, formAction, pending] = useActionState(createAction, undefined);
@@ -132,6 +142,7 @@ function CreateForm({
       commissionId={commissionId}
       submitLabel="Criar documento"
       listHref={listHref}
+      defaultDocType={defaultDocType}
     />
   );
 }
@@ -182,6 +193,7 @@ function EditorFields({
   submitLabel,
   listHref,
   existing,
+  defaultDocType,
 }: {
   formAction: (formData: FormData) => void;
   pending: boolean;
@@ -191,8 +203,11 @@ function EditorFields({
   submitLabel: string;
   listHref: string;
   existing?: ControlledDocument;
+  defaultDocType?: DocType;
 }) {
-  const [docType, setDocType] = useState<DocType>(existing?.docType ?? "pop");
+  const [docType, setDocType] = useState<DocType>(
+    existing?.docType ?? defaultDocType ?? "pop",
+  );
 
   return (
     <form action={formAction} className="flex flex-col gap-8">
