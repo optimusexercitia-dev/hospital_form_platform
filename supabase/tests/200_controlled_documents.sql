@@ -104,7 +104,7 @@ select test_helpers.claims_for((select sa_x from k));
 
 -- create_controlled_document → header + draft v1.
 create temp table doc_a on commit drop as
-  select * from public.create_controlled_document((select comm_x from k), 'Política A', 'politica', 12);
+  select * from public.create_controlled_document((select comm_x from k), 'Política A', 'policy', 12);
 grant select on doc_a to authenticated;
 
 -- Attach a file to v1 (so it can be submitted).
@@ -254,7 +254,7 @@ select throws_ok(
 set local role authenticated;
 select test_helpers.claims_for((select sa_x from k));
 create temp table doc_b on commit drop as
-  select * from public.create_controlled_document((select comm_x from k), 'Política B', 'pop', null);
+  select * from public.create_controlled_document((select comm_x from k), 'Política B', 'sop', null);
 grant select on doc_b to authenticated;
 reset role;
 
@@ -559,7 +559,7 @@ select is(
 set local role authenticated;
 select test_helpers.claims_for((select sa_x from k));
 create temp table doc_p on commit drop as
-  select * from public.create_controlled_document((select comm_x from k), 'Política Passada', 'politica', 1);
+  select * from public.create_controlled_document((select comm_x from k), 'Política Passada', 'policy', 1);
 grant select on doc_p to authenticated;
 select public.set_document_version_file(
   (select current_version_id from doc_p),
@@ -597,7 +597,7 @@ reset role;
 set local role authenticated;
 select test_helpers.claims_for((select sa_x from k));
 create temp table doc_r on commit drop as
-  select * from public.create_controlled_document((select comm_x from k), 'Política R (reject)', 'pop', null);
+  select * from public.create_controlled_document((select comm_x from k), 'Política R (reject)', 'sop', null);
 grant select on doc_r to authenticated;
 select public.set_document_version_file(
   (select current_version_id from doc_r),
@@ -633,7 +633,7 @@ select is(
 select is(
   (select count(*)::int from public.document_approvals
    where document_version_id = (select current_version_id from doc_r)
-     and decision = 'rejeitado' and note = 'Faltou seção de EPI'),
+     and decision = 'rejected' and note = 'Faltou seção de EPI'),
   1, 'MINOR-1 (b): the rejeitado decision row (with its note) is kept after a reject');
 
 -- (c) the formerly-pending outside approver sa_y can NO LONGER read the private draft.

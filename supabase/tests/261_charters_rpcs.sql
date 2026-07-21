@@ -54,11 +54,12 @@ update public.profiles set home_organization_id = (select org_b from k)
   where id in (select cad from u union all select assignee from u union all select outsider from u);
 
 -- Controlled documents in comm_x for the upsert link-validation tests: a valid
--- regimento + a wrong-type (pop) doc. Code is trigger-minted.
+-- regimento (doc_type='bylaws' after the ADR-0081 B0 anglicization) + a wrong-type
+-- (sop) doc. Code is trigger-minted.
 insert into public.controlled_documents (commission_id, title, doc_type, created_by)
-  select comm_x, 'Regimento CCIH', 'regimento', sa_x from k;
+  select comm_x, 'Regimento CCIH', 'bylaws', sa_x from k;
 insert into public.controlled_documents (commission_id, title, doc_type, created_by)
-  select comm_x, 'POP CCIH', 'pop', sa_x from k;
+  select comm_x, 'POP CCIH', 'sop', sa_x from k;
 
 -- A global (commission_id NULL) open/done status the fixture re-seeds in 00_setup.
 create temp table stt on commit drop as
@@ -186,16 +187,16 @@ select is(
 select is(
   (public.upsert_commission_charter((select comm_x from k), 'quinzenal',
      (select id from public.controlled_documents
-        where commission_id = (select comm_x from k) and doc_type = 'regimento' limit 1)))->>'controlledDocumentId',
+        where commission_id = (select comm_x from k) and doc_type = 'bylaws' limit 1)))->>'controlledDocumentId',
   (select id::text from public.controlled_documents
-     where commission_id = (select comm_x from k) and doc_type = 'regimento' limit 1),
+     where commission_id = (select comm_x from k) and doc_type = 'bylaws' limit 1),
   'upsert with a same-commission regimento link succeeds and returns the doc id'
 );
 select throws_ok(
   format($f$ select public.upsert_commission_charter(%L::uuid, 'mensal', %L::uuid) $f$,
     (select comm_x from k),
     (select id from public.controlled_documents
-       where commission_id = (select comm_x from k) and doc_type = 'pop' limit 1)),
+       where commission_id = (select comm_x from k) and doc_type = 'sop' limit 1)),
   'HC0K1', null,
   'upsert with a non-regimento (pop) link is refused HC0K1'
 );

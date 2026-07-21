@@ -29,11 +29,14 @@
 // ---------------------------------------------------------------------------
 
 /**
- * The controlled-document kind (JCI MOI categories). `politica` (policy),
- * `pop` (procedimento operacional padrão), `protocolo`, `regimento`, `manual`,
- * `outro` (catch-all).
+ * The controlled-document kind (JCI MOI categories). English internal keys
+ * (anglicized in ADR 0081 by ADR 0069's 1:1 method — pt-BR labels unchanged):
+ * `policy` (Política), `sop` (POP — procedimento operacional padrão),
+ * `protocol` (Protocolo), `bylaws` (Regimento — named `bylaws` not `charter` to
+ * avoid overlap with the `commission_charters` feature), `manual` (Manual),
+ * `other` (Outro — catch-all).
  */
-export type DocType = 'politica' | 'pop' | 'protocolo' | 'regimento' | 'manual' | 'outro'
+export type DocType = 'policy' | 'sop' | 'protocol' | 'bylaws' | 'manual' | 'other'
 
 /**
  * The version lifecycle (the header `status` mirrors its CURRENT version).
@@ -47,9 +50,18 @@ export type DocStatus = 'draft' | 'in_approval' | 'effective' | 'obsolete'
 /**
  * A single approver's decision on a version. `null` while the approval is PENDING
  * (the row exists — and GRANTS READ — from submit; the decision lands at sign
- * time). `aprovado` (approved) / `rejeitado` (rejected, with a note).
+ * time). English keys (ADR 0081): `approved` (Aprovado) / `rejected` (Rejeitado,
+ * with a note).
  */
-export type ApprovalDecision = 'aprovado' | 'rejeitado'
+export type ApprovalDecision = 'approved' | 'rejected'
+
+/**
+ * Why an obsolete version was retired (`controlled_document_versions.obsolete_kind`;
+ * ADR 0081). `superseded` — a newer version was published over it (stamped by
+ * `publish_document`). `retired` — retired without a replacement (`mark_document_obsolete`).
+ * `null` while the version is not obsolete.
+ */
+export type ObsoleteKind = 'superseded' | 'retired'
 
 // ---------------------------------------------------------------------------
 // Row-shaped domain objects (camelCase; the query layer maps snake_case rows)
@@ -73,6 +85,10 @@ export interface ControlledDocument {
   code: string
   title: string
   docType: DocType
+  /** Free-text category (ADR 0081 O1) — null when unset. */
+  category: string | null
+  /** Free-text tag set (ADR 0081) — `[]` when none. */
+  tags: string[]
   reviewCycleMonths: number | null
   status: DocStatus
   currentVersionId: string | null
@@ -95,7 +111,19 @@ export interface ControlledDocumentVersion {
   effectiveDate: string | null
   reviewDueDate: string | null
   expiryDate: string | null
+  /**
+   * The wizard's proposed effective date; `publish_document` defaults the effective
+   * date from it. Not a scheduler (ADR 0081). Null when not collected.
+   */
+  proposedEffectiveDate: string | null
+  /** Reviewer-response deadline (ADR 0081 O2) — feeds Remind/overdue reminders. */
+  approvalDueDate: string | null
   status: DocStatus
+  /**
+   * Set only when `status === 'obsolete'`: `superseded` (a newer version published
+   * over it) vs `retired` (marked obsolete with no replacement). Null otherwise.
+   */
+  obsoleteKind: ObsoleteKind | null
   createdByName: string | null
   createdAt: string
   updatedAt: string
@@ -132,6 +160,12 @@ export interface ControlledDocumentListItem extends ControlledDocument {
   reviewDueDate: string | null
   /** Convenience flag: `reviewDueDate` is non-null and in the past (as of read). */
   isReviewOverdue: boolean
+  /**
+   * The current version's `obsoleteKind` (ADR 0081) — lets the "Arquivados" chip
+   * distinguish superseded vs retired without a detail round trip. Null unless the
+   * document (its current version) is obsolete.
+   */
+  obsoleteKind: ObsoleteKind | null
 }
 
 /**
@@ -209,12 +243,12 @@ export interface HospitalDocumentRegisterRow {
 // ---------------------------------------------------------------------------
 
 export const DOC_TYPE_LABELS: Record<DocType, string> = {
-  politica: 'Política',
-  pop: 'POP',
-  protocolo: 'Protocolo',
-  regimento: 'Regimento',
+  policy: 'Política',
+  sop: 'POP',
+  protocol: 'Protocolo',
+  bylaws: 'Regimento',
   manual: 'Manual',
-  outro: 'Outro',
+  other: 'Outro',
 }
 
 export const DOC_STATUS_LABELS: Record<DocStatus, string> = {
@@ -225,6 +259,11 @@ export const DOC_STATUS_LABELS: Record<DocStatus, string> = {
 }
 
 export const APPROVAL_DECISION_LABELS: Record<ApprovalDecision, string> = {
-  aprovado: 'Aprovado',
-  rejeitado: 'Rejeitado',
+  approved: 'Aprovado',
+  rejected: 'Rejeitado',
+}
+
+export const OBSOLETE_KIND_LABELS: Record<ObsoleteKind, string> = {
+  superseded: 'Substituído',
+  retired: 'Descontinuado',
 }

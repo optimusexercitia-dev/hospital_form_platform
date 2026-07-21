@@ -13,12 +13,12 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 
 const DOC_TYPES: DocType[] = [
-  "politica",
-  "pop",
-  "protocolo",
-  "regimento",
+  "policy",
+  "sop",
+  "protocol",
+  "bylaws",
   "manual",
-  "outro",
+  "other",
 ];
 const DOC_STATUSES: DocStatus[] = [
   "draft",

@@ -2008,7 +2008,7 @@ begin
   insert into public.controlled_documents
     (commission_id, code, title, doc_type, review_cycle_months, status, created_by)
   values
-    (v_comm_a, 'DOC-0001', 'Política de Higienização das Mãos', 'politica', 12, 'effective', v_chefe)
+    (v_comm_a, 'DOC-0001', 'Política de Higienização das Mãos', 'policy', 12, 'effective', v_chefe)
   returning id into v_doc_vig;
 
   insert into public.controlled_document_versions
@@ -2023,22 +2023,22 @@ begin
 
   update public.controlled_documents set current_version_id = v_ver_vig where id = v_doc_vig;
 
-  -- Its two named approvers (both already aprovado, so it published). signature_hash is
+  -- Its two named approvers (both already approved, so it published). signature_hash is
   -- computed over the EMPTY path (coalesce(storage_path,'')) exactly as approve_document
   -- would for this null-path version — a self-consistent seed.
   insert into public.document_approvals
     (document_version_id, approver_id, approver_title, decision, decided_at, note, signature_hash)
   values
-    (v_ver_vig, v_staff1, 'Enfermeira CCIH', 'aprovado', now() - interval '18 months', null,
-     encode(extensions.digest('' || ':' || v_staff1::text || ':aprovado', 'sha256'), 'hex')),
-    (v_ver_vig, v_farm2, 'Diretor Técnico', 'aprovado', now() - interval '18 months', null,
-     encode(extensions.digest('' || ':' || v_farm2::text || ':aprovado', 'sha256'), 'hex'));
+    (v_ver_vig, v_staff1, 'Enfermeira CCIH', 'approved', now() - interval '18 months', null,
+     encode(extensions.digest('' || ':' || v_staff1::text || ':approved', 'sha256'), 'hex')),
+    (v_ver_vig, v_farm2, 'Diretor Técnico', 'approved', now() - interval '18 months', null,
+     encode(extensions.digest('' || ':' || v_farm2::text || ':approved', 'sha256'), 'hex'));
 
   -- 2) IN_APPROVAL document naming the OUTSIDE-commission approver 0005 (pending).
   insert into public.controlled_documents
     (commission_id, code, title, doc_type, review_cycle_months, status, created_by)
   values
-    (v_comm_a, 'DOC-0002', 'POP de Isolamento de Contato', 'pop', 24, 'in_approval', v_chefe)
+    (v_comm_a, 'DOC-0002', 'POP de Isolamento de Contato', 'sop', 24, 'in_approval', v_chefe)
   returning id into v_doc_apr;
 
   insert into public.controlled_document_versions
@@ -2245,7 +2245,8 @@ declare
   v_reg_doc  uuid := 'd0c00000-0000-0000-0000-0000000000f1';  -- deterministic regimento doc id
   v_reg_ver  uuid;
 begin
-  -- 1) Published regimento controlled document for Farmácia (doc_type='regimento').
+  -- 1) Published bylaws controlled document for Farmácia (doc_type='bylaws' — the
+  --    committee's "regimento" in pt-BR; the B0-anglicized key is 'bylaws').
   --    Direct insert requires the in-RPC GUC + a JWT sub (mirrors the DOC-000x seed).
   perform set_config('request.jwt.claims',
     jsonb_build_object('sub', v_farm_sa, 'role', 'authenticated')::text, true);
@@ -2255,7 +2256,7 @@ begin
     (id, commission_id, code, title, doc_type, review_cycle_months, status, created_by)
   values
     (v_reg_doc, v_farm, 'REG-0001', 'Regimento Interno da Comissão de Farmácia',
-     'regimento', 12, 'effective', v_farm_sa);
+     'bylaws', 12, 'effective', v_farm_sa);
 
   insert into public.controlled_document_versions
     (document_id, version_number, storage_path, summary_of_changes_md,

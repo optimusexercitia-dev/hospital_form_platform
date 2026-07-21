@@ -80,6 +80,40 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
+### 🏗️ IN PROGRESS — Controlled-Document Redesign (Phase 17 v2) — branch `feat/document-control-redesign` (worktree)
+
+Redesign of the shipped Phase-17 controlled-docs UI to the "Document Control" handoff, translated onto the
+platform design system, + 4 functional gaps + enum-key anglicization (controlled-docs only). PO scope locked
+2026-07-21. **Plan** → [docs/plans/document-control-redesign.md](docs/plans/document-control-redesign.md) ·
+**ADR** [0081](docs/decisions/0081-controlled-document-redesign.md) (extends [0069](docs/decisions/0069-status-key-anglicization.md)).
+Flag `controlled_docs`, prod-OFF till pilot (unchanged). PHI-free (Rule 12 N/A).
+
+**Locked:** all-in-one create wizard (chained action + Save-as-draft) · approver notifications+Remind (Phase-20
+wiring) · version compare (metadata+summary) · category+tags · retired-vs-superseded (`obsolete_kind`) · register
+full-adopt (KPI+chips+search+table) · anglicize `doc_type`/`decision` (politica→policy, pop→sop, protocolo→protocol,
+regimento→bylaws, manual→manual, outro→other; aprovado→approved, rejeitado→rejected — **labels stay pt-BR**) · full §6 gate.
+
+**Wave 1 (backend) — 🏗️ in progress:** B0 anglicization → B1 schema (category/tags/obsolete_kind/proposed_effective_date)
+→ B2 RPC updates → B3 chained create/draft actions → B4 reads/filters → §4 notifications+remind RPC → regen types → pgTAP.
+Wave 2 = frontend; Wave 3 = §6 gate (tester E2E + qa + human).
+
+<!-- backend-owned ledger (backend teammate updates ONLY this sub-block) -->
+**backend — Wave 1 build ✅ COMPLETE (contract frozen for Wave 2).** Migrations
+`20260819000000`–`000300` (B1 schema · notification-enum superset · B0+B2 RPC re-emit · §4
+producers+remind). Types regenerated; `tsc` 0 · `lint` 0.
+- **B0** (this module only): `doc_type` politica→policy/pop→sop/protocolo→protocol/regimento→bylaws/manual/outro→other;
+  `decision` aprovado→approved/rejeitado→rejected. CHECK swaps + all writer/comparator bodies re-emitted from
+  **live** `pg_get_functiondef`. Keystone-2 couplings caught + fixed in lockstep: `upsert_commission_charter`
+  (`doc_type='bylaws'` filter), `trg_audit_document_approvals` (decision branch). FE value-literal sweep (typed
+  arrays/filters/comparisons in `documentos*`/`charter`/`document-editor`/`approvals-panel`/`approval-sign-form`) +
+  seed + pgTAP fixtures (200/261). `sem_regimento` cadence key + indicator `'manual'` source left untouched (out of scope).
+- **B1/B2/B3/B4/§4** built per plan; `remind_document_approver` REVOKE-FROM-PUBLIC + body-enforced staff_admin authority.
+- **pgTAP:** new `201_documents_redesign.sql` **21/21**; `200` **47/47**, `226` **69/69**, `261`/`262` green. Full suite
+  **3644 tests / 3636 pass**; the **8 failures are pre-existing** in `250`/`251`/`252` (case_phase / meeting-attendee /
+  agenda / professional_profiles RLS + one assertion on a `document_approvals` id created in no seed/migration) —
+  **zero overlap with this wave's surface**; flagged for lead/base-branch triage.
+- **Contract summary** for `frontend` posted with this commit (see the commit body / backend report).
+
 ### ✅ AUDIT-DOOR-BLINDNESS · P0 — COMPLETE (human-approved 2026-07-18) — record rotated → [authz-p0-door-blindness.md](docs/progress/authz-p0-door-blindness.md)
 
 **Outcome:** exhaustive catalog-driven door-audit (292 gate neutralizations) found **no live leak** — door-blindness

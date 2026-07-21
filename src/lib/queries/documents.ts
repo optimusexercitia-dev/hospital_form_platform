@@ -34,6 +34,7 @@ import type {
   DocType,
   DocumentApproval,
   HospitalDocumentRegisterRow,
+  ObsoleteKind,
   PendingApprovalRow,
   ReviewDueRow,
 } from '@/lib/documents/types'
@@ -50,6 +51,7 @@ export type {
   DocType,
   DocumentApproval,
   HospitalDocumentRegisterRow,
+  ObsoleteKind,
   PendingApprovalRow,
   ReviewDueRow,
 } from '@/lib/documents/types'
@@ -57,6 +59,7 @@ export {
   APPROVAL_DECISION_LABELS,
   DOC_STATUS_LABELS,
   DOC_TYPE_LABELS,
+  OBSOLETE_KIND_LABELS,
 } from '@/lib/documents/types'
 
 const SIGNED_URL_TTL_SECONDS = 3600
@@ -71,6 +74,8 @@ interface DocumentRow {
   code: string
   title: string
   doc_type: string
+  category: string | null
+  tags: string[] | null
   review_cycle_months: number | null
   status: string
   current_version_id: string | null
@@ -80,7 +85,7 @@ interface DocumentRow {
 }
 
 const DOCUMENT_SELECT =
-  'id, commission_id, code, title, doc_type, review_cycle_months, status, ' +
+  'id, commission_id, code, title, doc_type, category, tags, review_cycle_months, status, ' +
   'current_version_id, created_at, updated_at, ' +
   'commission:commissions!controlled_documents_commission_id_fkey(hospital_id)'
 
@@ -92,6 +97,8 @@ function mapDocument(r: DocumentRow): ControlledDocument {
     code: r.code,
     title: r.title,
     docType: r.doc_type as DocType,
+    category: r.category,
+    tags: r.tags ?? [],
     reviewCycleMonths: r.review_cycle_months,
     status: r.status as DocStatus,
     currentVersionId: r.current_version_id,
@@ -109,6 +116,9 @@ interface VersionRow {
   effective_date: string | null
   review_due_date: string | null
   expiry_date: string | null
+  proposed_effective_date: string | null
+  approval_due_date: string | null
+  obsolete_kind: string | null
   status: string
   created_at: string
   updated_at: string
@@ -117,7 +127,8 @@ interface VersionRow {
 
 const VERSION_SELECT =
   'id, document_id, version_number, storage_path, summary_of_changes_md, ' +
-  'effective_date, review_due_date, expiry_date, status, created_at, updated_at, ' +
+  'effective_date, review_due_date, expiry_date, proposed_effective_date, ' +
+  'approval_due_date, obsolete_kind, status, created_at, updated_at, ' +
   'profiles:created_by(full_name)'
 
 function mapVersion(r: VersionRow): ControlledDocumentVersion {
@@ -130,6 +141,9 @@ function mapVersion(r: VersionRow): ControlledDocumentVersion {
     effectiveDate: r.effective_date,
     reviewDueDate: r.review_due_date,
     expiryDate: r.expiry_date,
+    proposedEffectiveDate: r.proposed_effective_date,
+    approvalDueDate: r.approval_due_date,
+    obsoleteKind: (r.obsolete_kind as ObsoleteKind | null) ?? null,
     status: r.status as DocStatus,
     createdByName: r.profiles?.full_name ?? null,
     createdAt: r.created_at,
@@ -201,6 +215,10 @@ export interface DocumentListFilters {
   status?: DocStatus
   /** Restrict to documents whose review is overdue (as of read). */
   reviewOverdueOnly?: boolean
+  /** Exact free-text category match (ADR 0081 B4). */
+  category?: string
+  /** Documents carrying ALL of these tags (array-contains; ADR 0081 B4). */
+  tags?: string[]
 }
 
 /** Optional filters for the hospital-wide register rollup. */
@@ -219,6 +237,7 @@ interface DocumentListRow extends DocumentRow {
     version_number: number
     effective_date: string | null
     review_due_date: string | null
+    obsolete_kind: string | null
   } | null
 }
 
@@ -239,11 +258,13 @@ export async function listDocuments(
     .select(
       DOCUMENT_SELECT +
         ', current_version:controlled_document_versions!controlled_documents_current_version_fkey' +
-        '(version_number, effective_date, review_due_date)',
+        '(version_number, effective_date, review_due_date, obsolete_kind)',
     )
     .eq('commission_id', commissionId)
   if (filters?.docType) query = query.eq('doc_type', filters.docType)
   if (filters?.status) query = query.eq('status', filters.status)
+  if (filters?.category) query = query.eq('category', filters.category)
+  if (filters?.tags && filters.tags.length > 0) query = query.contains('tags', filters.tags)
 
   const { data } = await query
     .order('created_at', { ascending: false })
@@ -257,6 +278,7 @@ export async function listDocuments(
       effectiveDate: r.current_version?.effective_date ?? null,
       reviewDueDate,
       isReviewOverdue: isOverdue(reviewDueDate),
+      obsoleteKind: (r.current_version?.obsolete_kind as ObsoleteKind | null) ?? null,
     }
   })
 

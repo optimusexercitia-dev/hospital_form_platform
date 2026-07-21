@@ -78,7 +78,7 @@ function ApprovalDecisionBadge({
   decision: DocumentApproval["decision"];
   decidedAt: string | null;
 }) {
-  if (decision === "aprovado") {
+  if (decision === "approved") {
     return (
       <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-300">
         <Check aria-hidden="true" className="size-4" />
@@ -91,7 +91,7 @@ function ApprovalDecisionBadge({
       </span>
     );
   }
-  if (decision === "rejeitado") {
+  if (decision === "rejected") {
     return (
       <span className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive">
         <X aria-hidden="true" className="size-4" />

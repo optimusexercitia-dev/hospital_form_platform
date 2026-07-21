@@ -19,12 +19,12 @@ export const metadata: Metadata = {
 };
 
 const DOC_TYPES = new Set<DocType>([
-  "politica",
-  "pop",
-  "protocolo",
-  "regimento",
+  "policy",
+  "sop",
+  "protocol",
+  "bylaws",
   "manual",
-  "outro",
+  "other",
 ]);
 const DOC_STATUSES = new Set<DocStatus>([
   "draft",

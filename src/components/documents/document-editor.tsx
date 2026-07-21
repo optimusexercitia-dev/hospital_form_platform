@@ -33,12 +33,12 @@ type UpdateAction = (
 ) => Promise<ActionState>;
 
 const DOC_TYPES: DocType[] = [
-  "politica",
-  "pop",
-  "protocolo",
-  "regimento",
+  "policy",
+  "sop",
+  "protocol",
+  "bylaws",
   "manual",
-  "outro",
+  "other",
 ];
 
 /**
@@ -77,8 +77,8 @@ export function DocumentEditor({
   existing?: ControlledDocument;
   /**
    * Pre-selects the document `Tipo` when CREATING (e.g. the charter page hands off
-   * with `regimento` pre-filled). Ignored when editing (`existing` wins). Defaults
-   * to `pop` when absent, preserving the plain-create behavior.
+   * with `bylaws` pre-filled). Ignored when editing (`existing` wins). Defaults
+   * to `sop` when absent, preserving the plain-create behavior.
    */
   defaultDocType?: DocType;
 }) {
@@ -206,7 +206,7 @@ function EditorFields({
   defaultDocType?: DocType;
 }) {
   const [docType, setDocType] = useState<DocType>(
-    existing?.docType ?? defaultDocType ?? "pop",
+    existing?.docType ?? defaultDocType ?? "sop",
   );
 
   return (

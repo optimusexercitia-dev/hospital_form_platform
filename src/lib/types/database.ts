@@ -3572,12 +3572,15 @@ export type Database = {
       }
       controlled_document_versions: {
         Row: {
+          approval_due_date: string | null
           created_at: string
           created_by: string | null
           document_id: string
           effective_date: string | null
           expiry_date: string | null
           id: string
+          obsolete_kind: string | null
+          proposed_effective_date: string | null
           review_due_date: string | null
           status: string
           storage_path: string | null
@@ -3586,12 +3589,15 @@ export type Database = {
           version_number: number
         }
         Insert: {
+          approval_due_date?: string | null
           created_at?: string
           created_by?: string | null
           document_id: string
           effective_date?: string | null
           expiry_date?: string | null
           id?: string
+          obsolete_kind?: string | null
+          proposed_effective_date?: string | null
           review_due_date?: string | null
           status?: string
           storage_path?: string | null
@@ -3600,12 +3606,15 @@ export type Database = {
           version_number: number
         }
         Update: {
+          approval_due_date?: string | null
           created_at?: string
           created_by?: string | null
           document_id?: string
           effective_date?: string | null
           expiry_date?: string | null
           id?: string
+          obsolete_kind?: string | null
+          proposed_effective_date?: string | null
           review_due_date?: string | null
           status?: string
           storage_path?: string | null
@@ -3632,6 +3641,7 @@ export type Database = {
       }
       controlled_documents: {
         Row: {
+          category: string | null
           code: string
           commission_id: string
           created_at: string
@@ -3641,10 +3651,12 @@ export type Database = {
           id: string
           review_cycle_months: number | null
           status: string
+          tags: string[]
           title: string
           updated_at: string
         }
         Insert: {
+          category?: string | null
           code: string
           commission_id: string
           created_at?: string
@@ -3654,10 +3666,12 @@ export type Database = {
           id?: string
           review_cycle_months?: number | null
           status?: string
+          tags?: string[]
           title: string
           updated_at?: string
         }
         Update: {
+          category?: string | null
           code?: string
           commission_id?: string
           created_at?: string
@@ -3667,6 +3681,7 @@ export type Database = {
           id?: string
           review_cycle_months?: number | null
           status?: string
+          tags?: string[]
           title?: string
           updated_at?: string
         }
@@ -10385,12 +10400,15 @@ export type Database = {
       }
       create_controlled_document: {
         Args: {
+          p_category?: string
           p_commission: string
           p_doc_type: string
           p_review_cycle_months?: number
+          p_tags?: string[]
           p_title: string
         }
         Returns: {
+          category: string | null
           code: string
           commission_id: string
           created_at: string
@@ -10400,6 +10418,7 @@ export type Database = {
           id: string
           review_cycle_months: number | null
           status: string
+          tags: string[]
           title: string
           updated_at: string
         }
@@ -11501,6 +11520,7 @@ export type Database = {
       mark_document_obsolete: {
         Args: { p_document_id: string }
         Returns: {
+          category: string | null
           code: string
           commission_id: string
           created_at: string
@@ -11510,6 +11530,7 @@ export type Database = {
           id: string
           review_cycle_months: number | null
           status: string
+          tags: string[]
           title: string
           updated_at: string
         }
@@ -11823,12 +11844,15 @@ export type Database = {
           p_version_id: string
         }
         Returns: {
+          approval_due_date: string | null
           created_at: string
           created_by: string | null
           document_id: string
           effective_date: string | null
           expiry_date: string | null
           id: string
+          obsolete_kind: string | null
+          proposed_effective_date: string | null
           review_due_date: string | null
           status: string
           storage_path: string | null
@@ -12218,6 +12242,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      remind_document_approver: {
+        Args: { p_approver_id: string; p_version_id: string }
+        Returns: boolean
       }
       remove_capa_action: { Args: { p_action_id: string }; Returns: undefined }
       remove_capa_action_task: {
@@ -13025,12 +13053,15 @@ export type Database = {
           p_version_id: string
         }
         Returns: {
+          approval_due_date: string | null
           created_at: string
           created_by: string | null
           document_id: string
           effective_date: string | null
           expiry_date: string | null
           id: string
+          obsolete_kind: string | null
+          proposed_effective_date: string | null
           review_due_date: string | null
           status: string
           storage_path: string | null
@@ -13603,14 +13634,22 @@ export type Database = {
         }
       }
       submit_document_for_approval: {
-        Args: { p_approvers: Json; p_version_id: string }
+        Args: {
+          p_approval_due_date?: string
+          p_approvers: Json
+          p_proposed_effective_date?: string
+          p_version_id: string
+        }
         Returns: {
+          approval_due_date: string | null
           created_at: string
           created_by: string | null
           document_id: string
           effective_date: string | null
           expiry_date: string | null
           id: string
+          obsolete_kind: string | null
+          proposed_effective_date: string | null
           review_due_date: string | null
           status: string
           storage_path: string | null
@@ -13693,12 +13732,15 @@ export type Database = {
       supersede_document: {
         Args: { p_document_id: string }
         Returns: {
+          approval_due_date: string | null
           created_at: string
           created_by: string | null
           document_id: string
           effective_date: string | null
           expiry_date: string | null
           id: string
+          obsolete_kind: string | null
+          proposed_effective_date: string | null
           review_due_date: string | null
           status: string
           storage_path: string | null
@@ -14111,12 +14153,15 @@ export type Database = {
       }
       update_controlled_document: {
         Args: {
+          p_category?: string
           p_doc_type: string
           p_id: string
           p_review_cycle_months?: number
+          p_tags?: string[]
           p_title: string
         }
         Returns: {
+          category: string | null
           code: string
           commission_id: string
           created_at: string
@@ -14126,6 +14171,7 @@ export type Database = {
           id: string
           review_cycle_months: number | null
           status: string
+          tags: string[]
           title: string
           updated_at: string
         }

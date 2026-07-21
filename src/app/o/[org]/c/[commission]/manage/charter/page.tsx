@@ -47,7 +47,8 @@ function formatDateOnly(dateOnly: string): string {
  * ultimate boundary; the write RPC re-enforces HC0K0). Shows the live meeting-cadence
  * status, lets the coordinator set the meeting frequency + link the commission's
  * regimento controlled document, and links out to the Phase-17 create flow
- * (`doc_type=regimento` pre-filled) to author a new regimento. No PHI (Rule 12).
+ * (`doc_type=bylaws` pre-filled — the B0-anglicized key for "regimento") to author a
+ * new regimento. No PHI (Rule 12).
  */
 export default async function CharterPage({
   params,
@@ -69,7 +70,7 @@ export default async function CharterPage({
   const [charter, cadence, regimentoDocs] = await Promise.all([
     getCharter(commissionId),
     getMeetingCadenceStatus(commissionId),
-    listDocuments(commissionId, { docType: "regimento" }),
+    listDocuments(commissionId, { docType: "bylaws" }),
   ]);
 
   const linkedDoc = charter?.controlledDocumentId
@@ -78,7 +79,7 @@ export default async function CharterPage({
 
   const createNewHref =
     commissionHref(org, commission, "manage", "documentos", "novo") +
-    "?docType=regimento";
+    "?docType=bylaws";
 
   // Cadence context sentence per status (the badge carries the label; this adds the
   // "why" so a coordinator knows what to do next). `meetingFrequency`/`lastHeldAt`

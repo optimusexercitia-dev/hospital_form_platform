@@ -71,6 +71,12 @@ const MESSAGES = {
   published: 'Documento publicado.',
   superseded: 'Nova versão criada.',
   obsoleted: 'Documento tornado obsoleto.',
+  remindSent: 'Lembrete enviado.',
+  remindSkipped: 'Lembrete já enviado recentemente.',
+  // Partial-failure banners for the chained create (B3): the draft is saved and
+  // recoverable — the user is landed on its detail to finish the missing step.
+  draftSavedUploadLater: 'Rascunho salvo, mas o arquivo não foi anexado. Anexe-o na página do documento.',
+  draftSavedSubmitLater: 'Rascunho salvo, mas o envio para aprovação não foi concluído. Conclua na página do documento.',
 } as const
 
 const PG_CHECK_VIOLATION = '23514'
@@ -150,6 +156,33 @@ function parseOptionalPositiveInt(raw: FormDataEntryValue | null): number | unde
   return n
 }
 
+/** Parse the optional free-text `category` field — trimmed, or `undefined` if blank. */
+function parseCategory(raw: FormDataEntryValue | null): string | undefined {
+  const t = String(raw ?? '').trim()
+  return t || undefined
+}
+
+/**
+ * Parse the optional `tags` field (a JSON array of strings, the TagField convention).
+ * Trims + de-dupes + drops blanks; `undefined` when absent/empty/malformed (the RPC
+ * defaults to `{}`). Never throws — a malformed value degrades to no tags.
+ */
+function parseTags(raw: FormDataEntryValue | null): string[] | undefined {
+  const s = String(raw ?? '').trim()
+  if (!s) return undefined
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(s)
+  } catch {
+    return undefined
+  }
+  if (!Array.isArray(parsed)) return undefined
+  const tags = Array.from(
+    new Set(parsed.map((t) => (typeof t === 'string' ? t.trim() : '')).filter((t) => t.length > 0)),
+  )
+  return tags.length > 0 ? tags : undefined
+}
+
 const DOCUMENTS_PATH = '/o/[org]/c/[commission]/manage/documentos'
 const DOCUMENT_DETAIL_PATH = '/o/[org]/c/[commission]/manage/documentos/[documentId]'
 const PENDING_PATH = '/o/[org]/documentos-pendentes'
@@ -192,6 +225,8 @@ export async function createControlledDocument(
     p_title: title,
     p_doc_type: docType,
     p_review_cycle_months: reviewCycleMonths ?? undefined,
+    p_category: parseCategory(formData.get('category')),
+    p_tags: parseTags(formData.get('tags')),
   })
 
   if (error || !data) return { ok: false, error: mapDocumentError(error) }
@@ -229,6 +264,8 @@ export async function updateControlledDocument(
     p_title: title,
     p_doc_type: docType,
     p_review_cycle_months: reviewCycleMonths ?? undefined,
+    p_category: parseCategory(formData.get('category')),
+    p_tags: parseTags(formData.get('tags')),
   })
 
   if (error || !data) return { ok: false, error: mapDocumentError(error) }
@@ -314,6 +351,38 @@ export async function addDocumentVersion(
  * `submit_document_for_approval` (→ `in_approval`; delete-then-insert the pending
  * rows that GRANT READ; rejects foreign-hospital/inactive/duplicate approvers).
  */
+/** The snake_case approver element the `submit_document_for_approval` RPC reads. */
+type ApproverPayload = { approver_id: string; approver_title: string | null }
+
+/**
+ * Parse + camel→snake the `approvers` JSON field (BUG-DOC-003): the client form emits
+ * the app-layer camelCase contract (`{approverId, approverTitle}`, matching
+ * `ApproverCandidate`), but the RPC reads snake_case. Rejects a malformed/empty list
+ * with a pt-BR error rather than letting a NULL id reach the RPC (which would surface
+ * as the misleading HC091 "not entitled"). The FRONTEND form stays camelCase.
+ */
+function parseApprovers(raw: FormDataEntryValue | null): { payload: ApproverPayload[] } | { error: string } {
+  let approvers: unknown
+  try {
+    approvers = JSON.parse(String(raw ?? '[]'))
+  } catch {
+    return { error: MESSAGES.approversRequired }
+  }
+  if (!Array.isArray(approvers) || approvers.length === 0) {
+    return { error: MESSAGES.approversRequired }
+  }
+  const payload: ApproverPayload[] = []
+  for (const el of approvers) {
+    const a = el as { approverId?: unknown; approverTitle?: unknown }
+    const approverId = typeof a.approverId === 'string' ? a.approverId.trim() : ''
+    if (!approverId) return { error: MESSAGES.approversRequired }
+    const approverTitle =
+      typeof a.approverTitle === 'string' && a.approverTitle.trim() ? a.approverTitle.trim() : null
+    payload.push({ approver_id: approverId, approver_title: approverTitle })
+  }
+  return { payload }
+}
+
 export async function submitDocumentForApproval(
   _prev: ActionState | undefined,
   formData: FormData,
@@ -321,37 +390,24 @@ export async function submitDocumentForApproval(
   const versionId = String(formData.get('versionId') ?? '')
   if (!versionId) return { ok: false, error: MESSAGES.notFound }
 
-  let approvers: unknown
-  try {
-    approvers = JSON.parse(String(formData.get('approvers') ?? '[]'))
-  } catch {
-    return { ok: false, error: MESSAGES.approversRequired }
-  }
-  if (!Array.isArray(approvers) || approvers.length === 0) {
-    return { ok: false, error: MESSAGES.approversRequired }
-  }
+  const parsed = parseApprovers(formData.get('approvers'))
+  if ('error' in parsed) return { ok: false, error: parsed.error }
 
-  // Camel→snake at the TS↔SQL boundary (BUG-DOC-003): the client form emits the
-  // app-layer camelCase contract (`{approverId, approverTitle}`, matching
-  // `ApproverCandidate`), but `submit_document_for_approval` reads snake_case
-  // (`->> 'approver_id'` / `->> 'approver_title'`). Map here so DB naming never leaks
-  // into the client, and reject a malformed element (missing `approverId`) with a
-  // pt-BR error instead of letting it reach the RPC as a NULL id (which would surface
-  // as the misleading HC091 "not entitled"). The FRONTEND form stays camelCase.
-  const payload: { approver_id: string; approver_title: string | null }[] = []
-  for (const raw of approvers) {
-    const a = raw as { approverId?: unknown; approverTitle?: unknown }
-    const approverId = typeof a.approverId === 'string' ? a.approverId.trim() : ''
-    if (!approverId) return { ok: false, error: MESSAGES.approversRequired }
-    const approverTitle =
-      typeof a.approverTitle === 'string' && a.approverTitle.trim() ? a.approverTitle.trim() : null
-    payload.push({ approver_id: approverId, approver_title: approverTitle })
+  const proposedEffectiveDate = parseDate(formData.get('proposedEffectiveDate'))
+  const approvalDueDate = parseDate(formData.get('approvalDueDate'))
+  if (proposedEffectiveDate === null) {
+    return { ok: false, fieldErrors: { proposedEffectiveDate: MESSAGES.dateInvalid } }
+  }
+  if (approvalDueDate === null) {
+    return { ok: false, fieldErrors: { approvalDueDate: MESSAGES.dateInvalid } }
   }
 
   const supabase = await createClient()
   const { error } = await supabase.rpc('submit_document_for_approval', {
     p_version_id: versionId,
-    p_approvers: payload as never,
+    p_approvers: parsed.payload as never,
+    p_proposed_effective_date: proposedEffectiveDate ?? undefined,
+    p_approval_due_date: approvalDueDate ?? undefined,
   })
 
   if (error) return { ok: false, error: mapDocumentError(error) }
@@ -487,6 +543,198 @@ export async function markDocumentObsolete(documentId: string): Promise<ActionSt
 
   revalidateDocuments()
   return { ok: true, error: MESSAGES.obsoleted }
+}
+
+// ---------------------------------------------------------------------------
+// B3 · All-in-one create (chained actions — NO new RPC; ADR 0081 decision 1)
+// ---------------------------------------------------------------------------
+//
+// The wizard's terminal action chains the existing RPCs
+// (`create → uploadDocumentFile → set_document_version_file → submit`). The chain is
+// NOT transactional across Storage + DB (ADR 0081 risk): once the document is created,
+// ANY later failure returns the created `documentId` (never swallows the error), so the
+// UI lands the user on the recoverable draft's detail with a mapped pt-BR banner
+// (memory: phi-write-atomic-with-create — never a silently-dropped write). A future
+// orchestration RPC is noted, not built.
+
+/** Read + validate the shared create fields. `{error}`/`{fieldErrors}` on failure. */
+function readCreateFields(
+  formData: FormData,
+): { commissionId: string; title: string; docType: string; reviewCycleMonths: number | undefined } | CreateDocumentState {
+  const commissionId = String(formData.get('commissionId') ?? '')
+  const title = String(formData.get('title') ?? '').trim()
+  const docType = String(formData.get('docType') ?? '')
+  const reviewCycleMonths = parseOptionalPositiveInt(formData.get('reviewCycleMonths'))
+
+  if (!commissionId) return { ok: false, error: MESSAGES.commissionRequired }
+  if (!title) return { ok: false, fieldErrors: { title: MESSAGES.titleRequired } }
+  if (!docType) return { ok: false, fieldErrors: { docType: MESSAGES.docTypeRequired } }
+  if (reviewCycleMonths === null) return { ok: false, fieldErrors: { reviewCycleMonths: MESSAGES.cycleInvalid } }
+  return { commissionId, title, docType, reviewCycleMonths: reviewCycleMonths ?? undefined }
+}
+
+/**
+ * Create the header + its initial draft version via `create_controlled_document`
+ * (passing category/tags). Returns the created ids or a mapped error state.
+ */
+async function createDocumentRow(
+  fields: { commissionId: string; title: string; docType: string; reviewCycleMonths: number | undefined },
+  formData: FormData,
+): Promise<{ documentId: string; versionId: string } | CreateDocumentState> {
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('create_controlled_document', {
+    p_commission: fields.commissionId,
+    p_title: fields.title,
+    p_doc_type: fields.docType,
+    p_review_cycle_months: fields.reviewCycleMonths,
+    p_category: parseCategory(formData.get('category')),
+    p_tags: parseTags(formData.get('tags')),
+  })
+  if (error || !data) return { ok: false, error: mapDocumentError(error) }
+  if (!data.current_version_id) return { ok: false, error: MESSAGES.generic, documentId: data.id }
+  return { documentId: data.id, versionId: data.current_version_id }
+}
+
+/**
+ * The all-in-one wizard's terminal action: create → attach file → submit for
+ * approval, in one chained call. On ANY post-create failure it returns `documentId`
+ * (so the UI redirects to the created draft's detail) + a mapped pt-BR banner naming
+ * what to finish. Fields: create fields + `category`/`tags` + `file` (required) +
+ * optional `summaryOfChangesMd`/`expiryDate`/`proposedEffectiveDate`/`approvalDueDate`
+ * + `approvers` (JSON, ≥1).
+ */
+export async function createAndSubmitDocument(
+  _prev: CreateDocumentState | undefined,
+  formData: FormData,
+): Promise<CreateDocumentState> {
+  const fields = readCreateFields(formData)
+  if ('ok' in fields) return fields
+
+  // Validate the submit-only inputs UP FRONT (avoid an orphan draft on trivially
+  // invalid input — nothing is created if these fail).
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, fieldErrors: { file: MESSAGES.fileRequired } }
+  }
+  const parsedApprovers = parseApprovers(formData.get('approvers'))
+  if ('error' in parsedApprovers) return { ok: false, error: parsedApprovers.error }
+  const expiryDate = parseDate(formData.get('expiryDate'))
+  const proposedEffectiveDate = parseDate(formData.get('proposedEffectiveDate'))
+  const approvalDueDate = parseDate(formData.get('approvalDueDate'))
+  if (expiryDate === null) return { ok: false, fieldErrors: { expiryDate: MESSAGES.dateInvalid } }
+  if (proposedEffectiveDate === null) {
+    return { ok: false, fieldErrors: { proposedEffectiveDate: MESSAGES.dateInvalid } }
+  }
+  if (approvalDueDate === null) return { ok: false, fieldErrors: { approvalDueDate: MESSAGES.dateInvalid } }
+
+  // 1) create (the point of no return — after this, failures carry documentId).
+  const created = await createDocumentRow(fields, formData)
+  if ('ok' in created) return created
+  const { documentId, versionId } = created
+
+  const supabase = await createClient()
+
+  // 2) upload the immutable file object + attach it to the draft version.
+  const uploaded = await uploadDocumentFile(file, fields.commissionId, documentId)
+  if ('error' in uploaded) {
+    revalidateDocuments()
+    return { ok: false, error: MESSAGES.draftSavedUploadLater, documentId }
+  }
+  const { error: fileError } = await supabase.rpc('set_document_version_file', {
+    p_version_id: versionId,
+    p_storage_path: uploaded.path,
+    p_summary_of_changes_md: String(formData.get('summaryOfChangesMd') ?? '').trim() || undefined,
+    p_expiry_date: expiryDate ?? undefined,
+  })
+  if (fileError) {
+    revalidateDocuments()
+    return { ok: false, error: MESSAGES.draftSavedUploadLater, documentId }
+  }
+
+  // 3) submit for approval (persists proposed/approval dates + enqueues approvers).
+  const { error: submitError } = await supabase.rpc('submit_document_for_approval', {
+    p_version_id: versionId,
+    p_approvers: parsedApprovers.payload as never,
+    p_proposed_effective_date: proposedEffectiveDate ?? undefined,
+    p_approval_due_date: approvalDueDate ?? undefined,
+  })
+  if (submitError) {
+    revalidateDocuments()
+    return { ok: false, error: MESSAGES.draftSavedSubmitLater, documentId }
+  }
+
+  revalidateDocuments()
+  return { ok: true, error: MESSAGES.submitted, documentId }
+}
+
+/**
+ * The wizard's "Salvar rascunho" exit: create the header + draft version, and — if a
+ * `file` was provided — attach it, WITHOUT submitting. Returns `documentId`. A file
+ * failure after create still returns `documentId` + a banner (the draft is saved).
+ */
+export async function createDraftOnly(
+  _prev: CreateDocumentState | undefined,
+  formData: FormData,
+): Promise<CreateDocumentState> {
+  const fields = readCreateFields(formData)
+  if ('ok' in fields) return fields
+
+  const file = formData.get('file')
+  const hasFile = file instanceof File && file.size > 0
+  const expiryDate = parseDate(formData.get('expiryDate'))
+  if (expiryDate === null) return { ok: false, fieldErrors: { expiryDate: MESSAGES.dateInvalid } }
+
+  const created = await createDocumentRow(fields, formData)
+  if ('ok' in created) return created
+  const { documentId, versionId } = created
+
+  if (hasFile) {
+    const supabase = await createClient()
+    const uploaded = await uploadDocumentFile(file, fields.commissionId, documentId)
+    if ('error' in uploaded) {
+      revalidateDocuments()
+      return { ok: false, error: MESSAGES.draftSavedUploadLater, documentId }
+    }
+    const { error: fileError } = await supabase.rpc('set_document_version_file', {
+      p_version_id: versionId,
+      p_storage_path: uploaded.path,
+      p_summary_of_changes_md: String(formData.get('summaryOfChangesMd') ?? '').trim() || undefined,
+      p_expiry_date: expiryDate ?? undefined,
+    })
+    if (fileError) {
+      revalidateDocuments()
+      return { ok: false, error: MESSAGES.draftSavedUploadLater, documentId }
+    }
+  }
+
+  revalidateDocuments()
+  return { ok: true, error: MESSAGES.created, documentId }
+}
+
+// ---------------------------------------------------------------------------
+// Remind (ADR 0081 §4 — staff_admin re-enqueues a still-pending approver)
+// ---------------------------------------------------------------------------
+
+/**
+ * Re-send an approval lembrete to a still-pending named approver of an `in_approval`
+ * version. Routes to the staff_admin-gated `remind_document_approver` DEFINER RPC
+ * (authority enforced server-side). Rate-limited to one per approver per day in the
+ * RPC — a `false` return (already reminded today / notifications off) surfaces a soft
+ * pt-BR message, not an error.
+ */
+export async function remindDocumentApprover(versionId: string, approverId: string): Promise<ActionState> {
+  if (!versionId || !approverId) return { ok: false, error: MESSAGES.notFound }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('remind_document_approver', {
+    p_version_id: versionId,
+    p_approver_id: approverId,
+  })
+
+  if (error) return { ok: false, error: mapDocumentError(error) }
+
+  revalidateDocuments()
+  return { ok: true, error: data === false ? MESSAGES.remindSkipped : MESSAGES.remindSent }
 }
 
 // NOTE: no `export type { … }` re-exports here — a `'use server'` module may export

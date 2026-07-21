@@ -14,12 +14,12 @@ export const metadata: Metadata = {
 };
 
 const DOC_TYPES = new Set<DocType>([
-  "politica",
-  "pop",
-  "protocolo",
-  "regimento",
+  "policy",
+  "sop",
+  "protocol",
+  "bylaws",
   "manual",
-  "outro",
+  "other",
 ]);
 
 /** Validate a raw `?docType=` param against the known union, else drop it. */

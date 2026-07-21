@@ -41,7 +41,7 @@ export function ApprovalSignForm({
   rejectAction: DecisionAction;
 }) {
   const router = useRouter();
-  const [decision, setDecision] = useState<"aprovado" | "rejeitado" | null>(
+  const [decision, setDecision] = useState<"approved" | "rejected" | null>(
     null,
   );
 
@@ -62,7 +62,7 @@ export function ApprovalSignForm({
 
       {decision === null ? (
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="button" size="lg" onClick={() => setDecision("aprovado")}>
+          <Button type="button" size="lg" onClick={() => setDecision("approved")}>
             <Check aria-hidden="true" className="size-4" />
             Aprovar
           </Button>
@@ -70,7 +70,7 @@ export function ApprovalSignForm({
             type="button"
             variant="outline"
             size="lg"
-            onClick={() => setDecision("rejeitado")}
+            onClick={() => setDecision("rejected")}
           >
             <X aria-hidden="true" className="size-4" />
             Rejeitar
@@ -81,7 +81,7 @@ export function ApprovalSignForm({
           key={decision}
           decision={decision}
           documentVersionId={documentVersionId}
-          action={decision === "aprovado" ? approveAction : rejectAction}
+          action={decision === "approved" ? approveAction : rejectAction}
           onCancel={() => setDecision(null)}
           onDone={() => router.refresh()}
         />
@@ -97,7 +97,7 @@ function DecisionForm({
   onCancel,
   onDone,
 }: {
-  decision: "aprovado" | "rejeitado";
+  decision: "approved" | "rejected";
   documentVersionId: string;
   action: DecisionAction;
   onCancel: () => void;
@@ -105,7 +105,7 @@ function DecisionForm({
 }) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const doneRef = useRef(false);
-  const isReject = decision === "rejeitado";
+  const isReject = decision === "rejected";
 
   useEffect(() => {
     if (state?.ok && !doneRef.current) {

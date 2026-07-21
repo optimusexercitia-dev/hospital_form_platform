@@ -18,7 +18,15 @@ import { resolveCommissionSlugs } from '@/lib/notifications/routing-context'
 // Domain types
 // ---------------------------------------------------------------------------
 
-export type NotificationKind = 'capa' | 'signoff' | 'meeting' | 'action_item'
+export type NotificationKind =
+  | 'capa'
+  | 'signoff'
+  | 'meeting'
+  | 'action_item'
+  // Controlled-document redesign (ADR 0081 §4). Neither is a preference SURFACE
+  // (like action_item): the review-due reminder is not per-user muteable.
+  | 'document_approval'
+  | 'document_review_due'
 
 /**
  * The suppressible reminder SURFACES — a strict subset of {@link NotificationKind}.
@@ -38,12 +46,19 @@ export type NotificationMilestone =
   | 'pending'
   | 'still_open'
   | 'upcoming'
+  // Controlled-document redesign (ADR 0081 §4): a decision recorded / a version published.
+  | 'decided'
+  | 'published'
 
 export type NotificationEntityType =
   | 'capa_action'
   | 'response_section_signoff'
   | 'meeting'
   | 'action_item'
+  // Controlled-document redesign (ADR 0081 §4): version deep-links the sign page;
+  // document deep-links the document detail. FE resolves hrefs (see resolveHrefs).
+  | 'controlled_document_version'
+  | 'controlled_document'
 
 /** One notification, ready to render — `href` is pre-resolved (see module header). */
 export interface NotificationRow {
@@ -192,7 +207,10 @@ async function resolveHrefs(rows: RawNotificationRow[]): Promise<NotificationRow
     if (entityType === 'capa_action' || entityType === 'action_item') {
       // Static route — reachable by any assignee regardless of workspace access.
       href = notificationHref({ entityType, entityId: r.entity_id })
-    } else if (r.commission_id) {
+    } else if (
+      (entityType === 'response_section_signoff' || entityType === 'meeting') &&
+      r.commission_id
+    ) {
       const ctx = commissionSlugs.get(r.commission_id)
       if (ctx) {
         href = notificationHref({
@@ -203,6 +221,9 @@ async function resolveHrefs(rows: RawNotificationRow[]): Promise<NotificationRow
         })
       }
     }
+    // else: controlled_document_version / controlled_document — the deep-link routing
+    // (sign page / document detail) is wired by the FRONTEND in Wave 2 (ADR 0081 §4).
+    // href stays '#' from the backend contract until then.
 
     return {
       id: r.id,
