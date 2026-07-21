@@ -60,9 +60,14 @@ insert into public.meeting_cases (id, meeting_id, case_id, summary) values
   ('eb200000-0000-0000-0000-000000000002','eb100000-0000-0000-0000-000000000002','d0000000-0000-0000-0000-0000000000c1','ORIG');
 insert into public.meeting_attendees (id, meeting_id, user_id, attendance, note) values
   ('eb300000-0000-0000-0000-000000000002','eb100000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000006','present','ORIG'),
-  ('eb300000-0000-0000-0000-000000000004','eb100000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000003','present','sig');
+  ('eb300000-0000-0000-0000-000000000004','eb100000-0000-0000-0000-000000000004','00000000-0000-0000-0000-000000000003','present','sig'),
+  -- AT5: dedicated UPDATE target on M2 (its own fixed row, so the update tests do not
+  -- depend on a seed-generated random attendee id).
+  ('eb300000-0000-0000-0000-000000000005','eb100000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000004','present','ORIG');
 insert into public.meeting_agenda_items (id, meeting_id, position, title, description) values
-  ('eb400000-0000-0000-0000-000000000002','eb100000-0000-0000-0000-000000000002',91,'AG2','ORIG');
+  ('eb400000-0000-0000-0000-000000000002','eb100000-0000-0000-0000-000000000002',91,'AG2','ORIG'),
+  -- AG5: dedicated UPDATE target on M2 (own fixed row; no seed-random dependency).
+  ('eb400000-0000-0000-0000-000000000005','eb100000-0000-0000-0000-000000000002',92,'AG5','ORIG');
 -- Flip M_sig held -> in_signature (status transition needs RPC context; scope the GUC).
 set local app.in_meeting_rpc = 'on';
 update public.meetings set status='in_signature' where id='eb100000-0000-0000-0000-000000000004';
@@ -82,8 +87,6 @@ insert into public.case_interviews (id, commission_id, case_id, interview_number
 -- DENY (0 rows) leaves 'ORIG' and a POSITIVE lands 'edit' — unambiguous either way.
 update public.meetings          set title='ORIG'          where id='f1000000-0000-0000-0000-0000000000e1';
 update public.meeting_cases     set summary='ORIG'        where meeting_id='f1000000-0000-0000-0000-0000000000e1';
-update public.meeting_attendees set note='ORIG'           where id='476c4eb2-1fcc-4979-8eab-a9d1f5d0f7a8';
-update public.meeting_agenda_items set description='ORIG' where id='000a00a0-594f-4bcb-8d61-53bf4c91f0fc';
 update public.rca               set summary_md='ORIG'     where id='f3000000-0000-0000-0000-0000000000a3';
 update public.capa_plan         set lessons_learned_md='ORIG' where id='ca000000-0000-0000-0000-0000000000a3';
 update public.case_interviews   set summary_md='ORIG'     where id='f2000000-0000-0000-0000-0000000000e1';
@@ -190,16 +193,16 @@ select lives_ok($$ insert into public.meeting_attendees (meeting_id, user_id, at
   values ('eb100000-0000-0000-0000-000000000005','00000000-0000-0000-0000-000000000006','summoned') $$,
   'meeting_attendees_staff_admin_insert POS: staff_admin CAN add an attendee');
 reset role;
--- update (reuse e1 attendee 476c4eb2)
+-- update (AT5 on M2 — dedicated fixed-id attendee, note pre-set 'ORIG')
 select test_helpers.claims_for((select reader_m from k), false); set local role authenticated;
-update public.meeting_attendees set note='hijack' where id='476c4eb2-1fcc-4979-8eab-a9d1f5d0f7a8';
+update public.meeting_attendees set note='hijack' where id='eb300000-0000-0000-0000-000000000005';
 reset role;
-select is((select note from public.meeting_attendees where id='476c4eb2-1fcc-4979-8eab-a9d1f5d0f7a8'),'ORIG',
+select is((select note from public.meeting_attendees where id='eb300000-0000-0000-0000-000000000005'),'ORIG',
   'meeting_attendees_staff_admin_update DENY: reader-non-writer UPDATE left the attendee UNCHANGED');
 select test_helpers.claims_for((select sa from k), false); set local role authenticated;
-update public.meeting_attendees set note='edit' where id='476c4eb2-1fcc-4979-8eab-a9d1f5d0f7a8';
+update public.meeting_attendees set note='edit' where id='eb300000-0000-0000-0000-000000000005';
 reset role;
-select is((select note from public.meeting_attendees where id='476c4eb2-1fcc-4979-8eab-a9d1f5d0f7a8'),'edit',
+select is((select note from public.meeting_attendees where id='eb300000-0000-0000-0000-000000000005'),'edit',
   'meeting_attendees_staff_admin_update POS: staff_admin UPDATE landed');
 -- delete (target AT2 on M2)
 select test_helpers.claims_for((select reader_m from k), false); set local role authenticated;
@@ -216,16 +219,16 @@ select is((select count(*)::int from public.meeting_attendees where id='eb300000
 -- ============================================================================
 -- MEETING_AGENDA_ITEMS  (is_staff_admin_of(commission_of_meeting))
 -- ============================================================================
--- update (reuse e1 agenda 000a00a0)
+-- update (AG5 on M2 — dedicated fixed-id agenda item, description pre-set 'ORIG')
 select test_helpers.claims_for((select reader_m from k), false); set local role authenticated;
-update public.meeting_agenda_items set description='hijack' where id='000a00a0-594f-4bcb-8d61-53bf4c91f0fc';
+update public.meeting_agenda_items set description='hijack' where id='eb400000-0000-0000-0000-000000000005';
 reset role;
-select is((select description from public.meeting_agenda_items where id='000a00a0-594f-4bcb-8d61-53bf4c91f0fc'),'ORIG',
+select is((select description from public.meeting_agenda_items where id='eb400000-0000-0000-0000-000000000005'),'ORIG',
   'meeting_agenda_items_staff_admin_update DENY: reader-non-writer UPDATE left the item UNCHANGED');
 select test_helpers.claims_for((select sa from k), false); set local role authenticated;
-update public.meeting_agenda_items set description='edit' where id='000a00a0-594f-4bcb-8d61-53bf4c91f0fc';
+update public.meeting_agenda_items set description='edit' where id='eb400000-0000-0000-0000-000000000005';
 reset role;
-select is((select description from public.meeting_agenda_items where id='000a00a0-594f-4bcb-8d61-53bf4c91f0fc'),'edit',
+select is((select description from public.meeting_agenda_items where id='eb400000-0000-0000-0000-000000000005'),'edit',
   'meeting_agenda_items_staff_admin_update POS: staff_admin UPDATE landed');
 -- delete (target AG2 on M2)
 select test_helpers.claims_for((select reader_m from k), false); set local role authenticated;

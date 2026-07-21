@@ -23,7 +23,8 @@
 --   CCIH  a0..a1 (org rede-A) — source coord = chefe.ccih (..02, staff_admin)
 --   Farm  b0..b1 (org rede-A) — target coord = chefe.farm (..05, staff_admin)
 --   Qual  c0..c1 (org rede-B) — FOREIGN principal = staff.qual.b (..b3, staff)
---   sent referral CCIH->Farm  efa..a2 ; CCIH interview session 2d5f..; CCIH case d0..c1
+--   sent referral CCIH->Farm  efa..a2 ; CCIH interview f2..e1 (session ed1..01 seeded
+--   here on it, seq 3); CCIH case d0..c1
 
 begin;
 select plan(14);
@@ -40,6 +41,11 @@ values
    'a0000000-0000-0000-0000-0000000000a1','b0000000-0000-0000-0000-0000000000b1','Tipo','Assunto KS5'),
   ('efc00000-0000-0000-0000-000000000004','draft','d0000000-0000-0000-0000-0000000000c1',
    'a0000000-0000-0000-0000-0000000000a1','b0000000-0000-0000-0000-0000000000b1','Tipo','Assunto KS6');
+-- CCIH interview session on the seeded interview f2..e1 (seq 3 free; 1,2 seeded), so KS3
+-- asserts against a session that EXISTS. Without it assert_session_writable raises
+-- no_data_found (not HC039) and BOTH twins fail vacuously — a seed-random-id dependency.
+insert into public.interview_sessions (id, interview_id, sequence_number, session_type) values
+  ('ed100000-0000-0000-0000-000000000001','f2000000-0000-0000-0000-0000000000e1',3,'initial');
 
 create temp table k on commit drop as select
   '00000000-0000-0000-0000-0000000000b3'::uuid as foreign_uid,   -- staff.qual.b (rede-B)
@@ -50,7 +56,7 @@ create temp table k on commit drop as select
   'efc00000-0000-0000-0000-000000000003'::uuid as draft_ks5,
   'efc00000-0000-0000-0000-000000000004'::uuid as draft_ks6,
   'efa00000-0000-0000-0000-0000000000a2'::uuid as sent_ref,       -- CCIH->Farm, status 'sent'
-  '2d5fbd44-fc44-4c92-a297-9e1e4eb426e8'::uuid as session_ccih,
+  'ed100000-0000-0000-0000-000000000001'::uuid as session_ccih,
   'd0000000-0000-0000-0000-0000000000c1'::uuid as case_ccih,
   'a0000000-0000-0000-0000-0000000000a1'::uuid as comm_ccih,
   'b0000000-0000-0000-0000-0000000000b1'::uuid as comm_farm,
@@ -123,13 +129,13 @@ reset role;
 -- ============================================================================
 select test_helpers.claims_for((select foreign_uid from k), false);
 select throws_ok(
-  $$ select app.assert_session_writable('2d5fbd44-fc44-4c92-a297-9e1e4eb426e8'::uuid) $$,
+  $$ select app.assert_session_writable('ed100000-0000-0000-0000-000000000001'::uuid) $$,
   'HC039', null,
   'KS3a HC039: foreign principal (rede-B) cannot write a CCIH interview session (assert_session_writable denies)');
 
 select test_helpers.claims_for((select source_coord from k), false);
 select lives_ok(
-  $$ select app.assert_session_writable('2d5fbd44-fc44-4c92-a297-9e1e4eb426e8'::uuid) $$,
+  $$ select app.assert_session_writable('ed100000-0000-0000-0000-000000000001'::uuid) $$,
   'KS3p twin: CCIH staff_admin CAN write the interview session (guard is not fail-closed)');
 
 -- ============================================================================

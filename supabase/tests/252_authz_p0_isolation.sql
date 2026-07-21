@@ -27,6 +27,12 @@ select plan(48);
 -- ── Fixtures ────────────────────────────────────────────────────────────────
 insert into public.phase_results (id, commission_id, label, position) values
   ('ed100000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-0000000000a1','Resultado Teste',1);
+-- Case phase on the seeded CCIH case d0..c1 (position 3 free; 1,2 seeded) for the
+-- case_phase_allowed_results keystone; form refs copied from that case's phase 1 so
+-- the row EXISTS (else the staff_admin POS insert fails on the case_phase FK, not RLS).
+insert into public.case_phases (id, case_id, position, form_id, form_version_id)
+  select 'ed700000-0000-0000-0000-000000000001','d0000000-0000-0000-0000-0000000000c1',3, form_id, form_version_id
+  from public.case_phases where case_id='d0000000-0000-0000-0000-0000000000c1' and position=1;
 insert into public.case_tags (id, commission_id, name) values
   ('ed200000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-0000000000a1','Tag Teste');
 insert into public.meetings (id, commission_id, meeting_number, title, scheduled_start, status) values
@@ -34,6 +40,19 @@ insert into public.meetings (id, commission_id, meeting_number, title, scheduled
 -- Fresh rca factor (no why-chain yet) so the why_chain POS insert is unique.
 insert into public.rca_factors (id, rca_id, category, text, position) values
   ('ed400000-0000-0000-0000-000000000001','f3000000-0000-0000-0000-0000000000a3','people','wc-factor',97);
+-- Controlled-document approval for the document_approvals_select keystone (§7.1
+-- non-vacuity): a self-contained doc -> DRAFT version -> PENDING approval whose
+-- approver is staff1.ccih (..03, the POS reader). The version stays 'draft' so
+-- guard_frozen_approver_set permits the roster INSERT (it raises HC093 on an
+-- in_approval version). Foreign staff.qual.b (..b3, rede-B) is neither the approver
+-- nor a CCIH member, so can_read_document_of_version() is false -> it reads 0 rows;
+-- opening the SELECT policy (mutation audit) lets ..b3 read it -> the DENY reddens.
+insert into public.controlled_documents (id, commission_id, code, title, doc_type) values
+  ('ed500000-0000-0000-0000-000000000001','a0000000-0000-0000-0000-0000000000a1','DOC-KS','Documento Keystone','policy');
+insert into public.controlled_document_versions (id, document_id, version_number, status) values
+  ('ed600000-0000-0000-0000-000000000001','ed500000-0000-0000-0000-000000000001',1,'draft');
+insert into public.document_approvals (id, document_version_id, approver_id) values
+  ('0a218158-827a-4a6e-b697-e97ca107722e','ed600000-0000-0000-0000-000000000001','00000000-0000-0000-0000-000000000003');
 
 create temp table k on commit drop as select
   '00000000-0000-0000-0000-0000000000b3'::uuid as foreign_uid,
@@ -132,7 +151,7 @@ reset role;
 -- case_phase_allowed_results / offered_results / case_tag_assignments: staff_admin writer.
 select test_helpers.claims_for((select reader_case from k), false); set local role authenticated;
 select throws_ok($$ insert into public.case_phase_allowed_results(case_phase_id,result_id,position)
-  values('faf31839-06bf-4b90-86d2-ace11e8582d3','ed100000-0000-0000-0000-000000000001',99) $$,'42501',null,
+  values('ed700000-0000-0000-0000-000000000001','ed100000-0000-0000-0000-000000000001',99) $$,'42501',null,
   'case_phase_allowed_results_staff_admin_write DENY 42501: reader-non-writer cannot INSERT an allowed result');
 select throws_ok($$ insert into public.case_phase_offered_results(case_id,result_id)
   values('d0000000-0000-0000-0000-0000000000c1','ed100000-0000-0000-0000-000000000001') $$,'42501',null,
@@ -143,7 +162,7 @@ select throws_ok($$ insert into public.case_tag_assignments(case_id,tag_id)
 reset role;
 select test_helpers.claims_for((select sa from k), false); set local role authenticated;
 select lives_ok($$ insert into public.case_phase_allowed_results(case_phase_id,result_id,position)
-  values('faf31839-06bf-4b90-86d2-ace11e8582d3','ed100000-0000-0000-0000-000000000001',98) $$,
+  values('ed700000-0000-0000-0000-000000000001','ed100000-0000-0000-0000-000000000001',98) $$,
   'case_phase_allowed_results_staff_admin_write POS: staff_admin CAN INSERT an allowed result');
 select lives_ok($$ insert into public.case_phase_offered_results(case_id,result_id)
   values('d0000000-0000-0000-0000-0000000000c1','ed100000-0000-0000-0000-000000000001') $$,
