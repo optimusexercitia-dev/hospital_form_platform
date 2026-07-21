@@ -89,6 +89,8 @@ export interface ControlledDocument {
   category: string | null
   /** Free-text tag set (ADR 0081) — `[]` when none. */
   tags: string[]
+  /** Free-text description (ADR 0081 Wave 2.5a) — null when unset. */
+  description: string | null
   reviewCycleMonths: number | null
   status: DocStatus
   currentVersionId: string | null
@@ -166,6 +168,18 @@ export interface ControlledDocumentListItem extends ControlledDocument {
    * document (its current version) is obsolete.
    */
   obsoleteKind: ObsoleteKind | null
+  /**
+   * True when the current version is `effective` AND an open sibling draft/
+   * in_approval version exists (Wave 2.5a) — drives the derived "Em revisão"
+   * chip/KPI. Computed DB-side (no FE N+1).
+   */
+  hasOpenRevision: boolean
+  /**
+   * Approvals over the document's in_approval version (Wave 2.5a) — drives the
+   * `in_approval` mini-bar (`signed/total`). Both 0 when no version is in approval.
+   */
+  approvalsSignedCount: number
+  approvalsTotalCount: number
 }
 
 /**

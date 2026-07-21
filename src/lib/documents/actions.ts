@@ -52,6 +52,7 @@ const MESSAGES = {
   docTypeRequired: 'Selecione o tipo de documento.',
   cycleInvalid: 'Informe um ciclo de revisão válido (meses).',
   fileRequired: 'Selecione o arquivo do documento.',
+  summaryRequired: 'Descreva as alterações desta versão.',
   fileTooLarge: 'O arquivo excede o tamanho máximo (25 MB).',
   fileTypeInvalid: 'Tipo de arquivo não permitido.',
   uploadFailed: 'Falha ao enviar o arquivo. Tente novamente.',
@@ -227,6 +228,7 @@ export async function createControlledDocument(
     p_review_cycle_months: reviewCycleMonths ?? undefined,
     p_category: parseCategory(formData.get('category')),
     p_tags: parseTags(formData.get('tags')),
+    p_description: parseCategory(formData.get('description')),
   })
 
   if (error || !data) return { ok: false, error: mapDocumentError(error) }
@@ -266,6 +268,7 @@ export async function updateControlledDocument(
     p_review_cycle_months: reviewCycleMonths ?? undefined,
     p_category: parseCategory(formData.get('category')),
     p_tags: parseTags(formData.get('tags')),
+    p_description: parseCategory(formData.get('description')),
   })
 
   if (error || !data) return { ok: false, error: mapDocumentError(error) }
@@ -589,6 +592,7 @@ async function createDocumentRow(
     p_review_cycle_months: fields.reviewCycleMonths,
     p_category: parseCategory(formData.get('category')),
     p_tags: parseTags(formData.get('tags')),
+    p_description: parseCategory(formData.get('description')),
   })
   if (error || !data) return { ok: false, error: mapDocumentError(error) }
   if (!data.current_version_id) return { ok: false, error: MESSAGES.generic, documentId: data.id }
@@ -709,6 +713,89 @@ export async function createDraftOnly(
 
   revalidateDocuments()
   return { ok: true, error: MESSAGES.created, documentId }
+}
+
+/**
+ * The all-in-one NEW-VERSION action (Wave 2.5a): supersede the current effective
+ * version → attach the new draft's file → submit for approval, chained. Mirrors
+ * {@link createAndSubmitDocument} for the supersede path. Identity is LOCKED — this
+ * takes NO title/docType/category/tags/reviewCycle/description; the header is frozen
+ * with the artifact. FormData: `documentId`, `commissionId` (for the immutable upload
+ * path — same as {@link addDocumentVersion}), `file` (required), `summaryOfChangesMd`
+ * (required), optional `expiryDate`/`proposedEffectiveDate`/`approvalDueDate`,
+ * `approvers` (JSON `{approverId, approverTitle?}[]`, ≥1). On ANY post-supersede
+ * failure it returns `documentId` (so the FE lands on the detail) + a mapped pt-BR
+ * banner; never swallows the error.
+ */
+export async function supersedeAndSubmitDocument(
+  _prev: CreateDocumentState | undefined,
+  formData: FormData,
+): Promise<CreateDocumentState> {
+  const documentId = String(formData.get('documentId') ?? '')
+  const commissionId = String(formData.get('commissionId') ?? '')
+  if (!documentId || !commissionId) return { ok: false, error: MESSAGES.notFound }
+
+  // Validate submit-only inputs UP FRONT (avoid superseding into an orphan draft on
+  // trivially invalid input — nothing is created if these fail).
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, fieldErrors: { file: MESSAGES.fileRequired } }
+  }
+  const summary = String(formData.get('summaryOfChangesMd') ?? '').trim()
+  if (!summary) return { ok: false, fieldErrors: { summaryOfChangesMd: MESSAGES.summaryRequired } }
+  const parsedApprovers = parseApprovers(formData.get('approvers'))
+  if ('error' in parsedApprovers) return { ok: false, error: parsedApprovers.error }
+  const expiryDate = parseDate(formData.get('expiryDate'))
+  const proposedEffectiveDate = parseDate(formData.get('proposedEffectiveDate'))
+  const approvalDueDate = parseDate(formData.get('approvalDueDate'))
+  if (expiryDate === null) return { ok: false, fieldErrors: { expiryDate: MESSAGES.dateInvalid } }
+  if (proposedEffectiveDate === null) {
+    return { ok: false, fieldErrors: { proposedEffectiveDate: MESSAGES.dateInvalid } }
+  }
+  if (approvalDueDate === null) return { ok: false, fieldErrors: { approvalDueDate: MESSAGES.dateInvalid } }
+
+  const supabase = await createClient()
+
+  // 1) supersede → a NEW draft version (creates nothing lasting if it fails: e.g. the
+  // doc is not effective, or an open version already exists → HC089). documentId is
+  // known from input, so land the FE on the detail regardless.
+  const { data: sup, error: supError } = await supabase.rpc('supersede_document', {
+    p_document_id: documentId,
+  })
+  if (supError || !sup) return { ok: false, error: mapDocumentError(supError), documentId }
+  const versionId = sup.id
+
+  // 2) upload the immutable file object + attach it to the new draft version.
+  const uploaded = await uploadDocumentFile(file, commissionId, documentId)
+  if ('error' in uploaded) {
+    revalidateDocuments()
+    return { ok: false, error: MESSAGES.draftSavedUploadLater, documentId }
+  }
+  const { error: fileError } = await supabase.rpc('set_document_version_file', {
+    p_version_id: versionId,
+    p_storage_path: uploaded.path,
+    p_summary_of_changes_md: summary,
+    p_expiry_date: expiryDate ?? undefined,
+  })
+  if (fileError) {
+    revalidateDocuments()
+    return { ok: false, error: MESSAGES.draftSavedUploadLater, documentId }
+  }
+
+  // 3) submit the new version for approval.
+  const { error: submitError } = await supabase.rpc('submit_document_for_approval', {
+    p_version_id: versionId,
+    p_approvers: parsedApprovers.payload as never,
+    p_proposed_effective_date: proposedEffectiveDate ?? undefined,
+    p_approval_due_date: approvalDueDate ?? undefined,
+  })
+  if (submitError) {
+    revalidateDocuments()
+    return { ok: false, error: MESSAGES.draftSavedSubmitLater, documentId }
+  }
+
+  revalidateDocuments()
+  return { ok: true, error: MESSAGES.submitted, documentId }
 }
 
 // ---------------------------------------------------------------------------

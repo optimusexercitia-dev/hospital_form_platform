@@ -3647,6 +3647,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           current_version_id: string | null
+          description: string | null
           doc_type: string
           id: string
           review_cycle_months: number | null
@@ -3662,6 +3663,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           current_version_id?: string | null
+          description?: string | null
           doc_type: string
           id?: string
           review_cycle_months?: number | null
@@ -3677,6 +3679,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           current_version_id?: string | null
+          description?: string | null
           doc_type?: string
           id?: string
           review_cycle_months?: number | null
@@ -10402,6 +10405,7 @@ export type Database = {
         Args: {
           p_category?: string
           p_commission: string
+          p_description?: string
           p_doc_type: string
           p_review_cycle_months?: number
           p_tags?: string[]
@@ -10414,6 +10418,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           current_version_id: string | null
+          description: string | null
           doc_type: string
           id: string
           review_cycle_months: number | null
@@ -11455,6 +11460,32 @@ export type Database = {
           status: string
         }[]
       }
+      list_commission_documents: {
+        Args: { p_commission: string }
+        Returns: {
+          approvals_signed_count: number
+          approvals_total_count: number
+          category: string
+          code: string
+          commission_id: string
+          created_at: string
+          current_version_id: string
+          current_version_number: number
+          description: string
+          doc_type: string
+          effective_date: string
+          has_open_revision: boolean
+          hospital_id: string
+          id: string
+          obsolete_kind: string
+          review_cycle_months: number
+          review_due_date: string
+          status: string
+          tags: string[]
+          title: string
+          updated_at: string
+        }[]
+      }
       list_hospital_eligible_users_for_pqs: {
         Args: { p_hospital_id: string }
         Returns: Json
@@ -11526,6 +11557,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           current_version_id: string | null
+          description: string | null
           doc_type: string
           id: string
           review_cycle_months: number | null
@@ -14154,6 +14186,7 @@ export type Database = {
       update_controlled_document: {
         Args: {
           p_category?: string
+          p_description?: string
           p_doc_type: string
           p_id: string
           p_review_cycle_months?: number
@@ -14167,6 +14200,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           current_version_id: string | null
+          description: string | null
           doc_type: string
           id: string
           review_cycle_months: number | null

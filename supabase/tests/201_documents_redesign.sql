@@ -22,7 +22,7 @@
 -- =============================================================================
 
 begin;
-select plan(21);
+select plan(29);
 
 update app.feature_flags set enabled = true where key = 'controlled_docs';
 update app.feature_flags set enabled = true where key = 'notifications';
@@ -289,6 +289,88 @@ select ok(
   not has_function_privilege('anon', 'public.remind_document_approver(uuid,uuid)', 'EXECUTE')
   and has_function_privilege('authenticated', 'public.remind_document_approver(uuid,uuid)', 'EXECUTE'),
   '§4: remind_document_approver is REVOKEd from PUBLIC (anon no EXECUTE; authenticated yes)');
+
+-- ===========================================================================
+-- Wave 2.5a · description round-trip + register KPI/mini-bar fields + supersede-fail
+-- ===========================================================================
+set local role authenticated;
+select test_helpers.claims_for((select sa_x from k));
+
+-- DOC D: create WITH a description; drive to effective; then supersede (open draft v2,
+-- unpublished) so it is effective WITH an open revision.
+create temp table doc_d on commit drop as
+  select * from public.create_controlled_document(
+    (select comm_x from k), 'Manual D', 'manual', 12, null, '{}'::text[], 'Descrição do Manual D');
+grant select on doc_d to authenticated;
+reset role;
+select is((select description from doc_d), 'Descrição do Manual D',
+  'Wave2.5a: create persists p_description (round-trip)');
+
+set local role authenticated;
+select test_helpers.claims_for((select sa_x from k));
+select public.set_document_version_file((select current_version_id from doc_d),
+  (select comm_x from k) || '/' || (select id from doc_d) || '/d.pdf', 'v1', null);
+select public.submit_document_for_approval((select current_version_id from doc_d),
+  jsonb_build_array(jsonb_build_object('approver_id', (select st_x from k)::text)), null, null);
+reset role;
+set local role authenticated;
+select test_helpers.claims_for((select st_x from k));
+select public.approve_document((select current_version_id from doc_d), null);
+reset role;
+set local role authenticated;
+select test_helpers.claims_for((select sa_x from k));
+select public.publish_document((select current_version_id from doc_d), null, null, null);
+select public.supersede_document((select id from doc_d));   -- open draft v2, unpublished
+reset role;
+
+-- list_commission_documents (as sa_x, a member): DB-side register facts.
+set local role authenticated;
+select test_helpers.claims_for((select sa_x from k));
+select is(
+  (select has_open_revision from public.list_commission_documents((select comm_x from k))
+   where id = (select id from doc_d)),
+  true, 'Wave2.5a: list.has_open_revision=true for an effective doc with an open draft');
+select is(
+  (select approvals_total_count from public.list_commission_documents((select comm_x from k))
+   where id = (select id from doc_c)),
+  1, 'Wave2.5a: list.approvals_total_count counts the in_approval version''s approvals');
+select is(
+  (select approvals_signed_count from public.list_commission_documents((select comm_x from k))
+   where id = (select id from doc_c)),
+  0, 'Wave2.5a: list.approvals_signed_count counts only ''approved'' decisions (0 pending)');
+reset role;
+
+-- DOC E: description overwrite on a draft + description-out-of-audit + supersede-fail.
+set local role authenticated;
+select test_helpers.claims_for((select sa_x from k));
+create temp table doc_e on commit drop as
+  select * from public.create_controlled_document(
+    (select comm_x from k), 'Outro E', 'other', null, null, '{}'::text[], 'D1');
+grant select on doc_e to authenticated;
+select public.update_controlled_document(
+  (select id from doc_e), 'Outro E', 'other', null, null, '{}'::text[], 'D2');
+reset role;
+select is(
+  (select description from public.controlled_documents where id = (select id from doc_e)),
+  'D2', 'Wave2.5a: update overwrites description (round-trip)');
+select ok(
+  exists (select 1 from public.audit_log
+          where entity_id = (select id from doc_e) and action = 'document.updated'),
+  'Wave2.5a: a description-only update still emits an audit row (mutation audited)');
+select ok(
+  not exists (select 1 from public.audit_log
+             where entity_id = (select id from doc_e)
+               and (metadata ? 'description' or metadata::text like '%D2%')),
+  'Wave2.5a: description is NOT in the audit payload (metadata) — like title');
+
+-- supersede on a NON-effective doc (DOC E is a draft) → HC089 (the partial-failure precondition).
+set local role authenticated;
+select test_helpers.claims_for((select sa_x from k));
+select throws_ok(
+  format($$ select public.supersede_document(%L) $$, (select id from doc_e)),
+  'HC089', null,
+  'Wave2.5a: supersede on a non-effective document is rejected (HC089)');
+reset role;
 
 select * from finish();
 rollback;

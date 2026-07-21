@@ -76,6 +76,7 @@ interface DocumentRow {
   doc_type: string
   category: string | null
   tags: string[] | null
+  description: string | null
   review_cycle_months: number | null
   status: string
   current_version_id: string | null
@@ -85,7 +86,7 @@ interface DocumentRow {
 }
 
 const DOCUMENT_SELECT =
-  'id, commission_id, code, title, doc_type, category, tags, review_cycle_months, status, ' +
+  'id, commission_id, code, title, doc_type, category, tags, description, review_cycle_months, status, ' +
   'current_version_id, created_at, updated_at, ' +
   'commission:commissions!controlled_documents_commission_id_fkey(hospital_id)'
 
@@ -99,6 +100,7 @@ function mapDocument(r: DocumentRow): ControlledDocument {
     docType: r.doc_type as DocType,
     category: r.category,
     tags: r.tags ?? [],
+    description: r.description,
     reviewCycleMonths: r.review_cycle_months,
     status: r.status as DocStatus,
     currentVersionId: r.current_version_id,
@@ -232,57 +234,85 @@ export interface HospitalRegisterFilters {
 // Document reads
 // ---------------------------------------------------------------------------
 
-interface DocumentListRow extends DocumentRow {
-  current_version?: {
-    version_number: number
-    effective_date: string | null
-    review_due_date: string | null
-    obsolete_kind: string | null
-  } | null
+/** A row of the `list_commission_documents` DEFINER register read (Wave 2.5a). */
+interface RegisterListRpcRow {
+  id: string
+  commission_id: string
+  hospital_id: string | null
+  code: string
+  title: string
+  doc_type: string
+  category: string | null
+  tags: string[] | null
+  description: string | null
+  review_cycle_months: number | null
+  status: string
+  current_version_id: string | null
+  created_at: string
+  updated_at: string
+  current_version_number: number | null
+  effective_date: string | null
+  review_due_date: string | null
+  obsolete_kind: string | null
+  has_open_revision: boolean
+  approvals_signed_count: number
+  approvals_total_count: number
 }
 
 /**
  * All controlled documents of a commission, newest-first, each with its current-
- * version summary (`currentVersionNumber`/`effectiveDate`/`reviewDueDate`/
- * `isReviewOverdue`) so the register renders the status chip + review state WITHOUT
- * a per-row detail round trip. `[]` when out of scope. Filters applied server-side
- * where possible; `reviewOverdueOnly` is applied in TS against the embedded version.
+ * version summary + the register KPI/mini-bar facts (`hasOpenRevision`,
+ * `approvalsSignedCount/TotalCount`) computed DB-side by the `list_commission_documents`
+ * DEFINER read — no FE N+1 (Wave 2.5a). `[]` when out of scope. Optional filters are
+ * applied in TS over the (per-commission, small) result set.
  */
 export async function listDocuments(
   commissionId: string,
   filters?: DocumentListFilters,
 ): Promise<ControlledDocumentListItem[]> {
   const supabase = await createClient()
-  let query = supabase
-    .from('controlled_documents')
-    .select(
-      DOCUMENT_SELECT +
-        ', current_version:controlled_document_versions!controlled_documents_current_version_fkey' +
-        '(version_number, effective_date, review_due_date, obsolete_kind)',
-    )
-    .eq('commission_id', commissionId)
-  if (filters?.docType) query = query.eq('doc_type', filters.docType)
-  if (filters?.status) query = query.eq('status', filters.status)
-  if (filters?.category) query = query.eq('category', filters.category)
-  if (filters?.tags && filters.tags.length > 0) query = query.contains('tags', filters.tags)
+  const { data } = await supabase
+    .rpc('list_commission_documents', { p_commission: commissionId })
+    .returns<RegisterListRpcRow[]>()
 
-  const { data } = await query
-    .order('created_at', { ascending: false })
-    .returns<DocumentListRow[]>()
-
-  const items = (data ?? []).map((r) => {
-    const reviewDueDate = r.current_version?.review_due_date ?? null
+  let items: ControlledDocumentListItem[] = (data ?? []).map((r) => {
+    const reviewDueDate = r.review_due_date
     return {
-      ...mapDocument(r),
-      currentVersionNumber: r.current_version?.version_number ?? null,
-      effectiveDate: r.current_version?.effective_date ?? null,
+      id: r.id,
+      commissionId: r.commission_id,
+      hospitalId: r.hospital_id ?? '',
+      code: r.code,
+      title: r.title,
+      docType: r.doc_type as DocType,
+      category: r.category,
+      tags: r.tags ?? [],
+      description: r.description,
+      reviewCycleMonths: r.review_cycle_months,
+      status: r.status as DocStatus,
+      currentVersionId: r.current_version_id,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      currentVersionNumber: r.current_version_number,
+      effectiveDate: r.effective_date,
       reviewDueDate,
       isReviewOverdue: isOverdue(reviewDueDate),
-      obsoleteKind: (r.current_version?.obsolete_kind as ObsoleteKind | null) ?? null,
+      obsoleteKind: (r.obsolete_kind as ObsoleteKind | null) ?? null,
+      hasOpenRevision: r.has_open_revision,
+      approvalsSignedCount: r.approvals_signed_count,
+      approvalsTotalCount: r.approvals_total_count,
     }
   })
 
-  return filters?.reviewOverdueOnly ? items.filter((i) => i.isReviewOverdue) : items
+  if (filters?.docType) items = items.filter((i) => i.docType === filters.docType)
+  if (filters?.status) items = items.filter((i) => i.status === filters.status)
+  if (filters?.category) items = items.filter((i) => i.category === filters.category)
+  if (filters?.tags && filters.tags.length > 0) {
+    const want = filters.tags
+    items = items.filter((i) => want.every((t) => i.tags.includes(t)))
+  }
+  if (filters?.reviewOverdueOnly) items = items.filter((i) => i.isReviewOverdue)
+
+  return items
 }
 
 /**

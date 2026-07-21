@@ -102,8 +102,26 @@ full-suite pgTAP reds are pre-existing/base-branch, not this wave** — 7 on non
 `document_approvals` assertion in `252` reads a hardcoded id `0a218158` present in **no** seed/migration on `main`
 either (a dead keystone predating this wave; filed for base-branch triage — see Bug Log). Contract frozen → FE.
 
-**Wave 2 (frontend) — 🏗️ in progress:** shared composites → register (KPI+chips+search+table) → create wizard →
-detail+compare+Remind → sign/queue + notification deep-links → token cleanup. Wave 3 = §6 gate (tester E2E + qa + human).
+**Wave 2 (frontend) — ✅ complete** (`7f55f76`…`a1a5cdb`, 7 commits; tsc/lint 0, in-browser verified as chefe.ccih +
+staff2.ccih): 6 shared composites + register (KPI/chips/search/table + `in_approval` approval mini-bar) + 4-step create
+wizard (create→submit **and** Save-as-draft, both verified: DOC-0003 `in_approval`, DOC-0004 `draft`) + detail
+(right-rail cards + focus-trapped CompareModal + Remind) + notification deep-links (`routing.ts` + `resolveHrefs`) +
+emerald→`success` cleanup. Fixed a latent **data-loss bug** (`update_controlled_document` overwrites category/tags →
+`DocumentEditor` now posts both). **Flagged for PO/lead:** (1) register derives "Em revisão" + the approval mini-bar via a
+bounded `getDocument` **N+1** — needs an additive list field (lead will fold the fix into Wave 2.5); (2) **new-version
+wizard deferred** — the frozen contract has no chained supersede-submit action (the functional detail-based new-version
+flow is built + verified); PO decision pending; (3) no **"description"** field (no column) — PO decision. Test residue
+(DOC-0003/0004, DOC-0001 superseded) cleared by `db reset` before the gate.
+
+**Wave 2.5 — 🏗️ in progress** (PO decided 2026-07-21: build the new-version wizard + add a `description` field).
+- **2.5a backend:** `supersedeAndSubmitDocument` chained action (create-flow parity, same partial-failure semantics)
+  + additive `controlled_documents.description` column (wired into create/update RPCs + actions + types) + register
+  list fields (`latestVersionNumber`/`hasOpenRevision` + approval signed/total counts) to kill the getDocument N+1.
+  Regen types + extend pgTAP.
+- **2.5b frontend:** new-version **wizard mode** (locked identity + callout) wired to `supersedeAndSubmitDocument`
+  + Descrição field (create wizard + detail header) + consume the new list fields (drop the N+1 fan-out).
+
+→ **Wave 3 = §6 gate** (tester E2E + qa + human).
 
 <!-- backend-owned ledger (backend teammate updates ONLY this sub-block) -->
 **backend — Wave 1 build ✅ COMPLETE (contract frozen for Wave 2).** Migrations
@@ -121,6 +139,20 @@ producers+remind). Types regenerated; `tsc` 0 · `lint` 0.
   agenda / professional_profiles RLS + one assertion on a `document_approvals` id created in no seed/migration) —
   **zero overlap with this wave's surface**; flagged for lead/base-branch triage.
 - **Contract summary** for `frontend` posted with this commit (see the commit body / backend report).
+
+**backend — Wave 2.5a (additive PO follow-up) ✅ COMPLETE.** Migration `20260819000400`
+(description column + create/update re-emit +`p_description` + `list_commission_documents`
+DEFINER register read). `tsc` 0 · `lint` 0; types regenerated.
+- **`supersedeAndSubmitDocument`** action — new-version chained analogue of `createAndSubmitDocument`
+  (`supersede → upload → set_file → submit`); identity locked; partial-failure returns `documentId`.
+- **`description`** free-text column (overwrite semantics, out of the audit payload) wired through
+  create/update RPCs + all four create/update actions + `ControlledDocument` type + `getDocument`.
+- **Register N+1 removed:** `listDocuments` now sources `list_commission_documents` (member-gated
+  DEFINER, REVOKE-FROM-PUBLIC) returning DB-side `hasOpenRevision` + `approvalsSignedCount/TotalCount`;
+  filters applied in TS over the small per-commission set.
+- **pgTAP:** `201` extended to **29/29** (supersede-and-submit precondition-fail HC089; description
+  create/update round-trip + NOT in audit payload; register `has_open_revision` + approval counts).
+  Full suite **3652 / 3644 pass**; same 8 pre-existing `250`/`251`/`252` reds, no new regressions.
 
 <!-- frontend-owned ledger (frontend teammate updates ONLY this sub-block) -->
 **frontend — Wave 2 build ✅ substantially complete** (branch `feat/document-control-redesign`, 6 commits `7f55f76…dda3a4b`).
