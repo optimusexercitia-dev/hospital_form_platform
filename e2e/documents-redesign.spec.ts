@@ -6,7 +6,6 @@ import {
   COMMISSION_A_ID,
   signInAs,
   serviceQuery,
-  docIdByCode,
   commissionDocHref,
   newVersionHref,
   pdfPayload,
@@ -202,9 +201,15 @@ test('RW-1b: create wizard keyboard-only — Tab/Enter through all steps; aria-c
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
 
-  // Step 1 — focus the title field (not a click) and type.
-  await page.getByLabel('Título').focus()
-  await expect(page.getByLabel('Título')).toBeFocused()
+  // Step 1 — focus the title field (not a click) and type. Retried: right after
+  // navigation the route's entrance animation/hydration can transiently steal
+  // focus back to the document, so the focus+assert pair is wrapped in a retry
+  // rather than asserted once (a timing race, not an app defect).
+  const titleField = page.getByLabel('Título')
+  await expect(async () => {
+    await titleField.focus()
+    await expect(titleField).toBeFocused({ timeout: 1_000 })
+  }).toPass({ timeout: 10_000 })
   await page.keyboard.type(title)
 
   // Tab onto the Segmented radiogroup (one roving tab-stop) and change the
@@ -542,20 +547,34 @@ test('RW-5: version compare — select two, diff highlighting, Esc + click-out c
 // ===========================================================================
 
 test('RW-6: Remind sends a lembrete; an immediate second click is deduped', async ({ page }) => {
+  const title = `Doc Remind ${Date.now()}`
   await signInAs(page, 'chefe.ccih@test.local')
-  const doc0002 = await docIdByCode(page, 'DOC-0002')
-  await page.goto(commissionDocHref(doc0002))
+
+  // A FRESH fixture (not the shared seeded DOC-0002) with exactly one named
+  // approver — self-contained and immune to same-day rate-limit state a prior
+  // test/run may have already left on a shared seeded document.
+  await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
+  await page.getByLabel('Título').fill(title)
+  await selectSegmented(page, 'Protocolo')
+  await continuarButton(page).click()
+  await page.locator('#wizard-file').setInputFiles(pdfPayload)
+  await continuarButton(page).click()
+  await toggleReviewer(page, 'Enfermeiro CCIH Um')
+  await continuarButton(page).click()
+  await enviarButton(page).click()
+  await page.waitForURL(/\/manage\/documentos\/[0-9a-f-]{36}\?aviso=enviado$/, { timeout: 20_000 })
 
   const approvalsSection = page.locator('section').filter({ hasText: 'Aprovadores' }).first()
-  const remindButtons = approvalsSection.getByRole('button', { name: /^lembrar$/i })
-  await expect(remindButtons.first()).toBeVisible()
+  const approverRow = approvalsSection.locator('li').filter({ hasText: 'Enfermeiro CCIH Um' })
+  const remindButton = approverRow.getByRole('button', { name: /^lembrar$/i })
+  await expect(remindButton).toBeVisible()
 
-  await remindButtons.first().click()
-  await expect(page.getByRole('status').filter({ hasText: 'Lembrete enviado.' })).toBeVisible({ timeout: 10_000 })
+  await remindButton.click()
+  await expect(approverRow.getByRole('status')).toHaveText('Lembrete enviado.', { timeout: 10_000 })
 
   // Immediate second click on the SAME approver → deduped (rate-limited).
-  await remindButtons.first().click()
-  await expect(page.getByRole('status').filter({ hasText: /lembrete já enviado/i })).toBeVisible({ timeout: 10_000 })
+  await remindButton.click()
+  await expect(approverRow.getByRole('status')).toContainText(/lembrete já enviado/i, { timeout: 10_000 })
 })
 
 // ===========================================================================
@@ -570,6 +589,7 @@ test('RW-7: approver notification deep-links to the sign page and is signable', 
   await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
   await page.getByLabel('Título').fill(title)
   await selectSegmented(page, 'Manual')
+  await continuarButton(page).click()
   await page.locator('#wizard-file').setInputFiles(pdfPayload)
   await continuarButton(page).click()
   await toggleReviewer(page, 'Enfermeira CCIH Dois')
@@ -585,7 +605,12 @@ test('RW-7: approver notification deep-links to the sign page and is signable', 
   await expect(bell).toBeVisible({ timeout: 15_000 })
   await bell.click()
 
-  const item = page.getByRole('listitem').filter({ hasText: title })
+  // Scope to the POPOVER's notification list — staff2.ccih is ALSO a pending
+  // approver on this doc, so the underlying `/documentos-pendentes` page
+  // renders the SAME title in its own list; an unscoped listitem search
+  // matches both.
+  const notifPanel = page.getByRole('list', { name: /lista de notificações/i })
+  const item = notifPanel.getByRole('listitem').filter({ hasText: title })
   await expect(item).toBeVisible({ timeout: 10_000 })
   await expect(item).toHaveAttribute('href', `/o/rede-a/documentos-pendentes/${docId}`)
   await item.click()
@@ -627,18 +652,15 @@ test('RW-8: mark obsolete (retire) shows "Descontinuado"', async ({ page }) => {
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: /^tornar obsoleto$/i }).click()
 
+  // `obsolete_kind` lives on `controlled_document_versions`, not the header.
   await expect
     .poll(
       async () =>
-        (
-          await serviceQuery<{ status: string; obsolete_kind: string | null }>(
-            page,
-            `controlled_documents?id=eq.${docId}&select=status,obsolete_kind`,
-          )
-        )[0],
+        (await serviceQuery<{ status: string }>(page, `controlled_documents?id=eq.${docId}&select=status`))[0]
+          ?.status,
       { timeout: 15_000 },
     )
-    .toMatchObject({ status: 'obsolete' })
+    .toBe('obsolete')
 
   const versionRow = (
     await serviceQuery<{ obsolete_kind: string | null }>(
@@ -708,6 +730,7 @@ test('RW-10: anglicized enum keys render pt-BR labels (bylaws→Regimento, appro
 
   const title = `Regimento Anglicização ${Date.now()}`
   await page.getByLabel('Título').fill(title)
+  await continuarButton(page).click()
   await page.locator('#wizard-file').setInputFiles(pdfPayload)
   await continuarButton(page).click()
   await toggleReviewer(page, 'Enfermeiro CCIH Um')
@@ -751,6 +774,11 @@ test('RW-10: anglicized enum keys render pt-BR labels (bylaws→Regimento, appro
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(commissionDocHref(docId))
   const approvalsSection = page.locator('section').filter({ hasText: 'Aprovadores' }).first()
-  await expect(approvalsSection.getByText('Aprovado', { exact: true })).toBeVisible()
-  await expect(approvalsSection.getByText('approved', { exact: true })).toHaveCount(0)
+  // The decision badge's text ("Aprovado" + "· <date>") is JSX-adjacent with no
+  // inserted space, so match a plain substring — scoped to this ONE approver's
+  // `<li>` (which does not include the "Aprovadores" heading/paragraph outside
+  // the list, so "Aprovado" is unambiguous here).
+  const approverRow = approvalsSection.locator('li').filter({ hasText: 'Enfermeiro CCIH Um' })
+  await expect(approverRow).toContainText('Aprovado')
+  await expect(approverRow).not.toContainText('approved')
 })

@@ -1,5 +1,6 @@
 import { expect, type Cookie, type Locator, type Page } from '@playwright/test'
 import { execSync } from 'node:child_process'
+import { pickDate, readHiddenDateValue } from './date-pickers'
 
 /**
  * Shared scaffolding for the controlled-documents E2E suites (Phase 17 v2 —
@@ -152,9 +153,6 @@ export const pdfPayload = {
  * driven via the shared pickDate helper, never `input[name].fill()`.)
  */
 export async function publishViaDialog(page: Page): Promise<string> {
-  // Lazy import to avoid a hard module cycle at the top (date-pickers has no
-  // dependency back on this file, but keeping the import local documents why).
-  const { pickDate, readHiddenDateValue } = await import('./date-pickers')
   await page.getByRole('button', { name: /^publicar$/i }).click()
   const dialog = page.getByRole('dialog')
   await expect(dialog).toBeVisible()
@@ -251,6 +249,7 @@ export async function buildPublishedDocViaWizard(page: Page, title: string): Pro
   await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
   await page.getByLabel('Título').fill(title)
   await selectSegmented(page, 'Protocolo')
+  await continuarButton(page).click()
   await page.locator('#wizard-file').setInputFiles(pdfPayload)
   await continuarButton(page).click()
   await toggleReviewer(page, 'Enfermeiro CCIH Um')
