@@ -27,6 +27,7 @@
 | 15    | Quality Indicators *(built 1st of 15 → 17 → 16 — ADR [0057](docs/decisions/0057-indicators-doc-control-replan.md))* | ✅ complete | ✅ | ✅ 12/12 (prod-standalone) | ✅ APPROVED (3 MINOR fixed) [review](docs/reviews/phase-15-review.md) | ✅ 2026-07-06 | 2026-07-06 | merge `26187dc` (pushed; **remote deployed via pilot reset ✓ 2026-07-12**) |
 | 16    | Standards Crosswalk & Readiness *(builds 3rd, after 17; pilot follows)* | 🔜 not started | – | – | – | – | – | – |
 | 17    | Controlled-Document Lifecycle *(pre-pilot — builds 2nd, before 16; ADR 0057)* | ✅ complete | ✅ (tsc/lint 0 · Vitest 206) | ✅ pgTAP 47/47 (full 1717) · phase E2E 14/14 · full regr 588p/10 env-only (0 Phase-17 reg) | ✅ APPROVED (3 MINOR cleared) [review](docs/reviews/phase-17-review.md) | ✅ 2026-07-06 | 2026-07-06 | merge `1152d75` (ff-only from `feat/phase-17-controlled-documents`; pushed) |
+| 17-v2 | Controlled-Document Redesign *(FE rebuild + 4 gaps + anglicization + new-version wizard + description; ADR 0081)* | ✅ complete | ✅ (tsc/lint 0 · Vitest 369) | ✅ tester 25/25 · pgTAP `201` 29/29 · e2e:prod triaged-green (0 redesign reg) | ✅ APPROVED (0/0/0/4 INFO) [review](docs/reviews/document-control-redesign-review.md) | ✅ 2026-07-21 | 2026-07-21 | ff→`main` (branch `feat/document-control-redesign`) |
 | 18    | Self-Assessment & Internal Audit | 🔜 not started | – | – | – | – | – | – |
 | 19    | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
 | 20    | Notifications & Escalation *(**pulled pre-pilot** 2026-07-12 — ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md); built as S1·N per ADR [0076](docs/decisions/0076-notifications-pilot-scope.md); [detail](docs/progress/s1-substrate.md))* | ✅ complete | ✅ | ✅ pgTAP `226` 52/52 (full 2255) + `notifications.spec.ts` 8/8 | ✅ APPROVED (0B/0M/3 MINOR) [review](docs/reviews/s1-n-notifications-review.md) | ✅ 2026-07-13 | 2026-07-13 | `aac7c1c` |
@@ -80,115 +81,18 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-### 🏗️ IN PROGRESS — Controlled-Document Redesign (Phase 17 v2) — branch `feat/document-control-redesign` (worktree)
+### ✅ Controlled-Document Redesign (Phase 17 v2) — COMPLETE (human-approved 2026-07-21) — record → [document-control-redesign.md](docs/progress/document-control-redesign.md)
 
-Redesign of the shipped Phase-17 controlled-docs UI to the "Document Control" handoff, translated onto the
-platform design system, + 4 functional gaps + enum-key anglicization (controlled-docs only). PO scope locked
-2026-07-21. **Plan** → [docs/plans/document-control-redesign.md](docs/plans/document-control-redesign.md) ·
-**ADR** [0081](docs/decisions/0081-controlled-document-redesign.md) (extends [0069](docs/decisions/0069-status-key-anglicization.md)).
-Flag `controlled_docs`, prod-OFF till pilot (unchanged). PHI-free (Rule 12 N/A).
+Rebuild of the Phase-17 controlled-doc UI to the design handoff + 4 gaps + enum-key anglicization (`doc_type`/`decision`
+English, pt-BR labels intact) + all-in-one create wizard + new-version wizard + `description`. Flag `controlled_docs`
+unchanged (prod-OFF till pilot); PHI-free. **Gate:** tsc/lint 0 · Vitest 369/369 · tester E2E **25/25** · pgTAP `201`
+29/29 · full `e2e:prod` triaged-green (8 reds all pre-existing/env, **0 redesign regressions**; documents 12/12 in-suite) ·
+**qa APPROVED** (0/0/0/4 INFO). Build fix `4e56efc` (worktree-nested standalone). ff-merged → `main`. Follow-ups
+(pre-existing, filed as task chips): hollow `document_approvals` keystone in `252`; `FLOW-7` ethics keyboard-vote flake.
+Full detail → [document-control-redesign.md](docs/progress/document-control-redesign.md) · backend surface →
+`docs/backend-state.md` § DOC-REDESIGN.
 
-**Locked:** all-in-one create wizard (chained action + Save-as-draft) · approver notifications+Remind (Phase-20
-wiring) · version compare (metadata+summary) · category+tags · retired-vs-superseded (`obsolete_kind`) · register
-full-adopt (KPI+chips+search+table) · anglicize `doc_type`/`decision` (politica→policy, pop→sop, protocolo→protocol,
-regimento→bylaws, manual→manual, outro→other; aprovado→approved, rejeitado→rejected — **labels stay pt-BR**) · full §6 gate.
-
-**Wave 1 (backend) — ✅ complete** (`5752aa9`): B0 anglicization + B1 schema + B2 RPCs + B3 chained
-`createAndSubmitDocument`/`createDraftOnly` + B4 reads/filters + §4 notifications + staff_admin-gated
-`remind_document_approver`. Gates: tsc/lint 0 · new pgTAP `201` 21/21 · `200`/`226`/`261`/`262` green · types
-regenerated. Keystone traps handled (stale-local-DB DEFINER re-emit → repo's runtime-rewrite pattern; 2 extra B0
-couplings `upsert_commission_charter` + `trg_audit_document_approvals` swept in lockstep). **Lead-verified the 8
-full-suite pgTAP reds are pre-existing/base-branch, not this wave** — 7 on non-document tables; the 1
-`document_approvals` assertion in `252` reads a hardcoded id `0a218158` present in **no** seed/migration on `main`
-either (a dead keystone predating this wave; filed for base-branch triage — see Bug Log). Contract frozen → FE.
-
-**Wave 2 (frontend) — ✅ complete** (`7f55f76`…`a1a5cdb`, 7 commits; tsc/lint 0, in-browser verified as chefe.ccih +
-staff2.ccih): 6 shared composites + register (KPI/chips/search/table + `in_approval` approval mini-bar) + 4-step create
-wizard (create→submit **and** Save-as-draft, both verified: DOC-0003 `in_approval`, DOC-0004 `draft`) + detail
-(right-rail cards + focus-trapped CompareModal + Remind) + notification deep-links (`routing.ts` + `resolveHrefs`) +
-emerald→`success` cleanup. Fixed a latent **data-loss bug** (`update_controlled_document` overwrites category/tags →
-`DocumentEditor` now posts both). **Flagged for PO/lead:** (1) register derives "Em revisão" + the approval mini-bar via a
-bounded `getDocument` **N+1** — needs an additive list field (lead will fold the fix into Wave 2.5); (2) **new-version
-wizard deferred** — the frozen contract has no chained supersede-submit action (the functional detail-based new-version
-flow is built + verified); PO decision pending; (3) no **"description"** field (no column) — PO decision. Test residue
-(DOC-0003/0004, DOC-0001 superseded) cleared by `db reset` before the gate.
-
-**Wave 2.5 — 🏗️ in progress** (PO decided 2026-07-21: build the new-version wizard + add a `description` field).
-- **2.5a backend — ✅ complete** (`a8dbb7e`; mig `20260819000400`, additive, create/update re-emitted from live def;
-  tsc/lint 0 · pgTAP `201` **29/29** · same 8 pre-existing reds): `supersedeAndSubmitDocument` chained action +
-  `controlled_documents.description` + register list fields (`hasOpenRevision` + approval signed/total counts) via a new
-  DEFINER read `list_commission_documents`. **Lead-verified** the new DEFINER read: `prosecdef`, flag-gated
-  (`assert_controlled_docs_enabled`) + commission-authority-gated (`is_member_of OR is_commission_admin_of` → `return;`
-  empty for foreigners), ACL grants `authenticated` only (anon/public REVOKE'd).
-- **2.5b frontend — ✅ complete** (`7e7630c`; tsc/lint 0, in-browser verified): new-version **wizard mode**
-  (locked identity + callout, new `nova-versao/` coordinator-gated route mirroring `novo/`) wired to
-  `supersedeAndSubmitDocument` + Descrição field (create wizard + edit form + detail header) + register now consumes
-  `hasOpenRevision`/approval-count list fields (N+1 fan-out removed; visuals identical).
-
-**✅ Build complete (Waves 1/2/2.5) — §6 step 1 PASS:** tsc 0 · lint 0 · **Vitest 369/369** (28 files; B0 broke 0 unit tests).
-→ **Wave 3 (§6 gate):** **tester E2E ✅ 25/25** (chromium `--workers=1`, run twice on independent fresh resets, no flakes;
-`phase17-documents.spec.ts` 14 + new `documents-redesign.spec.ts` 11 + `helpers/documents.ts`; lint/tsc clean; **0 app bugs**
-— all fix-loop failures were spec-code, commit `f87165e`). **qa ✅ APPROVED** (0 B/0 M/0 m/4 INFO —
-[review](docs/reviews/document-control-redesign-review.md); live-catalog-verified the new DEFINER read + remind RPC authority
-+ B0-no-authority-weakening + audit whitelist). **Full `e2e:prod` ✅ GREEN-equivalent** (build fix `4e56efc` for the
-worktree-nested standalone): **797p / 8f / 2 flaky**, all 8 reds triaged **pre-existing/env → 0 redesign regressions**
-(documents **12/12 in-suite**): notifications 7-red → **8/8 isolated**; meetings 1-red → **green isolated**; ethics
-`FLOW-7` keyboard native-select vote → **fails identically on `main`** (byte-identical spec, next 16.3) = pre-existing
-macOS-Chromium flake (filed for triage). **§6 steps 1–3 ✅ COMPLETE → awaiting human approval (step 4).**
-
-<!-- backend-owned ledger (backend teammate updates ONLY this sub-block) -->
-**backend — Wave 1 build ✅ COMPLETE (contract frozen for Wave 2).** Migrations
-`20260819000000`–`000300` (B1 schema · notification-enum superset · B0+B2 RPC re-emit · §4
-producers+remind). Types regenerated; `tsc` 0 · `lint` 0.
-- **B0** (this module only): `doc_type` politica→policy/pop→sop/protocolo→protocol/regimento→bylaws/manual/outro→other;
-  `decision` aprovado→approved/rejeitado→rejected. CHECK swaps + all writer/comparator bodies re-emitted from
-  **live** `pg_get_functiondef`. Keystone-2 couplings caught + fixed in lockstep: `upsert_commission_charter`
-  (`doc_type='bylaws'` filter), `trg_audit_document_approvals` (decision branch). FE value-literal sweep (typed
-  arrays/filters/comparisons in `documentos*`/`charter`/`document-editor`/`approvals-panel`/`approval-sign-form`) +
-  seed + pgTAP fixtures (200/261). `sem_regimento` cadence key + indicator `'manual'` source left untouched (out of scope).
-- **B1/B2/B3/B4/§4** built per plan; `remind_document_approver` REVOKE-FROM-PUBLIC + body-enforced staff_admin authority.
-- **pgTAP:** new `201_documents_redesign.sql` **21/21**; `200` **47/47**, `226` **69/69**, `261`/`262` green. Full suite
-  **3644 tests / 3636 pass**; the **8 failures are pre-existing** in `250`/`251`/`252` (case_phase / meeting-attendee /
-  agenda / professional_profiles RLS + one assertion on a `document_approvals` id created in no seed/migration) —
-  **zero overlap with this wave's surface**; flagged for lead/base-branch triage.
-- **Contract summary** for `frontend` posted with this commit (see the commit body / backend report).
-
-**backend — Wave 2.5a (additive PO follow-up) ✅ COMPLETE.** Migration `20260819000400`
-(description column + create/update re-emit +`p_description` + `list_commission_documents`
-DEFINER register read). `tsc` 0 · `lint` 0; types regenerated.
-- **`supersedeAndSubmitDocument`** action — new-version chained analogue of `createAndSubmitDocument`
-  (`supersede → upload → set_file → submit`); identity locked; partial-failure returns `documentId`.
-- **`description`** free-text column (overwrite semantics, out of the audit payload) wired through
-  create/update RPCs + all four create/update actions + `ControlledDocument` type + `getDocument`.
-- **Register N+1 removed:** `listDocuments` now sources `list_commission_documents` (member-gated
-  DEFINER, REVOKE-FROM-PUBLIC) returning DB-side `hasOpenRevision` + `approvalsSignedCount/TotalCount`;
-  filters applied in TS over the small per-commission set.
-- **pgTAP:** `201` extended to **29/29** (supersede-and-submit precondition-fail HC089; description
-  create/update round-trip + NOT in audit payload; register `has_open_revision` + approval counts).
-  Full suite **3652 / 3644 pass**; same 8 pre-existing `250`/`251`/`252` reds, no new regressions.
-
-<!-- frontend-owned ledger (frontend teammate updates ONLY this sub-block) -->
-**frontend — Wave 2 build ✅ substantially complete** (branch `feat/document-control-redesign`, 6 commits `7f55f76…dda3a4b`).
-Built against the frozen contract (`@/lib/documents/*`, `@/lib/queries/*`); zero backend-contract files touched
-(only the delegated `routing.ts` + `queries/notifications.ts` resolveHrefs). `tsc` 0 · `lint` 0 throughout.
-Composites → F-A → F-B(create) → F-C → F-D → F-E all done + verified in-browser. **Wave 2.5b (below) closes the two
-deferred items** — the dedicated new-version wizard + the Descrição field — and drops the register N+1.
-- **Shared composites ✅** — `Stepper`, `Dropzone`, `TagField`, `Segmented` (`src/components/ui/**`) +
-  `ReviewerPicker`, `ChecklistRail` (`src/components/documents/**`). Token-based, keyboard-first,
-  reduced-motion-safe; `role=radiogroup`/`checkbox`/`progressbar`, roving tabindex, drag-drop over a real
-  file input (DataTransfer sync). tsc 0.
-- **F-A register ✅** — KPI strip (FE-computed) · filter chips (incl. derived "Em revisão" = effective+open-draft, "Arquivados" = obsolete) · debounced title/code search + category combobox (datalist autocomplete, O1) · URL-driven table with the `in_approval` approval mini-bar (signed/total), category + tags, truncation. Derived-status/approval extras via a **bounded `getDocument` fan-out** over non-terminal docs (the list contract carries neither — see contract-gap note). Removed dead `document-filter-bar`/`document-register-list`; loading skeleton updated. Verified in-browser (chips/search/KPIs/mini-bar, 0 console errors).
-- **F-E (partial)** — emerald→`success` on the effective status chip (`document-badges.tsx`). approvals-panel spot pending (bundled with F-C/F-D).
-- **F-B create wizard ✅** — 4-step `CreateWizard` (Detalhes · Documento · Aprovadores · Confirmação) + sticky `ChecklistRail`, WizardRunner boundary (server `novo/page.tsx` loads candidates + categories, binds actions; client imports `@/lib/**` type-only). Terminal `createAndSubmitDocument`; **Salvar rascunho** = `createDraftOnly` (available from any step once titled); partial-failure routes to detail + `?aviso`. Committee implicit. Verified in-browser end-to-end: create→upload→submit → DOC-0003 `in_approval` (category+tags+2 approvers w/ Cargo persisted) AND Save-as-draft → DOC-0004 `draft`. 0 console errors. Also fixed a **data-loss bug**: `DocumentEditor` (edit) now posts category+tags (the RPC overwrites both — omitting wiped them).
-  - Reconciled vs handoff (contract-driven): no doc "description" field (dropped); integer versions (no semver Major/Minor Segmented).
-- **F-C detail ✅** — two-column: left = lifecycle affordances (add-version / submit / publish / supersede / obsolete, preserved) + version-history spine; right rail = *Detalhes do documento* + *Documento controlado* cards. Header uses the derived status chip (`Em revisão` when effective + open draft). `VersionCard` spine (current accent-bordered, obsolete-kind chip), compare-select → focus-trapped `VersionCompareModal` (metadata side-by-side, changed "Depois" cells flagged *alterado*, Radix focus-trap). **Remind** wired into `ApprovalsPanel` (pending approvers of the version under approval → `remindDocumentApprover`, surfaces `remindSent`/`remindSkipped`). `?aviso` banner (`DetailNotice`). Verified in-browser: rail/approvals/Remind on DOC-0003; supersede DOC-0001 → derived "Em revisão" + revisão banner; compare v1→v2 shows correct diff + focus-trap + close. Replaced `DocumentVersionsList` (dead).
-- **F-E (partial→more)** — 2nd emerald spot fixed: `approvals-panel.tsx` aprovado badge → `text-success`. Both F-E spots now done.
-- **F-D sign/queue + notification deep-links ✅** — wired `notificationHref` (routing.ts) + the `resolveHrefs` branch (queries/notifications.ts, delegated) for the two new entity types: `controlled_document_version` → the org-level **sign page** (`documentos-pendentes/{documentId}`, resolving version→document via a batched `.in()` lookup + commission→org slug); `controlled_document` → the commission **detail** page. Verified end-to-end in-browser as the approver (staff2.ccih): bell shows the DOC-0003 notification + Remind, both deep-linking to `/o/rede-a/documentos-pendentes/{docId}`; the sign page + queue render (code aligned to `text-primary`). 0 console errors.
-**frontend — Wave 2.5b build ✅ COMPLETE** (against the `a8dbb7e` frozen contract; `tsc` 0 · `lint` 0; zero backend-contract files touched). Verified in-browser (see below).
-- **New-version wizard mode ✅** — `CreateWizard` now takes a `mode: "create" | "newversion"` discriminant + a `LockedIdentity`. New-version Step 1 = a **locked-identity panel** (title/type/category/código read-only) + a "Você está criando a v{next}; ao aprovar substitui a v{current}" callout; Step 2 shows the read-only next version (integer `max+1`, no semver) and makes the change summary **required**; terminal → `supersedeAndSubmitDocument` (no Salvar-rascunho — the detail supersede is the blank-draft fallback). New route `documentos/[documentId]/nova-versao/page.tsx` (mirrors `novo/`: staff_admin-gated, guards `effective` + no open draft → else redirects to detail, computes next version, binds the action). Partial-failure + HC089 → detail `?aviso=incompleto` (same `handleResult` as create).
-- **Detail "Nova versão" entry ✅** — the effective-state block leads with a primary **Criar nova versão** link → the wizard; the plain supersede stays as a secondary **inline** fallback (`SupersedeDocumentButton variant="inline"` → "Criar rascunho em branco") beside **Tornar obsoleto**.
-- **Descrição field ✅** — added to the create wizard Step 1 (posts when non-blank) + the `DocumentEditor` edit form (native `name="description"`, always posted → overwrite semantics) + rendered in the detail header (below the meta line, `max-w-prose`, plain text `whitespace-pre-wrap`).
-- **Register N+1 dropped ✅** — removed the `getDocument` fan-out (`loadExtras`); `hasOpenRevision` now drives the derived "Em revisão", `approvalsSignedCount`/`approvalsTotalCount` drive the mini-bar (an `in_approval` version has no rejection by construction → `hasRejection` stays false; visuals identical). `getDocument` import removed from the register page.
+---
 
 ### ✅ AUDIT-DOOR-BLINDNESS · P0 — COMPLETE (human-approved 2026-07-18) — record rotated → [authz-p0-door-blindness.md](docs/progress/authz-p0-door-blindness.md)
 
