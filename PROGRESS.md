@@ -93,9 +93,17 @@ wiring) · version compare (metadata+summary) · category+tags · retired-vs-sup
 full-adopt (KPI+chips+search+table) · anglicize `doc_type`/`decision` (politica→policy, pop→sop, protocolo→protocol,
 regimento→bylaws, manual→manual, outro→other; aprovado→approved, rejeitado→rejected — **labels stay pt-BR**) · full §6 gate.
 
-**Wave 1 (backend) — 🏗️ in progress:** B0 anglicization → B1 schema (category/tags/obsolete_kind/proposed_effective_date)
-→ B2 RPC updates → B3 chained create/draft actions → B4 reads/filters → §4 notifications+remind RPC → regen types → pgTAP.
-Wave 2 = frontend; Wave 3 = §6 gate (tester E2E + qa + human).
+**Wave 1 (backend) — ✅ complete** (`5752aa9`): B0 anglicization + B1 schema + B2 RPCs + B3 chained
+`createAndSubmitDocument`/`createDraftOnly` + B4 reads/filters + §4 notifications + staff_admin-gated
+`remind_document_approver`. Gates: tsc/lint 0 · new pgTAP `201` 21/21 · `200`/`226`/`261`/`262` green · types
+regenerated. Keystone traps handled (stale-local-DB DEFINER re-emit → repo's runtime-rewrite pattern; 2 extra B0
+couplings `upsert_commission_charter` + `trg_audit_document_approvals` swept in lockstep). **Lead-verified the 8
+full-suite pgTAP reds are pre-existing/base-branch, not this wave** — 7 on non-document tables; the 1
+`document_approvals` assertion in `252` reads a hardcoded id `0a218158` present in **no** seed/migration on `main`
+either (a dead keystone predating this wave; filed for base-branch triage — see Bug Log). Contract frozen → FE.
+
+**Wave 2 (frontend) — 🏗️ in progress:** shared composites → register (KPI+chips+search+table) → create wizard →
+detail+compare+Remind → sign/queue + notification deep-links → token cleanup. Wave 3 = §6 gate (tester E2E + qa + human).
 
 <!-- backend-owned ledger (backend teammate updates ONLY this sub-block) -->
 **backend — Wave 1 build ✅ COMPLETE (contract frozen for Wave 2).** Migrations
@@ -113,6 +121,16 @@ producers+remind). Types regenerated; `tsc` 0 · `lint` 0.
   agenda / professional_profiles RLS + one assertion on a `document_approvals` id created in no seed/migration) —
   **zero overlap with this wave's surface**; flagged for lead/base-branch triage.
 - **Contract summary** for `frontend` posted with this commit (see the commit body / backend report).
+
+<!-- frontend-owned ledger (frontend teammate updates ONLY this sub-block) -->
+**frontend — Wave 2 build 🏗️ in progress** (branch `feat/document-control-redesign`). Building against
+the frozen contract (`@/lib/documents/*`, `@/lib/queries/*`). Order: composites → F-A → F-B → F-C → F-D → F-E.
+- **Shared composites ✅** — `Stepper`, `Dropzone`, `TagField`, `Segmented` (`src/components/ui/**`) +
+  `ReviewerPicker`, `ChecklistRail` (`src/components/documents/**`). Token-based, keyboard-first,
+  reduced-motion-safe; `role=radiogroup`/`checkbox`/`progressbar`, roving tabindex, drag-drop over a real
+  file input (DataTransfer sync). tsc 0.
+- **F-A register** — pending.
+- **F-B wizard** — pending. **F-C detail+compare** — pending. **F-D sign/queue + deep-links** — pending. **F-E cleanup** — pending.
 
 ### ✅ AUDIT-DOOR-BLINDNESS · P0 — COMPLETE (human-approved 2026-07-18) — record rotated → [authz-p0-door-blindness.md](docs/progress/authz-p0-door-blindness.md)
 
