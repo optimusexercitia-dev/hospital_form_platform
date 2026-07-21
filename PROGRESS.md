@@ -129,8 +129,10 @@ the frozen contract (`@/lib/documents/*`, `@/lib/queries/*`). Order: composites 
   `ReviewerPicker`, `ChecklistRail` (`src/components/documents/**`). Token-based, keyboard-first,
   reduced-motion-safe; `role=radiogroup`/`checkbox`/`progressbar`, roving tabindex, drag-drop over a real
   file input (DataTransfer sync). tsc 0.
-- **F-A register** — pending.
-- **F-B wizard** — pending. **F-C detail+compare** — pending. **F-D sign/queue + deep-links** — pending. **F-E cleanup** — pending.
+- **F-A register ✅** — KPI strip (FE-computed) · filter chips (incl. derived "Em revisão" = effective+open-draft, "Arquivados" = obsolete) · debounced title/code search + category combobox (datalist autocomplete, O1) · URL-driven table with the `in_approval` approval mini-bar (signed/total), category + tags, truncation. Derived-status/approval extras via a **bounded `getDocument` fan-out** over non-terminal docs (the list contract carries neither — see contract-gap note). Removed dead `document-filter-bar`/`document-register-list`; loading skeleton updated. Verified in-browser (chips/search/KPIs/mini-bar, 0 console errors).
+- **F-E (partial)** — emerald→`success` on the effective status chip (`document-badges.tsx`). approvals-panel spot pending (bundled with F-C/F-D).
+- **F-B wizard** — pending. **F-C detail+compare** — pending. **F-D sign/queue + deep-links** — pending.
+- ⚠ **Contract-gap note (non-blocking, reported to lead):** `ControlledDocumentListItem`/`listDocuments` expose neither a `latestVersionNumber`/`hasOpenRevision` flag (for the derived "Em revisão") nor per-doc approval counts (for the `in_approval` mini-bar). F-A derives both in-contract via a bounded `getDocument` fan-out over effective+in_approval docs. A small additive list field would remove the N+1.
 
 ### ✅ AUDIT-DOOR-BLINDNESS · P0 — COMPLETE (human-approved 2026-07-18) — record rotated → [authz-p0-door-blindness.md](docs/progress/authz-p0-door-blindness.md)
 

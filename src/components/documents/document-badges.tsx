@@ -1,9 +1,18 @@
 import { cn } from "@/lib/utils";
-import type { DocStatus, DocType } from "@/lib/documents/types";
+import type { DocStatus, DocType, ObsoleteKind } from "@/lib/documents/types";
 import {
   DOC_STATUS_LABELS,
   DOC_TYPE_LABELS,
+  OBSOLETE_KIND_LABELS,
 } from "@/lib/documents/types";
+
+/**
+ * The display-only "Em revisão" state — an `effective` document that carries an
+ * open draft/in-approval version above its in-force one (ADR 0081; derived FE-side,
+ * NOT a stored status). It reads as amber (`warning`), the handoff's "under
+ * revision" tone.
+ */
+export type DerivedDocStatus = DocStatus | "revision";
 
 /**
  * Shared, server-safe status/type chips for controlled documents (Phase 17).
@@ -19,7 +28,7 @@ import {
 const STATUS_CLASSES: Record<DocStatus, string> = {
   draft: "bg-muted text-muted-foreground",
   in_approval: "bg-warning/15 text-warning",
-  effective: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-200",
+  effective: "bg-success/15 text-success",
   obsolete: "bg-muted text-muted-foreground line-through decoration-1",
 };
 
@@ -67,6 +76,58 @@ export function DocumentTypeBadge({
       )}
     >
       {DOC_TYPE_LABELS[docType]}
+    </span>
+  );
+}
+
+/**
+ * A document/version chip that also renders the derived "Em revisão" state. Use
+ * on the register (F-A) and detail (F-C) where an `effective` header may carry an
+ * open revision; falls through to {@link DocumentStatusChip} for the 4 canonical
+ * statuses.
+ */
+export function DerivedStatusChip({
+  status,
+  className,
+}: {
+  status: DerivedDocStatus;
+  className?: string;
+}) {
+  if (status === "revision") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center rounded-full bg-warning/15 px-2.5 py-0.5 text-xs font-medium text-warning",
+          className,
+        )}
+      >
+        Em revisão
+      </span>
+    );
+  }
+  return <DocumentStatusChip status={status} className={className} />;
+}
+
+/**
+ * A chip distinguishing WHY an obsolete version was archived — `Substituído`
+ * (superseded) vs `Descontinuado` (retired). pt-BR via {@link OBSOLETE_KIND_LABELS}.
+ * Neutral/muted so it reads as an archival note, not an alert.
+ */
+export function ObsoleteKindChip({
+  kind,
+  className,
+}: {
+  kind: ObsoleteKind;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground",
+        className,
+      )}
+    >
+      {OBSOLETE_KIND_LABELS[kind]}
     </span>
   );
 }
