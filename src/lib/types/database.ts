@@ -405,7 +405,7 @@ export type Database = {
       action_items: {
         Row: {
           assigned_to: string | null
-          case_id: string | null
+          linked_case_id: string | null
           commission_id: string
           completed_at: string | null
           completed_by: string | null
@@ -427,7 +427,7 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
-          case_id?: string | null
+          linked_case_id?: string | null
           commission_id: string
           completed_at?: string | null
           completed_by?: string | null
@@ -449,7 +449,7 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
-          case_id?: string | null
+          linked_case_id?: string | null
           commission_id?: string
           completed_at?: string | null
           completed_by?: string | null
@@ -478,8 +478,8 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "action_items_case_fkey"
-            columns: ["case_id"]
+            foreignKeyName: "action_items_linked_case_fkey"
+            columns: ["linked_case_id"]
             isOneToOne: false
             referencedRelation: "cases"
             referencedColumns: ["id"]
@@ -9110,7 +9110,7 @@ export type Database = {
         Args: { p_comment?: string; p_id: string; p_to_status_id: string }
         Returns: {
           assigned_to: string | null
-          case_id: string | null
+          linked_case_id: string | null
           commission_id: string
           completed_at: string | null
           completed_by: string | null
@@ -9795,7 +9795,7 @@ export type Database = {
         Args: { p_id: string }
         Returns: {
           assigned_to: string | null
-          case_id: string | null
+          linked_case_id: string | null
           commission_id: string
           completed_at: string | null
           completed_by: string | null
@@ -10305,7 +10305,7 @@ export type Database = {
         }
         Returns: {
           assigned_to: string | null
-          case_id: string | null
+          linked_case_id: string | null
           commission_id: string
           completed_at: string | null
           completed_by: string | null
@@ -14116,7 +14116,7 @@ export type Database = {
         }
         Returns: {
           assigned_to: string | null
-          case_id: string | null
+          linked_case_id: string | null
           commission_id: string
           completed_at: string | null
           completed_by: string | null
