@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { CalendarClock, Plus } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
-import { getDocument, listDocuments } from "@/lib/queries/documents";
+import { listDocuments } from "@/lib/queries/documents";
 import type { ControlledDocumentListItem } from "@/lib/documents/types";
 import { commissionHref } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
@@ -24,69 +24,28 @@ export const metadata: Metadata = {
   title: "Documentos controlados",
 };
 
-/** Per-document extras derived FE-side (ADR 0081 F-A) — not in the list contract. */
-interface DocExtras {
-  /** `effective` docs: an open draft/in-approval version sits above the in-force one. */
-  underRevision: boolean;
-  /** `in_approval` docs: signed/total of the version under approval. */
-  approval?: ApprovalProgress;
+/** Resolve the display status, promoting an `effective` doc under revision. */
+function deriveStatus(doc: ControlledDocumentListItem): DerivedDocStatus {
+  if (doc.status === "effective" && doc.hasOpenRevision) return "revision";
+  return doc.status;
 }
 
 /**
- * Fetch the small set of extras the list contract can't express (ADR 0081): the
- * `in_approval` approval progress + whether an `effective` doc has an open
- * revision. Bounded to non-terminal docs (draft/obsolete need nothing) and run in
- * parallel. NOTE: this is a per-doc fan-out over `getDocument`; a future additive
- * list field (`latestVersionNumber` + approval counts) would remove it.
+ * The `in_approval` approval mini-bar progress, sourced from the list contract
+ * (Wave 2.5a — `list_commission_documents` computes signed/total DB-side, removing
+ * the former `getDocument` N+1). `undefined` unless the doc is `in_approval`. A
+ * version in `in_approval` carries no rejection by construction (a single rejection
+ * returns it to `draft`), so `hasRejection` is always false here.
  */
-async function loadExtras(
-  documents: ControlledDocumentListItem[],
-): Promise<Map<string, DocExtras>> {
-  const nonTerminal = documents.filter(
-    (d) => d.status === "effective" || d.status === "in_approval",
-  );
-  const details = await Promise.all(nonTerminal.map((d) => getDocument(d.id)));
-
-  const byId = new Map(documents.map((d) => [d.id, d]));
-  const extras = new Map<string, DocExtras>();
-
-  for (const detail of details) {
-    if (!detail) continue;
-    const doc = byId.get(detail.document.id);
-    if (!doc) continue;
-
-    if (detail.document.status === "in_approval") {
-      const total = detail.approvals.length;
-      const approved = detail.approvals.filter(
-        (a) => a.decision === "approved",
-      ).length;
-      const hasRejection = detail.approvals.some(
-        (a) => a.decision === "rejected",
-      );
-      extras.set(doc.id, {
-        underRevision: false,
-        approval: { approved, total, hasRejection },
-      });
-    } else {
-      const current = doc.currentVersionNumber ?? 0;
-      const underRevision = detail.versions.some(
-        (v) =>
-          v.versionNumber > current &&
-          (v.status === "draft" || v.status === "in_approval"),
-      );
-      extras.set(doc.id, { underRevision });
-    }
-  }
-  return extras;
-}
-
-/** Resolve the display status, promoting an `effective` doc under revision. */
-function deriveStatus(
+function approvalProgress(
   doc: ControlledDocumentListItem,
-  extras: DocExtras | undefined,
-): DerivedDocStatus {
-  if (doc.status === "effective" && extras?.underRevision) return "revision";
-  return doc.status;
+): ApprovalProgress | undefined {
+  if (doc.status !== "in_approval") return undefined;
+  return {
+    approved: doc.approvalsSignedCount,
+    total: doc.approvalsTotalCount,
+    hasRejection: false,
+  };
 }
 
 /** Does a register item match the active `view` chip? */
@@ -129,16 +88,12 @@ export default async function DocumentsPage({
   }
 
   const documents = await listDocuments(access.commission.id);
-  const extras = await loadExtras(documents);
 
-  const allItems: RegisterItem[] = documents.map((doc) => {
-    const ex = extras.get(doc.id);
-    return {
-      ...doc,
-      derivedStatus: deriveStatus(doc, ex),
-      approval: ex?.approval,
-    };
-  });
+  const allItems: RegisterItem[] = documents.map((doc) => ({
+    ...doc,
+    derivedStatus: deriveStatus(doc),
+    approval: approvalProgress(doc),
+  }));
 
   const kpis: DocumentKpis = {
     total: allItems.length,

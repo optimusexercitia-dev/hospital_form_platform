@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   ArrowRight,
   FileText,
+  GitBranchPlus,
   Save,
   Send,
   Users,
@@ -37,7 +38,10 @@ import {
   type ChecklistItem,
 } from "@/components/documents/checklist-rail";
 import { DocumentTypeBadge } from "@/components/documents/document-badges";
-import { formatDateOnly } from "@/components/documents/format";
+import {
+  formatDateOnly,
+  formatVersionNumber,
+} from "@/components/documents/format";
 import {
   ReviewerPicker,
   type ChosenApprover,
@@ -47,6 +51,24 @@ type CreateAction = (
   prev: CreateDocumentState | undefined,
   formData: FormData,
 ) => Promise<CreateDocumentState>;
+
+/** Which flow the wizard drives: a brand-new document, or a new version of one. */
+export type WizardMode = "create" | "newversion";
+
+/**
+ * The frozen identity of the document a new version is being created for
+ * (new-version mode only). All fields are read-only in the wizard — a new version
+ * inherits the header verbatim; only the artifact + approvers change (ADR 0081).
+ */
+export interface LockedIdentity {
+  documentId: string;
+  code: string;
+  title: string;
+  docType: DocType;
+  category: string | null;
+  currentVersionNumber: number;
+  nextVersionNumber: number;
+}
 
 const DOC_TYPE_OPTIONS: { value: DocType; label: string }[] = (
   ["policy", "sop", "protocol", "bylaws", "manual", "other"] as DocType[]
@@ -67,20 +89,30 @@ const FIELD_STEP: Record<string, number> = {
   file: 1,
   expiryDate: 1,
   proposedEffectiveDate: 1,
+  summaryOfChangesMd: 1,
   approvers: 2,
   approvalDueDate: 2,
 };
 
 /**
- * All-in-one create wizard (Phase 17 v2, F-B). Four guided steps (Detalhes →
- * Documento → Aprovadores → Confirmação) + a sticky readiness rail. The committee
- * is implicit from the route (no selector). The terminal step submits for approval
- * via `createAndSubmitDocument`; "Salvar rascunho" exits at draft via
- * `createDraftOnly`. On a post-create partial failure the action returns the new
- * `documentId`, so we land the user on the recoverable draft's detail with an
- * `?aviso=` banner. Client boundary: actions are props; `@/lib/**` is type-only.
+ * All-in-one wizard (Phase 17 v2, F-B) — two modes over one flow:
+ *
+ * - **create** (default): Detalhes → Documento → Aprovadores → Confirmação. The
+ *   terminal step submits via `createAndSubmitDocument`; "Salvar rascunho" exits at
+ *   draft via `createDraftOnly`. Committee is implicit from the route.
+ * - **newversion** (ADR 0081 Wave 2.5b): Step 1 is a **locked-identity** panel — the
+ *   header is inherited verbatim; only the artifact + approvers change. The terminal
+ *   step supersedes the current effective version and submits via
+ *   `supersedeAndSubmitDocument`. No draft exit (the detail-page supersede is the
+ *   blank-draft fallback).
+ *
+ * On a post-create/supersede partial failure the action returns the `documentId`, so
+ * we land the user on the recoverable draft's detail with an `?aviso=` banner. Client
+ * boundary: actions are props; `@/lib/**` is type-only.
  */
 export function CreateWizard({
+  mode = "create",
+  locked,
   org,
   commission,
   commissionId,
@@ -90,17 +122,23 @@ export function CreateWizard({
   submitAction,
   draftAction,
 }: {
+  /** `create` (default) or `newversion` — see the component doc. */
+  mode?: WizardMode;
+  /** The frozen document identity — REQUIRED in `newversion` mode, ignored otherwise. */
+  locked?: LockedIdentity;
   org: string;
   commission: string;
   commissionId: string;
   candidates: ApproverCandidate[];
-  /** Existing category values for the autocomplete datalist. */
+  /** Existing category values for the autocomplete datalist (create mode). */
   categories: string[];
   defaultDocType?: DocType;
   submitAction: CreateAction;
-  draftAction: CreateAction;
+  /** The "Salvar rascunho" action — only rendered in create mode. */
+  draftAction?: CreateAction;
 }) {
   const router = useRouter();
+  const isNewVersion = mode === "newversion";
   const [isPending, startTransition] = useTransition();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const categoryListId = "wizard-category-list";
@@ -108,10 +146,11 @@ export function CreateWizard({
   const [step, setStep] = useState(0);
   const [maxReached, setMaxReached] = useState(0);
 
-  // Step 1 — details.
+  // Step 1 — details (create mode only; locked in new-version mode).
   const [title, setTitle] = useState("");
   const [docType, setDocType] = useState<DocType>(defaultDocType);
   const [category, setCategory] = useState("");
+  const [description, setDescription] = useState("");
   const [reviewCycleMonths, setReviewCycleMonths] = useState("");
   const [tags, setTags] = useState<string[]>([]);
 
@@ -128,18 +167,33 @@ export function CreateWizard({
   const [banner, setBanner] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const titleValid = title.trim() !== "";
+  // Validity — the identity is locked in new-version mode (title always valid); the
+  // change summary is REQUIRED there (the supersede action rejects a blank summary).
+  const titleValid = isNewVersion || title.trim() !== "";
   const fileValid = file != null;
+  const summaryValid = summary.trim() !== "";
   const reviewersValid = approvers.length > 0;
-  const readyToSubmit = titleValid && fileValid && reviewersValid;
+  const documentStepValid = fileValid && (!isNewVersion || summaryValid);
+  const readyToSubmit = titleValid && documentStepValid && reviewersValid;
 
-  const stepValid = [titleValid, fileValid, reviewersValid, readyToSubmit];
-
-  const checklist: ChecklistItem[] = [
-    { label: "Título do documento", done: titleValid },
-    { label: "Arquivo anexado", done: fileValid },
-    { label: "Ao menos um aprovador", done: reviewersValid },
+  const stepValid = [
+    isNewVersion ? true : titleValid,
+    documentStepValid,
+    reviewersValid,
+    readyToSubmit,
   ];
+
+  const checklist: ChecklistItem[] = isNewVersion
+    ? [
+        { label: "Arquivo anexado", done: fileValid },
+        { label: "Resumo das alterações", done: summaryValid },
+        { label: "Ao menos um aprovador", done: reviewersValid },
+      ]
+    : [
+        { label: "Título do documento", done: titleValid },
+        { label: "Arquivo anexado", done: fileValid },
+        { label: "Ao menos um aprovador", done: reviewersValid },
+      ];
 
   function focusHeading() {
     // Move focus to the new step heading each transition (a11y — plan §6).
@@ -163,11 +217,18 @@ export function CreateWizard({
   function buildFormData(): FormData {
     const fd = new FormData();
     fd.set("commissionId", commissionId);
-    fd.set("title", title.trim());
-    fd.set("docType", docType);
-    if (category.trim()) fd.set("category", category.trim());
-    fd.set("tags", JSON.stringify(tags));
-    if (reviewCycleMonths.trim()) fd.set("reviewCycleMonths", reviewCycleMonths.trim());
+    if (isNewVersion && locked) {
+      // New-version mode: identity is frozen — the action takes only the artifact,
+      // dates and approvers, keyed by the existing document id.
+      fd.set("documentId", locked.documentId);
+    } else {
+      fd.set("title", title.trim());
+      fd.set("docType", docType);
+      if (category.trim()) fd.set("category", category.trim());
+      if (description.trim()) fd.set("description", description.trim());
+      fd.set("tags", JSON.stringify(tags));
+      if (reviewCycleMonths.trim()) fd.set("reviewCycleMonths", reviewCycleMonths.trim());
+    }
     if (file) fd.set("file", file);
     if (summary.trim()) fd.set("summaryOfChangesMd", summary.trim());
     if (proposedEffectiveDate) fd.set("proposedEffectiveDate", proposedEffectiveDate);
@@ -242,22 +303,28 @@ export function CreateWizard({
 
         <section className="flex flex-col gap-6 rounded-2xl border border-border bg-card p-5 shadow-xs sm:p-6">
           {step === 0 ? (
-            <StepDetails
-              headingRef={headingRef}
-              title={title}
-              setTitle={setTitle}
-              docType={docType}
-              setDocType={setDocType}
-              category={category}
-              setCategory={setCategory}
-              categories={categories}
-              categoryListId={categoryListId}
-              reviewCycleMonths={reviewCycleMonths}
-              setReviewCycleMonths={setReviewCycleMonths}
-              tags={tags}
-              setTags={setTags}
-              fieldErrors={fieldErrors}
-            />
+            isNewVersion && locked ? (
+              <StepNewVersionIdentity headingRef={headingRef} locked={locked} />
+            ) : (
+              <StepDetails
+                headingRef={headingRef}
+                title={title}
+                setTitle={setTitle}
+                docType={docType}
+                setDocType={setDocType}
+                category={category}
+                setCategory={setCategory}
+                categories={categories}
+                categoryListId={categoryListId}
+                description={description}
+                setDescription={setDescription}
+                reviewCycleMonths={reviewCycleMonths}
+                setReviewCycleMonths={setReviewCycleMonths}
+                tags={tags}
+                setTags={setTags}
+                fieldErrors={fieldErrors}
+              />
+            )
           ) : null}
 
           {step === 1 ? (
@@ -271,6 +338,8 @@ export function CreateWizard({
               setExpiryDate={setExpiryDate}
               summary={summary}
               setSummary={setSummary}
+              summaryRequired={isNewVersion}
+              nextVersionNumber={isNewVersion ? locked?.nextVersionNumber ?? null : null}
               fieldErrors={fieldErrors}
             />
           ) : null}
@@ -290,6 +359,7 @@ export function CreateWizard({
           {step === 3 ? (
             <StepConfirm
               headingRef={headingRef}
+              locked={isNewVersion ? locked : undefined}
               title={title}
               docType={docType}
               category={category}
@@ -308,17 +378,21 @@ export function CreateWizard({
             <Button asChild variant="ghost" size="lg">
               <a href={cancelHref}>Cancelar</a>
             </Button>
-            {/* Save-as-draft exit — available at any step once a title exists. */}
-            <Button
-              type="button"
-              variant="outline"
-              size="lg"
-              onClick={() => runAction(draftAction, "draft")}
-              disabled={isPending || !titleValid}
-            >
-              <Save aria-hidden="true" className="size-4" />
-              Salvar rascunho
-            </Button>
+            {/* Save-as-draft exit (create mode only) — available at any step once a
+                title exists. New-version mode has no draft exit: the detail-page
+                supersede is the blank-draft fallback. */}
+            {!isNewVersion && draftAction ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={() => runAction(draftAction, "draft")}
+                disabled={isPending || !titleValid}
+              >
+                <Save aria-hidden="true" className="size-4" />
+                Salvar rascunho
+              </Button>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -381,6 +455,8 @@ function StepDetails({
   setCategory,
   categories,
   categoryListId,
+  description,
+  setDescription,
   reviewCycleMonths,
   setReviewCycleMonths,
   tags,
@@ -396,6 +472,8 @@ function StepDetails({
   setCategory: (v: string) => void;
   categories: string[];
   categoryListId: string;
+  description: string;
+  setDescription: (v: string) => void;
   reviewCycleMonths: string;
   setReviewCycleMonths: (v: string) => void;
   tags: string[];
@@ -476,10 +554,104 @@ function StepDetails({
       </div>
 
       <Field>
+        <FieldLabel htmlFor="wizard-description">Descrição</FieldLabel>
+        <Textarea
+          id="wizard-description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          maxLength={1000}
+          placeholder="Ex.: Diretrizes de higienização das mãos aplicáveis a toda a unidade."
+        />
+        <FieldDescription>
+          Opcional — um resumo do propósito do documento, exibido no cabeçalho.
+        </FieldDescription>
+      </Field>
+
+      <Field>
         <FieldLabel htmlFor="wizard-tags">Etiquetas</FieldLabel>
         <TagField id="wizard-tags" value={tags} onChange={setTags} />
         <FieldDescription>Opcional — pressione Enter para adicionar.</FieldDescription>
       </Field>
+    </div>
+  );
+}
+
+/**
+ * Step 1 in new-version mode: the frozen document identity + a "you are creating
+ * v{next} which replaces v{current}" callout. Everything is read-only — to change
+ * the header the user edits the document instead (ADR 0081 Wave 2.5b).
+ */
+function StepNewVersionIdentity({
+  headingRef,
+  locked,
+}: {
+  headingRef: React.RefObject<HTMLHeadingElement | null>;
+  locked: LockedIdentity;
+}) {
+  return (
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-1">
+        <h2 ref={headingRef} tabIndex={-1} className="text-lg font-semibold outline-none">
+          Nova versão
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          A identidade do documento é mantida. Anexe o novo arquivo e indique os
+          aprovadores nas próximas etapas.
+        </p>
+      </div>
+
+      <div className="flex items-start gap-2.5 rounded-xl border border-primary/20 bg-accent/30 p-3.5 text-sm text-foreground">
+        <GitBranchPlus aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+        <p className="text-pretty">
+          Você está criando a{" "}
+          <strong className="font-semibold">
+            {formatVersionNumber(locked.nextVersionNumber)}
+          </strong>
+          ; ao aprovar, ela substitui a{" "}
+          {formatVersionNumber(locked.currentVersionNumber)} vigente.
+        </p>
+      </div>
+
+      <dl className="flex flex-col divide-y divide-border/60 rounded-xl border border-border bg-muted/20">
+        <IdentityRow label="Documento">
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-foreground">{locked.title}</span>
+            <DocumentTypeBadge docType={locked.docType} />
+          </span>
+        </IdentityRow>
+        <IdentityRow label="Código">
+          <span className="font-mono text-primary">{locked.code}</span>
+        </IdentityRow>
+        <IdentityRow label="Categoria">
+          <span className="text-foreground">{locked.category ?? "—"}</span>
+        </IdentityRow>
+        <IdentityRow label="Nova versão">
+          <span className="font-mono tabular-nums text-foreground">
+            {formatVersionNumber(locked.nextVersionNumber)}
+          </span>
+        </IdentityRow>
+      </dl>
+
+      <p className="text-xs text-muted-foreground text-pretty">
+        Para alterar o título, o tipo ou a categoria, edite o documento — não é
+        possível alterá-los ao criar uma nova versão.
+      </p>
+    </div>
+  );
+}
+
+function IdentityRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-3 px-4 py-3 text-sm">
+      <dt className="shrink-0 text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 text-right">{children}</dd>
     </div>
   );
 }
@@ -494,6 +666,8 @@ function StepDocument({
   setExpiryDate,
   summary,
   setSummary,
+  summaryRequired,
+  nextVersionNumber,
   fieldErrors,
 }: {
   headingRef: React.RefObject<HTMLHeadingElement | null>;
@@ -505,6 +679,10 @@ function StepDocument({
   setExpiryDate: (v: string) => void;
   summary: string;
   setSummary: (v: string) => void;
+  /** New-version mode requires the change summary; create mode leaves it optional. */
+  summaryRequired: boolean;
+  /** Read-only target version ("v3") in new-version mode; null in create mode. */
+  nextVersionNumber: number | null;
   fieldErrors: Record<string, string>;
 }) {
   return (
@@ -517,6 +695,15 @@ function StepDocument({
           Uma cópia é armazenada de forma imutável para cada versão.
         </p>
       </div>
+
+      {nextVersionNumber != null ? (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 px-4 py-3 text-sm">
+          <span className="text-muted-foreground">Versão a criar</span>
+          <span className="font-mono tabular-nums font-semibold text-foreground">
+            {formatVersionNumber(nextVersionNumber)}
+          </span>
+        </div>
+      ) : null}
 
       <Field>
         <FieldLabel htmlFor="wizard-file">Arquivo</FieldLabel>
@@ -564,15 +751,24 @@ function StepDocument({
       </div>
 
       <Field>
-        <FieldLabel htmlFor="wizard-summary">Resumo das alterações</FieldLabel>
+        <FieldLabel htmlFor="wizard-summary">
+          Resumo das alterações{summaryRequired ? " *" : ""}
+        </FieldLabel>
         <Textarea
           id="wizard-summary"
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
           rows={4}
           placeholder="Descreva o que esta versão traz. Fica registrado no histórico."
+          aria-invalid={fieldErrors.summaryOfChangesMd ? true : undefined}
+          aria-describedby="wizard-summary-description"
         />
-        <FieldDescription>Opcional — registrado permanentemente no histórico da versão.</FieldDescription>
+        <FieldDescription id="wizard-summary-description">
+          {summaryRequired
+            ? "Obrigatório — descreve o que muda em relação à versão vigente."
+            : "Opcional — registrado permanentemente no histórico da versão."}
+        </FieldDescription>
+        <FieldError>{fieldErrors.summaryOfChangesMd}</FieldError>
       </Field>
     </div>
   );
@@ -655,6 +851,7 @@ function StepReviewers({
 
 function StepConfirm({
   headingRef,
+  locked,
   title,
   docType,
   category,
@@ -666,6 +863,8 @@ function StepConfirm({
   proposedEffectiveDate,
 }: {
   headingRef: React.RefObject<HTMLHeadingElement | null>;
+  /** Set in new-version mode — the confirm card reflects the frozen identity. */
+  locked?: LockedIdentity;
   title: string;
   docType: DocType;
   category: string;
@@ -677,6 +876,12 @@ function StepConfirm({
   proposedEffectiveDate: string;
 }) {
   const nameById = new Map(candidates.map((c) => [c.id, c.name]));
+  const displayTitle = locked ? locked.title : title || "Sem título";
+  const displayDocType = locked ? locked.docType : docType;
+  const displayCategory = locked ? locked.category ?? "" : category;
+  const displayVersion = locked
+    ? formatVersionNumber(locked.nextVersionNumber)
+    : "v1";
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
@@ -694,12 +899,14 @@ function StepConfirm({
         </span>
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="truncate font-semibold">{title || "Sem título"}</h3>
-            <DocumentTypeBadge docType={docType} />
-            <span className="font-mono text-xs text-muted-foreground">v1</span>
+            <h3 className="truncate font-semibold">{displayTitle}</h3>
+            <DocumentTypeBadge docType={displayDocType} />
+            <span className="font-mono text-xs text-muted-foreground">
+              {displayVersion}
+            </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {category ? category : "Sem categoria"}
+            {displayCategory ? displayCategory : "Sem categoria"}
           </p>
         </div>
       </div>

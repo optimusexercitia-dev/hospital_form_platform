@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Download, Pencil } from "lucide-react";
+import { ChevronLeft, Download, GitBranchPlus, Pencil } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
@@ -132,6 +132,14 @@ export default async function DocumentDetailPage({
     documentId,
     "editar",
   );
+  const newVersionHref = commissionHref(
+    org,
+    commission,
+    "manage",
+    "documentos",
+    documentId,
+    "nova-versao",
+  );
 
   return (
     <div className="flex flex-col gap-8">
@@ -166,6 +174,11 @@ export default async function DocumentDetailPage({
                 </>
               ) : null}
             </p>
+            {document.description ? (
+              <p className="max-w-prose text-sm whitespace-pre-wrap text-foreground text-pretty">
+                {document.description}
+              </p>
+            ) : null}
           </div>
           {workingStatus === "draft" ? (
             <Button asChild variant="outline" size="lg">
@@ -257,16 +270,36 @@ export default async function DocumentDetailPage({
               )}
             </div>
           ) : currentStatus === "effective" ? (
-            <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs">
-              <SupersedeDocumentButton
-                documentId={document.id}
-                action={supersedeDocument}
-              />
-              <ObsoleteDocumentButton
-                documentId={document.id}
-                action={markDocumentObsolete}
-              />
-            </div>
+            <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs sm:p-6">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-lg font-semibold">Atualizar documento</h2>
+                <p className="text-sm text-muted-foreground text-pretty">
+                  A versão vigente (v{currentVersion?.versionNumber}) é somente
+                  leitura. Crie uma nova versão para propor alterações — o passo a
+                  passo coleta o arquivo e os aprovadores. A versão atual continua
+                  valendo até a nova ser publicada.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Primary: guided new-version wizard (locked identity + submit). */}
+                <Button asChild size="lg">
+                  <Link href={newVersionHref}>
+                    <GitBranchPlus aria-hidden="true" className="size-4" />
+                    Criar nova versão
+                  </Link>
+                </Button>
+                {/* Fallback: plain supersede (blank draft, build it on this page). */}
+                <SupersedeDocumentButton
+                  variant="inline"
+                  documentId={document.id}
+                  action={supersedeDocument}
+                />
+                <ObsoleteDocumentButton
+                  documentId={document.id}
+                  action={markDocumentObsolete}
+                />
+              </div>
+            </section>
           ) : null}
 
           {/* --- Version history + compare ---------------------------------- */}

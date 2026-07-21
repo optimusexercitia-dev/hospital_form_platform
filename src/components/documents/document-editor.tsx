@@ -8,6 +8,7 @@ import type { ControlledDocument, DocType } from "@/lib/documents/types";
 import { DOC_TYPE_LABELS } from "@/lib/documents/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Segmented } from "@/components/ui/segmented";
 import { TagField } from "@/components/ui/tag-field";
 import {
@@ -172,6 +173,23 @@ export function DocumentEditor({
             <FieldError>{state?.fieldErrors?.reviewCycleMonths}</FieldError>
           </Field>
         </div>
+
+        <Field>
+          <FieldLabel htmlFor="description">Descrição</FieldLabel>
+          {/* Native field with `name` → always posts (even blank). The RPC overwrites
+              the column, so omitting it would wipe the value the wizard set (ADR 0081). */}
+          <Textarea
+            id="description"
+            name="description"
+            defaultValue={existing.description ?? ""}
+            rows={3}
+            maxLength={1000}
+            placeholder="Ex.: Diretrizes de higienização das mãos aplicáveis a toda a unidade."
+          />
+          <FieldDescription>
+            Opcional — um resumo do propósito do documento, exibido no cabeçalho.
+          </FieldDescription>
+        </Field>
 
         <Field>
           <FieldLabel htmlFor="edit-tags">Etiquetas</FieldLabel>

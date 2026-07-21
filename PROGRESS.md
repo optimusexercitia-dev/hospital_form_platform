@@ -114,12 +114,15 @@ flow is built + verified); PO decision pending; (3) no **"description"** field (
 (DOC-0003/0004, DOC-0001 superseded) cleared by `db reset` before the gate.
 
 **Wave 2.5 — 🏗️ in progress** (PO decided 2026-07-21: build the new-version wizard + add a `description` field).
-- **2.5a backend:** `supersedeAndSubmitDocument` chained action (create-flow parity, same partial-failure semantics)
-  + additive `controlled_documents.description` column (wired into create/update RPCs + actions + types) + register
-  list fields (`latestVersionNumber`/`hasOpenRevision` + approval signed/total counts) to kill the getDocument N+1.
-  Regen types + extend pgTAP.
-- **2.5b frontend:** new-version **wizard mode** (locked identity + callout) wired to `supersedeAndSubmitDocument`
-  + Descrição field (create wizard + detail header) + consume the new list fields (drop the N+1 fan-out).
+- **2.5a backend — ✅ complete** (`a8dbb7e`; mig `20260819000400`, additive, create/update re-emitted from live def;
+  tsc/lint 0 · pgTAP `201` **29/29** · same 8 pre-existing reds): `supersedeAndSubmitDocument` chained action +
+  `controlled_documents.description` + register list fields (`hasOpenRevision` + approval signed/total counts) via a new
+  DEFINER read `list_commission_documents`. **Lead-verified** the new DEFINER read: `prosecdef`, flag-gated
+  (`assert_controlled_docs_enabled`) + commission-authority-gated (`is_member_of OR is_commission_admin_of` → `return;`
+  empty for foreigners), ACL grants `authenticated` only (anon/public REVOKE'd).
+- **2.5b frontend — 🏗️ in progress:** new-version **wizard mode** (locked identity + callout) wired to
+  `supersedeAndSubmitDocument` + Descrição field (create wizard + edit form + detail header) + consume the new list
+  fields (drop the N+1 fan-out).
 
 → **Wave 3 = §6 gate** (tester E2E + qa + human).
 
@@ -158,8 +161,8 @@ DEFINER register read). `tsc` 0 · `lint` 0; types regenerated.
 **frontend — Wave 2 build ✅ substantially complete** (branch `feat/document-control-redesign`, 6 commits `7f55f76…dda3a4b`).
 Built against the frozen contract (`@/lib/documents/*`, `@/lib/queries/*`); zero backend-contract files touched
 (only the delegated `routing.ts` + `queries/notifications.ts` resolveHrefs). `tsc` 0 · `lint` 0 throughout.
-Composites → F-A → F-B(create) → F-C → F-D → F-E all done + verified in-browser. **Remaining:** the dedicated
-new-version *wizard* (deferred — functional path exists; contract-gap reasoning in the FE report).
+Composites → F-A → F-B(create) → F-C → F-D → F-E all done + verified in-browser. **Wave 2.5b (below) closes the two
+deferred items** — the dedicated new-version wizard + the Descrição field — and drops the register N+1.
 - **Shared composites ✅** — `Stepper`, `Dropzone`, `TagField`, `Segmented` (`src/components/ui/**`) +
   `ReviewerPicker`, `ChecklistRail` (`src/components/documents/**`). Token-based, keyboard-first,
   reduced-motion-safe; `role=radiogroup`/`checkbox`/`progressbar`, roving tabindex, drag-drop over a real
@@ -168,12 +171,14 @@ new-version *wizard* (deferred — functional path exists; contract-gap reasonin
 - **F-E (partial)** — emerald→`success` on the effective status chip (`document-badges.tsx`). approvals-panel spot pending (bundled with F-C/F-D).
 - **F-B create wizard ✅** — 4-step `CreateWizard` (Detalhes · Documento · Aprovadores · Confirmação) + sticky `ChecklistRail`, WizardRunner boundary (server `novo/page.tsx` loads candidates + categories, binds actions; client imports `@/lib/**` type-only). Terminal `createAndSubmitDocument`; **Salvar rascunho** = `createDraftOnly` (available from any step once titled); partial-failure routes to detail + `?aviso`. Committee implicit. Verified in-browser end-to-end: create→upload→submit → DOC-0003 `in_approval` (category+tags+2 approvers w/ Cargo persisted) AND Save-as-draft → DOC-0004 `draft`. 0 console errors. Also fixed a **data-loss bug**: `DocumentEditor` (edit) now posts category+tags (the RPC overwrites both — omitting wiped them).
   - Reconciled vs handoff (contract-driven): no doc "description" field (dropped); integer versions (no semver Major/Minor Segmented).
-- **F-B new-version wizard** — pending (detail "Nova versão" entry).
 - **F-C detail ✅** — two-column: left = lifecycle affordances (add-version / submit / publish / supersede / obsolete, preserved) + version-history spine; right rail = *Detalhes do documento* + *Documento controlado* cards. Header uses the derived status chip (`Em revisão` when effective + open draft). `VersionCard` spine (current accent-bordered, obsolete-kind chip), compare-select → focus-trapped `VersionCompareModal` (metadata side-by-side, changed "Depois" cells flagged *alterado*, Radix focus-trap). **Remind** wired into `ApprovalsPanel` (pending approvers of the version under approval → `remindDocumentApprover`, surfaces `remindSent`/`remindSkipped`). `?aviso` banner (`DetailNotice`). Verified in-browser: rail/approvals/Remind on DOC-0003; supersede DOC-0001 → derived "Em revisão" + revisão banner; compare v1→v2 shows correct diff + focus-trap + close. Replaced `DocumentVersionsList` (dead).
 - **F-E (partial→more)** — 2nd emerald spot fixed: `approvals-panel.tsx` aprovado badge → `text-success`. Both F-E spots now done.
 - **F-D sign/queue + notification deep-links ✅** — wired `notificationHref` (routing.ts) + the `resolveHrefs` branch (queries/notifications.ts, delegated) for the two new entity types: `controlled_document_version` → the org-level **sign page** (`documentos-pendentes/{documentId}`, resolving version→document via a batched `.in()` lookup + commission→org slug); `controlled_document` → the commission **detail** page. Verified end-to-end in-browser as the approver (staff2.ccih): bell shows the DOC-0003 notification + Remind, both deep-linking to `/o/rede-a/documentos-pendentes/{docId}`; the sign page + queue render (code aligned to `text-primary`). 0 console errors.
-- **F-B new-version wizard** — detail retains the (restyled, two-column) supersede → add-version → submit affordances as the functional new-version path; a dedicated new-version *wizard* is the one remaining plan item (see report). 
-- ⚠ **Contract-gap note (non-blocking, reported to lead):** `ControlledDocumentListItem`/`listDocuments` expose neither a `latestVersionNumber`/`hasOpenRevision` flag (for the derived "Em revisão") nor per-doc approval counts (for the `in_approval` mini-bar). F-A derives both in-contract via a bounded `getDocument` fan-out over effective+in_approval docs. A small additive list field would remove the N+1.
+**frontend — Wave 2.5b build ✅ COMPLETE** (against the `a8dbb7e` frozen contract; `tsc` 0 · `lint` 0; zero backend-contract files touched). Verified in-browser (see below).
+- **New-version wizard mode ✅** — `CreateWizard` now takes a `mode: "create" | "newversion"` discriminant + a `LockedIdentity`. New-version Step 1 = a **locked-identity panel** (title/type/category/código read-only) + a "Você está criando a v{next}; ao aprovar substitui a v{current}" callout; Step 2 shows the read-only next version (integer `max+1`, no semver) and makes the change summary **required**; terminal → `supersedeAndSubmitDocument` (no Salvar-rascunho — the detail supersede is the blank-draft fallback). New route `documentos/[documentId]/nova-versao/page.tsx` (mirrors `novo/`: staff_admin-gated, guards `effective` + no open draft → else redirects to detail, computes next version, binds the action). Partial-failure + HC089 → detail `?aviso=incompleto` (same `handleResult` as create).
+- **Detail "Nova versão" entry ✅** — the effective-state block leads with a primary **Criar nova versão** link → the wizard; the plain supersede stays as a secondary **inline** fallback (`SupersedeDocumentButton variant="inline"` → "Criar rascunho em branco") beside **Tornar obsoleto**.
+- **Descrição field ✅** — added to the create wizard Step 1 (posts when non-blank) + the `DocumentEditor` edit form (native `name="description"`, always posted → overwrite semantics) + rendered in the detail header (below the meta line, `max-w-prose`, plain text `whitespace-pre-wrap`).
+- **Register N+1 dropped ✅** — removed the `getDocument` fan-out (`loadExtras`); `hasOpenRevision` now drives the derived "Em revisão", `approvalsSignedCount`/`approvalsTotalCount` drive the mini-bar (an `in_approval` version has no rejection by construction → `hasRejection` stays false; visuals identical). `getDocument` import removed from the register page.
 
 ### ✅ AUDIT-DOOR-BLINDNESS · P0 — COMPLETE (human-approved 2026-07-18) — record rotated → [authz-p0-door-blindness.md](docs/progress/authz-p0-door-blindness.md)
 
