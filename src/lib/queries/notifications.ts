@@ -190,15 +190,49 @@ export async function getPreferences(): Promise<NotificationPreferenceRow[]> {
 // href resolution (batched — see @/lib/notifications/routing-context)
 // ---------------------------------------------------------------------------
 
+/**
+ * Batched `version_id → document_id` lookup for `controlled_document_version`
+ * notifications (ADR 0081 §4): the notification carries the version id but the
+ * approver sign page is keyed by the document id. The recipient holds an approval
+ * row on the version (the approver-read RLS arm), so this SELECT is in scope for
+ * them. The `.in(...)` batched-lookup idiom (mirrors `resolveCommissionSlugs`).
+ */
+async function resolveDocumentIdsForVersions(
+  versionIds: string[],
+): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  const ids = [...new Set(versionIds)]
+  if (ids.length === 0) return out
+
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('controlled_document_versions')
+    .select('id, document_id')
+    .in('id', ids)
+    .returns<{ id: string; document_id: string }[]>()
+
+  for (const row of data ?? []) out.set(row.id, row.document_id)
+  return out
+}
+
 async function resolveHrefs(rows: RawNotificationRow[]): Promise<NotificationRow[]> {
-  // Only signoff/meeting need a slug lookup; capa_action + action_item route to
-  // a STATIC page (/conta/itens-de-acao) with no per-row resolution — an
-  // assignee may lack workspace access, so the personal list is the safe target.
+  // signoff/meeting + both controlled-document types need a commission→slug lookup;
+  // capa_action + action_item route to a STATIC page (/conta/itens-de-acao) with no
+  // per-row resolution — an assignee may lack workspace access, so the personal list
+  // is the safe target.
   const commissionIds = rows
     .filter((r) => r.commission_id !== null)
     .map((r) => r.commission_id as string)
+  // controlled_document_version deep-links the sign page, keyed by the DOCUMENT id
+  // (the notification carries the version id) — resolve version→document.
+  const versionIds = rows
+    .filter((r) => r.entity_type === 'controlled_document_version')
+    .map((r) => r.entity_id)
 
-  const commissionSlugs = await resolveCommissionSlugs(commissionIds)
+  const [commissionSlugs, documentIdByVersion] = await Promise.all([
+    resolveCommissionSlugs(commissionIds),
+    resolveDocumentIdsForVersions(versionIds),
+  ])
 
   return rows.map((r) => {
     const entityType = r.entity_type as NotificationEntityType
@@ -208,9 +242,12 @@ async function resolveHrefs(rows: RawNotificationRow[]): Promise<NotificationRow
       // Static route — reachable by any assignee regardless of workspace access.
       href = notificationHref({ entityType, entityId: r.entity_id })
     } else if (
-      (entityType === 'response_section_signoff' || entityType === 'meeting') &&
+      (entityType === 'response_section_signoff' ||
+        entityType === 'meeting' ||
+        entityType === 'controlled_document') &&
       r.commission_id
     ) {
+      // Commission-scoped: signoff queue / meeting detail / document detail.
       const ctx = commissionSlugs.get(r.commission_id)
       if (ctx) {
         href = notificationHref({
@@ -220,10 +257,19 @@ async function resolveHrefs(rows: RawNotificationRow[]): Promise<NotificationRow
           commissionSlug: ctx.commissionSlug,
         })
       }
+    } else if (entityType === 'controlled_document_version' && r.commission_id) {
+      // Org-level approver sign page — needs the org slug + the resolved document id.
+      const ctx = commissionSlugs.get(r.commission_id)
+      const documentId = documentIdByVersion.get(r.entity_id)
+      if (ctx && documentId) {
+        href = notificationHref({
+          entityType,
+          entityId: r.entity_id,
+          orgSlug: ctx.orgSlug,
+          documentId,
+        })
+      }
     }
-    // else: controlled_document_version / controlled_document — the deep-link routing
-    // (sign page / document detail) is wired by the FRONTEND in Wave 2 (ADR 0081 §4).
-    // href stays '#' from the backend contract until then.
 
     return {
       id: r.id,

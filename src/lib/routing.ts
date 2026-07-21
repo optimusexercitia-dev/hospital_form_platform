@@ -105,6 +105,13 @@ export function nspHref(
  *     (`/manage/assinaturas`); no per-response detail page exists, so
  *     `entityId` is unused for this branch.
  *   - `meeting` → the meeting detail page.
+ *   - `controlled_document_version` (ADR 0081 §4) → the approver SIGN page under
+ *     `documentos-pendentes` (org-level — an approver may be outside the
+ *     commission). `entityId` is the VERSION id, but the sign page is keyed by the
+ *     DOCUMENT id, so `resolveHrefs` resolves version→document and passes it as
+ *     `documentId`; only `orgSlug` + `documentId` are used.
+ *   - `controlled_document` (ADR 0081 §4) → the commission-scoped document DETAIL
+ *     page; `entityId` IS the document id.
  *
  * @example notificationHref({ entityType: 'meeting', entityId: meetingId, orgSlug: 'org-a', commissionSlug: 'ccih' })
  *   // /o/org-a/c/ccih/meetings/<meetingId>
@@ -114,16 +121,28 @@ export function nspHref(
  *   // /conta/itens-de-acao
  * @example notificationHref({ entityType: 'action_item', entityId: itemId })
  *   // /conta/itens-de-acao
+ * @example notificationHref({ entityType: 'controlled_document_version', entityId: versionId, orgSlug: 'org-a', documentId: docId })
+ *   // /o/org-a/documentos-pendentes/<docId>
+ * @example notificationHref({ entityType: 'controlled_document', entityId: docId, orgSlug: 'org-a', commissionSlug: 'ccih' })
+ *   // /o/org-a/c/ccih/manage/documentos/<docId>
  */
 export function notificationHref(params: {
-  entityType: 'capa_action' | 'response_section_signoff' | 'meeting' | 'action_item'
+  entityType:
+    | 'capa_action'
+    | 'response_section_signoff'
+    | 'meeting'
+    | 'action_item'
+    | 'controlled_document_version'
+    | 'controlled_document'
   entityId: string
-  /** Required for 'response_section_signoff' and 'meeting'; unused for the static 'capa_action'/'action_item' routes. */
+  /** Required for 'response_section_signoff'/'meeting'/'controlled_document*'; unused for the static 'capa_action'/'action_item' routes. */
   orgSlug?: string
-  /** Required for 'response_section_signoff' and 'meeting'; unused for the static 'capa_action'/'action_item' routes. */
+  /** Required for 'response_section_signoff'/'meeting'/'controlled_document'; unused elsewhere. */
   commissionSlug?: string | null
+  /** The parent document id for 'controlled_document_version' (entityId is the version id). Resolved by resolveHrefs. */
+  documentId?: string | null
 }): string {
-  const { entityType, entityId, orgSlug, commissionSlug } = params
+  const { entityType, entityId, orgSlug, commissionSlug, documentId } = params
 
   switch (entityType) {
     case 'capa_action':
@@ -138,6 +157,17 @@ export function notificationHref(params: {
     case 'response_section_signoff':
       return orgSlug && commissionSlug
         ? commissionHref(orgSlug, commissionSlug, 'manage', 'assinaturas')
+        : '#'
+    case 'controlled_document_version':
+      // The org-level approver sign page, keyed by the DOCUMENT id (resolved from
+      // the version by resolveHrefs). Falls back to '#' if either is unresolved.
+      return orgSlug && documentId
+        ? orgHref(orgSlug, 'documentos-pendentes', documentId)
+        : '#'
+    case 'controlled_document':
+      // The commission-scoped document detail page (entityId IS the document id).
+      return orgSlug && commissionSlug
+        ? commissionHref(orgSlug, commissionSlug, 'manage', 'documentos', entityId)
         : '#'
     default:
       return '#'

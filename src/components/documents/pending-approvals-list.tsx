@@ -51,7 +51,7 @@ export function PendingApprovalsList({
             <div className="flex items-start justify-between gap-3">
               <div className="flex flex-col gap-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs text-muted-foreground">
+                  <span className="font-mono text-xs text-primary">
                     {row.code}
                   </span>
                   <DocumentTypeBadge docType={row.docType} />

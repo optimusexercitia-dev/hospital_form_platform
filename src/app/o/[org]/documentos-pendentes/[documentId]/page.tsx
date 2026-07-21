@@ -101,7 +101,7 @@ export default async function ApproverDocumentPage({
         </Link>
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-xs text-muted-foreground">
+            <span className="font-mono text-xs text-primary">
               {document.code}
             </span>
             <DocumentTypeBadge docType={document.docType} />
