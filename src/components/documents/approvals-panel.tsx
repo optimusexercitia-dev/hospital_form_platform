@@ -2,6 +2,7 @@ import { Check, Clock, X } from "lucide-react";
 
 import type { DocumentApproval } from "@/lib/documents/types";
 import type { ActionState } from "@/lib/documents/actions";
+import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { formatDateTime } from "@/components/documents/format";
 import { RemindApproverButton } from "@/components/documents/remind-approver-button";
@@ -16,24 +17,37 @@ import { RemindApproverButton } from "@/components/documents/remind-approver-but
  * On the COORDINATOR detail (F-C) a `remindAction` + `versionId` are passed so each
  * still-pending approver gets a "Lembrar" button (`remindDocumentApprover`); the
  * approver sign page omits them (read-only roster).
+ *
+ * `variant="nested"` (doc-detail redesign) reads as a panel INSIDE the working
+ * draft's version card — a muted inner surface, hairline border, tighter padding,
+ * no outer shadow — instead of the standalone card. Default `standalone` keeps the
+ * original look unchanged (used by the approver sign page).
  */
 export function ApprovalsPanel({
   approvals,
   remindAction,
   versionId,
+  variant = "standalone",
 }: {
   approvals: DocumentApproval[];
   remindAction?: (versionId: string, approverId: string) => Promise<ActionState>;
   /** The version the approvals belong to — required for Remind. */
   versionId?: string;
+  variant?: "standalone" | "nested";
 }) {
   const decidedCount = approvals.filter((a) => a.decision != null).length;
   const canRemind = remindAction != null && versionId != null;
+  const isNested = variant === "nested";
 
   return (
     <section
       aria-labelledby="approvals-heading"
-      className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs sm:p-6"
+      className={cn(
+        "flex flex-col gap-4",
+        isNested
+          ? "rounded-xl border border-border bg-muted/20 p-4"
+          : "rounded-2xl border border-border bg-card p-5 shadow-xs sm:p-6",
+      )}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="approvals-heading" className="text-lg font-semibold">

@@ -22,18 +22,32 @@ export interface VersionWithUrl extends ControlledDocumentVersion {
 }
 
 /**
- * Document version history (Phase 17 v2, F-C). Newest-first spine of `VersionCard`s;
- * the in-force version is accent-bordered. Each card carries a compare-select toggle
- * — selecting exactly two enables "Comparar", opening the focus-trapped
- * `VersionCompareModal`. Selecting a third replaces the oldest of the pair. Client
- * component; compare is pure over already-loaded data (no backend call).
+ * Document version history (Phase 17 v2, F-C; doc-detail redesign). Newest-first
+ * spine of `VersionCard`s; the in-force version is accent-bordered, and so is the
+ * working draft under revision (when it differs from the in-force card). Each
+ * card carries a compare-select toggle — selecting exactly two enables
+ * "Comparar", opening the focus-trapped `VersionCompareModal`. Selecting a third
+ * replaces the oldest of the pair. Client component; compare is pure over
+ * already-loaded data (no backend call).
+ *
+ * `activeDraftSlot` is the RSC slot pattern: the server page renders the
+ * draft-authoring / approvals / publish affordances as a plain ReactNode and
+ * passes it down as a prop — this component only decides WHICH card hosts it
+ * (`version.id === activeDraftId`); it never executes server-only code itself
+ * (BUG-QI-001 — never pass a closure here, only serializable/element props).
  */
 export function DocumentVersionHistory({
   versions,
   currentVersionId,
+  activeDraftId = null,
+  activeDraftSlot,
 }: {
   versions: VersionWithUrl[];
   currentVersionId: string | null;
+  /** The working draft's version id (`draft` or `in_approval`) — or null/absent. */
+  activeDraftId?: string | null;
+  /** Rendered INSIDE the working-draft's card, after its summary of changes. */
+  activeDraftSlot?: React.ReactNode;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [compareOpen, setCompareOpen] = useState(false);
@@ -89,11 +103,13 @@ export function DocumentVersionHistory({
             <VersionCard
               key={version.id}
               version={version}
-              isCurrent={version.id === currentVersionId}
+              isCurrentVersion={version.id === currentVersionId}
+              isActiveDraft={version.id === activeDraftId}
               isSelected={selected.includes(version.id)}
               canSelectMore={selected.length < 2}
               comparable={versions.length >= 2}
               onToggleSelect={() => toggleSelect(version.id)}
+              draftSlot={version.id === activeDraftId ? activeDraftSlot : null}
             />
           ))}
         </ul>
@@ -117,30 +133,36 @@ function toCompareVersion(v: VersionWithUrl): CompareVersion {
 
 function VersionCard({
   version,
-  isCurrent,
+  isCurrentVersion,
+  isActiveDraft,
   isSelected,
   canSelectMore,
   comparable,
   onToggleSelect,
+  draftSlot,
 }: {
   version: VersionWithUrl;
-  isCurrent: boolean;
+  /** The in-force version (`document.currentVersionId`) — shows the "Versão atual" pill. */
+  isCurrentVersion: boolean;
+  /** The working draft under revision — accent-bordered, hosts `draftSlot`. */
+  isActiveDraft: boolean;
   isSelected: boolean;
   canSelectMore: boolean;
   /** Only offer the compare toggle when there is more than one version to compare. */
   comparable: boolean;
   onToggleSelect: () => void;
+  /** Draft-authoring / approvals / publish affordances, rendered inside this card. */
+  draftSlot?: React.ReactNode;
 }) {
   const obsoleteKind: ObsoleteKind | null =
     version.status === "obsolete" ? version.obsoleteKind : null;
+  const accent = isCurrentVersion || isActiveDraft;
 
   return (
     <li
       className={cn(
         "flex flex-col gap-3 rounded-2xl border bg-card p-5",
-        isCurrent
-          ? "border-primary/50 shadow-md"
-          : "border-border shadow-xs",
+        accent ? "border-primary/50 shadow-md" : "border-border shadow-xs",
       )}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -151,7 +173,7 @@ function VersionCard({
             </span>
             <DocumentStatusChip status={version.status} />
             {obsoleteKind ? <ObsoleteKindChip kind={obsoleteKind} /> : null}
-            {isCurrent ? (
+            {isCurrentVersion ? (
               <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                 Versão atual
               </span>
@@ -233,6 +255,8 @@ function VersionCard({
           <MarkdownRenderer content={version.summaryOfChangesMd} />
         </div>
       ) : null}
+
+      {draftSlot ? <div className="flex flex-col gap-4">{draftSlot}</div> : null}
     </li>
   );
 }

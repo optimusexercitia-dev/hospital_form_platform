@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronLeft, Download, GitBranchPlus, Pencil } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronLeft,
+  Download,
+  GitBranchPlus,
+  History,
+  Pencil,
+} from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import {
@@ -19,17 +27,13 @@ import {
   markDocumentObsolete,
   remindDocumentApprover,
 } from "@/lib/documents/actions";
-import { DOC_TYPE_LABELS } from "@/lib/documents/types";
 import {
   selectWorkingDraft,
   findMyApprovalForVersion,
 } from "@/lib/documents/version-select";
 import { commissionHref } from "@/lib/routing";
 import { Button } from "@/components/ui/button";
-import {
-  DerivedStatusChip,
-  DocumentTypeBadge,
-} from "@/components/documents/document-badges";
+import { DocumentIdentityCard } from "@/components/documents/document-identity-card";
 import {
   DocumentVersionHistory,
   type VersionWithUrl,
@@ -41,25 +45,30 @@ import { ApprovalSignForm } from "@/components/documents/approval-sign-form";
 import { SubmitForApprovalForm } from "@/components/documents/submit-for-approval-form";
 import { AddVersionForm } from "@/components/documents/add-version-form";
 import { PublishDocumentDialog } from "@/components/documents/publish-document-dialog";
-import { SupersedeDocumentButton } from "@/components/documents/supersede-document-button";
-import { ObsoleteDocumentButton } from "@/components/documents/obsolete-document-button";
-import { formatDateOnly } from "@/components/documents/format";
+import { DocumentActionsMenu } from "@/components/documents/document-actions-menu";
 
 export const metadata: Metadata = {
   title: "Documento controlado",
 };
 
 /**
- * Controlled-document detail (Phase 17 v2, F-C). Coordinator view — two columns:
- * left carries the lifecycle affordances (submit / add-version / publish /
- * supersede / obsolete) + the version-history spine (with compare); the right rail
- * carries the "Detalhes do documento" + "Documento controlado" cards. The in-force
- * version drives the read view; the working draft drives authoring (BUG-DOC-005 —
- * resolved via the shared selector). Coordinator-gated by the area layout.
+ * Controlled-document detail (doc-detail redesign, approved mockup — supersedes
+ * the Phase 17 v2 F-C layout). A full-width identity card (code/type/status,
+ * title, meta, description, and a STATE-DEPENDENT action cluster) sits above a
+ * two-column grid: the version-history spine (with compare) on the left, and the
+ * "Detalhes do documento" / "Documento controlado" rail on the right. The
+ * working draft's lifecycle affordances (upload → submit → approvals → sign →
+ * publish) are hosted INSIDE that draft's own version card via the
+ * `activeDraftSlot` RSC-slot pattern, rather than as standalone panels above the
+ * spine — so the eye never has to jump between "which version is this for" and
+ * "what can I do about it".
  *
- * A coordinator who is ALSO a named-pending approver on the version under approval
- * sees the shared `<ApprovalSignForm>` here too (the sign-own-row RPC is the real
- * authority). Pending approvers can be reminded via the approvals roster.
+ * The in-force version drives the read view; the working draft drives authoring
+ * (BUG-DOC-005 — resolved via the shared `version-select` helpers). Coordinator-
+ * gated by the area layout. A coordinator who is ALSO a named-pending approver on
+ * the version under approval sees the shared `<ApprovalSignForm>` here too (the
+ * sign-own-row RPC is the real authority). Pending approvers can be reminded via
+ * the nested approvals roster.
  */
 export default async function DocumentDetailPage({
   params,
@@ -141,173 +150,180 @@ export default async function DocumentDetailPage({
     "nova-versao",
   );
 
-  return (
-    <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-4">
-        <Link
-          href={listHref}
-          className="inline-flex w-fit items-center gap-1 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-        >
-          <ChevronLeft aria-hidden="true" className="size-4" />
-          Voltar aos documentos
-        </Link>
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-xs text-primary">{document.code}</span>
-              <DocumentTypeBadge docType={document.docType} />
-              <DerivedStatusChip status={derivedStatus} />
-            </div>
-            <h1 className="text-3xl text-balance">{document.title}</h1>
-            <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-              <span>{DOC_TYPE_LABELS[document.docType]}</span>
-              {document.reviewCycleMonths != null ? (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>Revisão a cada {document.reviewCycleMonths} meses</span>
-                </>
-              ) : null}
-              {currentVersion?.effectiveDate ? (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>Vigente desde {formatDateOnly(currentVersion.effectiveDate)}</span>
-                </>
-              ) : null}
-            </p>
-            {document.description ? (
-              <p className="max-w-prose text-sm whitespace-pre-wrap text-foreground text-pretty">
-                {document.description}
-              </p>
-            ) : null}
+  const downloadCurrentLink = currentInForceDownloadUrl ? (
+    <a
+      href={currentInForceDownloadUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+    >
+      <Download aria-hidden="true" className="size-4" />
+      Baixar versão vigente
+    </a>
+  ) : null;
+
+  // --- Identity-card action cluster — STATE-DEPENDENT ----------------------
+  let identityActions: React.ReactNode = null;
+  if (workingDraft) {
+    // A revision is already open: create/supersede/obsolete don't apply mid-
+    // revision. Offer the last in-force download plus a quiet status hint (not
+    // a button — nothing to click here).
+    identityActions = (
+      <>
+        {hasPublishedInForce ? downloadCurrentLink : null}
+        <span className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-muted px-3 py-1.5 text-sm text-muted-foreground">
+          <History aria-hidden="true" className="size-3.5" />
+          Revisão em andamento — v{workingDraft.versionNumber}
+        </span>
+      </>
+    );
+  } else if (currentStatus === "effective") {
+    identityActions = (
+      <>
+        <Button asChild size="lg">
+          <Link href={newVersionHref}>
+            <GitBranchPlus aria-hidden="true" className="size-4" />
+            Criar nova versão
+          </Link>
+        </Button>
+        {hasPublishedInForce ? downloadCurrentLink : null}
+        <DocumentActionsMenu
+          documentId={document.id}
+          supersedeAction={supersedeDocument}
+          obsoleteAction={markDocumentObsolete}
+        />
+      </>
+    );
+  } else if (hasPublishedInForce) {
+    // No open draft and not currently in-force (e.g. fully obsoleted) — still
+    // let the coordinator pull the last in-force file for reference.
+    identityActions = downloadCurrentLink;
+  }
+
+  // --- Working-draft slot — hosted INSIDE its own version card -------------
+  let draftSlot: React.ReactNode = null;
+  if (workingDraft) {
+    if (workingStatus === "draft") {
+      draftSlot = (
+        <>
+          <Link
+            href={editHref}
+            className="inline-flex w-fit items-center gap-1.5 rounded-md text-sm font-medium text-primary outline-none transition-colors hover:text-primary/80 focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+          >
+            <Pencil aria-hidden="true" className="size-3.5" />
+            Editar rascunho
+          </Link>
+          <div className="rounded-xl border border-border bg-muted/20 p-4">
+            <AddVersionForm
+              action={addDocumentVersion}
+              commissionId={document.commissionId}
+              documentId={document.id}
+              versionId={workingDraft.id}
+              title="Arquivo da versão"
+              description="Envie ou substitua o arquivo desta versão em rascunho. Cada envio gera um arquivo novo; o anterior é preservado."
+              submitLabel="Enviar arquivo"
+            />
           </div>
-          {workingStatus === "draft" ? (
-            <Button asChild variant="outline" size="lg">
-              <Link href={editHref}>
-                <Pencil aria-hidden="true" className="size-4" />
-                Editar
-              </Link>
-            </Button>
+          {workingDraft.storagePath ? (
+            <div className="rounded-xl border border-border bg-muted/20 p-4">
+              <SubmitForApprovalForm
+                documentVersionId={workingDraft.id}
+                candidates={candidates}
+                action={submitDocumentForApproval}
+              />
+            </div>
+          ) : (
+            <p className="rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
+              Envie o arquivo da versão para poder enviá-la para aprovação.
+            </p>
+          )}
+        </>
+      );
+    } else {
+      const allApproved =
+        approvals.length > 0 &&
+        approvals.every((a) => a.decision === "approved");
+      draftSlot = (
+        <>
+          <ApprovalsPanel
+            approvals={approvals}
+            remindAction={remindDocumentApprover}
+            versionId={workingDraft.id}
+            variant="nested"
+          />
+          {isPendingApprover ? (
+            <ApprovalSignForm
+              documentVersionId={workingDraft.id}
+              approveAction={approveDocument}
+              rejectAction={rejectDocument}
+            />
           ) : null}
-        </div>
-      </header>
+          {allApproved ? (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-primary/35 bg-accent px-4 py-3.5">
+              <p className="flex flex-1 items-center gap-2 text-sm text-pretty text-foreground">
+                <CheckCircle2
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-primary"
+                />
+                Todos os aprovadores assinaram. Defina a vigência e publique.
+              </p>
+              <PublishDocumentDialog
+                documentVersionId={workingDraft.id}
+                action={publishDocument}
+              />
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/30 bg-warning/12 px-4 py-3.5">
+              <p className="flex flex-1 items-center gap-2 text-sm text-pretty text-foreground">
+                <AlertTriangle
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-warning"
+                />
+                A publicação exige a aprovação de todos os aprovadores
+                indicados.
+              </p>
+              <Button type="button" size="lg" disabled aria-disabled="true">
+                <CheckCircle2 aria-hidden="true" className="size-4" />
+                Publicar
+              </Button>
+            </div>
+          )}
+        </>
+      );
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-6">
+      <Link
+        href={listHref}
+        className="inline-flex w-fit items-center gap-1 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
+      >
+        <ChevronLeft aria-hidden="true" className="size-4" />
+        Voltar aos documentos
+      </Link>
+
+      <DocumentIdentityCard
+        code={document.code}
+        docType={document.docType}
+        derivedStatus={derivedStatus}
+        title={document.title}
+        reviewCycleMonths={document.reviewCycleMonths}
+        effectiveDate={currentVersion?.effectiveDate ?? null}
+        effectiveVersionNumber={currentVersion?.versionNumber ?? null}
+        description={document.description}
+        actions={identityActions}
+      />
 
       {aviso ? <DetailNotice aviso={aviso} /> : null}
 
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="flex flex-col gap-6">
-          {/* --- Lifecycle affordances (authoring targets the working draft) --- */}
-          {workingDraft ? (
-            <div className="flex flex-col gap-6">
-              {hasPublishedInForce ? (
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-muted/20 px-5 py-4">
-                  <p className="text-sm text-muted-foreground text-pretty">
-                    Revisão em andamento — v{workingDraft.versionNumber}. A versão
-                    vigente (v{currentVersion?.versionNumber}) continua valendo até a
-                    nova ser publicada.
-                  </p>
-                  {currentInForceDownloadUrl ? (
-                    <a
-                      href={currentInForceDownloadUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-3.5 py-2 text-sm font-medium shadow-xs transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-                    >
-                      <Download aria-hidden="true" className="size-4" />
-                      Baixar versão vigente
-                    </a>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {workingStatus === "draft" ? (
-                <>
-                  <AddVersionForm
-                    action={addDocumentVersion}
-                    commissionId={document.commissionId}
-                    documentId={document.id}
-                    versionId={workingDraft.id}
-                    title="Arquivo da versão"
-                    description="Envie ou substitua o arquivo desta versão em rascunho. Cada envio gera um arquivo novo; o anterior é preservado."
-                    submitLabel="Enviar arquivo"
-                  />
-                  {workingDraft.storagePath ? (
-                    <SubmitForApprovalForm
-                      documentVersionId={workingDraft.id}
-                      candidates={candidates}
-                      action={submitDocumentForApproval}
-                    />
-                  ) : (
-                    <p className="rounded-2xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center text-sm text-muted-foreground">
-                      Envie o arquivo da versão para poder enviá-la para aprovação.
-                    </p>
-                  )}
-                </>
-              ) : (
-                <>
-                  <ApprovalsPanel
-                    approvals={approvals}
-                    remindAction={remindDocumentApprover}
-                    versionId={workingDraft.id}
-                  />
-                  {isPendingApprover ? (
-                    <ApprovalSignForm
-                      documentVersionId={workingDraft.id}
-                      approveAction={approveDocument}
-                      rejectAction={rejectDocument}
-                    />
-                  ) : null}
-                  <div className="flex flex-wrap items-center gap-3">
-                    <PublishDocumentDialog
-                      documentVersionId={workingDraft.id}
-                      action={publishDocument}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      A publicação exige a aprovação de todos os aprovadores
-                      indicados.
-                    </p>
-                  </div>
-                </>
-              )}
-            </div>
-          ) : currentStatus === "effective" ? (
-            <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 shadow-xs sm:p-6">
-              <div className="flex flex-col gap-1">
-                <h2 className="text-lg font-semibold">Atualizar documento</h2>
-                <p className="text-sm text-muted-foreground text-pretty">
-                  A versão vigente (v{currentVersion?.versionNumber}) é somente
-                  leitura. Crie uma nova versão para propor alterações — o passo a
-                  passo coleta o arquivo e os aprovadores. A versão atual continua
-                  valendo até a nova ser publicada.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Primary: guided new-version wizard (locked identity + submit). */}
-                <Button asChild size="lg">
-                  <Link href={newVersionHref}>
-                    <GitBranchPlus aria-hidden="true" className="size-4" />
-                    Criar nova versão
-                  </Link>
-                </Button>
-                {/* Fallback: plain supersede (blank draft, build it on this page). */}
-                <SupersedeDocumentButton
-                  variant="inline"
-                  documentId={document.id}
-                  action={supersedeDocument}
-                />
-                <ObsoleteDocumentButton
-                  documentId={document.id}
-                  action={markDocumentObsolete}
-                />
-              </div>
-            </section>
-          ) : null}
-
-          {/* --- Version history + compare ---------------------------------- */}
-          <DocumentVersionHistory
-            versions={versionsWithUrls}
-            currentVersionId={document.currentVersionId}
-          />
-        </div>
+        <DocumentVersionHistory
+          versions={versionsWithUrls}
+          currentVersionId={document.currentVersionId}
+          activeDraftId={workingDraft?.id ?? null}
+          activeDraftSlot={draftSlot}
+        />
 
         <div className="lg:sticky lg:top-6">
           <DocumentDetailRail
