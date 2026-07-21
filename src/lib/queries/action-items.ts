@@ -45,7 +45,7 @@ export type MyActionItemStatus = 'open' | 'in_progress' | 'done' | 'cancelled'
 /**
  * Per-row read scope of a shared `action_items` hub row (ADR 0050). `committee`
  * (flat membership — the default), `case_restricted` (follows `app.can_read_case`
- * on `coalesce(source_case_id, case_id)`), or `assignees_only` (active assignment /
+ * on `coalesce(source_case_id, linked_case_id)`), or `assignees_only` (active assignment /
  * `assigned_to`, plus staff_admin/org_admin). Exported once here and reused across
  * the action-item query modules (`case-action-items`, the three satellites).
  */
@@ -238,7 +238,7 @@ interface ActionItemDetailRow {
   created_at: string
   commission_id: string
   assigned_to: string | null
-  case_id: string | null
+  linked_case_id: string | null
   source_case_id: string | null
   source_meeting_id: string | null
   status: { key: MyActionItemStatus; label: string; is_terminal: boolean } | null
@@ -261,7 +261,7 @@ interface ActionItemDetailRow {
  * indistinguishable, so a 404-vs-403 does not leak the item's existence.
  *
  * Every `profiles` embed is FK-HINTED: `action_items` has THREE FKs to `profiles`
- * (assigned_to / created_by / completed_by) and two to `cases` (case_id /
+ * (assigned_to / created_by / completed_by) and two to `cases` (linked_case_id /
  * source_case_id), so an un-hinted embed would fail with PGRST201 (ambiguous).
  */
 export async function getActionItem(
@@ -274,13 +274,13 @@ export async function getActionItem(
     .from('action_items')
     .select(
       `id, source_type, title, description, visibility_scope, due_date,
-       completed_at, created_at, commission_id, assigned_to, case_id,
+       completed_at, created_at, commission_id, assigned_to, linked_case_id,
        source_case_id, source_meeting_id,
        status:action_item_statuses!action_items_status_fkey(key, label, is_terminal),
        assignee:profiles!action_items_assigned_to_fkey(id, full_name),
        author:profiles!action_items_created_by_fkey(full_name),
        source_case:cases!action_items_source_case_fkey(case_number, label),
-       case_ref:cases!action_items_case_fkey(case_number, label),
+       case_ref:cases!action_items_linked_case_fkey(case_number, label),
        meeting:meetings!action_items_source_meeting_fkey(meeting_number, scheduled_start)`,
     )
     .eq('id', actionItemId)
@@ -300,11 +300,11 @@ export async function getActionItem(
   }
   if (!data) return null
 
-  // The hub's shape CHECK pins a case item to `source_case_id`, but `case_id` is
-  // the legacy column some rows still carry — coalesce, exactly as the
-  // `action_items_select` RLS policy does.
+  // The hub's shape CHECK pins a case item to `source_case_id` (provenance), but
+  // `linked_case_id` is the optional meeting/manual → case cross-link (association)
+  // some rows carry — coalesce, exactly as the `action_items_select` RLS policy does.
   const parentCase = data.source_case ?? data.case_ref
-  const caseId = data.source_case_id ?? data.case_id
+  const caseId = data.source_case_id ?? data.linked_case_id
 
   return {
     id: data.id,
