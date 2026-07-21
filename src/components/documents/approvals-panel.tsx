@@ -1,22 +1,34 @@
 import { Check, Clock, X } from "lucide-react";
 
 import type { DocumentApproval } from "@/lib/documents/types";
+import type { ActionState } from "@/lib/documents/actions";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { formatDateTime } from "@/components/documents/format";
+import { RemindApproverButton } from "@/components/documents/remind-approver-button";
 
 /**
  * Approvals + signature-state panel (Phase 17, F3 + F4). Read-only view of each
  * named approver's e-signature slot for the version under approval: name, title,
  * decision (pending / aprovado / rejeitado), when they decided, and any note
- * (Markdown, Rule 7 — sanitized renderer). Server-rendered; the sign action lives
- * in the separate `<ApprovalSignForm>` for the current approver.
+ * (Markdown, Rule 7 — sanitized renderer). The sign action lives in the separate
+ * `<ApprovalSignForm>` for the current approver.
+ *
+ * On the COORDINATOR detail (F-C) a `remindAction` + `versionId` are passed so each
+ * still-pending approver gets a "Lembrar" button (`remindDocumentApprover`); the
+ * approver sign page omits them (read-only roster).
  */
 export function ApprovalsPanel({
   approvals,
+  remindAction,
+  versionId,
 }: {
   approvals: DocumentApproval[];
+  remindAction?: (versionId: string, approverId: string) => Promise<ActionState>;
+  /** The version the approvals belong to — required for Remind. */
+  versionId?: string;
 }) {
   const decidedCount = approvals.filter((a) => a.decision != null).length;
+  const canRemind = remindAction != null && versionId != null;
 
   return (
     <section
@@ -53,10 +65,19 @@ export function ApprovalsPanel({
                     </span>
                   ) : null}
                 </div>
-                <ApprovalDecisionBadge
-                  decision={approval.decision}
-                  decidedAt={approval.decidedAt}
-                />
+                <div className="flex flex-col items-end gap-1.5">
+                  <ApprovalDecisionBadge
+                    decision={approval.decision}
+                    decidedAt={approval.decidedAt}
+                  />
+                  {canRemind && approval.decision == null ? (
+                    <RemindApproverButton
+                      versionId={versionId}
+                      approverId={approval.approverId}
+                      action={remindAction}
+                    />
+                  ) : null}
+                </div>
               </div>
               {approval.note ? (
                 <div className="rounded-lg border border-border bg-muted/20 p-3">
@@ -80,7 +101,7 @@ function ApprovalDecisionBadge({
 }) {
   if (decision === "approved") {
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success">
         <Check aria-hidden="true" className="size-4" />
         Aprovado
         {decidedAt ? (
