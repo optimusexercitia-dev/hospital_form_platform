@@ -9,6 +9,8 @@ for it. It holds the shared, stable rules and points to the docs that carry deta
 - **[PROGRESS.md](./PROGRESS.md)** — live phase/status tracker + full backlog (§7).
 - **[docs/lead-playbook.md](./docs/lead-playbook.md)** — lead-only orchestration
   protocol (the single lead session reads it once; teammates get task-specific prompts).
+- **[docs/worktrees.md](./docs/worktrees.md)** — git worktree setup + running parallel
+  Claude Code sessions on this repo efficiently.
 - **`.claude/agents/*.md`** — role instructions, appended per teammate.
 
 ---
@@ -185,7 +187,10 @@ multi-file refactors → Opus · read-only reviewers → Haiku/Sonnet.
 
 **File ownership is binding**: two teammates never edit the same file in a phase;
 shared types change only via `backend`. Details of warm-team reuse, contract-first
-sequencing, and plan-approval right-sizing live in the lead-playbook.
+sequencing, and plan-approval right-sizing live in the lead-playbook. For work that
+needs to happen *beside* the phase instead — a parallel human session, an isolated
+spike — see [docs/worktrees.md](./docs/worktrees.md) rather than adding it to this
+tree's coordination.
 
 ## 5. Phased Development Plan
 

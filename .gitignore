@@ -48,6 +48,11 @@ e2e/__tmp_*
 # vercel
 .vercel
 
+# git worktrees (Claude Code EnterWorktree-managed + manual) — each has its own
+# .git file with a host-specific absolute path; never commit one. See docs/worktrees.md.
+/.claude/worktrees/
+/worktrees/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
