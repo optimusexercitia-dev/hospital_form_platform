@@ -405,7 +405,6 @@ export type Database = {
       action_items: {
         Row: {
           assigned_to: string | null
-          linked_case_id: string | null
           commission_id: string
           completed_at: string | null
           completed_by: string | null
@@ -414,6 +413,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          linked_case_id: string | null
           source_agenda_item_id: string | null
           source_case_id: string | null
           source_case_phase_id: string | null
@@ -427,7 +427,6 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
-          linked_case_id?: string | null
           commission_id: string
           completed_at?: string | null
           completed_by?: string | null
@@ -436,6 +435,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          linked_case_id?: string | null
           source_agenda_item_id?: string | null
           source_case_id?: string | null
           source_case_phase_id?: string | null
@@ -449,7 +449,6 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
-          linked_case_id?: string | null
           commission_id?: string
           completed_at?: string | null
           completed_by?: string | null
@@ -458,6 +457,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          linked_case_id?: string | null
           source_agenda_item_id?: string | null
           source_case_id?: string | null
           source_case_phase_id?: string | null
@@ -475,13 +475,6 @@ export type Database = {
             columns: ["assigned_to"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "action_items_linked_case_fkey"
-            columns: ["linked_case_id"]
-            isOneToOne: false
-            referencedRelation: "cases"
             referencedColumns: ["id"]
           },
           {
@@ -503,6 +496,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "action_items_linked_case_fkey"
+            columns: ["linked_case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
             referencedColumns: ["id"]
           },
           {
@@ -9110,7 +9110,6 @@ export type Database = {
         Args: { p_comment?: string; p_id: string; p_to_status_id: string }
         Returns: {
           assigned_to: string | null
-          linked_case_id: string | null
           commission_id: string
           completed_at: string | null
           completed_by: string | null
@@ -9119,6 +9118,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          linked_case_id: string | null
           source_agenda_item_id: string | null
           source_case_id: string | null
           source_case_phase_id: string | null
@@ -9795,7 +9795,6 @@ export type Database = {
         Args: { p_id: string }
         Returns: {
           assigned_to: string | null
-          linked_case_id: string | null
           commission_id: string
           completed_at: string | null
           completed_by: string | null
@@ -9804,6 +9803,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          linked_case_id: string | null
           source_agenda_item_id: string | null
           source_case_id: string | null
           source_case_phase_id: string | null
@@ -10305,7 +10305,6 @@ export type Database = {
         }
         Returns: {
           assigned_to: string | null
-          linked_case_id: string | null
           commission_id: string
           completed_at: string | null
           completed_by: string | null
@@ -10314,6 +10313,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          linked_case_id: string | null
           source_agenda_item_id: string | null
           source_case_id: string | null
           source_case_phase_id: string | null
@@ -14116,7 +14116,6 @@ export type Database = {
         }
         Returns: {
           assigned_to: string | null
-          linked_case_id: string | null
           commission_id: string
           completed_at: string | null
           completed_by: string | null
@@ -14125,6 +14124,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          linked_case_id: string | null
           source_agenda_item_id: string | null
           source_case_id: string | null
           source_case_phase_id: string | null
