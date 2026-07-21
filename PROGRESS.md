@@ -123,8 +123,11 @@ producers+remind). Types regenerated; `tsc` 0 · `lint` 0.
 - **Contract summary** for `frontend` posted with this commit (see the commit body / backend report).
 
 <!-- frontend-owned ledger (frontend teammate updates ONLY this sub-block) -->
-**frontend — Wave 2 build 🏗️ in progress** (branch `feat/document-control-redesign`). Building against
-the frozen contract (`@/lib/documents/*`, `@/lib/queries/*`). Order: composites → F-A → F-B → F-C → F-D → F-E.
+**frontend — Wave 2 build ✅ substantially complete** (branch `feat/document-control-redesign`, 6 commits `7f55f76…dda3a4b`).
+Built against the frozen contract (`@/lib/documents/*`, `@/lib/queries/*`); zero backend-contract files touched
+(only the delegated `routing.ts` + `queries/notifications.ts` resolveHrefs). `tsc` 0 · `lint` 0 throughout.
+Composites → F-A → F-B(create) → F-C → F-D → F-E all done + verified in-browser. **Remaining:** the dedicated
+new-version *wizard* (deferred — functional path exists; contract-gap reasoning in the FE report).
 - **Shared composites ✅** — `Stepper`, `Dropzone`, `TagField`, `Segmented` (`src/components/ui/**`) +
   `ReviewerPicker`, `ChecklistRail` (`src/components/documents/**`). Token-based, keyboard-first,
   reduced-motion-safe; `role=radiogroup`/`checkbox`/`progressbar`, roving tabindex, drag-drop over a real
