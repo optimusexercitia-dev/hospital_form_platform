@@ -228,6 +228,16 @@ export async function selectSegmented(page: Page, label: string): Promise<void> 
   await page.getByRole('radio', { name: label, exact: true }).click()
 }
 
+/**
+ * Choose the `Tipo` doc-type value in the wizard's `NativeSelect` — a real
+ * `<select>` (the document-detail redesign replaced the old Segmented
+ * radiogroup `selectSegmented` targets) — by its pt-BR option label (e.g.
+ * "Protocolo").
+ */
+export async function selectDocType(page: Page, label: string): Promise<void> {
+  await page.getByLabel('Tipo', { exact: true }).selectOption({ label })
+}
+
 /** Toggle a `ReviewerPicker` candidate card (role=checkbox) by a name substring. */
 export async function toggleReviewer(page: Page, nameSubstring: string): Promise<void> {
   await page.getByRole('checkbox', { name: new RegExp(nameSubstring, 'i') }).click()
