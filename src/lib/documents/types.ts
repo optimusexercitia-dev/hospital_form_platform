@@ -42,10 +42,13 @@ export type DocType = 'policy' | 'sop' | 'protocol' | 'bylaws' | 'manual' | 'oth
  * The version lifecycle (the header `status` mirrors its CURRENT version).
  * `draft` (editable) → `in_approval` (approver set frozen, awaiting
  * e-signatures) → `effective` (published/in-force, immutable) → `obsolete`
- * (superseded/retired, retained + downloadable). A `rejeitado` decision returns a
- * version from `in_approval` to `draft` (it is not a status of its own).
+ * (superseded/retired, retained + downloadable). A reviewer `rejected` decision
+ * moves the version from `in_approval` to `changes_requested` — a first-class,
+ * visible "revise in place" state (NOT `draft`): the coordinator re-attaches a
+ * corrected file + reviewer set and re-submits the SAME version (no version bump).
+ * The card keeps listing all originally-named approvers with their verdicts.
  */
-export type DocStatus = 'draft' | 'in_approval' | 'effective' | 'obsolete'
+export type DocStatus = 'draft' | 'in_approval' | 'changes_requested' | 'effective' | 'obsolete'
 
 /**
  * A single approver's decision on a version. `null` while the approval is PENDING
@@ -268,13 +271,16 @@ export const DOC_TYPE_LABELS: Record<DocType, string> = {
 export const DOC_STATUS_LABELS: Record<DocStatus, string> = {
   draft: 'Rascunho',
   in_approval: 'Em aprovação',
+  changes_requested: 'Alterações solicitadas',
   effective: 'Vigente',
   obsolete: 'Obsoleto',
 }
 
 export const APPROVAL_DECISION_LABELS: Record<ApprovalDecision, string> = {
   approved: 'Aprovado',
-  rejected: 'Rejeitado',
+  // The reviewer verdict key stays English `rejected`; its label reads as the
+  // action it now triggers — a first-class `changes_requested` revision round.
+  rejected: 'Alterações solicitadas',
 }
 
 export const OBSOLETE_KIND_LABELS: Record<ObsoleteKind, string> = {

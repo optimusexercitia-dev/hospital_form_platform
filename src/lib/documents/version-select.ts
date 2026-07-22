@@ -11,9 +11,10 @@
  *    register, review-due, and the "current" download. After a supersede it stays on
  *    the prior `effective` version until the new one publishes. NEVER pick an ACTION
  *    target off this pointer.
- *  - **Working draft** = the single open revision (`draft` OR `in_approval`).
- *    There is AT MOST ONE, guaranteed by the DB's HC089 single-open-draft rule. This
- *    is what authoring affordances (upload / submit / sign / publish) target.
+ *  - **Working draft** = the single open revision (`draft`, `in_approval`, OR
+ *    `changes_requested`). There is AT MOST ONE, guaranteed by the DB's HC089
+ *    single-open-draft rule. This is what authoring affordances (upload / submit /
+ *    revise / sign / publish) target.
  *  - **Signable version** = the `in_approval` working draft specifically — the only
  *    version an approver may sign on.
  */
@@ -24,19 +25,22 @@ import type {
 } from '@/lib/documents/types'
 
 /**
- * The single OPEN revision of a document — the `draft` or `in_approval` version —
- * or `null` when the document has no in-progress draft (fully published/obsoleted).
- * At most one exists (HC089 single-open-draft rule); if the data ever violates that,
- * the earliest such version wins (deterministic — `versions` arrive newest-first, so
- * we scan for the last match to prefer the lowest version_number). This is the version
- * ALL authoring affordances (upload → submit → sign → publish) must target — NOT the
- * in-force `current_version_id`.
+ * The single OPEN revision of a document — a `draft`, `in_approval`, or
+ * `changes_requested` version — or `null` when the document has no in-progress draft
+ * (fully published/obsoleted). At most one exists (HC089 single-open-draft rule); if
+ * the data ever violates that, the earliest such version wins (deterministic —
+ * `versions` arrive newest-first, so we scan for the last match to prefer the lowest
+ * version_number). This is the version ALL authoring affordances (upload → submit →
+ * revise → sign → publish) must target — NOT the in-force `current_version_id`.
  */
 export function selectWorkingDraft(
   versions: ControlledDocumentVersion[],
 ): ControlledDocumentVersion | null {
   const open = versions.filter(
-    (v) => v.status === 'draft' || v.status === 'in_approval',
+    (v) =>
+      v.status === 'draft' ||
+      v.status === 'in_approval' ||
+      v.status === 'changes_requested',
   )
   if (open.length === 0) return null
   // Prefer the lowest version_number for stability if the invariant is ever broken.

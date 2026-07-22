@@ -20,16 +20,18 @@
 --     email/sensitive cols, foreign-hospital caller → empty;
 --   * form_versions publish-metadata settable ONLY via publish_form_version (a direct
 --     UPDATE on a published row raises the immutability error);
---   * reject cleanup (MINOR-1): a reject deletes the still-PENDING sibling approvals
---     (so they no longer grant read of the now-private draft) while KEEPING the
---     rejeitado row + note; a formerly-pending approver's read is then denied; resubmit works.
+--   * changes_requested (MINOR-1 REVERSAL): a reject moves in_approval →
+--     changes_requested (NOT draft) on both the version + header, KEEPS the pending
+--     sibling rows (they keep listing the roster + retain read), keeps the rejected
+--     row + note; the file may be re-set on a changes_requested version and it may be
+--     resubmitted, rebuilding a fresh all-pending roster → in_approval.
 --
 -- Definer/RPC calls read auth.uid() via request.jwt.claims; assertions reset to
 -- superuser to read freely.
 -- =============================================================================
 
 begin;
-select plan(47);
+select plan(51);
 
 update app.feature_flags set enabled = true where key = 'controlled_docs';
 
@@ -587,10 +589,12 @@ select is(
 reset role;
 
 -- ===========================================================================
--- 10 · REJECT CLEANS UP SIBLING PENDING GRANTS (MINOR-1)
---   A reject moves in_approval → draft; the still-PENDING sibling approvals must
---   be deleted so they no longer grant read of the now-private draft via the
---   approver-read arm. The rejeitado row (with its note) is KEPT.
+-- 10 · CHANGES_REQUESTED — first-class reject state (MINOR-1 REVERSAL)
+--   A reject moves in_approval → changes_requested (NOT draft) on the version AND
+--   the header, KEEPS the still-pending sibling rows (they keep listing the roster +
+--   retain read), keeps the rejected row + note. The file may be re-set on a
+--   changes_requested version, and it may be resubmitted → a fresh all-pending
+--   roster → in_approval.
 -- ===========================================================================
 
 -- Build DOC R in X, submit naming st_x (in-commission) + sa_y (OUTSIDE-commission).
@@ -614,7 +618,7 @@ set local role authenticated;
 select test_helpers.claims_for((select sa_y from k));
 select is(
   (select count(*)::int from public.controlled_documents where id = (select id from doc_r)),
-  1, 'MINOR-1 pre: a pending outside-commission approver can read the in_approval doc');
+  1, 'CR pre: a pending outside-commission approver can read the in_approval doc');
 reset role;
 
 -- st_x REJECTS with a note (sa_y stays pending).
@@ -623,37 +627,65 @@ select test_helpers.claims_for((select st_x from k));
 select public.reject_document((select current_version_id from doc_r), 'Faltou seção de EPI');
 reset role;
 
--- (a) the still-pending sibling (sa_y) row is DELETED.
+-- The version + header both move to changes_requested (NOT draft). Proving the write
+-- succeeds also proves both status CHECK constraints admit the new value.
+select is(
+  (select status from public.controlled_document_versions
+   where id = (select current_version_id from doc_r)),
+  'changes_requested', 'CR: reject moves the VERSION to changes_requested (not draft)');
+select is(
+  (select status from public.controlled_documents where id = (select id from doc_r)),
+  'changes_requested', 'CR: reject moves the HEADER to changes_requested (not draft)');
+
+-- (a) the still-pending sibling (sa_y) row is RETAINED (roster stays complete).
 select is(
   (select count(*)::int from public.document_approvals
    where document_version_id = (select current_version_id from doc_r) and decision is null),
-  0, 'MINOR-1 (a): pending sibling approval rows are deleted after a reject');
+  1, 'CR (a): pending sibling approval rows are RETAINED after a reject');
 
--- (b) the rejeitado row remains, carrying its note.
+-- (b) the rejected row remains, carrying its note.
 select is(
   (select count(*)::int from public.document_approvals
    where document_version_id = (select current_version_id from doc_r)
      and decision = 'rejected' and note = 'Faltou seção de EPI'),
-  1, 'MINOR-1 (b): the rejeitado decision row (with its note) is kept after a reject');
+  1, 'CR (b): the rejected decision row (with its note) is kept after a reject');
 
--- (c) the formerly-pending outside approver sa_y can NO LONGER read the private draft.
+-- (c) the still-pending outside approver sa_y RETAINS read (MINOR-1 reversal): the
+-- version is still in the approval lifecycle and the pending row still grants read.
 set local role authenticated;
 select test_helpers.claims_for((select sa_y from k));
 select is(
   (select count(*)::int from public.controlled_documents where id = (select id from doc_r)),
-  0, 'MINOR-1 (c): a formerly-pending approver is DENIED read of the rejected draft');
+  1, 'CR (c): a still-pending approver RETAINS read of the changes_requested doc');
 reset role;
 
--- (d) resubmit still works (delete-then-insert a fresh roster) → in_approval.
+-- The coordinator re-sets the file on the changes_requested version IN PLACE (HC089
+-- would fire on a frozen state — this proves set_document_version_file accepts it).
 set local role authenticated;
 select test_helpers.claims_for((select sa_x from k));
+select public.set_document_version_file(
+  (select current_version_id from doc_r),
+  (select comm_x from k) || '/' || (select id from doc_r) || '/r2.pdf', 'vr2', null);
+select is(
+  (select storage_path from public.controlled_document_versions
+   where id = (select current_version_id from doc_r)),
+  (select comm_x from k) || '/' || (select id from doc_r) || '/r2.pdf',
+  'CR: set_document_version_file re-sets the file on a changes_requested version');
+
+-- (d) resubmit works from changes_requested (delete-then-insert) → in_approval.
 select public.submit_document_for_approval(
   (select current_version_id from doc_r),
   jsonb_build_array(jsonb_build_object('approver_id', (select st_x from k)::text)));
 select is(
   (select status from public.controlled_document_versions
    where id = (select current_version_id from doc_r)),
-  'in_approval', 'MINOR-1 (d): resubmit after a reject works (fresh roster) → in_approval');
+  'in_approval', 'CR (d): resubmit from changes_requested works → in_approval');
+
+-- (e) the resubmit rebuilds a FRESH all-pending roster (the prior rejected row is gone).
+select is(
+  (select count(*)::int from public.document_approvals
+   where document_version_id = (select current_version_id from doc_r) and decision is not null),
+  0, 'CR (e): resubmit rebuilds a fresh all-pending roster (no decided rows remain)');
 reset role;
 
 select * from finish();

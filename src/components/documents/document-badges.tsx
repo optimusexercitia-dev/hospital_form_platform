@@ -28,6 +28,9 @@ export type DerivedDocStatus = DocStatus | "revision";
 const STATUS_CLASSES: Record<DocStatus, string> = {
   draft: "bg-muted text-muted-foreground",
   in_approval: "bg-warning/15 text-warning",
+  // First-class rejection state (backend contract). Placeholder token — frontend
+  // owns the final styling; reads amber/destructive-leaning to signal "action needed".
+  changes_requested: "bg-destructive/10 text-destructive",
   effective: "bg-success/15 text-success",
   obsolete: "bg-muted text-muted-foreground line-through decoration-1",
 };

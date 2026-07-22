@@ -42,6 +42,14 @@ export interface AddVersionState extends ActionState {
   versionId?: string
 }
 
+/**
+ * The revise-in-place terminal state (the `changes_requested` wizard). Returns the
+ * `documentId` so the FE can (re)land on the document detail after a partial-failure.
+ */
+export interface ReviseDocumentState extends ActionState {
+  documentId?: string
+}
+
 const MESSAGES = {
   forbidden: 'Você não tem permissão para esta ação.',
   unavailable: 'O recurso de documentos controlados não está disponível.',
@@ -78,6 +86,9 @@ const MESSAGES = {
   // recoverable — the user is landed on its detail to finish the missing step.
   draftSavedUploadLater: 'Rascunho salvo, mas o arquivo não foi anexado. Anexe-o na página do documento.',
   draftSavedSubmitLater: 'Rascunho salvo, mas o envio para aprovação não foi concluído. Conclua na página do documento.',
+  // Partial-failure banner for the revise-in-place chain (the file WAS updated on the
+  // changes_requested version, but the re-submit did not complete).
+  revisionSavedSubmitLater: 'Arquivo da revisão atualizado, mas o reenvio para aprovação não foi concluído. Conclua na página do documento.',
 } as const
 
 const PG_CHECK_VIOLATION = '23514'
@@ -792,6 +803,96 @@ export async function supersedeAndSubmitDocument(
   if (submitError) {
     revalidateDocuments()
     return { ok: false, error: MESSAGES.draftSavedSubmitLater, documentId }
+  }
+
+  revalidateDocuments()
+  return { ok: true, error: MESSAGES.submitted, documentId }
+}
+
+/**
+ * The REVISE-IN-PLACE terminal action (`changes_requested` wizard): re-attach the
+ * corrected file to an EXISTING `changes_requested` version → re-submit it for
+ * approval with the (possibly changed) approver set, chained. Mirrors
+ * {@link supersedeAndSubmitDocument} but targets a version that ALREADY exists — there
+ * is NO supersede/version bump: rejection produced a `changes_requested` state and the
+ * coordinator revises the SAME version. Identity (title/docType/category/tags/cycle/
+ * description) stays LOCKED — this takes none of it. The re-submit rebuilds a fresh
+ * all-pending approver roster (server-side, in `submit_document_for_approval`).
+ *
+ * FormData contract (the FE revise wizard builds this):
+ *   - `documentId`   (required) — the controlled-document id (for revalidate + the
+ *                     partial-failure landing; not passed to any RPC).
+ *   - `commissionId` (required) — the immutable upload path prefix (as {@link addDocumentVersion}).
+ *   - `versionId`    (required) — the `changes_requested` version to revise in place.
+ *   - `file`         (required) — the corrected artifact (immutable upload, new path).
+ *   - `summaryOfChangesMd` (required) — describe the revision.
+ *   - `approvers`    (required) — JSON `{approverId, approverTitle?}[]`, ≥1 (may differ
+ *                     from the prior round; each must be an active same-hospital user).
+ *   - `expiryDate` / `proposedEffectiveDate` / `approvalDueDate` (optional, YYYY-MM-DD).
+ *
+ * On ANY post-file-set failure it returns `documentId` (so the FE lands on the detail)
+ * + a mapped pt-BR banner; it never swallows the error.
+ */
+export async function reviseChangesRequestedDocument(
+  _prev: ReviseDocumentState | undefined,
+  formData: FormData,
+): Promise<ReviseDocumentState> {
+  const documentId = String(formData.get('documentId') ?? '')
+  const commissionId = String(formData.get('commissionId') ?? '')
+  const versionId = String(formData.get('versionId') ?? '')
+  if (!documentId || !commissionId || !versionId) return { ok: false, error: MESSAGES.notFound }
+
+  // Validate all inputs UP FRONT (avoid uploading an orphan object / mutating the
+  // version on trivially invalid input).
+  const file = formData.get('file')
+  if (!(file instanceof File) || file.size === 0) {
+    return { ok: false, fieldErrors: { file: MESSAGES.fileRequired } }
+  }
+  const summary = String(formData.get('summaryOfChangesMd') ?? '').trim()
+  if (!summary) return { ok: false, fieldErrors: { summaryOfChangesMd: MESSAGES.summaryRequired } }
+  const parsedApprovers = parseApprovers(formData.get('approvers'))
+  if ('error' in parsedApprovers) return { ok: false, error: parsedApprovers.error }
+  const expiryDate = parseDate(formData.get('expiryDate'))
+  const proposedEffectiveDate = parseDate(formData.get('proposedEffectiveDate'))
+  const approvalDueDate = parseDate(formData.get('approvalDueDate'))
+  if (expiryDate === null) return { ok: false, fieldErrors: { expiryDate: MESSAGES.dateInvalid } }
+  if (proposedEffectiveDate === null) {
+    return { ok: false, fieldErrors: { proposedEffectiveDate: MESSAGES.dateInvalid } }
+  }
+  if (approvalDueDate === null) return { ok: false, fieldErrors: { approvalDueDate: MESSAGES.dateInvalid } }
+
+  // 1) upload the immutable file object (nothing on the version has changed yet — an
+  // upload failure leaves the version untouched, so surface it as a field error).
+  const uploaded = await uploadDocumentFile(file, commissionId, documentId)
+  if ('error' in uploaded) {
+    return { ok: false, fieldErrors: { [uploaded.field]: uploaded.error } }
+  }
+
+  const supabase = await createClient()
+
+  // 2) attach the corrected file to the existing changes_requested version (HC089 if
+  // the version is no longer in a revisable state — draft/changes_requested only).
+  const { error: fileError } = await supabase.rpc('set_document_version_file', {
+    p_version_id: versionId,
+    p_storage_path: uploaded.path,
+    p_summary_of_changes_md: summary,
+    p_expiry_date: expiryDate ?? undefined,
+  })
+  if (fileError) {
+    revalidateDocuments()
+    return { ok: false, error: mapDocumentError(fileError), documentId }
+  }
+
+  // 3) re-submit for approval (rebuilds a fresh all-pending roster server-side).
+  const { error: submitError } = await supabase.rpc('submit_document_for_approval', {
+    p_version_id: versionId,
+    p_approvers: parsedApprovers.payload as never,
+    p_proposed_effective_date: proposedEffectiveDate ?? undefined,
+    p_approval_due_date: approvalDueDate ?? undefined,
+  })
+  if (submitError) {
+    revalidateDocuments()
+    return { ok: false, error: MESSAGES.revisionSavedSubmitLater, documentId }
   }
 
   revalidateDocuments()
