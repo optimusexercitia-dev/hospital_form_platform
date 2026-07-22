@@ -1,5 +1,4 @@
 import { test, expect, type Page } from '@playwright/test'
-import { pickDate } from './helpers/date-pickers'
 import {
   SUPABASE_URL,
   SUPABASE_SERVICE_KEY,
@@ -236,23 +235,41 @@ test('AC-2: outside-commission approver sees only her named document; no CCIH da
 })
 
 // ===========================================================================
-// AC-3: Publish rejected (pt-BR) while ANY approval is pending. DOC-0002 has
-// two PENDING approvers → publish must be blocked (HC090).
+// AC-3: Publish is guarded while ANY approval is pending. DOC-0002 has two
+// PENDING approvers → the redesigned UI disables "Publicar" client-side (with
+// an explanatory banner) rather than letting the click reach the server; the
+// server-side HC090 guard (defense-in-depth) is exercised directly via the
+// `publish_document` RPC to prove it still rejects in pt-BR (BUG-DDR-005: the
+// original click-through-to-dialog flow is unreachable now that the button is
+// pre-emptively `disabled` — this rewrite asserts the disabled UX AND the
+// still-live server guard instead).
 // ===========================================================================
 
-test('AC-3: publish is rejected in pt-BR while an approval is pending', async ({ page }) => {
+test('AC-3: disabled Publicar while pending + server-side HC090 rejection in pt-BR', async ({ page }) => {
   const doc0002 = await docIdByCode(page, 'DOC-0002')
 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(commissionDocHref(doc0002))
   await expect(page.getByRole('heading', { name: /POP de Isolamento/i })).toBeVisible({ timeout: 15_000 })
 
-  await page.getByRole('button', { name: /^publicar$/i }).click()
-  const dialog = page.getByRole('dialog')
-  await pickDate(dialog, page, { trigger: dialog.locator('button[aria-haspopup="dialog"]').first() })
-  await dialog.getByRole('button', { name: /^publicar$/i }).click()
+  // 1. UI: publishing is guarded, not clickable, while any approval is pending.
+  await expect(page.getByText(/exige a aprovação de todos os aprovadores/i)).toBeVisible()
+  await expect(page.getByRole('button', { name: /^publicar$/i })).toBeDisabled()
 
-  await expect(dialog.getByRole('alert')).toContainText(/aprovadores devem aprovar/i, { timeout: 15_000 })
+  // 2. Server defense-in-depth: publish_document still rejects (HC090, pt-BR)
+  //    even called directly, bypassing the disabled client-side gate.
+  const token = await ownerToken(page, 'chefe.ccih@test.local')
+  const versionId = (
+    await serviceQuery<{ current_version_id: string }>(page, `controlled_documents?id=eq.${doc0002}&select=current_version_id`)
+  )[0].current_version_id
+
+  const resp = await page.request.post(`${SUPABASE_URL}/rest/v1/rpc/publish_document`, {
+    headers: { apikey: SUPABASE_SERVICE_KEY, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    data: { p_version_id: versionId },
+  })
+  expect(resp.ok(), 'publish_document rejected while an approval is pending').toBeFalsy()
+  const body = await resp.json()
+  expect(String(body.message ?? ''), 'HC090 pt-BR message').toMatch(/aprovadores devem aprovar/i)
 
   const rows = await serviceQuery<{ status: string }>(page, `controlled_documents?id=eq.${doc0002}&select=status`)
   expect(rows[0].status, 'DOC-0002 remains in_approval').toBe('in_approval')
