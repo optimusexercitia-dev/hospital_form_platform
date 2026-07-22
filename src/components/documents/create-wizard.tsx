@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   FileText,
@@ -12,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { commissionHref } from "@/lib/routing";
 import type { ApproverCandidate } from "@/lib/queries/documents";
 import type { DocType } from "@/lib/documents/types";
@@ -23,7 +25,7 @@ import type { CreateDocumentState } from "@/lib/documents/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Segmented } from "@/components/ui/segmented";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Dropzone } from "@/components/ui/dropzone";
 import { TagField } from "@/components/ui/tag-field";
 import {
@@ -52,8 +54,14 @@ type CreateAction = (
   formData: FormData,
 ) => Promise<CreateDocumentState>;
 
-/** Which flow the wizard drives: a brand-new document, or a new version of one. */
-export type WizardMode = "create" | "newversion";
+/**
+ * Which flow the wizard drives: a brand-new document (`create`), a new version of
+ * an effective one (`newversion`), or revising a `changes_requested` version in
+ * place after an approver requested changes (`revise`). `newversion` and `revise`
+ * both lock the document identity; `revise` additionally pre-fills the prior
+ * approver set and targets an existing version (no version bump).
+ */
+export type WizardMode = "create" | "newversion" | "revise";
 
 /**
  * The frozen identity of the document a new version is being created for
@@ -105,10 +113,15 @@ const FIELD_STEP: Record<string, number> = {
  *   step supersedes the current effective version and submits via
  *   `supersedeAndSubmitDocument`. No draft exit (the detail-page supersede is the
  *   blank-draft fallback).
+ * - **revise** (ADR 0081 — `changes_requested`): a locked-identity flow like
+ *   `newversion`, but it revises an EXISTING `changes_requested` version IN PLACE (no
+ *   version bump). The approver step is pre-filled with the version's prior set
+ *   (`initialApprovers`); the terminal step re-attaches the corrected file + re-submits
+ *   the SAME version via `reviseChangesRequestedDocument` (needs `versionId`).
  *
- * On a post-create/supersede partial failure the action returns the `documentId`, so
- * we land the user on the recoverable draft's detail with an `?aviso=` banner. Client
- * boundary: actions are props; `@/lib/**` is type-only.
+ * On a post-create/supersede/revise partial failure the action returns the
+ * `documentId`, so we land the user on the recoverable draft's detail with an
+ * `?aviso=` banner. Client boundary: actions are props; `@/lib/**` is type-only.
  */
 export function CreateWizard({
   mode = "create",
@@ -116,22 +129,28 @@ export function CreateWizard({
   org,
   commission,
   commissionId,
+  versionId,
   candidates,
   categories,
+  initialApprovers,
   defaultDocType = "sop",
   submitAction,
   draftAction,
 }: {
-  /** `create` (default) or `newversion` — see the component doc. */
+  /** `create` (default), `newversion`, or `revise` — see the component doc. */
   mode?: WizardMode;
-  /** The frozen document identity — REQUIRED in `newversion` mode, ignored otherwise. */
+  /** The frozen document identity — REQUIRED in `newversion`/`revise` mode, ignored otherwise. */
   locked?: LockedIdentity;
   org: string;
   commission: string;
   commissionId: string;
+  /** The `changes_requested` version revised in place — REQUIRED in `revise` mode. */
+  versionId?: string;
   candidates: ApproverCandidate[];
   /** Existing category values for the autocomplete datalist (create mode). */
   categories: string[];
+  /** Pre-selected approvers (revise mode — the version's prior approver set). */
+  initialApprovers?: ChosenApprover[];
   defaultDocType?: DocType;
   submitAction: CreateAction;
   /** The "Salvar rascunho" action — only rendered in create mode. */
@@ -139,6 +158,10 @@ export function CreateWizard({
 }) {
   const router = useRouter();
   const isNewVersion = mode === "newversion";
+  const isRevise = mode === "revise";
+  // Both new-version and revise lock the header and require the change summary.
+  const isLockedIdentity = isNewVersion || isRevise;
+  const summaryRequired = isLockedIdentity;
   const [isPending, startTransition] = useTransition();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const categoryListId = "wizard-category-list";
@@ -160,30 +183,32 @@ export function CreateWizard({
   const [expiryDate, setExpiryDate] = useState("");
   const [summary, setSummary] = useState("");
 
-  // Step 3 — reviewers.
-  const [approvers, setApprovers] = useState<ChosenApprover[]>([]);
+  // Step 3 — reviewers. Pre-filled in revise mode with the version's prior set.
+  const [approvers, setApprovers] = useState<ChosenApprover[]>(
+    initialApprovers ?? [],
+  );
   const [approvalDueDate, setApprovalDueDate] = useState("");
 
   const [banner, setBanner] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  // Validity — the identity is locked in new-version mode (title always valid); the
-  // change summary is REQUIRED there (the supersede action rejects a blank summary).
-  const titleValid = isNewVersion || title.trim() !== "";
+  // Validity — the identity is locked in new-version/revise mode (title always
+  // valid); the change summary is REQUIRED there (both actions reject a blank summary).
+  const titleValid = isLockedIdentity || title.trim() !== "";
   const fileValid = file != null;
   const summaryValid = summary.trim() !== "";
   const reviewersValid = approvers.length > 0;
-  const documentStepValid = fileValid && (!isNewVersion || summaryValid);
+  const documentStepValid = fileValid && (!summaryRequired || summaryValid);
   const readyToSubmit = titleValid && documentStepValid && reviewersValid;
 
   const stepValid = [
-    isNewVersion ? true : titleValid,
+    isLockedIdentity ? true : titleValid,
     documentStepValid,
     reviewersValid,
     readyToSubmit,
   ];
 
-  const checklist: ChecklistItem[] = isNewVersion
+  const checklist: ChecklistItem[] = isLockedIdentity
     ? [
         { label: "Arquivo anexado", done: fileValid },
         { label: "Resumo das alterações", done: summaryValid },
@@ -217,10 +242,12 @@ export function CreateWizard({
   function buildFormData(): FormData {
     const fd = new FormData();
     fd.set("commissionId", commissionId);
-    if (isNewVersion && locked) {
-      // New-version mode: identity is frozen — the action takes only the artifact,
-      // dates and approvers, keyed by the existing document id.
+    if (isLockedIdentity && locked) {
+      // New-version / revise mode: identity is frozen — the action takes only the
+      // artifact, dates and approvers, keyed by the existing document id. Revise
+      // additionally targets the `changes_requested` version revised in place.
       fd.set("documentId", locked.documentId);
+      if (isRevise && versionId) fd.set("versionId", versionId);
     } else {
       fd.set("title", title.trim());
       fd.set("docType", docType);
@@ -303,8 +330,12 @@ export function CreateWizard({
 
         <section className="flex flex-col gap-6 rounded-2xl border border-border bg-card p-5 shadow-xs sm:p-6">
           {step === 0 ? (
-            isNewVersion && locked ? (
-              <StepNewVersionIdentity headingRef={headingRef} locked={locked} />
+            isLockedIdentity && locked ? (
+              <StepLockedIdentity
+                headingRef={headingRef}
+                locked={locked}
+                variant={isRevise ? "revise" : "newversion"}
+              />
             ) : (
               <StepDetails
                 headingRef={headingRef}
@@ -338,7 +369,7 @@ export function CreateWizard({
               setExpiryDate={setExpiryDate}
               summary={summary}
               setSummary={setSummary}
-              summaryRequired={isNewVersion}
+              summaryRequired={summaryRequired}
               nextVersionNumber={isNewVersion ? locked?.nextVersionNumber ?? null : null}
               fieldErrors={fieldErrors}
             />
@@ -359,7 +390,7 @@ export function CreateWizard({
           {step === 3 ? (
             <StepConfirm
               headingRef={headingRef}
-              locked={isNewVersion ? locked : undefined}
+              locked={isLockedIdentity ? locked : undefined}
               title={title}
               docType={docType}
               category={category}
@@ -379,9 +410,9 @@ export function CreateWizard({
               <a href={cancelHref}>Cancelar</a>
             </Button>
             {/* Save-as-draft exit (create mode only) — available at any step once a
-                title exists. New-version mode has no draft exit: the detail-page
-                supersede is the blank-draft fallback. */}
-            {!isNewVersion && draftAction ? (
+                title exists. Locked-identity modes (new-version / revise) have no
+                draft exit: the version already exists. */}
+            {!isLockedIdentity && draftAction ? (
               <Button
                 type="button"
                 variant="outline"
@@ -427,7 +458,11 @@ export function CreateWizard({
                 disabled={isPending || !readyToSubmit}
               >
                 <Send aria-hidden="true" className="size-4" />
-                {isPending ? "Enviando…" : "Enviar para aprovação"}
+                {isPending
+                  ? "Enviando…"
+                  : isRevise
+                    ? "Enviar versão revisada"
+                    : "Enviar para aprovação"}
               </Button>
             )}
           </div>
@@ -505,15 +540,18 @@ function StepDetails({
       </Field>
 
       <Field>
-        <FieldLabel htmlFor="wizard-doctype-label" id="wizard-doctype-label">
-          Tipo
-        </FieldLabel>
-        <Segmented
+        <FieldLabel htmlFor="wizard-doctype">Tipo</FieldLabel>
+        <NativeSelect
+          id="wizard-doctype"
           value={docType}
-          options={DOC_TYPE_OPTIONS}
-          onChange={setDocType}
-          ariaLabel="Tipo de documento"
-        />
+          onChange={(e) => setDocType(e.target.value as DocType)}
+        >
+          {DOC_TYPE_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </NativeSelect>
       </Field>
 
       <div className="grid gap-6 sm:grid-cols-2">
@@ -578,38 +616,76 @@ function StepDetails({
 }
 
 /**
- * Step 1 in new-version mode: the frozen document identity + a "you are creating
- * v{next} which replaces v{current}" callout. Everything is read-only — to change
- * the header the user edits the document instead (ADR 0081 Wave 2.5b).
+ * Step 1 in the locked-identity modes: the frozen document identity + a mode-specific
+ * callout. Everything is read-only — to change the header the user edits the document
+ * instead (ADR 0081 Wave 2.5b).
+ *
+ * - `newversion`: "you are creating v{next} which replaces v{current}".
+ * - `revise`: "v{current} received change requests; the corrected artifact goes back
+ *   into approval and the version number is kept" (revise in place, no bump).
  */
-function StepNewVersionIdentity({
+function StepLockedIdentity({
   headingRef,
   locked,
+  variant,
 }: {
   headingRef: React.RefObject<HTMLHeadingElement | null>;
   locked: LockedIdentity;
+  variant: "newversion" | "revise";
 }) {
+  const isRevise = variant === "revise";
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
         <h2 ref={headingRef} tabIndex={-1} className="text-lg font-semibold outline-none">
-          Nova versão
+          {isRevise ? "Revisar versão" : "Nova versão"}
         </h2>
         <p className="text-sm text-muted-foreground">
-          A identidade do documento é mantida. Anexe o novo arquivo e indique os
-          aprovadores nas próximas etapas.
+          {isRevise
+            ? "A identidade do documento é mantida. Anexe o arquivo corrigido e confirme os aprovadores nas próximas etapas."
+            : "A identidade do documento é mantida. Anexe o novo arquivo e indique os aprovadores nas próximas etapas."}
         </p>
       </div>
 
-      <div className="flex items-start gap-2.5 rounded-xl border border-primary/20 bg-accent/30 p-3.5 text-sm text-foreground">
-        <GitBranchPlus aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+      <div
+        className={cn(
+          "flex items-start gap-2.5 rounded-xl border p-3.5 text-sm text-foreground",
+          isRevise
+            ? "border-warning/30 bg-warning/12"
+            : "border-primary/20 bg-accent/30",
+        )}
+      >
+        {isRevise ? (
+          <AlertTriangle
+            aria-hidden="true"
+            className="mt-0.5 size-4 shrink-0 text-warning"
+          />
+        ) : (
+          <GitBranchPlus
+            aria-hidden="true"
+            className="mt-0.5 size-4 shrink-0 text-primary"
+          />
+        )}
         <p className="text-pretty">
-          Você está criando a{" "}
-          <strong className="font-semibold">
-            {formatVersionNumber(locked.nextVersionNumber)}
-          </strong>
-          ; ao aprovar, ela substitui a{" "}
-          {formatVersionNumber(locked.currentVersionNumber)} vigente.
+          {isRevise ? (
+            <>
+              A{" "}
+              <strong className="font-semibold">
+                {formatVersionNumber(locked.currentVersionNumber)}
+              </strong>{" "}
+              recebeu solicitações de alteração. Envie a versão corrigida para uma
+              nova rodada de aprovação — o número da versão é mantido.
+            </>
+          ) : (
+            <>
+              Você está criando a{" "}
+              <strong className="font-semibold">
+                {formatVersionNumber(locked.nextVersionNumber)}
+              </strong>
+              ; ao aprovar, ela substitui a{" "}
+              {formatVersionNumber(locked.currentVersionNumber)} vigente.
+            </>
+          )}
         </p>
       </div>
 
@@ -626,16 +702,18 @@ function StepNewVersionIdentity({
         <IdentityRow label="Categoria">
           <span className="text-foreground">{locked.category ?? "—"}</span>
         </IdentityRow>
-        <IdentityRow label="Nova versão">
+        <IdentityRow label={isRevise ? "Versão" : "Nova versão"}>
           <span className="font-mono tabular-nums text-foreground">
-            {formatVersionNumber(locked.nextVersionNumber)}
+            {formatVersionNumber(
+              isRevise ? locked.currentVersionNumber : locked.nextVersionNumber,
+            )}
           </span>
         </IdentityRow>
       </dl>
 
       <p className="text-xs text-muted-foreground text-pretty">
         Para alterar o título, o tipo ou a categoria, edite o documento — não é
-        possível alterá-los ao criar uma nova versão.
+        possível alterá-los {isRevise ? "ao revisar uma versão" : "ao criar uma nova versão"}.
       </p>
     </div>
   );

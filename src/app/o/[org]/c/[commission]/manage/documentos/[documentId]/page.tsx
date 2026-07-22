@@ -9,6 +9,7 @@ import {
   GitBranchPlus,
   History,
   Pencil,
+  RefreshCw,
 } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
@@ -32,6 +33,7 @@ import {
   findMyApprovalForVersion,
 } from "@/lib/documents/version-select";
 import { commissionHref } from "@/lib/routing";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { DocumentIdentityCard } from "@/components/documents/document-identity-card";
 import {
@@ -149,6 +151,14 @@ export default async function DocumentDetailPage({
     documentId,
     "nova-versao",
   );
+  const reviseHref = commissionHref(
+    org,
+    commission,
+    "manage",
+    "documentos",
+    documentId,
+    "revisar",
+  );
 
   const downloadCurrentLink = currentInForceDownloadUrl ? (
     <a
@@ -167,13 +177,28 @@ export default async function DocumentDetailPage({
   if (workingDraft) {
     // A revision is already open: create/supersede/obsolete don't apply mid-
     // revision. Offer the last in-force download plus a quiet status hint (not
-    // a button — nothing to click here).
+    // a button — the revise CTA lives in the working-draft card below). A
+    // `changes_requested` version reads amber to signal it needs attention.
+    const isChangesRequested = workingStatus === "changes_requested";
     identityActions = (
       <>
         {hasPublishedInForce ? downloadCurrentLink : null}
-        <span className="inline-flex items-center justify-center gap-2 rounded-full border border-border bg-muted px-3 py-1.5 text-sm text-muted-foreground">
-          <History aria-hidden="true" className="size-3.5" />
-          Revisão em andamento — v{workingDraft.versionNumber}
+        <span
+          className={cn(
+            "inline-flex items-center justify-center gap-2 rounded-full border px-3 py-1.5 text-sm",
+            isChangesRequested
+              ? "border-warning/30 bg-warning/12 text-warning"
+              : "border-border bg-muted text-muted-foreground",
+          )}
+        >
+          {isChangesRequested ? (
+            <AlertTriangle aria-hidden="true" className="size-3.5" />
+          ) : (
+            <History aria-hidden="true" className="size-3.5" />
+          )}
+          {isChangesRequested
+            ? `Alterações solicitadas — v${workingDraft.versionNumber}`
+            : `Revisão em andamento — v${workingDraft.versionNumber}`}
         </span>
       </>
     );
@@ -237,6 +262,31 @@ export default async function DocumentDetailPage({
               Envie o arquivo da versão para poder enviá-la para aprovação.
             </p>
           )}
+        </>
+      );
+    } else if (workingStatus === "changes_requested") {
+      // A reviewer requested changes: the version is revised IN PLACE (no bump).
+      // Keep the full roster visible (verdicts + each rejector's note), and route
+      // the coordinator to the revise wizard instead of the upload/submit forms.
+      draftSlot = (
+        <>
+          <ApprovalsPanel approvals={approvals} variant="nested" />
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/30 bg-warning/12 px-4 py-3.5">
+            <p className="flex flex-1 items-center gap-2 text-sm text-pretty text-foreground">
+              <AlertTriangle
+                aria-hidden="true"
+                className="size-4 shrink-0 text-warning"
+              />
+              Esta versão recebeu solicitações de alteração de um ou mais
+              aprovadores.
+            </p>
+            <Button asChild size="lg">
+              <Link href={reviseHref}>
+                <RefreshCw aria-hidden="true" className="size-4" />
+                Enviar versão revisada
+              </Link>
+            </Button>
+          </div>
         </>
       );
     } else {

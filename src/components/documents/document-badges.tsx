@@ -28,9 +28,12 @@ export type DerivedDocStatus = DocStatus | "revision";
 const STATUS_CLASSES: Record<DocStatus, string> = {
   draft: "bg-muted text-muted-foreground",
   in_approval: "bg-warning/15 text-warning",
-  // First-class rejection state (backend contract). Placeholder token — frontend
-  // owns the final styling; reads amber/destructive-leaning to signal "action needed".
-  changes_requested: "bg-destructive/10 text-destructive",
+  // "Alterações solicitadas" — an in-revision / needs-attention state. Amber
+  // (warning family), with an inset ring so it reads distinct from the plain
+  // `in_approval` amber, and clearly apart from `effective` (positive) and the
+  // struck-through `obsolete`. Not red: a revision request, not a hard failure.
+  changes_requested:
+    "bg-warning/12 text-warning ring-1 ring-inset ring-warning/40",
   effective: "bg-success/15 text-success",
   obsolete: "bg-muted text-muted-foreground line-through decoration-1",
 };

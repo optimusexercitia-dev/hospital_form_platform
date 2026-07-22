@@ -1,6 +1,6 @@
-import { Check, Clock, X } from "lucide-react";
+import { Check, Clock, PenLine } from "lucide-react";
 
-import type { DocumentApproval } from "@/lib/documents/types";
+import { APPROVAL_DECISION_LABELS, type DocumentApproval } from "@/lib/documents/types";
 import type { ActionState } from "@/lib/documents/actions";
 import { cn } from "@/lib/utils";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
@@ -117,7 +117,7 @@ function ApprovalDecisionBadge({
     return (
       <span className="inline-flex items-center gap-1.5 text-sm font-medium text-success">
         <Check aria-hidden="true" className="size-4" />
-        Aprovado
+        {APPROVAL_DECISION_LABELS.approved}
         {decidedAt ? (
           <span className="font-normal text-muted-foreground">
             · {formatDateTime(decidedAt)}
@@ -127,10 +127,13 @@ function ApprovalDecisionBadge({
     );
   }
   if (decision === "rejected") {
+    // "Alterações solicitadas" — an attention (amber) verdict, distinct from the
+    // positive `approved` and the neutral `pending`. Not red: this is a revision
+    // request, not a hard failure.
     return (
-      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-destructive">
-        <X aria-hidden="true" className="size-4" />
-        Rejeitado
+      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-warning">
+        <PenLine aria-hidden="true" className="size-4" />
+        {APPROVAL_DECISION_LABELS.rejected}
         {decidedAt ? (
           <span className="font-normal text-muted-foreground">
             · {formatDateTime(decidedAt)}

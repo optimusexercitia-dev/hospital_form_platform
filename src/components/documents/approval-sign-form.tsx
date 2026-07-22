@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, X } from "lucide-react";
+import { Check, PenLine } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -21,9 +21,11 @@ type DecisionAction = (
 
 /**
  * Shared e-signature form (Phase 17, F3 + F4). A named approver records their
- * decision on a version they were named on: `aprovado` (optional note) or
- * `rejeitado` (note required — the reason, surfaced on the returned draft). Posts
- * to `approveDocument` / `rejectDocument` (passed in as props). Used in BOTH the
+ * decision on a version they were named on: `aprovado` (optional note) or a
+ * change request (note required — the reason, surfaced on the version returned for
+ * revision). The change-request path still posts to `rejectDocument`; it moves the
+ * version to `changes_requested`. Posts to `approveDocument` / `rejectDocument`
+ * (passed in as props). Used in BOTH the
  * org-level approver-detail page (F4) and the commission-gated coordinator detail
  * (F3, for a coordinator who is also a named approver).
  *
@@ -72,8 +74,8 @@ export function ApprovalSignForm({
             size="lg"
             onClick={() => setDecision("rejected")}
           >
-            <X aria-hidden="true" className="size-4" />
-            Rejeitar
+            <PenLine aria-hidden="true" className="size-4" />
+            Solicitar alterações
           </Button>
         </div>
       ) : (
@@ -129,7 +131,7 @@ function DecisionForm({
 
       <Field>
         <FieldLabel htmlFor="note">
-          {isReject ? "Motivo da rejeição" : "Observação (opcional)"}
+          {isReject ? "Motivo da solicitação de alterações" : "Observação (opcional)"}
         </FieldLabel>
         <Textarea
           id="note"
@@ -138,7 +140,7 @@ function DecisionForm({
           required={isReject}
           placeholder={
             isReject
-              ? "Explique por que a versão foi rejeitada."
+              ? "Explique quais alterações são necessárias antes da aprovação."
               : "Comentário opcional sobre a aprovação."
           }
           aria-describedby="note-description"
@@ -146,7 +148,7 @@ function DecisionForm({
         />
         <FieldDescription id="note-description">
           {isReject
-            ? "O motivo é registrado e devolve a versão ao rascunho para correção."
+            ? "O motivo é registrado e a versão volta para revisão com as alterações solicitadas."
             : "Aceita formatação Markdown."}
         </FieldDescription>
         <FieldError>{state?.fieldErrors?.note}</FieldError>
@@ -156,13 +158,13 @@ function DecisionForm({
         <Button
           type="submit"
           size="lg"
-          variant={isReject ? "destructive" : "default"}
+          variant={isReject ? "outline" : "default"}
           disabled={pending}
         >
           {pending
             ? "Registrando…"
             : isReject
-              ? "Confirmar rejeição"
+              ? "Solicitar alterações"
               : "Confirmar aprovação"}
         </Button>
         <Button
