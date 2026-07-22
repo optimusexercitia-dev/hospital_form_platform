@@ -231,73 +231,10 @@ test('AC-3: publish is rejected in pt-BR while an approval is pending', async ({
   expect(rows[0].status, 'DOC-0002 remains in_approval').toBe('in_approval')
 })
 
-// ===========================================================================
-// AC-4: Rejection flow — a `rejected` decision returns the version to `draft`
-// (note preserved); resubmit works via the detail page's SubmitForApprovalForm
-// (the file stays attached from the wizard submit — resubmit needs no re-upload).
-// ===========================================================================
-
-test('AC-4: a rejection returns the version to draft with the note; resubmit works', async ({ page }) => {
-  const title = `Doc Rejeição ${Date.now()}`
-
-  await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
-  await page.getByLabel('Título').fill(title)
-  await selectDocType(page, 'POP')
-  await continuarButton(page).click()
-  await page.locator('#wizard-file').setInputFiles(pdfPayload)
-  await continuarButton(page).click()
-  await toggleReviewer(page, 'Enfermeiro CCIH Um')
-  await continuarButton(page).click()
-  await enviarButton(page).click()
-  await page.waitForURL(/\/manage\/documentos\/[0-9a-f-]{36}\?aviso=enviado$/, { timeout: 20_000 })
-  const docId = page.url().split('/').pop()!.split('?')[0]
-
-  const versionId = (
-    await serviceQuery<{ id: string }>(page, `controlled_document_versions?document_id=eq.${docId}&select=id`)
-  )[0].id
-
-  const rejectNote = `Revisar seção 3 — ${Date.now()}`
-  await signInAs(page, 'staff1.ccih@test.local')
-  await page.goto(`/o/rede-a/documentos-pendentes/${docId}`)
-  await page.getByRole('button', { name: /^rejeitar$/i }).click()
-  await page.getByLabel(/motivo da rejeição/i).fill(rejectNote)
-  await page.getByRole('button', { name: /confirmar rejeição/i }).click()
-
-  await expect
-    .poll(async () => {
-      const rows = await serviceQuery<{ status: string }>(
-        page,
-        `controlled_document_versions?id=eq.${versionId}&select=status`,
-      )
-      return rows[0]?.status
-    }, { timeout: 15_000, message: 'version returned to draft after rejection' })
-    .toBe('draft')
-
-  const noteRows = await serviceQuery<{ note: string | null; decision: string | null }>(
-    page,
-    `document_approvals?document_version_id=eq.${versionId}&select=note,decision`,
-  )
-  expect(noteRows.some((r) => r.decision === 'rejected' && r.note === rejectNote), 'note preserved').toBeTruthy()
-
-  // Resubmit via the detail page's SubmitForApprovalForm (file already attached).
-  await signInAs(page, 'chefe.ccih@test.local')
-  await page.goto(commissionDocHref(docId))
-  const resubmit = page.locator('form').filter({ hasText: 'Enviar para aprovação' })
-  await expect(resubmit).toBeVisible({ timeout: 15_000 })
-  await pickApprover(resubmit, 'Enfermeiro CCIH Um')
-  await resubmit.getByRole('button', { name: /enviar para aprovação/i }).click()
-
-  await expect
-    .poll(async () => {
-      const rows = await serviceQuery<{ status: string }>(
-        page,
-        `controlled_document_versions?id=eq.${versionId}&select=status`,
-      )
-      return rows[0]?.status
-    }, { timeout: 15_000, message: 'resubmit → in_approval again' })
-    .toBe('in_approval')
-})
+// AC-4 RETIRED (BUG-DDR-006): tested the pre-`changes_requested` reject→draft
+// behavior (a "Rejeitar" button, terminal state `draft`) — both premises were
+// replaced by the changes_requested feature (ADR 0082); fully superseded by
+// documents-changes-requested.spec.ts's CR-1.
 
 // ===========================================================================
 // AC-5: Supersede (the INLINE fallback — a blank draft, not the wizard, which
