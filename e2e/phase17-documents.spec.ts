@@ -17,7 +17,7 @@ import {
   addMonthsIso,
   focusByTabbing,
   setControlledDocsFlag,
-  selectSegmented,
+  selectDocType,
   toggleReviewer,
   continuarButton,
   enviarButton,
@@ -87,7 +87,7 @@ test('AC-1: full lifecycle — create wizard submits with two approvers, both e-
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
   await page.getByLabel('Título').fill(uniqueTitle)
-  await selectSegmented(page, 'Protocolo')
+  await selectDocType(page, 'Protocolo')
   await page.getByLabel('Ciclo de revisão (meses)').fill('12')
   await continuarButton(page).click()
 
@@ -243,7 +243,7 @@ test('AC-4: a rejection returns the version to draft with the note; resubmit wor
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
   await page.getByLabel('Título').fill(title)
-  await selectSegmented(page, 'POP')
+  await selectDocType(page, 'POP')
   await continuarButton(page).click()
   await page.locator('#wizard-file').setInputFiles(pdfPayload)
   await continuarButton(page).click()
@@ -573,7 +573,7 @@ test('AC-9: a foreign-hospital user cannot be named approver (pt-BR error)', asy
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
   await page.getByLabel('Título').fill(`Doc Foreign ${Date.now()}`)
-  await selectSegmented(page, 'Política')
+  await selectDocType(page, 'Política')
   await continuarButton(page).click()
   await page.locator('#wizard-file').setInputFiles(pdfPayload)
   await salvarRascunhoButton(page).click()
@@ -629,7 +629,7 @@ test('AC-11: document lifecycle emits audit rows with no sensitive fields', asyn
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
   await page.getByLabel('Título').fill(title)
-  await selectSegmented(page, 'Manual')
+  await selectDocType(page, 'Manual')
   await page.getByLabel('Categoria').fill('Categoria Audit E2E')
   await page.getByLabel('Descrição').fill(description)
   const tagsInput = page.getByLabel('Etiquetas')
@@ -778,7 +778,7 @@ test('AC-13: keyboard-only — coordinator opens a doc; outside approver signs v
 async function buildPublishedDoc(page: Page, title: string): Promise<string> {
   await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
   await page.getByLabel('Título').fill(title)
-  await selectSegmented(page, 'Protocolo')
+  await selectDocType(page, 'Protocolo')
   await continuarButton(page).click()
   await page.locator('#wizard-file').setInputFiles(pdfPayload)
   await continuarButton(page).click()

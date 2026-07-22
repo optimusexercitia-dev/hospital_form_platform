@@ -12,7 +12,7 @@ import {
   publishViaDialog,
   ownerToken,
   focusByTabbing,
-  selectSegmented,
+  selectDocType,
   toggleReviewer,
   continuarButton,
   enviarButton,
@@ -122,7 +122,7 @@ test('RW-1a: create wizard — step validity gating; submit persists category/ta
   await page.getByLabel('Título').fill(title)
   await expect(continuarButton(page)).toBeEnabled()
 
-  await selectSegmented(page, 'Protocolo')
+  await selectDocType(page, 'Protocolo')
   await page.getByLabel('Categoria').fill('Prevenção de Infecção E2E')
   await page.getByLabel('Descrição').fill('Diretrizes de teste E2E para o wizard completo.')
   await page.getByLabel('Ciclo de revisão (meses)').fill('12')
@@ -212,12 +212,17 @@ test('RW-1b: create wizard keyboard-only — Tab/Enter through all steps; aria-c
   }).toPass({ timeout: 10_000 })
   await page.keyboard.type(title)
 
-  // Tab onto the Segmented radiogroup (one roving tab-stop) and change the
-  // selection via arrow keys — proves the doc-type control is keyboard-operable.
+  // Tab onto the Tipo native <select> and change the selection via arrow keys —
+  // proves the doc-type control is keyboard-operable (BUG-DDR-001: was a
+  // Segmented radiogroup + ArrowRight/aria-checked; now a native select whose
+  // value changes directly on ArrowDown/ArrowUp — see CR-0 in
+  // documents-changes-requested.spec.ts for the same pattern).
   await page.keyboard.press('Tab')
-  await expect(page.getByRole('radio', { checked: true })).toBeFocused()
-  await page.keyboard.press('ArrowRight')
-  await expect(page.getByRole('radio', { name: 'Protocolo', exact: true })).toHaveAttribute('aria-checked', 'true')
+  const tipoField = page.getByLabel('Tipo', { exact: true })
+  await expect(tipoField).toBeFocused()
+  await expect(tipoField).toHaveValue('sop') // the wizard's default
+  await page.keyboard.press('ArrowDown')
+  await expect(tipoField).toHaveValue('protocol')
 
   await focusByTabbing(page, async () => {
     const el = await page.evaluateHandle(() => document.activeElement)
@@ -555,7 +560,7 @@ test('RW-6: Remind sends a lembrete; an immediate second click is deduped', asyn
   // test/run may have already left on a shared seeded document.
   await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
   await page.getByLabel('Título').fill(title)
-  await selectSegmented(page, 'Protocolo')
+  await selectDocType(page, 'Protocolo')
   await continuarButton(page).click()
   await page.locator('#wizard-file').setInputFiles(pdfPayload)
   await continuarButton(page).click()
@@ -564,7 +569,13 @@ test('RW-6: Remind sends a lembrete; an immediate second click is deduped', asyn
   await enviarButton(page).click()
   await page.waitForURL(/\/manage\/documentos\/[0-9a-f-]{36}\?aviso=enviado$/, { timeout: 20_000 })
 
-  const approvalsSection = page.locator('section').filter({ hasText: 'Aprovadores' }).first()
+  // Scoped by the panel's OWN accessible name (aria-labelledby="approvals-heading"
+  // -> implicit role="region") — NOT a coarse `section, hasText` filter: the
+  // ApprovalsPanel is nested INSIDE the outer "Versões" section (the doc-detail
+  // redesign's `activeDraftSlot` pattern), which itself transitively contains
+  // "Aprovadores" text, so `.first()` on a `hasText` filter resolved to the wrong
+  // (outer) section (BUG-DDR-002).
+  const approvalsSection = page.getByRole('region', { name: 'Aprovadores' })
   const approverRow = approvalsSection.locator('li').filter({ hasText: 'Enfermeiro CCIH Um' })
   const remindButton = approverRow.getByRole('button', { name: /^lembrar$/i })
   await expect(remindButton).toBeVisible()
@@ -588,7 +599,7 @@ test('RW-7: approver notification deep-links to the sign page and is signable', 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
   await page.getByLabel('Título').fill(title)
-  await selectSegmented(page, 'Manual')
+  await selectDocType(page, 'Manual')
   await continuarButton(page).click()
   await page.locator('#wizard-file').setInputFiles(pdfPayload)
   await continuarButton(page).click()
@@ -726,7 +737,7 @@ test('RW-10: anglicized enum keys render pt-BR labels (bylaws→Regimento, appro
 
   // Charter prefill lands on the wizard with Regimento preselected.
   await page.goto('/o/rede-a/c/ccih/manage/documentos/novo?docType=bylaws')
-  await expect(page.getByRole('radio', { name: 'Regimento', exact: true })).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByLabel('Tipo', { exact: true })).toHaveValue('bylaws')
 
   const title = `Regimento Anglicização ${Date.now()}`
   await page.getByLabel('Título').fill(title)
@@ -773,7 +784,13 @@ test('RW-10: anglicized enum keys render pt-BR labels (bylaws→Regimento, appro
 
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(commissionDocHref(docId))
-  const approvalsSection = page.locator('section').filter({ hasText: 'Aprovadores' }).first()
+  // Scoped by the panel's OWN accessible name (aria-labelledby="approvals-heading"
+  // -> implicit role="region") — NOT a coarse `section, hasText` filter: the
+  // ApprovalsPanel is nested INSIDE the outer "Versões" section (the doc-detail
+  // redesign's `activeDraftSlot` pattern), which itself transitively contains
+  // "Aprovadores" text, so `.first()` on a `hasText` filter resolved to the wrong
+  // (outer) section (BUG-DDR-002).
+  const approvalsSection = page.getByRole('region', { name: 'Aprovadores' })
   // The decision badge's text ("Aprovado" + "· <date>") is JSX-adjacent with no
   // inserted space, so match a plain substring — scoped to this ONE approver's
   // `<li>` (which does not include the "Aprovadores" heading/paragraph outside

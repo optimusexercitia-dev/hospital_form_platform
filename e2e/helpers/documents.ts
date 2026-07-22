@@ -258,7 +258,7 @@ export const salvarRascunhoButton = (page: Page) => page.getByRole('button', { n
 export async function buildPublishedDocViaWizard(page: Page, title: string): Promise<string> {
   await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
   await page.getByLabel('Título').fill(title)
-  await selectSegmented(page, 'Protocolo')
+  await selectDocType(page, 'Protocolo')
   await continuarButton(page).click()
   await page.locator('#wizard-file').setInputFiles(pdfPayload)
   await continuarButton(page).click()
