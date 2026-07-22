@@ -179,23 +179,50 @@ test('AC-1: full lifecycle — create wizard submits with two approvers, both e-
 
 // ===========================================================================
 // AC-2: Approver isolation (security-critical). chefe.farm (NOT a CCIH member)
-//   sees only DOC-0002 in the org queue, can open + download it, and canNOT
-//   reach DOC-0001 or the CCIH commission surface.
+//   sees only her named document in the org queue, can open + download it, and
+//   canNOT reach DOC-0001 or the CCIH commission surface.
+//
+// BUG-DDR-007 (resolved): this used to anchor on the SEEDED DOC-0002, shared
+// with AC-13 later in this same file — AC-13 permanently approves DOC-0002 as
+// chefe.farm, so on any re-run/non-fresh state DOC-0002 is no longer *pending*
+// for her and `getByText('DOC-0002')` finds nothing (confirmed by reproducing
+// the exact failure: re-running AC-2 alone against a DB where AC-13 had
+// already run left it red with that precise error). Not an app bug — the test
+// now creates its OWN in_approval document naming chefe.farm as a pending
+// approver (mirrors AC-1's create-wizard steps), so it's independent of
+// whatever any other test does to the seeded DOC-0002.
 // ===========================================================================
 
 test('AC-2: outside-commission approver sees only her named document; no CCIH data leak', async ({ page }) => {
   const doc0001 = await docIdByCode(page, 'DOC-0001') // effective, chefe.farm NOT named
-  const doc0002 = await docIdByCode(page, 'DOC-0002') // in_approval, chefe.farm named
+
+  const title = `Doc AC-2 Isolamento ${Date.now()}`
+  await signInAs(page, 'chefe.ccih@test.local')
+  await page.goto('/o/rede-a/c/ccih/manage/documentos/novo')
+  await page.getByLabel('Título').fill(title)
+  await selectDocType(page, 'Protocolo')
+  await continuarButton(page).click()
+  await page.locator('#wizard-file').setInputFiles(pdfPayload)
+  await continuarButton(page).click()
+  await toggleReviewer(page, 'Enfermeiro CCIH Um')
+  await toggleReviewer(page, 'Chefe Farmácia')
+  await continuarButton(page).click()
+  await enviarButton(page).click()
+  await page.waitForURL(/\/manage\/documentos\/[0-9a-f-]{36}\?aviso=enviado$/, { timeout: 20_000 })
+  const ownDocId = page.url().split('/').pop()!.split('?')[0]
+  const ownDocCode = (
+    await serviceQuery<{ code: string }>(page, `controlled_documents?id=eq.${ownDocId}&select=code`)
+  )[0].code
 
   await signInAs(page, 'chefe.farm@test.local')
 
   await page.goto('/o/rede-a/documentos-pendentes')
   await expect(page.getByRole('heading', { name: /aprovações pendentes/i })).toBeVisible()
-  await expect(page.getByText('DOC-0002')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(ownDocCode)).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('DOC-0001')).toHaveCount(0)
 
-  await page.goto(`/o/rede-a/documentos-pendentes/${doc0002}`)
-  await expect(page.getByRole('heading', { name: /POP de Isolamento/i })).toBeVisible({ timeout: 15_000 })
+  await page.goto(`/o/rede-a/documentos-pendentes/${ownDocId}`)
+  await expect(page.getByRole('heading', { name: title })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByRole('heading', { name: /arquivo em aprovação/i })).toBeVisible()
 
   const resp = await page.goto(`/o/rede-a/documentos-pendentes/${doc0001}`)
@@ -256,9 +283,11 @@ test('AC-5: inline supersede retires the prior version to obsolete/superseded (r
     )
   )[0]
 
-  // The INLINE fallback ("Criar rascunho em branco") — button-only, no file input.
+  // The INLINE fallback ("Substituir por rascunho em branco") — behind the "Mais
+  // ações" overflow menu; button-only, no file input.
   await page.goto(commissionDocHref(docId))
-  await page.getByRole('button', { name: /criar rascunho em branco/i }).click()
+  await page.getByRole('button', { name: /mais ações/i }).click()
+  await page.getByRole('menuitem', { name: /substituir por rascunho em branco/i }).click()
 
   await expect
     .poll(async () => {
@@ -422,7 +451,8 @@ test('AC-7: each version upload lands at a NEW storage path (Rule 6)', async ({ 
   const docId = await buildPublishedDoc(page, title)
 
   await page.goto(commissionDocHref(docId))
-  await page.getByRole('button', { name: /criar rascunho em branco/i }).click()
+  await page.getByRole('button', { name: /mais ações/i }).click()
+  await page.getByRole('menuitem', { name: /substituir por rascunho em branco/i }).click()
   await expect
     .poll(async () => {
       const rows = await serviceQuery<{ version_number: number }>(

@@ -658,7 +658,8 @@ test('RW-8: mark obsolete (retire) shows "Descontinuado"', async ({ page }) => {
   const docId = await buildPublishedDocViaWizard(page, title)
 
   await page.goto(commissionDocHref(docId))
-  await page.getByRole('button', { name: /tornar obsoleto/i }).click()
+  await page.getByRole('button', { name: /mais ações/i }).click()
+  await page.getByRole('menuitem', { name: /marcar como obsoleto/i }).click()
   const dialog = page.getByRole('alertdialog')
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: /^tornar obsoleto$/i }).click()
@@ -707,7 +708,7 @@ test('RW-9: description persists at create and round-trips through edit', async 
 
   await expect(page.getByText(original)).toBeVisible()
 
-  await page.getByRole('link', { name: /^editar$/i }).click()
+  await page.getByRole('link', { name: /^editar rascunho$/i }).click()
   await page.waitForURL(new RegExp(`/documentos/${docId}/editar$`))
   const descriptionField = page.getByLabel('Descrição')
   await expect(descriptionField).toHaveValue(original)
