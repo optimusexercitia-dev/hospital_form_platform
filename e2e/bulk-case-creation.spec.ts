@@ -249,11 +249,30 @@ async function gotoWizard(page: Page) {
   })
 }
 
-/** Read a Step-4 per-member preview card's case count ("N casos"/"1 caso"). */
+/**
+ * Read a Step-4 per-member preview card's case count ("N casos"/"1 caso").
+ *
+ * The card (`bulk-step-deal.tsx`) renders the count TWICE by design — the
+ * descriptive "N caso(s)" sub-span AND a separate prominent number badge —
+ * alongside the avatar initials and the name, with NO whitespace between
+ * sibling spans in the compiled JSX. So the `<li>`'s own aggregate text for a
+ * count of 2 is `"CC" + "Chefe CCIH" + "2 casos" + "2"` = "CCChefe
+ * CCIH2 casos2": a whole-card scrape is genuinely unparseable by a regex
+ * expecting a trailing word boundary after "casos" (a digit immediately
+ * follows "s", and both are \w — no boundary exists there to match).
+ *
+ * Fix: target the descriptive sub-span PRECISELY via an ANCHORED `getByText`
+ * (`^…$`) scoped to the card. Only the element whose OWN full text equals
+ * "N caso(s)" satisfies both anchors — the number badge (text is just
+ * digits, fails the trailing "casos") and every wrapping span (text starts
+ * with the name, fails the leading `\d`) are excluded — so this resolves to
+ * exactly one element regardless of the surrounding concatenation.
+ */
 async function memberCaseCount(dealPerMemberRegion: Locator, memberName: string): Promise<number> {
   const li = dealPerMemberRegion.getByRole('listitem').filter({ hasText: memberName })
-  const text = (await li.textContent()) ?? ''
-  const m = /(\d+)\s*casos?\b/i.exec(text)
+  const countSpan = li.getByText(/^\d+\s+casos?$/)
+  const text = ((await countSpan.textContent()) ?? '').trim()
+  const m = /^(\d+)\s+casos?$/.exec(text)
   if (!m) throw new Error(`memberCaseCount("${memberName}"): could not parse "${text}"`)
   return Number.parseInt(m[1], 10)
 }
