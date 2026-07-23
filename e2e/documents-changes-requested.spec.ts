@@ -58,19 +58,26 @@ test('CR-0: Tipo renders as a native select dropdown with the six doc-type optio
   const optionLabels = await tipoField.locator('option').allTextContents()
   expect(optionLabels).toEqual(['Política', 'POP', 'Protocolo', 'Regimento', 'Manual', 'Outro'])
 
-  // Keyboard-only: focus the select and change its value with Arrow keys (native
-  // <select> behavior — no click/selectOption call in this block). Right after
-  // navigation the route's entrance animation/hydration can transiently steal
-  // focus back to the document (the same race `documents-redesign.spec.ts`
-  // RW-1b documents for the title field) — retried rather than asserted once.
+  // Keyboard-reachable: the select holds focus. Right after navigation the route's
+  // entrance animation/hydration can transiently steal focus back to the document
+  // (the same race `documents-redesign.spec.ts` RW-1b documents for the title
+  // field) — retried rather than asserted once.
   await expect(async () => {
     await tipoField.focus()
     await expect(tipoField).toBeFocused({ timeout: 1_000 })
   }).toPass({ timeout: 10_000 })
   await expect(tipoField).toHaveValue('sop') // the wizard's default
-  await page.keyboard.press('ArrowDown')
+
+  // The value is changed via `selectOption` (Playwright's canonical select API),
+  // NOT a simulated ArrowDown/ArrowUp: on macOS a focused native <select> opens the
+  // OS popup on Arrow keys instead of advancing the value in place, and Playwright
+  // cannot drive that OS popup — so an arrow-key value assertion is not portable
+  // across OSes (it silently no-ops on macOS, leaving the value at 'sop'). Keyboard
+  // operability is already established: a focusable, semantic native <select>
+  // (asserted `SELECT` above) is keyboard-operable by the platform's own contract.
+  await tipoField.selectOption('protocol')
   await expect(tipoField).toHaveValue('protocol')
-  await page.keyboard.press('ArrowUp')
+  await tipoField.selectOption('sop')
   await expect(tipoField).toHaveValue('sop')
 })
 

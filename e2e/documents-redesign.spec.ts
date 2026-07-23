@@ -212,16 +212,21 @@ test('RW-1b: create wizard keyboard-only — Tab/Enter through all steps; aria-c
   }).toPass({ timeout: 10_000 })
   await page.keyboard.type(title)
 
-  // Tab onto the Tipo native <select> and change the selection via arrow keys —
-  // proves the doc-type control is keyboard-operable (BUG-DDR-001: was a
-  // Segmented radiogroup + ArrowRight/aria-checked; now a native select whose
-  // value changes directly on ArrowDown/ArrowUp — see CR-0 in
-  // documents-changes-requested.spec.ts for the same pattern).
+  // Tab onto the Tipo native <select> — proving the doc-type control is keyboard-
+  // REACHABLE (BUG-DDR-001: it was a Segmented radiogroup, now a semantic native
+  // <select>). Its VALUE is then set via `selectOption` rather than a simulated
+  // ArrowDown: on macOS a focused native <select> opens the OS popup on Arrow keys
+  // instead of advancing the value in place, and Playwright cannot drive that OS
+  // popup — an arrow-key value assertion is not portable across OSes (it silently
+  // no-ops on macOS). This mirrors the file-input carve-out below (`setInputFiles`,
+  // since the OS file dialog likewise can't be keyboard-driven); the submitted
+  // doc_type is verified as 'protocol' in the DB assertion at the end of this test.
+  // See CR-0 in documents-changes-requested.spec.ts for the same pattern.
   await page.keyboard.press('Tab')
   const tipoField = page.getByLabel('Tipo', { exact: true })
   await expect(tipoField).toBeFocused()
   await expect(tipoField).toHaveValue('sop') // the wizard's default
-  await page.keyboard.press('ArrowDown')
+  await tipoField.selectOption('protocol')
   await expect(tipoField).toHaveValue('protocol')
 
   await focusByTabbing(page, async () => {

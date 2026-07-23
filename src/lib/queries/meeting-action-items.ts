@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server'
  * follow-up items with a light status lifecycle
  * (`open`/`in_progress`/`done`/`cancelled`), an optional assignee + due date, an
  * optional `source_agenda_item_id` (the agenda item that generated it,
- * `ON DELETE SET NULL`), and an optional `case_id` cross-link to a case.
+ * `ON DELETE SET NULL`), and an optional `linked_case_id` cross-link to a case.
  * `commission_id` is DENORMALIZED on the row (for a direct RLS predicate).
  * RLS is member-read / staff_admin-write; assignees advance their OWN items via
  * a narrow RPC. Strings are pt-BR, resolved in the UI.
@@ -58,7 +58,7 @@ interface MeetingActionItemRow {
   source_meeting_id: string | null
   commission_id: string
   source_agenda_item_id: string | null
-  case_id: string | null
+  linked_case_id: string | null
   title: string
   description: string | null
   status: { key: string } | null
@@ -101,7 +101,7 @@ export async function listMeetingActionItems(
   const { data, error } = await supabase
     .from('action_items')
     .select(
-      `id, source_meeting_id, commission_id, source_agenda_item_id, case_id, title,
+      `id, source_meeting_id, commission_id, source_agenda_item_id, linked_case_id, title,
        description, assigned_to, due_date, created_by, created_at,
        updated_at, completed_at, completed_by,
        status:status_id ( key ),
@@ -113,14 +113,26 @@ export async function listMeetingActionItems(
     .order('created_at', { ascending: false })
     .returns<MeetingActionItemRow[]>()
 
-  if (error || !data) return []
+  if (error) {
+    // A swallowed error here silently empties the panel for what is really a
+    // broken query (e.g. 42703 after a column rename) — log it, then fail closed.
+    console.error('[listMeetingActionItems] query failed', {
+      meetingId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    })
+    return []
+  }
+  if (!data) return []
 
   return data.map((r) => ({
     id: r.id,
     meetingId: r.source_meeting_id ?? meetingId,
     commissionId: r.commission_id,
     sourceAgendaItemId: r.source_agenda_item_id,
-    caseId: r.case_id,
+    caseId: r.linked_case_id,
     title: r.title,
     description: r.description,
     status: toMeetingActionItemStatus(r.status?.key),
