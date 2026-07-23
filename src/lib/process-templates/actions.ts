@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
+import { resolveOptionCodes, slugifyLabel, shortSuffix } from '@/lib/forms/option-code'
+import type { CustomFieldType } from '@/lib/queries/process-templates'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
 
@@ -38,6 +40,11 @@ export interface CreateTemplateState extends ActionState {
 /** add_template_phase returns the new phase-slot id. */
 export interface AddPhaseState extends ActionState {
   phaseId?: string
+}
+
+/** createCustomFieldDef returns the new def id (for the builder to select it). */
+export interface CustomFieldDefState extends ActionState {
+  fieldId?: string
 }
 
 const MESSAGES = {
@@ -75,9 +82,20 @@ const MESSAGES = {
   phaseRemoved: 'Fase removida com sucesso.',
   phaseMoved: 'Ordem das fases atualizada.',
   blocksUpdated: 'Bloqueios da fase atualizados.',
+  // Case custom fields (ADR 0083) — template-authored definitions.
+  missingCustomField: 'Campo personalizado não encontrado.',
+  customFieldLabelRequired: 'Informe o rótulo do campo.',
+  customFieldTypeInvalid: 'Tipo de campo inválido.',
+  customFieldOptionsRequired: 'Adicione ao menos uma opção para um campo de seleção.',
+  customFieldOptionsNotAllowed: 'Este tipo de campo não aceita opções.',
+  customFieldCreated: 'Campo personalizado adicionado.',
+  customFieldUpdated: 'Campo personalizado atualizado.',
+  customFieldRemoved: 'Campo personalizado removido.',
+  customFieldReordered: 'Ordem dos campos atualizada.',
 } as const
 
 const PG_CHECK_VIOLATION = '23514'
+const PG_INSUFFICIENT_PRIVILEGE = '42501'
 // Custom SQLSTATE class HC0xx (Hospital Commission). Renumbered from P00xx in
 // migration 20260613090009 so PostgREST 14 returns 400 + JSON {code,message}
 // rather than a 500 that drops the body for non-ASCII messages.
@@ -557,4 +575,328 @@ export async function setTemplatePhaseBlocks(
 
   revalidateTemplates()
   return { ok: true, error: MESSAGES.blocksUpdated }
+}
+
+// ---------------------------------------------------------------------------
+// Case custom-field DEFINITION authoring (ADR 0083)
+// ---------------------------------------------------------------------------
+// These write `process_template_custom_fields` directly via the RLS-scoped
+// client (the staff_admin/commission-admin write policy is the authority — there
+// is no DEFINER RPC; the values snapshot at case creation is the only RPC path).
+// DRAFT-ONLY editing is enforced HERE (ADR 0083 D5): RLS does not check template
+// status (nor does the sibling `process_template_outcomes` policy), so the
+// frozen-on-publish guarantee lives in these actions — a template that is not
+// `draft` is rejected with a pt-BR error before any write.
+
+/** The custom-field type subset (ADR 0083 D3), for a runtime guard on form input. */
+const CUSTOM_FIELD_TYPES: readonly CustomFieldType[] = [
+  'short_text',
+  'number',
+  'date',
+  'dropdown',
+  'multiple_choice',
+]
+
+function isCustomFieldType(v: string): v is CustomFieldType {
+  return (CUSTOM_FIELD_TYPES as readonly string[]).includes(v)
+}
+
+/** A form checkbox/boolean field: `'true'` or `'on'` (unchecked → absent → false). */
+function boolFromForm(raw: FormDataEntryValue | null): boolean {
+  const v = String(raw ?? '')
+  return v === 'true' || v === 'on'
+}
+
+/**
+ * Parse the optional `options` JSON form field for a single-select custom field:
+ * `[{ code?, label }]` (the builder mints codes client-side, like the form
+ * OptionsEditor). Returns the parsed rows (`[]` when blank), or `'invalid'` on a
+ * malformed payload / an option missing a label. Codes are resolved later.
+ */
+function parseCustomFieldOptions(
+  raw: string,
+): { code: string; label: string }[] | 'invalid' {
+  const trimmed = raw.trim()
+  if (!trimmed) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch {
+    return 'invalid'
+  }
+  if (!Array.isArray(parsed)) return 'invalid'
+  const out: { code: string; label: string }[] = []
+  for (const o of parsed) {
+    if (!o || typeof o !== 'object') return 'invalid'
+    const rec = o as Record<string, unknown>
+    const label = typeof rec.label === 'string' ? rec.label.trim() : ''
+    if (!label) return 'invalid'
+    const code = typeof rec.code === 'string' ? rec.code.trim() : ''
+    out.push({ code, label })
+  }
+  return out
+}
+
+/** Map a direct-DML error on the defs table to friendly pt-BR. */
+function mapCustomFieldError(
+  error: { code?: string; message?: string } | null,
+): string {
+  if (!error) return MESSAGES.generic
+  if (error.code === PG_INSUFFICIENT_PRIVILEGE) return MESSAGES.forbidden
+  // The options-iff-choice CHECK is pre-validated in the action; if it still
+  // fires, surface a clean options message rather than the raw constraint.
+  if (error.code === PG_CHECK_VIOLATION) return MESSAGES.customFieldOptionsRequired
+  return MESSAGES.generic
+}
+
+/** Resolve a template's {commissionId, status} via the RLS-scoped client. */
+async function templateContext(
+  supabase: SupabaseClient<Database>,
+  templateId: string,
+): Promise<{ commissionId: string; status: string } | null> {
+  const { data } = await supabase
+    .from('process_templates')
+    .select('commission_id, status')
+    .eq('id', templateId)
+    .maybeSingle<{ commission_id: string; status: string }>()
+  if (!data) return null
+  return { commissionId: data.commission_id, status: data.status }
+}
+
+/** Resolve a def's {commissionId, templateId, status} via the RLS-scoped client. */
+async function customFieldContext(
+  supabase: SupabaseClient<Database>,
+  fieldId: string,
+): Promise<{ commissionId: string; templateId: string; status: string } | null> {
+  const { data } = await supabase
+    .from('process_template_custom_fields')
+    .select('template_id, process_templates(commission_id, status)')
+    .eq('id', fieldId)
+    .maybeSingle<{
+      template_id: string
+      process_templates: { commission_id: string; status: string } | null
+    }>()
+  const commissionId = data?.process_templates?.commission_id
+  const status = data?.process_templates?.status
+  if (!data || !commissionId || !status) return null
+  return { commissionId, templateId: data.template_id, status }
+}
+
+/**
+ * Validate a submitted (label, fieldType, options) triple for a custom-field def
+ * and resolve the final option rows. Returns the normalized parts, or an
+ * `ActionState` with the field error to return verbatim.
+ */
+function validateCustomFieldInput(
+  label: string,
+  fieldType: string,
+  optionsRaw: string,
+):
+  | { fieldType: CustomFieldType; options: { code: string; label: string }[] }
+  | { error: ActionState } {
+  if (!label) {
+    return { error: { ok: false, fieldErrors: { label: MESSAGES.customFieldLabelRequired } } }
+  }
+  if (!isCustomFieldType(fieldType)) {
+    return { error: { ok: false, fieldErrors: { fieldType: MESSAGES.customFieldTypeInvalid } } }
+  }
+  const isChoice = fieldType === 'dropdown' || fieldType === 'multiple_choice'
+  const parsed = parseCustomFieldOptions(optionsRaw)
+  if (parsed === 'invalid') {
+    return { error: { ok: false, fieldErrors: { options: MESSAGES.customFieldOptionsRequired } } }
+  }
+  if (isChoice && parsed.length === 0) {
+    return { error: { ok: false, fieldErrors: { options: MESSAGES.customFieldOptionsRequired } } }
+  }
+  if (!isChoice && parsed.length > 0) {
+    return { error: { ok: false, fieldErrors: { options: MESSAGES.customFieldOptionsNotAllowed } } }
+  }
+  // Resolve stable codes (keep a submitted code, mint one from the label otherwise;
+  // de-collide within the set) — the same authority the form OptionsEditor uses.
+  const options = isChoice
+    ? resolveOptionCodes([], parsed).map((code, i) => ({ code, label: parsed[i].label }))
+    : []
+  return { fieldType, options }
+}
+
+/**
+ * Create a custom-field DEFINITION on a DRAFT template (ADR 0083). Fields:
+ * `templateId`, `label`, `fieldType` (the D3 subset), `options` (JSON
+ * `[{ code?, label }]` — required for the single-select types, forbidden
+ * otherwise), `required` (`'true'`/`'on'`), `showInList` (`'true'`/`'on'`). The
+ * `key` is generated server-side (`slugifyLabel` + `shortSuffix`), retried on the
+ * `(template_id, key)` unique collision. Appended at `max(position)+1`. Returns
+ * the new `fieldId`.
+ */
+export async function createCustomFieldDef(
+  _prev: CustomFieldDefState | undefined,
+  formData: FormData,
+): Promise<CustomFieldDefState> {
+  const templateId = String(formData.get('templateId') ?? '')
+  const label = String(formData.get('label') ?? '').trim()
+  const fieldTypeRaw = String(formData.get('fieldType') ?? '').trim()
+  const required = boolFromForm(formData.get('required'))
+  const showInList = boolFromForm(formData.get('showInList'))
+  const optionsRaw = String(formData.get('options') ?? '')
+
+  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+
+  const validated = validateCustomFieldInput(label, fieldTypeRaw, optionsRaw)
+  if ('error' in validated) return validated.error
+  const { fieldType, options } = validated
+
+  const supabase = await createClient()
+  const ctx = await templateContext(supabase, templateId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!(await authorizeCommission(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+  if (ctx.status !== 'draft') return { ok: false, error: MESSAGES.notDraft }
+
+  // Append at the end.
+  const { data: maxRow } = await supabase
+    .from('process_template_custom_fields')
+    .select('position')
+    .eq('template_id', templateId)
+    .order('position', { ascending: false })
+    .limit(1)
+    .maybeSingle<{ position: number }>()
+  const nextPosition = (maxRow?.position ?? -1) + 1
+
+  // Retry on the (template_id, key) unique collision (like addItem's question_key).
+  let lastError: { code?: string; message?: string } | null = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const key = `${slugifyLabel(label)}_${shortSuffix()}`
+    const { data, error } = await supabase
+      .from('process_template_custom_fields')
+      .insert({
+        template_id: templateId,
+        key,
+        label,
+        field_type: fieldType,
+        options: options as unknown as Json,
+        required,
+        show_in_list: showInList,
+        position: nextPosition,
+      })
+      .select('id')
+      .single<{ id: string }>()
+
+    if (!error && data) {
+      revalidateTemplates()
+      return { ok: true, error: MESSAGES.customFieldCreated, fieldId: data.id }
+    }
+    lastError = error
+    if (error?.code !== '23505') break
+  }
+  return { ok: false, error: mapCustomFieldError(lastError) }
+}
+
+/**
+ * Update a custom-field DEFINITION on a DRAFT template (ADR 0083). Fields:
+ * `fieldId`, `label`, `fieldType`, `options` (JSON), `required`, `showInList`. The
+ * `key` is STABLE (never changed). Changing `fieldType` away from a single-select
+ * clears its options; changing it to one requires options (validated → pt-BR).
+ */
+export async function updateCustomFieldDef(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const fieldId = String(formData.get('fieldId') ?? '')
+  const label = String(formData.get('label') ?? '').trim()
+  const fieldTypeRaw = String(formData.get('fieldType') ?? '').trim()
+  const required = boolFromForm(formData.get('required'))
+  const showInList = boolFromForm(formData.get('showInList'))
+  const optionsRaw = String(formData.get('options') ?? '')
+
+  if (!fieldId) return { ok: false, error: MESSAGES.missingCustomField }
+
+  const validated = validateCustomFieldInput(label, fieldTypeRaw, optionsRaw)
+  if ('error' in validated) return validated.error
+  const { fieldType, options } = validated
+
+  const supabase = await createClient()
+  const ctx = await customFieldContext(supabase, fieldId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingCustomField }
+  if (!(await authorizeCommission(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+  if (ctx.status !== 'draft') return { ok: false, error: MESSAGES.notDraft }
+
+  const { error } = await supabase
+    .from('process_template_custom_fields')
+    .update({
+      label,
+      field_type: fieldType,
+      options: options as unknown as Json,
+      required,
+      show_in_list: showInList,
+    })
+    .eq('id', fieldId)
+
+  if (error) return { ok: false, error: mapCustomFieldError(error) }
+
+  revalidateTemplates()
+  return { ok: true, error: MESSAGES.customFieldUpdated }
+}
+
+/**
+ * Delete a custom-field DEFINITION from a DRAFT template (ADR 0083). Any per-case
+ * snapshot keeps its frozen copy (the value row's `template_field_id` FK is
+ * `ON DELETE SET NULL` — provenance only). Draft-only.
+ */
+export async function deleteCustomFieldDef(fieldId: string): Promise<ActionState> {
+  if (!fieldId) return { ok: false, error: MESSAGES.missingCustomField }
+
+  const supabase = await createClient()
+  const ctx = await customFieldContext(supabase, fieldId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingCustomField }
+  if (!(await authorizeCommission(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+  if (ctx.status !== 'draft') return { ok: false, error: MESSAGES.notDraft }
+
+  const { error } = await supabase
+    .from('process_template_custom_fields')
+    .delete()
+    .eq('id', fieldId)
+
+  if (error) return { ok: false, error: mapCustomFieldError(error) }
+
+  revalidateTemplates()
+  return { ok: true, error: MESSAGES.customFieldRemoved }
+}
+
+/**
+ * Reorder a template's custom-field defs (ADR 0083 — the builder's drag order).
+ * `orderedIds` is the full set in the desired order; each row's `position` is set
+ * to its index. Scoped to `templateId` so a stray id cannot touch another
+ * template. Draft-only. Mirrors {@link reorderCaseOutcomes}'s shape.
+ */
+export async function reorderCustomFieldDefs(
+  templateId: string,
+  orderedIds: string[],
+): Promise<ActionState> {
+  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+  if (orderedIds.length === 0) return { ok: true }
+
+  const supabase = await createClient()
+  const ctx = await templateContext(supabase, templateId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingTemplate }
+  if (!(await authorizeCommission(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+  if (ctx.status !== 'draft') return { ok: false, error: MESSAGES.notDraft }
+
+  for (let i = 0; i < orderedIds.length; i++) {
+    const { error } = await supabase
+      .from('process_template_custom_fields')
+      .update({ position: i })
+      .eq('id', orderedIds[i])
+      .eq('template_id', templateId)
+    if (error) return { ok: false, error: mapCustomFieldError(error) }
+  }
+
+  revalidateTemplates()
+  return { ok: true, error: MESSAGES.customFieldReordered }
 }
