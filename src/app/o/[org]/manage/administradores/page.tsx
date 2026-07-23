@@ -5,10 +5,9 @@ import { ArrowRight, ShieldCheck } from "lucide-react";
 
 import { getSessionContext } from "@/lib/queries/session";
 import {
-  listHospitalAdmins,
+  listHospitalAdminsForOrg,
   listNspOrgAdmins,
   listOrgHospitals,
-  type RoleHolder,
 } from "@/lib/queries/org";
 import { listOrgEligibleUsers } from "@/lib/queries/pqs";
 import { isNspOrgAdmin } from "@/lib/pqs/org-admin";
@@ -32,8 +31,8 @@ export const metadata: Metadata = {
  * users), since both roles here are appointed org-wide: `hospital_admin` (any hospital
  * in the org) and `nsp_org_admin` (org-level). The per-hospital
  * `listHospitalEligibleUsersForPqs` is NOT used here — it would miss org-level-only
- * users. Current holders come from `listHospitalAdmins(hospitalId)` (one per hospital)
- * and `listNspOrgAdmins(orgId)`.
+ * users. Current holders come from ONE batched `listHospitalAdminsForOrg(hospitalIds)`
+ * read (A3 — replaces the former per-hospital N+1 loop) and `listNspOrgAdmins(orgId)`.
  */
 export default async function OrgAdministratorsPage({
   params,
@@ -63,15 +62,11 @@ export default async function OrgAdministratorsPage({
       isNspOrgAdmin(organization.id),
     ]);
 
-  // Current hospital_admin holders, one read per hospital, assembled into the
-  // map the manager consumes (hospitalId → holders).
-  const hospitalAdminEntries = await Promise.all(
-    hospitals.map(
-      async (h) => [h.id, await listHospitalAdmins(h.id)] as const,
-    ),
+  // One batched read for every hospital's current hospital_admin holders
+  // (hospitalId → holders) — replaces the former per-hospital N+1 loop.
+  const hospitalAdminsByHospital = await listHospitalAdminsForOrg(
+    hospitals.map((h) => h.id),
   );
-  const hospitalAdminsByHospital: Record<string, RoleHolder[]> =
-    Object.fromEntries(hospitalAdminEntries);
 
   return (
     <div className="flex flex-col gap-10">
@@ -92,7 +87,7 @@ export default async function OrgAdministratorsPage({
 
       <section
         aria-labelledby="hospital-admin-heading"
-        className="animate-rise-in flex max-w-3xl flex-col gap-5"
+        className="animate-rise-in flex max-w-3xl flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-xs sm:p-7"
       >
         <h2 id="hospital-admin-heading" className="text-lg font-semibold">
           Administradores de hospital
@@ -112,7 +107,7 @@ export default async function OrgAdministratorsPage({
 
       <section
         aria-labelledby="nsp-org-admin-heading"
-        className="animate-rise-in flex max-w-3xl flex-col gap-5"
+        className="animate-rise-in flex max-w-3xl flex-col gap-5 rounded-2xl border border-border bg-card p-6 shadow-xs sm:p-7"
         style={{ ["--rise-delay" as string]: "80ms" }}
       >
         <h2 id="nsp-org-admin-heading" className="text-lg font-semibold">

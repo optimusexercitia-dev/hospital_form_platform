@@ -1,17 +1,10 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getSessionContext } from "@/lib/queries/session";
-import { orgHref } from "@/lib/routing";
 import { auditTrailEnabled } from "@/lib/queries/audit";
-import { patientSafetyEnabled } from "@/lib/queries/pqs";
-import {
-  qualityIndicatorsEnabled,
-  controlledDocsEnabled,
-} from "@/lib/queries/feature-flags";
-import { UserMenu } from "@/components/shell/user-menu";
+import { qualityIndicatorsEnabled } from "@/lib/queries/feature-flags";
 import { NotificationBell } from "@/components/notifications/notification-bell";
-import { OrgManageNav } from "@/components/shell/org-manage-nav";
+import { OrgManageSidebar } from "@/components/shell/org-manage-sidebar";
 
 /**
  * Organization management area shell — the customer super-user area, now
@@ -60,56 +53,32 @@ export default async function OrgManageLayout({
   const organization = orgAdmin?.organization ?? hospitalAdminHere[0]!.organization;
 
   // The audit_trail flag gates the "Trilha de auditoria" nav entry; the
-  // patient_safety flag gates the "Coordenação do NSP" entry.
-  const [auditOn, patientSafetyOn, qualityIndicatorsOn, controlledDocsOn] =
-    await Promise.all([
-      auditTrailEnabled(),
-      patientSafetyEnabled(),
-      qualityIndicatorsEnabled(),
-      controlledDocsEnabled(),
-    ]);
+  // quality_indicators flag gates "Indicadores". `controlledDocsEnabled()` and
+  // `patientSafetyEnabled()` are deliberately NOT read here — both were fetched
+  // solely to feed the now-deleted `OrgManageNav` (Documentos is nav-hidden only,
+  // the route self-gates on `controlledDocsEnabled()`; "Coordenação do NSP" is
+  // retired from the nav, ADR 0052, and patientSafety isn't a sidebar item).
+  const [auditOn, qualityIndicatorsOn] = await Promise.all([
+    auditTrailEnabled(),
+    qualityIndicatorsEnabled(),
+  ]);
 
   return (
-    <div className="flex min-h-svh flex-col">
-      <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-md">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-3 px-4 sm:px-6">
-          <Link
-            href={orgHref(organization.slug, "manage")}
-            className="flex items-center gap-2 rounded-lg focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none"
-            aria-label={`${organization.name} — administração`}
-          >
-            <span
-              aria-hidden="true"
-              className="grid size-8 place-items-center rounded-lg bg-primary text-sm font-semibold text-primary-foreground"
-            >
-              CH
-            </span>
-            <span className="max-w-[12rem] truncate text-sm font-semibold tracking-tight">
-              {organization.name}
-            </span>
-          </Link>
-          <span
-            aria-hidden="true"
-            className="ml-1 rounded-full bg-accent px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-accent-foreground uppercase"
-          >
-            Organização
-          </span>
-          <OrgManageNav
-            org={organization.slug}
-            auditEnabled={auditOn}
-            patientSafetyEnabled={patientSafetyOn}
-            qualityIndicatorsEnabled={qualityIndicatorsOn}
-            controlledDocsEnabled={controlledDocsOn}
-            isOrgAdmin={Boolean(orgAdmin)}
-          />
-          <div className="ml-auto flex items-center gap-3">
-            <NotificationBell />
-            <UserMenu fullName={context.fullName} email={context.email} />
-          </div>
+    <div className="flex min-h-svh flex-col md:flex-row">
+      <OrgManageSidebar
+        org={organization.slug}
+        orgName={organization.name}
+        fullName={context.fullName}
+        email={context.email}
+        isOrgAdmin={Boolean(orgAdmin)}
+        auditEnabled={auditOn}
+        qualityIndicatorsEnabled={qualityIndicatorsOn}
+        notificationBell={<NotificationBell />}
+      />
+      <main className="min-w-0 flex-1">
+        <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 md:px-8">
+          {children}
         </div>
-      </header>
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6">
-        {children}
       </main>
     </div>
   );

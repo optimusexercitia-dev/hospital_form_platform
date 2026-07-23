@@ -248,6 +248,14 @@ test.describe('HA-2: Appointment — org_admin grants/revokes hospital_admin + n
     await signInAs(page, 'orgadmin.a@test.local')
     await page.goto('/o/rede-a/manage/administradores')
 
+    // Open the "Nomear administrador(a)" dialog (redesign: the appoint form
+    // now lives inside a modal, trigger-owns-state). The dialog's own heading
+    // text ("Nomear administrador(a) de hospital") is PRESERVED, so the
+    // existing `form` anchor below still resolves once the dialog is open.
+    await page.getByRole('button', { name: 'Nomear administrador(a)' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+
     // Appoint staff1.ccih (a plain staff, not yet a hospital_admin) over
     // Hospital Secundário A. Scope to the "Nomear administrador(a) de
     // hospital" form — the page has multiple "Hospital"/"Pessoa da
@@ -265,8 +273,9 @@ test.describe('HA-2: Appointment — org_admin grants/revokes hospital_admin + n
 
     await appointForm.getByRole('button', { name: /^Nomear$/ }).click()
 
-    // Success banner + roster shows the new admin under "Hospital Secundário A".
-    await expect(page.getByText(/nomeado/i).first()).toBeVisible({ timeout: 10_000 })
+    // No success banner on this path — the dialog closes and the roster
+    // refreshes to show the new admin under "Hospital Secundário A".
+    await expect(dialog).not.toBeVisible({ timeout: 10_000 })
     const secundarioGroup = page.locator('p', { hasText: 'Hospital Secundário A' })
     await expect(secundarioGroup).toBeVisible()
 
@@ -286,6 +295,12 @@ test.describe('HA-2: Appointment — org_admin grants/revokes hospital_admin + n
   test('orgadmin.a CANNOT self-delegate hospital_admin (no self-delegation)', async ({ page }) => {
     await signInAs(page, 'orgadmin.a@test.local')
     await page.goto('/o/rede-a/manage/administradores', { waitUntil: 'networkidle' })
+
+    // Open the "Nomear administrador(a)" dialog (redesign) before anchoring on
+    // its form — see the previous test's comment for why the same `form`
+    // locator still resolves once the dialog is open.
+    await page.getByRole('button', { name: 'Nomear administrador(a)' }).click()
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 })
 
     const appointForm = page.locator('form', { has: page.getByRole('heading', { name: /nomear administrador\(a\) de hospital/i }) })
     await appointForm.getByLabel('Hospital').selectOption({ label: 'Hospital Secundário A' })

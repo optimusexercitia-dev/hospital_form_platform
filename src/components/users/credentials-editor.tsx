@@ -30,16 +30,48 @@ const EMPTY_DRAFT: CredentialInput = {
   expiresOn: null,
 };
 
+/** Whether the three required trio fields (UF, órgão emissor, número) are filled. */
+function isDraftComplete(draft: CredentialInput): boolean {
+  return Boolean(
+    draft.issuingState.trim() &&
+      draft.issuingAuthority.trim() &&
+      draft.registrationNumber.trim(),
+  );
+}
+
 /**
- * Repeating professional-credentials sub-form (plan Q5), shared shape between:
- * - `mode="collect"` (FE-2, register form): no user yet — rows live in local
- *   state and bubble up via `onChange` as `CredentialInput[]`, batched into
- *   `RegisterUserInput.credentials`.
- * - `mode="live"` (FE-3, manage page): `userId` is required — add/edit calls
- *   `upsertCredential` directly, remove calls `removeCredential`, each via
- *   `useTransition` (contract-first stubs are plain typed functions, not
- *   `useActionState`-shaped). Editing an existing credential CLEARS its
- *   `verifiedAt` server-side — shown here as a note, never hidden.
+ * Whether the draft has ANY user input across the fields that matter for the
+ * "partially filled" hint. `issuingCountry` defaults to "BR" and is excluded —
+ * it must never count as "the user started typing" on its own.
+ */
+function hasAnyDraftInput(draft: CredentialInput): boolean {
+  return Boolean(
+    draft.issuingState.trim() ||
+      draft.issuingAuthority.trim() ||
+      draft.registrationNumber.trim() ||
+      draft.expiresOn,
+  );
+}
+
+/**
+ * Single professional-registry editor (plan Q5 amendment — UI-only; the
+ * backend stays 1→N via `professional_credentials`, and `CredentialFields` /
+ * `upsertCredential` / `removeCredential` are unchanged). Configures exactly
+ * ONE optional registry:
+ * - `mode="collect"` (register-user form, no user yet): one inline,
+ *   always-visible, optional `CredentialFields` block. Bubbles up
+ *   `onChange([draft])` only when the required trio (UF + órgão emissor +
+ *   número) is complete, `onChange([])` otherwise — so the parent's
+ *   `RegisterUserInput.credentials` payload stays valid-or-empty even
+ *   mid-typing.
+ * - `mode="live"` (per-user manage page): the FIRST credential renders as a
+ *   read-only summary card (Editar reveals the inline fields →
+ *   `upsertCredential`, which always clears `verifiedAt`; Remover → the
+ *   existing confirm dialog → `removeCredential`). Zero credentials shows a
+ *   dashed empty state with a single "Cadastrar registro profissional"
+ *   button. Legacy multi-credential users still see credentials 2..n, listed
+ *   read-only under a muted note, so an admin can converge to one without any
+ *   backend change.
  */
 export function CredentialsEditor({
   mode,
@@ -50,78 +82,114 @@ export function CredentialsEditor({
   mode: "collect" | "live";
   /** Required when `mode === "live"`. */
   userId?: string;
-  /** `live`: full `ProfessionalCredential[]` (has id/verifiedAt). `collect`: plain drafts. */
+  /** `live`: full `ProfessionalCredential[]` (has id/verifiedAt). `collect`: plain drafts (0 or 1). */
   credentials: ProfessionalCredential[] | CredentialInput[];
   onChange?: (next: CredentialInput[]) => void;
+}) {
+  if (mode === "collect") {
+    return <CollectRegistry onChange={onChange} />;
+  }
+  return (
+    <LiveRegistry
+      userId={userId}
+      credentials={credentials as ProfessionalCredential[]}
+    />
+  );
+}
+
+/** `mode="collect"` — the register-user form's inline, optional single registry. */
+function CollectRegistry({
+  onChange,
+}: {
+  onChange?: (next: CredentialInput[]) => void;
+}) {
+  const [draft, setDraft] = useState<CredentialInput>(EMPTY_DRAFT);
+
+  function handleChange(next: CredentialInput) {
+    setDraft(next);
+    onChange?.(isDraftComplete(next) ? [next] : []);
+  }
+
+  const showHint = hasAnyDraftInput(draft) && !isDraftComplete(draft);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <CredentialFields
+        draft={draft}
+        setDraft={handleChange}
+        idPrefix="collect"
+        disabled={false}
+      />
+      {showHint ? (
+        <FormBanner tone="info">
+          Preencha também estado, órgão emissor e número de registro para
+          incluir o registro profissional — ou deixe os três em branco.
+        </FormBanner>
+      ) : null}
+    </div>
+  );
+}
+
+/** `mode="live"` — the per-user manage page's single-registry editor + legacy overflow. */
+function LiveRegistry({
+  userId,
+  credentials,
+}: {
+  userId?: string;
+  credentials: ProfessionalCredential[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [formOpen, setFormOpen] = useState<"add" | "edit" | null>(null);
   const [draft, setDraft] = useState<CredentialInput>(EMPTY_DRAFT);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<CredentialInput>(EMPTY_DRAFT);
 
-  const isLive = mode === "live";
-  const rows = credentials as (ProfessionalCredential & Partial<CredentialInput>)[];
+  const primary = credentials[0] ?? null;
+  const legacy = credentials.slice(1);
+  const editingId = formOpen === "edit" ? (primary?.id ?? undefined) : undefined;
 
-  function resetAddForm() {
+  function openAdd() {
+    setError(null);
     setDraft(EMPTY_DRAFT);
-    setAdding(false);
+    setFormOpen("add");
   }
 
-  function commitAdd() {
-    if (!draft.issuingState || !draft.issuingAuthority || !draft.registrationNumber) {
+  function openEdit(credential: ProfessionalCredential) {
+    setError(null);
+    setDraft({
+      issuingCountry: credential.issuingCountry,
+      issuingState: credential.issuingState,
+      issuingAuthority: credential.issuingAuthority,
+      registrationNumber: credential.registrationNumber,
+      expiresOn: credential.expiresOn,
+    });
+    setFormOpen("edit");
+  }
+
+  function commitSave(id?: string) {
+    if (!userId) return;
+    if (!isDraftComplete(draft)) {
       setError("Preencha estado, órgão emissor e número de registro.");
       return;
     }
     setError(null);
-
-    if (!isLive) {
-      const next = [...(credentials as CredentialInput[]), draft];
-      onChange?.(next);
-      resetAddForm();
-      return;
-    }
-
-    if (!userId) return;
     startTransition(async () => {
-      const result = await upsertCredential({ ...draft, userId });
+      const result = await upsertCredential({ ...draft, userId, id });
       if (!result.ok) {
-        setError(result.error ?? "Não foi possível salvar a credencial.");
+        setError(result.error ?? "Não foi possível salvar o registro.");
         return;
       }
-      resetAddForm();
+      setFormOpen(null);
       router.refresh();
     });
   }
 
-  function commitEditSave(id: string) {
-    if (!isLive || !userId) return;
-    setError(null);
-    startTransition(async () => {
-      const result = await upsertCredential({ ...editDraft, userId, id });
-      if (!result.ok) {
-        setError(result.error ?? "Não foi possível salvar a credencial.");
-        return;
-      }
-      setEditingId(null);
-      router.refresh();
-    });
-  }
-
-  function commitRemove(index: number, id?: string) {
-    if (!isLive) {
-      const next = (credentials as CredentialInput[]).filter((_, i) => i !== index);
-      onChange?.(next);
-      return;
-    }
-    if (!id) return;
+  function commitRemove(id: string) {
     setError(null);
     startTransition(async () => {
       const result = await removeCredential(id);
       if (!result.ok) {
-        setError(result.error ?? "Não foi possível remover a credencial.");
+        setError(result.error ?? "Não foi possível remover o registro.");
         return;
       }
       router.refresh();
@@ -132,150 +200,119 @@ export function CredentialsEditor({
     <div className="flex flex-col gap-4">
       {error ? <FormBanner tone="error">{error}</FormBanner> : null}
 
-      {rows.length === 0 && !adding ? (
-        <p className="rounded-xl border border-dashed border-border bg-muted/40 px-4 py-6 text-center text-sm text-muted-foreground text-pretty">
-          Nenhum registro profissional cadastrado.
-        </p>
-      ) : (
-        <ul className="flex flex-col gap-3">
-          {rows.map((c, index) => {
-            const key = c.id ?? `draft-${index}`;
-            const isEditing = isLive && editingId === c.id;
-            if (isEditing) {
-              return (
-                <li
-                  key={key}
-                  className="rounded-xl border border-border bg-card p-4"
-                >
-                  <CredentialFields
-                    draft={editDraft}
-                    setDraft={setEditDraft}
-                    idPrefix={`edit-${c.id}`}
-                    disabled={isPending}
-                  />
-                  <p className="mt-2 text-xs text-muted-foreground text-pretty">
-                    Editar limpa a verificação atual desta credencial.
-                  </p>
-                  <div className="mt-3 flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={isPending}
-                      onClick={() => c.id && commitEditSave(c.id)}
-                    >
-                      {isPending ? "Salvando…" : "Salvar"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={isPending}
-                      onClick={() => setEditingId(null)}
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
-                </li>
-              );
-            }
-            return (
-              <li
-                key={key}
-                className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card p-4"
-              >
-                <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 text-sm font-medium">
-                    {c.issuingAuthority} {c.registrationNumber}
-                    {c.verifiedAt ? (
-                      <span
-                        className="inline-flex items-center gap-1 rounded-full bg-accent px-1.5 py-0.5 text-[0.65rem] font-medium text-accent-foreground"
-                        title={`Verificado em ${formatDate(c.verifiedAt)}`}
-                      >
-                        <BadgeCheck aria-hidden="true" className="size-3" />
-                        Verificado
-                      </span>
-                    ) : null}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {c.issuingState} · {c.issuingCountry}
-                    {c.expiresOn
-                      ? ` · válido até ${formatDate(c.expiresOn)}`
-                      : ""}
-                  </p>
-                </div>
-                <div className="flex shrink-0 gap-1">
-                  {isLive ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={isPending}
-                      onClick={() => {
-                        setEditingId(c.id ?? null);
-                        setEditDraft({
-                          issuingCountry: c.issuingCountry,
-                          issuingState: c.issuingState,
-                          issuingAuthority: c.issuingAuthority,
-                          registrationNumber: c.registrationNumber,
-                          expiresOn: c.expiresOn,
-                        });
-                      }}
-                    >
-                      Editar
-                    </Button>
-                  ) : null}
-                  <RemoveCredentialButton
-                    label={`${c.issuingAuthority} ${c.registrationNumber}`}
-                    isPending={isPending}
-                    onConfirm={() => commitRemove(index, c.id)}
-                  />
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      {adding ? (
+      {formOpen ? (
         <div className="rounded-xl border border-border bg-card p-4">
           <CredentialFields
             draft={draft}
             setDraft={setDraft}
-            idPrefix="new"
+            idPrefix={formOpen}
             disabled={isPending}
           />
+          {formOpen === "edit" ? (
+            <p className="mt-2 text-xs text-muted-foreground text-pretty">
+              Editar limpa a verificação atual deste registro.
+            </p>
+          ) : null}
           <div className="mt-3 flex gap-2">
             <Button
               type="button"
               size="sm"
               disabled={isPending}
-              onClick={commitAdd}
+              onClick={() => commitSave(editingId)}
             >
-              {isPending ? "Salvando…" : "Adicionar credencial"}
+              {isPending ? "Salvando…" : "Salvar"}
             </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
               disabled={isPending}
-              onClick={resetAddForm}
+              onClick={() => setFormOpen(null)}
             >
               Cancelar
             </Button>
           </div>
         </div>
+      ) : primary ? (
+        <div className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card p-4">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-sm font-medium">
+              {primary.issuingAuthority} {primary.registrationNumber}
+              {primary.verifiedAt ? (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full bg-accent px-1.5 py-0.5 text-[0.65rem] font-medium text-accent-foreground"
+                  title={`Verificado em ${formatDate(primary.verifiedAt)}`}
+                >
+                  <BadgeCheck aria-hidden="true" className="size-3" />
+                  Verificado
+                </span>
+              ) : null}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {primary.issuingState} · {primary.issuingCountry}
+              {primary.expiresOn
+                ? ` · válido até ${formatDate(primary.expiresOn)}`
+                : ""}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isPending}
+              onClick={() => openEdit(primary)}
+            >
+              Editar
+            </Button>
+            <RemoveCredentialButton
+              label={`${primary.issuingAuthority} ${primary.registrationNumber}`}
+              isPending={isPending}
+              onConfirm={() => commitRemove(primary.id)}
+            />
+          </div>
+        </div>
       ) : (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="w-fit"
-          onClick={() => setAdding(true)}
-        >
-          <Plus aria-hidden="true" />
-          Adicionar registro profissional
-        </Button>
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border bg-muted/40 px-4 py-6 text-center">
+          <p className="text-sm text-muted-foreground text-pretty">
+            Nenhum registro profissional cadastrado.
+          </p>
+          <Button type="button" variant="outline" size="sm" onClick={openAdd}>
+            <Plus aria-hidden="true" />
+            Cadastrar registro profissional
+          </Button>
+        </div>
       )}
+
+      {legacy.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-muted-foreground text-pretty">
+            Registros adicionais — este cadastro passou a ter um único
+            registro; os registros abaixo permanecem visíveis até serem
+            removidos.
+          </p>
+          <ul className="flex flex-col gap-2">
+            {legacy.map((c) => (
+              <li
+                key={c.id}
+                className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2"
+              >
+                <div className="min-w-0 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    {c.issuingAuthority} {c.registrationNumber}
+                  </span>{" "}
+                  · {c.issuingState} · {c.issuingCountry}
+                </div>
+                <RemoveCredentialButton
+                  label={`${c.issuingAuthority} ${c.registrationNumber}`}
+                  isPending={isPending}
+                  onConfirm={() => commitRemove(c.id)}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -34,8 +34,15 @@ import { test, expect } from '@playwright/test'
  *   - `platform@test.local` is the platform admin (is_admin); lands on /admin.
  *   - Commission detail at `/o/rede-a/manage/comissoes/${slug}`.
  *   - Member management at `/o/rede-a/c/${commission}/manage/members`.
- *   - The org-manage create action stays on the list page with a success banner
- *     (no redirect to detail unlike the old /admin flow).
+ *
+ * Org-admin area redesign (side nav + dialog-based create flows):
+ *   - The commissions page no longer has an inline "Nova comissão" form. A
+ *     "Criar comissão" header button opens a modal dialog holding the SAME
+ *     fields (Hospital / Nome / Identificador). On success the dialog just
+ *     CLOSES and the list refreshes — there is no `[role="status"]` success
+ *     banner on this path (only the error path renders a banner, inside the
+ *     dialog). The list itself is unchanged in structure: a `<ul>` of `<li>`
+ *     commission cards.
  *
  * Run-uniqueness: commission slugs and invite e-mails embed Date.now() so a
  * second run on the same seed does not collide on unique constraints.
@@ -75,6 +82,35 @@ async function signInAs(
   await page.waitForURL((url) => !url.pathname.startsWith('/login'), {
     timeout: 15_000,
   })
+}
+
+/**
+ * Create a commission via the redesigned "Criar comissão" dialog: click the
+ * header trigger, fill the dialog-SCOPED form (same fields as before — Hospital /
+ * Nome / Identificador — just relocated into a modal), submit, and wait for the
+ * dialog to close. There is no success banner on this path (`onSuccess` just
+ * closes the dialog + `router.refresh()`s the list) — waiting for the dialog to
+ * disappear is the success signal; on failure it stays open (error banner inside
+ * it) and this will time out, correctly failing the caller's test.
+ * Caller must already be on `/o/rede-a/manage/comissoes`.
+ */
+async function createCommissionViaDialog(
+  page: import('@playwright/test').Page,
+  { hospitalName, name, slug }: { hospitalName: string; name: string; slug: string },
+) {
+  await page.getByRole('button', { name: 'Criar comissão' }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible({ timeout: 10_000 })
+  // Scope to the dialog TITLE — the submit button is also named "Criar comissão",
+  // so a bare getByText() matches two nodes and trips Playwright strict mode.
+  await expect(dialog.getByRole('heading', { name: 'Criar comissão' })).toBeVisible()
+
+  await dialog.locator('select[name="hospitalId"]').selectOption({ label: hospitalName })
+  await dialog.getByLabel('Nome').fill(name)
+  await dialog.getByLabel('Identificador (slug)').fill(slug)
+  await dialog.getByRole('button', { name: /^criar comissão$/i }).click()
+
+  await expect(dialog).not.toBeVisible({ timeout: 10_000 })
 }
 
 /**
@@ -175,7 +211,7 @@ test.describe('AC1 — Org-admin creates a commission and assigns a staff_admin'
     // admin@ is org_admin of rede-a → lands on /o/rede-a/manage
     await expect(page).toHaveURL(/\/o\/rede-a\/manage/)
 
-    // Navigate to the commissions create page.
+    // Navigate to the commissions page.
     await page.goto('/o/rede-a/manage/comissoes')
     await page.waitForURL('**/o/rede-a/manage/comissoes', { timeout: 10_000 })
 
@@ -184,27 +220,7 @@ test.describe('AC1 — Org-admin creates a commission and assigns a staff_admin'
     const commissionName = `Comissão Teste ${ts}`
     const slug = `comissao-teste-${ts}`
 
-    // Select the hospital (required in the org-manage create form).
-    // Use name-based selector to avoid strict-mode collision with the
-    // sidebar link that has aria-label containing "Hospital".
-    const hospitalSelect = page.locator('select[name="hospitalId"]')
-    await hospitalSelect.selectOption({ label: HOSPITAL_NAME })
-
-    // Fill the "Nova comissão" form.
-    const nameInput = page.getByLabel('Nome')
-    await nameInput.fill(commissionName)
-
-    // The slug is auto-suggested from the name; override with our unique slug.
-    const slugInput = page.getByLabel('Identificador (slug)')
-    await slugInput.fill(slug)
-
-    await page.getByRole('button', { name: /criar comissão/i }).click()
-
-    // The org-manage action stays on the list page with a success banner.
-    const banner = page.locator('[role="status"]')
-    await expect(banner).toBeVisible({ timeout: 10_000 })
-    const bannerText = await banner.innerText()
-    expect(bannerText).toMatch(/criada/i)
+    await createCommissionViaDialog(page, { hospitalName: HOSPITAL_NAME, name: commissionName, slug })
 
     // The commission must appear in the list.
     const commissionCards = page.locator('ul').filter({ has: page.locator('li') })
@@ -224,13 +240,7 @@ test.describe('AC1 — Org-admin creates a commission and assigns a staff_admin'
     const commissionName = `Comissão Detail ${ts}`
     const slug = `comissao-detail-${ts}`
 
-    await page.locator('select[name="hospitalId"]').selectOption({ label: HOSPITAL_NAME })
-    await page.getByLabel('Nome').fill(commissionName)
-    await page.getByLabel('Identificador (slug)').fill(slug)
-    await page.getByRole('button', { name: /criar comissão/i }).click()
-
-    // Wait for success banner.
-    await expect(page.locator('[role="status"]')).toBeVisible({ timeout: 10_000 })
+    await createCommissionViaDialog(page, { hospitalName: HOSPITAL_NAME, name: commissionName, slug })
 
     // Navigate to the commission detail page.
     await page.goto(`/o/rede-a/manage/comissoes/${slug}`)
@@ -258,13 +268,8 @@ test.describe('AC1 — Org-admin creates a commission and assigns a staff_admin'
     // ccih commission (whose roster the AC3 tests rely on).
     const slug = `coord-commission-${ts}`
     const commissionName = `Coord Commission ${ts}`
-    await page.locator('select[name="hospitalId"]').selectOption({ label: HOSPITAL_NAME })
-    await page.getByLabel('Nome').fill(commissionName)
-    await page.getByLabel('Identificador (slug)').fill(slug)
-    await page.getByRole('button', { name: /criar comissão/i }).click()
+    await createCommissionViaDialog(page, { hospitalName: HOSPITAL_NAME, name: commissionName, slug })
 
-    // Wait for success banner then navigate to detail.
-    await expect(page.locator('[role="status"]')).toBeVisible({ timeout: 10_000 })
     await page.goto(`/o/rede-a/manage/comissoes/${slug}`)
     await page.waitForURL(`**/o/rede-a/manage/comissoes/${slug}`, { timeout: 10_000 })
 
@@ -527,30 +532,37 @@ test.describe('AC4 — Keyboard-only commission create and AlertDialog confirm',
     const commissionName = `Teclado ${ts}`
     const slug = `teclado-${ts}`
 
-    // Select hospital via keyboard (required field).
+    // Open the "Criar comissão" dialog via keyboard: focus the header trigger
+    // and activate with Enter (the create form now lives inside a modal).
+    const trigger = page.getByRole('button', { name: 'Criar comissão' })
+    await trigger.focus()
+    await page.keyboard.press('Enter')
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+
+    // Select hospital via keyboard (required field), scoped to the dialog.
     // Use name-based selector to avoid strict-mode collision with sidebar link.
-    const hospitalSelect = page.locator('select[name="hospitalId"]')
+    const hospitalSelect = dialog.locator('select[name="hospitalId"]')
     await hospitalSelect.focus()
     await hospitalSelect.selectOption({ label: HOSPITAL_NAME })
 
     // Focus the Nome field and fill it via keyboard.
-    const nameInput = page.getByLabel('Nome')
+    const nameInput = dialog.getByLabel('Nome')
     await nameInput.focus()
     await nameInput.fill(commissionName)
 
     // Tab to the slug field.
     await page.keyboard.press('Tab')
     // The slug field gets auto-suggested; override it with a unique value.
-    const slugInput = page.getByLabel('Identificador (slug)')
+    const slugInput = dialog.getByLabel('Identificador (slug)')
     await slugInput.fill(slug)
 
     // Tab to the submit button, then press Enter.
     await page.keyboard.press('Tab') // move to submit button
     await page.keyboard.press('Enter') // activate
 
-    // The action stays on the list page with a success banner.
-    const banner = page.locator('[role="status"]')
-    await expect(banner).toBeVisible({ timeout: 10_000 })
+    // No success banner on this path — the dialog closes and the list refreshes.
+    await expect(dialog).not.toBeVisible({ timeout: 10_000 })
 
     // Commission name must appear in the list — no mouse interaction used.
     await expect(page.getByText(commissionName)).toBeVisible({ timeout: 10_000 })

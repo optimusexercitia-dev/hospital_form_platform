@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { createHospital } from "@/lib/org/actions";
 import { Button } from "@/components/ui/button";
@@ -23,13 +23,23 @@ import { FormBanner } from "@/components/auth/form-banner";
  */
 export function OrgHospitalCreateForm({
   organizationId,
+  onSuccess,
 }: {
   organizationId: string;
+  /** Fired once the create action reports success (`state.ok`) — lets the
+   * "Criar hospital" dialog close and refresh the list. */
+  onSuccess?: () => void;
 }) {
   const [state, formAction, isPending] = useActionState(
     createHospital,
     undefined,
   );
+
+  useEffect(() => {
+    if (state?.ok) {
+      onSuccess?.();
+    }
+  }, [state, onSuccess]);
 
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");

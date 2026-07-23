@@ -146,14 +146,14 @@ test.describe('AC1 — org_admin registers a user; appears ATIVO in the director
       }
     })
 
-    // Optional: add a professional credential. The reveal button opens the
-    // sub-form; the commit button is "Adicionar credencial" (frontend FIX-1
-    // renamed the ambiguous "Adicionar").
-    await page.getByRole('button', { name: /adicionar registro profissional/i }).click()
+    // Optional: fill the professional credential. Single-registry redesign:
+    // the trio of fields (UF / órgão emissor / número) is ALWAYS inline under
+    // "Registros profissionais" — there is no "Adicionar registro
+    // profissional" reveal button nor an "Adicionar credencial" commit button
+    // anymore; the draft bubbles up automatically once the trio is complete.
     await page.getByLabel('Estado (UF)').fill('SP')
     await page.getByLabel('Órgão emissor').fill('CRM')
     await page.getByLabel('Número de registro').fill(token)
-    await page.getByRole('button', { name: /adicionar credencial/i }).click()
 
     // Optional: assign a committee with a role. Commit button is now
     // "Adicionar comissão" (FIX-1).

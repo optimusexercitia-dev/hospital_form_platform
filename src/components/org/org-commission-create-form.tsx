@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 import { createCommission } from "@/lib/org/actions";
 import { Button } from "@/components/ui/button";
@@ -27,20 +27,30 @@ import { FormBanner } from "@/components/auth/form-banner";
  * {@link HospitalSummary} (org_admin's full registry read) and
  * {@link HospitalRef} (a hospital_admin's narrower session-derived list, ADR
  * 0051), so the same picker works for both callers of `/o/[org]/manage/comissoes`. */
-interface HospitalOption {
+export interface HospitalOption {
   id: string;
   name: string;
 }
 
 export function OrgCommissionCreateForm({
   hospitals,
+  onSuccess,
 }: {
   hospitals: HospitalOption[];
+  /** Fired once the create action reports success (`state.ok`) — lets the
+   * "Criar comissão" dialog close and refresh the list. */
+  onSuccess?: () => void;
 }) {
   const [state, formAction, isPending] = useActionState(
     createCommission,
     undefined,
   );
+
+  useEffect(() => {
+    if (state?.ok) {
+      onSuccess?.();
+    }
+  }, [state, onSuccess]);
 
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");

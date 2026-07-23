@@ -15,7 +15,14 @@ import { adminedHospitals } from "@/lib/auth/access";
 import { orgHref } from "@/lib/routing";
 import { auditTrailEnabled } from "@/lib/queries/audit";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
+import {
+  getOrgCommissionOverview,
+  listHospitalsForOrg,
+  listManagedCommissions,
+} from "@/lib/queries/org";
 import { HospitalSwitcher } from "@/components/shell/hospital-switcher";
+import { RiseInGroup } from "@/components/motion/rise-in-group";
+import { StatCount } from "@/components/admin/stat-count";
 import { ShieldCheck } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -127,10 +134,42 @@ export default async function OrgManageHomePage({
   const sp = await searchParams;
   const currentHospitalId = sp.hospital ?? null;
 
-  const [auditOn, patientSafetyOn] = await Promise.all([
-    auditTrailEnabled(),
-    patientSafetyEnabled(),
-  ]);
+  // Preserved across the stat strip AND the area-card links so a hospital_admin
+  // stays on their selected hospital's commissions on every destination page.
+  const effectiveHospitalId = !isOrgAdmin
+    ? (currentHospitalId ?? hospitals[0]?.id ?? null)
+    : null;
+
+  const [auditOn, patientSafetyOn, orgHospitals, commissions, overviewRows] =
+    await Promise.all([
+      auditTrailEnabled(),
+      patientSafetyEnabled(),
+      // Stat-strip reads (C5): org_admin gets the org-wide hospital/commission
+      // counts + a 30-day submission rollup; hospital_admin gets only its
+      // scoped commission count (existing RLS-scoped reads, no new queries).
+      isOrgAdmin ? listHospitalsForOrg(organization.id) : Promise.resolve([]),
+      isOrgAdmin
+        ? listManagedCommissions(organization.id, null)
+        : listManagedCommissions(organization.id, effectiveHospitalId),
+      isOrgAdmin
+        ? getOrgCommissionOverview(organization.id)
+        : Promise.resolve([]),
+    ]);
+
+  const stats: { label: string; value: number }[] = isOrgAdmin
+    ? [
+        { label: "Hospitais", value: orgHospitals.length },
+        { label: "Comissões", value: commissions.length },
+        {
+          label: "Respostas nos últimos 30 dias",
+          value: overviewRows.reduce(
+            (sum, row) => sum + row.submittedLast30Days,
+            0,
+          ),
+        },
+      ]
+    : [{ label: "Comissões", value: commissions.length }];
+
   const areas = AREAS.filter((area) => {
     if (area.orgAdminOnly && !isOrgAdmin) return false;
     if (area.requiresFeature === "audit") return auditOn;
@@ -161,17 +200,37 @@ export default async function OrgManageHomePage({
         </p>
       </header>
 
+      <RiseInGroup
+        className={`grid gap-4 ${
+          isOrgAdmin ? "sm:grid-cols-3" : "sm:max-w-xs sm:grid-cols-1"
+        }`}
+      >
+        {stats.map((stat) => (
+          <div
+            key={stat.label}
+            data-rise
+            className="rounded-2xl border border-border bg-card p-5 shadow-xs"
+          >
+            <p className="text-sm font-medium text-muted-foreground text-pretty">
+              {stat.label}
+            </p>
+            <StatCount
+              value={stat.value}
+              className="mt-1 block font-display text-3xl leading-none tabular-nums text-foreground"
+            />
+          </div>
+        ))}
+      </RiseInGroup>
+
       <section
         aria-label="Áreas de administração"
         className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
       >
         {areas.map((area, index) => {
           const Icon = area.icon;
-          // Preserve the hospital scope across the card link so a hospital_admin
+          // effectiveHospitalId is hoisted above (also feeds the stat strip) —
+          // preserves the hospital scope across the card link so a hospital_admin
           // stays on their selected hospital's commissions on the destination page.
-          const effectiveHospitalId = !isOrgAdmin
-            ? (currentHospitalId ?? hospitals[0]?.id ?? null)
-            : null;
           const href = effectiveHospitalId
             ? `${orgHref(org, "manage", ...area.segments)}?hospital=${encodeURIComponent(effectiveHospitalId)}`
             : orgHref(org, "manage", ...area.segments);

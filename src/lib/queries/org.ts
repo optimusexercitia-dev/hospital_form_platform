@@ -45,6 +45,19 @@ export interface HospitalSummary {
   commissionCount: number
 }
 
+/**
+ * A hospital within an org, enriched with its admin roster + user count for the
+ * redesigned Hospitais card — one round trip via aliased embeds (see
+ * {@link listHospitalsForOrgDetailed}).
+ */
+export interface HospitalDetail extends HospitalSummary {
+  /** The hospital's current `hospital_admin`s, sorted by name (pt-BR). */
+  admins: { userId: string; fullName: string; email: string }[]
+  /** Count of profiles whose `home_hospital_id` = this hospital (not the wider
+   * "vínculo" set {@link listHospitalUsers} pages — home-anchored only). */
+  userCount: number
+}
+
 /** A commission within an org (org-manage list); mirrors the admin commission row. */
 export interface OrgCommissionSummary {
   id: string
@@ -52,6 +65,21 @@ export interface OrgCommissionSummary {
   slug: string
   hospitalId: string | null
   hospitalName: string | null
+}
+
+/**
+ * A commission within an org, enriched with the counts + coordinator roster the
+ * redesigned Comissões card needs — one round trip via aliased `memberships`
+ * embeds (see {@link listManagedCommissionsDetailed}).
+ */
+export interface OrgCommissionDetail extends OrgCommissionSummary {
+  /** Count of `staff` + `staff_admin` members (the answerable roster; excludes
+   * org-level roles that may hold a commission-scoped row). */
+  memberCount: number
+  /** The commission's `staff_admin`s, sorted by name (pt-BR). */
+  coordinators: { userId: string; fullName: string; email: string }[]
+  /** Count of forms owned by the commission. */
+  formCount: number
 }
 
 /**
@@ -130,6 +158,70 @@ export async function listHospitalsForOrg(orgId: string): Promise<HospitalSummar
     name: h.name,
     slug: h.slug,
     commissionCount: h.commissions[0]?.count ?? 0,
+  }))
+}
+
+interface HospitalDetailRow {
+  id: string
+  name: string
+  slug: string
+  commissions: { count: number }[]
+  admins: {
+    principal_id: string
+    profiles: { full_name: string | null; email: string | null } | null
+  }[]
+  users: { count: number }[]
+}
+
+/**
+ * {@link listHospitalsForOrg}, enriched with the `hospital_admin` roster and a
+ * home-anchored user count — one PostgREST round trip via a `commissions(count)`
+ * embed, a filtered `memberships` embed (admins), and a `profiles(count)` embed
+ * keyed on `home_hospital_id` (NOT the wider "vínculo" set
+ * {@link listHospitalUsers} pages — this is a home-anchor count only). Backs the
+ * redesigned Hospitais card (`/o/[org]/manage/hospitais`, org_admin-only).
+ *
+ * RLS-scoped: empty for a caller who is not org_admin of `orgId` (nor
+ * platform_admin) — same authority as {@link listHospitalsForOrg}. Admin rows
+ * whose profile RLS hid (null `profiles`) are dropped; the remainder is sorted
+ * by name (pt-BR).
+ */
+export async function listHospitalsForOrgDetailed(
+  orgId: string,
+): Promise<HospitalDetail[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('hospitals')
+    .select(
+      `id, name, slug, commissions!commissions_hospital_id_fkey(count),
+       admins:memberships!memberships_hospital_id_fkey(principal_id, profiles:principal_id(full_name, email)),
+       users:profiles!profiles_home_hospital_id_fkey(count)`,
+    )
+    .eq('organization_id', orgId)
+    .eq('admins.role', 'hospital_admin')
+    .order('name', { ascending: true })
+    .returns<HospitalDetailRow[]>()
+
+  if (error || !data) return []
+
+  return data.map((h) => ({
+    id: h.id,
+    name: h.name,
+    slug: h.slug,
+    commissionCount: h.commissions[0]?.count ?? 0,
+    admins: h.admins
+      .filter(
+        (a): a is typeof a & { profiles: NonNullable<typeof a.profiles> } =>
+          a.profiles !== null,
+      )
+      .map((a) => ({
+        userId: a.principal_id,
+        fullName: a.profiles.full_name ?? '',
+        email: a.profiles.email ?? '',
+      }))
+      .sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR')),
+    userCount: h.users[0]?.count ?? 0,
   }))
 }
 
@@ -230,6 +322,46 @@ export async function listHospitalAdmins(hospitalId: string): Promise<RoleHolder
 }
 
 /**
+ * The `hospital_admin` holders of EVERY hospital in `hospitalIds`, in one
+ * `memberships` read grouped by `hospital_id` in TS — kills the per-hospital N+1
+ * loop the Administradores page used to run. Same RLS + shape as
+ * {@link listHospitalAdmins} (which stays intact for its other, single-hospital
+ * callers); each group is sorted by name (pt-BR) via {@link mapRoleHolders}.
+ * Returns `{}` for an empty `hospitalIds` (no query issued) and omits hospitals
+ * with no visible admins (no key, not an empty array).
+ */
+export async function listHospitalAdminsForOrg(
+  hospitalIds: string[],
+): Promise<Record<string, RoleHolder[]>> {
+  if (hospitalIds.length === 0) return {}
+
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('memberships')
+    .select('hospital_id, principal_id, granted_at, profiles:principal_id(full_name, email)')
+    .eq('role', 'hospital_admin')
+    .in('hospital_id', hospitalIds)
+    .returns<(RoleHolderRow & { hospital_id: string | null })[]>()
+
+  if (error || !data) return {}
+
+  const grouped = new Map<string, RoleHolderRow[]>()
+  for (const row of data) {
+    if (!row.hospital_id) continue
+    const rows = grouped.get(row.hospital_id)
+    if (rows) rows.push(row)
+    else grouped.set(row.hospital_id, [row])
+  }
+
+  const result: Record<string, RoleHolder[]> = {}
+  for (const [hospitalId, rows] of grouped) {
+    result[hospitalId] = mapRoleHolders(rows)
+  }
+  return result
+}
+
+/**
  * The current `nsp_org_admin` holders of `orgId` (ADR 0051; the role exists in
  * Phase A but is inert until Phase B — the roster is still shown for management).
  * Same RLS + shape as {@link listHospitalAdmins}. Org-level rows (hospital_id
@@ -320,6 +452,80 @@ export async function listManagedCommissions(
     slug: c.slug,
     hospitalId: c.hospital_id,
     hospitalName: c.hospitals?.name ?? null,
+  }))
+}
+
+interface CommissionDetailRow {
+  id: string
+  name: string
+  slug: string
+  hospital_id: string | null
+  hospitals: { name: string } | null
+  members: { count: number }[]
+  coordinators: {
+    principal_id: string
+    profiles: { full_name: string | null; email: string | null } | null
+  }[]
+  forms: { count: number }[]
+}
+
+/**
+ * {@link listManagedCommissions}, enriched with member count, the `staff_admin`
+ * coordinator roster, and form count — one PostgREST round trip via TWO aliased
+ * embeds of `memberships` (one counting `staff`+`staff_admin`, one listing
+ * `staff_admin` profiles) plus a `forms(count)` embed. Backs the redesigned
+ * Comissões card (`/o/[org]/manage/comissoes`).
+ *
+ * RLS-safe for BOTH tiers: `memberships_select` and `forms_select` both gate on
+ * the combined `app.is_commission_admin_of` predicate (org_admin OR
+ * hospital_admin of the commission — ADR 0051), same as
+ * {@link listManagedCommissions}. Coordinator rows whose profile RLS hid (null
+ * `profiles`) are dropped; the remainder is sorted by name (pt-BR).
+ */
+export async function listManagedCommissionsDetailed(
+  orgId: string,
+  hospitalId?: string | null,
+): Promise<OrgCommissionDetail[]> {
+  const supabase = await createClient()
+
+  let query = supabase
+    .from('commissions')
+    .select(
+      `id, name, slug, hospital_id, hospitals:hospital_id(name),
+       members:memberships!memberships_commission_id_fkey(count),
+       coordinators:memberships!memberships_commission_id_fkey(principal_id, profiles:principal_id(full_name, email)),
+       forms(count)`,
+    )
+    .eq('organization_id', orgId)
+    .in('members.role', ['staff', 'staff_admin'])
+    .eq('coordinators.role', 'staff_admin')
+  if (hospitalId) query = query.eq('hospital_id', hospitalId)
+
+  const { data, error } = await query
+    .order('name', { ascending: true })
+    .returns<CommissionDetailRow[]>()
+
+  if (error || !data) return []
+
+  return data.map((c) => ({
+    id: c.id,
+    name: c.name,
+    slug: c.slug,
+    hospitalId: c.hospital_id,
+    hospitalName: c.hospitals?.name ?? null,
+    memberCount: c.members[0]?.count ?? 0,
+    coordinators: c.coordinators
+      .filter(
+        (co): co is typeof co & { profiles: NonNullable<typeof co.profiles> } =>
+          co.profiles !== null,
+      )
+      .map((co) => ({
+        userId: co.principal_id,
+        fullName: co.profiles.full_name ?? '',
+        email: co.profiles.email ?? '',
+      }))
+      .sort((a, b) => a.fullName.localeCompare(b.fullName, 'pt-BR')),
+    formCount: c.forms[0]?.count ?? 0,
   }))
 }
 

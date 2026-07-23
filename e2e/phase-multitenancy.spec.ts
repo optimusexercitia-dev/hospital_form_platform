@@ -192,8 +192,12 @@ test.describe('MT-4/5: Org-admin area and sub-screens', () => {
 
   test('orgadmin.a: header badge reads "Organização"', async ({ page }) => {
     await signInAs(page, 'orgadmin.a@test.local')
-    // The manage shell renders a badge to distinguish it from the commission shell.
-    await expect(page.getByText('Organização', { exact: true })).toBeVisible()
+    // The manage shell renders an "Organização" marker to distinguish it from the
+    // commission shell. The redesigned sidebar shows it twice (brand context line
+    // + nav-group eyebrow), so scope to the first to avoid a strict-mode match.
+    await expect(
+      page.getByText('Organização', { exact: true }).first(),
+    ).toBeVisible()
   })
 })
 
@@ -205,8 +209,12 @@ test.describe('MT-6: Create commission via hospital selector (smoke)', () => {
   test('orgadmin.a: new-commission form has a hospital selector populated with rede-a hospitals', async ({ page }) => {
     await signInAs(page, 'orgadmin.a@test.local')
     await page.goto('/o/rede-a/manage/comissoes')
-    // The create-commission form should have a hospital picker.
-    const select = page.getByRole('combobox').first()
+    // The create-commission form now lives inside the "Criar comissão" dialog
+    // (org-admin area redesign) — open it before looking for the hospital picker.
+    await page.getByRole('button', { name: 'Criar comissão' }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+    const select = dialog.getByRole('combobox').first()
     await expect(select).toBeVisible({ timeout: 10_000 })
     // The select should contain "Hospital Central A" but NOT "Hospital Central B".
     const optionText = await select.evaluate((el) =>

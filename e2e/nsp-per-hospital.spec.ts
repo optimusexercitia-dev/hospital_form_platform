@@ -575,18 +575,27 @@ test.describe('AC-3: three-tier appointment chain', () => {
     const res = await page.goto('/o/rede-a/manage/administradores')
     expect(res?.status()).toBe(200)
 
-    // The NSP-org-admin appointment section. The picker (`listOrgEligibleUsers`)
-    // includes the caller; selecting SELF and submitting must be REJECTED server-side
-    // (assign_nsp_org_admin forbids self-delegation) — a pt-BR error banner, no grant.
+    // The NSP-org-admin appointment section. Its "Nomear administração do NSP"
+    // button opens a dialog holding the picker (`listOrgEligibleUsers`), which
+    // includes the caller; selecting SELF and submitting must be REJECTED
+    // server-side (assign_nsp_org_admin forbids self-delegation) — a pt-BR
+    // error banner, no grant.
     const nspSection = page
       .locator('section')
       .filter({ hasText: 'Administração do NSP da organização' })
     await expect(nspSection).toBeVisible()
 
-    const select = nspSection.getByLabel(/pessoa da organização/i)
+    // Open the appoint dialog. Its content is rendered in a PORTAL (outside
+    // `nspSection` in the DOM), so every subsequent lookup below is scoped to
+    // the dialog itself, not the section.
+    await nspSection.getByRole('button', { name: /nomear administração do nsp/i }).click()
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible({ timeout: 10_000 })
+
+    const select = dialog.getByLabel(/pessoa da organização/i)
     // Attempt self-appointment by picking the org_admin's own display name.
     // orgadmin.a's profile name — resolve by its email fragment via the option list.
-    const selfOption = nspSection.locator('option', {
+    const selfOption = dialog.locator('option', {
       hasText: /orgadmin\.a@test\.local|Admin(istrador)? Rede A/i,
     })
     const hasSelf = (await selfOption.count()) > 0
@@ -594,13 +603,14 @@ test.describe('AC-3: three-tier appointment chain', () => {
       const value = await selfOption.first().getAttribute('value')
       if (value) {
         await select.selectOption(value)
-        await nspSection.getByRole('button', { name: /^nomear$/i }).click()
-        // Server rejects self-delegation → error banner, NOT a success banner.
+        await dialog.getByRole('button', { name: /^nomear$/i }).click()
+        // Server rejects self-delegation → error banner (dialog stays open),
+        // NOT a success — and the dialog never closes.
         await expect(
-          nspSection.getByText(/não é possível nomear a si|si mesmo/i),
+          dialog.getByText(/não é possível nomear a si|si mesmo/i),
         ).toBeVisible({ timeout: 10_000 })
         await expect(
-          nspSection.getByText(/administração do nsp nomeada/i),
+          dialog.getByText(/administração do nsp nomeada/i),
         ).toHaveCount(0)
       }
     } else {
