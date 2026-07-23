@@ -9532,6 +9532,15 @@ export type Database = {
         }
       }
       audit_trail_enabled: { Args: never; Returns: boolean }
+      bulk_create_cases: {
+        Args: {
+          p_deadline: string
+          p_phase_scope: string
+          p_rows: Json
+          p_template_id: string
+        }
+        Returns: number
+      }
       can_dispose_referral_phi: {
         Args: { p_referral_id: string }
         Returns: boolean
