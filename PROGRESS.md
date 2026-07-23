@@ -470,7 +470,16 @@ captured in "Novo caso". Design: [ADR 0083](docs/decisions/0083-case-custom-fiel
   - `phase22-referrals.spec.ts:428` — ENC-0001 subject not in hub. Task-chipped (off `main`).
   - `ethics-e2-procedure.spec.ts` FLOW-7 — known keyboard-vote flake (already a filed follow-up).
   Final lead verification on a fresh reset: **charters + case-access + case-custom-fields = 41/41**.
-- [ ] **QA review** + **human approval** + **merge to `main`**. Owned by `qa` → lead.
+- [x] **QA review** (`qa`, 2026-07-23) — ✅ **APPROVED** (0 P0 · 0 MAJOR · 1 MINOR · 2 INFO)
+  [review](docs/reviews/adr-0083-case-custom-fields-review.md). Direct-table write-bypass closed at the
+  table (live-catalog `pg_policies` verified; pgTAP `188` re-run green 28/28); both RPCs `SECURITY DEFINER`
+  + PUBLIC-revoked; `create_case_from_template` rebuilt from live def with no lost logic; edit path
+  authority-gated/exclusion-aware/terminal-safe/audited (Rule 11); Rule 12 holds (non-PHI by design);
+  D1–D10 all met. MINOR-1 **cleared** (`857ed38`): `HC0F1` on the edit path now surfaces the RPC's
+  specific pt-BR "impedido" message (mirrors `case-recusals`). INFO: D5 draft-freeze is action-layer (matches the outcomes sibling);
+  the branch migration was applied forward to the local DB to obtain live-catalog truth (was absent from
+  the prior reset). ⚠ Note: local DB state changed (ADR-0083 objects now present; a `db reset` recreates them).
+- [ ] **human approval** + **merge to `main`**. Owned by lead.
   (Blockers to a fully-green gate are the 4 tracked pre-existing reds above — all off-branch, on `main`.)
 
 ### ▶ AUTHZ Gate-2 deferred (PO-noted 2026-07-17, non-blocking — Gate 2 shipped)
