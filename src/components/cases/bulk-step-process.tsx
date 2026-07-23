@@ -12,10 +12,6 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import {
-  CustomFieldsPiiWarning,
-  LabelPiiWarning,
-} from "@/components/cases/create-case-dialog";
-import {
   PATIENT_COLUMNS,
   phiSelectionValid,
 } from "@/lib/cases/bulk-grid-model";
@@ -133,14 +129,15 @@ export function BulkStepProcess({
         </FieldDescription>
       </Field>
 
-      <LabelPiiWarning />
-
       {caseCustomFieldsEnabled && selectedTemplate && customFields.length > 0 ? (
         <fieldset className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-4">
           <legend className="px-1 text-sm font-medium">
             Campos personalizados (colunas da grade)
           </legend>
-          <CustomFieldsPiiWarning />
+          <PhiCaution>
+            Não inclua dados de paciente nos campos personalizados (nome,
+            prontuário, data de nascimento ou qualquer identificador).
+          </PhiCaution>
           <div className="flex flex-col gap-2">
             {customFields.map((field) => {
               const checked = field.required || selectedOptionalKeys.has(field.key);
@@ -180,16 +177,10 @@ export function BulkStepProcess({
           <legend className="px-1 text-sm font-medium">
             Identificadores do paciente (colunas da grade)
           </legend>
-          <p
-            role="note"
-            className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2.5 text-sm text-destructive text-pretty"
-          >
-            <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-            <span>
-              Dados sensíveis de paciente (PHI). Selecione apenas os identificadores
-              necessários — cada um vira uma coluna da grade.
-            </span>
-          </p>
+          <PhiCaution>
+            Dados sensíveis de paciente (PHI). Selecione apenas os identificadores
+            necessários — cada um vira uma coluna da grade.
+          </PhiCaution>
           <div className="flex flex-col gap-2">
             {PATIENT_COLUMNS.map((col) => (
               <label key={col.key} className="flex items-start gap-2.5 text-sm">
@@ -256,6 +247,24 @@ export function BulkStepProcess({
         </fieldset>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Compact PHI/PII caution — small destructive TEXT with a subtle inline icon, no
+ * bordered/tinted box (PO tweak: three heavy red boxes were too much for a
+ * coordinator who fills this). Local to Step 1; the single-case dialog keeps its
+ * boxed `LabelPiiWarning` / `CustomFieldsPiiWarning`.
+ */
+function PhiCaution({ children }: { children: React.ReactNode }) {
+  return (
+    <p
+      role="note"
+      className="flex items-start gap-1.5 text-xs text-destructive text-pretty"
+    >
+      <ShieldAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+      <span>{children}</span>
+    </p>
   );
 }
 
