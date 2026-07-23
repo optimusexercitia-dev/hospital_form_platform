@@ -400,8 +400,31 @@ test('AC-4: Nova reunião — "Participantes" section defaults to "Convocar todo
     },
   )
   const rows = (await resp.json()) as { user_id: string }[]
-  // All 9 members are convoked (seed CCIH has 9 members).
-  expect(rows.length).toBe(9)
+  // "Convocar todos" convokes EVERY member of the commission. The
+  // `seed_expected_meeting_attendees` RPC inserts one attendee per `memberships`
+  // row where `commission_id = <this commission>` (using `principal_id`, deduped
+  // by user). Assert the convoked set equals that membership set by IDENTITY
+  // rather than a hardcoded count: sibling specs sharing the batch-reset DB
+  // (user-registration, hospital-admin) can add CCIH members, so `== 9` is
+  // order-dependent (BUG-F3E2E-002). Deriving the expected set from the live
+  // catalog keeps the invariant ("all members are convoked") exact regardless of
+  // how many members currently exist.
+  const membersResp = await page.request.get(
+    `${SUPABASE_URL}/rest/v1/memberships?commission_id=eq.${COMM_A}&select=principal_id`,
+    {
+      headers: {
+        apikey: SUPABASE_SERVICE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      },
+    },
+  )
+  const memberRows = (await membersResp.json()) as { principal_id: string }[]
+  const expectedUserIds = new Set(memberRows.map((m) => m.principal_id))
+  const convokedUserIds = new Set(rows.map((r) => r.user_id))
+  expect(convokedUserIds).toEqual(expectedUserIds)
+  // Sanity floor: the seed baseline has 9 CCIH members, so an isolated run is
+  // exactly 9; a shared-batch run may be higher — never fewer.
+  expect(convokedUserIds.size).toBeGreaterThanOrEqual(9)
 })
 
 test('AC-5: Nova reunião — toggle OFF reveals a member checklist + live count; a chosen subset → exactly those Convocados', async ({
