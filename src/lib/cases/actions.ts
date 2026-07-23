@@ -144,6 +144,10 @@ const HC_COMMISSION_MISMATCH = 'HC030'
 // Case custom fields (ADR 0083) — a required custom field has no value (both the
 // create snapshot and the edit-blank paths raise this).
 const HC_CUSTOM_FIELD_REQUIRED = 'HC068'
+// Exclusion perimeter (ADR 0078 M1·4) — the caller is excluded from the case; the
+// edit-custom-fields RPC (like set_case_visibility) raises HC0F1. Prefer the RPC's
+// own "impedido" message, matching case-recusals/actions.ts.
+const HC_CASE_EXCLUDED = 'HC0F1'
 // Ad-hoc slot deletion (layout adjustments):
 const HC_NOT_AD_HOC = 'HC0D0' // the slot is template-derived → not deletable
 const HC_PHASE_HAS_RESPONSES = 'HC0D1' // the phase has responses → never cascade
@@ -250,6 +254,8 @@ function mapCaseError(error: { code?: string; message?: string } | null): string
       return error.message || MESSAGES.generic
     case PG_INSUFFICIENT_PRIVILEGE:
       return MESSAGES.forbidden
+    case HC_CASE_EXCLUDED:
+      return error.message || MESSAGES.forbidden
     default:
       return MESSAGES.generic
   }
