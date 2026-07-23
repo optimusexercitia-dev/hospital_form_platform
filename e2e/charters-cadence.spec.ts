@@ -27,11 +27,11 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  * values live (`commission_default` | `explicit_grants_only` — no
  * `participants_only`, that value belongs to `meetings.visibility_policy`).
  * `action_items.visibility_scope='case_restricted'` reads
- * `app.can_read_case(coalesce(source_case_id, case_id), uid)` — CH-BE-3's
+ * `app.can_read_case(coalesce(source_case_id, linked_case_id), uid)` — CH-BE-3's
  * pgTAP exercised the same `can_read_action_item` call via an
  * `assignees_only` item; this spec exercises the `case_restricted` branch
  * specifically: a meeting-sourced item (`source_type='meeting'`) cross-linked
- * via `case_id` to an `explicit_grants_only` case with no grant.
+ * via `linked_case_id` to an `explicit_grants_only` case with no grant.
  *
  * This spec builds its OWN carry-forward/confidentiality world in
  * `beforeAll`/`afterAll` (service-role REST, mirrors
@@ -334,7 +334,7 @@ test.beforeAll(async () => {
     title: RESTRICTED_ACTION_TITLE,
     status_id: openStatus.id,
     visibility_scope: 'case_restricted',
-    case_id: restrictedCaseId,
+    linked_case_id: restrictedCaseId,
     created_by: FARM_SA_UID,
   })
   restrictedActionId = restrictedItem.id
