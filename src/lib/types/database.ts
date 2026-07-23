@@ -1703,6 +1703,63 @@ export type Database = {
           },
         ]
       }
+      case_custom_field_values: {
+        Row: {
+          case_id: string
+          created_at: string
+          field_type: string
+          id: string
+          key: string
+          label: string
+          options: Json
+          position: number
+          template_field_id: string | null
+          updated_at: string
+          value: Json | null
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          field_type: string
+          id?: string
+          key: string
+          label: string
+          options?: Json
+          position?: number
+          template_field_id?: string | null
+          updated_at?: string
+          value?: Json | null
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          field_type?: string
+          id?: string
+          key?: string
+          label?: string
+          options?: Json
+          position?: number
+          template_field_id?: string | null
+          updated_at?: string
+          value?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_custom_field_values_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_custom_field_values_template_field_id_fkey"
+            columns: ["template_field_id"]
+            isOneToOne: false
+            referencedRelation: "process_template_custom_fields"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_decisions: {
         Row: {
           case_id: string
@@ -6578,6 +6635,53 @@ export type Database = {
           },
         ]
       }
+      process_template_custom_fields: {
+        Row: {
+          created_at: string
+          field_type: string
+          id: string
+          key: string
+          label: string
+          options: Json
+          position: number
+          required: boolean
+          show_in_list: boolean
+          template_id: string
+        }
+        Insert: {
+          created_at?: string
+          field_type: string
+          id?: string
+          key: string
+          label: string
+          options?: Json
+          position?: number
+          required?: boolean
+          show_in_list?: boolean
+          template_id: string
+        }
+        Update: {
+          created_at?: string
+          field_type?: string
+          id?: string
+          key?: string
+          label?: string
+          options?: Json
+          position?: number
+          required?: boolean
+          show_in_list?: boolean
+          template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_template_custom_fields_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "process_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       process_template_narratives: {
         Row: {
           created_at: string
@@ -10181,6 +10285,7 @@ export type Database = {
       create_case_from_template: {
         Args: {
           p_case_type_id?: string
+          p_custom_fields?: Json
           p_department_id?: string
           p_department_other?: string
           p_label?: string
@@ -13986,6 +14091,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      update_case_custom_field_values: {
+        Args: { p_case_id: string; p_values: Json }
+        Returns: undefined
       }
       update_case_meta: {
         Args: {

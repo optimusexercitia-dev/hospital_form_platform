@@ -115,6 +115,9 @@ const MESSAGES = {
   // Hospital Departments — the case's "Unidade / setor" (NON-PHI, case-level).
   departmentBoth: "Selecione um setor da lista OU informe um valor em 'Outro', não ambos.",
   departmentInvalid: 'Este setor não pertence ao hospital deste caso.',
+  // Case custom fields (ADR 0083) — administrative descriptors, NON-PHI.
+  customFieldRequired: 'Preencha todos os campos personalizados obrigatórios.',
+  customFieldsSaved: 'Campos personalizados atualizados.',
 } as const
 
 const PG_CHECK_VIOLATION = '23514'
@@ -138,6 +141,9 @@ const HC_OUTCOME_REQUIRED = 'HC028'
 const HC_PHASES_UNSETTLED = 'HC031'
 // Process-less case creation — outcome/commission mismatch (create_case).
 const HC_COMMISSION_MISMATCH = 'HC030'
+// Case custom fields (ADR 0083) — a required custom field has no value (both the
+// create snapshot and the edit-blank paths raise this).
+const HC_CUSTOM_FIELD_REQUIRED = 'HC068'
 // Ad-hoc slot deletion (layout adjustments):
 const HC_NOT_AD_HOC = 'HC0D0' // the slot is template-derived → not deletable
 const HC_PHASE_HAS_RESPONSES = 'HC0D1' // the phase has responses → never cascade
@@ -232,6 +238,8 @@ function mapCaseError(error: { code?: string; message?: string } | null): string
       return error.message || MESSAGES.phasesUnsettled
     case HC_COMMISSION_MISMATCH:
       return error.message || MESSAGES.commissionMismatch
+    case HC_CUSTOM_FIELD_REQUIRED:
+      return error.message || MESSAGES.customFieldRequired
     case HC_NOT_AD_HOC:
       return error.message || MESSAGES.phaseNotAdHoc
     case HC_PHASE_HAS_RESPONSES:
@@ -329,6 +337,36 @@ function departmentFromForm(
 }
 
 /**
+ * Parse the case custom-field values (ADR 0083) carried by the create / edit forms.
+ * Each field is a SINGLE hidden input named `customField` whose value is a JSON
+ * string `{ "key": string, "value": string | number | null }`. The FRONTEND does the
+ * per-type coercion (it knows each field's `fieldType` from `CustomFieldDef`), so a
+ * `number` field arrives as a JSON number here (numbers stay numbers — the
+ * lexical-compare pitfall is avoided). Malformed entries are skipped. Returns the
+ * `p_custom_fields` / `p_values` payload the RPCs expect (`[]` when none).
+ */
+function customFieldsFromForm(formData: FormData): Json {
+  const raw = formData.getAll('customField')
+  const out: { key: string; value: Json }[] = []
+  for (const entry of raw) {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(String(entry))
+    } catch {
+      continue
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue
+    const rec = parsed as Record<string, unknown>
+    const key = typeof rec.key === 'string' ? rec.key.trim() : ''
+    if (!key) continue
+    const v = rec.value
+    const value: Json = typeof v === 'string' || typeof v === 'number' ? v : null
+    out.push({ key, value })
+  }
+  return out
+}
+
+/**
  * Upsert the isolated patient PHI on a case via the `set_case_patient` DEFINER,
  * on a CALLER-PROVIDED (RLS-scoped) client so it can share the same request as
  * case creation. Returns a mapped pt-BR error (or null). The authority + the
@@ -399,6 +437,9 @@ export async function createCaseFromTemplate(
     p_label: label || undefined,
     p_department_id: department.departmentId ?? undefined,
     p_department_other: department.departmentOther ?? undefined,
+    // ADR 0083 — the dialog's custom-field values, snapshotted + written IN the
+    // create transaction; a required field with no value raises HC068 here.
+    p_custom_fields: customFieldsFromForm(formData),
   })
 
   if (error || !data) return { ok: false, error: mapCaseError(error) }
@@ -534,6 +575,39 @@ export async function updateCaseMeta(
 
   revalidateCases()
   return { ok: true, error: MESSAGES.caseMetaSaved }
+}
+
+/**
+ * Edit a case's CUSTOM-FIELD values (ADR 0083) from the case detail. Routes through
+ * the `update_case_custom_field_values` DEFINER RPC, which is the authority: it
+ * self-gates (coordinator/commission-admin, OR a `create_cases` Administrativo behind
+ * the flag), enforces the exclusion perimeter (HC0F1) + terminal-case freeze (HC025),
+ * and UPDATES existing value rows only (the snapshot set is fixed at creation — no new
+ * rows). Blanking a REQUIRED field raises HC068 → pt-BR. Every change is audited
+ * (Rule 11). We do NOT pre-check authority here (the coordinator `authorizeCommission`
+ * would wrongly reject the capability arm) — the RPC's 42501 maps to a clean forbidden.
+ *
+ * Fields: `caseId`, plus one hidden `customField` input per field carrying a JSON
+ * `{ key, value }` (see {@link customFieldsFromForm}). A field absent from the payload
+ * keeps its current value; a present-but-blank value clears it (unless required).
+ */
+export async function updateCaseCustomFieldValues(
+  _prev: ActionState | undefined,
+  formData: FormData,
+): Promise<ActionState> {
+  const caseId = String(formData.get('caseId') ?? '')
+  if (!caseId) return { ok: false, error: MESSAGES.missingCase }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('update_case_custom_field_values', {
+    p_case_id: caseId,
+    p_values: customFieldsFromForm(formData),
+  })
+
+  if (error) return { ok: false, error: mapCaseError(error) }
+
+  revalidateCases()
+  return { ok: true, error: MESSAGES.customFieldsSaved }
 }
 
 /**

@@ -699,6 +699,15 @@ begin
                         'op', 'equals', 'value', 'sim'),
      14);
 
+  -- ADR 0083 — one demo custom-field DEF on the M&M template: the death-certificate
+  -- number (short_text, optional, surfaced in the cases list). Administrative
+  -- reference only, NON-PHI (Rule 12).
+  insert into public.process_template_custom_fields
+    (template_id, key, label, field_type, options, required, show_in_list, position)
+  values
+    (v_tpl, 'numero_declaracao_obito', 'Número da Declaração de Óbito',
+     'short_text', '[]'::jsonb, false, true, 0);
+
   -- The case (number minted by the trigger). Pin Form A's published version.
   -- status is LEFT to the column default 'not_started' (the FIXED five-value
   -- model; the configurable-status vocabulary R2 introduced was removed). The
@@ -708,6 +717,15 @@ begin
   -- mid-flight fixture the dashboard/board E2E expects.
   insert into public.cases (id, commission_id, template_id, label, created_by, patient_enabled)
   values (v_case, v_comm_a, v_tpl, 'Óbito UTI leito 7', v_chefe_a, true);
+
+  -- ADR 0083 — snapshot the demo custom field onto Case 0001 (the seed inserts the
+  -- case directly, bypassing the RPC's snapshot). Frozen def copy + a demo value.
+  insert into public.case_custom_field_values
+    (case_id, template_field_id, key, label, field_type, options, value, position)
+  select v_case, f.id, f.key, f.label, f.field_type, f.options,
+         to_jsonb('2024-DO-00789'::text), f.position
+  from public.process_template_custom_fields f
+  where f.template_id = v_tpl and f.key = 'numero_declaracao_obito';
 
   -- Seeded patient identifiers for Case 0001 (gates the CasePatientPanel in the dev UI).
   -- Re-keyed to the participant layer (ADR 0064 E0 / F1): a patient participant +
@@ -1987,6 +2005,10 @@ update app.feature_flags set enabled = true where key = 'notifications';
 -- ships NO committed `_enable` migration, so remote/prod stays OFF until the deliberate
 -- pilot flip. This line makes the whole ethics procedure surface reachable for local E2E.
 update app.feature_flags set enabled = true where key = 'ethics';
+-- ADR 0083 — case custom fields (administrative descriptors). Created OFF in its
+-- migration; forced ON here for local/E2E so the builder + create dialog + detail
+-- surfaces are reachable. The demo field lives on the M&M template (fixture above).
+update app.feature_flags set enabled = true where key = 'case_custom_fields';
 -- ---------------------------------------------------------------------------
 do $cd$
 declare

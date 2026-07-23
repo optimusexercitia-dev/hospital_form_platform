@@ -46,6 +46,9 @@ export interface FeatureFlags {
   // S4·CH (ADR 0080): committee charters + meeting cadence. Seeded OFF in the CH-BE-2
   // migration; flipped ON at the CH gate; `seed.sql` forces ON for local/E2E.
   charters: boolean
+  // ADR 0083: template-defined case custom fields (administrative descriptors).
+  // Seeded OFF in the case-custom-fields migration; `seed.sql` forces ON for local/E2E.
+  case_custom_fields: boolean
 }
 
 /** A flag key. */
@@ -129,4 +132,15 @@ export async function notificationsEnabled(): Promise<boolean> {
  */
 export async function chartersEnabled(): Promise<boolean> {
   return featureEnabled('charters')
+}
+
+/**
+ * Whether the ADR-0083 Case Custom Fields feature is ON. Thin per-flag wrapper
+ * over {@link featureEnabled} (consistent with the other per-flag `*Enabled()`
+ * readers), so callers avoid an `as FeatureFlagKey` cast. Request-memoized via
+ * {@link getFeatureFlags}. Seeded OFF in the case-custom-fields migration; flips
+ * ON at the feature gate; `seed.sql` forces it ON for local/E2E.
+ */
+export async function caseCustomFieldsEnabled(): Promise<boolean> {
+  return featureEnabled('case_custom_fields')
 }

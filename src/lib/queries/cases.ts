@@ -13,8 +13,17 @@ import type {
 import type { CasePatient, CasePatientSex } from '@/lib/cases/types'
 import { listPhaseResults } from '@/lib/queries/phase-results'
 import type { ResolvedPhaseResult } from '@/lib/queries/phase-results'
+import type {
+  CustomFieldOption,
+  CustomFieldType,
+} from '@/lib/queries/process-templates'
 
 export type { ResolvedPhaseResult } from '@/lib/queries/phase-results'
+export type {
+  CustomFieldDef,
+  CustomFieldOption,
+  CustomFieldType,
+} from '@/lib/queries/process-templates'
 
 export type { CaseStatus } from '@/lib/cases/case-status'
 
@@ -250,6 +259,28 @@ export interface CaseNarrative {
 }
 
 /** One row of the cases board: a case header + its phases' STATUS summary. */
+/**
+ * One case custom-field VALUE (`case_custom_field_values`; ADR 0083): the frozen
+ * snapshot of a template def plus the case's stored value. `value` preserves its
+ * JSON type — a `number` field stays a `number` (no lexical-compare pitfall); a
+ * `date` / single-select / `short_text` field is a string; `null` when unset. The
+ * frontend resolves a single-select `value` (an option `code`) to a label via
+ * {@link options}.
+ */
+export interface CaseCustomFieldValue {
+  id: string
+  caseId: string
+  /** Provenance FK to the live def; `null` if the def was later deleted. */
+  templateFieldId: string | null
+  key: string
+  label: string
+  fieldType: CustomFieldType
+  /** Frozen option snapshot (`[]` unless the field is a single-select type). */
+  options: CustomFieldOption[]
+  value: string | number | null
+  position: number
+}
+
 export interface CaseBoardRow {
   case: Case
   /**
@@ -287,6 +318,13 @@ export interface CaseBoardRow {
    * pending phases + open narratives.
    */
   openNarrativeCount: number
+  /**
+   * The case's custom-field values whose DEF is flagged `show_in_list` (ADR 0083
+   * D8), ordered by `position` — for the opt-in list column/filter. `[]` when the
+   * case has none flagged / the `case_custom_fields` feature is off. Read in ONE
+   * supplementary batched query (not N+1); see {@link listCasesBoard}.
+   */
+  customFields: CaseCustomFieldValue[]
 }
 
 /**
@@ -920,6 +958,99 @@ const CASES_BOARD_CAP = 200
  * with `nextCursor: null` always. `page.limit` may lower the cap; the RPC hard-caps
  * at whatever is passed (default {@link CASES_BOARD_CAP}).
  */
+/** One `case_custom_field_values` row (jsonb `value` arrives as an unknown). */
+interface CaseCustomFieldValueRow {
+  id: string
+  case_id: string
+  template_field_id: string | null
+  key: string
+  label: string
+  field_type: CustomFieldType
+  options: CustomFieldOption[] | null
+  value: unknown
+  position: number
+}
+
+/** Map a `case_custom_field_values` row to the domain shape, narrowing `value`. */
+function mapCaseCustomFieldValue(
+  r: CaseCustomFieldValueRow,
+): CaseCustomFieldValue {
+  return {
+    id: r.id,
+    caseId: r.case_id,
+    templateFieldId: r.template_field_id ?? null,
+    key: r.key,
+    label: r.label,
+    fieldType: r.field_type,
+    options: r.options ?? [],
+    // number stays a number (no lexical compare); date/select/short_text are
+    // strings; anything else (unset / unexpected shape) → null.
+    value:
+      typeof r.value === 'number' || typeof r.value === 'string'
+        ? r.value
+        : null,
+    position: r.position ?? 0,
+  }
+}
+
+/**
+ * The `show_in_list`-flagged custom-field values for a set of board cases, in ONE
+ * query, grouped by case id. Joins values to their live def (inner embed) to apply
+ * the `show_in_list` filter. Returns an empty map on error / no ids.
+ */
+async function fetchBoardCustomFields(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  caseIds: string[],
+): Promise<Map<string, CaseCustomFieldValue[]>> {
+  const byCase = new Map<string, CaseCustomFieldValue[]>()
+  if (caseIds.length === 0) return byCase
+
+  const { data, error } = await supabase
+    .from('case_custom_field_values')
+    .select(
+      'id, case_id, template_field_id, key, label, field_type, options, value, position, process_template_custom_fields!inner(show_in_list)',
+    )
+    .in('case_id', caseIds)
+    .eq('process_template_custom_fields.show_in_list', true)
+    .order('position', { ascending: true })
+    .returns<CaseCustomFieldValueRow[]>()
+
+  if (error || !data) return byCase
+
+  for (const row of data) {
+    const mapped = mapCaseCustomFieldValue(row)
+    const bucket = byCase.get(mapped.caseId)
+    if (bucket) bucket.push(mapped)
+    else byCase.set(mapped.caseId, [mapped])
+  }
+  return byCase
+}
+
+/**
+ * All custom-field values of one case (`case_custom_field_values`; ADR 0083),
+ * ordered by `position`, for the case-detail header cluster. RLS-scoped via
+ * `can_read_case` → `[]` for a caller who cannot read the case (or when the case
+ * has none). Unlike the board read, this returns the FULL set (not only
+ * `show_in_list`), since detail renders every descriptor.
+ */
+export async function listCaseCustomFieldValues(
+  caseId: string,
+): Promise<CaseCustomFieldValue[]> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('case_custom_field_values')
+    .select(
+      'id, case_id, template_field_id, key, label, field_type, options, value, position',
+    )
+    .eq('case_id', caseId)
+    .order('position', { ascending: true })
+    .returns<CaseCustomFieldValueRow[]>()
+
+  if (error || !data) return []
+  return data.map(mapCaseCustomFieldValue)
+}
+
 export async function listCasesBoard(
   commissionId: string,
   page?: PageParams,
@@ -932,6 +1063,13 @@ export async function listCasesBoard(
   })
 
   if (error || !data) return { rows: [], nextCursor: null }
+
+  // ADR 0083 — the `show_in_list` custom-field values for every board case, in ONE
+  // batched, RLS-scoped query (not N+1). Keyed by case id; a case with none maps to
+  // `[]`. RLS (can_read_case on the values + is_member_of on the def via the inner
+  // embed) fails closed for a non-member, so no leak.
+  const caseIds = (data as unknown as BoardRowJson[]).map((r) => r.case_id)
+  const customFieldsByCase = await fetchBoardCustomFields(supabase, caseIds)
 
   const rows = (data as unknown as BoardRowJson[]).map((r) => ({
     case: {
@@ -968,6 +1106,7 @@ export async function listCasesBoard(
       result: mapPhaseResultJson(p.result ?? null),
     })),
     openNarrativeCount: r.open_narrative_count ?? 0,
+    customFields: customFieldsByCase.get(r.case_id) ?? [],
   }))
 
   return { rows, nextCursor: null }

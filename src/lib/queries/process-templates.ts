@@ -32,6 +32,46 @@ export type { ProcessTemplateNarrative } from '@/lib/queries/case-narratives'
 
 export type ProcessTemplateStatus = 'draft' | 'active' | 'archived'
 
+/**
+ * The custom-field type subset (ADR 0083 D3): the form input-type VOCABULARY
+ * reused, minus the excluded types (`checkbox`, `free_text`, `time`, display
+ * items). Single-select = `dropdown` | `multiple_choice` (both carry `options`).
+ */
+export type CustomFieldType =
+  | 'short_text'
+  | 'number'
+  | 'date'
+  | 'dropdown'
+  | 'multiple_choice'
+
+/** A single-select option on a custom field (`{ code, label }`, like form options). */
+export interface CustomFieldOption {
+  code: string
+  label: string
+}
+
+/**
+ * One template-defined custom-field DEFINITION (`process_template_custom_fields`;
+ * ADR 0083). Authored in the template builder (staff_admin) while the template is
+ * `draft`; snapshotted onto each case at creation. `options` is non-empty ONLY for
+ * the two single-select types. `showInList` (opt-in) surfaces the field as a cases
+ * list column/filter; `required` blocks case creation when unfilled.
+ */
+export interface CustomFieldDef {
+  id: string
+  templateId: string
+  /** Slug, unique per template. */
+  key: string
+  /** pt-BR display label. */
+  label: string
+  fieldType: CustomFieldType
+  /** `[]` unless `fieldType` is a single-select type. */
+  options: CustomFieldOption[]
+  required: boolean
+  showInList: boolean
+  position: number
+}
+
 /** One ordered phase-slot of a template, bound to a whole form. */
 export interface ProcessTemplatePhase {
   id: string
@@ -135,6 +175,13 @@ export interface ProcessTemplate {
    * objects) from `@/lib/queries/case-outcomes`. Order is not significant.
    */
   offeredOutcomeIds: string[]
+  /**
+   * The template's custom-field DEFINITIONS (`process_template_custom_fields`;
+   * ADR 0083), ordered by `position`. Drives the builder's CustomFieldsCard and
+   * the "Novo caso" dialog's reveal (mirrors `collectsPatient`). `[]` when the
+   * template defines none. Snapshotted per-case at creation.
+   */
+  customFields: CustomFieldDef[]
 }
 
 // ---------------------------------------------------------------------------
@@ -169,6 +216,18 @@ interface TemplateOutcomeRow {
   outcome_id: string
 }
 
+interface TemplateCustomFieldRow {
+  id: string
+  template_id: string
+  key: string
+  label: string
+  field_type: CustomFieldType
+  options: CustomFieldOption[] | null
+  required: boolean
+  show_in_list: boolean
+  position: number
+}
+
 /**
  * One `process_template_narratives` row joined to its live type label (ADR 0032).
  * The nested embed surfaces the bound `case_narrative_types.label` for the builder.
@@ -195,6 +254,7 @@ interface TemplateRow {
   process_template_phases: TemplatePhaseRow[]
   process_template_narratives: TemplateNarrativeRow[]
   process_template_outcomes: TemplateOutcomeRow[]
+  process_template_custom_fields: TemplateCustomFieldRow[]
 }
 
 const TEMPLATE_SELECT = `
@@ -210,7 +270,10 @@ const TEMPLATE_SELECT = `
     display_position,
     case_narrative_types ( label )
   ),
-  process_template_outcomes ( outcome_id )
+  process_template_outcomes ( outcome_id ),
+  process_template_custom_fields (
+    id, template_id, key, label, field_type, options, required, show_in_list, position
+  )
 ` as const
 
 function mapPhase(p: TemplatePhaseRow): ProcessTemplatePhase {
@@ -255,6 +318,20 @@ function mapNarrative(n: TemplateNarrativeRow): ProcessTemplateNarrative {
   }
 }
 
+function mapCustomFieldDef(f: TemplateCustomFieldRow): CustomFieldDef {
+  return {
+    id: f.id,
+    templateId: f.template_id,
+    key: f.key,
+    label: f.label,
+    fieldType: f.field_type,
+    options: f.options ?? [],
+    required: f.required ?? false,
+    showInList: f.show_in_list ?? false,
+    position: f.position ?? 0,
+  }
+}
+
 function mapTemplate(t: TemplateRow): ProcessTemplate {
   return {
     id: t.id,
@@ -275,6 +352,10 @@ function mapTemplate(t: TemplateRow): ProcessTemplate {
     offeredOutcomeIds: (t.process_template_outcomes ?? []).map(
       (o) => o.outcome_id,
     ),
+    customFields: (t.process_template_custom_fields ?? [])
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map(mapCustomFieldDef),
   }
 }
 
