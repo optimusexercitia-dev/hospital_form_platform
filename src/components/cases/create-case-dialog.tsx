@@ -90,8 +90,9 @@ function PatientHiddenFields({ patient }: { patient: PatientDraft }) {
   );
 }
 
-/** The fill-time PHI warning above the custom-fields block (ADR 0083 D4). */
-function CustomFieldsPiiWarning() {
+/** The fill-time PHI warning above the custom-fields block (ADR 0083 D4).
+ * Exported for reuse by the bulk-case wizard ("Múltiplos casos"). */
+export function CustomFieldsPiiWarning() {
   return (
     <p
       role="note"
@@ -106,8 +107,9 @@ function CustomFieldsPiiWarning() {
   );
 }
 
-/** The PII warning about the free-text RÓTULO (not the structured PHI block). */
-function LabelPiiWarning() {
+/** The PII warning about the free-text RÓTULO (not the structured PHI block).
+ * Exported for reuse by the bulk-case wizard ("Múltiplos casos"). */
+export function LabelPiiWarning() {
   return (
     <p
       role="note"

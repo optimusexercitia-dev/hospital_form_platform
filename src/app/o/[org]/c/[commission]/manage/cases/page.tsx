@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { FolderOpen } from "lucide-react";
+import { CheckCircle2, FolderOpen, Layers } from "lucide-react";
 
+import { commissionHref } from "@/lib/routing";
 import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
 import {
   listCasesBoard,
@@ -9,11 +10,15 @@ import {
   processlessCasesEnabled,
   casesExtrasEnabled,
 } from "@/lib/queries/cases";
-import { caseCustomFieldsEnabled } from "@/lib/queries/feature-flags";
+import {
+  caseCustomFieldsEnabled,
+  getFeatureFlags,
+} from "@/lib/queries/feature-flags";
 import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import { getCaseActionItemKpis } from "@/lib/queries/case-action-items";
 import { listProcessTemplates } from "@/lib/queries/process-templates";
 import { listDepartmentsForHospital } from "@/lib/hospitals/departments";
+import { Button } from "@/components/ui/button";
 import { CreateCaseDialog } from "@/components/cases/create-case-dialog";
 import { CasesKpiStrip } from "@/components/cases/cases-kpi-strip";
 import { CasesView, type CasesViewMode } from "@/components/cases/cases-view";
@@ -65,11 +70,11 @@ export default async function CasesBoardPage({
   searchParams,
 }: {
   params: Promise<{ org: string; commission: string }>;
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; criados?: string }>;
 }) {
   const { org, commission } = await params;
   const slug = commission;
-  const { view } = await searchParams;
+  const { view, criados } = await searchParams;
   const access = await getCommissionAccessByOrg(org, commission);
 
   // Coordinator OR (ADR 0061) an Administrativo with `create_cases`. The board read
@@ -103,6 +108,7 @@ export default async function CasesBoardPage({
     // "Unidade / setor" dropdown. A commission with no hospital → `[]` (the field
     // still offers the "Outros" custom option). RLS-scoped (member-read).
     departments,
+    flags,
   ] = await Promise.all([
     listCasesBoard(access.commission.id),
     listProcessTemplates(access.commission.id),
@@ -118,6 +124,7 @@ export default async function CasesBoardPage({
     access.commission.hospitalId
       ? listDepartmentsForHospital(access.commission.hospitalId)
       : Promise.resolve([]),
+    getFeatureFlags(),
   ]);
 
   // A case can only be minted from an ACTIVE template. Carry `collectsPatient` so
@@ -140,8 +147,38 @@ export default async function CasesBoardPage({
   // a process at all ("Sem processo"). Drives the create button + empty-state copy.
   const canCreate = processlessOn || activeTemplates.length > 0;
 
+  // "Múltiplos casos" (ADR 0084): a staff_admin bulk-create link, shown only when
+  // the flag is on and at least one ELIGIBLE template exists (active + ≥1 phase — a
+  // phase-less template is rejected by the RPC, so it would offer nothing).
+  const isStaffAdmin = access.role === "staff_admin" || access.context.isAdmin;
+  const eligibleBulkCount = templates.filter(
+    (t) => t.status === "active" && t.phases.length > 0,
+  ).length;
+  const showBulk =
+    canCreateCases &&
+    isStaffAdmin &&
+    flags.cases_bulk_create === true &&
+    eligibleBulkCount > 0;
+  const multiplosHref = commissionHref(org, slug, "manage", "cases", "multiplos");
+
+  // Success banner after a bulk creation (?criados=N), the ?aviso= pattern used
+  // elsewhere (no toast system in the app).
+  const createdCount = criados ? Number.parseInt(criados, 10) : Number.NaN;
+  const showCreatedBanner = Number.isFinite(createdCount) && createdCount > 0;
+
   return (
     <div className="flex flex-col gap-8">
+      {showCreatedBanner && (
+        <p
+          role="status"
+          className="animate-rise-in flex items-center gap-2 rounded-xl border border-success/30 bg-success/12 px-4 py-3 text-sm font-medium text-success"
+        >
+          <CheckCircle2 aria-hidden="true" className="size-4 shrink-0" />
+          {createdCount} caso{createdCount === 1 ? "" : "s"} criado
+          {createdCount === 1 ? "" : "s"} com sucesso.
+        </p>
+      )}
+
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex flex-col gap-2">
           <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
@@ -155,17 +192,27 @@ export default async function CasesBoardPage({
           </p>
         </div>
         {canCreateCases && (
-          <CreateCaseDialog
-            org={org} slug={slug}
-            templates={activeTemplates}
-            commissionId={access.commission.id}
-            departments={departments}
-            casePatientEnabled={casePatientOn}
-            caseCustomFieldsEnabled={caseCustomFieldsOn}
-            processlessEnabled={processlessOn}
-            casesExtrasEnabled={casesExtrasOn}
-            outcomes={outcomes}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {showBulk && (
+              <Button asChild variant="outline" size="lg">
+                <a href={multiplosHref}>
+                  <Layers aria-hidden="true" className="size-4" />
+                  Múltiplos casos
+                </a>
+              </Button>
+            )}
+            <CreateCaseDialog
+              org={org} slug={slug}
+              templates={activeTemplates}
+              commissionId={access.commission.id}
+              departments={departments}
+              casePatientEnabled={casePatientOn}
+              caseCustomFieldsEnabled={caseCustomFieldsOn}
+              processlessEnabled={processlessOn}
+              casesExtrasEnabled={casesExtrasOn}
+              outcomes={outcomes}
+            />
+          </div>
         )}
       </header>
 
