@@ -65,6 +65,20 @@ export const VALID_SEX: readonly CasePatientSex[] = [
   "unknown",
 ];
 
+/** The PHI columns selected by default (E1) — the common minimum-necessary pair. */
+export const DEFAULT_PHI_KEYS: readonly PatientColumnKey[] = ["name", "mrn"];
+
+/**
+ * The name-or-MRN floor at the COLUMN-SELECTION level (Step 1; E1): once ANY PHI
+ * field is selected as a grid column, at least one of Nome/Prontuário must remain
+ * selected (so every PHI row can meet the server's per-row floor). ZERO PHI fields
+ * selected is valid — the batch simply collects no patient identifiers.
+ */
+export function phiSelectionValid(selectedPhiKeys: ReadonlySet<string>): boolean {
+  if (selectedPhiKeys.size === 0) return true;
+  return selectedPhiKeys.has("name") || selectedPhiKeys.has("mrn");
+}
+
 /** pt-BR sex labels ↔ code, for paste coercion (accepts label or code). */
 const SEX_ALIASES: Record<string, CasePatientSex> = {
   feminino: "female",
@@ -167,12 +181,15 @@ export interface TargetColumn {
 
 /**
  * Build the ordered target columns for the grid: Título first, then the chosen
- * custom fields (required ones are always present), then the PHI columns when the
- * template collects patient identifiers and the flag is on.
+ * custom fields (required ones are always present), then the SELECTED PHI columns
+ * (E1) — only when the template collects patient identifiers and the flag is on.
+ * PHI columns follow the canonical {@link PATIENT_COLUMNS} order regardless of the
+ * order keys were toggled.
  */
 export function buildTargetColumns(
   customFields: CustomFieldDef[],
   collectsPhi: boolean,
+  selectedPhiKeys: ReadonlySet<string>,
 ): TargetColumn[] {
   const columns: TargetColumn[] = [
     { id: "title", label: "Título", kind: "title" },
@@ -188,6 +205,7 @@ export function buildTargetColumns(
   }
   if (collectsPhi) {
     for (const col of PATIENT_COLUMNS) {
+      if (!selectedPhiKeys.has(col.key)) continue;
       columns.push({
         id: `phi:${col.key}`,
         label: col.label,

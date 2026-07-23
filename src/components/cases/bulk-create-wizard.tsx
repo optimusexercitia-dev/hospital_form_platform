@@ -14,8 +14,10 @@ import type {
 } from "@/lib/cases/bulk-actions";
 import { balancedDeal } from "@/lib/cases/distribute";
 import {
+  DEFAULT_PHI_KEYS,
   buildTargetColumns,
   makeEmptyRow,
+  phiSelectionValid,
   serializeDraftCase,
   validateGrid,
   type BulkGridRow,
@@ -86,6 +88,10 @@ export function BulkCreateWizard({
   const [deadline, setDeadline] = useState("");
   const [phaseScope, setPhaseScope] = useState<PhaseScope>("first_only");
   const [labelPrefix, setLabelPrefix] = useState("");
+  // Selected PHI columns (E1) — default the common minimum-necessary pair.
+  const [selectedPhiKeys, setSelectedPhiKeys] = useState<Set<string>>(
+    () => new Set(DEFAULT_PHI_KEYS),
+  );
 
   // Step 2 — members (default ALL).
   const [selectedMemberIds, setSelectedMemberIds] = useState<Set<string>>(
@@ -132,8 +138,8 @@ export function BulkCreateWizard({
   );
 
   const columns = useMemo(
-    () => buildTargetColumns(chosenFields, collectsPhi),
-    [chosenFields, collectsPhi],
+    () => buildTargetColumns(chosenFields, collectsPhi, selectedPhiKeys),
+    [chosenFields, collectsPhi, selectedPhiKeys],
   );
 
   const validation = useMemo(
@@ -146,8 +152,13 @@ export function BulkCreateWizard({
     [members, selectedMemberIds],
   );
 
+  // Step 1 also enforces the PHI column-selection floor (E1): if the template
+  // collects PHI and any identifier column is selected, Nome or Prontuário must be
+  // among them (zero PHI columns is valid — no identifiers collected).
+  const phiSelectionOk = !collectsPhi || phiSelectionValid(selectedPhiKeys);
+
   const stepValid = [
-    templateId !== "",
+    templateId !== "" && phiSelectionOk,
     selectedMembers.length > 0,
     validation.canAdvance,
     owners.length === rows.length && owners.every(Boolean),
@@ -197,10 +208,20 @@ export function BulkCreateWizard({
   function changeTemplate(id: string) {
     setTemplateId(id);
     setSelectedOptionalKeys(new Set());
+    setSelectedPhiKeys(new Set(DEFAULT_PHI_KEYS));
   }
 
   function toggleField(key: string) {
     setSelectedOptionalKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function togglePhi(key: string) {
+    setSelectedPhiKeys((prev) => {
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
@@ -312,6 +333,8 @@ export function BulkCreateWizard({
               onTemplateChange={changeTemplate}
               selectedOptionalKeys={selectedOptionalKeys}
               onToggleField={toggleField}
+              selectedPhiKeys={selectedPhiKeys}
+              onTogglePhi={togglePhi}
               deadline={deadline}
               onDeadlineChange={setDeadline}
               phaseScope={phaseScope}
@@ -356,7 +379,6 @@ export function BulkCreateWizard({
                 rows={rows}
                 onRowsChange={updateRows}
                 columns={columns}
-                collectsPhi={collectsPhi}
                 labelPrefix={labelPrefix}
                 validation={validation}
                 highlightRowNumber={highlightRow}

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { CustomFieldDef } from "@/lib/queries/process-templates";
 import {
+  DEFAULT_PHI_KEYS,
+  PATIENT_COLUMNS,
   autoTitle,
   buildRowsFromPaste,
   buildTargetColumns,
@@ -14,12 +16,15 @@ import {
   normalizeDateInput,
   parsePasteMatrix,
   phiFloorSatisfied,
+  phiSelectionValid,
   resolveLabel,
   serializeDraftCase,
   serializePatientCells,
   validateGrid,
   type BulkGridRow,
 } from "./bulk-grid-model";
+
+const ALL_PHI = new Set<string>(PATIENT_COLUMNS.map((c) => c.key));
 
 function textField(key: string, required = false): CustomFieldDef {
   return {
@@ -106,7 +111,7 @@ describe("coercion", () => {
 describe("target columns + paste import", () => {
   it("builds title + custom + PHI columns and imports a matrix (explicit mapping)", () => {
     const fields = [textField("motivo"), choiceField("ala")];
-    const columns = buildTargetColumns(fields, true);
+    const columns = buildTargetColumns(fields, true, ALL_PHI);
     // title + 2 custom + 7 PHI
     expect(columns).toHaveLength(1 + 2 + 7);
     expect(columns[0]).toMatchObject({ id: "title", kind: "title" });
@@ -133,7 +138,11 @@ describe("target columns + paste import", () => {
   });
 
   it("default mapping keeps Título auto and flows sources into data columns", () => {
-    const columns = buildTargetColumns([textField("motivo")], true);
+    const columns = buildTargetColumns(
+      [textField("motivo")],
+      true,
+      new Set(["name", "mrn"]),
+    );
     // title ignored; source 0 → cf:motivo, source 1 → phi:name, source 2 → phi:mrn…
     const mapping = defaultPasteMapping(columns, 3);
     expect(mapping.title).toEqual({ mode: "ignore" });
@@ -141,11 +150,48 @@ describe("target columns + paste import", () => {
     expect(mapping["phi:name"]).toEqual({ mode: "source", sourceIndex: 1 });
 
     // With no data columns, the paste fills the title instead.
-    const titleOnly = buildTargetColumns([], false);
+    const titleOnly = buildTargetColumns([], false, new Set());
     expect(defaultPasteMapping(titleOnly, 1).title).toEqual({
       mode: "source",
       sourceIndex: 0,
     });
+  });
+});
+
+describe("selectable PHI columns (E1)", () => {
+  it("derives PHI columns from the selection, in canonical order", () => {
+    // Toggle order is mrn-then-name; the columns still follow PATIENT_COLUMNS order.
+    const cols = buildTargetColumns([], true, new Set(["mrn", "name"]));
+    const phi = cols.filter((c) => c.kind === "phi").map((c) => c.phiKey);
+    expect(phi).toEqual(["name", "mrn"]);
+
+    // Zero selected → no PHI columns.
+    expect(
+      buildTargetColumns([], true, new Set()).some((c) => c.kind === "phi"),
+    ).toBe(false);
+
+    // All selected → all 7.
+    expect(
+      buildTargetColumns([], true, ALL_PHI).filter((c) => c.kind === "phi"),
+    ).toHaveLength(7);
+
+    // collectsPhi === false → never any PHI column, regardless of the selection.
+    expect(
+      buildTargetColumns([], false, ALL_PHI).some((c) => c.kind === "phi"),
+    ).toBe(false);
+  });
+
+  it("enforces the name-or-MRN floor at the selection level", () => {
+    expect(phiSelectionValid(new Set())).toBe(true); // no PHI collected
+    expect(phiSelectionValid(new Set(["name"]))).toBe(true);
+    expect(phiSelectionValid(new Set(["mrn"]))).toBe(true);
+    expect(phiSelectionValid(new Set(["name", "dateOfBirth"]))).toBe(true);
+    expect(phiSelectionValid(new Set(["dateOfBirth"]))).toBe(false);
+    expect(phiSelectionValid(new Set(["ageYears", "sex"]))).toBe(false);
+  });
+
+  it("defaults to Nome + Prontuário", () => {
+    expect(new Set(DEFAULT_PHI_KEYS)).toEqual(new Set(["name", "mrn"]));
   });
 });
 

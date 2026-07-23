@@ -15,6 +15,10 @@ import {
   CustomFieldsPiiWarning,
   LabelPiiWarning,
 } from "@/components/cases/create-case-dialog";
+import {
+  PATIENT_COLUMNS,
+  phiSelectionValid,
+} from "@/lib/cases/bulk-grid-model";
 import type {
   BulkTemplateOption,
   PhaseScope,
@@ -32,6 +36,8 @@ export function BulkStepProcess({
   onTemplateChange,
   selectedOptionalKeys,
   onToggleField,
+  selectedPhiKeys,
+  onTogglePhi,
   deadline,
   onDeadlineChange,
   phaseScope,
@@ -49,6 +55,8 @@ export function BulkStepProcess({
   onTemplateChange: (id: string) => void;
   selectedOptionalKeys: Set<string>;
   onToggleField: (key: string) => void;
+  selectedPhiKeys: Set<string>;
+  onTogglePhi: (key: string) => void;
   deadline: string;
   onDeadlineChange: (v: string) => void;
   phaseScope: PhaseScope;
@@ -168,13 +176,39 @@ export function BulkStepProcess({
       ) : null}
 
       {collectsPhi ? (
-        <p className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2.5 text-sm text-destructive text-pretty">
-          <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-          <span>
-            Este processo coleta identificadores de paciente (PHI). As colunas de
-            paciente aparecerão na grade — informe somente o mínimo necessário.
-          </span>
-        </p>
+        <fieldset className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-4">
+          <legend className="px-1 text-sm font-medium">
+            Identificadores do paciente (colunas da grade)
+          </legend>
+          <p
+            role="note"
+            className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2.5 text-sm text-destructive text-pretty"
+          >
+            <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            <span>
+              Dados sensíveis de paciente (PHI). Selecione apenas os identificadores
+              necessários — cada um vira uma coluna da grade.
+            </span>
+          </p>
+          <div className="flex flex-col gap-2">
+            {PATIENT_COLUMNS.map((col) => (
+              <label key={col.key} className="flex items-start gap-2.5 text-sm">
+                <Checkbox
+                  checked={selectedPhiKeys.has(col.key)}
+                  onCheckedChange={() => onTogglePhi(col.key)}
+                  className="mt-0.5"
+                />
+                <span className="font-medium">{col.label}</span>
+              </label>
+            ))}
+          </div>
+          {!phiSelectionValid(selectedPhiKeys) ? (
+            <p role="alert" className="text-sm font-medium text-destructive">
+              Selecione ao menos Nome ou Prontuário para coletar identificadores de
+              paciente.
+            </p>
+          ) : null}
+        </fieldset>
       ) : null}
 
       <div className="grid gap-6 sm:grid-cols-2">

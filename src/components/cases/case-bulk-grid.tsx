@@ -44,7 +44,6 @@ export function CaseBulkGrid({
   rows,
   onRowsChange,
   columns,
-  collectsPhi,
   labelPrefix,
   validation,
   highlightRowNumber,
@@ -53,13 +52,18 @@ export function CaseBulkGrid({
   /** Functional updater (prev → next) so the memoized-row callbacks stay stable. */
   onRowsChange: (updater: (prev: BulkGridRow[]) => BulkGridRow[]) => void;
   columns: TargetColumn[];
-  collectsPhi: boolean;
   labelPrefix: string;
   validation: GridValidation;
   /** 1-based grid row the server flagged on a failed commit (scroll + ring it). */
   highlightRowNumber: number | null;
 }) {
   const [paste, setPaste] = useState<string[][] | null>(null);
+
+  // Whether any PHI column is currently shown (E1 — driven by the Step-1 selection).
+  const hasPhiColumns = useMemo(
+    () => columns.some((c) => c.kind === "phi"),
+    [columns],
+  );
 
   // Stable, id-keyed mutators via functional setState (rerender-functional-setstate)
   // so the memoized rows keep referential-equal callbacks across re-renders.
@@ -166,7 +170,7 @@ export function CaseBulkGrid({
         </span>
       </p>
 
-      {collectsPhi ? (
+      {hasPhiColumns ? (
         <p className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2.5 text-sm text-destructive text-pretty">
           <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
           <span>
