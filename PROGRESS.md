@@ -369,6 +369,7 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 
 | Date | Decision | Ref |
 | ---- | -------- | --- |
+| 2026-07-23 | **Case custom fields** — template-defined, **non-PHI** administrative descriptors on cases (e.g. M&M "Número da Declaração de Óbito"); dedicated `process_template_custom_fields` → snapshot `case_custom_field_values` (reuse form input-type vocabulary, minimal subset: short_text/number/date/single-select); captured in "Novo caso" (atomic in `create_case_from_template`), editable+audited; PHI boundary = fill-time warning; process-less excluded; flag `case_custom_fields`. Design only — build is a later gated phase. | [0083](docs/decisions/0083-case-custom-fields.md) |
 | 2026-07-16 | **`manage_case_access` — KEEP (confirmed, PO).** The resolver computes `v_orgadmin` (`is_commission_admin_of_for`, ~19% of per-row cost) solely to set this bit, which **nothing consumes** (grant doors gate directly, not via the bit). Dropping it would buy ~19% but spend a reserved capability slot a future grant-doors-through-resolver refactor would need. A5 already cleared perf, so no urgency. Kept for model completeness. | [ADR 0078 D1/A16](docs/decisions/0078-authorization-capability-model.md) |
 | 2026-07-16 | **Meeting family — ACCEPT AS-IS (exclusion-perimeter residual).** A coordinator recused from case X can conclude a multi-case meeting discussing X, stamping a boilerplate `case_events` "discussed in" event. Lead-verified she CANNOT read the case via the meeting (`can_reach_case_on_member_surface`=false); only `conclude_meeting` touches case content, and only an auto-generated stamp she does not author. Not guarded because meetings are commission-scoped (per-case guard would block multi-case meetings, §7.7). Low-severity residual, no migration. | [handoff §5](docs/progress/authz-handoff.md) |
 | 2026-07-16 | **ADR 0078 A5 perf gate PASSED — no migration.** Resolver parity-or-faster + strictly linear on realistic (2005-case) data; qa MAJOR-1 ~10× was vs a single arm, not the real pre-A2 body. `manage_case_access` drop (~19%, 0 consumers) deferred as a separate PO ruling (reserved bit, needs its own keystone). | [ADR 0078 D2/A5](docs/decisions/0078-authorization-capability-model.md) · [handoff §5](docs/progress/authz-handoff.md) |
@@ -424,6 +425,22 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 
 <!-- OPEN backlog only (reviewed at each phase start). Resolved [x] items archived →
      docs/progress/follow-ups-archive.md (full snapshot). -->
+
+### ▶ Case custom fields — build (design ratified 2026-07-23, ADR 0083)
+
+- [ ] **Build template-defined case custom fields.** Non-PHI administrative descriptor
+  fields, defined per process template and captured in "Novo caso". Design is settled in
+  [ADR 0083](docs/decisions/0083-case-custom-fields.md); implementation is a later gated
+  phase. Scope: two relations (`process_template_custom_fields` → snapshot
+  `case_custom_field_values`), the `case_custom_fields` flag, builder authoring UI,
+  `create_case_from_template` `p_custom_fields`, an `update_case_meta`-style edit path,
+  and case-detail + opt-in list-column/filter surfaces. Reuses the form input-type
+  vocabulary + `input-item` controls (lineage: [0060](docs/decisions/0060-flexible-forms-foundation.md)
+  flexible-forms, [0064](docs/decisions/0064-case-subject-generalization-participants.md)
+  case generalization). **Build-time prereq:** verify live RLS predicate bodies
+  (`app.can_read_case` was consolidated by the stage-G authz migration) before writing
+  policies. Owned by `backend` (schema/RPC/RLS) → `frontend` (builder + dialog + surfaces)
+  → `tester`.
 
 ### ▶ AUTHZ Gate-2 deferred (PO-noted 2026-07-17, non-blocking — Gate 2 shipped)
 
