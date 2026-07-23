@@ -699,15 +699,6 @@ begin
                         'op', 'equals', 'value', 'sim'),
      14);
 
-  -- ADR 0083 — one demo custom-field DEF on the M&M template: the death-certificate
-  -- number (short_text, optional, surfaced in the cases list). Administrative
-  -- reference only, NON-PHI (Rule 12).
-  insert into public.process_template_custom_fields
-    (template_id, key, label, field_type, options, required, show_in_list, position)
-  values
-    (v_tpl, 'numero_declaracao_obito', 'Número da Declaração de Óbito',
-     'short_text', '[]'::jsonb, false, true, 0);
-
   -- The case (number minted by the trigger). Pin Form A's published version.
   -- status is LEFT to the column default 'not_started' (the FIXED five-value
   -- model; the configurable-status vocabulary R2 introduced was removed). The
@@ -717,15 +708,6 @@ begin
   -- mid-flight fixture the dashboard/board E2E expects.
   insert into public.cases (id, commission_id, template_id, label, created_by, patient_enabled)
   values (v_case, v_comm_a, v_tpl, 'Óbito UTI leito 7', v_chefe_a, true);
-
-  -- ADR 0083 — snapshot the demo custom field onto Case 0001 (the seed inserts the
-  -- case directly, bypassing the RPC's snapshot). Frozen def copy + a demo value.
-  insert into public.case_custom_field_values
-    (case_id, template_field_id, key, label, field_type, options, value, position)
-  select v_case, f.id, f.key, f.label, f.field_type, f.options,
-         to_jsonb('2024-DO-00789'::text), f.position
-  from public.process_template_custom_fields f
-  where f.template_id = v_tpl and f.key = 'numero_declaracao_obito';
 
   -- Seeded patient identifiers for Case 0001 (gates the CasePatientPanel in the dev UI).
   -- Re-keyed to the participant layer (ADR 0064 E0 / F1): a patient participant +
@@ -794,6 +776,90 @@ begin
   perform app.seed_select(v_resp, ia_disp, array['sim']);
   perform app.seed_select(v_resp, ia_turno, array['manha']);
   perform set_config('app.in_submit_rpc', 'off', true);
+end $$;
+
+-- ===========================================================================
+-- ADR 0083 — Case CUSTOM FIELDS fixture (commission A / CCIH). A DEDICATED
+-- published template (kept separate from M&M so its REQUIRED field does not
+-- affect other case-creation specs) carrying two custom-field defs, plus one
+-- case with frozen value rows. All ids are FIXED (deterministic) so keystone
+-- specs are stable across resets. Managed by chefe.ccih@test.local (staff_admin
+-- of CCIH). Administrative descriptors only — NON-PHI (Rule 12).
+--
+-- FIXTURE CONTRACT (what the tester asserts against):
+--   template  d0cf0000-…-f1  "Descritores de Óbito (Campos Personalizados)" (active)
+--   defs      numero_declaracao_obito  (short_text, required, show_in_list)
+--             turno_obito              (dropdown [manha|tarde|noite], show_in_list)
+--   case      d0cf0000-…-c1  "Óbito enfermaria leito 3"
+--   values    numero_declaracao_obito = 'DO-2026-0142'
+--             turno_obito             = 'manha'
+-- ===========================================================================
+do $$
+declare
+  v_comm_a    uuid := 'a0000000-0000-0000-0000-0000000000a1';  -- CCIH
+  v_form_a    uuid := 'f0000000-0000-0000-0000-00000000a001';  -- forms.id (parent)
+  v_ver_a     uuid := '50000000-0000-0000-0000-00000000a001';  -- published version
+  v_chefe_a   uuid := '00000000-0000-0000-0000-000000000002';  -- chefe.ccih (staff_admin)
+  v_tpl_cf    uuid := 'd0cf0000-0000-0000-0000-0000000000f1';  -- the template
+  v_def_num   uuid := 'd0cf0000-0000-0000-0000-0000000000f2';  -- def: short_text (required)
+  v_def_turn  uuid := 'd0cf0000-0000-0000-0000-0000000000f3';  -- def: dropdown
+  v_case_cf   uuid := 'd0cf0000-0000-0000-0000-0000000000c1';  -- the case
+  v_phase_cf  uuid := 'd0cf0000-0000-0000-0000-0000000000e1';  -- the case phase
+  v_val_num   uuid := 'd0cf0000-0000-0000-0000-0000000000a1';  -- value: short_text
+  v_val_turn  uuid := 'd0cf0000-0000-0000-0000-0000000000a2';  -- value: dropdown
+  -- The dropdown option set, authored once and FROZEN onto the value row.
+  v_turno_options jsonb := jsonb_build_array(
+    jsonb_build_object('code', 'manha', 'label', 'Manhã'),
+    jsonb_build_object('code', 'tarde', 'label', 'Tarde'),
+    jsonb_build_object('code', 'noite', 'label', 'Noite')
+  );
+begin
+  -- Published template + one phase bound to Form A's published version (so the
+  -- "Novo caso" dialog + create_case_from_template flow work against it too).
+  insert into public.process_templates
+    (id, commission_id, title, description, status, created_by, collects_patient)
+  values (v_tpl_cf, v_comm_a, 'Descritores de Óbito (Campos Personalizados)',
+          'Processo com campos personalizados para descritores administrativos do óbito.',
+          'active', v_chefe_a, false);
+
+  insert into public.process_template_phases
+    (template_id, position, form_id, title, default_due_days)
+  values (v_tpl_cf, 1, v_form_a, 'Fase 1 — Registro', 7);
+
+  -- Two custom-field defs: a REQUIRED + show_in_list short_text, and a
+  -- show_in_list dropdown. Keys are deterministic slugs (no random suffix).
+  insert into public.process_template_custom_fields
+    (id, template_id, key, label, field_type, options, required, show_in_list, position)
+  values
+    (v_def_num, v_tpl_cf, 'numero_declaracao_obito', 'Número da Declaração de Óbito',
+     'short_text', '[]'::jsonb, true, true, 0),
+    (v_def_turn, v_tpl_cf, 'turno_obito', 'Turno do óbito', 'dropdown',
+     v_turno_options, false, true, 1);
+
+  -- One case from that template (number minted by the trigger). Inserted directly
+  -- (no JWT context in seed → no DEFINER RPC), like the other seed cases.
+  insert into public.cases
+    (id, commission_id, template_id, label, created_by, patient_enabled)
+  values (v_case_cf, v_comm_a, v_tpl_cf, 'Óbito enfermaria leito 3', v_chefe_a, false);
+
+  -- Materialize the phase (pending). in_case_rpc satisfies the case-status guard
+  -- during the recompute the phase insert triggers, exactly like the M&M fixture.
+  perform set_config('app.in_case_rpc', 'on', true);
+  insert into public.case_phases
+    (id, case_id, position, form_id, form_version_id, title, status, default_due_days)
+  values (v_phase_cf, v_case_cf, 1, v_form_a, v_ver_a, 'Fase 1 — Registro', 'pending', 7);
+  perform set_config('app.in_case_rpc', 'off', true);
+
+  -- Frozen value rows (snapshot key/label/field_type/options/position from the
+  -- defs above). Required field set to a sample DO number; dropdown set to 'manha'.
+  insert into public.case_custom_field_values
+    (id, case_id, template_field_id, key, label, field_type, options, value, position)
+  values
+    (v_val_num, v_case_cf, v_def_num, 'numero_declaracao_obito',
+     'Número da Declaração de Óbito', 'short_text', '[]'::jsonb,
+     to_jsonb('DO-2026-0142'::text), 0),
+    (v_val_turn, v_case_cf, v_def_turn, 'turno_obito', 'Turno do óbito',
+     'dropdown', v_turno_options, to_jsonb('manha'::text), 1);
 end $$;
 
 -- ===========================================================================
