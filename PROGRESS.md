@@ -452,10 +452,26 @@ captured in "Novo caso". Design: [ADR 0083](docs/decisions/0083-case-custom-fiel
 - [x] **E2E specs** (`c298215`, tester) — `e2e/case-custom-fields.spec.ts`, 8 tests covering
   AC-1..AC-7 + AC-8 best-effort. **8/8, run 3× clean** (serial, `--repeat-each=2`→16/16, default
   parallel workers). 0 app bugs. Detail → Test Run Summary 2026-07-23.
-- [ ] **`e2e:prod` full-suite gate** — still the lead's to run (this row's own spec run was
-  scoped to `case-custom-fields.spec.ts` only, chromium, dev server — not the prod-standalone
-  full regression).
+- [x] **`e2e:prod` full-suite gate** (lead, `REBUILD=1`, prod standalone, 11 batches) —
+  **735 passed / 7 failed / 2 flaky**. Feature spec **8/8 green on the prod build** (batch-2).
+  Triage: **1 regression (mine, fixed) + 6 pre-existing** (all in specs byte-identical to `main`,
+  i.e. red on `main` too — this full gate had not been run clean since several schema/UI changes):
+  - `case-access.spec.ts:483` — **my** seed inserted the CF case before the outcomes block, taking
+    CCIH `case_number 2` and bumping "Óbito UTI leito 3" (2→3), breaking its "caso 0002" assert.
+    **Fixed `e5d9a34`** (reorder seed blocks → leito3=2, CF case=3; others unchanged); re-verified.
+  - `charters-cadence.spec.ts` — stale `action_items.case_id` (renamed → `linked_case_id`, mig
+    `20260818000300`). **Fixed `a54ad23`** (tester); lead re-verified 10/10.
+  - `action-items-satellites.spec.ts` — **REAL app bug BUG-AISAT-002** (not stale): the one call
+    site the rename missed — `listMeetingActionItems()` (`src/lib/queries/meeting-action-items.ts`)
+    selects dead `case_id` → 400 swallowed → meeting "Itens de ação" panel empty on **every**
+    meeting on `main`. Filed (Bug Log, `95ae651`) + task-chipped (3-line fix off `main`).
+  - `documents-changes-requested.spec.ts` + `documents-redesign.spec.ts` — `Tipo` expects
+    `protocol`, gets `sop` (ADR 0082 dropdown). Task-chipped (stale-spec-or-bug, off `main`).
+  - `phase22-referrals.spec.ts:428` — ENC-0001 subject not in hub. Task-chipped (off `main`).
+  - `ethics-e2-procedure.spec.ts` FLOW-7 — known keyboard-vote flake (already a filed follow-up).
+  Final lead verification on a fresh reset: **charters + case-access + case-custom-fields = 41/41**.
 - [ ] **QA review** + **human approval** + **merge to `main`**. Owned by `qa` → lead.
+  (Blockers to a fully-green gate are the 4 tracked pre-existing reds above — all off-branch, on `main`.)
 
 ### ▶ AUTHZ Gate-2 deferred (PO-noted 2026-07-17, non-blocking — Gate 2 shipped)
 
