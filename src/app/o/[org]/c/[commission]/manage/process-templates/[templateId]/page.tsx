@@ -12,6 +12,7 @@ import { listForms } from "@/lib/queries/forms";
 import { listNarrativeTypes } from "@/lib/queries/case-narratives";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { casePatientEnabled } from "@/lib/queries/cases";
+import { caseCustomFieldsEnabled } from "@/lib/queries/feature-flags";
 import {
   listPhaseResults,
   phaseResultsEnabled,
@@ -59,14 +60,21 @@ export default async function ProcessTemplateBuilderPage({
   // at case creation). A form with only a draft can't back a phase yet. The
   // offered-outcomes picker offers the commission's non-archived outcomes; the
   // narrative-slot picker the non-archived narrative types (when the feature is on).
-  const [forms, outcomes, narrativesOn, casePatientOn, phaseResultsOn] =
-    await Promise.all([
-      listForms(access.commission.id),
-      listCaseOutcomes(access.commission.id),
-      narrativesEnabled(),
-      casePatientEnabled(),
-      phaseResultsEnabled(),
-    ]);
+  const [
+    forms,
+    outcomes,
+    narrativesOn,
+    casePatientOn,
+    caseCustomFieldsOn,
+    phaseResultsOn,
+  ] = await Promise.all([
+    listForms(access.commission.id),
+    listCaseOutcomes(access.commission.id),
+    narrativesEnabled(),
+    casePatientEnabled(),
+    caseCustomFieldsEnabled(),
+    phaseResultsEnabled(),
+  ]);
   const narrativeTypes = narrativesOn
     ? await listNarrativeTypes(access.commission.id)
     : [];
@@ -113,6 +121,7 @@ export default async function ProcessTemplateBuilderPage({
       narrativeTypes={narrativeTypes}
       narrativesEnabled={narrativesOn}
       casePatientEnabled={casePatientOn}
+      caseCustomFieldsEnabled={caseCustomFieldsOn}
       phaseResultsEnabled={phaseResultsOn}
       phaseResults={phaseResults}
     />

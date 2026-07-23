@@ -13,6 +13,7 @@ import { CaseStatusBadge, CaseStatusBadgeFixed } from "./case-status-badge";
 import { AssigneeAvatar } from "./assignee-avatar";
 import { activePhases, currentPhase, phaseProgress } from "./case-derive";
 import { formatCaseNumber, formatDate, formatDueDate, isOverdue } from "./format";
+import { CaseCustomFieldChips } from "./case-custom-field-chips";
 
 type SortKey = "caso" | "status" | "criado";
 type SortDir = "asc" | "desc";
@@ -109,6 +110,7 @@ export function CasesTable({
   org,
   slug,
   staffCaseRoute = false,
+  showCustomFields = false,
 }: {
   rows: CaseBoardRow[];
   /** Org slug for hrefs. */
@@ -117,6 +119,8 @@ export function CasesTable({
   /** Link rows to the staff case route (`casos/[id]`) instead of `manage/cases/[id]`
    * — for a non-coordinator `create_cases` Administrativo (ADR 0061). Default `false`. */
   staffCaseRoute?: boolean;
+  /** Show the custom-fields column (ADR 0083) — flag-gated by the parent. Default `false`. */
+  showCustomFields?: boolean;
 }) {
   const router = useRouter();
   const [sort, setSort] = useState<{ key: SortKey; dir: SortDir }>({
@@ -175,6 +179,14 @@ export function CasesTable({
             >
               Desfecho
             </th>
+            {showCustomFields && (
+              <th
+                scope="col"
+                className="px-3 py-2.5 text-left text-[0.68rem] font-semibold tracking-wide text-muted-foreground uppercase"
+              >
+                Campos personalizados
+              </th>
+            )}
             <th
               scope="col"
               className="px-3 py-2.5 text-left text-[0.68rem] font-semibold tracking-wide text-muted-foreground uppercase"
@@ -205,7 +217,7 @@ export function CasesTable({
           {sorted.length === 0 ? (
             <tr>
               <td
-                colSpan={8}
+                colSpan={showCustomFields ? 9 : 8}
                 className="px-3 py-10 text-center text-sm text-muted-foreground"
               >
                 Nenhum caso corresponde aos filtros.
@@ -257,6 +269,11 @@ export function CasesTable({
                       <span className="text-muted-foreground/70">—</span>
                     )}
                   </td>
+                  {showCustomFields && (
+                    <td className="max-w-[18rem] px-3 py-2.5 align-middle">
+                      <CaseCustomFieldChips fields={row.customFields} />
+                    </td>
+                  )}
                   <td className="px-3 py-2.5 align-middle">
                     <PhaseDots row={row} />
                   </td>

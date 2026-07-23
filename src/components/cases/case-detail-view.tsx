@@ -26,6 +26,8 @@ import { CaseOutcomeSelector } from "@/components/cases/case-outcome-selector";
 import { CaseOfferedOutcomesEditor } from "@/components/cases/case-offered-outcomes-editor";
 import type { CaseOutcome } from "@/lib/queries/case-outcomes";
 import { CasePatientPanel } from "@/components/cases/case-patient-panel";
+import { CaseCustomFieldsPanel } from "@/components/cases/case-custom-fields-panel";
+import type { CaseCustomFieldValue } from "@/lib/queries/cases";
 import {
   loadCasePatientForNotify,
   revealCasePatient,
@@ -120,6 +122,8 @@ export function CaseDetailView({
   canAssignPhases = false,
   canEditMeta = false,
   departments = [],
+  caseCustomFieldsEnabled = false,
+  customFields = [],
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -201,6 +205,10 @@ export function CaseDetailView({
   canEditMeta?: boolean;
   /** The case's hospital ACTIVE departments — seeds the edit-meta dialog. Default `[]`. */
   departments?: Department[];
+  /** Whether the `case_custom_fields` flag is on (gates the custom-fields panel; ADR 0083). */
+  caseCustomFieldsEnabled?: boolean;
+  /** The case's custom-field values (ADR 0083); `[]` when none / the flag is off. */
+  customFields?: CaseCustomFieldValue[];
 }) {
   const c = detail.case;
   const caps = detail.viewerCapabilities;
@@ -255,6 +263,13 @@ export function CaseDetailView({
   const showPatientPanel = casePatientEnabled && c.patientEnabled;
   const revealPatient = revealCasePatient.bind(null, c.id);
   const savePatient = setCasePatient.bind(null, c.id);
+
+  // Custom fields (ADR 0083) — the panel shows when the flag is on and the case has
+  // any values. Edit authority mirrors the meta-edit door: a coordinator
+  // (`canManageLifecycle`) OR a `create_cases` Administrativo (`canEditMeta`), and only
+  // while the case is OPEN (terminal cases are frozen server-side, HC025).
+  const showCustomFieldsPanel = caseCustomFieldsEnabled && customFields.length > 0;
+  const canEditCustomFields = (caps.canManageLifecycle || canEditMeta) && isOpen;
 
   const body = (
     <>
@@ -429,6 +444,15 @@ export function CaseDetailView({
                   canEdit={caps.canManageLifecycle}
                   onReveal={revealPatient}
                   onSave={savePatient}
+                />
+              </div>
+            )}
+            {showCustomFieldsPanel && (
+              <div data-rise className="order-2 lg:order-none">
+                <CaseCustomFieldsPanel
+                  caseId={c.id}
+                  fields={customFields}
+                  canEdit={canEditCustomFields}
                 />
               </div>
             )}

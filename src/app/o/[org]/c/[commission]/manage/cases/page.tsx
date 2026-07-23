@@ -9,6 +9,7 @@ import {
   processlessCasesEnabled,
   casesExtrasEnabled,
 } from "@/lib/queries/cases";
+import { caseCustomFieldsEnabled } from "@/lib/queries/feature-flags";
 import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import { getCaseActionItemKpis } from "@/lib/queries/case-action-items";
 import { listProcessTemplates } from "@/lib/queries/process-templates";
@@ -96,6 +97,7 @@ export default async function CasesBoardPage({
     casePatientOn,
     processlessOn,
     casesExtrasOn,
+    caseCustomFieldsOn,
     outcomes,
     // The case's hospital ACTIVE departments (non-archived) for the Novo-caso
     // "Unidade / setor" dropdown. A commission with no hospital → `[]` (the field
@@ -108,6 +110,7 @@ export default async function CasesBoardPage({
     casePatientEnabled(),
     processlessCasesEnabled(),
     casesExtrasEnabled(),
+    caseCustomFieldsEnabled(),
     listCaseOutcomes(access.commission.id),
     // The case's hospital ACTIVE departments (non-archived) for the Novo-caso
     // "Unidade / setor" dropdown. A commission with no hospital → `[]` (the field
@@ -125,6 +128,8 @@ export default async function CasesBoardPage({
       id: t.id,
       title: t.title,
       collectsPatient: t.collectsPatient,
+      // Custom-field defs (ADR 0083) — drive the dialog's reveal + required-gating.
+      customFields: t.customFields,
     }));
 
   const kpis = computeCaseKpis(rows);
@@ -156,6 +161,7 @@ export default async function CasesBoardPage({
             commissionId={access.commission.id}
             departments={departments}
             casePatientEnabled={casePatientOn}
+            caseCustomFieldsEnabled={caseCustomFieldsOn}
             processlessEnabled={processlessOn}
             casesExtrasEnabled={casesExtrasOn}
             outcomes={outcomes}
@@ -187,6 +193,7 @@ export default async function CasesBoardPage({
                 commissionId={access.commission.id}
                 departments={departments}
                 casePatientEnabled={casePatientOn}
+                caseCustomFieldsEnabled={caseCustomFieldsOn}
                 processlessEnabled={processlessOn}
                 casesExtrasEnabled={casesExtrasOn}
                 outcomes={outcomes}
@@ -209,6 +216,7 @@ export default async function CasesBoardPage({
             // A non-coordinator reaching the board via `create_cases` (ADR 0061) is
             // routed to the STAFF case route — the coordinator `(detail)` route 404s them.
             staffCaseRoute={access.role !== "staff_admin"}
+            caseCustomFieldsEnabled={caseCustomFieldsOn}
           />
         </>
       )}

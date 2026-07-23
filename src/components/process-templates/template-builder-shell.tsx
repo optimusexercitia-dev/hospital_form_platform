@@ -27,6 +27,7 @@ import { NarrativeSlotDialog } from "@/components/process-templates/narrative-sl
 import { ProcessOutcomesPicker } from "@/components/process-templates/process-outcomes-picker";
 import { PublishedOutcomesCard } from "@/components/process-templates/published-outcomes-card";
 import { CollectsPatientPicker } from "@/components/process-templates/collects-patient-picker";
+import { CustomFieldsCard } from "@/components/process-templates/custom-fields-card";
 import { PublishTemplateButton } from "@/components/process-templates/publish-template-button";
 import { ArchiveTemplateButton } from "@/components/process-templates/archive-template-button";
 import {
@@ -125,6 +126,7 @@ export function TemplateBuilderShell({
   narrativeTypes,
   narrativesEnabled,
   casePatientEnabled,
+  caseCustomFieldsEnabled = false,
   phaseResultsEnabled = false,
   phaseResults = [],
 }: {
@@ -147,6 +149,8 @@ export function TemplateBuilderShell({
   narrativesEnabled: boolean;
   /** Whether the `case_patient` feature is on (gates the draft-only collects-patient toggle; ADR 0038). */
   casePatientEnabled: boolean;
+  /** Whether the `case_custom_fields` feature is on (gates the custom-fields card; ADR 0083). */
+  caseCustomFieldsEnabled?: boolean;
   /** Whether the `case_phase_results` feature is on (gates the per-phase result-ruleset editor). */
   phaseResultsEnabled?: boolean;
   /** The commission's active result vocabulary (the ruleset editor's option pickers). */
@@ -368,6 +372,16 @@ export function TemplateBuilderShell({
         <CollectsPatientPicker
           templateId={template.id}
           collectsPatient={template.collectsPatient}
+        />
+      )}
+
+      {/* Custom fields (ADR 0083) — editable while draft, read-only once published
+          (mirrors the outcomes picker → published-card treatment). */}
+      {caseCustomFieldsEnabled && (
+        <CustomFieldsCard
+          templateId={template.id}
+          fields={template.customFields}
+          editable={isDraft}
         />
       )}
 

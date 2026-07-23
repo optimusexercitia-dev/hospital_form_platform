@@ -11,6 +11,7 @@ import {
   type CreateCaseState,
 } from "@/lib/cases/actions";
 import type { CaseOutcome } from "@/lib/queries/case-outcomes";
+import type { CustomFieldDef } from "@/lib/queries/process-templates";
 import type { Department } from "@/lib/hospitals/departments";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -39,6 +40,12 @@ import {
 } from "@/components/safety/patient-fields";
 import { OutcomeMultiselect } from "@/components/cases/outcome-multiselect";
 import { CaseDepartmentField } from "@/components/cases/case-department-field";
+import {
+  CustomFieldInput,
+  isCustomFieldBlank,
+  serializeCustomField,
+  type CustomFieldValueDraft,
+} from "@/components/cases/custom-field-input";
 
 
 /** The sentinel `templateId` value that switches the dialog into the process-less flow. */
@@ -53,6 +60,12 @@ interface TemplateOption {
    * on, the dialog offers the optional PHI block. Defaults to `false`.
    */
   collectsPatient: boolean;
+  /**
+   * The template's custom-field definitions (ADR 0083). When non-empty AND the
+   * `case_custom_fields` flag is on, the dialog reveals a "Campos personalizados"
+   * block (mirrors `collectsPatient`). `[]` when the process defines none.
+   */
+  customFields: CustomFieldDef[];
 }
 
 /**
@@ -74,6 +87,22 @@ function PatientHiddenFields({ patient }: { patient: PatientDraft }) {
       <input type="hidden" name="patientUnit" value={patient.unit} />
       <input type="hidden" name="patientAttending" value={patient.attending} />
     </>
+  );
+}
+
+/** The fill-time PHI warning above the custom-fields block (ADR 0083 D4). */
+function CustomFieldsPiiWarning() {
+  return (
+    <p
+      role="note"
+      className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2.5 text-sm text-destructive text-pretty"
+    >
+      <ShieldAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      <span>
+        Não inclua dados de paciente nos campos personalizados (nome, prontuário,
+        data de nascimento ou qualquer identificador).
+      </span>
+    </p>
   );
 }
 
@@ -119,6 +148,7 @@ export function CreateCaseDialog({
   commissionId,
   departments = [],
   casePatientEnabled = false,
+  caseCustomFieldsEnabled = false,
   processlessEnabled = false,
   casesExtrasEnabled = false,
   outcomes = [],
@@ -137,6 +167,8 @@ export function CreateCaseDialog({
   departments?: Department[];
   /** Whether the `case_patient` flag is on (gates the optional PHI block + step). */
   casePatientEnabled?: boolean;
+  /** Whether the `case_custom_fields` flag is on (gates the custom-fields block; ADR 0083). */
+  caseCustomFieldsEnabled?: boolean;
   /** Whether the `processless_cases` flag is on (gates the "Sem processo" option). */
   processlessEnabled?: boolean;
   /** Whether the `cases_extras` flag is on (gates the outcome sub-step). */
@@ -161,6 +193,11 @@ export function CreateCaseDialog({
   // The selected process — drives the templated PHI block + the flow branch.
   const [templateId, setTemplateId] = useState("");
   const [patient, setPatient] = useState<PatientDraft>(EMPTY_PATIENT_DRAFT);
+  // Custom-field values (ADR 0083), keyed by the field `key`. Reset whenever the
+  // selected process changes (each process defines its own field set).
+  const [customFieldValues, setCustomFieldValues] = useState<
+    Record<string, CustomFieldValueDraft>
+  >({});
 
   // Process-less wizard state.
   const [step, setStep] = useState<1 | 2>(1);
@@ -177,6 +214,11 @@ export function CreateCaseDialog({
   const showTemplatedPatientBlock = Boolean(
     casePatientEnabled && selectedTemplate?.collectsPatient,
   );
+  // Custom fields (ADR 0083) — templated path only (D9: process-less cases get none),
+  // and only when the selected process actually defines fields.
+  const customFields =
+    !isProcessless && caseCustomFieldsEnabled ? (selectedTemplate?.customFields ?? []) : [];
+  const showCustomFields = customFields.length > 0;
 
   useEffect(() => {
     if (!state?.ok || !state.caseId) return;
@@ -202,6 +244,7 @@ export function CreateCaseDialog({
   function changeTemplate(next: string) {
     setTemplateId(next);
     setStep(1);
+    setCustomFieldValues({});
   }
 
   function toggleOutcome(id: string) {
@@ -216,6 +259,13 @@ export function CreateCaseDialog({
   // Whether step 1's primary can submit/advance. With the outcome toggle on, ≥1
   // outcome must be chosen.
   const outcomeBlocked = isProcessless && emitsOutcome && selectedOutcomeIds.length === 0;
+  // A required custom field left blank blocks creation (ADR 0083 D6). The server
+  // re-enforces this (HC068); this is the client submit-gate.
+  const customFieldsBlocked =
+    showCustomFields &&
+    customFields.some(
+      (f) => f.required && isCustomFieldBlank(customFieldValues[f.key] ?? null),
+    );
   // The PHI step exists only when the case will be PHI-capable AND the flag is on.
   const showPatientStep = isProcessless && casePatientEnabled && patientEnabled;
 
@@ -387,6 +437,42 @@ export function CreateCaseDialog({
                 <PatientHiddenFields patient={patient} />
               </>
             )}
+
+            {/* Custom fields (ADR 0083) — templated path only, when the process
+                defines fields and the flag is on. Required fields gate creation. */}
+            {showCustomFields && (
+              <fieldset className="flex flex-col gap-3 rounded-xl border border-border bg-muted/20 p-4">
+                <legend className="px-1 text-sm font-medium">
+                  Campos personalizados
+                </legend>
+                <CustomFieldsPiiWarning />
+                {customFields.map((field) => (
+                  <CustomFieldInput
+                    key={field.key}
+                    field={field}
+                    required={field.required}
+                    disabled={busy}
+                    idBase="create-case-custom"
+                    value={customFieldValues[field.key] ?? null}
+                    onChange={(v) =>
+                      setCustomFieldValues((prev) => ({ ...prev, [field.key]: v }))
+                    }
+                  />
+                ))}
+                {/* Hidden mirrors — one `customField` JSON per field for the action. */}
+                {customFields.map((field) => (
+                  <input
+                    key={`hidden-${field.key}`}
+                    type="hidden"
+                    name="customField"
+                    value={serializeCustomField(
+                      field.key,
+                      customFieldValues[field.key] ?? null,
+                    )}
+                  />
+                ))}
+              </fieldset>
+            )}
           </div>
 
           {/* STEP 2 — process-less PHI fields (only reachable when the PHI toggle is
@@ -465,7 +551,7 @@ export function CreateCaseDialog({
                 key="submit"
                 type="submit"
                 size="lg"
-                disabled={busy || outcomeBlocked}
+                disabled={busy || outcomeBlocked || customFieldsBlocked}
               >
                 {busy ? "Criando…" : "Criar caso"}
               </Button>

@@ -3,8 +3,13 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getCommissionAccessByOrg, canInCommission } from "@/lib/queries/session";
-import { getCaseDetail, casePatientEnabled } from "@/lib/queries/cases";
+import {
+  getCaseDetail,
+  casePatientEnabled,
+  listCaseCustomFieldValues,
+} from "@/lib/queries/cases";
 import type { CaseViewerCapabilities, MyCaseRole } from "@/lib/queries/cases";
+import { caseCustomFieldsEnabled } from "@/lib/queries/feature-flags";
 import { isTerminalCaseStatus } from "@/lib/cases/case-status";
 import { listDepartmentsForHospital } from "@/lib/hospitals/departments";
 import type { Department } from "@/lib/hospitals/departments";
@@ -84,6 +89,7 @@ export default async function StaffCaseDetailPage({
     phaseResultsOn,
     meetingsOn,
     actionItemsOn,
+    caseCustomFieldsOn,
   ] = await Promise.all([
     interviewsEnabled(),
     patientSafetyEnabled(),
@@ -92,6 +98,7 @@ export default async function StaffCaseDetailPage({
     phaseResultsEnabled(),
     meetingsEnabled(),
     actionItemsEnabled(),
+    caseCustomFieldsEnabled(),
   ]);
 
   // Post-conclusion result correction (phase-results feature; task #10) is
@@ -102,17 +109,29 @@ export default async function StaffCaseDetailPage({
   const phaseResultOptions = canManagePhaseResults
     ? toResolvedPhaseResultOptions(await listPhaseResults(access.commission.id))
     : [];
-  const [members, documents, events, tags, caseTags, actionItems, interviews, meetings] =
-    await Promise.all([
-      listMembers(access.commission.id),
-      listCaseDocuments(caseId),
-      listCaseEvents(caseId),
-      listCaseTags(access.commission.id),
-      listCaseTagsForCase(caseId),
-      listCaseActionItems(caseId),
-      interviewsOn ? listCaseInterviews(caseId) : Promise.resolve([]),
-      meetingsOn ? listCaseMeetings(caseId) : Promise.resolve([]),
-    ]);
+  const [
+    members,
+    documents,
+    events,
+    tags,
+    caseTags,
+    actionItems,
+    interviews,
+    meetings,
+    customFields,
+  ] = await Promise.all([
+    listMembers(access.commission.id),
+    listCaseDocuments(caseId),
+    listCaseEvents(caseId),
+    listCaseTags(access.commission.id),
+    listCaseTagsForCase(caseId),
+    listCaseActionItems(caseId),
+    interviewsOn ? listCaseInterviews(caseId) : Promise.resolve([]),
+    meetingsOn ? listCaseMeetings(caseId) : Promise.resolve([]),
+    caseCustomFieldsOn
+      ? listCaseCustomFieldValues(caseId)
+      : Promise.resolve([]),
+  ]);
 
   // The outbound-referrals card module (Phase 22; null when the flag is off). Built
   // from data already loaded — no inline supabase-js (Rule 9; UI-prop assembly).
@@ -157,6 +176,8 @@ export default async function StaffCaseDetailPage({
       canAssignPhases={canInCommission(access, "assign_case_phases")}
       canEditMeta={canEditMeta}
       departments={departments}
+      caseCustomFieldsEnabled={caseCustomFieldsOn}
+      customFields={customFields}
     />
   );
 }

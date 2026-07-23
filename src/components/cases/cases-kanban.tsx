@@ -18,6 +18,7 @@ import {
 } from "./case-derive";
 import { CaseStatusBadge, TOKEN_COLOR_VAR } from "./case-status-badge";
 import { ageLabel, formatCaseNumber } from "./format";
+import { CaseCustomFieldChips } from "./case-custom-field-chips";
 
 const PHASE_DOT: Record<CasePhaseStatus, string> = {
   active: "bg-primary",
@@ -32,6 +33,7 @@ function CaseCard({
   slug,
   index,
   staffCaseRoute,
+  showCustomFields,
 }: {
   row: CaseBoardRow;
   /** Org slug for hrefs. */
@@ -40,6 +42,8 @@ function CaseCard({
   index: number;
   /** Link to the staff case route (ADR 0061); see {@link CasesKanban}. */
   staffCaseRoute: boolean;
+  /** Show the compact custom-field chips (ADR 0083) — flag-gated by the parent. */
+  showCustomFields: boolean;
 }) {
   const color = TOKEN_COLOR_VAR[CASE_STATUS_META[row.case.status].colorToken];
   const { done, total } = phaseProgress(row);
@@ -88,6 +92,12 @@ function CaseCard({
           />
         </div>
       ) : null}
+
+      {showCustomFields && row.customFields.length > 0 && (
+        <div className="mt-2">
+          <CaseCustomFieldChips fields={row.customFields} emptyDash={false} />
+        </div>
+      )}
 
       <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.72rem] text-muted-foreground">
         <span className="flex items-center gap-1" aria-hidden="true">
@@ -140,6 +150,7 @@ export function CasesKanban({
   rows,
   slug,
   staffCaseRoute = false,
+  showCustomFields = false,
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -148,6 +159,8 @@ export function CasesKanban({
   /** Link cards to the staff case route (`casos/[id]`) for a non-coordinator
    * `create_cases` Administrativo (ADR 0061). Default `false`. */
   staffCaseRoute?: boolean;
+  /** Show the compact custom-field chips (ADR 0083) — flag-gated by the parent. Default `false`. */
+  showCustomFields?: boolean;
 }) {
   const columns = useMemo(() => groupByFixedStatus(rows), [rows]);
 
@@ -189,6 +202,7 @@ export function CasesKanban({
                     slug={slug}
                     index={i}
                     staffCaseRoute={staffCaseRoute}
+                    showCustomFields={showCustomFields}
                   />
                 ))
               )}

@@ -16,6 +16,7 @@ import { CasesTable } from "./cases-table";
 import { CasesKanban } from "./cases-kanban";
 import { hasUnassignedWork } from "./case-derive";
 import { formatCaseNumber } from "./format";
+import { customFieldDisplay } from "./custom-field-input";
 
 export type CasesViewMode = "table" | "kanban";
 
@@ -57,17 +58,34 @@ function matchesOutcome(
   return row.outcome?.id === outcome;
 }
 
-function matchesQuery(row: CaseBoardRow, q: string): boolean {
+function matchesQuery(
+  row: CaseBoardRow,
+  q: string,
+  includeCustomFields: boolean,
+): boolean {
   if (!q) return true;
   const needle = q.trim().toLowerCase();
   if (!needle) return true;
   const idText = formatCaseNumber(row.case.caseNumber).toLowerCase();
   const label = row.case.label?.toLowerCase() ?? "";
-  return (
+  if (
     idText.includes(needle) ||
     String(row.case.caseNumber).includes(needle) ||
     label.includes(needle)
-  );
+  ) {
+    return true;
+  }
+  // Fold the searchable custom-field values (ADR 0083) into the haystack — both the
+  // field label and its resolved display value (a select code → its option label).
+  if (includeCustomFields) {
+    return row.customFields.some((f) => {
+      const value = customFieldDisplay(f).toLowerCase();
+      return (
+        f.label.toLowerCase().includes(needle) || value.includes(needle)
+      );
+    });
+  }
+  return false;
 }
 
 /**
@@ -84,12 +102,15 @@ export function CasesView({
   slug,
   initialView,
   staffCaseRoute = false,
+  caseCustomFieldsEnabled = false,
 }: {
   rows: CaseBoardRow[];
   /** Org slug for hrefs. */
   org: string;
   slug: string;
   initialView: CasesViewMode;
+  /** Whether the `case_custom_fields` flag is on — gates the list column + search fold (ADR 0083). */
+  caseCustomFieldsEnabled?: boolean;
   /**
    * Point each row at the STAFF case route (`casos/[id]`) instead of the
    * coordinator `(detail)` route (`manage/cases/[id]`). Set for a non-coordinator
@@ -129,10 +150,15 @@ export function CasesView({
         (r) =>
           matchesChip(r, chip) &&
           matchesOutcome(r, outcome, adverseOnly) &&
-          matchesQuery(r, query),
+          matchesQuery(r, query, caseCustomFieldsEnabled),
       ),
-    [rows, chip, outcome, adverseOnly, query],
+    [rows, chip, outcome, adverseOnly, query, caseCustomFieldsEnabled],
   );
+
+  // Show the custom-fields column only when the flag is on AND at least one loaded
+  // row carries a `show_in_list` value — a heterogeneous, opt-in column (D8).
+  const showCustomFields =
+    caseCustomFieldsEnabled && rows.some((r) => r.customFields.length > 0);
 
   return (
     <div className="flex flex-col gap-4">
@@ -254,9 +280,21 @@ export function CasesView({
       </p>
 
       {view === "kanban" ? (
-        <CasesKanban rows={filtered} org={org} slug={slug} staffCaseRoute={staffCaseRoute} />
+        <CasesKanban
+          rows={filtered}
+          org={org}
+          slug={slug}
+          staffCaseRoute={staffCaseRoute}
+          showCustomFields={showCustomFields}
+        />
       ) : (
-        <CasesTable rows={filtered} org={org} slug={slug} staffCaseRoute={staffCaseRoute} />
+        <CasesTable
+          rows={filtered}
+          org={org}
+          slug={slug}
+          staffCaseRoute={staffCaseRoute}
+          showCustomFields={showCustomFields}
+        />
       )}
     </div>
   );

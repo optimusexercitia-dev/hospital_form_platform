@@ -7,7 +7,9 @@ import {
   getCaseDetail,
   casePatientEnabled,
   casesExtrasEnabled,
+  listCaseCustomFieldValues,
 } from "@/lib/queries/cases";
+import { caseCustomFieldsEnabled } from "@/lib/queries/feature-flags";
 import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
 import {
   listPhaseResults,
@@ -77,6 +79,7 @@ export default async function CaseDetailPage({
     casesExtrasOn,
     meetingsOn,
     actionItemsOn,
+    caseCustomFieldsOn,
   ] = await Promise.all([
     interviewsEnabled(),
     patientSafetyEnabled(),
@@ -87,6 +90,7 @@ export default async function CaseDetailPage({
     casesExtrasEnabled(),
     meetingsEnabled(),
     actionItemsEnabled(),
+    caseCustomFieldsEnabled(),
   ]);
 
   // The commission's outcome vocabulary — for the process-less offered-outcome
@@ -105,17 +109,29 @@ export default async function CaseDetailPage({
   const phaseResultOptions = phaseResultsOn
     ? toResolvedPhaseResultOptions(await listPhaseResults(access.commission.id))
     : [];
-  const [members, documents, events, tags, caseTags, actionItems, interviews, meetings] =
-    await Promise.all([
-      listMembers(access.commission.id),
-      listCaseDocuments(caseId),
-      listCaseEvents(caseId),
-      listCaseTags(access.commission.id),
-      listCaseTagsForCase(caseId),
-      listCaseActionItems(caseId),
-      interviewsOn ? listCaseInterviews(caseId) : Promise.resolve([]),
-      meetingsOn ? listCaseMeetings(caseId) : Promise.resolve([]),
-    ]);
+  const [
+    members,
+    documents,
+    events,
+    tags,
+    caseTags,
+    actionItems,
+    interviews,
+    meetings,
+    customFields,
+  ] = await Promise.all([
+    listMembers(access.commission.id),
+    listCaseDocuments(caseId),
+    listCaseEvents(caseId),
+    listCaseTags(access.commission.id),
+    listCaseTagsForCase(caseId),
+    listCaseActionItems(caseId),
+    interviewsOn ? listCaseInterviews(caseId) : Promise.resolve([]),
+    meetingsOn ? listCaseMeetings(caseId) : Promise.resolve([]),
+    caseCustomFieldsOn
+      ? listCaseCustomFieldValues(caseId)
+      : Promise.resolve([]),
+  ]);
 
   // The outbound-referrals card module (Phase 22; null when the flag is off). Built
   // from data already loaded — no inline supabase-js (Rule 9; UI-prop assembly).
@@ -151,6 +167,8 @@ export default async function CaseDetailPage({
       casesExtrasEnabled={casesExtrasOn}
       actionItemsEnabled={actionItemsOn}
       canAssignPhases={canInCommission(access, "assign_case_phases")}
+      caseCustomFieldsEnabled={caseCustomFieldsOn}
+      customFields={customFields}
     />
   );
 }
