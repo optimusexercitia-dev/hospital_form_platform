@@ -426,21 +426,29 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 <!-- OPEN backlog only (reviewed at each phase start). Resolved [x] items archived →
      docs/progress/follow-ups-archive.md (full snapshot). -->
 
-### ▶ Case custom fields — build (design ratified 2026-07-23, ADR 0083)
+### ▶ Case custom fields — BUILT, E2E + QA deferred (ADR 0083, branch `worktree-adr-0083-case-custom-fields`)
 
-- [ ] **Build template-defined case custom fields.** Non-PHI administrative descriptor
-  fields, defined per process template and captured in "Novo caso". Design is settled in
-  [ADR 0083](docs/decisions/0083-case-custom-fields.md); implementation is a later gated
-  phase. Scope: two relations (`process_template_custom_fields` → snapshot
-  `case_custom_field_values`), the `case_custom_fields` flag, builder authoring UI,
-  `create_case_from_template` `p_custom_fields`, an `update_case_meta`-style edit path,
-  and case-detail + opt-in list-column/filter surfaces. Reuses the form input-type
-  vocabulary + `input-item` controls (lineage: [0060](docs/decisions/0060-flexible-forms-foundation.md)
-  flexible-forms, [0064](docs/decisions/0064-case-subject-generalization-participants.md)
-  case generalization). **Build-time prereq:** verify live RLS predicate bodies
-  (`app.can_read_case` was consolidated by the stage-G authz migration) before writing
-  policies. Owned by `backend` (schema/RPC/RLS) → `frontend` (builder + dialog + surfaces)
-  → `tester`.
+Template-defined, non-PHI administrative descriptor fields, defined per process template and
+captured in "Novo caso". Design: [ADR 0083](docs/decisions/0083-case-custom-fields.md).
+**Not yet merged to `main`.**
+
+- [x] **Backend** (`9108b02`) — `process_template_custom_fields` + `case_custom_field_values`
+  (RLS mirrored from the live `case_offered_outcomes`/`process_template_outcomes` predicates,
+  incl. the `is_case_excluded` arm), `create_case_from_template` extended with `p_custom_fields`
+  (re-emitted from the live body), `update_case_custom_field_values` RPC (`HC068` required),
+  the `case_custom_fields` flag, types, query layer, pgTAP `188` (28/28).
+- [x] **Def-authoring actions** (`8e5aea3`) — create/update/delete/reorder in
+  `process-templates/actions.ts`; draft-only enforced action-side (D5).
+- [x] **Frontend** (`613680c`) — builder authoring card, "Novo caso" reveal + PHI warning +
+  required-gating, case-detail display + edit, opt-in list column/search. Browser-verified
+  end-to-end.
+- [x] **E2E seed fixtures** (`2365f1f`) — published template "Descritores de Óbito", 2 defs
+  (`numero_declaracao_obito` required, `turno_obito` dropdown), 1 seeded case (label "Óbito
+  enfermaria leito 3"), deterministic fixed UUIDs.
+- [x] lint / typecheck / vitest (369) green.
+- [ ] **E2E specs + `e2e:prod` gate** — deferred (needs a shared-local-DB reset; PO chose to
+  skip for now, 2026-07-23). Fixtures are ready for a turnkey run.
+- [ ] **QA review** + **human approval** + **merge to `main`**. Owned by `tester` → `qa` → lead.
 
 ### ▶ AUTHZ Gate-2 deferred (PO-noted 2026-07-17, non-blocking — Gate 2 shipped)
 
