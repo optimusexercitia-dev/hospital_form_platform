@@ -24,14 +24,15 @@
 -- pass count.
 -- =============================================================================
 begin;
-select plan(29);
+select plan(31);
 
 -- The bulk RPC composes doors gated by ALL of these; assert_bulk_create_enabled
--- gates the RPC itself; set_participant_patient gates on case_patient.
+-- gates the RPC itself; set_participant_patient gates on case_patient;
+-- administrativo powers the create_cases-holder keystone (Decision #5).
 update app.feature_flags set enabled = true
   where key in (
     'cases_multi_phase', 'cases_bulk_create', 'case_custom_fields',
-    'case_narratives', 'case_patient', 'audit_trail'
+    'case_narratives', 'case_patient', 'audit_trail', 'administrativo'
   );
 
 -- Sanity: the fixture actually enabled the bulk flag (guards the silent-skip trap).
@@ -121,6 +122,36 @@ select throws_ok(
     (select tid from tpl_multi)),
   '42501', null,
   'a foreign coordinator cannot bulk-create the other commission (42501)');
+reset role;
+
+-- =========================================================================
+-- 2b) AUTHORITY KEYSTONE (Decision #5) — an Administrativo holding ONLY
+--     create_cases is STILL denied: bulk is DELIBERATELY stricter than
+--     create_case_from_template (whose gate DOES admit a create_cases holder).
+--
+-- ⛔ Fixture-trap discipline (ADR 0078 §7.1): PROVE the holder HAS create_cases
+--     (member_can → true) FIRST, so the 42501 lands on the stricter bulk gate, not
+--     on a missing capability — otherwise this keystone would be vacuous.
+-- st_x2 (a staff member of comm_x) is appointed + granted create_cases as the table
+-- owner (bypasses the guarded appoint/grant doors, like the seed; those doors are
+-- tested in 205).
+-- =========================================================================
+insert into public.commission_administrativos (commission_id, user_id, appointed_by)
+  values ((select comm_x from k), (select st_x2 from k), (select sa_x from k));
+insert into public.commission_administrativo_capabilities (commission_id, user_id, capability, granted_by)
+  values ((select comm_x from k), (select st_x2 from k), 'create_cases', (select sa_x from k));
+
+select test_helpers.claims_for((select st_x2 from k), false);
+set local role authenticated;
+select is(app.member_can((select comm_x from k), 'create_cases'), true,
+  'PRE: the Administrativo st_x2 HAS create_cases (the door reaches the stricter bulk gate, not a missing-capability deny)');
+select throws_ok(
+  format($$ select public.bulk_create_cases(%L, null, 'first_only',
+    jsonb_build_array(jsonb_build_object(
+      'label','X','assigned_to',(select st_x from k),'custom_fields','[]'::jsonb,'patient',null))) $$,
+    (select tid from tpl_multi)),
+  '42501', null,
+  'a create_cases Administrativo is STILL denied bulk creation (Decision #5: stricter than create_case_from_template)');
 reset role;
 
 -- =========================================================================
