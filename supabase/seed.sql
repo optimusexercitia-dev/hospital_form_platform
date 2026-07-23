@@ -2075,6 +2075,10 @@ update app.feature_flags set enabled = true where key = 'ethics';
 -- migration; forced ON here for local/E2E so the builder + create dialog + detail
 -- surfaces are reachable. The demo field lives on the M&M template (fixture above).
 update app.feature_flags set enabled = true where key = 'case_custom_fields';
+-- Bulk case creation ("Múltiplos casos"). Created OFF in its migration; forced ON
+-- here for local/E2E so the "Múltiplos casos" wizard + bulk_create_cases RPC are
+-- reachable. Coordinator-only; production flip deferred.
+update app.feature_flags set enabled = true where key = 'cases_bulk_create';
 -- ---------------------------------------------------------------------------
 do $cd$
 declare
