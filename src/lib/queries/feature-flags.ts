@@ -49,6 +49,10 @@ export interface FeatureFlags {
   // ADR 0083: template-defined case custom fields (administrative descriptors).
   // Seeded OFF in the case-custom-fields migration; `seed.sql` forces ON for local/E2E.
   case_custom_fields: boolean
+  // Bulk case creation ("Múltiplos casos"): the bulk_create_cases RPC deals many
+  // cases across members in one atomic transaction. Seeded OFF in the bulk-create
+  // migration; `seed.sql` forces ON for local/E2E.
+  cases_bulk_create: boolean
 }
 
 /** A flag key. */
@@ -143,4 +147,15 @@ export async function chartersEnabled(): Promise<boolean> {
  */
 export async function caseCustomFieldsEnabled(): Promise<boolean> {
   return featureEnabled('case_custom_fields')
+}
+
+/**
+ * Whether the Bulk Case Creation ("Múltiplos casos") feature is ON. Thin per-flag
+ * wrapper over {@link featureEnabled} (consistent with the other per-flag
+ * `*Enabled()` readers), so callers avoid an `as FeatureFlagKey` cast.
+ * Request-memoized via {@link getFeatureFlags}. Seeded OFF in the bulk-create
+ * migration; flips ON at the feature gate; `seed.sql` forces it ON for local/E2E.
+ */
+export async function casesBulkCreateEnabled(): Promise<boolean> {
+  return featureEnabled('cases_bulk_create')
 }
