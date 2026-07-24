@@ -10,6 +10,14 @@ evaluator / SQL↔TS parity — here the "dashboard-countable" filter), Rule 5 (
 immutability), Rule 8 (regen types), Rule 9 (data access via `src/lib/queries/`), Rule 10 (pt-BR
 UI / English code), Rule 11 (audit).
 
+> **Amended 2026-07-24** (migration `20260826000000`): the audit payload **no longer carries the
+> free-text `reason`** — free text in the append-only hash-chained `audit_log` can never be erased
+> (LGPD conflict if a reason embeds patient context; Rule 11 records *that* + *who*, never
+> payloads). This adopts the case-corrections pattern (ADR 0085). The reason stays **mandatory**
+> (HC0H3) as deliberate operator friction, but is validated-only — not persisted. Payload =
+> `jsonb_build_object('successor_id', v_new_id)`. The §2/§4 payload text below is the original,
+> superseded wording.
+
 ## Context
 
 **The problem (from ADR [0060](./0060-flexible-forms-foundation.md) Gap 38, "Open gap — standalone-submission
@@ -114,7 +122,8 @@ public.supersede_response(p_response_id uuid, p_reason text) returns public.resp
   rather than re-keying from scratch. The predecessor row and its answers are **read-only, never
   mutated**. Then `perform app.audit_write('response.superseded', 'response', p_response_id,
   v_commission, 'Resposta corrigida', jsonb_build_object('reason', p_reason, 'successor_id',
-  v_new_id))`. Return the new row.
+  v_new_id))`. Return the new row. *[Amended 2026-07-24: `'reason'` dropped from the payload —
+  see the header amendment; live payload is `jsonb_build_object('successor_id', v_new_id)`.]*
 - **Flag gate:** first line `perform app.assert_response_correction_enabled();` (a new
   `assert_*` helper over `app.feature_enabled('response_correction')`) — flag OFF ⇒ the RPC raises
   and NO affordance renders (§4), so behavior is byte-for-byte pre-SUP.
@@ -178,7 +187,9 @@ not mutations. (This corrects a common conflation: the two audit paths are disti
 `20260715000200_discard_standalone_draft.sql`.)
 
 - **Metadata is PHI-free (Rule 11):** records *that* a supersede happened, *who* (via `audit_write`'s
-  actor capture), the mandatory *reason* text, and the *successor id*. It carries **NO answer-level
+  actor capture), the mandatory *reason* text *[amended 2026-07-24: the reason no longer enters the
+  payload — mandatory (HC0H3) but validated-only; see the header amendment]*, and the *successor id*.
+  It carries **NO answer-level
   diffs** — **Gap 39 (per-answer revision history) stays dropped** (ADR 0060: it would re-ingest
   PHI/free-text). A governed correction needs only the controlled state transition (who/when/reason),
   not a field-by-field diff.
