@@ -63,6 +63,9 @@ export function CaseNarrativeCard({
   assignees = [],
   canAssign = false,
   showLifecycle = true,
+  correctionCaps = null,
+  openCorrection = null,
+  narrativeRevisions = [],
 }: {
   narrative: CaseNarrative;
   /** Whether the viewer may edit the body now (Q14 + `aberta` + case open). */
@@ -93,6 +96,24 @@ export function CaseNarrativeCard({
    * the flag-OFF invariant (today's behavior) holds.
    */
   showLifecycle?: boolean;
+  /**
+   * The viewer's Case Correction Lifecycle capabilities (ADR 0085), or `null` when
+   * the `case_corrections` flag is off (no correction surface). Threaded from the
+   * host page → detail → list; when non-null, the {@link NarrativeCorrectionPanel}
+   * mounts beneath the body (file a correction / draft editor / revision history).
+   */
+  correctionCaps?: CorrectionCaps | null;
+  /**
+   * The OPEN correction request targeting THIS narrative (if any), pre-derived by
+   * the list. `null` = no open request → the "Corrigir…" menu may show on a
+   * concluded narrative. Drives the corrector's draft editor + the status chip.
+   */
+  openCorrection?: CorrectionRequest | null;
+  /**
+   * This narrative's append-only revision history (superseded bodies, newest-first)
+   * from `case_narrative_revisions`. `[]` = none. Rendered collapsed by the panel.
+   */
+  narrativeRevisions?: NarrativeRevision[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -323,6 +344,23 @@ export function CaseNarrativeCard({
             <ConcludeNarrativeButton narrativeId={narrative.id} />
           )}
         </div>
+      )}
+
+      {/* Case Correction Lifecycle (ADR 0085): the file / draft-editor / history
+          surface for this narrative, when the flag is on. The panel self-gates each
+          part (concluded + no open request → "Corrigir…"; corrector + open draft →
+          editor; any revisions → collapsed history) and renders nothing when there
+          is nothing to show, so mounting it unconditionally is safe. Hidden while the
+          body is being edited in place, to avoid two editors at once. */}
+      {correctionCaps && !editing && (
+        <NarrativeCorrectionPanel
+          narrative={narrative}
+          heading={heading}
+          caps={correctionCaps}
+          openCorrection={openCorrection}
+          revisions={narrativeRevisions}
+          assignees={assignees}
+        />
       )}
     </section>
   );

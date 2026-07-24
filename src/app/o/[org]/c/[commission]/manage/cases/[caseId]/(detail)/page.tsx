@@ -29,6 +29,7 @@ import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
 import { buildCaseReferralsModule } from "@/components/referrals/build-case-referrals-module";
+import { buildCaseCorrectionsData } from "@/components/cases/build-case-corrections";
 
 export const metadata: Metadata = {
   title: "Detalhe do caso",
@@ -137,6 +138,9 @@ export default async function CaseDetailPage({
   // from data already loaded — no inline supabase-js (Rule 9; UI-prop assembly).
   const referralsModule = await buildCaseReferralsModule(detail, documents);
 
+  // Case Correction Lifecycle surface data (ADR 0085; empty when the flag is off).
+  const correctionsData = await buildCaseCorrectionsData(detail);
+
   return (
     <CaseDetailView
       org={org} slug={slug}
@@ -169,6 +173,9 @@ export default async function CaseDetailPage({
       canAssignPhases={canInCommission(access, "assign_case_phases")}
       caseCustomFieldsEnabled={caseCustomFieldsOn}
       customFields={customFields}
+      correctionsEnabled={correctionsData.enabled}
+      corrections={correctionsData.requests}
+      narrativeRevisions={correctionsData.narrativeRevisions}
     />
   );
 }

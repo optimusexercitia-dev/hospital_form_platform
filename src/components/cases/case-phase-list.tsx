@@ -1,9 +1,18 @@
 import type { CaseDetail, CaseViewerCapabilities } from "@/lib/queries/cases";
 import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
+import type {
+  CorrectionRequest,
+  NarrativeRevision,
+} from "@/lib/queries/corrections";
 import { mergeCaseLayout } from "@/lib/queries/case-narratives";
 import { CasePhaseArticle } from "@/components/cases/case-phase-article";
 import { CaseNarrativeCard } from "@/components/cases/case-narrative-card";
 import { canEditNarrative } from "@/components/cases/narrative-access";
+import {
+  findOpenRequestForNarrative,
+  findOpenRequestForPhase,
+  type CorrectionCaps,
+} from "@/components/cases/correction-labels";
 
 /** An assignee option for the activate / reassign pickers. */
 export interface AssigneeOption {
@@ -39,6 +48,9 @@ export function CasePhaseList({
   caseAccessEnabled = true,
   canCorrectResult = false,
   resultOptions = [],
+  correctionCaps = null,
+  corrections = [],
+  narrativeRevisions = {},
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -68,6 +80,16 @@ export function CasePhaseList({
    * coordinator), so the flag-OFF invariant holds.
    */
   caseAccessEnabled?: boolean;
+  /**
+   * The viewer's Case Correction Lifecycle capabilities (ADR 0085), or `null` when
+   * the `case_corrections` flag is off. Threaded to each phase article + narrative card
+   * so the contextual "Corrigir…" / "Continuar correção" affordances can render.
+   */
+  correctionCaps?: CorrectionCaps | null;
+  /** Every correction request for the case — the per-row open request is derived here. */
+  corrections?: CorrectionRequest[];
+  /** narrativeId → its revision history (newest-first). A lookup miss means `[]`. */
+  narrativeRevisions?: Record<string, NarrativeRevision[]>;
 }) {
   const allPhases = detail.phases;
   const items = mergeCaseLayout(detail);
@@ -91,10 +113,22 @@ export function CasePhaseList({
               canAssignPhases={canAssignPhases}
               canCorrectResult={canCorrectResult}
               resultOptions={resultOptions}
+              correctionCaps={correctionCaps}
+              openCorrection={
+                correctionCaps
+                  ? findOpenRequestForPhase(corrections, item.phase.id)
+                  : null
+              }
             />
           ) : (
             (() => {
               const narrative = item.narrative;
+              // Case Correction Lifecycle (ADR 0085): the open request + revision
+              // history for THIS narrative, threaded into whichever card branch renders.
+              const narrativeOpenCorrection = correctionCaps
+                ? findOpenRequestForNarrative(corrections, narrative.id)
+                : null;
+              const revisions = narrativeRevisions[narrative.id] ?? [];
               if (!caseAccessEnabled) {
                 // Legacy: today's rule — a coordinator edits while the case is open;
                 // no assignee/status/conclude chrome.
@@ -108,6 +142,9 @@ export function CasePhaseList({
                     // in the flag-OFF branch would strand it.
                     canDelete={narrative.isAdHoc && caps.canManageLifecycle}
                     showLifecycle={false}
+                    correctionCaps={correctionCaps}
+                    openCorrection={narrativeOpenCorrection}
+                    narrativeRevisions={revisions}
                   />
                 );
               }
@@ -143,6 +180,9 @@ export function CasePhaseList({
                   assignees={assignees}
                   canAssign={canAssign}
                   showLifecycle
+                  correctionCaps={correctionCaps}
+                  openCorrection={narrativeOpenCorrection}
+                  narrativeRevisions={revisions}
                 />
               );
             })()

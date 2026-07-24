@@ -31,6 +31,7 @@ import { patientSafetyEnabled } from "@/lib/queries/pqs";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
 import { buildCaseReferralsModule } from "@/components/referrals/build-case-referrals-module";
+import { buildCaseCorrectionsData } from "@/components/cases/build-case-corrections";
 
 export const metadata: Metadata = {
   title: "Caso",
@@ -137,6 +138,9 @@ export default async function StaffCaseDetailPage({
   // from data already loaded — no inline supabase-js (Rule 9; UI-prop assembly).
   const referralsModule = await buildCaseReferralsModule(detail, documents);
 
+  // Case Correction Lifecycle surface data (ADR 0085; empty when the flag is off).
+  const correctionsData = await buildCaseCorrectionsData(detail);
+
   // Edit-meta affordance (ADR 0061): a `create_cases` Administrativo (or a coordinator)
   // may edit an OPEN case's label + department here. Load the hospital's departments
   // only when the affordance can actually show (create_cases holder + case open).
@@ -178,6 +182,9 @@ export default async function StaffCaseDetailPage({
       departments={departments}
       caseCustomFieldsEnabled={caseCustomFieldsOn}
       customFields={customFields}
+      correctionsEnabled={correctionsData.enabled}
+      corrections={correctionsData.requests}
+      narrativeRevisions={correctionsData.narrativeRevisions}
     />
   );
 }

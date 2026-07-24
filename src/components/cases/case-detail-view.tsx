@@ -15,6 +15,13 @@ import {
 } from "@/components/cases/case-status-badge";
 import { CaseRoleChip } from "@/components/cases/case-role-chip";
 import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
+import type {
+  CorrectionRequest,
+  NarrativeRevision,
+} from "@/lib/queries/corrections";
+import type { CorrectionCaps } from "@/components/cases/correction-labels";
+import { CaseCorrectionsPanel } from "@/components/cases/case-corrections-panel";
+import { ReopenCaseButton } from "@/components/cases/reopen-case-button";
 import { CasePhaseList, type AssigneeOption } from "@/components/cases/case-phase-list";
 import { EditCaseMetaDialog } from "@/components/cases/edit-case-meta-dialog";
 import type { Department } from "@/lib/hospitals/departments";
@@ -124,6 +131,9 @@ export function CaseDetailView({
   departments = [],
   caseCustomFieldsEnabled = false,
   customFields = [],
+  correctionsEnabled = false,
+  corrections = [],
+  narrativeRevisions = {},
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -209,6 +219,17 @@ export function CaseDetailView({
   caseCustomFieldsEnabled?: boolean;
   /** The case's custom-field values (ADR 0083); `[]` when none / the flag is off. */
   customFields?: CaseCustomFieldValue[];
+  /**
+   * Whether the `case_corrections` flag is on (Case Correction Lifecycle, ADR 0085).
+   * Gates the whole correction surface: the contextual "Corrigir…" affordances on
+   * phase/narrative rows, the "Solicitações de correção" cockpit, and the "Reabrir
+   * caso" control on a concluded case. Default `false` (no correction chrome).
+   */
+  correctionsEnabled?: boolean;
+  /** Every correction request for this case, newest-first (RLS-scoped). Default `[]`. */
+  corrections?: CorrectionRequest[];
+  /** narrativeId → its revision history (newest-first). Default `{}`. */
+  narrativeRevisions?: Record<string, NarrativeRevision[]>;
 }) {
   const c = detail.case;
   const caps = detail.viewerCapabilities;
@@ -234,6 +255,40 @@ export function CaseDetailView({
     userId: m.userId,
     name: m.fullName ?? m.email ?? "Membro",
   }));
+
+  // Case Correction Lifecycle (ADR 0085). The capability descriptor is a SIGNAL, not
+  // the security boundary (RLS + the DEFINER doors are — Rule 1): filing is open to any
+  // case-content reader while the case is OPEN; approve/reject mirror `canManageLifecycle`
+  // (coordinator/admin). `null` when the flag is off → no correction chrome at all.
+  const correctionCaps: CorrectionCaps | null = correctionsEnabled
+    ? {
+        enabled: true,
+        canFile: isOpen,
+        canApprove: caps.canManageLifecycle,
+        viewerId,
+      }
+    : null;
+  // The cockpit ("Solicitações de correção") resolves ids → human labels. Built from
+  // data the host already loaded; the panel returns null when there are no requests.
+  const phaseLabels: Record<string, string> = {};
+  for (const p of detail.phases) {
+    phaseLabels[p.id] = p.title || `Fase ${p.position}`;
+  }
+  const narrativeLabels: Record<string, string> = {};
+  for (const n of detail.narratives) {
+    narrativeLabels[n.id] = n.title || n.typeLabel;
+  }
+  const memberNames: Record<string, string> = {};
+  for (const m of members) {
+    memberNames[m.userId] = m.fullName ?? m.email ?? "Membro";
+  }
+  // "Reabrir caso" (staff_admin) shows only on a CONCLUDED case — a completed target on
+  // a closed case must reopen first. `cancelled` is terminal-forever (HC0M8), so never
+  // here. Flag-gated (the `reopen_case` door is too).
+  const showReopenCase =
+    correctionsEnabled &&
+    c.status === "completed" &&
+    caps.canManageLifecycle;
 
   // Narratives (ADR 0032/0033): the narrative SLOTS are part of the case structure
   // (like phases), so ANYONE who can read the case sees them — including empty /
@@ -377,6 +432,27 @@ export function CaseDetailView({
             a coordinator manages access from the management route (reachable via the
             "Gerenciar caso" link above). */}
 
+        {/* "Reabrir caso" (Case Correction Lifecycle, ADR 0085) — a concluded case is
+            frozen, so its testimony can only be corrected after a staff_admin reopens
+            it. Shown on BOTH routes (the coordinator layout has no top-bar slot for it). */}
+        {showReopenCase && (
+          <div
+            data-rise
+            className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="flex min-w-0 flex-col gap-1">
+              <h2 className="text-base font-semibold">Caso concluído</h2>
+              <p className="max-w-prose text-sm text-muted-foreground text-pretty">
+                Para corrigir ou anular fases e narrativas concluídas, reabra o caso
+                primeiro. O motivo fica registrado.
+              </p>
+            </div>
+            <div className="shrink-0">
+              <ReopenCaseButton caseId={c.id} />
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-8 lg:items-start">
           {/* LEFT — phases + narratives, action items, working notes */}
           <div className="contents lg:flex lg:flex-col lg:gap-6">
@@ -395,8 +471,22 @@ export function CaseDetailView({
                 // phase to be `concluida`.
                 canCorrectResult={canManagePhaseResults && isOpen}
                 resultOptions={phaseResultOptions}
+                correctionCaps={correctionCaps}
+                corrections={corrections}
+                narrativeRevisions={narrativeRevisions}
               />
             </div>
+            {correctionCaps && (
+              <div data-rise className="order-2 lg:order-none">
+                <CaseCorrectionsPanel
+                  requests={corrections}
+                  caps={correctionCaps}
+                  phaseLabels={phaseLabels}
+                  narrativeLabels={narrativeLabels}
+                  memberNames={memberNames}
+                />
+              </div>
+            )}
             <div data-rise className="order-2 lg:order-none">
               <CaseActionItemsPanel
                 caseId={c.id}
