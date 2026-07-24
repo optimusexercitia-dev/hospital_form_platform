@@ -394,6 +394,16 @@ insert into public.answers (response_id, item_id, question_key, value)
 values ((select resp_sub from ph2), (select item_mc from k), 'u_q1', to_jsonb('Sim'::text));
 select set_config('app.in_submit_rpc', 'off', true);
 
+-- BE-2: set the current-revision pointer for the concluded phase. This fixture
+-- inserts the response directly (no submit UPDATE fires the sync trigger), so the
+-- pointer the pointer-based readers resolve must be set here — exactly what the
+-- BE-1 backfill / sync_case_phase_on_submit produce in reality.
+select set_config('app.in_case_rpc', 'on', true);
+update public.case_phases
+  set current_response_id = (select resp_sub from ph2)
+  where id = (select phase2 from ph2);
+select set_config('app.in_case_rpc', 'off', true);
+
 -- An IN-PROGRESS response for phase 3 (st_x2's draft — must never leak).
 insert into public.responses
   (id, form_version_id, commission_id, created_by, status, case_phase_id,
