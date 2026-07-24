@@ -407,9 +407,21 @@ comment on column public.case_phases.current_response_id is
   'sync_case_phase_on_submit on first submit and re-pointed by approve_correction '
   '(BE-2). Readers resolve this pointer rather than walking the supersession chain.';
 
+-- The backfill MUTATES existing case_phases rows, which guard_case_phase_status
+-- blocks (SQLSTATE 23514, "case phase changes must go through the case RPCs")
+-- unless app.in_case_rpc is set — exactly as every case RPC does before touching
+-- case_phases. On a fresh local `db reset` this ran against ZERO rows (migrations
+-- precede seed), so the guard never fired and the gap stayed invisible; a
+-- data-bearing environment (remote) trips it. Wrap the backfill in the same
+-- transaction-local flag the guard expects. (set_config(...,true) is txn-scoped;
+-- the migration runs in one transaction.)
+select set_config('app.in_case_rpc', 'on', true);
+
 update public.case_phases cp
    set current_response_id = r.id
   from public.responses r
  where r.case_phase_id = cp.id
    and r.status = 'submitted'
    and r.supersedes_id is null;
+
+select set_config('app.in_case_rpc', 'off', true);
