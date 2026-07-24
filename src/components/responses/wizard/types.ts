@@ -107,6 +107,21 @@ export interface WizardData {
     options: ResolvedPhaseResult[];
     currentOverrideId: string | null;
   };
+  /**
+   * Case Correction Lifecycle context (ADR 0085), present ONLY when this draft is a
+   * CORRECTION of a completed phase — a `responses` row with `supersedes_id != null`,
+   * opened via "Continuar correção". Mutually exclusive with `phaseResult` (the
+   * result-override panel is HIDDEN in correction mode — the recompute is owned by
+   * `approve_correction`, never by a per-fill override). When present, the wizard
+   * submits via `resubmitCorrection(requestId)` (sends the draft for review) instead
+   * of concluding the phase, and shows correction-aware copy.
+   */
+  correction?: {
+    /** The open correction request this draft belongs to — RESUBMITTED on submit. */
+    requestId: string;
+    /** Where the corrector returns after sending for review (a route they can reach). */
+    doneHref: string;
+  };
 }
 
 export type { Item, Section, VersionTree, AnswerMap };

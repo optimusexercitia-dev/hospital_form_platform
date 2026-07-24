@@ -9,6 +9,7 @@ import {
   submitCasePhaseResponse,
   signSection,
 } from "@/lib/responses/actions";
+import { resubmitCorrection } from "@/lib/corrections/actions";
 
 import type { WizardData } from "./types";
 import { WizardClient, type WizardActions } from "./wizard-client";
@@ -56,11 +57,21 @@ export function WizardRunner({
           sectionId: input.sectionId,
         });
       },
-      // Case-phase fills (phase-results feature) route to `submitCasePhaseResponse`
-      // so an optional per-phase result override is stashed on the still-`ativa`
-      // phase before the conclusion trigger honors it; standalone fills keep the
-      // plain `submitResponse` (no case-phase / no override).
+      // Three submit paths (checked in order):
+      //  1. CORRECTION mode (Case Correction Lifecycle, ADR 0085) — this draft is a
+      //     `supersedes_id != null` successor; `resubmit_correction` sends it for
+      //     review (it calls `submit_response` internally, keeping required/bounds/
+      //     signoff enforcement). NEVER `set_case_phase_result_override` — the result
+      //     recompute is owned by `approve_correction` (plan §Confirmed-traps). The
+      //     override panel is hidden in this mode, so `override` is always undefined.
+      //  2. Case-phase fills (phase-results feature) → `submitCasePhaseResponse` so an
+      //     optional per-phase result override is stashed on the still-`ativa` phase.
+      //  3. Standalone fills → plain `submitResponse`.
       submit: (override) => {
+        const correction = data.correction;
+        if (correction) {
+          return resubmitCorrection(correction.requestId);
+        }
         const phaseResult = data.phaseResult;
         if (phaseResult) {
           return submitCasePhaseResponse(
@@ -79,7 +90,7 @@ export function WizardRunner({
           note: input.note,
         }),
     }),
-    [data.responseId, data.phaseResult],
+    [data.responseId, data.phaseResult, data.correction],
   );
 
   return <WizardClient data={data} imageUrls={imageUrls} actions={actions} />;

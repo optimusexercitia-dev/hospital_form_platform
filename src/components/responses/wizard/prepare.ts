@@ -72,9 +72,21 @@ export function toWizardData(
     casePhaseId: string;
     result: CasePhaseForFill["result"];
   } | null,
+  /**
+   * Case Correction Lifecycle context (ADR 0085): present ONLY when this draft is a
+   * correction (`supersedes_id != null`), resolved by the responder page. When set,
+   * the result-override panel is SUPPRESSED (mutually exclusive with `phaseResult`)
+   * and the wizard submits via `resubmitCorrection`.
+   */
+  correction?: WizardData["correction"] | null,
 ): WizardData {
+  // In correction mode the override panel is hidden and never fires
+  // `set_case_phase_result_override` — the result recompute is owned by
+  // `approve_correction` (plan §Confirmed-traps). Force `phaseResult` off so the
+  // panel + the `submitCasePhaseResponse` path can never render, even if a caller
+  // passes result context too.
   const phaseResult =
-    phaseResultContext && phaseResultContext.result
+    !correction && phaseResultContext && phaseResultContext.result
       ? {
           casePhaseId: phaseResultContext.casePhaseId,
           mode: phaseResultContext.result.mode,
@@ -96,6 +108,7 @@ export function toWizardData(
     lastSectionId: response.lastSectionId,
     signoffsBySectionId: signoffRecordsToMap(signoffs),
     phaseResult,
+    correction: correction ?? undefined,
   };
 }
 

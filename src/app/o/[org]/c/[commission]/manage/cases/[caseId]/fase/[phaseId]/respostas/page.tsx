@@ -7,7 +7,9 @@ import { ArrowLeft } from "lucide-react";
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { getCaseDetail } from "@/lib/queries/cases";
 import { getResponseForFill } from "@/lib/queries/responses";
+import { listCaseCorrectionRequests } from "@/lib/queries/corrections";
 import { PhaseStatusPill } from "@/components/cases/phase-status-pill";
+import { SupersessionBadgePill } from "@/components/dashboard/supersession-badge";
 import { PhaseAnswersReadonly } from "@/components/cases/phase-answers-readonly";
 import { formatCaseNumber, formatDate } from "@/components/cases/format";
 
@@ -32,10 +34,11 @@ export default async function PhaseAnswersPage({
 }) {
   const { org, commission, caseId, phaseId } = await params;
 
-  // Both reads depend only on path params, not on each other's results.
-  const [access, detail] = await Promise.all([
+  // These reads depend only on path params, not on each other's results.
+  const [access, detail, corrections] = await Promise.all([
     getCommissionAccessByOrg(org, commission),
     getCaseDetail(caseId),
+    listCaseCorrectionRequests(caseId),
   ]);
 
   if (!access || access.role !== "staff_admin") {
@@ -54,6 +57,15 @@ export default async function PhaseAnswersPage({
 
   const heading = phase.title || `Fase ${phase.position}`;
 
+  // Case Correction Lifecycle (ADR 0085): if this phase carries any APPROVED
+  // correction, the answers shown here ARE the corrected (current) revision — the
+  // `current_response_id` pointer already resolves to the successor. Surface the
+  // supersession chain with the shared "Atual" pill (SUP/ADR 0074). `[]` when the
+  // `case_corrections` flag is off (no badge).
+  const wasCorrected = corrections.some(
+    (r) => r.casePhaseId === phaseId && r.status === "approved",
+  );
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
       <header className="flex flex-col gap-3">
@@ -67,11 +79,18 @@ export default async function PhaseAnswersPage({
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-3xl text-balance">{heading}</h1>
           <PhaseStatusPill status={phase.status} />
+          {wasCorrected && <SupersessionBadgePill badge="atual" />}
         </div>
         <p className="text-sm text-muted-foreground">
           {response.formTitle}
           {phase.submittedAt ? ` · Enviada em ${formatDate(phase.submittedAt)}` : ""}
         </p>
+        {wasCorrected && (
+          <p className="text-sm text-muted-foreground text-pretty">
+            Esta fase foi corrigida — estas são as respostas atuais. O envio anterior
+            fica preservado no histórico da solicitação de correção.
+          </p>
+        )}
       </header>
 
       <PhaseAnswersReadonly response={response} />

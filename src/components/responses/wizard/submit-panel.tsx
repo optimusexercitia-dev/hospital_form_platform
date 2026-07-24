@@ -16,6 +16,8 @@ export function SubmitPanel({
   banner,
   onSubmit,
   blockReason,
+  submitLabel = "Enviar respostas",
+  hint = "Ao enviar, suas respostas não poderão mais ser alteradas.",
 }: {
   saving: boolean;
   banner: string | null;
@@ -26,6 +28,14 @@ export function SubmitPanel({
    * authority — this is UX only.
    */
   blockReason?: string | null;
+  /**
+   * The submit button label. Defaults to "Enviar respostas"; a correction draft
+   * (ADR 0085) passes "Enviar para revisão" since submit sends it for approval, not
+   * to conclude the phase.
+   */
+  submitLabel?: string;
+  /** The pt-BR line beside the button explaining what submit does. */
+  hint?: string;
 }) {
   const blocked = Boolean(blockReason);
   return (
@@ -45,9 +55,7 @@ export function SubmitPanel({
         </p>
       )}
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">
-          Ao enviar, suas respostas não poderão mais ser alteradas.
-        </p>
+        <p className="text-sm text-muted-foreground">{hint}</p>
         <Button
           type="button"
           size="lg"
@@ -57,7 +65,7 @@ export function SubmitPanel({
           title={blockReason ?? undefined}
         >
           <Send aria-hidden="true" />
-          {saving ? "Enviando…" : "Enviar respostas"}
+          {saving ? "Enviando…" : submitLabel}
         </Button>
       </div>
     </div>

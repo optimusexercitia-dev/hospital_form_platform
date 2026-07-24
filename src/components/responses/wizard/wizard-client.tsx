@@ -547,6 +547,9 @@ export function WizardClient({
         org={data.org}
         slug={data.slug}
         formTitle={data.formTitle}
+        correction={
+          data.correction ? { doneHref: data.correction.doneHref } : null
+        }
       />
     );
   }
@@ -566,6 +569,13 @@ export function WizardClient({
       banner={banner}
       onSubmit={handleSubmit}
       blockReason={submitBlockReason}
+      // Correction drafts (ADR 0085) go for approval, not to conclude the phase.
+      submitLabel={data.correction ? "Enviar para revisão" : undefined}
+      hint={
+        data.correction
+          ? "Ao enviar, a correção vai para aprovação antes de substituir o conteúdo registrado."
+          : undefined
+      }
     />
   );
 

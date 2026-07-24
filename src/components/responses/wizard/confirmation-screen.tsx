@@ -16,12 +16,46 @@ export function ConfirmationScreen({
   org,
   slug,
   formTitle,
+  correction,
 }: {
   /** Org slug for hrefs. */
   org: string;
   slug: string;
   formTitle: string;
+  /**
+   * Case Correction Lifecycle context (ADR 0085): when present, the draft was a
+   * correction sent for approval (not a first-fill conclusion), so the copy + the
+   * return link change. `doneHref` is a pre-built string route (never a closure —
+   * BUG-QI-001) the corrector can reach.
+   */
+  correction?: { doneHref: string } | null;
 }) {
+  if (correction) {
+    return (
+      <div
+        className="animate-rise-in flex flex-col items-center gap-5 rounded-2xl border border-border bg-card p-8 text-center shadow-xs"
+        role="status"
+        aria-live="polite"
+      >
+        <span className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <CheckCircle2 aria-hidden="true" className="size-8" />
+        </span>
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-2xl text-balance">Correção enviada para revisão</h2>
+          <p className="max-w-prose text-muted-foreground text-pretty">
+            Sua correção de{" "}
+            <strong className="text-foreground">{formTitle}</strong> foi enviada. Um
+            administrador da comissão vai avaliar antes de ela substituir o conteúdo
+            registrado.
+          </p>
+        </div>
+        <Button asChild size="lg">
+          <Link href={correction.doneHref}>Voltar aos meus casos</Link>
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div
       className="animate-rise-in flex flex-col items-center gap-5 rounded-2xl border border-border bg-card p-8 text-center shadow-xs"

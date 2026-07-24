@@ -2,12 +2,14 @@ import { commissionHref } from "@/lib/routing";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, PencilLine } from "lucide-react";
 
 import { getCommissionAccessByOrg } from "@/lib/queries/session";
 import { getResponseForFill } from "@/lib/queries/responses";
 import { getCasePhaseForFill } from "@/lib/queries/cases";
 import { getResponseSignoffs } from "@/lib/queries/signoffs";
+import { listCaseCorrectionRequests } from "@/lib/queries/corrections";
+import { isOpenCorrection } from "@/components/cases/correction-labels";
 import { WizardRunner } from "@/components/responses/wizard/wizard-runner";
 import { ConfirmationScreen } from "@/components/responses/wizard/confirmation-screen";
 import {
@@ -80,17 +82,38 @@ export default async function PhaseResponderPage({
     );
   }
 
+  // Case Correction Lifecycle (ADR 0085): is this draft a CORRECTION? An OPEN
+  // correction request pointing at THIS draft response (set by `start_correction_draft`
+  // before "Continuar correção" routed here) means the corrector is revising a
+  // completed phase, not first-filling it. `listCaseCorrectionRequests` no-ops (`[]`)
+  // when the `case_corrections` flag is off, so this is a single indexed read only on
+  // flag-on installs; a plain first-fill resolves `correction = null`.
+  const openCorrection = (await listCaseCorrectionRequests(caseId)).find(
+    (r) => r.draftResponseId === responseId && isOpenCorrection(r.status),
+  );
+  const correction = openCorrection
+    ? {
+        requestId: openCorrection.id,
+        // A route every corrector can reach (staff or staff_admin) — the case-detail
+        // management route is staff_admin-gated. String href, never a closure (BUG-QI-001).
+        doneHref: commissionHref(org, commission, "meus-casos"),
+      }
+    : null;
+
   const signoffs = await getResponseSignoffs(responseId);
   // Thread the case-phase RESULT context (phase-results feature) so the wizard's
   // end-of-wizard override panel renders. `getCasePhaseForFill` returns `result:
-  // null` when the feature is off, leaving the panel hidden.
+  // null` when the feature is off, leaving the panel hidden. In CORRECTION mode the
+  // panel is suppressed entirely (the recompute is owned by `approve_correction`), so
+  // pass no result context and hand the wizard the correction context instead.
   const data = toWizardData(
     response,
     org,
     slug,
     access.context.fullName ?? "Você",
     signoffs,
-    { casePhaseId: fill.phase.id, result: fill.result },
+    correction ? null : { casePhaseId: fill.phase.id, result: fill.result },
+    correction,
   );
   const imageUrls = await resolveImageUrls(response);
 
@@ -106,6 +129,21 @@ export default async function PhaseResponderPage({
         </Link>
         <h1 className="text-3xl text-balance">{response.formTitle}</h1>
       </header>
+
+      {correction && (
+        <div
+          role="note"
+          className="flex items-start gap-2.5 rounded-2xl border border-border bg-accent p-4 text-sm text-accent-foreground"
+        >
+          <PencilLine aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+          <p className="text-pretty">
+            Você está <strong>corrigindo o envio anterior</strong> desta fase. As
+            respostas já vêm preenchidas com o conteúdo registrado — ajuste o que for
+            necessário e envie para revisão. O envio original é preservado até a
+            aprovação.
+          </p>
+        </div>
+      )}
 
       <WizardRunner data={data} imageUrls={imageUrls} />
     </div>
