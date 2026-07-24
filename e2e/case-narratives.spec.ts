@@ -841,3 +841,131 @@ test('AC-SECURITY: foreign coordinator cannot reach CCIH narratives Construtor',
   // We assert the NarrativeTypeManager is NOT rendered.
   await expect(page.getByRole('button', { name: /Nova narrativa/i })).not.toBeVisible({ timeout: 10_000 })
 })
+
+// ---------------------------------------------------------------------------
+// Case Correction Lifecycle (ADR 0085) regression touch — T-1. Narrative-level
+// `reopen_narrative` was DROPPED (BE-4) in favor of the correction lifecycle
+// (`e2e/case-corrections.spec.ts` owns the full file/edit/resubmit/approve loop);
+// this file only checks the two things that belong to the NARRATIVE feature's own
+// contract: (a) the in-place reopen affordance is genuinely gone from the UI even
+// where the old `canReopen` computation would still evaluate true, and (b) using
+// the real "Concluir" button (not an RPC shortcut) to conclude a narrative, then
+// running it through a correction, preserves the conclusion stamp.
+// ---------------------------------------------------------------------------
+
+test('AC-9: an individually-concluded narrative never shows a "Reabrir" control — reopen_narrative is fully retired', async ({ page }) => {
+  test.setTimeout(60_000)
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  const token = await getOwnerToken(page, 'chefe.ccih@test.local')
+  const freshCaseId = await createFreshCase(page, token)
+  expect(freshCaseId).toBeTruthy()
+
+  await page.goto(`${BASE}/manage/cases/${freshCaseId}`)
+  await page.waitForURL(`**/cases/${freshCaseId}**`, { timeout: 15_000 })
+
+  const mergedSection = page.getByRole('region', { name: /Fases e narrativas do caso/i })
+  const resumoCard = mergedSection.getByRole('region', { name: /Resumo Clínico/i })
+  await expect(resumoCard).toBeVisible({ timeout: 10_000 })
+
+  // Conclude via the REAL "Concluir" button (not an RPC shortcut) — the case is
+  // OPEN and chefe is the coordinator, so the legacy `canReopen` computation in
+  // case-phase-list.tsx (`isOpen && status==='completed' && canManageLifecycle`)
+  // will evaluate to `true` right after this — the strongest condition under
+  // which a stale "Reabrir" control could still appear, if one existed.
+  const concludeBtn = resumoCard.getByRole('button', { name: /^Concluir$/ })
+  await expect(concludeBtn).toBeVisible({ timeout: 10_000 })
+  await concludeBtn.click()
+  const concludeDialog = page.getByRole('alertdialog').filter({ hasText: /Concluir esta narrativa/i })
+  await expect(concludeDialog).toBeVisible({ timeout: 5_000 })
+  // KNOWN GAP (documented, not fixed here — tester never edits app code): this
+  // confirm copy is STALE — it still promises an in-place narrative reopen that
+  // `reopen_narrative` no longer offers (ADR 0085 dropped it; correction is the
+  // only post-conclusion path now). Captured as evidence for the bug filed in
+  // PROGRESS.md, not asserted away.
+  await expect(concludeDialog.getByText(/coordenação pode reabri-la depois/i)).toBeVisible()
+  await concludeDialog.getByRole('button', { name: /Concluir narrativa/i }).click()
+  await expect(concludeDialog).not.toBeVisible({ timeout: 10_000 })
+
+  await expect(resumoCard.getByText(/^Concluída$/i)).toBeVisible({ timeout: 10_000 })
+  await expect(resumoCard.getByRole('button', { name: /^Editar$/ })).not.toBeVisible()
+
+  // The actual proof: no "Reabrir" control of any kind exists on the card, or
+  // anywhere else on the page — narrative-level reopen has no live UI surface.
+  await expect(resumoCard.getByRole('button', { name: /Reabrir/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Reabrir narrativa/i })).toHaveCount(0)
+})
+
+test('AC-10: correcting an individually-concluded narrative preserves its conclusion stamp', async ({ page }) => {
+  test.setTimeout(90_000)
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  const token = await getOwnerToken(page, 'chefe.ccih@test.local')
+  const freshCaseId = await createFreshCase(page, token)
+  expect(freshCaseId).toBeTruthy()
+
+  const narrativesBefore = await getCaseNarratives(page, freshCaseId!)
+  const resumoNarrative = narrativesBefore.find((n) => /resumo/i.test(n.type_label))
+  expect(resumoNarrative).toBeDefined()
+
+  await page.goto(`${BASE}/manage/cases/${freshCaseId}`)
+  await page.waitForURL(`**/cases/${freshCaseId}**`, { timeout: 15_000 })
+
+  const mergedSection = page.getByRole('region', { name: /Fases e narrativas do caso/i })
+  const resumoCard = mergedSection.getByRole('region', { name: /Resumo Clínico/i })
+  await expect(resumoCard).toBeVisible({ timeout: 10_000 })
+
+  // Give it a body, then conclude it via the real UI control.
+  await resumoCard.getByRole('button', { name: /^Editar$/ }).click()
+  await resumoCard.locator('textarea').fill('Resumo antes da correção.')
+  await resumoCard.getByRole('button', { name: /^Salvar$/ }).click()
+  await expect(resumoCard.locator('textarea')).not.toBeVisible({ timeout: 15_000 })
+
+  await resumoCard.getByRole('button', { name: /^Concluir$/ }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: /Concluir narrativa/i }).click()
+  await expect(resumoCard.getByText(/^Concluída$/i)).toBeVisible({ timeout: 10_000 })
+
+  const [concludedRow] = await supabaseGet(
+    page,
+    `case_narratives?id=eq.${resumoNarrative!.id}&select=concluded_at,concluded_by,status`,
+  ).then((r) => r.json())
+  expect(concludedRow.status).toBe('completed')
+  expect(concludedRow.concluded_at).toBeTruthy()
+
+  // File + approve a correction (self-corrector = chefe, the only staff_admin).
+  await resumoCard.getByRole('button', { name: /^Corrigir/ }).click()
+  await page.getByRole('menuitem', { name: /Solicitar correção/i }).click()
+  const fileDialog = page.getByRole('dialog').filter({ hasText: /Solicitar correção/i })
+  await expect(fileDialog).toBeVisible({ timeout: 5_000 })
+  await fileDialog.getByLabel(/Motivo/i).fill('Ajustar redação do resumo.')
+  await fileDialog.getByLabel(/Corretor/i).selectOption('00000000-0000-0000-0000-000000000002')
+  await fileDialog.getByRole('button', { name: /^Solicitar correção$/ }).click()
+  await expect(fileDialog).not.toBeVisible({ timeout: 10_000 })
+
+  const draftTextarea = resumoCard.locator('textarea')
+  await expect(draftTextarea).toBeVisible({ timeout: 10_000 })
+  await draftTextarea.fill('Resumo revisado pela correção.')
+  await resumoCard.getByRole('button', { name: /Enviar para revisão/i }).click()
+  await expect(resumoCard.getByText(/Reenviada/i)).toBeVisible({ timeout: 15_000 })
+
+  const correctionsPanel = page.getByRole('region', { name: /Solicitações de correção/i })
+  const requestCard = correctionsPanel.locator('li').filter({ hasText: /Resumo Clínico/i }).first()
+  await expect(requestCard.getByText(/Reenviada/i)).toBeVisible({ timeout: 10_000 })
+  await requestCard.getByRole('button', { name: /^Aprovar$/ }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: /Aprovar correção/i }).click()
+  await expect(requestCard.getByText(/^Aprovada$/i)).toBeVisible({ timeout: 15_000 })
+
+  // Body updated; the narrative is STILL "Concluída" — the conclusion stamp
+  // (concluded_at/by) is UNTOUCHED by the correction.
+  await expect(resumoCard.getByText(/Resumo revisado pela correção/i)).toBeVisible({ timeout: 10_000 })
+  await expect(resumoCard.getByText(/^Concluída$/i)).toBeVisible()
+
+  const [afterRow] = await supabaseGet(
+    page,
+    `case_narratives?id=eq.${resumoNarrative!.id}&select=concluded_at,concluded_by,status,body_md`,
+  ).then((r) => r.json())
+  expect(afterRow.status).toBe('completed')
+  expect(afterRow.concluded_at).toBe(concludedRow.concluded_at)
+  expect(afterRow.concluded_by).toBe(concludedRow.concluded_by)
+  expect(afterRow.body_md).toContain('Resumo revisado pela correção')
+})
