@@ -5,8 +5,8 @@
 -- K2 voided is terminal — no transition out (guard rejects even under in_case_rpc).
 -- K3 reopen_case: completed → recomputed open status; closed_* nulled; outcome
 --    preserved; the case becomes correctable (file_correction_request succeeds).
--- K4 reopen edges: cancelled HC0M8, non-admin 42501, blank reason, excluded HC0F1,
---    flag-off check_violation.
+-- K4 reopen edges: cancelled HC0M8, non-admin 42501, blank reason (23514), excluded
+--    HC0F1, flag-off HC000 (distinct from the 23514 invalid-state paths — MINOR-2).
 -- K5 case_narrative_revisions append-only (UPDATE/DELETE blocked).
 --    (MUTATION: drop guard_case_narrative_revisions_append_only_trg → K5 red.)
 -- K6 reopen_narrative is gone.
@@ -199,13 +199,14 @@ select throws_ok(
   format($$ select public.reopen_case(%L, '   ') $$, (select case_id from c4c)),
   '23514', null, 'K4: a blank reason is refused');
 reset role;
--- flag OFF → check_violation.
+-- flag OFF → HC000 (feature-disabled sentinel; distinct from the blank-reason 23514
+-- just above — MINOR-2).
 update app.feature_flags set enabled = false where key = 'case_corrections';
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok(
   format($$ select public.reopen_case(%L, 'x') $$, (select case_id from c4c)),
-  '23514', null, 'K4: reopen_case refused when the flag is OFF');
+  'HC000', null, 'K4: reopen_case refused (HC000) when the flag is OFF');
 reset role;
 update app.feature_flags set enabled = true where key = 'case_corrections';
 -- excluded admin → HC0F1 (sa_x still holds staff_admin → reaches the exclusion gate).

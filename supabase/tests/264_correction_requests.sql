@@ -12,10 +12,10 @@
 --
 -- Fixture-flag lesson: case_corrections is enabled explicitly below.
 --
--- Assertion count: 38
+-- Assertion count: 39
 
 begin;
-select plan(38);
+select plan(39);
 
 update app.feature_flags set enabled = true
   where key in ('case_corrections', 'cases_multi_phase', 'cases_extras',
@@ -332,29 +332,42 @@ select throws_ok(format($$ select public.withdraw_correction(%L) $$, (select req
 reset role;
 
 -- ===========================================================================
--- K8 · flag OFF → every door raises check_violation.
+-- K8 · flag OFF → every door raises HC000 (feature-disabled sentinel, MINOR-2).
+--      Distinct from the invalid-state 23514 the same doors raise — proven by K8b.
 -- ===========================================================================
 update app.feature_flags set enabled = false where key = 'case_corrections';
 select test_helpers.claims_for((select sa_x from k), false);
 set local role authenticated;
 select throws_ok($$ select public.file_correction_request('correction', gen_random_uuid(), null, 'r', 'clerical', null) $$,
-  '23514', null, 'K8: file_correction_request refused when flag OFF');
-select throws_ok($$ select public.start_correction_draft(gen_random_uuid()) $$, '23514', null,
-  'K8: start_correction_draft refused when flag OFF');
-select throws_ok($$ select public.save_correction_draft_body(gen_random_uuid(), 'x') $$, '23514', null,
-  'K8: save_correction_draft_body refused when flag OFF');
-select throws_ok($$ select public.resubmit_correction(gen_random_uuid()) $$, '23514', null,
-  'K8: resubmit_correction refused when flag OFF');
-select throws_ok($$ select public.review_correction(gen_random_uuid()) $$, '23514', null,
-  'K8: review_correction refused when flag OFF');
-select throws_ok($$ select public.approve_correction(gen_random_uuid(), null) $$, '23514', null,
-  'K8: approve_correction refused when flag OFF');
-select throws_ok($$ select public.reject_correction(gen_random_uuid(), 'r') $$, '23514', null,
-  'K8: reject_correction refused when flag OFF');
-select throws_ok($$ select public.withdraw_correction(gen_random_uuid()) $$, '23514', null,
-  'K8: withdraw_correction refused when flag OFF');
+  'HC000', null, 'K8: file_correction_request refused (HC000) when flag OFF');
+select throws_ok($$ select public.start_correction_draft(gen_random_uuid()) $$, 'HC000', null,
+  'K8: start_correction_draft refused (HC000) when flag OFF');
+select throws_ok($$ select public.save_correction_draft_body(gen_random_uuid(), 'x') $$, 'HC000', null,
+  'K8: save_correction_draft_body refused (HC000) when flag OFF');
+select throws_ok($$ select public.resubmit_correction(gen_random_uuid()) $$, 'HC000', null,
+  'K8: resubmit_correction refused (HC000) when flag OFF');
+select throws_ok($$ select public.review_correction(gen_random_uuid()) $$, 'HC000', null,
+  'K8: review_correction refused (HC000) when flag OFF');
+select throws_ok($$ select public.approve_correction(gen_random_uuid(), null) $$, 'HC000', null,
+  'K8: approve_correction refused (HC000) when flag OFF');
+select throws_ok($$ select public.reject_correction(gen_random_uuid(), 'r') $$, 'HC000', null,
+  'K8: reject_correction refused (HC000) when flag OFF');
+select throws_ok($$ select public.withdraw_correction(gen_random_uuid()) $$, 'HC000', null,
+  'K8: withdraw_correction refused (HC000) when flag OFF');
 reset role;
 update app.feature_flags set enabled = true where key = 'case_corrections';
+
+-- K8b · DISTINCTNESS keystone (MINOR-2). With the flag ON, an invalid door call raises
+-- bare check_violation (23514) — a DIFFERENT SQLSTATE from the flag-off HC000 above. This
+-- is what lets mapCorrectionError tell "feature disabled" (HC000 → "não disponível") apart
+-- from "invalid state" (23514 → "a solicitação mudou de estado"). Mutation-sensitive both
+-- ways: revert the assert to check_violation and the eight K8 rows go red; collapse this
+-- target-XOR guard to HC000 and this row goes red. Neither regression passes silently.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok($$ select public.file_correction_request('correction', null, null, 'r', 'clerical', null) $$,
+  '23514', null, 'K8b: flag ON + invalid target-XOR raises 23514 (distinct from flag-off HC000)');
+reset role;
 
 -- ===========================================================================
 -- K9 · an excluded coordinator is denied (HC0F1) on file + approve. sa_x is

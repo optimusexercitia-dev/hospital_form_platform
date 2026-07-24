@@ -136,6 +136,15 @@ changed state" would be truthful). These states are largely UI-guarded so the pa
 purely a UX-copy imperfection, no functional impact. *Verified by reading the TS map + the doors'
 `check_violation` raises.*
 
+> **✅ Resolved 2026-07-24 (BE-8).** `app.assert_case_corrections_enabled()` now raises `HC000`
+> (the codebase's shared feature-off sentinel — mirrors `assert_ethics_enabled` / `assert_charters_enabled`
+> and the `HC000` handlers in `src/lib/ethics`, `case-recusals`, `action-items`) instead of bare
+> `check_violation`. `mapCorrectionError` maps `HC000` → "não disponível" and bare `23514` →
+> a new truthful "a solicitação mudou de estado…" message; `mapCaseError` gets the same `HC000` arm for
+> `reopen_case`. Migration `20260826000100` (rewritten from the live catalog per the CLAUDE.md rule).
+> pgTAP `264`/`265` flag-off keystones flipped to `HC000` + a new **K8b distinctness keystone** pins
+> flag-off (`HC000`) ≠ invalid-state (`23514`); full suite `3783/3783`, typecheck·lint 0/0.
+
 ### INFO-1 — `case_phase_option_aggregates` lacks the `status='completed'` filter its sibling has
 `app.case_phase_answer_map` filters `cp.status='completed'` (voided→`{}`); `app.case_phase_option_aggregates`
 resolves `current_response_id` but has **no** status filter, so on a voided phase it would still

@@ -34,6 +34,10 @@ const MESSAGES = {
   forbidden: 'Você não tem permissão para esta ação.',
   generic: 'Não foi possível concluir. Tente novamente.',
   unavailable: 'O recurso de correção de casos não está disponível.',
+  // Invalid-state / stale-transition guard (bare 23514) — a race between two
+  // coordinators, or acting on a page whose request already changed state.
+  invalidState:
+    'A solicitação mudou de estado e esta ação não é mais válida. Recarregue a página e tente novamente.',
   notFound: 'Solicitação ou alvo não encontrado.',
   caseFinal: 'Este caso está em um estado final e não pode mais ser alterado.',
   excluded: 'Você está impedido neste caso e não pode agir sobre ele.',
@@ -66,6 +70,11 @@ const PG_CHECK_VIOLATION = '23514'
 const PG_UNIQUE_VIOLATION = '23505'
 const PG_NO_DATA_FOUND = 'P0002'
 const PG_RLS_VIOLATION = '42501'
+// Feature-off sentinel raised by app.assert_case_corrections_enabled() — the shared
+// HC000 convention (mirrors assert_ethics_enabled / assert_charters_enabled and the
+// HC000 handlers in src/lib/ethics, case-recusals, action-items). Distinct from the
+// bare 23514 that the doors raise for invalid-state guards.
+const HC_FEATURE_DISABLED = 'HC000'
 const HC_CASE_FINAL = 'HC020'
 const HC_RESULT_REQUIRED = 'HC061'
 const HC_EXCLUDED = 'HC0F1'
@@ -114,9 +123,14 @@ function mapCorrectionError(code: string | undefined): string {
       return MESSAGES.forbidden
     case PG_NO_DATA_FOUND:
       return MESSAGES.notFound
-    case PG_CHECK_VIOLATION:
-      // assert_case_corrections_enabled() (flag OFF) or an invalid-state guard.
+    case HC_FEATURE_DISABLED:
+      // assert_case_corrections_enabled() — the `case_corrections` flag is OFF.
       return MESSAGES.unavailable
+    case PG_CHECK_VIOLATION:
+      // A door's invalid-state / stale-transition / shape guard (approve/reject/review
+      // "não está no estado necessário", target-XOR, guard_case_phase_status). NOT
+      // feature-off (that is HC000 above), so "não disponível" would misdescribe it.
+      return MESSAGES.invalidState
     default:
       return MESSAGES.generic
   }

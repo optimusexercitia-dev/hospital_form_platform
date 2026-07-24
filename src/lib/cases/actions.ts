@@ -110,6 +110,8 @@ const MESSAGES = {
   reopenReasonRequired: 'Informe o motivo da reabertura.',
   cancelledFinal: 'Caso cancelado é definitivo e não pode ser reaberto.',
   accountInactive: 'Sua conta está inativa ou suspensa.',
+  // Feature flag OFF (HC000) — reopen_case gates on assert_case_corrections_enabled.
+  correctionsUnavailable: 'O recurso de correção de casos não está disponível.',
   // case_patient (ADR 0038) — the THIRD PHI module.
   patientNameOrMrnRequired: 'Informe ao menos o nome ou o prontuário do paciente.',
   patientSaved: 'Identificação do paciente salva.',
@@ -161,6 +163,10 @@ const HC_PHASE_HAS_DEPENDENTS = 'HC0D2' // another phase's recommend_when needs 
 // HC0F4 = the caller's account is inactive/suspended (checked after authority).
 const HC_CANCELLED_FINAL = 'HC0M8'
 const HC_ACCOUNT_INACTIVE = 'HC0F4'
+// Feature-off sentinel (shared HC000 convention) — reopen_case raises this when the
+// `case_corrections` flag is OFF, via app.assert_case_corrections_enabled(). Was 23514
+// (mapped to the generic fallback); HC000 lets it surface the truthful "não disponível".
+const HC_FEATURE_DISABLED = 'HC000'
 
 const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
 const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
@@ -269,6 +275,9 @@ function mapCaseError(error: { code?: string; message?: string } | null): string
       return error.message || MESSAGES.cancelledFinal
     case HC_ACCOUNT_INACTIVE:
       return error.message || MESSAGES.accountInactive
+    case HC_FEATURE_DISABLED:
+      // reopen_case with the `case_corrections` flag OFF (mirrors mapCorrectionError).
+      return MESSAGES.correctionsUnavailable
     default:
       return MESSAGES.generic
   }
