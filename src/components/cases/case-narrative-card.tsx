@@ -49,8 +49,8 @@ import { cn } from "@/lib/utils";
  *   narrative is `aberta` and the case is open. Saving routes through
  *   `saveNarrativeBody` (the broadened RPC re-checks `can_write_case_narrative`).
  * - `canConclude` (assignee or coordinator, narrative `aberta`) shows a "Concluir"
- *   button that freezes the body; `canReopen` (coordinator, narrative `concluida`)
- *   shows "Reabrir".
+ *   button that freezes the body. A concluded narrative is no longer reopened in
+ *   place — it is amended through the Case Correction Lifecycle (ADR 0085).
  * - A `concluida` narrative renders read-only with a "Concluída" pill; the body is
  *   frozen (the server also rejects writes — HC055).
  */
@@ -58,7 +58,6 @@ export function CaseNarrativeCard({
   narrative,
   canEdit,
   canConclude = false,
-  canReopen = false,
   canDelete = false,
   assignees = [],
   canAssign = false,
@@ -79,8 +78,6 @@ export function CaseNarrativeCard({
   canDelete?: boolean;
   /** Whether the viewer may conclude it (assignee/coordinator + `aberta`). */
   canConclude?: boolean;
-  /** Whether the viewer may reopen it (coordinator + `concluida`). */
-  canReopen?: boolean;
   /** The commission roster for the attribution control (only used when `canAssign`). */
   assignees?: AssigneeOption[];
   /**
@@ -90,8 +87,8 @@ export function CaseNarrativeCard({
    */
   canAssign?: boolean;
   /**
-   * Whether to show the narrative LIFECYCLE chrome (status pill, assignee, Concluir/
-   * Reabrir) — the Case Access Control surface (ADR 0033). `false` (flag `case_access`
+   * Whether to show the narrative LIFECYCLE chrome (status pill, assignee, Concluir)
+   * — the Case Access Control surface (ADR 0033). `false` (flag `case_access`
    * OFF) renders the card exactly as before the increment: just the body + Editar, so
    * the flag-OFF invariant (today's behavior) holds.
    */
@@ -126,7 +123,7 @@ export function CaseNarrativeCard({
   const [savedBody, setSavedBody] = useState<string | null>(null);
   // Reconcile during render (the React-recommended "adjust state when a prop changes"
   // pattern — avoids a setState-in-effect cascade): once the server-refreshed `bodyMd`
-  // lands (or a reopen / external edit changes it), drop the optimistic override so the
+  // lands (or a correction / external edit changes it), drop the optimistic override so the
   // PROP becomes authoritative again. This matters for a concluded/frozen or
   // externally-edited body, which must reflect the server, not a stale local copy.
   const [seenBodyMd, setSeenBodyMd] = useState(narrative.bodyMd);
@@ -210,7 +207,7 @@ export function CaseNarrativeCard({
   // visibility by case state (open case → show the slot even when empty, so a case
   // reader sees the narrative exists; closed case → empties filtered upstream), so a
   // card that reaches here renders its slot.
-  if (!showLifecycle && !canEdit && !canReopen && !hasBody) return null;
+  if (!showLifecycle && !canEdit && !hasBody) return null;
 
   // Legacy (flag OFF): a non-editable card shows the old "Bloqueado" pill (case
   // terminal). With the lifecycle on, "Bloqueada" tracks the narrative status instead.

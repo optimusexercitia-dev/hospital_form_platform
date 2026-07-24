@@ -31,7 +31,7 @@ export interface AssigneeOption {
  *  - Phase lifecycle (activate/skip/reassign) shows only when `caps.canManageLifecycle`.
  *  - Narrative editing follows Q14 ({@link canEditNarrative}: coordinator, the
  *    narrative's assignee, or a write-grantee on an un-attributed narrative, while
- *    `aberta` + case open); conclude = assignee/coordinator; reopen = coordinator.
+ *    `aberta` + case open); conclude = assignee/coordinator.
  *
  * Server-Component-safe wrapper; the per-row phase actions and the narrative editor
  * are client islands.
@@ -76,7 +76,7 @@ export function CasePhaseList({
   resultOptions?: ResolvedPhaseResult[];
   /**
    * Whether the `case_access` flag is on (ADR 0033). `false` renders narratives in
-   * LEGACY mode (no status/assignee/Concluir/Reabrir; editability = `isOpen` +
+   * LEGACY mode (no status/assignee/Concluir; editability = `isOpen` +
    * coordinator), so the flag-OFF invariant holds.
    */
   caseAccessEnabled?: boolean;
@@ -156,14 +156,9 @@ export function CasePhaseList({
                 isOpen &&
                 narrative.status === "open" &&
                 (caps.canManageLifecycle || isAssignee);
-              // Reopen: coordinator, while `concluida` + case open.
-              const canReopen =
-                isOpen &&
-                narrative.status === "completed" &&
-                caps.canManageLifecycle;
               // Attribution (ADR 0033 D5): a coordinator may (re)assign the narrative's
               // author from the card while it is `aberta` + the case is open. Mirrors the
-              // conclude/reopen gating; the legacy (flag-OFF) branch never passes this.
+              // conclude gating; the legacy (flag-OFF) branch never passes this.
               const canAssign =
                 caps.canManageLifecycle &&
                 isOpen &&
@@ -173,7 +168,6 @@ export function CasePhaseList({
                   narrative={narrative}
                   canEdit={editable}
                   canConclude={canConclude}
-                  canReopen={canReopen}
                   // Only an AD-HOC narrative is removable, by the same lifecycle
                   // authority that adds one.
                   canDelete={narrative.isAdHoc && caps.canManageLifecycle}

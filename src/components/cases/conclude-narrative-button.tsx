@@ -55,7 +55,8 @@ export function ConcludeNarrativeButton({
             <AlertDialogTitle>Concluir esta narrativa?</AlertDialogTitle>
             <AlertDialogDescription>
               Ao concluir, o conteúdo desta narrativa é congelado e deixa de ser
-              editável. A coordenação pode reabri-la depois, se necessário.
+              editável. Depois disso, ajustes só são possíveis por meio de uma
+              solicitação de correção.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
