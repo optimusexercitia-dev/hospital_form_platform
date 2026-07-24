@@ -267,7 +267,7 @@ values ('00000000-0000-0000-0000-0000000a5005', (select st_x from k), 'contribut
 select is((select visibility_scope from public.action_items where id = '00000000-0000-0000-0000-0000000a5005'),
   'assignees_only',
   'PRE ⭐: the item really IS assignees_only — the guard trigger did not rewrite the scope out from under the test');
-select is((select source_case_id is null and case_id is null from public.action_items
+select is((select source_case_id is null and linked_case_id is null from public.action_items
            where id = '00000000-0000-0000-0000-0000000a5005'), true,
   'PRE ⭐ A24·5: the item has NO case anchor — this is precisely the arm a case-scoped resolver could never gate');
 

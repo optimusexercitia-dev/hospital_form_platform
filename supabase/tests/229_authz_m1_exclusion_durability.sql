@@ -529,12 +529,12 @@ reset role;
 -- neutering can_read_action_item's deny left BOTH this and the closure test green.
 --
 -- The reachable `assignees_only` + case-anchor shape is source_type='manual' with
--- `case_id` set: action_items_case_link_check leaves case_id unconstrained there,
+-- `linked_case_id` set: action_items_case_link_check leaves linked_case_id unconstrained there,
 -- and the trigger only force-rewrites source_type='case'. That is the arm
--- `coalesce(source_case_id, case_id)` actually targets — and the only shape in
+-- `coalesce(source_case_id, linked_case_id)` actually targets — and the only shape in
 -- which ONLY my new deny can deny.
 insert into public.action_items
-  (id, commission_id, source_type, case_id, title, visibility_scope, assigned_to, status_id, created_by)
+  (id, commission_id, source_type, linked_case_id, title, visibility_scope, assigned_to, status_id, created_by)
 select '00000000-0000-0000-0000-0000000f0701', (select comm_x from k), 'manual',
        '00000000-0000-0000-0000-0000000f0001', 'Apurar', 'assignees_only', (select st_x from k),
        (select id from public.action_item_statuses where key = 'open' and commission_id is null),

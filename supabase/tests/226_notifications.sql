@@ -675,7 +675,7 @@ grant select on aik to authenticated;
 -- Items (all manual, comm_x). status = global 'open' (non-terminal) except the
 -- terminal one which uses 'done'.
 insert into public.action_items
-  (id, commission_id, source_type, title, status_id, visibility_scope, case_id, assigned_to, due_date)
+  (id, commission_id, source_type, title, status_id, visibility_scope, linked_case_id, assigned_to, due_date)
 select v.id, (select comm_x from k), 'manual', v.title,
        app.action_item_status_by_key((select comm_x from k), v.status_key),
        v.scope, v.case_id, v.assigned_to, v.due_date
