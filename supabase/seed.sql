@@ -776,6 +776,14 @@ begin
   perform app.seed_select(v_resp, ia_disp, array['sim']);
   perform app.seed_select(v_resp, ia_turno, array['manha']);
   perform set_config('app.in_submit_rpc', 'off', true);
+
+  -- Mirror the correction-lifecycle current-revision pointer (BE-1). The migration
+  -- backfill runs before seed data exists, so set it here for the seeded submitted
+  -- phase so local == what a data-bearing remote backfill produces. Wrapped in
+  -- app.in_case_rpc so guard_case_phase_status permits the non-status update.
+  perform set_config('app.in_case_rpc', 'on', true);
+  update public.case_phases set current_response_id = v_resp where id = v_cp1;
+  perform set_config('app.in_case_rpc', 'off', true);
 end $$;
 
 -- ===========================================================================

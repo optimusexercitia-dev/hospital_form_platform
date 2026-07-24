@@ -1703,6 +1703,158 @@ export type Database = {
           },
         ]
       }
+      case_correction_requests: {
+        Row: {
+          case_id: string
+          case_narrative_id: string | null
+          case_phase_id: string | null
+          classification: string
+          commission_id: string
+          created_at: string
+          draft_body_md: string | null
+          draft_response_id: string | null
+          id: string
+          impact_snapshot: Json | null
+          kind: string
+          last_rejected_at: string | null
+          last_rejected_by: string | null
+          last_rejected_reason: string | null
+          permitted_corrector: string | null
+          predecessor_response_id: string | null
+          reason: string
+          requested_at: string
+          requested_by: string
+          resolved_at: string | null
+          resolved_by: string | null
+          self_approved: boolean
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          case_id: string
+          case_narrative_id?: string | null
+          case_phase_id?: string | null
+          classification: string
+          commission_id: string
+          created_at?: string
+          draft_body_md?: string | null
+          draft_response_id?: string | null
+          id?: string
+          impact_snapshot?: Json | null
+          kind: string
+          last_rejected_at?: string | null
+          last_rejected_by?: string | null
+          last_rejected_reason?: string | null
+          permitted_corrector?: string | null
+          predecessor_response_id?: string | null
+          reason: string
+          requested_at?: string
+          requested_by: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          self_approved?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          case_id?: string
+          case_narrative_id?: string | null
+          case_phase_id?: string | null
+          classification?: string
+          commission_id?: string
+          created_at?: string
+          draft_body_md?: string | null
+          draft_response_id?: string | null
+          id?: string
+          impact_snapshot?: Json | null
+          kind?: string
+          last_rejected_at?: string | null
+          last_rejected_by?: string | null
+          last_rejected_reason?: string | null
+          permitted_corrector?: string | null
+          predecessor_response_id?: string | null
+          reason?: string
+          requested_at?: string
+          requested_by?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          self_approved?: boolean
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_correction_requests_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_correction_requests_case_narrative_id_fkey"
+            columns: ["case_narrative_id"]
+            isOneToOne: false
+            referencedRelation: "case_narratives"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_correction_requests_case_phase_id_fkey"
+            columns: ["case_phase_id"]
+            isOneToOne: false
+            referencedRelation: "case_phases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_correction_requests_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_correction_requests_draft_response_id_fkey"
+            columns: ["draft_response_id"]
+            isOneToOne: false
+            referencedRelation: "responses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_correction_requests_last_rejected_by_fkey"
+            columns: ["last_rejected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_correction_requests_permitted_corrector_fkey"
+            columns: ["permitted_corrector"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_correction_requests_predecessor_response_id_fkey"
+            columns: ["predecessor_response_id"]
+            isOneToOne: false
+            referencedRelation: "responses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_correction_requests_requested_by_fkey"
+            columns: ["requested_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_correction_requests_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_custom_field_values: {
         Row: {
           case_id: string
@@ -2171,6 +2323,58 @@ export type Database = {
           },
         ]
       }
+      case_narrative_revisions: {
+        Row: {
+          body_md: string
+          case_narrative_id: string
+          correction_request_id: string | null
+          id: string
+          revision_number: number
+          snapshotted_at: string
+          snapshotted_by: string | null
+        }
+        Insert: {
+          body_md: string
+          case_narrative_id: string
+          correction_request_id?: string | null
+          id?: string
+          revision_number: number
+          snapshotted_at?: string
+          snapshotted_by?: string | null
+        }
+        Update: {
+          body_md?: string
+          case_narrative_id?: string
+          correction_request_id?: string | null
+          id?: string
+          revision_number?: number
+          snapshotted_at?: string
+          snapshotted_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_narrative_revisions_case_narrative_id_fkey"
+            columns: ["case_narrative_id"]
+            isOneToOne: false
+            referencedRelation: "case_narratives"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_narrative_revisions_correction_request_id_fkey"
+            columns: ["correction_request_id"]
+            isOneToOne: false
+            referencedRelation: "case_correction_requests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_narrative_revisions_snapshotted_by_fkey"
+            columns: ["snapshotted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_narrative_types: {
         Row: {
           archived: boolean
@@ -2582,6 +2786,7 @@ export type Database = {
           case_id: string
           completed_at: string | null
           created_at: string
+          current_response_id: string | null
           default_due_days: number | null
           display_position: number | null
           due_date: string | null
@@ -2614,6 +2819,7 @@ export type Database = {
           case_id: string
           completed_at?: string | null
           created_at?: string
+          current_response_id?: string | null
           default_due_days?: number | null
           display_position?: number | null
           due_date?: string | null
@@ -2646,6 +2852,7 @@ export type Database = {
           case_id?: string
           completed_at?: string | null
           created_at?: string
+          current_response_id?: string | null
           default_due_days?: number | null
           display_position?: number | null
           due_date?: string | null
@@ -2690,6 +2897,13 @@ export type Database = {
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_phases_current_response_id_fkey"
+            columns: ["current_response_id"]
+            isOneToOne: false
+            referencedRelation: "responses"
             referencedColumns: ["id"]
           },
           {
@@ -8613,6 +8827,7 @@ export type Database = {
           case_id: string
           completed_at: string | null
           created_at: string
+          current_response_id: string | null
           default_due_days: number | null
           display_position: number | null
           due_date: string | null
@@ -8696,6 +8911,7 @@ export type Database = {
           case_id: string
           completed_at: string | null
           created_at: string
+          current_response_id: string | null
           default_due_days: number | null
           display_position: number | null
           due_date: string | null
@@ -12077,6 +12293,7 @@ export type Database = {
           case_id: string
           completed_at: string | null
           created_at: string
+          current_response_id: string | null
           default_due_days: number | null
           display_position: number | null
           due_date: string | null
@@ -13623,6 +13840,7 @@ export type Database = {
           case_id: string
           completed_at: string | null
           created_at: string
+          current_response_id: string | null
           default_due_days: number | null
           display_position: number | null
           due_date: string | null
