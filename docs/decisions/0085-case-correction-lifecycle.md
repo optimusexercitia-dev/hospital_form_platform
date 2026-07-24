@@ -37,7 +37,12 @@ before the pilot. Pre-pilot reset OK ⇒ correct schema over back-compat.
 7. **No cascade, no freeze.** Approval re-runs `compute_case_phase_result` +
    `recompute_recommendations` (the `set_case_phase_result_override` precedent); downstream
    active/completed work stands; an `impact_snapshot` jsonb (downstream phases already
-   active/completed) is stamped on the request at approval for the accreditor's question.
+   active/completed at approval time) is stamped on the request for the accreditor's
+   question. This applies to **every phase-approval kind with downstream effect —
+   `correction`, `addendum`, AND `void`** (BE-7 / MINOR-1: the void arm computes it the same
+   way, BEFORE the `completed→voided` update, so the pre-effect downstream is captured — a
+   void has the largest downstream reach because it clears a result those phases may have
+   consumed). Narrative approvals have no downstream phase and leave it null.
 8. **One machinery, three kinds:** `correction`, `addendum` (successor revision; additive-only
    soft-enforced v1 — the approver reviewing the diff is the gate), `void` (no draft; phase →
    `voided`, result cleared, satisfies `blocks` like `not_required`; redo via `add_ad_hoc_phase`;

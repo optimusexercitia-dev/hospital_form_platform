@@ -12,10 +12,10 @@
 --
 -- Fixture-flag lesson: case_corrections is enabled explicitly below.
 --
--- Assertion count: 37
+-- Assertion count: 38
 
 begin;
-select plan(37);
+select plan(38);
 
 update app.feature_flags set enabled = true
   where key in ('case_corrections', 'cases_multi_phase', 'cases_extras',
@@ -436,15 +436,22 @@ select is((select concluded_by from public.case_narratives where id = (select na
   (select st_x from k), 'K10: concluded_by is PRESERVED across approval');
 
 -- ===========================================================================
--- K11 · phase void: status voided, result cleared, pointer kept.
+-- K11 · phase void: status voided, result cleared, pointer kept, impact stamped.
 -- ===========================================================================
 create temp table c11 on commit drop as select * from pg_temp.mk_phase(941011, (select st_x from k), 'a');
 grant select on c11 to authenticated;
--- give the phase a result first so we can prove it's cleared.
+-- a DOWNSTREAM active phase (position 1) so the void's impact_snapshot has content.
+create temp table c11d on commit drop as select gen_random_uuid() as phase_b;
+grant select on c11d to authenticated;
 do $$ begin
   perform set_config('app.in_case_rpc','on',true);
+  -- give the void target a result first so we can prove it's cleared.
   update public.case_phases set result_id = (select baixo from vocab), result_source = 'computed'
     where id = (select phase_id from c11);
+  insert into public.case_phases
+    (id, case_id, position, form_id, form_version_id, title, status, is_ad_hoc, emits_result)
+    values ((select phase_b from c11d), (select case_id from c11), 1, (select form_id from fx),
+            (select ver_id from fx), 'Fase 2', 'active', true, false);
   perform set_config('app.in_case_rpc','off',true);
 end $$;
 select test_helpers.claims_for((select sa_x from k), false);
@@ -463,6 +470,13 @@ select is((select result_id from public.case_phases where id = (select phase_id 
   'K11: phase void clears result_id');
 select is((select current_response_id from public.case_phases where id = (select phase_id from c11)),
   (select root_id from c11), 'K11: phase void KEEPS current_response_id (history)');
+-- MINOR-1: a void approval stamps impact_snapshot listing the downstream phase.
+-- MUTATION: remove the void-arm impact computation → this goes red.
+select is(
+  (select (impact_snapshot -> 0 ->> 'id')::uuid
+   from public.case_correction_requests where id = (select req from r11)),
+  (select phase_b from c11d),
+  'K11: void approval stamps impact_snapshot listing the downstream active phase');
 
 -- ===========================================================================
 -- K12 · narrative void: snapshot + status voided.
