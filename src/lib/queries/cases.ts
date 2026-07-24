@@ -60,6 +60,9 @@ export type CasePhaseStatus =
   | 'active'
   | 'completed'
   | 'not_required'
+  // Case Correction Lifecycle (BE-4): a completed phase voided via an approved
+  // void request. Terminal, settled (does not block downstream phases), result cleared.
+  | 'voided'
 
 /** A case header (no phases). */
 export interface Case {
@@ -246,11 +249,13 @@ export interface CaseNarrative {
   /** The assignee's display name (joined); `null` if unassigned/unresolved. */
   assigneeName: string | null
   /**
-   * The narrative's lifecycle status (ADR 0033 D5): `aberta` (editable by the
-   * assignee / un-attributed write-grantee) → `completed` (body frozen). A
-   * coordinator can reopen. Defaults to `aberta` for existing rows.
+   * The narrative's lifecycle status (ADR 0033 D5): `open` (editable by the
+   * assignee / un-attributed write-grantee) → `completed` (body frozen). The Case
+   * Correction Lifecycle (BE-4) adds `voided` (a concluded narrative voided via an
+   * approved void request). Post-conclusion changes go through the correction flow,
+   * not an in-place reopen. Defaults to `open` for existing rows.
    */
-  status: 'open' | 'completed'
+  status: 'open' | 'completed' | 'voided'
   /** When it was concluded (ISO), or `null` while `aberta`. */
   concludedAt: string | null
   /** Who concluded it (profile id), or `null` while `aberta`. */
