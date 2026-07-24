@@ -828,23 +828,6 @@ export async function concludeNarrative(
 }
 
 /**
- * @deprecated Removed by the Case Correction Lifecycle (BE-4 dropped the
- * `reopen_narrative` RPC; the in-place narrative reopen is replaced by the
- * correction revision/void flow). This no-op stub remains ONLY so the
- * frontend-owned `case-narrative-card.tsx` still resolves its import without
- * breaking the build; it performs no write and always returns the "recurso
- * removido" pt-BR error. FE-2 removes the reopen affordance AND this stub.
- */
-export async function reopenNarrative(
-  _narrativeId: string,
-): Promise<ActionState> {
-  return {
-    ok: false,
-    error: 'Esta ação foi removida. Use o fluxo de correção da narrativa.',
-  }
-}
-
-/**
  * Delete an AD-HOC (avulsa) narrative from an OPEN case. Coordinator-only; the
  * `delete_ad_hoc_case_narrative` RPC is the authority and re-checks everything
  * server-side.
