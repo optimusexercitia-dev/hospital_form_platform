@@ -12761,6 +12761,39 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reopen_case: {
+        Args: { p_case_id: string; p_reason: string }
+        Returns: {
+          case_number: number
+          closed_at: string | null
+          closed_by: string | null
+          commission_id: string
+          confidentiality_level: string
+          created_at: string
+          created_by: string | null
+          department_id: string | null
+          department_other: string | null
+          has_patient: boolean
+          id: string
+          label: string | null
+          organization_id: string
+          outcome_id: string | null
+          patient_enabled: boolean
+          phi_disposed_at: string | null
+          phi_disposed_by: string | null
+          phi_disposed_reason: string | null
+          status: string
+          template_id: string | null
+          updated_at: string
+          visibility_policy: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "cases"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reopen_interview: {
         Args: { p_interview_id: string }
         Returns: {
@@ -12832,7 +12865,6 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      reopen_narrative: { Args: { p_narrative: string }; Returns: undefined }
       reopen_rca: {
         Args: { p_rca_id: string }
         Returns: {

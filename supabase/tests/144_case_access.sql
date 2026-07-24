@@ -34,7 +34,7 @@
 --   admin  platform admin — sees everything
 
 begin;
-select plan(94);   -- ADR 0078 Stage B: removed the flag-OFF fallback (b, 7) + list_case_access flag-OFF (1)
+select plan(91);   -- ADR 0078 Stage B; reopen_narrative retired (BE-4): -3
 
 -- The feature ships ON in-increment; flip it ON for the truth-table + boundary
 -- sections (a hermetic test must not depend on migration order). The flag-OFF
@@ -490,23 +490,8 @@ select throws_ok(
 reset role;
 select is((select status from public.case_narratives where id = (select narr1 from cs)),
   'completed', 'N1 is concluida after conclude_narrative');
-
--- A write-grantee cannot reopen (coordinator-only) → 42501.
-select test_helpers.claims_for((select gx_w from p), false);
-set local role authenticated;
-select throws_ok(
-  format($$ select public.reopen_narrative(%L) $$, (select narr1 from cs)),
-  '42501', null, 'reopen_narrative: a write-grantee cannot reopen (coordinator-only)');
-reset role;
--- The coordinator reopens.
-select test_helpers.claims_for((select sa_x from k), false);
-set local role authenticated;
-select lives_ok(
-  format($$ select public.reopen_narrative(%L) $$, (select narr1 from cs)),
-  'reopen_narrative: the coordinator reopens N1 (concluida → aberta)');
-reset role;
-select is((select status from public.case_narratives where id = (select narr1 from cs)),
-  'open', 'N1 is aberta again after reopen_narrative');
+-- (reopen_narrative retired in the Case Correction Lifecycle — its 3 assertions
+--  removed; the narrative revision/void flow replaces in-place reopen.)
 
 -- =========================================================================
 -- BE-4: grant / revoke RPCs (coordinator-only; HC021 member check).

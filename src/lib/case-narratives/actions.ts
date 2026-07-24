@@ -846,6 +846,10 @@ export async function reopenNarrative(
     return { ok: false, error: MESSAGES.forbidden }
   }
 
+  // BE-4 retired the reopen_narrative RPC (Case Correction Lifecycle); this whole
+  // action is removed in BE-5 (contracts). Transitional suppression so the typed
+  // rpc() overload keeps typecheck green until then.
+  // @ts-expect-error reopen_narrative RPC dropped in BE-4; action removed in BE-5.
   const { error } = await supabase.rpc('reopen_narrative', {
     p_narrative: narrativeId,
   })

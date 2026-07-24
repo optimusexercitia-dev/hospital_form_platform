@@ -22,7 +22,7 @@
 -- The world is bootstrapped (truncates) — every entity is MADE here, none borrowed.
 -- =============================================================================
 begin;
-select plan(47);
+select plan(44);
 
 update app.feature_flags set enabled = true
   where key in ('case_access', 'cases', 'narratives', 'extras', 'phase_results',
@@ -126,7 +126,6 @@ select throws_ok($$select public.set_case_phase_result_override('00000000-0000-0
 select throws_ok($$select public.add_ad_hoc_narrative('00000000-0000-0000-0000-0000000c8001', null, 'T', 'Ti', 'In', null)$$, 'HC0F1', null, '2a·recused add_ad_hoc_narrative → HC0F1');
 select throws_ok($$select public.assign_narrative('00000000-0000-0000-0000-0000000c8201', (select sa_x from k))$$, 'HC0F1', null, '2a·recused assign_narrative → HC0F1');
 select throws_ok($$select public.conclude_narrative('00000000-0000-0000-0000-0000000c8202')$$, 'HC0F1', null, '2a·recused conclude_narrative → HC0F1');
-select throws_ok($$select public.reopen_narrative('00000000-0000-0000-0000-0000000c8203')$$, 'HC0F1', null, '2a·recused reopen_narrative → HC0F1');
 select throws_ok($$select public.unassign_narrative('00000000-0000-0000-0000-0000000c8204')$$, 'HC0F1', null, '2a·recused unassign_narrative → HC0F1');
 select throws_ok($$select public.update_case_meta('00000000-0000-0000-0000-0000000c8001', 'HACK', null, null)$$, 'HC0F1', null, '2a·recused update_case_meta → HC0F1');
 select throws_ok($$select public.set_case_offered_outcomes('00000000-0000-0000-0000-0000000c8001', array['00000000-0000-0000-0000-0000000c8501']::uuid[])$$, 'HC0F1', null, '2a·recused set_case_offered_outcomes → HC0F1');
@@ -143,7 +142,6 @@ select throws_ok($$select public.set_case_phase_result_override('00000000-0000-0
 select throws_ok($$select public.add_ad_hoc_narrative('00000000-0000-0000-0000-0000000c8001', null, 'T', 'Ti', 'In', null)$$, 'HC0F1', null, '2a·respondent add_ad_hoc_narrative → HC0F1');
 select throws_ok($$select public.assign_narrative('00000000-0000-0000-0000-0000000c8201', (select sa_x from k))$$, 'HC0F1', null, '2a·respondent assign_narrative → HC0F1');
 select throws_ok($$select public.conclude_narrative('00000000-0000-0000-0000-0000000c8202')$$, 'HC0F1', null, '2a·respondent conclude_narrative → HC0F1');
-select throws_ok($$select public.reopen_narrative('00000000-0000-0000-0000-0000000c8203')$$, 'HC0F1', null, '2a·respondent reopen_narrative → HC0F1');
 select throws_ok($$select public.unassign_narrative('00000000-0000-0000-0000-0000000c8204')$$, 'HC0F1', null, '2a·respondent unassign_narrative → HC0F1');
 select throws_ok($$select public.update_case_meta('00000000-0000-0000-0000-0000000c8001', 'HACK', null, null)$$, 'HC0F1', null, '2a·respondent update_case_meta → HC0F1');
 select throws_ok($$select public.set_case_offered_outcomes('00000000-0000-0000-0000-0000000c8001', array['00000000-0000-0000-0000-0000000c8501']::uuid[])$$, 'HC0F1', null, '2a·respondent set_case_offered_outcomes → HC0F1');
@@ -160,7 +158,6 @@ select lives_ok($$select public.set_case_phase_result_override('00000000-0000-00
 select lives_ok($$select public.add_ad_hoc_narrative('00000000-0000-0000-0000-0000000c8001', null, 'T', 'Ti', 'In', null)$$, '2a·TWIN add_ad_hoc_narrative: clean coordinator still adds');
 select lives_ok($$select public.assign_narrative('00000000-0000-0000-0000-0000000c8201', (select sa_x from k))$$, '2a·TWIN assign_narrative: clean coordinator still assigns');
 select lives_ok($$select public.conclude_narrative('00000000-0000-0000-0000-0000000c8202')$$, '2a·TWIN conclude_narrative: clean coordinator still concludes');
-select lives_ok($$select public.reopen_narrative('00000000-0000-0000-0000-0000000c8203')$$, '2a·TWIN reopen_narrative: clean coordinator still reopens');
 select lives_ok($$select public.unassign_narrative('00000000-0000-0000-0000-0000000c8204')$$, '2a·TWIN unassign_narrative: clean coordinator still unassigns');
 select lives_ok($$select public.update_case_meta('00000000-0000-0000-0000-0000000c8001', 'legit rename', null, null)$$, '2a·TWIN update_case_meta: clean coordinator still edits');
 select lives_ok($$select public.set_case_offered_outcomes('00000000-0000-0000-0000-0000000c8001', array['00000000-0000-0000-0000-0000000c8501','00000000-0000-0000-0000-0000000c8502']::uuid[])$$, '2a·TWIN set_case_offered_outcomes: clean coordinator still sets');

@@ -60,10 +60,6 @@ begin
     d := pg_get_functiondef('public.conclude_narrative(uuid)'::regprocedure);
     d := replace(d, 'perform app.assert_not_case_excluded(v_case_id);', 'null;');
     execute d;
-  elsif p_what = 'revert_reopen' then
-    d := pg_get_functiondef('public.reopen_narrative(uuid)'::regprocedure);
-    d := replace(d, 'perform app.assert_not_case_excluded(v_case_id);', 'null;');
-    execute d;
   elsif p_what = 'revert_unassign' then
     d := pg_get_functiondef('public.unassign_narrative(uuid)'::regprocedure);
     d := replace(d, 'perform app.assert_not_case_excluded(v_case_id);', 'null;');
@@ -149,7 +145,6 @@ run_case "§2a revert_override"        "select app._mut_u2('revert_override');" 
 run_case "§2a revert_add_ad_hoc"      "select app._mut_u2('revert_add_ad_hoc');"     "recused add_ad_hoc_narrative"
 run_case "§2a revert_assign"          "select app._mut_u2('revert_assign');"         "recused assign_narrative"
 run_case "§2a revert_conclude"        "select app._mut_u2('revert_conclude');"       "recused conclude_narrative"
-run_case "§2a revert_reopen"          "select app._mut_u2('revert_reopen');"         "recused reopen_narrative"
 run_case "§2a revert_unassign"        "select app._mut_u2('revert_unassign');"       "recused unassign_narrative"
 run_case "§2a revert_update_meta"     "select app._mut_u2('revert_update_meta');"    "recused update_case_meta"
 run_case "§2a revert_offered"         "select app._mut_u2('revert_offered');"        "recused set_case_offered_outcomes"
