@@ -13,7 +13,7 @@
 --   7. Coherence trigger (HC0H4) on a hand-crafted cross-version/commission successor.
 --   8. Authority: a non-staff_admin/non-admin member gets 42501.
 --   9. Original immutable: UPDATE/DELETE on the predecessor still raises after supersede.
---  10. Audit: exactly one response.superseded row, reason + successor_id present, no payload.
+--  10. Audit: exactly one response.superseded row, successor_id present, NO free-text reason, no payload.
 --  11. Reason required (HC0H3) on blank/whitespace-only reason.
 --  12. t19 guard: supersede_response has no PUBLIC execute grant.
 --  12b. One-draft-per-user invariant (HC0H5): corrector already holds an
@@ -380,17 +380,20 @@ select throws_ok(
 
 -- ---------------------------------------------------------------------------
 -- ---- 10) audit ----
--- Exactly one response.superseded row for A, reason + successor_id present, no payload.
+-- Exactly one response.superseded row for A, successor_id present, NO free-text
+-- reason (Rule 11 / LGPD — the un-erasable chain never carries free text;
+-- 20260826000000 sweep), no payload.
 -- ---------------------------------------------------------------------------
 select is(
   (select count(*)::int from public.audit_log
      where action = 'response.superseded' and entity_id = (select resp_a from r)),
   1, '10a. exactly one response.superseded audit row for A'
 );
-select is(
-  (select metadata->>'reason' from public.audit_log
-     where action = 'response.superseded' and entity_id = (select resp_a from r)),
-  'erro de digitação', '10b. metadata.reason is the supplied reason'
+select ok(
+  not exists (select 1 from public.audit_log
+                where action = 'response.superseded' and entity_id = (select resp_a from r)
+                  and metadata ? 'reason'),
+  '10b. metadata carries NO free-text reason (Rule 11 / LGPD erasure)'
 );
 select is(
   (select metadata->>'successor_id' from public.audit_log
