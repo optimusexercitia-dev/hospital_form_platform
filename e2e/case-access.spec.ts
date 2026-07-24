@@ -11,7 +11,9 @@ import { test, expect, type Page, type APIRequestContext } from '@playwright/tes
  *  AC-3d Terminal-case dialog (ADR 0033 D6): button on concluido case; write disabled; coordinator absent from roster.
  *  AC-4  Q14 ownership (write-grantee cannot edit/conclude an attributed narrative).
  *  AC-5  Meus Casos list (unified; card; Preencher/Abrir/Concluir/Ver caso completo).
- *  AC-6  Narrative lifecycle (fill focused editor → Concluir → coordinator reopens).
+ *  AC-6  Narrative lifecycle (fill focused editor → Concluir → the coordinator
+ *        corrects the concluded narrative via the Case Correction Lifecycle —
+ *        NOT an in-place reopen; `reopen_narrative` was retired, ADR 0085 #9).
  *  AC-7  PHI boundary (read-grantee sees PHI-free chip; click-through denied).
  *  AC-8  Audit (case.opened row on non-coordinator open; none on coordinator open).
  *  AC-9  RETIRED — `case_access` is no longer a feature flag at all (ADR 0078 B4
@@ -148,6 +150,45 @@ async function getResumoCaseNarrativeId(): Promise<string> {
   })
   if (!rows.length) throw new Error('Resumo Clínico narrative not found in seed!')
   return rows[0].id
+}
+
+/** Find the "Achados e Discussão" narrative id in Caso 0001 (unattributed in seed). */
+async function getAchadosCaseNarrativeId(): Promise<string> {
+  const rows = await dbQuery<{ id: string }>('case_narratives', {
+    case_id: `eq.${CASE_ID}`,
+    type_label: 'eq.Achados e Discussão',
+  })
+  if (!rows.length) throw new Error('Achados e Discussão narrative not found in seed!')
+  return rows[0].id
+}
+
+/** Direct service-role PATCH of a narrative's `assigned_to` (test setup/teardown only). */
+async function patchNarrativeAssignee(narrativeId: string, assignedTo: string | null): Promise<void> {
+  await patchNarrativeFields(narrativeId, { assigned_to: assignedTo })
+}
+
+/**
+ * Direct service-role PATCH of arbitrary `case_narratives` columns (test
+ * setup/teardown only — bypasses the app's RLS/RPC path on purpose, mirroring
+ * `upsertGrant` above).
+ */
+async function patchNarrativeFields(
+  narrativeId: string,
+  fields: Record<string, unknown>,
+): Promise<void> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/case_narratives?id=eq.${narrativeId}`, {
+    method: 'PATCH',
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify(fields),
+  })
+  if (!res.ok) {
+    throw new Error(`patchNarrativeFields failed ${res.status}: ${await res.text()}`)
+  }
 }
 
 /** Get an audit_log count of case.opened rows for Caso 0001. */
@@ -870,10 +911,25 @@ test('AC-5c Meus Casos: multi (read grant only) sees card with Ver caso completo
 })
 
 // ---------------------------------------------------------------------------
-// AC-6 — Narrative lifecycle: fill → Concluir → coordinator reopens
+// AC-6 — Narrative lifecycle: fill → Concluir → coordinator corrects (not reopen)
+//
+// Reconciled 2026-07-24 for the Case Correction Lifecycle (ADR 0085 T-2): the
+// second half of this test used to click a "Reabrir" control on the concluded
+// narrative card and assert the status flipped back to `open` — that
+// affordance was RETIRED platform-wide (BE-4 dropped the `reopen_narrative`
+// RPC; FE-2 removed the caller; no "Reabrir narrativa" control exists in the
+// render tree — confirmed by `e2e/case-narratives.spec.ts` AC-9). The new
+// post-conclusion path is the Case Correction Lifecycle: the coordinator files
+// + approves a correction, which never reopens the narrative (its
+// `concluded_at`/`concluded_by` stay untouched) — mirrors
+// `e2e/case-narratives.spec.ts` AC-10 and `e2e/case-corrections.spec.ts` AC-4.
+// This also DOUBLES as the cross-spec hygiene restore the old reopen-then-edit
+// flow used to perform (a concluded narrative can no longer be re-edited
+// in-place — HC055 — so the correction path is now the only way back to the
+// seeded body for `case-narratives.spec.ts` AC-3's benefit).
 // ---------------------------------------------------------------------------
 
-test('AC-6 narrative lifecycle: staff2 fills Resumo via focused editor, concludes; coordinator reopens', async ({
+test('AC-6 narrative lifecycle: staff2 fills Resumo via focused editor, concludes; coordinator corrects it (no in-place reopen)', async ({
   page,
 }) => {
   const narrativeId = await getResumoCaseNarrativeId()
@@ -919,53 +975,78 @@ test('AC-6 narrative lifecycle: staff2 fills Resumo via focused editor, conclude
 
   await signOut(page)
 
-  // --- Coordinator reopens ---
+  // --- Coordinator: the narrative stays CONCLUDED — no in-place reopen exists ---
   await signInAs(page, 'chefe.ccih@test.local')
   await page.goto(`${BASE}/manage/cases/${CASE_ID}`)
   await page.waitForURL(`**/manage/cases/${CASE_ID}`)
 
-  // Find the Resumo narrative card and click "Reabrir".
   // Both the Caso 0001 narrative AND the Phase-22 referral snapshot are rendered as regions
   // with names matching /resumo clínico/i inside "Fases e narrativas do caso":
   //   (1) 'Resumo Clínico' (uppercase C) — the actual case narrative (seeded type label)
   //   (2) 'Resumo clínico' (lowercase c) — the referral snapshot display_name (ENC-0001)
   // Use exact string match 'Resumo Clínico' (case-sensitive) to pick only the seeded narrative.
-  // Playwright getByRole with exact:true + string performs case-sensitive matching. Same class
-  // of defect as CA-SPEC-AC3a; scoped approach avoids relying on document order (.first()).
   const narrativeSection = page.getByRole('region', { name: 'Resumo Clínico', exact: true })
   await expect(narrativeSection).toBeVisible({ timeout: 10_000 })
-  const reabrirBtn = narrativeSection.getByRole('button', { name: /reabrir/i })
-  await expect(reabrirBtn).toBeVisible({ timeout: 8_000 })
-  await reabrirBtn.click()
+  await expect(narrativeSection.getByText(/^Concluída$/i)).toBeVisible()
+  // The proof: NO "Reabrir" control of any kind exists — narrative-level reopen
+  // has no live UI surface anymore (mirrors case-narratives.spec.ts AC-9).
+  await expect(narrativeSection.getByRole('button', { name: /reabrir/i })).toHaveCount(0)
 
-  // Confirm if dialog appears.
-  const confirmBtn2 = page.getByRole('button', { name: /confirmar/i })
-  if (await confirmBtn2.isVisible({ timeout: 2_000 })) {
-    await confirmBtn2.click()
-  }
+  const beforeRows = await dbQuery<{
+    status: string
+    concluded_at: string | null
+    concluded_by: string | null
+  }>('case_narratives', { id: `eq.${narrativeId}` })
+  expect(beforeRows[0]?.status).toBe('completed')
+  const concludedAt = beforeRows[0]?.concluded_at
+  const concludedBy = beforeRows[0]?.concluded_by
+  expect(concludedAt).toBeTruthy()
 
-  // Verify DB: narrative status back to 'aberta'.
-  await page.waitForTimeout(2_000)
-  const rows2 = await dbQuery<{ status: string }>('case_narratives', {
-    id: `eq.${narrativeId}`,
-  })
-  expect(rows2[0]?.status).toBe('open')
+  // --- Coordinator corrects it via the Case Correction Lifecycle instead ---
+  // (self-designated corrector — chefe is the only staff_admin in CCIH). This
+  // also restores the seeded body for case-narratives.spec.ts AC-3's benefit —
+  // the correction path is now the ONLY way to change a concluded narrative.
+  await narrativeSection.getByRole('button', { name: /Corrigir/i }).click()
+  await page.getByRole('menuitem', { name: /Solicitar correção/i }).click()
+  const fileDialog = page.getByRole('dialog').filter({ hasText: /Solicitar correção/i })
+  await expect(fileDialog).toBeVisible({ timeout: 5_000 })
+  await fileDialog.getByLabel(/Motivo/i).fill('Restaurar o texto original semeado após o teste AC-6.')
+  await fileDialog.getByLabel(/Corretor/i).selectOption(UID_CHEFE)
+  await fileDialog.getByRole('button', { name: /^Solicitar correção$/ }).click()
+  await expect(fileDialog).not.toBeVisible({ timeout: 10_000 })
 
-  await signOut(page)
-
-  // --- Restore seed body (cross-spec hygiene) ---
-  // AC-6 overwrote the Resumo body with test content; restore the seeded body so
-  // case-narratives.spec.ts AC-3 still finds "Paciente do leito 7" in the merged layout.
-  await signInAs(page, 'staff2.ccih@test.local')
-  await page.goto(`${BASE}/casos/${CASE_ID}/narrativa/${narrativeId}`)
-  await page.waitForURL(`${BASE}/casos/${CASE_ID}/narrativa/${narrativeId}`)
-  const restoreEditor = page.getByRole('textbox')
-  await expect(restoreEditor).toBeVisible({ timeout: 10_000 })
+  const draftTextarea = narrativeSection.locator('textarea')
+  await expect(draftTextarea).toBeVisible({ timeout: 10_000 })
   const seedBody =
     'Paciente do leito 7 da UTI, evoluiu com piora clínica progressiva.\n\nO comitê revisou o checklist da Fase 1. Sem dados identificáveis.'
-  await restoreEditor.fill(seedBody)
-  await page.getByRole('button', { name: /salvar/i }).click()
-  await expect(page.getByRole('status')).toContainText(/salva/i, { timeout: 10_000 })
+  await draftTextarea.fill(seedBody)
+  await narrativeSection.getByRole('button', { name: /Enviar para revisão/i }).click()
+  await expect(narrativeSection.getByText(/Reenviada/i)).toBeVisible({ timeout: 15_000 })
+
+  const correctionsPanel = page.getByRole('region', { name: /Solicitações de correção/i })
+  const requestCard = correctionsPanel.locator('li').filter({ hasText: /Resumo Clínico/i }).first()
+  await expect(requestCard.getByText(/Reenviada/i)).toBeVisible({ timeout: 10_000 })
+  await requestCard.getByRole('button', { name: /^Aprovar$/ }).click()
+  await page.getByRole('alertdialog').getByRole('button', { name: /Aprovar correção/i }).click()
+  await expect(requestCard.getByText(/^Aprovada$/i)).toBeVisible({ timeout: 15_000 })
+
+  // Body restored to the seeded text; the narrative is STILL "Concluída" — the
+  // correction never reopened it — and its conclusion stamp is byte-for-byte
+  // preserved (the anti-reopen keystone: concluded_at/concluded_by untouched).
+  await expect(narrativeSection.getByText(/Paciente do leito 7/i)).toBeVisible({ timeout: 10_000 })
+  await expect(narrativeSection.getByText(/^Concluída$/i)).toBeVisible()
+
+  const afterRows = await dbQuery<{
+    status: string
+    concluded_at: string | null
+    concluded_by: string | null
+    body_md: string
+  }>('case_narratives', { id: `eq.${narrativeId}` })
+  expect(afterRows[0]?.status).toBe('completed')
+  expect(afterRows[0]?.concluded_at).toBe(concludedAt)
+  expect(afterRows[0]?.concluded_by).toBe(concludedBy)
+  expect(afterRows[0]?.body_md).toContain('Paciente do leito 7')
+
   await signOut(page)
 })
 
@@ -1333,7 +1414,25 @@ test('SB-5: no case_access flag-OFF path exists — the flag row is gone; case r
 test('AC-10 keyboard-only: Tab/Enter through Meus Casos to focused narrative editor', async ({
   page,
 }) => {
-  // staff2 is the narrative assignee → they have an Abrir button in Meus Casos.
+  // AC-6 (which runs before this test, serial mode) now permanently concludes
+  // "Resumo Clínico" — post-ADR-0085 there is no reopen, so it stays frozen
+  // (read-only, no textarea) for the rest of the suite, yet "Meus Casos" still
+  // renders an "Abrir" link for it (a read-only view link). This keyboard flow
+  // needs an EDITABLE narrative, so it targets "Achados e Discussão" instead
+  // (seeded un-attributed — safe to assign to staff2 for the duration of this
+  // test). staff2 is ALSO still the seeded assignee of the now-frozen Resumo, so
+  // Resumo's "Abrir" (dp=2, earlier in the list than Achados' dp=4) would win a
+  // blind Tab-to-first-"Abrir" race — temporarily unassign staff2 from Resumo too,
+  // so Achados is the ONLY "Abrir"-bearing item staff2 has, then restore both
+  // assignments afterward (Resumo → staff2 per seed; Achados → null per AC-N1's
+  // "NOT attributed" precondition).
+  const resumoId = await getResumoCaseNarrativeId()
+  const achadosId = await getAchadosCaseNarrativeId()
+  const UID_STAFF2 = '00000000-0000-0000-0000-000000000004'
+  await patchNarrativeAssignee(resumoId, null)
+  await patchNarrativeAssignee(achadosId, UID_STAFF2)
+
+  // staff2 is now the ONLY narrative assignee (Achados) → exactly one Abrir link.
   await signInAs(page, 'staff2.ccih@test.local')
   await page.goto(`${BASE}/meus-casos`)
   await page.waitForURL(`${BASE}/meus-casos`)
@@ -1415,6 +1514,16 @@ test('AC-10 keyboard-only: Tab/Enter through Meus Casos to focused narrative edi
   await expect(page.getByRole('status')).toContainText(/salva/i, { timeout: 10_000 })
 
   await signOut(page)
+
+  // Restore both narratives to their seeded state:
+  //  - Resumo → staff2 again (AC-4's "Q14 ownership" precondition, and simply
+  //    the seed's own fixture).
+  //  - Achados → unattributed (AC-N1, next, requires "NOT attributed") AND
+  //    empty (case-narratives.spec.ts AC-4 requires the "Nenhum conteúdo ainda"
+  //    placeholder on this SAME shared narrative when both spec files run
+  //    together against the same DB).
+  await patchNarrativeAssignee(resumoId, UID_STAFF2)
+  await patchNarrativeFields(achadosId, { assigned_to: null, body_md: null })
 })
 
 // ---------------------------------------------------------------------------

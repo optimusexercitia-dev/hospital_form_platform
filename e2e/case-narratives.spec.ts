@@ -878,12 +878,11 @@ test('AC-9: an individually-concluded narrative never shows a "Reabrir" control 
   await concludeBtn.click()
   const concludeDialog = page.getByRole('alertdialog').filter({ hasText: /Concluir esta narrativa/i })
   await expect(concludeDialog).toBeVisible({ timeout: 5_000 })
-  // KNOWN GAP (documented, not fixed here — tester never edits app code): this
-  // confirm copy is STALE — it still promises an in-place narrative reopen that
-  // `reopen_narrative` no longer offers (ADR 0085 dropped it; correction is the
-  // only post-conclusion path now). Captured as evidence for the bug filed in
-  // PROGRESS.md, not asserted away.
-  await expect(concludeDialog.getByText(/coordenação pode reabri-la depois/i)).toBeVisible()
+  // BUG-CORR-001 FIXED (`450d8d5`, re-verified 2026-07-24): the confirm copy no
+  // longer promises an in-place reopen — it now correctly points at the
+  // correction lifecycle as the only post-conclusion path.
+  await expect(concludeDialog.getByText(/ajustes só são possíveis por meio de uma solicitação de correção/i)).toBeVisible()
+  await expect(concludeDialog.getByText(/coordenação pode reabri-la depois/i)).toHaveCount(0)
   await concludeDialog.getByRole('button', { name: /Concluir narrativa/i }).click()
   await expect(concludeDialog).not.toBeVisible({ timeout: 10_000 })
 
