@@ -105,6 +105,11 @@ const MESSAGES = {
   phaseReassigned: 'Responsável atualizado.',
   caseClosed: 'Caso concluído.',
   caseCancelled: 'Caso cancelado.',
+  // reopen_case (Case Correction Lifecycle)
+  caseReopened: 'Caso reaberto.',
+  reopenReasonRequired: 'Informe o motivo da reabertura.',
+  cancelledFinal: 'Caso cancelado é definitivo e não pode ser reaberto.',
+  accountInactive: 'Sua conta está inativa ou suspensa.',
   // case_patient (ADR 0038) — the THIRD PHI module.
   patientNameOrMrnRequired: 'Informe ao menos o nome ou o prontuário do paciente.',
   patientSaved: 'Identificação do paciente salva.',
@@ -152,6 +157,10 @@ const HC_CASE_EXCLUDED = 'HC0F1'
 const HC_NOT_AD_HOC = 'HC0D0' // the slot is template-derived → not deletable
 const HC_PHASE_HAS_RESPONSES = 'HC0D1' // the phase has responses → never cascade
 const HC_PHASE_HAS_DEPENDENTS = 'HC0D2' // another phase's recommend_when needs it
+// reopen_case (Case Correction Lifecycle): a cancelled case is terminal-forever;
+// HC0F4 = the caller's account is inactive/suspended (checked after authority).
+const HC_CANCELLED_FINAL = 'HC0M8'
+const HC_ACCOUNT_INACTIVE = 'HC0F4'
 
 const CASES_LIST_PATH = '/o/[org]/c/[commission]/manage/cases'
 const CASE_PATH = '/o/[org]/c/[commission]/manage/cases/[caseId]'
@@ -256,6 +265,10 @@ function mapCaseError(error: { code?: string; message?: string } | null): string
       return MESSAGES.forbidden
     case HC_CASE_EXCLUDED:
       return error.message || MESSAGES.forbidden
+    case HC_CANCELLED_FINAL:
+      return error.message || MESSAGES.cancelledFinal
+    case HC_ACCOUNT_INACTIVE:
+      return error.message || MESSAGES.accountInactive
     default:
       return MESSAGES.generic
   }
@@ -840,6 +853,39 @@ export async function cancelCase(caseId: string): Promise<ActionState> {
 
   revalidateCases()
   return { ok: true, error: MESSAGES.caseCancelled }
+}
+
+/**
+ * Reopen a COMPLETED case (Case Correction Lifecycle) so it can be corrected.
+ * Coordinator-only (staff_admin/commission-admin); a mandatory reason is durably
+ * recorded on `case_reopenings` (kept out of the audit log — Rule 11). `cancelled`
+ * is terminal-forever (HC0M8). Wraps the `reopen_case` RPC — the RPC's authority +
+ * the case RLS are the boundary; the server-side re-check yields a clean pt-BR
+ * forbidden. Raw PG errors never reach the UI.
+ */
+export async function reopenCase(
+  caseId: string,
+  reason: string,
+): Promise<ActionState> {
+  if (!caseId) return { ok: false, error: MESSAGES.missingCase }
+  if (!reason.trim()) return { ok: false, error: MESSAGES.reopenReasonRequired }
+
+  const supabase = await createClient()
+  const commissionId = await commissionOfCase(supabase, caseId)
+  if (!commissionId) return { ok: false, error: MESSAGES.missingCase }
+  if (!(await authorizeCommission(commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('reopen_case', {
+    p_case_id: caseId,
+    p_reason: reason,
+  })
+
+  if (error) return { ok: false, error: mapCaseError(error) }
+
+  revalidateCases()
+  return { ok: true, error: MESSAGES.caseReopened }
 }
 
 // ---------------------------------------------------------------------------

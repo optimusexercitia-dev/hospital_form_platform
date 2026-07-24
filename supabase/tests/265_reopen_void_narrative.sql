@@ -13,10 +13,10 @@
 --
 -- Fixture-flag lesson: case_corrections enabled explicitly.
 --
--- Assertion count: 16
+-- Assertion count: 21
 
 begin;
-select plan(16);
+select plan(21);
 
 update app.feature_flags set enabled = true
   where key in ('case_corrections', 'cases_multi_phase', 'cases_extras',
@@ -251,6 +251,37 @@ select is(
   (select count(*)::int from pg_proc p join pg_namespace n on n.oid = p.pronamespace
    where n.nspname = 'public' and p.proname = 'reopen_narrative'),
   0, 'K6: public.reopen_narrative no longer exists');
+
+-- ===========================================================================
+-- K7 · case_reopenings: durable reason persisted; append-only; door-only writes.
+-- ===========================================================================
+-- K3 reopened c3 with reason 'nova evidência' — it must be recorded.
+select is(
+  (select reason from public.case_reopenings where case_id = (select case_id from c3)),
+  'nova evidência', 'K7: reopen_case persists the durable reason into case_reopenings');
+
+-- a direct INSERT as an authenticated case reader is refused (no write grant).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select throws_ok(
+  format($$ insert into public.case_reopenings (case_id, reason, reopened_by) values (%L, 'x', %L) $$,
+    (select case_id from c3), (select sa_x from k)),
+  '42501', null, 'K7: a direct INSERT by an authenticated user is refused (no write grant)');
+reset role;
+
+-- a service-role INSERT WITHOUT the reopen flag is refused by the write guard.
+select throws_ok(
+  format($$ insert into public.case_reopenings (case_id, reason, reopened_by) values (%L, 'x', null) $$,
+    (select case_id from c3)),
+  '23514', null, 'K7: a service-role INSERT without app.in_reopen_rpc is refused (write guard)');
+
+-- append-only: UPDATE and DELETE are blocked (service-role).
+select throws_ok(
+  format($$ update public.case_reopenings set reason = 'hack' where case_id = %L $$, (select case_id from c3)),
+  '23514', null, 'K7: UPDATE on a reopening record is blocked (append-only)');
+select throws_ok(
+  format($$ delete from public.case_reopenings where case_id = %L $$, (select case_id from c3)),
+  '23514', null, 'K7: DELETE on a reopening record is blocked (append-only)');
 
 select * from finish();
 rollback;

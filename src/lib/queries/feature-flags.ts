@@ -53,6 +53,10 @@ export interface FeatureFlags {
   // cases across members in one atomic transaction. Seeded OFF in the bulk-create
   // migration; `seed.sql` forces ON for local/E2E.
   cases_bulk_create: boolean
+  // Case Correction Lifecycle: phase/narrative correction + void requests and
+  // reopen_case. Seeded OFF in the correction-schema migration; flips ON at the
+  // feature gate; `seed.sql` forces it ON for local/E2E.
+  case_corrections: boolean
 }
 
 /** A flag key. */
@@ -158,4 +162,15 @@ export async function caseCustomFieldsEnabled(): Promise<boolean> {
  */
 export async function casesBulkCreateEnabled(): Promise<boolean> {
   return featureEnabled('cases_bulk_create')
+}
+
+/**
+ * Whether the Case Correction Lifecycle feature is ON. Thin per-flag wrapper over
+ * {@link featureEnabled} (consistent with the other per-flag `*Enabled()` readers),
+ * so callers avoid an `as FeatureFlagKey` cast. Request-memoized via
+ * {@link getFeatureFlags}. Seeded OFF in the correction-schema migration; flips ON
+ * at the feature gate; `seed.sql` forces it ON for local/E2E.
+ */
+export async function caseCorrectionsEnabled(): Promise<boolean> {
+  return featureEnabled('case_corrections')
 }

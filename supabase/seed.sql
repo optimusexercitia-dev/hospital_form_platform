@@ -2087,6 +2087,10 @@ update app.feature_flags set enabled = true where key = 'case_custom_fields';
 -- here for local/E2E so the "Múltiplos casos" wizard + bulk_create_cases RPC are
 -- reachable. Coordinator-only; production flip deferred.
 update app.feature_flags set enabled = true where key = 'cases_bulk_create';
+-- Case Correction Lifecycle. Created OFF in the correction-schema migration; forced
+-- ON here for local/E2E so the correction request / void / reopen surfaces are
+-- reachable. Production flip deferred to the feature gate.
+update app.feature_flags set enabled = true where key = 'case_corrections';
 -- ---------------------------------------------------------------------------
 do $cd$
 declare

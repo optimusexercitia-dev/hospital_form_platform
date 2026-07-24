@@ -803,9 +803,10 @@ export async function saveNarrativeBody(
 /**
  * Conclude a narrative (`aberta → concluida`, freezing the body; ADR 0033 D5).
  * The ASSIGNEE or a coordinator may conclude; the narrative must be `aberta`
- * (`HC055`). Stamps `concluded_at`/`concluded_by`. A coordinator can later
- * {@link reopenNarrative}. Routed through `conclude_narrative` — authorization is
- * the RPC's (assignee-or-coordinator), so NO staff_admin pre-check.
+ * (`HC055`). Stamps `concluded_at`/`concluded_by`. Post-conclusion changes go
+ * through the case correction flow (revision/void), not an in-place reopen. Routed
+ * through `conclude_narrative` — authorization is the RPC's (assignee-or-coordinator),
+ * so NO staff_admin pre-check.
  */
 export async function concludeNarrative(
   narrativeId: string,
@@ -827,37 +828,20 @@ export async function concludeNarrative(
 }
 
 /**
- * Reopen a concluded narrative (`concluida → aberta`; coordinator-only; ADR 0033
- * D5) so the assignee can edit again. The narrative must be `concluida` (`HC055`)
- * and the case non-terminal. Routed through `reopen_narrative`.
+ * @deprecated Removed by the Case Correction Lifecycle (BE-4 dropped the
+ * `reopen_narrative` RPC; the in-place narrative reopen is replaced by the
+ * correction revision/void flow). This no-op stub remains ONLY so the
+ * frontend-owned `case-narrative-card.tsx` still resolves its import without
+ * breaking the build; it performs no write and always returns the "recurso
+ * removido" pt-BR error. FE-2 removes the reopen affordance AND this stub.
  */
 export async function reopenNarrative(
-  narrativeId: string,
+  _narrativeId: string,
 ): Promise<ActionState> {
-  if (!narrativeId) return { ok: false, error: MESSAGES.missingNarrative }
-  if (!(await caseAccessEnabled())) {
-    return { ok: false, error: MESSAGES.unavailable }
+  return {
+    ok: false,
+    error: 'Esta ação foi removida. Use o fluxo de correção da narrativa.',
   }
-
-  const supabase = await createClient()
-  const commissionId = await commissionOfNarrative(supabase, narrativeId)
-  if (!commissionId) return { ok: false, error: MESSAGES.missingNarrative }
-  if (!(await authorizeCommission(commissionId))) {
-    return { ok: false, error: MESSAGES.forbidden }
-  }
-
-  // BE-4 retired the reopen_narrative RPC (Case Correction Lifecycle); this whole
-  // action is removed in BE-5 (contracts). Transitional suppression so the typed
-  // rpc() overload keeps typecheck green until then.
-  // @ts-expect-error reopen_narrative RPC dropped in BE-4; action removed in BE-5.
-  const { error } = await supabase.rpc('reopen_narrative', {
-    p_narrative: narrativeId,
-  })
-
-  if (error) return { ok: false, error: mapNarrativeError(error) }
-
-  revalidateCase()
-  return { ok: true, error: MESSAGES.reopened }
 }
 
 /**

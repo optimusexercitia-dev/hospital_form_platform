@@ -3207,6 +3207,45 @@ export type Database = {
           },
         ]
       }
+      case_reopenings: {
+        Row: {
+          case_id: string
+          id: string
+          reason: string
+          reopened_at: string
+          reopened_by: string | null
+        }
+        Insert: {
+          case_id: string
+          id?: string
+          reason: string
+          reopened_at?: string
+          reopened_by?: string | null
+        }
+        Update: {
+          case_id?: string
+          id?: string
+          reason?: string
+          reopened_at?: string
+          reopened_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_reopenings_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_reopenings_reopened_by_fkey"
+            columns: ["reopened_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_tag_assignments: {
         Row: {
           assigned_at: string
