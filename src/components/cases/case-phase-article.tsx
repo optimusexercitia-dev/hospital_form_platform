@@ -2,7 +2,9 @@ import { CalendarClock, FileText, User } from "lucide-react";
 
 import type { CaseDetail } from "@/lib/queries/cases";
 import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
+import type { CorrectionRequest } from "@/lib/queries/corrections";
 import {
+  InCorrectionChip,
   PhaseStatusPill,
   RecommendedChip,
 } from "@/components/cases/phase-status-pill";
@@ -10,6 +12,13 @@ import { CoordinatorPhaseActions } from "@/components/cases/coordinator-phase-ac
 import { PhaseResultBadge } from "@/components/cases/phase-result-badge";
 import { PhaseResultCorrectButton } from "@/components/cases/phase-result-correct-button";
 import { CasePhaseDelete } from "@/components/cases/case-phase-delete";
+import { FileCorrectionControl } from "@/components/cases/file-correction-control";
+import { ContinueCorrectionButton } from "@/components/cases/continue-correction-button";
+import {
+  canContinueCorrection,
+  type CorrectionCaps,
+} from "@/components/cases/correction-labels";
+import { CorrectionStatusChip } from "@/components/cases/correction-chips";
 import { resolvePhaseCorrectionOptions } from "@/components/cases/phase-result-options";
 import { formatDueDate, isOverdue } from "@/components/cases/format";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
@@ -38,6 +47,8 @@ export function CasePhaseArticle({
   canAssignPhases = false,
   canCorrectResult = false,
   resultOptions = [],
+  correctionCaps = null,
+  openCorrection = null,
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -67,6 +78,19 @@ export function CasePhaseArticle({
    * automatic phase uses the full vocabulary.
    */
   resultOptions?: ResolvedPhaseResult[];
+  /**
+   * The viewer's Case Correction Lifecycle capabilities (ADR 0085), or `null` when
+   * the `case_corrections` flag is off (no correction surface at all). Threaded from
+   * the host page → detail → list.
+   */
+  correctionCaps?: CorrectionCaps | null;
+  /**
+   * The OPEN correction request targeting THIS phase (if any), pre-derived by the
+   * list. `null` = the phase has no open request. Drives the "Em correção" chip, the
+   * corrector's "Continuar correção" affordance, and hides the "Corrigir…" menu (one
+   * open request per target).
+   */
+  openCorrection?: CorrectionRequest | null;
 }) {
   const heading = phase.title || `Fase ${phase.position}`;
 
@@ -80,6 +104,19 @@ export function CasePhaseArticle({
     phase.status === "completed" &&
     correction.mode !== "none";
 
+  // Case Correction Lifecycle (ADR 0085): the request affordances on a COMPLETED
+  // phase. Filing is offered when the flag is on, the case is open, and there is no
+  // open request yet; the corrector's "Continuar correção" shows while a
+  // draft-bearing request is in a resting/editing state.
+  const correctionsOn = correctionCaps?.enabled ?? false;
+  const showCorrectionRow = correctionsOn && phase.status === "completed";
+  const showFileCorrection =
+    showCorrectionRow && !openCorrection && (correctionCaps?.canFile ?? false);
+  const showContinueCorrection =
+    showCorrectionRow &&
+    openCorrection != null &&
+    canContinueCorrection(openCorrection, correctionCaps?.viewerId ?? null);
+
   return (
     <article className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 shadow-xs">
       <div className="flex items-start justify-between gap-4">
@@ -92,6 +129,7 @@ export function CasePhaseArticle({
             {phase.recommended && phase.status === "pending" && (
               <RecommendedChip />
             )}
+            {openCorrection && <InCorrectionChip />}
             {phase.isAdHoc && (
               <span className="rounded-full bg-muted px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-muted-foreground uppercase">
                 adicional
@@ -160,6 +198,32 @@ export function CasePhaseArticle({
             phaseLabel={heading}
             allowClear={correction.allowClear}
           />
+        </div>
+      )}
+
+      {showCorrectionRow && (openCorrection || showFileCorrection) && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {openCorrection && (
+            <CorrectionStatusChip status={openCorrection.status} />
+          )}
+          {showContinueCorrection && openCorrection && (
+            <ContinueCorrectionButton
+              org={org}
+              slug={slug}
+              caseId={phase.caseId}
+              phaseId={phase.id}
+              requestId={openCorrection.id}
+            />
+          )}
+          {showFileCorrection && correctionCaps && (
+            <FileCorrectionControl
+              target={{ kind: "phase", casePhaseId: phase.id }}
+              targetLabel={heading}
+              assignees={assignees}
+              caps={correctionCaps}
+              defaultCorrectorId={phase.assignedTo}
+            />
+          )}
         </div>
       )}
     </article>

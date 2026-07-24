@@ -57,9 +57,15 @@ export function groupByFixedStatus(rows: CaseBoardRow[]): CaseStatusColumn[] {
 
 type BoardPhase = CaseBoardRow["phases"][number];
 
-/** done / total progress, where "total" excludes não-necessária phases. */
+/**
+ * done / total progress, where "total" excludes settled-away phases: não-necessária
+ * AND anulada (voided — Case Correction Lifecycle, ADR 0085; it satisfies `blocks`
+ * like `not_required`, so it is not counted work either).
+ */
 export function phaseProgress(row: CaseBoardRow): { done: number; total: number } {
-  const counted = row.phases.filter((p) => p.status !== "not_required");
+  const counted = row.phases.filter(
+    (p) => p.status !== "not_required" && p.status !== "voided",
+  );
   const done = counted.filter((p) => p.status === "completed").length;
   return { done, total: counted.length };
 }
@@ -102,9 +108,17 @@ export function hasRecommendedPending(row: CaseBoardRow): boolean {
 // Phase blockers (D1/D4)
 // ---------------------------------------------------------------------------
 
-/** A blocker is SATISFIED when the blocking phase is concluída OR não necessária. */
+/**
+ * A blocker is SATISFIED when the blocking phase is concluída, não necessária, OR
+ * anulada. A voided phase (Case Correction Lifecycle, ADR 0085) satisfies `blocks`
+ * exactly like `not_required` — the downstream phase is no longer held back by it.
+ */
 function isBlockerSatisfied(status: CasePhaseStatus): boolean {
-  return status === "completed" || status === "not_required";
+  return (
+    status === "completed" ||
+    status === "not_required" ||
+    status === "voided"
+  );
 }
 
 /**

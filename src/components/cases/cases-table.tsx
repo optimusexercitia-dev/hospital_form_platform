@@ -23,6 +23,7 @@ const PHASE_DOT: Record<CasePhaseStatus, string> = {
   completed: "bg-success",
   pending: "bg-muted-foreground/35",
   not_required: "bg-muted-foreground/15",
+  voided: "bg-destructive/40",
 };
 
 const PHASE_WORD: Record<CasePhaseStatus, string> = {
@@ -30,6 +31,7 @@ const PHASE_WORD: Record<CasePhaseStatus, string> = {
   completed: "Concluída",
   pending: "Pendente",
   not_required: "Não necessária",
+  voided: "Anulada",
 };
 
 // Status sort rank = the fixed board order; every status is present.

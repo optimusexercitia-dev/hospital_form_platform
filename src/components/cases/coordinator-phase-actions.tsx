@@ -99,6 +99,10 @@ export function CoordinatorPhaseActions({
   // assign (assign_case_phases Administrativo) — e.g. a read/write grantee.
   if (!canManageLifecycle && !canAssignPhases) return null;
 
+  // A voided phase (Case Correction Lifecycle, ADR 0085) is terminal — no lifecycle
+  // controls (it satisfies `blocks` like `not_required`; redo is via an ad-hoc phase).
+  if (phase.status === "voided") return null;
+
   // Concluída: the read-only answer deep-link targets the coordinator `/manage` view,
   // so it stays coordinator-only (canManageLifecycle). Always available (even closed).
   if (phase.status === "completed") {

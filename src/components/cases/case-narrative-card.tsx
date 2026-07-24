@@ -2,12 +2,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Check, FileText, Lock, Pencil, RotateCcw, User, UserPlus, X } from "lucide-react";
+import { Check, FileText, Lock, Pencil, User, UserPlus, X } from "lucide-react";
 
 import {
   saveNarrativeBody,
   upsertNarrativeBody,
-  reopenNarrative,
   assignNarrative,
   unassignNarrative,
 } from "@/lib/case-narratives/actions";
@@ -26,6 +25,12 @@ import { FormBanner } from "@/components/auth/form-banner";
 import { NarrativeStatusPill } from "@/components/cases/narrative-status-pill";
 import { ConcludeNarrativeButton } from "@/components/cases/conclude-narrative-button";
 import { CaseNarrativeDelete } from "@/components/cases/case-narrative-delete";
+import { NarrativeCorrectionPanel } from "@/components/cases/narrative-correction-panel";
+import type { CorrectionCaps } from "@/components/cases/correction-labels";
+import type {
+  CorrectionRequest,
+  NarrativeRevision,
+} from "@/lib/queries/corrections";
 import type { AssigneeOption } from "@/components/cases/case-phase-list";
 import type { CaseNarrative } from "@/lib/queries/cases";
 import { cn } from "@/lib/utils";
@@ -153,18 +158,6 @@ export function CaseNarrativeCard({
     });
   }
 
-  function handleReopen() {
-    setError(null);
-    startTransition(async () => {
-      const result = await reopenNarrative(narrative.id);
-      if (!result.ok) {
-        setError(result.error ?? "Não foi possível reabrir. Tente novamente.");
-        return;
-      }
-      router.refresh();
-    });
-  }
-
   function handleAssign(assigneeId: string) {
     setError(null);
     startTransition(async () => {
@@ -260,19 +253,6 @@ export function CaseNarrativeCard({
             narrativeId={narrative.id}
             narrativeLabel={heading}
           />
-        )}
-        {showLifecycle && canReopen && !editing && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleReopen}
-            disabled={isPending}
-            className="shrink-0"
-          >
-            <RotateCcw aria-hidden="true" />
-            Reabrir
-          </Button>
         )}
       </div>
 

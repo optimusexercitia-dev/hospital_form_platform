@@ -25,6 +25,7 @@ const PHASE_DOT: Record<CasePhaseStatus, string> = {
   completed: "bg-success",
   pending: "bg-muted-foreground/35",
   not_required: "bg-muted-foreground/15",
+  voided: "bg-destructive/40",
 };
 
 function CaseCard({

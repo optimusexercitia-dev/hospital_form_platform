@@ -1,15 +1,17 @@
-import { CheckCircle2, PenLine } from "lucide-react";
+import { Ban, CheckCircle2, PenLine } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
 /**
  * A case narrative's lifecycle status (Case Access Control increment, ADR 0033
- * D5): `aberta` (assignable + fillable) → `concluida` (body frozen; a coordinator
- * may reopen). A stable ASCII union mirrored from the DB `case_narratives.status`
- * check. Kept here (pure, no server import) so the "Meus Casos" card, the detail
- * narrative card, and the focused editor share one source of labels + styling.
+ * D5; extended by the Case Correction Lifecycle, ADR 0085): `aberta` (assignable +
+ * fillable) → `concluida` (body frozen) → `anulada` (voided — a terminal state
+ * reached by an approved void request; the reopen door is dropped). A stable ASCII
+ * union mirrored from the DB `case_narratives.status` check. Kept here (pure, no
+ * server import) so the "Meus Casos" card, the detail narrative card, and the
+ * focused editor share one source of labels + styling.
  */
-export type NarrativeStatus = "open" | "completed";
+export type NarrativeStatus = "open" | "completed" | "voided";
 
 const STATUS_META: Record<
   NarrativeStatus,
@@ -25,11 +27,18 @@ const STATUS_META: Record<
     icon: CheckCircle2,
     className: "bg-success/12 text-success dark:bg-success/15",
   },
+  voided: {
+    label: "Anulada",
+    icon: Ban,
+    className: "bg-destructive/10 text-destructive",
+  },
 };
 
 /** Narrow an arbitrary status string to a {@link NarrativeStatus} (defaults `open`). */
 export function asNarrativeStatus(status: string): NarrativeStatus {
-  return status === "completed" ? "completed" : "open";
+  if (status === "completed") return "completed";
+  if (status === "voided") return "voided";
+  return "open";
 }
 
 /**
