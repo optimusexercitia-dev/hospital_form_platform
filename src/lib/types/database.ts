@@ -9461,6 +9461,10 @@ export type Database = {
         Args: { p_commission_id: string; p_user_id: string }
         Returns: undefined
       }
+      approve_correction: {
+        Args: { p_note?: string; p_request_id: string }
+        Returns: undefined
+      }
       approve_document: {
         Args: { p_note?: string; p_version_id: string }
         Returns: {
@@ -11436,6 +11440,17 @@ export type Database = {
           title: string
         }[]
       }
+      file_correction_request: {
+        Args: {
+          p_case_narrative_id: string
+          p_case_phase_id: string
+          p_classification: string
+          p_kind: string
+          p_permitted_corrector?: string
+          p_reason: string
+        }
+        Returns: string
+      }
       get_case_detail: { Args: { p_case_id: string }; Returns: Json }
       get_case_meeting_links: {
         Args: { p_case_id: string }
@@ -12586,6 +12601,10 @@ export type Database = {
         }
       }
       referrals_enabled: { Args: never; Returns: boolean }
+      reject_correction: {
+        Args: { p_reason: string; p_request_id: string }
+        Returns: undefined
+      }
       reject_document: {
         Args: { p_note?: string; p_version_id: string }
         Returns: {
@@ -13075,6 +13094,11 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      resubmit_correction: {
+        Args: { p_request_id: string }
+        Returns: undefined
+      }
+      review_correction: { Args: { p_request_id: string }; Returns: undefined }
       review_ethics_appeal: {
         Args: {
           p_appeal_id: string
@@ -13123,6 +13147,10 @@ export type Database = {
           p_scope_type: string
           p_user: string
         }
+        Returns: undefined
+      }
+      save_correction_draft_body: {
+        Args: { p_body_md: string; p_request_id: string }
         Returns: undefined
       }
       save_narrative_body: {
@@ -13873,6 +13901,10 @@ export type Database = {
         }
       }
       soft_delete_attachment: { Args: { p_id: string }; Returns: undefined }
+      start_correction_draft: {
+        Args: { p_request_id: string }
+        Returns: string
+      }
       start_or_resume_phase: {
         Args: { p_case_phase_id: string }
         Returns: {
@@ -15386,6 +15418,10 @@ export type Database = {
       }
       void_decision: {
         Args: { p_decision_id: string; p_reason: string }
+        Returns: undefined
+      }
+      withdraw_correction: {
+        Args: { p_request_id: string }
         Returns: undefined
       }
       withdraw_referral: {
