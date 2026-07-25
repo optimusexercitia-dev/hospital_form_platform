@@ -17,11 +17,15 @@
 --      single-counted.
 --   K5 chain-tip rule: a successor pointing at the now-superseded root is rejected.
 --   K6 the answer_map completed-filter: a voided (non-completed) phase → empty map.
+--   K7 the option_aggregates completed-filter (INFO-1): the SAME voided phase →
+--      zero aggregates, so the two readers resolve the pointer identically.
+--      Mutation-proof — revert the `status='completed'` guard and both go RED (the
+--      pointer still resolves the successor's score 5 / flagged 1).
 --
--- Assertion count: 14
+-- Assertion count: 16
 
 begin;
-select plan(14);
+select plan(16);
 
 update app.feature_flags set enabled = true
   where key in ('cases_multi_phase', 'cases_extras');
@@ -283,6 +287,23 @@ select is(
   app.case_phase_answer_map((select phase_id from t)),
   '{}'::jsonb,
   'K6: case_phase_answer_map on a voided (non-completed) phase is empty');
+
+-- ---------------------------------------------------------------------------
+-- K7 · the option_aggregates completed-filter (INFO-1) — the SAME voided phase
+--      yields zero aggregates, mirroring K6 so both readers resolve the pointer
+--      identically. The phase pointer is still the K2 successor (score 5, flagged
+--      1); before the guard, option_aggregates resolved current_response_id with
+--      no status filter and would report that stale 5 / 1. Drop `and cp.status =
+--      'completed'` from app.case_phase_option_aggregates and BOTH assertions go RED.
+-- ---------------------------------------------------------------------------
+select is(
+  (select total_score from app.case_phase_option_aggregates((select phase_id from t))),
+  0::numeric,
+  'K7: case_phase_option_aggregates on a voided phase → total_score 0 (not the stale 5)');
+select is(
+  (select flagged_options from app.case_phase_option_aggregates((select phase_id from t))),
+  0,
+  'K7: case_phase_option_aggregates on a voided phase → flagged_options 0 (not the stale 1)');
 
 select * from finish();
 rollback;

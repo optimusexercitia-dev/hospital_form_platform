@@ -1128,7 +1128,11 @@ Migrations `20260713000500…001000` (on remote). New backend surface:
   the existing `__phase_result__` reserved-key precedent). `app.validate_template_result_ruleset` whitelists
   the two keys (mirrors `__phase_result__`) and skips option-code assertion for their **numeric** values;
   unknown reserved keys still throw HC016. Client keys: `TOTAL_SCORE_KEY`/`FLAGGED_COUNT_KEY`
-  (`src/lib/queries/conditions.ts`).
+  (`src/lib/queries/conditions.ts`). The aggregate source `app.case_phase_option_aggregates`
+  resolves the phase's `current_response_id` **completed-only**, mirroring `case_phase_answer_map`
+  — a voided / non-completed phase → **zero aggregates**, keeping `compute`'s two inputs consistent
+  (QA INFO-1 parity, migration `…000200`; sole caller `compute_case_phase_result` only ever runs on a
+  completed phase, so this is defensive/future-proofing, not a live behavior change).
 - **"Others" open option** — reserved option `code='__other__'` (`form_item_options.is_other`),
   reconciled like a normal option; `answers.other_text` holds the free text. `save_section_answers` gains
   `p_other_text jsonb` (item→text map). Submit validation honors per-item `config.minLength/maxLength`.
