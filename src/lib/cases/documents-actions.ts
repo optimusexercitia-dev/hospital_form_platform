@@ -313,12 +313,21 @@ export async function createCaseEvent(
     return { ok: false, error: MESSAGES.forbidden }
   }
 
+  // ETH·E3a (FE-C): per-event visibility. Default 'case_readers' (today's behavior);
+  // 'coordinator_only' is a NARROWING. The coordinator gate is enforced in the DB
+  // (case_events_writer_write WITH CHECK requires staff_admin/commission_admin for
+  // coordinator_only) — the FE only offers the toggle to coordinators; an invalid/absent
+  // value clamps to 'case_readers' here.
+  const visibilityRaw = String(formData.get('visibility') ?? 'case_readers')
+  const visibility = visibilityRaw === 'coordinator_only' ? 'coordinator_only' : 'case_readers'
+
   const context = await getSessionContext()
   const { error } = await supabase.from('case_events').insert({
     case_id: caseId,
     kind,
     title: title || null,
     body,
+    visibility,
     occurred_at: occurredAt ?? null,
     occurred_time: occurredTime ?? null,
     created_by: context?.userId ?? null,

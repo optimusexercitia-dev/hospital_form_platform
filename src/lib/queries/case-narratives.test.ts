@@ -83,6 +83,7 @@ function detail(
 ): CaseDetail {
   return {
     terminology: DEFAULT_CASE_TERMINOLOGY,
+    primarySubjectKind: 'patient',
     case: {
       id: 'case-1',
       commissionId: 'comm-1',

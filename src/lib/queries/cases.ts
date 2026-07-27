@@ -17,12 +17,11 @@ import type {
   CustomFieldOption,
   CustomFieldType,
 } from '@/lib/queries/process-templates'
-import {
-  DEFAULT_CASE_TERMINOLOGY,
-  type CaseTypeTerminology,
-} from '@/lib/queries/case-types'
+import type { CaseTypeTerminology } from '@/lib/cases/terminology'
+import { getCaseTypeTerminology } from '@/lib/queries/case-types'
 
-export type { CaseTypeTerminology } from '@/lib/queries/case-types'
+export type { CaseTypeTerminology } from '@/lib/cases/terminology'
+export { getCaseTypeTerminology } from '@/lib/queries/case-types'
 export type { ResolvedPhaseResult } from '@/lib/queries/phase-results'
 export type {
   CustomFieldDef,
@@ -70,6 +69,9 @@ export type CasePhaseStatus =
   | 'voided'
 
 /** A case header (no phases). */
+/** `case_types.primary_subject_kind` (ADR 0064 D4). */
+export type PrimarySubjectKind = 'patient' | 'professional' | 'entity' | 'none'
+
 export interface Case {
   id: string
   commissionId: string
@@ -353,13 +355,19 @@ export interface CaseBoardRow {
 export interface CaseDetail {
   case: Case
   /**
-   * Resolved UI-label bundle for this case's type (ADR 0064 D4; O-1). Falls back to
-   * {@link DEFAULT_CASE_TERMINOLOGY} (today's hardcoded pt-BR labels) for a type-less
-   * case, so every existing case renders byte-for-byte unchanged. BE-5 resolves it
-   * from `case_type_terminology`; this read returns the default bundle for now.
-   * (`caseTypeId` itself lives on the nested {@link case}, not duplicated here.)
+   * Resolved UI-label bundle for this case's type (ADR 0064 D4; O-1), merged over the
+   * platform defaults per `term_key` — so a type-less case renders today's labels
+   * byte-for-byte. Resolved from `case_type_terminology` via
+   * {@link getCaseTypeTerminology}. (`caseTypeId` itself lives on the nested {@link case}.)
    */
   terminology: CaseTypeTerminology
+  /**
+   * The case type's `primary_subject_kind` (ADR 0064 D4), or `'patient'` for a type-less
+   * case (today's patient-centric framing). Defense-in-depth for the FE patient-panel
+   * omit: a non-`'patient'` kind (e.g. an Ethics case → `'professional'`) means the
+   * patient panel does not apply. Read RLS-scoped from `case_types` alongside the envelope.
+   */
+  primarySubjectKind: PrimarySubjectKind
   /**
    * The case's assigned outcome resolved for display (label/flags + the advisory
    * `requiresActionPlan` / `isAdverse` markers, D10), or `null` if none assigned.
@@ -1051,6 +1059,25 @@ async function fetchBoardCustomFields(
   return byCase
 }
 
+/** ETH·E3a — each board case's `case_type_id`, one batched RLS-scoped read (id → typeId). */
+async function fetchBoardCaseTypes(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  caseIds: string[],
+): Promise<Map<string, string | null>> {
+  const byCase = new Map<string, string | null>()
+  if (caseIds.length === 0) return byCase
+
+  const { data, error } = await supabase
+    .from('cases')
+    .select('id, case_type_id')
+    .in('id', caseIds)
+    .returns<{ id: string; case_type_id: string | null }[]>()
+
+  if (error || !data) return byCase
+  for (const row of data) byCase.set(row.id, row.case_type_id ?? null)
+  return byCase
+}
+
 /**
  * All custom-field values of one case (`case_custom_field_values`; ADR 0083),
  * ordered by `position`, for the case-detail header cluster. RLS-scoped via
@@ -1096,6 +1123,12 @@ export async function listCasesBoard(
   const caseIds = (data as unknown as BoardRowJson[]).map((r) => r.case_id)
   const customFieldsByCase = await fetchBoardCustomFields(supabase, caseIds)
 
+  // ETH·E3a (O-1): project each board case's `case_type_id` in ONE batched RLS-scoped
+  // read (the board RPC's TABLE signature doesn't carry it; a batched select avoids a
+  // drop/recreate). Board heading stays default per FE's decision — this only carries the
+  // id per row. A case the caller can't read via cases-RLS simply maps to null.
+  const caseTypeByCase = await fetchBoardCaseTypes(supabase, caseIds)
+
   const rows = (data as unknown as BoardRowJson[]).map((r) => ({
     case: {
       id: r.case_id,
@@ -1103,7 +1136,7 @@ export async function listCasesBoard(
       // The board row does not echo templateId (not needed for the board);
       // detail carries it.
       templateId: null,
-      caseTypeId: null, // BE-5 projects it; board render is terminology-agnostic per-card
+      caseTypeId: caseTypeByCase.get(r.case_id) ?? null,
       caseNumber: r.case_number,
       label: r.label,
       status: r.status,
@@ -1218,13 +1251,20 @@ async function getCaseDetailUncached(
   // columns on `cases`, RLS-scoped like the department, so the envelope RPC stays
   // untouched. Flag-OFF cases carry the today-defaults (commission_default /
   // non_phi_internal), so this is a no-op until the m2 gate opens.
+  // Also read `case_type_id` (ETH·E3a; O-1) + the type's `primary_subject_kind` via the
+  // cases→case_types FK embed (unambiguous — the single FK). RLS-scoped; a type-less case
+  // yields null → default terminology + a 'patient' subject kind (today's framing).
   const { data: deptRow } = await supabase
     .from('cases')
     .select(
-      'department_id, department_other, visibility_policy, confidentiality_level',
+      'department_id, department_other, visibility_policy, confidentiality_level, case_type_id, case_types ( primary_subject_kind )',
     )
     .eq('id', caseId)
     .maybeSingle()
+  const caseTypeId: string | null = deptRow?.case_type_id ?? null
+  const primarySubjectKind: PrimarySubjectKind =
+    (deptRow?.case_types?.primary_subject_kind as PrimarySubjectKind | undefined) ?? 'patient'
+  const terminology = await getCaseTypeTerminology(caseTypeId)
   let departmentName: string | null = deptRow?.department_other ?? null
   if (deptRow?.department_id) {
     const { data: dept } = await supabase
@@ -1312,14 +1352,13 @@ async function getCaseDetailUncached(
   }
 
   return {
-    // BE-5 resolves this from `case_type_terminology(case.caseTypeId)`; the default
-    // bundle keeps every type-less case rendering today's labels byte-for-byte.
-    terminology: DEFAULT_CASE_TERMINOLOGY,
+    terminology,
+    primarySubjectKind,
     case: {
       id: env.id,
       commissionId: env.commission_id,
       templateId: env.template_id,
-      caseTypeId: null, // BE-5 projects `cases.case_type_id` (column lands BE-2)
+      caseTypeId,
       caseNumber: env.case_number,
       label: env.label,
       status: env.status,

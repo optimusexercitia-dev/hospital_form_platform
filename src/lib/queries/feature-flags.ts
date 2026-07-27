@@ -43,6 +43,9 @@ export interface FeatureFlags {
   // + case-type config. Flipped ON at E1 (BE-8) once respondent-exclusion RLS landed.
   case_participants: boolean
   case_types: boolean
+  // ETH·E2 (ADR 0073): the ethics procedure engine (allegations/findings/votes/decisions/
+  // hearings/appeals + auto-derived timeline). Seeded ON local/E2E; remote OFF till pilot.
+  ethics: boolean
   // S4·CH (ADR 0080): committee charters + meeting cadence. Seeded OFF in the CH-BE-2
   // migration; flipped ON at the CH gate; `seed.sql` forces ON for local/E2E.
   charters: boolean
