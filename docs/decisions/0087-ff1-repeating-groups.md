@@ -156,8 +156,8 @@ affordance and nothing more. It also sharpens rulings 1 and 2 — the depth cap 
    independent of `form_items_input_vs_display` and unmentioned in the plan. Drives ruling 4.
 4. **`form_items.section_id` is NOT NULL for group children.** They already sit in
    `app.response_required_complete`'s section-level scan, inert only because the CHECK forces
-   `required = false`. The dispatch-by-`item_type` refactor **must** exclude
-   `parent_item_id IS NOT NULL` from the flat arm, or relaxing the group arm double-counts.
+   `required = false`. The dispatch-by-`item_type` refactor must therefore scope the flat arm —
+   see Amendment 1 for the correct predicate.
 5. **`app.answer_map` collides across instances.** It aggregates by `question_key` alone;
    `jsonb_object_agg` silently last-wins for scalars, and the `group by question_key` CTEs merge
    checkbox codes from different instances into one array. This is the concrete defect ruling 2's
@@ -176,7 +176,41 @@ Also confirmed, and *not* work FF-1 needs: both partial unique indexes already e
 comparison keeps working, but children must sit **contiguously immediately after their parent** in
 that flat space; FF-1 enforces this. `app.is_valid_condition` admits only 7 operators
 (`equals, not_equals, in, gt, gte, lt, lte`) — the 4 F3 operators stay unauthorable until FF-3, as
-planned. SQLSTATE high-water is **HC098**; FF-1 allocates **HC099+**.
+planned. SQLSTATE high-water — see Amendment 1.
+
+## Amendment 1 (2026-07-27, same day) — three corrections found at plan review
+
+Recorded rather than silently edited, because this ADR was already committed and referenced.
+
+1. **SQLSTATE allocation was wrong.** This ADR said high-water `HC098` → allocate `HC099+`.
+   The live high-water is **`HC0M9`**: the `HC09x` digit lane was exhausted and the convention moved
+   to letter lanes `HC0A0…HC0M9` (`L` skipped). `HC099` is unused but *below* the water line and
+   off-convention. **FF-1 allocates `HC0N0`+.** Root cause worth keeping: the phase-start probe used
+   the regex `HC([0-9]{3})`, which was **structurally incapable** of matching a letter-lane code —
+   it could only ever have confirmed the answer it found. `docs/backend-state.md` records `HC098`
+   for the same reason and should be corrected at the Record step.
+2. **Substrate correction 4's predicate was too broad.** Ruling 6 makes a plain `group`'s children
+   *top-level*, so excluding all of `parent_item_id IS NOT NULL` from the flat completeness arm
+   would stop enforcing `required` on plain-`group` children entirely — a silent under-enforcement
+   no keystone in §Gate would have caught. The correct predicate is **"has no `repeating_group`
+   ancestor"**, which under the depth-1 cap (ruling 1) is
+   `parent_item_id IS NULL OR parent.item_type = 'group'`. Gate gains
+   `plain_group_child_required_blocks`.
+3. **Two latent bugs FF-1 activates**, absent from the original text. `start_correction_draft` and
+   `supersede_response` copy `answers.group_instance_id` **verbatim** from the predecessor and never
+   copy `response_group_instances` — so a corrected response's answers would point at the
+   predecessor's instances, which are frozen by `guard_submitted_group_instances_trg` and
+   cascade-deleted with the predecessor. Inert today (zero instance rows), phase-blocking the moment
+   the instance RPCs ship. Separately, `app.assert_item_bounds` selects by `(response_id, item_id)`
+   unscoped, so with instances it bounds-checks one arbitrary instance. Both are FF-1's to fix;
+   Gate gains `correction_copies_group_instances`.
+
+Also confirmed at plan review: `response_group_instances`'s column is **`group_item_id`** (the
+ARCHITECTURE.md §2 line naming it `item_id` is stale) · `form_items_section_id_position_key` is
+already **DEFERRABLE**, the precedent FF-1 reuses for collision-free reorder ·
+`submit_response` **inlines its own completeness check** rather than calling
+`app.response_required_complete`, so the two authorities must be refactored together and their
+agreement is itself a keystone.
 
 ## Gate keystones (all mutation-proven — revert the guard, the keystone must go red)
 
@@ -193,6 +227,12 @@ planned. SQLSTATE high-water is **HC098**; FF-1 allocates **HC099+**.
   (the branch ruling 4 un-deadens), at top level **and** per-instance.
 - `group_instances_post_submit_immutable` + `group_instances_cross_user_denied` — replacing the
   not-applicable `reader_non_writer` keystone.
+- `plain_group_child_required_blocks` — a required child of a *plain* `group` still blocks
+  (guards Amendment 1.2's under-enforcement).
+- `correction_copies_group_instances` — a correction draft gets its **own** instance rows, with the
+  copied answers remapped to them (guards Amendment 1.3).
+- `completeness_authorities_agree` — `submit_response`'s inlined check and
+  `app.response_required_complete` reach the same verdict; they are separate implementations today.
 - `supersession_group_answers_excluded` — the explode read predicate is supersession-tolerant.
 - E2E: wizard instance add/remove/reorder → resume → submit → explode aggregation, plus one
   keyboard-only pass over the instance controls.
