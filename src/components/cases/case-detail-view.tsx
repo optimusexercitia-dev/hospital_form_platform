@@ -313,8 +313,18 @@ export function CaseDetailView({
   // wraps the `get_case_patient` RPC (emits `case_patient.read`, returns null for an
   // unentitled reader); `setCasePatient` is the coordinator-only upsert. `.bind`
   // yields no-/single-arg server references safe to hand the client panel, so the
-  // audited read fires only when a reader clicks "Exibir identificação". Rendered
-  // only when this case COLLECTS patient identifiers and the flag is on.
+  // audited read fires only when a reader clicks "Exibir identificação".
+  //
+  // Rendered only when this case COLLECTS patient identifiers (`patientEnabled`) and
+  // the flag is on. ETH·E3a (ADR 0064 D4): this panel is patient-SUBJECT framing, so
+  // it must be ABSENT for a professional-subject case type (Ethics —
+  // `primary_subject_kind = 'professional'`, whose subject detail lives in the
+  // "Processo ético" tab, not this rail). `patientEnabled` is the canonical
+  // patient-subject signal here — it is snapshotted at creation and is `false` for a
+  // professional-subject case type, so the panel is already omitted for an ethics
+  // case. (The frozen contract does not project `primary_subject_kind` onto
+  // `CaseDetail`; `patientEnabled` is the available, equivalent guard. `terminology`
+  // is available on `detail.terminology` should later copy need per-type wording.)
   const showPatientPanel = casePatientEnabled && c.patientEnabled;
   const revealPatient = revealCasePatient.bind(null, c.id);
   const savePatient = setCasePatient.bind(null, c.id);
@@ -521,6 +531,9 @@ export function CaseDetailView({
                 caseId={c.id}
                 events={events}
                 canWrite={caps.canWriteContent}
+                // ETH·E3a: only a coordinator may set a record's visibility to
+                // "coordinator_only"; a plain write-grantee's form omits the field.
+                canSetVisibility={caps.canManageLifecycle}
               />
             </div>
           </div>

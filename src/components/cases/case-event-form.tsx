@@ -40,6 +40,7 @@ export function CaseEventForm({
   onOpenChange,
   caseId,
   event,
+  canSetVisibility = false,
 }: {
   mode: "create" | "edit";
   open: boolean;
@@ -47,6 +48,13 @@ export function CaseEventForm({
   caseId: string;
   /** Required for `edit`; ignored for `create`. */
   event?: CaseEvent;
+  /**
+   * Whether the viewer (a coordinator) may set the record's visibility (ETH·E3a).
+   * When `false`, the field is omitted and the record keeps the default
+   * `case_readers` visibility (server-side default) — a non-coordinator never sets
+   * `coordinator_only`.
+   */
+  canSetVisibility?: boolean;
 }) {
   const action = mode === "create" ? createCaseEvent : updateCaseEvent;
   const [state, formAction, isPending] = useActionState<
@@ -100,6 +108,30 @@ export function CaseEventForm({
               ))}
             </NativeSelect>
           </label>
+
+          {/* ETH·E3a: a coordinator may narrow a record to "coordinator_only" — an
+              ADDITIONAL restriction on top of `can_read_case` (never a widening). A
+              non-coordinator's form omits this field entirely; the record then keeps
+              the server-side default `case_readers` (today's behavior). */}
+          {canSetVisibility && (
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="font-medium">Visibilidade</span>
+              <NativeSelect
+                name="visibility"
+                className="py-2"
+                defaultValue={event?.visibility ?? "case_readers"}
+              >
+                <option value="case_readers">
+                  Todos os leitores do caso
+                </option>
+                <option value="coordinator_only">Somente coordenação</option>
+              </NativeSelect>
+              <span className="text-xs text-muted-foreground text-pretty">
+                &quot;Somente coordenação&quot; restringe este registro à coordenação
+                da comissão, além das regras de acesso do caso.
+              </span>
+            </label>
+          )}
 
           <label className="flex flex-col gap-1.5 text-sm">
             <span className="font-medium">

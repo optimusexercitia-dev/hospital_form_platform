@@ -261,7 +261,16 @@ export default async function CaseDetailLayout({
           )}
         </div>
 
-        <CaseTabs org={org} slug={slug} caseId={caseId} showEthics={showEthics} />
+        {/* ETH·E3a (ADR 0064 D4): the timeline tab uses this case type's terminology
+            ("Cronologia processual" for an ethics case), falling back to the platform
+            default "Linha do tempo" for a type-less case. */}
+        <CaseTabs
+          org={org}
+          slug={slug}
+          caseId={caseId}
+          showEthics={showEthics}
+          timelineLabel={detail.terminology.timeline.singular}
+        />
       </header>
 
       {children}

@@ -20,23 +20,30 @@ import { cn } from "@/lib/utils";
  * `showEthics` adds a "Processo ético" tab (ETH·E2; ADR 0073) — surfaced only when
  * the case is ethics-typed (the layout resolves it via `getEthicsCaseProcedure`),
  * so a non-ethics case never sees it.
+ *
+ * `timelineLabel` is the case-type terminology for the timeline tab (ETH·E3a; ADR
+ * 0064 D4) — e.g. "Cronologia processual" for an ethics case. The layout resolves
+ * it from `caseDetail.terminology.timeline.singular`; it falls back to the platform
+ * default "Linha do tempo" for a type-less case (byte-for-byte today's label).
  */
 export function CaseTabs({
   org,
   slug,
   caseId,
   showEthics = false,
+  timelineLabel = "Linha do tempo",
 }: {
   org: string;
   slug: string;
   caseId: string;
   showEthics?: boolean;
+  timelineLabel?: string;
 }) {
   const pathname = usePathname();
   const base = commissionHref(org, slug, "manage", "cases", caseId);
   const tabs = [
     { href: base, label: "Detalhes" },
-    { href: `${base}/timeline`, label: "Linha do tempo" },
+    { href: `${base}/timeline`, label: timelineLabel },
     ...(showEthics ? [{ href: `${base}/etica`, label: "Processo ético" }] : []),
   ];
 

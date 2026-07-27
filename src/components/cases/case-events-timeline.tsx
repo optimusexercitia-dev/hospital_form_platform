@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, MessageSquarePlus, Pencil } from "lucide-react";
+import { CalendarDays, Lock, MessageSquarePlus, Pencil } from "lucide-react";
 
 import type { CaseEvent } from "@/lib/queries/case-documents";
 import { deleteCaseEvent } from "@/lib/cases/documents-actions";
@@ -22,6 +22,7 @@ export function CaseEventsTimeline({
   caseId,
   events,
   canWrite = true,
+  canSetVisibility = false,
 }: {
   caseId: string;
   events: CaseEvent[];
@@ -30,6 +31,13 @@ export function CaseEventsTimeline({
    * 0033). Default `true`; a read-only viewer sees the notes without affordances.
    */
   canWrite?: boolean;
+  /**
+   * Whether the viewer is a coordinator (`canManageLifecycle`) and so may set a
+   * record's visibility to "coordinator_only" (ETH·E3a). Default `false` — a
+   * non-coordinator writer's form omits the field and the record stays the default
+   * `case_readers` visibility (server-side default).
+   */
+  canSetVisibility?: boolean;
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<CaseEvent | null>(null);
@@ -82,6 +90,15 @@ export function CaseEventsTimeline({
                   <span className="rounded-full bg-secondary px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-secondary-foreground uppercase">
                     {EVENT_KIND_LABEL[ev.kind]}
                   </span>
+                  {/* ETH·E3a: an informational "coordinator only" marker. RLS never
+                      delivers a coordinator_only row to a non-coordinator, so the badge
+                      is a visibility cue for coordinators, not a second gate. */}
+                  {ev.visibility === "coordinator_only" && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[0.65rem] font-medium tracking-wide text-warning uppercase">
+                      <Lock aria-hidden="true" className="size-3" />
+                      Somente coordenação
+                    </span>
+                  )}
                   {ev.title && (
                     <span className="text-sm font-medium text-foreground">
                       {ev.title}
@@ -130,6 +147,7 @@ export function CaseEventsTimeline({
           open={addOpen}
           onOpenChange={setAddOpen}
           caseId={caseId}
+          canSetVisibility={canSetVisibility}
         />
       )}
       {canWrite && editing && (
@@ -139,6 +157,7 @@ export function CaseEventsTimeline({
           onOpenChange={(o) => !o && setEditing(null)}
           caseId={caseId}
           event={editing}
+          canSetVisibility={canSetVisibility}
         />
       )}
     </section>

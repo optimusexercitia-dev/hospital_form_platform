@@ -6,7 +6,7 @@
 
 import type {
   CaseDocumentType,
-  CaseEventKind,
+  AnyCaseEventKind,
 } from "@/lib/queries/case-documents";
 import type { ActionItemStatus } from "@/lib/queries/case-action-items";
 
@@ -18,12 +18,31 @@ export const DOC_TYPE_LABEL: Record<CaseDocumentType, string> = {
   other: "Outro",
 };
 
-/** Manual event kinds (R1). */
-export const EVENT_KIND_LABEL: Record<CaseEventKind, string> = {
+/**
+ * Every case-event kind the DB `case_events_kind_check` allows (R1 + ETH·E3a).
+ * Exhaustive over {@link AnyCaseEventKind}, so the timeline can label an
+ * auto-derived procedural event once BE-5 widens `CaseEvent.kind`. The manual
+ * create-select (`case-event-form.tsx`) still offers only the four manual kinds;
+ * the rest are system-emitted and read-only.
+ */
+export const EVENT_KIND_LABEL: Record<AnyCaseEventKind, string> = {
+  // Manually authored via CaseEventForm.
   note: "Nota",
   meeting: "Reunião",
   decision: "Decisão",
   other: "Outro",
+  // System "registry echo" kinds (deduped off the timeline; labeled for completeness).
+  interview: "Entrevista",
+  safety_event: "Evento de segurança",
+  // Ethics procedural kinds (E3a) — auto-derived by the E2 procedure RPCs.
+  admissibility_decided: "Admissibilidade decidida",
+  allegation_added: "Alegação registrada",
+  finding_recorded: "Parecer registrado",
+  notification_issued: "Notificação emitida",
+  hearing_scheduled: "Audiência agendada",
+  vote_cast: "Voto registrado",
+  decision_issued: "Decisão emitida",
+  appeal_submitted: "Recurso interposto",
 };
 
 /** Action-item lifecycle statuses (R4). */

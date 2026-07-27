@@ -184,6 +184,14 @@ export default async function CasesBoardPage({
           <p className="text-sm font-medium tracking-[0.16em] text-primary uppercase">
             {access.commission.name}
           </p>
+          {/* ETH·E3a terminology (ADR 0064 D4): the board heading stays the platform
+              default "Casos". A commission's board is inherently MIXED-TYPE (an ethics
+              "Denúncia" and a generic "Caso" coexist in the same commission), so there
+              is no single unambiguous case-terminology for the whole board — and the
+              frozen contract exposes no per-commission terminology bundle (only the
+              per-`caseTypeId` `getCaseTypeTerminology`). Per-card labels are
+              type-agnostic (`caseNumber`/`label`), so they are unaffected. Per-type
+              wording surfaces on the case DETAIL, which resolves its own bundle. */}
           <h1 className="text-3xl text-balance">Casos</h1>
           <p className="max-w-prose text-muted-foreground text-pretty">
             Acompanhe as avaliações multifásicas em andamento e o progresso de cada
