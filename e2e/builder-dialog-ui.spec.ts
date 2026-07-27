@@ -225,9 +225,17 @@ test('AC-4: the "Adicionar bloco" menu stays inside the viewport (no clip)', asy
   const menu = page.locator('[data-slot="dropdown-menu-content"]').first()
   await expect(menu).toBeVisible({ timeout: 5_000 })
 
-  // Anti-clip mechanism present: the dropdown content carries `overflow-y-auto`
-  // + the `max-h-[--radix-…-available-height]` cap (Radix `collisionPadding`), so
-  // it never renders items past the viewport bottom — it scrolls internally.
+  // Anti-clip mechanism present: the dropdown content scrolls internally and is
+  // capped to the height Radix reports as available, so it never renders items
+  // past the viewport bottom.
+  //
+  // Deliberately NO utility-class literal in this comment. Tailwind v4 scans
+  // `e2e/` as source, COMMENTS INCLUDED, so naming a class here mints a real
+  // selector into the production bundle — and the one that used to be written
+  // here was the DEAD Tailwind-3.4 bare-`[--var]` form, so it shipped ~90 bytes
+  // of invalid CSS and read to a grep like an unfixed site (BUG-FF2-003).
+  // Asserting the COMPUTED style below is the honest check regardless: that bug
+  // was precisely a class present in the markup that emitted nothing.
   const overflowY = await menu.evaluate((el) => getComputedStyle(el).overflowY)
   expect(['auto', 'scroll']).toContain(overflowY)
 

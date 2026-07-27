@@ -159,6 +159,30 @@ two matrix tables (the inherited P0-1 obligation below). Full keystone table →
 on `main` at `b656ad4`; `registered == files == 200`, no drift. The `20260830000000+` window and
 the file-contention note (`feature-flags.ts`, `seed.sql`, `database.ts`) still stand.
 
+#### 🔵 PO rulings 2026-07-27 (post-E2E) — three decisions, all binding on the gate
+
+1. **FUP-FF2-1 AND FUP-FF2-2 are both pulled IN, before the gate.** FF-2 does not gate while two
+   pieces of its own ADR 0089 scope are unbuilt. Rationale accepted: without FUP-FF2-2 a filled
+   matrix is **write-only** — grids that appear in no dashboard, on a platform whose stated purpose
+   (CLAUDE.md §1) is that statistics come from dashboards — and its absence is also why
+   `supersession_matrix_excluded` has no keystone and the plan's "author → fill → dashboard golden"
+   E2E cannot be written. FUP-FF2-1 is smaller but sharper: a signer reviewing a section containing
+   a matrix currently sees every other answer and an **empty grid**, then signs. Both move from the
+   follow-up table into FF-2's build scope. Ownership: `backend` (`dashboard.ts`, `signoffs.ts` +
+   the RPC payload), `frontend` (the sign-off view + the (row, col) picker UX).
+2. **BUG-FF2-004 — fix `slugifyLabel` now** (`src/lib/forms/option-code.ts`, backend-owned):
+   NFD-normalize and strip combining marks so `Higienização das mãos` mints
+   `higienizacao_das_maos`, not `higienizac_a_o_das_ma_os`. Changes minted keys **platform-wide
+   going forward** for every item type, not just FF-2 axis codes. Ruled in because we are pre-pilot
+   with no live users, existing codes are immutable and untouched, and the repo's standing position
+   is to design correctly now rather than carry back-compat ([[prelaunch-db-reset-ok]] reasoning).
+3. **A `-\[--` guard joins the lint gate.** The Tailwind-v4 dead-class bug class (BUG-FF2-003) was
+   invisible to tsc, lint, unit tests, `next build` **and** code review, surfacing only as an
+   unreachable feature; nine sibling sites were silently dead motion tokens nobody would ever have
+   reported. The pattern is *always* wrong under v4, so the guard has no false-positive surface.
+   Lead-owned (lint config), and it lands **after** `tester` rewords the phantom-minting comment at
+   `e2e/builder-dialog-ui.spec.ts:229` — otherwise the guard fails on that comment.
+
 **Two things worth doing before or during FF-2** (both from FF-1's QA, neither blocking):
 **INFO-4** — the SQL↔TS parity vectors have **no drift detector**, and FF-3 adds a *second*
 evaluator pair; a real detector is cheapest now. **MINOR-1/2/3** — three pgTAP corrections that
@@ -514,7 +538,40 @@ FF-1's five (BUG-FF1-001…005 — three blockers, one critical, one blocker; al
 re-verified) are recorded with full repro/fix detail in
 [ff-1-repeating-groups.md](docs/progress/ff-1-repeating-groups.md).
 
-#### 🔴 BUG-FF2-003 — the "Adicionar bloco" menu overflows the viewport with **no scroll**, so both new Matrix types are UNREACHABLE at 1280×720 · P1 · owner `frontend` · OPEN
+#### ✅ BUG-FF2-003 — the "Adicionar bloco" menu overflows the viewport with **no scroll**, so both new Matrix types are UNREACHABLE at 1280×720 · P1 · owner `frontend` · **CLOSED 2026-07-27, re-verified by `tester`**
+
+> **Fix `98176d5` (cap) + `9d103d1` (nine-site sweep). Re-verified — the root cause was not what
+> the symptom suggested.** The cap class was **present in the markup and silently dead**: Tailwind
+> **3.4**'s bare `[--var]` shorthand (auto-wrapped in `var()`) was **removed in v4**, so the utility
+> emitted a `max-height` whose value was the property *name*, which the CSS parser dropped —
+> leaving `max-height: none`. The measurement below was right; the declaration never did anything.
+>
+> **`tester` verification, independent of `frontend`'s:** (a) the **built production CSS bundle**
+> now carries `max-height:var(--radix-dropdown-menu-content-available-height)` with **zero**
+> remaining bare `prop:--radix…` declarations; (b) at 1280×720 the cap resolves to a px value, the
+> menu box ends within the window, `scrollHeight > clientHeight` so it genuinely scrolls, and every
+> one of the 14 items is brought into view when focused; (c) `ff1-repeating-groups.spec.ts` is
+> **9/9** — FF1-2 went **3.3 min timeout → 6.3 s**, FF1-7 **3.7 min → 7.1 s**, the file **8.2 min →
+> 57 s**.
+>
+> **Guarded so it cannot return silently: `e2e/ff2-matrix.spec.ts` FF2-11**, which asserts the
+> **computed** `max-height`, the geometry at 1280×720, real internal scrolling, and
+> focus-brings-into-view across all 14 items — then opens a Matrix item by mouse.
+> **Mutation-proven:** neutralising the declaration in the built CSS bundle turns FF2-11 red
+> (`max-height nunca resolveu para um valor`); bundle restored byte-for-byte, green again.
+> `e2e/builder-dialog-ui.spec.ts` did **not** catch this and now says why: it asserted
+> `overflow-y` (genuinely present — and inert without a cap) plus last-item clickability at a tall
+> viewport where the menu happened to fit. **Asserting a class is present is not asserting it
+> works** — this bug's whole shape was a correct-looking class emitting nothing.
+>
+> ⚠ **Lesson recorded for `qa` and for FF-3+: Tailwind v4 scans `e2e/` as source, comments
+> included.** A utility class named in a comment mints a real selector into the production bundle —
+> the old comment at `e2e/builder-dialog-ui.spec.ts:229` was shipping ~90 bytes of dead
+> `max-h-[--radix-…]` CSS and would read to a grep as an unfixed site. Both that comment and
+> `frontend`'s fix comment are now prose with no code sample. **No utility-class literal belongs in
+> a comment anywhere under `src/` or `e2e/`.**
+
+*Original report, kept for the record:*
 
 **Filed by `tester` 2026-07-27** (FF-2 test pass). Found by triaging two FF-1 specs that turned red
 under FF-2, not by a spec that was looking for it.
@@ -586,7 +643,18 @@ gate runs with their triage) are recorded in
 | 2026-07-27 | **Mutation proof — `app.instance_is_empty`** (ADR 0089 §A, a bold must-mutation-prove keystone) | **RED as required**, then restored | Both matrix arms removed on the live DB → **FF2-6 fails** (submit blocked: both instances pruned, minInstances unmet). Original captured with `pg_get_functiondef` beforehand and restored **byte-for-byte** (`diff` clean). |
 | 2026-07-27 | **Mutation proof — `app.item_required_satisfied`** (ruling 3 row-complete weakened to "any cell") | **Exposed a VACUOUS assertion in the spec**, then RED after the fix, then restored | FF2-3 originally called `submit_response` right after a UI-only partial fill — which never flushes, so it was proving "an EMPTY grid is refused" (true under BOTH readings) and **stayed GREEN under the mutation**. Rewritten to persist 2-of-3 rows through `save_section_answers` and assert their presence first; it then fails loudly (`aceitou uma matriz obrigatória com 2 de 3 linhas`). Predicate restored byte-for-byte. |
 | 2026-07-27 | **Neighbour regression** — `ff1-repeating-groups.spec.ts` + `phase5-wizard.spec.ts` | **19 / 21** — `phase5-wizard` 12/12; FF1-2 + FF1-7 RED | → **BUG-FF2-003** (the add-block menu overflow). Flag-toggled three times to prove causation, not assumed. |
-| 2026-07-27 | FF-2 full-file run **immediately after** a live `CREATE OR REPLACE` restore of two `app.*` functions | 5 / 8, FF2-6/7/8 red (visibility timeouts, no value mismatches) | **Unexplained single occurrence.** The next **three** runs were 8/8 with no code or DB change. Recorded rather than dismissed; worth watching in the full gate. |
+| 2026-07-27 | FF-2 full-file run **immediately after** a live `CREATE OR REPLACE` restore of two `app.*` functions | 5 / 8, FF2-6/7/8 red (visibility timeouts, no value mismatches) | **Did NOT recur.** Across the whole BUG-FF2-003 fix loop (a further **8 runs**, including two rebuilds and a `db reset`) it never reappeared. Treat as restore-transient. |
+
+**BUG-FF2-003 fix loop — re-run 2026-07-27, prod-standalone rebuilt at committed HEAD (`9d103d1`), :3100, chromium, workers=1:**
+
+| Date | Scope | Result | Notes |
+|---|---|---|---|
+| 2026-07-27 | `ff1-repeating-groups.spec.ts` — the BUG-FF2-003 verdict | **9 / 9** (57 s) | FF1-2 **3.3 min timeout → 6.3 s**, FF1-7 **3.7 min → 7.1 s**, whole file **8.2 min → 57 s**. Bug closed. |
+| 2026-07-27 | `ff2-matrix.spec.ts` (now **11** tests — FF2-11 added as the BUG-FF2-003 guard) | **11 / 11** | Also re-run on a fresh seed: **20/20** together with FF-1. |
+| 2026-07-27 | **Mutation proof — FF2-11** (a guard is worthless until shown it can fail) | **RED as required**, then restored | The cap declaration neutralized **in the built CSS bundle** (a build artifact, not source) → FF2-11 red on `max-height nunca resolveu para um valor`. Bundle restored, `diff` clean, green again. |
+| 2026-07-27 | **Built-CSS verification**, independent of `frontend`'s | PASS | Production bundle carries the `var()` form; **zero** bare `prop:--radix…` declarations remain; no dead selector minted from the reworded `e2e/` comment. |
+| 2026-07-27 | `phase5-wizard.spec.ts` — **AC3 red on the accumulated DB, 12/12 after `db reset`** | **12 / 12** | **NOT a regression.** Triaged rather than assumed: the two fix commits touch only `forms/add-block-menu`, `cases/`, `documents/` and `timeline/` — nothing in the response-wizard path. Cause was **28 stale `in_progress` responses** piled up by ~20 of my own runs with no reset. `tester` ran **`supabase db reset --local`** (migrations `209 == 209`, no drift; real token POST → 200; both feature flags back ON). This is the known per-test-isolation debt, not new. |
+| 2026-07-27 | **Final clean-DB run** — `ff2-matrix` + `ff1-repeating-groups` | **20 / 20** (1.7 min) | Green declared on a freshly seeded DB. |
 
 > ⚠ **Full-gate standing caveat (unchanged, pre-existing).** `npm run e2e:prod` (70 spec files,
 > 12 batches) does **not** currently reach a clean green on this machine: the local stack degrades

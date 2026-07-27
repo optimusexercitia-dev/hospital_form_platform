@@ -1564,3 +1564,115 @@ test('FF2-10 (resume): a matrix and a risk selection saved with "Salvar e sair" 
   ])
   expect(riskOf(responseId, fixture.items.risk)).toEqual([['grave', 'provavel', '27']])
 })
+
+// ===========================================================================
+// FF2-11 — BUG-FF2-003 regression guard: the block-type menu stays INSIDE the
+// viewport, and both Matrix types stay reachable
+//
+// FF-2 grew this menu by a separator, a group label and 2 items (+149 px). The
+// height cap that should have absorbed that was present in the markup and
+// SILENTLY DEAD — a Tailwind 3.4 bare-`[--var]` shorthand that v4 removed, so it
+// emitted invalid CSS the parser dropped and `max-height` computed to `none`.
+// The menu then rendered 909 px tall past the bottom of a 720-px window, with
+// page scroll locked by the modal and no internal scroll of its own: 7 of 14
+// items — including both Matrix types — unreachable by mouse AND keyboard.
+//
+// `e2e/builder-dialog-ui.spec.ts` already asserted `overflow-y` and that the
+// last item was clickable, and it did NOT catch this: `overflow-y: auto` was
+// genuinely present (it is inert without a cap), and that test runs at a tall
+// viewport where the menu happened to fit. So this guard asserts the two things
+// that actually distinguish fixed from broken — a RESOLVED px cap, and geometry
+// at the viewport where it bit — rather than the presence of a class, which is
+// exactly the check that was fooled.
+// ===========================================================================
+
+test('FF2-11 (BUG-FF2-003): the block-type menu is capped to the viewport and scrolls, so both Matrix types stay reachable by mouse and keyboard at 1280×720', async ({
+  page,
+}) => {
+  test.setTimeout(180_000)
+  // The height the bug was measured at. Explicit, not inherited: this file's
+  // test.use() is 1400 px tall, which is precisely where the defect hid.
+  await page.setViewportSize({ width: 1280, height: 720 })
+
+  await signInAs(page, 'chefe.ccih@test.local')
+  await createForm(page, `Menu ${SPEC_TAG} ${Date.now()}`)
+  await page.getByRole('button', { name: 'Adicionar bloco' }).click()
+  const menu = page.locator('[data-slot="dropdown-menu-content"]').first()
+  await expect(menu).toBeVisible({ timeout: 10_000 })
+  // Radix sizes the content from a measured variable; let it settle.
+  await expect
+    .poll(
+      async () => menu.evaluate((el) => getComputedStyle(el).maxHeight !== 'none'),
+      { timeout: 10_000, message: 'max-height nunca resolveu para um valor' },
+    )
+    .toBe(true)
+
+  const geom = await page.evaluate(() => {
+    const el = document.querySelector(
+      '[data-slot="dropdown-menu-content"]',
+    ) as HTMLElement | null
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    const items = Array.from(el.querySelectorAll('[role="menuitem"]')) as HTMLElement[]
+    return {
+      maxHeight: getComputedStyle(el).maxHeight,
+      overflowY: getComputedStyle(el).overflowY,
+      bottom: Math.round(r.bottom),
+      viewportH: window.innerHeight,
+      scrolls: el.scrollHeight > el.clientHeight,
+      itemCount: items.length,
+      offscreen: items.filter(
+        (i) => i.getBoundingClientRect().bottom > window.innerHeight,
+      ).length,
+    }
+  })
+  expect(geom).not.toBeNull()
+
+  // 1. The cap RESOLVED. `none` is the broken state — and note the class was
+  //    present in the markup in that state, which is why this asserts the
+  //    computed value and not the className.
+  expect(geom!.maxHeight, 'o cap de altura precisa resolver para um valor em px').toMatch(
+    /^\d+(\.\d+)?px$/,
+  )
+  // 2. The menu BOX fits the window.
+  //
+  //    Deliberately NOT asserted: "no item's rect is inside the viewport". Once
+  //    the menu scrolls correctly, the items below its fold legitimately have
+  //    layout rects past the window — they are CLIPPED by the scroll container,
+  //    not lost — so that count is 7 on a healthy menu and would be a false
+  //    red. (Measured: it is 7 both before and after the fix; only the reason
+  //    differs.) Reachability is the property that actually changed, and step 4
+  //    is where it is asserted.
+  expect(geom!.bottom).toBeLessThanOrEqual(geom!.viewportH)
+  // 3. It really scrolls — `overflow-y: auto` is inert without a cap, so the
+  //    overflow assertion only means something alongside this one.
+  expect(['auto', 'scroll']).toContain(geom!.overflowY)
+  expect(geom!.scrolls, 'o menu precisa rolar internamente, não crescer').toBe(true)
+
+  // 4. The USER-FACING guarantee, keyboard first: walk the whole menu and
+  //    require that focusing an item BRINGS IT INTO VIEW. This is what was
+  //    impossible before the fix (page scroll locked, menu not scrollable) and
+  //    what a user actually needs.
+  for (let i = 0; i < geom!.itemCount; i++) {
+    await page.keyboard.press('ArrowDown')
+    const ok = await page.evaluate(() => {
+      const el = document.activeElement
+      if (!el) return { within: false, label: null as string | null }
+      const r = el.getBoundingClientRect()
+      return {
+        within: r.top >= 0 && r.bottom <= window.innerHeight,
+        label: el.textContent?.slice(0, 30) ?? null,
+      }
+    })
+    expect(ok.within, `item focado fora da viewport: ${ok.label}`).toBe(true)
+  }
+
+  // 5. …and by mouse: the FF-2 items themselves open their editor.
+  await page.keyboard.press('Escape')
+  await page.getByRole('button', { name: 'Adicionar bloco' }).click()
+  const riskItem = page.getByRole('menuitem', { name: /^Matriz de risco/ })
+  await riskItem.scrollIntoViewIfNeeded()
+  await riskItem.click({ timeout: 15_000 })
+  await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByLabel('Enunciado da pergunta')).toBeVisible()
+})
