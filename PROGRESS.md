@@ -546,6 +546,19 @@ quoting slip rather than a design choice. Fixed in `20260830001100`.
 No RLS policy `qual`/`with_check` contains the pattern. The storage hit is exactly why this was
 fixed by reading each site rather than by a blind replace.
 
+> **FUP-FF2-3 — DEFERRED by the lead, deliberately, 2026-07-27.** Fixing `''''` exposed a remaining
+> asymmetry in the same function: the per-instance filters now compare `<> ''` while the top-level
+> one uses `btrim(...) <> ''`, so a **whitespace-only** observation is still filtered at top level
+> but not per instance. `backend` reported it rather than folding it in — correct, since it is a
+> **different defect** from the one ruled in.
+>
+> **Not ruled in, and the reason is scope discipline rather than merit.** This is the third
+> out-of-phase fix this wave (BUG-FF1-006, BUG-FF1-007), the phase is at its gate, and each one
+> costs another migration, another clean-reset pgTAP run, and another re-serialization of three
+> teammates on one DB. The impact is cosmetic — a blank observation block renders inside a group
+> instance. A lead who never says no is how a gate stops meaning anything, so this one waits.
+> **`qa` should see it as a stated deferral, not an oversight.**
+
 **Keystone §N of 271** pins BOTH directions — an empty observation must be ABSENT and a real one
 PRESENT (one direction alone is satisfied by a filter that drops everything, or nothing), plus N1
 asserting the fixture really holds an empty string so N2 cannot pass vacuously.
@@ -759,7 +772,48 @@ already has blocks. `e2e/phase5-wizard.spec.ts` is unaffected (12/12).
 > i.e. NOT the infra class the standing caveat covers. Triage them here, not against the flaky
 > baseline.
 
-#### 🟡 BUG-FF2-004 — an axis code minted from an accented label renders mangled in the editor that deliberately SHOWS it · MINOR/cosmetic · **PO-ruled a bug; fixed in `fbada14`** · **OPEN — awaiting `tester` re-verification**
+#### 🟢 BUG-FF2-005 — two source files carry RAW NUL BYTES, so git treats them as BINARY and their diffs are unreviewable · MINOR/review-blindness · owner `frontend` · OPEN
+
+**Filed by `tester` 2026-07-27**, found while orienting on the new dashboard surface — `git diff
+--stat` reported `matrix-distribution-card.tsx | Bin 0 -> 7486 bytes` instead of a diff.
+
+*Cause:* a composite map key is built with a **literal NUL byte** typed into the source rather
+than the escape ` `:
+
+```
+const countAt = new Map(cells.map((c) => [`${c.rowCode}<NUL>${c.colCode}`, c.count]));
+…
+const count = countAt.get(`${row.code}<NUL>${col.code}`) ?? 0;
+```
+
+*Not a live defect* — both sites carry the same byte, so the lookup works, and choosing NUL as a
+separator is sound (an axis code is a `[a-z0-9_]` slug and can never contain one). **Three
+consequences make it worth fixing anyway:**
+
+1. **`qa` cannot review this file.** Git classifies it as binary, so the phase diff shows
+   `Bin 0 -> 7486 bytes` — a file that renders the FF-2 dashboard is structurally invisible to
+   diff review. This repo has a documented history of review-blind defects.
+2. **It fails SILENTLY if it degrades.** The separator must be byte-identical at both sites; an
+   editor, a copy-paste or a lint autofix that strips control characters would break only ONE and
+   every lookup would return `?? 0` — a distribution table of all zeros, with no error anywhere.
+3. Text tooling (grep, `file`, patch) mis-handles it — `file` reports `data`, and the `Read` tool
+   renders the NUL as a **space**, so reading the file suggests the separator is `" "`. Only a
+   byte-level check shows what is really there.
+
+*Fix:* write the escape (` `) instead of the raw byte — identical at runtime, file stays text,
+diff stays reviewable.
+
+⚠ **Not FF-2's invention: `src/components/safety/rca/whys-panel.tsx` has the same idiom**
+(`.join("<NUL>")`, from `c4e20b3`, Phase 14) and is likewise binary to git. Both are the only
+non-`favicon.ico` files under `src/` or `e2e/` containing a NUL, so the sweep is complete. Worth a
+one-line convention rather than two point fixes.
+
+#### ✅ BUG-FF2-004 — an axis code minted from an accented label renders mangled in the editor that deliberately SHOWS it · MINOR/cosmetic · **PO-ruled a bug; fixed in `fbada14`** · **CLOSED 2026-07-27, re-verified by `tester`**
+
+> **Re-verified and closed.** `ff2-matrix.spec.ts` is **11/11** against a prod-standalone build of
+> committed HEAD, with the five repinned regexes now asserting the folded ASCII slugs
+> (`higienizacao_das_maos_…`, `nao_conforme_…`, `provavel_…`). The pins are the guard: a future
+> change to the shared slugger is now a deliberate one.
 
 > **Status, precisely.** The PO overruled the "pre-existing, so pinned as-is" disposition below and
 > ruled it a bug; `fbada14` makes `slugifyLabel` **delete** NFD combining marks instead of
@@ -824,6 +878,35 @@ gate runs with their triage) are recorded in
 | 2026-07-27 | **Built-CSS verification**, independent of `frontend`'s | PASS | Production bundle carries the `var()` form; **zero** bare `prop:--radix…` declarations remain; no dead selector minted from the reworded `e2e/` comment. |
 | 2026-07-27 | `phase5-wizard.spec.ts` — **AC3 red on the accumulated DB, 12/12 after `db reset`** | **12 / 12** | **NOT a regression.** Triaged rather than assumed: the two fix commits touch only `forms/add-block-menu`, `cases/`, `documents/` and `timeline/` — nothing in the response-wizard path. Cause was **28 stale `in_progress` responses** piled up by ~20 of my own runs with no reset. `tester` ran **`supabase db reset --local`** (migrations `209 == 209`, no drift; real token POST → 200; both feature flags back ON). This is the known per-test-isolation debt, not new. |
 | 2026-07-27 | **Final clean-DB run** — `ff2-matrix` + `ff1-repeating-groups` | **20 / 20** (1.7 min) | Green declared on a freshly seeded DB. |
+
+**Wave 3 read surfaces — `tester` pass 2026-07-27, prod-standalone rebuilt at HEAD (`8f6db27`), :3100, chromium, workers=1:**
+
+| Date | Scope | Result | Notes |
+|---|---|---|---|
+| 2026-07-27 | **NEW `e2e/ff2-matrix-views.spec.ts`** (5 tests) + `e2e/helpers/ff2-matrix.ts` | **5 / 5** | FF2V-1 sign-off route · FF2V-2 `getSubmissionDetail` · FF2V-3 dashboard distribution + risk summary · FF2V-4 code-keyed aggregation · FF2V-5 stored score wins. |
+| 2026-07-27 | `ff2-matrix.spec.ts` + `ff2-matrix-views.spec.ts` together | **16 / 16** (1.3 min) | Closes BUG-FF2-004 (the five repinned slug regexes pass). |
+| 2026-07-27 | **Mutation proof — the sign-off door's matrix projection** | **RED as required**, then restored | `'matrix_cells_by_item'` renamed in `get_response_for_signoff` → FF2V-1 red (`o door de assinatura precisa projetar as células da matriz`, received `undefined`). Restored byte-for-byte, `diff` clean, green again. |
+
+**Three findings from this pass that are not bugs but change what the tests mean:**
+
+1. 🔑 **An empty-string observation is UNREACHABLE through either canonical writer.** Both
+   `save_section_answers` and `app.save_instance_answers` normalize with `nullif(btrim(...), '')`
+   (read from `pg_proc`), so `p_observations: {item: ''}` lands as **NULL**. `bf7fae1`'s filter is
+   therefore **defence-in-depth over legacy rows**, not a guard on anything today's product can
+   write — and FF2V-1 plants the row directly to reproduce it, saying so at the call site. **This
+   also supports the FUP-FF2-3 deferral**: the whitespace-only asymmetry between the two arms
+   (`observation <> ''` per-instance vs `btrim(observation) <> ''` top-level) is reachable only for
+   the same legacy rows. Not specced, per instruction.
+2. ⚠ **`psql -tA` cannot distinguish "one row holding `''`" from "no rows".** My first arrange
+   asserted a bare `select observation` and read the empty string as an absent row — an arrange
+   that silently did nothing would have looked like a passing test. Assertions on a possibly-empty
+   column now go through a `case … then 'EMPTY'` **sentinel**, and the helper carries the warning.
+3. ⚠ **Two DOM-reading traps, both of which produced a confidently wrong number before I caught
+   them.** `innerText` concatenates adjacent spans with no separator, so a distribution cell of
+   "2" + "67%" reads as **"267"** — counts are now read from the count's own `<span>`. And
+   `innerText` **applies CSS `text-transform`**, so an `uppercase` label really does read "MÍNIMA"
+   and a `/Mínima/` regex never matches, while `toContainText('Mínima')` passes (it uses
+   textContent). Stats are now read as `<dt>` → sibling `<dd>`.
 
 > ⚠ **Full-gate standing caveat (unchanged, pre-existing).** `npm run e2e:prod` (70 spec files,
 > 12 batches) does **not** currently reach a clean green on this machine: the local stack degrades
