@@ -1,5 +1,6 @@
 import type { Json } from "@/lib/types/database";
 import type { VersionTree } from "@/lib/queries/forms";
+import type { GroupInstance } from "@/lib/queries/responses";
 
 import type { Signoff } from "./signoff-status";
 
@@ -59,6 +60,17 @@ export interface ClientResponseForSignoff {
   /** Per-item observation notes keyed by `form_items.id`
    *  (form-builder-enhancements; surfaced by BE-8). */
   observationsByItemId: Record<string, string>;
+  /**
+   * FF-1 (ADR 0087) — the response's repeating-group instances.
+   *
+   * REQUIRED, not optional, and deliberately so: this screen is where a
+   * staff_admin puts their name to a section's content. An optional field here
+   * would let a future caller omit it and silently return the exact defect this
+   * replaces — sign-off chrome over an empty section, signed blind
+   * (BUG-FF1-003). The maps above carry TOP-LEVEL answers only; a
+   * repeating-group child's answers live here and nowhere else.
+   */
+  instances: GroupInstance[];
   /** Existing sign-off rows for this response, by section. */
   signoffsBySectionId: Record<string, SectionSignoff>;
 }

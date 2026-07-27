@@ -7,11 +7,16 @@ import type { Json } from "@/lib/types/database";
 import type { Item, Section } from "@/lib/queries/forms";
 import { flattenItem } from "@/lib/forms/item-tree";
 import type { AnswerMap } from "@/lib/queries/conditions";
+import type { GroupInstance } from "@/lib/queries/responses";
 import {
   ImageContentRenderer,
   SectionTextRenderer,
 } from "@/components/forms/read-only-blocks";
 import { AnswerSummary } from "@/components/responses/wizard/answer-summary";
+import {
+  InstanceAnswersReadonly,
+  instancesByGroupItemId,
+} from "@/components/responses/instance-answers-readonly";
 import {
   computeEffectiveVisibility,
   isInputItem,
@@ -57,6 +62,10 @@ export function ReviewAndSign({
 }) {
   const sections = data.tree.sections;
   const isFlat = sections.length === 1 && sections[0].isDefault;
+  // FF-1 (BUG-FF1-003): the response's repeating-group instances, indexed by
+  // container. Without these a section holding only a repeating group renders
+  // as sign-off chrome over nothing, and the coordinator signs blind.
+  const instancesByGroup = instancesByGroupItemId(data.instances);
 
   // Build the question_key → value map for condition evaluation from saved
   // answers (keyed by item id) joined to the tree's stable question_keys.
@@ -101,6 +110,7 @@ export function ReviewAndSign({
             isFlat={isFlat}
             answersByItemId={data.answersByItemId}
             observationsByItemId={data.observationsByItemId}
+            instancesByGroup={instancesByGroup}
             visibleItemIds={visibleItemIds}
             imageUrls={imageUrls}
             existingSignoff={data.signoffsBySectionId[section.id] ?? null}
@@ -137,6 +147,7 @@ function ReviewSection({
   isFlat,
   answersByItemId,
   observationsByItemId,
+  instancesByGroup,
   visibleItemIds,
   imageUrls,
   existingSignoff,
@@ -150,6 +161,7 @@ function ReviewSection({
   isFlat: boolean;
   answersByItemId: Record<string, Json>;
   observationsByItemId: Record<string, string>;
+  instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
   existingSignoff: SectionSignoff | null;
@@ -206,6 +218,7 @@ function ReviewSection({
         section={section}
         answersByItemId={answersByItemId}
         observationsByItemId={observationsByItemId}
+        instancesByGroup={instancesByGroup}
         visibleItemIds={visibleItemIds}
         imageUrls={imageUrls}
       />
@@ -243,23 +256,33 @@ function SectionBody({
   section,
   answersByItemId,
   observationsByItemId,
+  instancesByGroup,
   visibleItemIds,
   imageUrls,
 }: {
   section: Section;
   answersByItemId: Record<string, Json>;
   observationsByItemId: Record<string, string>;
+  instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
 }) {
   // FF-1: render THROUGH a plain `group` so its children (top-level answers)
-  // still appear. A `repeating_group`'s per-instance answers are not available
-  // on `ResponseForSignoff` yet — see the note on `SectionBody`'s caller.
+  // still appear (ruling 6). A `repeating_group` holds NO top-level answer at
+  // all — its content lives per instance — so it is rendered separately below
+  // rather than filtered away, which is what left this screen blank.
   const items = section.items
     .flatMap((it) => (it.itemType === "group" ? it.children : [it]))
-    .filter((it) => !isInputItem(it.itemType) || visibleItemIds.has(it.id));
+    .filter(
+      (it) =>
+        it.itemType !== "repeating_group" &&
+        (!isInputItem(it.itemType) || visibleItemIds.has(it.id)),
+    );
+  const repeatingGroups = section.items.filter(
+    (it) => it.itemType === "repeating_group",
+  );
 
-  if (items.length === 0) {
+  if (items.length === 0 && repeatingGroups.length === 0) {
     return (
       <p className="text-sm text-muted-foreground italic">
         Esta seção não tem conteúdo.
@@ -268,20 +291,33 @@ function SectionBody({
   }
 
   return (
-    <dl className="flex flex-col gap-1">
-      {items.map((item) =>
-        isInputItem(item.itemType) ? (
-          <AnswerSummary
-            key={item.id}
-            item={item}
-            value={(answersByItemId[item.id] as Json | undefined) ?? undefined}
-            observation={observationsByItemId[item.id]}
-          />
-        ) : (
-          <DisplayBlock key={item.id} item={item} imageUrls={imageUrls} />
-        ),
-      )}
-    </dl>
+    <div className="flex flex-col gap-3">
+      {items.length > 0 ? (
+        <dl className="flex flex-col gap-1">
+          {items.map((item) =>
+            isInputItem(item.itemType) ? (
+              <AnswerSummary
+                key={item.id}
+                item={item}
+                value={
+                  (answersByItemId[item.id] as Json | undefined) ?? undefined
+                }
+                observation={observationsByItemId[item.id]}
+              />
+            ) : (
+              <DisplayBlock key={item.id} item={item} imageUrls={imageUrls} />
+            ),
+          )}
+        </dl>
+      ) : null}
+      {repeatingGroups.map((container) => (
+        <InstanceAnswersReadonly
+          key={container.id}
+          container={container}
+          instances={instancesByGroup[container.id] ?? []}
+        />
+      ))}
+    </div>
   );
 }
 

@@ -54,6 +54,12 @@ export function toClientResponseForSignoff(
     tree: data.tree,
     answersByItemId: data.answersByItemId,
     observationsByItemId: data.observationsByItemId,
+    // FF-1 (BUG-FF1-003): forward the repeating-group instances. Dropping them
+    // here rendered a section containing only a repeating group as sign-off
+    // chrome over NOTHING — a staff_admin signing blind to the content they are
+    // attesting to. `ClientResponseForSignoff.instances` is required precisely so
+    // this line cannot be omitted again without a type error.
+    instances: data.instances,
     signoffsBySectionId: signoffRecordsToMap(data.signoffs),
   };
 }

@@ -8,6 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
 import { resolveOptionCodes, slugifyLabel, shortSuffix } from '@/lib/forms/option-code'
 import { parseItemConfig } from '@/lib/forms/parse-config'
+import { parseRequired } from '@/lib/forms/parse-required'
 
 /**
  * Form-builder server actions (Architecture Rules 9 & 10): form metadata +
@@ -848,12 +849,20 @@ function parseItemFields(
     const parsedDefault = parseDefaultValue(itemType, formData)
     if ('error' in parsedDefault) return { error: parsedDefault.error }
 
-    // A conditional question can NEVER be required (decision #9): clear the
-    // `required` flag whenever a visibility condition is present — defence for
-    // the form_items_conditional_not_required CHECK (BE-2).
-    const required =
-      parsedVisible.visibleWhen === null &&
-      String(formData.get('required') ?? '') === 'on'
+    // FF-1 (ADR 0087 ruling 4) — `required` is persisted AS SUBMITTED, including
+    // alongside a visibility condition.
+    //
+    // This previously cleared `required` whenever `visible_when` was present,
+    // defending the `form_items_conditional_not_required` CHECK. **BE-1 dropped
+    // that CHECK platform-wide**, so the defence outlived the constraint: the
+    // builder offered "obrigatória" beside a condition (FE-4) while this line
+    // silently discarded it on save — for top-level items AND repeating-group
+    // children (BUG-FF1-002). Deleting stale defensive code is the whole point of
+    // ruling 4; `app.response_required_complete` already carries the branch that
+    // makes the combination safe (visibility wins — a required item hidden by its
+    // own condition does not block submit), which was unreachable dead code only
+    // because the CHECK made the combination unconstructible.
+    const required = parseRequired(formData)
 
     return {
       columns: {
