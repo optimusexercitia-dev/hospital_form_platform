@@ -170,9 +170,11 @@ insert into public.professional_profiles (id, organization_id, user_id, full_nam
 values ('00000000-0000-0000-0000-00000e3a0b02', (select org_x from k), (select st_x from k), 'Dr. Réu E3a');
 insert into public.professional_participants (participant_id, professional_profile_id)
 values ('00000000-0000-0000-0000-00000e3a0a01', '00000000-0000-0000-0000-00000e3a0b02');
+-- key MUST be 'respondent_doctor' — app.is_case_respondent keys on that literal, so a
+-- custom key would NOT exclude (the deny would be vacuous).
 insert into public.case_participant_roles
   (id, organization_id, key, display_name, allowed_participant_types, is_primary_subject_candidate)
-values ('00000000-0000-0000-0000-00000e3a0c03', (select org_x from k), 'respondent_doctor_e3a',
+values ('00000000-0000-0000-0000-00000e3a0c03', (select org_x from k), 'respondent_doctor',
   'Médico denunciado', array['professional'], true);
 insert into public.case_participants (case_id, participant_id, role_id, is_primary_subject)
 values ((select cid from c_typed), '00000000-0000-0000-0000-00000e3a0a01',
@@ -180,6 +182,9 @@ values ((select cid from c_typed), '00000000-0000-0000-0000-00000e3a0a01',
 
 -- st_x2 is an explicit case grantee (explicit_grants_only needs a grant to read).
 select test_helpers.grant_ca((select cid from c_typed), (select st_x2 from k), 'read', (select sa_x from k));
+-- st_x is ALSO granted read — so C3's "sees NEITHER" is isolated to the RESPONDENT-deny
+-- (respondent beats a grant), NOT merely a missing grant (non-vacuity).
+select test_helpers.grant_ca((select cid from c_typed), (select st_x from k), 'read', (select sa_x from k));
 
 -- (C1) the coordinator sees BOTH events.
 select test_helpers.claims_for((select sa_x from k), false);
@@ -208,7 +213,7 @@ select is(
   (select count(*)::int from public.case_events where case_id = (select cid from c_typed)
      and id in ('00000000-0000-0000-0000-00000e3a0e01','00000000-0000-0000-0000-00000e3a0e02')),
   0,
-  'BE-3 RLS: the respondent sees NEITHER event — the can_read_case floor overrides visibility');
+  'BE-3 RLS: the respondent (granted read, yet respondent-excluded) sees NEITHER event — the can_read_case floor overrides both the grant and visibility');
 reset role;
 
 -- (C4) a same-org foreign-commission staff_admin sees NEITHER (commission boundary).
