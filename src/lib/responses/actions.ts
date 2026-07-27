@@ -59,6 +59,10 @@ const MESSAGES = {
   missingSignoff: 'Há seções pendentes de assinatura.',
   // save_section_answers cross-version guard (P0013)
   invalidData: 'Dados inválidos para este formulário.',
+  // FF-2 (ADR 0089) matrix fill failures.
+  riskIncomplete:
+    'Informe a severidade e a probabilidade da matriz de risco.',
+  matrixUnavailable: 'O recurso de matrizes não está disponível.',
   // sign_section discriminated failures
   signoffNotVisible: 'Esta seção não está disponível para assinatura.',
   signoffAlreadySigned: 'Esta seção já foi assinada.',
@@ -128,6 +132,16 @@ const GROUP_MAX_INSTANCES = 'HC0N1'
 const GROUP_INSTANCE_NOT_FOUND = 'HC0N2'
 const GROUP_ORDER_NOT_PERMUTATION = 'HC0N3'
 const GROUP_ITEM_NOT_REPEATING = 'HC0N4'
+
+// FF-2 (ADR 0089) — the matrix codes reachable through `save_section_answers`.
+// HC0P0 (axis code immutable) and HC0P4/5/6 (draft-only / axis payload) cannot
+// surface here: they belong to `upsert_matrix_axes` and to publish, which are
+// builder paths in `src/lib/forms/actions.ts`.
+const MATRIX_INCOHERENT_CELL = 'HC0P1'
+const MATRIX_FLAG_OFF = 'HC0P2'
+const MATRIX_NOT_A_MATRIX = 'HC0P3'
+const MATRIX_UNKNOWN_CODE = 'HC0P7'
+const MATRIX_RISK_INCOMPLETE = 'HC0P8'
 
 /** The staff filling area — revalidated as dynamic-segment pages. */
 const FORMS_LIST_PATH = '/o/[org]/c/[commission]/forms'
@@ -455,6 +469,36 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     }
     if (error.code === PG_NO_DATA_FOUND) {
       return { ok: false, error: MESSAGES.missingResponse }
+    }
+    // FF-2 (ADR 0089) — the SIBLINGS of BUG-FF2-002, found by sweeping every
+    // HC0P* raise site against the paths that can surface it. The matrix arms of
+    // `save_section_answers` raise four codes this chain would have collapsed
+    // into "Não foi possível concluir. Tente novamente."
+    //
+    // HC0P8 is the one that matters most: it is USER-ACTIONABLE and reachable by
+    // ordinary use — a respondent who picks a severity but not a likelihood.
+    // Its DB message ("informe a severidade e a probabilidade da matriz de
+    // risco") is already the right pt-BR sentence, so it is preferred.
+    if (error.code === MATRIX_RISK_INCOMPLETE) {
+      return { ok: false, error: error.message || MESSAGES.riskIncomplete }
+    }
+    if (error.code === MATRIX_FLAG_OFF) {
+      return { ok: false, error: MESSAGES.matrixUnavailable }
+    }
+    // Unknown row/column code, an item that is not a matrix of this version, or
+    // the coherence trigger firing: all malformed-client states, not user error
+    // — the same bucket SAVE_CROSS_VERSION already occupies.
+    if (error.code === MATRIX_UNKNOWN_CODE || error.code === MATRIX_NOT_A_MATRIX) {
+      return { ok: false, error: MESSAGES.invalidData }
+    }
+    if (error.code === MATRIX_INCOHERENT_CELL) {
+      return { ok: false, error: MESSAGES.invalidData }
+    }
+    // `app.assert_matrix_answer_writable` is a DEFINER gate, so it raises 42501
+    // rather than yielding an RLS zero-row silence. Without this the owner check
+    // reads as a transient failure.
+    if (error.code === PG_RLS_VIOLATION) {
+      return { ok: false, error: MESSAGES.forbidden }
     }
     return { ok: false, error: MESSAGES.generic }
   }

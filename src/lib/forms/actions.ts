@@ -1749,10 +1749,30 @@ export async function publishVersion(
     // check_violation) with its own descriptive pt-BR message (BUG-AMV2-001).
     // Prefer the DB message for either — it is always user-facing pt-BR text
     // here — else a safe default.
-    if (error.code === PG_CHECK_VIOLATION || error.code === 'HC080') {
-      return { ok: false, error: error.message || MESSAGES.publishConditionError }
+    switch (error.code) {
+      case PG_CHECK_VIOLATION:
+      case 'HC080':
+        return { ok: false, error: error.message || MESSAGES.publishConditionError }
+      // FF-2 (ADR 0089) — BUG-FF2-002. `app.validate_matrix_axes` runs inside
+      // publish_form_version, and an axis-less matrix is a NORMAL authoring
+      // state: `upsert_matrix_axes` is a separate call, so a matrix block exists
+      // with an empty grid from the moment it is added. Falling through to
+      // `generic` told the author "Não foi possível concluir. Tente novamente."
+      // for a condition that is neither transient nor retryable, and named no
+      // block — the only way out was to delete matrices until publish worked.
+      //
+      // The DB message is preferred because it NAMES the offending item
+      // ('a matriz "X" precisa de ao menos uma linha e uma coluna'), which is
+      // the entire difference between an actionable error and a dead end; the
+      // MESSAGES constants are the fallback. `upsertMatrixAxes` maps these two
+      // codes already, so this was an inconsistency WITHIN one file.
+      case MATRIX_AXIS_INVALID:
+        return { ok: false, error: error.message || MESSAGES.axisInvalid }
+      case MATRIX_WEIGHT_REQUIRED:
+        return { ok: false, error: error.message || MESSAGES.riskWeightRequired }
+      default:
+        return { ok: false, error: MESSAGES.generic }
     }
-    return { ok: false, error: MESSAGES.generic }
   }
 
   revalidateBuilder()
@@ -1785,6 +1805,16 @@ export async function startEditFromPublished(
     p_source_version_id: sourceVersionId,
   })
 
+  // FF-2 (BUG-FF2-002 sweep): `clone_form_version` now delegates its children to
+  // the DEFINER `app.copy_version_children`, which raises 42501 when the caller
+  // is not a staff_admin / commission-admin of the form's commission. That is
+  // reachable — `authorizeCommission` above short-circuits for a platform_admin,
+  // who then legitimately fails the helper's check (the "noun rule": a
+  // platform_admin does not edit commission content). The REFUSAL is correct;
+  // reporting it as "tente novamente" is not.
+  if (error?.code === PG_INSUFFICIENT_PRIVILEGE) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
   if (error || !data) return { ok: false, error: MESSAGES.generic }
 
   revalidateBuilder()

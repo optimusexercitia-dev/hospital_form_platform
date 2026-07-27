@@ -88,7 +88,7 @@ vi.mock('@/lib/queries/session', () => ({
   getSessionContext: () => getSessionContext(),
 }))
 
-import { addItem, upsertMatrixAxes } from './actions'
+import { addItem, publishVersion, upsertMatrixAxes } from './actions'
 
 const SECTION_ID = '11111111-1111-4111-8111-111111111111'
 const VERSION_ID = '22222222-2222-4222-8222-222222222222'
@@ -104,9 +104,14 @@ function form(fields: Record<string, string>): FormData {
 beforeEach(() => {
   vi.clearAllMocks()
   layoutRows = []
+  // One row shape serving all three resolvers, since each reads only its own
+  // keys: contextOfSection/contextOfItem take `form_versions.forms`,
+  // contextOfVersion takes `form_id` + `forms` off the form_versions row itself.
   contextRow = {
     form_version_id: VERSION_ID,
     section_id: SECTION_ID,
+    form_id: 'form-1',
+    forms: { commission_id: COMMISSION_ID },
     form_versions: { forms: { commission_id: COMMISSION_ID } },
   }
   // A platform admin short-circuits authorizeCommission.
@@ -232,5 +237,50 @@ describe('upsertMatrixAxes', () => {
     expect(result.ok).toBe(false)
     expect(result.error).toBeTruthy()
     expect(result.error).not.toContain(code)
+  })
+})
+
+describe('publishVersion — FF-2 publish errors reach the author (BUG-FF2-002)', () => {
+  // An axis-less matrix is a NORMAL authoring state: upsert_matrix_axes is a
+  // separate call, so a matrix block exists with an empty grid from the moment
+  // it is added. Publishing then failed with "Não foi possível concluir. Tente
+  // novamente." — not transient, not retryable, and naming no block.
+  // MUTATION: drop the MATRIX_AXIS_INVALID / MATRIX_WEIGHT_REQUIRED cases from
+  //   publishVersion -> both go red.
+  it.each([
+    ['HC0P5', 'a matriz "Conformidade" precisa de ao menos uma linha e uma coluna'],
+    ['HC0P6', 'a matriz de risco "Risco" exige um peso em todas as linhas e colunas'],
+  ])('surfaces %s, preferring the DB message that NAMES the block', async (code, message) => {
+    rpc.mockResolvedValue({ data: null, error: { code, message } })
+
+    const result = await publishVersion(VERSION_ID)
+
+    expect(result.ok).toBe(false)
+    // The naming is the whole point — a generic string leaves the author
+    // deleting matrices until publish works, which is how this was found.
+    expect(result.error).toBe(message)
+  })
+
+  it.each(['HC0P5', 'HC0P6'])(
+    'falls back to distinct pt-BR copy when %s carries no message',
+    async (code) => {
+      rpc.mockResolvedValue({ data: null, error: { code, message: '' } })
+
+      const result = await publishVersion(VERSION_ID)
+
+      expect(result.ok).toBe(false)
+      expect(result.error).toBeTruthy()
+      expect(result.error).not.toBe('Não foi possível concluir. Tente novamente.')
+      expect(result.error).not.toContain(code)
+    },
+  )
+
+  it('still falls back to generic for an unmapped code', async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: 'XX999', message: 'boom' } })
+
+    const result = await publishVersion(VERSION_ID)
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('Não foi possível concluir. Tente novamente.')
   })
 })

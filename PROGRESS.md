@@ -361,6 +361,50 @@ risk grid is ONE `radiogroup` because it is one choice.
 > matrix made the same publish succeed. Needs `HC0P5` → `MESSAGES.axisInvalid` and `HC0P6` →
 > `MESSAGES.riskWeightRequired` (both strings already exist in that file). Violates Rule 10 / §8.
 
+#### 🔴 BUG-FF2-002 — `publishVersion` swallowed every FF-2 publish error (found + fixed)
+
+Found by `frontend` by hand, verified by the lead. `publishVersion` mapped only
+`23514`/`HC080`; everything else fell to `MESSAGES.generic`. So publishing a version whose matrix
+had **no axes** — a *normal* authoring state, since `upsert_matrix_axes` is a separate call and a
+matrix block exists with an empty grid from the moment it is added — reported only *"Não foi
+possível concluir. Tente novamente."*: not transient, not retryable, and naming no block. The only
+way out was deleting matrices until publish succeeded. `upsertMatrixAxes` already mapped these two
+codes, so the inconsistency was **within one file**. Violates Rule 10 / §8.
+
+**Fixed:** `HC0P5` / `HC0P6` cases added, preferring the DB message because it NAMES the offending
+item (`a matriz "X" precisa de ao menos uma linha e uma coluna`) — the difference between an
+actionable error and a dead end — with `MESSAGES.axisInvalid` / `riskWeightRequired` as fallback.
+
+**Sweep for siblings** (lead-requested — this was found the slow, human way, so siblings were
+likely). All four RPC call sites that can surface an `HC0P*` were audited against every raise site:
+
+| Path | Codes reachable | Before | Now |
+|---|---|---|---|
+| `publishVersion` | HC0P5, HC0P6 | generic | mapped (the reported bug) |
+| **`saveSection`** | **HC0P1, HC0P2, HC0P3, HC0P7, HC0P8, 42501** | **all generic** | **mapped** |
+| `startEditFromPublished` | 42501 from `app.copy_version_children` | generic | mapped → `forbidden` |
+| `upsertMatrixAxes` | HC0P2–HC0P6, 42501 | already mapped | unchanged |
+
+`HC0P0` is unreachable from any app path (the only UPDATE of an axis row is `upsert_matrix_axes`,
+which matches on `code` and never changes it; direct DML is denied by K9). `HC0P4` cannot surface
+through the clone path (a clone's target is always a fresh draft).
+
+**The most consequential sibling was `HC0P8` in `saveSection`** — reachable by ORDINARY USE: a
+respondent who picks a severity but not a likelihood got "tente novamente" instead of "informe a
+severidade e a probabilidade". Same defect as the reported one, on the fill path rather than the
+builder path, and it would have been found the same slow way.
+
+Covered by unit tests in `src/lib/forms/actions.test.ts` + `src/lib/responses/actions.test.ts`
+(each asserts the raw SQLSTATE and Postgres text never reach the UI). **Mutation-proven:** removing
+the two `case`s from `publishVersion` turns 4 red; restored. Vitest **565/565**, lint 0/0,
+typecheck clean, `next build` succeeded. **Code-only — no DB verification run, per the lead's
+stack-ownership hold.**
+
+> ⚠ **Adjacent finding, NOT fixed (FF-1 scope, needs the lead's call):** `saveSection`'s chain also
+> drops FF-1's **`HC0N2`** (`app.save_instance_answers`: "item do bloco não encontrado nesta
+> resposta") into the same generic bucket. Identical class, shipped phase — reported rather than
+> silently widened.
+
 #### FF-2 follow-ups (deferred, in-scope — visible to `qa`)
 
 | id | Gap | Why deferred |

@@ -406,3 +406,60 @@ describe('BUG-FF1-001 regression: the instance writers are implemented', () => {
     expect(rpc).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('saveSection — FF-2 matrix failures reach the user (BUG-FF2-002 siblings)', () => {
+  // Found by sweeping every HC0P* raise site against the paths that surface it,
+  // after `frontend` hit the publish half by hand. All four codes collapsed into
+  // "Não foi possível concluir. Tente novamente." before this.
+  // MUTATION: delete the four FF-2 blocks from saveSection's error chain ->
+  //   every assertion here goes red.
+  it('surfaces HC0P8 — the one an ordinary respondent can trigger', async () => {
+    // A user who picks a severity but not a likelihood. The DB sentence is
+    // already the right pt-BR, so it is preferred over the constant.
+    const message = 'informe a severidade e a probabilidade da matriz de risco'
+    rpc.mockResolvedValue({ data: null, error: { code: 'HC0P8', message } })
+
+    const result = await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: {},
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe(message)
+  })
+
+  it.each([
+    ['HC0P2', 'o recurso de matrizes não está disponível'],
+    ['HC0P7', 'a linha "x" não pertence a esta matriz'],
+    ['HC0P3', 'o item x não é uma matriz desta versão do formulário'],
+    ['HC0P1', 'a linha da matriz não pertence a esta pergunta'],
+    ['42501', 'permission denied'],
+  ])('maps %s to actionable pt-BR, never the generic retry copy', async (code, message) => {
+    rpc.mockResolvedValue({ data: null, error: { code, message } })
+
+    const result = await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: {},
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).not.toBe('Não foi possível concluir. Tente novamente.')
+    // And never a raw SQLSTATE or a Postgres string (Rule 10 / §8).
+    expect(result.error).not.toContain(code)
+    expect(result.error).not.toContain('permission denied')
+  })
+
+  it('still falls back to generic for an unmapped code', async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: 'XX999', message: 'boom' } })
+
+    const result = await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: {},
+    })
+
+    expect(result.error).toBe('Não foi possível concluir. Tente novamente.')
+  })
+})
