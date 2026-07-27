@@ -778,7 +778,7 @@ already has blocks. `e2e/phase5-wizard.spec.ts` is unaffected (12/12).
 --stat` reported `matrix-distribution-card.tsx | Bin 0 -> 7486 bytes` instead of a diff.
 
 *Cause:* a composite map key is built with a **literal NUL byte** typed into the source rather
-than the escape ` `:
+than the escape `\u0000`:
 
 ```
 const countAt = new Map(cells.map((c) => [`${c.rowCode}<NUL>${c.colCode}`, c.count]));
@@ -800,7 +800,7 @@ consequences make it worth fixing anyway:**
    renders the NUL as a **space**, so reading the file suggests the separator is `" "`. Only a
    byte-level check shows what is really there.
 
-*Fix:* write the escape (` `) instead of the raw byte — identical at runtime, file stays text,
+*Fix:* write the escape (`\u0000`) instead of the raw byte — identical at runtime, file stays text,
 diff stays reviewable.
 
 ⚠ **Not FF-2's invention: `src/components/safety/rca/whys-panel.tsx` has the same idiom**
