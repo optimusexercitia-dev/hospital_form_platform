@@ -17,7 +17,7 @@
 
 begin;
 
-select plan(46);
+select plan(52);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -26,7 +26,8 @@ create temp table k on commit drop as
   select (v->>'sa_x')::uuid   as sa_x,
          (v->>'st_x')::uuid   as st_x,
          (v->>'st_x2')::uuid  as st_x2,
-         (v->>'comm_x')::uuid as comm_x
+         (v->>'comm_x')::uuid as comm_x,
+         (v->>'org_b')::uuid  as org_b
   from ctx;
 grant select on k to authenticated;
 
@@ -69,14 +70,22 @@ insert into public.form_items (id, section_id, position, item_type, question_key
 insert into public.form_items (id, section_id, position, item_type, question_key, label, parent_item_id, required, visible_when)
   values ('ff100000-0000-0000-0000-000000000013', 'ff100000-0000-0000-0000-000000000003', 3, 'short_text', 'med_dose', 'Dose', 'ff100000-0000-0000-0000-000000000011', true,
           '{"question_key":"med_nome","op":"equals","value":"Dipirona"}'::jsonb);
--- pos 4,5 — a PLAIN group and its REQUIRED child (Amendment 1.2's guard).
+-- pos 4 — a CHOICE child of the repeating group. Load-bearing for §K: a
+-- short_text child leaves NO `answer_selected_options` row, so a keystone built
+-- only on short_text children cannot observe selections being lost (P0-1).
+insert into public.form_items (id, section_id, position, item_type, question_key, label, parent_item_id)
+  values ('ff100000-0000-0000-0000-000000000017', 'ff100000-0000-0000-0000-000000000003', 4, 'multiple_choice', 'med_via', 'Via', 'ff100000-0000-0000-0000-000000000011');
+insert into public.form_item_options (item_id, position, code, label) values
+  ('ff100000-0000-0000-0000-000000000017', 0, 'oral', 'Oral'),
+  ('ff100000-0000-0000-0000-000000000017', 1, 'ev', 'Endovenosa');
+-- pos 5,6 — a PLAIN group and its REQUIRED child (Amendment 1.2's guard).
 insert into public.form_items (id, section_id, position, item_type, label)
-  values ('ff100000-0000-0000-0000-000000000014', 'ff100000-0000-0000-0000-000000000003', 4, 'group', 'Dados gerais');
+  values ('ff100000-0000-0000-0000-000000000014', 'ff100000-0000-0000-0000-000000000003', 5, 'group', 'Dados gerais');
 insert into public.form_items (id, section_id, position, item_type, question_key, label, parent_item_id, required)
-  values ('ff100000-0000-0000-0000-000000000015', 'ff100000-0000-0000-0000-000000000003', 5, 'short_text', 'geral', 'Geral', 'ff100000-0000-0000-0000-000000000014', true);
--- pos 6 — CONDITIONAL **and** REQUIRED at top level (unauthorable before ruling 4).
+  values ('ff100000-0000-0000-0000-000000000015', 'ff100000-0000-0000-0000-000000000003', 6, 'short_text', 'geral', 'Geral', 'ff100000-0000-0000-0000-000000000014', true);
+-- pos 7 — CONDITIONAL **and** REQUIRED at top level (unauthorable before ruling 4).
 insert into public.form_items (id, section_id, position, item_type, question_key, label, required, visible_when)
-  values ('ff100000-0000-0000-0000-000000000016', 'ff100000-0000-0000-0000-000000000003', 6, 'short_text', 'extra', 'Extra', true,
+  values ('ff100000-0000-0000-0000-000000000016', 'ff100000-0000-0000-0000-000000000003', 7, 'short_text', 'extra', 'Extra', true,
           '{"question_key":"porta","op":"equals","value":"sim"}'::jsonb);
 
 -- ===========================================================================
@@ -106,7 +115,7 @@ select throws_ok(
 select is(
   (select count(*)::int from public.form_items
     where parent_item_id = 'ff100000-0000-0000-0000-000000000011'),
-  2, 'A3. …while legitimate children of a repeating group insert normally'
+  3, 'A3. …while legitimate children of a repeating group insert normally'
 );
 
 -- ===========================================================================
@@ -428,15 +437,86 @@ select ok(
   'H3. two non-empty instances satisfy minInstances = 2 (the empty third is skipped, not counted)'
 );
 
+-- A CHOICE selection inside instance 0, so §K has a selection to lose. Written
+-- through the real save path (instance arm), not inserted, so the row is exactly
+-- what the wizard would produce.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select public.save_section_answers(
+  'ff100000-0000-0000-0000-000000000030', 'ff100000-0000-0000-0000-000000000003',
+  '{}'::jsonb, null, null, null, null,
+  jsonb_build_array(jsonb_build_object(
+    'instance_id', (select id from inst where ord = 0),
+    'selections', jsonb_build_object('ff100000-0000-0000-0000-000000000017', jsonb_build_array('ev'))))
+);
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+select is(
+  (select count(*)::int
+     from public.answer_selected_options aso
+     join public.answers a on a.id = aso.answer_id
+    where a.response_id = 'ff100000-0000-0000-0000-000000000030'
+      and a.group_instance_id is not null),
+  1, 'H3b. the instance carries a CHOICE selection before submit (the row §K must preserve)'
+);
+
+-- ---------------------------------------------------------------------------
+-- H1 — ruling 4's headline deadlock-negative, REBUILT (qa MAJOR-1).
+--
+-- The previous H1 only closed the gate and asserted `rrc` was true. That passed
+-- while proving NOTHING: `extra` was answered and the group already held 2
+-- non-empty instances against min = 2, so the response was complete whether or
+-- not visibility was honoured. qa broke the visibility branch in THREE places
+-- and the suite stayed 46/46. The branch was load-bearing; the TEST was not.
+--
+-- Rebuilt so visibility is the ONLY variable. Every other blocker is switched
+-- ON first — `extra` unanswered, the group emptied below min — so the response
+-- is genuinely incomplete (H1a proves that, and is what stops H1b from passing
+-- vacuously). Then the gate alone flips, and H1b must go from false to true
+-- purely because both are now hidden.
+-- ---------------------------------------------------------------------------
 savepoint h1;
+-- Arm both blockers.
+delete from public.answers
+  where response_id = 'ff100000-0000-0000-0000-000000000030'
+    and item_id = 'ff100000-0000-0000-0000-000000000016';   -- `extra` unanswered
+delete from public.response_group_instances
+  where response_id = 'ff100000-0000-0000-0000-000000000030';  -- 0 of min 2
+
+select ok(
+  not app.response_required_complete('ff100000-0000-0000-0000-000000000030'),
+  'H1a. gate OPEN: the conditional+required item and the unmet minInstances both really do block (the anti-vacuity twin for H1b)'
+);
+
 update public.answers set value = '"nao"'
   where response_id = 'ff100000-0000-0000-0000-000000000030'
     and item_id = 'ff100000-0000-0000-0000-000000000010';
+
 select ok(
   app.response_required_complete('ff100000-0000-0000-0000-000000000030'),
-  'H1. with the gate closed, the hidden group requires nothing AND the hidden conditional+required item does not block (visibility wins — the branch ruling 4 un-deadened)'
+  'H1b. gate CLOSED: VISIBILITY ALONE flips it to complete — a hidden required item is not required and a hidden group is not checked (ruling 4 + ruling 3)'
 );
 rollback to h1;
+
+-- H1c — the same rule in the OTHER authority. submit_response has its own
+-- hidden-container branch, and qa neutralised it without turning the suite red.
+-- With the group hidden and unsatisfiable, submit must still SUCCEED.
+savepoint h1c;
+delete from public.response_group_instances
+  where response_id = 'ff100000-0000-0000-0000-000000000030';
+update public.answers set value = '"nao"'
+  where response_id = 'ff100000-0000-0000-0000-000000000030'
+    and item_id = 'ff100000-0000-0000-0000-000000000010';
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select lives_ok(
+  $$select public.submit_response('ff100000-0000-0000-0000-000000000030')$$,
+  'H1c. submit_response skips a HIDDEN repeating group entirely — no HC0N5 for a group the author cannot see'
+);
+reset role;
+select set_config('request.jwt.claims', null, true);
+rollback to h1c;
 
 savepoint h2;
 delete from public.answers
@@ -491,12 +571,55 @@ select throws_ok(
 -- ===========================================================================
 -- §J · RLS is the boundary (ruling 5). The RPCs add NO authority.
 --   MUTATION: widen response_group_instances_write_own_draft's qual to drop
---     `created_by = auth.uid()` -> J1 goes red. Asserted by attempting the WRITE
+--     `created_by = auth.uid()` -> J1b goes red. Asserted by attempting the WRITE
 --     as another user and requiring it to fail — never by reading a predicate's
 --     return value (the ETH·E1 lesson).
+--
+--   qa MAJOR-2: J1 alone was passing for the WRONG REASON. `st_x2` is an
+--   ordinary `staff`, and the responses SELECT policy already hides a foreign
+--   draft from them — so the insert failed on the READ, and dropping
+--   `created_by = auth.uid()` from the write qual left the suite 46/46.
+--   A reader-non-writer keystone needs a persona that genuinely CAN READ the row:
+--   `is_commission_admin_of` is org_admin/hospital_admin (NOT staff_admin — qa
+--   confirmed sa_x reads 0 foreign instances), so §J now mints an org_admin.
+--   J1a establishes the read; J1b is then unambiguously about the WRITE qual.
 -- ===========================================================================
 insert into public.responses (id, form_version_id, commission_id, created_by, status)
   values ('ff100000-0000-0000-0000-000000000031', 'ff100000-0000-0000-0000-000000000002', (select comm_x from k), (select st_x from k), 'in_progress');
+-- st_x's draft holds an instance, so "cannot write" is not trivially "nothing there".
+insert into public.response_group_instances (id, response_id, group_item_id, position)
+  values ('ff100000-0000-0000-0000-000000000032', 'ff100000-0000-0000-0000-000000000031', 'ff100000-0000-0000-0000-000000000011', 0);
+
+-- An org_admin of the fixture org: satisfies the SELECT policy's
+-- is_commission_admin_of arm, but is NOT the draft's creator.
+insert into auth.users (instance_id, id, aud, role, email, created_at, updated_at)
+  values ('00000000-0000-0000-0000-000000000000', 'ff100000-0000-0000-0000-0000000000a1',
+          'authenticated', 'authenticated', 'ff1-orgadmin@test', now(), now());
+update public.profiles
+  set full_name = 'OrgAdmin FF1', home_organization_id = (select org_b from k)
+  where id = 'ff100000-0000-0000-0000-0000000000a1';
+insert into public.memberships (organization_id, principal_id, role)
+  values ((select org_b from k), 'ff100000-0000-0000-0000-0000000000a1', 'org_admin');
+
+select test_helpers.claims_for('ff100000-0000-0000-0000-0000000000a1'::uuid, false);
+set local role authenticated;
+
+select is(
+  (select count(*)::int from public.response_group_instances
+    where response_id = 'ff100000-0000-0000-0000-000000000031'),
+  1, 'J1a. an org_admin CAN READ another member''s draft instances (so J1b is about the WRITE qual, not the SELECT policy)'
+);
+
+select throws_ok(
+  $$insert into public.response_group_instances (response_id, group_item_id, position)
+    values ('ff100000-0000-0000-0000-000000000031','ff100000-0000-0000-0000-000000000011', 5)$$,
+  '42501',
+  null,
+  'J1b. …and STILL cannot write one — the FOR ALL qual is strictly narrower than SELECT (reader-non-writer, ADR 0079)'
+);
+
+reset role;
+select set_config('request.jwt.claims', null, true);
 
 select test_helpers.claims_for((select st_x2 from k), false);
 set local role authenticated;
@@ -558,7 +681,25 @@ select is(
 select is(
   (select count(*)::int from public.answers
     where response_id = (select id from succ) and group_instance_id is not null),
-  3, 'K3. every instance-scoped answer was copied (2x med_nome + 1x med_dose)'
+  4, 'K3. every instance-scoped answer was copied (2x med_nome + med_dose + med_via)'
+);
+
+-- K4 — qa P0-1. K1-K3 count `answers` rows ONLY, and the original fixture used
+-- short_text children exclusively, so no selection ever existed to be lost:
+-- the keystone I was asked for was structurally blind to the bug my own
+-- Amendment 1.3 introduced. Assert the SELECTION survives, BY VALUE.
+--   MUTATION: revert the selections join to
+--     `new_a.group_instance_id is not distinct from old_a.group_instance_id`
+--     -> K4 red (0 rows), while K1-K3 stay green. That gap IS the bug.
+select results_eq(
+  $$select o.code
+      from public.answer_selected_options aso
+      join public.answers a on a.id = aso.answer_id
+      join public.form_item_options o on o.id = aso.option_id
+     where a.response_id = (select id from succ)
+       and a.group_instance_id is not null$$,
+  $$values ('ev'::text)$$,
+  'K4. the instance-scoped CHOICE selection survives the correction with its value intact (P0-1)'
 );
 
 -- ===========================================================================
