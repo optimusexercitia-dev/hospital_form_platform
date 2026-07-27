@@ -104,7 +104,7 @@ interview). Flag `repeating_groups` (seeded OFF → enable migration at the gate
 
 | # | Task | Owner | Status |
 |---|---|---|---|
-| BE-0 | **Contract-first:** post typed stubs `frontend` depends on (instance RPC signatures, group-aware wizard/builder types in `src/lib/queries/forms.ts` + `submissions.ts`) before implementing | backend | – |
+| BE-0 | **Contract-first:** post typed stubs `frontend` depends on (instance RPC signatures, group-aware wizard/builder types in `src/lib/queries/forms.ts` + `submissions.ts`) before implementing | backend | ✅ `cd9f42b` — `ContainerItemType`/`Item.children`/`flattenItem` · `ItemConfig.min/maxInstances` · `GroupInstance` + `.instances` on `ResponseForFill`/`SubmissionDetail` · `overlayAnswerMap` · 3 instance-action stubs + `SaveSectionInput.instances`. ⚠ **9 intentional typecheck errors in `src/components/**` — FE-1's first move** (see the note under this table) |
 | BE-1 | Migration wave 1: flag seeded OFF · relax the `group`/`repeating_group` arms of `form_items_input_vs_display` · **drop `form_items_conditional_not_required`** (ruling 4) · depth-1 container cap (ruling 1) · children-contiguous-after-parent enforcement | backend | – |
 | BE-2 | Instance-aware **`app.answer_map`** — 2-tier overlay (top-level ⊕ instance-*I*, same-instance wins, sibling-absent never falls back) + SQL golden vectors (`20_conditions.sql`) | backend | – |
 | BE-3 | INVOKER RPCs `add_/remove_/reorder_group_instances` — atomic `max(position)+1`, collision-free reorder against the non-deferrable unique, `max_instances` (ruling 5) | backend | – |
@@ -119,6 +119,28 @@ interview). Flag `repeating_groups` (seeded OFF → enable migration at the gate
 | FE-3 | Wizard: `group` as a plain nested sub-section (no instance chrome) + grouped review/summary rendering | frontend | – |
 | FE-4 | Conditional+required UX now that the CHECK is gone — *obrigatório* offered beside a condition, pt-BR errors | frontend | – |
 | FE-5 | Keyboard-only pass over instance controls (add/remove/reorder), visible focus, labels | frontend | – |
+
+> ⚠ **BE-0 hands over a RED typecheck — by design, 9 errors, all in `src/components/**` (frontend-owned).**
+> Widening `ItemType` and adding the required `Item.children` / `ResponseForFill.instances` fields is the
+> compile-time signal the repo relies on ("adding a member forces every consumer to handle it"). Not a
+> regression; **`src/lib/**` is clean and lint is 0/0.** The 9 sites, each a one-line fix:
+> `item-type-meta.tsx:25` (add `group` + `repeating_group` to `ITEM_TYPE_META` — FE-1 anyway) and 8
+> test-fixture builders needing `children: []` / `instances: []` —
+> `forms/describe-visibility.test.ts:19` · `forms/item-editor-dialog.test.tsx:186` ·
+> `wizard/input-item.test.tsx:17` · `wizard/others-fill.test.tsx:36` · `wizard/others-persist.test.tsx:23` ·
+> `wizard/prepare.test.ts:16,60` · `wizard/use-wizard.test.ts:20`.
+
+> 🔴 **ADR 0087 §Implementation-notes SQLSTATE line is WRONG — do not allocate `HC099`.** The live
+> `pg_proc` high-water is **`HC0M9`**, not `HC098` (the `HC09x` digit lane was exhausted and the
+> convention moved to letter lanes `HC0A0`…`HC0M9`; `L` is skipped). FF-1 allocates the next free lane,
+> **`HC0N0`+**. `HC098` is the last *digit-lane* code, which is what backend-state's table recorded.
+
+> 🔴 **Two latent bugs FF-1 ACTIVATES** (live-catalog, not in ADR 0087): `start_correction_draft` and
+> `supersede_response` copy `answers.group_instance_id` **verbatim from the predecessor** without copying
+> `response_group_instances`, so a corrected response's answers would point at the *predecessor's*
+> instances (frozen by `guard_submitted_group_instances_trg`; cascade-deleted with the predecessor).
+> Inert today (0 instance rows) — must be fixed in the BE-3/BE-4 wave. Also `app.assert_item_bounds`
+> does an unscoped `select … where response_id and item_id`, silently picking ONE instance's answer.
 
 Every concluded phase/track lives as a **row in the
 [Phase Status](#phase-status) table above**, with its full record under `docs/progress/`; the remaining
