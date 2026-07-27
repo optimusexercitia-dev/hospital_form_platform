@@ -76,6 +76,8 @@ function wizardData(): WizardData {
     initialAnswers: {},
     lastSectionId: null,
     signoffsBySectionId: {},
+    // FF-1: repeating-group instances (none in these fixtures).
+    initialInstances: [],
   };
 }
 

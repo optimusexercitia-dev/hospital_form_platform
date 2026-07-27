@@ -102,6 +102,7 @@ export default async function SubmissionDetailPage({
         answersByKey={detail.answersByKey}
         observationsByItemId={detail.observationsByItemId}
         otherTextByItemId={detail.otherTextByItemId}
+        instances={detail.instances}
         signoffs={detail.signoffs}
         imageUrls={imageUrls}
       />

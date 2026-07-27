@@ -3,12 +3,17 @@ import { CalendarCheck } from "lucide-react";
 import type { Json } from "@/lib/types/database";
 import type { Item, Section, VersionTree } from "@/lib/queries/forms";
 import type { SignoffRecord } from "@/lib/queries/signoffs";
+import type { GroupInstance } from "@/lib/queries/responses";
 import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
 import {
   ImageContentRenderer,
   SectionTextRenderer,
 } from "@/components/forms/read-only-blocks";
 import { AnswerSummary } from "@/components/responses/wizard/answer-summary";
+import {
+  InstanceAnswersReadonly,
+  instancesByGroupItemId,
+} from "@/components/responses/instance-answers-readonly";
 import {
   computeEffectiveVisibility,
   isInputItem,
@@ -53,6 +58,7 @@ export function SubmissionDetailView({
   answersByKey,
   observationsByItemId = {},
   otherTextByItemId = {},
+  instances = [],
   signoffs,
   imageUrls,
 }: {
@@ -65,11 +71,19 @@ export function SubmissionDetailView({
   /** Per-item "Outros" free text ("Outros" open option). Optional; shown as
    *  "Outro: <valor>" beneath the answer where the reserved option was selected. */
   otherTextByItemId?: Record<string, string>;
+  /**
+   * FF-1 (ADR 0087) — the response's repeating-group instances. Already
+   * pruned by `submit_response` (a zero-answer repetition is deleted before
+   * the status flips), so what appears here is exactly what was filled.
+   * `[]` for every form without a repeating group.
+   */
+  instances?: GroupInstance[];
   signoffs: SignoffRecord[];
   imageUrls: Record<string, string>;
 }) {
   const sections = tree.sections;
   const isFlat = sections.length === 1 && sections[0].isDefault;
+  const instancesByGroup = instancesByGroupItemId(instances);
   const signoffsBySection = new Map(signoffs.map((s) => [s.sectionId, s]));
 
   // One forward pass drives both section AND item visibility (mirror of submit).
@@ -82,6 +96,7 @@ export function SubmissionDetailView({
     return (
       <div className="flex flex-col gap-4">
         <SectionBody
+          instancesByGroup={instancesByGroup}
           section={sections[0]}
           answersByItemId={answersByItemId}
           observationsByItemId={observationsByItemId}
@@ -104,6 +119,7 @@ export function SubmissionDetailView({
           answersByItemId={answersByItemId}
           observationsByItemId={observationsByItemId}
           otherTextByItemId={otherTextByItemId}
+          instancesByGroup={instancesByGroup}
           visibleItemIds={visibleItemIds}
           signoff={signoffsBySection.get(section.id) ?? null}
           imageUrls={imageUrls}
@@ -120,6 +136,7 @@ function DetailSection({
   answersByItemId,
   observationsByItemId,
   otherTextByItemId,
+  instancesByGroup,
   visibleItemIds,
   signoff,
   imageUrls,
@@ -130,6 +147,7 @@ function DetailSection({
   answersByItemId: Record<string, Json>;
   observationsByItemId: Record<string, string>;
   otherTextByItemId: Record<string, string>;
+  instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   signoff: SignoffRecord | null;
   imageUrls: Record<string, string>;
@@ -177,6 +195,7 @@ function DetailSection({
       {visible ? (
         <>
           <SectionBody
+            instancesByGroup={instancesByGroup}
             section={section}
             answersByItemId={answersByItemId}
             observationsByItemId={observationsByItemId}
@@ -205,6 +224,7 @@ function SectionBody({
   answersByItemId,
   observationsByItemId,
   otherTextByItemId,
+  instancesByGroup,
   visibleItemIds,
   imageUrls,
 }: {
@@ -212,16 +232,32 @@ function SectionBody({
   answersByItemId: Record<string, Json>;
   observationsByItemId: Record<string, string>;
   otherTextByItemId: Record<string, string>;
+  instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
 }) {
   // Display items always render; input items hidden by an item-level condition
   // are omitted (they collected no answer).
-  const items = section.items.filter(
-    (it) => !isInputItem(it.itemType) || visibleItemIds.has(it.id),
+  //
+  // FF-1: render THROUGH a plain `group` — its children answer at TOP LEVEL
+  // (ADR 0087 ruling 6), so filtering `section.items` alone would silently drop
+  // every one of them from the submitted record. `repeating_group` blocks are
+  // rendered separately by {@link InstanceBlocks} from `SubmissionDetail.instances`.
+  const items = section.items
+    .flatMap((it) => (it.itemType === "group" ? it.children : [it]))
+    .filter(
+      (it) =>
+        it.itemType !== "repeating_group" &&
+        (!isInputItem(it.itemType) || visibleItemIds.has(it.id)),
+    );
+
+  // FF-1: `repeating_group` blocks render per instance, in document order
+  // alongside the flat blocks above them.
+  const repeatingGroups = section.items.filter(
+    (it) => it.itemType === "repeating_group",
   );
 
-  if (items.length === 0) {
+  if (items.length === 0 && repeatingGroups.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-5 text-center text-sm text-muted-foreground">
         Seção sem blocos.
@@ -239,6 +275,13 @@ function SectionBody({
           observation={observationsByItemId[item.id]}
           otherText={otherTextByItemId[item.id]}
           imageUrls={imageUrls}
+        />
+      ))}
+      {repeatingGroups.map((container) => (
+        <InstanceAnswersReadonly
+          key={container.id}
+          container={container}
+          instances={instancesByGroup[container.id] ?? []}
         />
       ))}
     </div>

@@ -4,20 +4,32 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { Json } from "@/lib/types/database";
 import type { AnswerMap } from "@/lib/queries/conditions";
-import type { Section } from "@/lib/queries/forms";
+import type { Item, Section } from "@/lib/queries/forms";
 import { OTHER_OPTION_CODE } from "@/lib/forms/option-constants";
 
 import type { AnswerRecord, AnswerState, WizardData } from "./types";
 import {
   computeEffectiveVisibility,
+  computeInstanceVisibility,
   isInputItem,
   isChoiceItem,
   type EffectiveVisibility,
 } from "./effective-visibility";
+import {
+  groupInstances,
+  instanceAnswerMap,
+  type InstanceState,
+  type InstancesByGroup,
+} from "./instances";
 
 // Re-export so existing importers (validation, section-step, review-screen,
 // block dispatcher) keep their `./use-wizard` import path unchanged.
-export { computeEffectiveVisibility, isInputItem, isChoiceItem };
+export {
+  computeEffectiveVisibility,
+  computeInstanceVisibility,
+  isInputItem,
+  isChoiceItem,
+};
 export type { EffectiveVisibility };
 
 /**
@@ -72,14 +84,37 @@ export interface WizardState {
   /** Derived question_key → value map for `evalCondition`. */
   answerMap: AnswerMap;
   /**
+   * FF-1 — the CONTAINER ids currently visible. A hidden container hides its
+   * children and requires nothing, including its `minInstances` (ruling 3).
+   */
+  visibleContainerIds: Set<string>;
+  /**
+   * FF-1 — the repeating-group instances of this response, grouped by container
+   * item id and ordered by position. `{}` for a form with no repeating group.
+   */
+  instancesByGroup: InstancesByGroup;
+  /**
+   * FF-1 — per-instance visible child ids, keyed by instance id. Derived by
+   * {@link computeInstanceVisibility} against the 2-tier overlay (ruling 2), so a
+   * child hidden inside instance A can be visible inside instance B.
+   */
+  visibleItemIdsByInstance: Map<string, Set<string>>;
+
+  /**
    * The LATEST committed answer state + its derived visible-item ids, read from a
    * ref (not a render snapshot). The save-time collectors call this so a handler
    * memoized before the final keystroke still serializes the final state
    * (BUG-FBE-008 stale-closure fix). NOT for render — use `answers` there.
+   *
+   * FF-1 extends it with the instances + their per-instance visibility, so the
+   * instance arm of the save payload is collected from the same non-stale source
+   * as the top-level arm rather than a second, differently-timed one.
    */
   getLatestSnapshot: () => {
     answers: AnswerState;
     visibleItemIds: Set<string>;
+    instances: InstanceState[];
+    visibleItemIdsByInstance: Map<string, Set<string>>;
   };
 
   setAnswer: (item: { id: string; questionKey: string }, value: Json) => void;
@@ -102,6 +137,37 @@ export interface WizardState {
     item: { id: string; questionKey: string },
     otherText: string,
   ) => void;
+
+  // --- FF-1: per-instance answer edits (same three verbs, scoped to one
+  // instance). A repeating-group child NEVER writes into the top-level state.
+  setInstanceAnswer: (
+    instanceId: string,
+    item: { id: string; questionKey: string },
+    value: Json,
+  ) => void;
+  setInstanceObservation: (
+    instanceId: string,
+    itemId: string,
+    observation: string,
+  ) => void;
+  setInstanceOtherText: (
+    instanceId: string,
+    item: { id: string; questionKey: string },
+    otherText: string,
+  ) => void;
+
+  // --- FF-1: instance lifecycle, applied LOCALLY after the server action
+  // succeeded. The RPCs own the authoritative positions (`add` is
+  // `max(position)+1` under `maxInstances`; `remove` re-packs to 0..n-1), so
+  // these mirror the outcome rather than predicting it.
+  addInstanceLocal: (instance: {
+    id: string;
+    groupItemId: string;
+    position: number;
+  }) => void;
+  removeInstanceLocal: (instanceId: string) => void;
+  reorderInstancesLocal: (groupItemId: string, instanceIds: string[]) => void;
+
   goToStep: (index: number) => void;
   next: () => void;
   back: () => void;
@@ -225,12 +291,56 @@ function withDefaults(sections: Section[], initialAnswers: AnswerState): AnswerS
   return next ?? initialAnswers;
 }
 
+/**
+ * FF-1 — per-instance visible child ids for every instance in the response.
+ *
+ * An instance inside a HIDDEN container contributes an empty set: a hidden group
+ * requires nothing (ruling 3) and renders nothing. `baseMap` is the EFFECTIVE
+ * top-level map (hidden controllers already dropped), so a child's condition
+ * sees exactly what the server's forward pass sees before the overlay is applied.
+ */
+function deriveInstanceVisibility(
+  sections: Section[],
+  instances: InstanceState[],
+  baseMap: AnswerMap,
+  visibleContainerIds: Set<string>,
+): Map<string, Set<string>> {
+  const byInstance = new Map<string, Set<string>>();
+  if (instances.length === 0) return byInstance;
+
+  const containersById = new Map<string, Item>();
+  for (const section of sections) {
+    for (const item of section.items) {
+      if (item.itemType === "repeating_group") containersById.set(item.id, item);
+    }
+  }
+
+  for (const instance of instances) {
+    const container = containersById.get(instance.groupItemId);
+    if (!container || !visibleContainerIds.has(container.id)) {
+      byInstance.set(instance.id, new Set<string>());
+      continue;
+    }
+    byInstance.set(
+      instance.id,
+      computeInstanceVisibility(container, baseMap, instanceAnswerMap(instance)),
+    );
+  }
+  return byInstance;
+}
+
 export function useWizard(data: WizardData): WizardState {
   const sections = data.tree.sections;
   const isFlat = sections.length === 1 && sections[0].isDefault;
 
   const [answers, setAnswers] = useState<AnswerState>(() =>
     withDefaults(sections, data.initialAnswers),
+  );
+
+  // FF-1 — the repeating-group instances. A flat, position-ordered list; the
+  // renderers consume the grouped/sorted view derived below.
+  const [instances, setInstances] = useState<InstanceState[]>(
+    () => data.initialInstances,
   );
 
   // Resolve the initial step from where the user left off, clamped to what's
@@ -260,6 +370,13 @@ export function useWizard(data: WizardData): WizardState {
     answersRef.current = answers;
   }, [answers]);
 
+  // The same live-ref treatment for instances: the save collector must serialize
+  // the FINAL per-instance keystroke, not a render snapshot taken before it.
+  const instancesRef = useRef(instances);
+  useEffect(() => {
+    instancesRef.current = instances;
+  }, [instances]);
+
   /**
    * The LATEST committed answer state + the visibility derived from it, computed
    * on demand from the ref. Used only by the save-time collectors so they never
@@ -269,13 +386,27 @@ export function useWizard(data: WizardData): WizardState {
   const getLatestSnapshot = useCallback((): {
     answers: AnswerState;
     visibleItemIds: Set<string>;
+    instances: InstanceState[];
+    visibleItemIdsByInstance: Map<string, Set<string>>;
   } => {
     const latest = answersRef.current;
-    const { visibleItemIds: latestVisible } = computeEffectiveVisibility(
-      sections,
-      toAnswerMap(latest),
-    );
-    return { answers: latest, visibleItemIds: latestVisible };
+    const latestInstances = instancesRef.current;
+    const {
+      visibleItemIds: latestVisible,
+      visibleContainerIds,
+      effectiveMap,
+    } = computeEffectiveVisibility(sections, toAnswerMap(latest));
+    return {
+      answers: latest,
+      visibleItemIds: latestVisible,
+      instances: latestInstances,
+      visibleItemIdsByInstance: deriveInstanceVisibility(
+        sections,
+        latestInstances,
+        effectiveMap,
+        visibleContainerIds,
+      ),
+    };
   }, [sections]);
 
   // One document-order pass drives both section AND item visibility (mirror of
@@ -289,6 +420,21 @@ export function useWizard(data: WizardData): WizardState {
   const visibleSections = useMemo(
     () => sections.filter((s) => effective.visibleSectionIds.has(s.id)),
     [sections, effective],
+  );
+
+  // FF-1 — the instance views. `instancesByGroup` is what the renderers consume
+  // (grouped + position-ordered); `visibleItemIdsByInstance` is the per-instance
+  // inside-out visibility (ruling 2), recomputed whenever either tier changes.
+  const instancesByGroup = useMemo(() => groupInstances(instances), [instances]);
+  const visibleItemIdsByInstance = useMemo(
+    () =>
+      deriveInstanceVisibility(
+        sections,
+        instances,
+        effective.effectiveMap,
+        effective.visibleContainerIds,
+      ),
+    [sections, instances, effective],
   );
 
   // Clamp the active index whenever the visible set shrinks below it (the
@@ -391,6 +537,115 @@ export function useWizard(data: WizardData): WizardState {
     [],
   );
 
+  // --- FF-1: per-instance edits. Each writes ONLY into the addressed instance's
+  // own answer state; a repeating-group child never touches the top-level map.
+  const updateInstance = useCallback(
+    (instanceId: string, update: (answers: AnswerState) => AnswerState) => {
+      setInstances((prev) =>
+        prev.map((instance) =>
+          instance.id === instanceId
+            ? { ...instance, answers: update(instance.answers) }
+            : instance,
+        ),
+      );
+    },
+    [],
+  );
+
+  const setInstanceAnswer = useCallback(
+    (
+      instanceId: string,
+      item: { id: string; questionKey: string },
+      value: Json,
+    ) => {
+      updateInstance(instanceId, (prev) => ({
+        ...prev,
+        [item.id]: {
+          ...prev[item.id],
+          itemId: item.id,
+          questionKey: item.questionKey,
+          value,
+        },
+      }));
+    },
+    [updateInstance],
+  );
+
+  const setInstanceObservation = useCallback(
+    (instanceId: string, itemId: string, observation: string) => {
+      updateInstance(instanceId, (prev) => {
+        const rec = prev[itemId];
+        if (!rec) return prev; // an observation rides on an existing answer
+        return { ...prev, [itemId]: { ...rec, observation } };
+      });
+    },
+    [updateInstance],
+  );
+
+  const setInstanceOtherText = useCallback(
+    (
+      instanceId: string,
+      item: { id: string; questionKey: string },
+      otherText: string,
+    ) => {
+      updateInstance(instanceId, (prev) => {
+        const rec = prev[item.id];
+        if (rec) return { ...prev, [item.id]: { ...rec, otherText } };
+        // BUG-FBE-008, per instance: UPSERT a minimal record so a first Outro
+        // keystroke landing before the selection's `setAnswer` is never dropped.
+        // Only for a NON-empty value, so clearing an absent item can't resurrect it.
+        if (otherText === "") return prev;
+        return {
+          ...prev,
+          [item.id]: {
+            itemId: item.id,
+            questionKey: item.questionKey,
+            value: OTHER_OPTION_CODE as Json,
+            otherText,
+          },
+        };
+      });
+    },
+    [updateInstance],
+  );
+
+  const addInstanceLocal = useCallback(
+    (instance: { id: string; groupItemId: string; position: number }) => {
+      setInstances((prev) => [...prev, { ...instance, answers: {} }]);
+    },
+    [],
+  );
+
+  const removeInstanceLocal = useCallback((instanceId: string) => {
+    setInstances((prev) => {
+      const removed = prev.find((i) => i.id === instanceId);
+      if (!removed) return prev;
+      // Mirror the RPC's re-pack: the group's remaining positions stay
+      // contiguous 0..n-1, so the client never renders a gap the server doesn't
+      // have.
+      return prev
+        .filter((i) => i.id !== instanceId)
+        .map((i) =>
+          i.groupItemId === removed.groupItemId && i.position > removed.position
+            ? { ...i, position: i.position - 1 }
+            : i,
+        );
+    });
+  }, []);
+
+  const reorderInstancesLocal = useCallback(
+    (groupItemId: string, instanceIds: string[]) => {
+      setInstances((prev) =>
+        prev.map((instance) => {
+          if (instance.groupItemId !== groupItemId) return instance;
+          const next = instanceIds.indexOf(instance.id);
+          return next < 0 ? instance : { ...instance, position: next };
+        }),
+      );
+    },
+    [],
+  );
+
   const previewAnswerChange = useCallback(
     (item: { id: string; questionKey: string }, value: Json): AnswerState => ({
       ...answers,
@@ -475,11 +730,20 @@ export function useWizard(data: WizardData): WizardState {
     isReview,
     answers,
     answerMap,
+    visibleContainerIds: effective.visibleContainerIds,
+    instancesByGroup,
+    visibleItemIdsByInstance,
     getLatestSnapshot,
     setAnswer,
     clearAnswer,
     setObservation,
     setOtherText,
+    setInstanceAnswer,
+    setInstanceObservation,
+    setInstanceOtherText,
+    addInstanceLocal,
+    removeInstanceLocal,
+    reorderInstancesLocal,
     goToStep,
     next,
     back,

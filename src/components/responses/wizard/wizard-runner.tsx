@@ -8,6 +8,9 @@ import {
   submitResponse,
   submitCasePhaseResponse,
   signSection,
+  addGroupInstance,
+  removeGroupInstance,
+  reorderGroupInstances,
 } from "@/lib/responses/actions";
 import { resubmitCorrection } from "@/lib/corrections/actions";
 
@@ -88,6 +91,19 @@ export function WizardRunner({
           responseId: data.responseId,
           sectionId: input.sectionId,
           note: input.note,
+        }),
+      // FF-1 (ADR 0087 ruling 5) — the three instance writers. Same binding
+      // pattern as above: the response id lives here, the orchestrator stays
+      // decoupled from the exact action signatures.
+      addInstance: (groupItemId: string) =>
+        addGroupInstance({ responseId: data.responseId, groupItemId }),
+      removeInstance: (instanceId: string) =>
+        removeGroupInstance({ responseId: data.responseId, instanceId }),
+      reorderInstances: (groupItemId: string, instanceIds: string[]) =>
+        reorderGroupInstances({
+          responseId: data.responseId,
+          groupItemId,
+          instanceIds,
         }),
     }),
     [data.responseId, data.phaseResult, data.correction],

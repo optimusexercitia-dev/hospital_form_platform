@@ -5,6 +5,7 @@ import { User } from "lucide-react";
 
 import type { Json } from "@/lib/types/database";
 import type { Item, Section } from "@/lib/queries/forms";
+import { flattenItem } from "@/lib/forms/item-tree";
 import type { AnswerMap } from "@/lib/queries/conditions";
 import {
   ImageContentRenderer,
@@ -61,8 +62,13 @@ export function ReviewAndSign({
   // answers (keyed by item id) joined to the tree's stable question_keys.
   const answerMap = useMemo<AnswerMap>(() => {
     const map: AnswerMap = {};
+    // FF-1: a plain `group`'s children answer at TOP LEVEL (ADR 0087 ruling 6),
+    // so they belong in this map; walking `section.items` alone would drop them
+    // and any condition targeting one would read as unanswered. A
+    // `repeating_group`'s children never carry a top-level answer, so
+    // `flattenItem` including them is harmless — they simply have no value.
     for (const section of sections) {
-      for (const item of section.items) {
+      for (const item of section.items.flatMap(flattenItem)) {
         if (!item.questionKey) continue;
         const value = data.answersByItemId[item.id];
         if (value === undefined) continue;
@@ -246,9 +252,12 @@ function SectionBody({
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
 }) {
-  const items = section.items.filter(
-    (it) => !isInputItem(it.itemType) || visibleItemIds.has(it.id),
-  );
+  // FF-1: render THROUGH a plain `group` so its children (top-level answers)
+  // still appear. A `repeating_group`'s per-instance answers are not available
+  // on `ResponseForSignoff` yet — see the note on `SectionBody`'s caller.
+  const items = section.items
+    .flatMap((it) => (it.itemType === "group" ? it.children : [it]))
+    .filter((it) => !isInputItem(it.itemType) || visibleItemIds.has(it.id));
 
   if (items.length === 0) {
     return (

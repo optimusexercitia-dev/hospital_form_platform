@@ -78,6 +78,8 @@ function data(t: VersionTree, initialAnswers: AnswerState = {}): WizardData {
     initialAnswers,
     lastSectionId: null,
     signoffsBySectionId: {},
+    // FF-1: repeating-group instances (none in these fixtures).
+    initialInstances: [],
   };
 }
 

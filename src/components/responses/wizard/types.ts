@@ -4,6 +4,8 @@ import type { AnswerMap, ResultRuleset } from "@/lib/queries/conditions";
 import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
 import type { SectionSignoff } from "@/components/signoffs/types";
 
+import type { InstanceState } from "./instances";
+
 /**
  * Local, thin interface the wizard is built against so the non-data-bound
  * engine (F2/F3/F5 scaffold) compiles and runs ahead of backend's B2/B3
@@ -76,6 +78,15 @@ export interface WizardData {
   tree: VersionTree;
   /** Saved answers, already mapped to per-item records (B2 returns these). */
   initialAnswers: AnswerState;
+  /**
+   * FF-1 (ADR 0087) — the response's saved repeating-group instances, already
+   * mapped to per-instance answer records. `[]` for a form with no
+   * `repeating_group`, which is every form until FF-1's builder ships one.
+   *
+   * A plain `group` contributes NOTHING here (ruling 6): its children answer at
+   * top level and are already in {@link initialAnswers}.
+   */
+  initialInstances: InstanceState[];
   /** Where the user left off — the wizard opens on this section if resumable. */
   lastSectionId: string | null;
   /**
@@ -125,3 +136,4 @@ export interface WizardData {
 }
 
 export type { Item, Section, VersionTree, AnswerMap };
+export type { InstanceState } from "./instances";

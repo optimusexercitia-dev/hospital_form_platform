@@ -1,11 +1,13 @@
 import "server-only";
 
-import { getSignedAssetUrl } from "@/lib/queries/forms";
-import type { ResponseForFill } from "@/lib/queries/responses";
+import { flattenItem, getSignedAssetUrl } from "@/lib/queries/forms";
+import type { Item, VersionTree } from "@/lib/queries/forms";
+import type { GroupInstance, ResponseForFill } from "@/lib/queries/responses";
 import type { SignoffRecord } from "@/lib/queries/signoffs";
 import type { CasePhaseForFill } from "@/lib/queries/cases";
 import { signoffRecordsToMap } from "@/components/signoffs/adapt";
 
+import type { InstanceState } from "./instances";
 import type { AnswerState, WizardData } from "./types";
 
 /**
@@ -22,9 +24,14 @@ import type { AnswerState, WizardData } from "./types";
  */
 export function toAnswerState(response: ResponseForFill): AnswerState {
   const state: AnswerState = {};
+  // FF-1: `Section.items` holds only TOP-LEVEL items, so walk through
+  // `flattenItem`. A plain `group`'s children answer at TOP LEVEL (ruling 6) and
+  // belong in this state; a `repeating_group`'s children never carry a top-level
+  // answer, so they simply contribute nothing here (their values live on the
+  // per-instance state built by `toInstanceStates`).
   for (const section of response.tree.sections) {
-    for (const item of section.items) {
-      if (!item.questionKey) continue; // display items carry no answer
+    for (const item of section.items.flatMap(flattenItem)) {
+      if (!item.questionKey) continue; // display + container items carry no answer
       const value = response.answersByItemId[item.id];
       // An observation can exist on a saved answer (BE-7); rehydrate it so a
       // resumed fill keeps the note and shows it on the review screen.
@@ -48,6 +55,65 @@ export function toAnswerState(response: ResponseForFill): AnswerState {
     }
   }
   return state;
+}
+
+/**
+ * FF-1 (ADR 0087) — map the response's saved {@link GroupInstance} rows to the
+ * wizard's per-instance answer state.
+ *
+ * Only `answersByItemId` is consumed here. `GroupInstance.answersByKey` is the
+ * backend-composed 2-tier overlay for EVALUATION; the wizard recomposes it live
+ * from the current top-level map as the user types (via the parity-locked
+ * `overlayAnswerMap`), because a saved overlay goes stale on the first keystroke.
+ * An instance whose container is no longer in the tree is dropped rather than
+ * rendered orphaned.
+ */
+export function toInstanceStates(
+  tree: VersionTree,
+  instances: GroupInstance[],
+): InstanceState[] {
+  const childrenByGroup = new Map<string, Item[]>();
+  for (const section of tree.sections) {
+    for (const item of section.items) {
+      if (item.itemType === "repeating_group") {
+        childrenByGroup.set(item.id, item.children);
+      }
+    }
+  }
+
+  const states: InstanceState[] = [];
+  for (const instance of instances) {
+    const children = childrenByGroup.get(instance.groupItemId);
+    if (!children) continue;
+    const answers: AnswerState = {};
+    for (const child of children) {
+      if (!child.questionKey) continue;
+      const value = instance.answersByItemId[child.id];
+      const observation = instance.observationsByItemId[child.id];
+      const otherText = instance.otherTextByItemId[child.id];
+      if (
+        value === undefined &&
+        observation === undefined &&
+        otherText === undefined
+      ) {
+        continue;
+      }
+      answers[child.id] = {
+        itemId: child.id,
+        questionKey: child.questionKey,
+        value: value ?? null,
+        ...(observation !== undefined ? { observation } : {}),
+        ...(otherText !== undefined ? { otherText } : {}),
+      };
+    }
+    states.push({
+      id: instance.id,
+      groupItemId: instance.groupItemId,
+      position: instance.position,
+      answers,
+    });
+  }
+  return states.sort((a, b) => a.position - b.position);
 }
 
 /**
@@ -105,6 +171,7 @@ export function toWizardData(
     respondentName,
     tree: response.tree,
     initialAnswers: toAnswerState(response),
+    initialInstances: toInstanceStates(response.tree, response.instances),
     lastSectionId: response.lastSectionId,
     signoffsBySectionId: signoffRecordsToMap(signoffs),
     phaseResult,
@@ -122,8 +189,10 @@ export async function resolveImageUrls(
   response: ResponseForFill,
 ): Promise<Record<string, string>> {
   const paths = new Set<string>();
+  // FF-1: walk THROUGH containers — an image block authored inside a group would
+  // otherwise resolve to no signed URL and render as a permanent placeholder.
   for (const section of response.tree.sections) {
-    for (const item of section.items) {
+    for (const item of section.items.flatMap(flattenItem)) {
       if (item.itemType === "image" && item.content) {
         const path = (item.content as { storage_path?: string }).storage_path;
         if (path) paths.add(path);

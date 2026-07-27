@@ -1,5 +1,9 @@
 import type { ResponseForFill } from "@/lib/queries/responses";
 import { AnswerSummary } from "@/components/responses/wizard/answer-summary";
+import {
+  InstanceAnswersReadonly,
+  instancesByGroupItemId,
+} from "@/components/responses/instance-answers-readonly";
 
 /**
  * Read-only rendering of a SUBMITTED phase's answers (guardrail 1, decision ii):
@@ -18,14 +22,23 @@ export function PhaseAnswersReadonly({
   response: ResponseForFill;
 }) {
   const sections = response.tree.sections;
+  // FF-1: the response's repeating-group instances, indexed by container.
+  const instancesByGroup = instancesByGroupItemId(response.instances);
 
   return (
     <div className="flex flex-col gap-4">
       {sections.map((section) => {
-        const inputItems = section.items.filter(
-          (it) => it.questionKey != null,
+        // FF-1: walk THROUGH containers. A plain `group`'s children answer at
+        // TOP LEVEL (ADR 0087 ruling 6) and belong in this list; a
+        // `repeating_group`'s children hold no top-level answer, so they are
+        // rendered per instance below instead of here.
+        const inputItems = section.items
+          .flatMap((it) => (it.itemType === "group" ? it.children : [it]))
+          .filter((it) => it.questionKey != null);
+        const repeatingGroups = section.items.filter(
+          (it) => it.itemType === "repeating_group",
         );
-        if (inputItems.length === 0) return null;
+        if (inputItems.length === 0 && repeatingGroups.length === 0) return null;
 
         const headingId = `phase-answers-section-${section.id}`;
         const heading =
@@ -40,17 +53,27 @@ export function PhaseAnswersReadonly({
             <h2 id={headingId} className="text-lg font-semibold">
               {heading}
             </h2>
-            <dl className="flex flex-col">
-              {inputItems.map((item) => (
-                <AnswerSummary
-                  key={item.id}
-                  item={item}
-                  value={response.answersByItemId[item.id]}
-                  observation={response.observationsByItemId[item.id]}
-                  otherText={response.otherTextByItemId[item.id]}
-                />
-              ))}
-            </dl>
+            {inputItems.length > 0 ? (
+              <dl className="flex flex-col">
+                {inputItems.map((item) => (
+                  <AnswerSummary
+                    key={item.id}
+                    item={item}
+                    value={response.answersByItemId[item.id]}
+                    observation={response.observationsByItemId[item.id]}
+                    otherText={response.otherTextByItemId[item.id]}
+                  />
+                ))}
+              </dl>
+            ) : null}
+
+            {repeatingGroups.map((container) => (
+              <InstanceAnswersReadonly
+                key={container.id}
+                container={container}
+                instances={instancesByGroup[container.id] ?? []}
+              />
+            ))}
           </section>
         );
       })}

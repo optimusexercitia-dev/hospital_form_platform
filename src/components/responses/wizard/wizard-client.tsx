@@ -16,7 +16,9 @@ import {
   isChoiceItem,
   type OrphanedSection,
 } from "./use-wizard";
-import { validateSection } from "./validation";
+import { validateSection, validateInstances } from "./validation";
+import type { InstanceAnswers } from "./collect";
+import { collectInstances, collectScope, topLevelItems } from "./collect";
 import { WizardProgress } from "./wizard-progress";
 import { SectionStep } from "./section-step";
 import { WizardNav } from "./wizard-nav";
@@ -62,6 +64,13 @@ export interface WizardActions {
     clearItemIds?: string[];
     observationsByItemId?: Record<string, string>;
     otherTextByItemId?: Record<string, string>;
+    /**
+     * FF-1 (ADR 0087) — the INSTANCE arm. One payload, one round trip, one
+     * transaction for a section with N instances; each entry addresses an
+     * EXISTING instance by id (instances are created/destroyed only by the three
+     * lifecycle actions, never implicitly by a save).
+     */
+    instances?: InstanceAnswers[];
   }) => Promise<{ ok: boolean; error?: string }>;
   /** Persist the current section + signal exit; F4. */
   saveAndExit: (input: {
@@ -70,6 +79,7 @@ export interface WizardActions {
     selectionsByItemId?: Record<string, string[]>;
     observationsByItemId?: Record<string, string>;
     otherTextByItemId?: Record<string, string>;
+    instances?: InstanceAnswers[];
   }) => Promise<{ ok: boolean; error?: string }>;
   /**
    * Submit through the server authority (`submit_response`); F5. For case-phase
@@ -92,6 +102,30 @@ export interface WizardActions {
     sectionId: string;
     note: string | null;
   }) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * FF-1 (ADR 0087 ruling 5) — the three repeating-group instance writers. They
+   * are INVOKER RPCs and CORRECTNESS doors, not security doors: RLS stays the
+   * boundary. They exist because the position uniqueness is a constraint the
+   * client cannot satisfy piecewise — `add` needs `max(position)+1` together
+   * with the `maxInstances` check atomically, and `remove`/`reorder` rewrite
+   * several positions in one statement-safe pass.
+   *
+   * `addInstance` returns the new instance so the wizard can render and focus it
+   * without a refetch.
+   */
+  addInstance: (groupItemId: string) => Promise<{
+    ok: boolean;
+    error?: string;
+    instanceId?: string;
+    position?: number;
+  }>;
+  removeInstance: (
+    instanceId: string,
+  ) => Promise<{ ok: boolean; error?: string }>;
+  reorderInstances: (
+    groupItemId: string,
+    instanceIds: string[],
+  ) => Promise<{ ok: boolean; error?: string }>;
 }
 
 /** A pending controlling-answer change awaiting the user's warn-and-clear. */
@@ -113,6 +147,15 @@ export function WizardClient({
   const router = useRouter();
   const wizard = useWizard(data);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // FF-1 — per-instance validation errors, keyed `${instanceId}:${itemId}` (plus
+  // the container's own id for a cardinality shortfall), so the SAME child can
+  // be invalid in one repetition and fine in another.
+  const [instanceErrors, setInstanceErrors] = useState<Record<string, string>>(
+    {},
+  );
+  // Instance add/remove/reorder have no visual anchor for a keyboard or screen
+  // reader user, so every outcome is announced politely here (FE-5).
+  const [liveMessage, setLiveMessage] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [banner, setBanner] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -147,10 +190,19 @@ export function WizardClient({
     isReview,
     answers,
     answerMap,
+    visibleContainerIds,
+    instancesByGroup,
+    visibleItemIdsByInstance,
     getLatestSnapshot,
     setAnswer,
     setObservation,
     setOtherText,
+    setInstanceAnswer,
+    setInstanceObservation,
+    setInstanceOtherText,
+    addInstanceLocal,
+    removeInstanceLocal,
+    reorderInstancesLocal,
     next,
     back,
     goToSection,
@@ -161,18 +213,16 @@ export function WizardClient({
   } = wizard;
 
   /**
-   * Collect a section's current answers keyed by item_id (B3's save shape),
-   * SPLIT by the form-model-normalization contract: SCALAR answers
-   * (number/date/time/text) go to `answersByItemId`; CHOICE selections go to
-   * `selectionsByItemId` as arrays of option CODEs (single-select → a
-   * one-element array; checkbox → the code array as-is). Only VISIBLE input items
-   * are sent — hidden items collect no answer. A choice item with no/empty
-   * selection sends an empty array (the RPC clears its selection rows).
+   * Collect a section's save payload — BOTH tiers, through the one shared
+   * collector (`collectScope`), so the top-level arm and every instance arm can
+   * never drift in which optional fields they carry. That drift is exactly what
+   * dropped `observationsByItemId` (BUG-FBE-004) and then `otherTextByItemId`
+   * (BUG-FBE-008), and N instances would have multiplied it.
    *
-   * BUG-FBE-008: reads the LATEST committed answers/visibility via
-   * `getLatestSnapshot()` (a ref) rather than the closed-over render snapshot, so
-   * a save handler memoized BEFORE the final keystroke still serializes the final
-   * state (the stale-closure that dropped the last "Outro" keystroke at save).
+   * BUG-FBE-008: reads the LATEST committed state via `getLatestSnapshot()` (a
+   * ref) rather than the closed-over render snapshot, so a save handler memoized
+   * BEFORE the final keystroke still serializes the final state — now for the
+   * instances too, which share the same ref discipline.
    */
   const collectSection = useCallback(
     (
@@ -180,67 +230,40 @@ export function WizardClient({
     ): {
       answersByItemId: Record<string, Json>;
       selectionsByItemId: Record<string, string[]>;
+      observationsByItemId: Record<string, string>;
+      otherTextByItemId: Record<string, string>;
+      instances: InstanceAnswers[];
     } => {
-      const { answers: latest, visibleItemIds: visible } = getLatestSnapshot();
-      const answersByItemId: Record<string, Json> = {};
-      const selectionsByItemId: Record<string, string[]> = {};
-      for (const item of section.items) {
-        if (!visible.has(item.id)) continue;
-        const rec = latest[item.id];
-        if (!rec) continue;
-        if (isChoiceItem(item.itemType)) {
-          // Single-select stores a scalar code; checkbox stores a code array.
-          // Normalize both to a code array (empty when cleared/absent value).
-          selectionsByItemId[item.id] = Array.isArray(rec.value)
-            ? (rec.value as string[])
-            : typeof rec.value === "string" && rec.value !== ""
-              ? [rec.value]
-              : [];
-        } else {
-          answersByItemId[item.id] = rec.value;
-        }
-      }
-      return { answersByItemId, selectionsByItemId };
-    },
-    [getLatestSnapshot],
-  );
+      const {
+        answers: latest,
+        visibleItemIds: visible,
+        instances: latestInstances,
+        visibleItemIdsByInstance: latestInstanceVisibility,
+      } = getLatestSnapshot();
 
-  /** Collect a section's non-empty observation notes keyed by item_id
-   *  (form-builder-enhancements). Only for currently-visible items. Reads the
-   *  latest committed state (BUG-FBE-008 — observations ride the same collector
-   *  path and had the same latent stale-closure). */
-  const observationsForSection = useCallback(
-    (section: Section): Record<string, string> => {
-      const { answers: latest, visibleItemIds: visible } = getLatestSnapshot();
-      const out: Record<string, string> = {};
-      for (const item of section.items) {
-        if (!visible.has(item.id)) continue;
-        const rec = latest[item.id];
-        const note = rec?.observation?.trim();
-        if (note) out[item.id] = note;
-      }
-      return out;
-    },
-    [getLatestSnapshot],
-  );
+      const collected = collectScope(topLevelItems(section), latest, visible);
 
-  /** Collect a section's "Outros" free text keyed by item_id ("Outros" open
-   *  option). Only for currently-visible items; the value is sent RAW (blank is a
-   *  valid Outro answer, so we do NOT trim-drop it — the backend still stores it
-   *  only when the item's `__other__` option is selected). Reads the LATEST
-   *  committed state (BUG-FBE-008 — the last keystroke's commit must be seen). */
-  const otherTextForSection = useCallback(
-    (section: Section): Record<string, string> => {
-      const { answers: latest, visibleItemIds: visible } = getLatestSnapshot();
-      const out: Record<string, string> = {};
-      for (const item of section.items) {
-        if (!visible.has(item.id)) continue;
-        const rec = latest[item.id];
-        if (rec?.otherText != null) out[item.id] = rec.otherText;
+      // Group the latest instances for this section's containers. Built from the
+      // ref-sourced list, not the render snapshot, for the same reason as above.
+      const byGroup: Record<string, typeof latestInstances> = {};
+      for (const instance of latestInstances) {
+        (byGroup[instance.groupItemId] ??= []).push(instance);
       }
-      return out;
+      for (const list of Object.values(byGroup)) {
+        list.sort((a, b) => a.position - b.position);
+      }
+
+      return {
+        ...collected,
+        instances: collectInstances(
+          section,
+          byGroup,
+          latestInstanceVisibility,
+          visibleContainerIds,
+        ),
+      };
     },
-    [getLatestSnapshot],
+    [getLatestSnapshot, visibleContainerIds],
   );
 
   /** Persist the current section before navigating away from it (F4). */
@@ -248,13 +271,11 @@ export function WizardClient({
     async (section: Section): Promise<boolean> => {
       setSaving(true);
       setBanner(null);
-      const { answersByItemId, selectionsByItemId } = collectSection(section);
+      // One payload for both tiers — a section with N instances is still ONE
+      // round trip and one transaction (ADR 0087 "save-path shape").
       const result = await actions.saveSection({
         sectionId: section.id,
-        answersByItemId,
-        selectionsByItemId,
-        observationsByItemId: observationsForSection(section),
-        otherTextByItemId: otherTextForSection(section),
+        ...collectSection(section),
       });
       setSaving(false);
       if (!result.ok) {
@@ -263,7 +284,7 @@ export function WizardClient({
       }
       return true;
     },
-    [actions, collectSection, observationsForSection, otherTextForSection],
+    [actions, collectSection],
   );
 
   /**
@@ -349,11 +370,13 @@ export function WizardClient({
       // change hasn't flushed yet), so merge the controlling item's NEW value in
       // explicitly — routing it to the choice-selection map or the scalar map by
       // the controlling item's type.
-      const { answersByItemId, selectionsByItemId } =
-        collectSection(currentSection);
-      const controllingItem = currentSection.items.find(
-        (it) => it.id === pending.item.id,
-      );
+      const collected = collectSection(currentSection);
+      const { answersByItemId, selectionsByItemId } = collected;
+      // The controlling item may be a plain `group`'s child (ruling 6 — those
+      // answer at top level), so look it up through the container too.
+      const controllingItem = currentSection.items
+        .flatMap((it) => (it.itemType === "group" ? [it, ...it.children] : [it]))
+        .find((it) => it.id === pending.item.id);
       if (controllingItem && isChoiceItem(controllingItem.itemType)) {
         selectionsByItemId[pending.item.id] = Array.isArray(pending.value)
           ? (pending.value as string[])
@@ -364,27 +387,143 @@ export function WizardClient({
         answersByItemId[pending.item.id] = pending.value;
       }
       const result = await actions.saveSection({
+        ...collected,
         sectionId: currentSection.id,
         answersByItemId,
         selectionsByItemId,
         clearItemIds,
-        observationsByItemId: observationsForSection(currentSection),
-        otherTextByItemId: otherTextForSection(currentSection),
       });
       setSaving(false);
       if (!result.ok) {
         setBanner(result.error ?? "Não foi possível salvar suas respostas.");
       }
     }
-  }, [
-    pendingOrphan,
-    commitAnswerChange,
-    currentSection,
-    actions,
-    collectSection,
-    observationsForSection,
-    otherTextForSection,
-  ]);
+  }, [pendingOrphan, commitAnswerChange, currentSection, actions, collectSection]);
+
+  // ----- FF-1: repeating-group instance lifecycle -----
+  //
+  // Each action goes to the server FIRST and the local state mirrors the result
+  // — never the reverse. The RPCs own the authoritative positions (`add` is
+  // `max(position)+1` under `maxInstances`; `remove` re-packs to 0..n-1), so an
+  // optimistic local guess could disagree with the row that actually exists, and
+  // the next save would then address an instance id the server does not have.
+
+  /** Persist the current section, then add an empty repetition to a group. */
+  const handleAddInstance = useCallback(
+    async (groupItemId: string) => {
+      setSaving(true);
+      setBanner(null);
+      const result = await actions.addInstance(groupItemId);
+      setSaving(false);
+      if (!result.ok || !result.instanceId) {
+        setBanner(
+          result.error ?? "Não foi possível adicionar a repetição. Tente novamente.",
+        );
+        return;
+      }
+      addInstanceLocal({
+        id: result.instanceId,
+        groupItemId,
+        position: result.position ?? 0,
+      });
+      setLiveMessage("Repetição adicionada.");
+    },
+    [actions, addInstanceLocal],
+  );
+
+  const handleRemoveInstance = useCallback(
+    async (instanceId: string) => {
+      setSaving(true);
+      setBanner(null);
+      const result = await actions.removeInstance(instanceId);
+      setSaving(false);
+      if (!result.ok) {
+        setBanner(
+          result.error ?? "Não foi possível remover a repetição. Tente novamente.",
+        );
+        return;
+      }
+      removeInstanceLocal(instanceId);
+      // Drop any field errors that belonged to the removed instance so a stale
+      // message can't outlive the row it pointed at.
+      setInstanceErrors((prev) => {
+        const next: Record<string, string> = {};
+        for (const [key, message] of Object.entries(prev)) {
+          if (!key.startsWith(`${instanceId}:`)) next[key] = message;
+        }
+        return next;
+      });
+      setLiveMessage("Repetição removida.");
+    },
+    [actions, removeInstanceLocal],
+  );
+
+  /** Move one repetition up or down within its group (a full reorder, sent as
+   *  the new complete order — the RPC rejects a non-permutation). */
+  const handleMoveInstance = useCallback(
+    async (instanceId: string, direction: "up" | "down") => {
+      const instance = Object.values(instancesByGroup)
+        .flat()
+        .find((i) => i.id === instanceId);
+      if (!instance) return;
+      const siblings = instancesByGroup[instance.groupItemId] ?? [];
+      const index = siblings.findIndex((i) => i.id === instanceId);
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (index < 0 || target < 0 || target >= siblings.length) return;
+
+      const ids = siblings.map((i) => i.id);
+      [ids[index], ids[target]] = [ids[target], ids[index]];
+
+      setSaving(true);
+      setBanner(null);
+      const result = await actions.reorderInstances(instance.groupItemId, ids);
+      setSaving(false);
+      if (!result.ok) {
+        setBanner(
+          result.error ?? "Não foi possível reordenar as repetições. Tente novamente.",
+        );
+        return;
+      }
+      reorderInstancesLocal(instance.groupItemId, ids);
+      // Keyboard users lose the visual cue entirely, so announce the outcome.
+      setLiveMessage(
+        `Repetição movida para a posição ${target + 1} de ${siblings.length}.`,
+      );
+    },
+    [actions, instancesByGroup, reorderInstancesLocal],
+  );
+
+  /** Clear a whole question block INSIDE an instance (answer + observação +
+   *  "Outro"), mirroring `handleClearBlock` at top level. */
+  const handleClearInstanceBlock = useCallback(
+    (instanceId: string, item: { id: string; questionKey: string }) => {
+      setInstanceAnswer(instanceId, item, null);
+      setInstanceObservation(instanceId, item.id, "");
+      setInstanceOtherText(instanceId, item, "");
+    },
+    [setInstanceAnswer, setInstanceObservation, setInstanceOtherText],
+  );
+
+  /** A per-instance answer change. A repeating-group child's key never enters
+   *  the top-level map, so the cross-section orphan warning (which is driven by
+   *  top-level keys) cannot apply here — the change commits directly. */
+  const handleInstanceChange = useCallback(
+    (
+      instanceId: string,
+      item: { id: string; questionKey: string },
+      value: Json,
+    ) => {
+      setInstanceAnswer(instanceId, item, value);
+      const key = `${instanceId}:${item.id}`;
+      setInstanceErrors((prev) => {
+        if (!prev[key]) return prev;
+        const nextErrors = { ...prev };
+        delete nextErrors[key];
+        return nextErrors;
+      });
+    },
+    [setInstanceAnswer],
+  );
 
   /** Advance: validate the current section, persist, then move forward. */
   const handleNext = useCallback(async () => {
@@ -392,12 +531,26 @@ export function WizardClient({
     if (!section) return;
 
     const sectionErrors = validateSection(section, answers, visibleItemIds);
-    if (Object.keys(sectionErrors).length > 0) {
+    // FF-1: instances validate separately — prune-then-check, so a fully-empty
+    // repetition reports nothing and an unmet minimum reads "adicione ao menos N"
+    // rather than "campo obrigatório" inside a blank row (ruling 3).
+    const perInstanceErrors = validateInstances(
+      section,
+      instancesByGroup,
+      visibleItemIdsByInstance,
+      visibleContainerIds,
+    );
+    if (
+      Object.keys(sectionErrors).length > 0 ||
+      Object.keys(perInstanceErrors).length > 0
+    ) {
       setErrors(sectionErrors);
+      setInstanceErrors(perInstanceErrors);
       setBanner("Revise os campos destacados antes de continuar.");
       return;
     }
     setErrors({});
+    setInstanceErrors({});
 
     const ok = await persistSection(section);
     if (!ok) return;
@@ -408,6 +561,9 @@ export function WizardClient({
     currentSection,
     answers,
     visibleItemIds,
+    instancesByGroup,
+    visibleItemIdsByInstance,
+    visibleContainerIds,
     persistSection,
     currentStepIndex,
     stepCount,
@@ -429,14 +585,17 @@ export function WizardClient({
     const section = currentSection;
     const collected = section
       ? collectSection(section)
-      : { answersByItemId: {}, selectionsByItemId: {} };
+      : {
+          answersByItemId: {},
+          selectionsByItemId: {},
+          observationsByItemId: {},
+          otherTextByItemId: {},
+          instances: [],
+        };
     setSaving(true);
     const result = await actions.saveAndExit({
+      ...collected,
       sectionId: section?.id ?? null,
-      answersByItemId: collected.answersByItemId,
-      selectionsByItemId: collected.selectionsByItemId,
-      observationsByItemId: section ? observationsForSection(section) : {},
-      otherTextByItemId: section ? otherTextForSection(section) : {},
     });
     setSaving(false);
     if (!result.ok) {
@@ -444,16 +603,7 @@ export function WizardClient({
       return;
     }
     router.push(commissionHref(data.org, data.slug, "forms"));
-  }, [
-    actions,
-    currentSection,
-    collectSection,
-    observationsForSection,
-    otherTextForSection,
-    router,
-    data.org,
-    data.slug,
-  ]);
+  }, [actions, currentSection, collectSection, router, data.org, data.slug]);
 
   /** Submit (F5): the server is the authority; surface its pt-BR rejection. */
   const handleSubmit = useCallback(async () => {
@@ -554,6 +704,15 @@ export function WizardClient({
     );
   }
 
+  // A single polite live region for instance outcomes (FE-5). Rendered in both
+  // the flat and sectioned branches so an announcement is never lost on a
+  // layout switch.
+  const liveRegion = (
+    <p role="status" aria-live="polite" className="sr-only">
+      {liveMessage}
+    </p>
+  );
+
   const orphanDialog = (
     <OrphanWarningDialog
       open={pendingOrphan !== null}
@@ -614,6 +773,9 @@ export function WizardClient({
           <ReviewScreen
             visibleSections={visibleSections}
             visibleItemIds={visibleItemIds}
+            visibleContainerIds={visibleContainerIds}
+            instancesByGroup={instancesByGroup}
+            visibleItemIdsByInstance={visibleItemIdsByInstance}
             answers={answers}
             signoffs={signoffs}
             saving={saving}
@@ -638,9 +800,21 @@ export function WizardClient({
           errors={errors}
           onChange={onChange}
           visibleItemIds={visibleItemIds}
+          visibleContainerIds={visibleContainerIds}
+          instancesByGroup={instancesByGroup}
+          visibleItemIdsByInstance={visibleItemIdsByInstance}
+          instanceErrors={instanceErrors}
+          saving={saving}
           onObservationChange={setObservation}
           onOtherTextChange={setOtherText}
           onClear={handleClearBlock}
+          onAddInstance={handleAddInstance}
+          onRemoveInstance={handleRemoveInstance}
+          onMoveInstance={handleMoveInstance}
+          onInstanceChange={handleInstanceChange}
+          onInstanceObservationChange={setInstanceObservation}
+          onInstanceOtherTextChange={setInstanceOtherText}
+          onInstanceClear={handleClearInstanceBlock}
         />
         <WizardNav
           canGoBack={false}
@@ -656,6 +830,7 @@ export function WizardClient({
           onSaveAndExit={handleSaveAndExit}
         />
         {orphanDialog}
+        {liveRegion}
       </div>
     );
   }
@@ -675,6 +850,9 @@ export function WizardClient({
         <ReviewScreen
           visibleSections={visibleSections}
           visibleItemIds={visibleItemIds}
+          visibleContainerIds={visibleContainerIds}
+          instancesByGroup={instancesByGroup}
+          visibleItemIdsByInstance={visibleItemIdsByInstance}
           answers={answers}
           signoffs={signoffs}
           saving={saving}
@@ -696,9 +874,21 @@ export function WizardClient({
             errors={errors}
             onChange={onChange}
             visibleItemIds={visibleItemIds}
+            visibleContainerIds={visibleContainerIds}
+            instancesByGroup={instancesByGroup}
+            visibleItemIdsByInstance={visibleItemIdsByInstance}
+            instanceErrors={instanceErrors}
+            saving={saving}
             onObservationChange={setObservation}
             onOtherTextChange={setOtherText}
             onClear={handleClearBlock}
+            onAddInstance={handleAddInstance}
+            onRemoveInstance={handleRemoveInstance}
+            onMoveInstance={handleMoveInstance}
+            onInstanceChange={handleInstanceChange}
+            onInstanceObservationChange={setInstanceObservation}
+            onInstanceOtherTextChange={setInstanceOtherText}
+            onInstanceClear={handleClearInstanceBlock}
           />
           <WizardNav
             canGoBack={currentStepIndex > 0}
@@ -712,6 +902,7 @@ export function WizardClient({
       ) : null}
 
       {orphanDialog}
+      {liveRegion}
     </div>
   );
 }

@@ -7,31 +7,25 @@ import type { Section } from "@/lib/queries/forms";
 
 import type { AnswerState } from "./types";
 import { BlockRenderer } from "./block-renderer";
+import { GroupBlock } from "./group-block";
+import { RepeatingGroupBlock } from "./repeating-group-block";
+import { buildItemHandlers, NO_OP, type ItemCallbacks } from "./item-handlers";
+import type { InstanceState } from "./instances";
 import { isInputItem } from "./use-wizard";
-
-/**
- * Stable no-op for a display block's required `onChange` prop. Display items
- * (`section_text` / `image`) never invoke it — `BlockRenderer` returns before
- * wiring it — but the prop is required, and a single shared reference keeps
- * every display block's `onChange` referentially stable across re-renders so
- * `memo(InputItem)` isn't defeated for its input-item siblings (audit #10).
- */
-const NO_OP: (value: Json) => void = () => {};
-
-/** The per-item callbacks handed to one `BlockRenderer`/`InputItem`, precomputed
- *  once per item so they stay referentially stable across keystroke re-renders. */
-interface ItemHandlers {
-  onChange: (value: Json) => void;
-  onObservationChange?: (value: string) => void;
-  onOtherTextChange?: (value: string) => void;
-  onClear?: () => void;
-}
 
 /**
  * Renders one wizard section as a page (F2/F3): a semantic `<section>` labelled
  * by its `<h2>`, with the ordered blocks beneath. Display blocks render only;
  * input blocks are controlled by the wizard's answer state. `index` is the
  * 0-based position within the VISIBLE step list (for the "Seção N" eyebrow).
+ *
+ * FF-1 (ADR 0087) adds the two CONTAINER blocks, dispatched by type:
+ *   - `group` → {@link GroupBlock}, a nested sub-section with NO instance chrome
+ *     (ruling 6 — it has no instance rows at all). Its children are ordinary
+ *     top-level answers and share the section's handler map.
+ *   - `repeating_group` → {@link RepeatingGroupBlock}, N instances with
+ *     add/remove/reorder. Its children answer PER INSTANCE and get their own
+ *     per-instance handler sets, so nothing about them touches `answers`.
  */
 export function SectionStep({
   section,
@@ -41,9 +35,21 @@ export function SectionStep({
   errors,
   onChange,
   visibleItemIds,
+  visibleContainerIds,
+  instancesByGroup,
+  visibleItemIdsByInstance,
+  instanceErrors,
+  saving = false,
   onObservationChange,
   onOtherTextChange,
   onClear,
+  onAddInstance,
+  onRemoveInstance,
+  onMoveInstance,
+  onInstanceChange,
+  onInstanceObservationChange,
+  onInstanceOtherTextChange,
+  onInstanceClear,
 }: {
   section: Section;
   index: number;
@@ -54,9 +60,21 @@ export function SectionStep({
   /**
    * The item ids currently VISIBLE under item-level conditions
    * (form-builder-enhancements). When provided, hidden input items are skipped;
-   * display items always render.
+   * display items always render. FF-1: a plain `group`'s children are in this
+   * set too (they answer at top level).
    */
   visibleItemIds?: Set<string>;
+  /** FF-1 — the CONTAINER ids currently visible; a hidden container renders
+   *  nothing and requires nothing. */
+  visibleContainerIds?: Set<string>;
+  /** FF-1 — repeating-group instances by container item id, position-ordered. */
+  instancesByGroup?: Record<string, InstanceState[]>;
+  /** FF-1 — per-instance visible child ids (the inside-out overlay result). */
+  visibleItemIdsByInstance?: Map<string, Set<string>>;
+  /** FF-1 — validation errors keyed `${instanceId}:${itemId}`. */
+  instanceErrors?: Record<string, string>;
+  /** True while a save or instance action is in flight. */
+  saving?: boolean;
   /** Persist a per-item observation note (form-builder-enhancements). */
   onObservationChange?: (itemId: string, value: string) => void;
   /** Persist a per-item "Outros" free text ("Outros" open option). Takes the
@@ -67,44 +85,59 @@ export function SectionStep({
   ) => void;
   /** Clear an input block (answer + observação + "Outros" text). */
   onClear?: (item: { id: string; questionKey: string }) => void;
+  // --- FF-1 instance lifecycle + per-instance edits.
+  onAddInstance?: (groupItemId: string) => void;
+  onRemoveInstance?: (instanceId: string) => void;
+  onMoveInstance?: (instanceId: string, direction: "up" | "down") => void;
+  onInstanceChange?: (
+    instanceId: string,
+    child: { id: string; questionKey: string },
+    value: Json,
+  ) => void;
+  onInstanceObservationChange?: (
+    instanceId: string,
+    itemId: string,
+    value: string,
+  ) => void;
+  onInstanceOtherTextChange?: (
+    instanceId: string,
+    child: { id: string; questionKey: string },
+    value: string,
+  ) => void;
+  onInstanceClear?: (
+    instanceId: string,
+    child: { id: string; questionKey: string },
+  ) => void;
 }) {
   const headingId = `section-${section.id}-heading`;
   const heading =
     section.title || (section.isDefault ? null : "Seção sem título");
 
   // Precompute one stable set of callbacks per item (audit #10). The parent
-  // handlers (`onChange`/`onObservationChange`/`onOtherTextChange`/`onClear`)
-  // are all `useCallback`-stable and `section.items` is the immutable form
-  // structure, so this map is rebuilt only when the form (or a handler) changes
-  // — NEVER on a keystroke, which only mutates `answers`/`errors`. That keeps
-  // every input item's callback props referentially stable across keystrokes,
-  // so `memo(InputItem)` skips re-rendering the siblings of the item being
-  // edited (previously each render minted fresh per-item closures, defeating
-  // the memo). Behavior is identical to the former inline closures.
+  // handlers are all `useCallback`-stable and `section.items` is the immutable
+  // form structure, so this map is rebuilt only when the form (or a handler)
+  // changes — NEVER on a keystroke, which only mutates `answers`/`errors`. That
+  // keeps every input item's callback props referentially stable, so
+  // `memo(InputItem)` skips re-rendering the siblings of the item being edited.
+  //
+  // FF-1: a plain `group`'s children are built here too (they are top-level
+  // answers). A `repeating_group`'s children are NOT — each instance owns its
+  // own handler set, bound to its instance id.
+  const callbacks = useMemo<ItemCallbacks>(
+    () => ({
+      onChange,
+      onObservationChange,
+      onOtherTextChange,
+      onClear,
+    }),
+    [onChange, onObservationChange, onOtherTextChange, onClear],
+  );
   const itemHandlers = useMemo(() => {
-    const map = new Map<string, ItemHandlers>();
-    for (const item of section.items) {
-      if (!isInputItem(item.itemType)) continue;
-      const questionKey = item.questionKey;
-      map.set(item.id, {
-        onChange: questionKey
-          ? (value) => onChange({ id: item.id, questionKey }, value)
-          : NO_OP,
-        onObservationChange: onObservationChange
-          ? (value) => onObservationChange(item.id, value)
-          : undefined,
-        onOtherTextChange:
-          questionKey && onOtherTextChange
-            ? (value) => onOtherTextChange({ id: item.id, questionKey }, value)
-            : undefined,
-        onClear:
-          questionKey && onClear
-            ? () => onClear({ id: item.id, questionKey })
-            : undefined,
-      });
-    }
-    return map;
-  }, [section.items, onChange, onObservationChange, onOtherTextChange, onClear]);
+    const flat = section.items.flatMap((item) =>
+      item.itemType === "group" ? [item, ...item.children] : [item],
+    );
+    return buildItemHandlers(flat, callbacks);
+  }, [section.items, callbacks]);
 
   return (
     <section
@@ -135,14 +168,55 @@ export function SectionStep({
           </p>
         ) : (
           section.items.map((item) => {
+            // --- FF-1: CONTAINERS.
+            if (item.itemType === "group" || item.itemType === "repeating_group") {
+              // A hidden container renders nothing (and requires nothing).
+              if (visibleContainerIds && !visibleContainerIds.has(item.id)) {
+                return null;
+              }
+              if (item.itemType === "group") {
+                return (
+                  <GroupBlock
+                    key={item.id}
+                    item={item}
+                    imageUrls={imageUrls}
+                    answers={answers}
+                    errors={errors}
+                    visibleItemIds={visibleItemIds}
+                    handlers={itemHandlers}
+                  />
+                );
+              }
+              return (
+                <RepeatingGroupBlock
+                  key={item.id}
+                  item={item}
+                  instances={instancesByGroup?.[item.id] ?? EMPTY_INSTANCES}
+                  imageUrls={imageUrls}
+                  errors={instanceErrors ?? EMPTY_ERRORS}
+                  visibleItemIdsByInstance={
+                    visibleItemIdsByInstance ?? EMPTY_VISIBILITY
+                  }
+                  saving={saving}
+                  onAddInstance={onAddInstance ?? NO_OP_GROUP}
+                  onRemoveInstance={onRemoveInstance ?? NO_OP_GROUP}
+                  onMoveInstance={onMoveInstance ?? NO_OP_MOVE}
+                  onInstanceChange={onInstanceChange ?? NO_OP_INSTANCE_CHANGE}
+                  onInstanceObservationChange={
+                    onInstanceObservationChange ?? NO_OP_INSTANCE_TEXT
+                  }
+                  onInstanceOtherTextChange={
+                    onInstanceOtherTextChange ?? NO_OP_INSTANCE_OTHER
+                  }
+                  onInstanceClear={onInstanceClear ?? NO_OP_INSTANCE_CLEAR}
+                />
+              );
+            }
+
             const answerable = isInputItem(item.itemType);
             // Skip input items hidden by an item-level condition; display items
             // always render (they collect no answer).
-            if (
-              answerable &&
-              visibleItemIds &&
-              !visibleItemIds.has(item.id)
-            ) {
+            if (answerable && visibleItemIds && !visibleItemIds.has(item.id)) {
               return null;
             }
             // Stable per-item callbacks (see `itemHandlers` above); display
@@ -160,9 +234,7 @@ export function SectionStep({
                   answerable ? answers[item.id]?.observation : undefined
                 }
                 onObservationChange={handlers?.onObservationChange}
-                otherText={
-                  answerable ? answers[item.id]?.otherText : undefined
-                }
+                otherText={answerable ? answers[item.id]?.otherText : undefined}
                 onOtherTextChange={handlers?.onOtherTextChange}
                 onClear={handlers?.onClear}
               />
@@ -173,3 +245,30 @@ export function SectionStep({
     </section>
   );
 }
+
+// Stable empty fallbacks — shared references so an omitted optional prop can
+// never remint an object per render and defeat the child memoization.
+const EMPTY_INSTANCES: InstanceState[] = [];
+const EMPTY_ERRORS: Record<string, string> = {};
+const EMPTY_VISIBILITY: Map<string, Set<string>> = new Map();
+const NO_OP_GROUP: (id: string) => void = () => {};
+const NO_OP_MOVE: (id: string, direction: "up" | "down") => void = () => {};
+const NO_OP_INSTANCE_CHANGE: (
+  instanceId: string,
+  child: { id: string; questionKey: string },
+  value: Json,
+) => void = () => {};
+const NO_OP_INSTANCE_TEXT: (
+  instanceId: string,
+  itemId: string,
+  value: string,
+) => void = () => {};
+const NO_OP_INSTANCE_OTHER: (
+  instanceId: string,
+  child: { id: string; questionKey: string },
+  value: string,
+) => void = () => {};
+const NO_OP_INSTANCE_CLEAR: (
+  instanceId: string,
+  child: { id: string; questionKey: string },
+) => void = () => {};
