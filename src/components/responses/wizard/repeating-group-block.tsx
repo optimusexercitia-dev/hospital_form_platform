@@ -315,6 +315,7 @@ function InstanceCard({
               <BlockRenderer
                 key={child.id}
                 item={child}
+                instanceId={instance.id}
                 imageUrls={imageUrls}
                 value={answerable ? record?.value : undefined}
                 // Errors are keyed by instance so the SAME child can be invalid

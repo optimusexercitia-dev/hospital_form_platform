@@ -61,6 +61,7 @@ export const InputItem = memo(function InputItem({
   otherText,
   onOtherTextChange,
   onClear,
+  instanceId,
 }: {
   item: Item;
   value: Json | undefined;
@@ -80,9 +81,33 @@ export const InputItem = memo(function InputItem({
    * enabled only while the block holds something to clear.
    */
   onClear?: () => void;
+  /**
+   * FF-1 (BUG-FF1-004) — the `response_group_instances.id` this control is
+   * rendered inside, or undefined at top level.
+   *
+   * Every control `id` and, decisively, every radio `name` is derived from
+   * {@link fieldScope} below. Without this, the SAME question rendered in two
+   * repetitions produced two controls sharing one `name` — and an HTML radio
+   * group is keyed by `name` within a form, so the browser treated them as ONE
+   * exclusivity group and selecting in repetition 2 silently cleared
+   * repetition 1. The wizard's per-instance state was correct underneath; the
+   * rendered control layer was destroying answers behind it.
+   */
+  instanceId?: string;
 }) {
   const label = item.label ?? "Pergunta";
   const required = item.required;
+
+  /**
+   * The id/name namespace for every control in this block. At TOP LEVEL it is
+   * byte-identical to the pre-FF-1 value (`item-<id>`), deliberately: existing
+   * selectors and specs address these ids, and this fix must not move them.
+   * Inside a repetition it gains the instance suffix, which is what makes the
+   * radio groups distinct.
+   */
+  const fieldScope = instanceId
+    ? `item-${item.id}-inst-${instanceId}`
+    : `item-${item.id}`;
 
   const control = renderControl({
     item,
@@ -93,6 +118,7 @@ export const InputItem = memo(function InputItem({
     error,
     otherText,
     onOtherTextChange,
+    fieldScope,
   });
 
   const answered = hasAnswer({
@@ -134,7 +160,7 @@ export const InputItem = memo(function InputItem({
       {control}
       {observationEnabled && (
         <ObservationField
-          itemId={item.id}
+          fieldScope={fieldScope}
           questionLabel={label}
           answered={answered}
           observation={observation ?? ""}
@@ -154,8 +180,10 @@ function renderControl({
   error,
   otherText,
   onOtherTextChange,
+  fieldScope,
 }: {
   item: Item;
+  fieldScope: string;
   label: string;
   required: boolean;
   value: Json | undefined;
@@ -169,6 +197,7 @@ function renderControl({
       return (
         <FreeTextItem
           item={item}
+          fieldScope={fieldScope}
           label={label}
           required={required}
           value={typeof value === "string" ? value : ""}
@@ -180,6 +209,7 @@ function renderControl({
       return (
         <ShortTextItem
           item={item}
+          fieldScope={fieldScope}
           label={label}
           required={required}
           value={typeof value === "string" ? value : ""}
@@ -191,6 +221,7 @@ function renderControl({
       return (
         <NumberItem
           item={item}
+          fieldScope={fieldScope}
           label={label}
           required={required}
           value={typeof value === "number" ? value : null}
@@ -202,6 +233,7 @@ function renderControl({
       return (
         <DateTimeItem
           item={item}
+          fieldScope={fieldScope}
           label={label}
           required={required}
           inputType="date"
@@ -214,6 +246,7 @@ function renderControl({
       return (
         <DateTimeItem
           item={item}
+          fieldScope={fieldScope}
           label={label}
           required={required}
           inputType="time"
@@ -226,6 +259,7 @@ function renderControl({
       return (
         <DropdownItem
           item={item}
+          fieldScope={fieldScope}
           label={label}
           required={required}
           value={typeof value === "string" ? value : ""}
@@ -237,6 +271,7 @@ function renderControl({
       return (
         <ChoiceGroup
           item={item}
+          fieldScope={fieldScope}
           label={label}
           required={required}
           value={typeof value === "string" ? value : ""}
@@ -250,6 +285,7 @@ function renderControl({
       return (
         <CheckboxGroup
           item={item}
+          fieldScope={fieldScope}
           label={label}
           required={required}
           value={Array.isArray(value) ? (value as string[]) : []}
@@ -277,6 +313,7 @@ function RequiredMark({ required }: { required: boolean }) {
 
 function FreeTextItem({
   item,
+  fieldScope,
   label,
   required,
   value,
@@ -284,6 +321,7 @@ function FreeTextItem({
   error,
 }: {
   item: Item;
+  fieldScope: string;
   label: string;
   required: boolean;
   value: string;
@@ -291,7 +329,7 @@ function FreeTextItem({
   error?: string;
 }) {
   const hasDescription = Boolean(item.questionExplanation);
-  const { descriptionId, errorId, controlProps } = useFieldIds(`item-${item.id}`, {
+  const { descriptionId, errorId, controlProps } = useFieldIds(fieldScope, {
     hasError: Boolean(error),
     hasDescription,
   });
@@ -322,6 +360,7 @@ function FreeTextItem({
 
 function ShortTextItem({
   item,
+  fieldScope,
   label,
   required,
   value,
@@ -329,6 +368,7 @@ function ShortTextItem({
   error,
 }: {
   item: Item;
+  fieldScope: string;
   label: string;
   required: boolean;
   value: string;
@@ -336,7 +376,7 @@ function ShortTextItem({
   error?: string;
 }) {
   const hasDescription = Boolean(item.questionExplanation);
-  const { descriptionId, errorId, controlProps } = useFieldIds(`item-${item.id}`, {
+  const { descriptionId, errorId, controlProps } = useFieldIds(fieldScope, {
     hasError: Boolean(error),
     hasDescription,
   });
@@ -371,6 +411,7 @@ function ShortTextItem({
  */
 function NumberItem({
   item,
+  fieldScope,
   label,
   required,
   value,
@@ -378,6 +419,7 @@ function NumberItem({
   error,
 }: {
   item: Item;
+  fieldScope: string;
   label: string;
   required: boolean;
   value: number | null;
@@ -385,7 +427,7 @@ function NumberItem({
   error?: string;
 }) {
   const hasDescription = Boolean(item.questionExplanation);
-  const { descriptionId, errorId, controlProps } = useFieldIds(`item-${item.id}`, {
+  const { descriptionId, errorId, controlProps } = useFieldIds(fieldScope, {
     hasError: Boolean(error),
     hasDescription,
   });
@@ -411,7 +453,7 @@ function NumberItem({
   const min = typeof item.config?.min === "number" ? item.config.min : undefined;
   const max = typeof item.config?.max === "number" ? item.config.max : undefined;
   const boundsHint = formatBoundsHint(min, max);
-  const boundsId = `item-${item.id}-bounds`;
+  const boundsId = `${fieldScope}-bounds`;
   // Announce BOTH the explanation and the bounds hint: useFieldIds only wires
   // the explanation/error, so append the bounds id ourselves (MINOR-3).
   const describedBy =
@@ -450,6 +492,7 @@ function NumberItem({
 /** Date (ISO `YYYY-MM-DD`, optional min/max) or time (24h `HH:mm`) input. */
 function DateTimeItem({
   item,
+  fieldScope,
   label,
   required,
   inputType,
@@ -458,6 +501,7 @@ function DateTimeItem({
   error,
 }: {
   item: Item;
+  fieldScope: string;
   label: string;
   required: boolean;
   inputType: "date" | "time";
@@ -466,7 +510,7 @@ function DateTimeItem({
   error?: string;
 }) {
   const hasDescription = Boolean(item.questionExplanation);
-  const { descriptionId, errorId, controlProps } = useFieldIds(`item-${item.id}`, {
+  const { descriptionId, errorId, controlProps } = useFieldIds(fieldScope, {
     hasError: Boolean(error),
     hasDescription,
   });
@@ -521,6 +565,7 @@ function DateTimeItem({
 
 function DropdownItem({
   item,
+  fieldScope,
   label,
   required,
   value,
@@ -528,6 +573,7 @@ function DropdownItem({
   error,
 }: {
   item: Item;
+  fieldScope: string;
   label: string;
   required: boolean;
   value: string;
@@ -535,7 +581,7 @@ function DropdownItem({
   error?: string;
 }) {
   const hasDescription = Boolean(item.questionExplanation);
-  const { descriptionId, errorId, controlProps } = useFieldIds(`item-${item.id}`, {
+  const { descriptionId, errorId, controlProps } = useFieldIds(fieldScope, {
     hasError: Boolean(error),
     hasDescription,
   });
@@ -578,6 +624,7 @@ function DropdownItem({
 /** Single-select radio group (colour-aware). */
 function ChoiceGroup({
   item,
+  fieldScope,
   label,
   required,
   value,
@@ -587,6 +634,7 @@ function ChoiceGroup({
   onOtherTextChange,
 }: {
   item: Item;
+  fieldScope: string;
   label: string;
   required: boolean;
   value: string;
@@ -596,8 +644,8 @@ function ChoiceGroup({
   onOtherTextChange?: (value: string) => void;
 }) {
   const options = item.options ?? [];
-  const descriptionId = `item-${item.id}-description`;
-  const errorId = `item-${item.id}-error`;
+  const descriptionId = `${fieldScope}-description`;
+  const errorId = `${fieldScope}-error`;
   const describedBy =
     [item.questionExplanation ? descriptionId : null, error ? errorId : null]
       .filter(Boolean)
@@ -624,7 +672,7 @@ function ChoiceGroup({
       )}
       <div className="flex flex-col gap-1.5">
         {options.map((opt, i) => {
-          const id = `item-${item.id}-opt-${i}`;
+          const id = `${fieldScope}-opt-${i}`;
           // form-model-normalization: the wizard state stores the option CODE
           // (the clone-stable identity the evaluator keys on); the label is shown.
           const selected = value === opt.code;
@@ -638,7 +686,7 @@ function ChoiceGroup({
               <input
                 type="radio"
                 id={id}
-                name={`item-${item.id}`}
+                name={fieldScope}
                 value={opt.code}
                 checked={selected}
                 onChange={() => onChange(opt.code)}
@@ -652,7 +700,7 @@ function ChoiceGroup({
       </div>
       {otherSelected && onOtherTextChange && (
         <OtherTextField
-          itemId={item.id}
+          fieldScope={fieldScope}
           value={otherText ?? ""}
           onChange={onOtherTextChange}
         />
@@ -665,6 +713,7 @@ function ChoiceGroup({
 /** Multi-select checkbox group (colour-aware); value is a string array. */
 function CheckboxGroup({
   item,
+  fieldScope,
   label,
   required,
   value,
@@ -674,6 +723,7 @@ function CheckboxGroup({
   onOtherTextChange,
 }: {
   item: Item;
+  fieldScope: string;
   label: string;
   required: boolean;
   value: string[];
@@ -683,8 +733,8 @@ function CheckboxGroup({
   onOtherTextChange?: (value: string) => void;
 }) {
   const options = item.options ?? [];
-  const descriptionId = `item-${item.id}-description`;
-  const errorId = `item-${item.id}-error`;
+  const descriptionId = `${fieldScope}-description`;
+  const errorId = `${fieldScope}-error`;
   const describedBy =
     [item.questionExplanation ? descriptionId : null, error ? errorId : null]
       .filter(Boolean)
@@ -720,7 +770,7 @@ function CheckboxGroup({
       )}
       <div className="flex flex-col gap-1.5">
         {options.map((opt, i) => {
-          const id = `item-${item.id}-opt-${i}`;
+          const id = `${fieldScope}-opt-${i}`;
           // form-model-normalization: checkbox state is an array of option CODEs.
           const checked = value.includes(opt.code);
           return (
@@ -746,7 +796,7 @@ function CheckboxGroup({
       </div>
       {otherSelected && onOtherTextChange && (
         <OtherTextField
-          itemId={item.id}
+          fieldScope={fieldScope}
           value={otherText ?? ""}
           onChange={onOtherTextChange}
         />
@@ -763,15 +813,15 @@ function CheckboxGroup({
  * required. Accessible: an associated `<label>` + `aria-describedby`.
  */
 function OtherTextField({
-  itemId,
+  fieldScope,
   value,
   onChange,
 }: {
-  itemId: string;
+  fieldScope: string;
   value: string;
   onChange: (value: string) => void;
 }) {
-  const fieldId = `item-${itemId}-other`;
+  const fieldId = `${fieldScope}-other`;
   const hintId = `${fieldId}-hint`;
   return (
     <div className="mt-0.5 flex flex-col gap-1.5">
@@ -804,13 +854,13 @@ function OtherTextField({
  * resumed note stays visible + editable even before re-answering). Never blocks.
  */
 function ObservationField({
-  itemId,
+  fieldScope,
   questionLabel,
   answered,
   observation,
   onChange,
 }: {
-  itemId: string;
+  fieldScope: string;
   /** The parent question's label — folded into the button's accessible name so
    *  multiple "Adicionar observação" buttons on one page are distinguishable to
    *  assistive tech (the visible text is identical on every input). */
@@ -820,7 +870,7 @@ function ObservationField({
   onChange: (value: string) => void;
 }) {
   const [expanded, setExpanded] = useState<boolean>(observation.trim() !== "");
-  const fieldId = `item-${itemId}-observation`;
+  const fieldId = `${fieldScope}-observation`;
 
   if (!expanded) {
     return (

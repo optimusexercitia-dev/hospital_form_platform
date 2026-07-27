@@ -32,6 +32,7 @@ export function BlockRenderer({
   otherText,
   onOtherTextChange,
   onClear,
+  instanceId,
 }: {
   item: Item;
   imageUrls: Record<string, string>;
@@ -45,6 +46,14 @@ export function BlockRenderer({
   onOtherTextChange?: (value: string) => void;
   /** Clear the whole input block (answer + observação + "Outros"); input items only. */
   onClear?: () => void;
+  /**
+   * FF-1 (BUG-FF1-004) — the repeating-group instance this block renders inside,
+   * or undefined at top level. Forwarded verbatim to {@link InputItem}, which
+   * derives every control id and radio `name` from it. Without it, two
+   * repetitions of one `multiple_choice` question share a `name` and the browser
+   * treats them as ONE radio group.
+   */
+  instanceId?: string;
 }) {
   if (item.itemType === "section_text" && item.content) {
     return (
@@ -73,6 +82,7 @@ export function BlockRenderer({
     <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
       <InputItem
         item={item}
+        instanceId={instanceId}
         value={value}
         onChange={onChange}
         error={error}
