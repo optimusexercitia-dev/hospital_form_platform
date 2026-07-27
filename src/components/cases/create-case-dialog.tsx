@@ -11,6 +11,7 @@ import {
   type CreateCaseState,
 } from "@/lib/cases/actions";
 import type { CaseOutcome } from "@/lib/queries/case-outcomes";
+import type { CaseType } from "@/lib/cases/case-types";
 import type { CustomFieldDef } from "@/lib/queries/process-templates";
 import type { Department } from "@/lib/hospitals/departments";
 import { Button } from "@/components/ui/button";
@@ -154,6 +155,8 @@ export function CreateCaseDialog({
   processlessEnabled = false,
   casesExtrasEnabled = false,
   outcomes = [],
+  caseTypesEnabled = false,
+  caseTypes = [],
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -177,6 +180,10 @@ export function CreateCaseDialog({
   casesExtrasEnabled?: boolean;
   /** The commission's non-archived outcome vocabulary (process-less outcome picker). */
   outcomes?: CaseOutcome[];
+  /** Whether the `case_types` flag is on (gates the process-less type picker; ADR 0064 D4). */
+  caseTypesEnabled?: boolean;
+  /** The organization's ACTIVE case types (process-less type picker options). */
+  caseTypes?: CaseType[];
 }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -256,6 +263,8 @@ export function CreateCaseDialog({
   }
 
   const labelField = useFieldIds("label", { hasDescription: true });
+  // `controlProps` supplies both `id` and the form `name` the action reads.
+  const caseTypeField = useFieldIds("caseTypeId", { hasDescription: true });
   const disabled = !processlessEnabled && templates.length === 0;
 
   // Whether step 1's primary can submit/advance. With the outcome toggle on, ≥1
@@ -348,6 +357,35 @@ export function CreateCaseDialog({
                 the templated and process-less flows (it is not gated by PHI). Emits
                 exactly one of departmentId / departmentOther; optional. */}
             <CaseDepartmentField departments={departments} disabled={busy} />
+
+            {/* Process-less CASE TYPE (ADR 0064 D4). A templated case INHERITS its
+                type from the process, so this only mounts for "Sem processo" — there
+                is no template to inherit from and this picker is the sole channel.
+                Empty = untyped (today's default). The chosen type supplies the case's
+                default visibility + confidentiality, so it is access configuration,
+                not just vocabulary. */}
+            {isProcessless && caseTypesEnabled && caseTypes.length > 0 && (
+              <Field>
+                <FieldLabel htmlFor={caseTypeField.controlProps.id}>
+                  Tipo de caso
+                </FieldLabel>
+                <NativeSelect
+                  {...caseTypeField.controlProps}
+                  defaultValue=""
+                  disabled={busy}
+                >
+                  <option value="">Sem tipo definido</option>
+                  {caseTypes.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.displayName}
+                    </option>
+                  ))}
+                </NativeSelect>
+                <FieldDescription id={caseTypeField.descriptionId}>
+                  Define o vocabulário e o nível de acesso padrão deste caso.
+                </FieldDescription>
+              </Field>
+            )}
 
             {/* Process-less OUTCOME configuration (cases_extras). The "emite
                 desfecho?" toggle mirrors into a hidden `emitsOutcome` input; when

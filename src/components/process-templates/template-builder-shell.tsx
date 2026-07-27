@@ -27,6 +27,8 @@ import { NarrativeSlotDialog } from "@/components/process-templates/narrative-sl
 import { ProcessOutcomesPicker } from "@/components/process-templates/process-outcomes-picker";
 import { PublishedOutcomesCard } from "@/components/process-templates/published-outcomes-card";
 import { CollectsPatientPicker } from "@/components/process-templates/collects-patient-picker";
+import { CaseTypePicker } from "@/components/process-templates/case-type-picker";
+import type { CaseType } from "@/lib/cases/case-types";
 import { CustomFieldsCard } from "@/components/process-templates/custom-fields-card";
 import { PublishTemplateButton } from "@/components/process-templates/publish-template-button";
 import { ArchiveTemplateButton } from "@/components/process-templates/archive-template-button";
@@ -129,6 +131,8 @@ export function TemplateBuilderShell({
   caseCustomFieldsEnabled = false,
   phaseResultsEnabled = false,
   phaseResults = [],
+  caseTypesEnabled = false,
+  caseTypes = [],
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -155,6 +159,10 @@ export function TemplateBuilderShell({
   phaseResultsEnabled?: boolean;
   /** The commission's active result vocabulary (the ruleset editor's option pickers). */
   phaseResults?: PhaseResult[];
+  /** Whether the `case_types` feature is on (gates the case-type picker; ADR 0064 D4). */
+  caseTypesEnabled?: boolean;
+  /** The organization's ACTIVE case types (the picker's options). */
+  caseTypes?: CaseType[];
 }) {
   const [addPhaseOpen, setAddPhaseOpen] = useState(false);
   const [addNarrativeOpen, setAddNarrativeOpen] = useState(false);
@@ -372,6 +380,17 @@ export function TemplateBuilderShell({
         <CollectsPatientPicker
           templateId={template.id}
           collectsPatient={template.collectsPatient}
+        />
+      )}
+
+      {/* ADR 0064 D4 — the template DECLARES the case type its cases inherit (and with
+          it their default visibility/confidentiality). Not draft-gated: it only affects
+          cases created afterwards, and a live untyped process must stay fixable. */}
+      {caseTypesEnabled && (
+        <CaseTypePicker
+          templateId={template.id}
+          caseTypeId={template.caseTypeId}
+          caseTypes={caseTypes}
         />
       )}
 

@@ -7,6 +7,7 @@ import {
   Building2,
   FolderKanban,
   ScrollText,
+  Tags,
   Users,
 } from "lucide-react";
 
@@ -15,6 +16,7 @@ import { adminedHospitals } from "@/lib/auth/access";
 import { orgHref } from "@/lib/routing";
 import { auditTrailEnabled } from "@/lib/queries/audit";
 import { patientSafetyEnabled } from "@/lib/queries/pqs";
+import { caseTypesEnabled } from "@/lib/queries/feature-flags";
 import {
   getOrgCommissionOverview,
   listHospitalsForOrg,
@@ -34,7 +36,7 @@ interface ManageArea {
   description: string;
   segments: string[];
   icon: typeof Building2;
-  requiresFeature?: "audit" | "patientSafety";
+  requiresFeature?: "audit" | "patientSafety" | "caseTypes";
   /** Org-level-only surface — hidden for a hospital-scoped `hospital_admin`
    * (ADR 0051 Decision 1). */
   orgAdminOnly?: boolean;
@@ -83,6 +85,15 @@ const AREAS: ManageArea[] = [
       "Nomeie administradores de hospital e a administração do NSP da organização.",
     segments: ["administradores"],
     icon: Users,
+    orgAdminOnly: true,
+  },
+  {
+    title: "Tipos de caso",
+    description:
+      "Defina o vocabulário e a visibilidade padrão dos casos de cada processo.",
+    segments: ["tipos-de-caso"],
+    icon: Tags,
+    requiresFeature: "caseTypes",
     orgAdminOnly: true,
   },
   {
@@ -140,10 +151,17 @@ export default async function OrgManageHomePage({
     ? (currentHospitalId ?? hospitals[0]?.id ?? null)
     : null;
 
-  const [auditOn, patientSafetyOn, orgHospitals, commissions, overviewRows] =
-    await Promise.all([
+  const [
+    auditOn,
+    patientSafetyOn,
+    caseTypesOn,
+    orgHospitals,
+    commissions,
+    overviewRows,
+  ] = await Promise.all([
       auditTrailEnabled(),
       patientSafetyEnabled(),
+      caseTypesEnabled(),
       // Stat-strip reads (C5): org_admin gets the org-wide hospital/commission
       // counts + a 30-day submission rollup; hospital_admin gets only its
       // scoped commission count (existing RLS-scoped reads, no new queries).
@@ -174,6 +192,7 @@ export default async function OrgManageHomePage({
     if (area.orgAdminOnly && !isOrgAdmin) return false;
     if (area.requiresFeature === "audit") return auditOn;
     if (area.requiresFeature === "patientSafety") return patientSafetyOn;
+    if (area.requiresFeature === "caseTypes") return caseTypesOn;
     return true;
   });
 

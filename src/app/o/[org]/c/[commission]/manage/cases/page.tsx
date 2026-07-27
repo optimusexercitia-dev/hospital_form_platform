@@ -12,9 +12,11 @@ import {
 } from "@/lib/queries/cases";
 import {
   caseCustomFieldsEnabled,
+  caseTypesEnabled,
   getFeatureFlags,
 } from "@/lib/queries/feature-flags";
 import { listCaseOutcomes } from "@/lib/queries/case-outcomes";
+import { listCaseTypes } from "@/lib/queries/case-types";
 import { getCaseActionItemKpis } from "@/lib/queries/case-action-items";
 import { listProcessTemplates } from "@/lib/queries/process-templates";
 import { listDepartmentsForHospital } from "@/lib/hospitals/departments";
@@ -109,6 +111,7 @@ export default async function CasesBoardPage({
     // still offers the "Outros" custom option). RLS-scoped (member-read).
     departments,
     flags,
+    caseTypesOn,
   ] = await Promise.all([
     listCasesBoard(access.commission.id),
     listProcessTemplates(access.commission.id),
@@ -125,7 +128,15 @@ export default async function CasesBoardPage({
       ? listDepartmentsForHospital(access.commission.hospitalId)
       : Promise.resolve([]),
     getFeatureFlags(),
+    caseTypesEnabled(),
   ]);
+
+  // ADR 0064 D4 — the org's ACTIVE case types for the process-less "Tipo de caso"
+  // picker. A TEMPLATED case inherits its type from the process instead, so this
+  // list only backs the "Sem processo" path.
+  const caseTypes = caseTypesOn
+    ? await listCaseTypes(access.organization.id)
+    : [];
 
   // A case can only be minted from an ACTIVE template. Carry `collectsPatient` so
   // the create dialog can offer the optional patient block (ADR 0038).
@@ -219,6 +230,8 @@ export default async function CasesBoardPage({
               processlessEnabled={processlessOn}
               casesExtrasEnabled={casesExtrasOn}
               outcomes={outcomes}
+              caseTypesEnabled={caseTypesOn}
+              caseTypes={caseTypes}
             />
           </div>
         )}
@@ -252,6 +265,8 @@ export default async function CasesBoardPage({
                 processlessEnabled={processlessOn}
                 casesExtrasEnabled={casesExtrasOn}
                 outcomes={outcomes}
+                caseTypesEnabled={caseTypesOn}
+                caseTypes={caseTypes}
               />
             </div>
           )}

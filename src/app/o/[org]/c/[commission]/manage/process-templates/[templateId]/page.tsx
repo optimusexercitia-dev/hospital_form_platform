@@ -12,7 +12,8 @@ import { listForms } from "@/lib/queries/forms";
 import { listNarrativeTypes } from "@/lib/queries/case-narratives";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { casePatientEnabled } from "@/lib/queries/cases";
-import { caseCustomFieldsEnabled } from "@/lib/queries/feature-flags";
+import { caseCustomFieldsEnabled, caseTypesEnabled } from "@/lib/queries/feature-flags";
+import { listCaseTypes } from "@/lib/queries/case-types";
 import {
   listPhaseResults,
   phaseResultsEnabled,
@@ -67,6 +68,7 @@ export default async function ProcessTemplateBuilderPage({
     casePatientOn,
     caseCustomFieldsOn,
     phaseResultsOn,
+    caseTypesOn,
   ] = await Promise.all([
     listForms(access.commission.id),
     listCaseOutcomes(access.commission.id),
@@ -74,7 +76,14 @@ export default async function ProcessTemplateBuilderPage({
     casePatientEnabled(),
     caseCustomFieldsEnabled(),
     phaseResultsEnabled(),
+    caseTypesEnabled(),
   ]);
+
+  // ADR 0064 D4 — the org's ACTIVE case types back the "Tipo de caso" picker. Empty
+  // when the flag is off, so the picker never offers a selection the RPCs would drop.
+  const caseTypes = caseTypesOn
+    ? await listCaseTypes(access.organization.id)
+    : [];
   const narrativeTypes = narrativesOn
     ? await listNarrativeTypes(access.commission.id)
     : [];
@@ -124,6 +133,8 @@ export default async function ProcessTemplateBuilderPage({
       caseCustomFieldsEnabled={caseCustomFieldsOn}
       phaseResultsEnabled={phaseResultsOn}
       phaseResults={phaseResults}
+      caseTypesEnabled={caseTypesOn}
+      caseTypes={caseTypes}
     />
   );
 }
