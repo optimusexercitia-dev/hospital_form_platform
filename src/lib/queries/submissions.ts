@@ -14,7 +14,11 @@ import {
 } from '@/lib/types/pagination'
 import type { VersionTree } from '@/lib/queries/forms'
 import { buildAnswerMaps } from '@/lib/queries/responses'
-import type { ResponseStatus, SelectionRow } from '@/lib/queries/responses'
+import type {
+  GroupInstance,
+  ResponseStatus,
+  SelectionRow,
+} from '@/lib/queries/responses'
 import type { SignoffRecord } from '@/lib/queries/signoffs'
 
 /**
@@ -175,6 +179,18 @@ export interface SubmissionDetail {
    * non-null only. The renderer shows it next to the selected "Outro" option
    * ("Outro: <valor>"). */
   otherTextByItemId: Record<string, string>
+  /**
+   * FF-1 (BE-0 contract, ADR 0087): the response's repeating-group instances,
+   * ordered by (groupItemId, position) — the SAME shape the fill wizard consumes,
+   * so the read-only renderer groups instances identically. `[]` until a form
+   * authors a container. The four maps above stay TOP-LEVEL-only.
+   *
+   * Submitted instances are frozen with the response
+   * (`guard_submitted_group_instances_trg`), and a zero-answer instance is pruned
+   * by `submit_response` (ruling 3), so what appears here is exactly what was
+   * filled — never a phantom blank row.
+   */
+  instances: GroupInstance[]
   /** Per-section sign-off rows (who/when/note), for the detail view. */
   signoffs: SignoffRecord[]
 }
@@ -589,6 +605,9 @@ export async function getSubmissionDetail(
     answersByKey,
     observationsByItemId,
     otherTextByItemId,
+    // FF-1 BE-4/BE-0: the instance read lands with the instance-scoped save arm;
+    // `[]` is the TRUE value until a form authors a container.
+    instances: [],
     signoffs,
   }
 }

@@ -255,6 +255,36 @@ interface SaveSectionInput {
    * never fed to the evaluator, never aggregated. Optional and never blocks.
    */
   otherTextByItemId?: Record<string, string>
+  /**
+   * FF-1 (BE-0 contract, ADR 0087) — the INSTANCE-SCOPED arm: answers that belong
+   * inside a repeating-group instance rather than at top level. Serialized into
+   * the new `save_section_answers(p_instance_answers jsonb)` param, so a section
+   * with N instances is still ONE round trip and one transaction (the ADR's
+   * "save-path shape" question, settled: one payload).
+   *
+   * Each entry addresses an EXISTING instance by id — instances are created and
+   * destroyed only by {@link addGroupInstance} / {@link removeGroupInstance}, never
+   * implicitly by a save. Per-entry semantics are IDENTICAL to the top-level maps
+   * above (upsert by item, REPLACE selections, `clearItemIds` deletes), only
+   * scoped to that instance: `clearItemIds` here deletes the item's answer in THIS
+   * instance ONLY (the top-level `clearItemIds` is likewise instance-blind by
+   * design and untouched — ADR 0087 substrate correction 6 fixes its current
+   * unscoped delete).
+   *
+   * Children of a plain `group` (ruling 6) go in the TOP-LEVEL maps, not here.
+   */
+  instances?: InstanceAnswersInput[]
+}
+
+/** FF-1 (BE-0 contract): one repeating-group instance's slice of a section save. */
+export interface InstanceAnswersInput {
+  /** An existing `response_group_instances.id` of THIS response. */
+  instanceId: string
+  answersByItemId: Record<string, Json>
+  selectionsByItemId?: Record<string, string[]>
+  clearItemIds?: string[]
+  observationsByItemId?: Record<string, string>
+  otherTextByItemId?: Record<string, string>
 }
 
 /**
@@ -345,6 +375,82 @@ export async function saveAndExit(input: SaveSectionInput): Promise<ActionState>
   const result = await saveSection(input)
   if (!result.ok) return result
   return { ok: true, error: MESSAGES.savedAndExited }
+}
+
+// ---------------------------------------------------------------------------
+// FF-1 — repeating-group instance lifecycle (BE-0 CONTRACT-FIRST STUBS)
+// ---------------------------------------------------------------------------
+//
+// The three instance writers (ADR 0087 ruling 5). They are **INVOKER** RPCs, not
+// DEFINER doors: `response_group_instances` carries `authenticated=arwdDxtm` under
+// a `FOR ALL` own-draft policy, exactly like `answers`, so **RLS stays the security
+// boundary** (Rule 1) and these RPCs are CORRECTNESS doors. They exist because the
+// position uniqueness is a real constraint the client cannot satisfy piecewise:
+// `add` needs `max(position)+1` together with the `maxInstances` check atomically,
+// and `remove`/`reorder` rewrite several positions in one statement-safe pass.
+//
+// Every one is draft-only and creator-only (the RLS policy), and every one is a
+// no-op-safe idempotent target for the wizard's optimistic UI.
+//
+// BODIES ARE STUBS until BE-3 lands the RPCs. The SIGNATURES + return shapes below
+// are the stable contract `frontend` builds FE-2 against.
+
+/** {@link addGroupInstance} result — carries the new instance so the wizard can
+ * render and focus it without a refetch. */
+export interface AddGroupInstanceState extends ActionState {
+  /** `response_group_instances.id` of the created instance (on `ok`). */
+  instanceId?: string
+  /** Its 0-based position within the group (on `ok`). */
+  position?: number
+}
+
+/**
+ * Append one instance to a repeating group of an `in_progress` response, at
+ * `max(position) + 1`. Fails with a pt-BR message when the group's
+ * `config.maxInstances` is already reached, when the item is not a
+ * `repeating_group` of this response's version, or when the response is not the
+ * caller's own draft.
+ *
+ * Wraps the INVOKER RPC `public.add_group_instance(p_response_id, p_group_item_id)`.
+ */
+export async function addGroupInstance(_input: {
+  responseId: string
+  groupItemId: string
+}): Promise<AddGroupInstanceState> {
+  throw new Error('not implemented')
+}
+
+/**
+ * Delete one instance and everything answered inside it (`answers` cascade via
+ * `answers.group_instance_id`), then RE-PACK the group's remaining positions to
+ * stay contiguous `0..n-1`. Deleting is the only way an author removes an
+ * accidental blank row before submit; a blank row left behind is pruned by
+ * `submit_response` anyway (ruling 3), so this never blocks a submit.
+ *
+ * Wraps the INVOKER RPC `public.remove_group_instance(p_response_id, p_instance_id)`.
+ */
+export async function removeGroupInstance(_input: {
+  responseId: string
+  instanceId: string
+}): Promise<ActionState> {
+  throw new Error('not implemented')
+}
+
+/**
+ * Set the group's instance order to exactly `instanceIds` (positions `0..n-1` in
+ * array order). `instanceIds` MUST be a permutation of the group's current
+ * instances — a missing or foreign id is rejected in pt-BR rather than silently
+ * dropping rows.
+ *
+ * Wraps the INVOKER RPC
+ * `public.reorder_group_instances(p_response_id, p_group_item_id, p_instance_ids)`.
+ */
+export async function reorderGroupInstances(_input: {
+  responseId: string
+  groupItemId: string
+  instanceIds: string[]
+}): Promise<ActionState> {
+  throw new Error('not implemented')
 }
 
 // ---------------------------------------------------------------------------

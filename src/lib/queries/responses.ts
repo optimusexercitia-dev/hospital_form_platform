@@ -6,6 +6,7 @@ import type {
   VersionTree,
   VersionStatus,
 } from '@/lib/queries/forms'
+import type { AnswerMap } from '@/lib/queries/conditions'
 
 // Re-export the form tree shapes so the wizard can import everything it renders
 // (sections, items, the answerable-questions filter) from this one module.
@@ -69,6 +70,39 @@ export interface FillableForm {
  * and the lifecycle/resume metadata. `lastSectionId` lands the user back on
  * their last section; `answers` rehydrates the form controls.
  */
+/**
+ * FF-1 (BE-0 contract, ADR 0087) — ONE repeating-group instance of a response,
+ * with everything needed to render and evaluate it. Shared by the fill wizard
+ * ({@link ResponseForFill}) and the read-only submission view
+ * (`SubmissionDetail`), so both render instances identically.
+ *
+ * `answersByKey` is the RESOLVED evaluator map for items inside this instance:
+ * the response's top-level map overlaid with this instance's own answers, via the
+ * parity-locked `overlayAnswerMap` (Rule 3). The frontend must NEVER compose that
+ * overlay itself — pass this map straight to `evalVisibility` when evaluating a
+ * child's `visibleWhen`, and the response-level `answersByKey` for everything
+ * outside a repeating group.
+ *
+ * A plain `group` (ADR 0087 ruling 6) produces NO instances: its children answer
+ * at top level and appear in the response-level maps like any flat item.
+ */
+export interface GroupInstance {
+  /** `response_group_instances.id` — the value to send back as `instanceId`. */
+  id: string
+  /** The owning `repeating_group` item (`response_group_instances.group_item_id`). */
+  groupItemId: string
+  /** 0-based order within its group; kept contiguous by the instance RPCs. */
+  position: number
+  /** This instance's answers keyed by item_id (drives control rehydration). */
+  answersByItemId: Record<string, Json>
+  /** Top-level map ⊕ this instance's answers, keyed by question_key. */
+  answersByKey: AnswerMap
+  /** This instance's per-item observation notes, non-null only. */
+  observationsByItemId: Record<string, string>
+  /** This instance's per-item "Outros" free text, non-null only. */
+  otherTextByItemId: Record<string, string>
+}
+
 export interface ResponseForFill {
   id: string
   formVersionId: string
@@ -91,6 +125,14 @@ export interface ResponseForFill {
    * non-null only. Drives the wizard's pre-filled Outro text input on resume (shown
    * when the item's reserved `__other__` option is selected). */
   otherTextByItemId: Record<string, string>
+  /**
+   * FF-1 (BE-0 contract): the response's repeating-group instances, ordered by
+   * (groupItemId, position). `[]` until the builder can author a container.
+   * Group them by {@link GroupInstance.groupItemId} to render each container.
+   * The four response-level maps above hold TOP-LEVEL answers only — an
+   * instance's answers live on its {@link GroupInstance}, never in them.
+   */
+  instances: GroupInstance[]
 }
 
 /** One row in the "minhas respostas" history (submitted + in_progress). */
@@ -424,6 +466,10 @@ export async function getResponseForFill(
     answersByKey,
     observationsByItemId,
     otherTextByItemId,
+    // FF-1 BE-4/BE-0: the instance read lands with the instance-scoped save arm.
+    // `[]` is the TRUE value until the builder can author a container (zero
+    // `response_group_instances` rows exist), so no consumer sees a wrong shape.
+    instances: [],
   }
 }
 

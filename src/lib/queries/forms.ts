@@ -69,7 +69,30 @@ export type InputItemType =
   | 'date'
   | 'time'
 export type DisplayItemType = 'section_text' | 'image'
-export type ItemType = InputItemType | DisplayItemType
+
+/**
+ * FF-1 (BE-0 contract, ADR 0087) — the two CONTAINER types. A container collects
+ * NO answer of its own: it owns child items via `form_items.parent_item_id`, and
+ * per ADR 0087 it carries `question_key = null` (so it is invisible to every
+ * question_key-keyed path — dashboards, conditions, completeness) and
+ * `required = false` (a repeating group's required-ness is `config.minInstances`,
+ * not the flag).
+ *   - `repeating_group` — N answer instances (`response_group_instances`); each
+ *     child answer carries `answers.group_instance_id`. Conditions on its children
+ *     resolve inside-out (ruling 2); nothing OUTSIDE it may reference a child key.
+ *   - `group` — a purely VISUAL nested sub-section (ruling 6): no instance rows,
+ *     children store answers TOP-LEVEL exactly like flat items, and their keys stay
+ *     legal condition targets everywhere.
+ * Nesting is capped at depth 1 (ruling 1): a container may not contain a container.
+ */
+export type ContainerItemType = 'group' | 'repeating_group'
+
+export type ItemType = InputItemType | DisplayItemType | ContainerItemType
+
+export const CONTAINER_ITEM_TYPES: readonly ContainerItemType[] = [
+  'group',
+  'repeating_group',
+]
 
 export const INPUT_ITEM_TYPES: readonly InputItemType[] = [
   'multiple_choice',
@@ -173,6 +196,19 @@ export interface ItemConfig {
    * a free-text input in the wizard. `null`/absent = no "Outros" option.
    */
   allowOther?: boolean | null
+  /**
+   * FF-1 (BE-0 contract, ADR 0087 substrate correction 1) — repeating-group
+   * cardinality, on the CONTAINER item's `form_items.config` (NOT
+   * `form_versions.behavior_config`, which is a per-VERSION bag and is not this).
+   * Integers ≥ 0, `maxInstances >= minInstances`. `null`/absent = unbounded.
+   *   - `minInstances` — enforced by `submit_response` AFTER empty instances are
+   *     pruned (ruling 3), with a pt-BR "adicione ao menos N" error; it is the
+   *     ONLY required-ness mechanism a repeating group has.
+   *   - `maxInstances` — enforced by the `add_group_instance` RPC.
+   * Ignored for every non-`repeating_group` type (a plain `group` has no instances).
+   */
+  minInstances?: number | null
+  maxInstances?: number | null
 }
 
 export type VersionStatus = 'draft' | 'published' | 'archived'
@@ -228,13 +264,25 @@ export interface Item {
    */
   defaultValue: Json | null
   /**
-   * answer-model-v2 (BE-0 contract, ADR 0046): the future `repeating_group`
-   * container item that OWNS this item. **Always `null` now** — every form is
-   * flat; the column exists only so the definition model is coherent with the
-   * instance-ready answer model (`answers.group_instance_id`). `clone_form_version`
-   * remaps it to the new item id when repeating groups ship.
+   * The CONTAINER item that owns this item, or `null` for a top-level item
+   * (answer-model-v2 / ADR 0046 scaffolding, ACTIVATED by FF-1). `clone_form_version`
+   * already remaps it to the cloned container's new id. Depth is capped at 1
+   * (ADR 0087 ruling 1), so a child never owns children of its own.
    */
   parentItemId: string | null
+  /**
+   * FF-1 (BE-0 contract, ADR 0087) — the ordered child items of a CONTAINER,
+   * `[]` for every non-container. **Children appear HERE and NOT in
+   * `Section.items`**, so `Section.items` stays the top-level render list it has
+   * always been (no consumer breaks: no form contains a container yet, so this is
+   * `[]` everywhere until FF-1's builder ships).
+   *
+   * Children live in the SAME section as their parent and, per ADR 0087, occupy
+   * `form_items.position` slots contiguously immediately after it — that flat
+   * ordinal space is what keeps `validate_visible_when`'s "pergunta anterior"
+   * rule working across the container boundary.
+   */
+  children: Item[]
   // display-only
   content: SectionTextContent | ImageContent | null
 }
@@ -516,9 +564,30 @@ function toItem(row: ItemRow): Item {
     // are undefined and these safely default to null (no behavior change).
     defaultValue: row.default_value ?? null,
     parentItemId: row.parent_item_id ?? null,
+    // FF-1: filled by `nestChildren`; a container's children are attached there.
+    children: [],
     // content is a plain jsonb object for display items, null for inputs.
     content: (row.content as Item['content']) ?? null,
   }
+}
+
+/**
+ * FF-1 (BE-0): fold the FLAT, position-ordered item rows of one section into the
+ * container tree the builder + wizard consume — children move onto their
+ * container's {@link Item.children} and OUT of the returned top-level list, both
+ * sides keeping their `position` order. Depth is capped at 1 (ADR 0087 ruling 1),
+ * so one pass suffices. A child whose parent is missing from this section (never
+ * expected — the DB pins parent and child to the same version) degrades to
+ * top-level rather than disappearing.
+ */
+function nestChildren(ordered: Item[]): Item[] {
+  const byId = new Map(ordered.map((item) => [item.id, item]))
+  return ordered.filter((item) => {
+    const parent = item.parentItemId ? byId.get(item.parentItemId) : undefined
+    if (!parent) return true
+    parent.children.push(item)
+    return false
+  })
 }
 
 function toSection(row: SectionRow): Section {
@@ -531,9 +600,9 @@ function toSection(row: SectionRow): Section {
     visibleWhen: (row.visible_when as Visibility | null) ?? null,
     requiresSignoff: row.requires_signoff,
     signoffRole: (row.signoff_role as SignoffRole | null) ?? null,
-    items: [...row.form_items]
-      .sort((a, b) => a.position - b.position)
-      .map(toItem),
+    items: nestChildren(
+      [...row.form_items].sort((a, b) => a.position - b.position).map(toItem),
+    ),
   }
 }
 
@@ -695,10 +764,20 @@ export async function listVersions(formId: string): Promise<VersionSummary[]> {
  */
 export function answerableItems(tree: VersionTree): Item[] {
   return tree.sections
-    .flatMap((section) => section.items)
+    .flatMap((section) => section.items.flatMap(flattenItem))
     .filter((item): item is Item =>
       INPUT_ITEM_TYPES.includes(item.itemType as InputItemType),
     )
+}
+
+/**
+ * FF-1 (BE-0): one item followed by its children, in render order. The single
+ * helper every "walk every item of this version" caller must use now that
+ * `Section.items` holds only top-level items — forgetting it silently skips
+ * every group child (Rule 9's "answerable questions" bug class).
+ */
+export function flattenItem(item: Item): Item[] {
+  return item.children.length === 0 ? [item] : [item, ...item.children]
 }
 
 /**

@@ -421,6 +421,33 @@ export interface ResultRuleset {
 /** A flat map of question_key -> saved answer value. */
 export type AnswerMap = Record<string, Json | undefined>
 
+/**
+ * FF-1 (BE-0 contract, ADR 0087 ruling 2) — the INSTANCE-AWARE answer map, as a
+ * pure 2-tier overlay. This is the ONLY place the repeating-group answer
+ * resolution lives on the TS side; the SQL mirror is
+ * `app.overlay_answer_map(jsonb, jsonb)`. Drift between the two is a
+ * phase-blocking bug (Rule 3), locked by
+ * `__fixtures__/instance-map-vectors.json` + `supabase/tests/20_conditions.sql`.
+ *
+ * `base` is the response's TOP-LEVEL map (answers with no `group_instance_id` —
+ * including a plain `group`'s children, which store top-level per ruling 6).
+ * `overlay` is ONE repeating-group instance's own answers. The overlay wins per
+ * key ("a same-instance sibling wins"); a key in NEITHER stays **absent**, which
+ * is what gives ruling 2's "sibling missing in this instance → absent, never a
+ * fallback to another instance" for free: a repeating-group child's answers only
+ * ever carry an instance id, so its key can never appear in `base`.
+ *
+ * Evaluating an item OUTSIDE any repeating group uses `base` alone — never this.
+ *
+ * INVARIANT: neither map may carry an explicit `undefined` value. `evalCondition`
+ * tests key presence with `hasOwnProperty`, so a present-but-`undefined` key
+ * would read as "answered with null" in TS while the SQL side has no such state.
+ * Both producers (`buildAnswerMaps`, `app.answer_map_scoped`) omit absent keys.
+ */
+export function overlayAnswerMap(base: AnswerMap, overlay: AnswerMap): AnswerMap {
+  return { ...base, ...overlay }
+}
+
 /** Deep structural equality matching Postgres jsonb equality for our values. */
 function jsonEquals(a: Json | undefined, b: Json | undefined): boolean {
   if (a === b) return true
