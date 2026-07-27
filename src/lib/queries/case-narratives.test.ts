@@ -6,6 +6,7 @@ import {
   type CaseLayoutItem,
 } from './case-narratives'
 import type { CaseDetail, CaseNarrative } from './cases'
+import { DEFAULT_CASE_TERMINOLOGY } from './case-types'
 
 /**
  * Unit tests for the PURE case-layout helpers (ADR 0032). `mergeCaseLayout` is the
@@ -81,10 +82,12 @@ function detail(
   narratives: CaseNarrative[],
 ): CaseDetail {
   return {
+    terminology: DEFAULT_CASE_TERMINOLOGY,
     case: {
       id: 'case-1',
       commissionId: 'comm-1',
       templateId: 'tpl-1',
+      caseTypeId: null,
       caseNumber: 1,
       label: null,
       // The macro status (CaseStatus); mergeCaseLayout never reads it.

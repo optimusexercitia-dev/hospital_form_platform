@@ -76,14 +76,61 @@ export interface CaseDocumentWithUrl extends CaseDocument {
  */
 export type CaseEventKind = 'note' | 'meeting' | 'decision' | 'other'
 
+/**
+ * System / auto-derived event kinds — NEVER manually creatable (so they stay OUT of
+ * `CaseEventKind`, the manual create-select + `EVENT_KIND_LABEL` union). `interview`
+ * and `safety_event` are the pre-existing DB-only "registry echo" kinds (deduped off
+ * the timeline against their authoritative source — see `case-timeline.ts`). The
+ * eight ethics procedural kinds are NEW in E3a and, unlike the echoes, DO surface on
+ * the timeline: under O-3 = auto-derive each is emitted by the matching E2 procedure
+ * RPC (BE-2..BE-6), never authored by hand.
+ */
+export type ProceduralCaseEventKind =
+  | 'interview'
+  | 'safety_event'
+  | 'admissibility_decided'
+  | 'allegation_added'
+  | 'finding_recorded'
+  | 'notification_issued'
+  | 'hearing_scheduled'
+  | 'vote_cast'
+  | 'decision_issued'
+  | 'appeal_submitted'
+
+/**
+ * Every kind the DB `case_events_kind_check` allows. `CaseEvent.kind` is widened to
+ * this in BE-5 — deferred here so BE-1 stays typecheck-clean: `EVENT_KIND_LABEL`
+ * (frontend-owned, `case-extras-labels.ts`) is an exhaustive `Record<CaseEventKind,…>`
+ * and the timeline indexes it with `ev.kind`, so the in-place widen must land in
+ * lockstep with the frontend label growth (O-4). See the E3a design note.
+ */
+export type AnyCaseEventKind = CaseEventKind | ProceduralCaseEventKind
+
+/**
+ * Per-event visibility (E3a). `case_readers` (default) = today's behavior byte-for-
+ * byte (every `can_read_case`-eligible reader sees it). `coordinator_only` is an
+ * ADDITIONAL narrowing on top of `can_read_case` (an RLS AND-condition), NEVER a
+ * widening — a respondent/recused reader is still denied by the `can_read_case` floor
+ * regardless of visibility. Auto-derived deliberation-sensitive events (votes,
+ * findings) are written `coordinator_only`; plain notes stay `case_readers`.
+ */
+export type CaseEventVisibility = 'case_readers' | 'coordinator_only'
+
 /** A manual free-text case event (working note / minute of a decision). */
 export interface CaseEvent {
   id: string
   caseId: string
+  // NOTE: BE-5 widens this to `AnyCaseEventKind` (see the type doc above) once the
+  // frontend `EVENT_KIND_LABEL` covers the procedural kinds (O-4).
   kind: CaseEventKind
   title: string | null
   /** Required free text. */
   body: string
+  /**
+   * Per-event visibility (E3a). Defaults to `case_readers` (today's behavior) until
+   * the `case_events.visibility` column lands (BE-3) and BE-5 projects it.
+   */
+  visibility: CaseEventVisibility
   occurredAt: string | null
   /**
    * Optional wall-clock time companion to {@link occurredAt}, as `"HH:mm"`, or
@@ -203,6 +250,9 @@ export async function listCaseEvents(caseId: string): Promise<CaseEvent[]> {
     kind: r.kind,
     title: r.title,
     body: r.body,
+    // BE-3 adds the `case_events.visibility` column; until then every event is the
+    // default `case_readers` (byte-for-byte today's behavior). BE-5 projects it.
+    visibility: 'case_readers',
     occurredAt: r.occurred_at,
     // Postgres `time` serializes as `HH:mm:ss`; the UI wants `HH:mm`.
     occurredTime: r.occurred_time ? r.occurred_time.slice(0, 5) : null,

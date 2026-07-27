@@ -17,7 +17,12 @@ import type {
   CustomFieldOption,
   CustomFieldType,
 } from '@/lib/queries/process-templates'
+import {
+  DEFAULT_CASE_TERMINOLOGY,
+  type CaseTypeTerminology,
+} from '@/lib/queries/case-types'
 
+export type { CaseTypeTerminology } from '@/lib/queries/case-types'
 export type { ResolvedPhaseResult } from '@/lib/queries/phase-results'
 export type {
   CustomFieldDef,
@@ -70,6 +75,13 @@ export interface Case {
   commissionId: string
   /** `null` once detached from its blueprint (template archived/deleted). */
   templateId: string | null
+  /**
+   * The case's type (ADR 0064 D4; O-1), snapshotted at creation, or `null` for a
+   * type-less case (the pre-Ethics default — the overwhelming majority). Drives
+   * terminology resolution via {@link CaseDetail.terminology}. The `cases.case_type_id`
+   * column lands in BE-2; BE-5 projects it (this read defaults it to `null`).
+   */
+  caseTypeId: string | null
   /** Per-commission counter ("Caso 0042" is `caseNumber = 42`). */
   caseNumber: number
   /** Optional NON-IDENTIFYING label (never a patient name/MRN). */
@@ -340,6 +352,14 @@ export interface CaseBoardRow {
  */
 export interface CaseDetail {
   case: Case
+  /**
+   * Resolved UI-label bundle for this case's type (ADR 0064 D4; O-1). Falls back to
+   * {@link DEFAULT_CASE_TERMINOLOGY} (today's hardcoded pt-BR labels) for a type-less
+   * case, so every existing case renders byte-for-byte unchanged. BE-5 resolves it
+   * from `case_type_terminology`; this read returns the default bundle for now.
+   * (`caseTypeId` itself lives on the nested {@link case}, not duplicated here.)
+   */
+  terminology: CaseTypeTerminology
   /**
    * The case's assigned outcome resolved for display (label/flags + the advisory
    * `requiresActionPlan` / `isAdverse` markers, D10), or `null` if none assigned.
@@ -1083,6 +1103,7 @@ export async function listCasesBoard(
       // The board row does not echo templateId (not needed for the board);
       // detail carries it.
       templateId: null,
+      caseTypeId: null, // BE-5 projects it; board render is terminology-agnostic per-card
       caseNumber: r.case_number,
       label: r.label,
       status: r.status,
@@ -1291,10 +1312,14 @@ async function getCaseDetailUncached(
   }
 
   return {
+    // BE-5 resolves this from `case_type_terminology(case.caseTypeId)`; the default
+    // bundle keeps every type-less case rendering today's labels byte-for-byte.
+    terminology: DEFAULT_CASE_TERMINOLOGY,
     case: {
       id: env.id,
       commissionId: env.commission_id,
       templateId: env.template_id,
+      caseTypeId: null, // BE-5 projects `cases.case_type_id` (column lands BE-2)
       caseNumber: env.case_number,
       label: env.label,
       status: env.status,
@@ -1578,6 +1603,7 @@ export async function getCasePhaseForFill(
       id: c.id,
       commissionId: c.commission_id,
       templateId: c.template_id,
+      caseTypeId: null, // BE-5 projects `cases.case_type_id`; fill landing is terminology-agnostic
       caseNumber: c.case_number,
       label: c.label,
       status: c.status,
