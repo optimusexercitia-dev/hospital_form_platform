@@ -510,9 +510,66 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-_No open bugs._ FF-1's five (BUG-FF1-001…005 — three blockers, one critical, one blocker; all
-closed and re-verified) are recorded with full repro/fix detail in
+FF-1's five (BUG-FF1-001…005 — three blockers, one critical, one blocker; all closed and
+re-verified) are recorded with full repro/fix detail in
 [ff-1-repeating-groups.md](docs/progress/ff-1-repeating-groups.md).
+
+#### 🔴 BUG-FF2-003 — the "Adicionar bloco" menu overflows the viewport with **no scroll**, so both new Matrix types are UNREACHABLE at 1280×720 · P1 · owner `frontend` · OPEN
+
+**Filed by `tester` 2026-07-27** (FF-2 test pass). Found by triaging two FF-1 specs that turned red
+under FF-2, not by a spec that was looking for it.
+
+*Repro (measured, not inferred — `matrix_fields` ON, staff_admin, a new empty form,
+viewport 1280×720):* open **Adicionar bloco**. The `[role="menu"]` renders **909 px tall with
+`max-height: none`**, from `y=273` to `y=1182` — **462 px past the bottom of the window**.
+
+| Fact | Measured |
+|---|---|
+| items whose `bottom > innerHeight` | **7 of 14** — Hora · Texto explicativo · Imagem · **Matriz** · **Matriz de risco** · Grupo · Grupo repetível |
+| page scroll while the menu is open | **locked** — `body{overflow:hidden}`, `data-scroll-locked="1"`, `window.scrollBy(0,400)` moves `scrollY` by **0** |
+| menu's own scroll | **none** — `overflow-y:auto` but `scrollHeight <= clientHeight`, because nothing constrains the height |
+| keyboard escape hatch | **none** — 14×`ArrowDown` lands focus on an item at `bottom 728` with `withinViewport: false`; nothing scrolls it in |
+
+So the two block types FF-2 exists to ship cannot be selected at all on a common laptop viewport,
+by mouse **or** by keyboard (violates CLAUDE.md §8's keyboard-accessibility bar).
+
+*Expected:* every offered block type is reachable — the menu is bounded (e.g.
+`max-h-[var(--radix-dropdown-menu-content-available-height)]` + `collisionPadding`) and scrolls.
+*Actual:* the menu grows unbounded past the viewport and neither it nor the page will scroll.
+
+*Attribution, stated precisely.* The missing `max-height` is **pre-existing** — with
+`matrix_fields` **OFF** the same menu is **760 px / 12 items** and already puts 5 items off a
+720-px viewport. FF-2 adds **+149 px** (a separator, the "Matrizes" label and 2 items), which is
+what pushes the bottom group past viewports that previously fit. **FF-2 is the trigger, not the
+root cause**, and both halves need the same fix.
+
+*Regression evidence (deterministic, flag-toggled on the live DB, three flips):*
+`e2e/ff1-repeating-groups.spec.ts` **FF1-2** and **FF1-7** fail on
+`locator.click … element is outside of the viewport` (retry-until-timeout, 3.3 min / 3.7 min) with
+the flag **ON**, and **FF1-2 passes in 17.6 s** with it **OFF**. Both are FF-1 specs at their own
+1280×1400 viewport — the menu clears 1400 px only until the trigger sits lower on a page that
+already has blocks. `e2e/phase5-wizard.spec.ts` is unaffected (12/12).
+
+> ⚠ **This will surface in the full `e2e:prod` gate as two FF-1 reds with zero connection errors** —
+> i.e. NOT the infra class the standing caveat covers. Triage them here, not against the flaky
+> baseline.
+
+#### 🟡 BUG-FF2-004 — an axis code minted from an accented label renders mangled in the editor that deliberately SHOWS it · MINOR/cosmetic · owner `frontend` · OPEN
+
+*Repro:* author a matrix, add a row labelled `Higienização das mãos`. `MatrixAxesEditor` prints the
+immutable identity as `código: higienizac_a_o_das_ma_os_yi4a1c`.
+
+*Cause:* `slugifyLabel` NFD-decomposes, then collapses every non-`[a-z0-9]` run to `_` — so an
+accent's combining mark becomes a `_` rather than being dropped (`ção` → `c_a_o`). Shared with
+option codes and `question_key`s, so it is **pre-existing behaviour, not an FF-2 bug** — but FF-2 is
+the first surface that **shows a code to the author on purpose** (ADR 0089 ruling 4: "the code is
+SHOWN … because an author who can see the identity understands why relabelling is free"). A
+mangled identity undercuts the reason it is shown.
+
+*No data risk* — codes are opaque and stable; only legibility suffers. Fixing it means stripping
+combining marks before the `_` collapse, which **changes minted codes platform-wide** and so is a
+PO call, not a tester call. Pinned as-is by `e2e/ff2-matrix.spec.ts` (FF2-1, FF2-2) so a future
+change to the slugger is a deliberate one.
 
 ## Test Run Summary
 
@@ -522,6 +579,14 @@ closed and re-verified) are recorded with full repro/fix detail in
 _FF-1's runs (9/9 E2E on a prod build · pgTAP 3925 · Vitest 490 · and the two full `e2e:prod`
 gate runs with their triage) are recorded in
 [ff-1-repeating-groups.md](docs/progress/ff-1-repeating-groups.md)._
+
+| Date | Scope | Result | Notes |
+|---|---|---|---|
+| 2026-07-27 | **FF-2 · `e2e/ff2-matrix.spec.ts`** (9 tests), prod-standalone from the worktree on **:3100** (`:3000` is the primary checkout's), chromium, workers=1 | **9 / 9 PASS** — reproduced on **3 consecutive** full-file runs (42.7 s · 42.6 s · 48.9 s) | ADR 0089 rulings 1–4 + the repeating-group substrate + keyboard-only + the server writer + BUG-FF2-002's fix. Two spec defects fixed before green (see the mutation rows). NOT the full-suite gate — the lead owns `npm run e2e:prod`. |
+| 2026-07-27 | **Mutation proof — `app.instance_is_empty`** (ADR 0089 §A, a bold must-mutation-prove keystone) | **RED as required**, then restored | Both matrix arms removed on the live DB → **FF2-6 fails** (submit blocked: both instances pruned, minInstances unmet). Original captured with `pg_get_functiondef` beforehand and restored **byte-for-byte** (`diff` clean). |
+| 2026-07-27 | **Mutation proof — `app.item_required_satisfied`** (ruling 3 row-complete weakened to "any cell") | **Exposed a VACUOUS assertion in the spec**, then RED after the fix, then restored | FF2-3 originally called `submit_response` right after a UI-only partial fill — which never flushes, so it was proving "an EMPTY grid is refused" (true under BOTH readings) and **stayed GREEN under the mutation**. Rewritten to persist 2-of-3 rows through `save_section_answers` and assert their presence first; it then fails loudly (`aceitou uma matriz obrigatória com 2 de 3 linhas`). Predicate restored byte-for-byte. |
+| 2026-07-27 | **Neighbour regression** — `ff1-repeating-groups.spec.ts` + `phase5-wizard.spec.ts` | **19 / 21** — `phase5-wizard` 12/12; FF1-2 + FF1-7 RED | → **BUG-FF2-003** (the add-block menu overflow). Flag-toggled three times to prove causation, not assumed. |
+| 2026-07-27 | FF-2 full-file run **immediately after** a live `CREATE OR REPLACE` restore of two `app.*` functions | 5 / 8, FF2-6/7/8 red (visibility timeouts, no value mismatches) | **Unexplained single occurrence.** The next **three** runs were 8/8 with no code or DB change. Recorded rather than dismissed; worth watching in the full gate. |
 
 > ⚠ **Full-gate standing caveat (unchanged, pre-existing).** `npm run e2e:prod` (70 spec files,
 > 12 batches) does **not** currently reach a clean green on this machine: the local stack degrades
