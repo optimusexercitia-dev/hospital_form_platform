@@ -9,8 +9,15 @@
  *
  * This is the SINGLE generator for both option codes and question_key bases;
  * `actions.ts` imports it rather than redefining it, so server and client
- * never drift. Format is unchanged: `slug(label)_suffix` (or a double-suffix
- * fallback on collision) — existing pgTAP/E2E may assume this exact shape.
+ * never drift. Shape is `slug(label)_suffix` (or a double-suffix fallback on
+ * collision).
+ *
+ * ⚠ BUG-FF2-004 changed what `slug(label)` PRODUCES for accented pt-BR labels
+ * (see {@link slugifyLabel}). Codes already stored are IMMUTABLE and were not
+ * migrated — by design: `question_key`, option `code` and matrix axis `code` are
+ * the cross-version aggregation keys, so re-keying them retroactively would
+ * break exactly the joins they exist to hold together. Minting is
+ * forward-only, and a form authored before the fix keeps its old codes for good.
  */
 
 /**
@@ -20,11 +27,22 @@
  * collisions. Empty/diacritic-only labels fall back to 'pergunta'.
  */
 export function slugifyLabel(label: string): string {
-  // NFD decomposes accented letters into base + combining mark; lowercasing
-  // then collapsing any non-[a-z0-9] run (which includes the now-separate
-  // combining marks and all punctuation/whitespace) to '_' yields an ASCII slug.
+  // NFD decomposes an accented letter into base + combining mark. The marks must
+  // then be DELETED, not collapsed: the old code went straight from NFD to
+  // `replace(/[^a-z0-9]+/g, '_')`, which turned every combining mark into a '_'
+  // separator, so `Higienização das mãos` minted `higienizac_a_o_das_ma_os`
+  // instead of `higienizacao_das_maos` (BUG-FF2-004). Every pt-BR label carrying
+  // ç/ã/õ/á/é/í/ó/ú/â/ê/ô/à/ü was mangled — which is most of them.
+  //
+  // U+0300–U+036F is the Combining Diacritical Marks block and covers every mark
+  // pt-BR produces under NFD (acute 0301, grave 0300, circumflex 0302, tilde
+  // 0303, diaeresis 0308, cedilla 0327).
   const base = label
     .normalize('NFD')
+    // Escaped, not the literal range: bare combining marks in source are
+    // invisible in most editors and one stray normalization of THIS file would
+    // silently change what the class matches.
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
