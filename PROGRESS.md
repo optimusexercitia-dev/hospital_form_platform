@@ -466,7 +466,65 @@ reasoning is in a code comment beside the constants — not only here:
 A `case` for an unreachable code is not free: it reads as reachable to the next person and invites
 a unit test that can never fail — a vacuous keystone by construction (ADR 0079).
 
-#### FF-2 follow-ups (deferred, in-scope — visible to `qa`)
+#### `backend` — Wave 3 (PO rulings) ✅ COMPLETE 2026-07-27
+
+Migrations `20260830000900`–`…001000`; `registered == files == 211`. Full ordered
+`supabase test db` **from a clean reset: 137 files, 4013 tests, `Result: PASS`**. Vitest
+**587/587** · lint 0/0 · typecheck clean · `next build` succeeded · types regenerated with pgtap
+absent (`0` pollution matches, +41 lines).
+
+**FUP-FF2-2 — dashboard aggregation.** `dashboard_matrix_cells` (cell unit
+`(question_key, row_code, col_code)`) + `dashboard_risk_scores` (one row per
+(severity, likelihood) pair carrying `risk_score` as a NUMBER, plus per-key n/avg/min/max). Both
+built on `app.submitted_form_responses`, so the supersession rule is the *same object* the four
+existing aggregations use rather than a fifth copy. Aggregation resolves through **`code`**, never
+`row_id`/`col_id`.
+
+**`supersession_matrix_excluded` written and MUTATION-PROVEN** (§M of 271). Designed on `tester`'s
+close-out lesson — *assert the property that changed, not the number that moved*: predecessor and
+successor get **different columns and different weights**, so a count-only assertion (also `1` if
+the SUCCESSOR were wrongly excluded, or if neither registered) cannot pass by accident. M1/M2 pin
+the other half first — a merely `in_progress` successor must NOT blank the metric. Dropping the
+supersession arm turns four red: `M3 have: mc_no,mc_yes want: mc_no` · `M4 have: 2 want: 1` ·
+`M5 have: 27 want: 3` · `M6 have: altaxfreq=27,baixaxraro=3`.
+
+**FUP-FF2-1 — the signer sees the grid.** `get_response_for_signoff` gains `matrix_cells_by_item` /
+`risk_matrix_by_item` at top level and per instance, via two scope-parameterised `app` helpers
+(one definition, not four inline expressions). `risk_score` is projected, never recomputed — it is
+the durable fact the signer attests to.
+
+> 🔎 **A THIRD instance of the same blindness, swept:** `getSubmissionDetail` calls the same
+> `buildGroupInstances` and likewise never populated the grids, so the **primary read of a submitted
+> response** showed an empty matrix too. Wired through `buildMatrixAnswers`.
+>
+> **Optionality question — answered: YES, tightened.** With all three producers (fill, sign-off
+> door, submission detail) populating, `GroupInstance.matrixCellsByItemId`/`riskMatrixByItemId` are
+> now **required**. They were optional only because of the sign-off path; leaving them optional
+> would now only hide a producer that forgot.
+
+**BUG-FF2-004 — `slugifyLabel`.** NFD marks are now stripped, not collapsed into `_`. All four call
+sites swept: every one **mints forward** and none re-derives a slug to look an existing code up, so
+**no stored code moves and no migration rewrites keys** — `question_key` / option `code` / axis
+`code` are the joins the dashboards aggregate on. Mutation-proven; unit-tested across
+ç ã õ á é í ó ú â ê ô à ü plus the collision paths.
+
+> 🔴 **BLOCKER FOR `tester`, not fixable by me (`e2e/**` is tester-owned).**
+> `e2e/ff2-matrix.spec.ts:507-510` **pins the buggy slug** —
+> `/^higienizac_a_o_das_ma_os_[a-z0-9]{6}$/` and `/^na_o_conforme_[a-z0-9]{6}$/` — with a comment
+> deliberately preserving it as "long-standing behaviour, not something FF-2 introduced". The PO has
+> now ruled it a bug, so those two regexes must become `higienizacao_das_maos_…` /
+> `nao_conforme_…`. **This is `tester`'s own close-out lesson pointing the other way: a guard that
+> pins the old symptom blocks the correct fix.** The E2E suite will fail on these two until updated.
+
+> ⚠ **Reported, NOT fixed (pre-existing, FF-1):** the per-instance `observations_by_item` /
+> `other_text_by_item` filters inside `get_response_for_signoff` compare against `''''` — a literal
+> apostrophe, not the empty string — so an empty-string observation is not filtered out. Carried
+> **byte-identical** through the FF-2 re-declaration so that migration has no undeclared behaviour
+> change. Lead's call whether it rides this gate.
+
+#### FF-2 follow-ups — ✅ BOTH CLOSED in Wave 3 (PO ruled them into gate scope)
+
+Kept for the audit trail; neither is outstanding.
 
 | id | Gap | Why deferred |
 |---|---|---|
