@@ -250,6 +250,52 @@ from `ALL_ITEM_TYPES` turns 6 of 12 red; reverting the question-key gate to `INP
 `config.riskBands` ← `risk-bands-editor.tsx`. **`matrixFieldsEnabled()` has no caller yet** — owned
 by `frontend` for the picker/wizard gate. No surface fails open.
 
+#### `backend` — Wave 2 (pgTAP keystones) ✅ COMPLETE 2026-07-27
+
+`supabase/tests/271_ff2_matrix_fields.sql` — **79 assertions**, every keystone in ADR 0089's
+§Consequences table except `supersession_matrix_excluded` (see FUP-FF2-2 — deliberately absent
+rather than written against a path that does not exist).
+
+**Full ordered `supabase test db` from a clean `db reset`: 137 files, 4006 tests, `Result: PASS`**
+(baseline before FF-2 was 3925). Sections: §0 flags asserted-not-forced · §A K9 after the writers
+shipped (denial *and* the door working) · §B code immutability + publish validation · §C one column
+per row · §D coherence · §E server-derived score · §F row-complete · §G deadlock-negative **with an
+anti-vacuity twin** · §H clone + gate parity · §I submitted-immutability · §J/§K the two
+mutation-proven ones · §L the collapsed predicate on all four paths.
+
+**Mutation proofs performed (ADR 0079), red output observed:**
+
+| Keystone | Mutation | Observed |
+|---|---|---|
+| `instance_not_empty_with_matrix_only` (§J) | both matrix arms removed from `app.instance_is_empty` | **6 red** — J1 false; J4 instance count `have: 0 want: 1`; J5 cells `have: NULL want: i1->ic_a,i2->ic_b`; K4/K5/K6 collateral (§K's instances pruned too) |
+| `correction_copies_matrix_answers` (§K) | the instance-resolving subquery in `supersede_response`'s cells block → `new_a.group_instance_id is not distinct from old_a.group_instance_id` | **exactly 2 red** — K4 `have: NULL want: i1->ic_a`, K5 `have: NULL want: i2->ic_b`. **K2 (top-level) and K3 (risk) stayed GREEN**, which is the proof that a top-level-only keystone is structurally blind to this defect — FF-1's K4 blindness, generalised |
+
+Both restored; a clean `db reset` + full suite re-run confirms the migrations alone produce green.
+
+#### 🔴 Two further Wave-1 defects, found BY the Wave-2 run and fixed (`20260830000800`)
+
+1. **SQL-NULL trap in three "reject a missing key" guards — the guard failed OPEN.**
+   `x -> 'weight'` on an object with no `weight` key is SQL NULL, and `jsonb_typeof(NULL)` is NULL,
+   so `jsonb_typeof(x -> 'weight') <> 'number'` evaluated to NULL rather than TRUE and the EXISTS
+   never matched. The guard rejected a weight of the wrong *type* and waved through a weight that
+   was *absent* — exactly the case it existed for. Caught by keystone **A13** (`caught: no
+   exception`) and **E5**. Blast radius was larger than the missed error: `upsert_matrix_axes` then
+   REPLACED the risk axes with the weightless payload, so publish failed HC0P6, `risk_score` came
+   back NULL, and an axis code vanished — **six further keystones red from one root cause**. Fixed
+   with `coalesce(jsonb_typeof(...), 'missing')`.
+2. **`app.copy_version_children`'s gate was STRICTER than the RLS it displaced** — it broke
+   `61_answer_model_v2`, `203_others_and_length` and `209_flexible_forms`, all of which drive
+   `clone_form_version` with **no JWT** (as the owner, for whom RLS is bypassed). The rule a DEFINER
+   gate must satisfy is *neither weaker nor stronger* than the policy it replaces; the check is now
+   scoped to callers that have an authenticated identity. Not a hole — `app` is not PostgREST-exposed
+   and `clone_form_version` is still INVOKER, so an anonymous caller is refused by the RLS-gated
+   `form_versions` INSERT first. **Both arms are keystoned (H5 live-gate / H6 no-JWT parity).**
+
+Also swept: **`184_hospital_admin_isolation` §11 counted CCIH's seed forms (1)** and my seed demo
+form made it 2 — the same "when you add data, grep for the test that counted it" class as the
+§B1 CHECK sweep. Expectation updated; the isolation proof (0 rows from the sibling hospital / other
+org) is untouched.
+
 #### FF-2 follow-ups (deferred, in-scope — visible to `qa`)
 
 | id | Gap | Why deferred |
