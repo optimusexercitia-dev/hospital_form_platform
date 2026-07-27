@@ -36,17 +36,26 @@ union all select i_a, 1, 'nao', 'Não' from d
 union all select i_b, 0, 'sim', 'Sim' from d
 union all select i_b, 1, 'nao', 'Não' from d;
 
--- ---- 1) A conditional item that requires=true is rejected by the CHECK at
--- write time (form_items_conditional_not_required). ----
-select throws_ok(
+-- ---- 1) FF-1 RE-PIN (ADR 0087 ruling 4). This asserted the INVERSE until FF-1:
+-- `form_items_conditional_not_required` rejected conditional + required outright.
+-- That CHECK is now DROPPED PLATFORM-WIDE, because
+-- `app.response_required_complete` already carried the "a per-item condition can
+-- hide a required item; honour it" branch and the CHECK made that branch
+-- unreachable dead code — never once proven. FF-1 must prove exactly that path
+-- for repeating-group children ("se tipo = medicação, nome do medicamento é
+-- obrigatório"), so keeping it forbidden elsewhere would ship a builder that
+-- offers *obrigatório* beside a condition in one place and refuses it in another.
+--
+-- Enforcement did not disappear, it MOVED: a hidden required item no longer
+-- blocks submit, which is a WIDENING and therefore carries deadlock-negative
+-- keystones in 270_ff1_repeating_groups.sql §H (top level AND per-instance).
+select lives_ok(
   format($$
     update public.form_items
       set visible_when = jsonb_build_object('question_key','qa','op','equals','value','sim'),
           required = true
     where id = %L $$, (select i_b from d)),
-  '23514',
-  null,
-  'a conditional item cannot be required (CHECK form_items_conditional_not_required)'
+  'a conditional item MAY now be required (ruling 4 dropped the CHECK; visibility wins at submit)'
 );
 
 -- ---- 2) A valid backward item reference (qb depends on the earlier qa) passes

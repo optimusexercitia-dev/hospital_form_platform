@@ -9130,6 +9130,23 @@ export type Database = {
         }
         Returns: string
       }
+      add_group_instance: {
+        Args: { p_group_item_id: string; p_response_id: string }
+        Returns: {
+          created_at: string
+          group_item_id: string
+          id: string
+          parent_instance_id: string | null
+          position: number
+          response_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "response_group_instances"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       add_interview_interviewer: {
         Args: {
           p_external_name?: string
@@ -12709,6 +12726,10 @@ export type Database = {
         Args: { p_case_participant_id: string }
         Returns: undefined
       }
+      remove_group_instance: {
+        Args: { p_instance_id: string; p_response_id: string }
+        Returns: undefined
+      }
       remove_interview_interviewer: {
         Args: { p_interviewer_id: string }
         Returns: undefined
@@ -13056,6 +13077,14 @@ export type Database = {
         Args: { p_hospital_id?: string; p_ordered_ids: string[] }
         Returns: undefined
       }
+      reorder_group_instances: {
+        Args: {
+          p_group_item_id: string
+          p_instance_ids: string[]
+          p_response_id: string
+        }
+        Returns: undefined
+      }
       reorder_item: {
         Args: { p_direction: string; p_item_id: string }
         Returns: undefined
@@ -13275,6 +13304,7 @@ export type Database = {
         Args: {
           p_answers?: Json
           p_clear_item_ids?: string[]
+          p_instance_answers?: Json
           p_observations?: Json
           p_other_text?: Json
           p_response_id: string

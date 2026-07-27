@@ -4,6 +4,8 @@ import {
   evalCondition,
   evalVisibility,
   computeAggregateKeys,
+  isConditionTargetInScope,
+  overlayAnswerMap,
   walkResultRuleset,
   TOTAL_SCORE_KEY,
   FLAGGED_COUNT_KEY,
@@ -14,6 +16,7 @@ import {
 } from './conditions'
 import vectorsFile from './__fixtures__/condition-vectors.json'
 import visibilityVectorsFile from './__fixtures__/visibility-vectors.json'
+import instanceVectorsFile from './__fixtures__/instance-map-vectors.json'
 
 interface Vector {
   name: string
@@ -48,6 +51,89 @@ describe('evalVisibility (TS mirror of app.eval_visibility)', () => {
       expect(evalVisibility(v.rule, v.answers)).toBe(v.expected)
     },
   )
+})
+
+// ---------------------------------------------------------------------------
+// FF-1 (ADR 0087 ruling 2) — the instance-aware answer map. The SAME vectors run
+// against `app.overlay_answer_map` in supabase/tests/20_conditions.sql; drift is
+// phase-blocking (Rule 3).
+//
+// Two levels on purpose: `map_vectors` pin the overlay itself, `eval_vectors`
+// pin the end-to-end DECISION. Agreeing on the map is not the same as agreeing
+// on the outcome, and the outcome is what gates a submit.
+//
+// `evalCondition` is deliberately untouched by FF-1 — it is already pure over a
+// map, so the whole instance dimension lives in map construction.
+// ---------------------------------------------------------------------------
+
+interface InstanceMapVector {
+  name: string
+  base: AnswerMap
+  overlay: AnswerMap
+  expected: AnswerMap
+}
+
+interface InstanceEvalVector {
+  name: string
+  base: AnswerMap
+  overlay: AnswerMap
+  visible_when: VisibleWhen
+  expected: boolean
+}
+
+const instanceMapVectors = (
+  instanceVectorsFile as { map_vectors: InstanceMapVector[] }
+).map_vectors
+
+const instanceEvalVectors = (
+  instanceVectorsFile as { eval_vectors: InstanceEvalVector[] }
+).eval_vectors
+
+describe('overlayAnswerMap (TS mirror of app.overlay_answer_map)', () => {
+  it.each(instanceMapVectors.map((v) => [v.name, v] as const))(
+    '%s',
+    (_name, v) => {
+      expect(overlayAnswerMap(v.base, v.overlay)).toEqual(v.expected)
+    },
+  )
+
+  it('never introduces a present-but-undefined key (the SQL side has no such state)', () => {
+    // `evalCondition` tests presence with hasOwnProperty, so a key carrying
+    // `undefined` would read as "answered with null" in TS while jsonb has no
+    // way to express it. Both producers omit absent keys; this pins that.
+    const merged = overlayAnswerMap({ a: '1' }, { b: '2' })
+    expect(Object.values(merged).every((v) => v !== undefined)).toBe(true)
+  })
+})
+
+describe('instance-aware decision (overlay + the UNCHANGED evaluator)', () => {
+  it.each(instanceEvalVectors.map((v) => [v.name, v] as const))(
+    '%s',
+    (_name, v) => {
+      expect(
+        evalCondition(v.visible_when, overlayAnswerMap(v.base, v.overlay)),
+      ).toBe(v.expected)
+    },
+  )
+})
+
+describe('isConditionTargetInScope (TS mirror of the publish-time outside-in ban)', () => {
+  it('a target outside any repeating group is always legal', () => {
+    expect(isConditionTargetInScope(null, null)).toBe(true)
+    expect(isConditionTargetInScope(null, 'grupo-a')).toBe(true)
+  })
+
+  it('inside-out: same repeating group resolves', () => {
+    expect(isConditionTargetInScope('grupo-a', 'grupo-a')).toBe(true)
+  })
+
+  it('outside-in: a top-level item may not target a repeating-group child', () => {
+    expect(isConditionTargetInScope('grupo-a', null)).toBe(false)
+  })
+
+  it('cross-group: group B may not target group A', () => {
+    expect(isConditionTargetInScope('grupo-a', 'grupo-b')).toBe(false)
+  })
 })
 
 // ---------------------------------------------------------------------------

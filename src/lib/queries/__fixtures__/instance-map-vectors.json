@@ -1,0 +1,143 @@
+{
+  "_comment": "FF-1 (ADR 0087 ruling 2) — shared vectors for the INSTANCE-AWARE answer map. Consumed by BOTH the SQL side (supabase/tests/20_conditions.sql, against app.overlay_answer_map) and the TypeScript mirror (src/lib/queries/conditions.test.ts, against overlayAnswerMap). Drift is phase-blocking (Rule 3). `map_vectors` pin the OVERLAY itself: `base` is the response's top-level map (answers with no group_instance_id, including a plain `group`'s children per ruling 6), `overlay` is ONE repeating-group instance's own answers, `expected` is the resolved map an item inside that instance is evaluated against. `eval_vectors` pin the DECISION end-to-end — overlay, then feed the UNCHANGED evaluator — because agreeing on the map is not the same as agreeing on the outcome, and the outcome is what gates a submit. NOTE: app.eval_condition / evalCondition are deliberately UNTOUCHED by FF-1; they are already pure over a map, so the entire instance dimension lives in map construction and the 11 operators need no re-proof.",
+  "map_vectors": [
+    {
+      "name": "both empty stays empty",
+      "base": {},
+      "overlay": {},
+      "expected": {}
+    },
+    {
+      "name": "top-level only passes through",
+      "base": { "topo": "valor" },
+      "overlay": {},
+      "expected": { "topo": "valor" }
+    },
+    {
+      "name": "instance only passes through",
+      "base": {},
+      "overlay": { "med_nome": "Dipirona" },
+      "expected": { "med_nome": "Dipirona" }
+    },
+    {
+      "name": "disjoint keys merge (an instance child sees the top-level answers)",
+      "base": { "topo": "valor" },
+      "overlay": { "med_nome": "Dipirona" },
+      "expected": { "topo": "valor", "med_nome": "Dipirona" }
+    },
+    {
+      "name": "same-instance sibling WINS over a top-level key of the same name",
+      "base": { "k": "top" },
+      "overlay": { "k": "instancia" },
+      "expected": { "k": "instancia" }
+    },
+    {
+      "name": "a key in NEITHER map stays absent (no fallback to another instance)",
+      "base": { "topo": "valor" },
+      "overlay": { "med_dose": "500mg" },
+      "expected": { "topo": "valor", "med_dose": "500mg" }
+    },
+    {
+      "name": "an explicit JSON null in the overlay is PRESENT-with-null, not absent",
+      "base": {},
+      "overlay": { "med_nome": null },
+      "expected": { "med_nome": null }
+    },
+    {
+      "name": "an explicit JSON null in the overlay shadows a real top-level value",
+      "base": { "k": "top" },
+      "overlay": { "k": null },
+      "expected": { "k": null }
+    },
+    {
+      "name": "checkbox arrays REPLACE wholesale, never merge element-wise",
+      "base": { "epi": ["luvas", "avental"] },
+      "overlay": { "epi": ["mascara"] },
+      "expected": { "epi": ["mascara"] }
+    },
+    {
+      "name": "numbers and booleans survive the overlay unchanged",
+      "base": { "n": 3, "b": true },
+      "overlay": { "n": 7 },
+      "expected": { "n": 7, "b": true }
+    },
+    {
+      "name": "multiple keys overlay independently",
+      "base": { "a": "1", "b": "2", "c": "3" },
+      "overlay": { "b": "X", "d": "4" },
+      "expected": { "a": "1", "b": "X", "c": "3", "d": "4" }
+    }
+  ],
+  "eval_vectors": [
+    {
+      "name": "inside-out: a same-instance sibling satisfies the condition",
+      "base": {},
+      "overlay": { "tipo": "medicacao" },
+      "visible_when": { "question_key": "tipo", "op": "equals", "value": "medicacao" },
+      "expected": true
+    },
+    {
+      "name": "inside-out: a same-instance sibling with a different value does not",
+      "base": {},
+      "overlay": { "tipo": "material" },
+      "visible_when": { "question_key": "tipo", "op": "equals", "value": "medicacao" },
+      "expected": false
+    },
+    {
+      "name": "sibling ABSENT in this instance is absent — equals is false, NOT inherited",
+      "base": {},
+      "overlay": { "outro": "x" },
+      "visible_when": { "question_key": "tipo", "op": "equals", "value": "medicacao" },
+      "expected": false
+    },
+    {
+      "name": "sibling ABSENT in this instance — not_equals is true (missing-answer semantics)",
+      "base": {},
+      "overlay": { "outro": "x" },
+      "visible_when": { "question_key": "tipo", "op": "not_equals", "value": "medicacao" },
+      "expected": true
+    },
+    {
+      "name": "sibling ABSENT in this instance — is_empty is true",
+      "base": {},
+      "overlay": {},
+      "visible_when": { "question_key": "tipo", "op": "is_empty", "value": null },
+      "expected": true
+    },
+    {
+      "name": "a TOP-LEVEL answer is visible from inside an instance",
+      "base": { "porta": "sim" },
+      "overlay": { "tipo": "medicacao" },
+      "visible_when": { "question_key": "porta", "op": "equals", "value": "sim" },
+      "expected": true
+    },
+    {
+      "name": "the instance value shadows the top-level one for the evaluator",
+      "base": { "k": "nao" },
+      "overlay": { "k": "sim" },
+      "visible_when": { "question_key": "k", "op": "equals", "value": "sim" },
+      "expected": true
+    },
+    {
+      "name": "ordered ops work against an instance value",
+      "base": {},
+      "overlay": { "dose": 750 },
+      "visible_when": { "question_key": "dose", "op": "gt", "value": 500 },
+      "expected": true
+    },
+    {
+      "name": "checkbox membership works against an instance array",
+      "base": {},
+      "overlay": { "vias": ["oral", "ev"] },
+      "visible_when": { "question_key": "vias", "op": "equals", "value": "ev" },
+      "expected": true
+    },
+    {
+      "name": "an instance array does not leak into a sibling instance's decision",
+      "base": { "vias": ["im"] },
+      "overlay": { "vias": ["oral"] },
+      "visible_when": { "question_key": "vias", "op": "equals", "value": "im" },
+      "expected": false
+    }
+  ]
+}

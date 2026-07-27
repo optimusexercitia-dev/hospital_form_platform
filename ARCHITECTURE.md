@@ -87,7 +87,11 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      (form-model-normalization), **re-keyed to `answer_id`** by answer-model-v2 (was
      `response_id`+`item_id`). RLS + the submitted-immutability guard resolve the
      response via `answer_id → answers`.
-   - `response_group_instances(id, response_id → responses, item_id → form_items, position, ...)`
+   - `response_group_instances(id, response_id → responses, group_item_id → form_items,`
+     `  parent_instance_id → response_group_instances, position, created_at)`
+     > ⚠ The container column is **`group_item_id`**, not `item_id` — this rule named it
+     > `item_id` until 2026-07-27, when an FF-1 catalog probe caught it. Same class as the
+     > `commission_members` and `case_patient` scars: verify against the catalog, never this line.
      — answer-model-v2 (ADR 0045) **inert scaffolding** for a future repeating-group /
      new-answer-block feature; the answer key is instance-ready but NO repeating-group UX
      ships in this package. RLS mirrors the inline `answers` predicate; submitted responses

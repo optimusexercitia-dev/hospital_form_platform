@@ -194,7 +194,12 @@ dual-evaluator parity). **Remote deploy DEFERRED to the pilot reset.**
   picker (`CHOICE_OPS`/`ORDERED_OPS`/`AGGREGATE_OPS`) are UNTOUCHED; the ops are evaluator-only vocabulary.
   `visible_when` stays visibility-only. `OP_LABELS` in the 3 `Record<ConditionOp>` maps gained pt-BR labels
   (compile lock only, no picker change).
-- **SQLSTATEs:** none new (HC high-water stays **HC098**). **No new RPCs / helpers / flags.**
+- **SQLSTATEs:** none new. ⚠ This line read "HC high-water stays **HC098**" until 2026-07-27; that
+  was the high-water of the **digit lane only**. The live `pg_proc` high-water is **`HC0M9`** — the
+  `HC09x` lane was exhausted and the convention moved to letter lanes `HC0A0`…`HC0M9` (`L` skipped).
+  The probe that produced the stale figure used the regex `HC([0-9]{3})`, which was structurally
+  incapable of matching a letter-lane code (ADR 0087 Amendment 1). **Resolve the high-water from the
+  catalog, never from this file.** **No new RPCs / helpers / flags.**
 - **Supersession forward-note:** `responses.supersedes_id` deliberately NOT added (additive-anytime,
   freeze principle §6); the post-pilot correction ADR adds it + the dashboard/derived-indicator
   aggregation-exclusion retrofit **atomically** (ARCHITECTURE §2 / ADR 0065 §8).
@@ -1003,6 +1008,12 @@ rather than a 500 that drops the body for non-ASCII messages (ADR 0018). The sta
 | `HC0E6` | document confidentiality ceiling — no clearance (E1; D5/O2) | "Sem autorização para abrir este documento confidencial." |
 | `HC0E7` | more than one active primary subject (E1) | "Não é possível definir mais de um sujeito principal ativo." |
 | `HC0E8`–`HC0E9` | **reserved** (E1 growth) | — |
+| `HC0N0` | repeating-groups feature flag OFF (FF-1, ADR 0087) | "Recurso indisponível." |
+| `HC0N1` | `maxInstances` reached on a repeating group (FF-1) | "Este bloco aceita no máximo N item(ns)." |
+| `HC0N2` | group instance not found / not this response (FF-1) | "Item do bloco não encontrado nesta resposta." |
+| `HC0N3` | reorder list is not a permutation of the group's instances (FF-1) | "A nova ordem não corresponde aos itens deste bloco." |
+| `HC0N4` | item is not a `repeating_group` of this response's version (FF-1) | "Este item não é um bloco repetível deste formulário." |
+| `HC0N5` | `minInstances` unmet at submit, AFTER empty-instance pruning (FF-1; distinct from HC011 on purpose) | "O bloco X exige ao menos N item(ns) preenchido(s)." |
 | `23514` | check violation | "Publique um rascunho." / "já enviada." / "recurso indisponível" (context) |
 | `23505` | unique violation | (resume race; question_key collision retry) |
 | `42501` | RLS denied | forbidden (e.g. wrong signer role) |

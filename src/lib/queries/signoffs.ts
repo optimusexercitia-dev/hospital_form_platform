@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getVersionTree } from '@/lib/queries/forms'
 import type { Json } from '@/lib/types/database'
 import type { VersionTree } from '@/lib/queries/forms'
+import type { GroupInstance } from '@/lib/queries/responses'
 
 /**
  * Sign-off data-access (Architecture Rule 9 — all reads go through
@@ -83,6 +84,18 @@ export interface ResponseForSignoff {
    * enhancements, decision #11), non-null only. The read-only renderer shows
    * them as a muted secondary line under the answer (mirrors BE-7). */
   observationsByItemId: Record<string, string>
+  /**
+   * FF-1 (ADR 0087) — the response's repeating-group instances, ordered by
+   * (groupItemId, position). Sourced from the DEFINER door, not a second query,
+   * so the review screen sees exactly what the door authorised.
+   *
+   * NOT optional and NOT cosmetic: a staff_admin counter-signs on the strength of
+   * this screen, so an omitted instance is a signature attesting to evidence the
+   * signer was never shown (Rule 4). `answersByKey` on each instance is already
+   * the top-level ⊕ instance overlay, so a per-instance condition evaluates on
+   * the review screen exactly as it did in the wizard.
+   */
+  instances: GroupInstance[]
   /** Existing sign-off rows (all roles), for "assinado por X em DATA". */
   signoffs: SignoffRecord[]
 }
@@ -127,7 +140,22 @@ interface ResponseForSignoffJson {
   answers: Record<string, Json>
   answers_by_item: Record<string, Json>
   observations_by_item: Record<string, string>
+  /** FF-1: one entry per repeating-group instance, from the DEFINER door. */
+  instances: GroupInstanceJsonRow[]
   signoffs: SignoffJsonRow[]
+}
+
+/** FF-1: one instance as `get_response_for_signoff` emits it. `answers` is the
+ *  ALREADY-overlaid instance map (app.instance_answer_map), so the client never
+ *  recomposes ruling 2's resolution. */
+interface GroupInstanceJsonRow {
+  id: string
+  group_item_id: string
+  position: number
+  answers: Record<string, Json>
+  answers_by_item: Record<string, Json>
+  observations_by_item: Record<string, string>
+  other_text_by_item: Record<string, string>
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +235,17 @@ export async function getResponseForSignoff(
     answersByKey: payload.answers ?? {},
     answersByItemId: payload.answers_by_item ?? {},
     observationsByItemId: payload.observations_by_item ?? {},
+    instances: (payload.instances ?? []).map((i) => ({
+      id: i.id,
+      groupItemId: i.group_item_id,
+      position: i.position,
+      answersByItemId: i.answers_by_item ?? {},
+      // Already overlaid server-side by app.instance_answer_map — the SAME
+      // resolution the wizard and submit_response use (Rule 3, one evaluator).
+      answersByKey: i.answers ?? {},
+      observationsByItemId: i.observations_by_item ?? {},
+      otherTextByItemId: i.other_text_by_item ?? {},
+    })),
     signoffs: (payload.signoffs ?? []).map((s) => ({
       sectionId: s.section_id,
       signedById: s.signed_by,

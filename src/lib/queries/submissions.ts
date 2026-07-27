@@ -13,11 +13,13 @@ import {
   encodeCursor,
 } from '@/lib/types/pagination'
 import type { VersionTree } from '@/lib/queries/forms'
-import { buildAnswerMaps } from '@/lib/queries/responses'
+import { buildAnswerMaps, buildGroupInstances } from '@/lib/queries/responses'
 import type {
   GroupInstance,
+  GroupInstanceRow,
   ResponseStatus,
-  SelectionRow,
+  ScopedAnswerRow,
+  ScopedSelectionRow,
 } from '@/lib/queries/responses'
 import type { SignoffRecord } from '@/lib/queries/signoffs'
 
@@ -262,6 +264,8 @@ interface DetailAnswerRow {
   observation: string | null
   /** "Outros" open option: the typed Outro value (null unless `__other__` selected). */
   other_text: string | null
+  /** FF-1: the repeating-group instance, or `null` for a top-level answer. */
+  group_instance_id: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -472,36 +476,65 @@ export async function getSubmissionDetail(
   // answer-model-v2: selections hang off the parent answers row (answer_id); embed
   // the parent answer to recover item_id, then flatten to the twin's unchanged
   // { item_id, option_id } input shape.
-  const [{ data: answers }, { data: selectionRows }] = await Promise.all([
-    supabase
-      .from('answers')
-      .select('item_id, question_key, value, observation, other_text')
-      .eq('response_id', responseId)
-      .returns<DetailAnswerRow[]>(),
-    supabase
-      .from('answer_selected_options')
-      .select('option_id, answers!inner(item_id, response_id)')
-      .eq('answers.response_id', responseId)
-      .returns<{ option_id: string; answers: { item_id: string; response_id: string } }[]>(),
-  ])
+  // FF-1: `group_instance_id` on both sides + the instance rows. Without the
+  // scope every instance answer folds into the top-level maps and the last one
+  // wins per key (the TS twin of ADR 0087 substrate correction 5).
+  const [{ data: answers }, { data: selectionRows }, { data: instanceRows }] =
+    await Promise.all([
+      supabase
+        .from('answers')
+        .select(
+          'item_id, question_key, value, observation, other_text, group_instance_id',
+        )
+        .eq('response_id', responseId)
+        .returns<DetailAnswerRow[]>(),
+      supabase
+        .from('answer_selected_options')
+        .select('option_id, answers!inner(item_id, response_id, group_instance_id)')
+        .eq('answers.response_id', responseId)
+        .returns<
+          {
+            option_id: string
+            answers: {
+              item_id: string
+              response_id: string
+              group_instance_id: string | null
+            }
+          }[]
+        >(),
+      supabase
+        .from('response_group_instances')
+        .select('id, group_item_id, position')
+        .eq('response_id', responseId)
+        .returns<GroupInstanceRow[]>(),
+    ])
 
-  const selections: SelectionRow[] = (selectionRows ?? []).map((s) => ({
+  const selections: ScopedSelectionRow[] = (selectionRows ?? []).map((s) => ({
     item_id: s.answers.item_id,
     option_id: s.option_id,
+    group_instance_id: s.answers.group_instance_id,
   }))
 
+  const scopedAnswers: ScopedAnswerRow[] = answers ?? []
+  const topLevelAnswers = scopedAnswers.filter(
+    (a) => a.group_instance_id === null,
+  )
+  const topLevelSelections = selections.filter(
+    (s) => s.group_instance_id === null,
+  )
+
   // form-model-normalization: canonical maps (single→scalar code, checkbox→code
-  // array, scalars→raw) via the shared app.answer_map sibling.
+  // array, scalars→raw) via the shared app.answer_map sibling — top-level only.
   const { answersByItemId, answersByKey } = buildAnswerMaps(
     tree,
-    answers ?? [],
-    selections,
+    topLevelAnswers,
+    topLevelSelections,
   )
 
   const observationsByItemId: Record<string, string> = {}
   const otherTextByItemId: Record<string, string> = {}
-  for (const a of answers ?? []) {
-    if (a.observation !== null && a.observation !== '') {
+  for (const a of topLevelAnswers) {
+    if (a.observation != null && a.observation !== '') {
       observationsByItemId[a.item_id] = a.observation
     }
     if (a.other_text != null && a.other_text !== '') {
@@ -605,9 +638,13 @@ export async function getSubmissionDetail(
     answersByKey,
     observationsByItemId,
     otherTextByItemId,
-    // FF-1 BE-4/BE-0: the instance read lands with the instance-scoped save arm;
-    // `[]` is the TRUE value until a form authors a container.
-    instances: [],
+    instances: buildGroupInstances(
+      tree,
+      instanceRows ?? [],
+      scopedAnswers,
+      selections,
+      answersByKey,
+    ),
     signoffs,
   }
 }

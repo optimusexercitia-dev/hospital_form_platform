@@ -10,6 +10,7 @@ import type {
   VersionTree,
   VersionStatus,
 } from '@/lib/queries/forms'
+import { overlayAnswerMap } from '@/lib/queries/conditions'
 import type { AnswerMap } from '@/lib/queries/conditions'
 
 // Re-export the form tree shapes so the wizard can import everything it renders
@@ -168,6 +169,9 @@ interface AnswerRow {
   // Optional here so the mapper is safe before BE-2 adds the column; selected
   // once BE-2/BE-5 land it.
   answered_at?: string
+  /** FF-1: the repeating-group instance this answer belongs to; `null` = top
+   *  level (including a plain `group`'s children, per ADR 0087 ruling 6). */
+  group_instance_id: string | null
 }
 
 /**
@@ -293,7 +297,12 @@ export interface SelectionRow {
  */
 interface SelectionEmbedRow {
   option_id: string
-  answers: { item_id: string; response_id: string }
+  answers: {
+    item_id: string
+    response_id: string
+    /** FF-1: the instance scope, resolved through the parent answer. */
+    group_instance_id: string | null
+  }
 }
 
 /**
@@ -389,6 +398,89 @@ export function buildAnswerMaps(
   return { answersByItemId, answersByKey }
 }
 
+/** One `response_group_instances` row as the readers select it. */
+export interface GroupInstanceRow {
+  id: string
+  group_item_id: string
+  position: number
+}
+
+/** An answer row carrying its instance scope. `null` = top level. */
+export interface ScopedAnswerRow {
+  item_id: string
+  question_key: string
+  value: Json | null
+  observation?: string | null
+  other_text?: string | null
+  group_instance_id: string | null
+}
+
+/** A selection carrying its instance scope, resolved through the parent answer. */
+export interface ScopedSelectionRow extends SelectionRow {
+  group_instance_id: string | null
+}
+
+/**
+ * FF-1 (ADR 0087) — split a response's answers into the TOP-LEVEL maps and one
+ * {@link GroupInstance} per repeating-group instance. The single read-side
+ * builder; `getResponseForFill`, `getSubmissionDetail` and the sign-off view all
+ * go through it so none of them can drift on what "this instance's answers" means.
+ *
+ * Two things it fixes that are easy to get wrong, and that fail SILENTLY:
+ *   1. the top-level maps are built from `group_instance_id === null` rows ONLY.
+ *      Feeding every row to `buildAnswerMaps` folds instance answers into the
+ *      top-level map and lets the LAST instance win per key — the exact TS twin
+ *      of the defect ADR 0087 substrate correction 5 found in `app.answer_map`.
+ *   2. each instance's `answersByKey` is the top-level map OVERLAID with that
+ *      instance's own (ruling 2), through the parity-locked `overlayAnswerMap`,
+ *      so a child inside an instance sees its same-instance siblings and the
+ *      top-level answers — and a sibling this instance did not answer stays
+ *      ABSENT rather than leaking in from another instance.
+ */
+export function buildGroupInstances(
+  tree: VersionTree,
+  instanceRows: GroupInstanceRow[],
+  answers: ScopedAnswerRow[],
+  selections: ScopedSelectionRow[],
+  topLevelByKey: AnswerMap,
+): GroupInstance[] {
+  return instanceRows
+    .slice()
+    .sort(
+      (a, b) =>
+        a.group_item_id.localeCompare(b.group_item_id) || a.position - b.position,
+    )
+    .map((row) => {
+      const own = answers.filter((a) => a.group_instance_id === row.id)
+      const ownSelections = selections.filter(
+        (s) => s.group_instance_id === row.id,
+      )
+      const maps = buildAnswerMaps(tree, own, ownSelections)
+
+      const observationsByItemId: Record<string, string> = {}
+      const otherTextByItemId: Record<string, string> = {}
+      for (const a of own) {
+        if (a.observation != null && a.observation !== '') {
+          observationsByItemId[a.item_id] = a.observation
+        }
+        if (a.other_text != null && a.other_text !== '') {
+          otherTextByItemId[a.item_id] = a.other_text
+        }
+      }
+
+      return {
+        id: row.id,
+        groupItemId: row.group_item_id,
+        position: row.position,
+        answersByItemId: maps.answersByItemId,
+        // Ruling 2: top-level ⊕ this instance, instance wins, absent stays absent.
+        answersByKey: overlayAnswerMap(topLevelByKey, maps.answersByKey),
+        observationsByItemId,
+        otherTextByItemId,
+      }
+    })
+}
+
 /**
  * A single response prepared for the wizard: the published-version tree, the
  * saved answers (both by item_id and by question_key), and the resume metadata.
@@ -424,39 +516,63 @@ export async function getResponseForFill(
   // so resolve each selection's item_id/response scope through the embedded
   // answer. buildAnswerMaps still consumes the { item_id, option_id } shape (its
   // input contract is UNCHANGED) — we flatten the embed to that shape below.
-  const [{ data: answers }, { data: selectionRows }] = await Promise.all([
-    supabase
-      .from('answers')
-      .select('item_id, question_key, value, observation, other_text')
-      .eq('response_id', responseId)
-      .returns<AnswerRow[]>(),
-    supabase
-      .from('answer_selected_options')
-      .select('option_id, answers!inner(item_id, response_id)')
-      .eq('answers.response_id', responseId)
-      .returns<SelectionEmbedRow[]>(),
-  ])
+  // FF-1: `group_instance_id` is selected on BOTH sides. Without it every
+  // instance answer would land in the top-level maps and the last instance would
+  // win per key — the TS twin of ADR 0087 substrate correction 5.
+  const [{ data: answers }, { data: selectionRows }, { data: instanceRows }] =
+    await Promise.all([
+      supabase
+        .from('answers')
+        .select(
+          'item_id, question_key, value, observation, other_text, group_instance_id',
+        )
+        .eq('response_id', responseId)
+        .returns<AnswerRow[]>(),
+      supabase
+        .from('answer_selected_options')
+        .select('option_id, answers!inner(item_id, response_id, group_instance_id)')
+        .eq('answers.response_id', responseId)
+        .returns<SelectionEmbedRow[]>(),
+      supabase
+        .from('response_group_instances')
+        .select('id, group_item_id, position')
+        .eq('response_id', responseId)
+        .returns<GroupInstanceRow[]>(),
+    ])
 
-  // Flatten the answer_id embed to the twin's { item_id, option_id } input shape.
-  const selections: SelectionRow[] = (selectionRows ?? []).map((s) => ({
+  // Flatten the answer_id embed to the twin's { item_id, option_id } input shape,
+  // keeping the instance scope alongside it.
+  const selections: ScopedSelectionRow[] = (selectionRows ?? []).map((s) => ({
     item_id: s.answers.item_id,
     option_id: s.option_id,
+    group_instance_id: s.answers.group_instance_id,
   }))
 
+  const scopedAnswers: ScopedAnswerRow[] = answers ?? []
+  const topLevelAnswers = scopedAnswers.filter(
+    (a) => a.group_instance_id === null,
+  )
+  const topLevelSelections = selections.filter(
+    (s) => s.group_instance_id === null,
+  )
+
   // form-model-normalization: rebuild the canonical maps (single→scalar code,
-  // checkbox→code array, scalars→raw) — the TS sibling of app.answer_map.
+  // checkbox→code array, scalars→raw) — the TS sibling of app.answer_map, which
+  // as of FF-1 is likewise top-level-only.
   const { answersByItemId, answersByKey } = buildAnswerMaps(
     tree,
-    answers ?? [],
-    selections,
+    topLevelAnswers,
+    topLevelSelections,
   )
 
   // Observations are collected independently of the value guard (an observation
   // can accompany a null value via an observation-only upsert).
   const observationsByItemId: Record<string, string> = {}
   const otherTextByItemId: Record<string, string> = {}
-  for (const a of answers ?? []) {
-    if (a.observation !== null && a.observation !== '') {
+  for (const a of topLevelAnswers) {
+    // `!= null` (not `!== null`): ScopedAnswerRow makes `observation` optional,
+    // so the strict form leaves `undefined` in the type.
+    if (a.observation != null && a.observation !== '') {
       observationsByItemId[a.item_id] = a.observation
     }
     if (a.other_text != null && a.other_text !== '') {
@@ -477,10 +593,13 @@ export async function getResponseForFill(
     answersByKey,
     observationsByItemId,
     otherTextByItemId,
-    // FF-1 BE-4/BE-0: the instance read lands with the instance-scoped save arm.
-    // `[]` is the TRUE value until the builder can author a container (zero
-    // `response_group_instances` rows exist), so no consumer sees a wrong shape.
-    instances: [],
+    instances: buildGroupInstances(
+      tree,
+      instanceRows ?? [],
+      scopedAnswers,
+      selections,
+      answersByKey,
+    ),
   }
 }
 

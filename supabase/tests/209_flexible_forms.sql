@@ -71,10 +71,17 @@ select lives_ok(
   $$ insert into public.form_items (section_id, position, item_type, label)
      values ('aaaa0000-0000-0000-0000-000000000003', 10, 'group', 'Grupo') $$,
   'A1: group container accepted (no question_key required)');
+-- FF-1 RE-PIN (ADR 0087 / BE-1): a container now REQUIRES question_key IS NULL.
+-- F3 admitted a container carrying a key; FF-1 forbids it, because a key would
+-- put the container into every question_key-driven path (app.answer_map, the
+-- dashboard explode, condition-target resolution, submit_response's item loop).
+-- Pinning it to NULL makes containers invisible to all of them by construction.
+-- The matching NEGATIVE ("a container may NOT carry a question_key") lives in
+-- 270_ff1_repeating_groups.sql §B.
 select lives_ok(
-  $$ insert into public.form_items (section_id, position, item_type, question_key, label)
-     values ('aaaa0000-0000-0000-0000-000000000003', 11, 'repeating_group', 'rg1', 'Grupo repetível') $$,
-  'A2: repeating_group container accepted');
+  $$ insert into public.form_items (section_id, position, item_type, label)
+     values ('aaaa0000-0000-0000-0000-000000000003', 11, 'repeating_group', 'Grupo repetível') $$,
+  'A2: repeating_group container accepted (question_key must be NULL — FF-1)');
 select lives_ok(
   $$ insert into public.form_items (section_id, position, item_type, question_key, label)
      values ('aaaa0000-0000-0000-0000-000000000003', 12, 'matrix', 'mx1', 'Matriz') $$,

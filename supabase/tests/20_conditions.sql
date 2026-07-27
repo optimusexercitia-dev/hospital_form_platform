@@ -97,9 +97,48 @@ insert into visibility_vectors (name, rule, answers, expected) values
   ('all: F3 ops pass through the wrapper (is_not_empty + contains, both true)', '{"match":"all","conditions":[{"question_key":"q1","op":"is_not_empty","value":null},{"question_key":"q2","op":"contains","value":"grave"}]}', '{"q1":"x","q2":"Infecção grave"}', true),
   ('any: F3 is_empty short-circuits the wrapper to true', '{"match":"any","conditions":[{"question_key":"q1","op":"is_empty","value":null},{"question_key":"q2","op":"equals","value":"Sim"}]}', '{"q1":"","q2":"Não"}', true);
 
+-- ===========================================================================
+-- FF-1 (ADR 0087 ruling 2) - the INSTANCE-AWARE answer map.
+-- Mirrors src/lib/queries/__fixtures__/instance-map-vectors.json EXACTLY.
+-- `map_vectors` pin app.overlay_answer_map itself; `eval_vectors` pin the
+-- end-to-end DECISION (overlay, then the UNCHANGED evaluator) - agreeing on
+-- the map is not the same as agreeing on the outcome, and the outcome is what
+-- gates a submit. Drift SQL<->TS is phase-blocking (Rule 3).
+-- ===========================================================================
+create temp table instance_map_vectors (name text, base jsonb, overlay jsonb, expected jsonb)
+  on commit drop;
+insert into instance_map_vectors (name, base, overlay, expected) values
+  ('both empty stays empty', '{}', '{}', '{}'),
+  ('top-level only passes through', '{"topo": "valor"}', '{}', '{"topo": "valor"}'),
+  ('instance only passes through', '{}', '{"med_nome": "Dipirona"}', '{"med_nome": "Dipirona"}'),
+  ('disjoint keys merge (an instance child sees the top-level answers)', '{"topo": "valor"}', '{"med_nome": "Dipirona"}', '{"topo": "valor", "med_nome": "Dipirona"}'),
+  ('same-instance sibling WINS over a top-level key of the same name', '{"k": "top"}', '{"k": "instancia"}', '{"k": "instancia"}'),
+  ('a key in NEITHER map stays absent (no fallback to another instance)', '{"topo": "valor"}', '{"med_dose": "500mg"}', '{"topo": "valor", "med_dose": "500mg"}'),
+  ('an explicit JSON null in the overlay is PRESENT-with-null, not absent', '{}', '{"med_nome": null}', '{"med_nome": null}'),
+  ('an explicit JSON null in the overlay shadows a real top-level value', '{"k": "top"}', '{"k": null}', '{"k": null}'),
+  ('checkbox arrays REPLACE wholesale, never merge element-wise', '{"epi": ["luvas", "avental"]}', '{"epi": ["mascara"]}', '{"epi": ["mascara"]}'),
+  ('numbers and booleans survive the overlay unchanged', '{"n": 3, "b": true}', '{"n": 7}', '{"n": 7, "b": true}'),
+  ('multiple keys overlay independently', '{"a": "1", "b": "2", "c": "3"}', '{"b": "X", "d": "4"}', '{"a": "1", "b": "X", "c": "3", "d": "4"}');
+
+create temp table instance_eval_vectors (name text, base jsonb, overlay jsonb, visible_when jsonb, expected boolean)
+  on commit drop;
+insert into instance_eval_vectors (name, base, overlay, visible_when, expected) values
+  ('inside-out: a same-instance sibling satisfies the condition', '{}', '{"tipo": "medicacao"}', '{"question_key": "tipo", "op": "equals", "value": "medicacao"}', true),
+  ('inside-out: a same-instance sibling with a different value does not', '{}', '{"tipo": "material"}', '{"question_key": "tipo", "op": "equals", "value": "medicacao"}', false),
+  ('sibling ABSENT in this instance is absent — equals is false, NOT inherited', '{}', '{"outro": "x"}', '{"question_key": "tipo", "op": "equals", "value": "medicacao"}', false),
+  ('sibling ABSENT in this instance — not_equals is true (missing-answer semantics)', '{}', '{"outro": "x"}', '{"question_key": "tipo", "op": "not_equals", "value": "medicacao"}', true),
+  ('sibling ABSENT in this instance — is_empty is true', '{}', '{}', '{"question_key": "tipo", "op": "is_empty", "value": null}', true),
+  ('a TOP-LEVEL answer is visible from inside an instance', '{"porta": "sim"}', '{"tipo": "medicacao"}', '{"question_key": "porta", "op": "equals", "value": "sim"}', true),
+  ('the instance value shadows the top-level one for the evaluator', '{"k": "nao"}', '{"k": "sim"}', '{"question_key": "k", "op": "equals", "value": "sim"}', true),
+  ('ordered ops work against an instance value', '{}', '{"dose": 750}', '{"question_key": "dose", "op": "gt", "value": 500}', true),
+  ('checkbox membership works against an instance array', '{}', '{"vias": ["oral", "ev"]}', '{"question_key": "vias", "op": "equals", "value": "ev"}', true),
+  ('an instance array does not leak into a sibling instance''s decision', '{"vias": ["im"]}', '{"vias": ["oral"]}', '{"question_key": "vias", "op": "equals", "value": "im"}', false);
+
 select plan(
   (select count(*)::int from vectors)
   + (select count(*)::int from visibility_vectors)
+  + (select count(*)::int from instance_map_vectors)
+  + (select count(*)::int from instance_eval_vectors)
 );
 
 select is(
@@ -113,6 +152,21 @@ select is(
   vv.expected,
   'visibility: ' || vv.name
 ) from visibility_vectors vv;
+
+select is(
+  app.overlay_answer_map(imv.base, imv.overlay),
+  imv.expected,
+  'instance map: ' || imv.name
+) from instance_map_vectors imv;
+
+select is(
+  app.eval_condition(
+    iev.visible_when,
+    app.overlay_answer_map(iev.base, iev.overlay)
+  ),
+  iev.expected,
+  'instance eval: ' || iev.name
+) from instance_eval_vectors iev;
 
 select * from finish();
 rollback;
