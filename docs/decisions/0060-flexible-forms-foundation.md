@@ -141,6 +141,17 @@ rules.
 
 ### 3. Deferred UX roadmap (post-pilot, each its own gated, feature-flagged phase)
 
+> **⚠ Re-sequenced PRE-pilot by ADR [0086](0086-flexible-forms-pre-pilot.md) (2026-07-27,
+> product-owner decision).** All five phases now build before the pilot, in the order
+> **FF-1 → FF-2 → FF-3 → FF-5 → FF-4**, and all five gate the pilot deploy. Scope deltas ratified
+> there: FF-1/FF-2/FF-5 become **required-capable** (each relaxes the F3 never-required CHECK arm
+> + extends the completeness authority); FF-1 additionally builds **instance-aware condition
+> evaluation**; FF-5 ships **three lanes** (participant + commission + user); FF-4 is **trimmed**
+> — reusable library + dynamic defaults only, **calculated fields stay post-pilot**
+> (`form_calculations` stays ADR-reserved); `required_if` confirmed in FF-3. The "(0061+)" ADR
+> reservation below was consumed by unrelated work — per-phase ADRs number from 0087+ at
+> authoring time. Program plan → [flexible-forms-program.md](../plans/flexible-forms-program.md).
+
 FF-1 Repeating Groups (`repeating_groups`) — incl. the group-instance write RPCs + resume
 plumbing moved here from create-now (Rec C) · FF-2 Matrix & Risk Matrix (`matrix_fields`) ·
 FF-3 Validation Engine (`item_validations`) · FF-4 Power Authoring — reusable library +

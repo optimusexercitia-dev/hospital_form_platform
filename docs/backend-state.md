@@ -157,7 +157,10 @@ table from creation regardless (Rule 1). **Local validation:** full pgTAP green 
 
 The pre-pilot form-engine bones for the four committed field types + the one live feature (dual-evaluator
 operators). **Structural, no feature flag** (D6/§6.3 metadata-catalog CANCELLED — `item_type` stays a
-CHECK enum widened per feature, ADR 0065 §5). Reset-OK, forward-only, additive. **Local validation:** full
+CHECK enum widened per feature, ADR 0065 §5). Reset-OK, forward-only, additive. **The FF-1…FF-5 feature
+phases that activate these bones were re-sequenced PRE-pilot 2026-07-27 (ADR
+[0086](decisions/0086-flexible-forms-pre-pilot.md); order FF-1→FF-2→FF-3→FF-5→FF-4; all gate the pilot
+deploy) — FF references below now mean pre-pilot phases.** **Local validation:** full
 ordered `supabase test db` **78 files / 2023 PASS** (new `209_flexible_forms.sql` 38/38 + extended
 `20_conditions.sql` operator×value_type matrix); tsc 0; Vitest `conditions.test.ts` 81/81 (golden
 dual-evaluator parity). **Remote deploy DEFERRED to the pilot reset.**

@@ -32,6 +32,13 @@ reference→participants bridge · **supersession model §8**) + ARCHITECTURE.md
 >   counts `commission_default` plenary meetings only; the list indicator sources from the DEFINER RPC, not the
 >   RLS-filtered visible list. Folded in when CH starts.
 
+> **⚠ Reconciled to ADR [0086](../decisions/0086-flexible-forms-pre-pilot.md) (2026-07-27).** This program's
+> S0–S5 stages are **complete** (ETH·E3a closed 2026-07-27; E3b stays gated on Phase 16). The §0
+> out-of-scope line "the FF-1…FF-5 flexible-forms authoring UX" is **superseded**: the PO pulled all five
+> FF phases **pre-pilot** as a successor program (order FF-1→FF-2→FF-3→FF-5→FF-4, each its own ADR/flag/
+> Phase Gate) — the pilot deploy this plan defers to now additionally waits on the FF program's last gate.
+> Build spec → [flexible-forms-program.md](./flexible-forms-program.md).
+
 ADR 0071 is a **re-sequencing** decision: it pulls twelve already-specified initiatives into the pre-pilot
 release. This plan does **not** re-design them — it **sequences** them into one collision-free build order,
 resolves the places where two tracks touch the same schema surface (§2), lists the specs still to author
@@ -82,7 +89,8 @@ design gate (S0) into five dependency stages (S1–S5, §1).
   (hash-chained), **supersession model** (ADR 0065 §8 ratified `responses.supersedes_id` + latest-in-chain).
 
 **Out of scope / stays post-pilot (unchanged):** Phase 18 (Self-Assessment / Internal Audit), Phase 19
-(Surveyor Access / Evidence Export), the FF-1…FF-5 flexible-forms authoring UX, break-glass access *design*
+(Surveyor Access / Evidence Export), ~~the FF-1…FF-5 flexible-forms authoring UX~~ *(pulled pre-pilot
+2026-07-27 — ADR [0086](../decisions/0086-flexible-forms-pre-pilot.md), successor program)*, break-glass access *design*
 (only an expiring-grant reminder is buildable — §9.3), CAPA↔hub table convergence (bridge stays *escalation*),
 column-level encryption (declined, Rule 12), the P6/P7 audit-evidence track.
 

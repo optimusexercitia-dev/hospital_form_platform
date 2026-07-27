@@ -85,7 +85,12 @@ constraints widened.
   foundations land as one remote `db reset --linked` at pilot — same posture as F1/F2).
 - Verified-fact deltas: SQLSTATE high-water HC098; F3 migration window `20260718000000+`.
 
-## Deferred (post-pilot FF roadmap — each its own ADR + flag + gate)
-FF-1 repeating groups (write RPCs + resume) · FF-2 matrix & risk matrix · FF-3 validation engine · FF-4
-power authoring · FF-5 entity reference (+ the INFO-1/INFO-2 wiring). The correction/`reopen` engine
-(Gap 38), calculations, and i18n remain forward-notes (freeze principle).
+## FF roadmap — re-sequenced PRE-pilot 2026-07-27 (each its own ADR + flag + gate)
+Originally deferred post-pilot; **pulled pre-pilot by ADR
+[0086](../decisions/0086-flexible-forms-pre-pilot.md)** → build order **FF-1 repeating groups (write RPCs +
+resume + instance-aware evaluation) → FF-2 matrix & risk matrix → FF-3 validation engine (+`required_if`) →
+FF-5 entity reference (3 lanes) → FF-4 power authoring (library + defaults)**, all gating the pilot deploy;
+the INFO-1/INFO-2/INFO-4 wiring above becomes FF-2/FF-3/FF-5 obligations
+([program](../plans/flexible-forms-program.md)). The correction/`reopen` engine (Gap 38) has since shipped
+(supersession, ADR 0074/0085); **calculated fields** (trimmed from FF-4) and i18n remain forward-notes
+(freeze principle).
