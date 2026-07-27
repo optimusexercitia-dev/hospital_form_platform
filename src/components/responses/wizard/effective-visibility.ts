@@ -31,10 +31,32 @@ const INPUT_TYPES = new Set<string>(INPUT_ITEM_TYPES);
  *  rather than `answersByItemId`. Declared locally to keep this module pure. */
 const CHOICE_TYPES = new Set<string>(["multiple_choice", "dropdown", "checkbox"]);
 
+/** FF-2 — the two MATRIX types (kept in lockstep with `MATRIX_ITEM_TYPES` in
+ *  `item-tree.ts`; declared locally to keep this module pure). */
+const MATRIX_TYPES = new Set<string>(["matrix", "risk_matrix"]);
+
 /** True for items that collect an answer (input items, not display or container
- *  blocks). A container collects no answer of its own. */
+ *  blocks). A container collects no answer of its own.
+ *
+ *  ⚠ FF-2: this deliberately stays FALSE for `matrix`/`risk_matrix`. It means
+ *  "the answer is a scalar in `answers.value`", and a dozen call sites depend on
+ *  exactly that — the value plumbing, the condition-target picker, the orphan
+ *  detector. A matrix answers in `answer_matrix_cells` instead. Use
+ *  {@link isAnswerableItem} where the question is "does this item produce an
+ *  answer at all?". */
 export function isInputItem(itemType: string): boolean {
   return INPUT_TYPES.has(itemType);
+}
+
+/** True for `matrix` / `risk_matrix`. */
+export function isMatrixItem(itemType: string): boolean {
+  return MATRIX_TYPES.has(itemType);
+}
+
+/** True for every item that PRODUCES an answer — the scalar inputs plus the two
+ *  matrix types. The client twin of `ANSWERABLE_ITEM_TYPES` in `queries/forms.ts`. */
+export function isAnswerableItem(itemType: string): boolean {
+  return INPUT_TYPES.has(itemType) || MATRIX_TYPES.has(itemType);
 }
 
 /** True for the choice input types (multiple_choice / dropdown / checkbox) whose
@@ -107,6 +129,21 @@ export function computeEffectiveVisibility(
     }
   };
 
+  /**
+   * FF-2 — decide one ANSWERABLE item's visibility. Matrix items take part in
+   * `visibleItemIds` exactly like scalar inputs (a hidden matrix collects
+   * nothing, requires nothing and is not saved), but they never contribute a key
+   * to the effective map: a matrix has `answers.value` NULL by design and is not
+   * a condition target, so there is no key to drop when it hides.
+   */
+  const walkAnswerable = (item: Item) => {
+    if (evalVisibility(item.visibleWhen, effectiveMap)) {
+      visibleItemIds.add(item.id);
+    } else if (isInputItem(item.itemType)) {
+      dropItemKey(item);
+    }
+  };
+
   for (const section of sections) {
     if (!evalVisibility(section.visibleWhen, effectiveMap)) {
       for (const item of section.items) dropSubtreeKeys(item);
@@ -128,23 +165,15 @@ export function computeEffectiveVisibility(
         // per-instance and are handled by computeInstanceVisibility.
         if (item.itemType === "group") {
           for (const child of item.children) {
-            if (!isInputItem(child.itemType)) continue;
-            if (evalVisibility(child.visibleWhen, effectiveMap)) {
-              visibleItemIds.add(child.id);
-            } else {
-              dropItemKey(child);
-            }
+            if (!isAnswerableItem(child.itemType)) continue;
+            walkAnswerable(child);
           }
         }
         continue;
       }
 
-      if (!isInputItem(item.itemType)) continue;
-      if (evalVisibility(item.visibleWhen, effectiveMap)) {
-        visibleItemIds.add(item.id);
-      } else {
-        dropItemKey(item);
-      }
+      if (!isAnswerableItem(item.itemType)) continue;
+      walkAnswerable(item);
     }
   }
 
@@ -173,10 +202,13 @@ export function computeInstanceVisibility(
   const map = overlayAnswerMap(baseMap, instanceAnswers);
   const visible = new Set<string>();
   for (const child of container.children) {
-    if (!isInputItem(child.itemType)) continue;
+    // FF-2: a matrix INSIDE a repeating group is per-instance like any other
+    // answerable child, so it must take part in this set or it would render in
+    // no instance at all.
+    if (!isAnswerableItem(child.itemType)) continue;
     if (evalVisibility(child.visibleWhen, map)) {
       visible.add(child.id);
-    } else if (child.questionKey != null) {
+    } else if (isInputItem(child.itemType) && child.questionKey != null) {
       // A hidden child's key must not leak into a LATER same-instance sibling's
       // condition — the same forward-pass drop the top-level walk performs.
       delete map[child.questionKey];

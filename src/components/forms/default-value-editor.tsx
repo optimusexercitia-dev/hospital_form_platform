@@ -292,7 +292,20 @@ function DefaultCheckboxSet({
 
 /** Present item type for the default-value control (never display items). */
 export function supportsDefaultValue(itemType: ItemType): boolean {
-  return itemType !== "section_text" && itemType !== "image";
+  // Display blocks collect nothing; containers collect nothing of their own; and
+  // FF-2's matrix types answer in `answer_matrix_cells` / `answer_risk_matrix`
+  // rather than in `answers.value`, so `form_items.default_value` — which is a
+  // seed for `value` — has nothing to seed. Stated as an explicit exclusion list
+  // rather than left to the caller's branch, so the next type that widens the
+  // caller does not silently acquire a default-value editor it cannot honour.
+  return (
+    itemType !== "section_text" &&
+    itemType !== "image" &&
+    itemType !== "group" &&
+    itemType !== "repeating_group" &&
+    itemType !== "matrix" &&
+    itemType !== "risk_matrix"
+  );
 }
 
 /** Derive the initial controlled `DefaultValue` from an existing item's stored

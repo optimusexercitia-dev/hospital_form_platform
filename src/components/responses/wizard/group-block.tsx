@@ -2,10 +2,11 @@
 
 import type { Json } from "@/lib/types/database";
 import type { Item } from "@/lib/queries/forms";
+import type { MatrixCellsState, RiskMatrixState } from "@/lib/forms/matrix";
 
 import type { AnswerState } from "./types";
 import { BlockRenderer } from "./block-renderer";
-import { isInputItem } from "./use-wizard";
+import { isAnswerableItem, isInputItem } from "./use-wizard";
 import { ItemHandlerMap } from "./item-handlers";
 
 /**
@@ -26,6 +27,8 @@ export function GroupBlock({
   item,
   imageUrls,
   answers,
+  matrixCells,
+  riskMatrix,
   errors,
   visibleItemIds,
   handlers,
@@ -33,6 +36,10 @@ export function GroupBlock({
   item: Item;
   imageUrls: Record<string, string>;
   answers: AnswerState;
+  /** FF-2 — a plain group's children answer at TOP LEVEL (ruling 6), so a matrix
+   *  inside one reads from the section's top-level slices, not from an instance. */
+  matrixCells?: MatrixCellsState;
+  riskMatrix?: RiskMatrixState;
   errors: Record<string, string>;
   /** Top-level visible item ids — a plain group's children are in this set. */
   visibleItemIds?: Set<string>;
@@ -44,7 +51,8 @@ export function GroupBlock({
     : undefined;
 
   const visibleChildren = item.children.filter((child) => {
-    if (!isInputItem(child.itemType)) return true; // display blocks always render
+    // FF-2: a matrix child is answerable and therefore condition-gated too.
+    if (!isAnswerableItem(child.itemType)) return true; // display blocks always render
     return !visibleItemIds || visibleItemIds.has(child.id);
   });
 
@@ -75,23 +83,28 @@ export function GroupBlock({
           </p>
         ) : (
           visibleChildren.map((child) => {
-            const answerable = isInputItem(child.itemType);
+            const answerable = isAnswerableItem(child.itemType);
+            const scalar = isInputItem(child.itemType);
             const childHandlers = handlers.get(child.id);
             return (
               <BlockRenderer
                 key={child.id}
                 item={child}
                 imageUrls={imageUrls}
-                value={answerable ? answers[child.id]?.value : undefined}
+                value={scalar ? answers[child.id]?.value : undefined}
                 error={answerable ? errors[child.id] : undefined}
                 onChange={childHandlers?.onChange ?? NO_OP}
                 observation={
-                  answerable ? answers[child.id]?.observation : undefined
+                  scalar ? answers[child.id]?.observation : undefined
                 }
                 onObservationChange={childHandlers?.onObservationChange}
-                otherText={answerable ? answers[child.id]?.otherText : undefined}
+                otherText={scalar ? answers[child.id]?.otherText : undefined}
                 onOtherTextChange={childHandlers?.onOtherTextChange}
                 onClear={childHandlers?.onClear}
+                matrixCells={matrixCells?.[child.id]}
+                onMatrixCellChange={childHandlers?.onMatrixCellChange}
+                riskSelection={riskMatrix?.[child.id]}
+                onRiskChange={childHandlers?.onRiskChange}
               />
             );
           })

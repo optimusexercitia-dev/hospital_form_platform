@@ -46,7 +46,14 @@ import {
   newQuestionConditionTargets,
   questionConditionTargets,
 } from "@/components/forms/condition-targets";
-import { isContainerItem, isRepeatingGroup } from "@/lib/forms/item-tree";
+import { isContainerItem, isMatrixItem, isRepeatingGroup } from "@/lib/forms/item-tree";
+import {
+  type BandDraft,
+  toBandDrafts,
+  toBandPayload,
+  validateBands,
+} from "@/lib/forms/matrix";
+import { RiskBandsEditor } from "@/components/forms/risk-bands-editor";
 import { SectionTextEditor } from "@/components/forms/section-text-editor";
 import { ImageItemEditor } from "@/components/forms/image-item-editor";
 import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
@@ -136,7 +143,19 @@ export function ItemEditorDialog(props: Props) {
   const router = useRouter();
 
   const isChoice = CHOICE_TYPES.includes(itemType);
+  // FF-2 (ADR 0089) — the two MATRIX types are QUESTIONS: they carry a label, a
+  // question_key, help text, a visibility condition and (ruling 3) a `required`
+  // flag, so they share the two-column question shell. What they do NOT share is
+  // everything that presumes a scalar `answers.value`: no options, no bounds, no
+  // default value, no "Flagged If". Their grid is authored in the separate
+  // `MatrixConfigDialog` (a different write — `upsert_matrix_axes`), so the only
+  // matrix-specific control HERE is the risk band list, which is plain `config`
+  // exactly like `flaggedWhen` and `minInstances`.
+  const isMatrix = isMatrixItem(itemType);
+  const isRisk = itemType === "risk_matrix";
   const isInput = INPUT_TYPES.includes(itemType);
+  /** Types rendered in the two-column "Conteúdo / Comportamento" shell. */
+  const isQuestion = isInput || isMatrix;
   // FF-1 — CONTAINER editing. A container collects no answer, so it has no
   // options, no default value and no `required` flag: a repeating group's
   // required-ness IS `config.minInstances` (BE-0 contract). It keeps a label
@@ -189,6 +208,14 @@ export function ItemEditorDialog(props: Props) {
   const [defaultValue, setDefaultValue] = useState<DefaultValue>(
     initialDefaultValue(existing),
   );
+  // FF-2 — `risk_matrix` score→band mapping (→ config.riskBands). Held as
+  // drafts (string `minScore` buffers) and serialized sorted on submit.
+  const [riskBands, setRiskBands] = useState<BandDraft[]>(() =>
+    toBandDrafts(existing?.config?.riskBands),
+  );
+  // Derived during render, never an effect: the hidden field and the submit gate
+  // must agree with the CURRENT band list on the same frame the author edits it.
+  const bandError = isRisk && riskBands.length > 0 ? validateBands(riskBands) : null;
   const [markdown, setMarkdown] = useState<string>(
     existing?.content && itemType === "section_text"
       ? (existing.content as SectionTextContent).markdown
@@ -284,9 +311,13 @@ export function ItemEditorDialog(props: Props) {
     ? isRepeating
       ? "Defina o título, quantas repetições são permitidas e quando o grupo aparece."
       : "Defina o título do grupo e quando ele aparece. As perguntas são adicionadas dentro dele."
-    : isInput
-      ? "Defina o enunciado, as opções de resposta e quando esta pergunta aparece."
-      : "Configure o conteúdo deste bloco do formulário.";
+    : isRisk
+      ? "Defina o enunciado e as faixas de pontuação. A severidade, a probabilidade e os pesos são definidos em “Severidade e probabilidade”."
+      : isMatrix
+        ? "Defina o enunciado desta matriz. As linhas e as colunas são definidas em “Linhas e colunas”, no bloco."
+        : isInput
+          ? "Defina o enunciado, as opções de resposta e quando esta pergunta aparece."
+          : "Configure o conteúdo deste bloco do formulário.";
 
   // Non-empty option labels (with their metadata) → repeated hidden fields. The
   // reserved "Outros" row is never in `options` (OptionsEditor hides it; the
@@ -309,6 +340,16 @@ export function ItemEditorDialog(props: Props) {
       );
     }
   }
+  if (isMatrix && props.mode === "edit") {
+    const rowCount = (existing?.matrixRows ?? []).length;
+    const colCount = (existing?.matrixColumns ?? []).length;
+    summaryParts.push(`${rowCount} × ${colCount}`);
+  }
+  if (isRisk && riskBands.length > 0) {
+    summaryParts.push(
+      `${riskBands.length} ${riskBands.length === 1 ? "faixa" : "faixas"}`,
+    );
+  }
   if (isConditional) summaryParts.push("condicional");
 
   return (
@@ -316,7 +357,7 @@ export function ItemEditorDialog(props: Props) {
       <DialogContent
         className={cn(
           "flex max-h-[90svh] flex-col gap-0 overflow-hidden p-0",
-          isInput ? "sm:max-w-4xl" : "sm:max-w-xl",
+          isQuestion ? "sm:max-w-4xl" : "sm:max-w-xl",
         )}
       >
         {/* HEADER (sticky) — type-icon chip + title/description. */}
@@ -376,7 +417,7 @@ export function ItemEditorDialog(props: Props) {
               <FormBanner tone="error">{state.error}</FormBanner>
             ) : null}
 
-            {isInput ? (
+            {isQuestion ? (
               <div className="grid gap-6 md:grid-cols-[1.4fr_1fr]">
                 {/* ── LEFT: Conteúdo ─────────────────────────────── */}
                 <section
@@ -393,7 +434,13 @@ export function ItemEditorDialog(props: Props) {
                       {...labelField.controlProps}
                       type="text"
                       defaultValue={existing?.label ?? ""}
-                      placeholder="Ex.: A higienização das mãos foi realizada?"
+                      placeholder={
+                        isRisk
+                          ? "Ex.: Classifique o risco do achado"
+                          : isMatrix
+                            ? "Ex.: Avalie cada critério de conformidade"
+                            : "Ex.: A higienização das mãos foi realizada?"
+                      }
                       required
                       autoFocus
                       className="h-11 text-base"
@@ -579,6 +626,67 @@ export function ItemEditorDialog(props: Props) {
                         />
                       </label>
                     </fieldset>
+                  ) : null}
+
+                  {/* FF-2 — the grid itself is NOT authored here. `upsert_matrix_axes`
+                      is a separate write with REPLACE semantics keyed on an
+                      existing item id, so in "add" mode there is nothing yet to
+                      address; the author lands on the block card and opens the
+                      axes dialog from there. Saying so beats a disabled control
+                      that looks broken. */}
+                  {isMatrix ? (
+                    <div className="flex flex-col gap-3 rounded-xl border border-border bg-muted/30 p-3">
+                      <p className="text-xs text-muted-foreground text-pretty">
+                        {isRisk
+                          ? "Os níveis de severidade e de probabilidade e seus pesos são definidos em “Severidade e probabilidade”, no botão de grade do bloco."
+                          : "As linhas (critérios) e as colunas (escala) são definidas em “Linhas e colunas”, no botão de grade do bloco."}
+                        {props.mode === "add"
+                          ? " Adicione o bloco primeiro; a grade é o passo seguinte."
+                          : null}
+                      </p>
+                      {props.mode === "edit" ? (
+                        <p className="text-xs text-muted-foreground">
+                          Grade atual:{" "}
+                          <strong className="text-foreground">
+                            {(existing?.matrixRows ?? []).length}
+                          </strong>{" "}
+                          {(existing?.matrixRows ?? []).length === 1
+                            ? "linha"
+                            : "linhas"}{" "}
+                          ×{" "}
+                          <strong className="text-foreground">
+                            {(existing?.matrixColumns ?? []).length}
+                          </strong>{" "}
+                          {(existing?.matrixColumns ?? []).length === 1
+                            ? "coluna"
+                            : "colunas"}
+                          .
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {isRisk ? (
+                    <>
+                      {/* → config.riskBands, parsed server-side alongside every
+                          other config key. Serialized SORTED ascending, which is
+                          the order the query layer and every consumer assume. */}
+                      <input
+                        type="hidden"
+                        name="configRiskBands"
+                        value={
+                          riskBands.length > 0 && bandError === null
+                            ? JSON.stringify(toBandPayload(riskBands))
+                            : ""
+                        }
+                      />
+                      <RiskBandsEditor bands={riskBands} onChange={setRiskBands} />
+                      {bandError ? (
+                        <p role="alert" className="text-sm font-medium text-destructive">
+                          {bandError}
+                        </p>
+                      ) : null}
+                    </>
                   ) : null}
 
                   {hasFlaggedWhen ? (
@@ -912,7 +1020,7 @@ export function ItemEditorDialog(props: Props) {
               <Button
                 type="submit"
                 size="lg"
-                disabled={isPending || imageUploading}
+                disabled={isPending || imageUploading || bandError !== null}
               >
                 {isPending
                   ? "Salvando…"

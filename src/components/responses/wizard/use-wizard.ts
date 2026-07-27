@@ -6,13 +6,20 @@ import type { Json } from "@/lib/types/database";
 import type { AnswerMap } from "@/lib/queries/conditions";
 import type { Item, Section } from "@/lib/queries/forms";
 import { OTHER_OPTION_CODE } from "@/lib/forms/option-constants";
+import type {
+  MatrixCellsState,
+  RiskMatrixState,
+  RiskSelection,
+} from "@/lib/forms/matrix";
 
 import type { AnswerRecord, AnswerState, WizardData } from "./types";
 import {
   computeEffectiveVisibility,
   computeInstanceVisibility,
+  isAnswerableItem,
   isInputItem,
   isChoiceItem,
+  isMatrixItem,
   type EffectiveVisibility,
 } from "./effective-visibility";
 import {
@@ -27,8 +34,10 @@ import {
 export {
   computeEffectiveVisibility,
   computeInstanceVisibility,
+  isAnswerableItem,
   isInputItem,
   isChoiceItem,
+  isMatrixItem,
 };
 export type { EffectiveVisibility };
 
@@ -81,6 +90,13 @@ export interface WizardState {
   isReview: boolean;
   /** Per-item answer state. */
   answers: AnswerState;
+  /**
+   * FF-2 — the TOP-LEVEL matrix answers, held in their own slices and
+   * deliberately NOT merged into {@link answers}. A matrix has no scalar value,
+   * is not a condition target, and must never reach {@link answerMap}.
+   */
+  matrixCells: MatrixCellsState;
+  riskMatrix: RiskMatrixState;
   /** Derived question_key → value map for `evalCondition`. */
   answerMap: AnswerMap;
   /**
@@ -112,6 +128,9 @@ export interface WizardState {
    */
   getLatestSnapshot: () => {
     answers: AnswerState;
+    /** FF-2 — the top-level matrix slices, from the same ref discipline. */
+    matrixCells: MatrixCellsState;
+    riskMatrix: RiskMatrixState;
     visibleItemIds: Set<string>;
     instances: InstanceState[];
     visibleItemIdsByInstance: Map<string, Set<string>>;
@@ -137,6 +156,29 @@ export interface WizardState {
     item: { id: string; questionKey: string },
     otherText: string,
   ) => void;
+
+  // --- FF-2 (ADR 0089): matrix edits. A `matrix` commits ONE ROW at a time
+  // (each row takes exactly one column, so setting a row replaces that row's
+  // whole selection); a `risk_matrix` commits the whole cell at once, which is
+  // what makes the half-filled state the server rejects with HC0P8 unreachable.
+  // Neither writes into `answers`, so neither can reach the condition evaluator.
+  setMatrixCell: (itemId: string, rowCode: string, colCode: string) => void;
+  clearMatrix: (itemId: string) => void;
+  setRiskMatrix: (itemId: string, selection: RiskSelection) => void;
+  clearRiskMatrix: (itemId: string) => void;
+  setInstanceMatrixCell: (
+    instanceId: string,
+    itemId: string,
+    rowCode: string,
+    colCode: string,
+  ) => void;
+  clearInstanceMatrix: (instanceId: string, itemId: string) => void;
+  setInstanceRiskMatrix: (
+    instanceId: string,
+    itemId: string,
+    selection: RiskSelection,
+  ) => void;
+  clearInstanceRiskMatrix: (instanceId: string, itemId: string) => void;
 
   // --- FF-1: per-instance answer edits (same three verbs, scoped to one
   // instance). A repeating-group child NEVER writes into the top-level state.
@@ -242,6 +284,17 @@ function answeredItemIds(
     .map((it) => it.id);
 }
 
+/**
+ * A section's TOP-LEVEL answerable items — flat ones plus a plain `group`'s
+ * children (ruling 6). A `repeating_group`'s children are excluded: their
+ * answers are per-instance and are never addressed by a top-level `clearItemIds`.
+ */
+function sectionAnswerables(section: Section): Item[] {
+  return section.items.flatMap((item) =>
+    item.itemType === "group" ? item.children : [item],
+  );
+}
+
 /** Whether an answer record carries a meaningful value. */
 export function hasAnswer(rec: AnswerRecord | undefined): boolean {
   if (!rec) return false;
@@ -337,6 +390,19 @@ export function useWizard(data: WizardData): WizardState {
     withDefaults(sections, data.initialAnswers),
   );
 
+  // FF-2 — the TOP-LEVEL matrix slices. Separate state, never merged into
+  // `answers`: a matrix answers in `answer_matrix_cells` with `answers.value`
+  // NULL, so merging would put a non-value into the derived `AnswerMap` and
+  // corrupt every condition evaluated after it. There is also no `withDefaults`
+  // pass here — `form_items.default_value` seeds `answers.value`, which a matrix
+  // does not have (`supportsDefaultValue` excludes both types).
+  const [matrixCells, setMatrixCells] = useState<MatrixCellsState>(
+    () => data.initialMatrixCells,
+  );
+  const [riskMatrix, setRiskMatrix] = useState<RiskMatrixState>(
+    () => data.initialRiskMatrix,
+  );
+
   // FF-1 — the repeating-group instances. A flat, position-ordered list; the
   // renderers consume the grouped/sorted view derived below.
   const [instances, setInstances] = useState<InstanceState[]>(
@@ -377,6 +443,20 @@ export function useWizard(data: WizardData): WizardState {
     instancesRef.current = instances;
   }, [instances]);
 
+  // FF-2 — the same live-ref treatment for the matrix slices. A grid click can
+  // land between a save handler's memoization and its invocation exactly as a
+  // keystroke can, and a matrix answer that misses the payload is silently lost:
+  // the item is simply absent from `matrixCellsByItemId`, which the REPLACE
+  // contract reads as "leave untouched", not as an error.
+  const matrixCellsRef = useRef(matrixCells);
+  useEffect(() => {
+    matrixCellsRef.current = matrixCells;
+  }, [matrixCells]);
+  const riskMatrixRef = useRef(riskMatrix);
+  useEffect(() => {
+    riskMatrixRef.current = riskMatrix;
+  }, [riskMatrix]);
+
   /**
    * The LATEST committed answer state + the visibility derived from it, computed
    * on demand from the ref. Used only by the save-time collectors so they never
@@ -385,6 +465,8 @@ export function useWizard(data: WizardData): WizardState {
    */
   const getLatestSnapshot = useCallback((): {
     answers: AnswerState;
+    matrixCells: MatrixCellsState;
+    riskMatrix: RiskMatrixState;
     visibleItemIds: Set<string>;
     instances: InstanceState[];
     visibleItemIdsByInstance: Map<string, Set<string>>;
@@ -398,6 +480,8 @@ export function useWizard(data: WizardData): WizardState {
     } = computeEffectiveVisibility(sections, toAnswerMap(latest));
     return {
       answers: latest,
+      matrixCells: matrixCellsRef.current,
+      riskMatrix: riskMatrixRef.current,
       visibleItemIds: latestVisible,
       instances: latestInstances,
       visibleItemIdsByInstance: deriveInstanceVisibility(
@@ -451,10 +535,35 @@ export function useWizard(data: WizardData): WizardState {
       const { visibleSectionIds, visibleItemIds: nextVisibleItemIds } =
         computeEffectiveVisibility(sections, nextMap);
       const orphans: OrphanedSection[] = [];
+
+      /**
+       * FF-2 — a MATRIX that holds cells counts as orphaned exactly like a
+       * scalar answer does. It is included by ITEM ID so it rides the existing
+       * `clearItemIds` path: that deletes the parent `answers` row, and
+       * `answer_matrix_cells` / `answer_risk_matrix` cascade off `answer_id`.
+       * Without this arm a matrix hidden by a later answer change would keep its
+       * saved cells forever — invisible in the UI, still counted by the server.
+       *
+       * A matrix can never be the CONTROLLING item (it is not a condition
+       * target), so its own state cannot change under this prospective map; it
+       * is read from current state rather than from `nextAnswers`.
+       */
+      const matrixAnswered = (item: Item): boolean => {
+        if (!isMatrixItem(item.itemType)) return false;
+        if (item.itemType === "risk_matrix") {
+          return riskMatrixRef.current[item.id] != null;
+        }
+        const grid = matrixCellsRef.current[item.id];
+        return grid != null && Object.keys(grid).length > 0;
+      };
+
       for (const section of sections) {
         if (!visibleSectionIds.has(section.id)) {
           // Whole section hidden → every answered input in it is orphaned.
-          const itemIds = answeredItemIds(section, nextAnswers);
+          const itemIds = [
+            ...answeredItemIds(section, nextAnswers),
+            ...sectionAnswerables(section).filter(matrixAnswered).map((it) => it.id),
+          ];
           if (itemIds.length > 0) orphans.push({ section, itemIds });
           continue;
         }
@@ -468,8 +577,12 @@ export function useWizard(data: WizardData): WizardState {
               hasAnswer(nextAnswers[it.id]),
           )
           .map((it) => it.id);
-        if (hiddenAnswered.length > 0) {
-          orphans.push({ section, itemIds: hiddenAnswered });
+        const hiddenMatrices = sectionAnswerables(section)
+          .filter((it) => !nextVisibleItemIds.has(it.id) && matrixAnswered(it))
+          .map((it) => it.id);
+        const itemIds = [...hiddenAnswered, ...hiddenMatrices];
+        if (itemIds.length > 0) {
+          orphans.push({ section, itemIds });
         }
       }
       return orphans;
@@ -536,6 +649,45 @@ export function useWizard(data: WizardData): WizardState {
     },
     [],
   );
+
+  // --- FF-2: matrix edits, top level. -------------------------------------
+  const setMatrixCell = useCallback(
+    (itemId: string, rowCode: string, colCode: string) => {
+      setMatrixCells((prev) => ({
+        ...prev,
+        // Setting a row REPLACES that row's selection — a row takes exactly one
+        // column, so there is no accumulate case to get wrong (ruling 1).
+        [itemId]: { ...(prev[itemId] ?? {}), [rowCode]: colCode },
+      }));
+    },
+    [],
+  );
+
+  const clearMatrix = useCallback((itemId: string) => {
+    setMatrixCells((prev) => {
+      if (!(itemId in prev)) return prev;
+      // An EMPTY grid, not a removed key: `{}` is what the REPLACE contract
+      // reads as "clear this item's cells", while an absent key means "leave
+      // whatever is saved untouched".
+      return { ...prev, [itemId]: {} };
+    });
+  }, []);
+
+  const setRiskMatrixSelection = useCallback(
+    (itemId: string, selection: RiskSelection) => {
+      setRiskMatrix((prev) => ({ ...prev, [itemId]: selection }));
+    },
+    [],
+  );
+
+  const clearRiskMatrix = useCallback((itemId: string) => {
+    setRiskMatrix((prev) => {
+      if (!(itemId in prev)) return prev;
+      const next = { ...prev };
+      delete next[itemId];
+      return next;
+    });
+  }, []);
 
   // --- FF-1: per-instance edits. Each writes ONLY into the addressed instance's
   // own answer state; a repeating-group child never touches the top-level map.
@@ -609,9 +761,72 @@ export function useWizard(data: WizardData): WizardState {
     [updateInstance],
   );
 
+  // --- FF-2: the same four verbs, scoped to ONE instance. A repeating-group
+  // matrix never writes into the top-level slices.
+  const patchInstance = useCallback(
+    (instanceId: string, update: (instance: InstanceState) => InstanceState) => {
+      setInstances((prev) =>
+        prev.map((instance) =>
+          instance.id === instanceId ? update(instance) : instance,
+        ),
+      );
+    },
+    [],
+  );
+
+  const setInstanceMatrixCell = useCallback(
+    (instanceId: string, itemId: string, rowCode: string, colCode: string) => {
+      patchInstance(instanceId, (instance) => ({
+        ...instance,
+        matrixCells: {
+          ...(instance.matrixCells ?? {}),
+          [itemId]: {
+            ...(instance.matrixCells?.[itemId] ?? {}),
+            [rowCode]: colCode,
+          },
+        },
+      }));
+    },
+    [patchInstance],
+  );
+
+  const clearInstanceMatrix = useCallback(
+    (instanceId: string, itemId: string) => {
+      patchInstance(instanceId, (instance) => ({
+        ...instance,
+        matrixCells: { ...(instance.matrixCells ?? {}), [itemId]: {} },
+      }));
+    },
+    [patchInstance],
+  );
+
+  const setInstanceRiskMatrix = useCallback(
+    (instanceId: string, itemId: string, selection: RiskSelection) => {
+      patchInstance(instanceId, (instance) => ({
+        ...instance,
+        riskMatrix: { ...(instance.riskMatrix ?? {}), [itemId]: selection },
+      }));
+    },
+    [patchInstance],
+  );
+
+  const clearInstanceRiskMatrix = useCallback(
+    (instanceId: string, itemId: string) => {
+      patchInstance(instanceId, (instance) => {
+        const next = { ...(instance.riskMatrix ?? {}) };
+        delete next[itemId];
+        return { ...instance, riskMatrix: next };
+      });
+    },
+    [patchInstance],
+  );
+
   const addInstanceLocal = useCallback(
     (instance: { id: string; groupItemId: string; position: number }) => {
-      setInstances((prev) => [...prev, { ...instance, answers: {} }]);
+      setInstances((prev) => [
+      ...prev,
+      { ...instance, answers: {}, matrixCells: {}, riskMatrix: {} },
+    ]);
     },
     [],
   );
@@ -729,6 +944,8 @@ export function useWizard(data: WizardData): WizardState {
     stepCount,
     isReview,
     answers,
+    matrixCells,
+    riskMatrix,
     answerMap,
     visibleContainerIds: effective.visibleContainerIds,
     instancesByGroup,
@@ -738,6 +955,14 @@ export function useWizard(data: WizardData): WizardState {
     clearAnswer,
     setObservation,
     setOtherText,
+    setMatrixCell,
+    clearMatrix,
+    setRiskMatrix: setRiskMatrixSelection,
+    clearRiskMatrix,
+    setInstanceMatrixCell,
+    clearInstanceMatrix,
+    setInstanceRiskMatrix,
+    clearInstanceRiskMatrix,
     setInstanceAnswer,
     setInstanceObservation,
     setInstanceOtherText,

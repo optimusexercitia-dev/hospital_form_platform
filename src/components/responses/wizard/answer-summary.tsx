@@ -5,7 +5,15 @@ import type { Item, ItemOption } from "@/lib/queries/forms";
 import { cn } from "@/lib/utils";
 import { TOKEN_STYLES } from "@/components/cases/case-status-badge";
 
-import { isEmptyValue } from "./use-wizard";
+import type { MatrixCells, RiskSelection } from "@/lib/forms/matrix";
+
+import { isEmptyValue, isMatrixItem } from "./use-wizard";
+import { MatrixGrid } from "./matrix-grid";
+import { RiskMatrixPicker } from "./risk-matrix-picker";
+
+// Stable no-ops — a read-only grid never invokes its handler props.
+const NO_OP_CELL: (rowCode: string, colCode: string) => void = () => {};
+const NO_OP_RISK: (next: RiskSelection) => void = () => {};
 
 /**
  * Renders one answered input as a read-only label/value pair for the review
@@ -30,9 +38,15 @@ export function AnswerSummary({
   value,
   observation,
   otherText,
+  matrixCells,
+  riskSelection,
 }: {
   item: Item;
   value: Json | undefined;
+  /** FF-2 — the saved grid of a `matrix` item in THIS scope. */
+  matrixCells?: MatrixCells;
+  /** FF-2 — the saved selection of a `risk_matrix` item in THIS scope. */
+  riskSelection?: RiskSelection;
   /** Optional observation note shown as a muted secondary line. */
   observation?: string | null;
   /**
@@ -45,6 +59,24 @@ export function AnswerSummary({
 }) {
   const note = observation?.trim();
   const other = otherText?.trim();
+
+  // FF-2 — a matrix reviews as the GRID ITSELF, not as a label/value pair.
+  // Flattening a 3×3 grid to "linha: coluna, linha: coluna, …" is exactly the
+  // manual tabulation this platform exists to remove, and a risk answer's whole
+  // meaning is the score and its band — which are derived from the axis weights
+  // here rather than stored, so a re-banded form re-reads history correctly.
+  if (isMatrixItem(item.itemType)) {
+    return (
+      <div className="flex flex-col gap-2 border-b border-border/60 py-3 last:border-b-0">
+        {item.itemType === "risk_matrix" ? (
+          <RiskMatrixPicker item={item} selection={riskSelection} onChange={NO_OP_RISK} readOnly />
+        ) : (
+          <MatrixGrid item={item} cells={matrixCells} onChange={NO_OP_CELL} readOnly />
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-1 border-b border-border/60 py-2.5 last:border-b-0">
       <dt className="flex items-center gap-1 text-sm font-medium">

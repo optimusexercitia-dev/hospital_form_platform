@@ -2,7 +2,12 @@ import "server-only";
 
 import { flattenItem, getSignedAssetUrl } from "@/lib/queries/forms";
 import type { Item, VersionTree } from "@/lib/queries/forms";
-import type { GroupInstance, ResponseForFill } from "@/lib/queries/responses";
+import type {
+  GroupInstance,
+  ResponseForFill,
+  RiskMatrixAnswer,
+} from "@/lib/queries/responses";
+import type { RiskMatrixState } from "@/lib/forms/matrix";
 import type { SignoffRecord } from "@/lib/queries/signoffs";
 import type { CasePhaseForFill } from "@/lib/queries/cases";
 import { signoffRecordsToMap } from "@/components/signoffs/adapt";
@@ -111,9 +116,34 @@ export function toInstanceStates(
       groupItemId: instance.groupItemId,
       position: instance.position,
       answers,
+      // FF-2 — this instance's matrix answers, already code-keyed by the query
+      // layer. ABSENT on the sign-off review path (whose instances come from a
+      // JSON payload that does not carry matrix answers yet), hence `?? {}`.
+      matrixCells: instance.matrixCellsByItemId ?? {},
+      riskMatrix: toRiskSelections(instance.riskMatrixByItemId),
     });
   }
   return states.sort((a, b) => a.position - b.position);
+}
+
+/**
+ * FF-2 — drop the read-only `riskScore` from a saved risk answer.
+ *
+ * The wizard holds `{ severity, likelihood }` and nothing else, on purpose. The
+ * score is SERVER-DERIVED output (`severity.weight * likelihood.weight`), the
+ * write contract has no score field, and a client-held copy would be a second
+ * source of truth that goes stale the moment an author reweighs an axis in a
+ * later draft. The fill UI recomputes it for display from the axes it is
+ * already rendering.
+ */
+function toRiskSelections(
+  saved: Record<string, RiskMatrixAnswer> | undefined,
+): RiskMatrixState {
+  const out: RiskMatrixState = {};
+  for (const [itemId, answer] of Object.entries(saved ?? {})) {
+    out[itemId] = { severity: answer.severity, likelihood: answer.likelihood };
+  }
+  return out;
 }
 
 /**
@@ -172,6 +202,11 @@ export function toWizardData(
     tree: response.tree,
     initialAnswers: toAnswerState(response),
     initialInstances: toInstanceStates(response.tree, response.instances),
+    // FF-2 — the TOP-LEVEL matrix answers, kept in their own slices so they can
+    // never reach the condition evaluator's answer map (a matrix has no `value`
+    // and is not a condition target).
+    initialMatrixCells: response.matrixCellsByItemId ?? {},
+    initialRiskMatrix: toRiskSelections(response.riskMatrixByItemId),
     lastSectionId: response.lastSectionId,
     signoffsBySectionId: signoffRecordsToMap(signoffs),
     phaseResult,

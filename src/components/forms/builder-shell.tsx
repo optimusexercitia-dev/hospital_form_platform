@@ -18,6 +18,7 @@ import { PublishButton } from "@/components/forms/publish-button";
 import { DeleteDraftButton } from "@/components/forms/delete-draft-button";
 import { useBuilderAction } from "@/components/forms/use-builder-action";
 import { useFlipReorder } from "@/components/forms/use-flip-reorder";
+import { BuilderFlagsProvider } from "@/components/forms/builder-flags";
 
 /**
  * The interactive two-level builder over a form's editable draft. Orchestrates
@@ -44,6 +45,7 @@ export function BuilderShell({
   controlledDocsEnabled = false,
   approverCandidates = [],
   containersEnabled = false,
+  matrixEnabled = false,
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -61,6 +63,8 @@ export function BuilderShell({
   approverCandidates?: ApproverCandidate[];
   /** FF-1 (ADR 0087) — the `repeating_groups` flag: offer the container types. */
   containersEnabled?: boolean;
+  /** FF-2 (ADR 0089) — the `matrix_fields` flag: offer the two matrix types. */
+  matrixEnabled?: boolean;
 }) {
   const { run, isPending, error } = useBuilderAction();
   const { containerRef, captureBeforeReorder } =
@@ -77,6 +81,11 @@ export function BuilderShell({
   }
 
   return (
+    // FF-2: the builder's feature flags are provided ONCE here and read by the
+    // one component that branches on each. Previously `containersEnabled` was
+    // drilled through four components that never used it; a second flag would
+    // have doubled that, and each link is a chance to drop one silently.
+    <BuilderFlagsProvider containers={containersEnabled} matrix={matrixEnabled}>
     <div className="flex flex-col gap-8">
       <BuilderHeader
         org={org}
@@ -102,7 +111,6 @@ export function BuilderShell({
             sections={sections}
             commissionId={commissionId}
             imageUrls={imageUrls}
-            containersEnabled={containersEnabled}
           />
           <AddSectionButton onClick={handleAddSection} disabled={isPending} />
         </div>
@@ -118,7 +126,6 @@ export function BuilderShell({
               isLast={index === sections.length - 1}
               commissionId={commissionId}
               imageUrls={imageUrls}
-              containersEnabled={containersEnabled}
               onBeforeReorder={captureBeforeReorder}
             />
           ))}
@@ -126,6 +133,7 @@ export function BuilderShell({
         </div>
       )}
     </div>
+    </BuilderFlagsProvider>
   );
 }
 

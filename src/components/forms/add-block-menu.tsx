@@ -13,8 +13,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { CONTAINER_TYPES, ITEM_TYPE_META } from "@/components/forms/item-type-meta";
+import {
+  CONTAINER_TYPES,
+  ITEM_TYPE_META,
+  MATRIX_TYPES,
+} from "@/components/forms/item-type-meta";
 import { ItemEditorDialog } from "@/components/forms/item-editor-dialog";
+import { useBuilderFlags } from "@/components/forms/builder-flags";
 
 const INPUT_TYPES: ItemType[] = [
   "multiple_choice",
@@ -31,8 +36,9 @@ const DISPLAY_TYPES: ItemType[] = ["section_text", "image"];
 /**
  * "Adicionar bloco" type picker: the 8 input types and 2 display types, grouped,
  * plus — behind the `repeating_groups` flag (FF-1, ADR 0087) — the 2 CONTAINER
- * types under "Estrutura". Selecting a type opens {@link ItemEditorDialog} in
- * "add" mode for that type.
+ * types under "Estrutura", and — behind the `matrix_fields` flag (FF-2, ADR
+ * 0089) — the 2 MATRIX types under "Matrizes". Selecting a type opens
+ * {@link ItemEditorDialog} in "add" mode for that type.
  *
  * Two modes, one component:
  *   - SECTION mode (`parentItem` omitted) — adds a top-level block to the
@@ -40,28 +46,30 @@ const DISPLAY_TYPES: ItemType[] = ["section_text", "image"];
  *   - CHILD mode (`parentItem` set) — adds a block INSIDE that container. It
  *     never offers a container, because depth is capped at 1 (ruling 1,
  *     enforced by `form_items_no_nested_container`): offering a nesting the
- *     database refuses would be a trap, not a feature.
+ *     database refuses would be a trap, not a feature. A MATRIX is offered in
+ *     both modes — it is an answerable item, not a container, so it may live
+ *     inside a repeating group and answer per instance.
  */
 export function AddBlockMenu({
   sectionId,
   sections,
   commissionId,
-  containersEnabled = false,
   parentItem,
 }: {
   sectionId: string;
   sections: Section[];
   commissionId: string;
-  /** The `repeating_groups` feature flag. Containers are offered only when ON. */
-  containersEnabled?: boolean;
   /** The container this menu adds INTO; omitted for a top-level "Adicionar bloco". */
   parentItem?: { id: string; label: string | null };
 }) {
   const [pendingType, setPendingType] = useState<ItemType | null>(null);
+  // FF-2: the flags come from the builder root's provider rather than from a
+  // boolean threaded through five components that have no opinion about them.
+  const flags = useBuilderFlags();
 
   const isChildMode = parentItem != null;
   // Depth cap: a container may never be offered inside a container.
-  const showContainers = containersEnabled && !isChildMode;
+  const showContainers = flags.containers && !isChildMode;
   const triggerLabel = isChildMode ? "Adicionar pergunta ao grupo" : "Adicionar bloco";
 
   return (
@@ -95,6 +103,19 @@ export function AddBlockMenu({
               onSelect={() => setPendingType(type)}
             />
           ))}
+          {flags.matrix ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Matrizes</DropdownMenuLabel>
+              {MATRIX_TYPES.map((type) => (
+                <BlockTypeItem
+                  key={type}
+                  type={type}
+                  onSelect={() => setPendingType(type)}
+                />
+              ))}
+            </>
+          ) : null}
           {showContainers ? (
             <>
               <DropdownMenuSeparator />

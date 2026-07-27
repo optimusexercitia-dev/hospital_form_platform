@@ -11,7 +11,10 @@ import {
   flattenItem,
 } from "@/lib/queries/forms";
 import type { VersionTree } from "@/lib/queries/forms";
-import { controlledDocsEnabled } from "@/lib/queries/feature-flags";
+import {
+  controlledDocsEnabled,
+  matrixFieldsEnabled,
+} from "@/lib/queries/feature-flags";
 import { repeatingGroupsEnabled } from "@/lib/forms/repeating-groups-flag";
 import { listApproverCandidates } from "@/lib/queries/documents";
 import { BuilderShell } from "@/components/forms/builder-shell";
@@ -65,6 +68,13 @@ export default async function BuilderPage({
     // cycle). Resolve the approver candidates only then (flag off → empty, and the
     // metadata section is hidden, so publishing behaves exactly as before).
     const containersEnabled = await repeatingGroupsEnabled();
+    // FF-2 (ADR 0089) — `matrix_fields`. Resolved here and provided once at the
+    // builder root; while OFF the picker does not offer the two matrix types,
+    // because `upsert_matrix_axes` raises HC0P2 and the block could never be
+    // configured. Rendering an ALREADY-AUTHORED matrix is deliberately not
+    // gated, same as FF-1's containers: a form that holds one must render
+    // truthfully rather than silently drop a question.
+    const matrixEnabled = await matrixFieldsEnabled();
     const controlledDocsOn = await controlledDocsEnabled();
     const approverCandidates = controlledDocsOn
       ? await listApproverCandidates(access.commission.id)
@@ -83,6 +93,7 @@ export default async function BuilderPage({
         controlledDocsEnabled={controlledDocsOn}
         approverCandidates={approverCandidates}
         containersEnabled={containersEnabled}
+        matrixEnabled={matrixEnabled}
       />
     );
   }

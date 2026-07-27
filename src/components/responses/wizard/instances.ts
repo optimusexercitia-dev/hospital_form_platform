@@ -1,5 +1,6 @@
 import type { AnswerMap } from "@/lib/queries/conditions";
 import type { Item, Section } from "@/lib/queries/forms";
+import type { MatrixCellsState, RiskMatrixState } from "@/lib/forms/matrix";
 
 import type { AnswerRecord, AnswerState } from "./types";
 
@@ -23,6 +24,20 @@ export interface InstanceState {
   position: number;
   /** This instance's own answers, keyed by item_id — same shape as top level. */
   answers: AnswerState;
+  /**
+   * FF-2 — this instance's own matrix grids / risk selections. A matrix inside a
+   * repeating group answers PER INSTANCE, exactly as a scalar child does, so the
+   * three slices together are one scope's complete answer state.
+   *
+   * OPTIONAL so the hand-built instance fixtures in the component tests need not
+   * enumerate a field irrelevant to them; every reader treats absent as `{}`. The
+   * collectors take the whole scope object rather than the three slices
+   * separately, so a new slice cannot be silently dropped from a save payload
+   * the way `observationsByItemId` (BUG-FBE-004) and `otherTextByItemId`
+   * (BUG-FBE-008) each were.
+   */
+  matrixCells?: MatrixCellsState;
+  riskMatrix?: RiskMatrixState;
 }
 
 /** The per-group instance lists, keyed by the container's item id. */
@@ -69,12 +84,25 @@ export function repeatingGroupsOfSection(section: Section): Item[] {
  * `minInstances` is enforced on what remains, so the wizard must count the same
  * way or its live "faltam N repetições" hint would disagree with the server.
  *
- * Mirrors `app.response_required_complete`'s emptiness test: no answer with a
- * non-null, non-`'null'::jsonb` value (and, for choice items, no selection —
- * which on the client is the same empty-array check).
+ * Mirrors `app.instance_is_empty`: no answer with a non-null, non-`'null'::jsonb`
+ * value, no selection (the same empty-array check on the client) — and, as of
+ * FF-2, **no matrix cell and no risk selection either**.
+ *
+ * ⚠ That last clause is not cosmetic. A matrix answer's payload lives in
+ * `answer_matrix_cells` / `answer_risk_matrix` with `answers.value` NULL, so an
+ * instance whose only content is a filled matrix looks empty to a value-only
+ * test. The SQL twin was blind to exactly this and would have let
+ * `submit_response` PRUNE such an instance, destroying the answer with its cells
+ * cascading after it (ADR 0089 §A). The client mirror must count the same way or
+ * the review screen would hide a repetition the server is about to keep.
  */
 export function isEmptyInstance(instance: InstanceState): boolean {
-  return !Object.values(instance.answers).some(hasMeaningfulValue);
+  if (Object.values(instance.answers).some(hasMeaningfulValue)) return false;
+  const cells = instance.matrixCells ?? {};
+  if (Object.values(cells).some((grid) => Object.keys(grid).length > 0)) {
+    return false;
+  }
+  return Object.keys(instance.riskMatrix ?? {}).length === 0;
 }
 
 function hasMeaningfulValue(rec: AnswerRecord): boolean {

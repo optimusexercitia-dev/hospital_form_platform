@@ -1,12 +1,13 @@
 import type { Item, Section } from "@/lib/queries/forms";
+import { isMatrixComplete, isRiskComplete } from "@/lib/forms/matrix";
 
-import type { AnswerState } from "./types";
+import type { ScopeState } from "./collect";
 import {
   describeInstanceShortfall,
   isEmptyInstance,
   type InstanceState,
 } from "./instances";
-import { hasAnswer, isInputItem } from "./use-wizard";
+import { hasAnswer, isInputItem, isMatrixItem } from "./use-wizard";
 
 /**
  * Per-section client-side validation (F2). This is UX ONLY: it gives immediate
@@ -26,10 +27,11 @@ import { hasAnswer, isInputItem } from "./use-wizard";
  */
 export function validateSection(
   section: Section,
-  answers: AnswerState,
+  scope: ScopeState,
   visibleItemIds?: Set<string>,
 ): Record<string, string> {
   const errors: Record<string, string> = {};
+  const { answers } = scope;
   // FF-1: a plain `group`'s children answer at TOP LEVEL (ruling 6), so they
   // validate here exactly like flat items. A `repeating_group`'s children do
   // NOT — they are per-instance and go through `validateInstances`. Walking
@@ -39,9 +41,17 @@ export function validateSection(
     item.itemType === "group" ? item.children : [item],
   );
   for (const item of flat) {
-    if (!isInputItem(item.itemType)) continue;
-    // Skip items hidden by an item-level condition.
+    // Skip items hidden by an item-level condition — for a matrix too: ITEM
+    // visibility wins over `required` (ADR 0089 ruling 3), so a hidden matrix
+    // requires nothing, exactly as a hidden scalar does.
     if (visibleItemIds && !visibleItemIds.has(item.id)) continue;
+
+    if (isMatrixItem(item.itemType)) {
+      const matrixError = checkMatrix(item, scope);
+      if (matrixError) errors[item.id] = matrixError;
+      continue;
+    }
+    if (!isInputItem(item.itemType)) continue;
 
     const answered = hasAnswer(answers[item.id]);
 
@@ -56,6 +66,34 @@ export function validateSection(
     }
   }
   return errors;
+}
+
+/**
+ * FF-2 (ADR 0089 ruling 3) — the client mirror of the matrix arm of
+ * `app.item_required_satisfied`.
+ *
+ * A required `matrix` is ROW-COMPLETE: every row must carry a cell, not merely
+ * one row somewhere. The weaker reading would make a 20-row checklist satisfiable
+ * with a single tick, which is why the PO rejected it. A required `risk_matrix`
+ * is satisfied by its single answer row existing — both halves chosen.
+ *
+ * An OPTIONAL matrix is never an error: a partly-filled optional grid is a
+ * legitimate state, and the server agrees (the arm only runs for `required`).
+ * UX only; `submit_response` remains the authority.
+ */
+function checkMatrix(item: Item, scope: ScopeState): string | null {
+  if (!item.required) return null;
+  const rows = item.matrixRows ?? [];
+  const columns = item.matrixColumns ?? [];
+
+  if (item.itemType === "risk_matrix") {
+    return isRiskComplete(rows, columns, scope.riskMatrix?.[item.id])
+      ? null
+      : "Selecione a severidade e a probabilidade.";
+  }
+  return isMatrixComplete(rows, columns, scope.matrixCells?.[item.id])
+    ? null
+    : "Responda todas as linhas desta matriz.";
 }
 
 /**
@@ -97,8 +135,18 @@ export function validateInstances(
       if (isEmptyInstance(instance)) continue;
       const visible = visibleItemIdsByInstance.get(instance.id);
       for (const child of container.children) {
-        if (!isInputItem(child.itemType)) continue;
         if (visible && !visible.has(child.id)) continue;
+
+        // FF-2 — a matrix inside a repeating group is required PER INSTANCE, in
+        // the surviving instances only. This is the per-instance loop the ADR
+        // requires alongside the flat one; adding the arm to one and not the
+        // other is a bug no test distinguishes from the fix.
+        if (isMatrixItem(child.itemType)) {
+          const matrixError = checkMatrix(child, instance);
+          if (matrixError) errors[`${instance.id}:${child.id}`] = matrixError;
+          continue;
+        }
+        if (!isInputItem(child.itemType)) continue;
 
         const record = instance.answers[child.id];
         const answered = hasAnswer(record);
@@ -125,11 +173,11 @@ export function validateInstances(
 /** Whether a section currently has no validation errors (visible items only). */
 export function isSectionComplete(
   section: Section,
-  answers: AnswerState,
+  scope: ScopeState,
   visibleItemIds?: Set<string>,
 ): boolean {
   return (
-    Object.keys(validateSection(section, answers, visibleItemIds)).length === 0
+    Object.keys(validateSection(section, scope, visibleItemIds)).length === 0
   );
 }
 

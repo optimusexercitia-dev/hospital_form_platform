@@ -1,7 +1,7 @@
 import type { Json } from "@/lib/types/database";
 import type { Item } from "@/lib/queries/forms";
 
-import { isInputItem } from "./effective-visibility";
+import { isInputItem, isMatrixItem } from "./effective-visibility";
 
 /**
  * The per-item callbacks handed to one `BlockRenderer`/`InputItem`, precomputed
@@ -19,6 +19,13 @@ export interface ItemHandlers {
   onObservationChange?: (value: string) => void;
   onOtherTextChange?: (value: string) => void;
   onClear?: () => void;
+  /**
+   * FF-2 — the matrix verbs. Present only on a `matrix` / `risk_matrix` item, so
+   * a renderer that reaches for one on a scalar item gets `undefined` rather
+   * than a handler writing into a slice that item does not use.
+   */
+  onMatrixCellChange?: (rowCode: string, colCode: string) => void;
+  onRiskChange?: (selection: { severity: string; likelihood: string }) => void;
 }
 
 /** `item_id → its stable callbacks`. */
@@ -42,6 +49,20 @@ export interface ItemCallbacks {
     value: string,
   ) => void;
   onClear?: (item: { id: string; questionKey: string }) => void;
+  /** FF-2 — commit one row of a `matrix` (the row's whole selection). */
+  onMatrixCellChange?: (
+    itemId: string,
+    rowCode: string,
+    colCode: string,
+  ) => void;
+  /** FF-2 — clear a whole matrix / risk answer. */
+  onMatrixClear?: (itemId: string) => void;
+  /** FF-2 — commit a whole `risk_matrix` cell (both halves together). */
+  onRiskChange?: (
+    itemId: string,
+    selection: { severity: string; likelihood: string },
+  ) => void;
+  onRiskClear?: (itemId: string) => void;
 }
 
 /**
@@ -54,10 +75,43 @@ export function buildItemHandlers(
   items: Item[],
   callbacks: ItemCallbacks,
 ): ItemHandlerMap {
-  const { onChange, onObservationChange, onOtherTextChange, onClear } =
-    callbacks;
+  const {
+    onChange,
+    onObservationChange,
+    onOtherTextChange,
+    onClear,
+    onMatrixCellChange,
+    onMatrixClear,
+    onRiskChange,
+    onRiskClear,
+  } = callbacks;
   const map: ItemHandlerMap = new Map();
   for (const item of items) {
+    // FF-2 — a matrix gets its OWN handler shape. It shares nothing with the
+    // scalar path: no value, no observação, no "Outros".
+    if (isMatrixItem(item.itemType)) {
+      const isRisk = item.itemType === "risk_matrix";
+      map.set(item.id, {
+        onChange: NO_OP,
+        onMatrixCellChange:
+          !isRisk && onMatrixCellChange
+            ? (rowCode, colCode) =>
+                onMatrixCellChange(item.id, rowCode, colCode)
+            : undefined,
+        onRiskChange:
+          isRisk && onRiskChange
+            ? (selection) => onRiskChange(item.id, selection)
+            : undefined,
+        onClear: isRisk
+          ? onRiskClear
+            ? () => onRiskClear(item.id)
+            : undefined
+          : onMatrixClear
+            ? () => onMatrixClear(item.id)
+            : undefined,
+      });
+      continue;
+    }
     if (!isInputItem(item.itemType)) continue;
     const questionKey = item.questionKey;
     map.set(item.id, {

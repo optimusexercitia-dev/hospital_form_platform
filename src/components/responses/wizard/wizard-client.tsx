@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import type { Json } from "@/lib/types/database";
 import type { Section } from "@/lib/queries/forms";
+import type { MatrixCells, RiskSelection } from "@/lib/forms/matrix";
 
 import type { SectionSignoff } from "@/components/signoffs/types";
 
@@ -71,6 +72,15 @@ export interface WizardActions {
      * lifecycle actions, never implicitly by a save).
      */
     instances?: InstanceAnswers[];
+    /**
+     * FF-2 (ADR 0089) — the TOP-LEVEL matrix arms. `matrixCellsByItemId` maps a
+     * `matrix` item id → `{ rowCode: colCode }`; `riskMatrixByItemId` maps a
+     * `risk_matrix` item id → `{ severity, likelihood }` and carries NO score
+     * (the server derives it from the axis weights and ignores a client value).
+     * Both are REPLACE per item, exactly like `selectionsByItemId`.
+     */
+    matrixCellsByItemId?: Record<string, MatrixCells>;
+    riskMatrixByItemId?: Record<string, RiskSelection>;
   }) => Promise<{ ok: boolean; error?: string }>;
   /** Persist the current section + signal exit; F4. */
   saveAndExit: (input: {
@@ -80,6 +90,8 @@ export interface WizardActions {
     observationsByItemId?: Record<string, string>;
     otherTextByItemId?: Record<string, string>;
     instances?: InstanceAnswers[];
+    matrixCellsByItemId?: Record<string, MatrixCells>;
+    riskMatrixByItemId?: Record<string, RiskSelection>;
   }) => Promise<{ ok: boolean; error?: string }>;
   /**
    * Submit through the server authority (`submit_response`); F5. For case-phase
@@ -189,6 +201,8 @@ export function WizardClient({
     stepCount,
     isReview,
     answers,
+    matrixCells,
+    riskMatrix,
     answerMap,
     visibleContainerIds,
     instancesByGroup,
@@ -197,6 +211,14 @@ export function WizardClient({
     setAnswer,
     setObservation,
     setOtherText,
+    setMatrixCell,
+    clearMatrix,
+    setRiskMatrix,
+    clearRiskMatrix,
+    setInstanceMatrixCell,
+    clearInstanceMatrix,
+    setInstanceRiskMatrix,
+    clearInstanceRiskMatrix,
     setInstanceAnswer,
     setInstanceObservation,
     setInstanceOtherText,
@@ -232,16 +254,31 @@ export function WizardClient({
       selectionsByItemId: Record<string, string[]>;
       observationsByItemId: Record<string, string>;
       otherTextByItemId: Record<string, string>;
+      matrixCellsByItemId: Record<string, MatrixCells>;
+      riskMatrixByItemId: Record<string, RiskSelection>;
       instances: InstanceAnswers[];
     } => {
       const {
         answers: latest,
+        matrixCells: latestCells,
+        riskMatrix: latestRisk,
         visibleItemIds: visible,
         instances: latestInstances,
         visibleItemIdsByInstance: latestInstanceVisibility,
       } = getLatestSnapshot();
 
-      const collected = collectScope(topLevelItems(section), latest, visible);
+      // One SCOPE object, not three positional slices — the collector asks for
+      // the whole scope so a new kind of answer cannot be forgotten at a call
+      // site (the FBE-004 / FBE-008 failure mode).
+      const collected = collectScope(
+        topLevelItems(section),
+        {
+          answers: latest,
+          matrixCells: latestCells,
+          riskMatrix: latestRisk,
+        },
+        visible,
+      );
 
       // Group the latest instances for this section's containers. Built from the
       // ref-sourced list, not the render snapshot, for the same reason as above.
@@ -525,12 +562,80 @@ export function WizardClient({
     [setInstanceAnswer],
   );
 
+  // ----- FF-2: matrix edits -----
+  //
+  // A matrix is NOT a condition target, so a matrix change can never hide a
+  // section: the whole orphan/warn-and-clear machinery is irrelevant here and
+  // the change commits directly. What it does do is clear the item's own error,
+  // exactly as an answer change does.
+
+  const clearFieldError = useCallback((key: string) => {
+    setErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
+  const handleMatrixCellChange = useCallback(
+    (itemId: string, rowCode: string, colCode: string) => {
+      setMatrixCell(itemId, rowCode, colCode);
+      // Only clear the error once the LAST row is filled — a required matrix is
+      // row-complete, so clearing on the first tick would tell the user the
+      // problem is solved while four rows are still blank.
+      clearFieldError(itemId);
+    },
+    [setMatrixCell, clearFieldError],
+  );
+
+  const handleRiskChange = useCallback(
+    (itemId: string, selection: RiskSelection) => {
+      setRiskMatrix(itemId, selection);
+      clearFieldError(itemId);
+    },
+    [setRiskMatrix, clearFieldError],
+  );
+
+  const clearInstanceFieldError = useCallback(
+    (instanceId: string, itemId: string) => {
+      const key = `${instanceId}:${itemId}`;
+      setInstanceErrors((prev) => {
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleInstanceMatrixCellChange = useCallback(
+    (instanceId: string, itemId: string, rowCode: string, colCode: string) => {
+      setInstanceMatrixCell(instanceId, itemId, rowCode, colCode);
+      clearInstanceFieldError(instanceId, itemId);
+    },
+    [setInstanceMatrixCell, clearInstanceFieldError],
+  );
+
+  const handleInstanceRiskChange = useCallback(
+    (instanceId: string, itemId: string, selection: RiskSelection) => {
+      setInstanceRiskMatrix(instanceId, itemId, selection);
+      clearInstanceFieldError(instanceId, itemId);
+    },
+    [setInstanceRiskMatrix, clearInstanceFieldError],
+  );
+
   /** Advance: validate the current section, persist, then move forward. */
   const handleNext = useCallback(async () => {
     const section = currentSection;
     if (!section) return;
 
-    const sectionErrors = validateSection(section, answers, visibleItemIds);
+    const sectionErrors = validateSection(
+      section,
+      { answers, matrixCells, riskMatrix },
+      visibleItemIds,
+    );
     // FF-1: instances validate separately — prune-then-check, so a fully-empty
     // repetition reports nothing and an unmet minimum reads "adicione ao menos N"
     // rather than "campo obrigatório" inside a blank row (ruling 3).
@@ -560,6 +665,8 @@ export function WizardClient({
   }, [
     currentSection,
     answers,
+    matrixCells,
+    riskMatrix,
     visibleItemIds,
     instancesByGroup,
     visibleItemIdsByInstance,
@@ -590,6 +697,8 @@ export function WizardClient({
           selectionsByItemId: {},
           observationsByItemId: {},
           otherTextByItemId: {},
+          matrixCellsByItemId: {},
+          riskMatrixByItemId: {},
           instances: [],
         };
     setSaving(true);
@@ -777,6 +886,8 @@ export function WizardClient({
             instancesByGroup={instancesByGroup}
             visibleItemIdsByInstance={visibleItemIdsByInstance}
             answers={answers}
+            matrixCells={matrixCells}
+            riskMatrix={riskMatrix}
             signoffs={signoffs}
             saving={saving}
             onSignSection={handleSignSection}
@@ -797,6 +908,8 @@ export function WizardClient({
           index={0}
           imageUrls={imageUrls}
           answers={answers}
+          matrixCells={matrixCells}
+          riskMatrix={riskMatrix}
           errors={errors}
           onChange={onChange}
           visibleItemIds={visibleItemIds}
@@ -815,6 +928,14 @@ export function WizardClient({
           onInstanceObservationChange={setInstanceObservation}
           onInstanceOtherTextChange={setInstanceOtherText}
           onInstanceClear={handleClearInstanceBlock}
+          onMatrixCellChange={handleMatrixCellChange}
+          onMatrixClear={clearMatrix}
+          onRiskChange={handleRiskChange}
+          onRiskClear={clearRiskMatrix}
+          onInstanceMatrixCellChange={handleInstanceMatrixCellChange}
+          onInstanceMatrixClear={clearInstanceMatrix}
+          onInstanceRiskChange={handleInstanceRiskChange}
+          onInstanceRiskClear={clearInstanceRiskMatrix}
         />
         <WizardNav
           canGoBack={false}
@@ -854,6 +975,8 @@ export function WizardClient({
           instancesByGroup={instancesByGroup}
           visibleItemIdsByInstance={visibleItemIdsByInstance}
           answers={answers}
+          matrixCells={matrixCells}
+          riskMatrix={riskMatrix}
           signoffs={signoffs}
           saving={saving}
           onSignSection={handleSignSection}
@@ -871,6 +994,8 @@ export function WizardClient({
             index={currentStepIndex}
             imageUrls={imageUrls}
             answers={answers}
+            matrixCells={matrixCells}
+            riskMatrix={riskMatrix}
             errors={errors}
             onChange={onChange}
             visibleItemIds={visibleItemIds}
@@ -889,6 +1014,14 @@ export function WizardClient({
             onInstanceObservationChange={setInstanceObservation}
             onInstanceOtherTextChange={setInstanceOtherText}
             onInstanceClear={handleClearInstanceBlock}
+            onMatrixCellChange={handleMatrixCellChange}
+            onMatrixClear={clearMatrix}
+            onRiskChange={handleRiskChange}
+            onRiskClear={clearRiskMatrix}
+            onInstanceMatrixCellChange={handleInstanceMatrixCellChange}
+            onInstanceMatrixClear={clearInstanceMatrix}
+            onInstanceRiskChange={handleInstanceRiskChange}
+            onInstanceRiskClear={clearInstanceRiskMatrix}
           />
           <WizardNav
             canGoBack={currentStepIndex > 0}

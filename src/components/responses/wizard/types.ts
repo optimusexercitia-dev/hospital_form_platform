@@ -3,6 +3,7 @@ import type { Item, Section, VersionTree } from "@/lib/queries/forms";
 import type { AnswerMap, ResultRuleset } from "@/lib/queries/conditions";
 import type { ResolvedPhaseResult } from "@/lib/queries/phase-results";
 import type { SectionSignoff } from "@/components/signoffs/types";
+import type { MatrixCellsState, RiskMatrixState } from "@/lib/forms/matrix";
 
 import type { InstanceState } from "./instances";
 
@@ -87,6 +88,19 @@ export interface WizardData {
    * top level and are already in {@link initialAnswers}.
    */
   initialInstances: InstanceState[];
+  /**
+   * FF-2 (ADR 0089) — the response's saved TOP-LEVEL matrix answers, rehydrated
+   * from `getResponseForFill`. Kept OUT of {@link initialAnswers} on purpose: a
+   * matrix has `answers.value` NULL by design, so putting it in the answer state
+   * would put it in the derived `AnswerMap` and corrupt condition evaluation —
+   * a matrix is not a condition target (`CONDITION_TARGET_TYPES` excludes both
+   * types, and the SQL evaluator reads `value`, which is null for them).
+   *
+   * A matrix INSIDE a repeating group is not here; it lives on its
+   * {@link InstanceState}, exactly as scalar answers do.
+   */
+  initialMatrixCells: MatrixCellsState;
+  initialRiskMatrix: RiskMatrixState;
   /** Where the user left off — the wizard opens on this section if resumable. */
   lastSectionId: string | null;
   /**

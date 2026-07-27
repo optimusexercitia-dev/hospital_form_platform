@@ -91,25 +91,32 @@ export const ITEM_TYPE_META: Record<ItemType, ItemTypeMeta> = {
     description: "Conjunto de perguntas que pode ser repetido várias vezes.",
     Icon: Rows3,
   },
-  // FF-2 (ADR 0089) — the two MATRIX types. Added by `backend` as the mechanical
-  // half of widening the shared `ItemType`: this Record is exhaustive, and every
-  // consumer (block-card, read-only-tree, submission-detail-view) does an
-  // UNGUARDED `ITEM_TYPE_META[item.itemType]` lookup, so a missing entry is a
-  // runtime crash the moment a matrix block is rendered — not cosmetic.
-  // `frontend` owns the final copy/icon and the AddBlockMenu wiring; neither
-  // type is offered by the picker yet (INPUT_TYPES/DISPLAY_TYPES/CONTAINER_TYPES
-  // are explicit lists, so these entries are inert there).
+  // FF-2 (ADR 0089) — the two MATRIX types. `backend` added the entries as the
+  // mechanical half of widening the shared `ItemType` (this Record is exhaustive
+  // and every consumer does an UNGUARDED `ITEM_TYPE_META[item.itemType]` lookup,
+  // so a missing entry is a runtime crash the moment a matrix block renders).
+  // The copy below is the FF-2 authoring wording: each line names the ONE thing
+  // the author must understand before choosing the type — a matrix answers by
+  // row, a risk matrix answers once and computes.
   matrix: {
     label: "Matriz",
-    description: "Grade de critérios: cada linha recebe uma única coluna.",
+    description: "Vários critérios avaliados na mesma escala, um por linha.",
     Icon: Grid3x3,
   },
   risk_matrix: {
     label: "Matriz de risco",
-    description: "Severidade x probabilidade, com pontuação calculada.",
+    description: "Severidade × probabilidade, com pontuação e faixa calculadas.",
     Icon: ShieldAlert,
   },
 };
 
 /** The two CONTAINER types, in the order the "Estrutura" picker offers them. */
 export const CONTAINER_TYPES: ItemType[] = ["group", "repeating_group"];
+
+/**
+ * FF-2 — the two MATRIX types, in the order the "Matrizes" picker offers them.
+ * A separate group from "Perguntas" because they answer differently: a matrix
+ * has no scalar value at all (its payload is `answer_matrix_cells`), which is
+ * also why it is not a condition target.
+ */
+export const MATRIX_TYPES: ItemType[] = ["matrix", "risk_matrix"];

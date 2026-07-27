@@ -18,7 +18,7 @@ import {
   describeInstanceShortfall,
   type InstanceState,
 } from "./instances";
-import { isInputItem } from "./use-wizard";
+import { isAnswerableItem, isInputItem } from "./use-wizard";
 
 /**
  * FF-1 (ADR 0087) — a `repeating_group` rendered as N INSTANCES with the
@@ -55,6 +55,10 @@ export function RepeatingGroupBlock({
   onInstanceObservationChange,
   onInstanceOtherTextChange,
   onInstanceClear,
+  onInstanceMatrixCellChange,
+  onInstanceMatrixClear,
+  onInstanceRiskChange,
+  onInstanceRiskClear,
 }: {
   item: Item;
   instances: InstanceState[];
@@ -86,6 +90,24 @@ export function RepeatingGroupBlock({
     instanceId: string,
     child: { id: string; questionKey: string },
   ) => void;
+  /**
+   * FF-2 — the per-instance matrix verbs. A matrix inside a repeating group
+   * answers per instance like any other child, so its writes are addressed by
+   * `(instanceId, itemId)` and never touch the top-level slices.
+   */
+  onInstanceMatrixCellChange: (
+    instanceId: string,
+    itemId: string,
+    rowCode: string,
+    colCode: string,
+  ) => void;
+  onInstanceMatrixClear: (instanceId: string, itemId: string) => void;
+  onInstanceRiskChange: (
+    instanceId: string,
+    itemId: string,
+    selection: { severity: string; likelihood: string },
+  ) => void;
+  onInstanceRiskClear: (instanceId: string, itemId: string) => void;
 }) {
   const headingId = `group-${item.id}-heading`;
   const descriptionId = item.questionExplanation
@@ -141,6 +163,10 @@ export function RepeatingGroupBlock({
                 onObservationChange={onInstanceObservationChange}
                 onOtherTextChange={onInstanceOtherTextChange}
                 onClear={onInstanceClear}
+                onMatrixCellChange={onInstanceMatrixCellChange}
+                onMatrixClear={onInstanceMatrixClear}
+                onRiskChange={onInstanceRiskChange}
+                onRiskClear={onInstanceRiskClear}
               />
             </li>
           ))}
@@ -198,6 +224,10 @@ function InstanceCard({
   onObservationChange,
   onOtherTextChange,
   onClear,
+  onMatrixCellChange,
+  onMatrixClear,
+  onRiskChange,
+  onRiskClear,
 }: {
   container: Item;
   instance: InstanceState;
@@ -228,6 +258,19 @@ function InstanceCard({
     instanceId: string,
     child: { id: string; questionKey: string },
   ) => void;
+  onMatrixCellChange: (
+    instanceId: string,
+    itemId: string,
+    rowCode: string,
+    colCode: string,
+  ) => void;
+  onMatrixClear: (instanceId: string, itemId: string) => void;
+  onRiskChange: (
+    instanceId: string,
+    itemId: string,
+    selection: { severity: string; likelihood: string },
+  ) => void;
+  onRiskClear: (instanceId: string, itemId: string) => void;
 }) {
   const headingId = `instance-${instance.id}-heading`;
   const ordinal = `${index + 1} de ${total}`;
@@ -242,8 +285,26 @@ function InstanceCard({
       onOtherTextChange: (child, value) =>
         onOtherTextChange(instance.id, child, value),
       onClear: (child) => onClear(instance.id, child),
+      // FF-2 — bound to THIS instance's id, so a matrix in repetition 2 can
+      // never write into repetition 1's grid.
+      onMatrixCellChange: (itemId, rowCode, colCode) =>
+        onMatrixCellChange(instance.id, itemId, rowCode, colCode),
+      onMatrixClear: (itemId) => onMatrixClear(instance.id, itemId),
+      onRiskChange: (itemId, selection) =>
+        onRiskChange(instance.id, itemId, selection),
+      onRiskClear: (itemId) => onRiskClear(instance.id, itemId),
     }),
-    [instance.id, onChange, onObservationChange, onOtherTextChange, onClear],
+    [
+      instance.id,
+      onChange,
+      onObservationChange,
+      onOtherTextChange,
+      onClear,
+      onMatrixCellChange,
+      onMatrixClear,
+      onRiskChange,
+      onRiskClear,
+    ],
   );
   const handlers = useMemo(
     () => buildItemHandlers(container.children, callbacks),
@@ -251,7 +312,7 @@ function InstanceCard({
   );
 
   const visibleChildren = container.children.filter((child) =>
-    isInputItem(child.itemType) ? visibleItemIds.has(child.id) : true,
+    isAnswerableItem(child.itemType) ? visibleItemIds.has(child.id) : true,
   );
 
   return (
@@ -308,7 +369,8 @@ function InstanceCard({
           </p>
         ) : (
           visibleChildren.map((child) => {
-            const answerable = isInputItem(child.itemType);
+            const answerable = isAnswerableItem(child.itemType);
+            const scalar = isInputItem(child.itemType);
             const childHandlers = handlers.get(child.id);
             const record = instance.answers[child.id];
             return (
@@ -317,7 +379,7 @@ function InstanceCard({
                 item={child}
                 instanceId={instance.id}
                 imageUrls={imageUrls}
-                value={answerable ? record?.value : undefined}
+                value={scalar ? record?.value : undefined}
                 // Errors are keyed by instance so the SAME child can be invalid
                 // in one repetition and fine in another.
                 error={
@@ -326,11 +388,15 @@ function InstanceCard({
                     : undefined
                 }
                 onChange={childHandlers?.onChange ?? NO_OP}
-                observation={answerable ? record?.observation : undefined}
+                observation={scalar ? record?.observation : undefined}
                 onObservationChange={childHandlers?.onObservationChange}
-                otherText={answerable ? record?.otherText : undefined}
+                otherText={scalar ? record?.otherText : undefined}
                 onOtherTextChange={childHandlers?.onOtherTextChange}
                 onClear={childHandlers?.onClear}
+                matrixCells={instance.matrixCells?.[child.id]}
+                onMatrixCellChange={childHandlers?.onMatrixCellChange}
+                riskSelection={instance.riskMatrix?.[child.id]}
+                onRiskChange={childHandlers?.onRiskChange}
               />
             );
           })

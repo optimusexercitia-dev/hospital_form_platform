@@ -4,6 +4,7 @@ import { useMemo } from "react";
 
 import type { Json } from "@/lib/types/database";
 import type { Section } from "@/lib/queries/forms";
+import type { MatrixCellsState, RiskMatrixState } from "@/lib/forms/matrix";
 
 import type { AnswerState } from "./types";
 import { BlockRenderer } from "./block-renderer";
@@ -11,7 +12,7 @@ import { GroupBlock } from "./group-block";
 import { RepeatingGroupBlock } from "./repeating-group-block";
 import { buildItemHandlers, NO_OP, type ItemCallbacks } from "./item-handlers";
 import type { InstanceState } from "./instances";
-import { isInputItem } from "./use-wizard";
+import { isAnswerableItem, isInputItem } from "./use-wizard";
 
 /**
  * Renders one wizard section as a page (F2/F3): a semantic `<section>` labelled
@@ -32,8 +33,14 @@ export function SectionStep({
   index,
   imageUrls,
   answers,
+  matrixCells,
+  riskMatrix,
   errors,
   onChange,
+  onMatrixCellChange,
+  onMatrixClear,
+  onRiskChange,
+  onRiskClear,
   visibleItemIds,
   visibleContainerIds,
   instancesByGroup,
@@ -50,13 +57,34 @@ export function SectionStep({
   onInstanceObservationChange,
   onInstanceOtherTextChange,
   onInstanceClear,
+  onInstanceMatrixCellChange,
+  onInstanceMatrixClear,
+  onInstanceRiskChange,
+  onInstanceRiskClear,
 }: {
   section: Section;
   index: number;
   imageUrls: Record<string, string>;
   answers: AnswerState;
+  /** FF-2 — the section's TOP-LEVEL matrix slices (a plain `group`'s children
+   *  answer at top level too, so they read from these). */
+  matrixCells?: MatrixCellsState;
+  riskMatrix?: RiskMatrixState;
   errors: Record<string, string>;
   onChange: (item: { id: string; questionKey: string }, value: Json) => void;
+  /** FF-2 — commit one row of a `matrix`. */
+  onMatrixCellChange?: (
+    itemId: string,
+    rowCode: string,
+    colCode: string,
+  ) => void;
+  onMatrixClear?: (itemId: string) => void;
+  /** FF-2 — commit a whole `risk_matrix` cell. */
+  onRiskChange?: (
+    itemId: string,
+    selection: { severity: string; likelihood: string },
+  ) => void;
+  onRiskClear?: (itemId: string) => void;
   /**
    * The item ids currently VISIBLE under item-level conditions
    * (form-builder-enhancements). When provided, hidden input items are skipped;
@@ -108,6 +136,20 @@ export function SectionStep({
     instanceId: string,
     child: { id: string; questionKey: string },
   ) => void;
+  // --- FF-2: the per-instance matrix verbs, forwarded to RepeatingGroupBlock.
+  onInstanceMatrixCellChange?: (
+    instanceId: string,
+    itemId: string,
+    rowCode: string,
+    colCode: string,
+  ) => void;
+  onInstanceMatrixClear?: (instanceId: string, itemId: string) => void;
+  onInstanceRiskChange?: (
+    instanceId: string,
+    itemId: string,
+    selection: { severity: string; likelihood: string },
+  ) => void;
+  onInstanceRiskClear?: (instanceId: string, itemId: string) => void;
 }) {
   const headingId = `section-${section.id}-heading`;
   const heading =
@@ -129,8 +171,21 @@ export function SectionStep({
       onObservationChange,
       onOtherTextChange,
       onClear,
+      onMatrixCellChange,
+      onMatrixClear,
+      onRiskChange,
+      onRiskClear,
     }),
-    [onChange, onObservationChange, onOtherTextChange, onClear],
+    [
+      onChange,
+      onObservationChange,
+      onOtherTextChange,
+      onClear,
+      onMatrixCellChange,
+      onMatrixClear,
+      onRiskChange,
+      onRiskClear,
+    ],
   );
   const itemHandlers = useMemo(() => {
     const flat = section.items.flatMap((item) =>
@@ -181,6 +236,8 @@ export function SectionStep({
                     item={item}
                     imageUrls={imageUrls}
                     answers={answers}
+                    matrixCells={matrixCells}
+                    riskMatrix={riskMatrix}
                     errors={errors}
                     visibleItemIds={visibleItemIds}
                     handlers={itemHandlers}
@@ -209,13 +266,30 @@ export function SectionStep({
                     onInstanceOtherTextChange ?? NO_OP_INSTANCE_OTHER
                   }
                   onInstanceClear={onInstanceClear ?? NO_OP_INSTANCE_CLEAR}
+                  onInstanceMatrixCellChange={
+                    onInstanceMatrixCellChange ?? NO_OP_INSTANCE_CELL
+                  }
+                  onInstanceMatrixClear={
+                    onInstanceMatrixClear ?? NO_OP_INSTANCE_ITEM
+                  }
+                  onInstanceRiskChange={
+                    onInstanceRiskChange ?? NO_OP_INSTANCE_RISK
+                  }
+                  onInstanceRiskClear={
+                    onInstanceRiskClear ?? NO_OP_INSTANCE_ITEM
+                  }
                 />
               );
             }
 
-            const answerable = isInputItem(item.itemType);
-            // Skip input items hidden by an item-level condition; display items
-            // always render (they collect no answer).
+            // FF-2: a matrix is answerable but NOT an input item, so both are
+            // needed — `answerable` gates the visibility skip and the error
+            // lookup, `scalar` gates the value/observação/Outros plumbing that
+            // only a scalar answer has.
+            const answerable = isAnswerableItem(item.itemType);
+            const scalar = isInputItem(item.itemType);
+            // Skip answerable items hidden by an item-level condition; display
+            // items always render (they collect no answer).
             if (answerable && visibleItemIds && !visibleItemIds.has(item.id)) {
               return null;
             }
@@ -227,16 +301,20 @@ export function SectionStep({
                 key={item.id}
                 item={item}
                 imageUrls={imageUrls}
-                value={answerable ? answers[item.id]?.value : undefined}
+                value={scalar ? answers[item.id]?.value : undefined}
                 error={answerable ? errors[item.id] : undefined}
                 onChange={handlers?.onChange ?? NO_OP}
                 observation={
-                  answerable ? answers[item.id]?.observation : undefined
+                  scalar ? answers[item.id]?.observation : undefined
                 }
                 onObservationChange={handlers?.onObservationChange}
-                otherText={answerable ? answers[item.id]?.otherText : undefined}
+                otherText={scalar ? answers[item.id]?.otherText : undefined}
                 onOtherTextChange={handlers?.onOtherTextChange}
                 onClear={handlers?.onClear}
+                matrixCells={matrixCells?.[item.id]}
+                onMatrixCellChange={handlers?.onMatrixCellChange}
+                riskSelection={riskMatrix?.[item.id]}
+                onRiskChange={handlers?.onRiskChange}
               />
             );
           })
@@ -271,4 +349,17 @@ const NO_OP_INSTANCE_OTHER: (
 const NO_OP_INSTANCE_CLEAR: (
   instanceId: string,
   child: { id: string; questionKey: string },
+) => void = () => {};
+const NO_OP_INSTANCE_CELL: (
+  instanceId: string,
+  itemId: string,
+  rowCode: string,
+  colCode: string,
+) => void = () => {};
+const NO_OP_INSTANCE_ITEM: (instanceId: string, itemId: string) => void =
+  () => {};
+const NO_OP_INSTANCE_RISK: (
+  instanceId: string,
+  itemId: string,
+  selection: { severity: string; likelihood: string },
 ) => void = () => {};

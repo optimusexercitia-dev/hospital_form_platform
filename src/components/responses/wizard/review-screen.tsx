@@ -3,10 +3,12 @@
 import { Pencil } from "lucide-react";
 
 import type { Item, Section } from "@/lib/queries/forms";
+import type { MatrixCellsState, RiskMatrixState } from "@/lib/forms/matrix";
 import { Button } from "@/components/ui/button";
 import type { SectionSignoff } from "@/components/signoffs/types";
 
 import type { AnswerState } from "./types";
+import type { ScopeState } from "./collect";
 import { AnswerSummary } from "./answer-summary";
 import { RespondentSignoff } from "./respondent-signoff";
 import {
@@ -14,7 +16,7 @@ import {
   type InstancesByGroup,
   type InstanceState,
 } from "./instances";
-import { isInputItem } from "./use-wizard";
+import { isAnswerableItem } from "./use-wizard";
 
 /**
  * Review screen scaffold (F5): every VISIBLE section with its answers, grouped
@@ -34,6 +36,8 @@ export function ReviewScreen({
   instancesByGroup,
   visibleItemIdsByInstance,
   answers,
+  matrixCells,
+  riskMatrix,
   signoffs,
   saving,
   onSignSection,
@@ -52,6 +56,9 @@ export function ReviewScreen({
   /** FF-1 - per-instance visible child ids (the inside-out overlay result). */
   visibleItemIdsByInstance?: Map<string, Set<string>>;
   answers: AnswerState;
+  /** FF-2 — the TOP-LEVEL matrix answers, reviewed read-only beside the rest. */
+  matrixCells?: MatrixCellsState;
+  riskMatrix?: RiskMatrixState;
   /** Existing sign-off rows by section_id (F3). */
   signoffs: Record<string, SectionSignoff>;
   /** Whether an action (sign/submit) is in flight — disables the sign button. */
@@ -87,6 +94,8 @@ export function ReviewScreen({
             section={section}
             index={index}
             answers={answers}
+            matrixCells={matrixCells}
+            riskMatrix={riskMatrix}
             visibleItemIds={visibleItemIds}
             visibleContainerIds={visibleContainerIds}
             instancesByGroup={instancesByGroup}
@@ -110,6 +119,8 @@ function ReviewSection({
   section,
   index,
   answers,
+  matrixCells,
+  riskMatrix,
   visibleItemIds,
   visibleContainerIds,
   instancesByGroup,
@@ -122,6 +133,8 @@ function ReviewSection({
   section: Section;
   index: number;
   answers: AnswerState;
+  matrixCells?: MatrixCellsState;
+  riskMatrix?: RiskMatrixState;
   visibleItemIds: Set<string>;
   visibleContainerIds?: Set<string>;
   instancesByGroup?: InstancesByGroup;
@@ -146,7 +159,7 @@ function ReviewSection({
     if (item.itemType === "group" || item.itemType === "repeating_group") {
       return !visibleContainerIds || visibleContainerIds.has(item.id);
     }
-    return isInputItem(item.itemType) && visibleItemIds.has(item.id);
+    return isAnswerableItem(item.itemType) && visibleItemIds.has(item.id);
   });
 
   return (
@@ -207,10 +220,10 @@ function ReviewSection({
                   heading={block.label ?? "Grupo"}
                   items={block.children.filter(
                     (child) =>
-                      isInputItem(child.itemType) &&
+                      isAnswerableItem(child.itemType) &&
                       visibleItemIds.has(child.id),
                   )}
-                  answers={answers}
+                  scope={{ answers, matrixCells, riskMatrix }}
                 />
               );
             }
@@ -223,6 +236,8 @@ function ReviewSection({
                     value={answers[block.id]?.value}
                     observation={answers[block.id]?.observation}
                     otherText={answers[block.id]?.otherText}
+                    matrixCells={matrixCells?.[block.id]}
+                    riskSelection={riskMatrix?.[block.id]}
                   />
                 </dl>
               </fieldset>
@@ -248,12 +263,15 @@ function ReviewSection({
 function ReviewAnswerList({
   heading,
   items,
-  answers,
+  scope,
 }: {
   heading: string;
   items: Item[];
-  answers: AnswerState;
+  /** FF-2 — the whole SCOPE (answers + matrix slices), so one list component
+   *  serves the top level, a plain group and a repetition identically. */
+  scope: ScopeState;
 }) {
+  const { answers } = scope;
   return (
     <fieldset className="rounded-xl border border-border bg-background/60 p-4">
       <legend className="px-1 text-sm font-semibold">{heading}</legend>
@@ -270,6 +288,8 @@ function ReviewAnswerList({
               value={answers[item.id]?.value}
               observation={answers[item.id]?.observation}
               otherText={answers[item.id]?.otherText}
+              matrixCells={scope.matrixCells?.[item.id]}
+              riskSelection={scope.riskMatrix?.[item.id]}
             />
           ))}
         </dl>
@@ -315,11 +335,14 @@ function ReviewRepeatingGroup({
           key={instance.id}
           heading={`${label} ${index + 1} de ${kept.length}`}
           items={container.children.filter((child) => {
-            if (!isInputItem(child.itemType)) return false;
+            if (!isAnswerableItem(child.itemType)) return false;
             const visible = visibleItemIdsByInstance?.get(instance.id);
             return !visible || visible.has(child.id);
           })}
-          answers={instance.answers}
+          // FF-2 — an InstanceState IS a ScopeState: answers plus the two matrix
+          // slices, which is exactly why the review of a repetition needs no
+          // separate code path.
+          scope={instance}
         />
       ))}
     </div>

@@ -80,6 +80,10 @@ function data(t: VersionTree, initialAnswers: AnswerState = {}): WizardData {
     signoffsBySectionId: {},
     // FF-1: repeating-group instances (none in these fixtures).
     initialInstances: [],
+    // FF-2: a fixture with no matrix still declares the slices — they are
+    // REQUIRED on WizardData so a new answer kind can never be silently absent.
+    initialMatrixCells: {},
+    initialRiskMatrix: {},
   };
 }
 

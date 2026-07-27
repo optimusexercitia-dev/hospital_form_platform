@@ -296,6 +296,71 @@ form made it 2 — the same "when you add data, grep for the test that counted i
 §B1 CHECK sweep. Expectation updated; the isolation proof (0 rows from the sibling hospital / other
 org) is untouched.
 
+#### `frontend` — Builder + Wizard UI ✅ COMPLETE 2026-07-27
+
+Nine new files, twenty-six touched. Built against `backend`'s posted signatures (`a2fbe35`
++ `1a173a5` + `3edfe02`), never against a guessed shape.
+
+**Builder.** `MatrixConfigDialog` (`src/components/forms/matrix-config-dialog.tsx`) is the only
+writer of the axes — deliberately NOT part of the item editor's `<form action={addItem}>`, because
+`upsertMatrixAxes` is keyed on an item id that does not exist in "add" mode, and because REPLACE
+semantics are only honest if one piece of state owns the COMPLETE axis. `MatrixAxesEditor` offers
+relabel / reweigh / reorder / add / remove and **no re-key affordance anywhere**; the immutable
+`code` is shown read-only (mono, muted) so an author can see why relabelling is free and removal is
+not. `RiskBandsEditor` authors `config.riskBands` as THRESHOLDS and previews the derived ranges
+("Alto a partir de 27") rather than making the author keep two ends in sync. Both matrix types are
+offered in "Adicionar bloco" under a new **Matrizes** group, gated on `matrix_fields`.
+
+**Wizard.** `matrix` renders a radio grid, `risk_matrix` a severity × likelihood picker with the
+score computed live from the axis weights and the band derived from `config.riskBands` — **display
+only; no score is ever sent** (the write contract has no field for one). Both work per-instance
+inside a repeating group, and the review screen renders the filled grid and the score + band
+through the SAME components, read-only, so author preview / fill / review can never drift.
+
+**Three decisions worth flagging.** (a) Matrix answers live in their OWN state slices, never in
+`AnswerState` — a matrix has `answers.value` NULL by design, so merging it would put a non-value in
+the derived `AnswerMap` and corrupt every condition evaluated after it. (b) `isInputItem` stays
+FALSE for matrix (it means "scalar in `answers.value`" and a dozen call sites depend on that); a new
+`isAnswerableItem` carries the widened meaning, mirroring backend's `ANSWERABLE_ITEM_TYPES` vs
+`INPUT_ITEM_TYPES` split. (c) `collectScope` / `validateSection` now take the whole SCOPE object
+instead of positional slices, so FF-5's references cannot produce a call site that forgets to pass
+them — the FBE-004 / FBE-008 failure mode, closed by construction. Related: the builder's flags moved
+from a boolean drilled through six components into a `BuilderFlagsProvider`, so FF-3/FF-4 add a flag
+in one place instead of four.
+
+**`app.instance_is_empty` has a client twin now.** `isEmptyInstance` counts matrix content, matching
+the SQL arms ADR 0089 §A added. Without it the review screen would hide a repetition the server is
+about to keep.
+
+**Verified in a running app**, not just compiled — a real Chromium against a worktree dev server,
+because the agent Browser pane never composites and therefore never hydrates (a stale-looking UI
+there is a harness artifact, not a defect; worth knowing before someone re-debugs it). Fill: 3 cells
+persisted one-per-row + `risk_score = 27` **derived server-side** from 9 × 3, response `submitted`.
+Builder: clone → axes deep-copied with codes and weights (INFO-1 confirmed live), relabel kept
+`higienizacao`, an added column minted `parcial_6w7jwu` client-side, bands persisted sorted, publish
+→ fill shows the relabelled row, the added column and "Pontuação: 27 · Alto". **A matrix authored
+from scratch through "Adicionar bloco" was driven end to end** after `3edfe02` landed — the seam
+BUG-FF2-001 had made unreachable.
+
+**Keyboard/a11y proven against the real DOM**, not asserted in a comment: `<caption>`, `th[scope]`
+both ways, `headers` on every cell, ONE native radio group per row (Tab walks rows, arrows walk the
+scale — the platform's behaviour, not a hand-rolled roving `tabIndex`), and each control announces
+both coordinates ("Higienização das mãos, Conforme"); a risk cell adds its score and band. The
+risk grid is ONE `radiogroup` because it is one choice.
+
+**Green bar:** typecheck clean · `npm run lint` **0 errors / 0 warnings** · Vitest **553/553**
+(41 files; +36 in `src/lib/forms/matrix.test.ts` and
+`src/components/responses/wizard/matrix-wizard.test.ts`) · `npx next build` **succeeded**.
+
+> 🔴 **BUG-FF2-002 — `backend`'s file, reported not fixed.** `publishVersion`
+> (`src/lib/forms/actions.ts:1752`) maps only `23514` and `HC080`; every other code falls to
+> `MESSAGES.generic`. So publishing a version whose matrix has **no axes** — a real and expected
+> authoring state, which `app.validate_matrix_axes` refuses with **`HC0P5`** (and `HC0P6` for a
+> missing risk weight) — tells the author only "Não foi possível concluir. Tente novamente." with
+> no hint which block is at fault. **Reproduced live**: publish failed; deleting the axis-less
+> matrix made the same publish succeed. Needs `HC0P5` → `MESSAGES.axisInvalid` and `HC0P6` →
+> `MESSAGES.riskWeightRequired` (both strings already exist in that file). Violates Rule 10 / §8.
+
 #### FF-2 follow-ups (deferred, in-scope — visible to `qa`)
 
 | id | Gap | Why deferred |

@@ -5,6 +5,7 @@ import {
   ArrowDown,
   ArrowUp,
   Flag,
+  Grid3x3,
   MoveRight,
   Pencil,
   Split,
@@ -13,7 +14,7 @@ import {
 
 import type { Item, Section, ImageContent, SectionTextContent } from "@/lib/queries/forms";
 import { deleteItem, moveItem, moveItemToSection } from "@/lib/forms/actions";
-import { isContainerItem, isRepeatingGroup } from "@/lib/forms/item-tree";
+import { isContainerItem, isMatrixItem, isRepeatingGroup } from "@/lib/forms/item-tree";
 import { AddBlockMenu } from "@/components/forms/add-block-menu";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,9 @@ import {
 } from "@/components/forms/describe-visibility";
 import { TOKEN_COLOR_VAR } from "@/components/cases/case-status-badge";
 import { ItemEditorDialog } from "@/components/forms/item-editor-dialog";
+import { MatrixConfigDialog } from "@/components/forms/matrix-config-dialog";
+import { MatrixGrid } from "@/components/responses/wizard/matrix-grid";
+import { RiskMatrixPicker } from "@/components/responses/wizard/risk-matrix-picker";
 import { ImagePreview } from "@/components/forms/image-preview";
 import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer";
 import { useBuilderAction } from "@/components/forms/use-builder-action";
@@ -64,7 +68,6 @@ export function BlockCard({
   imageUrl,
   imageUrls,
   onBeforeReorder,
-  containersEnabled = false,
   isChild = false,
 }: {
   item: Item;
@@ -78,16 +81,20 @@ export function BlockCard({
   /** The whole `storage_path → signed URL` map, for nested image children. */
   imageUrls?: Record<string, string>;
   onBeforeReorder: () => void;
-  /** The `repeating_groups` feature flag, threaded to the nested add menu. */
-  containersEnabled?: boolean;
   /** True when this card renders INSIDE a container (a child block). */
   isChild?: boolean;
 }) {
   const { run, isPending, error } = useBuilderAction();
   const [editOpen, setEditOpen] = useState(false);
+  // FF-2 — the axes editor, a SEPARATE write from the item editor: the axes are
+  // persisted by `upsertMatrixAxes` (REPLACE, keyed on `code`), not by
+  // addItem/updateItem. See `MatrixConfigDialog` for why they cannot share one
+  // submit.
+  const [axesOpen, setAxesOpen] = useState(false);
 
   const meta = ITEM_TYPE_META[item.itemType];
   const isContainer = isContainerItem(item.itemType);
+  const isMatrix = isMatrixItem(item.itemType);
   const children = item.children;
   // "Mover para outra seção" is hidden for containers and for children: a
   // container's children live in the SAME section as their parent (they occupy
@@ -160,6 +167,26 @@ export function BlockCard({
           >
             <ArrowDown aria-hidden="true" />
           </Button>
+          {isMatrix && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setAxesOpen(true)}
+              aria-label={
+                item.itemType === "risk_matrix"
+                  ? "Editar severidade e probabilidade"
+                  : "Editar linhas e colunas"
+              }
+              title={
+                item.itemType === "risk_matrix"
+                  ? "Severidade e probabilidade"
+                  : "Linhas e colunas"
+              }
+            >
+              <Grid3x3 aria-hidden="true" />
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
@@ -254,7 +281,6 @@ export function BlockCard({
           currentSectionId={currentSectionId}
           commissionId={commissionId}
           imageUrls={imageUrls ?? {}}
-          containersEnabled={containersEnabled}
           onBeforeReorder={onBeforeReorder}
         />
       ) : (
@@ -279,6 +305,17 @@ export function BlockCard({
         commissionId={commissionId}
         imageUrl={imageUrl}
       />
+
+      {/* Mounted only while open so the dialog's axis state is seeded from the
+          CURRENT item on every open — after a save the builder refreshes and the
+          next open must read the persisted axes, not a stale first render. */}
+      {isMatrix && axesOpen && (
+        <MatrixConfigDialog
+          open={axesOpen}
+          onOpenChange={setAxesOpen}
+          item={item}
+        />
+      )}
     </article>
   );
 }
@@ -300,7 +337,6 @@ function ContainerChildren({
   currentSectionId,
   commissionId,
   imageUrls,
-  containersEnabled,
   onBeforeReorder,
 }: {
   item: Item;
@@ -308,7 +344,6 @@ function ContainerChildren({
   currentSectionId: string;
   commissionId: string;
   imageUrls: Record<string, string>;
-  containersEnabled: boolean;
   onBeforeReorder: () => void;
 }) {
   const children = item.children;
@@ -353,7 +388,6 @@ function ContainerChildren({
                     ] ?? null)
                   : null
               }
-              containersEnabled={containersEnabled}
               isChild
               onBeforeReorder={onBeforeReorder}
             />
@@ -365,7 +399,6 @@ function ContainerChildren({
         sectionId={currentSectionId}
         sections={sections}
         commissionId={commissionId}
-        containersEnabled={containersEnabled}
         parentItem={{ id: item.id, label: item.label }}
       />
     </div>
@@ -475,6 +508,12 @@ function formatScore(score: number): string {
   return new Intl.NumberFormat("pt-BR").format(score);
 }
 
+// FF-2 — stable no-ops for the read-only matrix previews (the grids require the
+// handler props; a read-only grid never invokes them).
+const NO_OP_CELL: (rowCode: string, colCode: string) => void = () => {};
+const NO_OP_RISK: (next: { severity: string; likelihood: string }) => void =
+  () => {};
+
 /** A compact, faithful preview of the block's content. */
 function BlockPreview({
   item,
@@ -552,6 +591,52 @@ function BlockPreview({
           </p>
         )}
         <div className="h-9 rounded-lg border border-dashed border-border bg-muted/30" />
+      </div>
+    );
+  }
+
+  // FF-2 — the matrix preview is the WIZARD's own grid in read-only mode, not a
+  // second rendering of the same data: an author who cannot see the real grid
+  // cannot tell that a scale reads badly, and two renderers would drift.
+  if (isMatrixItem(item.itemType)) {
+    const rows = item.matrixRows ?? [];
+    const columns = item.matrixColumns ?? [];
+    // An axis-less matrix is a real, publish-BLOCKING state (HC0P5), so it is
+    // called out here rather than shown as an empty grid the author might read
+    // as merely unstyled.
+    if (rows.length === 0 || columns.length === 0) {
+      return (
+        <div className="flex flex-col gap-1.5 pl-9">
+          {item.questionExplanation && (
+            <p className="text-sm text-muted-foreground">
+              {item.questionExplanation}
+            </p>
+          )}
+          <p className="rounded-lg border border-dashed border-warning/40 bg-warning/12 px-3 py-2 text-sm font-medium text-warning text-pretty">
+            {item.itemType === "risk_matrix"
+              ? "Defina a severidade e a probabilidade antes de publicar."
+              : "Defina as linhas e as colunas antes de publicar."}
+          </p>
+        </div>
+      );
+    }
+    return (
+      <div className="pl-9">
+        {item.itemType === "risk_matrix" ? (
+          <RiskMatrixPicker
+            item={item}
+            selection={undefined}
+            onChange={NO_OP_RISK}
+            readOnly
+          />
+        ) : (
+          <MatrixGrid
+            item={item}
+            cells={undefined}
+            onChange={NO_OP_CELL}
+            readOnly
+          />
+        )}
       </div>
     );
   }

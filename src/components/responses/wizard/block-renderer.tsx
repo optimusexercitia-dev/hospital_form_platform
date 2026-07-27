@@ -10,6 +10,13 @@ import { MarkdownRenderer } from "@/components/forms/markdown/markdown-renderer"
 import { ImagePreview } from "@/components/forms/image-preview";
 
 import { InputItem } from "./input-item";
+import { MatrixGrid } from "./matrix-grid";
+import { RiskMatrixPicker } from "./risk-matrix-picker";
+
+// Stable no-ops for a read-only render (the grids require the handler props).
+const NO_OP_CELL: (rowCode: string, colCode: string) => void = () => {};
+const NO_OP_RISK: (next: { severity: string; likelihood: string }) => void =
+  () => {};
 
 /**
  * Renders one block within a section (F3): display blocks (`section_text`,
@@ -33,12 +40,22 @@ export function BlockRenderer({
   onOtherTextChange,
   onClear,
   instanceId,
+  matrixCells,
+  onMatrixCellChange,
+  riskSelection,
+  onRiskChange,
 }: {
   item: Item;
   imageUrls: Record<string, string>;
   value: Json | undefined;
   onChange: (value: Json) => void;
   error?: string;
+  /** FF-2 — this scope's saved grid for a `matrix` item. */
+  matrixCells?: Record<string, string>;
+  onMatrixCellChange?: (rowCode: string, colCode: string) => void;
+  /** FF-2 — this scope's saved selection for a `risk_matrix` item. */
+  riskSelection?: { severity: string; likelihood: string };
+  onRiskChange?: (selection: { severity: string; likelihood: string }) => void;
   observation?: string;
   onObservationChange?: (value: string) => void;
   /** Current "Outros" free text ("Outros" open option); input items only. */
@@ -73,6 +90,42 @@ export function BlockRenderer({
           url={imageUrls[content.storage_path] ?? null}
           alt={content.alt}
           caption={content.caption ?? null}
+        />
+      </div>
+    );
+  }
+
+  // FF-2 — the matrix types. Dispatched BEFORE the InputItem fallback and never
+  // through it: `InputItem` is built around a scalar `value`, which a matrix
+  // does not have. Both grids carry their own labelling, help text and error
+  // region, so they sit in the same card chrome as any other block.
+  if (item.itemType === "matrix") {
+    return (
+      <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
+        <MatrixGrid
+          item={item}
+          instanceId={instanceId}
+          cells={matrixCells}
+          onChange={onMatrixCellChange ?? NO_OP_CELL}
+          onClear={onClear}
+          error={error}
+          readOnly={onMatrixCellChange == null}
+        />
+      </div>
+    );
+  }
+
+  if (item.itemType === "risk_matrix") {
+    return (
+      <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
+        <RiskMatrixPicker
+          item={item}
+          instanceId={instanceId}
+          selection={riskSelection}
+          onChange={onRiskChange ?? NO_OP_RISK}
+          onClear={onClear}
+          error={error}
+          readOnly={onRiskChange == null}
         />
       </div>
     );
