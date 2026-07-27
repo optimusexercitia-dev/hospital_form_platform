@@ -56,7 +56,8 @@ import type {
   PickableNarrative,
   ReferralTargetCommission,
 } from "@/components/referrals/referral-send-wizard";
-import { formatCaseNumber, formatDate } from "@/components/cases/format";
+import { formatCaseNumberWithTerm, formatDate } from "@/components/cases/format";
+import { CasePrimarySubjectPanel } from "@/components/cases/case-primary-subject-panel";
 import type { MyCaseRole } from "@/lib/queries/cases";
 
 /**
@@ -329,6 +330,19 @@ export function CaseDetailView({
   const revealPatient = revealCasePatient.bind(null, c.id);
   const savePatient = setCasePatient.bind(null, c.id);
 
+  // ETH·E3a (ADR 0064 D4): for a non-patient primary-subject case type (an Ethics
+  // case → `primary_subject_kind = 'professional'`), the patient panel is omitted
+  // and a compact read-only primary-subject card takes its place in the rail,
+  // labeled with the case-type terminology (`terminology.primarySubject.singular`
+  // → "Médico denunciado"). `'patient'` keeps today's patient panel; `'none'` shows
+  // neither. The subject is the `isPrimarySubject` participant (surrogate label,
+  // Rule 12), or `null` → a calm labeled empty state.
+  const primarySubject =
+    detail.participants.find((p) => p.isPrimarySubject) ?? null;
+  const showPrimarySubjectPanel =
+    detail.primarySubjectKind === "professional" ||
+    detail.primarySubjectKind === "entity";
+
   // Custom fields (ADR 0083) — the panel shows when the flag is on and the case has
   // any values. Edit authority mirrors the meta-edit door: a coordinator
   // (`canManageLifecycle`) OR a `create_cases` Administrativo (`canEditMeta`), and only
@@ -350,8 +364,13 @@ export function CaseDetailView({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 flex-col gap-1.5">
               <div className="flex flex-wrap items-center gap-2">
+                {/* ETH·E3a (ADR 0064 D4): terminology-aware detail heading
+                    ("Denúncia 0042" for ethics; "Caso 0042" when type-less). */}
                 <h1 className="text-3xl text-balance">
-                  {formatCaseNumber(c.caseNumber)}
+                  {formatCaseNumberWithTerm(
+                    detail.terminology.case.singular,
+                    c.caseNumber,
+                  )}
                 </h1>
                 <CaseStatusBadgeFixed status={c.status} />
                 {isProcessless && (
@@ -540,6 +559,14 @@ export function CaseDetailView({
 
           {/* RAIL — reference material (compact variant) */}
           <div className="contents lg:flex lg:flex-col lg:gap-4">
+            {showPrimarySubjectPanel && (
+              <div data-rise className="order-2 lg:order-none">
+                <CasePrimarySubjectPanel
+                  label={detail.terminology.primarySubject.singular}
+                  subject={primarySubject}
+                />
+              </div>
+            )}
             {showPatientPanel && (
               <div data-rise className="order-2 lg:order-none">
                 <CasePatientPanel

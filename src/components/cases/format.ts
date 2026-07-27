@@ -10,6 +10,21 @@ export function formatCaseNumber(caseNumber: number): string {
   return `Caso ${String(caseNumber).padStart(4, "0")}`;
 }
 
+/**
+ * The case's display heading using its case-TYPE terminology (ETH·E3a; ADR 0064
+ * D4) — e.g. "Denúncia 0042" for an ethics case, "Caso 0042" for a type-less case
+ * (whose `terminology.case.singular` falls back to the platform default "Caso", so
+ * this is byte-for-byte {@link formatCaseNumber} there). Used ONLY on the case
+ * DETAIL surface; the board keeps the type-agnostic {@link formatCaseNumber}
+ * (per-card labels unaffected — plan §2.5).
+ */
+export function formatCaseNumberWithTerm(
+  caseTerm: string,
+  caseNumber: number,
+): string {
+  return `${caseTerm} ${String(caseNumber).padStart(4, "0")}`;
+}
+
 /** Format an ISO timestamp as a pt-BR short date (date only — no time noise). */
 export function formatDate(iso: string): string {
   try {

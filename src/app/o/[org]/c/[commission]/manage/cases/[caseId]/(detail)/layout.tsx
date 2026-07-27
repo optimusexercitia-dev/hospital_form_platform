@@ -23,7 +23,7 @@ import { listDepartmentsForHospital } from "@/lib/hospitals/departments";
 import type { Department } from "@/lib/hospitals/departments";
 import { NotifyEventDialog } from "@/components/safety/notify-event-dialog";
 import { CaseTabs } from "@/components/cases/case-tabs";
-import { formatCaseNumber, formatDate } from "@/components/cases/format";
+import { formatCaseNumberWithTerm, formatDate } from "@/components/cases/format";
 import { narrativesEnabled } from "@/lib/case-narratives/actions";
 import { listNarrativeTypes } from "@/lib/queries/case-narratives";
 import { caseAccessEnabled } from "@/lib/case-access/actions";
@@ -170,8 +170,14 @@ export default async function CaseDetailLayout({
         <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
           <div className="flex min-w-0 flex-col gap-1.5 sm:grow sm:basis-64">
             <div className="flex flex-wrap items-center gap-2">
+              {/* ETH·E3a (ADR 0064 D4): the detail heading uses this case type's
+                  term ("Denúncia 0042" for ethics), falling back to "Caso 0042" for
+                  a type-less case. The board cards keep type-agnostic formatCaseNumber. */}
               <h1 className="text-3xl text-balance">
-                {formatCaseNumber(c.caseNumber)}
+                {formatCaseNumberWithTerm(
+                  detail.terminology.case.singular,
+                  c.caseNumber,
+                )}
               </h1>
               <CaseStatusBadgeFixed status={c.status} />
               {c.templateId === null && (
