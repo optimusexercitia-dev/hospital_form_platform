@@ -1,10 +1,14 @@
 import type {
   FormDashboard,
+  MatrixDistribution,
   QuestionDistribution,
+  RiskDistribution,
   FreeTextSample,
 } from "@/lib/queries/dashboard";
 
 import { DistributionChart } from "./distribution-chart";
+import { MatrixDistributionCard } from "./matrix-distribution-card";
+import { RiskDistributionCard } from "./risk-distribution-card";
 import { FreeTextSamples } from "./free-text-samples";
 import { VolumeTrend } from "./volume-trend";
 
@@ -42,9 +46,11 @@ export function DashboardCharts({ dashboard }: { dashboard: FormDashboard }) {
 
 interface SectionEntry {
   itemPosition: number;
-  kind: "distribution" | "freeText";
+  kind: "distribution" | "freeText" | "matrix" | "risk";
   distribution?: QuestionDistribution;
   freeText?: FreeTextSample;
+  matrix?: MatrixDistribution;
+  risk?: RiskDistribution;
 }
 
 interface SectionGroupData {
@@ -85,6 +91,23 @@ function groupBySection(dashboard: FormDashboard): SectionGroupData[] {
       freeText: f,
     });
   }
+  // FF-2: matrix + risk questions join the SAME section/item ordering, so a
+  // grid appears where its author put it rather than in a separate appendix.
+  // Both arrays are [] for a form with no matrix, leaving this a no-op there.
+  for (const m of dashboard.matrixDistributions) {
+    ensure(m.sectionPosition, m.sectionTitle).entries.push({
+      itemPosition: m.itemPosition,
+      kind: "matrix",
+      matrix: m,
+    });
+  }
+  for (const r of dashboard.riskDistributions) {
+    ensure(r.sectionPosition, r.sectionTitle).entries.push({
+      itemPosition: r.itemPosition,
+      kind: "risk",
+      risk: r,
+    });
+  }
 
   const groups = [...map.values()].sort((a, b) => a.position - b.position);
   for (const g of groups) {
@@ -116,6 +139,16 @@ function SectionGroup({ group }: { group: SectionGroupData }) {
             <DistributionChart
               key={`d-${entry.distribution.questionKey}`}
               distribution={entry.distribution}
+            />
+          ) : entry.kind === "matrix" && entry.matrix ? (
+            <MatrixDistributionCard
+              key={`m-${entry.matrix.questionKey}`}
+              distribution={entry.matrix}
+            />
+          ) : entry.kind === "risk" && entry.risk ? (
+            <RiskDistributionCard
+              key={`r-${entry.risk.questionKey}`}
+              distribution={entry.risk}
             />
           ) : entry.freeText ? (
             <FreeTextSamples
