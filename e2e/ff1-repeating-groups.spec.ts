@@ -879,23 +879,32 @@ test('FF1-3 (wizard): add/remove/reorder repetitions; per-instance answers stay 
   )
   const turnoItemId = finalItems.find((i) => i.label === 'Turno')!.id
   const obsItemId = finalItems.find((i) => i.label === 'Observação')!.id
-  const tardeCode = (
-    await serviceQuery<{ code: string }>(
+  const tardeOptionId = (
+    await serviceQuery<{ id: string }>(
       page,
-      `form_item_options?item_id=eq.${turnoItemId}&label=eq.Tarde&select=code`,
+      `form_item_options?item_id=eq.${turnoItemId}&label=eq.Tarde&select=id`,
     )
-  )[0].code
+  )[0].id
 
   const survivorId = rgiAfterRemove[0].id
-  type AnswerRow = { item_id: string; value: unknown }
+  // form-model-normalization: a CHOICE item's `answers.value` is ALWAYS null —
+  // its selection lives in `answer_selected_options` (a separate table, joined
+  // via `answer_id`). The scalar "Observação" answer DOES live in `.value`.
+  type AnswerRow = { id: string; item_id: string; value: unknown }
   const finalAnswers = await serviceQuery<AnswerRow>(
     page,
-    `answers?response_id=eq.${responseId}&group_instance_id=eq.${survivorId}&select=item_id,value`,
+    `answers?response_id=eq.${responseId}&group_instance_id=eq.${survivorId}&select=id,item_id,value`,
   )
   const obsAnswer = finalAnswers.find((a) => a.item_id === obsItemId)
   const turnoAnswer = finalAnswers.find((a) => a.item_id === turnoItemId)
   expect(obsAnswer?.value).toBe('Nota da repetição DOIS')
-  expect(turnoAnswer?.value).toBe(tardeCode)
+  expect(turnoAnswer, 'the survivor must have its own answers row for Turno').toBeTruthy()
+  const turnoSelection = await serviceQuery<{ option_id: string }>(
+    page,
+    `answer_selected_options?answer_id=eq.${turnoAnswer!.id}&select=option_id`,
+  )
+  expect(turnoSelection).toHaveLength(1)
+  expect(turnoSelection[0].option_id).toBe(tardeOptionId)
 })
 
 // ===========================================================================
@@ -918,7 +927,6 @@ test('FF1-4 (ruling 3): a fully-empty instance is pruned (not incomplete); unmet
   await submitAddDialog(descDialog)
   await publishForm(page)
 
-  const sectionId = await defaultSectionId(page, formId)
   type ItemRow = { id: string; item_type: string; label: string | null }
   const publishedVersionId = (
     await serviceQuery<{ id: string }>(
@@ -930,7 +938,6 @@ test('FF1-4 (ruling 3): a fully-empty instance is pruned (not incomplete); unmet
     page,
     `form_items?form_version_id=eq.${publishedVersionId}&select=id,item_type,label`,
   )
-  const groupItemId = items.find((i) => i.item_type === 'repeating_group')!.id
   const descItemId = items.find((i) => i.label === 'Descrição')!.id
 
   await signInAs(page, 'staff1.ccih@test.local')
@@ -938,10 +945,18 @@ test('FF1-4 (ruling 3): a fully-empty instance is pruned (not incomplete); unmet
 
   // --- Side A: minInstances=1, ZERO instances → the wizard hint reads
   // "adicione ao menos" (never "campo obrigatório"); the server AUTHORITY
-  // (`submit_response`) independently rejects with the same intent. BUG-FF1-001
-  // (below) means the wizard's own "Adicionar repetição" is non-functional, so
-  // the add/fill steps route around it via direct RPC calls — same RLS, same
-  // evaluator, only the broken JS wrapper is bypassed. -----------------------
+  // (`submit_response`) independently rejects with the same intent.
+  //
+  // INTENTIONAL RPC BYPASS (not scaffolding for a now-fixed layer — this one
+  // stays, because the thing it needs to reach is client-UNREACHABLE by
+  // construction): `handleNext`'s `validateInstances` blocks the wizard's own
+  // "Revisar" from ever advancing to the review/submit screen while
+  // minInstances is unmet (client-side shortfall = client-side block, before
+  // the section even attempts to persist). There is no UI path to the
+  // SERVER's exact rejection message for THIS scenario — only a direct
+  // `submit_response` call reaches it. Verified live 2026-07-27: clicking
+  // "Revisar" here just re-shows the shortfall banner and never leaves this
+  // screen. -------------------------------------------------------------
   const responseId = await startResponseViaUi(page, title)
   await expect(page.getByText(/Adicione ao menos mais 1 repetição preenchida\./)).toBeVisible()
 
@@ -951,12 +966,19 @@ test('FF1-4 (ruling 3): a fully-empty instance is pruned (not incomplete); unmet
   expect(rejectA.text).not.toMatch(/há perguntas obrigatórias sem resposta/)
 
   // --- Side B: one filled instance + one left ENTIRELY blank → submit
-  // succeeds; the blank instance is pruned server-side, not counted. --------
-  const filledId = await addInstanceViaRpc(page, token, responseId, groupItemId)
-  await saveInstanceAnswersViaRpc(page, token, responseId, sectionId, filledId, {
-    [descItemId]: 'Queda de paciente leito 4',
-  })
-  await addInstanceViaRpc(page, token, responseId, groupItemId) // blank, on purpose
+  // succeeds; the blank instance is pruned server-side, not counted. Filled
+  // via the REAL wizard UI (BUG-FF1-001/004/005 are all fixed and this
+  // scenario's client-side validation is satisfiable, unlike Side A above —
+  // nothing here is cheap-but-skipped). -----------------------------------
+  await addInstance(page)
+  const filledInstance = instanceRegion(page, 'Ocorrência', '1 de 1')
+  await expect(filledInstance).toBeVisible()
+  await filledInstance.getByRole('textbox', { name: 'Descrição' }).fill('Queda de paciente leito 4')
+  await addInstance(page) // second instance, left blank on purpose
+  // Wait for the SECOND add's server round-trip to actually land (the click
+  // resolves as soon as the event fires, not once add_group_instance's async
+  // response + revalidation completes) before reading DB truth.
+  await expect(instanceRegion(page, 'Ocorrência', '2 de 2')).toBeVisible()
 
   const rgiBefore = await serviceQuery<{ id: string }>(
     page,
@@ -964,15 +986,24 @@ test('FF1-4 (ruling 3): a fully-empty instance is pruned (not incomplete); unmet
   )
   expect(rgiBefore, 'two instances exist pre-submit').toHaveLength(2)
 
-  const submitB = await submitViaRpc(page, token, responseId)
-  expect(submitB.ok, `submit must succeed once minInstances is met by the survivor: ${submitB.text}`).toBeTruthy()
+  // "Revisar" (inside goToReviewAndSubmit) is what actually PERSISTS the
+  // filled textbox — a `.fill()` only updates client state until a save
+  // action runs — so the answer doesn't exist in the DB until this point.
+  await goToReviewAndSubmit(page)
+  await expect(page.getByText(/enviada|sucesso/i).first()).toBeVisible({ timeout: 20_000 })
 
   const rgiAfter = await serviceQuery<{ id: string }>(
     page,
     `response_group_instances?response_id=eq.${responseId}&select=id`,
   )
   expect(rgiAfter, 'the empty instance is pruned at submit — only the filled one survives').toHaveLength(1)
-  expect(rgiAfter[0].id).toBe(filledId)
+  // The survivor must be the one that actually holds the answer — proves this
+  // isn't pruning-by-luck (e.g. "always keep position 0").
+  const survivorAnswer = await serviceQuery<{ value: unknown }>(
+    page,
+    `answers?response_id=eq.${responseId}&item_id=eq.${descItemId}&group_instance_id=eq.${rgiAfter[0].id}&select=value`,
+  )
+  expect(survivorAnswer[0]?.value).toBe('Queda de paciente leito 4')
 
   type Resp = { status: string }
   const resp = (
@@ -1086,9 +1117,16 @@ test('FF1-5 (ruling 4): a required item hidden by its own condition never blocks
   await signInAs(page, 'staff1.ccih@test.local')
   const token = await getToken(page, 'staff1.ccih@test.local')
 
-  // BUG-FF1-001 (below) means the wizard's own instance controls are
-  // non-functional — the fill routes around it via direct RPC calls (same
-  // RLS, same evaluator as the wizard would use).
+  // INTENTIONAL RPC BYPASS, kept even with BUG-FF1-001/004/005 all fixed:
+  // this test's "reject" case needs instance 2's required-but-visible
+  // "Qual antibiótico?" to stay blank while checking the SERVER's exact
+  // rejection message — but `handleNext`'s `validateInstances` blocks the
+  // wizard's own "Revisar" from ever reaching the submit screen while a
+  // required-and-visible field is unanswered (same shape as FF1-4 Side A).
+  // There is no real-UI path to `submit_response`'s message for this
+  // scenario, so fill + submit both stay RPC-based here for a consistent,
+  // deterministic test rather than a hybrid that fills via UI but must still
+  // fall back to RPC for the one call that matters.
   const responseId = await startResponseViaUi(page, title)
 
   // Top level: gate = "Não" → "Qual intercorrência?" hidden, never blocks.
@@ -1176,7 +1214,7 @@ test('FF1-7 (sign-off): a staff_admin counter-signing sees every repeating-group
   test.setTimeout(220_000)
   const title = `Signoff ${SPEC_TAG} ${Date.now()}`
   await signInAs(page, 'chefe.ccih@test.local')
-  const formId = await createForm(page, title)
+  await createForm(page, title)
 
   // A default section can NEVER require sign-off (form_sections_default_shape:
   // `NOT is_default OR (visible_when IS NULL AND requires_signoff = false)`),
@@ -1207,45 +1245,33 @@ test('FF1-7 (sign-off): a staff_admin counter-signing sees every repeating-group
 
   await publishForm(page)
 
-  const versionId = (
-    await serviceQuery<{ id: string }>(
-      page,
-      `form_versions?form_id=eq.${formId}&status=eq.published&select=id`,
-    )
-  )[0].id
-  const sectionId = (
-    await serviceQuery<{ id: string; requires_signoff: boolean; signoff_role: string | null }>(
-      page,
-      `form_sections?form_version_id=eq.${versionId}&is_default=eq.false&select=id,requires_signoff,signoff_role`,
-    )
-  )[0].id
-
-  type ItemRow = { id: string; item_type: string; label: string | null }
-  const items = await serviceQuery<ItemRow>(
-    page,
-    `form_items?form_version_id=eq.${versionId}&select=id,item_type,label`,
-  )
-  const groupItemId = items.find((i) => i.item_type === 'repeating_group')!.id
-  const obsItemId = items.find((i) => i.label === 'Observação')!.id
-
   await signInAs(page, 'staff1.ccih@test.local')
-  const token = await getToken(page, 'staff1.ccih@test.local')
-  // BUG-FF1-001 (below): the wizard's own instance controls are
-  // non-functional, so the fill routes around it via direct RPC calls.
+  // Fill via the REAL wizard UI (BUG-FF1-001/004/005 are all fixed; nothing
+  // here needs a bypass — sign-off happens on an in_progress response, so
+  // there's no submit-time client validation to route around either).
   const responseId = await startResponseViaUi(page, title)
-  const inst1Id = await addInstanceViaRpc(page, token, responseId, groupItemId)
-  const inst2Id = await addInstanceViaRpc(page, token, responseId, groupItemId)
-  await saveInstanceAnswersViaRpc(page, token, responseId, sectionId, inst1Id, {
-    [obsItemId]: 'Nota da repetição UM (ff1-sign)',
-  })
-  await saveInstanceAnswersViaRpc(page, token, responseId, sectionId, inst2Id, {
-    [obsItemId]: 'Nota da repetição DOIS (ff1-sign)',
-  })
-  // NOT submitted: `ResponseForSignoff` / the review-and-sign screen is for a
+  // This form is sectioned (default section + the named "Verificação em
+  // campo" section built above) — the wizard opens on section 1, so advance
+  // to section 2 before the container is reachable.
+  await page.getByRole('button', { name: 'Próximo' }).click()
+  await addInstance(page)
+  const inst1 = instanceRegion(page, 'Item verificado', '1 de 1')
+  await expect(inst1).toBeVisible()
+  await inst1.getByRole('textbox', { name: 'Observação' }).fill('Nota da repetição UM (ff1-sign)')
+  await addInstance(page)
+  const inst2 = instanceRegion(page, 'Item verificado', '2 de 2')
+  await expect(inst2).toBeVisible()
+  await inst2.getByRole('textbox', { name: 'Observação' }).fill('Nota da repetição DOIS (ff1-sign)')
+
+  // Persist via "Salvar e sair" — `ResponseForSignoff` reads from the
+  // database, and a `.fill()` alone only updates client state. NOT
+  // submitted: `ResponseForSignoff` / the review-and-sign screen is for a
   // staff_admin counter-signing a response that is still `in_progress` (the
   // sign-off queue's own doc comment) — `submit_response` itself refuses to
   // finalize while a required staff_admin section is unsigned (HC012 "há
   // seções pendentes de assinatura"), so signing necessarily happens first.
+  await page.getByRole('button', { name: 'Salvar e sair' }).click()
+  await page.waitForURL((u: URL) => !u.pathname.includes('/responder/'), { timeout: 15_000 })
 
   // --- The staff_admin opens the review-and-sign screen. Both instance
   // values must be VISIBLE BY VALUE — not merely "no error rendering". ------
@@ -1278,47 +1304,27 @@ test('FF1-8 (dashboard): repeating-group answers explode by child question_key w
   await submitAddDialog(resultDialog)
   await publishForm(page)
 
-  const sectionId = await defaultSectionId(page, formId)
-  const publishedVersionId = (
-    await serviceQuery<{ id: string }>(
-      page,
-      `form_versions?form_id=eq.${formId}&status=eq.published&select=id`,
-    )
-  )[0].id
-  type ItemRow = { id: string; item_type: string; label: string | null }
-  const items = await serviceQuery<ItemRow>(
-    page,
-    `form_items?form_version_id=eq.${publishedVersionId}&select=id,item_type,label`,
-  )
-  const groupItemId = items.find((i) => i.item_type === 'repeating_group')!.id
-  const resultItemId = items.find((i) => i.label === 'Resultado')!.id
-  type OptRow = { code: string; label: string }
-  const opts = await serviceQuery<OptRow>(
-    page,
-    `form_item_options?item_id=eq.${resultItemId}&select=code,label`,
-  )
-  const codeFor = (label: string) => opts.find((o) => o.label === label)!.code
-
-  // ONE response, 3 instances: Conforme, Conforme, Não conforme. BUG-FF1-001
-  // (below) means the wizard's own instance controls are non-functional, so
-  // the fill routes around it via direct RPC calls.
+  // ONE response, 3 instances: Conforme, Conforme, Não conforme — filled via
+  // the REAL wizard UI (BUG-FF1-001/004/005 are all fixed; name-based radio
+  // selection is now reliable across instances, which is exactly what
+  // BUG-FF1-004 broke).
   await signInAs(page, 'staff1.ccih@test.local')
-  const token = await getToken(page, 'staff1.ccih@test.local')
-  const responseId = await startResponseViaUi(page, title)
-  const inst1Id = await addInstanceViaRpc(page, token, responseId, groupItemId)
-  const inst2Id = await addInstanceViaRpc(page, token, responseId, groupItemId)
-  const inst3Id = await addInstanceViaRpc(page, token, responseId, groupItemId)
-  await saveInstanceSelectionViaRpc(page, token, responseId, sectionId, inst1Id, {
-    [resultItemId]: codeFor('Conforme'),
-  })
-  await saveInstanceSelectionViaRpc(page, token, responseId, sectionId, inst2Id, {
-    [resultItemId]: codeFor('Conforme'),
-  })
-  await saveInstanceSelectionViaRpc(page, token, responseId, sectionId, inst3Id, {
-    [resultItemId]: codeFor('Não conforme'),
-  })
-  const submitResp = await submitViaRpc(page, token, responseId)
-  expect(submitResp.ok, `submit: ${submitResp.text}`).toBeTruthy()
+  await startResponseViaUi(page, title)
+  await addInstance(page)
+  const inst1 = instanceRegion(page, 'Verificação', '1 de 1')
+  await expect(inst1).toBeVisible()
+  await inst1.getByRole('radio', { name: 'Conforme', exact: true }).click()
+  await addInstance(page)
+  const inst2 = instanceRegion(page, 'Verificação', '2 de 2')
+  await expect(inst2).toBeVisible()
+  await inst2.getByRole('radio', { name: 'Conforme', exact: true }).click()
+  await addInstance(page)
+  const inst3 = instanceRegion(page, 'Verificação', '3 de 3')
+  await expect(inst3).toBeVisible()
+  await inst3.getByRole('radio', { name: 'Não conforme' }).click()
+
+  await goToReviewAndSubmit(page)
+  await expect(page.getByText(/enviada|sucesso/i).first()).toBeVisible({ timeout: 20_000 })
 
   // --- Dashboard: assert VALUES, not mere rendering ---------------------------
   await signInAs(page, 'chefe.ccih@test.local')
