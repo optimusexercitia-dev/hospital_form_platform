@@ -11355,6 +11355,47 @@ export type Database = {
           total: number
         }[]
       }
+      dashboard_matrix_cells: {
+        Args: { p_form_id: string; p_from?: string; p_to?: string }
+        Returns: {
+          cell_count: number
+          col_code: string
+          col_label: string
+          col_position: number
+          denominator: number
+          item_position: number
+          label: string
+          n: number
+          question_key: string
+          row_code: string
+          row_label: string
+          row_position: number
+          section_position: number
+          section_title: string
+        }[]
+      }
+      dashboard_risk_scores: {
+        Args: { p_form_id: string; p_from?: string; p_to?: string }
+        Returns: {
+          average: number
+          item_position: number
+          label: string
+          likelihood_code: string
+          likelihood_label: string
+          likelihood_position: number
+          maximum: number
+          minimum: number
+          n: number
+          pair_count: number
+          question_key: string
+          score: number
+          section_position: number
+          section_title: string
+          severity_code: string
+          severity_label: string
+          severity_position: number
+        }[]
+      }
       dashboard_submissions_over_time: {
         Args: { p_form_id: string; p_from?: string; p_to?: string }
         Returns: {

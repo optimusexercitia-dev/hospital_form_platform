@@ -90,6 +90,86 @@ export interface QuestionDistribution {
   n: number
 }
 
+/**
+ * FF-2 (BE contract, ADR 0089 · FUP-FF2-2) — one CELL of a `matrix`
+ * distribution. The aggregation unit is `(questionKey, rowCode, colCode)`.
+ *
+ * ⚠ `rowCode` / `colCode` are the identity; `rowLabel` / `colLabel` are display
+ * only, resolved server-side to the LATEST published version's wording. Axis ids
+ * are per-version and never appear here — that is the entire reason axis codes
+ * are immutable (ADR 0089 ruling 4). Grouping by anything but the code splits
+ * every series at each new version.
+ */
+export interface MatrixCellTally {
+  rowCode: string
+  rowLabel: string
+  /** Axis order in the latest published version, for stable grid rendering. */
+  rowPosition: number
+  colCode: string
+  colLabel: string
+  colPosition: number
+  /** How many answered grids picked this column for this row. A matrix inside a
+   *  repeating group contributes one grid PER INSTANCE. */
+  count: number
+}
+
+/**
+ * A per-`question_key` grid distribution for ONE `matrix` question, across every
+ * countable submitted response in scope.
+ *
+ * `n` is the number of answered GRIDS — one per (response, instance), so a
+ * matrix inside a repeating group counts once per row of that group.
+ * `denominator` is the applicability base: distinct responses that reached the
+ * question's section, or — for a matrix inside a repeating group — the number of
+ * instances that exist (the FF-1 precedent that stopped shares exceeding 100%).
+ */
+export interface MatrixDistribution {
+  questionKey: string
+  label: string
+  sectionTitle: string | null
+  sectionPosition: number
+  itemPosition: number
+  cells: MatrixCellTally[]
+  denominator: number
+  n: number
+}
+
+/**
+ * FF-2 — one (severity, likelihood) pair of a `risk_matrix`, carrying the
+ * SERVER-DERIVED `score` (severity.weight × likelihood.weight) as a number.
+ *
+ * Rows are the pair rather than a bare score histogram because the pair is what
+ * a risk matrix renders as (a heatmap); group by `score` for the histogram.
+ */
+export interface RiskPairTally {
+  severityCode: string
+  severityLabel: string
+  severityPosition: number
+  likelihoodCode: string
+  likelihoodLabel: string
+  likelihoodPosition: number
+  /** The durable numeric fact — never recomputed client-side, so a later
+   *  re-weighting cannot retroactively change a historical figure. */
+  score: number
+  count: number
+}
+
+/** A per-`question_key` risk aggregation for ONE `risk_matrix` question. */
+export interface RiskDistribution {
+  questionKey: string
+  label: string
+  sectionTitle: string | null
+  sectionPosition: number
+  itemPosition: number
+  pairs: RiskPairTally[]
+  /** Answered risk cells — one per (response, instance). */
+  n: number
+  /** Numeric summaries over `risk_score`; `null` when nothing was answered. */
+  average: number | null
+  minimum: number | null
+  maximum: number | null
+}
+
 /** A capped sample of free-text answers for one `free_text` question (free-text
  * is not charted; the UI shows a short read-only list with a total count). */
 export interface FreeTextSample {
@@ -129,6 +209,13 @@ export interface FormDashboard {
   totalSubmitted: number
   /** Choice-question distributions, grouped/ordered by section then item. */
   distributions: QuestionDistribution[]
+  /**
+   * FF-2 — `matrix` grid distributions, same section→item ordering. `[]` when
+   * the form has no matrix questions, so every existing consumer is unaffected.
+   */
+  matrixDistributions: MatrixDistribution[]
+  /** FF-2 — `risk_matrix` aggregations, same ordering. `[]` when none. */
+  riskDistributions: RiskDistribution[]
   /** Free-text samples, same ordering. */
   freeTextSamples: FreeTextSample[]
   submissionsOverTime: SubmissionsOverTimePoint[]
@@ -246,13 +333,18 @@ export async function getFormDashboard(
 
   // The five aggregation RPCs (all internally gated) plus the form title (the
   // title is RLS-readable to a member; the gating that matters is on the RPCs).
-  const [dist, freeText, overTime, byMember, formRes] = await Promise.all([
-    supabase.rpc('dashboard_distributions', args),
-    supabase.rpc('dashboard_free_text', args),
-    supabase.rpc('dashboard_submissions_over_time', args),
-    supabase.rpc('dashboard_completion_by_member', args),
-    supabase.from('forms').select('title').eq('id', formId).maybeSingle<{ title: string }>(),
-  ])
+  const [dist, freeText, overTime, byMember, matrixCells, riskScores, formRes] =
+    await Promise.all([
+      supabase.rpc('dashboard_distributions', args),
+      supabase.rpc('dashboard_free_text', args),
+      supabase.rpc('dashboard_submissions_over_time', args),
+      supabase.rpc('dashboard_completion_by_member', args),
+      // FF-2: both are built on the SAME app.submitted_form_responses helper as
+      // the four above, so the supersession rule cannot drift between charts.
+      supabase.rpc('dashboard_matrix_cells', args),
+      supabase.rpc('dashboard_risk_scores', args),
+      supabase.from('forms').select('title').eq('id', formId).maybeSingle<{ title: string }>(),
+    ])
 
   const formRow = formRes.data
   if (!formRow) return null
@@ -285,10 +377,126 @@ export async function getFormDashboard(
     formTitle: formRow.title,
     totalSubmitted,
     distributions,
+    matrixDistributions: pivotMatrixCells(matrixCells.data ?? []),
+    riskDistributions: pivotRiskScores(riskScores.data ?? []),
     freeTextSamples,
     submissionsOverTime,
     completionByMember,
   }
+}
+
+/**
+ * FF-2 — pivot the flat (question_key × row_code × col_code) rows into one
+ * {@link MatrixDistribution} per question_key, preserving the RPC's
+ * section→item→row→col ordering.
+ */
+export function pivotMatrixCells(
+  rows: {
+    question_key: string
+    label: string
+    section_title: string | null
+    section_position: number
+    item_position: number
+    row_code: string
+    row_label: string
+    row_position: number
+    col_code: string
+    col_label: string
+    col_position: number
+    cell_count: number
+    denominator: number
+    n: number
+  }[],
+): MatrixDistribution[] {
+  const byKey = new Map<string, MatrixDistribution>()
+  for (const r of rows) {
+    let dist = byKey.get(r.question_key)
+    if (!dist) {
+      dist = {
+        questionKey: r.question_key,
+        label: r.label,
+        sectionTitle: r.section_title,
+        sectionPosition: r.section_position,
+        itemPosition: r.item_position,
+        cells: [],
+        denominator: Number(r.denominator),
+        n: Number(r.n),
+      }
+      byKey.set(r.question_key, dist)
+    }
+    dist.cells.push({
+      rowCode: r.row_code,
+      rowLabel: r.row_label,
+      rowPosition: r.row_position,
+      colCode: r.col_code,
+      colLabel: r.col_label,
+      colPosition: r.col_position,
+      count: Number(r.cell_count),
+    })
+  }
+  return Array.from(byKey.values())
+}
+
+/**
+ * FF-2 — pivot the flat (question_key × severity_code × likelihood_code) rows
+ * into one {@link RiskDistribution} per question_key.
+ *
+ * The per-key statistics repeat on every row of that key (the same shape
+ * `denominator`/`n` already use), so they are read from the FIRST row and not
+ * re-derived — recomputing an average from the pair rows would weight each pair
+ * equally instead of by its count.
+ */
+export function pivotRiskScores(
+  rows: {
+    question_key: string
+    label: string
+    section_title: string | null
+    section_position: number
+    item_position: number
+    severity_code: string
+    severity_label: string
+    severity_position: number
+    likelihood_code: string
+    likelihood_label: string
+    likelihood_position: number
+    score: number | null
+    pair_count: number
+    n: number
+    average: number | null
+    minimum: number | null
+    maximum: number | null
+  }[],
+): RiskDistribution[] {
+  const byKey = new Map<string, RiskDistribution>()
+  for (const r of rows) {
+    let dist = byKey.get(r.question_key)
+    if (!dist) {
+      dist = {
+        questionKey: r.question_key,
+        label: r.label,
+        sectionTitle: r.section_title,
+        sectionPosition: r.section_position,
+        itemPosition: r.item_position,
+        pairs: [],
+        n: Number(r.n),
+        average: r.average == null ? null : Number(r.average),
+        minimum: r.minimum == null ? null : Number(r.minimum),
+        maximum: r.maximum == null ? null : Number(r.maximum),
+      }
+      byKey.set(r.question_key, dist)
+    }
+    dist.pairs.push({
+      severityCode: r.severity_code,
+      severityLabel: r.severity_label,
+      severityPosition: r.severity_position,
+      likelihoodCode: r.likelihood_code,
+      likelihoodLabel: r.likelihood_label,
+      likelihoodPosition: r.likelihood_position,
+      score: Number(r.score ?? 0),
+      count: Number(r.pair_count),
+    })
+  }
+  return Array.from(byKey.values())
 }
 
 /** Pivot the flat (question_key × option_value) distribution rows into one

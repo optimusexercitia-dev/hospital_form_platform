@@ -18,7 +18,7 @@
 
 begin;
 
-select plan(79);
+select plan(86);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -930,6 +930,136 @@ select ok(not app.item_required_satisfied(
 select ok(
   not app.response_required_complete('ff200000-0000-0000-0000-000000000050'),
   'L11. response_required_complete sees the incomplete required matrix (dispatch wired on BOTH callers)');
+
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+
+-- ===========================================================================
+-- §M · `supersession_matrix_excluded` (ADR 0089 §Consequences).
+--
+--   Deliberately absent until FUP-FF2-2 landed: with no cell aggregation there
+--   was nothing for a superseded revision to drop OUT of, and a keystone written
+--   against a non-existent path is vacuous by construction.
+--
+--   ⚠ ASSERTS THE PROPERTY, NOT THE NUMBER. The naive form ("the count is 1")
+--   passes for the wrong reason in two directions: it is also 1 if the SUCCESSOR
+--   were the row excluded, and also 1 if neither response registered. So every
+--   assertion below pins WHICH VALUE SURVIVES — the predecessor and the successor
+--   are given DIFFERENT columns and DIFFERENT weights on purpose, so "27
+--   disappeared and 3 remained" is only satisfiable by the correct rule.
+--
+--   Its own form, so no earlier section's submitted responses pollute the
+--   aggregate.
+--
+--   MUTATION: drop the `not exists (... succ.status = 'submitted')` arm from
+--     app.submitted_form_responses -> M3/M4/M5/M6 go red.
+-- ===========================================================================
+-- Fixture built as the OWNER: K9 denies direct axis DML to `authenticated`
+-- (§A5), so the role switch comes AFTER the grid exists.
+insert into public.forms (id, commission_id, title, created_by)
+  values ('ff200000-0000-0000-0000-0000000000b1', (select comm_x from k), 'FF2 supersessao', (select sa_x from k));
+insert into public.form_versions (id, form_id, version_number, status)
+  values ('ff200000-0000-0000-0000-0000000000b2', 'ff200000-0000-0000-0000-0000000000b1', 1, 'draft');
+insert into public.form_sections (id, form_version_id, position, is_default)
+  values ('ff200000-0000-0000-0000-0000000000b3', 'ff200000-0000-0000-0000-0000000000b2', 0, true);
+
+insert into public.form_items (id, section_id, position, item_type, question_key, label)
+  values ('ff200000-0000-0000-0000-0000000000b4', 'ff200000-0000-0000-0000-0000000000b3', 0, 'matrix', 'sup_matriz', 'Matriz');
+insert into public.form_matrix_rows (item_id, form_version_id, position, code, label)
+  values ('ff200000-0000-0000-0000-0000000000b4', 'ff200000-0000-0000-0000-0000000000b2', 0, 'mr1', 'Linha 1');
+insert into public.form_matrix_columns (item_id, form_version_id, position, code, label) values
+  ('ff200000-0000-0000-0000-0000000000b4', 'ff200000-0000-0000-0000-0000000000b2', 0, 'mc_yes', 'Sim'),
+  ('ff200000-0000-0000-0000-0000000000b4', 'ff200000-0000-0000-0000-0000000000b2', 1, 'mc_no', 'Nao');
+
+insert into public.form_items (id, section_id, position, item_type, question_key, label)
+  values ('ff200000-0000-0000-0000-0000000000b5', 'ff200000-0000-0000-0000-0000000000b3', 1, 'risk_matrix', 'sup_risco', 'Risco');
+insert into public.form_matrix_rows (item_id, form_version_id, position, code, label, weight) values
+  ('ff200000-0000-0000-0000-0000000000b5', 'ff200000-0000-0000-0000-0000000000b2', 0, 'alta', 'Alta', 9),
+  ('ff200000-0000-0000-0000-0000000000b5', 'ff200000-0000-0000-0000-0000000000b2', 1, 'baixa', 'Baixa', 3);
+insert into public.form_matrix_columns (item_id, form_version_id, position, code, label, weight) values
+  ('ff200000-0000-0000-0000-0000000000b5', 'ff200000-0000-0000-0000-0000000000b2', 0, 'freq', 'Frequente', 3),
+  ('ff200000-0000-0000-0000-0000000000b5', 'ff200000-0000-0000-0000-0000000000b2', 1, 'raro', 'Raro', 1);
+
+select public.publish_form_version('ff200000-0000-0000-0000-0000000000b2');
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+
+-- The PREDECESSOR: mr1 -> mc_yes, risk alta x freq = 27.
+insert into public.responses (id, form_version_id, commission_id, created_by, status)
+  values ('ff200000-0000-0000-0000-0000000000b6', 'ff200000-0000-0000-0000-0000000000b2',
+          (select comm_x from k), (select sa_x from k), 'in_progress');
+select public.save_section_answers(
+  'ff200000-0000-0000-0000-0000000000b6', 'ff200000-0000-0000-0000-0000000000b3',
+  p_matrix_cells => '{"ff200000-0000-0000-0000-0000000000b4":{"mr1":"mc_yes"}}'::jsonb,
+  p_risk_matrix  => '{"ff200000-0000-0000-0000-0000000000b5":{"severity":"alta","likelihood":"freq"}}'::jsonb);
+select public.submit_response('ff200000-0000-0000-0000-0000000000b6');
+
+select public.supersede_response('ff200000-0000-0000-0000-0000000000b6', 'motivo supersessao');
+
+-- ---- while the successor is merely IN_PROGRESS ----
+-- "A half-finished correction never blanks the metric" is a RULE of
+-- app.submitted_form_responses, not an accident; assert it before the exclusion.
+select is(
+  (select string_agg(c.col_code, ',' order by c.col_code)
+   from public.dashboard_matrix_cells('ff200000-0000-0000-0000-0000000000b1') c
+   where c.question_key = 'sup_matriz' and c.row_code = 'mr1'),
+  'mc_yes',
+  'M1. an IN_PROGRESS successor does NOT exclude the predecessor - its column still counts');
+
+select is(
+  (select max(r.maximum) from public.dashboard_risk_scores('ff200000-0000-0000-0000-0000000000b1') r
+   where r.question_key = 'sup_risco'),
+  27::numeric,
+  'M2. ...and its risk score is still the aggregate maximum');
+
+-- ---- the successor answers DIFFERENTLY and is submitted ----
+select public.save_section_answers(
+  (select id from public.responses where supersedes_id = 'ff200000-0000-0000-0000-0000000000b6'),
+  'ff200000-0000-0000-0000-0000000000b3',
+  p_matrix_cells => '{"ff200000-0000-0000-0000-0000000000b4":{"mr1":"mc_no"}}'::jsonb,
+  p_risk_matrix  => '{"ff200000-0000-0000-0000-0000000000b5":{"severity":"baixa","likelihood":"raro"}}'::jsonb);
+select public.submit_response(
+  (select id from public.responses where supersedes_id = 'ff200000-0000-0000-0000-0000000000b6'));
+
+select is(
+  (select string_agg(c.col_code, ',' order by c.col_code)
+   from public.dashboard_matrix_cells('ff200000-0000-0000-0000-0000000000b1') c
+   where c.question_key = 'sup_matriz' and c.row_code = 'mr1'),
+  'mc_no',
+  'M3. once the successor is SUBMITTED the predecessor column is GONE and only the successor remains');
+
+select is(
+  (select max(c.n) from public.dashboard_matrix_cells('ff200000-0000-0000-0000-0000000000b1') c
+   where c.question_key = 'sup_matriz'),
+  1::bigint,
+  'M4. ...and n counts ONE answered grid, not both revisions');
+
+select is(
+  (select max(r.maximum) from public.dashboard_risk_scores('ff200000-0000-0000-0000-0000000000b1') r
+   where r.question_key = 'sup_risco'),
+  3::numeric,
+  'M5. the superseded revision score 27 drops out of the risk aggregate (max is now 3)');
+
+select is(
+  (select string_agg(r.severity_code || 'x' || r.likelihood_code || '=' || r.score::text, ',')
+   from public.dashboard_risk_scores('ff200000-0000-0000-0000-0000000000b1') r
+   where r.question_key = 'sup_risco'),
+  'baixaxraro=3',
+  'M6. ...and exactly one (severity, likelihood) pair survives - the successor one');
+
+-- Aggregation resolves through CODE, never through the per-version axis id
+-- (ADR 0089 ruling 4). A clone mints NEW axis rows with the SAME codes, so an
+-- id-keyed aggregation would split the series; a code-keyed one does not.
+-- MUTATION: key dashboard_matrix_cells on r.id/c.id instead of r.code/c.code
+--   -> M7 goes red (the codes become uuids).
+select is(
+  (select string_agg(distinct c.row_code, ',')
+   from public.dashboard_matrix_cells('ff200000-0000-0000-0000-0000000000b1') c
+   where c.question_key = 'sup_matriz'),
+  'mr1',
+  'M7. the aggregation unit is the CODE, not the per-version axis id');
 
 reset role;
 select set_config('request.jwt.claims', null, true);
