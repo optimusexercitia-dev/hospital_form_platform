@@ -639,14 +639,24 @@ test('FF1-2 (ruling 2): a repeating-group child is never a top-level condition t
       `form_versions?form_id=eq.${formId}&status=eq.draft&select=id`,
     )
   )[0].id
-  type ItemRow = { id: string; label: string | null; question_key: string | null }
+  type ItemRow = {
+    id: string
+    label: string | null
+    question_key: string | null
+    visible_when: unknown
+  }
   const items = await serviceQuery<ItemRow>(
     page,
-    `form_items?form_version_id=eq.${versionId}&select=id,label,question_key`,
+    `form_items?form_version_id=eq.${versionId}&select=id,label,question_key,visible_when`,
   )
   const tipoItem = items.find((i) => i.label === 'Tipo')!
   const finalItem = items.find((i) => i.label === 'Confirmação final')!
   expect(tipoItem.question_key).toBeTruthy()
+  // The picker never offered "Tipo" as a target (asserted above via
+  // conditionTargetLabels), so the author could never have built a condition
+  // on it — confirm that held all the way to the DB, not just in the UI: no
+  // condition was authored on "Confirmação final" at all.
+  expect(finalItem.visible_when, '"Confirmação final" must carry no condition').toBeNull()
 
   await publishForm(page)
 
@@ -721,16 +731,50 @@ test('FF1-3 (wizard): add/remove/reorder repetitions; per-instance answers stay 
   await expect(inst1).toBeVisible()
   await expect(inst2).toBeVisible()
 
-  await inst1.getByRole('radio', { name: 'Manhã' }).click()
-  await inst1.getByRole('textbox', { name: 'Observação' }).fill('Nota da repetição UM')
-  await inst2.getByRole('radio', { name: 'Tarde' }).click()
-  await inst2.getByRole('textbox', { name: 'Observação' }).fill('Nota da repetição DOIS')
+  // --- BUG-FF1-004: every control id in input-item.tsx is built purely from
+  // the QUESTION's static `item.id` — `useFieldIds(`item-${item.id}`, ...)`
+  // for text/number/date/time, `item-${item.id}-opt-${i}` for choice options
+  // — with NO instance scoping. Inside a repeating group the SAME question
+  // renders once PER INSTANCE, so this mints the SAME `id` (and the label's
+  // matching `for=`) once per instance: a live, duplicate-id violation.
+  // `document.getElementById`/label-`for` resolution always returns the
+  // FIRST DOM match, so instance 1 accidentally resolves fine (it happens to
+  // be first) while every instance after it is unreachable by accessible
+  // name — this is why the queries below use `.nth(index)` / role-only
+  // (unfiltered by name) rather than `{ name: 'Tarde' }`. Demonstrated two
+  // ways, soft (the rest of this test still needs to run to cover the
+  // ISOLATION claim, a distinct claim from this labelling defect):
+  const inst2TardeRadio = inst2.locator('input[type="radio"]').nth(1)
+  const duplicateId = await inst2TardeRadio.getAttribute('id')
+  expect
+    .soft(
+      duplicateId ? await page.locator(`#${duplicateId}`).count() : -1,
+      'BUG-FF1-004: option/field ids are not instance-scoped (input-item.tsx builds them from `item.id` alone) — the same id renders once per repeating-group instance, a duplicate-id violation. A real user clicking instance 2+\'s visible label can toggle instance 1\'s control instead (label `for=` resolves to the FIRST DOM match).',
+    )
+    .toBe(1)
+  await expect
+    .soft(
+      inst2.getByRole('radio', { name: 'Tarde' }),
+      'BUG-FF1-004 consequence: instance 2\'s "Tarde" radio is unreachable by accessible name (screen-reader users cannot identify any instance-2+ control by its label).',
+    )
+    .toBeVisible({ timeout: 2_000 })
+
+  // Fill via POSITION (input[type=radio] .nth) / role-ONLY (no name filter,
+  // exactly one textbox per instance) — this still validates per-instance
+  // answer ISOLATION at the state/DB level, a claim distinct from the
+  // labelling defect just flagged. A sighted mouse user clicking by visual
+  // position gets this; a screen-reader / accessible-name-driven user does
+  // not (that gap is BUG-FF1-004 above).
+  await inst1.locator('input[type="radio"]').nth(0).click() // Manhã
+  await inst1.getByRole('textbox').fill('Nota da repetição UM')
+  await inst2.locator('input[type="radio"]').nth(1).click() // Tarde
+  await inst2.getByRole('textbox').fill('Nota da repetição DOIS')
 
   // Isolation, live in the DOM: instance 1 shows only its own answers.
-  await expect(inst1.getByRole('radio', { name: 'Manhã' })).toBeChecked()
-  await expect(inst1.getByRole('radio', { name: 'Tarde' })).not.toBeChecked()
-  await expect(inst2.getByRole('radio', { name: 'Tarde' })).toBeChecked()
-  await expect(inst2.getByRole('radio', { name: 'Manhã' })).not.toBeChecked()
+  await expect(inst1.locator('input[type="radio"]').nth(0)).toBeChecked() // Manhã
+  await expect(inst1.locator('input[type="radio"]').nth(1)).not.toBeChecked() // Tarde
+  await expect(inst2.locator('input[type="radio"]').nth(1)).toBeChecked() // Tarde
+  await expect(inst2.locator('input[type="radio"]').nth(0)).not.toBeChecked() // Manhã
 
   // Persist via "Salvar e sair", then resume.
   await page.getByRole('button', { name: 'Salvar e sair' }).click()
@@ -740,14 +784,10 @@ test('FF1-3 (wizard): add/remove/reorder repetitions; per-instance answers stay 
   expect(responseIdFromUrl(page)).toBe(responseId)
   const inst1r = instanceRegion(page, 'Turno de plantão', '1 de 2')
   const inst2r = instanceRegion(page, 'Turno de plantão', '2 de 2')
-  await expect(inst1r.getByRole('radio', { name: 'Manhã' })).toBeChecked()
-  await expect(inst1r.getByRole('textbox', { name: 'Observação' })).toHaveValue(
-    'Nota da repetição UM',
-  )
-  await expect(inst2r.getByRole('radio', { name: 'Tarde' })).toBeChecked()
-  await expect(inst2r.getByRole('textbox', { name: 'Observação' })).toHaveValue(
-    'Nota da repetição DOIS',
-  )
+  await expect(inst1r.locator('input[type="radio"]').nth(0)).toBeChecked() // Manhã
+  await expect(inst1r.getByRole('textbox')).toHaveValue('Nota da repetição UM')
+  await expect(inst2r.locator('input[type="radio"]').nth(1)).toBeChecked() // Tarde
+  await expect(inst2r.getByRole('textbox')).toHaveValue('Nota da repetição DOIS')
 
   // --- DB truth: two response_group_instances rows, answers scoped per-instance
   type RGI = { id: string; position: number }
@@ -761,9 +801,7 @@ test('FF1-3 (wizard): add/remove/reorder repetitions; per-instance answers stay 
   await moveInstanceByOrdinal(page, '2 de 2', 'cima')
   // After the swap, the DOI note is now in position "1 de 2".
   const swapped1 = instanceRegion(page, 'Turno de plantão', '1 de 2')
-  await expect(swapped1.getByRole('textbox', { name: 'Observação' })).toHaveValue(
-    'Nota da repetição DOIS',
-  )
+  await expect(swapped1.getByRole('textbox')).toHaveValue('Nota da repetição DOIS')
 
   const rgiAfterReorder = await serviceQuery<RGI>(
     page,
@@ -783,6 +821,53 @@ test('FF1-3 (wizard): add/remove/reorder repetitions; per-instance answers stay 
     `response_group_instances?response_id=eq.${responseId}&select=id`,
   )
   expect(rgiAfterRemove).toHaveLength(1)
+
+  // --- Submit via the REAL wizard UI — ADR 0087 §Gate's own E2E line is
+  // "add/remove/reorder → resume → submit → explode aggregation"; stopping at
+  // remove leaves "submit" unexercised through the actual submit button/review
+  // screen (the RPC-bypass tests elsewhere in this file verify the SERVER
+  // authority directly, which is a different claim from "the wizard's own
+  // Revisar/Enviar respostas buttons work end-to-end"). Nothing here blocks
+  // client-side validation (no min/max on this group, nothing required), so
+  // the real "Revisar" → "Enviar respostas" path is reachable. -------------
+  await goToReviewAndSubmit(page)
+  await expect(page.getByText(/enviada|sucesso/i).first()).toBeVisible({ timeout: 20_000 })
+
+  // --- DB truth: the SURVIVING instance's answers are the DOIS/Tarde ones
+  // (not the removed UM/Manhã ones) — cross-checks the UI's `toHaveValue`
+  // claims above against the actual persisted `answers` rows, the same
+  // belt-and-suspenders discipline every other test in this file applies to
+  // its core claim. -----------------------------------------------------
+  const publishedVersionId = (
+    await serviceQuery<{ id: string }>(
+      page,
+      `form_versions?form_id=eq.${formId}&status=eq.published&select=id`,
+    )
+  )[0].id
+  type ItemRow2 = { id: string; label: string | null }
+  const finalItems = await serviceQuery<ItemRow2>(
+    page,
+    `form_items?form_version_id=eq.${publishedVersionId}&select=id,label`,
+  )
+  const turnoItemId = finalItems.find((i) => i.label === 'Turno')!.id
+  const obsItemId = finalItems.find((i) => i.label === 'Observação')!.id
+  const tardeCode = (
+    await serviceQuery<{ code: string }>(
+      page,
+      `form_item_options?item_id=eq.${turnoItemId}&label=eq.Tarde&select=code`,
+    )
+  )[0].code
+
+  const survivorId = rgiAfterRemove[0].id
+  type AnswerRow = { item_id: string; value: unknown }
+  const finalAnswers = await serviceQuery<AnswerRow>(
+    page,
+    `answers?response_id=eq.${responseId}&group_instance_id=eq.${survivorId}&select=item_id,value`,
+  )
+  const obsAnswer = finalAnswers.find((a) => a.item_id === obsItemId)
+  const turnoAnswer = finalAnswers.find((a) => a.item_id === turnoItemId)
+  expect(obsAnswer?.value).toBe('Nota da repetição DOIS')
+  expect(turnoAnswer?.value).toBe(tardeCode)
 })
 
 // ===========================================================================
@@ -1273,9 +1358,20 @@ test('FF1-9 (keyboard-only): add, reorder and remove repetitions entirely via ke
   await page.keyboard.press('Enter')
   await expect(instanceRegion(page, 'Vistoria', '2 de 2')).toBeVisible()
 
-  const nota2 = instanceRegion(page, 'Vistoria', '2 de 2').getByRole('textbox', {
-    name: 'Nota',
-  })
+  // BUG-FF1-004 (see FF1-3 for the full write-up): input-item.tsx builds every
+  // control's id/label purely from the QUESTION's static item.id, with no
+  // instance scoping, so accessible-name lookups only ever resolve to the
+  // FIRST instance. Exactly one textbox per instance here, so an unfiltered
+  // role query still reaches instance 2's own field — but a real screen-reader
+  // user relying on the ANNOUNCED label cannot tell it apart from instance 1's,
+  // which is precisely the "labelled" half of this test's own acceptance bar.
+  const nota2 = instanceRegion(page, 'Vistoria', '2 de 2').getByRole('textbox')
+  await expect
+    .soft(
+      instanceRegion(page, 'Vistoria', '2 de 2').getByRole('textbox', { name: 'Nota' }),
+      "BUG-FF1-004: instance 2's \"Nota\" field is unreachable by its accessible name (duplicate id/label — see FF1-3).",
+    )
+    .toBeVisible({ timeout: 2_000 })
   await nota2.focus()
   await expect(nota2).toBeFocused()
   await page.keyboard.type('Preenchido via teclado')
@@ -1287,7 +1383,7 @@ test('FF1-9 (keyboard-only): add, reorder and remove repetitions entirely via ke
   await expect(moveUp2).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(
-    instanceRegion(page, 'Vistoria', '1 de 2').getByRole('textbox', { name: 'Nota' }),
+    instanceRegion(page, 'Vistoria', '1 de 2').getByRole('textbox'),
   ).toHaveValue('Preenchido via teclado')
 
   // Remove that (now first) repetition via keyboard.
@@ -1297,6 +1393,6 @@ test('FF1-9 (keyboard-only): add, reorder and remove repetitions entirely via ke
   await page.keyboard.press('Enter')
   await expect(instanceRegion(page, 'Vistoria', '1 de 1')).toBeVisible()
   await expect(
-    instanceRegion(page, 'Vistoria', '1 de 1').getByRole('textbox', { name: 'Nota' }),
+    instanceRegion(page, 'Vistoria', '1 de 1').getByRole('textbox'),
   ).not.toHaveValue('Preenchido via teclado')
 })
