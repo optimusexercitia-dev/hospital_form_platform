@@ -7167,6 +7167,7 @@ export type Database = {
       }
       process_templates: {
         Row: {
+          case_type_id: string | null
           collects_patient: boolean
           commission_id: string
           created_at: string
@@ -7178,6 +7179,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          case_type_id?: string | null
           collects_patient?: boolean
           commission_id: string
           created_at?: string
@@ -7189,6 +7191,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          case_type_id?: string | null
           collects_patient?: boolean
           commission_id?: string
           created_at?: string
@@ -7200,6 +7203,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "process_templates_case_type_id_fkey"
+            columns: ["case_type_id"]
+            isOneToOne: false
+            referencedRelation: "case_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "process_templates_commission_id_fkey"
             columns: ["commission_id"]
@@ -9727,6 +9737,7 @@ export type Database = {
       archive_process_template: {
         Args: { p_template_id: string }
         Returns: {
+          case_type_id: string | null
           collects_patient: boolean
           commission_id: string
           created_at: string
@@ -11112,6 +11123,7 @@ export type Database = {
           p_title: string
         }
         Returns: {
+          case_type_id: string | null
           collects_patient: boolean
           commission_id: string
           created_at: string
@@ -12360,6 +12372,7 @@ export type Database = {
       publish_process_template: {
         Args: { p_template_id: string }
         Returns: {
+          case_type_id: string | null
           collects_patient: boolean
           commission_id: string
           created_at: string
@@ -13918,6 +13931,10 @@ export type Database = {
           p_sex?: string
           p_unit?: string
         }
+        Returns: undefined
+      }
+      set_template_case_type: {
+        Args: { p_case_type_id?: string; p_template_id: string }
         Returns: undefined
       }
       set_template_collects_patient: {

@@ -2228,12 +2228,24 @@ begin
      default_visibility_policy, default_confidentiality_level, default_case_label)
   -- ETH·E3a BE-4 / lead O-1 ruling: the ethics TYPE now resolves `explicit_grants_only`
   -- (was `commission_default` — ADR 0078 A1 flagged that value wrong; per this seed's
-  -- prior comment "the correction was ruled but never landed"). BE-2 gave `cases` a
-  -- `case_type_id` FK + create-time inheritance, so this default is NO LONGER inert: a
-  -- case created from this type (processless or template) now snapshots
-  -- explicit_grants_only + ethics_investigation, closing the Rule-12 hole the O-1 ruling
-  -- names. Per-case overrides still win (the fixture case below sets its policy directly
-  -- AND carries the type — identical result). `default_case_label`/terminology drive the
+  -- prior comment "the correction was ruled but never landed").
+  --
+  -- ⚠ CORRECTED 2026-07-27: this comment used to claim BE-2's `case_type_id` FK +
+  -- "create-time inheritance" had made these defaults NO LONGER inert and had closed the
+  -- Rule-12 hole the O-1 ruling names. That was FALSE and stayed false for the whole of
+  -- E3a. BE-2 gave the create RPCs an OPTIONAL `p_case_type_id`, but O-1 (where a case
+  -- gets its type FROM) was never resolved, so no caller ever passed it: every
+  -- app-created case landed `case_type_id` NULL and fell to the hardcoded
+  -- `commission_default` / `non_phi_internal`. Proven live — an ethics case created
+  -- through the UI was visible to the whole commission. The hole was open, not closed.
+  --
+  -- `20260829000000_case_type_assignment.sql` builds the missing channel (ADR 0064 D4):
+  -- `process_templates.case_type_id` + inheritance in `create_case_from_template`, plus
+  -- a create-dialog picker for the processless path. These defaults are inert ONLY for a
+  -- case whose template declares no type and whose creator picked none.
+  --
+  -- Per-case overrides still win (the fixture case below sets its policy directly AND
+  -- carries the type — identical result). `default_case_label`/terminology drive the
   -- E3a UI copy ("Denúncia").
   values (v_ctype, v_org, 'ethics', 'Ética', 'professional',
           'explicit_grants_only', 'ethics_investigation', 'Denúncia')

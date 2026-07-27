@@ -460,6 +460,12 @@ export async function createCaseFromTemplate(
   const commissionId = await commissionOfTemplate(supabase, templateId)
   if (!commissionId) return { ok: false, error: MESSAGES.missingTemplate }
 
+  // NOTE — `p_case_type_id` is deliberately NOT sent here. ADR 0064 D4 makes the
+  // TEMPLATE the declaring authority, and `create_case_from_template` inherits
+  // `process_templates.case_type_id` when the caller passes none, snapshotting the
+  // type's visibility/confidentiality defaults. The RPC still accepts an override, but
+  // exposing it on this path would let a creator DOWNGRADE the posture an ethics
+  // process declares — the exact Rule-12 gap this chain was built to close.
   const { data, error } = await supabase.rpc('create_case_from_template', {
     p_template_id: templateId,
     p_label: label || undefined,
@@ -512,6 +518,11 @@ export async function createCase(
   const label = String(formData.get('label') ?? '').trim()
   const emitsOutcome = formData.get('emitsOutcome') === 'on'
   const patientEnabled = formData.get('patientEnabled') === 'on'
+  // ADR 0064 D4 — a process-less case has no template to inherit a type from, so the
+  // dialog's picker is its ONLY channel. Empty = untyped (today's behaviour). The RPC
+  // cross-checks the type's org and, when set, snapshots the type's
+  // visibility/confidentiality defaults onto the case.
+  const caseTypeId = String(formData.get('caseTypeId') ?? '').trim()
   // When the case emits an outcome, the chosen ids are the offered set (≥1
   // required); otherwise the set is forced empty (no outcome at conclusion).
   const outcomeIds = emitsOutcome
@@ -540,6 +551,7 @@ export async function createCase(
     p_outcome_ids: outcomeIds,
     p_department_id: department.departmentId ?? undefined,
     p_department_other: department.departmentOther ?? undefined,
+    p_case_type_id: caseTypeId || undefined,
   })
 
   if (error || !data) return { ok: false, error: mapCaseError(error) }

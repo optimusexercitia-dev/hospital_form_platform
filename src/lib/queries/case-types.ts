@@ -7,6 +7,12 @@ import {
   type CaseTypeTerminology,
   type CaseTypeTerminologyRow,
 } from '@/lib/cases/terminology'
+import type {
+  CaseConfidentialityLevel,
+  CaseType,
+  CaseVisibilityPolicy,
+  PrimarySubjectKind,
+} from '@/lib/cases/case-types'
 
 /**
  * Case-type terminology resolution (ADR 0064 Decision 4; ETH·E3a BE-6).
@@ -24,6 +30,66 @@ export type {
   CaseTypeTerminology,
   CaseTypeTermKey,
 } from '@/lib/cases/terminology'
+
+/**
+ * Lists an organization's case types (ADR 0064 D4) — the source for the process-template
+ * "Tipo de caso" picker, the create-case dialog's processless picker, and the org-admin
+ * manager. Ordinary RLS read: `case_types_select` gates on `app.is_org_member`, so a
+ * non-member simply gets `[]`.
+ *
+ * `activeOnly` (the default) hides retired types from the PICKERS while the manager
+ * passes `false` to list everything — a retired type keeps rendering wherever it is
+ * already referenced (no cascade).
+ */
+export async function listCaseTypes(
+  organizationId: string,
+  { activeOnly = true }: { activeOnly?: boolean } = {},
+): Promise<CaseType[]> {
+  if (!organizationId) return []
+
+  const supabase = await createClient()
+  let query = supabase
+    .from('case_types')
+    .select(
+      'id, organization_id, key, display_name, primary_subject_kind, ' +
+        'default_visibility_policy, default_confidentiality_level, default_case_label, is_active',
+    )
+    .eq('organization_id', organizationId)
+
+  if (activeOnly) query = query.eq('is_active', true)
+
+  const { data, error } = await query
+    .order('display_name', { ascending: true })
+    .returns<CaseTypeRow[]>()
+
+  if (error || !data) return []
+
+  return data.map((row) => ({
+    id: row.id,
+    organizationId: row.organization_id,
+    key: row.key,
+    displayName: row.display_name,
+    primarySubjectKind: row.primary_subject_kind as PrimarySubjectKind,
+    defaultVisibilityPolicy: row.default_visibility_policy as CaseVisibilityPolicy,
+    defaultConfidentialityLevel:
+      row.default_confidentiality_level as CaseConfidentialityLevel,
+    defaultCaseLabel: row.default_case_label,
+    isActive: row.is_active,
+  }))
+}
+
+/** The raw `case_types` row shape as selected above. */
+interface CaseTypeRow {
+  id: string
+  organization_id: string
+  key: string
+  display_name: string
+  primary_subject_kind: string
+  default_visibility_policy: string
+  default_confidentiality_level: string
+  default_case_label: string | null
+  is_active: boolean
+}
 
 /**
  * Resolves a case type's terminology bundle, merging its `case_type_terminology` rows

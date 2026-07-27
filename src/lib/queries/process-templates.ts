@@ -158,6 +158,14 @@ export interface ProcessTemplate {
    * `case_patient` feature flag.
    */
   collectsPatient: boolean
+  /**
+   * The case TYPE this process declares (ADR 0064 D4), or `null` when untyped.
+   * Cases created from this template snapshot it into `cases.case_type_id` and
+   * INHERIT the type's `default_visibility_policy` / `default_confidentiality_level`
+   * — so this field sets the access posture of every case the process opens, not
+   * just its vocabulary. Set via `setTemplateCaseType` (staff_admin, non-archived).
+   */
+  caseTypeId: string | null
   phases: ProcessTemplatePhase[]
   /**
    * The template's narrative-SLOTS (`process_template_narratives`; ADR 0032),
@@ -251,6 +259,7 @@ interface TemplateRow {
   status: ProcessTemplateStatus
   created_at: string
   collects_patient: boolean
+  case_type_id: string | null
   process_template_phases: TemplatePhaseRow[]
   process_template_narratives: TemplateNarrativeRow[]
   process_template_outcomes: TemplateOutcomeRow[]
@@ -258,7 +267,7 @@ interface TemplateRow {
 }
 
 const TEMPLATE_SELECT = `
-  id, commission_id, title, description, status, created_at, collects_patient,
+  id, commission_id, title, description, status, created_at, collects_patient, case_type_id,
   process_template_phases (
     id, template_id, position, form_id, title, recommend_when, default_due_days,
     blocks, display_position, result_ruleset, emits_result,
@@ -341,6 +350,7 @@ function mapTemplate(t: TemplateRow): ProcessTemplate {
     status: t.status,
     createdAt: t.created_at,
     collectsPatient: t.collects_patient ?? false,
+    caseTypeId: t.case_type_id ?? null,
     phases: (t.process_template_phases ?? [])
       .slice()
       .sort((a, b) => a.position - b.position)

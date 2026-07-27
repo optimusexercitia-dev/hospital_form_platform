@@ -92,6 +92,9 @@ const MESSAGES = {
   customFieldUpdated: 'Campo personalizado atualizado.',
   customFieldRemoved: 'Campo personalizado removido.',
   customFieldReordered: 'Ordem dos campos atualizada.',
+  caseTypeSaved: 'Tipo de caso do processo atualizado.',
+  caseTypeCleared: 'Tipo de caso do processo removido.',
+  caseTypeWrongOrg: 'Este tipo de caso não pertence à organização desta comissão.',
 } as const
 
 const PG_CHECK_VIOLATION = '23514'
@@ -105,6 +108,8 @@ const HC_NO_PUBLISHED_VERSION = 'HC017'
 const HC_NOT_ARCHIVABLE = 'HC023'
 /** Result ruleset references an invalid/archived result option (phase-results). */
 const HC_INVALID_RESULT_OPTION = 'HC059'
+/** Declared case type belongs to a different organization (ADR 0064 D4). */
+const HC_CASE_TYPE_WRONG_ORG = 'HC0F7'
 
 const TEMPLATES_LIST_PATH = '/o/[org]/c/[commission]/manage/process-templates'
 const TEMPLATE_PATH = '/o/[org]/c/[commission]/manage/process-templates/[templateId]'
@@ -162,8 +167,42 @@ function mapRpcError(error: { code?: string; message?: string } | null): string 
   if (error.code === HC_INVALID_RECOMMEND) return error.message || MESSAGES.recommendInvalid
   if (error.code === HC_NOT_ARCHIVABLE) return error.message || MESSAGES.notArchivable
   if (error.code === HC_INVALID_RESULT_OPTION) return error.message || MESSAGES.resultRulesetInvalid
+  if (error.code === HC_CASE_TYPE_WRONG_ORG) return error.message || MESSAGES.caseTypeWrongOrg
   if (error.code === PG_CHECK_VIOLATION) return error.message || MESSAGES.generic
   return MESSAGES.generic
+}
+
+/**
+ * Declare (or clear) the case TYPE a process template carries — ADR 0064 D4's
+ * "the template declares its type; a case snapshots case_type_id".
+ *
+ * This is the load-bearing half of the fix for the gap ETH·E3a left open: every case
+ * created from this template inherits the type, and with it the type's
+ * `default_visibility_policy` / `default_confidentiality_level`. Declaring the Ethics
+ * type on an ethics process is what makes its cases land `explicit_grants_only`
+ * instead of being visible to the whole commission.
+ *
+ * `null` clears the declaration (back to untyped — today's default behaviour).
+ * Existing cases are NOT retro-fitted; they keep the posture snapshotted at creation.
+ * The `set_template_case_type` DEFINER is the authority (staff_admin, non-archived,
+ * same-org type); the trigger re-checks org consistency on any write path.
+ */
+export async function setTemplateCaseType(
+  templateId: string,
+  caseTypeId: string | null,
+): Promise<ActionState> {
+  if (!templateId) return { ok: false, error: MESSAGES.missingTemplate }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('set_template_case_type', {
+    p_template_id: templateId,
+    p_case_type_id: caseTypeId ?? undefined,
+  })
+
+  if (error) return { ok: false, error: mapRpcError(error) }
+
+  revalidateTemplates()
+  return { ok: true, error: caseTypeId ? MESSAGES.caseTypeSaved : MESSAGES.caseTypeCleared }
 }
 
 /**

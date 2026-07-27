@@ -164,6 +164,17 @@ export async function caseCustomFieldsEnabled(): Promise<boolean> {
 }
 
 /**
+ * Whether the case-TYPE vocabulary is ON (ADR 0064 Decision 4). Gates the
+ * process-template "Tipo de caso" picker, the create-case dialog's process-less
+ * picker, and the org-admin manager. Also gates the type's default-visibility
+ * inheritance inside `create_case` / `create_case_from_template`, so a screen that
+ * offers the picker while the flag is off would silently drop the selection.
+ */
+export async function caseTypesEnabled(): Promise<boolean> {
+  return featureEnabled('case_types')
+}
+
+/**
  * Whether the Bulk Case Creation ("Múltiplos casos") feature is ON. Thin per-flag
  * wrapper over {@link featureEnabled} (consistent with the other per-flag
  * `*Enabled()` readers), so callers avoid an `as FeatureFlagKey` cast.
