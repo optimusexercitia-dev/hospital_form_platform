@@ -400,6 +400,8 @@ to the second with **no respondent involved**).
 
 ## E2 — Ethics Procedure (S4·ETH·E2, 2026-07-18; ADR 0073; migrations `20260817000000`–`…000700`; flag `ethics` ON **seed-only** — local, remote OFF till pilot)
 
+> **E3a amendment (BE-5, 2026-07-26; migration `20260827000200`; local-only, unratified — lead verifying).** All 8 procedure RPCs (`decide_admissibility`, `add_ethics_allegation`, `record_ethics_finding`, `issue_ethics_notification`, `schedule_ethics_hearing`, `cast_case_vote`, `issue_decision`, `submit_ethics_appeal`) now ALSO emit one `case_events` row on the matching procedural `kind` (O-3 auto-derive), spliced inside the DEFINER body before the single `audit_write` (after the milestone write, same transaction → a failed/unauthorized RPC emits none). Bodies are fixed pt-BR templates over controlled enum values / catalog `display_name` only (PHI-free, no `*_md`/finding/vote/voter/recipient). `finding_recorded` + `vote_cast` = `coordinator_only`; the other 6 = `case_readers`; `can_read_case` stays the floor. Catalog-truth body-only rewrites (`create or replace`, grants preserved — all still `authenticated`+`service_role`); `database.ts` nil-diff. Gate: pgTAP `261_ethics_e3a_autoderive` 20/20 + a migration-level mutation proof (flipping the 2 `coordinator_only` emits to `case_readers` turns keystones 3/6/12/13 RED).
+
 Full disciplinary procedure layered on E1's case-access spine. **Per-task ledger + test triage →
 [progress/eth-e2-procedure.md](progress/eth-e2-procedure.md); QA crux review → [reviews/eth-e2-review.md](reviews/eth-e2-review.md).**
 

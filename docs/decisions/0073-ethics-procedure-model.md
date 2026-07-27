@@ -836,6 +836,29 @@ the clearance ceiling post-pilot; pre-pilot the decision letter rides the ordina
 
 ---
 
+### E3a amendment (BE-5, 2026-07-26; migration `20260827000200`) — procedural timeline auto-derivation
+
+The 8 procedure RPCs now ALSO emit one `case_events` row on a matching procedural `kind`
+(O-3 auto-derive), giving a unified procedural timeline "for free". The insert is spliced
+INSIDE each DEFINER body, immediately before its (single) `app.audit_write` — i.e. AFTER the
+milestone write, same transaction — so a failed/unauthorized RPC emits ZERO events. Mapping:
+`decide_admissibility→admissibility_decided`, `add_ethics_allegation→allegation_added`,
+`record_ethics_finding→finding_recorded`, `issue_ethics_notification→notification_issued`,
+`schedule_ethics_hearing→hearing_scheduled`, `cast_case_vote→vote_cast`,
+`issue_decision→decision_issued`, `submit_ethics_appeal→appeal_submitted`.
+
+**Rule-12 / confidentiality:** bodies are FIXED pt-BR templates over controlled enum values /
+catalog `display_name` only — no `*_md` free text, no finding/vote value, no voter, no rationale,
+no recipient identity (proven: no emitted body contains a token fed to every free-text arg).
+`finding_recorded` + `vote_cast` are `coordinator_only` (deliberation-sensitive); the other six
+are `case_readers`. `can_read_case` stays the RLS floor (a respondent/recused reader sees none).
+`decision_issued`'s body omits `decision_type` (uncontrolled free text). Rewrites are catalog-truth
+body-only splices (`create or replace`, grants preserved). Gate: pgTAP `261_ethics_e3a_autoderive`
+20/20, incl. a migration-level mutation proof (flipping the two `coordinator_only` emits to
+`case_readers` turns the keystones RED).
+
+---
+
 ## Consequences
 
 - **The disciplinary lifecycle is structured & defensible.** Allegations, per-allegation findings,
