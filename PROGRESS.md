@@ -115,10 +115,25 @@ interview). Flag `repeating_groups` (seeded OFF → enable migration at the gate
 | BE-8 | `dashboard.ts` explode-by-child-`question_key` + supersession-tolerant read predicate (`group_instance_id` stays **out** of the aggregation key) | backend | – |
 | BE-9 | pgTAP: 209 §B/§C re-pin + the ADR-0087 §Gate keystones, **each mutation-proven** (revert the guard → keystone goes red) | backend | – |
 | FE-1 | Builder: enable both container types in `add-block-menu.tsx` / `item-type-meta.tsx` (flag-gated); child authoring; min/max into **`form_items.config`** | frontend | – |
+| BE-1a | **`toConfig()` (`src/lib/queries/forms.ts:525`) drops `minInstances`/`maxInstances`** — builds its return field-by-field and never reads them, so cardinality round-trips to nothing. The `ItemConfig` interface and its parser disagree. **Gates FE-1 acceptance** | backend | – |
+| BE-4a | **`buildAnswerMaps()` indexes `itemsById` from `section.items` only** — no `children` descent, and the consumer does `if (!item) continue`, so a plain `group`'s (top-level-answering, ruling 6) children are silently dropped from both maps. Use `flattenItem` | backend | – |
+| BE-6a | **`conditionTargets()` walks `s.items` flat** — client-side mirror of BE-6's publish ban; must **keep** plain-`group` children and **drop** *repeating*-group children. Open contract question: the `(sectionId)` signature cannot express "authoring for *this child* inside *this group*", so it cannot offer the same-instance siblings ruling 2 permits | backend | – |
 | FE-2 | Wizard: instance add/remove/reorder controls, per-instance rendering, resume across navigation | frontend | – |
 | FE-3 | Wizard: `group` as a plain nested sub-section (no instance chrome) + grouped review/summary rendering | frontend | – |
 | FE-4 | Conditional+required UX now that the CHECK is gone — *obrigatório* offered beside a condition, pt-BR errors | frontend | – |
 | FE-5 | Keyboard-only pass over instance controls (add/remove/reorder), visible focus, labels | frontend | – |
+
+**Lead file-ownership ruling (2026-07-27, FF-1 only):** `src/lib/forms/actions.ts` + `src/lib/forms/parse-config.ts`
+→ **`frontend`**. They fall outside both written scopes (CLAUDE.md §4 gives `backend` `src/lib/{supabase,queries,types}`;
+`src/lib/forms/` is neither that nor `src/app`/`src/components`), no BE task touches them, and FE-1 cannot write
+min/max without them. Both teammates were told, so the fence binds in both directions. The read/write seam is now
+split across teammates, so **the config key names are the contract**: `frontend` writes `minInstances`/`maxInstances`
+into `form_items.config` exactly as backend's `ItemConfig` declares them; neither side renames unilaterally.
+
+**Known handoff, not a regression:** BE-0 hands `frontend` a red typecheck (9 errors, all in FE-owned files — 8 test
+fixtures needing `children: []`/`instances: []` + `item-type-meta.tsx`). `children`/`instances` are **required by
+design**; optional would invite the skip-the-children bug class that BE-1a/BE-4a/BE-6a all are. FE fixes them by
+supplying the empty arrays, **never** by widening the type back.
 
 > ⚠ **BE-0 hands over a RED typecheck — by design, 9 errors, all in `src/components/**` (frontend-owned).**
 > Widening `ItemType` and adding the required `Item.children` / `ResponseForFill.instances` fields is the
