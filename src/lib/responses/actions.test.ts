@@ -51,6 +51,7 @@ import {
   addGroupInstance,
   removeGroupInstance,
   reorderGroupInstances,
+  saveSection,
 } from './actions'
 
 const RESPONSE_ID = '11111111-1111-4111-8111-111111111111'
@@ -204,6 +205,115 @@ describe('reorderGroupInstances', () => {
       instanceIds: ['a'],
     })
     expect(result.error).toBe('A nova ordem não corresponde aos itens deste bloco.')
+  })
+})
+
+/**
+ * BUG-FF1-005 — `saveSection` destructured seven fields and `instances` was not
+ * among them, so `p_instance_answers` was never sent. Every per-instance answer
+ * a user typed was silently discarded: zero `answers` rows carried a
+ * `group_instance_id` after a real wizard save.
+ *
+ * It hid because `tester`'s specs FF1-4/5/7/8 filled by calling
+ * `save_section_answers` DIRECTLY over RPC — a workaround built to route around
+ * BUG-FF1-001 while the instance actions were stubs. The suite's own workaround
+ * for the first bug concealed the second: bypassing a broken layer becomes
+ * blindness to that layer the moment it is fixed.
+ *
+ * These assert the ACTION reaches the RPC with the parameter populated — which
+ * is exactly what calling the RPC directly can never tell you.
+ */
+const SECTION_ID = '55555555-5555-4555-8555-555555555555'
+const ITEM_ID = '66666666-6666-4666-8666-666666666666'
+
+describe('saveSection — the FF-1 instance arm (BUG-FF1-005)', () => {
+  it('forwards instances as p_instance_answers, TRANSLATED to the RPC key shape', async () => {
+    rpc.mockResolvedValue({ data: null, error: null })
+
+    await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: {},
+      instances: [
+        {
+          instanceId: INSTANCE_ID,
+          answersByItemId: { [ITEM_ID]: 'Dipirona' },
+          selectionsByItemId: { [ITEM_ID]: ['op1'] },
+          observationsByItemId: { [ITEM_ID]: 'obs' },
+          otherTextByItemId: { [ITEM_ID]: 'outro' },
+          clearItemIds: [ITEM_ID],
+        },
+      ],
+    })
+
+    const args = rpc.mock.calls[0][1]
+    // The translation is load-bearing: `app.save_instance_answers` reads
+    // snake_case keys off each entry. Forwarding the camelCase objects verbatim
+    // would be just as broken as dropping them — the RPC would find no
+    // `instance_id` and raise HC0N2 on every save.
+    expect(args.p_instance_answers).toEqual([
+      {
+        instance_id: INSTANCE_ID,
+        answers: { [ITEM_ID]: 'Dipirona' },
+        selections: { [ITEM_ID]: ['op1'] },
+        observations: { [ITEM_ID]: 'obs' },
+        other_text: { [ITEM_ID]: 'outro' },
+        clear_item_ids: [ITEM_ID],
+      },
+    ])
+  })
+
+  it('defaults every optional sub-map so a sparse entry is still well-formed', async () => {
+    rpc.mockResolvedValue({ data: null, error: null })
+
+    await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: {},
+      instances: [{ instanceId: INSTANCE_ID, answersByItemId: { [ITEM_ID]: 'x' } }],
+    })
+
+    expect(rpc.mock.calls[0][1].p_instance_answers).toEqual([
+      {
+        instance_id: INSTANCE_ID,
+        answers: { [ITEM_ID]: 'x' },
+        selections: {},
+        observations: {},
+        other_text: {},
+        clear_item_ids: [],
+      },
+    ])
+  })
+
+  it('omits p_instance_answers entirely when the section has no instances', async () => {
+    rpc.mockResolvedValue({ data: null, error: null })
+
+    await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: { [ITEM_ID]: 'top-level' },
+    })
+
+    const args = rpc.mock.calls[0][1]
+    expect(args.p_instance_answers).toBeUndefined()
+    // …and the top-level arm is untouched by the instance work.
+    expect(args.p_answers).toEqual({ [ITEM_ID]: 'top-level' })
+  })
+
+  it('still reaches save_section_answers with the response and section', async () => {
+    rpc.mockResolvedValue({ data: null, error: null })
+    await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: {},
+    })
+    expect(rpc).toHaveBeenCalledWith(
+      'save_section_answers',
+      expect.objectContaining({
+        p_response_id: RESPONSE_ID,
+        p_section_id: SECTION_ID,
+      }),
+    )
   })
 })
 

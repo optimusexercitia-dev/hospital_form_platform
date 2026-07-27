@@ -325,6 +325,7 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     clearItemIds,
     observationsByItemId,
     otherTextByItemId,
+    instances,
   } = input
   if (!responseId || !sectionId) {
     return { ok: false, error: MESSAGES.missingResponse }
@@ -344,6 +345,25 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
   const hasOtherText =
     otherTextByItemId != null && Object.keys(otherTextByItemId).length > 0
 
+  // FF-1 (BUG-FF1-005): the instance arm. This is a TRANSLATION, not a
+  // pass-through — `InstanceAnswersInput` is camelCase for the TS callers while
+  // `app.save_instance_answers` reads snake_case keys off each entry
+  // (`instance_id`, `answers`, `selections`, `observations`, `other_text`,
+  // `clear_item_ids`), mirroring the RPC's own parameter names. Forwarding the
+  // objects verbatim would be just as broken as dropping them: the RPC would
+  // find no `instance_id` and raise HC0N2 on every save.
+  const instanceAnswers =
+    instances && instances.length > 0
+      ? instances.map((entry) => ({
+          instance_id: entry.instanceId,
+          answers: entry.answersByItemId ?? {},
+          selections: entry.selectionsByItemId ?? {},
+          observations: entry.observationsByItemId ?? {},
+          other_text: entry.otherTextByItemId ?? {},
+          clear_item_ids: entry.clearItemIds ?? [],
+        }))
+      : undefined
+
   // form-model-normalization: `save_section_answers` carries `p_selections jsonb`
   // (item_id -> array of option codes, REPLACE semantics) alongside the scalar
   // p_answers / observations / clear paths.
@@ -361,6 +381,13 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     // p_other_text: per-item "Outro" free text; written only when the item's
     // __other__ option is selected. Omit when none.
     p_other_text: hasOtherText ? (otherTextByItemId as Json) : undefined,
+    // p_instance_answers: FF-1 repeating-group instances — one entry per touched
+    // instance, so a section with N instances is still ONE round trip and one
+    // transaction. Omit when none.
+    p_instance_answers: instanceAnswers as Json | undefined,
+    // p_instance_answers: FF-1 repeating-group instances — one entry per touched
+    // instance, so a section with N instances is still ONE round trip and one
+    // transaction. Omit when none.
   })
 
   if (error) {
