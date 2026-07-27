@@ -557,6 +557,61 @@ asserting the fixture really holds an empty string so N2 cannot pass vacuously.
 > still filtered at top level but not per instance. A *different* defect from the one ruled in —
 > reported rather than silently widened.
 
+#### `frontend` — Wave 3 view halves (FUP-FF2-1 + FUP-FF2-2) ✅ COMPLETE 2026-07-27
+
+Two commits, `4f65711` (reads) + `cbe4657` (dashboard), against `backend`'s Wave-3 contract.
+
+**FUP-FF2-1 — the sign-off + submission reads.** The empty grid had **two** causes, which is why
+it read as merely blank rather than broken: the door did not project the matrix tables (backend,
+`08e02eb`), **and** both read views filtered blocks with `isInputItem`, which is FALSE for a matrix
+— so a VISIBLE matrix fell through to the display branch and rendered nothing while a HIDDEN one
+sailed past the visibility gate. Both now use `isAnswerableItem`. No second renderer was written:
+the wizard's read-only `MatrixGrid`/`RiskMatrixPicker` serve all three surfaces via `AnswerSummary`,
+and `InstanceAnswersReadonly` (already shared by both views) forwards the per-instance grids.
+`ClientResponseForSignoff`'s two new fields are **required**, exactly as FF-1 made `instances`
+required — an optional field here is how a future caller silently reintroduces a blind signature.
+
+> **The stored score is never recomputed.** `RiskMatrixPicker` gained `storedScore`, which wins over
+> the computed product wherever a durable `risk_score` exists. The product is the wizard's preview of
+> a score that does not exist yet; once it is a recorded fact, re-deriving it from today's axis
+> weights would let a re-weighting restate what a historical response — or a signature over it —
+> appears to say.
+
+**FUP-FF2-2 — the dashboard.** `MatrixDistributionCard` + `RiskDistributionCard`, joining the
+existing section→item ordering. **Rendered as real tables rather than Recharts figures, deliberately:**
+Recharts has no heatmap, so forcing one through it yields an `aria-hidden` SVG *plus* a duplicate
+table as its text alternative. Here the grid IS the data's natural form, so one `<table>` is chart
+and accessible alternative at once, with nothing to keep in sync. **Colour is never the channel** —
+every cell prints its number (count + row share; count + stored score) and each card states in words
+what the tint means. Risk tint follows the score **relative to the observed range**, because
+`config.riskBands` is per-item authoring config and not part of this aggregate; claiming an absolute
+"Alto" the data cannot support would be worse than saying nothing. Identity is `rowCode`/`colCode`
+throughout — a `*Label` can change under a relabel (ruling 4) and keying on it would split the series.
+
+**Verified in a running app** (own server on :3100; never :3000) against three submissions with
+deliberately different cells: heatmap read **2/1, 1/2, 2/0/1** exactly; risk summary read
+**média 36,33 · mínima 1 · máxima 81** — the stored 1/27/81, not values re-derived from weights.
+Screenshots `ff2-15-submission-detail.png`, `ff2-16-dashboard-matrix.png`.
+
+**One defect found in the browser and fixed** (no test would have caught it): the submission detail
+printed `question_explanation` above the block while the grid rendered its own — the line appeared
+twice and was announced twice.
+
+**Green bar:** typecheck clean · `npm run lint` **0 errors / 0 warnings** (incl. the new `[--var]`
+guard) · Vitest **593/593** (42 files; +25) · `npx next build` **succeeded**.
+
+**Mutation-proven**, 6 new tests in `src/components/signoffs/signoff-matrix.test.tsx` rendering the
+REAL `ReviewAndSign`: reverting the filter to `isInputItem` turns **4 red** (the original empty
+grid); dropping the stored-score override turns **2 red** — the fixture's stored `99` deliberately
+disagrees with the `9 × 3 = 27` the weights would give, so a recomputing implementation cannot pass.
+
+> ⚠ **NOT verified in a browser: the sign-off screen itself.** No seeded published form has both a
+> `staff_admin` sign-off section **and** a matrix (`…b001` has the sign-off, the matrix form has no
+> sign-off section), and manufacturing one means cloning + publishing a v2 — structural drift into a
+> seed `tester` is about to write specs against. The renderer and the data threading are covered by
+> the 6 mutation-proven tests above and the door by backend's pgTAP, so what is unproven is
+> specifically **their composition on that route**. → a spec for `tester`.
+
 #### FF-2 follow-ups — ✅ BOTH CLOSED in Wave 3 (PO ruled them into gate scope)
 
 Kept for the audit trail; neither is outstanding.
