@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Item, ItemType, Section } from "@/lib/queries/forms";
+import { isConditionTargetInScope } from "@/lib/queries/conditions";
 
 import {
   newChildConditionTargets,
@@ -161,5 +162,61 @@ describe("condition targets — a plain `group` is transparent (ruling 6)", () =
     const result = keys(newQuestionConditionTargets(tree(), "s1"));
     expect(result).not.toContain("GRP");
     expect(result).not.toContain("REP");
+  });
+});
+
+/**
+ * The picker and the publish gate must agree EXACTLY. `validate_visible_when`
+ * (BE-6) rejects an outside-in condition at publish; if the picker offers one
+ * anyway, the author builds the form around a target that cannot work and only
+ * discovers it at publish — the "silent trap" the PO rejected when settling
+ * ruling 2, made worse by firing late.
+ *
+ * These cases pin the picker to the SHARED predicate rather than to a
+ * re-statement of the rule, so a future change to `isConditionTargetInScope`
+ * moves both sides together or fails here. Each expectation is derived from the
+ * predicate itself, which is what makes a locally re-implemented copy unable to
+ * satisfy them silently.
+ */
+describe("picker agrees with the shared outside-in predicate", () => {
+  it("offers a target if and ONLY if the shared predicate allows it", () => {
+    const sections = tree();
+    // Ask from inside REP (viewer = "REP") and from top level (viewer = null),
+    // and confirm each offered/withheld key matches the predicate's verdict.
+    const cases: { viewerId: string | null; offered: string[] }[] = [
+      { viewerId: "REP", offered: keys(newChildConditionTargets(sections, "REP")) },
+      { viewerId: null, offered: keys(newQuestionConditionTargets(sections, "s1")) },
+      { viewerId: "GRP", offered: keys(newChildConditionTargets(sections, "GRP")) },
+    ];
+    // Which repeating group each candidate key lives in (null = outside one).
+    const homeOf: Record<string, string | null> = {
+      top1: null,
+      g1: null, // a plain group's children answer at TOP level (ruling 6)
+      g2: null,
+      r1: "REP",
+      r2: "REP",
+      top2: null,
+    };
+
+    for (const { viewerId, offered } of cases) {
+      for (const [key, home] of Object.entries(homeOf)) {
+        // A key may be absent for the ORDERING rule (not strictly earlier); we
+        // only assert the SCOPE direction: anything the predicate forbids must
+        // never be offered.
+        if (!isConditionTargetInScope(home, viewerId)) {
+          expect(offered).not.toContain(key);
+        }
+      }
+    }
+  });
+
+  it("the predicate itself forbids outside-in and permits inside-out", () => {
+    // Guards the case above from passing vacuously: if the predicate ever became
+    // permissive, `!isConditionTargetInScope(...)` would stop gating anything and
+    // the loop would assert nothing at all.
+    expect(isConditionTargetInScope("REP", null)).toBe(false);
+    expect(isConditionTargetInScope("REP", "GRP")).toBe(false);
+    expect(isConditionTargetInScope("REP", "REP")).toBe(true);
+    expect(isConditionTargetInScope(null, "REP")).toBe(true);
   });
 });

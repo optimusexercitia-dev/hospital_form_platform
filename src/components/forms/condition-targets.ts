@@ -1,4 +1,9 @@
 import type { ConditionTarget, Item, InputItemType, Section } from "@/lib/queries/forms";
+// The ONE outside-in predicate, shared with `validate_visible_when`'s TS mirror.
+// `conditions.ts` is client-safe (its only import is `import type { Json }`), so a
+// Client Component may value-import it without dragging the server Supabase
+// client into the bundle (BUG-FBE-005) — verified, not assumed.
+import { isConditionTargetInScope } from "@/lib/queries/conditions";
 import { isRepeatingGroup } from "@/lib/forms/item-tree";
 
 /**
@@ -121,8 +126,14 @@ function targetsBefore(
       if (!isEligibleTarget(entry.item.itemType)) return false;
       if (entry.item.questionKey == null) return false;
       // Outside-in is forbidden; inside-out (same repeating group) resolves.
-      if (entry.repeatingParentId === null) return true;
-      return entry.repeatingParentId === viewerRepeatingId;
+      // Delegated to the SHARED predicate rather than re-tested here: the picker
+      // and the publish gate must agree EXACTLY, and a target offered here but
+      // refused by `validate_visible_when` is a dead end the author cannot
+      // diagnose — they have already built the form around it.
+      return isConditionTargetInScope(
+        entry.repeatingParentId,
+        viewerRepeatingId,
+      );
     })
     .map((entry) => toTarget(entry.item, entry.sectionPosition));
 }
