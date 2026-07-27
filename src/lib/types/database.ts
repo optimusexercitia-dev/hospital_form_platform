@@ -5005,8 +5005,10 @@ export type Database = {
           default_value: Json | null
           form_version_id: string
           id: string
+          is_container: boolean | null
           item_type: string
           label: string | null
+          parent_is_container: boolean | null
           parent_item_id: string | null
           position: number
           question_explanation: string | null
@@ -5022,8 +5024,10 @@ export type Database = {
           default_value?: Json | null
           form_version_id: string
           id?: string
+          is_container?: boolean | null
           item_type: string
           label?: string | null
+          parent_is_container?: boolean | null
           parent_item_id?: string | null
           position: number
           question_explanation?: string | null
@@ -5039,8 +5043,10 @@ export type Database = {
           default_value?: Json | null
           form_version_id?: string
           id?: string
+          is_container?: boolean | null
           item_type?: string
           label?: string | null
+          parent_is_container?: boolean | null
           parent_item_id?: string | null
           position?: number
           question_explanation?: string | null
@@ -5059,10 +5065,14 @@ export type Database = {
           },
           {
             foreignKeyName: "form_items_parent_item_id_fkey"
-            columns: ["parent_item_id"]
+            columns: [
+              "parent_item_id",
+              "form_version_id",
+              "parent_is_container",
+            ]
             isOneToOne: false
             referencedRelation: "form_items"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "form_version_id", "is_container"]
           },
           {
             foreignKeyName: "form_items_section_id_fkey"
