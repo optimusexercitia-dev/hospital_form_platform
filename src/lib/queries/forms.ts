@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { flattenItem } from '@/lib/forms/item-tree'
 import type { Json } from '@/lib/types/database'
 import type { Visibility, FlaggedWhen } from '@/lib/queries/conditions'
 import type { CaseStatusColorToken } from '@/lib/cases/case-status'
@@ -89,10 +90,14 @@ export type ContainerItemType = 'group' | 'repeating_group'
 
 export type ItemType = InputItemType | DisplayItemType | ContainerItemType
 
-export const CONTAINER_ITEM_TYPES: readonly ContainerItemType[] = [
-  'group',
-  'repeating_group',
-]
+// The container VALUES + the tree walkers live in a PURE, client-safe module and
+// are re-exported here, exactly as the reserved "Outros" code is: this module
+// value-imports the server Supabase client at top level, so a Client Component
+// that value-imported them from here would drag `next/headers` into the browser
+// bundle and abort `next build` (BUG-FBE-005). One implementation, two
+// specifiers — never two implementations, which is the drift this phase exists
+// to prevent.
+export { CONTAINER_ITEM_TYPES, flattenItem } from '@/lib/forms/item-tree'
 
 export const INPUT_ITEM_TYPES: readonly InputItemType[] = [
   'multiple_choice',
@@ -785,16 +790,6 @@ export function answerableItems(tree: VersionTree): Item[] {
     .filter((item): item is Item =>
       INPUT_ITEM_TYPES.includes(item.itemType as InputItemType),
     )
-}
-
-/**
- * FF-1 (BE-0): one item followed by its children, in render order. The single
- * helper every "walk every item of this version" caller must use now that
- * `Section.items` holds only top-level items — forgetting it silently skips
- * every group child (Rule 9's "answerable questions" bug class).
- */
-export function flattenItem(item: Item): Item[] {
-  return item.children.length === 0 ? [item] : [item, ...item.children]
 }
 
 /**
