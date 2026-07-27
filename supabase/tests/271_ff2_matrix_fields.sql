@@ -18,7 +18,7 @@
 
 begin;
 
-select plan(86);
+select plan(90);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -1060,6 +1060,122 @@ select is(
    where c.question_key = 'sup_matriz'),
   'mr1',
   'M7. the aggregation unit is the CODE, not the per-version axis id');
+
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+
+-- ===========================================================================
+-- §N · OUT-OF-PHASE (FF-1, ADR 0087) — the sign-off payload's per-instance
+--   observation/other_text filters compared against `''''`, which in SQL source
+--   is a literal ONE APOSTROPHE. They therefore excluded an observation equal to
+--   `'` and let EMPTY-STRING observations through — the opposite of the intent,
+--   and inconsistent with the top-level filter three lines away.
+--
+--   Asserts BOTH directions: an empty observation must be ABSENT from the
+--   payload and a real one must be PRESENT. One direction alone is satisfied by
+--   a filter that drops everything (or nothing).
+--
+--   MUTATION: restore `<> ''''` in the two per-instance filters of
+--     get_response_for_signoff -> N2 and N4 go red (the empty string reappears).
+-- ===========================================================================
+
+-- A signable fixture: a section that REQUIRES a staff_admin signature, holding a
+-- repeating group, so `get_response_for_signoff` reaches its instance block.
+insert into public.forms (id, commission_id, title, created_by)
+  values ('ff200000-0000-0000-0000-0000000000c1', (select comm_x from k), 'FF1 obs', (select sa_x from k));
+insert into public.form_versions (id, form_id, version_number, status)
+  values ('ff200000-0000-0000-0000-0000000000c2', 'ff200000-0000-0000-0000-0000000000c1', 1, 'draft');
+insert into public.form_sections (id, form_version_id, position, is_default)
+  values ('ff200000-0000-0000-0000-0000000000c3', 'ff200000-0000-0000-0000-0000000000c2', 0, true);
+insert into public.form_sections (id, form_version_id, position, title, requires_signoff, signoff_role)
+  values ('ff200000-0000-0000-0000-0000000000c4', 'ff200000-0000-0000-0000-0000000000c2', 1, 'Assinatura', true, 'staff_admin');
+
+insert into public.form_items (id, section_id, position, item_type, label)
+  values ('ff200000-0000-0000-0000-0000000000c5', 'ff200000-0000-0000-0000-0000000000c3', 0, 'repeating_group', 'Blocos');
+insert into public.form_items (id, section_id, position, item_type, question_key, label, parent_item_id)
+  values ('ff200000-0000-0000-0000-0000000000c6', 'ff200000-0000-0000-0000-0000000000c3', 1, 'short_text', 'obs_campo', 'Campo', 'ff200000-0000-0000-0000-0000000000c5');
+insert into public.form_items (id, section_id, position, item_type, question_key, label)
+  values ('ff200000-0000-0000-0000-0000000000c7', 'ff200000-0000-0000-0000-0000000000c4', 0, 'short_text', 'obs_nota', 'Nota');
+
+select public.publish_form_version('ff200000-0000-0000-0000-0000000000c2');
+
+-- st_x fills it: two instances, one carrying an EMPTY observation and the other
+-- a real one. The RPC is only reachable while a staff_admin sign-off is pending.
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+
+insert into public.responses (id, form_version_id, commission_id, created_by, status)
+  values ('ff200000-0000-0000-0000-0000000000c8', 'ff200000-0000-0000-0000-0000000000c2',
+          (select comm_x from k), (select st_x from k), 'in_progress');
+insert into public.response_group_instances (id, response_id, group_item_id, position) values
+  ('ff200000-0000-0000-0000-0000000000c9', 'ff200000-0000-0000-0000-0000000000c8', 'ff200000-0000-0000-0000-0000000000c5', 0),
+  ('ff200000-0000-0000-0000-0000000000ca', 'ff200000-0000-0000-0000-0000000000c8', 'ff200000-0000-0000-0000-0000000000c5', 1);
+
+select public.save_section_answers(
+  'ff200000-0000-0000-0000-0000000000c8', 'ff200000-0000-0000-0000-0000000000c3',
+  p_instance_answers => '[
+    {"instance_id":"ff200000-0000-0000-0000-0000000000c9",
+     "answers":{"ff200000-0000-0000-0000-0000000000c6":"A"},
+     "observations":{"ff200000-0000-0000-0000-0000000000c6":"observacao real"}},
+    {"instance_id":"ff200000-0000-0000-0000-0000000000ca",
+     "answers":{"ff200000-0000-0000-0000-0000000000c6":"B"}}]'::jsonb);
+
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+-- Force the EMPTY string directly: save_section_answers nullifies a blank
+-- observation on the way in, so the only way to construct the row this filter
+-- exists to reject is to write it as the owner. That is the point — the filter
+-- is the LAST line of defence for data that predates or bypasses that nullify.
+update public.answers set observation = ''
+  where response_id = 'ff200000-0000-0000-0000-0000000000c8'
+    and group_instance_id = 'ff200000-0000-0000-0000-0000000000ca';
+
+select is(
+  (select count(*)::int from public.answers
+   where response_id = 'ff200000-0000-0000-0000-0000000000c8'
+     and group_instance_id = 'ff200000-0000-0000-0000-0000000000ca'
+     and observation = ''),
+  1, 'N1. the fixture really holds an EMPTY-STRING observation (N2 is not vacuous)');
+
+-- Read the door as the signer.
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+
+select is(
+  (select (i.value -> 'observations_by_item') ->> 'ff200000-0000-0000-0000-0000000000c6'
+   from jsonb_array_elements(
+          public.get_response_for_signoff('ff200000-0000-0000-0000-0000000000c8') -> 'instances') i
+   where (i.value ->> 'id') = 'ff200000-0000-0000-0000-0000000000ca'),
+  null,
+  'N2. an EMPTY observation is filtered OUT of the instance payload');
+
+select is(
+  (select (i.value -> 'observations_by_item') ->> 'ff200000-0000-0000-0000-0000000000c6'
+   from jsonb_array_elements(
+          public.get_response_for_signoff('ff200000-0000-0000-0000-0000000000c8') -> 'instances') i
+   where (i.value ->> 'id') = 'ff200000-0000-0000-0000-0000000000c9'),
+  'observacao real',
+  'N3. …while a real observation is still PRESENT (the filter did not drop everything)');
+
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+update public.answers set other_text = ''
+  where response_id = 'ff200000-0000-0000-0000-0000000000c8'
+    and group_instance_id = 'ff200000-0000-0000-0000-0000000000ca';
+
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+
+select is(
+  (select (i.value -> 'other_text_by_item') ->> 'ff200000-0000-0000-0000-0000000000c6'
+   from jsonb_array_elements(
+          public.get_response_for_signoff('ff200000-0000-0000-0000-0000000000c8') -> 'instances') i
+   where (i.value ->> 'id') = 'ff200000-0000-0000-0000-0000000000ca'),
+  null,
+  'N4. the SAME slip in the other_text filter is fixed too (both sites, one copy-paste)');
 
 reset role;
 select set_config('request.jwt.claims', null, true);
