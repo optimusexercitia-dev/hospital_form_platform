@@ -463,3 +463,43 @@ describe('saveSection — FF-2 matrix failures reach the user (BUG-FF2-002 sibli
     expect(result.error).toBe('Não foi possível concluir. Tente novamente.')
   })
 })
+
+describe('saveSection — FF-1 HC0N2 reaches the user (out-of-phase fix)', () => {
+  // FF-1 scope, ruled in by the lead during FF-2's gate: the same chain, the
+  // same file, and a live user-facing pt-BR defect in a SHIPPED phase.
+  // `mapGroupError` already maps HC0N2 for the three instance RPCs; saveSection
+  // simply never consulted it.
+  // MUTATION: delete the GROUP_INSTANCE_NOT_FOUND block from saveSection ->
+  //   both assertions here go red.
+  it.each([
+    'entrada de bloco repetível sem identificador',
+    'item do bloco não encontrado nesta resposta',
+  ])('surfaces the DB sentence for HC0N2: "%s"', async (message) => {
+    // The two raise sites say DIFFERENT things, which is exactly why the DB
+    // message is preferred over the single constant.
+    rpc.mockResolvedValue({ data: null, error: { code: 'HC0N2', message } })
+
+    const result = await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: {},
+      instances: [{ instanceId: INSTANCE_ID, answersByItemId: {} }],
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe(message)
+    expect(result.error).not.toBe('Não foi possível concluir. Tente novamente.')
+  })
+
+  it('falls back to the constant when HC0N2 carries no message', async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: 'HC0N2', message: '' } })
+
+    const result = await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: {},
+    })
+
+    expect(result.error).toBe('Item do bloco não encontrado nesta resposta.')
+  })
+})

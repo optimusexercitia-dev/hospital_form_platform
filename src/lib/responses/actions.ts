@@ -470,6 +470,19 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     if (error.code === PG_NO_DATA_FOUND) {
       return { ok: false, error: MESSAGES.missingResponse }
     }
+    // FF-1 (ADR 0087) — OUT-OF-PHASE FIX, ruled in by the lead during FF-2's
+    // gate. `app.save_instance_answers` raises HC0N2 for both "entry with no
+    // instance_id" and "that instance is not of this response", and this chain
+    // dropped both into the generic retry copy — a live user-facing pt-BR defect
+    // in a shipped phase. `mapGroupError` (used by the three instance RPCs)
+    // already maps HC0N2; `saveSection` simply never consulted it, so this was
+    // the same within-one-file inconsistency as BUG-FF2-002.
+    //
+    // The DB message is preferred because the two raises say DIFFERENT things
+    // and the constant can only say one of them.
+    if (error.code === GROUP_INSTANCE_NOT_FOUND) {
+      return { ok: false, error: error.message || MESSAGES.groupInstanceMissing }
+    }
     // FF-2 (ADR 0089) — the SIBLINGS of BUG-FF2-002, found by sweeping every
     // HC0P* raise site against the paths that can surface it. The matrix arms of
     // `save_section_answers` raise four codes this chain would have collapsed
