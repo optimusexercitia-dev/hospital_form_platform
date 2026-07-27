@@ -88,10 +88,9 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
 _No active build phase._ **FF-1 (Repeating Groups) ✅ COMPLETE 2026-07-27** — QA APPROVED r2,
 human-approved, flag `repeating_groups` **ON** (gate flip `20260828000900`). Full record →
 [ff-1-repeating-groups.md](docs/progress/ff-1-repeating-groups.md) (tasks, 5 bugs, test runs,
-the full `e2e:prod` gate triage). **FF-2 (Matrix & Risk Matrix) is the next build phase —
-NOT started (PO-held 2026-07-27).** It begins with its own ADR (**0089+** — 0088 was taken
-2026-07-27 by the case-type assignment fix below) per ADR
-[0086](docs/decisions/0086-flexible-forms-pre-pilot.md).
+the full `e2e:prod` gate triage). **FF-2 (Matrix & Risk Matrix) is IN FLIGHT since 2026-07-27** —
+PO hold released, ADR [0089](docs/decisions/0089-ff2-matrix-risk-matrix.md) accepted (0088 was
+taken the same day by the case-type assignment fix below). Detail → the FF-2 block.
 
 ### 🔒 Case-type assignment — ETH·E3a O-1 resolved (2026-07-27, out-of-phase fix)
 
@@ -118,39 +117,47 @@ cross-org `HC0F7` / non-admin `42501`). **Not yet E2E-tested or QA-reviewed.**
 > `worktrees/ff/flexible-forms-program/.next/` build output — `eslint.config.mjs` ignores
 > `.claude/**` but not `worktrees/**`. **Pre-existing and unrelated**; needs a one-line ignore.
 
-### 🚦 FF-2 — start here (session handoff, 2026-07-27)
+### 🚦 FF-2 — Matrix & Risk Matrix · IN FLIGHT (started 2026-07-27)
 
-**Where FF-1 ended:** `main` = `39522db`, **origin in sync**, flag `repeating_groups` **ON**, remote
-`db push` **not** done (local-only, as every S-phase). Worktree
-`worktrees/ff/flexible-forms-program` on branch `ff/flexible-forms-program` is **clean and
-identical to `main`** — reuse it (it has `.env.local`, `node_modules`, `./dev.sh` on :3000) or
-branch fresh from `main`. A new session spawns its own teammates; FF-1's are gone.
+Worktree `worktrees/ff/flexible-forms-program`, branch `ff/flexible-forms-program`, forked from
+`main` at `b656ad4`. Flag `matrix_fields` — **not seeded yet** (FF-2 creates it, OFF).
+**Migration window `20260830000000+`** (`20260829…` is ADR 0088's).
 
-**Start FF-2 by authoring ADR 0088** (just-in-time per ADR 0086), settling the §3 FF-2 open
-questions with the PO **before** any code, then contract-first: `backend` posts typed stubs, then
-`frontend`. Scope, dependencies, ADR questions and gate keystones →
-[flexible-forms-program.md](docs/plans/flexible-forms-program.md) §3 FF-2.
+**✅ ADR [0089](docs/decisions/0089-ff2-matrix-risk-matrix.md) — accepted 2026-07-27.** Four PO
+rulings settled the §3 FF-2 open questions:
 
-> ⚠️ **THREE THINGS ABOUT THE SHARED LOCAL STACK, TRUE AS OF THIS HANDOFF.** A **second session is
-> actively working in the primary checkout** on `p_case_type_id` wiring (spawned task, 2026-07-27).
->
-> 1. **Do NOT run `supabase db reset` from this worktree.** The other session has **two migrations
->    applied to the shared DB — `20260829000000_case_type_assignment` and
->    `20260829000100_set_template_case_type` — whose FILES exist only in the primary checkout**
->    (uncommitted). A reset from here replays only this tree's 198 files and would **silently drop
->    their schema work mid-session**. Coordinate before resetting anything.
-> 2. **`registered != files` here is expected right now, not corruption.** The shared DB reports
->    **200 registered** (last `20260829000100`) against **198 files** in this worktree. The usual
->    "verify registered == files before trusting the catalog" rule still applies — but the delta is
->    that session's two migrations, not drift. Re-check once their work lands on `main`.
-> 3. **FF-2 must allocate its migration window ABOVE `20260829000100`** — i.e. start at
->    **`20260830000000`**. The natural next window after FF-1 (`20260828…`) is `20260829…`, and it is
->    **already taken** by the case-type work. A collision here is a merge conflict in the one place
->    the repo cannot tolerate one.
->
-> Also expect **file-level contention** with that session on `src/lib/queries/feature-flags.ts`,
-> `supabase/seed.sql` and `src/lib/types/database.ts` — all three are files FF-2 will also touch.
-> Check `git -C <primary> status` before editing them.
+1. **Cell contract = radio grid** — columns *are* the options; each row takes exactly one column,
+   `value = 'true'::jsonb`. Enforced by a new `UNIQUE (answer_id, row_id)`. Typed cells stay
+   reachable later as a constraint drop + config key (no answer-table migration).
+2. **Risk score** — new nullable `weight numeric` on **both** axis tables;
+   `risk_score = severity.weight * likelihood.weight`, derived server-side, never client-supplied;
+   bands as ordered thresholds in `form_items.config.riskBands` (derived for display, not stored).
+   ⚠ `form_item_options.risk_weight` is the *options* lane and is unrelated despite the name.
+3. **`required` = every row answered** (row-complete), in the flat **and** per-instance loops.
+   Item visibility still wins — hidden matrix requires nothing.
+4. **Axis `code`s immutable** — relabel/reorder/add/remove yes, re-key never, via a `BEFORE UPDATE`
+   trigger that does not consult version status.
+
+**Live-catalog audit at phase start** (200/200 registered, max `20260829000100` = last file; read
+from `pg_proc`/`pg_policies`/`pg_constraint`, never migration text) confirmed the plan's scope and
+found **one hazard the plan does not record**:
+
+> 🔴 **`app.instance_is_empty` is blind to the matrix tables** (ADR 0089 §A — NEW). It decides
+> presence from `answers.value` and `answer_selected_options` only. A matrix answer's payload lives
+> in `answer_matrix_cells`/`answer_risk_matrix` with `answers.value` **null**, so the moment FF-2
+> ships writers, a repeating-group instance holding *only* a filled matrix is judged empty and
+> **pruned by `submit_response` — silently destroying the answer**, cells cascading after it. Same
+> class as FF-1's P0-1. Needs two more arms + a **mutation-proven** keystone
+> (`instance_not_empty_with_matrix_only`). **FF-5 inherits the identical blindness for
+> `answer_references`.**
+
+Also confirmed live: `clone_form_version` copies options but **neither axis table** (INFO-1 matrix
+half — publishing a matrix then editing it loses the grid); and neither correction RPC copies the
+two matrix tables (the inherited P0-1 obligation below). Full keystone table → ADR 0089.
+
+**Shared-stack hazards from the previous handoff are CLEARED** — ADR 0088's two migrations landed
+on `main` at `b656ad4`; `registered == files == 200`, no drift. The `20260830000000+` window and
+the file-contention note (`feature-flags.ts`, `seed.sql`, `database.ts`) still stand.
 
 **Two things worth doing before or during FF-2** (both from FF-1's QA, neither blocking):
 **INFO-4** — the SQL↔TS parity vectors have **no drift detector**, and FF-3 adds a *second*
