@@ -405,6 +405,43 @@ stack-ownership hold.**
 > resposta") into the same generic bucket. Identical class, shipped phase — reported rather than
 > silently widened.
 
+#### ⚠ OUT-OF-PHASE FIX — BUG-FF1-006 (`HC0N2`), attributed to **FF-1**, riding FF-2's gate
+
+**Not FF-2 scope.** Surfaced by the BUG-FF2-002 sweep, reported rather than fixed, and **ruled in
+by the lead** on the merits: same chain, same file, ~3 lines, purely an error-message mapping with
+no behaviour change — and a **live user-facing pt-BR defect in a shipped phase**, so deferring it
+would ship a known-bad message to the pilot and orphan the item against FF-3. Precedent: ADR 0088
+was itself an out-of-phase fix. `qa` should read this as a deliberate scoped exception, not FF-2
+scope creep.
+
+`app.save_instance_answers` raises `HC0N2` for two distinct conditions — *"entrada de bloco
+repetível sem identificador"* and *"item do bloco não encontrado nesta resposta"* — and
+`saveSection` dropped **both** into `MESSAGES.generic`. `mapGroupError` (used by the three instance
+RPCs) has mapped `HC0N2` since FF-1; `saveSection` simply never consulted it, making this the same
+within-one-file inconsistency as BUG-FF2-002.
+
+**Fixed** by preferring the DB message (the two raise sites say different things and the single
+constant can only say one), falling back to `MESSAGES.groupInstanceMissing`.
+**Mutation-proven:** removing the case turns 3 red — all three assertions report
+`Received: "Não foi possível concluir. Tente novamente."`; restored. Committed separately as
+`fix(ff-1): …` so its diff is reviewable on its own. Vitest **568/568**, lint 0/0, typecheck clean,
+`next build` succeeded. Code-only — no DB verification (`tester` owns the stack).
+
+#### Why two FF-2 codes are deliberately UNMAPPED (recorded so nobody "completes" the gap)
+
+`HC0P0` and `HC0P4`-via-clone have **no `case`** in `src/lib/forms/actions.ts`, on purpose, and the
+reasoning is in a code comment beside the constants — not only here:
+
+- **`HC0P0`** (axis code immutable) fires from a `BEFORE UPDATE` trigger. The only UPDATE any app
+  path issues is inside `upsert_matrix_axes`, which matches rows **on** `code` and never writes it;
+  direct DML is denied to `authenticated` by K9. Unreachable.
+- **`HC0P4`** cannot surface through `startEditFromPublished` — `clone_form_version` creates the
+  target itself, so it is always a fresh draft. It *is* reachable through `upsertMatrixAxes`, where
+  it **is** mapped.
+
+A `case` for an unreachable code is not free: it reads as reachable to the next person and invites
+a unit test that can never fail — a vacuous keystone by construction (ADR 0079).
+
 #### FF-2 follow-ups (deferred, in-scope — visible to `qa`)
 
 | id | Gap | Why deferred |

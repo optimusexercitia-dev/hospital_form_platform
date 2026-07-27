@@ -115,6 +115,21 @@ const PG_INSUFFICIENT_PRIVILEGE = '42501'
 
 // FF-2 (ADR 0089) — the matrix error block. HC0O is skipped on purpose (`O` vs
 // `0` in a SQLSTATE); HC0N* belongs to FF-1.
+//
+// ⚠ TWO CODES ARE DELIBERATELY ABSENT FROM THIS FILE'S MAPPINGS, and the gap is
+// intentional — do not "complete" it (BUG-FF2-002 sweep):
+//   · HC0P0 (axis code immutable) is raised by a BEFORE UPDATE trigger on the
+//     two axis tables. The ONLY UPDATE any app path issues is the one inside
+//     `upsert_matrix_axes`, which matches rows ON `code` and never writes it;
+//     direct DML is denied to `authenticated` by K9. Unreachable.
+//   · HC0P4 (version is not a draft) cannot surface through
+//     `startEditFromPublished`: `clone_form_version` creates the target version
+//     itself, so it is always a fresh draft. It IS reachable through
+//     `upsertMatrixAxes`, where it is mapped.
+// A `case` for an unreachable code is not free: it reads as reachable to the
+// next person, and it invites a unit test that can never fail — a vacuous
+// keystone by construction (ADR 0079). Leaving the gap, with this note, is the
+// honest encoding.
 const MATRIX_FLAG_OFF = 'HC0P2'
 const MATRIX_NOT_A_MATRIX = 'HC0P3'
 const MATRIX_NOT_DRAFT = 'HC0P4'
