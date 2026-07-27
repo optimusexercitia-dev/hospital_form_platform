@@ -853,7 +853,7 @@ no recipient identity (proven: no emitted body contains a token fed to every fre
 `finding_recorded` + `vote_cast` are `coordinator_only` (deliberation-sensitive); the other six
 are `case_readers`. `can_read_case` stays the RLS floor (a respondent/recused reader sees none).
 `decision_issued`'s body omits `decision_type` (uncontrolled free text). Rewrites are catalog-truth
-body-only splices (`create or replace`, grants preserved). Gate: pgTAP `261_ethics_e3a_autoderive`
+body-only splices (`create or replace`, grants preserved). Gate: pgTAP `267_ethics_e3a_autoderive`
 20/20, incl. a migration-level mutation proof (flipping the two `coordinator_only` emits to
 `case_readers` turns the keystones RED).
 

@@ -113,7 +113,7 @@ function median(values: number[]): number | null {
  * sanctionOutcomeCounts — no count reveals a case the viewer cannot read even exists.
  * A foreign-commission call returns the empty summary (the commission filter + RLS).
  *
- * Proof + the multi-role/mutation keystones: `supabase/tests/263_ethics_e3a_dashboard.sql`.
+ * Proof + the multi-role/mutation keystones: `supabase/tests/269_ethics_e3a_dashboard.sql`.
  */
 export async function getEthicsDashboard(
   commissionId: string,
