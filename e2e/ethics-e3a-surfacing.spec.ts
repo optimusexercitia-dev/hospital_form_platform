@@ -542,12 +542,14 @@ test('DASH-0e capture the foreign-commission coordinator BEFORE snapshot (delta 
 // DASH-1..5 read the "after" state — `beforeAll` runs before EVERY test in the
 // file (including DASH-0a..e), so fixture creation belonging there would make
 // the "before" snapshot already include it, collapsing every delta to ~0.
-test('DASH-SETUP create the 3 throwaway dashboard cases (fixture, mirrors 263_ethics_e3a_dashboard.sql)', async ({
+test('DASH-SETUP create the 3 throwaway dashboard cases (fixture, mirrors 269_ethics_e3a_dashboard.sql)', async ({
   request,
 }) => {
   // Direct-insert supporting data (no product RPC/UI conveniently covers "mark
   // admissible + issue a decision + assign a sanction" as one step; mirrors
-  // supabase/tests/263_ethics_e3a_dashboard.sql's own fixture shape).
+  // supabase/tests/269_ethics_e3a_dashboard.sql's own fixture shape (BE-8
+  // renamed 260-263 -> 266-269 to resolve a numbering collision with CH/
+  // case-corrections — this reference was stale, no functional impact).
   DASH_CASE_A = await createEthicsCase(request, '[E3a] Dash — pendente')
   DASH_CASE_B = await createEthicsCase(request, '[E3a] Dash — admitido + sanção A')
   DASH_CASE_C = await createEthicsCase(request, '[E3a] Dash — admitido + sanção B')
@@ -875,8 +877,17 @@ test('TERM-4 Ethics case: "Médico denunciado" appears where the primary-subject
   await page.goto(`${MANAGE_BASE}/${CASE_ID_ETHICS_SEEDED}`)
   await page.waitForURL(`${MANAGE_BASE}/${CASE_ID_ETHICS_SEEDED}`)
   // Acceptance §4-1: the primary-subject term must appear somewhere on the case's
-  // detail surface (the case's respondent doctor, "Dra. Denunciada", is a seeded
-  // `case_participants` row with role display_name "Médico denunciado").
-  await expect(page.getByText('Médico denunciado')).toBeVisible({ timeout: 10_000 })
+  // detail surface. BUG-E3A-001's fix renders it as the new
+  // `CasePrimarySubjectPanel`'s heading — targeted by role+name (not a plain
+  // `getByText`, which strict-mode-fails here: the seeded respondent's
+  // `case_participant_roles.display_name` is ALSO "Médico denunciado", so the
+  // panel legitimately shows the term twice — once as its heading, once as the
+  // participant's role line — and a plain text match is ambiguous between them).
+  const subjectPanel = page.getByRole('region', { name: 'Médico denunciado' })
+  await expect(subjectPanel).toBeVisible({ timeout: 10_000 })
+  await expect(subjectPanel.getByRole('heading', { name: 'Médico denunciado' })).toBeVisible()
+  // Non-vacuous: the panel also resolves the actual respondent participant (not
+  // just an empty-state placeholder for a case with no primary subject yet).
+  await expect(subjectPanel.getByText('Dra. Denunciada')).toBeVisible()
   await signOut(page)
 })
