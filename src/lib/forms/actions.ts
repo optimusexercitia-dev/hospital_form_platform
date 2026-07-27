@@ -94,11 +94,31 @@ const MESSAGES = {
   fileRequired: 'Selecione uma imagem.',
   fileTooLarge: 'A imagem excede o tamanho máximo de 5 MB.',
   fileTypeInvalid: 'Envie uma imagem PNG, JPEG, WebP ou GIF.',
+  // FF-2 (ADR 0089) matrix authoring.
+  matrixUnavailable: 'O recurso de matrizes não está disponível.',
+  notAMatrix: 'Esta pergunta não é uma matriz.',
+  axisInvalid:
+    'Verifique as linhas e colunas da matriz: cada uma precisa de um rótulo e não pode haver duplicatas.',
+  riskWeightRequired:
+    'A matriz de risco exige um peso em todas as linhas e colunas.',
+  matrixAxesSaved: 'Matriz atualizada com sucesso.',
 } as const
 
 /** Postgres SQLSTATEs we translate to friendly pt-BR copy. */
 const PG_CHECK_VIOLATION = '23514'
 const PG_UNIQUE_VIOLATION = '23505'
+/** Authority denial. Deliberately a DISTINCT SQLSTATE from every HC0P* domain
+ *  precondition, so "you may not" is never mistaken for "the data is wrong"
+ *  (ADR 0079). Every FF-2 RPC checks authority FIRST and raises this. */
+const PG_INSUFFICIENT_PRIVILEGE = '42501'
+
+// FF-2 (ADR 0089) — the matrix error block. HC0O is skipped on purpose (`O` vs
+// `0` in a SQLSTATE); HC0N* belongs to FF-1.
+const MATRIX_FLAG_OFF = 'HC0P2'
+const MATRIX_NOT_A_MATRIX = 'HC0P3'
+const MATRIX_NOT_DRAFT = 'HC0P4'
+const MATRIX_AXIS_INVALID = 'HC0P5'
+const MATRIX_WEIGHT_REQUIRED = 'HC0P6'
 
 /** The input item types (mirrors INPUT_ITEM_TYPES in queries/forms.ts). */
 const INPUT_TYPES = [
@@ -1808,4 +1828,92 @@ export async function uploadFormAsset(
   if (error) return { ok: false, error: MESSAGES.uploadFailed }
 
   return { ok: true, storagePath: path }
+}
+
+// ===========================================================================
+// FF-2 (ADR 0089) — matrix axis authoring
+// ===========================================================================
+
+/**
+ * One axis entry as the BUILDER sends it. Mirrors {@link MatrixAxisEntry}
+ * without `id`: the axis is addressed by `code`, never by row id.
+ *
+ * `code` is MINTED CLIENT-SIDE (use {@link slugifyLabel} + {@link shortSuffix},
+ * exactly as option codes are minted) and honoured verbatim by the server. It is
+ * IMMUTABLE once the row exists — a BEFORE UPDATE trigger refuses any change, on
+ * draft AND published alike (ADR 0089 ruling 4). So the builder must:
+ *   - mint a code ONCE, when the entry is first added;
+ *   - keep sending that same code while the user renames the label;
+ *   - never offer a "change the code" affordance — the fix for a typo is remove
+ *     + add, which the REPLACE semantics below handle in one call.
+ */
+export interface MatrixAxisInput {
+  code: string
+  label: string
+  position: number
+  /**
+   * REQUIRED on every entry of BOTH axes for a `risk_matrix` (the server rejects
+   * a missing one with `HC0P6` → {@link MESSAGES.riskWeightRequired}); ignored
+   * for a plain `matrix`. `risk_score = severityRow.weight * likelihoodCol.weight`.
+   */
+  weight?: number | null
+}
+
+/**
+ * Persist the full row/column axes of a `matrix` / `risk_matrix` item
+ * (`upsert_matrix_axes`).
+ *
+ * REPLACE semantics keyed on `code`, per axis: an entry whose code exists is
+ * updated (label/position/weight), a new code is inserted, and an existing code
+ * ABSENT from the payload is DELETED. Send the complete desired axis every time
+ * — this is not a patch.
+ *
+ * Draft-only and staff_admin-only, enforced by the RPC itself (it is a DEFINER
+ * door: the four matrix tables are SELECT-only for `authenticated`, so RLS
+ * cannot gate these writes and the RPC is the boundary). The `authorizeCommission`
+ * call below never REPLACES that check — it turns a server-side denial into
+ * readable pt-BR before the round trip.
+ */
+export async function upsertMatrixAxes(input: {
+  itemId: string
+  rows: MatrixAxisInput[]
+  columns: MatrixAxisInput[]
+}): Promise<ActionState> {
+  const { itemId, rows, columns } = input
+  if (!itemId) return { ok: false, error: MESSAGES.missingItem }
+
+  const supabase = await createClient()
+  const ctx = await contextOfItem(supabase, itemId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingItem }
+  if (!(await authorizeCommission(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('upsert_matrix_axes', {
+    p_item_id: itemId,
+    p_rows: rows as unknown as Json,
+    p_columns: columns as unknown as Json,
+  })
+
+  if (error) {
+    switch (error.code) {
+      case MATRIX_FLAG_OFF:
+        return { ok: false, error: MESSAGES.matrixUnavailable }
+      case MATRIX_NOT_A_MATRIX:
+        return { ok: false, error: MESSAGES.notAMatrix }
+      case MATRIX_NOT_DRAFT:
+        return { ok: false, error: MESSAGES.notDraft }
+      case MATRIX_AXIS_INVALID:
+        return { ok: false, error: MESSAGES.axisInvalid }
+      case MATRIX_WEIGHT_REQUIRED:
+        return { ok: false, error: MESSAGES.riskWeightRequired }
+      case PG_INSUFFICIENT_PRIVILEGE:
+        return { ok: false, error: MESSAGES.forbidden }
+      default:
+        return { ok: false, error: mapWriteError(error) }
+    }
+  }
+
+  revalidateBuilder()
+  return { ok: true, error: MESSAGES.matrixAxesSaved }
 }

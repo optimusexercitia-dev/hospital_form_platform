@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import {
+  MATRIX_ITEM_TYPES,
   containerByChildId,
   flattenItem,
   isRepeatingGroup,
@@ -94,7 +95,27 @@ export type DisplayItemType = 'section_text' | 'image'
  */
 export type ContainerItemType = 'group' | 'repeating_group'
 
-export type ItemType = InputItemType | DisplayItemType | ContainerItemType
+/**
+ * FF-2 (BE contract, ADR 0089) — the two MATRIX types. Both are ANSWERABLE (they
+ * carry a `question_key` and feed dashboards) but neither stores its answer in
+ * `answers.value`:
+ *   - `matrix` — a RADIO GRID (ruling 1). Each row takes exactly ONE column; the
+ *     cell row IS the selection and carries no payload of its own. Rows are the
+ *     criteria, columns the shared scale. Enforced by `UNIQUE (answer_id, row_id)`
+ *     on `answer_matrix_cells`, not only by the writer.
+ *   - `risk_matrix` — one severity row x one likelihood column, producing a
+ *     single `answer_risk_matrix` row whose `risk_score` is DERIVED SERVER-SIDE
+ *     (ruling 2). Never send a score; it is not read.
+ * The aggregation unit is `(question_key, row_code, col_code)`, resolved through
+ * `code` and never through the per-version `row_id`/`col_id`.
+ */
+export type MatrixItemType = 'matrix' | 'risk_matrix'
+
+export type ItemType =
+  | InputItemType
+  | DisplayItemType
+  | ContainerItemType
+  | MatrixItemType
 
 // The container VALUES + the tree walkers live in a PURE, client-safe module and
 // are re-exported here, exactly as the reserved "Outros" code is: this module
@@ -103,7 +124,11 @@ export type ItemType = InputItemType | DisplayItemType | ContainerItemType
 // bundle and abort `next build` (BUG-FBE-005). One implementation, two
 // specifiers — never two implementations, which is the drift this phase exists
 // to prevent.
-export { CONTAINER_ITEM_TYPES, flattenItem } from '@/lib/forms/item-tree'
+export {
+  CONTAINER_ITEM_TYPES,
+  MATRIX_ITEM_TYPES,
+  flattenItem,
+} from '@/lib/forms/item-tree'
 
 export const INPUT_ITEM_TYPES: readonly InputItemType[] = [
   'multiple_choice',
@@ -120,6 +145,26 @@ export const CHOICE_ITEM_TYPES: readonly InputItemType[] = [
   'multiple_choice',
   'dropdown',
   'checkbox',
+]
+
+/**
+ * FF-2 — every item type that PRODUCES AN ANSWER, i.e. everything a dashboard
+ * may aggregate: the eight scalar/choice inputs plus the two matrix types.
+ *
+ * Deliberately a SEPARATE constant rather than a widened `INPUT_ITEM_TYPES`.
+ * `INPUT_ITEM_TYPES` means "types whose answer is a scalar in `answers.value`",
+ * and a dozen call sites (the wizard's value plumbing, the condition-target
+ * picker, `effective-visibility.ts`) depend on exactly that. A matrix answers in
+ * `answer_matrix_cells` instead, so widening the old set in place would have
+ * quietly told all of them to read `value` on an item that never has one.
+ *
+ * `matrix`/`risk_matrix` are NOT condition targets ({@link CONDITION_TARGET_TYPES}
+ * stays as it is): the evaluator reads `answers.value`, which is null for them.
+ */
+export const ANSWERABLE_ITEM_TYPES: readonly ItemType[] = [
+  ...INPUT_ITEM_TYPES,
+  'matrix',
+  'risk_matrix',
 ]
 
 /**
@@ -180,6 +225,54 @@ export {
 } from '@/lib/forms/option-constants'
 
 /**
+ * FF-2 (BE contract, ADR 0089) — one entry of a matrix axis: a row of
+ * `form_matrix_rows` or of `form_matrix_columns`. The two tables have identical
+ * shapes, so one domain type serves both.
+ *
+ *   - `id`       — the axis-row UUID. Per-VERSION and NOT stable across clones;
+ *     the builder needs it to address an existing row, nothing else should.
+ *   - `code`     — the stable, hidden, IMMUTABLE identity. It is the
+ *     cross-version aggregation key, exactly as `ItemOption.code` is: the
+ *     dashboard's cell unit is `(question_key, row_code, col_code)`, the wizard
+ *     addresses cells by code, and `clone_form_version` copies it verbatim.
+ *     ⚠ A `code` can NEVER be changed once the row exists (ruling 4, enforced by
+ *     a BEFORE UPDATE trigger on both tables, on draft AND published alike). The
+ *     builder must offer "remove + add", never "rename the code". Codes are
+ *     MINTED CLIENT-SIDE and honoured verbatim by `upsertMatrixAxes` — the same
+ *     contract `form_item_options` settled.
+ *   - `label`    — pt-BR display text; freely renameable, since identity is
+ *     `code`.
+ *   - `weight`   — `risk_matrix` ONLY, and REQUIRED on every entry of both axes
+ *     for that type (rejected at save with `HC0P6`, re-checked at publish).
+ *     `risk_score = severityRow.weight * likelihoodColumn.weight`, computed by
+ *     the server. `null` for a plain `matrix`, which has no use for it.
+ *     Not a 1..N ladder: real ONA/NBR scales are 1/3/9/27.
+ *   - `position` — order within the axis; unique within the payload.
+ */
+export interface MatrixAxisEntry {
+  id: string
+  code: string
+  label: string
+  weight: number | null
+  position: number
+}
+
+/**
+ * FF-2 — one score band of a `risk_matrix`, held in `form_items.config.riskBands`
+ * as an ordered list. The band is DERIVED FOR DISPLAY from `risk_score` and is
+ * NOT stored on the answer: the score is the durable fact, the band is a
+ * presentation of it, so re-banding a form never rewrites history.
+ *
+ * `minScore` is inclusive; a score falls in the LAST band whose `minScore` it
+ * reaches.
+ */
+export interface RiskBand {
+  minScore: number
+  label: string
+  color: ColorToken | null
+}
+
+/**
  * Per-type settings (form-builder-enhancements). Today: optional `min`/`max`
  * bounds for `number` (numeric) and `date` (ISO `YYYY-MM-DD`); `null`/absent for
  * every other type. Stored as the `form_items.config` jsonb; bounds are
@@ -220,6 +313,12 @@ export interface ItemConfig {
    */
   minInstances?: number | null
   maxInstances?: number | null
+  /**
+   * FF-2 (ADR 0089 ruling 2) — `risk_matrix` only: the ordered score→band
+   * mapping used to colour and label a derived `riskScore`. `null`/absent = no
+   * banding (the raw score is shown). Ignored for every other type.
+   */
+  riskBands?: RiskBand[] | null
 }
 
 export type VersionStatus = 'draft' | 'published' | 'archived'
@@ -294,6 +393,24 @@ export interface Item {
    * rule working across the container boundary.
    */
   children: Item[]
+  /**
+   * FF-2 (BE contract, ADR 0089) — the axes of a `matrix` / `risk_matrix`, in
+   * `position` order. `null` for every other item type (an empty array would
+   * read as "a matrix whose grid is empty", which is a different and
+   * publish-blocking state — see `HC0P5`).
+   *
+   * For a `risk_matrix`, `matrixRows` are the SEVERITY axis and `matrixColumns`
+   * the LIKELIHOOD axis, and every entry carries a `weight`.
+   *
+   * OPTIONAL in the type, ALWAYS populated by the query layer — read them as
+   * `item.matrixRows ?? []`. The `?` exists so the dozen hand-built `Item`
+   * fixtures in the component tests need not enumerate a field irrelevant to
+   * them, exactly as `ItemRow.default_value?` was introduced by answer-model-v2.
+   * This is NOT the `children` case: forgetting `children` silently skips
+   * container items, whereas a fixture without axes is simply a non-matrix item.
+   */
+  matrixRows?: MatrixAxisEntry[] | null
+  matrixColumns?: MatrixAxisEntry[] | null
   // display-only
   content: SectionTextContent | ImageContent | null
 }
@@ -420,6 +537,16 @@ interface OptionRow {
   position: number
 }
 
+/** FF-2: one embedded `form_matrix_rows` / `form_matrix_columns` row. The two
+ *  tables are column-identical, so one row shape serves both. */
+interface AxisRow {
+  id: string
+  code: string
+  label: string
+  weight: number | null
+  position: number
+}
+
 interface ItemRow {
   id: string
   section_id: string
@@ -433,6 +560,9 @@ interface ItemRow {
    * old `options` jsonb blob). Null/empty for non-choice items.
    */
   form_item_options: OptionRow[] | null
+  /** FF-2: the embedded axis rows. Empty for every non-matrix item. */
+  form_matrix_rows?: AxisRow[] | null
+  form_matrix_columns?: AxisRow[] | null
   config: Json | null
   visible_when: Json | null
   required: boolean
@@ -507,6 +637,26 @@ export function toOptions(rows: OptionRow[] | null): ItemOption[] | null {
     }))
 }
 
+/**
+ * FF-2: map embedded axis rows to {@link MatrixAxisEntry}[], sorted by
+ * `position`. PostgREST returns `[]` for the nested embed on EVERY item, so the
+ * caller ({@link toItem}) decides `null`-vs-array by item type — an empty array
+ * here would otherwise be indistinguishable from "a matrix with no rows yet",
+ * which is a real and publish-blocking state (`HC0P5`).
+ */
+function toAxis(rows: AxisRow[] | null | undefined): MatrixAxisEntry[] {
+  if (rows == null) return []
+  return [...rows]
+    .sort((a, b) => a.position - b.position)
+    .map((r): MatrixAxisEntry => ({
+      id: r.id,
+      code: r.code,
+      label: r.label,
+      weight: typeof r.weight === 'number' ? r.weight : null,
+      position: r.position,
+    }))
+}
+
 const FLAGGED_WHEN_OPS = new Set<FlaggedWhen['op']>([
   'gt',
   'gte',
@@ -532,6 +682,38 @@ function toFlaggedWhen(raw: Json | undefined): FlaggedWhen | null {
   return { op: op as FlaggedWhen['op'], value }
 }
 
+/**
+ * FF-2: narrow `config.riskBands` to an ordered {@link RiskBand}[] (or null).
+ * Strict, like {@link toCardinality}: no DB CHECK constrains `config`'s inner
+ * shape, so a malformed entry must become "no banding" here rather than reach a
+ * renderer as garbage. Sorted ascending by `minScore` so the consumer can take
+ * the LAST band a score reaches without re-sorting.
+ */
+function toRiskBands(raw: Json | undefined): RiskBand[] | null {
+  if (!Array.isArray(raw)) return null
+  const bands = raw.flatMap((entry): RiskBand[] => {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return []
+    const rec = entry as Record<string, Json>
+    const minScore = rec.minScore
+    const label = rec.label
+    if (typeof minScore !== 'number' || typeof label !== 'string' || label === '') {
+      return []
+    }
+    const color = rec.color
+    return [
+      {
+        minScore,
+        label,
+        color:
+          typeof color === 'string' && COLOR_TOKENS.has(color)
+            ? (color as ColorToken)
+            : null,
+      },
+    ]
+  })
+  return bands.length > 0 ? bands.sort((a, b) => a.minScore - b.minScore) : null
+}
+
 /** Narrow the per-type `config` jsonb to {@link ItemConfig} (or null). */
 function toConfig(raw: Json | null): ItemConfig | null {
   if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null
@@ -553,6 +735,8 @@ function toConfig(raw: Json | null): ItemConfig | null {
     // silently dropped between BE-0's interface and this function.
     minInstances: toCardinality(rec.minInstances),
     maxInstances: toCardinality(rec.maxInstances),
+    // FF-2: risk_matrix score->band display mapping.
+    riskBands: toRiskBands(rec.riskBands),
   }
 }
 
@@ -594,6 +778,16 @@ function toItem(row: ItemRow): Item {
     parentItemId: row.parent_item_id ?? null,
     // FF-1: filled by `nestChildren`; a container's children are attached there.
     children: [],
+    // FF-2: the axes, but only for the two types that have them. PostgREST
+    // returns `[]` for the embed on every row, so the type check is what keeps
+    // "not a matrix" (null) distinguishable from "a matrix with an empty axis"
+    // ([]) — the latter is a real state that blocks publish.
+    matrixRows: MATRIX_ITEM_TYPES.includes(row.item_type as ItemType)
+      ? toAxis(row.form_matrix_rows)
+      : null,
+    matrixColumns: MATRIX_ITEM_TYPES.includes(row.item_type as ItemType)
+      ? toAxis(row.form_matrix_columns)
+      : null,
     // content is a plain jsonb object for display items, null for inputs.
     content: (row.content as Item['content']) ?? null,
   }
@@ -665,7 +859,13 @@ const VERSION_TREE_SELECT =
   'form_items(id, section_id, position, item_type, question_key, label, ' +
   'question_explanation, config, visible_when, required, content, ' +
   'default_value, parent_item_id, ' +
-  'form_item_options!form_item_options_item_id_fkey(id, code, label, color_token, score, analytics_code, flagged, is_other, position)))'
+  'form_item_options!form_item_options_item_id_fkey(id, code, label, color_token, score, analytics_code, flagged, is_other, position), ' +
+  // FF-2: the matrix axes. Both embeds are FK-HINTED for the same reason the
+  // options embed is — `answer_matrix_cells` adds a second inferred path between
+  // form_items and each axis table (item -> answers -> answer_matrix_cells ->
+  // form_matrix_rows/columns), which makes a bare embed ambiguous (PGRST201).
+  'form_matrix_rows!form_matrix_rows_item_id_fkey(id, code, label, weight, position), ' +
+  'form_matrix_columns!form_matrix_columns_item_id_fkey(id, code, label, weight, position)))'
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -785,16 +985,23 @@ export async function listVersions(formId: string): Promise<VersionSummary[]> {
 
 /**
  * CANONICAL "answerable questions of a version" filter (Architecture Rule 9):
- * the input items (item_type ∈ {@link INPUT_ITEM_TYPES} — the choice types,
- * free_text/short_text, number, date, time) of a version, ordered by section
- * position then item position. Reused by the dashboards later — keep this the
- * single source of the input-type filter.
+ * the items that PRODUCE AN ANSWER (item_type ∈ {@link ANSWERABLE_ITEM_TYPES} —
+ * the choice types, free_text/short_text, number, date, time, and as of FF-2
+ * matrix/risk_matrix) of a version, ordered by section position then item
+ * position. Reused by the dashboards — keep this the single source of the filter.
+ *
+ * FF-2 widened this from {@link INPUT_ITEM_TYPES} to
+ * {@link ANSWERABLE_ITEM_TYPES}. Callers that specifically need "items whose
+ * answer is a scalar in `answers.value`" must NOT use this — a matrix has a
+ * `question_key` and belongs in a dashboard's question inventory, but its answer
+ * lives in `answer_matrix_cells`. The widening is inert for every form authored
+ * before FF-2, since none contains a matrix.
  */
 export function answerableItems(tree: VersionTree): Item[] {
   return tree.sections
     .flatMap((section) => section.items.flatMap(flattenItem))
     .filter((item): item is Item =>
-      INPUT_ITEM_TYPES.includes(item.itemType as InputItemType),
+      ANSWERABLE_ITEM_TYPES.includes(item.itemType),
     )
 }
 

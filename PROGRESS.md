@@ -174,6 +174,48 @@ could ride FF-2's gate. Detail in **FUP-FF1-2** below.
 > 2 → 0). FF-1's K4 covers **selections only** — nothing existing catches a repeat. Stated in
 > [flexible-forms-program.md](docs/plans/flexible-forms-program.md) §3 FF-2/FF-5 with named keystones.
 
+#### `backend` — Wave 1 (schema + contract) ✅ COMPLETE 2026-07-27
+
+Eight migrations, `20260830000000`–`…000700`; `registered == files == 208`, max
+`20260830000700`. Applied + full `db reset` replay clean.
+
+| # | Migration | Lands |
+|---|---|---|
+| 000000 | `ff2_matrix_schema` | `weight` on both axis tables · `UNIQUE (answer_id, row_id)` · code-immutability triggers · cross-item coherence triggers · submitted-immutability on both answer tables (REUSES `app.guard_submitted_selections` — answer_id-generic, not selection-specific) · `form_items_input_vs_display` relaxed for matrix/risk_matrix (**`reference` stays pinned until FF-5**) |
+| 000100 | `ff2_matrix_flag` | `matrix_fields`, inserted **disabled**; no gate flip in this wave |
+| 000200 | `ff2_upsert_matrix_axes` | `upsert_matrix_axes` (DEFINER, draft-only, authority-first, audited) + `app.validate_matrix_axes` wired into `publish_form_version` |
+| 000300 | `ff2_matrix_answer_writers` | `app.save_matrix_answers` / `app.save_risk_matrix_answers` (DEFINER; `risk_score` derived, client score never read) + the ownership gate |
+| 000400 | `ff2_save_section_matrix_arm` | `save_section_answers` gains `p_matrix_cells` / `p_risk_matrix`; `app.save_instance_answers` gains the same two entry keys |
+| 000500 | `ff2_completeness_matrix` | `app.instance_is_empty` +2 arms (§A) · **`app.item_required_satisfied`** — the four inlined presence tests collapsed into ONE predicate · `response_required_complete` + `submit_response` dispatch to it |
+| 000600 | `ff2_clone_deep_copy` | `app.copy_version_children` extracted (INFO-1) + axes copied with codes/weights |
+| 000700 | `ff2_correction_matrix_copy` | the **four** correction copy blocks, instance-resolving join |
+
+**Decisions worth flagging.** (a) Matrix answers **extend `save_section_answers`** rather than
+landing as siblings — the cell FK needs its parent `answers` row in the same transaction, and FF-1
+already settled "one payload, one round trip". (b) The four duplicated required-presence blocks
+were **collapsed into `app.item_required_satisfied`**: adding a matrix arm to three of four is a
+bug no test distinguishes from the fix. (c) `clone_form_version` stays INVOKER (its RLS-gated
+`form_versions` INSERT is the authority proof); the DEFINER helper **re-checks the displaced
+`form_*_staff_admin_write` predicate on BOTH endpoints**, because a DEFINER's gate replaces RLS.
+
+**K9 re-verified live after the writers shipped:** all four matrix tables still `SELECT`-only for
+`authenticated`; direct INSERT/UPDATE denied (42501). Grants are **table-level** (only
+`case_referral` is column-level), so `weight` inherited SELECT.
+
+⚠ **Constraint relaxation swept:** `supabase/tests/209_flexible_forms.sql` §B1 pinned
+"required=true matrix rejected" and was rewritten (B1a/B1b accept matrix + risk_matrix, **B1c keeps
+`reference` pinned**); plan 38 → 40.
+
+**Green bar:** typecheck clean · `npm run lint` 0 errors / 0 warnings · Vitest **497/497** (38 files)
+· `npx next build` **succeeded**.
+
+**Known gap (tracked, not blocking):** `getResponseForSignoff`'s JSON payload does not project the
+matrix tables, so the sign-off review renders an empty grid; commented at the call site in
+`src/lib/queries/signoffs.ts`. Dashboard cell-unit aggregation (ADR 0089 §Consequences) is likewise
+still to come. One frontend-owned file touched mechanically:
+`src/components/forms/item-type-meta.tsx` (exhaustive `Record<ItemType, …>` + unguarded lookups →
+a missing entry is a runtime crash, not cosmetics).
+
 ### 📋 Remaining pre-pilot work
 
 Expanded 2026-07-12 — ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md); **re-expanded

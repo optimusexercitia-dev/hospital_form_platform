@@ -242,6 +242,11 @@ describe('saveSection — the FF-1 instance arm (BUG-FF1-005)', () => {
           observationsByItemId: { [ITEM_ID]: 'obs' },
           otherTextByItemId: { [ITEM_ID]: 'outro' },
           clearItemIds: [ITEM_ID],
+          // FF-2 (ADR 0089): the two matrix sub-maps ride the SAME translation.
+          matrixCellsByItemId: { [ITEM_ID]: { linha_a: 'conforme' } },
+          riskMatrixByItemId: {
+            [ITEM_ID]: { severity: 'grave', likelihood: 'provavel' },
+          },
         },
       ],
     })
@@ -259,6 +264,10 @@ describe('saveSection — the FF-1 instance arm (BUG-FF1-005)', () => {
         observations: { [ITEM_ID]: 'obs' },
         other_text: { [ITEM_ID]: 'outro' },
         clear_item_ids: [ITEM_ID],
+        matrix_cells: { [ITEM_ID]: { linha_a: 'conforme' } },
+        risk_matrix: {
+          [ITEM_ID]: { severity: 'grave', likelihood: 'provavel' },
+        },
       },
     ])
   })
@@ -281,8 +290,54 @@ describe('saveSection — the FF-1 instance arm (BUG-FF1-005)', () => {
         observations: {},
         other_text: {},
         clear_item_ids: [],
+        matrix_cells: {},
+        risk_matrix: {},
       },
     ])
+  })
+
+  // FF-2 (ADR 0089) — the TOP-LEVEL matrix params. Same lesson as BUG-FF1-005:
+  // lint, typecheck, `next build` and the pgTAP suite were all green while the
+  // FF-1 instance arm silently dropped its payload, because none of those gates
+  // crosses the seam between the action and the RPC. These two do.
+  it('forwards the top-level matrix payloads under their RPC param names', async () => {
+    rpc.mockResolvedValue({ data: null, error: null })
+
+    await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: {},
+      matrixCellsByItemId: { [ITEM_ID]: { linha_a: 'conforme' } },
+      riskMatrixByItemId: {
+        [ITEM_ID]: { severity: 'grave', likelihood: 'frequente' },
+      },
+    })
+
+    const args = rpc.mock.calls[0][1]
+    expect(args.p_matrix_cells).toEqual({ [ITEM_ID]: { linha_a: 'conforme' } })
+    // No score is ever sent: risk_score is derived server-side from the two axis
+    // weights, and a client-supplied one is not read.
+    expect(args.p_risk_matrix).toEqual({
+      [ITEM_ID]: { severity: 'grave', likelihood: 'frequente' },
+    })
+  })
+
+  it('OMITS both matrix params when the section has no matrix answers', async () => {
+    rpc.mockResolvedValue({ data: null, error: null })
+
+    await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: { [ITEM_ID]: 'x' },
+    })
+
+    // Omitted, not `{}`: the SQL helpers early-return on an empty payload BEFORE
+    // asserting the `matrix_fields` flag, so sending `{}` from every ordinary
+    // save would be harmless today but would couple every form fill to a flag it
+    // has nothing to do with.
+    const args = rpc.mock.calls[0][1]
+    expect(args.p_matrix_cells).toBeUndefined()
+    expect(args.p_risk_matrix).toBeUndefined()
   })
 
   it('omits p_instance_answers entirely when the section has no instances', async () => {

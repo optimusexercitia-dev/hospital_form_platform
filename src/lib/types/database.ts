@@ -5092,6 +5092,7 @@ export type Database = {
           item_id: string
           label: string
           position: number
+          weight: number | null
         }
         Insert: {
           code: string
@@ -5101,6 +5102,7 @@ export type Database = {
           item_id: string
           label: string
           position: number
+          weight?: number | null
         }
         Update: {
           code?: string
@@ -5110,6 +5112,7 @@ export type Database = {
           item_id?: string
           label?: string
           position?: number
+          weight?: number | null
         }
         Relationships: [
           {
@@ -5137,6 +5140,7 @@ export type Database = {
           item_id: string
           label: string
           position: number
+          weight: number | null
         }
         Insert: {
           code: string
@@ -5146,6 +5150,7 @@ export type Database = {
           item_id: string
           label: string
           position: number
+          weight?: number | null
         }
         Update: {
           code?: string
@@ -5155,6 +5160,7 @@ export type Database = {
           item_id?: string
           label?: string
           position?: number
+          weight?: number | null
         }
         Relationships: [
           {
@@ -13318,9 +13324,11 @@ export type Database = {
           p_answers?: Json
           p_clear_item_ids?: string[]
           p_instance_answers?: Json
+          p_matrix_cells?: Json
           p_observations?: Json
           p_other_text?: Json
           p_response_id: string
+          p_risk_matrix?: Json
           p_section_id: string
           p_selections?: Json
         }
@@ -15549,6 +15557,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      upsert_matrix_axes: {
+        Args: { p_columns: Json; p_item_id: string; p_rows: Json }
+        Returns: undefined
       }
       validate_visible_when: {
         Args: { p_form_version_id: string }

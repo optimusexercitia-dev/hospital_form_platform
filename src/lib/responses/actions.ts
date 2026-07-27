@@ -292,6 +292,34 @@ interface SaveSectionInput {
    * Children of a plain `group` (ruling 6) go in the TOP-LEVEL maps, not here.
    */
   instances?: InstanceAnswersInput[]
+  /**
+   * FF-2 (BE contract, ADR 0089 ruling 1) — `matrix` answers: maps a matrix
+   * item's id → `{ [rowCode]: colCode }`.
+   *
+   * Addressed by CODE on both axes, never by row/column id — codes survive
+   * version clones, ids do not, exactly as {@link SaveSectionInput.selectionsByItemId}
+   * carries option codes. The nested-object shape is also what makes ruling 1
+   * ("each row takes exactly ONE column") unrepresentable-if-violated on the
+   * wire, before `UNIQUE (answer_id, row_id)` ever has to catch it.
+   *
+   * REPLACE semantics per item, like selections: an item present here has its
+   * WHOLE grid rewritten; an item present with `{}` is cleared; an item absent is
+   * left untouched.
+   */
+  matrixCellsByItemId?: Record<string, Record<string, string>>
+  /**
+   * FF-2 (ADR 0089 ruling 2) — `risk_matrix` answers: maps a risk_matrix item's
+   * id → `{ severity: <rowCode>, likelihood: <colCode> }`.
+   *
+   * ⚠ There is deliberately NO score field. `risk_score` is DERIVED SERVER-SIDE
+   * as `severityRow.weight * likelihoodCol.weight`; a score sent by the client is
+   * never read. Both halves are mandatory — sending one raises `HC0P8`.
+   *
+   * To DISPLAY the score/band before saving, compute it from the item's
+   * `matrixRows`/`matrixColumns` weights and `config.riskBands` — never treat the
+   * client-side number as authoritative.
+   */
+  riskMatrixByItemId?: Record<string, { severity: string; likelihood: string }>
 }
 
 /** FF-1 (BE-0 contract): one repeating-group instance's slice of a section save. */
@@ -303,6 +331,15 @@ export interface InstanceAnswersInput {
   clearItemIds?: string[]
   observationsByItemId?: Record<string, string>
   otherTextByItemId?: Record<string, string>
+  /**
+   * FF-2: a matrix that lives INSIDE this repeating-group instance. Identical
+   * semantics to {@link SaveSectionInput.matrixCellsByItemId}, scoped to this
+   * instance. A matrix at top level (or inside a plain `group`) goes in the
+   * top-level map instead.
+   */
+  matrixCellsByItemId?: Record<string, Record<string, string>>
+  /** FF-2: as {@link SaveSectionInput.riskMatrixByItemId}, scoped to this instance. */
+  riskMatrixByItemId?: Record<string, { severity: string; likelihood: string }>
 }
 
 /**
@@ -326,6 +363,8 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     observationsByItemId,
     otherTextByItemId,
     instances,
+    matrixCellsByItemId,
+    riskMatrixByItemId,
   } = input
   if (!responseId || !sectionId) {
     return { ok: false, error: MESSAGES.missingResponse }
@@ -361,8 +400,18 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
           observations: entry.observationsByItemId ?? {},
           other_text: entry.otherTextByItemId ?? {},
           clear_item_ids: entry.clearItemIds ?? [],
+          // FF-2: same camelCase → snake_case translation as the five above.
+          // `app.save_instance_answers` reads `matrix_cells` / `risk_matrix` off
+          // the entry; a verbatim forward would silently write nothing.
+          matrix_cells: entry.matrixCellsByItemId ?? {},
+          risk_matrix: entry.riskMatrixByItemId ?? {},
         }))
       : undefined
+
+  const hasMatrixCells =
+    matrixCellsByItemId != null && Object.keys(matrixCellsByItemId).length > 0
+  const hasRiskMatrix =
+    riskMatrixByItemId != null && Object.keys(riskMatrixByItemId).length > 0
 
   // form-model-normalization: `save_section_answers` carries `p_selections jsonb`
   // (item_id -> array of option codes, REPLACE semantics) alongside the scalar
@@ -385,9 +434,12 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     // instance, so a section with N instances is still ONE round trip and one
     // transaction. Omit when none.
     p_instance_answers: instanceAnswers as Json | undefined,
-    // p_instance_answers: FF-1 repeating-group instances — one entry per touched
-    // instance, so a section with N instances is still ONE round trip and one
-    // transaction. Omit when none.
+    // p_matrix_cells / p_risk_matrix: FF-2 top-level matrix answers. Both are
+    // written by DEFINER helpers inside the same transaction as everything above
+    // (the four matrix tables are SELECT-only for `authenticated` — K9), so a
+    // section holding a matrix is still ONE round trip. Omit when none.
+    p_matrix_cells: hasMatrixCells ? (matrixCellsByItemId as Json) : undefined,
+    p_risk_matrix: hasRiskMatrix ? (riskMatrixByItemId as Json) : undefined,
   })
 
   if (error) {

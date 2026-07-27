@@ -5,11 +5,13 @@ import {
   ChevronDownSquare,
   CircleDot,
   Clock,
+  Grid3x3,
   Group,
   Hash,
   Image as ImageIcon,
   Minus,
   Rows3,
+  ShieldAlert,
   Type,
 } from "lucide-react";
 
@@ -88,6 +90,24 @@ export const ITEM_TYPE_META: Record<ItemType, ItemTypeMeta> = {
     label: "Grupo repetível",
     description: "Conjunto de perguntas que pode ser repetido várias vezes.",
     Icon: Rows3,
+  },
+  // FF-2 (ADR 0089) — the two MATRIX types. Added by `backend` as the mechanical
+  // half of widening the shared `ItemType`: this Record is exhaustive, and every
+  // consumer (block-card, read-only-tree, submission-detail-view) does an
+  // UNGUARDED `ITEM_TYPE_META[item.itemType]` lookup, so a missing entry is a
+  // runtime crash the moment a matrix block is rendered — not cosmetic.
+  // `frontend` owns the final copy/icon and the AddBlockMenu wiring; neither
+  // type is offered by the picker yet (INPUT_TYPES/DISPLAY_TYPES/CONTAINER_TYPES
+  // are explicit lists, so these entries are inert there).
+  matrix: {
+    label: "Matriz",
+    description: "Grade de critérios: cada linha recebe uma única coluna.",
+    Icon: Grid3x3,
+  },
+  risk_matrix: {
+    label: "Matriz de risco",
+    description: "Severidade x probabilidade, com pontuação calculada.",
+    Icon: ShieldAlert,
   },
 };
 

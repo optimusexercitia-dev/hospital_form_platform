@@ -106,6 +106,16 @@ export interface GroupInstance {
   observationsByItemId: Record<string, string>
   /** This instance's per-item "Outros" free text, non-null only. */
   otherTextByItemId: Record<string, string>
+  /**
+   * FF-2: this instance's saved matrix grids, `{ itemId: { rowCode: colCode } }`.
+   * Populated by `getResponseForFill`; ABSENT on the sign-off review path, whose
+   * instances come from a server-side JSON payload that does not carry matrix
+   * answers yet (see `getResponseForSignoff`). Read as `?? {}`.
+   */
+  matrixCellsByItemId?: Record<string, Record<string, string>>
+  /** FF-2: this instance's saved risk answers, `{ itemId: RiskMatrixAnswer }`.
+   *  Same population caveat as {@link GroupInstance.matrixCellsByItemId}. */
+  riskMatrixByItemId?: Record<string, RiskMatrixAnswer>
 }
 
 export interface ResponseForFill {
@@ -138,6 +148,22 @@ export interface ResponseForFill {
    * instance's answers live on its {@link GroupInstance}, never in them.
    */
   instances: GroupInstance[]
+  /**
+   * FF-2 (BE contract, ADR 0089) — saved TOP-LEVEL matrix grids, keyed by matrix
+   * item id → `{ [rowCode]: colCode }`. Send this straight back as
+   * `saveSection({ matrixCellsByItemId })`; it is the same shape in both
+   * directions, addressed by clone-stable CODES on both axes.
+   *
+   * A matrix inside a repeating group is NOT here — it lives on its
+   * {@link GroupInstance.matrixCellsByItemId}, exactly as scalar answers do.
+   */
+  matrixCellsByItemId?: Record<string, Record<string, string>>
+  /**
+   * FF-2 — saved TOP-LEVEL risk answers, keyed by risk_matrix item id.
+   * `riskScore` is READ-ONLY (server-derived); send back only
+   * `{ severity, likelihood }`.
+   */
+  riskMatrixByItemId?: Record<string, RiskMatrixAnswer>
 }
 
 /** One row in the "minhas respostas" history (submitted + in_progress). */
@@ -477,9 +503,119 @@ export function buildGroupInstances(
         answersByKey: overlayAnswerMap(topLevelByKey, maps.answersByKey),
         observationsByItemId,
         otherTextByItemId,
+        // FF-2: filled by `applyMatrixAnswers` in getResponseForFill. Left empty
+        // here so this builder's signature (shared with getSubmissionDetail and
+        // the sign-off view) stays unchanged.
+        matrixCellsByItemId: {},
+        riskMatrixByItemId: {},
       }
     })
 }
+
+/**
+ * FF-2 (ADR 0089) — one saved `risk_matrix` answer, read side.
+ *
+ * `riskScore` is the SERVER-DERIVED product of the two axis weights, returned
+ * read-only. It is never sent back on save (the writer recomputes it), so a
+ * consumer must treat it as an output, never round-trip it as an input.
+ */
+export interface RiskMatrixAnswer {
+  /** `form_matrix_rows.code` of the chosen severity row. */
+  severity: string
+  /** `form_matrix_columns.code` of the chosen likelihood column. */
+  likelihood: string
+  riskScore: number | null
+}
+
+/** One `answer_matrix_cells` row with its scope resolved through the answer. */
+export interface ScopedMatrixCellRow {
+  row_id: string
+  col_id: string
+  answers: { item_id: string; group_instance_id: string | null }
+}
+
+/** One `answer_risk_matrix` row with its scope resolved through the answer. */
+export interface ScopedRiskMatrixRow {
+  severity_row_id: string
+  likelihood_col_id: string
+  risk_score: number | null
+  answers: { item_id: string; group_instance_id: string | null }
+}
+
+/** The matrix half of a response, split by instance scope (`null` = top level). */
+export interface MatrixAnswerMaps {
+  matrixCellsByItemId: Record<string, Record<string, string>>
+  riskMatrixByItemId: Record<string, RiskMatrixAnswer>
+}
+
+/**
+ * FF-2 — turn the raw cell/risk rows into the per-scope code-keyed maps the
+ * wizard rehydrates from, keyed by `group_instance_id` (`null` → the top-level
+ * bucket, stored under the `TOP_LEVEL_SCOPE` key).
+ *
+ * Axis ids are resolved to CODES through the TREE rather than through a
+ * PostgREST embed on the two axis tables. Two reasons: the tree already carries
+ * every `{id, code}` pair, so the embed would be a third and fourth round trip
+ * for data in hand; and resolving through the same tree the renderer draws makes
+ * it impossible for the rehydrated selection to reference an axis entry the grid
+ * is not showing. A row/col id absent from the tree is DROPPED — the coherence
+ * trigger makes that unreachable, and silently dropping beats rendering a
+ * selection in a phantom cell.
+ *
+ * Exported and pure so the same shaping is unit-testable and reusable by the
+ * submission-detail and sign-off readers when they grow a matrix view.
+ */
+export function buildMatrixAnswers(
+  tree: VersionTree,
+  cells: ScopedMatrixCellRow[],
+  risks: ScopedRiskMatrixRow[],
+): Map<string, MatrixAnswerMaps> {
+  const codeById = new Map<string, string>()
+  for (const section of tree.sections) {
+    for (const item of section.items.flatMap(flattenItem)) {
+      for (const entry of item.matrixRows ?? []) codeById.set(entry.id, entry.code)
+      for (const entry of item.matrixColumns ?? []) codeById.set(entry.id, entry.code)
+    }
+  }
+
+  const byScope = new Map<string, MatrixAnswerMaps>()
+  const scopeOf = (instanceId: string | null): MatrixAnswerMaps => {
+    const key = instanceId ?? TOP_LEVEL_SCOPE
+    let bucket = byScope.get(key)
+    if (!bucket) {
+      bucket = { matrixCellsByItemId: {}, riskMatrixByItemId: {} }
+      byScope.set(key, bucket)
+    }
+    return bucket
+  }
+
+  for (const cell of cells) {
+    const rowCode = codeById.get(cell.row_id)
+    const colCode = codeById.get(cell.col_id)
+    if (rowCode === undefined || colCode === undefined) continue
+    const bucket = scopeOf(cell.answers.group_instance_id)
+    const grid = (bucket.matrixCellsByItemId[cell.answers.item_id] ??= {})
+    grid[rowCode] = colCode
+  }
+
+  for (const risk of risks) {
+    const severity = codeById.get(risk.severity_row_id)
+    const likelihood = codeById.get(risk.likelihood_col_id)
+    if (severity === undefined || likelihood === undefined) continue
+    const bucket = scopeOf(risk.answers.group_instance_id)
+    bucket.riskMatrixByItemId[risk.answers.item_id] = {
+      severity,
+      likelihood,
+      riskScore: typeof risk.risk_score === 'number' ? risk.risk_score : null,
+    }
+  }
+
+  return byScope
+}
+
+/** The {@link buildMatrixAnswers} bucket key for top-level (non-instance)
+ *  answers. A UUID can never collide with it. */
+export const TOP_LEVEL_SCOPE = '__top_level__'
 
 /**
  * A single response prepared for the wizard: the published-version tree, the
@@ -519,26 +655,47 @@ export async function getResponseForFill(
   // FF-1: `group_instance_id` is selected on BOTH sides. Without it every
   // instance answer would land in the top-level maps and the last instance would
   // win per key — the TS twin of ADR 0087 substrate correction 5.
-  const [{ data: answers }, { data: selectionRows }, { data: instanceRows }] =
-    await Promise.all([
-      supabase
-        .from('answers')
-        .select(
-          'item_id, question_key, value, observation, other_text, group_instance_id',
-        )
-        .eq('response_id', responseId)
-        .returns<AnswerRow[]>(),
-      supabase
-        .from('answer_selected_options')
-        .select('option_id, answers!inner(item_id, response_id, group_instance_id)')
-        .eq('answers.response_id', responseId)
-        .returns<SelectionEmbedRow[]>(),
-      supabase
-        .from('response_group_instances')
-        .select('id, group_item_id, position')
-        .eq('response_id', responseId)
-        .returns<GroupInstanceRow[]>(),
-    ])
+  // FF-2: the two matrix answer tables join the same parallel fan-out. Both hang
+  // off `answer_id` (like answer_selected_options), so the scope is resolved
+  // through the same `answers!inner` embed.
+  const [
+    { data: answers },
+    { data: selectionRows },
+    { data: instanceRows },
+    { data: cellRows },
+    { data: riskRows },
+  ] = await Promise.all([
+    supabase
+      .from('answers')
+      .select(
+        'item_id, question_key, value, observation, other_text, group_instance_id',
+      )
+      .eq('response_id', responseId)
+      .returns<AnswerRow[]>(),
+    supabase
+      .from('answer_selected_options')
+      .select('option_id, answers!inner(item_id, response_id, group_instance_id)')
+      .eq('answers.response_id', responseId)
+      .returns<SelectionEmbedRow[]>(),
+    supabase
+      .from('response_group_instances')
+      .select('id, group_item_id, position')
+      .eq('response_id', responseId)
+      .returns<GroupInstanceRow[]>(),
+    supabase
+      .from('answer_matrix_cells')
+      .select('row_id, col_id, answers!inner(item_id, response_id, group_instance_id)')
+      .eq('answers.response_id', responseId)
+      .returns<ScopedMatrixCellRow[]>(),
+    supabase
+      .from('answer_risk_matrix')
+      .select(
+        'severity_row_id, likelihood_col_id, risk_score, ' +
+          'answers!inner(item_id, response_id, group_instance_id)',
+      )
+      .eq('answers.response_id', responseId)
+      .returns<ScopedRiskMatrixRow[]>(),
+  ])
 
   // Flatten the answer_id embed to the twin's { item_id, option_id } input shape,
   // keeping the instance scope alongside it.
@@ -580,6 +737,21 @@ export async function getResponseForFill(
     }
   }
 
+  // FF-2: resolve axis ids to codes once, then hand each scope its own slice.
+  const matrixByScope = buildMatrixAnswers(tree, cellRows ?? [], riskRows ?? [])
+  const topLevelMatrix = matrixByScope.get(TOP_LEVEL_SCOPE)
+
+  const instances = buildGroupInstances(
+    tree,
+    instanceRows ?? [],
+    scopedAnswers,
+    selections,
+    answersByKey,
+  ).map((instance) => {
+    const own = matrixByScope.get(instance.id)
+    return own ? { ...instance, ...own } : instance
+  })
+
   return {
     id: response.id,
     formVersionId: response.form_version_id,
@@ -593,13 +765,9 @@ export async function getResponseForFill(
     answersByKey,
     observationsByItemId,
     otherTextByItemId,
-    instances: buildGroupInstances(
-      tree,
-      instanceRows ?? [],
-      scopedAnswers,
-      selections,
-      answersByKey,
-    ),
+    instances,
+    matrixCellsByItemId: topLevelMatrix?.matrixCellsByItemId ?? {},
+    riskMatrixByItemId: topLevelMatrix?.riskMatrixByItemId ?? {},
   }
 }
 

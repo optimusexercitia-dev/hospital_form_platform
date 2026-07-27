@@ -22,6 +22,19 @@ export const CONTAINER_ITEM_TYPES: readonly ItemType[] = [
   'repeating_group',
 ]
 
+/**
+ * FF-2 (ADR 0089) — the two MATRIX types. They are answerable items with a
+ * `question_key`, but their payload lives in `answer_matrix_cells` /
+ * `answer_risk_matrix` rather than in `answers.value`, so every "does this item
+ * have an answer?" check must dispatch on type rather than read `value`.
+ */
+export const MATRIX_ITEM_TYPES: readonly ItemType[] = ['matrix', 'risk_matrix']
+
+/** True for `matrix` / `risk_matrix`. */
+export function isMatrixItem(itemType: string): boolean {
+  return itemType === 'matrix' || itemType === 'risk_matrix'
+}
+
 /** True for `group` / `repeating_group` — items that collect no answer of their
  *  own and instead own child items via `form_items.parent_item_id`. */
 export function isContainerItem(itemType: string): boolean {

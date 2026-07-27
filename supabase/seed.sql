@@ -2101,6 +2101,85 @@ update app.feature_flags set enabled = true where key = 'case_corrections';
 -- the flag is ON before it asserts anything else.
 update app.feature_flags set enabled = true where key = 'repeating_groups';
 -- ---------------------------------------------------------------------------
+-- FF-2 matrix & risk matrix (ADR 0089). Created OFF in
+-- 20260830000100_ff2_matrix_flag; forced ON here for local/E2E so
+-- upsert_matrix_axes, the matrix arms of save_section_answers and the
+-- row-complete required check are all reachable under test. Production flip is
+-- the FF-2 gate migration.
+-- NOTE for pgTAP authors: the RPCs raise HC0P2 when this flag is OFF, so a
+-- fixture that forgets it makes every flag-guarded keystone SKIP while reporting
+-- green (the pgtap-fixture-flag-gaps scar). 271_ff2_matrix_fields.sql asserts
+-- the flag is ON before it asserts anything else.
+update app.feature_flags set enabled = true where key = 'matrix_fields';
+
+-- ===========================================================================
+-- FORM C (commission CCIH): the FF-2 demo — one `matrix` (required, so the
+-- row-complete rule is exercised by simply filling the form) and one
+-- `risk_matrix` with a 1/3/9 severity x likelihood scale, giving risk_score a
+-- real spread (1..81) instead of a 1..9 ladder.
+--
+-- The axes are INSERTed directly rather than through upsert_matrix_axes: that
+-- RPC is a DEFINER door whose authority check reads auth.uid(), which is NULL in
+-- a seed session, so it would (correctly) raise 42501. The seed runs as postgres
+-- and writes the tables directly, exactly as it does for form_item_options.
+-- ===========================================================================
+do $ff2$
+declare
+  v_form_id    uuid := 'f0000000-0000-0000-0000-00000000a002';
+  v_version_id uuid := '50000000-0000-0000-0000-00000000a002';
+  v_section_id uuid := 'c0000000-0000-0000-0000-00000000a002';
+  v_matrix_id  uuid := 'd0000000-0000-0000-0000-00000000a201';
+  v_risk_id    uuid := 'd0000000-0000-0000-0000-00000000a202';
+begin
+  insert into public.forms (id, commission_id, title, description, created_by)
+  values (v_form_id, 'a0000000-0000-0000-0000-0000000000a1',
+          'Matriz de Conformidade e Risco',
+          'Avaliação em grade dos critérios de conformidade e classificação de risco.',
+          '00000000-0000-0000-0000-000000000002');
+
+  insert into public.form_versions (id, form_id, version_number, status, created_by)
+  values (v_version_id, v_form_id, 1, 'draft', '00000000-0000-0000-0000-000000000002');
+
+  insert into public.form_sections (id, form_version_id, position, title, is_default)
+  values (v_section_id, v_version_id, 0, null, true);
+
+  -- position 0: the conformity matrix — REQUIRED, so submit demands a cell on
+  -- every row (ADR 0089 ruling 3).
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, question_explanation, required)
+  values (v_matrix_id, v_section_id, 0, 'matrix', 'matriz_conformidade',
+          'Avalie cada critério de conformidade',
+          'Marque uma coluna por linha. Todas as linhas são obrigatórias.', true);
+
+  insert into public.form_matrix_rows (item_id, form_version_id, position, code, label) values
+    (v_matrix_id, v_version_id, 0, 'higienizacao', 'Higienização das mãos'),
+    (v_matrix_id, v_version_id, 1, 'epi',          'Uso de EPI'),
+    (v_matrix_id, v_version_id, 2, 'descarte',     'Descarte de perfurocortantes');
+
+  insert into public.form_matrix_columns (item_id, form_version_id, position, code, label) values
+    (v_matrix_id, v_version_id, 0, 'conforme',     'Conforme'),
+    (v_matrix_id, v_version_id, 1, 'nao_conforme', 'Não conforme'),
+    (v_matrix_id, v_version_id, 2, 'na',           'Não se aplica');
+
+  -- position 1: the risk matrix. Weights are the factors of risk_score; a
+  -- risk_matrix REQUIRES a weight on every axis entry (upsert_matrix_axes
+  -- HC0P6, re-checked at publish by app.validate_matrix_axes).
+  insert into public.form_items (id, section_id, position, item_type, question_key, label, required)
+  values (v_risk_id, v_section_id, 1, 'risk_matrix', 'matriz_risco',
+          'Classifique o risco do achado', false);
+
+  insert into public.form_matrix_rows (item_id, form_version_id, position, code, label, weight) values
+    (v_risk_id, v_version_id, 0, 'leve',      'Leve',      1),
+    (v_risk_id, v_version_id, 1, 'moderada',  'Moderada',  3),
+    (v_risk_id, v_version_id, 2, 'grave',     'Grave',     9);
+
+  insert into public.form_matrix_columns (item_id, form_version_id, position, code, label, weight) values
+    (v_risk_id, v_version_id, 0, 'rara',      'Rara',      1),
+    (v_risk_id, v_version_id, 1, 'provavel',  'Provável',  3),
+    (v_risk_id, v_version_id, 2, 'frequente', 'Frequente', 9);
+
+  perform public.publish_form_version(v_version_id);
+end $ff2$;
+-- ---------------------------------------------------------------------------
 do $cd$
 declare
   v_comm_a  uuid := 'a0000000-0000-0000-0000-0000000000a1';  -- CCIH (hospital 05..0a)

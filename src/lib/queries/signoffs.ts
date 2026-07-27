@@ -245,6 +245,13 @@ export async function getResponseForSignoff(
       answersByKey: i.answers ?? {},
       observationsByItemId: i.observations_by_item ?? {},
       otherTextByItemId: i.other_text_by_item ?? {},
+      // FF-2 GAP (tracked): matrix/risk answers are deliberately NOT set here.
+      // Unlike getResponseForFill, this view is built from the server-side JSON
+      // of `get_response_for_signoff`, which does not project answer_matrix_cells
+      // / answer_risk_matrix. Until that RPC is widened, a signer reviewing a
+      // section that contains a matrix sees the rest of the answers but an empty
+      // grid. The two fields are optional on GroupInstance ONLY because of this
+      // path — do not read that optionality as "matrices are optional data".
     })),
     signoffs: (payload.signoffs ?? []).map((s) => ({
       sectionId: s.section_id,

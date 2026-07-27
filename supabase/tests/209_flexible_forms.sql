@@ -12,7 +12,7 @@
 -- src/lib/queries/conditions.test.ts (TS side) — Rule 3, phase-blocking on drift.
 
 begin;
-select plan(38);
+select plan(40);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -103,11 +103,28 @@ select throws_ok(
 -- B · Flag-5 invariant BY CONSTRUCTION: a `required` new-type item cannot be
 --     authored (it would deadlock app.response_required_complete — its answers
 --     live in the F3 answer-shape tables, not answers.value).
+--
+--     ⚠ FF-2 (ADR 0089 ruling 3) RETIRES this pin for matrix/risk_matrix and
+--     KEEPS it for `reference`. The invariant was never "these types may not be
+--     required" — it was "a type whose required-ness NOTHING CHECKS may not be
+--     required". FF-2 gives matrix and risk_matrix a completeness arm
+--     (app.item_required_satisfied: row-complete / answer-row-exists) plus an
+--     app.instance_is_empty arm, so the deadlock is gone for them. `reference`
+--     has neither until FF-5, so it stays pinned — and B1c below is what will
+--     go red if someone relaxes it early.
 -- ===========================================================================
-select throws_ok(
+select lives_ok(
   $$ insert into public.form_items (section_id, position, item_type, question_key, label, required)
      values ('aaaa0000-0000-0000-0000-000000000003', 16, 'matrix', 'mx2', 'M2', true) $$,
-  '23514', null, 'B1: required=true matrix rejected by the shape CHECK (Flag-5)');
+  'B1a: required=true matrix ACCEPTED (FF-2 relaxed the arm; row-complete now checks it)');
+select lives_ok(
+  $$ insert into public.form_items (section_id, position, item_type, question_key, label, required)
+     values ('aaaa0000-0000-0000-0000-000000000003', 18, 'risk_matrix', 'rk2', 'R2', true) $$,
+  'B1b: required=true risk_matrix ACCEPTED (FF-2)');
+select throws_ok(
+  $$ insert into public.form_items (section_id, position, item_type, question_key, label, required)
+     values ('aaaa0000-0000-0000-0000-000000000003', 19, 'reference', 'rf2', 'F2', true) $$,
+  '23514', null, 'B1c: required=true reference STILL rejected — pinned until FF-5 wires its completeness arm');
 select throws_ok(
   $$ insert into public.form_items (section_id, position, item_type, label, required)
      values ('aaaa0000-0000-0000-0000-000000000003', 17, 'repeating_group', 'RG2', true) $$,
