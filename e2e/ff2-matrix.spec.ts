@@ -1467,3 +1467,100 @@ test('FF2-9 (BUG-FF2-002): publishing an axis-less matrix / a weightless risk ma
   await expect(banner2).toContainText('Risco sem peso')
   await expect(page.getByText(GENERIC)).toHaveCount(0)
 })
+
+// ===========================================================================
+// FF2-10 — Resume (Architecture Rule 3): a saved grid is READ BACK
+//
+// Every other test in this file asserts the WRITE direction — what reaches the
+// database. None of them reloads, so none would notice if `getResponseForFill`
+// stopped projecting `matrixCellsByItemId` / `riskMatrixByItemId`: the wizard
+// would simply re-render from its own client state and still submit correctly.
+// This one exits, re-enters, and asserts the grid comes back CHECKED.
+// ===========================================================================
+
+test('FF2-10 (resume): a matrix and a risk selection saved with "Salvar e sair" come back checked, with the score re-derived, and submit from the resumed state', async ({
+  page,
+}) => {
+  test.setTimeout(180_000)
+  const title = `Retomada ${SPEC_TAG} ${Date.now()}`
+  const fixture = seedForm(title, ({ versionId, sectionId, id }) => {
+    const matrixId = id('matrix')
+    const riskId = id('risk')
+    return (
+      `insert into public.form_items (id, section_id, position, item_type, question_key, label, required, config)\n` +
+      `values ('${matrixId}','${sectionId}',0,'matrix','ff2_retomada','Avalie cada critério',true,null);\n` +
+      axisInsert('form_matrix_rows', matrixId, versionId, CONFORMIDADE_ROWS) +
+      '\n' +
+      axisInsert('form_matrix_columns', matrixId, versionId, CONFORMIDADE_COLS) +
+      '\n' +
+      // WITH bands this time, so the resumed score also re-derives its band.
+      `insert into public.form_items (id, section_id, position, item_type, question_key, label, required, config)\n` +
+      `values ('${riskId}','${sectionId}',1,'risk_matrix','ff2_retomada_risco','Classifique o risco',false,\n` +
+      `        jsonb_build_object('riskBands', jsonb_build_array(\n` +
+      `          jsonb_build_object('minScore',1,'label','Baixo'),\n` +
+      `          jsonb_build_object('minScore',9,'label','Médio'),\n` +
+      `          jsonb_build_object('minScore',27,'label','Alto'))));\n` +
+      axisInsert('form_matrix_rows', riskId, versionId, SEVERITY_ROWS) +
+      '\n' +
+      axisInsert('form_matrix_columns', riskId, versionId, LIKELIHOOD_COLS)
+    )
+  })
+
+  await signInAs(page, 'staff1.ccih@test.local')
+  await enterWizard(page, title)
+  const responseId = responseIdFromUrl(page)
+
+  await cell(page, 'Higienização das mãos', 'Conforme').check()
+  await cell(page, 'Uso de EPI', 'Não se aplica').check()
+  await riskCell(page, 'Grave', 'Provável').check()
+  await expect(page.getByRole('status').filter({ hasText: 'Pontuação:' })).toContainText('27')
+
+  await page.getByRole('button', { name: 'Salvar e sair' }).click()
+  await page.waitForURL((url: URL) => !url.pathname.includes('/responder/'), {
+    timeout: 25_000,
+  })
+
+  // It really is on the server, mid-fill — the read-back below is a read-back,
+  // not a re-render of state that never left the browser.
+  expect(responseStatus(responseId)).toBe('in_progress')
+  expect(cellsOf(responseId, fixture.items.matrix)).toEqual([
+    ['higienizacao', 'conforme'],
+    ['epi', 'na'],
+  ])
+  expect(riskOf(responseId, fixture.items.risk)).toEqual([['grave', 'provavel', '27']])
+
+  // --- Re-enter with a COLD page (new context state, fresh load) ------------
+  await page.goto('/')
+  await enterWizard(page, title)
+  expect(responseIdFromUrl(page)).toBe(responseId)
+
+  await expect(cell(page, 'Higienização das mãos', 'Conforme')).toBeChecked({
+    timeout: 20_000,
+  })
+  await expect(cell(page, 'Uso de EPI', 'Não se aplica')).toBeChecked()
+  await expect(cell(page, 'Higienização das mãos', 'Não conforme')).not.toBeChecked()
+  await expect(page.getByText('2 de 3 linhas respondidas')).toBeVisible()
+
+  // The risk half resumes too, and its score + band are re-DERIVED from the
+  // axis weights on load (neither is stored).
+  await expect(riskCell(page, 'Grave', 'Provável')).toBeChecked()
+  const status = page.getByRole('status').filter({ hasText: 'Pontuação:' })
+  await expect(status).toContainText('27')
+  await expect(status).toContainText('Alto')
+
+  // --- Finish from the resumed state ---------------------------------------
+  await cell(page, 'Descarte de perfurocortantes', 'Não conforme').check()
+  await goToReview(page)
+  await submitFromReview(page)
+  await expect(page.getByText(/resposta enviada|enviada com sucesso/i).first()).toBeVisible({
+    timeout: 25_000,
+  })
+
+  expect(responseStatus(responseId)).toBe('submitted')
+  expect(cellsOf(responseId, fixture.items.matrix)).toEqual([
+    ['higienizacao', 'conforme'],
+    ['epi', 'na'],
+    ['descarte', 'nao_conforme'],
+  ])
+  expect(riskOf(responseId, fixture.items.risk)).toEqual([['grave', 'provavel', '27']])
+})
