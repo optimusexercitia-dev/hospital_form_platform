@@ -57,7 +57,7 @@ export function TimelineViewSwitch({
             tabIndex={selected ? 0 : -1}
             onClick={() => onChange(option.value)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-[--dur-fast] ease-[--ease-out-soft] focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+              "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-all duration-[var(--dur-fast)] ease-[var(--ease-out-soft)] focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
               selected
                 ? "bg-card text-accent-foreground shadow-xs"
                 : "text-muted-foreground hover:text-foreground",

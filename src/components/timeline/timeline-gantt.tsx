@@ -325,7 +325,7 @@ function PhaseBar({
           "--rise-delay": `${index * 50}ms`,
         } as React.CSSProperties}
         className={cn(
-          "absolute flex items-center gap-2 overflow-hidden rounded-lg border bg-card pr-2 pl-3 text-left shadow-xs transition-all duration-[--dur-fast] ease-[--ease-out-soft] hover:-translate-y-px hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+          "absolute flex items-center gap-2 overflow-hidden rounded-lg border bg-card pr-2 pl-3 text-left shadow-xs transition-all duration-[var(--dur-fast)] ease-[var(--ease-out-soft)] hover:-translate-y-px hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
           upcoming
             ? "border-dashed border-muted-foreground/50 bg-muted/40"
             : "border-border",
@@ -440,7 +440,7 @@ function Pin({
             : { backgroundColor: meta.softVar, borderColor: meta.colorVar }),
         } as React.CSSProperties}
         className={cn(
-          "absolute z-[5] inline-flex size-6 items-center justify-center rounded-full shadow-xs transition-all duration-[--dur-fast] ease-[--ease-out-soft] hover:-translate-y-px hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+          "absolute z-[5] inline-flex size-6 items-center justify-center rounded-full shadow-xs transition-all duration-[var(--dur-fast)] ease-[var(--ease-out-soft)] hover:-translate-y-px hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
           upcoming
             ? "border border-dashed border-muted-foreground/50 bg-card text-muted-foreground"
             : "border",

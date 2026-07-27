@@ -144,7 +144,7 @@ function FeedRow({
         type="button"
         onClick={() => onSelect(event)}
         className={cn(
-          "group ml-1 w-full rounded-2xl border border-border bg-card text-left shadow-xs transition-all duration-[--dur-fast] ease-[--ease-out-soft] hover:-translate-y-px hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+          "group ml-1 w-full rounded-2xl border border-border bg-card text-left shadow-xs transition-all duration-[var(--dur-fast)] ease-[var(--ease-out-soft)] hover:-translate-y-px hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
           density === "compact" ? "px-4 py-2.5" : "px-4 py-3.5",
           status === "active" && "ring-1 ring-primary/40",
           (isUpcoming || event.muted) && "opacity-90",

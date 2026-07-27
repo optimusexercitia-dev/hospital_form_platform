@@ -41,7 +41,7 @@ export function TimelineLegend({
             aria-pressed={on}
             onClick={() => onToggle(type)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-[--dur-fast] ease-[--ease-out-soft] focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-[var(--dur-fast)] ease-[var(--ease-out-soft)] focus-visible:ring-[3px] focus-visible:ring-ring/40 focus-visible:outline-none",
               on
                 ? "border-border text-foreground"
                 : "border-transparent text-muted-foreground/70 line-through decoration-1 hover:text-muted-foreground",

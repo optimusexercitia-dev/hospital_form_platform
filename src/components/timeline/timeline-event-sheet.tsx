@@ -60,7 +60,7 @@ export function TimelineEventSheet({
         <DialogPrimitive.Content
           className={cn(
             "fixed inset-y-0 right-0 z-50 flex w-full max-w-md flex-col gap-5 overflow-y-auto border-l border-border bg-card p-6 text-card-foreground shadow-xl",
-            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right data-[state=open]:duration-[--dur-base]",
+            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right data-[state=open]:duration-[var(--dur-base)]",
           )}
         >
           {event ? (

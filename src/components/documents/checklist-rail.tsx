@@ -46,7 +46,7 @@ export function ChecklistRail({ items }: { items: ChecklistItem[] }) {
         >
           <div
             className={cn(
-              "h-full rounded-full transition-[width] duration-[--dur-base] ease-[--ease-out-soft]",
+              "h-full rounded-full transition-[width] duration-[var(--dur-base)] ease-[var(--ease-out-soft)]",
               complete ? "bg-success" : "bg-primary",
             )}
             style={{ width: `${percent}%` }}
