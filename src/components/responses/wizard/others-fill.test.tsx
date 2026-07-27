@@ -56,6 +56,7 @@ function choiceItem(itemType: "multiple_choice" | "checkbox"): Item {
     required: false,
     defaultValue: null,
     parentItemId: null,
+    children: [],
     content: null,
   };
 }

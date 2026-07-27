@@ -536,7 +536,24 @@ function toConfig(raw: Json | null): ItemConfig | null {
     minLength: typeof minLength === 'number' ? minLength : null,
     maxLength: typeof maxLength === 'number' ? maxLength : null,
     allowOther: rec.allowOther === true ? true : null,
+    // FF-1: repeating-group cardinality. This parser builds its result
+    // FIELD-BY-FIELD, so a key absent here round-trips to nothing no matter what
+    // the builder wrote — which is exactly how `minInstances`/`maxInstances` were
+    // silently dropped between BE-0's interface and this function.
+    minInstances: toCardinality(rec.minInstances),
+    maxInstances: toCardinality(rec.maxInstances),
   }
+}
+
+/**
+ * Narrow a repeating-group cardinality to a non-negative integer, or null.
+ * Strict on purpose: no DB CHECK constrains `config`'s inner shape, so a
+ * malformed value must become "unbounded" here rather than reaching
+ * `add_group_instance` / `submit_response` as garbage. The SQL side is defensive
+ * in the same way (`jsonb_typeof(...) = 'number'`), mirroring `assert_item_bounds`.
+ */
+function toCardinality(raw: Json | undefined): number | null {
+  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 ? raw : null
 }
 
 function toItem(row: ItemRow): Item {

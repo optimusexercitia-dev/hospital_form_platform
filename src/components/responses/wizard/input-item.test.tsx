@@ -28,6 +28,7 @@ function makeItem(overrides: Partial<Item> = {}): Item {
     required: false,
     defaultValue: null,
     parentItemId: null,
+    children: [],
     content: null,
     ...overrides,
   };

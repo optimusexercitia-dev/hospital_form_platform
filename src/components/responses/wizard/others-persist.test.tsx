@@ -37,6 +37,7 @@ function choiceItem(): Item {
     required: false,
     defaultValue: null,
     parentItemId: null,
+    children: [],
     content: null,
   };
 }

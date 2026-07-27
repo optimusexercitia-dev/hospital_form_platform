@@ -5,9 +5,11 @@ import {
   ChevronDownSquare,
   CircleDot,
   Clock,
+  Group,
   Hash,
   Image as ImageIcon,
   Minus,
+  Rows3,
   Type,
 } from "lucide-react";
 
@@ -73,4 +75,21 @@ export const ITEM_TYPE_META: Record<ItemType, ItemTypeMeta> = {
     description: "Imagem ilustrativa, apenas leitura.",
     Icon: ImageIcon,
   },
+  // FF-1 (ADR 0087) — the two CONTAINER types. Both collect no answer of their
+  // own; they own child blocks. Offered only while the `repeating_groups` flag
+  // is ON (see AddBlockMenu), but the metadata is unconditional so an already
+  // authored container still renders its label/icon if the flag is flipped off.
+  group: {
+    label: "Grupo",
+    description: "Sub-seção: agrupa perguntas relacionadas, sem repetição.",
+    Icon: Group,
+  },
+  repeating_group: {
+    label: "Grupo repetível",
+    description: "Conjunto de perguntas que pode ser repetido várias vezes.",
+    Icon: Rows3,
+  },
 };
+
+/** The two CONTAINER types, in the order the "Estrutura" picker offers them. */
+export const CONTAINER_TYPES: ItemType[] = ["group", "repeating_group"];

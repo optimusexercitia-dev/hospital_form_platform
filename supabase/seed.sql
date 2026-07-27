@@ -2091,6 +2091,15 @@ update app.feature_flags set enabled = true where key = 'cases_bulk_create';
 -- ON here for local/E2E so the correction request / void / reopen surfaces are
 -- reachable. Production flip deferred to the feature gate.
 update app.feature_flags set enabled = true where key = 'case_corrections';
+-- FF-1 repeating groups (ADR 0087). Created OFF in
+-- 20260828000000_ff1_repeating_groups_schema; forced ON here for local/E2E so the
+-- container builder types, the three instance RPCs and instance-aware evaluation
+-- are all reachable under test. Production flip is the FF-1 gate migration.
+-- NOTE for pgTAP authors: the RPCs raise HC0N0 when this flag is OFF, so a
+-- fixture that forgets it makes every flag-guarded keystone SKIP while reporting
+-- green (the pgtap-fixture-flag-gaps scar). 270_ff1_repeating_groups.sql asserts
+-- the flag is ON before it asserts anything else.
+update app.feature_flags set enabled = true where key = 'repeating_groups';
 -- ---------------------------------------------------------------------------
 do $cd$
 declare

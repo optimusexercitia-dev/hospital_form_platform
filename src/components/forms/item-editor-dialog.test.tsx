@@ -197,6 +197,7 @@ describe("ItemEditorDialog — hidden-field contract (task #4)", () => {
       required: true, // deliberately inconsistent — the interlock must override
       defaultValue: null,
       parentItemId: null,
+      children: [],
       content: null,
     };
     render(

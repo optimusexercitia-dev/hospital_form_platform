@@ -30,6 +30,7 @@ function item(over: Partial<Item>): Item {
     required: false,
     defaultValue: null,
     parentItemId: null,
+    children: [],
     content: null,
     ...over,
   };

@@ -60,6 +60,13 @@ export interface FeatureFlags {
   // reopen_case. Seeded OFF in the correction-schema migration; flips ON at the
   // feature gate; `seed.sql` forces it ON for local/E2E.
   case_corrections: boolean
+  // FF-1 (ADR 0087): repeating groups + the plain `group` container — the
+  // container item types in the builder, the response_group_instances write RPCs,
+  // and instance-aware condition evaluation. Seeded OFF in
+  // 20260828000000_ff1_repeating_groups_schema; flipped by
+  // 20260828000900_enable_repeating_groups at the FF-1 gate; `seed.sql` forces it
+  // ON for local/E2E.
+  repeating_groups: boolean
 }
 
 /** A flag key. */
@@ -176,4 +183,22 @@ export async function casesBulkCreateEnabled(): Promise<boolean> {
  */
 export async function caseCorrectionsEnabled(): Promise<boolean> {
   return featureEnabled('case_corrections')
+}
+
+/**
+ * Whether repeating groups (FF-1, ADR 0087) are ON. Thin per-flag wrapper over
+ * {@link featureEnabled} (consistent with the other per-flag `*Enabled()` readers),
+ * so callers avoid an `as FeatureFlagKey` cast. Request-memoized via
+ * {@link getFeatureFlags}. Seeded OFF in
+ * `20260828000000_ff1_repeating_groups_schema`; flipped by
+ * `20260828000900_enable_repeating_groups` at the FF-1 gate; `seed.sql` forces it
+ * ON for local/E2E.
+ *
+ * Gates the BUILDER's container types. The three instance RPCs check the SAME
+ * flag server-side (`app.feature_enabled('repeating_groups')` → `HC0N0`), so the
+ * feature is dark on both sides of the boundary and hiding the UI is never the
+ * control (Rule 1).
+ */
+export async function repeatingGroupsEnabled(): Promise<boolean> {
+  return featureEnabled('repeating_groups')
 }

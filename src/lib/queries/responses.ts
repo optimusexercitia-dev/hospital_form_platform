@@ -1,5 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
-import { CHOICE_ITEM_TYPES, getVersionTree } from '@/lib/queries/forms'
+import {
+  CHOICE_ITEM_TYPES,
+  flattenItem,
+  getVersionTree,
+} from '@/lib/queries/forms'
 import type { Json } from '@/lib/types/database'
 import type {
   Item,
@@ -323,9 +327,16 @@ export function buildAnswerMaps(
   const answersByKey: Record<string, Json> = {}
 
   // Index every item once: id → the Item (type, questionKey, option rows).
+  // FF-1: `flattenItem` is mandatory here. `Section.items` holds only TOP-LEVEL
+  // items now, and per ADR 0087 ruling 6 a plain `group`'s children answer at TOP
+  // LEVEL — so a flat walk would leave them out of `itemsById`, the consumer's
+  // `if (!item) continue` would drop their answers from BOTH maps, and nothing
+  // would throw. Wrong answers, silently.
   const itemsById = new Map<string, Item>()
   for (const section of tree.sections) {
-    for (const item of section.items) itemsById.set(item.id, item)
+    for (const item of section.items.flatMap(flattenItem)) {
+      itemsById.set(item.id, item)
+    }
   }
 
   // (a) Scalar answers — non-choice input items only (choice items leave

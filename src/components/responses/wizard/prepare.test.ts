@@ -27,6 +27,7 @@ function inputItem(id: string): Item {
     required: false,
     defaultValue: null,
     parentItemId: null,
+    children: [],
     content: null,
   };
 }
@@ -70,6 +71,8 @@ function response(over: Partial<ResponseForFill>): ResponseForFill {
     answersByKey: {},
     observationsByItemId: {},
     otherTextByItemId: {},
+    // FF-1: repeating-group instances (none in these fixtures).
+    instances: [],
     ...over,
   };
 }
