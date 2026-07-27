@@ -522,6 +522,41 @@ sites swept: every one **mints forward** and none re-derives a slug to look an e
 > **byte-identical** through the FF-2 re-declaration so that migration has no undeclared behaviour
 > change. Lead's call whether it rides this gate.
 
+#### ⚠ OUT-OF-PHASE FIX — BUG-FF1-007 (`<> ''''`), attributed to **FF-1**, riding FF-2's gate
+
+**Not FF-2 scope.** Surfaced while re-declaring `get_response_for_signoff` for FUP-FF2-1, carried
+**byte-identical** so that migration had no undeclared behaviour change, reported — and then **ruled
+in by the lead**, on the same reasoning as BUG-FF1-006: unambiguous, four characters, already in the
+function this wave, and *"a known-wrong comparison left in place becomes folklore"*.
+
+`a.observation <> ''''` in SQL source compares against a string literal containing **one
+apostrophe**. The two per-instance filters therefore excluded observations equal to `'` and let
+**empty-string observations through** — the precise opposite of their intent, and inconsistent with
+the top-level filter three lines away (`btrim(a.observation) <> ''`), which is what makes it a
+quoting slip rather than a design choice. Fixed in `20260830001100`.
+
+**Sweep (lead-requested — a quoting slip is rarely unique).** Across **all** schemas,
+`prosrc like '%''''%'` matches exactly two functions:
+
+| Function | Occurrences | Verdict |
+|---|---|---|
+| `public.get_response_for_signoff` | 2 | **the bug** — plain expression; fixed |
+| `storage.list_multipart_uploads_with_delimiter` | 3 | **correct** — inside a dynamic-SQL string passed to `EXECUTE` (note the `$4`/`$6` placeholders), where `''''` legitimately renders as `''`. Vendor code, different construct. |
+
+No RLS policy `qual`/`with_check` contains the pattern. The storage hit is exactly why this was
+fixed by reading each site rather than by a blind replace.
+
+**Keystone §N of 271** pins BOTH directions — an empty observation must be ABSENT and a real one
+PRESENT (one direction alone is satisfied by a filter that drops everything, or nothing), plus N1
+asserting the fixture really holds an empty string so N2 cannot pass vacuously.
+**Mutation-proven:** restoring `<> ''''` in the two per-instance filters turns N2 and N4 red with
+`have: <empty string> want: NULL`, while N1/N3 stay green. Restored via a clean `db reset`.
+
+> ⚠ **Adjacent, NOT fixed (reported):** the per-instance filters compare `a.observation <> ''`
+> while the top-level one uses `btrim(a.observation) <> ''`, so a whitespace-only observation is
+> still filtered at top level but not per instance. A *different* defect from the one ruled in —
+> reported rather than silently widened.
+
 #### FF-2 follow-ups — ✅ BOTH CLOSED in Wave 3 (PO ruled them into gate scope)
 
 Kept for the audit trail; neither is outstanding.
