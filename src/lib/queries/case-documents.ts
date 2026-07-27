@@ -155,6 +155,7 @@ interface CaseEventRow {
   kind: CaseEventKind
   title: string | null
   body: string
+  visibility: CaseEventVisibility
   occurred_at: string | null
   occurred_time: string | null
   created_by: string | null
@@ -232,7 +233,7 @@ export async function listCaseEvents(caseId: string): Promise<CaseEvent[]> {
     .from('case_events')
     .select(
       `
-      id, case_id, kind, title, body, occurred_at, occurred_time, created_by,
+      id, case_id, kind, title, body, visibility, occurred_at, occurred_time, created_by,
       created_at, updated_at,
       profiles:created_by ( full_name )
     `,
@@ -250,9 +251,7 @@ export async function listCaseEvents(caseId: string): Promise<CaseEvent[]> {
     kind: r.kind,
     title: r.title,
     body: r.body,
-    // BE-3 adds the `case_events.visibility` column; until then every event is the
-    // default `case_readers` (byte-for-byte today's behavior). BE-5 projects it.
-    visibility: 'case_readers',
+    visibility: r.visibility,
     occurredAt: r.occurred_at,
     // Postgres `time` serializes as `HH:mm:ss`; the UI wants `HH:mm`.
     occurredTime: r.occurred_time ? r.occurred_time.slice(0, 5) : null,
