@@ -67,6 +67,15 @@ export interface FeatureFlags {
   // 20260828000900_enable_repeating_groups at the FF-1 gate; `seed.sql` forces it
   // ON for local/E2E.
   repeating_groups: boolean
+  // FF-2 (ADR 0089): matrix + risk_matrix items — the two item types in the
+  // builder, `upsert_matrix_axes`, the matrix arms of `save_section_answers`,
+  // and row-complete required-ness. Seeded OFF in
+  // 20260830000100_ff2_matrix_flag; `seed.sql` forces it ON for local/E2E.
+  // ⚠ CURRENT TRUTH: the production gate-flip migration is NOT WRITTEN YET (the
+  // FF-1 twin above names `20260828000900`; FF-2 has no counterpart). So outside
+  // local/E2E this flag is OFF. Resolve the VALUE in `app.feature_flags.enabled`,
+  // never this comment.
+  matrix_fields: boolean
 }
 
 /** A flag key. */
@@ -212,4 +221,24 @@ export async function caseCorrectionsEnabled(): Promise<boolean> {
  */
 export async function repeatingGroupsEnabled(): Promise<boolean> {
   return featureEnabled('repeating_groups')
+}
+
+/**
+ * Whether matrix + risk-matrix items (FF-2, ADR 0089) are ON. Thin per-flag
+ * wrapper over {@link featureEnabled} (consistent with the other per-flag
+ * `*Enabled()` readers), so callers avoid an `as FeatureFlagKey` cast.
+ * Request-memoized via {@link getFeatureFlags}.
+ *
+ * Seeded OFF in `20260830000100_ff2_matrix_flag`; `seed.sql` forces it ON for
+ * local/E2E. **The production gate-flip migration is not written yet** — unlike
+ * `repeating_groups`, which `20260828000900` flipped at the FF-1 gate — so this
+ * reads false anywhere but local/E2E until the FF-2 gate lands.
+ *
+ * Gates the BUILDER's matrix item types and the wizard's grid. The server checks
+ * the SAME flag (`app.feature_enabled('matrix_fields')` → `HC0P2` from
+ * `upsert_matrix_axes` and from the two answer writers), so the feature is dark
+ * on both sides of the boundary and hiding the UI is never the control (Rule 1).
+ */
+export async function matrixFieldsEnabled(): Promise<boolean> {
+  return featureEnabled('matrix_fields')
 }
