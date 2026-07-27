@@ -16,11 +16,14 @@ export function BlockList({
   sections,
   commissionId,
   imageUrls,
+  containersEnabled = false,
 }: {
   section: Section;
   sections: Section[];
   commissionId: string;
   imageUrls: Record<string, string>;
+  /** FF-1 — the `repeating_groups` feature flag, resolved on the server. */
+  containersEnabled?: boolean;
 }) {
   const { containerRef, captureBeforeReorder } =
     useFlipReorder<HTMLDivElement>();
@@ -46,6 +49,7 @@ export function BlockList({
               sections={sections}
               currentSectionId={section.id}
               commissionId={commissionId}
+              imageUrls={imageUrls}
               imageUrl={
                 item.itemType === "image" && item.content
                   ? (imageUrls[
@@ -54,6 +58,7 @@ export function BlockList({
                     ] ?? null)
                   : null
               }
+              containersEnabled={containersEnabled}
               onBeforeReorder={captureBeforeReorder}
             />
           ))}
@@ -64,6 +69,7 @@ export function BlockList({
         sectionId={section.id}
         sections={sections}
         commissionId={commissionId}
+        containersEnabled={containersEnabled}
       />
     </div>
   );

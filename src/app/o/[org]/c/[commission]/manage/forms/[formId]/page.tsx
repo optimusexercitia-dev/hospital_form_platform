@@ -8,8 +8,11 @@ import {
   listForms,
   listVersions,
   getSignedAssetUrl,
+  flattenItem,
 } from "@/lib/queries/forms";
+import type { VersionTree } from "@/lib/queries/forms";
 import { controlledDocsEnabled } from "@/lib/queries/feature-flags";
+import { repeatingGroupsEnabled } from "@/lib/forms/repeating-groups-flag";
 import { listApproverCandidates } from "@/lib/queries/documents";
 import { BuilderShell } from "@/components/forms/builder-shell";
 import { PublishedReadOnly } from "@/components/forms/published-read-only";
@@ -61,6 +64,7 @@ export default async function BuilderPage({
     // optional document-control metadata (approver + effective date + review
     // cycle). Resolve the approver candidates only then (flag off → empty, and the
     // metadata section is hidden, so publishing behaves exactly as before).
+    const containersEnabled = await repeatingGroupsEnabled();
     const controlledDocsOn = await controlledDocsEnabled();
     const approverCandidates = controlledDocsOn
       ? await listApproverCandidates(access.commission.id)
@@ -78,6 +82,7 @@ export default async function BuilderPage({
         imageUrls={imageUrls}
         controlledDocsEnabled={controlledDocsOn}
         approverCandidates={approverCandidates}
+        containersEnabled={containersEnabled}
       />
     );
   }
@@ -107,16 +112,15 @@ export default async function BuilderPage({
  * Done on the server so previews render immediately; a null URL falls back to a
  * placeholder in the UI.
  */
-async function resolveImageUrls(tree: {
-  sections: { items: { itemType: string; content: unknown }[] }[];
-}): Promise<Record<string, string>> {
+async function resolveImageUrls(tree: VersionTree): Promise<Record<string, string>> {
   const paths = new Set<string>();
-  for (const section of tree.sections) {
-    for (const item of section.items) {
-      if (item.itemType === "image" && item.content) {
-        const path = (item.content as { storage_path?: string }).storage_path;
-        if (path) paths.add(path);
-      }
+  // FF-1: `Section.items` holds only TOP-LEVEL items now, so walk through
+  // `flattenItem` — an image block authored inside a container would otherwise
+  // resolve to no signed URL and render as a permanent placeholder.
+  for (const item of tree.sections.flatMap((s) => s.items.flatMap(flattenItem))) {
+    if (item.itemType === "image" && item.content) {
+      const path = (item.content as { storage_path?: string }).storage_path;
+      if (path) paths.add(path);
     }
   }
   const entries = await Promise.all(

@@ -448,6 +448,36 @@ export function overlayAnswerMap(base: AnswerMap, overlay: AnswerMap): AnswerMap
   return { ...base, ...overlay }
 }
 
+/**
+ * FF-1 (ADR 0087 ruling 2) — may a condition authored for `ref` target `target`?
+ * The TS mirror of the outside-in ban `public.validate_visible_when` enforces at
+ * publish. Both arguments are the `repeating_group` id the item lives inside, or
+ * `null` for a top-level item, a plain-`group` child (ruling 6 — those answer at
+ * top level), or a SECTION condition (a section is never inside a group).
+ *
+ * The rule in one line: a repeating-group child's key is in scope only from
+ * INSIDE that same group.
+ *   · target outside any repeating group → always legal;
+ *   · target inside group G, ref inside G → legal (inside-out; `overlayAnswerMap`
+ *     resolves it to the same-instance sibling);
+ *   · target inside group G, ref anywhere else → ILLEGAL (outside-in: with N
+ *     instances there is no single value).
+ *
+ * This is a UI NARROWING, never the authority — the server rejects at publish
+ * regardless. Its job is to stop the builder from offering a target that would
+ * then fail publish, which is why it must agree with the SQL exactly: a target
+ * offered here and refused there is a dead end the author cannot diagnose.
+ */
+export function isConditionTargetInScope(
+  targetRepeatingGroupId: string | null,
+  refRepeatingGroupId: string | null,
+): boolean {
+  return (
+    targetRepeatingGroupId === null ||
+    targetRepeatingGroupId === refRepeatingGroupId
+  )
+}
+
 /** Deep structural equality matching Postgres jsonb equality for our values. */
 function jsonEquals(a: Json | undefined, b: Json | undefined): boolean {
   if (a === b) return true

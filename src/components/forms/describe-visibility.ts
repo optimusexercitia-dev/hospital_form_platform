@@ -5,6 +5,7 @@ import type {
   Visibility,
   VisibleWhen,
 } from "@/lib/queries/forms";
+import { sectionItems } from "@/lib/forms/item-tree";
 
 /**
  * Turn a stored {@link Visibility} into a human-readable pt-BR summary for the
@@ -59,8 +60,11 @@ export interface VisibilitySummary {
 /** Build a `question_key → label` map from the full ordered section tree. */
 export function buildQuestionLabelMap(sections: Section[]): Map<string, string> {
   const map = new Map<string, string>();
+  // FF-1: walk THROUGH containers — `Section.items` holds only top-level items,
+  // so a condition targeting a group child would otherwise render its raw
+  // question_key instead of the author's label.
   for (const section of sections) {
-    for (const item of section.items) {
+    for (const item of sectionItems(section)) {
       if (item.questionKey) {
         map.set(item.questionKey, item.label ?? item.questionKey);
       }
@@ -80,7 +84,7 @@ export function buildOptionLabelMap(
 ): Map<string, Map<string, string>> {
   const map = new Map<string, Map<string, string>>();
   for (const section of sections) {
-    for (const item of section.items) {
+    for (const item of sectionItems(section)) {
       if (!item.questionKey || !item.options) continue;
       const codeToLabel = new Map<string, string>();
       for (const opt of item.options) codeToLabel.set(opt.code, opt.label);

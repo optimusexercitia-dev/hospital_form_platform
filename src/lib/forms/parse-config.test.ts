@@ -131,4 +131,57 @@ describe('parseItemConfig — the ACTION path (addItem/updateItem) config parse'
     expect(c.max).toBe(100)
     expect(c.flaggedWhen).toEqual({ op: 'gt', value: 90 })
   })
+  // -- FF-1: repeating-group cardinality (ADR 0087) ---------------------------
+  it('repeating_group min/max instances → config.minInstances/maxInstances', () => {
+    const c = cfg(
+      parseItemConfig(
+        'repeating_group',
+        fd({ configMinInstances: '1', configMaxInstances: '5' }),
+      ),
+    )
+    // The KEY NAMES are the contract with `ItemConfig` in queries/forms.ts — the
+    // read side (`toConfig`) looks for exactly these. Renaming either silently
+    // breaks the round trip without any type error, so pin them literally.
+    expect(c.minInstances).toBe(1)
+    expect(c.maxInstances).toBe(5)
+    expect(Object.keys(c).sort()).toEqual(['maxInstances', 'minInstances'])
+  })
+
+  it('a lone minimum is kept (that is how a repeating group becomes required)', () => {
+    const c = cfg(parseItemConfig('repeating_group', fd({ configMinInstances: '2' })))
+    expect(c.minInstances).toBe(2)
+    expect('maxInstances' in c).toBe(false)
+  })
+
+  it('min > max → range error', () => {
+    const res = parseItemConfig(
+      'repeating_group',
+      fd({ configMinInstances: '5', configMaxInstances: '2' }),
+    )
+    expect('error' in res).toBe(true)
+  })
+
+  it('non-integer / negative counts are rejected', () => {
+    expect(
+      'error' in parseItemConfig('repeating_group', fd({ configMinInstances: '1.5' })),
+    ).toBe(true)
+    expect(
+      'error' in parseItemConfig('repeating_group', fd({ configMinInstances: '-1' })),
+    ).toBe(true)
+    expect(
+      'error' in parseItemConfig('repeating_group', fd({ configMaxInstances: 'muitas' })),
+    ).toBe(true)
+  })
+
+  it('a plain `group` has NO instances, so cardinality is ignored (ruling 6)', () => {
+    expect(
+      parseItemConfig('group', fd({ configMinInstances: '1', configMaxInstances: '5' })),
+    ).toEqual({ config: null })
+  })
+
+  it('an ordinary input type never picks up instance cardinality', () => {
+    expect(
+      parseItemConfig('short_text', fd({ configMinInstances: '3' })),
+    ).toEqual({ config: null })
+  })
 })

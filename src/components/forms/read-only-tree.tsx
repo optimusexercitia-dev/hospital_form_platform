@@ -1,4 +1,5 @@
 import type { Item, Section, VersionTree } from "@/lib/queries/forms";
+import { isContainerItem, isRepeatingGroup } from "@/lib/forms/item-tree";
 import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
 import { TOKEN_COLOR_VAR } from "@/components/cases/case-status-badge";
 import {
@@ -109,6 +110,17 @@ function ReadOnlySection({
   );
 }
 
+/** " · mínimo 2, máximo 5" — the repeating group's cardinality, or "" when it is
+ *  unbounded. `minInstances` is what makes a repeating group required. */
+function describeCardinalitySuffix(item: Item): string {
+  const min = item.config?.minInstances ?? null;
+  const max = item.config?.maxInstances ?? null;
+  const parts: string[] = [];
+  if (min !== null) parts.push(`mínimo ${min}`);
+  if (max !== null) parts.push(`máximo ${max}`);
+  return parts.length > 0 ? ` · ${parts.join(", ")}` : "";
+}
+
 function EmptySection() {
   return (
     <p className="rounded-xl border border-dashed border-border bg-muted/30 px-4 py-5 text-center text-sm text-muted-foreground">
@@ -133,6 +145,39 @@ function ReadOnlyBlock({
 
   if (item.itemType === "image" && item.content) {
     return <ImageContentRenderer content={item.content} imageUrls={imageUrls} />;
+  }
+
+  // FF-1 — a CONTAINER renders as a labelled sub-block with its children nested
+  // inside. Not gated on the feature flag: a version that holds a container must
+  // render truthfully rather than silently dropping its questions.
+  if (isContainerItem(item.itemType)) {
+    return (
+      <article className="flex flex-col gap-3 rounded-xl border border-border bg-background/60 p-4">
+        <div className="flex flex-col gap-1">
+          <span className="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">
+            {meta.label}
+            {isRepeatingGroup(item.itemType)
+              ? describeCardinalitySuffix(item)
+              : null}
+          </span>
+          <h3 className="text-sm font-medium">{item.label}</h3>
+          {item.questionExplanation && (
+            <p className="text-sm text-muted-foreground text-pretty">
+              {item.questionExplanation}
+            </p>
+          )}
+        </div>
+        <div className="flex flex-col gap-3 border-l-2 border-dashed border-border pl-4">
+          {item.children.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Grupo sem perguntas.</p>
+          ) : (
+            item.children.map((child) => (
+              <ReadOnlyBlock key={child.id} item={child} imageUrls={imageUrls} />
+            ))
+          )}
+        </div>
+      </article>
+    );
   }
 
   // Input item.

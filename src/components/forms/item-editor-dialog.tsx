@@ -42,9 +42,11 @@ import { FormBanner } from "@/components/auth/form-banner";
 import { OptionsEditor, blankOption } from "@/components/forms/options-editor";
 import { ConditionBuilder } from "@/components/forms/condition-builder";
 import {
+  newChildConditionTargets,
   newQuestionConditionTargets,
   questionConditionTargets,
 } from "@/components/forms/condition-targets";
+import { isContainerItem, isRepeatingGroup } from "@/lib/forms/item-tree";
 import { SectionTextEditor } from "@/components/forms/section-text-editor";
 import { ImageItemEditor } from "@/components/forms/image-item-editor";
 import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
@@ -84,6 +86,12 @@ type Props = {
   sections: Section[];
   commissionId: string;
   imageUrl: string | null;
+  /**
+   * FF-1 — the CONTAINER this block is being added into (add mode only). Drives
+   * the hidden `parentItemId` routing field and narrows the condition-target
+   * list to what ADR 0087 ruling 2 permits from inside that container.
+   */
+  parentItem?: { id: string; label: string | null };
 } & (
   | { mode: "add"; itemType: ItemType; item?: undefined }
   | { mode: "edit"; item: Item; itemType?: undefined }
@@ -107,8 +115,15 @@ type Props = {
  * states, and the a11y wiring are preserved exactly (design doc §0).
  */
 export function ItemEditorDialog(props: Props) {
-  const { open, onOpenChange, sectionId, sections, commissionId, imageUrl } =
-    props;
+  const {
+    open,
+    onOpenChange,
+    sectionId,
+    sections,
+    commissionId,
+    imageUrl,
+    parentItem,
+  } = props;
   const itemType: ItemType =
     props.mode === "edit" ? props.item.itemType : props.itemType;
   const existing = props.mode === "edit" ? props.item : null;
@@ -122,6 +137,12 @@ export function ItemEditorDialog(props: Props) {
 
   const isChoice = CHOICE_TYPES.includes(itemType);
   const isInput = INPUT_TYPES.includes(itemType);
+  // FF-1 — CONTAINER editing. A container collects no answer, so it has no
+  // options, no default value and no `required` flag: a repeating group's
+  // required-ness IS `config.minInstances` (BE-0 contract). It keeps a label
+  // (the DB arm requires one), optional support text, and its own condition.
+  const isContainer = isContainerItem(itemType);
+  const isRepeating = isRepeatingGroup(itemType);
   const colorable = COLOR_OPTION_TYPES.includes(itemType);
   const isBounded = BOUNDED_TYPES.includes(itemType);
   const allowsOther = ALLOW_OTHER_TYPES.includes(itemType);
@@ -152,6 +173,13 @@ export function ItemEditorDialog(props: Props) {
   // "Flagged If" (number/date/time → config.flaggedWhen).
   const [flaggedWhen, setFlaggedWhen] = useState<FlaggedWhen | null>(
     existing?.config?.flaggedWhen ?? null,
+  );
+  // FF-1 — repeating-group cardinality (→ config.minInstances/maxInstances).
+  const [minInstances, setMinInstances] = useState<string>(
+    lengthToString(existing?.config?.minInstances),
+  );
+  const [maxInstances, setMaxInstances] = useState<string>(
+    lengthToString(existing?.config?.maxInstances),
   );
   // The per-question conditional-appearance rule (null = always visible).
   const [visibleWhen, setVisibleWhen] = useState<Visibility | null>(
@@ -216,14 +244,28 @@ export function ItemEditorDialog(props: Props) {
   const meta = ITEM_TYPE_META[itemType];
 
   // Eligible condition targets (input questions strictly earlier in document
-  // order). In "edit" mode, earlier than the item; in "add" mode, the new item
-  // appends at the section end so every existing input is earlier.
+  // order). In "edit" mode, earlier than the item; in "add" mode, the new block
+  // appends at the end of its scope so every existing input there is earlier.
+  //
+  // FF-1 (ADR 0087 ruling 2): the list is a function of the ITEM being edited,
+  // not of its section alone — a child of a repeating group may reference an
+  // earlier SAME-INSTANCE sibling (inside-out), while nothing outside a repeating
+  // group may reference its children at all (outside-in is rejected at publish by
+  // `validate_visible_when`). The picker simply never offers what the validator
+  // would refuse.
   const conditionTargets =
     props.mode === "edit"
       ? questionConditionTargets(sections, existing!.sectionId, existing!.id)
-      : newQuestionConditionTargets(sections, sectionId);
+      : parentItem
+        ? newChildConditionTargets(sections, parentItem.id)
+        : newQuestionConditionTargets(sections, sectionId);
 
-  // A conditional question can never be required (decision #9).
+  // FF-1 (ADR 0087 ruling 4) — `form_items_conditional_not_required` is DROPPED
+  // platform-wide, so "obrigatória" is now offered BESIDE a visibility condition.
+  // The semantics the un-deadened `app.response_required_complete` branch
+  // implements: visibility wins — a required item hidden by its own condition
+  // does not block submit. Authoring "se tipo = medicação, o nome é obrigatório"
+  // is the ordinary case FF-1 exists to support.
   const isConditional = visibleWhen !== null;
 
   const labelField = useFieldIds("label", {
@@ -238,9 +280,13 @@ export function ItemEditorDialog(props: Props) {
 
   const titleText =
     props.mode === "edit" ? `Editar ${meta.label.toLowerCase()}` : meta.label;
-  const descriptionText = isInput
-    ? "Defina o enunciado, as opções de resposta e quando esta pergunta aparece."
-    : "Configure o conteúdo deste bloco do formulário.";
+  const descriptionText = isContainer
+    ? isRepeating
+      ? "Defina o título, quantas repetições são permitidas e quando o grupo aparece."
+      : "Defina o título do grupo e quando ele aparece. As perguntas são adicionadas dentro dele."
+    : isInput
+      ? "Defina o enunciado, as opções de resposta e quando esta pergunta aparece."
+      : "Configure o conteúdo deste bloco do formulário.";
 
   // Non-empty option labels (with their metadata) → repeated hidden fields. The
   // reserved "Outros" row is never in `options` (OptionsEditor hides it; the
@@ -253,6 +299,15 @@ export function ItemEditorDialog(props: Props) {
     summaryParts.push(
       `${cleanOptions.length} ${cleanOptions.length === 1 ? "opção" : "opções"}`,
     );
+  }
+  if (isRepeating) {
+    const min = minInstances.trim();
+    const max = maxInstances.trim();
+    if (min || max) {
+      summaryParts.push(
+        max ? `${min || 0}–${max} repetições` : `mínimo ${min} repetições`,
+      );
+    }
   }
   if (isConditional) summaryParts.push("condicional");
 
@@ -277,7 +332,11 @@ export function ItemEditorDialog(props: Props) {
               {meta.label}
             </span>
             <DialogTitle>{titleText}</DialogTitle>
-            <DialogDescription>{descriptionText}</DialogDescription>
+            <DialogDescription>
+              {parentItem
+                ? `Dentro do grupo “${parentItem.label ?? "sem título"}”. ${descriptionText}`
+                : descriptionText}
+            </DialogDescription>
           </div>
         </DialogHeader>
 
@@ -295,6 +354,17 @@ export function ItemEditorDialog(props: Props) {
               <>
                 <input type="hidden" name="sectionId" value={sectionId} />
                 <input type="hidden" name="itemType" value={itemType} />
+                {/* FF-1: routes the new block INSIDE a container. Absent for a
+                    top-level block. The item's own type can never be a container
+                    here — AddBlockMenu does not offer one in child mode, and
+                    `addItem` refuses it (depth cap, ruling 1). */}
+                {parentItem ? (
+                  <input
+                    type="hidden"
+                    name="parentItemId"
+                    value={parentItem.id}
+                  />
+                ) : null}
               </>
             )}
 
@@ -593,15 +663,14 @@ export function ItemEditorDialog(props: Props) {
                         name="required"
                         value="on"
                         defaultChecked={existing?.required ?? false}
-                        checked={isConditional ? false : undefined}
-                        disabled={isConditional}
                       />
                       Resposta obrigatória
                     </label>
                     {isConditional ? (
-                      <p className="text-xs text-muted-foreground">
-                        Uma pergunta com aparência condicional não pode ser
-                        obrigatória.
+                      <p className="text-xs text-muted-foreground text-pretty">
+                        Obrigatória <strong>apenas quando aparecer</strong>:
+                        enquanto a condição acima não for satisfeita, a pergunta
+                        fica oculta e não impede o envio.
                       </p>
                     ) : null}
                   </div>
@@ -626,6 +695,131 @@ export function ItemEditorDialog(props: Props) {
                     />
                   </div>
                 </section>
+              </div>
+            ) : null}
+
+            {/* ── FF-1: CONTAINER (`group` / `repeating_group`) ───────────── */}
+            {isContainer ? (
+              <div className="flex flex-col gap-4">
+                <Field>
+                  <FieldLabel htmlFor={labelField.controlProps.id}>
+                    Título do grupo
+                  </FieldLabel>
+                  <Input
+                    {...labelField.controlProps}
+                    type="text"
+                    defaultValue={existing?.label ?? ""}
+                    placeholder={
+                      isRepeating
+                        ? "Ex.: Medicamento administrado"
+                        : "Ex.: Dados da internação"
+                    }
+                    required
+                    autoFocus
+                    className="h-11 text-base"
+                  />
+                  <FieldError id={labelField.errorId}>
+                    {state?.fieldErrors?.label}
+                  </FieldError>
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor={explanationField.controlProps.id}>
+                    Texto de apoio{" "}
+                    <span className="font-normal text-muted-foreground">
+                      (opcional)
+                    </span>
+                  </FieldLabel>
+                  <Textarea
+                    {...explanationField.controlProps}
+                    defaultValue={existing?.questionExplanation ?? ""}
+                    placeholder="Orientação exibida no topo do grupo enquanto a pessoa responde."
+                    className="min-h-16"
+                  />
+                  <FieldDescription id={explanationField.descriptionId}>
+                    Mostrado como texto de ajuda associado ao grupo.
+                  </FieldDescription>
+                </Field>
+
+                {isRepeating ? (
+                  <fieldset className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-muted/40 p-4">
+                    <legend className="px-1 text-sm font-medium text-foreground">
+                      Repetições{" "}
+                      <span className="font-normal text-muted-foreground">
+                        (opcional)
+                      </span>
+                    </legend>
+                    {/* → config.minInstances / config.maxInstances. */}
+                    <input
+                      type="hidden"
+                      name="configMinInstances"
+                      value={minInstances}
+                    />
+                    <input
+                      type="hidden"
+                      name="configMaxInstances"
+                      value={maxInstances}
+                    />
+                    <label className="flex flex-col gap-1.5 text-sm">
+                      <span className="font-medium">Mínimo</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        inputMode="numeric"
+                        value={minInstances}
+                        onChange={(e) => setMinInstances(e.target.value)}
+                        className="h-10"
+                        placeholder="Ex.: 1"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1.5 text-sm">
+                      <span className="font-medium">Máximo</span>
+                      <Input
+                        type="number"
+                        min={0}
+                        step={1}
+                        inputMode="numeric"
+                        value={maxInstances}
+                        onChange={(e) => setMaxInstances(e.target.value)}
+                        className="h-10"
+                        placeholder="Sem limite"
+                      />
+                    </label>
+                    <p className="col-span-2 text-xs text-muted-foreground text-pretty">
+                      O mínimo é verificado no envio, depois que repetições
+                      totalmente vazias são descartadas — é assim que um grupo
+                      repetível se torna obrigatório. Deixe em branco para não
+                      exigir nem limitar.
+                    </p>
+                  </fieldset>
+                ) : null}
+
+                <div className="h-px bg-border" />
+
+                {/* A container's own conditional appearance: ocultar o grupo
+                    oculta todas as perguntas dentro dele. */}
+                <div className="flex flex-col gap-2">
+                  {visibleWhen !== null ? (
+                    <input
+                      type="hidden"
+                      name="visibleWhen"
+                      value={JSON.stringify(visibleWhen)}
+                    />
+                  ) : null}
+                  <ConditionBuilder
+                    context="question"
+                    targets={conditionTargets}
+                    value={visibleWhen}
+                    onChange={setVisibleWhen}
+                  />
+                  {isConditional ? (
+                    <p className="text-xs text-muted-foreground text-pretty">
+                      Quando o grupo estiver oculto, nenhuma pergunta dentro dele
+                      é exigida.
+                    </p>
+                  ) : null}
+                </div>
               </div>
             ) : null}
 

@@ -47,6 +47,7 @@ export function SectionCard({
   isLast,
   commissionId,
   imageUrls,
+  containersEnabled = false,
   onBeforeReorder,
 }: {
   section: Section;
@@ -56,6 +57,8 @@ export function SectionCard({
   isLast: boolean;
   commissionId: string;
   imageUrls: Record<string, string>;
+  /** FF-1 — the `repeating_groups` flag, threaded to the block picker. */
+  containersEnabled?: boolean;
   onBeforeReorder: () => void;
 }) {
   const { run, isPending, error } = useBuilderAction();
@@ -207,6 +210,7 @@ export function SectionCard({
         sections={sections}
         commissionId={commissionId}
         imageUrls={imageUrls}
+        containersEnabled={containersEnabled}
       />
 
       <SectionMetaDialog

@@ -179,10 +179,17 @@ describe("ItemEditorDialog — hidden-field contract (task #4)", () => {
     expect(bubble!.value).toBe("on");
   });
 
-  it("forces required OFF + disabled when the question is conditional (edit)", () => {
-    // An EXISTING conditional item whose `required` was somehow true: the
-    // controlled checkbox must win (checked=false + disabled), so `required`
-    // never submits `on` for a conditional item.
+  it("OFFERS required alongside a condition, and says it applies only when shown", () => {
+    // FF-1 / ADR 0087 ruling 4 REVERSES the old interlock. The CHECK
+    // `form_items_conditional_not_required` is dropped platform-wide, because
+    // `app.response_required_complete` already carries the "visibility wins"
+    // branch that made the combination safe — it was unreachable dead code only
+    // because the CHECK made it unconstructible. "Se tipo = medicação, o nome do
+    // medicamento é obrigatório" is the ordinary authoring case FF-1 exists for.
+    //
+    // KEYSTONE INTENT: restore the interlock (re-add `disabled`/`checked={false}`)
+    // and this test must go red on BOTH assertions — the control's state and the
+    // copy that explains the semantics.
     const conditionalItem: Item = {
       id: "it-1",
       sectionId: "sec-1",
@@ -194,7 +201,7 @@ describe("ItemEditorDialog — hidden-field contract (task #4)", () => {
       options: null,
       config: null,
       visibleWhen: { question_key: "prev", op: "equals", value: "x" },
-      required: true, // deliberately inconsistent — the interlock must override
+      required: true, // conditional AND required — now a legal, authorable state
       defaultValue: null,
       parentItemId: null,
       children: [],
@@ -215,11 +222,23 @@ describe("ItemEditorDialog — hidden-field contract (task #4)", () => {
     const required = screen.getByRole("checkbox", {
       name: /Resposta obrigatória/i,
     });
-    expect(required).toBeDisabled();
-    expect(required).toHaveAttribute("aria-checked", "false");
-    // The conditional note is shown.
+    // The control is live and reflects the item's stored `required`.
+    expect(required).toBeEnabled();
+    expect(required).toHaveAttribute("aria-checked", "true");
+    // …and it submits, so a conditional+required item can actually be authored.
+    const bubble = document.querySelector<HTMLInputElement>(
+      'input[name="required"]',
+    );
+    expect(bubble).not.toBeNull();
+    expect(bubble!.value).toBe("on");
+    // The copy states the resolved semantics rather than a prohibition: the
+    // requirement binds only while the condition shows the question.
     expect(
-      screen.getByText(/aparência condicional não pode ser obrigatória/i),
+      screen.getByText(/apenas quando aparecer/i),
     ).toBeInTheDocument();
+    // The old prohibition must be gone — not merely hidden behind new copy.
+    expect(
+      screen.queryByText(/não pode ser obrigatória/i),
+    ).toBeNull();
   });
 });

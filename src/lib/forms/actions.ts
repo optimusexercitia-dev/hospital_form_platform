@@ -69,6 +69,12 @@ const MESSAGES = {
   imagePathRequired: 'Envie uma imagem antes de salvar.',
   sameVersionRequired:
     'Só é possível mover o item para uma seção do mesmo formulário.',
+  // FF-1 (ADR 0087) container authoring.
+  groupLabelRequired: 'Informe o título do grupo.',
+  missingParentItem: 'Grupo não encontrado.',
+  parentNotContainer: 'O bloco selecionado não é um grupo.',
+  nestedContainerForbidden: 'Um grupo não pode conter outro grupo.',
+  parentSectionMismatch: 'O grupo pertence a outra seção.',
   itemAdded: 'Item adicionado com sucesso.',
   itemUpdated: 'Item atualizado com sucesso.',
   itemRemoved: 'Item removido com sucesso.',
@@ -118,7 +124,16 @@ const CONDITION_OPS = ['equals', 'not_equals', 'in', 'gt', 'gte', 'lt', 'lte']
 /** Input types a condition may TARGET (decision #7). */
 const ORDERED_OPS = ['gt', 'gte', 'lt', 'lte']
 const DISPLAY_TYPES = ['section_text', 'image']
-const ALL_ITEM_TYPES = [...INPUT_TYPES, ...DISPLAY_TYPES]
+/**
+ * FF-1 (ADR 0087) — the CONTAINER types. A container collects no answer: the
+ * live `form_items_input_vs_display` arm requires
+ * `content IS NULL AND required = false AND question_key IS NULL AND label IS
+ * NOT NULL AND default_value IS NULL`, and `form_items_no_nested_container`
+ * caps depth at 1 (ruling 1). Both invariants are asserted below rather than
+ * relied on, so a malformed client gets pt-BR copy instead of a raw 23514.
+ */
+const CONTAINER_TYPES = ['group', 'repeating_group']
+const ALL_ITEM_TYPES = [...INPUT_TYPES, ...DISPLAY_TYPES, ...CONTAINER_TYPES]
 
 /** The builder route family — revalidated as dynamic-segment pages. */
 const BUILDER_FORM_PATH = '/o/[org]/c/[commission]/manage/forms/[formId]'
@@ -854,6 +869,46 @@ function parseItemFields(
     }
   }
 
+  // FF-1 (ADR 0087) — CONTAINER (`group` / `repeating_group`). Shaped to the
+  // live `form_items_input_vs_display` container arm: a label is REQUIRED, and
+  // `question_key` / `required` / `default_value` / `content` are all forced
+  // empty. A container's "required-ness" is `config.minInstances`, never the
+  // `required` flag (BE-0 contract), and it is invisible to every
+  // question_key-keyed path — dashboards, conditions, completeness.
+  if (CONTAINER_TYPES.includes(itemType)) {
+    const label = String(formData.get('label') ?? '').trim()
+    if (!label) {
+      return {
+        error: { ok: false, fieldErrors: { label: MESSAGES.groupLabelRequired } },
+      }
+    }
+    const explanation = String(formData.get('questionExplanation') ?? '').trim()
+
+    // `repeating_group` → config.minInstances / maxInstances; a plain `group`
+    // has no instances and parseItemConfig yields null for it.
+    const parsedConfig = parseConfig(itemType, formData)
+    if ('error' in parsedConfig) return { error: parsedConfig.error }
+
+    // A container may carry its own visibility condition — hiding it hides every
+    // child with it, and a hidden group requires nothing (ruling 3, settled by
+    // the precedent `app.response_required_complete` already applies).
+    const parsedVisible = parseVisibleWhen(formData)
+    if ('error' in parsedVisible) return { error: parsedVisible.error }
+
+    return {
+      columns: {
+        label,
+        question_explanation: explanation || null,
+        config: parsedConfig.config,
+        visible_when: parsedVisible.visibleWhen,
+        required: false,
+        content: null,
+        default_value: null,
+      },
+      options: null,
+    }
+  }
+
   if (itemType === 'section_text') {
     const markdown = String(formData.get('markdown') ?? '').trim()
     if (!markdown) {
@@ -954,6 +1009,88 @@ async function reconcileOptionRows(
   return { ok: true }
 }
 
+/** One `form_items` row as the FF-1 layout helpers read it. */
+interface LayoutRow {
+  id: string
+  position: number
+  item_type: string
+  parent_item_id: string | null
+}
+
+/** A section's items ordered by `position` — the flat ordinal space that
+ *  `validate_visible_when`'s "pergunta anterior" rule reads. */
+async function sectionLayout(
+  supabase: SupabaseClient<Database>,
+  sectionId: string,
+): Promise<LayoutRow[]> {
+  const { data } = await supabase
+    .from('form_items')
+    .select('id, position, item_type, parent_item_id')
+    .eq('section_id', sectionId)
+    .order('position', { ascending: true })
+    .returns<LayoutRow[]>()
+  return data ?? []
+}
+
+/**
+ * FF-1 — resolve the `position` a new block takes, shifting whatever sits at or
+ * after it down by one.
+ *
+ * A TOP-LEVEL block appends at `max(position) + 1`: nothing moves. A CHILD must
+ * land contiguously immediately after its container and that container's
+ * existing children, so every later row shifts by one. The shift is applied
+ * HIGHEST-POSITION-FIRST, which makes each target slot vacant at the moment it
+ * is written — collision-free against `form_items_section_id_position_key`
+ * without needing a transaction (supabase-js has none across statements).
+ *
+ * Contiguity itself is a PUBLISH-time invariant (`app.validate_group_layout`),
+ * not a trigger, precisely because a draft mid-edit legitimately passes through
+ * non-contiguous states — so nothing here can be rejected mid-flight.
+ */
+async function resolveInsertPosition(
+  supabase: SupabaseClient<Database>,
+  sectionId: string,
+  parentItemId: string | null,
+): Promise<{ position: number } | { error: string }> {
+  const rows = await sectionLayout(supabase, sectionId)
+
+  if (!parentItemId) {
+    const max = rows.length > 0 ? rows[rows.length - 1].position : -1
+    return { position: max + 1 }
+  }
+
+  const parent = rows.find((r) => r.id === parentItemId)
+  // A parent absent from THIS section's rows is either gone or in another
+  // section; both are the same user-visible mistake.
+  if (!parent) return { error: MESSAGES.parentSectionMismatch }
+  if (!CONTAINER_TYPES.includes(parent.item_type)) {
+    return { error: MESSAGES.parentNotContainer }
+  }
+
+  // The container's own children, wherever they currently sit.
+  const childPositions = rows
+    .filter((r) => r.parent_item_id === parentItemId)
+    .map((r) => r.position)
+  const target =
+    (childPositions.length > 0
+      ? Math.max(...childPositions)
+      : parent.position) + 1
+
+  // Shift descending so every destination slot is free when it is written.
+  const toShift = rows
+    .filter((r) => r.position >= target)
+    .sort((a, b) => b.position - a.position)
+  for (const row of toShift) {
+    const { error } = await supabase
+      .from('form_items')
+      .update({ position: row.position + 1 })
+      .eq('id', row.id)
+    if (error) return { error: mapWriteError(error) }
+  }
+
+  return { position: target }
+}
+
 /**
  * Add an item to a section (appended at the end). Input items get an
  * auto-generated, per-version-unique question_key (slug(label) + short suffix,
@@ -967,9 +1104,18 @@ export async function addItem(
 ): Promise<ActionState> {
   const sectionId = String(formData.get('sectionId') ?? '')
   const itemType = String(formData.get('itemType') ?? '')
+  // FF-1: present only when adding a block INSIDE a container.
+  const parentItemId = String(formData.get('parentItemId') ?? '').trim() || null
   if (!sectionId) return { ok: false, error: MESSAGES.missingSection }
   if (!ALL_ITEM_TYPES.includes(itemType)) {
     return { ok: false, error: MESSAGES.itemTypeInvalid }
+  }
+  // Depth is capped at 1 (ruling 1). The DB CHECK
+  // `form_items_no_nested_container` is the authority; refusing here turns a raw
+  // 23514 into pt-BR copy and keeps the position shift below from running for a
+  // write that could never land.
+  if (parentItemId && CONTAINER_TYPES.includes(itemType)) {
+    return { ok: false, error: MESSAGES.nestedContainerForbidden }
   }
 
   const supabase = await createClient()
@@ -983,15 +1129,13 @@ export async function addItem(
   if ('error' in parsed) return parsed.error
   const { columns, options } = parsed
 
-  // Append after the current max position in the section.
-  const { data: last } = await supabase
-    .from('form_items')
-    .select('position')
-    .eq('section_id', sectionId)
-    .order('position', { ascending: false })
-    .limit(1)
-    .maybeSingle()
-  const nextPosition = (last?.position ?? -1) + 1
+  // Where the row lands. A TOP-LEVEL block appends after the section's current
+  // max position; a CHILD must sit contiguously immediately after its container
+  // and that container's existing children (ADR 0087 implementation notes), so
+  // everything at or after that slot shifts down by one first.
+  const placement = await resolveInsertPosition(supabase, sectionId, parentItemId)
+  if ('error' in placement) return { ok: false, error: placement.error }
+  const nextPosition = placement.position
 
   const isInput = INPUT_TYPES.includes(itemType)
   const keyBase = isInput ? slugifyLabel(columns.label ?? '') : null
@@ -1013,6 +1157,11 @@ export async function addItem(
         form_version_id: ctx.versionId,
         position: nextPosition,
         item_type: itemType,
+        // FF-1: the owning container, or null for a top-level block. The
+        // composite FK pins parent + child to the same version and cascades on
+        // delete; `is_container` / `parent_is_container` are STORED generated
+        // columns and must never be written here.
+        parent_item_id: parentItemId,
         question_key: questionKey,
         label: columns.label,
         question_explanation: columns.question_explanation,
@@ -1140,8 +1289,56 @@ export async function deleteItem(
 }
 
 /**
- * Move an item up or down within its section. The atomic swap is the
- * reorder_item SQL RPC (ADR 0011).
+ * FF-1 — a top-level BLOCK in a section's flat ordinal space: one top-level item
+ * plus, for a container, its ordered children. Reordering must move a container
+ * together with its children, never through them.
+ */
+interface Block {
+  ids: string[]
+}
+
+/** Fold a section's ordered rows into top-level blocks (a container carries its
+ *  children with it). A child whose parent is missing from the section degrades
+ *  to its own block rather than disappearing. */
+function toBlocks(rows: LayoutRow[]): Block[] {
+  const blockIndexByParent = new Map<string, number>()
+  const blocks: Block[] = []
+  for (const row of rows) {
+    const parentIndex =
+      row.parent_item_id != null
+        ? blockIndexByParent.get(row.parent_item_id)
+        : undefined
+    if (parentIndex !== undefined) {
+      blocks[parentIndex].ids.push(row.id)
+      continue
+    }
+    blockIndexByParent.set(row.id, blocks.length)
+    blocks.push({ ids: [row.id] })
+  }
+  return blocks
+}
+
+/**
+ * Move an item up or down within its section.
+ *
+ * TWO CASES since FF-1:
+ *   - A plain adjacent swap (`reorder_item`, ADR 0011) — used when NEITHER the
+ *     moving item nor its neighbour is part of a container. One atomic RPC, two
+ *     audit rows: the behaviour every pre-FF-1 form keeps.
+ *   - A BLOCK move — used whenever a container is involved. `reorder_item` swaps
+ *     with the nearest neighbour BY POSITION, which for a container is its own
+ *     first child: the swap would put a child before its parent and strand the
+ *     rest, silently breaking the contiguity `validate_group_layout` checks at
+ *     publish. So a container moves together with its children, over whole
+ *     blocks. A CHILD moves only among its siblings (the caller disables the
+ *     control at either end; this is the server-side backstop) and, being
+ *     contiguous with them, an adjacent swap is exactly right.
+ *
+ * The block rewrite parks every affected row at a high, unoccupied position
+ * before writing final slots, so each individual UPDATE targets a vacant slot —
+ * collision-free against `form_items_section_id_position_key` without a
+ * transaction. Only the two swapped blocks move; the rest of the section is
+ * untouched, keeping the audit trail proportionate (Rule 11).
  */
 export async function moveItem(
   _prev: ActionState | undefined,
@@ -1161,11 +1358,80 @@ export async function moveItem(
     return { ok: false, error: MESSAGES.forbidden }
   }
 
+  const rows = await sectionLayout(supabase, ctx.sectionId)
+  const self = rows.find((r) => r.id === itemId)
+  if (!self) return { ok: false, error: MESSAGES.missingItem }
+
+  if (self.parent_item_id != null) {
+    // A CHILD: siblings are contiguous, so the adjacent swap is correct — but
+    // only among siblings. Refuse to swap across the container boundary.
+    const siblings = rows.filter((r) => r.parent_item_id === self.parent_item_id)
+    const index = siblings.findIndex((r) => r.id === itemId)
+    const atEdge =
+      direction === 'up' ? index <= 0 : index >= siblings.length - 1
+    if (atEdge) return { ok: true, error: MESSAGES.itemMoved } // no-op, not an error
+    return moveByAdjacentSwap(supabase, itemId, direction)
+  }
+
+  const blocks = toBlocks(rows)
+  const index = blocks.findIndex((b) => b.ids[0] === itemId)
+  if (index < 0) return { ok: false, error: MESSAGES.missingItem }
+  const neighbourIndex = direction === 'up' ? index - 1 : index + 1
+  if (neighbourIndex < 0 || neighbourIndex >= blocks.length) {
+    return { ok: true, error: MESSAGES.itemMoved } // already at the edge
+  }
+
+  const moving = blocks[index]
+  const neighbour = blocks[neighbourIndex]
+  // Neither side has children → the cheap, unchanged single-RPC swap.
+  if (moving.ids.length === 1 && neighbour.ids.length === 1) {
+    return moveByAdjacentSwap(supabase, itemId, direction)
+  }
+
+  // Block swap. Only the two blocks move; their combined slots are exactly the
+  // contiguous run they already occupy, so the rest of the section is untouched.
+  const [first, second] =
+    direction === 'up' ? [neighbourIndex, index] : [index, neighbourIndex]
+  const affected = [...blocks[first].ids, ...blocks[second].ids]
+  const slots = affected
+    .map((id) => rows.find((r) => r.id === id)?.position ?? -1)
+    .sort((a, b) => a - b)
+  const reordered =
+    direction === 'up'
+      ? [...moving.ids, ...neighbour.ids]
+      : [...neighbour.ids, ...moving.ids]
+
+  // Park above every occupied slot in the section, then write the final ones.
+  const parkBase = (rows[rows.length - 1]?.position ?? 0) + 1
+  for (let i = 0; i < affected.length; i++) {
+    const { error } = await supabase
+      .from('form_items')
+      .update({ position: parkBase + i })
+      .eq('id', affected[i])
+    if (error) return { ok: false, error: mapWriteError(error) }
+  }
+  for (let i = 0; i < reordered.length; i++) {
+    const { error } = await supabase
+      .from('form_items')
+      .update({ position: slots[i] })
+      .eq('id', reordered[i])
+    if (error) return { ok: false, error: mapWriteError(error) }
+  }
+
+  revalidateBuilder()
+  return { ok: true, error: MESSAGES.itemMoved }
+}
+
+/** The pre-FF-1 path: one atomic adjacent swap via the `reorder_item` RPC. */
+async function moveByAdjacentSwap(
+  supabase: SupabaseClient<Database>,
+  itemId: string,
+  direction: 'up' | 'down',
+): Promise<ActionState> {
   const { error } = await supabase.rpc('reorder_item', {
     p_item_id: itemId,
     p_direction: direction,
   })
-
   if (error) return { ok: false, error: mapWriteError(error) }
 
   revalidateBuilder()
@@ -1212,14 +1478,42 @@ export async function moveItemToSection(
     .order('position', { ascending: false })
     .limit(1)
     .maybeSingle()
-  const nextPosition = (last?.position ?? -1) + 1
+  let nextPosition = (last?.position ?? -1) + 1
+
+  // FF-1: a CONTAINER travels with its children — moving it alone would strand
+  // them in the source section, breaking both the "children live in the same
+  // section as their parent" rule and publish-time contiguity. A CHILD moved out
+  // of its group becomes an ordinary top-level block in the target section, so
+  // its `parent_item_id` is cleared. The UI does not currently offer either move
+  // (the affordance is hidden for containers and children), but the action is a
+  // public server entry point and must not corrupt the tree if called.
+  const sourceRows = await sectionLayout(supabase, itemCtx.sectionId)
+  const self = sourceRows.find((r) => r.id === itemId)
+  const childIds = sourceRows
+    .filter((r) => r.parent_item_id === itemId)
+    .map((r) => r.id)
 
   const { error } = await supabase
     .from('form_items')
-    .update({ section_id: targetSectionId, position: nextPosition })
+    .update({
+      section_id: targetSectionId,
+      position: nextPosition,
+      // Only clear when it actually had a parent, so an ordinary move writes the
+      // same columns it always did.
+      ...(self?.parent_item_id != null ? { parent_item_id: null } : {}),
+    })
     .eq('id', itemId)
 
   if (error) return { ok: false, error: mapWriteError(error) }
+
+  for (const childId of childIds) {
+    nextPosition += 1
+    const { error: childError } = await supabase
+      .from('form_items')
+      .update({ section_id: targetSectionId, position: nextPosition })
+      .eq('id', childId)
+    if (childError) return { ok: false, error: mapWriteError(childError) }
+  }
 
   revalidateBuilder()
   return { ok: true, error: MESSAGES.itemMoved }

@@ -43,6 +43,7 @@ export function BuilderShell({
   imageUrls,
   controlledDocsEnabled = false,
   approverCandidates = [],
+  containersEnabled = false,
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -58,6 +59,8 @@ export function BuilderShell({
   controlledDocsEnabled?: boolean;
   /** Approver candidates for the optional publish-metadata approver (F7). */
   approverCandidates?: ApproverCandidate[];
+  /** FF-1 (ADR 0087) — the `repeating_groups` flag: offer the container types. */
+  containersEnabled?: boolean;
 }) {
   const { run, isPending, error } = useBuilderAction();
   const { containerRef, captureBeforeReorder } =
@@ -99,6 +102,7 @@ export function BuilderShell({
             sections={sections}
             commissionId={commissionId}
             imageUrls={imageUrls}
+            containersEnabled={containersEnabled}
           />
           <AddSectionButton onClick={handleAddSection} disabled={isPending} />
         </div>
@@ -114,6 +118,7 @@ export function BuilderShell({
               isLast={index === sections.length - 1}
               commissionId={commissionId}
               imageUrls={imageUrls}
+              containersEnabled={containersEnabled}
               onBeforeReorder={captureBeforeReorder}
             />
           ))}

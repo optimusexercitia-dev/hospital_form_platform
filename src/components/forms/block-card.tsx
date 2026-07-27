@@ -13,6 +13,8 @@ import {
 
 import type { Item, Section, ImageContent, SectionTextContent } from "@/lib/queries/forms";
 import { deleteItem, moveItem, moveItemToSection } from "@/lib/forms/actions";
+import { isContainerItem, isRepeatingGroup } from "@/lib/forms/item-tree";
+import { AddBlockMenu } from "@/components/forms/add-block-menu";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -60,7 +62,10 @@ export function BlockCard({
   currentSectionId,
   commissionId,
   imageUrl,
+  imageUrls,
   onBeforeReorder,
+  containersEnabled = false,
+  isChild = false,
 }: {
   item: Item;
   index: number;
@@ -70,13 +75,27 @@ export function BlockCard({
   currentSectionId: string;
   commissionId: string;
   imageUrl: string | null;
+  /** The whole `storage_path → signed URL` map, for nested image children. */
+  imageUrls?: Record<string, string>;
   onBeforeReorder: () => void;
+  /** The `repeating_groups` feature flag, threaded to the nested add menu. */
+  containersEnabled?: boolean;
+  /** True when this card renders INSIDE a container (a child block). */
+  isChild?: boolean;
 }) {
   const { run, isPending, error } = useBuilderAction();
   const [editOpen, setEditOpen] = useState(false);
 
   const meta = ITEM_TYPE_META[item.itemType];
-  const otherSections = sections.filter((s) => s.id !== currentSectionId);
+  const isContainer = isContainerItem(item.itemType);
+  const children = item.children;
+  // "Mover para outra seção" is hidden for containers and for children: a
+  // container's children live in the SAME section as their parent (they occupy
+  // contiguous position slots right after it), so a cross-section move is not a
+  // reorder but a restructure. The action still handles both correctly if
+  // called — this only removes a misleading affordance.
+  const otherSections =
+    isContainer || isChild ? [] : sections.filter((s) => s.id !== currentSectionId);
 
   function handleMove(direction: "up" | "down") {
     onBeforeReorder();
@@ -194,16 +213,33 @@ export function BlockCard({
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Excluir este bloco?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  {isContainer ? "Excluir este grupo?" : "Excluir este bloco?"}
+                </AlertDialogTitle>
                 <AlertDialogDescription>
-                  O bloco será removido definitivamente desta seção. Esta ação
-                  não pode ser desfeita.
+                  {isContainer && children.length > 0 ? (
+                    <>
+                      O grupo e as{" "}
+                      <strong>
+                        {children.length}{" "}
+                        {children.length === 1 ? "pergunta" : "perguntas"} dentro
+                        dele
+                      </strong>{" "}
+                      serão removidos definitivamente desta seção. Esta ação não
+                      pode ser desfeita.
+                    </>
+                  ) : (
+                    <>
+                      O bloco será removido definitivamente desta seção. Esta
+                      ação não pode ser desfeita.
+                    </>
+                  )}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
                 <AlertDialogAction onClick={handleDelete}>
-                  Excluir bloco
+                  {isContainer ? "Excluir grupo" : "Excluir bloco"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -211,7 +247,19 @@ export function BlockCard({
         </div>
       </div>
 
-      <BlockPreview item={item} imageUrl={imageUrl} />
+      {isContainer ? (
+        <ContainerChildren
+          item={item}
+          sections={sections}
+          currentSectionId={currentSectionId}
+          commissionId={commissionId}
+          imageUrls={imageUrls ?? {}}
+          containersEnabled={containersEnabled}
+          onBeforeReorder={onBeforeReorder}
+        />
+      ) : (
+        <BlockPreview item={item} imageUrl={imageUrl} />
+      )}
 
       <BlockConditionNote item={item} sections={sections} />
 
@@ -233,6 +281,117 @@ export function BlockCard({
       />
     </article>
   );
+}
+
+/**
+ * FF-1 — a container's contents: its ordered children, each a full
+ * {@link BlockCard} (so editing, reordering and deleting a child work exactly as
+ * they do at top level), plus the nested "Adicionar pergunta ao grupo" picker.
+ *
+ * A child's reorder controls are bounded by its SIBLINGS: `isFirst`/`isLast` are
+ * computed within the child list, so the first child cannot be moved above its
+ * own parent and the last cannot be moved past the container's boundary — which
+ * would break the contiguity `validate_group_layout` checks at publish. The
+ * `moveItem` action enforces the same bound server-side.
+ */
+function ContainerChildren({
+  item,
+  sections,
+  currentSectionId,
+  commissionId,
+  imageUrls,
+  containersEnabled,
+  onBeforeReorder,
+}: {
+  item: Item;
+  sections: Section[];
+  currentSectionId: string;
+  commissionId: string;
+  imageUrls: Record<string, string>;
+  containersEnabled: boolean;
+  onBeforeReorder: () => void;
+}) {
+  const children = item.children;
+  const cardinality = describeCardinality(item);
+
+  return (
+    <div className="ml-9 flex flex-col gap-3 border-l-2 border-dashed border-border pl-4">
+      {item.questionExplanation ? (
+        <p className="text-sm text-muted-foreground text-pretty">
+          {item.questionExplanation}
+        </p>
+      ) : null}
+
+      {cardinality ? (
+        <p className="w-fit rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground">
+          {cardinality}
+        </p>
+      ) : null}
+
+      {children.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-4 text-center text-sm text-muted-foreground">
+          Nenhuma pergunta neste grupo ainda.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {children.map((child, childIndex) => (
+            <BlockCard
+              key={child.id}
+              item={child}
+              index={childIndex}
+              isFirst={childIndex === 0}
+              isLast={childIndex === children.length - 1}
+              sections={sections}
+              currentSectionId={currentSectionId}
+              commissionId={commissionId}
+              imageUrls={imageUrls}
+              imageUrl={
+                child.itemType === "image" && child.content
+                  ? (imageUrls[
+                      (child.content as { storage_path?: string })
+                        .storage_path ?? ""
+                    ] ?? null)
+                  : null
+              }
+              containersEnabled={containersEnabled}
+              isChild
+              onBeforeReorder={onBeforeReorder}
+            />
+          ))}
+        </div>
+      )}
+
+      <AddBlockMenu
+        sectionId={currentSectionId}
+        sections={sections}
+        commissionId={commissionId}
+        containersEnabled={containersEnabled}
+        parentItem={{ id: item.id, label: item.label }}
+      />
+    </div>
+  );
+}
+
+/**
+ * A repeating group's cardinality as pt-BR copy, or `null` when it is
+ * unbounded. `minInstances` is what makes a repeating group required (it is
+ * checked at submit AFTER empty repetitions are pruned — ruling 3), so it reads
+ * as an obligation, not as a bound.
+ */
+function describeCardinality(item: Item): string | null {
+  if (!isRepeatingGroup(item.itemType)) return null;
+  const min = item.config?.minInstances ?? null;
+  const max = item.config?.maxInstances ?? null;
+  if (min === null && max === null) return null;
+  if (min !== null && max !== null) {
+    return min === max
+      ? `Exatamente ${min} ${min === 1 ? "repetição" : "repetições"}`
+      : `De ${min} a ${max} repetições`;
+  }
+  if (min !== null) {
+    return `No mínimo ${min} ${min === 1 ? "repetição" : "repetições"}`;
+  }
+  return `No máximo ${max} ${max === 1 ? "repetição" : "repetições"}`;
 }
 
 /** The block's primary line — the question label, or the type for display

@@ -30,6 +30,10 @@ const MESSAGES = {
   lengthInvalid: 'Os limites de caracteres devem ser números inteiros não negativos.',
   lengthRangeInvalid: 'O mínimo de caracteres não pode ser maior que o máximo.',
   flaggedWhenInvalid: 'A condição "marcado se" é inválida.',
+  instancesInvalid:
+    'A quantidade mínima/máxima de repetições deve ser um número inteiro não negativo.',
+  instancesRangeInvalid:
+    'A quantidade mínima de repetições não pode ser maior que a máxima.',
 } as const
 
 /** Types that accept optional min/max bounds via `config`. */
@@ -112,6 +116,43 @@ export function parseItemConfig(
   if (ALLOW_OTHER_TYPES.includes(itemType)) {
     if (String(formData.get('configAllowOther') ?? '').trim() === '1') {
       config.allowOther = true
+    }
+  }
+
+  // FF-1 (ADR 0087 substrate correction 1): repeating-group cardinality lives on
+  // the CONTAINER item's `form_items.config` — NOT `form_versions.behavior_config`,
+  // which is a per-VERSION bag and a different thing. The key names
+  // (`minInstances`/`maxInstances`) are the contract with `ItemConfig` in
+  // `src/lib/queries/forms.ts`; never rename them on this side.
+  //   - `minInstances` is enforced by `submit_response` AFTER empty instances are
+  //     pruned (ruling 3) — it is the ONLY required-ness a repeating group has,
+  //     which is why the container itself always persists `required = false`.
+  //   - `maxInstances` is enforced by the `add_group_instance` RPC.
+  // A plain `group` has no instances, so it carries neither.
+  if (itemType === 'repeating_group') {
+    const rawMin = String(formData.get('configMinInstances') ?? '').trim()
+    const rawMax = String(formData.get('configMaxInstances') ?? '').trim()
+    if (rawMin || rawMax) {
+      const coerceCount = (raw: string): number | null => {
+        if (!raw) return null
+        if (!/^\d+$/.test(raw)) return null
+        const n = Number.parseInt(raw, 10)
+        return Number.isInteger(n) && n >= 0 ? n : null
+      }
+      const minInstances = coerceCount(rawMin)
+      const maxInstances = coerceCount(rawMax)
+      if ((rawMin && minInstances === null) || (rawMax && maxInstances === null)) {
+        return { error: MESSAGES.instancesInvalid }
+      }
+      if (
+        minInstances !== null &&
+        maxInstances !== null &&
+        minInstances > maxInstances
+      ) {
+        return { error: MESSAGES.instancesRangeInvalid }
+      }
+      if (minInstances !== null) config.minInstances = minInstances
+      if (maxInstances !== null) config.maxInstances = maxInstances
     }
   }
 

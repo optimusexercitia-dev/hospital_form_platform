@@ -1,5 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
-import { flattenItem } from '@/lib/forms/item-tree'
+import {
+  containerByChildId,
+  flattenItem,
+  isRepeatingGroup,
+  repeatingGroupOf,
+} from '@/lib/forms/item-tree'
+import { isConditionTargetInScope } from '@/lib/queries/conditions'
 import type { Json } from '@/lib/types/database'
 import type { Visibility, FlaggedWhen } from '@/lib/queries/conditions'
 import type { CaseStatusColorToken } from '@/lib/cases/case-status'
@@ -823,6 +829,7 @@ function toConditionTarget(item: Item, sectionPosition: number): ConditionTarget
  */
 export async function conditionTargets(
   sectionId: string,
+  forItemId?: string,
 ): Promise<ConditionTarget[]> {
   const supabase = await createClient()
 
@@ -838,14 +845,53 @@ export async function conditionTargets(
   const tree = await getVersionTree(section.form_version_id)
   if (!tree) return []
 
+  // FF-1: "is this item inside a repeating group?" — the question ruling 2's
+  // scoping turns on, for the REFERENCING side and for every candidate target.
+  // `flattenItem` is mandatory throughout: `Section.items` holds only top-level
+  // items now, so a flat walk would silently hide every container child from the
+  // picker, including the plain-`group` children that ARE legal targets.
+  const containers = containerByChildId(tree.sections)
+  const refParent = forItemId ? containers.get(forItemId) : undefined
+  const refGroupId =
+    refParent && isRepeatingGroup(refParent.itemType) ? refParent.id : null
+
+  // The referencing item's document position, so we can offer only STRICTLY
+  // EARLIER targets — the same (section.position, item.position) ordinal
+  // comparison `validate_visible_when` applies. Contiguity (children immediately
+  // after their parent, enforced by app.validate_group_layout) is what makes one
+  // flat ordinal space correct across a container boundary.
+  let refSectionPos = section.position
+  let refItemPos = Number.POSITIVE_INFINITY // a NEW item appends at the end
+  if (forItemId) {
+    for (const s of tree.sections) {
+      const found = s.items.flatMap(flattenItem).find((i) => i.id === forItemId)
+      if (found) {
+        refSectionPos = s.position
+        refItemPos = found.position
+        break
+      }
+    }
+  }
+
   return tree.sections
-    .filter((s) => s.position < section.position)
+    .filter((s) => s.position <= refSectionPos)
     .flatMap((s) =>
       s.items
+        .flatMap(flattenItem)
         .filter(
           (item) =>
+            // Strictly earlier in document order (no forward or self refs).
+            (s.position < refSectionPos || item.position < refItemPos) &&
             CONDITION_TARGET_TYPES.includes(item.itemType as InputItemType) &&
-            item.questionKey != null,
+            item.questionKey != null &&
+            // FF-1 (ruling 2): drop REPEATING-group children unless authoring
+            // from inside that same group. `repeatingGroupOf` returns null for a
+            // plain-`group` child, so those stay legal everywhere — the same
+            // distinction the SQL gate makes.
+            isConditionTargetInScope(
+              repeatingGroupOf(item, containers)?.id ?? null,
+              refGroupId,
+            ),
         )
         .map((item) => toConditionTarget(item, s.position)),
     )

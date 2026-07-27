@@ -1,5 +1,6 @@
 import { commissionHref } from "@/lib/routing";
 import type { Metadata } from "next";
+import { flattenItem } from "@/lib/queries/forms";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Clock, Layers } from "lucide-react";
@@ -126,8 +127,11 @@ async function resolveImageUrls(
   tree: VersionTree,
 ): Promise<Record<string, string>> {
   const paths = new Set<string>();
+  // FF-1: `Section.items` holds only TOP-LEVEL items, so walk through
+  // `flattenItem` — an image authored inside a container would otherwise
+  // resolve to no signed URL and render as a permanent placeholder.
   for (const section of tree.sections) {
-    for (const item of section.items) {
+    for (const item of section.items.flatMap(flattenItem)) {
       if (item.itemType === "image" && item.content) {
         const path = (item.content as { storage_path?: string }).storage_path;
         if (path) paths.add(path);
