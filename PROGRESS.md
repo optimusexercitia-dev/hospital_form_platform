@@ -669,7 +669,28 @@ already has blocks. `e2e/phase5-wizard.spec.ts` is unaffected (12/12).
 > i.e. NOT the infra class the standing caveat covers. Triage them here, not against the flaky
 > baseline.
 
-#### 🟡 BUG-FF2-004 — an axis code minted from an accented label renders mangled in the editor that deliberately SHOWS it · MINOR/cosmetic · owner `frontend` · OPEN
+#### 🟡 BUG-FF2-004 — an axis code minted from an accented label renders mangled in the editor that deliberately SHOWS it · MINOR/cosmetic · **PO-ruled a bug; fixed in `fbada14`** · **OPEN — awaiting `tester` re-verification**
+
+> **Status, precisely.** The PO overruled the "pre-existing, so pinned as-is" disposition below and
+> ruled it a bug; `fbada14` makes `slugifyLabel` **delete** NFD combining marks instead of
+> collapsing them to `_`, so `Higienização das mãos` mints `higienizacao_das_maos`. My five pins in
+> `e2e/ff2-matrix.spec.ts` are updated to the new output (**four in FF2-1, plus a fifth in FF2-2 —
+> `prova_vel` → `provavel` — that was not in the hand-off list and would have gone red**). Swept
+> `e2e/`, `src/`, `supabase/seed.sql` and `supabase/tests/` for other mangled-slug expectations:
+> **none**, and `option-code.test.ts`'s remaining `c_a_o…` strings are correct (its underscores come
+> from spaces, and its `resolveOptionCodes` case deliberately preserves a LEGACY code verbatim).
+> **Status stays OPEN until I have re-run the specs** — a bug closes only after re-verification, and
+> the DB is `backend`'s during Wave 3.
+>
+> 🔑 **The lesson, recorded because it cuts against my own instinct.** Pinning current behaviour
+> *because it is pre-existing* is a bet that the behaviour is **correct**, and that bet can be lost
+> to a **ruling** just as easily as to a regression. This is the mirror image of FF2-11's first
+> draft, which pinned the old *symptom* (`no item's rect outside the viewport`) and went red on the
+> **fixed** build. Same failure mode, opposite direction: a test can be wrong about the past as
+> easily as about the future. The pin was not the mistake — the comment is what made this a
+> two-minute edit instead of a red-bar mystery. **Pinning silently would have been the mistake.**
+
+*Original report, kept for the record:*
 
 *Repro:* author a matrix, add a row labelled `Higienização das mãos`. `MatrixAxesEditor` prints the
 immutable identity as `código: higienizac_a_o_das_ma_os_yi4a1c`.

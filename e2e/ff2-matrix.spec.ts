@@ -499,15 +499,30 @@ test('FF2-1 (ruling 1): a matrix authored from scratch fills as a radio grid —
   )
   expect(rowAxis.map((r) => r[1])).toEqual(['Higienização das mãos', 'Uso de EPI'])
   expect(colAxis.map((c) => c[1])).toEqual(['Conforme', 'Não conforme'])
-  // `mintAxisCode` → `generateOptionCode` → `slugifyLabel`: an ASCII slug of the
-  // label plus a 6-char suffix. NOTE the slug keeps a `_` where an accent's NFD
-  // combining mark was ("Higienização" → `higienizac_a_o`); that is the shared
-  // option-code/question_key slugger's long-standing behaviour, not something
-  // FF-2 introduced, so it is pinned as-is rather than asserted away.
-  expect(rowAxis[0][0]).toMatch(/^higienizac_a_o_das_ma_os_[a-z0-9]{6}$/)
+  // `mintAxisCode` → `generateOptionCode` → `slugifyLabel`: a clean ASCII slug of
+  // the label plus a 6-char suffix — an accent is FOLDED to its base letter, so
+  // "Higienização das mãos" mints `higienizacao_das_maos_<suffix>`.
+  //
+  // This pin was the other way round until BUG-FF2-004. `slugifyLabel`
+  // NFD-decomposed and then collapsed every non-[a-z0-9] run to `_`, so a
+  // combining mark became an underscore (`higienizac_a_o_das_ma_os`) — and this
+  // spec pinned THAT, on the reasoning that it was long-standing shared
+  // behaviour (option codes, question_keys) rather than anything FF-2
+  // introduced, so it was not the tester's to assert away. The PO ruled it a
+  // bug: FF-2 is the first surface that shows a code to the author on purpose
+  // (ADR 0089 ruling 4), and a mangled identity defeats the reason for showing
+  // it. `fbada14` now deletes the combining marks instead of collapsing them.
+  //
+  // Kept as a note because the old reasoning was sound and the correction is the
+  // lesson: pinning current behaviour *because it is pre-existing* is a bet that
+  // the behaviour is CORRECT, and that bet can be lost to a ruling as easily as
+  // to a regression. The pin is not the mistake — pinning silently would be.
+  // Same shape as FF2-11's first draft, which asserted the old symptom
+  // ("no item's rect outside the viewport") and went red on the FIXED build.
+  expect(rowAxis[0][0]).toMatch(/^higienizacao_das_maos_[a-z0-9]{6}$/)
   expect(rowAxis[1][0]).toMatch(/^uso_de_epi_[a-z0-9]{6}$/)
   expect(colAxis[0][0]).toMatch(/^conforme_[a-z0-9]{6}$/)
-  expect(colAxis[1][0]).toMatch(/^na_o_conforme_[a-z0-9]{6}$/)
+  expect(colAxis[1][0]).toMatch(/^nao_conforme_[a-z0-9]{6}$/)
   const [rowHigiene, rowEpi] = rowAxis.map((r) => r[0])
   const [colConforme, colNaoConforme] = colAxis.map((c) => c[0])
   // Ruling 3 rode along: a matrix may now be `required` (the relaxed
@@ -649,10 +664,11 @@ test('FF2-2 (ruling 2): a risk matrix authored with 1/3/9 weights and bands show
     ['Provável', '3'],
     ['Frequente', '9'],
   ])
-  // Same slugger note as FF2-1: "Provável" → `prova_vel` (the NFD acute becomes
-  // a `_`). Pinned as-is; it is the shared option-code behaviour, not FF-2's.
+  // Accent folding, same as FF2-1: "Provável" → `provavel` (was `prova_vel`
+  // before BUG-FF2-004 — see the longer note there for why that was pinned and
+  // why the pin was overturned by a PO ruling rather than by a regression).
   expect(sevAxis[2][0]).toMatch(/^grave_[a-z0-9]{6}$/)
-  expect(likAxis[1][0]).toMatch(/^prova_vel_[a-z0-9]{6}$/)
+  expect(likAxis[1][0]).toMatch(/^provavel_[a-z0-9]{6}$/)
   const codeGrave = sevAxis[2][0]
   const codeProvavel = likAxis[1][0]
   // Bands are stored SORTED ascending — the order every consumer assumes.
