@@ -184,4 +184,110 @@ describe('parseItemConfig — the ACTION path (addItem/updateItem) config parse'
       parseItemConfig('short_text', fd({ configMinInstances: '3' })),
     ).toEqual({ config: null })
   })
+  // -- FF-2 risk bands (ADR 0089 ruling 2) ------------------------------------
+  // The band is a PRESENTATION of the derived risk_score and is never stored on
+  // the answer, so this parser is the only place its shape is enforced.
+
+  it('parses risk bands and SORTS them ascending by minScore', () => {
+    // Authored out of order on purpose: consumers take "the last band the score
+    // reaches" and must not have to re-sort.
+    const config = cfg(
+      parseItemConfig(
+        'risk_matrix',
+        fd({
+          configRiskBands: JSON.stringify([
+            { minScore: 27, label: 'Alto', color: 'red' },
+            { minScore: 1, label: 'Baixo', color: 'green' },
+            { minScore: 9, label: 'Moderado', color: 'amber' },
+          ]),
+        }),
+      ),
+    )
+    expect(config.riskBands).toEqual([
+      { minScore: 1, label: 'Baixo', color: 'green' },
+      { minScore: 9, label: 'Moderado', color: 'amber' },
+      { minScore: 27, label: 'Alto', color: 'red' },
+    ])
+  })
+
+  it('drops an unknown colour token to null rather than rejecting the list', () => {
+    const config = cfg(
+      parseItemConfig(
+        'risk_matrix',
+        fd({
+          configRiskBands: JSON.stringify([
+            { minScore: 1, label: 'Baixo', color: 'chartreuse' },
+          ]),
+        }),
+      ),
+    )
+    expect(config.riskBands).toEqual([{ minScore: 1, label: 'Baixo', color: null }])
+  })
+
+  it('blank risk bands yield NO key — absent, not an empty array', () => {
+    expect(parseItemConfig('risk_matrix', fd({ configRiskBands: '  ' }))).toEqual({
+      config: null,
+    })
+    expect(parseItemConfig('risk_matrix', fd({ configRiskBands: '[]' }))).toEqual({
+      config: null,
+    })
+  })
+
+  it('rejects a band missing a numeric minScore or a label', () => {
+    expect(
+      parseItemConfig(
+        'risk_matrix',
+        fd({ configRiskBands: JSON.stringify([{ label: 'Alto' }]) }),
+      ),
+    ).toHaveProperty('error')
+    expect(
+      parseItemConfig(
+        'risk_matrix',
+        fd({ configRiskBands: JSON.stringify([{ minScore: 1, label: '  ' }]) }),
+      ),
+    ).toHaveProperty('error')
+  })
+
+  it('rejects a non-finite minScore', () => {
+    // NaN survives a hand-built payload and would make every score comparison
+    // false, silently un-banding the item.
+    expect(
+      parseItemConfig(
+        'risk_matrix',
+        fd({ configRiskBands: '[{"minScore": 1e999, "label": "Alto"}]' }),
+      ),
+    ).toHaveProperty('error')
+  })
+
+  it('rejects two bands at the SAME minScore (which band wins would be ambiguous)', () => {
+    expect(
+      parseItemConfig(
+        'risk_matrix',
+        fd({
+          configRiskBands: JSON.stringify([
+            { minScore: 9, label: 'A' },
+            { minScore: 9, label: 'B' },
+          ]),
+        }),
+      ),
+    ).toHaveProperty('error')
+  })
+
+  it('rejects malformed JSON and a non-array payload', () => {
+    expect(
+      parseItemConfig('risk_matrix', fd({ configRiskBands: '{oops' })),
+    ).toHaveProperty('error')
+    expect(
+      parseItemConfig('risk_matrix', fd({ configRiskBands: '{"minScore":1}' })),
+    ).toHaveProperty('error')
+  })
+
+  it('a plain `matrix` never picks up risk bands', () => {
+    expect(
+      parseItemConfig(
+        'matrix',
+        fd({ configRiskBands: JSON.stringify([{ minScore: 1, label: 'Baixo' }]) }),
+      ),
+    ).toEqual({ config: null })
+  })
 })

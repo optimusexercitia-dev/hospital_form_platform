@@ -209,12 +209,53 @@ bug no test distinguishes from the fix. (c) `clone_form_version` stays INVOKER (
 **Green bar:** typecheck clean · `npm run lint` 0 errors / 0 warnings · Vitest **497/497** (38 files)
 · `npx next build` **succeeded**.
 
-**Known gap (tracked, not blocking):** `getResponseForSignoff`'s JSON payload does not project the
-matrix tables, so the sign-off review renders an empty grid; commented at the call site in
-`src/lib/queries/signoffs.ts`. Dashboard cell-unit aggregation (ADR 0089 §Consequences) is likewise
-still to come. One frontend-owned file touched mechanically:
-`src/components/forms/item-type-meta.tsx` (exhaustive `Record<ItemType, …>` + unguarded lookups →
-a missing entry is a runtime crash, not cosmetics).
+One frontend-owned file touched mechanically: `src/components/forms/item-type-meta.tsx`
+(exhaustive `Record<ItemType, …>` + unguarded lookups → a missing entry is a runtime crash, not
+cosmetics).
+
+#### 🔴 BUG-FF2-001 — the matrix writers were UNREACHABLE from the authoring path (found + fixed)
+
+Found by `frontend` and confirmed live by the lead immediately after Wave 1. **`addItem` /
+`updateItem` could not create or edit a `matrix` / `risk_matrix` item**, so `upsert_matrix_axes`
+had no caller in the product:
+
+- `ALL_ITEM_TYPES = [...INPUT_TYPES, ...DISPLAY_TYPES, ...CONTAINER_TYPES]` — neither matrix type
+  was in any of the three, so `addItem` rejected with `itemTypeInvalid`.
+- `parseItemFields` dispatched on the same three sets and fell through to `itemTypeInvalid`.
+- `question_key` was minted only when `isInput`, but a matrix **is** answerable and the aggregation
+  contract is `(question_key, row_code, col_code)` — and `form_items_input_vs_display` *requires* a
+  key for both types.
+
+**Class: `declared-param-no-caller` — third instance in this repo** (after ETH·E3a's
+`p_case_type_id`). Fails **CLOSED** (`addItem` rejects; no bad data reached the DB), and was
+invisible to lint, typecheck, `next build`, the unit suite and every pgTAP keystone — because none
+of them crosses the seam between the builder form and the database. Wave 1's live proofs were real
+but drove the writer *directly* and through *seeded* rows, never through the authoring path.
+
+**Fixed:** `MATRIX_TYPES` (imported from `item-tree`, not a fourth spelling) folded into
+`ALL_ITEM_TYPES`; a `parseItemFields` matrix arm (label required, `required` via `parseRequired`
+per ruling 3, `config` via `parseItemConfig`, options/default_value/content null); the `isInput`
+question-key gate widened to `ANSWERABLE_TYPES` at **both** sites (mint + collision-retry);
+`configRiskBands` parsing added to `parse-config.ts`.
+
+**Covered by a new seam test** — `src/lib/forms/actions.test.ts` drives the ACTIONS with a mocked
+client, the same shape FF-1's BUG-FF1-001 forced. **Mutation-proven:** removing `...MATRIX_TYPES`
+from `ALL_ITEM_TYPES` turns 6 of 12 red; reverting the question-key gate to `INPUT_TYPES` turns the
+`question_key` assertion red. Both restored.
+
+**Reachability sweep of every Wave 1 surface** (lead-requested, post-fix): `upsert_matrix_axes` ←
+`upsertMatrixAxes` ← `matrix-axes-editor.tsx`; `p_matrix_cells`/`p_risk_matrix` ← `saveSection` ←
+`matrix-grid.tsx` / `risk-matrix-picker.tsx`; `ResponseForFill.matrixCellsByItemId` /
+`riskMatrixByItemId` and `Item.matrixRows`/`matrixColumns` ← the same two wizard components;
+`config.riskBands` ← `risk-bands-editor.tsx`. **`matrixFieldsEnabled()` has no caller yet** — owned
+by `frontend` for the picker/wizard gate. No surface fails open.
+
+#### FF-2 follow-ups (deferred, in-scope — visible to `qa`)
+
+| id | Gap | Why deferred |
+|---|---|---|
+| **FUP-FF2-1** | `get_response_for_signoff` does not project `answer_matrix_cells` / `answer_risk_matrix`, so a signer reviewing a section containing a matrix sees the other answers but an **empty grid**. `GroupInstance.matrixCells/riskMatrix` are optional ONLY because of this path (commented at the call site in `src/lib/queries/signoffs.ts`). | Needs the RPC's JSON payload widened + the sign-off view; read-only display, no data risk. |
+| **FUP-FF2-2** | Dashboard **cell-unit aggregation** — `(question_key, row_code, col_code)` counts and `risk_score`-as-number in `dashboard.ts`, each with its own supersession-tolerant predicate (ADR 0089 §Consequences). | Not built, so ADR 0089's `supersession_matrix_excluded` keystone is **deliberately absent** from `271_ff2_matrix_fields.sql` rather than written against a non-existent path. |
 
 ### 📋 Remaining pre-pilot work
 

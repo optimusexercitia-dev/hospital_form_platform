@@ -34,6 +34,10 @@ const MESSAGES = {
     'A quantidade mínima/máxima de repetições deve ser um número inteiro não negativo.',
   instancesRangeInvalid:
     'A quantidade mínima de repetições não pode ser maior que a máxima.',
+  riskBandsInvalid:
+    'As faixas de risco são inválidas: informe uma pontuação mínima numérica e um rótulo para cada faixa.',
+  riskBandsDuplicate:
+    'Duas faixas de risco não podem ter a mesma pontuação mínima.',
 } as const
 
 /** Types that accept optional min/max bounds via `config`. */
@@ -46,6 +50,10 @@ const ALLOW_OTHER_TYPES = ['multiple_choice', 'checkbox']
 const FLAGGED_WHEN_TYPES = ['number', 'date', 'time']
 /** The ops accepted in a `flaggedWhen` condition (ordered + equality; NOT `in`). */
 const FLAGGED_WHEN_OPS = ['gt', 'gte', 'lt', 'lte', 'equals', 'not_equals']
+/** FF-2 (ADR 0089 ruling 2): only a `risk_matrix` bands its derived score. */
+const RISK_BANDS_TYPES = ['risk_matrix']
+/** The 7-token palette (mirrors ColorToken / COLOR_TOKENS in queries/forms.ts). */
+const RISK_BAND_COLORS = ['muted', 'slate', 'blue', 'amber', 'green', 'red', 'violet']
 
 export type ParseConfigResult = { error: string } | { config: Json }
 
@@ -178,6 +186,66 @@ export function parseItemConfig(
         return { error: MESSAGES.flaggedWhenInvalid }
       }
       config.flaggedWhen = { op: rec.op, value: rec.value as Json }
+    }
+  }
+
+  // FF-2 (ADR 0089 ruling 2) — `config.riskBands`: the ordered score→band
+  // mapping a risk_matrix uses to LABEL AND COLOUR its derived `risk_score`.
+  //
+  // The band is a PRESENTATION of the score, never stored on the answer: the
+  // score is the durable fact, so re-banding a form never rewrites history. That
+  // is the whole reason this lives in `config` and not in a column.
+  //
+  // Sorted ASCENDING by `minScore` here, once, so every consumer can take "the
+  // last band the score reaches" without re-sorting — `toRiskBands` in
+  // queries/forms.ts sorts the read side identically. A blank field yields NO
+  // key at all (absent, not `[]`): an empty array would read as "banding is
+  // configured and matches nothing".
+  if (RISK_BANDS_TYPES.includes(itemType)) {
+    const rawBands = String(formData.get('configRiskBands') ?? '').trim()
+    if (rawBands) {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(rawBands)
+      } catch {
+        return { error: MESSAGES.riskBandsInvalid }
+      }
+      if (!Array.isArray(parsed)) return { error: MESSAGES.riskBandsInvalid }
+
+      const bands: { minScore: number; label: string; color: string | null }[] = []
+      for (const entry of parsed) {
+        if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
+          return { error: MESSAGES.riskBandsInvalid }
+        }
+        const rec = entry as Record<string, unknown>
+        // `Number.isFinite` and not `typeof === 'number'`: NaN/Infinity survive a
+        // JSON round trip through a hand-built payload and would make every
+        // comparison against the score false, silently un-banding the item.
+        if (typeof rec.minScore !== 'number' || !Number.isFinite(rec.minScore)) {
+          return { error: MESSAGES.riskBandsInvalid }
+        }
+        if (typeof rec.label !== 'string' || rec.label.trim() === '') {
+          return { error: MESSAGES.riskBandsInvalid }
+        }
+        // An unknown token is dropped to null rather than rejected — the palette
+        // is presentational, and refusing to save a whole band list over a
+        // colour is a worse trade than rendering it uncoloured.
+        const color =
+          typeof rec.color === 'string' && RISK_BAND_COLORS.includes(rec.color)
+            ? rec.color
+            : null
+        bands.push({ minScore: rec.minScore, label: rec.label.trim(), color })
+      }
+
+      // Two bands at the same threshold make "the last band reached" ambiguous —
+      // which band wins would depend on sort stability, not on the author.
+      if (new Set(bands.map((b) => b.minScore)).size !== bands.length) {
+        return { error: MESSAGES.riskBandsDuplicate }
+      }
+
+      if (bands.length > 0) {
+        config.riskBands = [...bands].sort((a, b) => a.minScore - b.minScore)
+      }
     }
   }
 

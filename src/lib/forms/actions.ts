@@ -6,6 +6,7 @@ import { getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
+import { MATRIX_ITEM_TYPES } from '@/lib/forms/item-tree'
 import { resolveOptionCodes, slugifyLabel, shortSuffix } from '@/lib/forms/option-code'
 import { parseItemConfig } from '@/lib/forms/parse-config'
 import { parseRequired } from '@/lib/forms/parse-required'
@@ -154,7 +155,38 @@ const DISPLAY_TYPES = ['section_text', 'image']
  * relied on, so a malformed client gets pt-BR copy instead of a raw 23514.
  */
 const CONTAINER_TYPES = ['group', 'repeating_group']
-const ALL_ITEM_TYPES = [...INPUT_TYPES, ...DISPLAY_TYPES, ...CONTAINER_TYPES]
+/**
+ * FF-2 (ADR 0089) — the MATRIX types. Mirrors `MATRIX_ITEM_TYPES` from
+ * `./item-tree` (imported, not re-spelled: a fourth hand-written copy of this
+ * list is exactly the drift that let matrix fall out of `ALL_ITEM_TYPES`).
+ *
+ * They are ANSWERABLE — they carry a `question_key` and feed dashboards — but
+ * their answer lives in `answer_matrix_cells` / `answer_risk_matrix`, not in
+ * `answers.value`. That is why they are their own set rather than members of
+ * `INPUT_TYPES`, which means "answer is a scalar in `answers.value`".
+ */
+const MATRIX_TYPES: readonly string[] = MATRIX_ITEM_TYPES
+/**
+ * Every type an author may create. ⚠ A type missing here is REJECTED by
+ * `addItem` with `itemTypeInvalid` — matrix was omitted when FF-2 Wave 1 landed
+ * the writers, so `upsert_matrix_axes` was unreachable in the product while
+ * every one of its own tests passed. Fails CLOSED (no bad data), invisible to
+ * lint/typecheck/unit/pgTAP. Same shape as ETH·E3a's `p_case_type_id`.
+ */
+const ALL_ITEM_TYPES = [
+  ...INPUT_TYPES,
+  ...DISPLAY_TYPES,
+  ...CONTAINER_TYPES,
+  ...MATRIX_TYPES,
+]
+/**
+ * Types that get a minted `question_key`. NOT the same question as
+ * `INPUT_TYPES`: the aggregation contract for a matrix is
+ * `(question_key, row_code, col_code)`, so it needs a key just as much as a
+ * scalar does — and `form_items_input_vs_display` REQUIRES one for both matrix
+ * types. Mirrors `ANSWERABLE_ITEM_TYPES` in queries/forms.ts.
+ */
+const ANSWERABLE_TYPES = [...INPUT_TYPES, ...MATRIX_TYPES]
 
 /** The builder route family — revalidated as dynamic-segment pages. */
 const BUILDER_FORM_PATH = '/o/[org]/c/[commission]/manage/forms/[formId]'
@@ -938,6 +970,55 @@ function parseItemFields(
     }
   }
 
+  // FF-2 (ADR 0089) — MATRIX (`matrix` / `risk_matrix`). Shaped to the live
+  // `form_items_input_vs_display` matrix arm, which the ...000000 migration
+  // relaxed: `question_key IS NOT NULL AND label IS NOT NULL AND content IS
+  // NULL`, with NO `required = false` pin any more (ruling 3 made row-complete
+  // required-ness real, and `app.item_required_satisfied` now checks it).
+  //
+  // The AXES are not parsed here. They live in their own tables and go through
+  // `upsertMatrixAxes` / `upsert_matrix_axes` — a DEFINER door, because
+  // `form_matrix_rows`/`form_matrix_columns` are SELECT-only for `authenticated`
+  // (K9). So creating a matrix block yields an item with an EMPTY grid, which is
+  // a legal draft state and a publish-blocking one (`HC0P5`).
+  //
+  // `options` / `default_value` are null: columns are not `form_item_options`
+  // (ruling 1 — the columns ARE the options, held on the axis table), and a
+  // matrix has no scalar to pre-fill.
+  if (MATRIX_TYPES.includes(itemType)) {
+    const label = String(formData.get('label') ?? '').trim()
+    if (!label) {
+      return { error: { ok: false, fieldErrors: { label: MESSAGES.labelRequired } } }
+    }
+    const explanation = String(formData.get('questionExplanation') ?? '').trim()
+
+    // `risk_matrix` → config.riskBands (the score→band display mapping); a plain
+    // `matrix` has none and parseItemConfig yields null for it.
+    const parsedConfig = parseConfig(itemType, formData)
+    if ('error' in parsedConfig) return { error: parsedConfig.error }
+
+    const parsedVisible = parseVisibleWhen(formData)
+    if ('error' in parsedVisible) return { error: parsedVisible.error }
+
+    // ruling 3 + ruling 4: `required` is persisted AS SUBMITTED, including
+    // alongside a visibility condition — a hidden matrix requires nothing, which
+    // `app.item_required_satisfied`'s callers enforce by never asking about it.
+    const required = parseRequired(formData)
+
+    return {
+      columns: {
+        label,
+        question_explanation: explanation || null,
+        config: parsedConfig.config,
+        visible_when: parsedVisible.visibleWhen,
+        required,
+        content: null,
+        default_value: null,
+      },
+      options: null,
+    }
+  }
+
   if (itemType === 'section_text') {
     const markdown = String(formData.get('markdown') ?? '').trim()
     if (!markdown) {
@@ -1166,8 +1247,14 @@ export async function addItem(
   if ('error' in placement) return { ok: false, error: placement.error }
   const nextPosition = placement.position
 
-  const isInput = INPUT_TYPES.includes(itemType)
-  const keyBase = isInput ? slugifyLabel(columns.label ?? '') : null
+  // FF-2: ANSWERABLE, not "input". A matrix carries a `question_key` — the DB
+  // CHECK requires one and the aggregation unit is (question_key, row_code,
+  // col_code). Gating on `isInput` minted NULL, which the CHECK would have
+  // rejected outright. The collision-retry at the bottom of the loop tests the
+  // SAME predicate, so the two move together or a colliding key stops being
+  // retried.
+  const isAnswerable = ANSWERABLE_TYPES.includes(itemType)
+  const keyBase = isAnswerable ? slugifyLabel(columns.label ?? '') : null
 
   // Insert the item; for input items retry on a per-version question_key
   // collision with a fresh suffix. form_version_id is omitted — the sync trigger
@@ -1175,7 +1262,7 @@ export async function addItem(
   // attached (form-model-normalization: options are rows, not a column).
   const MAX_ATTEMPTS = 5
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const questionKey = isInput ? `${keyBase}_${shortSuffix()}` : null
+    const questionKey = isAnswerable ? `${keyBase}_${shortSuffix()}` : null
     const { data: inserted, error } = await supabase
       .from('form_items')
       .insert({
@@ -1226,7 +1313,7 @@ export async function addItem(
       return { ok: true, error: MESSAGES.itemAdded }
     }
     // Only a question_key collision is retryable; anything else is terminal.
-    if (error?.code === PG_UNIQUE_VIOLATION && isInput) continue
+    if (error?.code === PG_UNIQUE_VIOLATION && isAnswerable) continue
     return { ok: false, error: error ? mapWriteError(error) : MESSAGES.generic }
   }
 
