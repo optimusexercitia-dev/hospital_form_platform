@@ -171,10 +171,26 @@ Record).
   type is declared); risk-score formula + where weights live (`risk_weight` vs axis rows/cols) +
   score→band mapping; matrix required-ness semantics (all rows? all cells? configurable?);
   axis-code edit rules on cloned drafts (codes are the aggregation key).
+- **🔴 CORRECTION-COPY OBLIGATION (from FF-1's P0-1 — inherited, non-negotiable).**
+  `answer_matrix_cells` and `answer_risk_matrix` hang off **`answer_id`**, exactly like
+  `answer_selected_options`. **Neither `supersede_response` nor `start_correction_draft` copies
+  them today** — correct only while they are write-inert (0 rows). The moment FF-2 ships writers,
+  each needs a copy block, and that copy block needs the **instance remap**: a correction gives the
+  successor its **own** `response_group_instances` rows, so any join matching
+  `new.group_instance_id` to `old.group_instance_id` is **unsatisfiable by construction**. That
+  exact bug shipped in FF-1 as a P0 — a correction silently destroyed every choice answer inside a
+  repeating group, proven live 2 selections → 0 — and FF-1's own keystone was blind to it because
+  it counted `answers` rows against a `short_text`-only fixture. Resolve old→new **through the
+  instance rows** on the preserved `(group_item_id, position)` identity (the `clone_form_version`
+  technique). **FF-1's K4 covers selections only**, so nothing existing will catch a repeat.
+  Author this as a requirement in FF-2's ADR, with a keystone asserting a matrix/risk answer
+  **survives a correction by value, on the correct instance**. Same obligation lands on FF-5 for
+  `answer_references`.
 - **Gate keystones:** K9 preserved (writers live, direct DML still denied on all 4 tables) ·
   `clone_copies_matrix_axes` (publish → clone → deep-copied, source immutable) ·
   `matrix_cell_coherence` (foreign row/col rejected) · `completeness_deadlock_negative_matrix` ·
-  `supersession_matrix_excluded` · E2E author axes → fill → dashboard cell/score golden.
+  `supersession_matrix_excluded` · **`correction_copies_matrix_answers`** (the obligation above) ·
+  E2E author axes → fill → dashboard cell/score golden.
 
 ### FF-3 — Validation Engine (`item_validations`)
 
@@ -220,6 +236,11 @@ Record).
   (RESTRICT makes live join safe; snapshot avoids read-time PHI joins); candidate-set scoping
   enforcement point (RLS on the source vs DEFINER search RPC); conditions on reference answers
   (equals/in on target id) — v1 or deferred.
+- **🔴 CORRECTION-COPY OBLIGATION (inherited from FF-1's P0-1).** `answer_references` hangs off
+  **`answer_id`** and is copied by **neither** correction RPC. See the FF-2 entry above for the
+  full statement — same trap, same instance-remap requirement, same keystone shape
+  (`correction_copies_reference_answers`: a reference answer survives a correction **by value, on
+  the correct instance**). FF-1's K4 covers selections only.
 - **Gate keystones:** `rls_answer_references_reader_non_writer` + XOR/kind negatives +
   RESTRICT-delete negative · `info2_phi_door` (participant read without the door denied; door
   read audited) · `cross_tenant_reference_negative` (no reference outside the org perimeter) ·
