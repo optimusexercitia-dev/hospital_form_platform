@@ -58,6 +58,13 @@ export function InstanceAnswersReadonly({
                       value={instance.answersByItemId[child.id]}
                       observation={instance.observationsByItemId[child.id]}
                       otherText={instance.otherTextByItemId[child.id]}
+                      // FF-2 (FUP-FF2-1): a matrix inside a repeating group
+                      // answers PER INSTANCE, so its grid comes off this
+                      // instance and nowhere else. `?? {}` because the keys are
+                      // absent from a payload produced before the projection
+                      // migration — not because the data is optional.
+                      matrixCells={instance.matrixCellsByItemId?.[child.id]}
+                      riskSelection={instance.riskMatrixByItemId?.[child.id]}
                     />
                   ))}
               </dl>

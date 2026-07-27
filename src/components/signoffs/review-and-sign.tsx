@@ -7,7 +7,7 @@ import type { Json } from "@/lib/types/database";
 import type { Item, Section } from "@/lib/queries/forms";
 import { flattenItem } from "@/lib/forms/item-tree";
 import type { AnswerMap } from "@/lib/queries/conditions";
-import type { GroupInstance } from "@/lib/queries/responses";
+import type { GroupInstance, RiskMatrixAnswer } from "@/lib/queries/responses";
 import {
   ImageContentRenderer,
   SectionTextRenderer,
@@ -19,7 +19,7 @@ import {
 } from "@/components/responses/instance-answers-readonly";
 import {
   computeEffectiveVisibility,
-  isInputItem,
+  isAnswerableItem,
 } from "@/components/responses/wizard/effective-visibility";
 
 import type { ClientResponseForSignoff, SectionSignoff } from "./types";
@@ -110,6 +110,8 @@ export function ReviewAndSign({
             isFlat={isFlat}
             answersByItemId={data.answersByItemId}
             observationsByItemId={data.observationsByItemId}
+            matrixCellsByItemId={data.matrixCellsByItemId}
+            riskMatrixByItemId={data.riskMatrixByItemId}
             instancesByGroup={instancesByGroup}
             visibleItemIds={visibleItemIds}
             imageUrls={imageUrls}
@@ -147,6 +149,8 @@ function ReviewSection({
   isFlat,
   answersByItemId,
   observationsByItemId,
+  matrixCellsByItemId,
+  riskMatrixByItemId,
   instancesByGroup,
   visibleItemIds,
   imageUrls,
@@ -161,6 +165,9 @@ function ReviewSection({
   isFlat: boolean;
   answersByItemId: Record<string, Json>;
   observationsByItemId: Record<string, string>;
+  /** FF-2 — the response's TOP-LEVEL matrix grids / risk answers. */
+  matrixCellsByItemId: Record<string, Record<string, string>>;
+  riskMatrixByItemId: Record<string, RiskMatrixAnswer>;
   instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
@@ -218,6 +225,8 @@ function ReviewSection({
         section={section}
         answersByItemId={answersByItemId}
         observationsByItemId={observationsByItemId}
+        matrixCellsByItemId={matrixCellsByItemId}
+        riskMatrixByItemId={riskMatrixByItemId}
         instancesByGroup={instancesByGroup}
         visibleItemIds={visibleItemIds}
         imageUrls={imageUrls}
@@ -256,6 +265,8 @@ function SectionBody({
   section,
   answersByItemId,
   observationsByItemId,
+  matrixCellsByItemId,
+  riskMatrixByItemId,
   instancesByGroup,
   visibleItemIds,
   imageUrls,
@@ -263,6 +274,8 @@ function SectionBody({
   section: Section;
   answersByItemId: Record<string, Json>;
   observationsByItemId: Record<string, string>;
+  matrixCellsByItemId: Record<string, Record<string, string>>;
+  riskMatrixByItemId: Record<string, RiskMatrixAnswer>;
   instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
@@ -276,7 +289,12 @@ function SectionBody({
     .filter(
       (it) =>
         it.itemType !== "repeating_group" &&
-        (!isInputItem(it.itemType) || visibleItemIds.has(it.id)),
+        // FF-2: `isAnswerableItem`, not `isInputItem`. A matrix is answerable
+        // but is NOT a scalar input, so under the old predicate a HIDDEN matrix
+        // passed the visibility gate and a VISIBLE one then fell through to the
+        // display branch below — which rendered nothing. That is the empty grid
+        // a signer was attesting to.
+        (!isAnswerableItem(it.itemType) || visibleItemIds.has(it.id)),
     );
   const repeatingGroups = section.items.filter(
     (it) => it.itemType === "repeating_group",
@@ -295,7 +313,7 @@ function SectionBody({
       {items.length > 0 ? (
         <dl className="flex flex-col gap-1">
           {items.map((item) =>
-            isInputItem(item.itemType) ? (
+            isAnswerableItem(item.itemType) ? (
               <AnswerSummary
                 key={item.id}
                 item={item}
@@ -303,6 +321,8 @@ function SectionBody({
                   (answersByItemId[item.id] as Json | undefined) ?? undefined
                 }
                 observation={observationsByItemId[item.id]}
+                matrixCells={matrixCellsByItemId[item.id]}
+                riskSelection={riskMatrixByItemId[item.id]}
               />
             ) : (
               <DisplayBlock key={item.id} item={item} imageUrls={imageUrls} />

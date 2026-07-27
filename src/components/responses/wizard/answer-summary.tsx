@@ -45,8 +45,16 @@ export function AnswerSummary({
   value: Json | undefined;
   /** FF-2 — the saved grid of a `matrix` item in THIS scope. */
   matrixCells?: MatrixCells;
-  /** FF-2 — the saved selection of a `risk_matrix` item in THIS scope. */
-  riskSelection?: RiskSelection;
+  /**
+   * FF-2 — the saved risk answer of a `risk_matrix` item in THIS scope.
+   *
+   * Accepts the read paths' {@link RiskMatrixAnswer} as well as the wizard's
+   * bare {@link RiskSelection}: when `riskScore` is present it is the DURABLE
+   * stored value and is rendered verbatim rather than recomputed from the axis
+   * weights (FUP-FF2-1). A reviewer and a signer must see the number the record
+   * holds.
+   */
+  riskSelection?: RiskSelection & { riskScore?: number | null };
   /** Optional observation note shown as a muted secondary line. */
   observation?: string | null;
   /**
@@ -69,7 +77,13 @@ export function AnswerSummary({
     return (
       <div className="flex flex-col gap-2 border-b border-border/60 py-3 last:border-b-0">
         {item.itemType === "risk_matrix" ? (
-          <RiskMatrixPicker item={item} selection={riskSelection} onChange={NO_OP_RISK} readOnly />
+          <RiskMatrixPicker
+            item={item}
+            selection={riskSelection}
+            storedScore={riskSelection?.riskScore ?? null}
+            onChange={NO_OP_RISK}
+            readOnly
+          />
         ) : (
           <MatrixGrid item={item} cells={matrixCells} onChange={NO_OP_CELL} readOnly />
         )}

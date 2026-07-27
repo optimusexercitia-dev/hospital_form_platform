@@ -3,7 +3,7 @@ import { CalendarCheck } from "lucide-react";
 import type { Json } from "@/lib/types/database";
 import type { Item, Section, VersionTree } from "@/lib/queries/forms";
 import type { SignoffRecord } from "@/lib/queries/signoffs";
-import type { GroupInstance } from "@/lib/queries/responses";
+import type { GroupInstance, RiskMatrixAnswer } from "@/lib/queries/responses";
 import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
 import {
   ImageContentRenderer,
@@ -16,7 +16,8 @@ import {
 } from "@/components/responses/instance-answers-readonly";
 import {
   computeEffectiveVisibility,
-  isInputItem,
+  isAnswerableItem,
+  isMatrixItem,
 } from "@/components/responses/wizard/effective-visibility";
 
 /** pt-BR date + time for sign-off metadata. */
@@ -58,6 +59,8 @@ export function SubmissionDetailView({
   answersByKey,
   observationsByItemId = {},
   otherTextByItemId = {},
+  matrixCellsByItemId = {},
+  riskMatrixByItemId = {},
   instances = [],
   signoffs,
   imageUrls,
@@ -71,6 +74,13 @@ export function SubmissionDetailView({
   /** Per-item "Outros" free text ("Outros" open option). Optional; shown as
    *  "Outro: <valor>" beneath the answer where the reserved option was selected. */
   otherTextByItemId?: Record<string, string>;
+  /**
+   * FF-2 (ADR 0089 - FUP-FF2-1) - the response TOP-LEVEL matrix grids and
+   * risk answers. A matrix inside a repeating group is NOT here: it rides its
+   * {@link GroupInstance}, exactly as scalar answers do.
+   */
+  matrixCellsByItemId?: Record<string, Record<string, string>>;
+  riskMatrixByItemId?: Record<string, RiskMatrixAnswer>;
   /**
    * FF-1 (ADR 0087) — the response's repeating-group instances. Already
    * pruned by `submit_response` (a zero-answer repetition is deleted before
@@ -101,6 +111,8 @@ export function SubmissionDetailView({
           answersByItemId={answersByItemId}
           observationsByItemId={observationsByItemId}
           otherTextByItemId={otherTextByItemId}
+          matrixCellsByItemId={matrixCellsByItemId}
+          riskMatrixByItemId={riskMatrixByItemId}
           visibleItemIds={visibleItemIds}
           imageUrls={imageUrls}
         />
@@ -119,6 +131,8 @@ export function SubmissionDetailView({
           answersByItemId={answersByItemId}
           observationsByItemId={observationsByItemId}
           otherTextByItemId={otherTextByItemId}
+          matrixCellsByItemId={matrixCellsByItemId}
+          riskMatrixByItemId={riskMatrixByItemId}
           instancesByGroup={instancesByGroup}
           visibleItemIds={visibleItemIds}
           signoff={signoffsBySection.get(section.id) ?? null}
@@ -136,6 +150,8 @@ function DetailSection({
   answersByItemId,
   observationsByItemId,
   otherTextByItemId,
+  matrixCellsByItemId,
+  riskMatrixByItemId,
   instancesByGroup,
   visibleItemIds,
   signoff,
@@ -147,6 +163,8 @@ function DetailSection({
   answersByItemId: Record<string, Json>;
   observationsByItemId: Record<string, string>;
   otherTextByItemId: Record<string, string>;
+  matrixCellsByItemId: Record<string, Record<string, string>>;
+  riskMatrixByItemId: Record<string, RiskMatrixAnswer>;
   instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   signoff: SignoffRecord | null;
@@ -200,6 +218,8 @@ function DetailSection({
             answersByItemId={answersByItemId}
             observationsByItemId={observationsByItemId}
             otherTextByItemId={otherTextByItemId}
+            matrixCellsByItemId={matrixCellsByItemId}
+            riskMatrixByItemId={riskMatrixByItemId}
             visibleItemIds={visibleItemIds}
             imageUrls={imageUrls}
           />
@@ -224,6 +244,8 @@ function SectionBody({
   answersByItemId,
   observationsByItemId,
   otherTextByItemId,
+  matrixCellsByItemId,
+  riskMatrixByItemId,
   instancesByGroup,
   visibleItemIds,
   imageUrls,
@@ -232,6 +254,8 @@ function SectionBody({
   answersByItemId: Record<string, Json>;
   observationsByItemId: Record<string, string>;
   otherTextByItemId: Record<string, string>;
+  matrixCellsByItemId: Record<string, Record<string, string>>;
+  riskMatrixByItemId: Record<string, RiskMatrixAnswer>;
   instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
@@ -248,7 +272,10 @@ function SectionBody({
     .filter(
       (it) =>
         it.itemType !== "repeating_group" &&
-        (!isInputItem(it.itemType) || visibleItemIds.has(it.id)),
+        // FF-2: `isAnswerableItem`, not `isInputItem`. A matrix is answerable
+        // but not a scalar input, so the old predicate both let a HIDDEN
+        // matrix through and dropped a VISIBLE one from the submitted record.
+        (!isAnswerableItem(it.itemType) || visibleItemIds.has(it.id)),
     );
 
   // FF-1: `repeating_group` blocks render per instance, in document order
@@ -274,6 +301,8 @@ function SectionBody({
           value={answersByItemId[item.id]}
           observation={observationsByItemId[item.id]}
           otherText={otherTextByItemId[item.id]}
+          matrixCells={matrixCellsByItemId[item.id]}
+          riskSelection={riskMatrixByItemId[item.id]}
           imageUrls={imageUrls}
         />
       ))}
@@ -294,12 +323,16 @@ function DetailBlock({
   value,
   observation,
   otherText,
+  matrixCells,
+  riskSelection,
   imageUrls,
 }: {
   item: Item;
   value: Json | undefined;
   observation?: string;
   otherText?: string;
+  matrixCells?: Record<string, string>;
+  riskSelection?: RiskMatrixAnswer;
   imageUrls: Record<string, string>;
 }) {
   if (item.itemType === "section_text" && item.content) {
@@ -316,7 +349,11 @@ function DetailBlock({
       <span className="text-[0.7rem] font-medium tracking-wide text-muted-foreground uppercase">
         {meta.label}
       </span>
-      {item.questionExplanation && (
+      {/* FF-2: a matrix renders its OWN `question_explanation` (the grid needs
+          it wired as the group's `aria-describedby`), so printing it here too
+          duplicated the line on screen and announced it twice. Every other type
+          relies on this block for it. */}
+      {item.questionExplanation && !isMatrixItem(item.itemType) && (
         <p className="text-sm text-muted-foreground">
           {item.questionExplanation}
         </p>
@@ -327,6 +364,8 @@ function DetailBlock({
           value={value}
           observation={observation}
           otherText={otherText}
+          matrixCells={matrixCells}
+          riskSelection={riskSelection}
         />
       </dl>
     </article>

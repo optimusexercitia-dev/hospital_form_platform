@@ -130,6 +130,10 @@ function clientData(
     tree: tree([REP]),
     answersByItemId: {},
     observationsByItemId: {},
+    // FF-2 (FUP-FF2-1): required on the client shape for the same reason
+    // `instances` is — a signer must never be shown an empty grid.
+    matrixCellsByItemId: {},
+    riskMatrixByItemId: {},
     instances: [
       instance("i1", 0, { medicamento: "Dipirona", dose: "500mg" }),
       instance("i2", 1, { medicamento: "Omeprazol", dose: "20mg" }),

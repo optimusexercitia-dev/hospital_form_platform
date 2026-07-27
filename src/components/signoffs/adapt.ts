@@ -60,6 +60,13 @@ export function toClientResponseForSignoff(
     // attesting to. `ClientResponseForSignoff.instances` is required precisely so
     // this line cannot be omitted again without a type error.
     instances: data.instances,
+    // FF-2 (FUP-FF2-1): forward the matrix half. Before Wave 3 the door did not
+    // project it at all, so a section whose content was a matrix rendered an
+    // empty grid and was counter-signed blind — the same defect class as the
+    // FF-1 instances line above, one answer shape later. Both fields are
+    // REQUIRED on `ClientResponseForSignoff` so omitting them cannot compile.
+    matrixCellsByItemId: data.matrixCellsByItemId,
+    riskMatrixByItemId: data.riskMatrixByItemId,
     signoffsBySectionId: signoffRecordsToMap(data.signoffs),
   };
 }

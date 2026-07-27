@@ -1,6 +1,6 @@
 import type { Json } from "@/lib/types/database";
 import type { VersionTree } from "@/lib/queries/forms";
-import type { GroupInstance } from "@/lib/queries/responses";
+import type { GroupInstance, RiskMatrixAnswer } from "@/lib/queries/responses";
 
 import type { Signoff } from "./signoff-status";
 
@@ -71,6 +71,22 @@ export interface ClientResponseForSignoff {
    * repeating-group child's answers live here and nowhere else.
    */
   instances: GroupInstance[];
+  /**
+   * FF-2 (ADR 0089 · FUP-FF2-1) — the response's TOP-LEVEL matrix grids
+   * (`{ itemId: { rowCode: colCode } }`) and risk answers.
+   *
+   * REQUIRED for exactly the reason `instances` is: this screen is where a
+   * staff_admin puts their name to a section's content, and until FF-2's Wave 3
+   * the door projected every answer shape EXCEPT these two — so a section whose
+   * content was a matrix rendered an EMPTY GRID and was signed blind. Optional
+   * fields here would let a future caller reintroduce that silently; a required
+   * one turns the same mistake into a type error.
+   *
+   * A matrix inside a repeating group is NOT here — it lives on its
+   * {@link GroupInstance}, exactly as scalar answers do.
+   */
+  matrixCellsByItemId: Record<string, Record<string, string>>;
+  riskMatrixByItemId: Record<string, RiskMatrixAnswer>;
   /** Existing sign-off rows for this response, by section. */
   signoffsBySectionId: Record<string, SectionSignoff>;
 }

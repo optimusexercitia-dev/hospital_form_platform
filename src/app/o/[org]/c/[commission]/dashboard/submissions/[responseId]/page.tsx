@@ -102,6 +102,8 @@ export default async function SubmissionDetailPage({
         answersByKey={detail.answersByKey}
         observationsByItemId={detail.observationsByItemId}
         otherTextByItemId={detail.otherTextByItemId}
+        matrixCellsByItemId={detail.matrixCellsByItemId}
+        riskMatrixByItemId={detail.riskMatrixByItemId}
         instances={detail.instances}
         signoffs={detail.signoffs}
         imageUrls={imageUrls}

@@ -48,11 +48,24 @@ export const RiskMatrixPicker = memo(function RiskMatrixPicker({
   onClear,
   error,
   readOnly = false,
+  storedScore = null,
 }: {
   item: Item;
   instanceId?: string;
   /** The saved/in-flight selection; `riskScore` is never held here. */
   selection: RiskSelection | undefined;
+  /**
+   * FF-2 (FUP-FF2-1) — the DURABLE `answer_risk_matrix.risk_score` as stored,
+   * for the read paths (sign-off review, submission detail).
+   *
+   * When present it WINS over the locally computed product. The computed value
+   * exists for the wizard, where nothing is stored yet; once a score is a
+   * recorded fact, recomputing it from the axis weights would let a later
+   * re-weighting silently restate what a historical response — or a signature
+   * attesting to it — appears to say. A signer must see the number the record
+   * holds, not a number derived under today's weights.
+   */
+  storedScore?: number | null;
   /** Commit a whole cell. Both halves always move together, so the half-filled
    *  state the server rejects with `HC0P8` is unreachable from the UI. */
   onChange: (next: RiskSelection) => void;
@@ -77,7 +90,10 @@ export const RiskMatrixPicker = memo(function RiskMatrixPicker({
       .join(" ") || undefined;
 
   const label = item.label ?? "Matriz de risco";
-  const score = computeRiskScore(rows, columns, selection);
+  // The stored fact wins wherever there is one; the product is the wizard's
+  // live preview of a score that does not exist yet.
+  const computed = computeRiskScore(rows, columns, selection);
+  const score = storedScore ?? computed;
   const band = bandForScore(bands, score);
 
   if (rows.length === 0 || columns.length === 0) {
