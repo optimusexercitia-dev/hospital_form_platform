@@ -84,7 +84,24 @@ export function AddBlockMenu({
         <DropdownMenuContent
           align="start"
           collisionPadding={8}
-          className="max-h-[--radix-dropdown-menu-content-available-height] min-w-64 overflow-y-auto"
+          // BUG-FF2-003 — the cap MUST keep the explicit var() call.
+          //
+          // It was previously written with Tailwind 3.4's shorthand, where a
+          // bare custom property inside square brackets was auto-wrapped in
+          // var(). Tailwind v4 removed that shorthand, so the utility emitted a
+          // max-height whose value was the raw property NAME rather than its
+          // value — invalid CSS, dropped by the parser, leaving max-height:none.
+          // The class read correct and did nothing: at 1280x720 the menu grew to
+          // 909px, 7 of 14 items sat off-screen (both matrix types among them),
+          // and overflow-y-auto could not scroll because there was no cap to
+          // overflow against. The (--x) form is the equivalent v4 shorthand and
+          // is what the ui/ primitives use; either works, var() is explicit.
+          //
+          // Deliberately prose, not a code sample: v4 scans raw source TEXT,
+          // comments included, so spelling the broken class here would mint it
+          // as a real (dead) selector in the bundle — which is exactly what the
+          // first draft of this comment did.
+          className="max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-64 overflow-y-auto"
         >
           <DropdownMenuLabel>Perguntas</DropdownMenuLabel>
           {INPUT_TYPES.map((type) => (
