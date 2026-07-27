@@ -731,44 +731,48 @@ test('FF1-3 (wizard): add/remove/reorder repetitions; per-instance answers stay 
   await expect(inst1).toBeVisible()
   await expect(inst2).toBeVisible()
 
-  // --- BUG-FF1-004: every control id in input-item.tsx is built purely from
-  // the QUESTION's static `item.id` — `useFieldIds(`item-${item.id}`, ...)`
-  // for text/number/date/time, `item-${item.id}-opt-${i}` for choice options
-  // — with NO instance scoping. Inside a repeating group the SAME question
-  // renders once PER INSTANCE, so this mints the SAME `id` (and the label's
-  // matching `for=`) once per instance: a live, duplicate-id violation.
-  // `document.getElementById`/label-`for` resolution always returns the
-  // FIRST DOM match, so instance 1 accidentally resolves fine (it happens to
-  // be first) while every instance after it is unreachable by accessible
-  // name — this is why the queries below use `.nth(index)` / role-only
-  // (unfiltered by name) rather than `{ name: 'Tarde' }`. Demonstrated two
-  // ways, soft (the rest of this test still needs to run to cover the
-  // ISOLATION claim, a distinct claim from this labelling defect):
+  // --- BUG-FF1-004 regression guard (fixed by frontend, `87d7cdd`:
+  // `fieldScope` now threads from BlockRenderer through every control id
+  // AND the radio `name`; a top-level item's scope is byte-identical to the
+  // old value, only a repetition's gains a suffix). Was: every control id in
+  // input-item.tsx built purely from the question's static `item.id`, with
+  // no instance scoping, so id/label/`name` all duplicated once per
+  // repeating-group instance — instance 2+ unreachable by accessible name,
+  // AND (for choice types) instance 2's radio shared instance 1's native
+  // browser exclusivity group. Both are asserted here as HARD checks (not
+  // soft) so a regression fails loudly, not quietly:
   const inst2TardeRadio = inst2.locator('input[type="radio"]').nth(1)
-  const duplicateId = await inst2TardeRadio.getAttribute('id')
-  expect
-    .soft(
-      duplicateId ? await page.locator(`#${duplicateId}`).count() : -1,
-      'BUG-FF1-004: option/field ids are not instance-scoped (input-item.tsx builds them from `item.id` alone) — the same id renders once per repeating-group instance, a duplicate-id violation. A real user clicking instance 2+\'s visible label can toggle instance 1\'s control instead (label `for=` resolves to the FIRST DOM match).',
-    )
-    .toBe(1)
-  await expect
-    .soft(
-      inst2.getByRole('radio', { name: 'Tarde' }),
-      'BUG-FF1-004 consequence: instance 2\'s "Tarde" radio is unreachable by accessible name (screen-reader users cannot identify any instance-2+ control by its label).',
-    )
-    .toBeVisible({ timeout: 2_000 })
+  const inst2TardeId = await inst2TardeRadio.getAttribute('id')
+  expect(
+    inst2TardeId ? await page.locator(`#${inst2TardeId}`).count() : -1,
+    'id must be unique per instance (BUG-FF1-004 regression guard)',
+  ).toBe(1)
+  await expect(
+    inst2.getByRole('radio', { name: 'Tarde' }),
+    'instance 2 must be reachable by accessible name (BUG-FF1-004 regression guard)',
+  ).toBeVisible({ timeout: 2_000 })
 
-  // Fill via POSITION (input[type=radio] .nth) / role-ONLY (no name filter,
-  // exactly one textbox per instance) — this still validates per-instance
-  // answer ISOLATION at the state/DB level, a claim distinct from the
-  // labelling defect just flagged. A sighted mouse user clicking by visual
-  // position gets this; a screen-reader / accessible-name-driven user does
-  // not (that gap is BUG-FF1-004 above).
   await inst1.locator('input[type="radio"]').nth(0).click() // Manhã
   await inst1.getByRole('textbox').fill('Nota da repetição UM')
+  await expect(inst1.locator('input[type="radio"]').nth(0)).toBeChecked() // baseline, before touching instance 2
+
+  // --- The decisive cross-instance assertion (coordinator-requested,
+  // 2026-07-27): act on instance 2, THEN assert instance 1's value —
+  // checking instance 2 alone passes against the original BUG-FF1-004
+  // (React re-renders each instance from its OWN state correctly; the
+  // corruption was in the BROWSER's native radio-group exclusivity, which
+  // only a real browser — not jsdom — can exhibit or disprove). This is why
+  // the fix's own unit test was deleted as unwritable in jsdom and replaced
+  // with a RadioNodeList grouping assertion at the DOM-construction layer;
+  // THIS Playwright case is the only place the user-facing behavior itself
+  // can be proven, in either direction. ---------------------------------
   await inst2.locator('input[type="radio"]').nth(1).click() // Tarde
   await inst2.getByRole('textbox').fill('Nota da repetição DOIS')
+  await expect(
+    inst1.locator('input[type="radio"]').nth(0),
+    "instance 1's Manhã must SURVIVE acting on instance 2 — this is the exact shape BUG-FF1-004 broke (shared native radio-group `name` silently unchecked the other instance's selection)",
+  ).toBeChecked()
+  await expect(inst1.getByRole('textbox')).toHaveValue('Nota da repetição UM')
 
   // Isolation, live in the DOM: instance 1 shows only its own answers.
   await expect(inst1.locator('input[type="radio"]').nth(0)).toBeChecked() // Manhã
@@ -779,6 +783,30 @@ test('FF1-3 (wizard): add/remove/reorder repetitions; per-instance answers stay 
   // Persist via "Salvar e sair", then resume.
   await page.getByRole('button', { name: 'Salvar e sair' }).click()
   await page.waitForURL((u: URL) => !u.pathname.includes('/responder/'), { timeout: 15_000 })
+
+  // --- BUG-FF1-005 regression guard: `saveSection` (src/lib/responses/
+  // actions.ts) destructures its input WITHOUT `instances` and never passes
+  // `p_instance_answers` to `save_section_answers`, despite the client
+  // (`collectSection` in wizard-client.tsx) correctly building and sending
+  // that field. DB truth: `response_group_instances` rows exist (add/remove/
+  // reorder work — BUG-FF1-001 is fixed), but zero `answers` rows carry a
+  // `group_instance_id` — the section save silently drops every per-instance
+  // answer. This is a DIFFERENT defect from BUG-FF1-004 (that was DOM
+  // id/name scoping; this is the save action never forwarding the payload)
+  // and is normally invisible: every OTHER repeating-group test in this file
+  // fills via direct RPC calls (routing around BUG-FF1-001's now-fixed but
+  // formerly-broken UI), which calls `save_section_answers` with
+  // `p_instance_answers` directly — never through this broken action. FF1-3
+  // is the only test in this file that goes through the wizard's own
+  // "Salvar e sair", so it is the only one that can catch this. -----------
+  const persistedInstanceAnswers = await serviceQuery<{ item_id: string }>(
+    page,
+    `answers?response_id=eq.${responseId}&group_instance_id=not.is.null&select=item_id`,
+  )
+  expect(
+    persistedInstanceAnswers.length,
+    'BUG-FF1-005: "Salvar e sair" must persist per-instance answers (saveSection never forwards `instances` to `p_instance_answers`)',
+  ).toBeGreaterThan(0)
 
   await enterWizard(page, title)
   expect(responseIdFromUrl(page)).toBe(responseId)
@@ -1358,24 +1386,30 @@ test('FF1-9 (keyboard-only): add, reorder and remove repetitions entirely via ke
   await page.keyboard.press('Enter')
   await expect(instanceRegion(page, 'Vistoria', '2 de 2')).toBeVisible()
 
-  // BUG-FF1-004 (see FF1-3 for the full write-up): input-item.tsx builds every
-  // control's id/label purely from the QUESTION's static item.id, with no
-  // instance scoping, so accessible-name lookups only ever resolve to the
-  // FIRST instance. Exactly one textbox per instance here, so an unfiltered
-  // role query still reaches instance 2's own field — but a real screen-reader
-  // user relying on the ANNOUNCED label cannot tell it apart from instance 1's,
-  // which is precisely the "labelled" half of this test's own acceptance bar.
-  const nota2 = instanceRegion(page, 'Vistoria', '2 de 2').getByRole('textbox')
-  await expect
-    .soft(
-      instanceRegion(page, 'Vistoria', '2 de 2').getByRole('textbox', { name: 'Nota' }),
-      "BUG-FF1-004: instance 2's \"Nota\" field is unreachable by its accessible name (duplicate id/label — see FF1-3).",
-    )
-    .toBeVisible({ timeout: 2_000 })
+  // BUG-FF1-004 regression guard (fixed `87d7cdd` — full write-up in FF1-3):
+  // input-item.tsx used to build every control's id/label purely from the
+  // QUESTION's static item.id, with no instance scoping, so accessible-name
+  // lookups only ever resolved to the FIRST instance. HARD assertion (not
+  // soft) — a regression here must fail loudly.
+  const inst1Region = instanceRegion(page, 'Vistoria', '1 de 2')
+  const inst2Region = instanceRegion(page, 'Vistoria', '2 de 2')
+  const nota2 = inst2Region.getByRole('textbox')
+  await expect(
+    inst2Region.getByRole('textbox', { name: 'Nota' }),
+    "instance 2's \"Nota\" field must be reachable by its accessible name (BUG-FF1-004 regression guard)",
+  ).toBeVisible({ timeout: 2_000 })
   await nota2.focus()
   await expect(nota2).toBeFocused()
   await page.keyboard.type('Preenchido via teclado')
   await expect(nota2).toHaveValue('Preenchido via teclado')
+
+  // Cross-instance isolation, keyboard-driven: typing into instance 2 must
+  // never touch instance 1's own (still-untouched) field — the same causal
+  // shape as FF1-3's decisive assertion, applied to the keyboard flow.
+  await expect(
+    inst1Region.getByRole('textbox'),
+    "instance 1's field must stay untouched after typing into instance 2",
+  ).toHaveValue('')
 
   // Reorder instance 2 up via keyboard (focus its labelled move button, Enter).
   const moveUp2 = page.getByRole('button', { name: 'Mover a repetição 2 de 2 para cima' })
