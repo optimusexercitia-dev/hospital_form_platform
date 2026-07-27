@@ -92,6 +92,45 @@ the full `e2e:prod` gate triage). **FF-2 (Matrix & Risk Matrix) is the next buil
 NOT started (PO-held 2026-07-27).** It begins with its own ADR (0088+) per ADR
 [0086](docs/decisions/0086-flexible-forms-pre-pilot.md).
 
+### 🚦 FF-2 — start here (session handoff, 2026-07-27)
+
+**Where FF-1 ended:** `main` = `39522db`, **origin in sync**, flag `repeating_groups` **ON**, remote
+`db push` **not** done (local-only, as every S-phase). Worktree
+`worktrees/ff/flexible-forms-program` on branch `ff/flexible-forms-program` is **clean and
+identical to `main`** — reuse it (it has `.env.local`, `node_modules`, `./dev.sh` on :3000) or
+branch fresh from `main`. A new session spawns its own teammates; FF-1's are gone.
+
+**Start FF-2 by authoring ADR 0088** (just-in-time per ADR 0086), settling the §3 FF-2 open
+questions with the PO **before** any code, then contract-first: `backend` posts typed stubs, then
+`frontend`. Scope, dependencies, ADR questions and gate keystones →
+[flexible-forms-program.md](docs/plans/flexible-forms-program.md) §3 FF-2.
+
+> ⚠️ **THREE THINGS ABOUT THE SHARED LOCAL STACK, TRUE AS OF THIS HANDOFF.** A **second session is
+> actively working in the primary checkout** on `p_case_type_id` wiring (spawned task, 2026-07-27).
+>
+> 1. **Do NOT run `supabase db reset` from this worktree.** The other session has **two migrations
+>    applied to the shared DB — `20260829000000_case_type_assignment` and
+>    `20260829000100_set_template_case_type` — whose FILES exist only in the primary checkout**
+>    (uncommitted). A reset from here replays only this tree's 198 files and would **silently drop
+>    their schema work mid-session**. Coordinate before resetting anything.
+> 2. **`registered != files` here is expected right now, not corruption.** The shared DB reports
+>    **200 registered** (last `20260829000100`) against **198 files** in this worktree. The usual
+>    "verify registered == files before trusting the catalog" rule still applies — but the delta is
+>    that session's two migrations, not drift. Re-check once their work lands on `main`.
+> 3. **FF-2 must allocate its migration window ABOVE `20260829000100`** — i.e. start at
+>    **`20260830000000`**. The natural next window after FF-1 (`20260828…`) is `20260829…`, and it is
+>    **already taken** by the case-type work. A collision here is a merge conflict in the one place
+>    the repo cannot tolerate one.
+>
+> Also expect **file-level contention** with that session on `src/lib/queries/feature-flags.ts`,
+> `supabase/seed.sql` and `src/lib/types/database.ts` — all three are files FF-2 will also touch.
+> Check `git -C <primary> status` before editing them.
+
+**Two things worth doing before or during FF-2** (both from FF-1's QA, neither blocking):
+**INFO-4** — the SQL↔TS parity vectors have **no drift detector**, and FF-3 adds a *second*
+evaluator pair; a real detector is cheapest now. **MINOR-1/2/3** — three pgTAP corrections that
+could ride FF-2's gate. Detail in **FUP-FF1-2** below.
+
 > 🔴 **FF-2 / FF-5 inherit a binding obligation from FF-1's P0-1** — `answer_matrix_cells`,
 > `answer_risk_matrix` and `answer_references` all hang off **`answer_id`** and are copied by
 > **neither** correction RPC. Correct only while write-inert. Each phase's writer needs a copy
