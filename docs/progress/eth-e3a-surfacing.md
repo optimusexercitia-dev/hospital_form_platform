@@ -176,3 +176,17 @@ shape, not a compromise. **Sequencing:** frontend grows `EVENT_KIND_LABEL` to
 edit the same file. This also preserves the existing intentional manual-vs-echo-kind
 distinction documented in `case-documents.ts` (the plan called it "drift"; it is a design
 choice — `interview`/`safety_event` are deduped echoes).
+
+---
+
+## Post-QA fix — P0-1 (case_events reader-non-writer split, ADR 0079)
+
+QA found a `coordinator_only` read leak: `case_events_writer_write` was `FOR ALL` with a
+bare `USING (can_write_case_content)`. A `cmd=ALL` policy's `USING` participates in SELECT
+(SELECT = OR of every permissive policy's USING), so a content-**write** grantee read
+`coordinator_only` rows — bypassing `case_events_select`'s narrowing. BE-6's `WITH CHECK`
+gate only constrained writes, never reads (the classic ADR-0079 reader-non-writer blind
+spot). Fix (migration `20260827000400`): both `FOR ALL` write policies → command-specific
+`FOR INSERT`/`UPDATE`/`DELETE` (USING/WITH CHECK preserved, incl. the coordinator_only
+insert-gate), leaving `case_events_select` as the sole SELECT authority. Keystone +
+mutation-proof in `267` (#14–17). Full suite 135 files / 3852 tests PASS.

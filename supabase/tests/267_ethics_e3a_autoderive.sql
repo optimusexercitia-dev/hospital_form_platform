@@ -15,7 +15,7 @@
 -- =============================================================================
 
 begin;
-select plan(20);
+select plan(24);
 
 update app.feature_flags set enabled = true
   where key in ('ethics', 'audit_trail', 'cases_multi_phase', 'processless_cases', 'case_types');
@@ -116,6 +116,41 @@ select is((select count(*)::int from public.case_events
 select is((select count(*)::int from public.case_events
              where case_id='00000000-0000-0000-0000-00000e3a5001' and kind in ('finding_recorded','vote_cast')),
   0, 'ordinary reader sees NEITHER coordinator_only auto-derived event');
+reset role;
+
+-- --- P0-1 (ADR 0079) — a WRITE-grantee non-coordinator must NOT see coordinator_only ---
+-- st_x gets a content-WRITE grant (can_write=true, NOT staff_admin/commission_admin).
+-- Pre-fix, the FOR ALL case_events_writer_write.USING re-admitted coordinator_only rows to
+-- write-grantees during SELECT (QA's live leak); post-split, case_events_select is the sole
+-- SELECT authority.
+select test_helpers.grant_ca('00000000-0000-0000-0000-00000e3a5001', (select st_x from k), 'write', (select sa_x from k));
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.case_events
+             where case_id='00000000-0000-0000-0000-00000e3a5001' and kind in ('finding_recorded','vote_cast')),
+  0, 'P0-1: a write-grantee non-coordinator sees ZERO coordinator_only events');
+select is((select count(*)::int from public.case_events
+             where case_id='00000000-0000-0000-0000-00000e3a5001' and visibility='case_readers'),
+  6, 'P0-1: the write-grantee STILL reads the 6 case_readers events (can_write ⊆ can_read via _select)');
+reset role;
+
+-- MUTATION-PROOF: restore the un-narrowed writer read-arm (the pre-fix FOR ALL USING). The
+-- write-grantee then sees the coordinator_only events → the keystone above would go RED.
+create policy case_events_writer_leak_mut on public.case_events
+  for all to authenticated
+  using (app.can_write_case_content(case_id, auth.uid()));
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.case_events
+             where case_id='00000000-0000-0000-0000-00000e3a5001' and kind in ('finding_recorded','vote_cast')),
+  2, 'MUTATION: with the un-narrowed writer read-arm restored, the write-grantee sees BOTH coordinator_only events (keystone RED)');
+reset role;
+drop policy case_events_writer_leak_mut on public.case_events;
+select test_helpers.claims_for((select st_x from k), false);
+set local role authenticated;
+select is((select count(*)::int from public.case_events
+             where case_id='00000000-0000-0000-0000-00000e3a5001' and kind in ('finding_recorded','vote_cast')),
+  0, 'MUTATION reverted: dropping the leaky arm restores 0 coordinator_only for the write-grantee');
 reset role;
 
 -- --- Transactionality: an unauthorized RPC emits ZERO events -----------------
