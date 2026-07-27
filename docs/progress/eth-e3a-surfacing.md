@@ -190,3 +190,48 @@ spot). Fix (migration `20260827000400`): both `FOR ALL` write policies → comma
 `FOR INSERT`/`UPDATE`/`DELETE` (USING/WITH CHECK preserved, incl. the coordinator_only
 insert-gate), leaving `case_events_select` as the sole SELECT authority. Keystone +
 mutation-proof in `267` (#14–17). Full suite 135 files / 3852 tests PASS.
+
+---
+
+## Completion record (human-approved 2026-07-27)
+
+**Phase Gate PASSED, all four steps.** S5·ETH·E3a is the last *build* track of the pre-pilot-release
+plan (ADR 0071); E3b (accreditation link) stays deferred behind Phase 16.
+
+**Commit chain (15, local-first on `main`, unpushed):** `e61fa3c` (BE-1 contract + O-1/O-3 note) ·
+`fb1abbf` (BE-2–4: `case_type_id` + create-path inheritance · `case_events` +8 kinds + `visibility` +
+narrowing RLS · Ethics seed) · `79acbfa` (BE-5: 8-RPC auto-derive, PHI-free, mutation-proven) ·
+`bec5f45` (BE-6: terminology resolver + projections + 3 FE follow-ups; client-safe `terminology.ts`) ·
+`91e7881` (BE-7: `getEthicsDashboard`, RLS-scoped) · `355bd06`+`1366777` (FE terminology screens +
+dashboard route) · `2956aaf` (tester spec) · `1ce0876` (BUG-E3A-002 visibility projection) · `1173900`
+(BE-8 pgTAP renumber 260-263→266-269) · `ef5c38b` (BUG-E3A-001 terminology render + primary-subject
+card) · `70fd5ed` (tester re-verify 21/21) · `8d80783` (QA r1 CHANGES REQUESTED) · `a64e61a` (P0-1
+reader-non-writer split) · `38db4c9` (QA r2 APPROVED).
+
+**Gate evidence:** build tsc/lint/`next build` green · tester `ethics-e3a-surfacing.spec.ts` **21/21**
+(deterministic, fresh resets) · pgTAP **266–269 = 63**, full suite **3852/3852** (independently
+re-confirmed by tester + QA) · QA **APPROVED r2** (dashboard RLS-scoping neutralization-proven
+load-bearing; keystone-vacuity re-audit clean; QA self-caught + closed the write-grantee P0) ·
+**e2e:prod triaged GREEN, 0 deterministic regression** — run 1 was infra-invalidated (`supabase_vector`
+502 crash-loop → 8/12 batches `reset FAILED`; recovered by `[analytics] enabled=false`); run 2 = 731
+passing, 44 infra-only reds (mid-batch server-death cascades in *stable* specs + the `notifications`
+whole-file baseline flake); isolation re-runs confirmed the ethics batch 54/54 (E3a 21/21) + bulk 8/8
+on healthy servers. Evidence composition per the E1 precedent (QA-endorsed): clean batches + isolated
+re-confirmation of every affected spec + independent full pgTAP.
+
+**PO decisions (2026-07-26), both non-recommended, both implemented:** O-1 = reopen E1/E2 →
+`cases.case_type_id` on the **E1 surface** + processless `create_case` **inherits** the type's
+`explicit_grants_only`/`ethics_investigation` (Rule-12). O-3 = **auto-derive** the 8 procedural
+`case_events`. O-2 (dashboard route) + O-4 (kind labels) → frontend.
+
+**Open follow-ups (non-blocking):** QA INFO-1/-2 (2 stale code comments — INFO-1's is true post-P0-fix) ·
+participants **management** UI (add/remove/set-primary/COI via `participants/actions.ts`) unbuilt — E3a
+ships read-only primary-subject display only · ethics dashboard has no nav link (URL-reachable) ·
+`decision_issued` body omits the uncontrolled `decision_type` (optional fast-follow = a controlled
+decision-type vocabulary) · `[analytics] enabled=false` committed separately as a dev-infra gate-stability
+fix.
+
+**Deploy posture:** local-first, **unpushed** (16 commits ahead of origin incl. the case-corrections
+INFO-1 tail). Origin push + remote `db push` + Coolify stay batched for the pilot — that deploy is when
+the m2 flag flip (`case_participants`/`case_types`) + the entire S-track land in production. Only Phases
+18–19 remain post-pilot; **S5 was the last pre-pilot build track.**
