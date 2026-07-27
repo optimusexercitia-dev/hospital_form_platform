@@ -68,6 +68,17 @@ const MESSAGES = {
   overrideResultInvalid: 'Opção de resultado inválida para esta comissão.',
   // phase-result-manual-mode: a MANUAL phase requires a result before submit.
   resultRequired: 'Selecione o resultado da fase antes de enviar.',
+  // FF-1 repeating-group instance writers (ADR 0087; SQLSTATE lane HC0N*).
+  // Static copy, per this module's rule that no raw Postgres message reaches the
+  // UI — the RPCs raise their own pt-BR text (with the actual N interpolated) but
+  // that stays server-side. The wizard already knows `config.maxInstances` and
+  // disables the control; HC0N1 is the backstop for a stale client, not the
+  // primary affordance.
+  groupUnavailable: 'O recurso de blocos repetíveis não está disponível.',
+  groupMaxInstances: 'Este bloco já atingiu o número máximo de itens.',
+  groupInstanceMissing: 'Item do bloco não encontrado nesta resposta.',
+  groupOrderInvalid: 'A nova ordem não corresponde aos itens deste bloco.',
+  groupItemInvalid: 'Este item não é um bloco repetível deste formulário.',
   // success copy
   saved: 'Respostas salvas.',
   savedAndExited: 'Respostas salvas. Você pode continuar mais tarde.',
@@ -110,6 +121,13 @@ const SUPERSEDE_COHERENCE = 'HC0H4'
 /** The caller already holds an in_progress draft of this form version (the
  * platform's one-draft-per-user-per-version invariant, responses_one_draft_per_user_idx). */
 const SUPERSEDE_DRAFT_IN_PROGRESS = 'HC0H5'
+/** FF-1 repeating-group instance writers (ADR 0087; lane HC0N*, above the live
+ *  HC0M9 high-water — the HC09x digit lane is exhausted, see ADR 0087 Amdt 1). */
+const GROUP_FLAG_OFF = 'HC0N0'
+const GROUP_MAX_INSTANCES = 'HC0N1'
+const GROUP_INSTANCE_NOT_FOUND = 'HC0N2'
+const GROUP_ORDER_NOT_PERMUTATION = 'HC0N3'
+const GROUP_ITEM_NOT_REPEATING = 'HC0N4'
 
 /** The staff filling area — revalidated as dynamic-segment pages. */
 const FORMS_LIST_PATH = '/o/[org]/c/[commission]/forms'
@@ -389,11 +407,17 @@ export async function saveAndExit(input: SaveSectionInput): Promise<ActionState>
 // `add` needs `max(position)+1` together with the `maxInstances` check atomically,
 // and `remove`/`reorder` rewrite several positions in one statement-safe pass.
 //
-// Every one is draft-only and creator-only (the RLS policy), and every one is a
-// no-op-safe idempotent target for the wizard's optimistic UI.
+// Every one is draft-only and creator-only (the RLS policy).
 //
-// BODIES ARE STUBS until BE-3 lands the RPCs. The SIGNATURES + return shapes below
-// are the stable contract `frontend` builds FE-2 against.
+// Each follows `saveSection`'s shape exactly — authorize the commission, call the
+// RPC, translate the discriminated SQLSTATE to pt-BR, revalidate. The authorize
+// step never REPLACES RLS; it turns an RLS zero-row silence into readable copy.
+//
+// Covered by `actions.test.ts`, which drives THESE functions against a mocked
+// client rather than the RPCs directly. That distinction is the whole point:
+// lint, typecheck, `next build`, the unit suite and 3919 pgTAP assertions were
+// all green while these three were `throw new Error('not implemented')`, because
+// not one of those gates crosses the seam between the UI and the database.
 
 /** {@link addGroupInstance} result — carries the new instance so the wizard can
  * render and focus it without a refetch. */
@@ -413,11 +437,35 @@ export interface AddGroupInstanceState extends ActionState {
  *
  * Wraps the INVOKER RPC `public.add_group_instance(p_response_id, p_group_item_id)`.
  */
-export async function addGroupInstance(_input: {
+export async function addGroupInstance(input: {
   responseId: string
   groupItemId: string
 }): Promise<AddGroupInstanceState> {
-  throw new Error('not implemented')
+  const { responseId, groupItemId } = input
+  if (!responseId || !groupItemId) {
+    return { ok: false, error: MESSAGES.missingResponse }
+  }
+
+  const supabase = await createClient()
+  const ctx = await contextOfResponse(supabase, responseId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingResponse }
+  if (!(await authorizeMember(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  // Returns the composite `response_group_instances` row directly (not a set), so
+  // `data` is the object — the `start_or_resume_response` precedent, no .single().
+  const { data, error } = await supabase.rpc('add_group_instance', {
+    p_response_id: responseId,
+    p_group_item_id: groupItemId,
+  })
+
+  if (error || !data) {
+    return { ok: false, error: mapGroupError(error) }
+  }
+
+  revalidateFill()
+  return { ok: true, instanceId: data.id, position: data.position }
 }
 
 /**
@@ -429,11 +477,31 @@ export async function addGroupInstance(_input: {
  *
  * Wraps the INVOKER RPC `public.remove_group_instance(p_response_id, p_instance_id)`.
  */
-export async function removeGroupInstance(_input: {
+export async function removeGroupInstance(input: {
   responseId: string
   instanceId: string
 }): Promise<ActionState> {
-  throw new Error('not implemented')
+  const { responseId, instanceId } = input
+  if (!responseId || !instanceId) {
+    return { ok: false, error: MESSAGES.missingResponse }
+  }
+
+  const supabase = await createClient()
+  const ctx = await contextOfResponse(supabase, responseId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingResponse }
+  if (!(await authorizeMember(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('remove_group_instance', {
+    p_response_id: responseId,
+    p_instance_id: instanceId,
+  })
+
+  if (error) return { ok: false, error: mapGroupError(error) }
+
+  revalidateFill()
+  return { ok: true }
 }
 
 /**
@@ -445,12 +513,66 @@ export async function removeGroupInstance(_input: {
  * Wraps the INVOKER RPC
  * `public.reorder_group_instances(p_response_id, p_group_item_id, p_instance_ids)`.
  */
-export async function reorderGroupInstances(_input: {
+export async function reorderGroupInstances(input: {
   responseId: string
   groupItemId: string
   instanceIds: string[]
 }): Promise<ActionState> {
-  throw new Error('not implemented')
+  const { responseId, groupItemId, instanceIds } = input
+  if (!responseId || !groupItemId || !Array.isArray(instanceIds)) {
+    return { ok: false, error: MESSAGES.missingResponse }
+  }
+
+  const supabase = await createClient()
+  const ctx = await contextOfResponse(supabase, responseId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingResponse }
+  if (!(await authorizeMember(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  // The RPC is the authority on "is this a permutation" (HC0N3) — deliberately
+  // NOT re-derived here, where it would drift from the set the database sees.
+  const { error } = await supabase.rpc('reorder_group_instances', {
+    p_response_id: responseId,
+    p_group_item_id: groupItemId,
+    p_instance_ids: instanceIds,
+  })
+
+  if (error) return { ok: false, error: mapGroupError(error) }
+
+  revalidateFill()
+  return { ok: true }
+}
+
+/**
+ * Translate a repeating-group RPC failure to pt-BR. One mapper for all three so
+ * they cannot drift on what a given SQLSTATE means to the user.
+ *
+ * `check_violation` here is always "the response is no longer a draft" —
+ * `app.assert_group_writable` raises it for exactly that, and the schema-level
+ * CHECKs it could otherwise collide with are unreachable from these three RPCs.
+ */
+function mapGroupError(error: { code?: string } | null): string {
+  switch (error?.code) {
+    case GROUP_FLAG_OFF:
+      return MESSAGES.groupUnavailable
+    case GROUP_MAX_INSTANCES:
+      return MESSAGES.groupMaxInstances
+    case GROUP_INSTANCE_NOT_FOUND:
+      return MESSAGES.groupInstanceMissing
+    case GROUP_ORDER_NOT_PERMUTATION:
+      return MESSAGES.groupOrderInvalid
+    case GROUP_ITEM_NOT_REPEATING:
+      return MESSAGES.groupItemInvalid
+    case PG_CHECK_VIOLATION:
+      return MESSAGES.alreadySubmitted
+    case PG_NO_DATA_FOUND:
+      return MESSAGES.missingResponse
+    case PG_RLS_VIOLATION:
+      return MESSAGES.forbidden
+    default:
+      return MESSAGES.generic
+  }
 }
 
 // ---------------------------------------------------------------------------
