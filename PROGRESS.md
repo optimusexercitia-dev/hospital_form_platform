@@ -53,7 +53,7 @@
 | referrals-v2 | **Referrals v2 — Dialogue & Governance** *(pre-pilot expansion of Phase 22; ADR [0037](docs/decisions/0037-inter-committee-case-referrals.md) Amendment 1)* — two-way dialogue thread (R1) + triage/SLA, resolution lifecycle, assignments/links, notes/receipts/redaction (R2–R5); extends (never contradicts) the Phase-22 core. `case_referrals` flag OFF until pilot. Detail → [R1](docs/progress/rv2-r1-referrals.md) · [R2–R5](docs/progress/rv2-r2-r5-governance.md). | ✅ complete | ✅ | ✅ R1 E2E 40/40 + R2–R5 E2E 29/29 · pgTAP `150_referrals` 217/217 | ✅ APPROVED [R1](docs/reviews/rv2-r1-referrals-review.md) + [R2–R5 r2](docs/reviews/rv2-r2-r5-review.md) | ✅ 2026-07-19 | 2026-07-19 | R1 `33dbc09` · R2–R5 `223ed17` (ff→main `a61aae3`) |
 | interviews-v2 | **Interviews v2 — Sessions + Reporting/Confidentiality** *(pre-pilot revision of Phase 11; ADR [0070](docs/decisions/0070-interview-data-model-v2-sessions.md); [detail](docs/progress/iv2-interviews.md))* — `interview_sessions` 1:N (hard-cut of the 5 scheduling cols), `interview_category`, non-enforcing `confidentiality_level`; enforcement + participant-registry wiring landed at ETH·E1. Extends (never contradicts) the Phase-11 core. | ✅ complete | ✅ | ✅ pgTAP `121` 60/60 (full 2287) + phase E2E 13/13 | ✅ APPROVED [review](docs/reviews/iv2-interviews-review.md) | ✅ 2026-07-14 | 2026-07-14 | `b015815`+`da7c219`+`77daa90` (`00a93dd`) |
 | pre-pilot-release | **Pre-Pilot Release Scope Expansion** *(umbrella — 12 initiatives pulled into the pilot release 2026-07-12; ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md); plan [pre-pilot-release-scope-expansion](docs/plans/pre-pilot-release-scope-expansion.md))* — S0 design gate → S1 substrate (N/MEM/SUP) → S2 cores (RV2·R1/IV2/AI) → S3 ETH·E1 (releases the m2 gate) → S4 ETH·E2/RV2 R2–R5/CH → S5 ETH·E3. Only Phases 18–19 stay post-pilot. Pilot follows this whole block + Coolify deploy + origin push. | 🏗️ **in progress — AUTHZ ✅ COMPLETE (Gate 1 + Gate 2, 2026-07-17); then S4 (now ✅ complete 2026-07-20)** (branch `pre-pilot-release-s0`, **local ahead of origin**; **S0 ✅** + **S1 substrate ✅** [→ [s1-substrate](docs/progress/s1-substrate.md)]; **S2 cores ✅ ALL 2026-07-14**: **IV2 ✅** [`phase(11-v2)`] · **RV2·R1 ✅** [`phase(rv2-r1)`] · **AI ✅** [`phase(ai)`]; **S3 · ETH·E1 ✅ COMPLETE 2026-07-14** [`phase(E1)`; **m2 gate RELEASED**; → [eth-e1-access-spine](docs/progress/eth-e1-access-spine.md)]; **✅ AUTHZ COMPLETE 2026-07-17** (ADR [0078](docs/decisions/0078-authorization-capability-model.md); own gate unit) — **Gate 1** (Stage A/B: `_case_caps` resolver + `case_access → case_access_grants` hard cut) + **Gate 2** (Stage C meeting-confidentiality · F1 referral split · N1 NSP-PHI · G-cleanup) both **human-approved**; qa APPROVED re-review [review](docs/reviews/authz-gate-2-review.md) (P0 + 3 MAJOR behaviourally closed, mutation-proven; MINOR-1 rides noted). **✅ S4 COMPLETE 2026-07-20 = ETH·E2 (07-18) · RV2 R2–R5 (07-19) · CH (07-20). **S5 ETH·E3a ✅ COMPLETE 2026-07-27** (last pre-pilot build track; E3b deferred/Phase 16). ▶ Remaining: the pilot deploy (origin push + Coolify + remote `db push`) — Phases 18–19 stay post-pilot.**) | – | – | – | – | – | – |
-| ff-program | **Flexible-Forms Program (FF-1…FF-5)** *(umbrella — five feature phases pulled pre-pilot 2026-07-27; ADR [0086](docs/decisions/0086-flexible-forms-pre-pilot.md); plan [flexible-forms-program](docs/plans/flexible-forms-program.md))* — FF-1 repeating groups (instance RPCs + instance-aware evaluation) → FF-2 matrix/risk → FF-3 validation engine (+`required_if` + operator authorability) → FF-5 entity reference (participant+commission+user lanes, PHI door) → FF-4 power authoring (library + dynamic defaults; calculated fields stay post-pilot). Each phase: own ADR (0087+ at authoring) + flag OFF-until-gate + Phase Gate. **All five gate the pilot deploy.** | 🔜 not started — FF-1 next | – | – | – | – | – | – |
+| ff-program | **Flexible-Forms Program (FF-1…FF-5)** *(umbrella — five feature phases pulled pre-pilot 2026-07-27; ADR [0086](docs/decisions/0086-flexible-forms-pre-pilot.md); plan [flexible-forms-program](docs/plans/flexible-forms-program.md))* — FF-1 repeating groups (instance RPCs + instance-aware evaluation) → FF-2 matrix/risk → FF-3 validation engine (+`required_if` + operator authorability) → FF-5 entity reference (participant+commission+user lanes, PHI door) → FF-4 power authoring (library + dynamic defaults; calculated fields stay post-pilot). Each phase: own ADR (0087+ at authoring) + flag OFF-until-gate + Phase Gate. **All five gate the pilot deploy.** | ▶ **in progress — FF-1** (ADR [0087](docs/decisions/0087-ff1-repeating-groups.md) accepted 2026-07-27) | – | – | – | – | – | – |
 | **ETH·E1** | **Ethics Access Spine — m2 gate release** *(ADR [0072](docs/decisions/0072-ethics-access-spine.md))* — makes the F1 subject layer safe for real ethics data + releases the m2 gate (`case_participants`+`case_types` ON); respondent-exclusion + recusal hard-denies; `explicit_grants_only` visibility; 7-value confidentiality + doc ceiling; no new UI → [detail](docs/progress/eth-e1-access-spine.md) | ✅ complete | ✅ Vitest 369/369 | ✅ pgTAP 91f/2537 · E2E 13/13+1 skip · e2e:prod triaged | ✅ APPROVED (R3) [review](docs/reviews/phase-ETH-E1-review.md) | ✅ 2026-07-14 | 2026-07-14 | 14 commits `167b269`…`02bd2db` (remote deferred) |
 | **ETH·E2** | **Ethics disciplinary procedure** *(S4; ADR [0073](docs/decisions/0073-ethics-procedure-model.md); 0078-reconciled)* — intake → admissibility → allegations/findings → decisions → quorum votes → issue → `participants_only` hearings → appeals; + 5 coordinator controls + coordinator-gated "Processo ético" tab → [detail](docs/progress/eth-e2-procedure.md) | ✅ complete | ✅ | ✅ E2E 20/20 · pgTAP `253`–`259` | ✅ APPROVED [review](docs/reviews/eth-e2-review.md) | ✅ 2026-07-18 | 2026-07-18 | `ada4c97`…`2adb169` |
 | **ETH·E3a** | **Ethics terminology/UX surfacing** *(S5; ADR 0064 D4 / [0072](docs/decisions/0072-ethics-access-spine.md) / [0073](docs/decisions/0073-ethics-procedure-model.md))* — case-type terminology + auto-derived procedural `case_events` timeline + RLS-scoped ethics dashboard; **last pre-pilot build track** (E3b → Phase 16) → [detail](docs/progress/eth-e3a-surfacing.md) | ✅ complete | ✅ | ✅ E2E 21/21 · pgTAP `266`–`269`/3852 | ✅ APPROVED r2 [review](docs/reviews/phase-E3a-review.md) | ✅ 2026-07-27 | 2026-07-27 | `e61fa3c`…`38db4c9` |
@@ -85,10 +85,42 @@ Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 Q
      completed phase's task detail is archived to docs/progress/phase-N.md (or a
      feature-named file) and replaced here by a one-line pointer (CLAUDE.md §7). -->
 
-_No active build phase._ S5 · ETH·E3a closed the ADR-0071 block 2026-07-27; the same day the PO pulled the
-**Flexible-Forms Program (FF-1…FF-5)** pre-pilot (ADR [0086](docs/decisions/0086-flexible-forms-pre-pilot.md) →
-[program plan](docs/plans/flexible-forms-program.md)) — **FF-1 (Repeating Groups) is the next build phase**
-(starts with its own ADR, on human go). Every concluded phase/track lives as a **row in the
+▶ **ACTIVE: FF-1 — Repeating Groups** (Flexible-Forms Program, ADR
+[0086](docs/decisions/0086-flexible-forms-pre-pilot.md) → [program plan](docs/plans/flexible-forms-program.md)).
+Phase ADR **[0087](docs/decisions/0087-ff1-repeating-groups.md)** accepted 2026-07-27 (6 PO rulings; grilling
+interview). Flag `repeating_groups` (seeded OFF → enable migration at the gate). Worktree
+`worktrees/ff/flexible-forms-program`, branch `ff/flexible-forms-program`.
+
+> ⚠ **ADR 0087 §Substrate supersedes the program plan's FF-1 text in 6 places** (live-catalog audit at phase
+> start). Binding for every teammate: per-item config is **`form_items.config`**, *not* `behavior_config`
+> (that column is on `form_versions`) · `response_group_instances` is **already directly writable** (the K9
+> "DML denied" rule covers the six read-only tables only) → writers are **INVOKER**, RLS stays the boundary,
+> and the plan's `rls_group_instances_reader_non_writer` keystone is **retired as not-applicable** ·
+> a second CHECK, `form_items_conditional_not_required`, blocks conditional+required and **FF-1 drops it
+> globally** · `form_items.section_id` is NOT NULL for group children, so the completeness dispatch must
+> exclude `parent_item_id IS NOT NULL` from the flat arm · `app.answer_map` silently collides across
+> instances · `save_section_answers` has **no** instance arm (only `null` literals) and its
+> `p_clear_item_ids` delete is unscoped by instance. SQLSTATE high-water **HC098** → allocate **HC099+**.
+
+| # | Task | Owner | Status |
+|---|---|---|---|
+| BE-0 | **Contract-first:** post typed stubs `frontend` depends on (instance RPC signatures, group-aware wizard/builder types in `src/lib/queries/forms.ts` + `submissions.ts`) before implementing | backend | – |
+| BE-1 | Migration wave 1: flag seeded OFF · relax the `group`/`repeating_group` arms of `form_items_input_vs_display` · **drop `form_items_conditional_not_required`** (ruling 4) · depth-1 container cap (ruling 1) · children-contiguous-after-parent enforcement | backend | – |
+| BE-2 | Instance-aware **`app.answer_map`** — 2-tier overlay (top-level ⊕ instance-*I*, same-instance wins, sibling-absent never falls back) + SQL golden vectors (`20_conditions.sql`) | backend | – |
+| BE-3 | INVOKER RPCs `add_/remove_/reorder_group_instances` — atomic `max(position)+1`, collision-free reorder against the non-deferrable unique, `max_instances` (ruling 5) | backend | – |
+| BE-4 | `save_section_answers` instance arm (`on conflict (response_id,item_id,group_instance_id) where group_instance_id is not null`) + **fix `p_clear_item_ids` instance scoping** | backend | – |
+| BE-5 | **Dispatch-by-`item_type` refactor** of `app.response_required_complete` + group arm (min_instances, per-instance children, **empty-instance skip**) + `submit_response` **prune-then-check** (ruling 3) | backend | – |
+| BE-6 | `validate_visible_when` — reject outside-in conditions targeting a *repeating*-group child, pt-BR `check_violation` (ruling 2); plain `group` children stay legal targets | backend | – |
+| BE-7 | TS evaluator twin (`conditions.ts` instance-aware map) + `condition-vectors.json` new dimension — **SQL↔TS parity is phase-blocking (Rule 3)** | backend | – |
+| BE-8 | `dashboard.ts` explode-by-child-`question_key` + supersession-tolerant read predicate (`group_instance_id` stays **out** of the aggregation key) | backend | – |
+| BE-9 | pgTAP: 209 §B/§C re-pin + the ADR-0087 §Gate keystones, **each mutation-proven** (revert the guard → keystone goes red) | backend | – |
+| FE-1 | Builder: enable both container types in `add-block-menu.tsx` / `item-type-meta.tsx` (flag-gated); child authoring; min/max into **`form_items.config`** | frontend | – |
+| FE-2 | Wizard: instance add/remove/reorder controls, per-instance rendering, resume across navigation | frontend | – |
+| FE-3 | Wizard: `group` as a plain nested sub-section (no instance chrome) + grouped review/summary rendering | frontend | – |
+| FE-4 | Conditional+required UX now that the CHECK is gone — *obrigatório* offered beside a condition, pt-BR errors | frontend | – |
+| FE-5 | Keyboard-only pass over instance controls (add/remove/reorder), visible focus, labels | frontend | – |
+
+Every concluded phase/track lives as a **row in the
 [Phase Status](#phase-status) table above**, with its full record under `docs/progress/`; the remaining
 pre-pilot work — the FF program, then the **pilot deploy** (origin push + Coolify + remote `db push`) — is
 tracked in **Remaining pre-pilot work** below. Phases 18–19 stay post-pilot.
@@ -110,8 +142,8 @@ S1 [substrate (MEM/SUP/N)](docs/progress/s1-substrate.md) · [S0 gate](docs/plan
 
 Expanded 2026-07-12 — ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md); **re-expanded
 2026-07-27 — ADR [0086](docs/decisions/0086-flexible-forms-pre-pilot.md)** (Flexible-Forms FF-1…FF-5 pulled
-pre-pilot). No build phase is active; this is the standing backlog — remaining pre-pilot = the **FF program
-(five gated phases)**, the FUP-AI-1 workstream, then the **pilot deploy**.
+pre-pilot). **FF-1 is now active** (see Current Phase Tasks); this is the standing backlog — remaining
+pre-pilot = the **FF program (five gated phases)**, the FUP-AI-1 workstream, then the **pilot deploy**.
 
 · **S4 ✅ COMPLETE 2026-07-20** — ✅ **ETH·E2** (2026-07-18) + ✅ **Referrals v2 R2–R5** (2026-07-19) + ✅ **CH** Charters (Phase 21, 2026-07-20 — ADR [0080](docs/decisions/0080-committee-charters-cadence-model.md) / [detail](docs/progress/ch-charters-cadence.md)), all → `main`
 · ✅ **S5 ETH·E3a COMPLETE 2026-07-27** — terminology/UX + auto-derived procedural timeline + ethics dashboard (E3b still needs Phase 16) → [eth-e3a-surfacing.md](docs/progress/eth-e3a-surfacing.md)
@@ -279,6 +311,7 @@ lives there. Table header kept below for the next filing.
 | Date | Decision | Ref |
 | ---- | -------- | --- |
 | 2026-07-27 | **Flexible-Forms FF-1…FF-5 pulled pre-pilot** (PO) — all five feature phases build before the pilot and gate the pilot deploy; order FF-1→FF-2→FF-3→FF-5→FF-4; required-capable per phase; instance-aware evaluation in FF-1; `required_if` in FF-3; FF-5 = 3 reference lanes; FF-4 trimmed (calculated fields stay post-pilot). Full rationale → [decisions-log.md](docs/progress/decisions-log.md). | [0086](docs/decisions/0086-flexible-forms-pre-pilot.md) · [program](docs/plans/flexible-forms-program.md) |
+| 2026-07-27 | **FF-1 Repeating Groups rulings** (PO, grilling interview) — nesting **capped at depth 1, schema-enforced**; conditions resolve **inside-out** (2-tier overlay, same-instance wins, sibling-absent never falls back) and **outside-in is rejected at publish** (reversible direction; the ban targets *repeating* groups only); a **fully-empty instance is not incomplete** — skipped, pruned by `submit_response`, `min_instances` checked after pruning; FF-1 **drops `form_items_conditional_not_required` globally** (un-deadens the already-written visibility-wins branch; mutation-proven keystones); instance writers are **INVOKER** correctness doors, **RLS stays the boundary** (the plan's DEFINER/`reader_non_writer` keystone retired as not-applicable) + a post-pilot follow-up to harden the whole fill path coherently; **both** container types ship, `group` as a pure visual container. Also records **6 substrate corrections** to the program plan. | [0087](docs/decisions/0087-ff1-repeating-groups.md) |
 | 2026-07-23 | **Case custom fields** — template-defined, **non-PHI** administrative descriptors on cases (e.g. M&M "Número da Declaração de Óbito"); dedicated `process_template_custom_fields` → snapshot `case_custom_field_values` (reuse form input-type vocabulary, minimal subset: short_text/number/date/single-select); captured in "Novo caso" (atomic in `create_case_from_template`), editable+audited; PHI boundary = fill-time warning; process-less excluded; flag `case_custom_fields`. Design only — build is a later gated phase. | [0083](docs/decisions/0083-case-custom-fields.md) |
 | 2026-07-16 | **`manage_case_access` — KEEP (confirmed, PO).** The resolver computes `v_orgadmin` (`is_commission_admin_of_for`, ~19% of per-row cost) solely to set this bit, which **nothing consumes** (grant doors gate directly, not via the bit). Dropping it would buy ~19% but spend a reserved capability slot a future grant-doors-through-resolver refactor would need. A5 already cleared perf, so no urgency. Kept for model completeness. | [ADR 0078 D1/A16](docs/decisions/0078-authorization-capability-model.md) |
 | 2026-07-16 | **Meeting family — ACCEPT AS-IS (exclusion-perimeter residual).** A coordinator recused from case X can conclude a multi-case meeting discussing X, stamping a boilerplate `case_events` "discussed in" event. Lead-verified she CANNOT read the case via the meeting (`can_reach_case_on_member_surface`=false); only `conclude_meeting` touches case content, and only an auto-generated stamp she does not author. Not guarded because meetings are commission-scoped (per-case guard would block multi-case meetings, §7.7). Low-severity residual, no migration. | [handoff §5](docs/progress/authz-handoff.md) |
@@ -335,6 +368,14 @@ lives there. Table header kept below for the next filing.
 
 <!-- OPEN backlog only (reviewed at each phase start). Resolved [x] items archived →
      docs/progress/follow-ups-archive.md (full snapshot). -->
+
+### ▶ FUP-FF1-1 — coherent fill-path hardening (post-pilot; ADR 0087 ruling 5)
+
+- [ ] Revisit **DEFINER + per-mutation audit for the whole fill path** — `answers`,
+  `answer_selected_options`, `response_group_instances` **together**, as one change. Today all three
+  are direct-DML-under-RLS with no per-row audit (Rule 11 is satisfied for filling at the *response*
+  level via `audit_responses_trg`); FF-1 deliberately matched that convention rather than hardening
+  one table piecemeal. Decide the target posture for the set, not for a member of it.
 
 ### ▶ Case custom fields — BUILT + E2E ✅, QA + human approval pending (ADR 0083, branch `worktree-adr-0083-case-custom-fields`)
 
