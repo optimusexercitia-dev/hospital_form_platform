@@ -444,6 +444,12 @@ flag — but the recommendation is to defer it.)
    (0064 D4's snapshot was never implemented). As-built: an **optional `p_case_type_id`** param snapshots the
    type's `default_visibility_policy`/`default_confidentiality_level` onto the case when supplied **and** the
    `case_types` flag is on; existing callers pass nothing and are unaffected. Full template→case_type plumbing is E2's.
+   **E3a amendment (BE-2, migration `20260827000000`):** the missing `cases.case_type_id` column now
+   exists (nullable FK → `case_types`, `on delete set null`); `create_case_from_template` PERSISTS the
+   validated `p_case_type_id`, and the processless `create_case` gains the same optional param + the SAME
+   org-consistency guard AND the O-1 Rule-12 inheritance (a supplied type resolves its
+   `default_visibility_policy`/`default_confidentiality_level` — so an Ethics case created via the
+   processless path resolves `explicit_grants_only`). NULL stays legal (type-less = today's defaults).
 2. **D5's ceiling could NOT live inside `can_read_attachment`.** That dispatcher is keyed
    `(owner_type, owner_id, uid)` — it never sees an individual attachment's `confidentiality_label`. As-built:
    `can_read_attachment` is **unchanged** (owner-auth only); the ceiling rides a new

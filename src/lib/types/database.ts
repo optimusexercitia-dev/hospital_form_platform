@@ -1978,6 +1978,7 @@ export type Database = {
           occurred_time: string | null
           title: string | null
           updated_at: string
+          visibility: string
         }
         Insert: {
           body: string
@@ -1990,6 +1991,7 @@ export type Database = {
           occurred_time?: string | null
           title?: string | null
           updated_at?: string
+          visibility?: string
         }
         Update: {
           body?: string
@@ -2002,6 +2004,7 @@ export type Database = {
           occurred_time?: string | null
           title?: string | null
           updated_at?: string
+          visibility?: string
         }
         Relationships: [
           {
@@ -3474,6 +3477,7 @@ export type Database = {
       cases: {
         Row: {
           case_number: number
+          case_type_id: string | null
           closed_at: string | null
           closed_by: string | null
           commission_id: string
@@ -3498,6 +3502,7 @@ export type Database = {
         }
         Insert: {
           case_number: number
+          case_type_id?: string | null
           closed_at?: string | null
           closed_by?: string | null
           commission_id: string
@@ -3522,6 +3527,7 @@ export type Database = {
         }
         Update: {
           case_number?: number
+          case_type_id?: string | null
           closed_at?: string | null
           closed_by?: string | null
           commission_id?: string
@@ -3545,6 +3551,13 @@ export type Database = {
           visibility_policy?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "cases_case_type_id_fkey"
+            columns: ["case_type_id"]
+            isOneToOne: false
+            referencedRelation: "case_types"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "cases_closed_by_fkey"
             columns: ["closed_by"]
@@ -9836,6 +9849,7 @@ export type Database = {
         Args: { p_case_id: string }
         Returns: {
           case_number: number
+          case_type_id: string | null
           closed_at: string | null
           closed_by: string | null
           commission_id: string
@@ -10097,6 +10111,7 @@ export type Database = {
         Args: { p_case_id: string }
         Returns: {
           case_number: number
+          case_type_id: string | null
           closed_at: string | null
           closed_by: string | null
           commission_id: string
@@ -10499,6 +10514,7 @@ export type Database = {
       }
       create_case: {
         Args: {
+          p_case_type_id?: string
           p_commission_id: string
           p_department_id?: string
           p_department_other?: string
@@ -10508,6 +10524,7 @@ export type Database = {
         }
         Returns: {
           case_number: number
+          case_type_id: string | null
           closed_at: string | null
           closed_by: string | null
           commission_id: string
@@ -10561,6 +10578,7 @@ export type Database = {
         }
         Returns: {
           case_number: number
+          case_type_id: string | null
           closed_at: string | null
           closed_by: string | null
           commission_id: string
@@ -12804,6 +12822,7 @@ export type Database = {
         Args: { p_case_id: string; p_reason: string }
         Returns: {
           case_number: number
+          case_type_id: string | null
           closed_at: string | null
           closed_by: string | null
           commission_id: string
@@ -13444,6 +13463,7 @@ export type Database = {
         Args: { p_case_id: string; p_outcome_id?: string }
         Returns: {
           case_number: number
+          case_type_id: string | null
           closed_at: string | null
           closed_by: string | null
           commission_id: string
@@ -14435,6 +14455,7 @@ export type Database = {
         }
         Returns: {
           case_number: number
+          case_type_id: string | null
           closed_at: string | null
           closed_by: string | null
           commission_id: string

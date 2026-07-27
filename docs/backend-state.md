@@ -309,6 +309,8 @@ deferred to the pilot reset.
 
 ## E1 — Ethics Access Spine · the m2 gate release (2026-07-14; ADR 0072; migrations `20260720000980`–`…001070`; flags `case_participants`+`case_types` **flipped ON**)
 
+> **E3a amendment (BE-2/BE-3, 2026-07-26; migrations `20260827000000`–`…000100`; local-only, unratified — lead verifying).** `cases.case_type_id` (nullable FK → `case_types`, `on delete set null`) now exists — `create_case_from_template` persists it; the processless `create_case` gained an optional `p_case_type_id` (7th arg) + org-guard + the O-1 Rule-12 inheritance of `visibility_policy`/`confidentiality_level` from the type (t19 re-granted after drop+recreate). `case_events` gained 8 procedural `kind` values (auto-derived in BE-5) + a `visibility` column (`case_readers`|`coordinator_only`, default `case_readers`); `case_events_select` extended as a NARROWING-only AND (`coordinator_only` additionally requires staff_admin/commission-admin; `can_read_case` stays the floor). Seed: the `ethics` case_type reconciled to `explicit_grants_only` + `default_case_label='Denúncia'` + a 5-row terminology bundle + 7 org-wide roles; the E1 fixture case now carries `case_type_id`. pgTAP `260_ethics_e3a_surfacing.sql` **20/20** on a fresh reset.
+
 The access spine the generalized-subject layer (F1/E0) was gated on: a respondent doctor can
 never read the case investigating them, recusal/COI are enforced in the DB (not the UI), and
 ethics cases are explicit-grants-only with a confidentiality ceiling. **Releases the ADR-0064 m2

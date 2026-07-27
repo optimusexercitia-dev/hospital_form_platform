@@ -2216,16 +2216,18 @@ declare
 begin
   insert into public.case_types
     (id, organization_id, key, display_name, primary_subject_kind,
-     default_visibility_policy, default_confidentiality_level)
-  -- ADR 0078 A1 / M6·Q1: the ethics TYPE defaults to `commission_default`. A1 ruled
-  -- that ethics visibility is a PER-CASE decision, not a type-wide one, and this line
-  -- carried the value A1 called wrong (the correction was ruled but never landed).
-  -- ⛔ This default is INERT for every case below: `case_types` has no triggers, `cases`
-  -- has no FK to it, and the E1 case at :2115 inserts its policy DIRECTLY. Measured
-  -- across this flip: cases 6/1 → 6/1. It is read ONLY by create_case_from_template,
-  -- at runtime. The per-case override lives at :2117 and is the model of A1's ruling.
+     default_visibility_policy, default_confidentiality_level, default_case_label)
+  -- ETH·E3a BE-4 / lead O-1 ruling: the ethics TYPE now resolves `explicit_grants_only`
+  -- (was `commission_default` — ADR 0078 A1 flagged that value wrong; per this seed's
+  -- prior comment "the correction was ruled but never landed"). BE-2 gave `cases` a
+  -- `case_type_id` FK + create-time inheritance, so this default is NO LONGER inert: a
+  -- case created from this type (processless or template) now snapshots
+  -- explicit_grants_only + ethics_investigation, closing the Rule-12 hole the O-1 ruling
+  -- names. Per-case overrides still win (the fixture case below sets its policy directly
+  -- AND carries the type — identical result). `default_case_label`/terminology drive the
+  -- E3a UI copy ("Denúncia").
   values (v_ctype, v_org, 'ethics', 'Ética', 'professional',
-          'commission_default', 'ethics_investigation')
+          'explicit_grants_only', 'ethics_investigation', 'Denúncia')
   on conflict do nothing;
 
   insert into public.case_participant_roles
@@ -2233,9 +2235,35 @@ begin
   values (v_role, v_org, 'respondent_doctor', 'Médico denunciado', array['professional'], true)
   on conflict do nothing;
 
+  -- ETH·E3a BE-4 — the 5-row terminology bundle (ADR 0064 D4 example labels; Rule 10
+  -- pt-BR). Every non-Ethics case falls back to the platform default bundle, so this
+  -- only re-labels Ethics cases.
+  insert into public.case_type_terminology
+    (case_type_id, term_key, singular_label, plural_label, help_text)
+  values
+    (v_ctype, 'case',            'Denúncia',              'Denúncias',           null),
+    (v_ctype, 'primary_subject', 'Médico denunciado',     'Médicos denunciados', null),
+    (v_ctype, 'timeline',        'Cronologia processual', null,                  null),
+    (v_ctype, 'document',        'Documento',             'Documentos',          null),
+    (v_ctype, 'decision',        'Decisão',               'Decisões',            null)
+  on conflict (case_type_id, term_key) do nothing;
+
+  -- ETH·E3a BE-4 — the remaining Ethics role vocabulary. Org-wide (case_type_id NULL),
+  -- matching the existing respondent_doctor / affected_patient rows and the seed's
+  -- org-wide role convention. allowed_participant_types use the participants CHECK domain.
+  insert into public.case_participant_roles
+    (organization_id, key, display_name, allowed_participant_types, is_primary_subject_candidate)
+  values
+    (v_org, 'complainant',              'Denunciante',             array['external_person','professional'], false),
+    (v_org, 'witness',                  'Testemunha',              array['external_person','professional'], false),
+    (v_org, 'investigator',             'Relator',                 array['professional'],                    false),
+    (v_org, 'legal_representative',     'Representante legal',     array['external_person'],                 false),
+    (v_org, 'external_regulatory_body', 'Órgão regulador externo', array['regulatory_body'],                 false)
+  on conflict (organization_id, key) where case_type_id is null do nothing;
+
   insert into public.cases
-    (id, commission_id, case_number, label, created_by, visibility_policy, confidentiality_level)
-  values (v_case, v_comm, 9001, 'Denúncia Ética (fixture E1)', v_chefe,
+    (id, commission_id, case_number, case_type_id, label, created_by, visibility_policy, confidentiality_level)
+  values (v_case, v_comm, 9001, v_ctype, 'Denúncia Ética (fixture E1)', v_chefe,
           'explicit_grants_only', 'ethics_investigation')
   on conflict do nothing;
 
