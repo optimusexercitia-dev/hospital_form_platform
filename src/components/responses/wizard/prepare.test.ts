@@ -71,6 +71,12 @@ function response(over: Partial<ResponseForFill>): ResponseForFill {
     answersByKey: {},
     observationsByItemId: {},
     otherTextByItemId: {},
+    // FF-2 (ADR 0089): the grids. Required on the shared read shapes as of
+    // FUP-FF2-1 — all three producers (fill, sign-off door, submission detail)
+    // populate them, so an omission is now a compile error rather than a screen
+    // that silently renders an empty matrix.
+    matrixCellsByItemId: {},
+    riskMatrixByItemId: {},
     // FF-1: repeating-group instances (none in these fixtures).
     instances: [],
     ...over,

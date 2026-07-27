@@ -13,12 +13,20 @@ import {
   encodeCursor,
 } from '@/lib/types/pagination'
 import type { VersionTree } from '@/lib/queries/forms'
-import { buildAnswerMaps, buildGroupInstances } from '@/lib/queries/responses'
+import {
+  TOP_LEVEL_SCOPE,
+  buildAnswerMaps,
+  buildGroupInstances,
+  buildMatrixAnswers,
+} from '@/lib/queries/responses'
 import type {
   GroupInstance,
   GroupInstanceRow,
   ResponseStatus,
+  RiskMatrixAnswer,
   ScopedAnswerRow,
+  ScopedMatrixCellRow,
+  ScopedRiskMatrixRow,
   ScopedSelectionRow,
 } from '@/lib/queries/responses'
 import type { SignoffRecord } from '@/lib/queries/signoffs'
@@ -192,6 +200,13 @@ export interface SubmissionDetail {
    * by `submit_response` (ruling 3), so what appears here is exactly what was
    * filled — never a phantom blank row.
    */
+  /**
+   * FF-2 (ADR 0089): the response's TOP-LEVEL matrix grids and risk answers,
+   * `{ itemId: { rowCode: colCode } }` / `{ itemId: RiskMatrixAnswer }`. Same
+   * shape the wizard and the sign-off view use, so one renderer serves all three.
+   */
+  matrixCellsByItemId: Record<string, Record<string, string>>
+  riskMatrixByItemId: Record<string, RiskMatrixAnswer>
   instances: GroupInstance[]
   /** Per-section sign-off rows (who/when/note), for the detail view. */
   signoffs: SignoffRecord[]
@@ -479,7 +494,16 @@ export async function getSubmissionDetail(
   // FF-1: `group_instance_id` on both sides + the instance rows. Without the
   // scope every instance answer folds into the top-level maps and the last one
   // wins per key (the TS twin of ADR 0087 substrate correction 5).
-  const [{ data: answers }, { data: selectionRows }, { data: instanceRows }] =
+  // FF-2 (ADR 0089): the two matrix tables join the fan-out for the SAME reason
+  // FF-1 added the instance rows — a reader of a submitted response was shown
+  // every answer shape except the grids, which rendered empty.
+  const [
+    { data: answers },
+    { data: selectionRows },
+    { data: instanceRows },
+    { data: cellRows },
+    { data: riskRows },
+  ] =
     await Promise.all([
       supabase
         .from('answers')
@@ -507,6 +531,19 @@ export async function getSubmissionDetail(
         .select('id, group_item_id, position')
         .eq('response_id', responseId)
         .returns<GroupInstanceRow[]>(),
+      supabase
+        .from('answer_matrix_cells')
+        .select('row_id, col_id, answers!inner(item_id, response_id, group_instance_id)')
+        .eq('answers.response_id', responseId)
+        .returns<ScopedMatrixCellRow[]>(),
+      supabase
+        .from('answer_risk_matrix')
+        .select(
+          'severity_row_id, likelihood_col_id, risk_score, ' +
+            'answers!inner(item_id, response_id, group_instance_id)',
+        )
+        .eq('answers.response_id', responseId)
+        .returns<ScopedRiskMatrixRow[]>(),
     ])
 
   const selections: ScopedSelectionRow[] = (selectionRows ?? []).map((s) => ({
@@ -616,6 +653,11 @@ export async function getSubmissionDetail(
     }
   }
 
+  // FF-2: resolve axis ids to CODES through the tree, exactly as
+  // getResponseForFill does, so both readers shape the grid identically.
+  const matrixByScope = buildMatrixAnswers(tree, cellRows ?? [], riskRows ?? [])
+  const topLevelMatrix = matrixByScope.get(TOP_LEVEL_SCOPE)
+
   return {
     responseId: response.id,
     formId: response.form_versions.form_id,
@@ -638,13 +680,18 @@ export async function getSubmissionDetail(
     answersByKey,
     observationsByItemId,
     otherTextByItemId,
+    matrixCellsByItemId: topLevelMatrix?.matrixCellsByItemId ?? {},
+    riskMatrixByItemId: topLevelMatrix?.riskMatrixByItemId ?? {},
     instances: buildGroupInstances(
       tree,
       instanceRows ?? [],
       scopedAnswers,
       selections,
       answersByKey,
-    ),
+    ).map((instance) => {
+      const own = matrixByScope.get(instance.id)
+      return own ? { ...instance, ...own } : instance
+    }),
     signoffs,
   }
 }

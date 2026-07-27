@@ -108,14 +108,15 @@ export interface GroupInstance {
   otherTextByItemId: Record<string, string>
   /**
    * FF-2: this instance's saved matrix grids, `{ itemId: { rowCode: colCode } }`.
-   * Populated by `getResponseForFill`; ABSENT on the sign-off review path, whose
-   * instances come from a server-side JSON payload that does not carry matrix
-   * answers yet (see `getResponseForSignoff`). Read as `?? {}`.
+   * REQUIRED as of FUP-FF2-1. It was optional only because
+   * `get_response_for_signoff` did not project the matrix tables; that door now
+   * does, and `getSubmissionDetail` was wired at the same time, so ALL THREE
+   * producers of a GroupInstance populate these. Optionality here would now only
+   * hide a producer that forgot — the exact failure the field was documenting.
    */
-  matrixCellsByItemId?: Record<string, Record<string, string>>
-  /** FF-2: this instance's saved risk answers, `{ itemId: RiskMatrixAnswer }`.
-   *  Same population caveat as {@link GroupInstance.matrixCellsByItemId}. */
-  riskMatrixByItemId?: Record<string, RiskMatrixAnswer>
+  matrixCellsByItemId: Record<string, Record<string, string>>
+  /** FF-2: this instance's saved risk answers, `{ itemId: RiskMatrixAnswer }`. */
+  riskMatrixByItemId: Record<string, RiskMatrixAnswer>
 }
 
 export interface ResponseForFill {
@@ -157,13 +158,13 @@ export interface ResponseForFill {
    * A matrix inside a repeating group is NOT here — it lives on its
    * {@link GroupInstance.matrixCellsByItemId}, exactly as scalar answers do.
    */
-  matrixCellsByItemId?: Record<string, Record<string, string>>
+  matrixCellsByItemId: Record<string, Record<string, string>>
   /**
    * FF-2 — saved TOP-LEVEL risk answers, keyed by risk_matrix item id.
    * `riskScore` is READ-ONLY (server-derived); send back only
    * `{ severity, likelihood }`.
    */
-  riskMatrixByItemId?: Record<string, RiskMatrixAnswer>
+  riskMatrixByItemId: Record<string, RiskMatrixAnswer>
 }
 
 /** One row in the "minhas respostas" history (submitted + in_progress). */

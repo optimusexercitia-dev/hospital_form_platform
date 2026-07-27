@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getVersionTree } from '@/lib/queries/forms'
 import type { Json } from '@/lib/types/database'
 import type { VersionTree } from '@/lib/queries/forms'
-import type { GroupInstance } from '@/lib/queries/responses'
+import type { GroupInstance, RiskMatrixAnswer } from '@/lib/queries/responses'
 
 /**
  * Sign-off data-access (Architecture Rule 9 — all reads go through
@@ -85,6 +85,17 @@ export interface ResponseForSignoff {
    * them as a muted secondary line under the answer (mirrors BE-7). */
   observationsByItemId: Record<string, string>
   /**
+   * FF-2 (ADR 0089 · FUP-FF2-1) — the response's TOP-LEVEL matrix grids,
+   * `{ itemId: { rowCode: colCode } }`, and its risk answers.
+   *
+   * Same reasoning as `instances` below, one answer shape later: a staff_admin
+   * counter-signs on the strength of THIS screen, so a matrix that renders empty
+   * is a signature attesting to evidence the signer was never shown (Rule 4).
+   * Before FF-2 the door projected every answer shape EXCEPT these two.
+   */
+  matrixCellsByItemId: Record<string, Record<string, string>>
+  riskMatrixByItemId: Record<string, RiskMatrixAnswer>
+  /**
    * FF-1 (ADR 0087) — the response's repeating-group instances, ordered by
    * (groupItemId, position). Sourced from the DEFINER door, not a second query,
    * so the review screen sees exactly what the door authorised.
@@ -140,6 +151,11 @@ interface ResponseForSignoffJson {
   answers: Record<string, Json>
   answers_by_item: Record<string, Json>
   observations_by_item: Record<string, string>
+  /** FF-2 (ADR 0089): the matrix grids, addressed by clone-stable CODES on both
+   *  axes — the same shape the wizard reads, so the review screen reuses its
+   *  renderer rather than growing a second one. */
+  matrix_cells_by_item: Record<string, Record<string, string>>
+  risk_matrix_by_item: Record<string, RiskMatrixJson>
   /** FF-1: one entry per repeating-group instance, from the DEFINER door. */
   instances: GroupInstanceJsonRow[]
   signoffs: SignoffJsonRow[]
@@ -156,6 +172,43 @@ interface GroupInstanceJsonRow {
   answers_by_item: Record<string, Json>
   observations_by_item: Record<string, string>
   other_text_by_item: Record<string, string>
+  /** FF-2: this instance's grids, same shape as the top-level maps. */
+  matrix_cells_by_item: Record<string, Record<string, string>>
+  risk_matrix_by_item: Record<string, RiskMatrixJson>
+}
+
+/** FF-2: one risk answer as the door emits it. `risk_score` is the DURABLE fact
+ *  the signer attests to — it is projected, never recomputed client-side from
+ *  the axis weights, so a later re-weighting cannot retroactively change what a
+ *  historical sign-off appears to say. */
+interface RiskMatrixJson {
+  severity: string
+  likelihood: string
+  risk_score: number | null
+}
+
+/**
+ * FF-2: narrow the door's `risk_matrix_by_item` payload to the SAME
+ * {@link RiskMatrixAnswer} shape `getResponseForFill` returns, so the sign-off
+ * view and the wizard consume one type. Snake_case → camelCase is the only
+ * transformation; a malformed entry is DROPPED rather than rendered, because a
+ * half-formed risk answer on a signing screen is worse than an absent one.
+ */
+function toRiskAnswers(
+  raw: Record<string, RiskMatrixJson> | null | undefined,
+): Record<string, RiskMatrixAnswer> {
+  const out: Record<string, RiskMatrixAnswer> = {}
+  for (const [itemId, entry] of Object.entries(raw ?? {})) {
+    if (!entry || typeof entry.severity !== 'string' || typeof entry.likelihood !== 'string') {
+      continue
+    }
+    out[itemId] = {
+      severity: entry.severity,
+      likelihood: entry.likelihood,
+      riskScore: typeof entry.risk_score === 'number' ? entry.risk_score : null,
+    }
+  }
+  return out
 }
 
 // ---------------------------------------------------------------------------
@@ -235,6 +288,8 @@ export async function getResponseForSignoff(
     answersByKey: payload.answers ?? {},
     answersByItemId: payload.answers_by_item ?? {},
     observationsByItemId: payload.observations_by_item ?? {},
+    matrixCellsByItemId: payload.matrix_cells_by_item ?? {},
+    riskMatrixByItemId: toRiskAnswers(payload.risk_matrix_by_item),
     instances: (payload.instances ?? []).map((i) => ({
       id: i.id,
       groupItemId: i.group_item_id,
@@ -245,13 +300,12 @@ export async function getResponseForSignoff(
       answersByKey: i.answers ?? {},
       observationsByItemId: i.observations_by_item ?? {},
       otherTextByItemId: i.other_text_by_item ?? {},
-      // FF-2 GAP (tracked): matrix/risk answers are deliberately NOT set here.
-      // Unlike getResponseForFill, this view is built from the server-side JSON
-      // of `get_response_for_signoff`, which does not project answer_matrix_cells
-      // / answer_risk_matrix. Until that RPC is widened, a signer reviewing a
-      // section that contains a matrix sees the rest of the answers but an empty
-      // grid. The two fields are optional on GroupInstance ONLY because of this
-      // path — do not read that optionality as "matrices are optional data".
+      // FF-2 (FUP-FF2-1): the gap is CLOSED — the door now projects both matrix
+      // tables per instance, so the signer sees the same grid the respondent
+      // filled. `?? {}` remains because these keys are absent from a payload
+      // produced before 20260830001000, not because the data is optional.
+      matrixCellsByItemId: i.matrix_cells_by_item ?? {},
+      riskMatrixByItemId: toRiskAnswers(i.risk_matrix_by_item),
     })),
     signoffs: (payload.signoffs ?? []).map((s) => ({
       sectionId: s.section_id,
