@@ -1,6 +1,10 @@
 import type { Json } from "@/lib/types/database";
 import type { VersionTree } from "@/lib/queries/forms";
-import type { GroupInstance, RiskMatrixAnswer } from "@/lib/queries/responses";
+import type {
+  GroupInstance,
+  ReferenceAnswer,
+  RiskMatrixAnswer,
+} from "@/lib/queries/responses";
 
 import type { Signoff } from "./signoff-status";
 
@@ -87,6 +91,22 @@ export interface ClientResponseForSignoff {
    */
   matrixCellsByItemId: Record<string, Record<string, string>>;
   riskMatrixByItemId: Record<string, RiskMatrixAnswer>;
+  /**
+   * FF-5 (ADR 0091) — the response's TOP-LEVEL entity references, with labels
+   * already resolved by live join (ruling 4).
+   *
+   * REQUIRED for exactly the reason the two fields above are, and it is the
+   * THIRD instance of one defect: a reference is answerable with `answers.value`
+   * NULL, so a screen that does not receive this renders an answered reference
+   * as "Sem resposta" — and this screen is where a staff_admin puts their name
+   * to the content. Signing blind to a matrix (FF-2) and signing blind to a
+   * repetition (FF-1) were both caught after the fact; making the field required
+   * turns the same omission into a compile error instead of a review finding.
+   *
+   * A reference inside a repeating group is NOT here — it lives on its
+   * {@link GroupInstance}, exactly as scalar answers and matrix grids do.
+   */
+  referencesByItemId: Record<string, ReferenceAnswer>;
   /** Existing sign-off rows for this response, by section. */
   signoffsBySectionId: Record<string, SectionSignoff>;
 }

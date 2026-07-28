@@ -84,6 +84,9 @@ function data(t: VersionTree, initialAnswers: AnswerState = {}): WizardData {
     // REQUIRED on WizardData so a new answer kind can never be silently absent.
     initialMatrixCells: {},
     initialRiskMatrix: {},
+    // FF-5: likewise for the reference slice — REQUIRED on WizardData so a
+    // fixture cannot omit the newest answer kind and quietly stop exercising it.
+    initialReferences: {},
   };
 }
 

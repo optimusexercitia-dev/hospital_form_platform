@@ -52,6 +52,7 @@ import {
   parentItemTypeOf,
 } from "@/components/forms/validation-drafts";
 import { useBuilderFlags } from "@/components/forms/builder-flags";
+import { describeReferenceConfig } from "@/components/forms/reference-vocabulary";
 import { MatrixGrid } from "@/components/responses/wizard/matrix-grid";
 import { RiskMatrixPicker } from "@/components/responses/wizard/risk-matrix-picker";
 import { ImagePreview } from "@/components/forms/image-preview";
@@ -638,6 +639,30 @@ function BlockPreview({
             );
           })}
         </ul>
+      </div>
+    );
+  }
+
+  // FF-5 (ADR 0091) — a reference block previews as its LANE, because that is
+  // the only thing an author configures and the only thing that changes what the
+  // filler will see. The candidate list itself is deliberately NOT previewed: it
+  // is resolved per RESPONSE (case-scoped for patients, invoker-scoped for the
+  // other two lanes), so any list shown here would be the author's own reach,
+  // not the filler's — a preview that is confidently wrong.
+  if (item.itemType === "reference") {
+    return (
+      <div className="flex flex-col gap-1.5 pl-9">
+        {item.questionExplanation && (
+          <p className="text-sm text-muted-foreground">
+            {item.questionExplanation}
+          </p>
+        )}
+        <p className="w-fit rounded-full border border-border bg-card px-2.5 py-0.5 text-xs text-muted-foreground">
+          {describeReferenceConfig(
+            item.config?.referenceKind ?? "participant",
+            item.config?.participantTypes ?? null,
+          )}
+        </p>
       </div>
     );
   }

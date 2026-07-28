@@ -7,7 +7,11 @@ import type { Json } from "@/lib/types/database";
 import type { Item, Section } from "@/lib/queries/forms";
 import { flattenItem } from "@/lib/forms/item-tree";
 import type { AnswerMap } from "@/lib/queries/conditions";
-import type { GroupInstance, RiskMatrixAnswer } from "@/lib/queries/responses";
+import type {
+  GroupInstance,
+  ReferenceAnswer,
+  RiskMatrixAnswer,
+} from "@/lib/queries/responses";
 import {
   ImageContentRenderer,
   SectionTextRenderer,
@@ -112,6 +116,7 @@ export function ReviewAndSign({
             observationsByItemId={data.observationsByItemId}
             matrixCellsByItemId={data.matrixCellsByItemId}
             riskMatrixByItemId={data.riskMatrixByItemId}
+            referencesByItemId={data.referencesByItemId}
             instancesByGroup={instancesByGroup}
             visibleItemIds={visibleItemIds}
             imageUrls={imageUrls}
@@ -151,6 +156,7 @@ function ReviewSection({
   observationsByItemId,
   matrixCellsByItemId,
   riskMatrixByItemId,
+  referencesByItemId,
   instancesByGroup,
   visibleItemIds,
   imageUrls,
@@ -168,6 +174,8 @@ function ReviewSection({
   /** FF-2 — the response's TOP-LEVEL matrix grids / risk answers. */
   matrixCellsByItemId: Record<string, Record<string, string>>;
   riskMatrixByItemId: Record<string, RiskMatrixAnswer>;
+  /** FF-5 — the response's TOP-LEVEL entity references (labels pre-resolved). */
+  referencesByItemId: Record<string, ReferenceAnswer>;
   instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
@@ -227,6 +235,7 @@ function ReviewSection({
         observationsByItemId={observationsByItemId}
         matrixCellsByItemId={matrixCellsByItemId}
         riskMatrixByItemId={riskMatrixByItemId}
+        referencesByItemId={referencesByItemId}
         instancesByGroup={instancesByGroup}
         visibleItemIds={visibleItemIds}
         imageUrls={imageUrls}
@@ -267,6 +276,7 @@ function SectionBody({
   observationsByItemId,
   matrixCellsByItemId,
   riskMatrixByItemId,
+  referencesByItemId,
   instancesByGroup,
   visibleItemIds,
   imageUrls,
@@ -276,6 +286,7 @@ function SectionBody({
   observationsByItemId: Record<string, string>;
   matrixCellsByItemId: Record<string, Record<string, string>>;
   riskMatrixByItemId: Record<string, RiskMatrixAnswer>;
+  referencesByItemId: Record<string, ReferenceAnswer>;
   instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
@@ -323,6 +334,10 @@ function SectionBody({
                 observation={observationsByItemId[item.id]}
                 matrixCells={matrixCellsByItemId[item.id]}
                 riskSelection={riskMatrixByItemId[item.id]}
+                // FF-5 — without this the coordinator signs a section where an
+                // answered reference reads "Sem resposta". Same defect shape as
+                // FF-1's instances and FF-2's grids, one payload table later.
+                reference={referencesByItemId[item.id]}
               />
             ) : (
               <DisplayBlock key={item.id} item={item} imageUrls={imageUrls} />

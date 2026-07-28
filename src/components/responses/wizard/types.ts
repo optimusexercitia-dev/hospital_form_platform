@@ -6,6 +6,7 @@ import type { SectionSignoff } from "@/components/signoffs/types";
 import type { MatrixCellsState, RiskMatrixState } from "@/lib/forms/matrix";
 
 import type { InstanceState } from "./instances";
+import type { ReferenceState } from "./references";
 
 /**
  * Local, thin interface the wizard is built against so the non-data-bound
@@ -101,6 +102,20 @@ export interface WizardData {
    */
   initialMatrixCells: MatrixCellsState;
   initialRiskMatrix: RiskMatrixState;
+  /**
+   * FF-5 (ADR 0091) — the response's saved TOP-LEVEL entity references, with
+   * their labels ALREADY RESOLVED server-side by live join (ruling 4), so a
+   * resumed fill renders "Maria Silva · Enfermeira" rather than a UUID or an
+   * empty box waiting on a client round trip.
+   *
+   * Kept OUT of {@link initialAnswers} for the same reason the matrix slices are:
+   * a reference has `answers.value` NULL, so it would poison the derived
+   * `AnswerMap` — and ruling 5 keeps it out of condition evaluation entirely.
+   *
+   * A reference INSIDE a repeating group is not here; it lives on its
+   * {@link InstanceState}, exactly as scalar answers and matrix grids do.
+   */
+  initialReferences: ReferenceState;
   /** Where the user left off — the wizard opens on this section if resumable. */
   lastSectionId: string | null;
   /**

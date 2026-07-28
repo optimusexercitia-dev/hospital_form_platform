@@ -9,7 +9,13 @@ import type {
 
 import type { AnswerState } from "./types";
 import type { InstanceState } from "./instances";
-import { isChoiceItem, isInputItem, isMatrixItem } from "./effective-visibility";
+import type { ReferenceState } from "./references";
+import {
+  isChoiceItem,
+  isInputItem,
+  isMatrixItem,
+  isReferenceItem,
+} from "./effective-visibility";
 
 /**
  * FF-1 (ADR 0087) — the SAVE-PAYLOAD collectors, extracted so the top-level arm
@@ -38,6 +44,13 @@ export interface ScopeState {
   matrixCells?: MatrixCellsState;
   /** FF-2 — `{ itemId: { severity, likelihood } }`; absent reads as empty. */
   riskMatrix?: RiskMatrixState;
+  /**
+   * FF-5 — `{ itemId: record | null }`; absent reads as empty. The `null` entry
+   * is MEANINGFUL (an explicit clear) and is not the same as an absent key —
+   * see {@link ReferenceState}. This is the fourth kind of answer the
+   * whole-scope collector shape was introduced to absorb.
+   */
+  references?: ReferenceState;
 }
 
 /**
@@ -57,9 +70,17 @@ export interface InstanceAnswers {
   matrixCellsByItemId?: Record<string, MatrixCells>;
   /** FF-2 — this instance's risk selections. NEVER a score: the server derives it. */
   riskMatrixByItemId?: Record<string, RiskSelection>;
+  /**
+   * FF-5 — this instance's references: `itemId → target UUID`, or `null` to
+   * CLEAR. Carried per instance so a reference in repetition 2 addresses
+   * repetition 2's answer row; the runner forwards this to the server action's
+   * matching `referencesByItemId`, which becomes each instance entry's
+   * `references` key on the RPC.
+   */
+  referencesByItemId?: Record<string, string | null>;
 }
 
-/** The scalar/selection/matrix split one scope produces. */
+/** The scalar/selection/matrix/reference split one scope produces. */
 export interface CollectedAnswers {
   answersByItemId: Record<string, Json>;
   selectionsByItemId: Record<string, string[]>;
@@ -67,6 +88,8 @@ export interface CollectedAnswers {
   otherTextByItemId: Record<string, string>;
   matrixCellsByItemId: Record<string, MatrixCells>;
   riskMatrixByItemId: Record<string, RiskSelection>;
+  /** FF-5 — `itemId → target UUID | null` (null clears). REPLACE per item. */
+  referencesByItemId: Record<string, string | null>;
 }
 
 /**
@@ -88,6 +111,11 @@ export interface CollectedAnswers {
  * ⚠ No score is ever collected for a `risk_matrix`. The write contract has no
  * score field and the server recomputes it from the axis weights; sending one
  * would be sending a number that is silently ignored.
+ *
+ * FF-5: a `reference` sends its single TARGET ID — or an explicit `null` to
+ * clear — keyed by item id, under the same REPLACE-per-item contract. It sends
+ * no label: ruling 4 resolves labels by live join and aggregation keys on the
+ * target id, so a label on the wire would be a value the server must ignore.
  */
 export function collectScope(
   items: Item[],
@@ -100,13 +128,33 @@ export function collectScope(
   const otherTextByItemId: Record<string, string> = {};
   const matrixCellsByItemId: Record<string, MatrixCells> = {};
   const riskMatrixByItemId: Record<string, RiskSelection> = {};
+  const referencesByItemId: Record<string, string | null> = {};
 
   const { answers } = scope;
   const scopeCells = scope.matrixCells ?? {};
   const scopeRisk = scope.riskMatrix ?? {};
+  const scopeReferences = scope.references ?? {};
 
   for (const item of items) {
     if (!visibleItemIds.has(item.id)) continue;
+
+    // FF-5 — the reference arm. Dispatched on TYPE for the same reason as the
+    // matrix arms below: `answers.value` is NULL for a reference, so any
+    // value-shaped check reads every answered reference as unanswered.
+    //
+    // The three-way distinction is the whole contract:
+    //   · key ABSENT in state  → omitted → the server leaves the saved row alone;
+    //   · key present, `null`  → sent as null → the server CLEARS the row;
+    //   · key present, record  → sent as the target id → REPLACE.
+    // Collapsing absent and null would make "Limpar" a silent no-op, which is
+    // exactly the failure `clearMatrix`'s empty-grid-vs-missing-key split avoids.
+    if (isReferenceItem(item.itemType)) {
+      const record = scopeReferences[item.id];
+      if (record !== undefined) {
+        referencesByItemId[item.id] = record === null ? null : record.targetId;
+      }
+      continue;
+    }
 
     // FF-2 — the matrix arms. Dispatched on TYPE, never on the presence of a
     // `value`: a matrix answer has `answers.value` NULL by design, so a
@@ -156,6 +204,7 @@ export function collectScope(
     otherTextByItemId,
     matrixCellsByItemId,
     riskMatrixByItemId,
+    referencesByItemId,
   };
 }
 

@@ -4,6 +4,7 @@ import { flattenItem, getSignedAssetUrl } from "@/lib/queries/forms";
 import type { Item, VersionTree } from "@/lib/queries/forms";
 import type {
   GroupInstance,
+  ReferenceAnswer,
   ResponseForFill,
   RiskMatrixAnswer,
 } from "@/lib/queries/responses";
@@ -13,6 +14,7 @@ import type { CasePhaseForFill } from "@/lib/queries/cases";
 import { signoffRecordsToMap } from "@/components/signoffs/adapt";
 
 import type { InstanceState } from "./instances";
+import type { ReferenceState } from "./references";
 import type { AnswerState, WizardData } from "./types";
 
 /**
@@ -121,6 +123,10 @@ export function toInstanceStates(
       // JSON payload that does not carry matrix answers yet), hence `?? {}`.
       matrixCells: instance.matrixCellsByItemId ?? {},
       riskMatrix: toRiskSelections(instance.riskMatrixByItemId),
+      // FF-5 — this instance's own references. `?? {}` for the same reason as
+      // the matrix slice above: the sign-off review path builds instances from a
+      // JSON payload that does not carry them.
+      references: toReferenceState(instance.referencesByItemId),
     });
   }
   return states.sort((a, b) => a.position - b.position);
@@ -142,6 +148,34 @@ function toRiskSelections(
   const out: RiskMatrixState = {};
   for (const [itemId, answer] of Object.entries(saved ?? {})) {
     out[itemId] = { severity: answer.severity, likelihood: answer.likelihood };
+  }
+  return out;
+}
+
+/**
+ * FF-5 — map the saved references to the wizard's reference state.
+ *
+ * Only ANSWERED items appear, and never a `null` entry: `null` in
+ * {@link ReferenceState} means "the filler cleared this during THIS session,
+ * write the clear", which is a statement about the current edit, not about what
+ * is stored. Seeding a null from the server would send a pointless clear for
+ * every unanswered reference on the first save of every section.
+ *
+ * The label/sublabel come across as-is because the query layer already resolved
+ * them by live join (ruling 4) — the client never re-fetches them to render a
+ * resumed answer, and never sends them back.
+ */
+function toReferenceState(
+  saved: Record<string, ReferenceAnswer> | undefined,
+): ReferenceState {
+  const out: ReferenceState = {};
+  for (const [itemId, answer] of Object.entries(saved ?? {})) {
+    out[itemId] = {
+      kind: answer.kind,
+      targetId: answer.targetId,
+      label: answer.label,
+      sublabel: answer.sublabel,
+    };
   }
   return out;
 }
@@ -207,6 +241,9 @@ export function toWizardData(
     // and is not a condition target).
     initialMatrixCells: response.matrixCellsByItemId ?? {},
     initialRiskMatrix: toRiskSelections(response.riskMatrixByItemId),
+    // FF-5 — the TOP-LEVEL references, kept in their own slice so they can never
+    // reach the condition evaluator's answer map (ruling 5).
+    initialReferences: toReferenceState(response.referencesByItemId),
     lastSectionId: response.lastSectionId,
     signoffsBySectionId: signoffRecordsToMap(signoffs),
     phaseResult,

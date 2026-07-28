@@ -48,6 +48,12 @@ import {
   questionConditionTargets,
 } from "@/components/forms/condition-targets";
 import { isContainerItem, isMatrixItem, isRepeatingGroup } from "@/lib/forms/item-tree";
+import type {
+  ParticipantType,
+  ReferenceKind,
+} from "@/lib/forms/reference-constants";
+import { ReferenceConfigEditor } from "@/components/forms/reference-config-editor";
+import { describeReferenceConfig } from "@/components/forms/reference-vocabulary";
 import {
   type BandDraft,
   toBandDrafts,
@@ -155,8 +161,23 @@ export function ItemEditorDialog(props: Props) {
   const isMatrix = isMatrixItem(itemType);
   const isRisk = itemType === "risk_matrix";
   const isInput = INPUT_TYPES.includes(itemType);
+  // FF-5 (ADR 0091) — `reference` is a QUESTION in exactly the sense this shell
+  // means: label, question_key, help text, a visibility condition, and — as of
+  // this phase — `required` + `required_if` (the `form_items_input_vs_display`
+  // arm was relaxed to be byte-identical to the matrix arm, ADR 0086 ruling 4).
+  //
+  // ⚠ This inclusion is load-bearing, not cosmetic. `isQuestion` gates the WHOLE
+  // two-column body: the enunciado field, the "Resposta obrigatória" checkbox,
+  // the `required_if` builder and the `visibleWhen` builder all live inside it.
+  // Leaving `reference` out would render a dialog with a routing field, a footer
+  // and nothing else — a block that cannot be labelled, cannot be made required,
+  // and would fail the DB's own `label is not null` arm on save. That is FF-3's
+  // walk-skip bug in its authoring form, so it is asserted here rather than
+  // assumed: what a type shares with the shell is the shell's question-ness, not
+  // its scalar-ness.
+  const isReference = itemType === "reference";
   /** Types rendered in the two-column "Conteúdo / Comportamento" shell. */
-  const isQuestion = isInput || isMatrix;
+  const isQuestion = isInput || isMatrix || isReference;
   // FF-1 — CONTAINER editing. A container collects no answer, so it has no
   // options, no default value and no `required` flag: a repeating group's
   // required-ness IS `config.minInstances` (BE-0 contract). It keeps a label
@@ -193,6 +214,18 @@ export function ItemEditorDialog(props: Props) {
   // "Flagged If" (number/date/time → config.flaggedWhen).
   const [flaggedWhen, setFlaggedWhen] = useState<FlaggedWhen | null>(
     existing?.config?.flaggedWhen ?? null,
+  );
+  // FF-5 — the reference LANE (→ config.referenceKind). Defaults to
+  // `participant`, matching the column default the server applies, so a block
+  // saved without touching this control behaves identically either way.
+  const [referenceKind, setReferenceKind] = useState<ReferenceKind>(
+    existing?.config?.referenceKind ?? "participant",
+  );
+  // FF-5 — the allowed participant types (→ config.participantTypes). An EMPTY
+  // array is the "all types" state: both an absent key and an empty array mean
+  // the same thing server-side, so there is no third state to keep consistent.
+  const [participantTypes, setParticipantTypes] = useState<ParticipantType[]>(
+    existing?.config?.participantTypes ?? [],
   );
   // FF-1 — repeating-group cardinality (→ config.minInstances/maxInstances).
   const [minInstances, setMinInstances] = useState<string>(
@@ -319,7 +352,9 @@ export function ItemEditorDialog(props: Props) {
     ? isRepeating
       ? "Defina o título, quantas repetições são permitidas e quando o grupo aparece."
       : "Defina o título do grupo e quando ele aparece. As perguntas são adicionadas dentro dele."
-    : isRisk
+    : isReference
+      ? "Defina o enunciado e o que esta pergunta referencia. A resposta é um vínculo com um registro, não um texto digitado."
+      : isRisk
       ? "Defina o enunciado e as faixas de pontuação. A severidade, a probabilidade e os pesos são definidos em “Severidade e probabilidade”."
       : isMatrix
         ? "Defina o enunciado desta matriz. As linhas e as colunas são definidas em “Linhas e colunas”, no bloco."
@@ -357,6 +392,9 @@ export function ItemEditorDialog(props: Props) {
     summaryParts.push(
       `${riskBands.length} ${riskBands.length === 1 ? "faixa" : "faixas"}`,
     );
+  }
+  if (isReference) {
+    summaryParts.push(describeReferenceConfig(referenceKind, participantTypes));
   }
   if (isConditional) summaryParts.push("condicional");
   if (requiredIf !== null) summaryParts.push("obrigatória condicional");
@@ -444,11 +482,13 @@ export function ItemEditorDialog(props: Props) {
                       type="text"
                       defaultValue={existing?.label ?? ""}
                       placeholder={
-                        isRisk
-                          ? "Ex.: Classifique o risco do achado"
-                          : isMatrix
-                            ? "Ex.: Avalie cada critério de conformidade"
-                            : "Ex.: A higienização das mãos foi realizada?"
+                        isReference
+                          ? "Ex.: Profissional responsável pela conduta"
+                          : isRisk
+                            ? "Ex.: Classifique o risco do achado"
+                            : isMatrix
+                              ? "Ex.: Avalie cada critério de conformidade"
+                              : "Ex.: A higienização das mãos foi realizada?"
                       }
                       required
                       autoFocus
@@ -695,6 +735,38 @@ export function ItemEditorDialog(props: Props) {
                           {bandError}
                         </p>
                       ) : null}
+                    </>
+                  ) : null}
+
+                  {isReference ? (
+                    <>
+                      {/* → config.referenceKind / config.participantTypes,
+                          parsed server-side alongside every other config key.
+                          The types array is emitted as JSON, and BLANK for the
+                          "all types" state — absent and empty mean the same
+                          thing to the server, so there is only one way to spell
+                          it on the wire. */}
+                      <input
+                        type="hidden"
+                        name="configReferenceKind"
+                        value={referenceKind}
+                      />
+                      <input
+                        type="hidden"
+                        name="configParticipantTypes"
+                        value={
+                          referenceKind === "participant" &&
+                          participantTypes.length > 0
+                            ? JSON.stringify(participantTypes)
+                            : ""
+                        }
+                      />
+                      <ReferenceConfigEditor
+                        kind={referenceKind}
+                        participantTypes={participantTypes}
+                        onKindChange={setReferenceKind}
+                        onParticipantTypesChange={setParticipantTypes}
+                      />
                     </>
                   ) : null}
 

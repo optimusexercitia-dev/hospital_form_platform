@@ -20,8 +20,10 @@ import {
   isInputItem,
   isChoiceItem,
   isMatrixItem,
+  isReferenceItem,
   type EffectiveVisibility,
 } from "./effective-visibility";
+import type { ReferenceAnswerRecord, ReferenceState } from "./references";
 import {
   groupInstances,
   instanceAnswerMap,
@@ -38,6 +40,7 @@ export {
   isInputItem,
   isChoiceItem,
   isMatrixItem,
+  isReferenceItem,
 };
 export type { EffectiveVisibility };
 
@@ -97,6 +100,14 @@ export interface WizardState {
    */
   matrixCells: MatrixCellsState;
   riskMatrix: RiskMatrixState;
+  /**
+   * FF-5 — the TOP-LEVEL entity references, in their own slice for the same
+   * reason the matrix slices are: a reference has `answers.value` NULL and is
+   * not a condition target (ADR 0091 ruling 5), so merging it into
+   * {@link answers} would put a non-value into {@link answerMap} and corrupt
+   * every condition evaluated after it.
+   */
+  references: ReferenceState;
   /** Derived question_key → value map for `evalCondition`. */
   answerMap: AnswerMap;
   /**
@@ -131,6 +142,8 @@ export interface WizardState {
     /** FF-2 — the top-level matrix slices, from the same ref discipline. */
     matrixCells: MatrixCellsState;
     riskMatrix: RiskMatrixState;
+    /** FF-5 — the top-level references, from the same ref discipline. */
+    references: ReferenceState;
     visibleItemIds: Set<string>;
     instances: InstanceState[];
     visibleItemIdsByInstance: Map<string, Set<string>>;
@@ -179,6 +192,18 @@ export interface WizardState {
     selection: RiskSelection,
   ) => void;
   clearInstanceRiskMatrix: (instanceId: string, itemId: string) => void;
+
+  // --- FF-5 (ADR 0091): entity-reference edits. ONE verb per tier, not the
+  // set/clear pair the matrix slices use, because a reference is single-target
+  // (ruling 9): `null` IS the clear, and it must be RECORDED rather than
+  // deleted, since an absent key means "leave the saved row alone" while an
+  // explicit null means "clear it".
+  setReference: (itemId: string, next: ReferenceAnswerRecord | null) => void;
+  setInstanceReference: (
+    instanceId: string,
+    itemId: string,
+    next: ReferenceAnswerRecord | null,
+  ) => void;
 
   // --- FF-1: per-instance answer edits (same three verbs, scoped to one
   // instance). A repeating-group child NEVER writes into the top-level state.
@@ -403,6 +428,15 @@ export function useWizard(data: WizardData): WizardState {
     () => data.initialRiskMatrix,
   );
 
+  // FF-5 — the TOP-LEVEL entity references. Its own slice for the identical
+  // reason as the matrix slices above: `answers.value` is NULL for a reference,
+  // so merging it into `answers` would feed a non-value into the derived
+  // `AnswerMap`. There is no `withDefaults` pass either — `default_value` seeds
+  // `value`, which a reference does not have (`supportsDefaultValue` excludes it).
+  const [references, setReferences] = useState<ReferenceState>(
+    () => data.initialReferences,
+  );
+
   // FF-1 — the repeating-group instances. A flat, position-ordered list; the
   // renderers consume the grouped/sorted view derived below.
   const [instances, setInstances] = useState<InstanceState[]>(
@@ -457,6 +491,16 @@ export function useWizard(data: WizardData): WizardState {
     riskMatrixRef.current = riskMatrix;
   }, [riskMatrix]);
 
+  // FF-5 — the same live-ref treatment for the reference slice. A pick lands
+  // between a save handler's memoization and its invocation exactly as a
+  // keystroke does, and a reference missing from the payload is silently lost:
+  // the item is simply absent from `referencesByItemId`, which the REPLACE
+  // contract reads as "leave untouched", not as an error.
+  const referencesRef = useRef(references);
+  useEffect(() => {
+    referencesRef.current = references;
+  }, [references]);
+
   /**
    * The LATEST committed answer state + the visibility derived from it, computed
    * on demand from the ref. Used only by the save-time collectors so they never
@@ -467,6 +511,7 @@ export function useWizard(data: WizardData): WizardState {
     answers: AnswerState;
     matrixCells: MatrixCellsState;
     riskMatrix: RiskMatrixState;
+    references: ReferenceState;
     visibleItemIds: Set<string>;
     instances: InstanceState[];
     visibleItemIdsByInstance: Map<string, Set<string>>;
@@ -482,6 +527,7 @@ export function useWizard(data: WizardData): WizardState {
       answers: latest,
       matrixCells: matrixCellsRef.current,
       riskMatrix: riskMatrixRef.current,
+      references: referencesRef.current,
       visibleItemIds: latestVisible,
       instances: latestInstances,
       visibleItemIdsByInstance: deriveInstanceVisibility(
@@ -557,12 +603,34 @@ export function useWizard(data: WizardData): WizardState {
         return grid != null && Object.keys(grid).length > 0;
       };
 
+      /**
+       * FF-5 — the SAME arm for a reference, and it exists for the same reason
+       * the matrix arm does: without it, a reference hidden by a later answer
+       * change keeps its saved `answer_references` row forever — invisible in
+       * the UI, still counted by the server and still blocking a `delete` on the
+       * participant it points at (the FK is `on delete restrict`).
+       *
+       * Included by ITEM ID so it rides the existing `clearItemIds` path, which
+       * deletes the parent `answers` row and cascades `answer_references` off
+       * `answer_id`. A reference can never be the CONTROLLING item (ruling 5
+       * keeps it out of the condition evaluator entirely), so its own state
+       * cannot change under the prospective map and is read from current state.
+       */
+      const referenceAnswered = (item: Item): boolean =>
+        isReferenceItem(item.itemType) &&
+        referencesRef.current[item.id] != null;
+
+      const payloadAnswered = (item: Item): boolean =>
+        matrixAnswered(item) || referenceAnswered(item);
+
       for (const section of sections) {
         if (!visibleSectionIds.has(section.id)) {
           // Whole section hidden → every answered input in it is orphaned.
           const itemIds = [
             ...answeredItemIds(section, nextAnswers),
-            ...sectionAnswerables(section).filter(matrixAnswered).map((it) => it.id),
+            ...sectionAnswerables(section)
+              .filter(payloadAnswered)
+              .map((it) => it.id),
           ];
           if (itemIds.length > 0) orphans.push({ section, itemIds });
           continue;
@@ -577,10 +645,10 @@ export function useWizard(data: WizardData): WizardState {
               hasAnswer(nextAnswers[it.id]),
           )
           .map((it) => it.id);
-        const hiddenMatrices = sectionAnswerables(section)
-          .filter((it) => !nextVisibleItemIds.has(it.id) && matrixAnswered(it))
+        const hiddenPayloads = sectionAnswerables(section)
+          .filter((it) => !nextVisibleItemIds.has(it.id) && payloadAnswered(it))
           .map((it) => it.id);
-        const itemIds = [...hiddenAnswered, ...hiddenMatrices];
+        const itemIds = [...hiddenAnswered, ...hiddenPayloads];
         if (itemIds.length > 0) {
           orphans.push({ section, itemIds });
         }
@@ -686,6 +754,38 @@ export function useWizard(data: WizardData): WizardState {
       const next = { ...prev };
       delete next[itemId];
       return next;
+    });
+  }, []);
+
+  // --- FF-5: entity-reference edits, top level. ----------------------------
+  //
+  // ONE verb, because a reference is single-target: picking REPLACES, and `null`
+  // clears. The null is WRITTEN into state rather than deleting the key — an
+  // absent key means "leave the saved row alone" to the REPLACE contract, so
+  // deleting on clear would make "Remover" a silent no-op that survives a reload.
+  const setReference = useCallback(
+    (itemId: string, next: ReferenceAnswerRecord | null) => {
+      setReferences((prev) => ({ ...prev, [itemId]: next }));
+    },
+    [],
+  );
+
+  /** Drop reference state for items whose `answers` row is being deleted (an
+   *  orphan clear). Here the key really is REMOVED, not nulled: the row is gone
+   *  server-side and `answer_references` cascaded with it, so there is nothing
+   *  left to clear and no write to send. */
+  const forgetReferences = useCallback((itemIds: string[]) => {
+    if (itemIds.length === 0) return;
+    setReferences((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const id of itemIds) {
+        if (id in next) {
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
     });
   }, []);
 
@@ -821,6 +921,24 @@ export function useWizard(data: WizardData): WizardState {
     [patchInstance],
   );
 
+  // FF-5 — the same verb, scoped to ONE instance. A reference in repetition 2
+  // can never write into repetition 1: the write is addressed by
+  // `(instanceId, itemId)` and lands on that instance's own slice, exactly as
+  // FF-1's answers and FF-2's grids do.
+  const setInstanceReference = useCallback(
+    (
+      instanceId: string,
+      itemId: string,
+      next: ReferenceAnswerRecord | null,
+    ) => {
+      patchInstance(instanceId, (instance) => ({
+        ...instance,
+        references: { ...(instance.references ?? {}), [itemId]: next },
+      }));
+    },
+    [patchInstance],
+  );
+
   const addInstanceLocal = useCallback(
     (instance: { id: string; groupItemId: string; position: number }) => {
       setInstances((prev) => [
@@ -894,8 +1012,13 @@ export function useWizard(data: WizardData): WizardState {
         for (const id of clearItemIds) delete next[id];
         return next;
       });
+      // FF-5 — `clearItemIds` can name a REFERENCE item (the orphan detector
+      // includes them), and those ids do not live in `answers`, so the loop
+      // above would leave a hidden reference's label sitting in state to
+      // reappear if the item became visible again.
+      forgetReferences(clearItemIds);
     },
-    [],
+    [forgetReferences],
   );
 
   const clearAnswer = useCallback((itemId: string) => {
@@ -946,6 +1069,7 @@ export function useWizard(data: WizardData): WizardState {
     answers,
     matrixCells,
     riskMatrix,
+    references,
     answerMap,
     visibleContainerIds: effective.visibleContainerIds,
     instancesByGroup,
@@ -963,6 +1087,8 @@ export function useWizard(data: WizardData): WizardState {
     clearInstanceMatrix,
     setInstanceRiskMatrix,
     clearInstanceRiskMatrix,
+    setReference,
+    setInstanceReference,
     setInstanceAnswer,
     setInstanceObservation,
     setInstanceOtherText,

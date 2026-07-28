@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import type { SectionSignoff } from "@/components/signoffs/types";
 
 import type { AnswerState } from "./types";
+import type { ReferenceState } from "./references";
 import type { ScopeState } from "./collect";
 import { AnswerSummary } from "./answer-summary";
 import { RespondentSignoff } from "./respondent-signoff";
@@ -38,6 +39,7 @@ export function ReviewScreen({
   answers,
   matrixCells,
   riskMatrix,
+  references,
   signoffs,
   saving,
   onSignSection,
@@ -61,6 +63,8 @@ export function ReviewScreen({
   /** FF-2 — the TOP-LEVEL matrix answers, reviewed read-only beside the rest. */
   matrixCells?: MatrixCellsState;
   riskMatrix?: RiskMatrixState;
+  /** FF-5 — the TOP-LEVEL entity references, with labels resolved upstream. */
+  references?: ReferenceState;
   /** Existing sign-off rows by section_id (F3). */
   signoffs: Record<string, SectionSignoff>;
   /** Whether an action (sign/submit) is in flight — disables the sign button. */
@@ -111,6 +115,7 @@ export function ReviewScreen({
             answers={answers}
             matrixCells={matrixCells}
             riskMatrix={riskMatrix}
+            references={references}
             visibleItemIds={visibleItemIds}
             visibleContainerIds={visibleContainerIds}
             instancesByGroup={instancesByGroup}
@@ -170,6 +175,7 @@ function ReviewSection({
   answers,
   matrixCells,
   riskMatrix,
+  references,
   visibleItemIds,
   visibleContainerIds,
   instancesByGroup,
@@ -185,6 +191,7 @@ function ReviewSection({
   answers: AnswerState;
   matrixCells?: MatrixCellsState;
   riskMatrix?: RiskMatrixState;
+  references?: ReferenceState;
   visibleItemIds: Set<string>;
   visibleContainerIds?: Set<string>;
   instancesByGroup?: InstancesByGroup;
@@ -276,7 +283,7 @@ function ReviewSection({
                       isAnswerableItem(child.itemType) &&
                       visibleItemIds.has(child.id),
                   )}
-                  scope={{ answers, matrixCells, riskMatrix }}
+                  scope={{ answers, matrixCells, riskMatrix, references }}
                   requiredNow={requiredNow}
                 />
               );
@@ -292,6 +299,7 @@ function ReviewSection({
                     otherText={answers[block.id]?.otherText}
                     matrixCells={matrixCells?.[block.id]}
                     riskSelection={riskMatrix?.[block.id]}
+                    reference={references?.[block.id]}
                     requiredNow={requiredNow?.has(block.id)}
                   />
                 </dl>
@@ -355,6 +363,7 @@ function ReviewAnswerList({
               otherText={answers[item.id]?.otherText}
               matrixCells={scope.matrixCells?.[item.id]}
               riskSelection={scope.riskMatrix?.[item.id]}
+              reference={scope.references?.[item.id]}
               requiredNow={requiredNow?.has(
                 instanceId ? `${instanceId}:${item.id}` : item.id,
               )}

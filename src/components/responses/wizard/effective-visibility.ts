@@ -35,6 +35,12 @@ const CHOICE_TYPES = new Set<string>(["multiple_choice", "dropdown", "checkbox"]
  *  `item-tree.ts`; declared locally to keep this module pure). */
 const MATRIX_TYPES = new Set<string>(["matrix", "risk_matrix"]);
 
+/** FF-5 (ADR 0091) — the ENTITY REFERENCE type. Like a matrix, it is answerable
+ *  but has no scalar `answers.value`, and (ruling 5) it is deliberately NOT a
+ *  condition target — reference answers never enter `app.answer_map`, so nothing
+ *  here ever contributes or drops a key for one. */
+const REFERENCE_TYPES = new Set<string>(["reference"]);
+
 /** True for items that collect an answer (input items, not display or container
  *  blocks). A container collects no answer of its own.
  *
@@ -53,10 +59,22 @@ export function isMatrixItem(itemType: string): boolean {
   return MATRIX_TYPES.has(itemType);
 }
 
-/** True for every item that PRODUCES an answer — the scalar inputs plus the two
- *  matrix types. The client twin of `ANSWERABLE_ITEM_TYPES` in `queries/forms.ts`. */
+/** True for `reference` (FF-5). Its answer is an `answer_references` row, so —
+ *  exactly like a matrix — every "is this answered?" test must dispatch on TYPE
+ *  rather than read `value`, which is NULL for it by design. */
+export function isReferenceItem(itemType: string): boolean {
+  return REFERENCE_TYPES.has(itemType);
+}
+
+/** True for every item that PRODUCES an answer — the scalar inputs, the two
+ *  matrix types, and FF-5's reference. The client twin of
+ *  `ANSWERABLE_ITEM_TYPES` in `queries/forms.ts`. */
 export function isAnswerableItem(itemType: string): boolean {
-  return INPUT_TYPES.has(itemType) || MATRIX_TYPES.has(itemType);
+  return (
+    INPUT_TYPES.has(itemType) ||
+    MATRIX_TYPES.has(itemType) ||
+    REFERENCE_TYPES.has(itemType)
+  );
 }
 
 /** True for the choice input types (multiple_choice / dropdown / checkbox) whose
@@ -135,6 +153,10 @@ export function computeEffectiveVisibility(
    * nothing, requires nothing and is not saved), but they never contribute a key
    * to the effective map: a matrix has `answers.value` NULL by design and is not
    * a condition target, so there is no key to drop when it hides.
+   *
+   * FF-5's `reference` behaves identically here and for the same two reasons —
+   * NULL `value`, not a condition target (ruling 5). The `isInputItem` guard on
+   * the drop is therefore already correct for it, unchanged.
    */
   const walkAnswerable = (item: Item) => {
     if (evalVisibility(item.visibleWhen, effectiveMap)) {

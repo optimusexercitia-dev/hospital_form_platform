@@ -13,6 +13,7 @@ import {
 import type { VersionTree } from "@/lib/queries/forms";
 import {
   controlledDocsEnabled,
+  featureEnabled,
   matrixFieldsEnabled,
   itemValidationsEnabled,
 } from "@/lib/queries/feature-flags";
@@ -81,6 +82,13 @@ export default async function BuilderPage({
     // offered rather than offered and guaranteed to fail on save. Rules that
     // are ALREADY authored still evaluate server-side; this gates authoring.
     const validationsEnabled = await itemValidationsEnabled();
+    // FF-5 (ADR 0091) — `entity_refs`. Same fail-closed reasoning again: while
+    // OFF, `save_section_answers` refuses the reference arm (HC0Q3) and
+    // `reference_candidates` refuses to search, so the type is not offered
+    // rather than offered with a picker that can never load. An ALREADY-AUTHORED
+    // reference block still renders and still resolves its label — gating
+    // authoring is not gating truth.
+    const referencesEnabled = await featureEnabled("entity_refs");
     const controlledDocsOn = await controlledDocsEnabled();
     const approverCandidates = controlledDocsOn
       ? await listApproverCandidates(access.commission.id)
@@ -101,6 +109,7 @@ export default async function BuilderPage({
         containersEnabled={containersEnabled}
         matrixEnabled={matrixEnabled}
         validationsEnabled={validationsEnabled}
+        referencesEnabled={referencesEnabled}
       />
     );
   }

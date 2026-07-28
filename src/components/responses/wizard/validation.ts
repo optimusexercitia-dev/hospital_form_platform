@@ -21,7 +21,9 @@ import {
   isAnswerableItem,
   isInputItem,
   isMatrixItem,
+  isReferenceItem,
 } from "./use-wizard";
+import { hasReference } from "./references";
 
 /**
  * Per-section client-side validation (F2). This is UX ONLY: it gives immediate
@@ -63,6 +65,18 @@ export function validateSection(
     if (isMatrixItem(item.itemType)) {
       const matrixError = checkMatrix(item, scope);
       if (matrixError) errors[item.id] = matrixError;
+      continue;
+    }
+    // FF-5 (ADR 0091 ruling 6) — the reference arm of static `required`, the
+    // client mirror of `app.item_required_satisfied`'s new branch (satisfied =
+    // at least one `answer_references` row). It MUST sit above the `isInputItem`
+    // guard: `reference` is answerable but not an input item, so without this
+    // arm the guard below silently drops it and a required reference would pass
+    // client validation and then be refused by the server — an unexplained
+    // rejection on a field the UI never marked.
+    if (isReferenceItem(item.itemType)) {
+      const referenceError = checkReference(item, scope);
+      if (referenceError) errors[item.id] = referenceError;
       continue;
     }
     if (!isInputItem(item.itemType)) continue;
@@ -108,6 +122,25 @@ function checkMatrix(item: Item, scope: ScopeState): string | null {
   return isMatrixComplete(rows, columns, scope.matrixCells?.[item.id])
     ? null
     : "Responda todas as linhas desta matriz.";
+}
+
+/**
+ * FF-5 (ADR 0091 ruling 6) — the client mirror of the `reference` arm of
+ * `app.item_required_satisfied`: satisfied by at least one `answer_references`
+ * row, which on the client is one non-null record in this scope.
+ *
+ * v1 is single-target (ruling 9), so "at least one" and "exactly one" coincide;
+ * the wording is deliberately the server's ("at least one") so widening to
+ * multi-target later changes the constraint, not this predicate.
+ *
+ * An OPTIONAL reference is never an error — the arm only runs for `required`,
+ * exactly as the matrix arm does. UX only; `submit_response` is the authority.
+ */
+function checkReference(item: Item, scope: ScopeState): string | null {
+  if (!item.required) return null;
+  return hasReference(scope.references, item.id)
+    ? null
+    : "Selecione uma opção para esta referência.";
 }
 
 /**
@@ -158,6 +191,17 @@ export function validateInstances(
         if (isMatrixItem(child.itemType)) {
           const matrixError = checkMatrix(child, instance);
           if (matrixError) errors[`${instance.id}:${child.id}`] = matrixError;
+          continue;
+        }
+        // FF-5 — the per-instance twin of the arm in `validateSection`. Adding
+        // it to one loop and not the other is a bug no test distinguishes from
+        // the fix, which is the note FF-2 left here and the reason both are
+        // edited in the same commit.
+        if (isReferenceItem(child.itemType)) {
+          const referenceError = checkReference(child, instance);
+          if (referenceError) {
+            errors[`${instance.id}:${child.id}`] = referenceError;
+          }
           continue;
         }
         if (!isInputItem(child.itemType)) continue;
@@ -366,6 +410,13 @@ function itemAnswered(item: Item, scope: ScopeState): boolean {
     return item.itemType === "risk_matrix"
       ? isRiskComplete(rows, columns, scope.riskMatrix?.[item.id])
       : isMatrixComplete(rows, columns, scope.matrixCells?.[item.id]);
+  }
+  // FF-5 — a reference answers in `answer_references`, so `hasAnswer` is blind
+  // to it in exactly the way it is blind to a matrix. Without this arm a
+  // `required_if` on a reference would report "obrigatória" against a field the
+  // filler HAS answered, which is worse than not reporting at all.
+  if (isReferenceItem(item.itemType)) {
+    return hasReference(scope.references, item.id);
   }
   return hasAnswer(scope.answers[item.id]);
 }

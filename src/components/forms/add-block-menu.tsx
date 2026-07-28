@@ -17,6 +17,7 @@ import {
   CONTAINER_TYPES,
   ITEM_TYPE_META,
   MATRIX_TYPES,
+  REFERENCE_TYPES,
 } from "@/components/forms/item-type-meta";
 import { ItemEditorDialog } from "@/components/forms/item-editor-dialog";
 import { useBuilderFlags } from "@/components/forms/builder-flags";
@@ -36,8 +37,9 @@ const DISPLAY_TYPES: ItemType[] = ["section_text", "image"];
 /**
  * "Adicionar bloco" type picker: the 8 input types and 2 display types, grouped,
  * plus — behind the `repeating_groups` flag (FF-1, ADR 0087) — the 2 CONTAINER
- * types under "Estrutura", and — behind the `matrix_fields` flag (FF-2, ADR
- * 0089) — the 2 MATRIX types under "Matrizes". Selecting a type opens
+ * types under "Estrutura", behind the `matrix_fields` flag (FF-2, ADR 0089) —
+ * the 2 MATRIX types under "Matrizes", and behind the `entity_refs` flag (FF-5,
+ * ADR 0091) — the `reference` type under "Referências". Selecting a type opens
  * {@link ItemEditorDialog} in "add" mode for that type.
  *
  * Two modes, one component:
@@ -48,7 +50,10 @@ const DISPLAY_TYPES: ItemType[] = ["section_text", "image"];
  *     enforced by `form_items_no_nested_container`): offering a nesting the
  *     database refuses would be a trap, not a feature. A MATRIX is offered in
  *     both modes — it is an answerable item, not a container, so it may live
- *     inside a repeating group and answer per instance.
+ *     inside a repeating group and answer per instance. FF-5's `reference` is
+ *     offered in both modes for the identical reason — it is an answerable item,
+ *     and referencing a different entity per repetition is a first-class use
+ *     (one referral per row, one responsible person per medication).
  */
 export function AddBlockMenu({
   sectionId,
@@ -125,6 +130,19 @@ export function AddBlockMenu({
               <DropdownMenuSeparator />
               <DropdownMenuLabel>Matrizes</DropdownMenuLabel>
               {MATRIX_TYPES.map((type) => (
+                <BlockTypeItem
+                  key={type}
+                  type={type}
+                  onSelect={() => setPendingType(type)}
+                />
+              ))}
+            </>
+          ) : null}
+          {flags.references ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel>Referências</DropdownMenuLabel>
+              {REFERENCE_TYPES.map((type) => (
                 <BlockTypeItem
                   key={type}
                   type={type}

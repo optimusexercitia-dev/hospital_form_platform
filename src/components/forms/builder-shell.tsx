@@ -47,6 +47,7 @@ export function BuilderShell({
   containersEnabled = false,
   matrixEnabled = false,
   validationsEnabled = false,
+  referencesEnabled = false,
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -68,6 +69,8 @@ export function BuilderShell({
   matrixEnabled?: boolean;
   /** FF-3 (ADR 0090) — the per-item validation-rule editor. */
   validationsEnabled?: boolean;
+  /** FF-5 (ADR 0091) — the `entity_refs` flag: offer the `reference` type. */
+  referencesEnabled?: boolean;
 }) {
   const { run, isPending, error } = useBuilderAction();
   const { containerRef, captureBeforeReorder } =
@@ -92,6 +95,7 @@ export function BuilderShell({
       containers={containersEnabled}
       matrix={matrixEnabled}
       validations={validationsEnabled}
+      references={referencesEnabled}
     >
     <div className="flex flex-col gap-8">
       <BuilderHeader

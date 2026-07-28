@@ -65,6 +65,15 @@ export function InstanceAnswersReadonly({
                       // migration — not because the data is optional.
                       matrixCells={instance.matrixCellsByItemId?.[child.id]}
                       riskSelection={instance.riskMatrixByItemId?.[child.id]}
+                      // FF-5 (ADR 0091): same per-instance reasoning — a
+                      // reference inside a repeating group answers PER INSTANCE,
+                      // so its target comes off this instance and nowhere else.
+                      // Passing it is not optional polish: a reference is
+                      // ANSWERABLE with `answers.value` NULL, so omitting the
+                      // prop renders every answered reference as "Sem resposta"
+                      // in every submitted view — a silent data-loss appearance
+                      // rather than a crash.
+                      reference={instance.referencesByItemId?.[child.id]}
                     />
                   ))}
               </dl>

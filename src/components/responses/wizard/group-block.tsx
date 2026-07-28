@@ -5,6 +5,7 @@ import type { Item } from "@/lib/queries/forms";
 import type { MatrixCellsState, RiskMatrixState } from "@/lib/forms/matrix";
 
 import type { AnswerState } from "./types";
+import type { ReferenceState } from "./references";
 import { BlockRenderer } from "./block-renderer";
 import { isAnswerableItem, isInputItem } from "./use-wizard";
 import { ItemHandlerMap } from "./item-handlers";
@@ -34,6 +35,7 @@ export function GroupBlock({
   requiredNow,
   visibleItemIds,
   handlers,
+  references,
 }: {
   item: Item;
   imageUrls: Record<string, string>;
@@ -59,6 +61,11 @@ export function GroupBlock({
   /** Top-level visible item ids — a plain group's children are in this set. */
   visibleItemIds?: Set<string>;
   handlers: ItemHandlerMap;
+  /** FF-5 — the section's TOP-LEVEL reference slice: a plain group's children
+   *  answer at top level (ruling 6), so a reference inside one reads from here,
+   *  never from an instance. The search + commit verbs ride the shared
+   *  {@link handlers} map, already bound per item. */
+  references?: ReferenceState;
 }) {
   const headingId = `group-${item.id}-heading`;
   const descriptionId = item.questionExplanation
@@ -122,6 +129,9 @@ export function GroupBlock({
                 onMatrixCellChange={childHandlers?.onMatrixCellChange}
                 riskSelection={riskMatrix?.[child.id]}
                 onRiskChange={childHandlers?.onRiskChange}
+                reference={references?.[child.id]}
+                onReferenceChange={childHandlers?.onReferenceChange}
+                onReferenceSearch={childHandlers?.onReferenceSearch}
               />
             );
           })

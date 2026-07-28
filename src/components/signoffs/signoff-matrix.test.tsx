@@ -118,6 +118,7 @@ function clientData(over: Partial<ClientResponseForSignoff> = {}): ClientRespons
     observationsByItemId: {},
     matrixCellsByItemId: {},
     riskMatrixByItemId: {},
+    referencesByItemId: {},
     instances: [],
     signoffsBySectionId: {},
     ...over,
@@ -217,6 +218,7 @@ describe("ReviewAndSign — the matrix a signer attests to", () => {
       otherTextByItemId: {},
       matrixCellsByItemId: { m2: { leito: "ok" } },
       riskMatrixByItemId: {},
+      referencesByItemId: {},
     };
     renderScreen(
       clientData({ tree: tree([container]), instances: [instance] }),

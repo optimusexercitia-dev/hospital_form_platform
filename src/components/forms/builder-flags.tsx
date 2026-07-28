@@ -40,6 +40,14 @@ export interface BuilderFlags {
    * `matrix` above).
    */
   validations: boolean;
+  /**
+   * FF-5 (ADR 0091) — offer the `reference` type. While OFF, `save_section_
+   * answers` refuses the reference arm with `HC0Q3` and `reference_candidates`
+   * refuses to search, so an author would get a block whose picker can never
+   * load and whose answer can never be saved — the same fail-closed reasoning as
+   * `matrix` and `validations` above.
+   */
+  references: boolean;
 }
 
 /** All flags OFF — the safe default for any tree rendered without a provider. */
@@ -47,6 +55,7 @@ const DEFAULT_FLAGS: BuilderFlags = {
   containers: false,
   matrix: false,
   validations: false,
+  references: false,
 };
 
 const BuilderFlagsContext = createContext<BuilderFlags>(DEFAULT_FLAGS);
@@ -55,19 +64,21 @@ export function BuilderFlagsProvider({
   containers = false,
   matrix = false,
   validations = false,
+  references = false,
   children,
 }: {
   containers?: boolean;
   matrix?: boolean;
   validations?: boolean;
+  references?: boolean;
   children: React.ReactNode;
 }) {
   // Memoized so the context value is referentially stable across the builder's
   // frequent re-renders (every action refreshes the tree) and never invalidates
   // a consumer that did not change.
   const value = useMemo<BuilderFlags>(
-    () => ({ containers, matrix, validations }),
-    [containers, matrix, validations],
+    () => ({ containers, matrix, validations, references }),
+    [containers, matrix, validations, references],
   );
   return <BuilderFlagsContext value={value}>{children}</BuilderFlagsContext>;
 }

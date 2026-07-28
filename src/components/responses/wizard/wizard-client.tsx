@@ -28,6 +28,7 @@ import {
 import type { ValidationErrorRow } from "@/lib/forms/validation-rules";
 import type { InstanceAnswers } from "./collect";
 import { collectInstances, collectScope, topLevelItems } from "./collect";
+import type { ReferenceAnswerRecord, ReferenceCandidateRow } from "./references";
 import { WizardProgress } from "./wizard-progress";
 import { SectionStep } from "./section-step";
 import { WizardNav } from "./wizard-nav";
@@ -89,6 +90,15 @@ export interface WizardActions {
      */
     matrixCellsByItemId?: Record<string, MatrixCells>;
     riskMatrixByItemId?: Record<string, RiskSelection>;
+    /**
+     * FF-5 (ADR 0091) — the TOP-LEVEL reference arm: `itemId → target UUID`, or
+     * `null` to CLEAR that item's reference. REPLACE per item exactly like the
+     * arms above, and an item ABSENT is left untouched — which is why the
+     * collector records an explicit `null` for a clear instead of dropping the
+     * key. No label is ever sent: ruling 4 resolves labels by live join and
+     * aggregation keys on the target id.
+     */
+    referencesByItemId?: Record<string, string | null>;
   }) => Promise<{ ok: boolean; error?: string }>;
   /** Persist the current section + signal exit; F4. */
   saveAndExit: (input: {
@@ -100,7 +110,26 @@ export interface WizardActions {
     instances?: InstanceAnswers[];
     matrixCellsByItemId?: Record<string, MatrixCells>;
     riskMatrixByItemId?: Record<string, RiskSelection>;
+    referencesByItemId?: Record<string, string | null>;
   }) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * FF-5 (ADR 0091 ruling 3) — search one reference item's candidates.
+   *
+   * INVOKER-rights all the way down: the RPC behind this inherits the caller's
+   * own `participants` / `commissions` / `profiles` read policies and cannot
+   * widen them, and the patient lane narrows FURTHER to the case owning this
+   * response (ruling 2). An empty result is therefore frequently CORRECT — a
+   * filler who belongs to one commission legitimately sees one commission — and
+   * the picker says so rather than treating it as a failure.
+   */
+  searchReferenceCandidates: (input: {
+    itemId: string;
+    query: string;
+  }) => Promise<{
+    ok: boolean;
+    error?: string;
+    candidates?: ReferenceCandidateRow[];
+  }>;
   /**
    * Submit through the server authority (`submit_response`); F5. For case-phase
    * fills (phase-results feature) an optional per-phase result OVERRIDE is passed:
@@ -229,6 +258,7 @@ export function WizardClient({
     answers,
     matrixCells,
     riskMatrix,
+    references,
     answerMap,
     visibleContainerIds,
     instancesByGroup,
@@ -245,6 +275,8 @@ export function WizardClient({
     clearInstanceMatrix,
     setInstanceRiskMatrix,
     clearInstanceRiskMatrix,
+    setReference,
+    setInstanceReference,
     setInstanceAnswer,
     setInstanceObservation,
     setInstanceOtherText,
@@ -282,12 +314,14 @@ export function WizardClient({
       otherTextByItemId: Record<string, string>;
       matrixCellsByItemId: Record<string, MatrixCells>;
       riskMatrixByItemId: Record<string, RiskSelection>;
+      referencesByItemId: Record<string, string | null>;
       instances: InstanceAnswers[];
     } => {
       const {
         answers: latest,
         matrixCells: latestCells,
         riskMatrix: latestRisk,
+        references: latestReferences,
         visibleItemIds: visible,
         instances: latestInstances,
         visibleItemIdsByInstance: latestInstanceVisibility,
@@ -302,6 +336,7 @@ export function WizardClient({
           answers: latest,
           matrixCells: latestCells,
           riskMatrix: latestRisk,
+          references: latestReferences,
         },
         visible,
       );
@@ -677,6 +712,56 @@ export function WizardClient({
     [setInstanceRiskMatrix, clearInstanceFieldError],
   );
 
+  // ----- FF-5: entity references -----
+  //
+  // A reference is not a condition target (ruling 5), so — exactly like a matrix
+  // — picking one can never hide a section and the whole orphan/warn-and-clear
+  // machinery is irrelevant here. The change commits directly and clears the
+  // item's own error, which is the same shape the matrix handlers take.
+  //
+  // Clearing goes through the SAME handler with `null` rather than a separate
+  // verb, so a clear can never take a code path the pick does not and end up
+  // disagreeing with it about what was written.
+
+  const handleReferenceChange = useCallback(
+    (itemId: string, next: ReferenceAnswerRecord | null) => {
+      setReference(itemId, next);
+      // Only a PICK resolves the error; a clear on a required field must keep
+      // saying it is required rather than quietly looking satisfied.
+      if (next) clearFieldError(itemId);
+    },
+    [setReference, clearFieldError],
+  );
+
+  const handleInstanceReferenceChange = useCallback(
+    (instanceId: string, itemId: string, next: ReferenceAnswerRecord | null) => {
+      setInstanceReference(instanceId, itemId, next);
+      if (next) clearInstanceFieldError(instanceId, itemId);
+    },
+    [setInstanceReference, clearInstanceFieldError],
+  );
+
+  /**
+   * Candidate search, top level and per instance.
+   *
+   * Both funnel into ONE injected action, because the server scopes candidates
+   * by `(response_id, item_id)` and derives the case from the response — an
+   * instance adds no scoping the RPC reads today. The instance-aware signature
+   * is kept anyway so the seam is honest if that ever changes; the instance id is
+   * deliberately unused rather than absent.
+   */
+  const handleReferenceSearch = useCallback(
+    (itemId: string, query: string) =>
+      actions.searchReferenceCandidates({ itemId, query }),
+    [actions],
+  );
+
+  const handleInstanceReferenceSearch = useCallback(
+    (_instanceId: string, itemId: string, query: string) =>
+      actions.searchReferenceCandidates({ itemId, query }),
+    [actions],
+  );
+
   /**
    * FF-3 — LIVE validation-rule feedback for the section on screen, derived
    * during render rather than on navigation.
@@ -696,12 +781,20 @@ export function WizardClient({
       currentSection
         ? validateSectionRules(
             currentSection,
-            { answers, matrixCells, riskMatrix },
+            { answers, matrixCells, riskMatrix, references },
             answerMap,
             visibleItemIds,
           )
         : EMPTY_FEEDBACK,
-    [currentSection, answers, matrixCells, riskMatrix, answerMap, visibleItemIds],
+    [
+      currentSection,
+      answers,
+      matrixCells,
+      riskMatrix,
+      references,
+      answerMap,
+      visibleItemIds,
+    ],
   );
 
   /** The same, per repetition — a violation in instance 2 must leave instance 1 alone. */
@@ -764,7 +857,7 @@ export function WizardClient({
     for (const section of visibleSections) {
       const flat = validateSectionRules(
         section,
-        { answers, matrixCells, riskMatrix },
+        { answers, matrixCells, riskMatrix, references },
         answerMap,
         visibleItemIds,
       );
@@ -820,6 +913,7 @@ export function WizardClient({
     answers,
     matrixCells,
     riskMatrix,
+    references,
     answerMap,
     visibleItemIds,
     instancesByGroup,
@@ -890,7 +984,7 @@ export function WizardClient({
 
     const sectionErrors = validateSection(
       section,
-      { answers, matrixCells, riskMatrix },
+      { answers, matrixCells, riskMatrix, references },
       visibleItemIds,
     );
     // FF-1: instances validate separately — prune-then-check, so a fully-empty
@@ -932,6 +1026,7 @@ export function WizardClient({
     answers,
     matrixCells,
     riskMatrix,
+    references,
     visibleItemIds,
     instancesByGroup,
     visibleItemIdsByInstance,
@@ -966,6 +1061,7 @@ export function WizardClient({
           otherTextByItemId: {},
           matrixCellsByItemId: {},
           riskMatrixByItemId: {},
+          referencesByItemId: {},
           instances: [],
         };
     setSaving(true);
@@ -1179,6 +1275,7 @@ export function WizardClient({
             answers={answers}
             matrixCells={matrixCells}
             riskMatrix={riskMatrix}
+            references={references}
             signoffs={signoffs}
             saving={saving}
             onSignSection={handleSignSection}
@@ -1201,6 +1298,7 @@ export function WizardClient({
           answers={answers}
           matrixCells={matrixCells}
           riskMatrix={riskMatrix}
+          references={references}
           errors={shownErrors}
           warnings={shownWarnings}
           requiredNow={liveFeedback.requiredNow}
@@ -1231,6 +1329,10 @@ export function WizardClient({
           onInstanceMatrixClear={clearInstanceMatrix}
           onInstanceRiskChange={handleInstanceRiskChange}
           onInstanceRiskClear={clearInstanceRiskMatrix}
+          onReferenceChange={handleReferenceChange}
+          onReferenceSearch={handleReferenceSearch}
+          onInstanceReferenceChange={handleInstanceReferenceChange}
+          onInstanceReferenceSearch={handleInstanceReferenceSearch}
         />
         <WizardNav
           canGoBack={false}
@@ -1274,6 +1376,7 @@ export function WizardClient({
           answers={answers}
           matrixCells={matrixCells}
           riskMatrix={riskMatrix}
+          references={references}
           signoffs={signoffs}
           saving={saving}
           onSignSection={handleSignSection}
@@ -1293,6 +1396,7 @@ export function WizardClient({
             answers={answers}
             matrixCells={matrixCells}
             riskMatrix={riskMatrix}
+            references={references}
             errors={shownErrors}
             warnings={shownWarnings}
             requiredNow={liveFeedback.requiredNow}
@@ -1323,6 +1427,10 @@ export function WizardClient({
             onInstanceMatrixClear={clearInstanceMatrix}
             onInstanceRiskChange={handleInstanceRiskChange}
             onInstanceRiskClear={clearInstanceRiskMatrix}
+            onReferenceChange={handleReferenceChange}
+            onReferenceSearch={handleReferenceSearch}
+            onInstanceReferenceChange={handleInstanceReferenceChange}
+            onInstanceReferenceSearch={handleInstanceReferenceSearch}
           />
           <WizardNav
             canGoBack={currentStepIndex > 0}

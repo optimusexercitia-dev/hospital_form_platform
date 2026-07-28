@@ -113,6 +113,7 @@ function instance(
     // that silently renders an empty matrix.
     matrixCellsByItemId: {},
     riskMatrixByItemId: {},
+    referencesByItemId: {},
   };
 }
 
@@ -134,6 +135,7 @@ function clientData(
     // `instances` is — a signer must never be shown an empty grid.
     matrixCellsByItemId: {},
     riskMatrixByItemId: {},
+    referencesByItemId: {},
     instances: [
       instance("i1", 0, { medicamento: "Dipirona", dose: "500mg" }),
       instance("i2", 1, { medicamento: "Omeprazol", dose: "20mg" }),
@@ -217,6 +219,7 @@ describe("toClientResponseForSignoff — the adapter forwards instances", () => 
       // evidence nobody saw.
       matrixCellsByItemId: {},
       riskMatrixByItemId: {},
+      referencesByItemId: {},
       instances,
       signoffs: [],
     });

@@ -62,6 +62,13 @@ export function PhaseAnswersReadonly({
                     value={response.answersByItemId[item.id]}
                     observation={response.observationsByItemId[item.id]}
                     otherText={response.otherTextByItemId[item.id]}
+                    matrixCells={response.matrixCellsByItemId?.[item.id]}
+                    riskSelection={response.riskMatrixByItemId?.[item.id]}
+                    // FF-5 (ADR 0091) — a reference answers in
+                    // `answer_references` with `answers.value` NULL, so omitting
+                    // this renders an ANSWERED question as "Sem resposta" in the
+                    // coordinator's phase review. Not a crash — a lie.
+                    reference={response.referencesByItemId?.[item.id]}
                   />
                 ))}
               </dl>

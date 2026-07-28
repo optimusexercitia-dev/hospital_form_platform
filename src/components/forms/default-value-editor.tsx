@@ -298,13 +298,22 @@ export function supportsDefaultValue(itemType: ItemType): boolean {
   // seed for `value` — has nothing to seed. Stated as an explicit exclusion list
   // rather than left to the caller's branch, so the next type that widens the
   // caller does not silently acquire a default-value editor it cannot honour.
+  //
+  // FF-5 (ADR 0091) adds `reference` to the same list, and this IS the "next
+  // type" that comment anticipated: a reference answers in `answer_references`
+  // with `answers.value` NULL, so a default would seed a column the type never
+  // reads. It also could not be authored coherently — a default target id would
+  // be a specific participant/commission/profile frozen into the version, which
+  // ruling 4's live-join stance rejects for a stored LABEL and rejects at least
+  // as firmly for a stored TARGET.
   return (
     itemType !== "section_text" &&
     itemType !== "image" &&
     itemType !== "group" &&
     itemType !== "repeating_group" &&
     itemType !== "matrix" &&
-    itemType !== "risk_matrix"
+    itemType !== "risk_matrix" &&
+    itemType !== "reference"
   );
 }
 

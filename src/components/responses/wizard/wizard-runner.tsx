@@ -11,6 +11,7 @@ import {
   addGroupInstance,
   removeGroupInstance,
   reorderGroupInstances,
+  searchReferenceCandidates,
 } from "@/lib/responses/actions";
 import { resubmitCorrection } from "@/lib/corrections/actions";
 
@@ -104,6 +105,20 @@ export function WizardRunner({
           responseId: data.responseId,
           groupItemId,
           instanceIds,
+        }),
+      // FF-5 (ADR 0091) — the candidate search, bound to this response. Same
+      // binding pattern as everything above: the response id lives here and the
+      // orchestrator stays decoupled from the action's exact signature.
+      //
+      // The action is INVOKER-rights end to end (ruling 3), so it can only ever
+      // return what this user could already read; the response id is what scopes
+      // the patient lane to its case (ruling 2), which is why it belongs on the
+      // call rather than being derived client-side from anything the wizard holds.
+      searchReferenceCandidates: (input: { itemId: string; query: string }) =>
+        searchReferenceCandidates({
+          responseId: data.responseId,
+          itemId: input.itemId,
+          query: input.query,
         }),
     }),
     [data.responseId, data.phaseResult, data.correction],

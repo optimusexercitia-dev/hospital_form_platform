@@ -9,6 +9,7 @@ import {
   Group,
   Hash,
   Image as ImageIcon,
+  Link2,
   Minus,
   Rows3,
   ShieldAlert,
@@ -108,6 +109,22 @@ export const ITEM_TYPE_META: Record<ItemType, ItemTypeMeta> = {
     description: "Severidade × probabilidade, com pontuação e faixa calculadas.",
     Icon: ShieldAlert,
   },
+  // FF-5 (ADR 0091) — the ENTITY REFERENCE type. Added unconditionally for the
+  // same reason as FF-1's containers and FF-2's matrices: this Record is
+  // exhaustive and every consumer does an UNGUARDED `ITEM_TYPE_META[itemType]`
+  // lookup, so a missing entry crashes the moment an authored reference block
+  // renders — including with the flag OFF, which is exactly when it would be
+  // least expected.
+  //
+  // The copy names the ONE thing that separates it from a text field: the answer
+  // is a LINK to a record, so the dashboards can count by it and the name stays
+  // correct when the record is renamed (labels resolve by live join, never
+  // snapshotted — ruling 4).
+  reference: {
+    label: "Referência",
+    description: "Aponta para um participante, uma comissão ou uma pessoa cadastrada.",
+    Icon: Link2,
+  },
 };
 
 /** The two CONTAINER types, in the order the "Estrutura" picker offers them. */
@@ -120,3 +137,11 @@ export const CONTAINER_TYPES: ItemType[] = ["group", "repeating_group"];
  * also why it is not a condition target.
  */
 export const MATRIX_TYPES: ItemType[] = ["matrix", "risk_matrix"];
+
+/**
+ * FF-5 — the reference type(s), in the order the "Referências" picker offers
+ * them. A list of one today; ADR 0091's open questions keep hospital/org lanes
+ * on the table as additional TYPES only if a future ruling says so (v1 makes the
+ * lane a `config` choice inside this one type, not a type per lane).
+ */
+export const REFERENCE_TYPES: ItemType[] = ["reference"];

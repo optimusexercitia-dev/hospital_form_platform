@@ -3,6 +3,7 @@ import type { Item, Section } from "@/lib/queries/forms";
 import type { MatrixCellsState, RiskMatrixState } from "@/lib/forms/matrix";
 
 import type { AnswerRecord, AnswerState } from "./types";
+import { hasAnyReference, type ReferenceState } from "./references";
 
 /**
  * FF-1 (ADR 0087) — the wizard's REPEATING-GROUP instance state, kept pure so
@@ -38,6 +39,13 @@ export interface InstanceState {
    */
   matrixCells?: MatrixCellsState;
   riskMatrix?: RiskMatrixState;
+  /**
+   * FF-5 — this instance's own entity references. A reference inside a repeating
+   * group answers PER INSTANCE like every other child, so the four slices
+   * together are one scope's complete answer state. Optional for the same
+   * fixture reason as the two above; every reader treats absent as `{}`.
+   */
+  references?: ReferenceState;
 }
 
 /** The per-group instance lists, keyed by the container's item id. */
@@ -85,16 +93,20 @@ export function repeatingGroupsOfSection(section: Section): Item[] {
  * way or its live "faltam N repetições" hint would disagree with the server.
  *
  * Mirrors `app.instance_is_empty`: no answer with a non-null, non-`'null'::jsonb`
- * value, no selection (the same empty-array check on the client) — and, as of
- * FF-2, **no matrix cell and no risk selection either**.
+ * value, no selection (the same empty-array check on the client), no matrix cell
+ * and no risk selection (FF-2) — and, as of FF-5, **no entity reference either**.
  *
- * ⚠ That last clause is not cosmetic. A matrix answer's payload lives in
- * `answer_matrix_cells` / `answer_risk_matrix` with `answers.value` NULL, so an
- * instance whose only content is a filled matrix looks empty to a value-only
- * test. The SQL twin was blind to exactly this and would have let
- * `submit_response` PRUNE such an instance, destroying the answer with its cells
- * cascading after it (ADR 0089 §A). The client mirror must count the same way or
- * the review screen would hide a repetition the server is about to keep.
+ * ⚠ Those last two clauses are not cosmetic, and FF-5's is the SAME blindness
+ * FF-2 found, one payload table later. A matrix answer lives in
+ * `answer_matrix_cells` / `answer_risk_matrix` and a reference lives in
+ * `answer_references`, both with `answers.value` NULL — so an instance whose
+ * only content is one of them looks empty to a value-only test. The SQL twin was
+ * blind to exactly this for matrices and would have let `submit_response` PRUNE
+ * such an instance, destroying the answer with its payload cascading after it
+ * (ADR 0089 §A; ADR 0091 ruling 6 restates it verbatim for references, which is
+ * why the arm is added here in the same wave as the writer rather than after a
+ * bug report). The client mirror must count the same way or the review screen
+ * would hide a repetition the server is about to keep.
  */
 export function isEmptyInstance(instance: InstanceState): boolean {
   if (Object.values(instance.answers).some(hasMeaningfulValue)) return false;
@@ -102,7 +114,8 @@ export function isEmptyInstance(instance: InstanceState): boolean {
   if (Object.values(cells).some((grid) => Object.keys(grid).length > 0)) {
     return false;
   }
-  return Object.keys(instance.riskMatrix ?? {}).length === 0;
+  if (Object.keys(instance.riskMatrix ?? {}).length > 0) return false;
+  return !hasAnyReference(instance.references);
 }
 
 function hasMeaningfulValue(rec: AnswerRecord): boolean {

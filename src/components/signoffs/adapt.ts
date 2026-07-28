@@ -67,6 +67,12 @@ export function toClientResponseForSignoff(
     // REQUIRED on `ClientResponseForSignoff` so omitting them cannot compile.
     matrixCellsByItemId: data.matrixCellsByItemId,
     riskMatrixByItemId: data.riskMatrixByItemId,
+    // FF-5 (ADR 0091): forward the reference half, for the third time and for
+    // the same reason. A reference has `answers.value` NULL, so a dropped line
+    // here does not crash — it renders every answered reference as "Sem
+    // resposta" on the one screen where somebody signs their name to what it
+    // says. Required on `ClientResponseForSignoff`, so it cannot be dropped.
+    referencesByItemId: data.referencesByItemId,
     signoffsBySectionId: signoffRecordsToMap(data.signoffs),
   };
 }

@@ -7,6 +7,11 @@ import type { Section } from "@/lib/queries/forms";
 import type { MatrixCellsState, RiskMatrixState } from "@/lib/forms/matrix";
 
 import type { AnswerState } from "./types";
+import type {
+  ReferenceAnswerRecord,
+  ReferenceCandidateRow,
+  ReferenceState,
+} from "./references";
 import { BlockRenderer } from "./block-renderer";
 import { GroupBlock } from "./group-block";
 import { RepeatingGroupBlock } from "./repeating-group-block";
@@ -35,6 +40,7 @@ export function SectionStep({
   answers,
   matrixCells,
   riskMatrix,
+  references,
   errors,
   warnings,
   requiredNow,
@@ -43,6 +49,10 @@ export function SectionStep({
   onMatrixClear,
   onRiskChange,
   onRiskClear,
+  onReferenceChange,
+  onReferenceSearch,
+  onInstanceReferenceChange,
+  onInstanceReferenceSearch,
   visibleItemIds,
   visibleContainerIds,
   instancesByGroup,
@@ -74,6 +84,9 @@ export function SectionStep({
    *  answer at top level too, so they read from these). */
   matrixCells?: MatrixCellsState;
   riskMatrix?: RiskMatrixState;
+  /** FF-5 — the section's TOP-LEVEL reference slice (a plain `group`'s children
+   *  answer at top level too, so they read from this). */
+  references?: ReferenceState;
   errors: Record<string, string>;
   /** FF-3 — failing `warn` rules, keyed by item id. Advisory; never blocks. */
   warnings?: Record<string, string>;
@@ -93,6 +106,35 @@ export function SectionStep({
     selection: { severity: string; likelihood: string },
   ) => void;
   onRiskClear?: (itemId: string) => void;
+  /** FF-5 — commit/clear a top-level reference (null = clear). */
+  onReferenceChange?: (
+    itemId: string,
+    next: ReferenceAnswerRecord | null,
+  ) => void;
+  /** FF-5 — search a top-level reference item's candidates. */
+  onReferenceSearch?: (
+    itemId: string,
+    query: string,
+  ) => Promise<{
+    ok: boolean;
+    error?: string;
+    candidates?: ReferenceCandidateRow[];
+  }>;
+  /** FF-5 — the per-instance twins, forwarded to `RepeatingGroupBlock`. */
+  onInstanceReferenceChange?: (
+    instanceId: string,
+    itemId: string,
+    next: ReferenceAnswerRecord | null,
+  ) => void;
+  onInstanceReferenceSearch?: (
+    instanceId: string,
+    itemId: string,
+    query: string,
+  ) => Promise<{
+    ok: boolean;
+    error?: string;
+    candidates?: ReferenceCandidateRow[];
+  }>;
   /**
    * The item ids currently VISIBLE under item-level conditions
    * (form-builder-enhancements). When provided, hidden input items are skipped;
@@ -187,6 +229,8 @@ export function SectionStep({
       onMatrixClear,
       onRiskChange,
       onRiskClear,
+      onReferenceChange,
+      onReferenceSearch,
     }),
     [
       onChange,
@@ -197,6 +241,8 @@ export function SectionStep({
       onMatrixClear,
       onRiskChange,
       onRiskClear,
+      onReferenceChange,
+      onReferenceSearch,
     ],
   );
   const itemHandlers = useMemo(() => {
@@ -255,6 +301,7 @@ export function SectionStep({
                     requiredNow={requiredNow}
                     visibleItemIds={visibleItemIds}
                     handlers={itemHandlers}
+                    references={references}
                   />
                 );
               }
@@ -293,6 +340,12 @@ export function SectionStep({
                   }
                   onInstanceRiskClear={
                     onInstanceRiskClear ?? NO_OP_INSTANCE_ITEM
+                  }
+                  onInstanceReferenceChange={
+                    onInstanceReferenceChange ?? NO_OP_INSTANCE_REFERENCE
+                  }
+                  onInstanceReferenceSearch={
+                    onInstanceReferenceSearch ?? NO_OP_INSTANCE_SEARCH
                   }
                 />
               );
@@ -333,6 +386,9 @@ export function SectionStep({
                 onMatrixCellChange={handlers?.onMatrixCellChange}
                 riskSelection={riskMatrix?.[item.id]}
                 onRiskChange={handlers?.onRiskChange}
+                reference={references?.[item.id]}
+                onReferenceChange={handlers?.onReferenceChange}
+                onReferenceSearch={handlers?.onReferenceSearch}
               />
             );
           })
@@ -381,3 +437,14 @@ const NO_OP_INSTANCE_RISK: (
   itemId: string,
   selection: { severity: string; likelihood: string },
 ) => void = () => {};
+const NO_OP_INSTANCE_REFERENCE: (
+  instanceId: string,
+  itemId: string,
+  next: ReferenceAnswerRecord | null,
+) => void = () => {};
+const NO_OP_INSTANCE_SEARCH: (
+  instanceId: string,
+  itemId: string,
+  query: string,
+) => Promise<{ ok: boolean; candidates?: ReferenceCandidateRow[] }> = () =>
+  Promise.resolve({ ok: true, candidates: [] });

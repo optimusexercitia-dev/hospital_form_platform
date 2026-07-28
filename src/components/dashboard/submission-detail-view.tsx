@@ -3,7 +3,11 @@ import { CalendarCheck } from "lucide-react";
 import type { Json } from "@/lib/types/database";
 import type { Item, Section, VersionTree } from "@/lib/queries/forms";
 import type { SignoffRecord } from "@/lib/queries/signoffs";
-import type { GroupInstance, RiskMatrixAnswer } from "@/lib/queries/responses";
+import type {
+  GroupInstance,
+  ReferenceAnswer,
+  RiskMatrixAnswer,
+} from "@/lib/queries/responses";
 import { ITEM_TYPE_META } from "@/components/forms/item-type-meta";
 import {
   ImageContentRenderer,
@@ -61,6 +65,7 @@ export function SubmissionDetailView({
   otherTextByItemId = {},
   matrixCellsByItemId = {},
   riskMatrixByItemId = {},
+  referencesByItemId = {},
   instances = [],
   signoffs,
   imageUrls,
@@ -81,6 +86,12 @@ export function SubmissionDetailView({
    */
   matrixCellsByItemId?: Record<string, Record<string, string>>;
   riskMatrixByItemId?: Record<string, RiskMatrixAnswer>;
+  /**
+   * FF-5 (ADR 0091) - the response's TOP-LEVEL entity references, labels
+   * already resolved by live join (ruling 4). A reference inside a
+   * repeating group is NOT here: it rides its {@link GroupInstance}.
+   */
+  referencesByItemId?: Record<string, ReferenceAnswer>;
   /**
    * FF-1 (ADR 0087) — the response's repeating-group instances. Already
    * pruned by `submit_response` (a zero-answer repetition is deleted before
@@ -113,6 +124,7 @@ export function SubmissionDetailView({
           otherTextByItemId={otherTextByItemId}
           matrixCellsByItemId={matrixCellsByItemId}
           riskMatrixByItemId={riskMatrixByItemId}
+          referencesByItemId={referencesByItemId}
           visibleItemIds={visibleItemIds}
           imageUrls={imageUrls}
         />
@@ -133,6 +145,7 @@ export function SubmissionDetailView({
           otherTextByItemId={otherTextByItemId}
           matrixCellsByItemId={matrixCellsByItemId}
           riskMatrixByItemId={riskMatrixByItemId}
+          referencesByItemId={referencesByItemId}
           instancesByGroup={instancesByGroup}
           visibleItemIds={visibleItemIds}
           signoff={signoffsBySection.get(section.id) ?? null}
@@ -152,6 +165,7 @@ function DetailSection({
   otherTextByItemId,
   matrixCellsByItemId,
   riskMatrixByItemId,
+  referencesByItemId,
   instancesByGroup,
   visibleItemIds,
   signoff,
@@ -165,6 +179,7 @@ function DetailSection({
   otherTextByItemId: Record<string, string>;
   matrixCellsByItemId: Record<string, Record<string, string>>;
   riskMatrixByItemId: Record<string, RiskMatrixAnswer>;
+  referencesByItemId: Record<string, ReferenceAnswer>;
   instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   signoff: SignoffRecord | null;
@@ -220,6 +235,7 @@ function DetailSection({
             otherTextByItemId={otherTextByItemId}
             matrixCellsByItemId={matrixCellsByItemId}
             riskMatrixByItemId={riskMatrixByItemId}
+            referencesByItemId={referencesByItemId}
             visibleItemIds={visibleItemIds}
             imageUrls={imageUrls}
           />
@@ -246,6 +262,7 @@ function SectionBody({
   otherTextByItemId,
   matrixCellsByItemId,
   riskMatrixByItemId,
+  referencesByItemId,
   instancesByGroup,
   visibleItemIds,
   imageUrls,
@@ -256,6 +273,7 @@ function SectionBody({
   otherTextByItemId: Record<string, string>;
   matrixCellsByItemId: Record<string, Record<string, string>>;
   riskMatrixByItemId: Record<string, RiskMatrixAnswer>;
+  referencesByItemId: Record<string, ReferenceAnswer>;
   instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
@@ -303,6 +321,7 @@ function SectionBody({
           otherText={otherTextByItemId[item.id]}
           matrixCells={matrixCellsByItemId[item.id]}
           riskSelection={riskMatrixByItemId[item.id]}
+          reference={referencesByItemId[item.id]}
           imageUrls={imageUrls}
         />
       ))}
@@ -325,6 +344,7 @@ function DetailBlock({
   otherText,
   matrixCells,
   riskSelection,
+  reference,
   imageUrls,
 }: {
   item: Item;
@@ -333,6 +353,8 @@ function DetailBlock({
   otherText?: string;
   matrixCells?: Record<string, string>;
   riskSelection?: RiskMatrixAnswer;
+  /** FF-5 - the saved entity reference, or absent when unanswered. */
+  reference?: ReferenceAnswer;
   imageUrls: Record<string, string>;
 }) {
   if (item.itemType === "section_text" && item.content) {
@@ -366,6 +388,7 @@ function DetailBlock({
           otherText={otherText}
           matrixCells={matrixCells}
           riskSelection={riskSelection}
+          reference={reference}
         />
       </dl>
     </article>

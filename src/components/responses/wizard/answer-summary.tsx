@@ -7,13 +7,20 @@ import { TOKEN_STYLES } from "@/components/cases/case-status-badge";
 
 import type { MatrixCells, RiskSelection } from "@/lib/forms/matrix";
 
-import { isEmptyValue, isMatrixItem } from "./use-wizard";
+import { isEmptyValue, isMatrixItem, isReferenceItem } from "./use-wizard";
 import { MatrixGrid } from "./matrix-grid";
 import { RiskMatrixPicker } from "./risk-matrix-picker";
+import { ReferencePicker } from "./reference-picker";
+import type { ReferenceAnswerRecord, ReferenceCandidateRow } from "./references";
 
 // Stable no-ops — a read-only grid never invokes its handler props.
 const NO_OP_CELL: (rowCode: string, colCode: string) => void = () => {};
 const NO_OP_RISK: (next: RiskSelection) => void = () => {};
+const NO_OP_REFERENCE: (next: ReferenceAnswerRecord | null) => void = () => {};
+const NO_OP_SEARCH: () => Promise<{
+  ok: boolean;
+  candidates?: ReferenceCandidateRow[];
+}> = () => Promise.resolve({ ok: true, candidates: [] });
 
 /**
  * Renders one answered input as a read-only label/value pair for the review
@@ -40,6 +47,7 @@ export function AnswerSummary({
   otherText,
   matrixCells,
   riskSelection,
+  reference,
   requiredNow,
 }: {
   item: Item;
@@ -56,6 +64,17 @@ export function AnswerSummary({
    * holds.
    */
   riskSelection?: RiskSelection & { riskScore?: number | null };
+  /**
+   * FF-5 (ADR 0091) — the saved entity reference of a `reference` item in THIS
+   * scope, with its label ALREADY RESOLVED by live join upstream (ruling 4).
+   *
+   * A `null`/absent value renders "Sem resposta" like any other unanswered
+   * question. That is the correct reading for the FILL and REVIEW paths, where
+   * absence genuinely means unanswered — but a read-only consumer whose query
+   * does not yet surface references would render an ANSWERED reference the same
+   * way, so each such consumer must pass this rather than omit it.
+   */
+  reference?: ReferenceAnswerRecord | null;
   /** Optional observation note shown as a muted secondary line. */
   observation?: string | null;
   /**
@@ -112,6 +131,26 @@ export function AnswerSummary({
             readOnly
           />
         )}
+      </div>
+    );
+  }
+
+  // FF-5 — a reference reviews through its OWN read-only renderer rather than
+  // the label/value pair, so the label AND the disambiguating sublabel appear
+  // exactly as they did while filling. On the patient lane the sublabel is the
+  // only thing separating two identically-named rows, so flattening it into a
+  // single line would make the review unable to show WHICH patient was chosen.
+  if (isReferenceItem(item.itemType)) {
+    return (
+      <div className="flex flex-col gap-2 border-b border-border/60 py-3 last:border-b-0">
+        <ReferencePicker
+          item={item}
+          value={reference}
+          requiredNow={requiredNow}
+          onChange={NO_OP_REFERENCE}
+          onSearch={NO_OP_SEARCH}
+          readOnly
+        />
       </div>
     );
   }

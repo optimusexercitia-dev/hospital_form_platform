@@ -12,11 +12,20 @@ import { ImagePreview } from "@/components/forms/image-preview";
 import { InputItem } from "./input-item";
 import { MatrixGrid } from "./matrix-grid";
 import { RiskMatrixPicker } from "./risk-matrix-picker";
+import { ReferencePicker } from "./reference-picker";
+import type { ReferenceAnswerRecord, ReferenceCandidateRow } from "./references";
 
 // Stable no-ops for a read-only render (the grids require the handler props).
 const NO_OP_CELL: (rowCode: string, colCode: string) => void = () => {};
 const NO_OP_RISK: (next: { severity: string; likelihood: string }) => void =
   () => {};
+const NO_OP_REFERENCE: (next: ReferenceAnswerRecord | null) => void = () => {};
+/** A read-only reference never searches; a stable resolved promise keeps the
+ *  prop total without minting a new function per render. */
+const NO_OP_SEARCH: () => Promise<{
+  ok: boolean;
+  candidates?: ReferenceCandidateRow[];
+}> = () => Promise.resolve({ ok: true, candidates: [] });
 
 /**
  * Renders one block within a section (F3): display blocks (`section_text`,
@@ -46,6 +55,9 @@ export function BlockRenderer({
   onMatrixCellChange,
   riskSelection,
   onRiskChange,
+  reference,
+  onReferenceChange,
+  onReferenceSearch,
 }: {
   item: Item;
   imageUrls: Record<string, string>;
@@ -62,6 +74,19 @@ export function BlockRenderer({
   /** FF-2 — this scope's saved selection for a `risk_matrix` item. */
   riskSelection?: { severity: string; likelihood: string };
   onRiskChange?: (selection: { severity: string; likelihood: string }) => void;
+  /** FF-5 — this scope's committed reference for a `reference` item. */
+  reference?: ReferenceAnswerRecord | null;
+  onReferenceChange?: (next: ReferenceAnswerRecord | null) => void;
+  /**
+   * FF-5 — search this item's candidates. Injected all the way down from the
+   * runner (which binds the server action) rather than imported, so no component
+   * in the wizard tree value-imports a data module.
+   */
+  onReferenceSearch?: (query: string) => Promise<{
+    ok: boolean;
+    error?: string;
+    candidates?: ReferenceCandidateRow[];
+  }>;
   observation?: string;
   onObservationChange?: (value: string) => void;
   /** Current "Outros" free text ("Outros" open option); input items only. */
@@ -134,6 +159,28 @@ export function BlockRenderer({
           error={error}
           requiredNow={requiredNow}
           readOnly={onRiskChange == null}
+        />
+      </div>
+    );
+  }
+
+  // FF-5 — the reference type. Dispatched BEFORE the InputItem fallback and
+  // never through it, for the identical reason as the matrix types above:
+  // `InputItem` is built around a scalar `value`, which a reference does not
+  // have. The picker carries its own label, help text, live region and error
+  // region, so it sits in the same card chrome as any other block.
+  if (item.itemType === "reference") {
+    return (
+      <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
+        <ReferencePicker
+          item={item}
+          instanceId={instanceId}
+          value={reference}
+          onChange={onReferenceChange ?? NO_OP_REFERENCE}
+          onSearch={onReferenceSearch ?? NO_OP_SEARCH}
+          error={error}
+          requiredNow={requiredNow}
+          readOnly={onReferenceChange == null}
         />
       </div>
     );

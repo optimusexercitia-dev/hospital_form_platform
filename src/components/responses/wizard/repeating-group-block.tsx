@@ -18,6 +18,10 @@ import {
   describeInstanceShortfall,
   type InstanceState,
 } from "./instances";
+import type {
+  ReferenceAnswerRecord,
+  ReferenceCandidateRow,
+} from "./references";
 import { isAnswerableItem, isInputItem } from "./use-wizard";
 
 /**
@@ -61,6 +65,8 @@ export function RepeatingGroupBlock({
   onInstanceMatrixClear,
   onInstanceRiskChange,
   onInstanceRiskClear,
+  onInstanceReferenceChange,
+  onInstanceReferenceSearch,
 }: {
   item: Item;
   instances: InstanceState[];
@@ -114,6 +120,30 @@ export function RepeatingGroupBlock({
     selection: { severity: string; likelihood: string },
   ) => void;
   onInstanceRiskClear: (instanceId: string, itemId: string) => void;
+  /**
+   * FF-5 — the per-instance reference verbs. A reference inside a repeating
+   * group answers per instance like any other child, so both are addressed by
+   * `(instanceId, itemId)` and never touch the top-level slice.
+   *
+   * The SEARCH is per instance too, and that is not redundant plumbing: the
+   * candidate RPC is scoped by `(response_id, item_id)`, so binding the item
+   * without the instance would be correct today and silently wrong the moment
+   * anything scopes candidates per instance. Binding both keeps the seam honest.
+   */
+  onInstanceReferenceChange: (
+    instanceId: string,
+    itemId: string,
+    next: ReferenceAnswerRecord | null,
+  ) => void;
+  onInstanceReferenceSearch: (
+    instanceId: string,
+    itemId: string,
+    query: string,
+  ) => Promise<{
+    ok: boolean;
+    error?: string;
+    candidates?: ReferenceCandidateRow[];
+  }>;
 }) {
   const headingId = `group-${item.id}-heading`;
   const descriptionId = item.questionExplanation
@@ -175,6 +205,8 @@ export function RepeatingGroupBlock({
                 onMatrixClear={onInstanceMatrixClear}
                 onRiskChange={onInstanceRiskChange}
                 onRiskClear={onInstanceRiskClear}
+                onReferenceChange={onInstanceReferenceChange}
+                onReferenceSearch={onInstanceReferenceSearch}
               />
             </li>
           ))}
@@ -238,6 +270,8 @@ function InstanceCard({
   onMatrixClear,
   onRiskChange,
   onRiskClear,
+  onReferenceChange,
+  onReferenceSearch,
 }: {
   container: Item;
   instance: InstanceState;
@@ -285,6 +319,20 @@ function InstanceCard({
     selection: { severity: string; likelihood: string },
   ) => void;
   onRiskClear: (instanceId: string, itemId: string) => void;
+  onReferenceChange: (
+    instanceId: string,
+    itemId: string,
+    next: ReferenceAnswerRecord | null,
+  ) => void;
+  onReferenceSearch: (
+    instanceId: string,
+    itemId: string,
+    query: string,
+  ) => Promise<{
+    ok: boolean;
+    error?: string;
+    candidates?: ReferenceCandidateRow[];
+  }>;
 }) {
   const headingId = `instance-${instance.id}-heading`;
   const ordinal = `${index + 1} de ${total}`;
@@ -307,6 +355,12 @@ function InstanceCard({
       onRiskChange: (itemId, selection) =>
         onRiskChange(instance.id, itemId, selection),
       onRiskClear: (itemId) => onRiskClear(instance.id, itemId),
+      // FF-5 — bound to THIS instance's id, so a reference picked in repetition
+      // 2 can never land on repetition 1's answer row.
+      onReferenceChange: (itemId, next) =>
+        onReferenceChange(instance.id, itemId, next),
+      onReferenceSearch: (itemId, query) =>
+        onReferenceSearch(instance.id, itemId, query),
     }),
     [
       instance.id,
@@ -318,6 +372,8 @@ function InstanceCard({
       onMatrixClear,
       onRiskChange,
       onRiskClear,
+      onReferenceChange,
+      onReferenceSearch,
     ],
   );
   const handlers = useMemo(
@@ -417,6 +473,9 @@ function InstanceCard({
                 onMatrixCellChange={childHandlers?.onMatrixCellChange}
                 riskSelection={instance.riskMatrix?.[child.id]}
                 onRiskChange={childHandlers?.onRiskChange}
+                reference={instance.references?.[child.id]}
+                onReferenceChange={childHandlers?.onReferenceChange}
+                onReferenceSearch={childHandlers?.onReferenceSearch}
               />
             );
           })
