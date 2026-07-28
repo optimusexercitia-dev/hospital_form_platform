@@ -276,6 +276,34 @@ product bug vs stale spec. Deterministic (fails every run on a clean stack, 0 co
 
 Same module, same triage round; not characterized further. Deterministic.
 
+#### 🟡 BUG-E2EISO-001 — `orgadmin.a` loses org-admin affordances when 4 specs share a prod batch · owner **tester** · **OPEN** (filed 2026-07-28)
+
+Three tests fail **only when batched**, each passing when its file runs alone:
+
+| Test | Symptom |
+|---|---|
+| `hospital-admin-tier.spec.ts:243` HA-2 appoint/revoke | `getByRole('button', {name:'Nomear administrador(a)'})` never appears (30s timeout) |
+| `hospital-admin-tier.spec.ts:291` HA-2 no self-delegation | same button, same timeout |
+| `phase-multitenancy.spec.ts:205` MT-6 hospital selector | `toBeVisible()` fails on the populated selector |
+
+**Repro** (deterministic — 3 consecutive runs, fresh `db reset` each):
+```
+SPECS="e2e/phase-multitenancy.spec.ts e2e/hospital-admin-tier.spec.ts \
+       e2e/administrativo.spec.ts e2e/cases-board-access.spec.ts" \
+  RESET=0 REBUILD=0 RETRIES=0 bash scripts/e2e-prod-gate.sh     # 77 passed / 3 failed
+```
+`hospital-admin-tier` alone → **38/38**. `phase-multitenancy` + `hospital-admin-tier` on a dev
+server → **68/68**.
+
+**Pre-existing, NOT caused by the auth-cache change** — proven by an A/B on unmodified code
+through the identical batch: **77 passed / 3 failed, byte-identical outcome** (only the GoTrue
+login count differs, 91 → 32). Do not attribute this to `e2e/helpers/auth.ts`.
+
+All three involve `orgadmin.a@test.local` losing org-level UI affordances, so the likely cause is
+a membership/roster mutation by an earlier spec in the batch (bucket C-4, shared-seed isolation —
+same family as P13-004/005/006). Needs a probe-commission/probe-user fixture rather than mutating
+the seeded rede-a org. Not a product defect until that is ruled out.
+
 
 ## Test Run Summary
 

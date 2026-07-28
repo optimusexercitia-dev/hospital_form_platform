@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { cachedSignIn } from "./helpers/auth"
 
 /**
  * User Registration & Identity Management
@@ -59,15 +60,9 @@ async function signInAs(
   email: string,
   password = 'Test1234!',
 ) {
-  await page.context().clearCookies()
-  await page.goto('/login')
-  await page.getByLabel('E-mail').fill(email)
-  await page.locator('input[name="password"]').fill(password)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  // Wait for the post-login redirect to land before the caller navigates
-  // again — signIn's server action performs a server-side redirect, which
-  // races an immediately-following page.goto() if we don't wait for it here.
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 15_000 })
+  // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
+  // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
+  await cachedSignIn(page, email, password)
 }
 
 async function waitForMailpitMessage(

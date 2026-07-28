@@ -1,4 +1,5 @@
 import { test, expect, type Page, type Locator } from '@playwright/test'
+import { cachedSignIn } from "./helpers/auth"
 
 /**
  * NSP-per-hospital (Phase B, ADR 0052) — the UI enforcement of the per-HOSPITAL
@@ -60,14 +61,9 @@ const PATIENT_NAME_REF_XHOSP = 'Paciente Entre-Hospitais A'
 const REF_XHOSP_ID = 'efa00000-0000-0000-0000-0000000000a4'
 
 async function signInAs(page: Page, email: string, password = 'Test1234!') {
-  await page.context().clearCookies()
-  await page.goto('/login')
-  await page.getByLabel('E-mail').fill(email)
-  await page.locator('input[name="password"]').fill(password)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), {
-    timeout: 15_000,
-  })
+  // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
+  // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
+  await cachedSignIn(page, email, password)
 }
 
 /** The full rendered <body> text — the PHI-leak canary for a page. */

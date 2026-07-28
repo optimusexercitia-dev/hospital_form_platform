@@ -1,6 +1,7 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import { test, expect, type Page } from '@playwright/test'
+import { cachedSignIn } from "./helpers/auth"
 
 /**
  * Cases-Extras batch (R1–R4) + Case Data-Model Adjustments — Playwright E2E spec.
@@ -69,13 +70,9 @@ const STAFF1_CCIH_ID = '00000000-0000-0000-0000-000000000003' // staff1.ccih
 // ---------------------------------------------------------------------------
 
 async function signInAs(page: Page, email: string, password = 'Test1234!') {
-  await page.goto('/login')
-  await page.getByLabel('E-mail').fill(email)
-  await page.locator('input[name="password"]').fill(password)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), {
-    timeout: 20_000,
-  })
+  // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
+  // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
+  await cachedSignIn(page, email, password)
 }
 
 async function signOut(page: Page) {

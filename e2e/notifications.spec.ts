@@ -1,5 +1,6 @@
 import { execSync } from 'node:child_process'
 import { test, expect, type Page, type APIRequestContext, type Browser } from '@playwright/test'
+import { cachedSignIn } from "./helpers/auth"
 
 /**
  * S1·N — Notifications (Phase 20; ADR 0076; build plan: docs/plans/notifications-s1.md §3).
@@ -94,11 +95,9 @@ const STAFF4_CCIH_ID = '00000000-0000-0000-0000-00000000000a'
 // ---------------------------------------------------------------------------
 
 async function signInAs(page: Page, email: string, password = 'Test1234!') {
-  await page.goto('/login')
-  await page.getByLabel('E-mail').fill(email)
-  await page.locator('input[name="password"]').fill(password)
-  await page.getByRole('button', { name: /entrar/i }).click()
-  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20_000 })
+  // Delegates to the shared session cache (e2e/helpers/auth.ts) so a full suite
+  // spends ~28 password grants instead of ~865. Signature kept so call sites are unchanged.
+  await cachedSignIn(page, email, password)
 }
 
 /** New isolated browser context + page, signed in as `email`. Caller closes the context. */
