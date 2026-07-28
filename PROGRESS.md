@@ -183,6 +183,66 @@ the file-contention note (`feature-flags.ts`, `seed.sql`, `database.ts`) still s
    Lead-owned (lint config), and it lands **after** `tester` rewords the phantom-minting comment at
    `e2e/builder-dialog-ui.spec.ts:229` — otherwise the guard fails on that comment.
 
+#### 🚦 FULL `e2e:prod` GATE — lead-run at `d10100c`, triaged 2026-07-27
+
+**Raw: 762 passed · 55 failed · 4 flaky · 12 batches.** Triaged by connection-error count, per the
+standing rule that **only a 0-conn-error batch can hide a real regression**:
+
+| Batch | conn errors | verdict |
+|---|---|---|
+| b1 / b9 / b11 | 21 / 24 / 58 | **infra** — the `supabase_vector` crash-loop 502 class (52 failures) |
+| **b5 / b10** | **0 / 0** | **real — 3 failures** |
+
+**All 3 reproduce deterministically** on a targeted re-run (fresh server + fresh DB, 0 conn errors),
+so they are **not** flakes. **All 3 are PRE-EXISTING; none is caused by FF-2.** FF-2's diff is 96
+files with **zero** on the referrals path, and its `seed.sql` change is **+79 lines / 0 deletions**
+mentioning referrals **zero** times.
+
+1. **`form-builder-enhancements.spec.ts:768` AC-4** — asserts the "obrigatória" toggle is DISABLED
+   beside a visibility condition. **FF-1 deliberately removed that behaviour**: `git log -L` blames
+   the "offered BESIDE a visibility condition" comment to **`633e688 feat(ff-1)`**, and
+   `form_items_conditional_not_required` was dropped by `20260828000000` (confirmed absent from the
+   live catalog). FF-2's only edit in that region added `bandError` to the **submit** button.
+   **A stale FF-1 spec.** It should have gone red at FF-1's gate.
+2. **`phase22-referrals.spec.ts:428` Flow 1a** — the hub does not render ENC-0001. The row **is**
+   seeded (`code = ENC-0001`, `status = completed`, subject matches the locator exactly), and
+   `referrals-list.tsx` renders the two sections behind **a status filter**. Possible live Phase-22
+   defect (a `completed` referral invisible on the hub by default) — not characterized further.
+3. **`phase22-referrals-governance.spec.ts:1187` R5-6** — keyboard-only internal note. Same module.
+
+> ⚠ **The finding that outlasts this phase: the ~18–27 "flaky baseline" is absorbing DETERMINISTIC
+> reds.** All three fail every time on a clean stack. #1 has been red since FF-1 and was written off
+> as baseline noise. A baseline that large is not a known-issues list, it is a hiding place — and the
+> only reason these surfaced is that the batch-level conn-error split separated infra from real.
+> Two batches also reported **"did not run"** (11 and 39), so the raw totals understate coverage as
+> well. Re-baselining is a cross-phase task, not FF-2's.
+
+**Verdict for FF-2: the gate is GREEN for this phase.** Every FF-2 and neighbour spec passes —
+`ff2-matrix` 11/11, `ff2-matrix-views` 5/5, `ff1-repeating-groups` 9/9, `phase5-wizard` 12/12,
+`phase6-signoffs` green.
+
+**PO ruling 2026-07-27: file all three against their owning phases, do NOT absorb them into FF-2**
+(consistent with the FUP-FF2-3 deferral — FF-2 does not become the drain for every red it happens to
+run past). Filed below; **`qa` should read them as triaged-and-owned, not as FF-2 debt.**
+
+| ID | Owner phase | What | Notes |
+|---|---|---|---|
+| **BUG-FF1-008** | FF-1 | `form-builder-enhancements.spec.ts:768` AC-4 pins the pre-FF-1 "obrigatória disabled beside a condition" behaviour that `633e688` deliberately removed | ~2 lines in `tester`'s file. **Red on every run since FF-1** and written off as baseline noise |
+| **BUG-P22-001** | Phase 22 | The referrals hub does not render ENC-0001. Row is seeded (`status = completed`, subject matches the locator exactly); `referrals-list.tsx` gates both sections behind a **status filter** | **May be a live user-facing defect** — a committee would not see its own concluded encaminhamento. Needs triage: product bug vs stale spec |
+| **BUG-P22-002** | Phase 22 | `phase22-referrals-governance.spec.ts:1187` R5-6 keyboard-only internal note | Same module; not characterized |
+
+#### 📋 FUP-E2E-1 — RE-BASELINE `e2e:prod` (cross-phase, PO-ruled 2026-07-27)
+
+Replace the *"~18–27 expected failures"* folklore with a **named list**. Run the suite on a clean
+stack and classify **every** failure as `infra` / `deterministic-real` / `genuinely-flaky`, each with
+an owner. **Blocks nothing.**
+
+*Why now:* a count-shaped baseline is a hiding place, not a known-issues list — BUG-FF1-008 sat red
+inside it since FF-1. The batch-level conn-error split (`>0` = infra, `0` = real) is what surfaced
+these and should become the documented triage step, not a technique each lead has to reinvent.
+Note two batches also reported **"did not run"** (11 and 39), so raw totals misstate coverage in both
+directions; the re-baseline should establish why batches terminate early.
+
 **Two things worth doing before or during FF-2** (both from FF-1's QA, neither blocking):
 **INFO-4** — the SQL↔TS parity vectors have **no drift detector**, and FF-3 adds a *second*
 evaluator pair; a real detector is cheapest now. **MINOR-1/2/3** — three pgTAP corrections that
