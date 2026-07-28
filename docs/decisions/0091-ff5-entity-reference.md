@@ -189,6 +189,51 @@ adding a lane to four traversals.
   correct instance** (the ruling-7 trap).
 - `supersession_references_excluded` — superseded responses drop out of the reference rollup.
 
+## Amendment 1 — `references_never_read_phi` is false as literally worded (2026-07-28)
+
+Found by `backend` while making the keystone fail on purpose, not by reading the ADR. The gate
+list above says the candidate search "touches neither `patient_identifiers` nor
+`professional_profiles`". **`reference_candidates` does reach `professional_profiles`** — not in
+any reference lane, but transitively: ruling 3 makes it INVOKER-rights, so its `select … from
+public.responses` is gated by `responses_select`, and one arm of that policy calls
+`app.can_access_targeted_response`, which joins `professional_profiles` to resolve targeting.
+
+**Rulings 1 and 3 are therefore in tension as written**, and ruling 3 wins: the reach is the
+*price* of inheriting the real policy instead of re-deriving it inside a DEFINER door. The
+substance of ruling 1 is unaffected — it is an authorization predicate on the shared responses
+path, it returns no professional-identity data to the caller, it opens no surface a plain
+`select` on `responses` did not already open, and Rule 12 still enumerates exactly three PHI
+modules. Only the absolute phrasing was wrong.
+
+The keystone is split accordingly, and the exception is **pinned executably** (§G4): if someone
+later "fixes" this by making the search `SECURITY DEFINER`, G4 goes red rather than the security
+property changing quietly. That is deliberate — an absolute claim that is false in one known way
+trains readers to ignore it (the CLAUDE.md `platform_admin` "noun rule" is the same lesson), so
+the exception is encoded rather than narrated.
+
+Two method notes worth keeping, both from keystones that were **vacuous on first run**:
+
+- The original §G asserted over `pg_depend`, which records **no table dependencies for plpgsql
+  bodies at all** — "0 dependencies on `patient_identifiers`" passes for every function ever
+  written. Replaced with the neutralization oracle (rename the PHI tables, run the functions).
+- The original §B door-parity assertion joined `answers`, so widening
+  `answer_references_select` to `using (true)` left it **green** — it was measuring a different
+  table's door. Only the over-grant twin exposed it.
+
+## Amendment 2 — `proacl` shows grants, never revokes (2026-07-28)
+
+`20260902000200` had to DROP+CREATE `save_section_answers` to add the 11th parameter, and restored
+the grants read from `pg_proc.proacl`. That silently **widened** the function to `anon`: PostgreSQL
+defaults functions to `PUBLIC EXECUTE`, an *absent* PUBLIC entry in `proacl` is what a prior
+`revoke` looks like, and re-creating hands the default back. The widening is invisible in a diff of
+the grant lines, because the missing line is the point. `reference_candidates` had the same gap by
+omission. Both closed in `20260902000800` with an explicit `revoke execute … from public, anon`.
+
+Neither was exploitable (both are INVOKER + RLS-gated, and `anon` has no `auth.uid()`), but the
+invariant is now pinned so nobody has to re-derive it. **Any DROP+CREATE of a function must restore
+revokes as well as grants, and `proacl` cannot tell you what they were.** Caught by the standing
+`100_dashboard` keystone, which is the argument for standing gates over phase-local ones.
+
 ## Open questions (deferred, not blocking)
 
 - Conditions on reference answers (ruling 5) — revisit post-pilot with the operator matrix.
