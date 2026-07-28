@@ -4,7 +4,20 @@
   },
   "enabledPlugins": {
     "postgres-best-practices@supabase-agent-skills": true,
-    "supabase@supabase-agent-skills": true
+    "supabase@supabase-agent-skills": true,
+    "medusa-dev@medusa": false,
+    "ui-ux-pro-max@ui-ux-pro-max-skill": false
+  },
+  "skillOverrides": {
+    "deploy-to-vercel": "off",
+    "vercel-optimize": "off",
+    "vercel-react-native-skills": "off",
+    "workflow": "off",
+    "docx": "user-invocable-only",
+    "pdf": "user-invocable-only",
+    "pptx": "user-invocable-only",
+    "xlsx": "user-invocable-only",
+    "morning": "off"
   },
   "hooks": {
     "PreToolUse": [
