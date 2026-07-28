@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { Item, Section } from "@/lib/queries/forms";
+import {
+  CLIENT_UNEVALUATED_RULE_TYPES,
+  VALIDATION_RULE_TYPES,
+} from "@/lib/forms/validation-rules";
 import type { ItemValidationRule } from "@/lib/forms/validation-rules";
 import {
   allowedRuleTypes,
@@ -462,5 +466,29 @@ describe("parentItemTypeOf", () => {
     expect(parentItemTypeOf(sections, "rc")).toBe("repeating_group");
     expect(parentItemTypeOf(sections, "gc")).toBe("group");
     expect(parentItemTypeOf(sections, "top")).toBeNull();
+  });
+});
+
+/**
+ * QA r2 — a `warn` + `regex` rule is INERT and the author must be told.
+ *
+ * Since Amendment 4 the client does not evaluate `regex`, and the server reports
+ * rules only when it REFUSES a submit — which `warn` never causes. So the pairing
+ * can never surface anywhere, to anyone. Authoring time is the only place it can
+ * be said, because there is no filler-facing symptom to notice later.
+ *
+ * This pins the vocabulary the builder's note keys on; the note itself is
+ * asserted in the editor's render suite.
+ */
+describe("client-unevaluated rule types (QA r2)", () => {
+  it("names `regex` and only `regex`", () => {
+    expect([...CLIENT_UNEVALUATED_RULE_TYPES]).toEqual(["regex"]);
+  });
+
+  it("every other rule type IS client-evaluated", () => {
+    for (const t of VALIDATION_RULE_TYPES) {
+      if (t === "regex") continue;
+      expect(CLIENT_UNEVALUATED_RULE_TYPES).not.toContain(t);
+    }
   });
 });

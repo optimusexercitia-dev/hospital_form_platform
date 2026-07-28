@@ -25,6 +25,8 @@ import { MatrixGrid } from "./matrix-grid";
 import { RiskMatrixPicker } from "./risk-matrix-picker";
 import { AnswerSummary } from "./answer-summary";
 import { GroupBlock } from "./group-block";
+import { SectionStep } from "./section-step";
+import type { Section } from "@/lib/queries/forms";
 
 function baseItem(over: Partial<Item> = {}): Item {
   return {
@@ -350,5 +352,66 @@ describe("GroupBlock — relays FF-3 props to plain-group children (M-4)", () =>
     );
     expect(markers()).toHaveLength(0);
     expect(screen.queryByRole("status")).toBeNull();
+  });
+});
+
+/**
+ * M-4, the CALLER half of the wire.
+ *
+ * The receiver-level suite above renders `GroupBlock` with props already
+ * supplied, so by construction it cannot observe a PARENT that stops supplying
+ * them — and the parent is exactly where the r1 defect lived: `GroupBlock` was
+ * never broken, `SectionStep` simply never handed it `warnings`/`requiredNow`.
+ * A keystone that guards the receiver guards the half that was never wrong.
+ *
+ * So this renders the REAL `SectionStep` and asserts the props survive the whole
+ * way down to a plain-`group` child. Mutation-proven at the caller: removing the
+ * two props from the `<GroupBlock>` call site must red these.
+ */
+describe("SectionStep → GroupBlock — the caller supplies FF-3's props (M-4)", () => {
+  const child = baseItem({ id: "c1", questionKey: "qc", label: "Motivo" });
+  const group = {
+    ...baseItem({ id: "g1", label: "Dados da internação" }),
+    itemType: "group",
+    questionKey: null,
+    children: [child],
+  } as unknown as Item;
+
+  const section = {
+    id: "s1",
+    position: 0,
+    title: "Seção",
+    description: null,
+    isDefault: false,
+    visibleWhen: null,
+    requiresSignoff: false,
+    signoffRole: null,
+    items: [group],
+  } as unknown as Section;
+
+  const common = {
+    section,
+    index: 0,
+    imageUrls: {},
+    answers: {},
+    errors: {},
+    onChange: () => {},
+  };
+
+  it("delivers requiredNow to a plain-group child (marker + aria-required)", () => {
+    render(<SectionStep {...common} requiredNow={new Set(["c1"])} />);
+    expect(markers()).toHaveLength(1);
+    expect(screen.getByRole("textbox")).toHaveAttribute("aria-required", "true");
+  });
+
+  it("delivers warnings to a plain-group child, inline", () => {
+    render(<SectionStep {...common} warnings={{ c1: "Confira o motivo." }} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Confira o motivo.");
+  });
+
+  it("leaves the child unmarked when neither prop marks it", () => {
+    render(<SectionStep {...common} requiredNow={new Set()} />);
+    expect(markers()).toHaveLength(0);
+    expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-required");
   });
 });

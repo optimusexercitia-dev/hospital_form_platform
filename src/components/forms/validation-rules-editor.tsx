@@ -3,7 +3,10 @@
 import { useId } from "react";
 import { ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
 
-import { DATETIME_ORDER_OPS } from "@/lib/forms/validation-rules";
+import {
+  CLIENT_UNEVALUATED_RULE_TYPES,
+  DATETIME_ORDER_OPS,
+} from "@/lib/forms/validation-rules";
 import type {
   DatetimeOrderOp,
   ValidationRuleType,
@@ -209,6 +212,25 @@ export function ValidationRulesEditor({
                 <p className="text-xs text-muted-foreground text-pretty">
                   {ruleTypeHint(draft.ruleType)}
                 </p>
+
+                {/* A rule the CLIENT cannot evaluate (Amendment 4: `regex`) is
+                    only ever reported by the server, and the server reports rules
+                    ONLY when it refuses a submit — which `warn` never causes. So
+                    this pairing can never surface anywhere, to anyone. Saying so
+                    at authoring time is the only place it can be said: there is
+                    no filler-facing symptom to notice later. */}
+                {CLIENT_UNEVALUATED_RULE_TYPES.includes(draft.ruleType) &&
+                draft.severity === "warn" ? (
+                  <p
+                    role="status"
+                    className="rounded-lg border border-warning/30 bg-warning/12 px-3 py-2 text-xs text-warning text-pretty"
+                  >
+                    Um aviso deste tipo <strong>nunca será exibido</strong>: esta
+                    regra só é conferida no envio, e o envio só reporta regras
+                    quando é bloqueado — o que um aviso não faz. Use a gravidade{" "}
+                    <strong>Erro</strong> para que ela tenha efeito.
+                  </p>
+                ) : null}
 
                 <RuleConfigFields
                   rowId={rowId}
