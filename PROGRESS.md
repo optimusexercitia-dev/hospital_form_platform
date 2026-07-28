@@ -149,6 +149,12 @@ running app (builder + wizard + resume-by-label + per-instance picker, driven li
 >      `set_participant_patient` inserts `'Paciente'`, and `dispose_case_phi` updates disposed
 >      patients to `'[PHI removido]'`. There is no path by which a patient's `display_name` becomes a
 >      distinguishing value.
+>      **State it that way, not as "the door accepts no name" — that form is refutable at a glance
+>      and would discredit the whole claim.** `set_participant_patient` DOES take a `p_name text`
+>      (verified via `pg_get_function_identity_arguments`): a real patient name crosses that door and
+>      is routed to `patient_identifiers`, while the `participants` INSERT writes the literal
+>      `'Paciente'` and never `p_name`. The surrogate holds *despite* a name being supplied, which is
+>      the strong version and the one ADR 0091 ruling 1 actually needs.
 >      ⚠ Correction to a figure quoted mid-thread: "other writers of `display_name`: 0" is **wrong** —
 >      `dispose_case_phi` assigns it (`prosrc` line ~48, comments stripped). It does not weaken the
 >      finding, it widens it: the post-disposal label is *also* a shared constant, so the degeneracy
@@ -169,6 +175,15 @@ running app (builder + wizard + resume-by-label + per-instance picker, driven li
 >    - Frontend deliberately does **nothing** here: suppressing the duplicate when `label === sublabel`
 >      would make the degenerate case *look* intentional, which is the same asymmetric-masking mistake
 >      that got the render-layer guard deleted in (2). The ugly duplicate is the honest signal.
+>    - 🔴 **Gap identified, no keystone asserts it** (`backend` is proposing one to the lead; noted here
+>      so it survives if that thread is missed). **ADR 0091 ruling 1 — "the participant lane reads no
+>      PHI, so FF-5 adds no PHI read surface and Rule 12 stays at three modules" — rests ENTIRELY on
+>      the surrogate invariant above, and nothing currently tests it.** A third writer, or a change
+>      letting `set_participant_patient` pass `p_name` through to `display_name`, would silently turn
+>      the picker and every reference label into a PHI surface with no suite going red — the frontend
+>      cannot detect it, because from here a name and a surrogate are both just a string. The
+>      assertion is ~2 lines over `pg_proc` + `role_table_grants`. Cheap, and it is the only thing
+>      standing between ruling 1 and a silent falsification.
 
 
 **Case-type assignment (ADR 0088) ✅** — template declares → case inherits; record → [case-type-assignment.md](docs/progress/case-type-assignment.md). **FF-2 ✅** — record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md); its two binding rules (door parity as a **table**; the targeted/correction arms owed by `answer_references`) are restated in the FF-5 handoff above.
