@@ -223,6 +223,27 @@ ode_modules` + `...\.next`, not from `worktrees/ff/…`), it holds a cached
 File ownership — `backend` owns `src/lib/queries/**` incl. the new evaluator module and
 `conditions.ts`; `frontend` owns `src/components/forms/**` + `src/components/responses/**`.
 
+> ⚠ **Session-limit interruption, 2026-07-28 (lead record).** All three teammates were terminated
+> mid-work by an API session limit. HEAD at interruption: **`3a2d927`**; everything through F2 is
+> committed and unaffected. **Backend died immediately before applying a mutation proof**, so the
+> live catalog could not be trusted — the lead ran `supabase db reset` + the full pgTAP suite to
+> restore catalog truth from migrations. Nothing was lost; two coherent partial diffs survived
+> uncommitted:
+> - `src/components/ui/field.tsx` — `frontend`'s `aria-required` plumbing on `useFieldIds`
+>   (backward-compatible: omitted → attribute absent). **Caller wiring + the dynamic visual marker
+>   are unfinished.**
+> - `supabase/tests/274_ff3_validations.sql` — `backend`'s **§M mixed-severity keystone** (plan
+>   78 → 81), asked for by `frontend`. Its rationale is the sharp one: narrowing the read path to
+>   `severity='error'` already reds E4, and truncating it reds I2/I5, but **no existing assertion
+>   sees a MIXED set** — E2's state holds only errors, E4's only warns — so a refactor suppressing
+>   warns *while errors exist* passes every one of them. Same class as the `20260901000700` P0.
+>   **Written but not yet mutation-proven or committed.**
+>
+> **Outstanding at interruption:** (1) the dynamic required marker + `aria-required` wiring
+> [`frontend`, lead-ruled in scope]; (2) §M's Mutation A/B/C proofs + commit [`backend`];
+> (3) **the FF-3 E2E spec — not started** [`tester`; no spec file exists yet]. The rendered
+> interaction therefore remains unverified, which is gate step 2's whole purpose.
+
 > 🔴 **FF-3 inherits two obligations from FF-2, both binding.**
 > 1. **`form_item_validations` is missing the targeted and correction policy arms** (deliberately
 >    unfixed while write-inert). **FF-3's writer landing is when that stops being true** — the same
