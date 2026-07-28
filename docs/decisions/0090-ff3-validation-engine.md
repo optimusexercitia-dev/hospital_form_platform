@@ -261,3 +261,20 @@ test space (risk 2). Logged as **O-4**.
   from the record itself, and static display is cheaper and currently harmless rather than right.
   Genuinely a **PO call** about what a submitted record should display, across a surface six views
   share. The optional-prop-with-fallback shape already in place keeps the fix cheap.
+- **O-6 — required-ness is traversed TWICE.** `app.response_required_complete` and
+  `submit_response` each walk the section/item/instance tree applying the same rule.
+  Verified in `pg_proc`: `submit_response` calls `app.item_is_required` +
+  `app.item_required_satisfied` in its own flat arm (~L201) and group arm (~L163), parallel to the
+  dispatch's two arms. **The predicates are shared; the walk is not.** This is not a defect and not
+  FF-3's doing — `response_required_complete` returns a boolean while `submit_response` needs *which*
+  items are missing, and it also prunes empty instances, so it has always had its own traversal.
+  Ruling 3's "the list and the gate cannot disagree" promise is separately kept for validation rules,
+  which both read through `app.response_validation_errors` (~L247).
+
+  **It is, however, a live drift hazard, and it already fooled a mutation prediction.** Mutating the
+  dispatch's flat arm did **not** red the assertion that exercises `submit_response` — the two sites
+  are independently mutable and independently observable. FF-3 added `required_if` to both correctly,
+  and §N now covers **both** sites (Mutation A reds N2/N3; Mutation D reds N4). What no test asserts
+  is that the two walks **agree in general**. The durable fix is either a single shared traversal or a
+  drift-detector over a fixture matrix; deferred rather than attempted at the gate, because the
+  refactor target is the Rule 3 submit authority. **Whoever changes required-ness must change both.**
