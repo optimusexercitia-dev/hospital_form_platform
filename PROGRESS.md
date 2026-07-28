@@ -142,11 +142,23 @@ running app (builder + wizard + resume-by-label + per-instance picker, driven li
 >    - `buildReferenceAnswers` feeds **`getResponseForFill`** (wizard resume + the review screen after
 >      a reload) and **`getSubmissionDetail`** (the durable submitted record). The sign-off surface is
 >      unaffected.
->    - Every patient's `display_name` is the literal `Paciente` (verified: `select distinct
->      display_name … where participant_type='patient'` → one row). So on those paths a patient
->      reference renders **`Paciente / Paciente`** — zero information, in the one field whose entire
->      purpose is to disambiguate identical labels. Two patient references in one form become
->      indistinguishable at the confirm-before-submit moment and in the permanent record.
+>    - A patient's `display_name` can only ever be one of **two constants** — established from the
+>      live catalog, so it is structural rather than a property of today's rows: `authenticated`
+>      holds **no INSERT/UPDATE/DELETE grant** on `participants` (only `postgres` / `service_role`),
+>      and exactly two SECURITY DEFINER functions write the column, each writing a **literal**:
+>      `set_participant_patient` inserts `'Paciente'`, and `dispose_case_phi` updates disposed
+>      patients to `'[PHI removido]'`. There is no path by which a patient's `display_name` becomes a
+>      distinguishing value.
+>      ⚠ Correction to a figure quoted mid-thread: "other writers of `display_name`: 0" is **wrong** —
+>      `dispose_case_phi` assigns it (`prosrc` line ~48, comments stripped). It does not weaken the
+>      finding, it widens it: the post-disposal label is *also* a shared constant, so the degeneracy
+>      holds in both states. Recorded because the claim was nearly copied into this file unverified,
+>      and a `prosrc` match for `display_name =` cannot by itself tell an assignment from a WHERE
+>      comparison — it had to be read.
+>    - So on those paths a patient reference renders **`Paciente / Paciente`** — zero information, in
+>      the one field whose entire purpose is to disambiguate identical labels. Two patient references
+>      in one form become indistinguishable at the confirm-before-submit moment and in the permanent
+>      record.
 >    - **Why "latent" understates it:** it needs a case-bound response carrying a patient reference,
 >      which no fixture has — but that is precisely the patient lane's *primary intended use* (ADR 0091
 >      ruling 2 exists to make patient references work on case-linked forms). The first real case-phase
