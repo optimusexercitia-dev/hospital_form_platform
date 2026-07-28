@@ -205,11 +205,27 @@ export function isSectionComplete(
 export interface RuleFeedback {
   errors: Record<string, string>;
   warnings: Record<string, string>;
+  /**
+   * FF-3 (ADR 0090 ruling 4) — the fields that are required RIGHT NOW, keyed the
+   * same way as the maps above. Includes plain `required` as well as a
+   * `required_if` that currently holds, so a consumer needs one lookup rather
+   * than an `||`.
+   *
+   * It rides along here because this walk already resolves effective
+   * required-ness to decide whether to report a missing answer; recomputing it in
+   * the render tree would be a second implementation of the same question, free
+   * to disagree with the one that blocks submit.
+   */
+  requiredNow: Set<string>;
 }
 
 /** The shared no-feedback value — a stable reference, so a memo that falls back
  *  to it does not invalidate its consumers on every render. */
-export const EMPTY_FEEDBACK: RuleFeedback = { errors: {}, warnings: {} };
+export const EMPTY_FEEDBACK: RuleFeedback = {
+  errors: {},
+  warnings: {},
+  requiredNow: new Set(),
+};
 
 /**
  * Why this is a SEPARATE pass rather than more arms inside
@@ -234,7 +250,11 @@ export function validateSectionRules(
   answerMap: AnswerMap,
   visibleItemIds?: Set<string>,
 ): RuleFeedback {
-  const feedback: RuleFeedback = { errors: {}, warnings: {} };
+  const feedback: RuleFeedback = {
+    errors: {},
+    warnings: {},
+    requiredNow: new Set(),
+  };
 
   // Same flattening as validateSection: a plain `group`'s children answer at top
   // level, so they validate here; a `repeating_group`'s children are per-instance.
@@ -272,7 +292,11 @@ export function validateInstanceRules(
   visibleItemIdsByInstance: Map<string, Set<string>>,
   visibleContainerIds?: Set<string>,
 ): RuleFeedback {
-  const feedback: RuleFeedback = { errors: {}, warnings: {} };
+  const feedback: RuleFeedback = {
+    errors: {},
+    warnings: {},
+    requiredNow: new Set(),
+  };
 
   for (const container of section.items) {
     if (container.itemType !== "repeating_group") continue;
@@ -346,13 +370,18 @@ function applyToField(
   answered: boolean,
   peerValues?: Json[],
 ): void {
-  // `required_if` only — plain `required` is {@link validateSection}'s job, and
-  // reporting it twice would put the same message in two passes.
-  if (!item.required && item.requiredIf) {
-    if (itemIsRequired(false, item.requiredIf, answers) && !answered) {
-      feedback.errors[key] = "Esta pergunta é obrigatória.";
-      return;
-    }
+  // Effective required-ness, resolved ONCE and reused for both the marker and the
+  // missing-answer report — the two cannot drift apart if they read one value.
+  const requiredNow = itemIsRequired(item.required, item.requiredIf, answers);
+  if (requiredNow) feedback.requiredNow.add(key);
+
+  // The missing-answer REPORT is `required_if`-only: plain `required` is
+  // {@link validateSection}'s job, and reporting it twice would put the same
+  // message in two passes. The marker above is not so restricted — a statically
+  // required field must still be marked.
+  if (!item.required && item.requiredIf && requiredNow && !answered) {
+    feedback.errors[key] = "Esta pergunta é obrigatória.";
+    return;
   }
 
   const rules = item.validations ?? [];

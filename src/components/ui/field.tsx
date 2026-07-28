@@ -62,13 +62,24 @@ function FieldError({
  * Derives the stable ids that wire a field together for assistive tech.
  *
  * Returns the control's `id`, plus `aria-describedby` (pointing at whichever of
- * help/error exist) and `aria-invalid`. Spread `controlProps` onto the input.
+ * help/error exist), `aria-invalid` and `aria-required`. Spread `controlProps`
+ * onto the input.
+ *
+ * `required` is the EFFECTIVE required-ness at render time, not a static schema
+ * flag: FF-3's `required_if` makes an item mandatory only while its condition
+ * holds, and an input the server will reject as missing must not be announced as
+ * optional. Omitted → the attribute is absent, so nothing changes for callers
+ * that do not pass it.
  */
 function useFieldIds(
   name: string,
-  options: { hasError?: boolean; hasDescription?: boolean } = {},
+  options: {
+    hasError?: boolean;
+    hasDescription?: boolean;
+    required?: boolean;
+  } = {},
 ) {
-  const { hasError = false, hasDescription = false } = options;
+  const { hasError = false, hasDescription = false, required = false } = options;
   const descriptionId = `${name}-description`;
   const errorId = `${name}-error`;
   const describedBy =
@@ -84,6 +95,7 @@ function useFieldIds(
       name,
       "aria-describedby": describedBy,
       "aria-invalid": hasError || undefined,
+      "aria-required": required || undefined,
     },
   };
 }

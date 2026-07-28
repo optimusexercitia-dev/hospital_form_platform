@@ -35,6 +35,7 @@ export function BlockRenderer({
   onChange,
   error,
   warning,
+  requiredNow,
   observation,
   onObservationChange,
   otherText,
@@ -53,6 +54,8 @@ export function BlockRenderer({
   error?: string;
   /** FF-3 — a failing `warn` rule. Advisory; never blocks. */
   warning?: string;
+  /** FF-3 — effective required-ness now (drives the marker + `aria-required`). */
+  requiredNow?: boolean;
   /** FF-2 — this scope's saved grid for a `matrix` item. */
   matrixCells?: Record<string, string>;
   onMatrixCellChange?: (rowCode: string, colCode: string) => void;
@@ -143,6 +146,7 @@ export function BlockRenderer({
         onChange={onChange}
         error={error}
         warning={warning}
+        requiredNow={requiredNow}
         observation={observation}
         onObservationChange={onObservationChange}
         otherText={otherText}

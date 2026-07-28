@@ -37,6 +37,7 @@ export function SectionStep({
   riskMatrix,
   errors,
   warnings,
+  requiredNow,
   onChange,
   onMatrixCellChange,
   onMatrixClear,
@@ -48,6 +49,7 @@ export function SectionStep({
   visibleItemIdsByInstance,
   instanceErrors,
   instanceWarnings,
+  instanceRequiredNow,
   saving = false,
   onObservationChange,
   onOtherTextChange,
@@ -75,6 +77,8 @@ export function SectionStep({
   errors: Record<string, string>;
   /** FF-3 — failing `warn` rules, keyed by item id. Advisory; never blocks. */
   warnings?: Record<string, string>;
+  /** FF-3 — item ids required RIGHT NOW (plain `required` OR a holding `required_if`). */
+  requiredNow?: Set<string>;
   onChange: (item: { id: string; questionKey: string }, value: Json) => void;
   /** FF-2 — commit one row of a `matrix`. */
   onMatrixCellChange?: (
@@ -107,6 +111,8 @@ export function SectionStep({
   instanceErrors?: Record<string, string>;
   /** FF-3 — failing `warn` rules inside repetitions, keyed `${instanceId}:${itemId}`. */
   instanceWarnings?: Record<string, string>;
+  /** FF-3 — per-instance keys required RIGHT NOW, keyed `${instanceId}:${itemId}`. */
+  instanceRequiredNow?: Set<string>;
   /** True while a save or instance action is in flight. */
   saving?: boolean;
   /** Persist a per-item observation note (form-builder-enhancements). */
@@ -258,6 +264,7 @@ export function SectionStep({
                   imageUrls={imageUrls}
                   errors={instanceErrors ?? EMPTY_ERRORS}
                   warnings={instanceWarnings ?? EMPTY_ERRORS}
+                  requiredNow={instanceRequiredNow}
                   visibleItemIdsByInstance={
                     visibleItemIdsByInstance ?? EMPTY_VISIBILITY
                   }
@@ -311,6 +318,7 @@ export function SectionStep({
                 value={scalar ? answers[item.id]?.value : undefined}
                 error={answerable ? errors[item.id] : undefined}
                 warning={answerable ? warnings?.[item.id] : undefined}
+                requiredNow={requiredNow?.has(item.id)}
                 onChange={handlers?.onChange ?? NO_OP}
                 observation={
                   scalar ? answers[item.id]?.observation : undefined

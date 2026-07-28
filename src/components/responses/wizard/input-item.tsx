@@ -57,6 +57,7 @@ export const InputItem = memo(function InputItem({
   onChange,
   error,
   warning,
+  requiredNow,
   observation,
   onObservationChange,
   otherText,
@@ -76,6 +77,24 @@ export const InputItem = memo(function InputItem({
    * tell assistive tech the answer is unacceptable when it is in fact accepted.
    */
   warning?: string;
+  /**
+   * FF-3 (ADR 0090 ruling 4) — EFFECTIVE required-ness at render time, resolved
+   * by the parent (which holds the answer map in scope) and evaluated PER
+   * INSTANCE, so a `required_if` that holds in repetition 2 marks repetition 2
+   * alone.
+   *
+   * Drives BOTH the visible marker and `aria-required`, through the same
+   * `required` variable the static flag used to feed — same DOM shape, dynamic
+   * input. An item mandatory only through `required_if` must LOOK mandatory to a
+   * sighted user and be ANNOUNCED mandatory to a screen reader; announcing an
+   * input the server will reject as missing as though it were optional
+   * misinforms assistive tech in the harmful direction, the mirror of why a
+   * `warn` rule never touches `aria-invalid`.
+   *
+   * Omitted → falls back to the static `item.required`, so read-only, review and
+   * sign-off contexts are unchanged.
+   */
+  requiredNow?: boolean;
   /** Current observation note (form-builder-enhancements). */
   observation?: string;
   /** Persist an observation note; absent for read-only contexts. */
@@ -105,7 +124,7 @@ export const InputItem = memo(function InputItem({
   instanceId?: string;
 }) {
   const label = item.label ?? "Pergunta";
-  const required = item.required;
+  const required = requiredNow ?? item.required;
 
   /**
    * The id/name namespace for every control in this block. At TOP LEVEL it is
@@ -351,6 +370,7 @@ function FreeTextItem({
   const { descriptionId, errorId, controlProps } = useFieldIds(fieldScope, {
     hasError: Boolean(error),
     hasDescription,
+    required,
   });
 
   return (
@@ -398,6 +418,7 @@ function ShortTextItem({
   const { descriptionId, errorId, controlProps } = useFieldIds(fieldScope, {
     hasError: Boolean(error),
     hasDescription,
+    required,
   });
 
   return (
@@ -449,6 +470,7 @@ function NumberItem({
   const { descriptionId, errorId, controlProps } = useFieldIds(fieldScope, {
     hasError: Boolean(error),
     hasDescription,
+    required,
   });
 
   // Local text buffer so the user can type freely (trailing comma, lone minus)
@@ -532,6 +554,7 @@ function DateTimeItem({
   const { descriptionId, errorId, controlProps } = useFieldIds(fieldScope, {
     hasError: Boolean(error),
     hasDescription,
+    required,
   });
 
   // Date bounds (ISO strings) — time carries no bounds (decision #3).
@@ -562,6 +585,12 @@ function DateTimeItem({
             id={controlProps.id}
             aria-describedby={controlProps["aria-describedby"]}
             aria-invalid={controlProps["aria-invalid"]}
+            // This branch hands the a11y attributes over INDIVIDUALLY rather
+            // than spreading `controlProps`, so `aria-required` would have been
+            // silently dropped here alone. Routed through react-aria's own
+            // `isRequired` (which is what `required` maps to) rather than a raw
+            // attribute, so the segmented time input announces it correctly.
+            required={required}
             value={value}
             onChange={(next) => onChange(next === "" ? null : next)}
           />
@@ -603,6 +632,7 @@ function DropdownItem({
   const { descriptionId, errorId, controlProps } = useFieldIds(fieldScope, {
     hasError: Boolean(error),
     hasDescription,
+    required,
   });
   const options = item.options ?? [];
 
@@ -679,6 +709,7 @@ function ChoiceGroup({
       className="flex flex-col gap-2"
       aria-describedby={describedBy}
       aria-invalid={error ? true : undefined}
+      aria-required={required || undefined}
     >
       <legend className="text-sm font-medium">
         {label}
@@ -777,6 +808,7 @@ function CheckboxGroup({
       className="flex flex-col gap-2"
       aria-describedby={describedBy}
       aria-invalid={error ? true : undefined}
+      aria-required={required || undefined}
     >
       <legend className="text-sm font-medium">
         {label}

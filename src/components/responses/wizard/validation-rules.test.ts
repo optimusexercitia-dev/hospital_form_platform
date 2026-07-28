@@ -211,6 +211,127 @@ describe("validateSectionRules — required_if", () => {
   });
 });
 
+/**
+ * The EFFECTIVE-required set drives the visible `*` marker and `aria-required`.
+ * It is a distinct claim from the missing-answer report: an item that is required
+ * and ALREADY ANSWERED must still be marked, so the two cannot be tested by the
+ * same assertion. Announcing an input the server will reject as missing as though
+ * it were optional is the harmful direction, so these are accessibility tests.
+ */
+describe("effective required-ness — requiredNow", () => {
+  it("includes a statically required item", () => {
+    const fb = validateSectionRules(
+      section([item({ required: true })]),
+      { answers: answerState({ i1: { key: "q1", value: "" } }) },
+      {},
+    );
+    expect(fb.requiredNow.has("i1")).toBe(true);
+  });
+
+  it("includes an item whose required_if HOLDS", () => {
+    const conditional = item({
+      required: false,
+      requiredIf: { question_key: "tipo", op: "equals", value: "medicacao" },
+    });
+    const fb = validateSectionRules(
+      section([conditional]),
+      { answers: answerState({ i1: { key: "q1", value: "" } }) },
+      { tipo: "medicacao" },
+    );
+    expect(fb.requiredNow.has("i1")).toBe(true);
+  });
+
+  it("EXCLUDES it when required_if does not hold", () => {
+    const conditional = item({
+      required: false,
+      requiredIf: { question_key: "tipo", op: "equals", value: "medicacao" },
+    });
+    const fb = validateSectionRules(
+      section([conditional]),
+      { answers: answerState({ i1: { key: "q1", value: "" } }) },
+      { tipo: "outro" },
+    );
+    expect(fb.requiredNow.has("i1")).toBe(false);
+  });
+
+  it("still marks a required item that IS answered (marker ≠ error)", () => {
+    const conditional = item({
+      required: false,
+      requiredIf: { question_key: "tipo", op: "equals", value: "medicacao" },
+    });
+    const fb = validateSectionRules(
+      section([conditional]),
+      { answers: answerState({ i1: { key: "q1", value: "preenchido" } }) },
+      { tipo: "medicacao" },
+    );
+    // No error — it is answered — but the field must still show as mandatory.
+    expect(fb.errors).toEqual({});
+    expect(fb.requiredNow.has("i1")).toBe(true);
+  });
+
+  it("EXCLUDES a hidden item — visibility wins over the marker too", () => {
+    const conditional = item({
+      required: true,
+      requiredIf: { question_key: "tipo", op: "equals", value: "medicacao" },
+    });
+    const fb = validateSectionRules(
+      section([conditional]),
+      { answers: answerState({ i1: { key: "q1", value: "" } }) },
+      { tipo: "medicacao" },
+      new Set<string>(),
+    );
+    expect(fb.requiredNow.size).toBe(0);
+  });
+
+  it("resolves PER INSTANCE — marks only the repetition whose condition holds", () => {
+    const child = item({
+      id: "c1",
+      questionKey: "dose",
+      required: false,
+      requiredIf: { question_key: "via", op: "equals", value: "ev" },
+      validations: [],
+    });
+    const group = item({
+      id: "g1",
+      itemType: "repeating_group",
+      questionKey: null,
+      children: [item({ id: "c0", questionKey: "via", validations: [] }), child],
+    });
+    const fb = validateInstanceRules(
+      section([group]),
+      {
+        g1: [
+          instance(
+            "inst-1",
+            "g1",
+            0,
+            answerState({
+              c0: { key: "via", value: "oral" },
+              c1: { key: "dose", value: "" },
+            }),
+          ),
+          instance(
+            "inst-2",
+            "g1",
+            1,
+            answerState({
+              c0: { key: "via", value: "ev" },
+              c1: { key: "dose", value: "" },
+            }),
+          ),
+        ],
+      },
+      {},
+      new Map([
+        ["inst-1", new Set(["c0", "c1"])],
+        ["inst-2", new Set(["c0", "c1"])],
+      ]),
+    );
+    expect(fb.requiredNow.has("inst-2:c1")).toBe(true);
+    expect(fb.requiredNow.has("inst-1:c1")).toBe(false);
+  });
+});
+
 describe("validateInstanceRules — placement per repetition", () => {
   const child = item({
     id: "c1",

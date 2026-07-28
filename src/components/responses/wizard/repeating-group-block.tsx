@@ -47,6 +47,7 @@ export function RepeatingGroupBlock({
   imageUrls,
   errors,
   warnings,
+  requiredNow,
   visibleItemIdsByInstance,
   saving,
   onAddInstance,
@@ -68,6 +69,8 @@ export function RepeatingGroupBlock({
   errors: Record<string, string>;
   /** FF-3 — failing `warn` rules, keyed the same way. Advisory; never blocks. */
   warnings?: Record<string, string>;
+  /** FF-3 — keys required RIGHT NOW, keyed `${instanceId}:${itemId}`. */
+  requiredNow?: Set<string>;
   visibleItemIdsByInstance: Map<string, Set<string>>;
   /** True while any instance action is in flight — disables the controls. */
   saving: boolean;
@@ -157,6 +160,7 @@ export function RepeatingGroupBlock({
                 imageUrls={imageUrls}
                 errors={errors}
                 warnings={warnings}
+                requiredNow={requiredNow}
                 visibleItemIds={
                   visibleItemIdsByInstance.get(instance.id) ?? EMPTY_SET
                 }
@@ -221,6 +225,7 @@ function InstanceCard({
   imageUrls,
   errors,
   warnings,
+  requiredNow,
   visibleItemIds,
   saving,
   onRemove,
@@ -242,6 +247,8 @@ function InstanceCard({
   errors: Record<string, string>;
   /** FF-3 — failing `warn` rules for this instance's fields. */
   warnings?: Record<string, string>;
+  /** FF-3 — keys required RIGHT NOW, keyed `${instanceId}:${itemId}`. */
+  requiredNow?: Set<string>;
   visibleItemIds: Set<string>;
   saving: boolean;
   onRemove: () => void;
@@ -399,6 +406,7 @@ function InstanceCard({
                     ? warnings?.[`${instance.id}:${child.id}`]
                     : undefined
                 }
+                requiredNow={requiredNow?.has(`${instance.id}:${child.id}`)}
                 onChange={childHandlers?.onChange ?? NO_OP}
                 observation={scalar ? record?.observation : undefined}
                 onObservationChange={childHandlers?.onObservationChange}

@@ -1170,6 +1170,7 @@ export function WizardClient({
           riskMatrix={riskMatrix}
           errors={shownErrors}
           warnings={shownWarnings}
+          requiredNow={liveFeedback.requiredNow}
           onChange={onChange}
           visibleItemIds={visibleItemIds}
           visibleContainerIds={visibleContainerIds}
@@ -1177,6 +1178,7 @@ export function WizardClient({
           visibleItemIdsByInstance={visibleItemIdsByInstance}
           instanceErrors={shownInstanceErrors}
           instanceWarnings={shownInstanceWarnings}
+          instanceRequiredNow={liveInstanceFeedback.requiredNow}
           saving={saving}
           onObservationChange={setObservation}
           onOtherTextChange={setOtherText}
@@ -1259,6 +1261,7 @@ export function WizardClient({
             riskMatrix={riskMatrix}
             errors={shownErrors}
             warnings={shownWarnings}
+            requiredNow={liveFeedback.requiredNow}
             onChange={onChange}
             visibleItemIds={visibleItemIds}
             visibleContainerIds={visibleContainerIds}
@@ -1266,6 +1269,7 @@ export function WizardClient({
             visibleItemIdsByInstance={visibleItemIdsByInstance}
             instanceErrors={shownInstanceErrors}
             instanceWarnings={shownInstanceWarnings}
+            instanceRequiredNow={liveInstanceFeedback.requiredNow}
             saving={saving}
             onObservationChange={setObservation}
             onOtherTextChange={setOtherText}
