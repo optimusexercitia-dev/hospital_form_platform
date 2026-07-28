@@ -770,6 +770,107 @@ green.
 > unsubmittable form"). A keystone written only in the blocking direction would have been vacuous —
 > which is exactly how M-1 survived.
 
+#### ⚠ OUT-OF-PHASE FIX — the ETH·E2 targeted CHOICE lane, attributed to **ETH·E2** (ADR 0073 §D13)
+
+**Not FF-2 scope.** Surfaced by FF-2's Wave-4 door-parity sweep, reported rather than fixed, and
+**ruled in by the PO** — reasoning recorded as given: the pattern was loaded, the sweep methodology
+proven, and the identical fix had just been applied to four matrix surfaces, so *"it will never be
+cheaper."* Same treatment as BUG-FF1-006/007. Migration `20260830001500` (the instruction said
+`001300+`; that window was already occupied by FF-2's own Wave-4 migrations — flagged, and 001500
+confirmed by the lead).
+
+**The defect.** A targeted respondent — ETH·E2's entire premise, an external professional formally
+instructed to complete a form — resolves through `app.can_access_targeted_*`. The version, its
+sections and its items each carry a `_select_targeted` policy. **Their children did not.** So
+`multiple_choice` / `dropdown` / `checkbox` — three of the eight input types — rendered with an
+empty option list for that user class, and a selection could be neither saved nor read back.
+
+**The sweep found two more holes past the two reported** (the lead's instruction to sweep the whole
+fill path rather than fix only the named surfaces):
+
+| Surface | targeted read | targeted write | Status |
+|---|---|---|---|
+| `form_item_options` | ❌ | n/a | **fixed** — reported |
+| `answer_selected_options` | ❌ | ❌ | **fixed** — reported |
+| **`response_group_instances`** | ❌ | ❌ | **fixed — NOT reported.** FF-1 × ETH·E2: a repeating group was as unfillable as a choice question |
+| **`app.assert_group_writable`** | — | ❌ creator-only (`HC0N2`) | **fixed — NOT reported, and it made the policy fix alone useless**: the three FF-1 instance RPCs all funnel through it |
+| `form_item_validations` (FF-3) · `answer_references` (FF-5) | ❌ | ❌ | **write-inert — deliberately not fixed**, carried as binding obligations (now also in ARCHITECTURE.md §2) |
+| `response_section_signoffs` | ❌ | ❌ | **appears correct by design** — the `respondent` signer is `created_by`, i.e. the *coordinator* for a targeted response. Flagged, not changed |
+
+`app.assert_group_writable` is the sharpest: its own comment reads *"RLS already confines the write
+to the creator's own draft; this only turns that zero-row silence into a readable message."* True
+when written — and the **fourth instance this phase of a gate that restates an RLS rule and then
+drifts when the rule widens.** It is INVOKER, so RLS stays the boundary and widening it cannot
+over-grant.
+
+**Convention:** separate `_targeted` policies, matching `form_items`/`responses`/`answers` — not a
+widened base `qual`. ⚠ FF-2's own Wave-4 matrix fix widened the base qual instead; functionally
+identical (permissive policies OR together), cosmetically inconsistent. **Not** rewritten —
+applied migrations are forward-only and a normalising migration would be churn for zero behaviour
+change — but the codebase now carries both shapes.
+
+**Write side included, and the DELETE half is load-bearing:** `save_section_answers` implements
+REPLACE as delete-then-insert, so an INSERT-only widening would leave the old row silently filtered
+and the new one appended — **two selections on a `multiple_choice` item.** That would have turned a
+fail-closed defect into a data-corrupting one. Hence `FOR ALL`, mirroring the table's own
+`_write_own_draft`. Mutation A4 proves it: `have: sim,nao want: nao`.
+
+**Keystones** — `supabase/tests/273_eth_targeted_choice_lane.sql`, **17 assertions**, every one
+round-trip shaped (save → **read back**), plus three negatives bounding the widening.
+
+##### Mutation proofs — one per arm (the M2 lesson), all red, all restored
+
+| # | Arm reverted | Observed |
+|---|---|---|
+| A1 | `form_item_options_select_targeted` | **7 red** |
+| A2 | `answer_selected_options_select_targeted` | C12 red |
+| A3 | `answer_selected_options_write_targeted` | **6 red** |
+| A4 | …narrowed to `FOR INSERT` | C6 red — `have: sim,nao` (the corruption) |
+| A5 | `response_group_instances_select_targeted` | C13 red |
+| A6 | `response_group_instances_write_targeted` | C7/C8/C10 red |
+| A7 | the union in `app.assert_group_writable` | **4 red** |
+
+> 🔎 **A2 and A5 first ran GREEN, and the reason generalises.** Both `_write_targeted` policies are
+> `FOR ALL`, and **a FOR ALL policy's `USING` clause grants SELECT too** — so while the response is
+> `in_progress` the write policy already covered every read the keystone made, and the dedicated
+> SELECT policies were being proved by nothing. They are *not* redundant:
+> `can_write_targeted_response` = `can_access_targeted_response ∧ in_progress`, so the FOR-ALL read
+> grant **dies at submit** while `answers_select_targeted` (status-free) keeps the scalar answers
+> visible. Without the dedicated policies a targeted respondent would submit and instantly lose
+> sight of every choice and every repeating-group row while still seeing their text answers — the
+> same split-brain as the corrector reading answers-but-not-cells. Added **C12/C13 (post-submit
+> reads)**; both arms then went red. *This is the third time this phase that a keystone proved the
+> assertion rather than the fix — and the standing repo lesson "a FOR ALL policy IS a read policy"
+> is exactly what it was.*
+
+#### 🐞 BUG-AUTHZ-001 — `platform_admin` reaches response-derived content through DEFINER dashboard functions (owner: **AUTHZ**; NOT fixed here)
+
+Filed per the lead's ruling on QA r2 m-1. **FF-2 itself is correct and nothing was changed:**
+`dashboard_matrix_cells` / `dashboard_risk_scores` carry an `is_admin()` arm *because their sibling
+`dashboard_distributions` does* — inheriting the neighbour's arm is the rule this phase learned four
+times over, and deviating would have been the inconsistency.
+
+The underlying question is broader than FF-2 and sharper than a MINOR. Live catalog:
+
+| Function | `prosecdef` | `is_admin()` arm |
+|---|---|---|
+| `dashboard_distributions` | ✅ | ✅ |
+| `dashboard_export_rows` | ✅ | ✅ |
+| `dashboard_matrix_cells` | ✅ | ✅ |
+| `dashboard_risk_scores` | ✅ | ✅ |
+| **`responses` — every policy** | — | ❌ **none** |
+
+CLAUDE.md's noun rule says `platform_admin` may **not** touch commission content, and ADR 0078 A35
+rests on a 40-site census finding it reads *0 cases / 0 responses / 0 narratives / 0 meetings*. That
+census is consistent with the `responses` row above — and **a SECURITY DEFINER function returning
+response-derived data is invisible to a policy-shaped audit of `responses`**, which is ADR 0078's
+own documented blind spot (*"`prosecdef` belongs beside `pg_policies`"*). `dashboard_export_rows` is
+the sharpest case: it returns **one row per response with its answers**, not an aggregate.
+
+So the census may have understated `platform_admin`'s reach across **every** dashboard function.
+**Deliberately not fixed:** it spans functions no FF phase owns and re-opens an ADR 0078 finding —
+the PO's call, not this phase's.
+
 #### FF-2 follow-ups — ✅ BOTH CLOSED in Wave 3 (PO ruled them into gate scope)
 
 Kept for the audit trail; neither is outstanding.

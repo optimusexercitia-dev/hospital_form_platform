@@ -48,12 +48,53 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      `  -- display items only:`
      `  content jsonb)`
      with `item_type ∈` **input** {multiple_choice, dropdown, checkbox, free_text,
-     short_text, number, date, time} · **display** {section_text, image} · **F3-reserved
-     inert** {group, repeating_group, matrix, risk_matrix, reference} (ADR 0060 — admitted by
-     the CHECK, but with no renderer/answer path until each type's FF phase: `group`/
-     `repeating_group` are containers, `matrix`/`risk_matrix`/`reference` are answerable yet
-     forced `required = false` until their completeness wiring lands). `form_items.item_type`
-     stays a **CHECK enum widened per feature**, never a data-driven catalog (ADR 0065 §5).
+     short_text, number, date, time} · **display** {section_text, image} ·
+     **containers** {group, repeating_group} (LIVE — FF-1, ADR 0087) · **matrix**
+     {matrix, risk_matrix} (LIVE — FF-2, ADR 0089) · **F3-reserved inert** {reference}
+     (ADR 0060 — admitted by the CHECK, no renderer/answer path until FF-5, and the only
+     type still forced `required = false`). `form_items.item_type` stays a **CHECK enum
+     widened per feature**, never a data-driven catalog (ADR 0065 §5).
+
+     > ⚠ This line described `matrix`/`risk_matrix` as "F3-reserved inert … forced
+     > `required = false`" until 2026-07-27. That has been **false since migration
+     > `20260830000000`**, which relaxed the `form_items_input_vs_display` arm. Rule 2
+     > makes this file authoritative, so a stale entry here is worse than none — the
+     > `commission_members` / `case_patient` scar, one table over. Verify against the
+     > catalog, never against this sentence.
+
+     **Matrix items (FF-2, ADR 0089).** Both are ANSWERABLE — they carry a
+     `question_key` and feed dashboards — but neither stores its answer in
+     `answers.value`, so every presence/completeness check dispatches on `item_type`
+     (`app.item_required_satisfied`), never on `value`:
+     - `matrix` is a **radio grid** (ruling 1): each row takes exactly ONE column, the
+       cell row IS the selection (`answer_matrix_cells.value = 'true'::jsonb`, no payload
+       of its own), enforced by `UNIQUE (answer_id, row_id)` **alongside** the original
+       `UNIQUE (answer_id, row_id, col_id)` — kept so admitting typed cells later is a
+       constraint drop plus a config key, with no answer-table migration.
+     - `risk_matrix` is one severity row × one likelihood column producing a single
+       `answer_risk_matrix` row whose `risk_score` is **derived server-side** as
+       `severity_row.weight * likelihood_col.weight` (ruling 2) — a client-supplied score
+       is never read. Bands are an ordered threshold list in `form_items.config.riskBands`,
+       derived for display and NOT stored: the score is the durable fact.
+     - `required = true` means **row-complete** (ruling 3): every row of the grid has a
+       cell, checked in BOTH the flat and the per-instance loop, since a matrix may sit
+       inside a repeating group. Item visibility still wins — a hidden matrix requires
+       nothing.
+     - Writes are **DEFINER-only** (K9): all four matrix tables keep SELECT-only grants
+       for `authenticated`; `upsert_matrix_axes` authors the axes and the matrix arms of
+       `save_section_answers` write the answers.
+   - `form_matrix_rows` / `form_matrix_columns(id, item_id → form_items, form_version_id,`
+     `  position, code, label, weight numeric)` — the per-item, per-version axes of a
+     `matrix`/`risk_matrix`. `code` is the **IMMUTABLE** cross-version aggregation key
+     (ruling 4): relabel/reorder/add/remove are all legal, re-keying is refused by a
+     `BEFORE UPDATE` trigger that does **not** consult version status. Dashboards
+     aggregate the cell unit `(question_key, row_code, col_code)` through `code`, never
+     through the per-version `row_id`/`col_id`. `weight` is nullable (a plain `matrix` has
+     no use for it) and REQUIRED on every entry of both axes for a `risk_matrix` —
+     enforced by `upsert_matrix_axes` and re-checked at publish by
+     `app.validate_matrix_axes`, since it is a cross-row invariant no CHECK can express.
+     ⚠ Unrelated to `form_item_options.risk_weight`, which belongs to the options lane
+     despite the similar name.
    - `form_item_options(id, item_id → form_items, form_version_id, position, code,`
      `  label, color_token, score numeric, analytics_code, flagged, is_other,`
      `  is_exclusive, risk_weight)` — the choice options,
@@ -138,9 +179,21 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    clone-stable `code`) + `answer_matrix_cells`/`answer_risk_matrix`/`answer_references`
    (answer rows off `answer_id`; `answer_references.participant_id → participants` is the A/C
    bridge, ADR 0065 §7) + the reserved `form_item_validations`, plus repeating-group
-   position-uniqueness on `response_group_instances` (F3; ADR 0060 — all RLS-scoped-read +
-   write-inert until each type's FF phase; aggregation contract in
+   position-uniqueness on `response_group_instances` (F3; ADR 0060 — landed RLS-scoped-read +
+   write-inert, each becoming live at its own FF phase; aggregation contract in
    `docs/design/f3-question-key-aggregation.md`). Each phase's Record step names its new tables here.
+
+   **Write-inert status, per table** (the shape stays frozen; only the writers arrive):
+   `response_group_instances` **LIVE** (FF-1, ADR 0087) · `form_matrix_rows` /
+   `form_matrix_columns` / `answer_matrix_cells` / `answer_risk_matrix` **LIVE** (FF-2,
+   ADR 0089 — writers are DEFINER-only, K9 preserved) · `answer_references` **still
+   write-inert** (FF-5) · `form_item_validations` **still write-inert** (FF-3).
+   > 📌 The two remaining inert tables carry a **binding obligation** their FF phase must
+   > discharge, recorded because FF-1's P0-1 was carried to FF-2 the same way and it is
+   > the only reason FF-2 caught it: `answer_references_select` and
+   > `form_item_validations_select` are **missing** the `can_read_correction_response`
+   > and `can_access_targeted_*` arms their sibling answer/definition tables carry. Harmless
+   > only while nothing writes them; the writer landing is exactly when that stops being true.
 
    **Supersession correction (forward-note — NOT built; ADR 0065 §8 / 0060 Gap 38).** A future
    submitted-form correction will *supersede* the prior via a nullable `responses.supersedes_id`,
