@@ -2,7 +2,6 @@ import {
   CASE_SCOPED_PARTICIPANT_TYPES,
   PARTICIPANT_TYPE_LABELS,
   REFERENCE_KIND_LABELS,
-  participantTypeLabel,
   type ParticipantType,
   type ReferenceKind,
 } from "@/lib/forms/reference-constants";
@@ -66,34 +65,38 @@ export function referenceKindLabel(kind: ReferenceKind): string {
 }
 
 /**
- * Render a candidate's `sublabel` as pt-BR text (Rule 10).
+ * ## Why there is no `displaySublabel` here (removed 2026-07-28)
  *
- * ## Status: idempotent belt-and-braces, NOT the fix
+ * A `ReferenceCandidate.sublabel` is rendered RAW by the picker, deliberately.
  *
- * The source normalizes already. `app.participant_type_label` is the SQL
- * authority (used by `reference_candidates` and `app.references_by_item`) and
- * `participantTypeLabel` the TS one (used by `buildReferenceAnswers`), pinned to
- * each other by pgTAP 276 §L + `participant-type-labels.test.ts` — backend
- * `3c997eb`. So on every path this component can reach today, this call returns
- * its input unchanged.
+ * This module briefly carried a render-layer guard mapping a raw
+ * `participant_type` identifier to its pt-BR label, added when
+ * `reference_candidates` was returning `"Centro Cirúrgico :: department"`.
+ * Backend fixed that at the source (`3c997eb`) across all THREE producers —
+ * `reference_candidates`, `app.references_by_item` and `buildReferenceAnswers` —
+ * with `app.participant_type_label` and `participantTypeLabel` as the two
+ * authorities, pinned to each other by pgTAP 276 §L +
+ * `participant-type-labels.test.ts`.
  *
- * It stays because it costs nothing and is exactly idempotent: it delegates to
- * that same `participantTypeLabel`, whose mapping is EXACT-MATCH-ONLY over the
- * seven `participant_type` identifiers and returns anything else untouched. A
- * case role, a hospital name or an e-mail (the patient, commission and user
- * lanes) therefore cannot be rewritten by accident, and an already-pt-BR label
- * cannot be double-translated.
+ * The guard was then deleted rather than kept as belt-and-braces, because it
+ * could only ever hurt:
  *
- * ⚠ It is NOT a general defence. It guards this component tree only — the
- * sign-off projection renders references through a different tree entirely, so
- * the same defect there (found by backend's `pg_proc` sweep, not by this) was
- * invisible to it. The lesson to carry, if a raw identifier ever surfaces again:
- * fix the producer and sweep for siblings; a render-layer map is the symptom's
- * bandage, never the cure.
+ *  - **It could not help.** It covered this component tree alone. The site that
+ *    actually mattered — the sign-off projection, i.e. the attestation surface —
+ *    renders references through a different tree entirely and was never in its
+ *    reach. It was found by sweeping `pg_proc`, not by this map.
+ *  - **It would MASK a regression asymmetrically.** If the source ever stops
+ *    normalizing, the picker would keep looking correct while the sign-off view
+ *    showed raw identifiers. A shared defect that surfaces in only some places is
+ *    harder to diagnose than one that surfaces everywhere — the guard would have
+ *    bought a prettier picker at the cost of a slower diagnosis.
+ *  - **It had a false-positive mode.** The map is applied lane-blind, so a
+ *    `case_participant_roles.display_name` literally equal to `department` or
+ *    `patient` would have been silently rewritten.
+ *
+ * If a raw identifier ever shows up on screen again: fix the producer and sweep
+ * for its siblings. Do not re-add a map here.
  */
-export function displaySublabel(sublabel: string | null): string | null {
-  return participantTypeLabel(sublabel);
-}
 
 /**
  * Whether an allowed-types selection reaches a CASE-SCOPED participant type,

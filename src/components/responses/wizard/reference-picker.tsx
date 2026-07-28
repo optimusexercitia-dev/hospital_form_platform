@@ -9,7 +9,6 @@ import { Button } from "@/components/ui/button";
 import { FieldDescription, FieldError } from "@/components/ui/field";
 import {
   REFERENCE_LANE_COPY,
-  displaySublabel,
   isCaseScopedOnlyLane,
   reachesCaseScopedLane,
 } from "@/components/forms/reference-vocabulary";
@@ -453,11 +452,15 @@ export const ReferencePicker = memo(function ReferencePicker({
                           {candidate.sublabel ? (
                             // Load-bearing, not decoration: on the patient lane
                             // every label is the same surrogate string, so this
-                            // is the only disambiguator. Always visible — and
-                            // mapped to pt-BR, because the participant lane
-                            // returns the raw `participant_type` identifier.
+                            // is the only disambiguator. Always visible.
+                            //
+                            // Rendered RAW: the sublabel arrives already pt-BR
+                            // (`app.participant_type_label` normalizes it at the
+                            // source). Never re-map it here — see the note in
+                            // `reference-vocabulary.ts` for why a render-layer
+                            // guard is worse than none.
                             <span className="truncate text-xs text-muted-foreground">
-                              {displaySublabel(candidate.sublabel)}
+                              {candidate.sublabel}
                             </span>
                           ) : null}
                         </span>
@@ -519,9 +522,7 @@ function SelectedReference({ value }: { value: ReferenceAnswerRecord }) {
     <p className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg border border-border bg-accent/30 px-3 py-2 text-sm">
       <span className="font-medium">{value.label}</span>
       {value.sublabel ? (
-        <span className="text-xs text-muted-foreground">
-          {displaySublabel(value.sublabel)}
-        </span>
+        <span className="text-xs text-muted-foreground">{value.sublabel}</span>
       ) : null}
     </p>
   );

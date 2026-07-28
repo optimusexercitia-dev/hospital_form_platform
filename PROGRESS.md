@@ -119,8 +119,11 @@ running app (builder + wizard + resume-by-label + per-instance picker, driven li
 >    merge; until then the main checkout cannot render that form.
 > 2. ~~**`reference_candidates` returns the raw `participant_type` identifier as `sublabel`**~~
 >    — **RESOLVED at source, backend `3c997eb`.** Live now: `Centro Cirúrgico :: Setor`. My
->    render-layer guard (`displaySublabel`) is deliberately kept but is now a delegation to the
->    shared `participantTypeLabel` and therefore an exact no-op.
+>    render-layer guard was **removed**, not kept: it covered the picker's tree only, so it could
+>    never have caught the site that mattered, and on a future regression it would have made the
+>    picker look correct while the sign-off view showed raw identifiers — masking a shared defect
+>    asymmetrically. The sublabel is now rendered raw and the source is the single authority
+>    (rationale recorded in `reference-vocabulary.ts`). Verified end-to-end with no client-side map.
 >    **Worth carrying into the review:** it was **three** sites, not the one I reported — the
 >    typeahead, `app.references_by_item` (the **sign-off projection**), and `buildReferenceAnswers`.
 >    The sign-off one is the site that mattered and renders through a **different component tree**,
