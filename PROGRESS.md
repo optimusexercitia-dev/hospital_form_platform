@@ -118,8 +118,62 @@ name, fast-forwarded to `main` @ `5e6b62d`; **216 == 216** at phase start.
 | B4 | Authority — `required_if` in **both** arms (visibility wins) · `HC0P9` gate in `submit_response` · `get_response_validation_errors`. The gate and the read path share `app.response_validation_errors`; the legacy `assert_item_bounds` lane was extracted into it so the list can never omit what the gate blocks on | `backend` | ✅ `20260901000300/400` |
 | B5 | Operator authorability — `app.is_valid_condition` widened to the four F3 operators; the `value` requirement relaxed for the two unary ones BY NAME (not globally) | `backend` | ✅ `20260901000500` |
 | B6 | pgTAP `274_ff3_validations.sql` — **70 assertions**, all 8 ADR-0090 keystones, each mutation-proven (23 mutations run, red output recorded). Re-pins: `209` §B **+4** (the `required_if` freeze on containers/display/`reference`, with a positive twin) and `272` **§S +3** (a TARGETED respondent READS validation ROWS — 274 §C can only prove the policy EXISTS, which ETH·E1 established is a different claim). Also **`20260901000600`**: publish-time validation of `required_if` | `backend` | ✅ **4138** tests PASS |
-| F1 | Builder — rules editor (type/config/severity/pt-BR message) + `required_if` authoring via the condition builder + the 4 new operator pickers | `frontend` | ⏸ blocked on B1–B3 contract |
-| F2 | Wizard — inline error/warn from the TS twin, per instance; submit blocked on error; warn badges in review | `frontend` | ⏸ blocked on B4 contract |
+| F1 | Builder — rules editor (type/config/severity/pt-BR message) + `required_if` authoring via the condition builder + the new operator pickers | `frontend` | 🏗️ **operator pickers ✅ `5c8c14b`**; rules editor + `required_if` ⏸ **blocked on D2** |
+| F2 | Wizard — inline error/warn from the TS twin, per instance; submit blocked on error; warn badges in review | `frontend` | ⏸ **blocked on D2 + D4** — not started (lead-directed) |
+
+> **F1 partial — the two unary operators are authorable (`5c8c14b`).** `is_empty`/`is_not_empty`
+> are offered in the shared `ConditionBuilder`; the value control is **removed** (not disabled) for
+> exactly those two so no dead control sits in the keyboard path, a row carrying one is complete
+> with just a target, and `toCondition` emits `value: null` — verified against the live catalog
+> (`app.is_valid_condition` short-circuits `p ? 'value'` for these two by name, while `equals` with
+> no value is still refused). lint 0/0 · typecheck clean · Vitest **662/662** · `next build` OK.
+>
+> **`contains`/`not_contains` are deliberately NOT offered — lead-ruled (A), 2026-07-28.** On a
+> choice target `contains` is the same relation as `equals` (both run the identical
+> `some(jsonEquals)` membership test), and its one distinct behaviour — substring on text — needs a
+> text target, which decision #7 excludes. Ruling 5 stands as written (all four became *storable*);
+> what narrows is the *picker* surface, 2 of 4, for a stated reason recorded at the picker itself.
+> Widening the target list to text is a **PO** call, logged as a follow-up, not absorbed into FF-3.
+>
+> ⚠ **Coverage temporarily narrowed to `date`/`time` targets** pending the P0 below. `is_empty` on a
+> choice or number target stores fine and then **fails at publish** — an author dead end. Widening
+> `UNARY_OP_TARGET_TYPES` to every type is one line, to be done only after publishing a form with a
+> **choice-target** `is_empty` end to end, not after reading a diff.
+
+> 🔴 **P0 (frontend-found, backend-owned) — `20260901000700` broke publish for SECTION conditions.**
+> The unary publish fix added `p_op` to `app.assert_condition_value_codes` but updated **only one of
+> its two call sites**. `public.validate_visible_when` calls it at L88 (section loop, **5 args**) and
+> L184 (item loop, 6 args); there is one overload with `ndefaults=0`, so the 5-arg call **does not
+> resolve**. plpgsql binds at execution time, so the migration applied clean and it fails the first
+> time a section condition is evaluated. Proven end-to-end on the seeded DB, not inferred:
+> `validate_visible_when: RAISED [42883] function app.assert_condition_value_codes(uuid, text, text,
+> jsonb, text) does not exist`. **Blast radius is wider than FF-3** — it breaks section conditional
+> visibility, shipped long before this phase, and `42883` has no pt-BR mapping so a raw Postgres
+> error reaches the UI. Fails closed. Fix = pass `v_op` at L88 (already in scope). Reported to
+> `backend` with a request for a keystone on the **section** arm specifically — the item-arm
+> coverage was green throughout, which is the "green bar misses the wired seam" shape again.
+
+> ⛔ **Frontend blockers outstanding (D1–D4, all raised to `backend` 2026-07-28).** D1 pure-module
+> split of `validations.ts` — it value-imports `@/lib/supabase/server` (`import 'server-only'`), so
+> any client component using `evalValidation` / `isValidationRuleAllowed` / the vocabulary consts
+> **aborts `next build`** while tsc, lint and Vitest stay green (BUG-FBE-005 again) → `backend`
+> landed `src/lib/forms/validation-rules.ts`, awaiting its final export list. **D2 — the FF-3 read
+> path into the version tree does not exist**: `src/lib/queries/forms.ts` had **zero** occurrences of
+> `required_if` or validations, so the builder can *write* rules but cannot *read them back*, and
+> with **REPLACE semantics that silently deletes every existing rule on the item at each save** —
+> data loss by construction, and the reason F1's editor and all of F2 are held. D3 — which action
+> carries `required_if` and its field name. D4 — `submitResponse` returns only a bare string on
+> HC0P9; the wizard needs the structured `ValidationErrorRow[]` to place messages per field per
+> instance.
+>
+> ⚠ **Live UI verification is currently IMPOSSIBLE from this worktree.** The Browser preview tool's
+> session is bound to the **primary checkout** (`hospital_form_platform\node_modules` +
+> `...\.next`), not to `worktrees/ff/flexible-forms-program`, and it ignores a `-p 3100` launch
+> config (cached `previewId`, re-reads nothing). Anything browsed on `:3000` is the primary checkout
+> on `main` — the wrong code. The unary-operator slice was therefore verified at the **DB seam**
+> (the gate accepts the exact emitted shape; negative controls refuse `equals`-without-value and a
+> bogus op) plus lint/typecheck/Vitest/`next build`. **A real click-through is still owed** before
+> F1 can be called done.
 
 > 🔴 **THREE FINDINGS from B1–B6, all fail-OPEN, none catchable by tsc/lint/unit/build.**
 >
