@@ -22,6 +22,7 @@ import {
   validateInstances,
   validateSectionRules,
   validateInstanceRules,
+  clearPeerFieldErrors,
   EMPTY_FEEDBACK,
 } from "./validation";
 import type { ValidationErrorRow } from "@/lib/forms/validation-rules";
@@ -569,6 +570,41 @@ export function WizardClient({
   /** A per-instance answer change. A repeating-group child's key never enters
    *  the top-level map, so the cross-section orphan warning (which is driven by
    *  top-level keys) cannot apply here — the change commits directly. */
+  /**
+   * BUG-FF3-001 — drop the sticky instance errors for a child ACROSS EVERY
+   * REPETITION, not just the one the user edited.
+   *
+   * `unique_within_group` is the one rule whose violation is SYMMETRIC: two
+   * peers collide and the blocked navigation records a message on BOTH. Clearing
+   * keyed to the edited field alone therefore strands the peer — a repetition the
+   * user never touched keeps a message AND `aria-invalid="true"` for a field that
+   * is no longer in violation. That is the same misinformation that keeps `warn`
+   * off the error channel: a valid input announced as invalid, with no way for a
+   * screen-reader user to discover otherwise.
+   *
+   * The participant set of that rule is "this child in every instance of its
+   * group", and an item has exactly ONE parent, so every sticky key ending in
+   * `:${itemId}` IS that set — no group lookup needed, and no dependency on
+   * `instancesByGroup`, which changes on every keystroke and would churn these
+   * callbacks through the `memo(InputItem)` boundary.
+   *
+   * Clearing both directions is why this is keyed to the RULE's participants
+   * rather than the edited field: editing repetition 1 must clear repetition 2's
+   * stale copy exactly as the reverse does.
+   *
+   * ⚠ Trade-off, deliberate: a peer's sticky message for a DIFFERENT rule is
+   * dropped too. For every live-evaluated rule that is harmless — the live pass
+   * is merged UNDER the sticky map, so a violation that is still true re-renders
+   * from `liveInstanceFeedback` on the same frame. The one message that does not
+   * come back until the next "Próximo" is plain `required`, which
+   * `validateInstances` owns and which is not live. That direction fails toward
+   * showing NOTHING on a visibly empty field, never toward calling a valid field
+   * invalid, and `handleNext` re-blocks regardless — strictly the safer failure.
+   */
+  const clearInstanceFieldErrorForPeers = useCallback((itemId: string) => {
+    setInstanceErrors((prev) => clearPeerFieldErrors(prev, itemId));
+  }, []);
+
   const handleInstanceChange = useCallback(
     (
       instanceId: string,
@@ -576,15 +612,9 @@ export function WizardClient({
       value: Json,
     ) => {
       setInstanceAnswer(instanceId, item, value);
-      const key = `${instanceId}:${item.id}`;
-      setInstanceErrors((prev) => {
-        if (!prev[key]) return prev;
-        const nextErrors = { ...prev };
-        delete nextErrors[key];
-        return nextErrors;
-      });
+      clearInstanceFieldErrorForPeers(item.id);
     },
-    [setInstanceAnswer],
+    [setInstanceAnswer, clearInstanceFieldErrorForPeers],
   );
 
   // ----- FF-2: matrix edits -----
@@ -623,16 +653,12 @@ export function WizardClient({
   );
 
   const clearInstanceFieldError = useCallback(
-    (instanceId: string, itemId: string) => {
-      const key = `${instanceId}:${itemId}`;
-      setInstanceErrors((prev) => {
-        if (!prev[key]) return prev;
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
+    (_instanceId: string, itemId: string) => {
+      // Same participant-set clearing as an answer edit: a matrix inside a
+      // repetition is reached through the identical sticky map.
+      clearInstanceFieldErrorForPeers(itemId);
     },
-    [],
+    [clearInstanceFieldErrorForPeers],
   );
 
   const handleInstanceMatrixCellChange = useCallback(

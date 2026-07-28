@@ -6,7 +6,11 @@ import type { ItemValidationRule } from "@/lib/forms/validation-rules";
 
 import type { AnswerState } from "./types";
 import type { InstanceState } from "./instances";
-import { validateInstanceRules, validateSectionRules } from "./validation";
+import {
+  clearPeerFieldErrors,
+  validateInstanceRules,
+  validateSectionRules,
+} from "./validation";
 
 /**
  * FF-3 (ADR 0090) — the wizard's live rule feedback.
@@ -782,5 +786,81 @@ describe("validateInstanceRules — datetime_order resolves the SAME-instance si
       new Map([["inst-1", new Set(["cs", "ce"])]]),
     );
     expect(fb.errors).toEqual({});
+  });
+});
+
+/**
+ * BUG-FF3-001 — the sticky (post-blocked-navigation) map must clear the SYMMETRIC
+ * rule's whole participant set, not just the edited field.
+ *
+ * `tester` isolated this precisely: live-only feedback clears correctly on all
+ * three field kinds; only the post-block map stranded the peer, leaving an
+ * untouched repetition showing a message and `aria-invalid="true"` for a field
+ * that no longer violates anything.
+ *
+ * BOTH directions are asserted on purpose — a fix that only clears "forwards"
+ * from the edited repetition passes a one-directional test and still strands the
+ * mirror case.
+ */
+describe("clearPeerFieldErrors — BUG-FF3-001", () => {
+  const dup = "Este valor não pode se repetir entre as repetições.";
+
+  it("clears the peer when the SECOND repetition is edited", () => {
+    const next = clearPeerFieldErrors(
+      { "inst-1:c1": dup, "inst-2:c1": dup },
+      "c1",
+    );
+    expect(next).toEqual({});
+  });
+
+  it("clears the peer when the FIRST repetition is edited (the mirror case)", () => {
+    // Identical input, and it must behave identically: the participant set does
+    // not depend on WHICH member was edited.
+    const next = clearPeerFieldErrors(
+      { "inst-1:c1": dup, "inst-2:c1": dup },
+      "c1",
+    );
+    expect(next["inst-1:c1"]).toBeUndefined();
+    expect(next["inst-2:c1"]).toBeUndefined();
+  });
+
+  it("clears across THREE repetitions, not just the adjacent pair", () => {
+    const next = clearPeerFieldErrors(
+      { "inst-1:c1": dup, "inst-2:c1": dup, "inst-3:c1": dup },
+      "c1",
+    );
+    expect(next).toEqual({});
+  });
+
+  it("leaves a DIFFERENT child in the same repetition alone", () => {
+    const next = clearPeerFieldErrors(
+      { "inst-1:c1": dup, "inst-1:c2": "Outro problema." },
+      "c1",
+    );
+    expect(next).toEqual({ "inst-1:c2": "Outro problema." });
+  });
+
+  it("leaves the container's own cardinality error alone", () => {
+    // The shortfall is keyed by the BARE container id, which has no `:` — it must
+    // survive, or an unmet `minInstances` would vanish on the next keystroke.
+    const next = clearPeerFieldErrors(
+      { "inst-1:c1": dup, g1: "Adicione ao menos 2 repetições." },
+      "c1",
+    );
+    expect(next).toEqual({ g1: "Adicione ao menos 2 repetições." });
+  });
+
+  it("does not match a child whose id merely ENDS WITH the edited id", () => {
+    // `:${itemId}` anchors on the separator, so `c1` must not clear `xc1`.
+    const next = clearPeerFieldErrors(
+      { "inst-1:xc1": "Outro.", "inst-1:c1": dup },
+      "c1",
+    );
+    expect(next).toEqual({ "inst-1:xc1": "Outro." });
+  });
+
+  it("returns the SAME reference when nothing matches (no needless re-render)", () => {
+    const errors = { "inst-1:c2": "Outro." };
+    expect(clearPeerFieldErrors(errors, "c1")).toBe(errors);
   });
 });

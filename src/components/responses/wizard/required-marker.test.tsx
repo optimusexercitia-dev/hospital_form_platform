@@ -244,3 +244,33 @@ describe("RiskMatrixPicker — effective required marker", () => {
     expect(screen.getByRole("radiogroup")).not.toHaveAttribute("aria-required");
   });
 });
+
+/**
+ * BUG-FF3-001, the a11y half: `aria-invalid` must follow the error prop exactly.
+ *
+ * The state fix (`clearPeerFieldErrors`) is what stops a stale message reaching
+ * an untouched peer; this pins the consequence that made it a defect worth fixing
+ * rather than a cosmetic one — a field with no error must not be announced
+ * invalid, which is the same rule that keeps `warn` off this channel.
+ */
+describe("InputItem — aria-invalid follows the error prop (BUG-FF3-001)", () => {
+  const props = { value: "", onChange: () => {} };
+
+  it("is announced invalid ONLY while an error is present", () => {
+    const { unmount } = render(
+      <InputItem item={baseItem()} {...props} error="Valor repetido." />,
+    );
+    expect(screen.getByRole("textbox")).toHaveAttribute("aria-invalid", "true");
+    unmount();
+
+    // The peer, once its stale message is cleared, must be clean again.
+    render(<InputItem item={baseItem()} {...props} />);
+    expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("does not announce invalid for a WARNING (the same channel argument)", () => {
+    render(<InputItem item={baseItem()} {...props} warning="Confira o valor." />);
+    expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByRole("status")).toHaveTextContent("Confira o valor.");
+  });
+});

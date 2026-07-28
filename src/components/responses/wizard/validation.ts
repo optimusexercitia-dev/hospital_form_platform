@@ -446,6 +446,35 @@ function applyToField(
 }
 
 /**
+ * BUG-FF3-001 — drop the sticky per-instance errors for one child across EVERY
+ * repetition, returning a new map (or the same reference when nothing changed).
+ *
+ * `unique_within_group` is the only rule whose violation is SYMMETRIC: two peers
+ * collide and a blocked navigation records a message on BOTH. Clearing keyed to
+ * the edited field alone strands the peer, so a repetition the user never touched
+ * keeps a message and `aria-invalid="true"` for a field that no longer violates
+ * anything — a valid input announced as invalid, which is the same misinformation
+ * that keeps `warn` off the error channel.
+ *
+ * The rule's participant set is "this child in every instance of its group", and
+ * an item has exactly ONE parent, so every key ending in `:${itemId}` IS that set.
+ * Keying on the participants rather than the edited field is what makes the
+ * clearing symmetric: editing repetition 1 clears repetition 2's stale copy
+ * exactly as the reverse does.
+ */
+export function clearPeerFieldErrors(
+  errors: Record<string, string>,
+  itemId: string,
+): Record<string, string> {
+  const suffix = `:${itemId}`;
+  const stale = Object.keys(errors).filter((key) => key.endsWith(suffix));
+  if (stale.length === 0) return errors;
+  const next = { ...errors };
+  for (const key of stale) delete next[key];
+  return next;
+}
+
+/**
  * Min/max bounds check for a number/date answer against the item's `config`
  * (mirror of the submit RPC's HC061 rule). Number bounds are JSON numbers; date
  * bounds are ISO `YYYY-MM-DD` strings that compare lexicographically. Returns a
