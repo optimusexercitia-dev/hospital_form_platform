@@ -90,6 +90,20 @@ export interface ResponseForSignoff {
    * them as a muted secondary line under the answer (mirrors BE-7). */
   observationsByItemId: Record<string, string>
   /**
+   * QA m-3 — the response's TOP-LEVEL "Outros" free text, keyed by item id.
+   *
+   * ⚠ NOT optional and NOT cosmetic. The door projected this per instance and
+   * NOT at top level, so a top-level "Outros" answer reached the signer as a
+   * bare chip with the respondent's typed text missing — an attestation to
+   * "Outro" without ever seeing what it said. Same shape as `instances` (FF-1),
+   * the matrix grids (FF-2) and `references_by_item` (FF-5): every answer shape
+   * owes this projection, and this is the fourth time that debt came due.
+   *
+   * Identical shape to {@link ResponseForFill.otherTextByItemId}, so the review
+   * screen reuses the wizard's renderer rather than growing a second one.
+   */
+  otherTextByItemId: Record<string, string>
+  /**
    * FF-2 (ADR 0089 · FUP-FF2-1) — the response's TOP-LEVEL matrix grids,
    * `{ itemId: { rowCode: colCode } }`, and its risk answers.
    *
@@ -164,6 +178,9 @@ interface ResponseForSignoffJson {
   answers: Record<string, Json>
   answers_by_item: Record<string, Json>
   observations_by_item: Record<string, string>
+  /** QA m-3: the TOP-LEVEL "Outros" free text. Emitted by the door only since
+   *  20260902000900 — before that it existed per-instance and nowhere else. */
+  other_text_by_item: Record<string, string>
   /** FF-2 (ADR 0089): the matrix grids, addressed by clone-stable CODES on both
    *  axes — the same shape the wizard reads, so the review screen reuses its
    *  renderer rather than growing a second one. */
@@ -348,6 +365,10 @@ export async function getResponseForSignoff(
     answersByKey: payload.answers ?? {},
     answersByItemId: payload.answers_by_item ?? {},
     observationsByItemId: payload.observations_by_item ?? {},
+    // QA m-3. `?? {}` because the key is absent from a payload produced before
+    // 20260902000900, not because the data is optional — the signer must see the
+    // typed "Outro" text, not a bare chip.
+    otherTextByItemId: payload.other_text_by_item ?? {},
     matrixCellsByItemId: payload.matrix_cells_by_item ?? {},
     riskMatrixByItemId: toRiskAnswers(payload.risk_matrix_by_item),
     referencesByItemId: toReferenceAnswers(payload.references_by_item),

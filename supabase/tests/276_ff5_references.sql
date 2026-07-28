@@ -42,10 +42,15 @@
 --        the end `item-type-sets.test.ts` structurally cannot: `ItemType` is
 --        HAND-WRITTEN (gen:types renders a CHECK-constrained text column as
 --        `string`), so a SQL-only widening is invisible to every TS gate.
+--   §N — the sign-off door projects EVERY answer shape at top level (QA m-3).
+--        Asserted as a KEY SET, not one key: this surface has lost a shape four
+--        times (FF-1 instances, FF-2 grids, FF-5 references, other_text), each
+--        found after shipping, and a single-key test would have passed for all
+--        three of the others.
 
 begin;
 
-select plan(54);
+select plan(59);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -971,6 +976,130 @@ select is(
         'multiple_choice', 'number', 'reference', 'repeating_group', 'risk_matrix',
         'section_text', 'short_text', 'time'],
   'M1. form_items_item_type_check admits EXACTLY the 15 values ITEM_TYPE_AUTHORITY mirrors');
+
+-- ===========================================================================
+-- §N · THE SIGN-OFF PAYLOAD CARRIES EVERY ANSWER SHAPE AT TOP LEVEL (QA m-3).
+--
+--   This surface has now lost an answer shape FOUR TIMES, each found after
+--   shipping: FF-1 `instances`, FF-2 the two matrix grids, FF-5
+--   `references_by_item`, and `other_text_by_item` — which the door projected
+--   per-instance and NOT at top level, so a top-level "Outros" answer reached
+--   the signer as a bare chip with the typed text gone. A signature is an
+--   attestation; a field the screen never showed is the sharp end.
+--
+--   Asserting the KEY SET rather than one key is the point. A test for
+--   `other_text_by_item` alone would have passed for the three shapes that went
+--   missing before it, and would pass again for the fifth. This reds when a
+--   future phase adds an answer shape and forgets this door.
+--
+--   MUTATION: delete the `other_text_by_item` line from
+--     get_response_for_signoff -> N2 red. Verified.
+-- ===========================================================================
+-- Fixture: its OWN form, because the FF-5 form above is already published and a
+-- published version's structure is immutable — a sign-off section cannot be
+-- added to it. Section 0 requires a staff_admin signature, which is gate 3 of
+-- the door.
+insert into public.forms (id, commission_id, title, created_by)
+  values ('ff500000-0000-0000-0000-0000000000c4', (select comm_x from k), 'FF5 assinatura', (select sa_x from k));
+insert into public.form_versions (id, form_id, version_number, status)
+  values ('ff500000-0000-0000-0000-0000000000c3', 'ff500000-0000-0000-0000-0000000000c4', 1, 'draft');
+insert into public.form_sections (id, form_version_id, position, title, requires_signoff, signoff_role)
+  values ('ff500000-0000-0000-0000-0000000000c2', 'ff500000-0000-0000-0000-0000000000c3', 0,
+          'Revisão', true, 'staff_admin');
+
+-- pos 0 carries the "Outros" TEXT (N4); pos 1 carries the only TOP-LEVEL
+-- observation (N5); pos 2/3 are the group whose instance observation must NOT
+-- fold into the top-level map.
+insert into public.form_items (id, section_id, position, item_type, question_key, label)
+  values ('ff500000-0000-0000-0000-000000000017', 'ff500000-0000-0000-0000-0000000000c2', 0,
+          'short_text', 'so_outro', 'Motivo');
+insert into public.form_items (id, section_id, position, item_type, question_key, label)
+  values ('ff500000-0000-0000-0000-000000000018', 'ff500000-0000-0000-0000-0000000000c2', 1,
+          'short_text', 'so_obs', 'Nota');
+insert into public.form_items (id, section_id, position, item_type, label, config)
+  values ('ff500000-0000-0000-0000-000000000019', 'ff500000-0000-0000-0000-0000000000c2', 2,
+          'repeating_group', 'Bloco', jsonb_build_object('minInstances', 0));
+insert into public.form_items (id, section_id, position, item_type, question_key, label, parent_item_id)
+  values ('ff500000-0000-0000-0000-00000000001a', 'ff500000-0000-0000-0000-0000000000c2', 3,
+          'short_text', 'so_rg', 'Nota do bloco', 'ff500000-0000-0000-0000-000000000019');
+
+select public.publish_form_version('ff500000-0000-0000-0000-0000000000c3');
+
+insert into public.responses (id, form_version_id, commission_id, created_by, status)
+  values ('ff500000-0000-0000-0000-0000000000c1', 'ff500000-0000-0000-0000-0000000000c3',
+          (select comm_x from k), (select st_x from k), 'in_progress');
+
+-- Written as OWNER: the point under test is the DOOR's projection, not the save
+-- path (which 209/270 already cover), and going through save_section_answers
+-- would couple this section to an unrelated surface.
+insert into public.answers (response_id, item_id, question_key, value, other_text, group_instance_id)
+  values ('ff500000-0000-0000-0000-0000000000c1', 'ff500000-0000-0000-0000-000000000017',
+          'so_outro', '"outro"'::jsonb, 'Outro motivo digitado', null);
+insert into public.answers (response_id, item_id, question_key, value, observation, group_instance_id)
+  values ('ff500000-0000-0000-0000-0000000000c1', 'ff500000-0000-0000-0000-000000000018',
+          'so_obs', '"x"'::jsonb, 'Observação de topo', null);
+
+insert into public.response_group_instances (id, response_id, group_item_id, position)
+  values ('ff500000-0000-0000-0000-0000000000c5', 'ff500000-0000-0000-0000-0000000000c1',
+          'ff500000-0000-0000-0000-000000000019', 0);
+-- The instance observation N5 proves must NOT appear in the top-level map.
+insert into public.answers (response_id, item_id, question_key, value, observation, group_instance_id)
+  values ('ff500000-0000-0000-0000-0000000000c1', 'ff500000-0000-0000-0000-00000000001a',
+          'so_rg', '"y"'::jsonb, 'Observação da instância', 'ff500000-0000-0000-0000-0000000000c5');
+
+-- Read as the staff_admin of this commission (gate 2 of the door).
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+create temp table sopayload on commit drop as
+  select public.get_response_for_signoff('ff500000-0000-0000-0000-0000000000c1') as p;
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+-- N1 — the CONTROL. Without it, N2 could pass because the payload is empty or
+-- the fixture never reached the door.
+select cmp_ok(
+  (select count(*)::int from jsonb_object_keys((select p from sopayload))),
+  '>=', 15,
+  'N1. CONTROL — the sign-off door returns a fully-populated payload');
+
+select is(
+  (select array_agg(k order by k)
+   from jsonb_object_keys((select p from sopayload)) k
+   where k like '%_by_item' or k = 'instances'),
+  array['answers_by_item', 'instances', 'matrix_cells_by_item',
+        'observations_by_item', 'other_text_by_item', 'references_by_item',
+        'risk_matrix_by_item'],
+  'N2. every answer-shape projection is present at TOP LEVEL — incl. other_text_by_item (m-3)');
+
+-- N3 — the per-instance half, asserted as a key set for the same reason. The
+-- instance blocks were always complete; pinning them stops the reverse
+-- regression, where a fix to the top level drops an instance key.
+select is(
+  (select array_agg(k order by k)
+   from jsonb_array_elements((select p from sopayload) -> 'instances') inst,
+        lateral jsonb_object_keys(inst) k
+   where k like '%_by_item'),
+  array['answers_by_item', 'matrix_cells_by_item', 'observations_by_item',
+        'other_text_by_item', 'references_by_item', 'risk_matrix_by_item'],
+  'N3. …and every projection is present PER INSTANCE too');
+
+-- N4 — the VALUE, not just the key. A key projecting `{}` for a real answer is
+-- the same blindness with a tidier shape.
+select is(
+  (select p -> 'other_text_by_item' ->> 'ff500000-0000-0000-0000-000000000017'
+   from sopayload),
+  'Outro motivo digitado',
+  'N4. …and the top-level "Outros" TEXT actually reaches the signer');
+
+-- N5 — the scope fix that came with it: the top-level observations block had no
+-- `group_instance_id` filter, so INSTANCE observations folded into the
+-- TOP-LEVEL map (ADR 0087 substrate correction 5, recurring in this door).
+-- MUTATION: drop `and a.group_instance_id is null` from that block -> N5 red.
+select is(
+  (select count(*)::int from jsonb_object_keys(
+     (select p -> 'observations_by_item' from sopayload))),
+  1,
+  'N5. the top-level observations map holds ONLY the top-level observation (no instance fold)');
 
 select * from finish();
 rollback;
