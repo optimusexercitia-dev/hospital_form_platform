@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { answerableItems, getVersionTree } from '@/lib/queries/forms'
+import { toReferenceKind } from '@/lib/forms/reference-constants'
+import type { ReferenceKind } from '@/lib/forms/reference-constants'
 import type { InputItemType, ItemType } from '@/lib/queries/forms'
 import type { ResponseStatus } from '@/lib/queries/responses'
 
@@ -170,6 +172,51 @@ export interface RiskDistribution {
   maximum: number | null
 }
 
+/**
+ * FF-5 (BE contract, ADR 0091 ruling 4) — one TARGET's tally within a reference
+ * question's distribution.
+ *
+ * ⚠ `targetId` is the identity and the grouping key; `targetLabel` is display
+ * only, resolved server-side by LIVE JOIN at query time. This is the same
+ * discipline `DistributionOption` applies with `code` over `label` and
+ * `MatrixCellTally` with `rowCode` over `rowLabel` — arrived at here from the
+ * opposite direction: the id is the STABLE thing and the name is what drifts, so
+ * a renamed participant, a retitled commission or a person who marries keeps one
+ * unbroken series instead of forking it on the day of the change.
+ */
+export interface ReferenceTargetTally {
+  /** Which lane this target belongs to (`participant` | `commission` | `user`). */
+  kind: ReferenceKind
+  /** The stable target id — the aggregation/identity key. */
+  targetId: string
+  /** The target's CURRENT name, for the UI. Never the aggregation key. */
+  targetLabel: string
+  /** How many answered references pointed at this target. A reference inside a
+   *  repeating group contributes once PER INSTANCE. */
+  count: number
+}
+
+/**
+ * A per-`question_key` distribution for ONE `reference` question, across every
+ * countable submitted response in scope.
+ *
+ * `n` is the number of answered references — one per (response, instance), so a
+ * reference inside a repeating group counts once per row of that group.
+ * `denominator` is the applicability base: distinct responses that reached the
+ * question's section, or — inside a repeating group — the number of instances
+ * that exist (the FF-1 precedent that stopped shares exceeding 100%).
+ */
+export interface ReferenceDistribution {
+  questionKey: string
+  label: string
+  sectionTitle: string | null
+  sectionPosition: number
+  itemPosition: number
+  targets: ReferenceTargetTally[]
+  denominator: number
+  n: number
+}
+
 /** A capped sample of free-text answers for one `free_text` question (free-text
  * is not charted; the UI shows a short read-only list with a total count). */
 export interface FreeTextSample {
@@ -216,6 +263,16 @@ export interface FormDashboard {
   matrixDistributions: MatrixDistribution[]
   /** FF-2 — `risk_matrix` aggregations, same ordering. `[]` when none. */
   riskDistributions: RiskDistribution[]
+  /**
+   * FF-5 — `reference` aggregations, same section→item ordering. `[]` when the
+   * form has no reference questions, so every existing consumer is unaffected.
+   *
+   * Without this a filled reference is WRITE-ONLY — stored, immutable, carried
+   * through clones and corrections, and appearing in no dashboard, on a platform
+   * whose stated purpose is that statistics come from dashboards instead of
+   * manual tabulation (CLAUDE.md §1).
+   */
+  referenceDistributions: ReferenceDistribution[]
   /** Free-text samples, same ordering. */
   freeTextSamples: FreeTextSample[]
   submissionsOverTime: SubmissionsOverTimePoint[]
@@ -331,10 +388,18 @@ export async function getFormDashboard(
   const supabase = await createClient()
   const args = { p_form_id: formId, p_from: range?.from, p_to: range?.to }
 
-  // The five aggregation RPCs (all internally gated) plus the form title (the
+  // The seven aggregation RPCs (all internally gated) plus the form title (the
   // title is RLS-readable to a member; the gating that matters is on the RPCs).
-  const [dist, freeText, overTime, byMember, matrixCells, riskScores, formRes] =
-    await Promise.all([
+  const [
+    dist,
+    freeText,
+    overTime,
+    byMember,
+    matrixCells,
+    riskScores,
+    entityRefs,
+    formRes,
+  ] = await Promise.all([
       supabase.rpc('dashboard_distributions', args),
       supabase.rpc('dashboard_free_text', args),
       supabase.rpc('dashboard_submissions_over_time', args),
@@ -343,6 +408,9 @@ export async function getFormDashboard(
       // the four above, so the supersession rule cannot drift between charts.
       supabase.rpc('dashboard_matrix_cells', args),
       supabase.rpc('dashboard_risk_scores', args),
+      // FF-5 (ADR 0091): same helper again, for the same reason — one
+      // supersession predicate behind every chart on this page.
+      supabase.rpc('dashboard_entity_references', args),
       supabase.from('forms').select('title').eq('id', formId).maybeSingle<{ title: string }>(),
     ])
 
@@ -379,6 +447,7 @@ export async function getFormDashboard(
     distributions,
     matrixDistributions: pivotMatrixCells(matrixCells.data ?? []),
     riskDistributions: pivotRiskScores(riskScores.data ?? []),
+    referenceDistributions: pivotEntityReferences(entityRefs.data ?? []),
     freeTextSamples,
     submissionsOverTime,
     completionByMember,
@@ -432,6 +501,59 @@ export function pivotMatrixCells(
       colLabel: r.col_label,
       colPosition: r.col_position,
       count: Number(r.cell_count),
+    })
+  }
+  return Array.from(byKey.values())
+}
+
+/**
+ * FF-5 — pivot the flat (question_key × reference_kind × target_id) rows into
+ * one {@link ReferenceDistribution} per question_key, preserving the RPC's
+ * section→item→count ordering.
+ *
+ * A row whose `reference_kind` is not a known lane is DROPPED. That is
+ * unreachable today (the `reference_kind` CHECK pins the three lanes), and is
+ * kept so a future fourth lane — hospital/org, deferred by ADR 0086 ruling 5 —
+ * cannot render as an unlabelled slice in a client that predates it.
+ */
+export function pivotEntityReferences(
+  rows: {
+    question_key: string
+    label: string
+    section_title: string | null
+    section_position: number
+    item_position: number
+    reference_kind: string
+    target_id: string
+    target_label: string
+    ref_count: number
+    denominator: number
+    n: number
+  }[],
+): ReferenceDistribution[] {
+  const byKey = new Map<string, ReferenceDistribution>()
+  for (const r of rows) {
+    const kind = toReferenceKind(r.reference_kind)
+    if (kind === null) continue
+    let dist = byKey.get(r.question_key)
+    if (!dist) {
+      dist = {
+        questionKey: r.question_key,
+        label: r.label,
+        sectionTitle: r.section_title,
+        sectionPosition: r.section_position,
+        itemPosition: r.item_position,
+        targets: [],
+        denominator: Number(r.denominator),
+        n: Number(r.n),
+      }
+      byKey.set(r.question_key, dist)
+    }
+    dist.targets.push({
+      kind,
+      targetId: r.target_id,
+      targetLabel: r.target_label,
+      count: Number(r.ref_count),
     })
   }
   return Array.from(byKey.values())

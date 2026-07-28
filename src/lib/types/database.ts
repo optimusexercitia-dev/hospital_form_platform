@@ -601,31 +601,44 @@ export type Database = {
       answer_references: {
         Row: {
           answer_id: string
+          commission_id: string | null
           created_at: string
           id: string
           participant_id: string | null
+          profile_id: string | null
           reference_kind: string
         }
         Insert: {
           answer_id: string
+          commission_id?: string | null
           created_at?: string
           id?: string
           participant_id?: string | null
+          profile_id?: string | null
           reference_kind?: string
         }
         Update: {
           answer_id?: string
+          commission_id?: string | null
           created_at?: string
           id?: string
           participant_id?: string | null
+          profile_id?: string | null
           reference_kind?: string
         }
         Relationships: [
           {
             foreignKeyName: "answer_references_answer_id_fkey"
             columns: ["answer_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "answers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answer_references_commission_id_fkey"
+            columns: ["commission_id"]
+            isOneToOne: false
+            referencedRelation: "commissions"
             referencedColumns: ["id"]
           },
           {
@@ -633,6 +646,13 @@ export type Database = {
             columns: ["participant_id"]
             isOneToOne: false
             referencedRelation: "participants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "answer_references_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -11321,6 +11341,22 @@ export type Database = {
           section_title: string
         }[]
       }
+      dashboard_entity_references: {
+        Args: { p_form_id: string; p_from?: string; p_to?: string }
+        Returns: {
+          denominator: number
+          item_position: number
+          label: string
+          n: number
+          question_key: string
+          ref_count: number
+          reference_kind: string
+          section_position: number
+          section_title: string
+          target_id: string
+          target_label: string
+        }[]
+      }
       dashboard_export_rows: {
         Args: { p_form_id: string; p_from?: string; p_to?: string }
         Returns: {
@@ -12758,6 +12794,14 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reference_candidates: {
+        Args: { p_item_id: string; p_query?: string; p_response_id: string }
+        Returns: {
+          label: string
+          sublabel: string
+          target_id: string
+        }[]
+      }
       referrals_enabled: { Args: never; Returns: boolean }
       reject_correction: {
         Args: { p_reason: string; p_request_id: string }
@@ -13382,6 +13426,7 @@ export type Database = {
           p_matrix_cells?: Json
           p_observations?: Json
           p_other_text?: Json
+          p_references?: Json
           p_response_id: string
           p_risk_matrix?: Json
           p_section_id: string

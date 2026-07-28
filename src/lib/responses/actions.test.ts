@@ -227,6 +227,10 @@ describe('reorderGroupInstances', () => {
  */
 const SECTION_ID = '55555555-5555-4555-8555-555555555555'
 const ITEM_ID = '66666666-6666-4666-8666-666666666666'
+/** FF-5: the reference TARGET — a participant / commission / profile id. Which
+ *  of the three it is never appears on the wire (the lane comes from the item's
+ *  config), which is exactly what these tests pin. */
+const TARGET_ID = '77777777-7777-4777-8777-777777777777'
 
 describe('saveSection — the FF-1 instance arm (BUG-FF1-005)', () => {
   it('forwards instances as p_instance_answers, TRANSLATED to the RPC key shape', async () => {
@@ -249,6 +253,8 @@ describe('saveSection — the FF-1 instance arm (BUG-FF1-005)', () => {
           riskMatrixByItemId: {
             [ITEM_ID]: { severity: 'grave', likelihood: 'provavel' },
           },
+          // FF-5 (ADR 0091): the reference sub-map rides the SAME translation.
+          referencesByItemId: { [ITEM_ID]: TARGET_ID },
         },
       ],
     })
@@ -270,6 +276,11 @@ describe('saveSection — the FF-1 instance arm (BUG-FF1-005)', () => {
         risk_matrix: {
           [ITEM_ID]: { severity: 'grave', likelihood: 'provavel' },
         },
+        // FF-5: `references`, not `referencesByItemId`. A verbatim forward would
+        // be SILENTLY INERT — `app.save_reference_answers` would receive an
+        // empty payload, early-return, and every reference inside a repeating
+        // group would vanish with no error raised anywhere.
+        references: { [ITEM_ID]: TARGET_ID },
       },
     ])
   })
@@ -294,6 +305,7 @@ describe('saveSection — the FF-1 instance arm (BUG-FF1-005)', () => {
         clear_item_ids: [],
         matrix_cells: {},
         risk_matrix: {},
+        references: {},
       },
     ])
   })
@@ -340,6 +352,62 @@ describe('saveSection — the FF-1 instance arm (BUG-FF1-005)', () => {
     const args = rpc.mock.calls[0][1]
     expect(args.p_matrix_cells).toBeUndefined()
     expect(args.p_risk_matrix).toBeUndefined()
+  })
+
+  // FF-5 (ADR 0091) — the TOP-LEVEL reference param, for the same reason and by
+  // the same method. `save_section_answers` gained an 11th parameter; a declared
+  // param that no caller passes is invisible to tsc, lint, the unit suite, pgTAP
+  // AND E2E (E2E specs call the RPC directly, so they exercise the parameter and
+  // not the wire to it). This test is the only gate that crosses that seam.
+  it('forwards the top-level reference payload as p_references', async () => {
+    rpc.mockResolvedValue({ data: null, error: null })
+
+    await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: {},
+      referencesByItemId: { [ITEM_ID]: TARGET_ID },
+    })
+
+    const args = rpc.mock.calls[0][1]
+    // The TARGET ID alone — the lane is never on the wire. It is resolved from
+    // the item's own `config->>'referenceKind'`, which is what makes "a
+    // commission item paired with a participant target" unrepresentable rather
+    // than merely rejected.
+    expect(args.p_references).toEqual({ [ITEM_ID]: TARGET_ID })
+  })
+
+  it('forwards an explicit null target — the CLEAR command must reach the server', async () => {
+    rpc.mockResolvedValue({ data: null, error: null })
+
+    await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: {},
+      referencesByItemId: { [ITEM_ID]: null },
+    })
+
+    // A truthiness-based "has references?" guard would drop this payload and
+    // make clearing a reference a silent no-op: the user removes the target, the
+    // save reports success, and the old reference is still there on reload.
+    // Hence the key-count test in the action, and this assertion pinning it.
+    expect(rpc.mock.calls[0][1].p_references).toEqual({ [ITEM_ID]: null })
+  })
+
+  it('OMITS p_references when the section has no reference answers', async () => {
+    rpc.mockResolvedValue({ data: null, error: null })
+
+    await saveSection({
+      responseId: RESPONSE_ID,
+      sectionId: SECTION_ID,
+      answersByItemId: { [ITEM_ID]: 'x' },
+    })
+
+    // Omitted, not `{}` — same reasoning as the two matrix params above:
+    // `app.save_reference_answers` early-returns on an empty payload BEFORE
+    // asserting the `entity_refs` flag, so sending `{}` from every ordinary save
+    // would couple every form fill to a flag it has nothing to do with.
+    expect(rpc.mock.calls[0][1].p_references).toBeUndefined()
   })
 
   it('omits p_instance_answers entirely when the section has no instances', async () => {

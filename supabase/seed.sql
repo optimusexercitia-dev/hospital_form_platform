@@ -2123,6 +2123,17 @@ update app.feature_flags set enabled = true where key = 'matrix_fields';
 -- flag-guarded keystone SKIP while reporting green (the pgtap-fixture-flag-gaps
 -- scar). 274_ff3_validations.sql asserts the flag is ON before anything else.
 update app.feature_flags set enabled = true where key = 'item_validations';
+-- ---------------------------------------------------------------------------
+-- FF-5 entity reference (ADR 0091). Created OFF in
+-- 20260902000000_ff5_reference_schema; forced ON here for local/E2E so
+-- app.save_reference_answers, public.reference_candidates, the reference arms of
+-- both save paths and the completeness/projection/aggregation arms are all
+-- reachable under test. Production flip is 20260902000600_enable_entity_refs.
+-- NOTE for pgTAP authors: the writer and the candidate search both raise HC0Q3
+-- when this flag is OFF, so a fixture that forgets it makes every flag-guarded
+-- keystone SKIP while reporting green (the pgtap-fixture-flag-gaps scar). The
+-- FF-5 suite must assert the flag is ON before it asserts anything else.
+update app.feature_flags set enabled = true where key = 'entity_refs';
 
 -- ===========================================================================
 -- FORM C (commission CCIH): the FF-2 demo — one `matrix` (required, so the
@@ -2191,6 +2202,123 @@ begin
 
   perform public.publish_form_version(v_version_id);
 end $ff2$;
+
+-- ===========================================================================
+-- FORM D (commission CCIH): the FF-5 demo (ADR 0091) — one `reference` item of
+-- EACH of the three lanes, plus a fourth reference INSIDE A REPEATING GROUP.
+--
+-- ⚠ THE FOURTH ITEM IS THE POINT, not padding. The top-level and per-instance
+-- save paths are two separate functions (`save_section_answers` and
+-- `app.save_instance_answers`), the completeness predicate has two arms
+-- (`item_required_satisfied` and `instance_is_empty`), the sign-off projection
+-- has two scopes and the correction copy resolves instances through
+-- `(group_item_id, position)`. A form that exercises only the flat case leaves
+-- every second arm untested while the suite reports green — which is the
+-- FF-1/FF-2/FF-3 "a new door must inherit EVERY sibling arm" scar, and the
+-- reason the reference-in-a-group composition needs a fixture rather than an
+-- assumption.
+--
+-- LANE SCOPING (ADR 0091 rulings 2 + 3), so the tester reads an empty dropdown
+-- as CORRECT rather than as a bug:
+--   * participant — org-scoped for every type EXCEPT `patient`. The two
+--     `department` participants below are the candidates. `patient` is
+--     CASE-scoped, and this is a STANDALONE form, so a patient-typed reference
+--     here would yield ZERO candidates BY DESIGN. That is exactly why
+--     `participantTypes` pins the two non-patient types.
+--   * commission — inherits `commissions_select_member_or_admin`, so a filler
+--     sees only commissions they are a member of (or admin over). For
+--     staff1.ccih that is CCIH alone: a one-row dropdown is the correct result.
+--   * user — inherits `profiles_select_self_or_admin`, whose co-member arm makes
+--     fellow CCIH members pickable.
+--
+-- Item 0 is REQUIRED, which is only legal because 20260902000000 relaxed the
+-- `reference` arm of `form_items_input_vs_display` (ADR 0086 ruling 4 / 0091
+-- ruling 6). It also means a filler must answer it to submit — the completeness
+-- arm is exercised by simply filling the form.
+-- ===========================================================================
+do $ff5$
+declare
+  v_org_a      uuid := '0c000000-0000-0000-0000-00000000000a';  -- organization of Rede A
+  v_comm_ccih  uuid := 'a0000000-0000-0000-0000-0000000000a1';
+  v_chefe      uuid := '00000000-0000-0000-0000-000000000002';  -- chefe.ccih (staff_admin of A)
+  v_form_id    uuid := 'f0000000-0000-0000-0000-00000000a003';
+  v_version_id uuid := '50000000-0000-0000-0000-00000000a003';
+  v_section_id uuid := 'c0000000-0000-0000-0000-00000000a003';
+  v_ref_part   uuid := 'd0000000-0000-0000-0000-00000000a301';
+  v_ref_comm   uuid := 'd0000000-0000-0000-0000-00000000a302';
+  v_ref_user   uuid := 'd0000000-0000-0000-0000-00000000a303';
+  v_group_id   uuid := 'd0000000-0000-0000-0000-00000000a304';
+  v_ref_child  uuid := 'd0000000-0000-0000-0000-00000000a305';
+begin
+  -- Two org-scoped `department` participants — stable, NON-PHI candidates for
+  -- the participant lane. `sensitivity_class` is not free: participants_sensitivity
+  -- _derives_type pins `department` to 'non_sensitive'.
+  insert into public.participants
+    (id, organization_id, participant_type, sensitivity_class, display_name, created_by)
+  values
+    ('e0000000-0000-0000-0000-0000000000d1', v_org_a, 'department', 'non_sensitive',
+     'UTI Adulto', v_chefe),
+    ('e0000000-0000-0000-0000-0000000000d2', v_org_a, 'department', 'non_sensitive',
+     'Centro Cirúrgico', v_chefe)
+  on conflict do nothing;
+
+  insert into public.forms (id, commission_id, title, description, created_by)
+  values (v_form_id, v_comm_ccih,
+          'Registro de Ocorrência com Referências',
+          'Vincula a ocorrência ao setor, à comissão e ao responsável envolvidos.',
+          v_chefe);
+
+  insert into public.form_versions (id, form_id, version_number, status, created_by)
+  values (v_version_id, v_form_id, 1, 'draft', v_chefe);
+
+  insert into public.form_sections (id, form_version_id, position, title, is_default)
+  values (v_section_id, v_version_id, 0, null, true);
+
+  -- position 0 — PARTICIPANT lane, REQUIRED (the relaxed arm).
+  insert into public.form_items
+    (id, section_id, position, item_type, question_key, label, question_explanation, required, config)
+  values (v_ref_part, v_section_id, 0, 'reference', 'referencia_setor',
+          'Setor envolvido',
+          'Selecione o setor onde a ocorrência foi identificada.', true,
+          jsonb_build_object(
+            'referenceKind', 'participant',
+            'participantTypes', jsonb_build_array('department', 'professional')));
+
+  -- position 1 — COMMISSION lane.
+  insert into public.form_items
+    (id, section_id, position, item_type, question_key, label, required, config)
+  values (v_ref_comm, v_section_id, 1, 'reference', 'referencia_comissao',
+          'Comissão responsável pelo acompanhamento', false,
+          jsonb_build_object('referenceKind', 'commission'));
+
+  -- position 2 — USER lane.
+  insert into public.form_items
+    (id, section_id, position, item_type, question_key, label, required, config)
+  values (v_ref_user, v_section_id, 2, 'reference', 'referencia_responsavel',
+          'Profissional responsável pela apuração', false,
+          jsonb_build_object('referenceKind', 'user'));
+
+  -- position 3 — the REPEATING GROUP, and position 4 its reference child. A
+  -- container carries no question_key and is never required (ADR 0087); its
+  -- child sits contiguously after it in the same section, which is what keeps
+  -- the "pergunta anterior" ordinal rule working across the boundary.
+  -- `parent_is_container` / `is_container` are GENERATED — never write them.
+  insert into public.form_items
+    (id, section_id, position, item_type, label, required, config)
+  values (v_group_id, v_section_id, 3, 'repeating_group',
+          'Outros setores envolvidos', false,
+          jsonb_build_object('minInstances', 0, 'maxInstances', 5));
+
+  insert into public.form_items
+    (id, section_id, position, item_type, question_key, label, required, parent_item_id, config)
+  values (v_ref_child, v_section_id, 4, 'reference', 'referencia_setor_envolvido',
+          'Setor', false, v_group_id,
+          jsonb_build_object(
+            'referenceKind', 'participant',
+            'participantTypes', jsonb_build_array('department')));
+
+  perform public.publish_form_version(v_version_id);
+end $ff5$;
 -- ---------------------------------------------------------------------------
 do $cd$
 declare

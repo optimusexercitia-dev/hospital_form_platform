@@ -1,3 +1,7 @@
+import {
+  PARTICIPANT_TYPES,
+  REFERENCE_KINDS,
+} from '@/lib/forms/reference-constants'
 import type { Json } from '@/lib/types/database'
 
 /**
@@ -38,6 +42,8 @@ const MESSAGES = {
     'As faixas de risco são inválidas: informe uma pontuação mínima numérica e um rótulo para cada faixa.',
   riskBandsDuplicate:
     'Duas faixas de risco não podem ter a mesma pontuação mínima.',
+  referenceKindInvalid: 'Selecione um tipo de referência válido.',
+  participantTypesInvalid: 'Os tipos de participante selecionados são inválidos.',
 } as const
 
 /** Types that accept optional min/max bounds via `config`. */
@@ -246,6 +252,54 @@ export function parseItemConfig(
       if (bands.length > 0) {
         config.riskBands = [...bands].sort((a, b) => a.minScore - b.minScore)
       }
+    }
+  }
+
+  // FF-5 (ADR 0091) — `config.referenceKind` + `config.participantTypes`: WHICH
+  // entity lane a `reference` item targets, and (participant lane only) which
+  // participant types are offered.
+  //
+  // ⚠ `referenceKind` IS THE SECURITY-RELEVANT HALF, not a display preference.
+  // `app.save_reference_answers` resolves the lane from the stored config and
+  // NEVER from the save payload, which is what makes "a commission item paired
+  // with a participant target" unrepresentable rather than merely rejected. An
+  // unknown value written here would therefore not fail loudly — it would fall
+  // through the server's `coalesce(..., 'participant')` and silently turn the
+  // item into a participant picker. So this parser REJECTS an unknown kind
+  // rather than dropping the key.
+  //
+  // `participantTypes` takes the opposite treatment, and deliberately: unknown
+  // members are DROPPED and an empty result yields NO KEY at all. Absent and
+  // empty-array both mean "all types" to the server, so narrowing is a
+  // convenience the author can get wrong without breaking the item — while the
+  // real boundary (org containment, and case-scoping for `patient`) is
+  // `app.guard_reference_coherent`, which this config cannot weaken.
+  if (itemType === 'reference') {
+    const rawKind = String(formData.get('configReferenceKind') ?? '').trim()
+    if (rawKind) {
+      // Widened to `readonly string[]` for the membership test: this is the
+      // narrowing step itself, so the array cannot be typed as already-narrow.
+      if (!(REFERENCE_KINDS as readonly string[]).includes(rawKind)) {
+        return { error: MESSAGES.referenceKindInvalid }
+      }
+      config.referenceKind = rawKind
+    }
+
+    const rawTypes = String(formData.get('configParticipantTypes') ?? '').trim()
+    if (rawTypes) {
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(rawTypes)
+      } catch {
+        return { error: MESSAGES.participantTypesInvalid }
+      }
+      if (!Array.isArray(parsed)) return { error: MESSAGES.participantTypesInvalid }
+      const known = parsed.filter(
+        (v): v is string =>
+          typeof v === 'string' &&
+          (PARTICIPANT_TYPES as readonly string[]).includes(v),
+      )
+      if (known.length > 0) config.participantTypes = known
     }
   }
 

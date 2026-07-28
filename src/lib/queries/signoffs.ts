@@ -2,7 +2,12 @@ import { createClient } from '@/lib/supabase/server'
 import { getVersionTree } from '@/lib/queries/forms'
 import type { Json } from '@/lib/types/database'
 import type { VersionTree } from '@/lib/queries/forms'
-import type { GroupInstance, RiskMatrixAnswer } from '@/lib/queries/responses'
+import { toReferenceKind } from '@/lib/forms/reference-constants'
+import type {
+  GroupInstance,
+  ReferenceAnswer,
+  RiskMatrixAnswer,
+} from '@/lib/queries/responses'
 
 /**
  * Sign-off data-access (Architecture Rule 9 — all reads go through
@@ -96,6 +101,14 @@ export interface ResponseForSignoff {
   matrixCellsByItemId: Record<string, Record<string, string>>
   riskMatrixByItemId: Record<string, RiskMatrixAnswer>
   /**
+   * FF-5 (ADR 0091) — the response's TOP-LEVEL reference targets, resolved to a
+   * readable label by the door. Same reasoning as the two matrix maps above, one
+   * answer shape later: FF-2's own migration named FF-5 as the next debtor of
+   * this projection, and a reference rendering empty on the review screen is a
+   * signature attesting to evidence the signer was never shown (Rule 4).
+   */
+  referencesByItemId: Record<string, ReferenceAnswer>
+  /**
    * FF-1 (ADR 0087) — the response's repeating-group instances, ordered by
    * (groupItemId, position). Sourced from the DEFINER door, not a second query,
    * so the review screen sees exactly what the door authorised.
@@ -156,6 +169,9 @@ interface ResponseForSignoffJson {
    *  renderer rather than growing a second one. */
   matrix_cells_by_item: Record<string, Record<string, string>>
   risk_matrix_by_item: Record<string, RiskMatrixJson>
+  /** FF-5 (ADR 0091): the reference targets, projected by
+   *  `app.references_by_item` at this scope. */
+  references_by_item: Record<string, ReferenceJson>
   /** FF-1: one entry per repeating-group instance, from the DEFINER door. */
   instances: GroupInstanceJsonRow[]
   signoffs: SignoffJsonRow[]
@@ -175,6 +191,9 @@ interface GroupInstanceJsonRow {
   /** FF-2: this instance's grids, same shape as the top-level maps. */
   matrix_cells_by_item: Record<string, Record<string, string>>
   risk_matrix_by_item: Record<string, RiskMatrixJson>
+  /** FF-5 (ADR 0091): the reference targets, projected by
+   *  `app.references_by_item` at this scope. */
+  references_by_item: Record<string, ReferenceJson>
 }
 
 /** FF-2: one risk answer as the door emits it. `risk_score` is the DURABLE fact
@@ -185,6 +204,47 @@ interface RiskMatrixJson {
   severity: string
   likelihood: string
   risk_score: number | null
+}
+
+/**
+ * FF-5: one reference as the door emits it. `target_id` is the identity;
+ * `label`/`sublabel` are resolved by live join at projection time and are what
+ * the signer actually reads — a reference field that renders as a bare UUID, or
+ * empty, is a signature attesting to evidence the screen never showed (Rule 4),
+ * which is the entire reason this projection exists.
+ */
+interface ReferenceJson {
+  kind: string
+  target_id: string
+  label: string | null
+  sublabel: string | null
+}
+
+/**
+ * FF-5: narrow the door's `references_by_item` payload to the SAME
+ * {@link ReferenceAnswer} shape `getResponseForFill` returns, so the sign-off
+ * view and the wizard consume one type — the `toRiskAnswers` precedent exactly.
+ *
+ * An entry with an unknown `kind` or no `target_id` is DROPPED rather than
+ * rendered: a half-formed reference on a signing screen is worse than an absent
+ * one, and the same reasoning that governs a half-formed risk answer applies
+ * unchanged here.
+ */
+function toReferenceAnswers(
+  raw: Record<string, ReferenceJson> | null | undefined,
+): Record<string, ReferenceAnswer> {
+  const out: Record<string, ReferenceAnswer> = {}
+  for (const [itemId, entry] of Object.entries(raw ?? {})) {
+    const kind = toReferenceKind(entry?.kind)
+    if (!entry || kind === null || typeof entry.target_id !== 'string') continue
+    out[itemId] = {
+      kind,
+      targetId: entry.target_id,
+      label: entry.label ?? entry.target_id,
+      sublabel: entry.sublabel,
+    }
+  }
+  return out
 }
 
 /**
@@ -290,6 +350,7 @@ export async function getResponseForSignoff(
     observationsByItemId: payload.observations_by_item ?? {},
     matrixCellsByItemId: payload.matrix_cells_by_item ?? {},
     riskMatrixByItemId: toRiskAnswers(payload.risk_matrix_by_item),
+    referencesByItemId: toReferenceAnswers(payload.references_by_item),
     instances: (payload.instances ?? []).map((i) => ({
       id: i.id,
       groupItemId: i.group_item_id,
@@ -306,6 +367,11 @@ export async function getResponseForSignoff(
       // produced before 20260830001000, not because the data is optional.
       matrixCellsByItemId: i.matrix_cells_by_item ?? {},
       riskMatrixByItemId: toRiskAnswers(i.risk_matrix_by_item),
+      // FF-5: the per-instance arm. A reference inside a repeating group reaches
+      // the signer through HERE and nowhere else — wiring only the top-level key
+      // above would leave the signer blind to exactly the composition the
+      // per-instance writer exists for.
+      referencesByItemId: toReferenceAnswers(i.references_by_item),
     })),
     signoffs: (payload.signoffs ?? []).map((s) => ({
       sectionId: s.section_id,

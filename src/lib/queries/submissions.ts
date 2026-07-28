@@ -18,14 +18,17 @@ import {
   buildAnswerMaps,
   buildGroupInstances,
   buildMatrixAnswers,
+  buildReferenceAnswers,
 } from '@/lib/queries/responses'
 import type {
   GroupInstance,
   GroupInstanceRow,
+  ReferenceAnswer,
   ResponseStatus,
   RiskMatrixAnswer,
   ScopedAnswerRow,
   ScopedMatrixCellRow,
+  ScopedReferenceRow,
   ScopedRiskMatrixRow,
   ScopedSelectionRow,
 } from '@/lib/queries/responses'
@@ -207,6 +210,18 @@ export interface SubmissionDetail {
    */
   matrixCellsByItemId: Record<string, Record<string, string>>
   riskMatrixByItemId: Record<string, RiskMatrixAnswer>
+  /**
+   * FF-5 (ADR 0091): the response's TOP-LEVEL references, resolved to a readable
+   * label by live join at read time. Same shape the wizard and the sign-off view
+   * consume, so one renderer serves all three.
+   *
+   * Because the label is resolved live and never snapshotted (ruling 4), a
+   * submitted response shows the target's CURRENT name — the answer's identity
+   * (`targetId`) is frozen with the submission, its presentation is not. That is
+   * deliberate: the alternative freezes a patient surrogate or a pre-rename
+   * commission into an immutable row.
+   */
+  referencesByItemId: Record<string, ReferenceAnswer>
   instances: GroupInstance[]
   /** Per-section sign-off rows (who/when/note), for the detail view. */
   signoffs: SignoffRecord[]
@@ -503,6 +518,7 @@ export async function getSubmissionDetail(
     { data: instanceRows },
     { data: cellRows },
     { data: riskRows },
+    { data: referenceRows },
   ] =
     await Promise.all([
       supabase
@@ -544,6 +560,21 @@ export async function getSubmissionDetail(
         )
         .eq('answers.response_id', responseId)
         .returns<ScopedRiskMatrixRow[]>(),
+      // FF-5 (ADR 0091): the reference targets. FK-hinted embeds for the same
+      // reason as in getResponseForFill — an un-hinted embed resolves by table
+      // name and answers PGRST201 the day a second FK path to one of these
+      // tables appears anywhere reachable.
+      supabase
+        .from('answer_references')
+        .select(
+          'reference_kind, participant_id, commission_id, profile_id, ' +
+            'answers!inner(item_id, response_id, group_instance_id), ' +
+            'participants!answer_references_participant_id_fkey(display_name, participant_type), ' +
+            'commissions!answer_references_commission_id_fkey(name), ' +
+            'profiles!answer_references_profile_id_fkey(full_name, email)',
+        )
+        .eq('answers.response_id', responseId)
+        .returns<ScopedReferenceRow[]>(),
     ])
 
   const selections: ScopedSelectionRow[] = (selectionRows ?? []).map((s) => ({
@@ -657,6 +688,8 @@ export async function getSubmissionDetail(
   // getResponseForFill does, so both readers shape the grid identically.
   const matrixByScope = buildMatrixAnswers(tree, cellRows ?? [], riskRows ?? [])
   const topLevelMatrix = matrixByScope.get(TOP_LEVEL_SCOPE)
+  // FF-5: same scoping, same shared pure builder as getResponseForFill.
+  const referencesByScope = buildReferenceAnswers(referenceRows ?? [])
 
   return {
     responseId: response.id,
@@ -682,6 +715,7 @@ export async function getSubmissionDetail(
     otherTextByItemId,
     matrixCellsByItemId: topLevelMatrix?.matrixCellsByItemId ?? {},
     riskMatrixByItemId: topLevelMatrix?.riskMatrixByItemId ?? {},
+    referencesByItemId: referencesByScope.get(TOP_LEVEL_SCOPE) ?? {},
     instances: buildGroupInstances(
       tree,
       instanceRows ?? [],
@@ -689,8 +723,13 @@ export async function getSubmissionDetail(
       selections,
       answersByKey,
     ).map((instance) => {
-      const own = matrixByScope.get(instance.id)
-      return own ? { ...instance, ...own } : instance
+      const ownMatrix = matrixByScope.get(instance.id)
+      const ownReferences = referencesByScope.get(instance.id)
+      return {
+        ...instance,
+        ...(ownMatrix ?? {}),
+        ...(ownReferences ? { referencesByItemId: ownReferences } : {}),
+      }
     }),
     signoffs,
   }

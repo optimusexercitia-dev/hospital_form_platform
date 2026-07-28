@@ -12,6 +12,13 @@ import type {
 } from '@/lib/queries/forms'
 import { overlayAnswerMap } from '@/lib/queries/conditions'
 import type { AnswerMap } from '@/lib/queries/conditions'
+// FF-5 (ADR 0091). From the PURE module, never from `@/lib/queries/forms`: the
+// wizard is a Client Component and this file's shapes travel with it.
+import { toReferenceKind } from '@/lib/forms/reference-constants'
+import type {
+  ReferenceCandidate,
+  ReferenceKind,
+} from '@/lib/forms/reference-constants'
 
 // Re-export the form tree shapes so the wizard can import everything it renders
 // (sections, items, the answerable-questions filter) from this one module.
@@ -117,6 +124,16 @@ export interface GroupInstance {
   matrixCellsByItemId: Record<string, Record<string, string>>
   /** FF-2: this instance's saved risk answers, `{ itemId: RiskMatrixAnswer }`. */
   riskMatrixByItemId: Record<string, RiskMatrixAnswer>
+  /**
+   * FF-5 (ADR 0091): this instance's saved references, `{ itemId: ReferenceAnswer }`.
+   *
+   * REQUIRED, for the reason FF-2 made its two siblings required rather than
+   * optional: a reference inside a repeating group reaches every read surface
+   * through the per-instance path and no other, so an optional field here would
+   * silently excuse a producer that forgot — which is the failure the field
+   * exists to prevent.
+   */
+  referencesByItemId: Record<string, ReferenceAnswer>
 }
 
 export interface ResponseForFill {
@@ -165,6 +182,20 @@ export interface ResponseForFill {
    * `{ severity, likelihood }`.
    */
   riskMatrixByItemId: Record<string, RiskMatrixAnswer>
+  /**
+   * FF-5 (BE contract, ADR 0091) — saved TOP-LEVEL references, keyed by
+   * reference item id.
+   *
+   * `targetId` is what goes back on save (`saveSection({ referencesByItemId })`);
+   * `label`/`sublabel` are READ-ONLY presentation, resolved by live join on every
+   * read and deliberately never snapshotted (ruling 4) — so a renamed
+   * participant or retitled commission shows its CURRENT name here and keeps its
+   * historical aggregation whole.
+   *
+   * A reference inside a repeating group is NOT here — it lives on its
+   * {@link GroupInstance.referencesByItemId}, exactly as matrix answers do.
+   */
+  referencesByItemId: Record<string, ReferenceAnswer>
 }
 
 /** One row in the "minhas respostas" history (submitted + in_progress). */
@@ -509,6 +540,10 @@ export function buildGroupInstances(
         // the sign-off view) stays unchanged.
         matrixCellsByItemId: {},
         riskMatrixByItemId: {},
+        // FF-5: same posture — filled by the caller from
+        // `buildReferenceAnswers`, so this shared builder's signature (used by
+        // getResponseForFill AND getSubmissionDetail) stays unchanged.
+        referencesByItemId: {},
       }
     })
 }
@@ -618,6 +653,108 @@ export function buildMatrixAnswers(
  *  answers. A UUID can never collide with it. */
 export const TOP_LEVEL_SCOPE = '__top_level__'
 
+// ---------------------------------------------------------------------------
+// FF-5 (ADR 0091) — saved entity references, read side
+// ---------------------------------------------------------------------------
+
+/**
+ * One saved `answer_references` row, resolved for display.
+ *
+ * `targetId` is the identity and the ONLY part that round-trips on save.
+ * `label`/`sublabel` are resolved by LIVE JOIN at read time and are read-only
+ * outputs — never send them back, and never persist them anywhere. Snapshotting
+ * a label would freeze a patient surrogate or a pre-rename commission name into
+ * an answer and would contradict the ratified aggregation contract, which keys
+ * on the target id (ADR 0091 ruling 4 / ADR 0060 Gap 40).
+ */
+export interface ReferenceAnswer extends ReferenceCandidate {
+  /** Which lane this reference targets. Authoritative on the item's `config`;
+   *  echoed here so a renderer need not re-read the tree to know what it holds. */
+  kind: ReferenceKind
+}
+
+/**
+ * One `answer_references` row with its scope resolved through the answer, plus
+ * the three lane label embeds. Only ONE of the three is ever non-null — the
+ * `answer_references_kind_target_xor` CHECK makes any other state
+ * unrepresentable in the table, not merely unusual.
+ */
+export interface ScopedReferenceRow {
+  reference_kind: string
+  participant_id: string | null
+  commission_id: string | null
+  profile_id: string | null
+  answers: { item_id: string; group_instance_id: string | null }
+  participants: { display_name: string | null; participant_type: string } | null
+  commissions: { name: string } | null
+  profiles: { full_name: string | null; email: string | null } | null
+}
+
+/**
+ * FF-5 — turn raw reference rows into the per-scope maps the wizard rehydrates
+ * from, keyed by `group_instance_id` (`null` → {@link TOP_LEVEL_SCOPE}).
+ *
+ * Exported and pure, like {@link buildMatrixAnswers}, so the shaping is
+ * unit-testable and reusable by the submission-detail reader.
+ *
+ * A row whose `reference_kind` is not one of the three known lanes is DROPPED
+ * rather than rendered with a guessed label. The kind CHECK makes that
+ * unreachable today; dropping it keeps a future fourth lane (hospital/org, ADR
+ * 0086 ruling 5) from rendering as a blank field in a client that predates it.
+ */
+export function buildReferenceAnswers(
+  rows: ScopedReferenceRow[],
+): Map<string, Record<string, ReferenceAnswer>> {
+  const byScope = new Map<string, Record<string, ReferenceAnswer>>()
+
+  for (const row of rows) {
+    const kind = toReferenceKind(row.reference_kind)
+    if (kind === null) continue
+
+    // The XOR CHECK guarantees exactly one of these is populated, so the first
+    // non-null is THE target — no per-kind branch needed to find it.
+    const targetId = row.participant_id ?? row.commission_id ?? row.profile_id
+    if (targetId === null) continue
+
+    const label =
+      kind === 'participant'
+        ? row.participants?.display_name
+        : kind === 'commission'
+          ? row.commissions?.name
+          : row.profiles?.full_name
+
+    // The disambiguating second line. The patient lane's fuller form (the
+    // participant's ROLE in the owning case) is resolved by the picker
+    // (`reference_candidates`) and by the sign-off projection
+    // (`app.references_by_item`), both of which have the case in scope; here the
+    // participant TYPE is what is cheaply and always available.
+    const sublabel =
+      kind === 'participant'
+        ? (row.participants?.participant_type ?? null)
+        : kind === 'user'
+          ? (row.profiles?.email ?? null)
+          : null
+
+    const key = row.answers.group_instance_id ?? TOP_LEVEL_SCOPE
+    let bucket = byScope.get(key)
+    if (!bucket) {
+      bucket = {}
+      byScope.set(key, bucket)
+    }
+    bucket[row.answers.item_id] = {
+      kind,
+      targetId,
+      // `on delete restrict` on all three FKs makes a dangling target
+      // impossible, so a null label means the ROW's own name column is null —
+      // fall back to the id so the field is never rendered blank.
+      label: label ?? targetId,
+      sublabel,
+    }
+  }
+
+  return byScope
+}
+
 /**
  * A single response prepared for the wizard: the published-version tree, the
  * saved answers (both by item_id and by question_key), and the resume metadata.
@@ -659,12 +796,20 @@ export async function getResponseForFill(
   // FF-2: the two matrix answer tables join the same parallel fan-out. Both hang
   // off `answer_id` (like answer_selected_options), so the scope is resolved
   // through the same `answers!inner` embed.
+  // FF-5: `answer_references` joins the same fan-out on the same `answers!inner`
+  // scope embed. Its three lane embeds are FK-HINTED
+  // (`participants!answer_references_participant_id_fkey`, …) rather than named
+  // bare: an un-hinted embed resolves by table name, and the day a second FK
+  // path to one of these tables appears anywhere reachable, PostgREST answers
+  // PGRST201 (ambiguous embed) instead of picking one. Pinning the FK is what
+  // keeps this read from breaking because of an unrelated migration elsewhere.
   const [
     { data: answers },
     { data: selectionRows },
     { data: instanceRows },
     { data: cellRows },
     { data: riskRows },
+    { data: referenceRows },
   ] = await Promise.all([
     supabase
       .from('answers')
@@ -696,6 +841,17 @@ export async function getResponseForFill(
       )
       .eq('answers.response_id', responseId)
       .returns<ScopedRiskMatrixRow[]>(),
+    supabase
+      .from('answer_references')
+      .select(
+        'reference_kind, participant_id, commission_id, profile_id, ' +
+          'answers!inner(item_id, response_id, group_instance_id), ' +
+          'participants!answer_references_participant_id_fkey(display_name, participant_type), ' +
+          'commissions!answer_references_commission_id_fkey(name), ' +
+          'profiles!answer_references_profile_id_fkey(full_name, email)',
+      )
+      .eq('answers.response_id', responseId)
+      .returns<ScopedReferenceRow[]>(),
   ])
 
   // Flatten the answer_id embed to the twin's { item_id, option_id } input shape,
@@ -742,6 +898,9 @@ export async function getResponseForFill(
   const matrixByScope = buildMatrixAnswers(tree, cellRows ?? [], riskRows ?? [])
   const topLevelMatrix = matrixByScope.get(TOP_LEVEL_SCOPE)
 
+  // FF-5: same shape, same scoping.
+  const referencesByScope = buildReferenceAnswers(referenceRows ?? [])
+
   const instances = buildGroupInstances(
     tree,
     instanceRows ?? [],
@@ -749,8 +908,13 @@ export async function getResponseForFill(
     selections,
     answersByKey,
   ).map((instance) => {
-    const own = matrixByScope.get(instance.id)
-    return own ? { ...instance, ...own } : instance
+    const ownMatrix = matrixByScope.get(instance.id)
+    const ownReferences = referencesByScope.get(instance.id)
+    return {
+      ...instance,
+      ...(ownMatrix ?? {}),
+      ...(ownReferences ? { referencesByItemId: ownReferences } : {}),
+    }
   })
 
   return {
@@ -769,6 +933,7 @@ export async function getResponseForFill(
     instances,
     matrixCellsByItemId: topLevelMatrix?.matrixCellsByItemId ?? {},
     riskMatrixByItemId: topLevelMatrix?.riskMatrixByItemId ?? {},
+    referencesByItemId: referencesByScope.get(TOP_LEVEL_SCOPE) ?? {},
   }
 }
 

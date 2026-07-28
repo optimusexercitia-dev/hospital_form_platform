@@ -86,6 +86,19 @@ export interface FeatureFlags {
   // local/E2E this flag is OFF. Resolve the VALUE in `app.feature_flags.enabled`,
   // never this comment.
   item_validations: boolean
+  // FF-5 (ADR 0091): the entity-reference lane — the `reference` item type in the
+  // builder, `app.save_reference_answers`, `public.reference_candidates`, and the
+  // reference arms of both save paths, the completeness predicates, the sign-off
+  // projection and the dashboard aggregation. Seeded OFF in
+  // 20260902000000_ff5_reference_schema; `seed.sql` forces it ON for local/E2E.
+  //
+  // Its production gate-flip migration IS WRITTEN: 20260902000600_enable_entity_refs.
+  // That is the difference from `matrix_fields` / `item_validations` above, whose
+  // twins did not exist when those comments were written — and it is why FF-2 and
+  // FF-3 each shipped DARK once. Still: resolve the VALUE in
+  // `app.feature_flags.enabled`, never this comment (ADR 0078 — a comment is an
+  // assertion that goes stale silently).
+  entity_refs: boolean
 }
 
 /** A flag key. */

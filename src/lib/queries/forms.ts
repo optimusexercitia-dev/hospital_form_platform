@@ -7,7 +7,15 @@ import {
   repeatingGroupOf,
 } from '@/lib/forms/item-tree'
 import { isConditionTargetInScope } from '@/lib/queries/conditions'
+import {
+  toParticipantTypes,
+  toReferenceKind,
+} from '@/lib/forms/reference-constants'
 import type { Json } from '@/lib/types/database'
+import type {
+  ParticipantType,
+  ReferenceKind,
+} from '@/lib/forms/reference-constants'
 import type { Visibility, FlaggedWhen } from '@/lib/queries/conditions'
 import type {
   ItemValidationRule,
@@ -127,11 +135,36 @@ export type ContainerItemType = 'group' | 'repeating_group'
  */
 export type MatrixItemType = 'matrix' | 'risk_matrix'
 
+/**
+ * FF-5 (BE contract, ADR 0091) — the ENTITY REFERENCE type. Answerable (it
+ * carries a `question_key` and feeds dashboards) but, like the two matrix types,
+ * its payload is NOT in `answers.value`: a reference stores one row in
+ * `answer_references` pointing at exactly one of three lanes — a `participant`,
+ * a `commission`, or a `user` (`profiles`) — selected by
+ * `config.referenceKind`.
+ *
+ * ⚠ `reference` was already legal in the DB (`form_items_item_type_check` has
+ * carried it since F3 froze the table on 2026-07-12) while being ABSENT from
+ * this union. That gap is what FF-5 closes: the substrate existed and was
+ * write-inert, so nothing on this side could name it.
+ *
+ * The aggregation unit is `(question_key, reference_kind, target_id)` — the
+ * TARGET ID, never the label, which is resolved by live join and would fork
+ * every historical series the day a participant or commission is renamed (ADR
+ * 0091 ruling 4).
+ *
+ * NOT a condition target (ruling 5, deferred post-pilot): the evaluator reads
+ * `answers.value`, which is null for a reference, so `reference` stays out of
+ * {@link CONDITION_TARGET_TYPES} exactly as the two matrix types do.
+ */
+export type ReferenceItemType = 'reference'
+
 export type ItemType =
   | InputItemType
   | DisplayItemType
   | ContainerItemType
   | MatrixItemType
+  | ReferenceItemType
 
 // The container VALUES + the tree walkers live in a PURE, client-safe module and
 // are re-exported here, exactly as the reserved "Outros" code is: this module
@@ -145,6 +178,23 @@ export {
   MATRIX_ITEM_TYPES,
   flattenItem,
 } from '@/lib/forms/item-tree'
+
+// FF-5 (ADR 0091): the reference lane's vocabulary, for the same reason and by
+// the same mechanism — a PURE module the builder dialog and the wizard
+// typeahead can value-import without dragging this module's server client into
+// the browser bundle (BUG-FBE-005). Re-exported here so server-side importers
+// keep the `@/lib/queries/forms` specifier.
+export {
+  REFERENCE_KINDS,
+  REFERENCE_KIND_LABELS,
+  PARTICIPANT_TYPES,
+  PARTICIPANT_TYPE_LABELS,
+  CASE_SCOPED_PARTICIPANT_TYPES,
+  isReferenceItem,
+  toReferenceKind,
+  toParticipantTypes,
+} from '@/lib/forms/reference-constants'
+export type { ReferenceKind, ParticipantType } from '@/lib/forms/reference-constants'
 
 export const INPUT_ITEM_TYPES: readonly InputItemType[] = [
   'multiple_choice',
@@ -181,6 +231,17 @@ export const ANSWERABLE_ITEM_TYPES: readonly ItemType[] = [
   ...INPUT_ITEM_TYPES,
   'matrix',
   'risk_matrix',
+  // FF-5 (ADR 0091): a reference produces an answer (`answer_references`) and IS
+  // aggregated, so it belongs here — and, for exactly the reason stated above,
+  // NOT in `INPUT_ITEM_TYPES`: its `answers.value` is null, and a walk that
+  // treated it as a scalar input would read a value that never exists.
+  //
+  // ⚠ The mirror hazard of that split: a walk shaped
+  // `if (isMatrixItem(t)) … else if (!isInputItem(t)) continue` silently SKIPS
+  // reference. That is a real class of miss, not a hypothetical — it is the
+  // FF-2/FF-3 "a new door must inherit EVERY sibling arm" scar. Every such walk
+  // must dispatch on ANSWERABLE_ITEM_TYPES or name `reference` explicitly.
+  'reference',
 ]
 
 /**
@@ -335,6 +396,30 @@ export interface ItemConfig {
    * banding (the raw score is shown). Ignored for every other type.
    */
   riskBands?: RiskBand[] | null
+  /**
+   * FF-5 (ADR 0091) — `reference` only: WHICH LANE this item targets. Absent
+   * defaults to `'participant'` server-side (`app.save_reference_answers` and
+   * `public.reference_candidates` both `coalesce(config->>'referenceKind',
+   * 'participant')`), which is what keeps the F3-era one-lane rows valid.
+   *
+   * ⚠ The lane is read from HERE and never from the save payload. A caller who
+   * could name the kind on the wire could pair a `commission` item with a
+   * participant target and satisfy the XOR CHECK anyway; deriving it from the
+   * authoring config makes that combination UNREPRESENTABLE rather than merely
+   * rejected.
+   */
+  referenceKind?: ReferenceKind | null
+  /**
+   * FF-5 — `reference` on the PARTICIPANT lane only: narrows the candidate set
+   * to these `participants.participant_type` values. `null`/absent = all types.
+   *
+   * ⚠ `'patient'` behaves differently from every other type (ADR 0091 ruling 2):
+   * it is CASE-scoped, so on a standalone (non-case) response the candidate set
+   * is EMPTY — at both layers, the search and the coherence trigger. An author
+   * who pins `['patient']` on a standalone checklist has built a field nobody
+   * can answer; the builder warns rather than the wizard failing silently.
+   */
+  participantTypes?: ParticipantType[] | null
 }
 
 export type VersionStatus = 'draft' | 'published' | 'archived'
@@ -793,6 +878,16 @@ function toConfig(raw: Json | null): ItemConfig | null {
     maxInstances: toCardinality(rec.maxInstances),
     // FF-2: risk_matrix score->band display mapping.
     riskBands: toRiskBands(rec.riskBands),
+    // FF-5 (ADR 0091): the reference lane + its participant-type narrowing.
+    // Heeding the FIELD-BY-FIELD warning above literally: omitting either line
+    // here would make `Item.config.referenceKind` read `null` for every item
+    // while the DB row holds the real value, so the builder would render the
+    // wrong lane and the wizard would query the wrong candidate set — with the
+    // save path still writing the CORRECT lane, because the server reads
+    // `config->>'referenceKind'` and never this object. Exactly how FF-1 lost
+    // minInstances/maxInstances between its interface and this function.
+    referenceKind: toReferenceKind(rec.referenceKind),
+    participantTypes: toParticipantTypes(rec.participantTypes),
   }
 }
 

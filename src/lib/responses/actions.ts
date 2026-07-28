@@ -3,7 +3,12 @@
 import { revalidatePath } from 'next/cache'
 
 import { getSessionContext } from '@/lib/queries/session'
+import { listReferenceCandidates } from '@/lib/queries/references'
 import { getResponseValidationErrors } from '@/lib/queries/validations'
+// From the PURE module, not from the query module: a `'use server'` file may
+// only export async functions, so the candidate shape must be nameable by the
+// client WITHOUT routing through here.
+import type { ReferenceCandidate } from '@/lib/forms/reference-constants'
 import type { ValidationErrorRow } from '@/lib/forms/validation-rules'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -84,6 +89,13 @@ const MESSAGES = {
   riskIncomplete:
     'Informe a severidade e a probabilidade da matriz de risco.',
   matrixUnavailable: 'O recurso de matrizes não está disponível.',
+  // FF-5 (ADR 0091) reference fill failures.
+  referenceUnavailable: 'O recurso de referências não está disponível.',
+  /** Fallback only — HC0Q5's DB message names WHICH way the target is out of
+   *  reach (wrong organização, or a paciente not linked to this caso), which is
+   *  the difference between an actionable error and "algo deu errado". */
+  referenceUnreachable:
+    'O item selecionado não está disponível para esta resposta.',
   // sign_section discriminated failures
   signoffNotVisible: 'Esta seção não está disponível para assinatura.',
   signoffAlreadySigned: 'Esta seção já foi assinada.',
@@ -195,6 +207,33 @@ const MATRIX_FLAG_OFF = 'HC0P2'
 const MATRIX_NOT_A_MATRIX = 'HC0P3'
 const MATRIX_UNKNOWN_CODE = 'HC0P7'
 const MATRIX_RISK_INCOMPLETE = 'HC0P8'
+
+/**
+ * FF-5 (ADR 0091) — the reference codes reachable through `save_section_answers`
+ * (lane HC0Q3–HC0Q5, above FF-3's HC0Q0–HC0Q2 high-water).
+ *
+ * Swept against the raise sites rather than assumed, which is the discipline
+ * BUG-FF2-002 produced: HC0Q3 is raised by BOTH `app.assert_reference_answer_
+ * writable` and `public.reference_candidates`, and HC0Q4 by BOTH
+ * `app.save_reference_answers` and `app.guard_reference_coherent`. Every one of
+ * those four sites is reachable from a path this module owns, so all three codes
+ * are mapped here and again in {@link searchReferenceCandidates}.
+ */
+const REFERENCE_FLAG_OFF = 'HC0Q3'
+const REFERENCE_NOT_A_REFERENCE = 'HC0Q4'
+/**
+ * The target is not reachable from this response: wrong organization on any
+ * lane, or a `patient` participant that is not a live `case_participants` row of
+ * this response's own case (ADR 0091 ruling 2 — patients are CASE-scoped, so a
+ * standalone response admits none at all).
+ *
+ * USER-ACTIONABLE and reachable by ordinary use with a stale picker, so the DB
+ * message is preferred: `app.guard_reference_coherent` raises FOUR different
+ * pt-BR sentences under this one code ("não pertence a esta organização" for
+ * each of three lanes, plus "só existem em respostas vinculadas a um caso"), and
+ * a single constant can only say one of them.
+ */
+const REFERENCE_TARGET_UNREACHABLE = 'HC0Q5'
 
 /** The staff filling area — revalidated as dynamic-segment pages. */
 const FORMS_LIST_PATH = '/o/[org]/c/[commission]/forms'
@@ -387,6 +426,24 @@ interface SaveSectionInput {
    * client-side number as authoritative.
    */
   riskMatrixByItemId?: Record<string, { severity: string; likelihood: string }>
+  /**
+   * FF-5 (BE contract, ADR 0091) — `reference` answers: maps a reference item's
+   * id → the selected TARGET UUID, or `null` to CLEAR that item's reference.
+   *
+   * ⚠ The LANE is deliberately NOT on the wire. The server resolves it from the
+   * item's own `config->>'referenceKind'`, so a client cannot pair a
+   * `commission` item with a participant target — that combination is
+   * unrepresentable rather than merely rejected. Send the id alone.
+   *
+   * REPLACE semantics per item, like selections: an item present here has its
+   * reference rewritten (or cleared, on `null`); an item absent is untouched.
+   *
+   * The target must be reachable from this response — same organization, and for
+   * a `patient` participant, linked to this response's own case (ADR 0091
+   * ruling 2). `app.guard_reference_coherent` enforces that on EVERY path into
+   * the table, not just this one, so a hand-rolled RPC call cannot get past it.
+   */
+  referencesByItemId?: Record<string, string | null>
 }
 
 /** FF-1 (BE-0 contract): one repeating-group instance's slice of a section save. */
@@ -407,6 +464,17 @@ export interface InstanceAnswersInput {
   matrixCellsByItemId?: Record<string, Record<string, string>>
   /** FF-2: as {@link SaveSectionInput.riskMatrixByItemId}, scoped to this instance. */
   riskMatrixByItemId?: Record<string, { severity: string; likelihood: string }>
+  /**
+   * FF-5: a reference that lives INSIDE this repeating-group instance. Identical
+   * semantics to {@link SaveSectionInput.referencesByItemId}, scoped here.
+   *
+   * This arm is not symmetry for its own sake: a reference inside a repeating
+   * group reaches the database through `app.save_instance_answers` and through
+   * NOTHING ELSE — the top-level arm never sees it. Omitting it would ship a
+   * feature that works everywhere except inside a group, which is precisely the
+   * one-of-N-sites miss FF-2 and FF-3 each made once.
+   */
+  referencesByItemId?: Record<string, string | null>
 }
 
 /**
@@ -432,6 +500,7 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     instances,
     matrixCellsByItemId,
     riskMatrixByItemId,
+    referencesByItemId,
   } = input
   if (!responseId || !sectionId) {
     return { ok: false, error: MESSAGES.missingResponse }
@@ -472,6 +541,12 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
           // the entry; a verbatim forward would silently write nothing.
           matrix_cells: entry.matrixCellsByItemId ?? {},
           risk_matrix: entry.riskMatrixByItemId ?? {},
+          // FF-5: same camelCase → snake_case translation. `app.save_instance_
+          // answers` reads `references` off the entry; forwarding the camelCase
+          // key verbatim would be silently inert — the arm would run against an
+          // empty payload and early-return, so every reference inside a
+          // repeating group would vanish with NO error anywhere.
+          references: entry.referencesByItemId ?? {},
         }))
       : undefined
 
@@ -479,6 +554,10 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     matrixCellsByItemId != null && Object.keys(matrixCellsByItemId).length > 0
   const hasRiskMatrix =
     riskMatrixByItemId != null && Object.keys(riskMatrixByItemId).length > 0
+  // Key-count, not value-truthiness: `{ [itemId]: null }` is the CLEAR command
+  // and must reach the server, so an all-null map is still "has references".
+  const hasReferences =
+    referencesByItemId != null && Object.keys(referencesByItemId).length > 0
 
   // form-model-normalization: `save_section_answers` carries `p_selections jsonb`
   // (item_id -> array of option codes, REPLACE semantics) alongside the scalar
@@ -507,6 +586,13 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     // section holding a matrix is still ONE round trip. Omit when none.
     p_matrix_cells: hasMatrixCells ? (matrixCellsByItemId as Json) : undefined,
     p_risk_matrix: hasRiskMatrix ? (riskMatrixByItemId as Json) : undefined,
+    // p_references: FF-5 top-level reference answers (ADR 0091). Written by the
+    // DEFINER `app.save_reference_answers` inside the same transaction as
+    // everything above (`answer_references` is SELECT-only for `authenticated` —
+    // K9), so a section holding a reference is still ONE round trip. Omit when
+    // none, so a form with no reference items never trips the `entity_refs`
+    // assertion while the flag is off.
+    p_references: hasReferences ? (referencesByItemId as Json) : undefined,
   })
 
   if (error) {
@@ -560,6 +646,19 @@ export async function saveSection(input: SaveSectionInput): Promise<ActionState>
     if (error.code === MATRIX_INCOHERENT_CELL) {
       return { ok: false, error: MESSAGES.invalidData }
     }
+    // FF-5 (ADR 0091) — the reference arm's three codes, swept the same way.
+    if (error.code === REFERENCE_FLAG_OFF) {
+      return { ok: false, error: MESSAGES.referenceUnavailable }
+    }
+    // Not a reference item of this version, or the answer's item is not a
+    // reference at all: a malformed/stale client, the bucket SAVE_CROSS_VERSION
+    // already occupies.
+    if (error.code === REFERENCE_NOT_A_REFERENCE) {
+      return { ok: false, error: MESSAGES.invalidData }
+    }
+    if (error.code === REFERENCE_TARGET_UNREACHABLE) {
+      return { ok: false, error: error.message || MESSAGES.referenceUnreachable }
+    }
     // `app.assert_matrix_answer_writable` is a DEFINER gate, so it raises 42501
     // rather than yielding an RLS zero-row silence. Without this the owner check
     // reads as a transient failure.
@@ -582,6 +681,58 @@ export async function saveAndExit(input: SaveSectionInput): Promise<ActionState>
   const result = await saveSection(input)
   if (!result.ok) return result
   return { ok: true, error: MESSAGES.savedAndExited }
+}
+
+// ---------------------------------------------------------------------------
+// FF-5 — the reference typeahead (ADR 0091)
+// ---------------------------------------------------------------------------
+
+/** {@link searchReferenceCandidates} result. */
+export interface ReferenceCandidatesState extends ActionState {
+  candidates?: ReferenceCandidate[]
+}
+
+/**
+ * Candidates for one reference item, for the wizard's typeahead.
+ *
+ * This exists as an ACTION rather than as a direct query call because
+ * `src/lib/queries/references.ts` value-imports the server Supabase client: a
+ * Client Component importing it aborts `next build` while lint, typecheck and
+ * the unit suite all stay green (BUG-FBE-005). The typeahead is inherently
+ * client-side, so it needs an awaitable server boundary — this is it.
+ *
+ * ⚠ READ-ONLY, and it must stay that way: no revalidate, no write, no
+ * service-role client. The RPC underneath is INVOKER-RIGHTS ON PURPOSE (ADR 0091
+ * ruling 3) — it inherits the caller's own three read policies and cannot widen
+ * them. Every widening this action could offer would be a widening of the
+ * security boundary itself.
+ *
+ * The membership check mirrors `saveSection`'s: it turns an RLS zero-row silence
+ * into readable pt-BR, and never REPLACES RLS.
+ *
+ * An empty `candidates` array is frequently the CORRECT answer, not a failure —
+ * see {@link listReferenceCandidates}. The UI must render an empty state, not an
+ * error.
+ */
+export async function searchReferenceCandidates(input: {
+  responseId: string
+  itemId: string
+  query?: string
+}): Promise<ReferenceCandidatesState> {
+  const { responseId, itemId, query } = input
+  if (!responseId || !itemId) {
+    return { ok: false, error: MESSAGES.missingResponse }
+  }
+
+  const supabase = await createClient()
+  const ctx = await contextOfResponse(supabase, responseId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingResponse }
+  if (!(await authorizeMember(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const candidates = await listReferenceCandidates({ responseId, itemId, query })
+  return { ok: true, candidates }
 }
 
 // ---------------------------------------------------------------------------
