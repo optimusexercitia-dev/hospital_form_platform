@@ -471,6 +471,74 @@ BUG-FF1-007 `<> ''''`) are **all closed and re-verified**, with full repro/fix d
 [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md). The ETH·E2 targeted-lane fix
 (`4ee24c8`) is recorded there too.
 
+#### 🔴 BUG-FF3-002 — the two unary operators are OFFERED by every condition picker but cannot be SAVED: the TS `isValidCondition` was never widened alongside its SQL twin · owner **frontend** (or `backend`, see below) · severity **MAJOR / phase-blocking** · **OPEN** (filed 2026-07-28, `tester`)
+
+**Blocks ADR 0090 ruling 5 + Amendment 2** — the pickers are the phase's whole shipped operator
+surface, and choosing either option makes the question **unsaveable**. Fails **CLOSED** (a refusal,
+not a silent accept), which is why lint / tsc / Vitest 748 / pgTAP 4157 / `next build` all stayed green.
+
+**Root cause (one line).** `isValidCondition` — `src/lib/forms/actions.ts:808` — does
+`if (!('value' in rec)) return false` for **every** operator. B5 widened the SQL gate
+`app.is_valid_condition` to exempt `is_empty` / `is_not_empty` **by name**; the TypeScript half of the
+mirror was not. Same SQL↔TS drift class as the phase's other findings, in the opposite direction:
+here the database is the *permissive* side.
+
+**Live proof, three cells so it cannot be read as "`required_if` is just broken"** (prod-standalone
+:3100, `chefe.ccih@test.local`, item editor on a `short_text` with a `multiple_choice` target):
+
+| # | What was authored | Result |
+|---|---|---|
+| A | `required_if` + `equals` + value | **SAVED** — `{"op": "equals", "value": "uti_…", "question_key": "setor_auditado_…"}` in `form_items.required_if` |
+| B | `required_if` + `is_empty` | **REFUSED** — dialog stays open: *"A condição de obrigatoriedade deve ser uma única condição (sem E/OU)."* `required_if` stays NULL |
+| C | item **`visible_when`** + `is_empty` | **REFUSED** — dialog stays open, no recognisable message surfaced at all; `visible_when` stays NULL |
+| — | the catalog's opinion of the same shape | `select app.is_valid_condition('{"question_key":"x","op":"is_empty"}'::jsonb)` → **`t`** |
+
+**Scope is wider than `required_if`.** `parseVisibleWhen` calls the same helper
+(`actions.ts:854`/`861`), so **item and section visibility are equally blocked** — and FF-3 is what
+added the unary options to `condition-builder.tsx` in *all three* contexts, so cell C is this phase's
+regression surface too, on a long-shipped feature.
+
+**Two secondary defects inside the same bug.** (1) Cell B's message is *wrong* — it says "sem E/OU"
+when the author used neither. (2) Cell C surfaces **no** message: the editor simply refuses to close,
+which reads as a hung dialog.
+
+**Why FF-3's own verification missed it:** F1 proved unary publishability by calling
+`public.validate_visible_when` **directly on a cloned draft**, and B5 proved storability against
+`app.is_valid_condition`. Neither path goes through the server action, which is the only thing the UI
+can reach. *(Same shape as the memory note "a declared param no caller passes is invisible to every
+layer" — here, a widened gate no caller can reach.)*
+
+**Repro:** `npx playwright test --config e2e/playwright.ff3.config.ts -g "FF3-6"` →
+`e2e/ff3-validations.spec.ts` **FF3-6** (`required_if`, all 4 target types) and **FF3-6b**
+(item `visible_when`). Both RED. **FF3-6c passes** and pins the pickers' vocabulary, which is what
+makes this a dead end rather than a missing feature. Left failing deliberately — no `test.fail()`.
+
+**Expected:** a unary condition saves, round-trips and publishes on choice / number / date / time
+targets. **Actual:** the server action refuses it before the RPC is reached.
+
+#### 🟡 BUG-FF3-001 — after a blocked navigation, the untouched peer repetition keeps a stale `unique_within_group` message and `aria-invalid` · owner **frontend** · severity **MINOR** (non-blocking, self-healing, a11y-affecting) · **OPEN** (filed 2026-07-28, `tester`)
+
+`unique_within_group` is the only **symmetric** rule in the vocabulary: two repetitions violate it
+jointly, so resolving it on one resolves it on both. The wizard's sticky error map is cleared **per
+edited field**, so the peer the user did not touch keeps both its message and `aria-invalid="true"`
+for a violation that no longer exists.
+
+**Isolated in both directions** (so it is not "instance errors are broken"):
+
+| Path | flat field | instance bounds | `unique_within_group` peer |
+|---|---|---|---|
+| live only, **before** any blocked navigation | clears ✅ | clears ✅ | clears ✅ |
+| **after** pressing Revisar (sticky map installed) | clears ✅ | clears ✅ | **stale ❌** (`aria-invalid` still `true`) |
+
+**Display-only:** a second Revisar reaches the review screen and the banner clears, so nothing is
+blocked and no bad submit is possible. The harm is that ADR 0090 ruling 3's own reasoning —
+*"marking an input invalid for a rule the server accepts misinforms assistive tech"* — is violated
+transiently, on a field that is now valid.
+
+**Repro:** `-g "FF3-7b"`. Marked `test.fail()`, so it goes **RED the day it is fixed** — that is the
+signal to delete FF3-7b and fold the assertion back into FF3-7 (which asserts only the
+contractually-true half today: the *edited* repetition clears).
+
 #### 🔴 BUG-AUTHZ-001 — `platform_admin` reads response-level content through DEFINER dashboard functions, invisible to a policy audit of `responses` · owner **AUTHZ** · **OPEN** (filed 2026-07-27, PO's call)
 
 **Not FF-2's defect** — FF-2 correctly inherited its sibling's arm (lead-ruled; deviating would have
@@ -548,6 +616,19 @@ the seeded rede-a org. Not a product defect until that is ruled out.
 _FF-1's runs (9/9 E2E on a prod build · pgTAP 3925 · Vitest 490 · and the two full `e2e:prod`
 gate runs with their triage) are recorded in
 [ff-1-repeating-groups.md](docs/progress/ff-1-repeating-groups.md)._
+
+**FF-3 · `tester` runs, 2026-07-28.** Prod-standalone built from this worktree at app code `a4b95e7`,
+served on **:3100** from a copy staged OUTSIDE `.next` (see the infra row), chromium, workers=1, via
+`e2e/playwright.ff3.config.ts`. Every row below was checked for **coverage** (`--list` count ==
+reported count) and read the runner's own `PIPESTATUS[0]`, not scraped text — the `36a18c8` C-1 lesson.
+
+| Date | Scope | Result | Notes |
+|---|---|---|---|
+| 2026-07-28 | **FF-3 · `e2e/ff3-validations.spec.ts`** (17 tests), fresh `db reset` (224 == 224, flag `item_validations` = `t`, real token POST 200) | **15 / 17** — `expected=17 reported=17`, exit=1 | 2 RED = **BUG-FF3-002** (FF3-6, FF3-6b), left failing deliberately. FF3-7b is the `test.fail()` marker for **BUG-FF3-001**. Reproduced identically across **3** consecutive full-file runs, including one before and one after the reset. NOT the full-suite gate — the lead owns `npm run e2e:prod`. |
+| 2026-07-28 | **Mutation proof — the spec's own non-vacuity** (fixture-level, since `tester` may not touch app code) | **RED as required**, then restored byte-for-byte | FF3-3's `error` rule flipped to `warn` in the fixture → FF3-3 fails on `aria-invalid` (`Expected "true", Received null`). Confirms the error-channel assertions are load-bearing rather than rendering-only. Restored; `severity: 'error'` count back to 3 and FF3-3 green on re-run. |
+| 2026-07-28 | **Neighbour regression** — `ff1-repeating-groups.spec.ts` (condition authoring with binary operators, the surface BUG-FF3-002 shares a helper with) | **9 / 9** (56 s) | No collateral damage: binary-operator conditions still author, publish and evaluate. |
+| 2026-07-28 | **Neighbour regression** — `phase4-builder.spec.ts` | **8 / 8** (33 s) **on a fresh DB** — but **1 / 8 on an E2E-accumulated DB** | ⚠ **Triaged, not filed.** After ~25 spec runs the file failed 7/8 (serial *and* `--workers=4`), all on dialog `toBeHidden`; AC-a passed in isolation. A `db reset` alone turned it 8/8 with no code change. This is CLAUDE.md §6's "E2E-mutated DB yields spurious reds" in the flesh — **not** an FF-3 regression, and the same shape as the known flaky baseline. Worth remembering: the parallel run was also **5× slower per test**, which is the tell. |
+| 2026-07-28 | **Infra, worth recording** — the prod build was deleted underneath the running server mid-run | Mass 500 `InvariantError: client reference manifest ... does not exist`, then `ERR_CONNECTION_REFUSED` | An `EBUSY`-failing `next build` in the same worktree removes `.next/server` + `.next/standalone` **before** failing. Cure adopted: build once, copy the whole standalone tree to a scratch dir outside `.next`, verify the copy (105 client-reference manifests, `static/`, `public/`, `node_modules/`) and serve from there — so no concurrent build can invalidate a run. Also: a backgrounded server dies at an agent turn boundary, so server + specs must run in ONE foreground shell. Both now in `docs/testing/e2e-prod-build-gate.md` (`cd551dd`). |
 
 | Date | Scope | Result | Notes |
 |---|---|---|---|
