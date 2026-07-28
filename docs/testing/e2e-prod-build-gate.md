@@ -259,6 +259,25 @@ The clean workaround, used successfully in FF-3: build to a scratch `distDir` be
 **env-gated** `next.config.ts` branch — inert without the env var, so a concurrent build is
 unaffected — then restore the config byte-for-byte and confirm it `git`-clean.
 
+> ⚠ **The workaround is NOT side-effect-free, and FF-3 proved it twice over.** `next build`
+> **auto-rewrites `tsconfig.json`** — it injected `.next-verify/types/**/*.ts` and
+> `.next-verify/dev/types/**/*.ts` include entries for the overridden `distDir` and reformatted
+> every array to multi-line. Restoring `next.config.ts` alone leaves that behind, pointing at a
+> scratch directory that no longer exists. **Revert `tsconfig.json` too**, and check `git status`
+> for anything else the build touched rather than only the file you edited.
+>
+> It also cost a misattribution in both directions: the engineer reported the stray `tsconfig.json`
+> as belonging to the tester, and the tester read it as proof an engineer was building *right then*
+> — when in fact the build had already finished. **A stray artifact is evidence that something ran,
+> never evidence that it is still running.** Check for a live process (`netstat -ano | grep :3100`)
+> before concluding a session is active.
+>
+> Separately: a `next build` that **fails** with `EBUSY` can still have deleted `.next/server` and
+> `.next/standalone` first. The running server then 500s every route with
+> `InvariantError: The client reference manifest for route … does not exist`. A tester should copy
+> the standalone tree to a scratch directory and serve from there, so a concurrent build in `.next`
+> cannot invalidate a run in progress.
+
 **2. A query issued within ~30 s of `supabase db reset` can report a catalog that looks
 destroyed** — the `app` schema and RPCs like `submit_response` appearing "missing", and pgTAP
 reporting mass failures. The queries are racing the reset's *"Restarting containers…"* step. It
