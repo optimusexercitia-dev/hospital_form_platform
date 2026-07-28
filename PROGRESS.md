@@ -119,7 +119,7 @@ name, fast-forwarded to `main` @ `5e6b62d`; **216 == 216** at phase start.
 | B5 | Operator authorability — `app.is_valid_condition` widened to the four F3 operators; the `value` requirement relaxed for the two unary ones BY NAME (not globally) | `backend` | ✅ `20260901000500` |
 | B6 | pgTAP `274_ff3_validations.sql` — **70 assertions**, all 8 ADR-0090 keystones, each mutation-proven (23 mutations run, red output recorded). Re-pins: `209` §B **+4** (the `required_if` freeze on containers/display/`reference`, with a positive twin) and `272` **§S +3** (a TARGETED respondent READS validation ROWS — 274 §C can only prove the policy EXISTS, which ETH·E1 established is a different claim). Also **`20260901000600`**: publish-time validation of `required_if` | `backend` | ✅ **4138** tests PASS |
 | F1 | Builder — rules editor (type/config/severity/pt-BR message) + `required_if` authoring via the condition builder + the new operator pickers | `frontend` | ✅ **`5c8c14b` + `2254227`** — lint 0/0 · tsc · Vitest 697 · `next build` |
-| F2 | Wizard — inline error/warn from the TS twin, per instance; submit blocked on error; warn badges in review | `frontend` | ✅ **`609ae63`** — lint 0/0 · tsc · Vitest **719** · `next build` |
+| F2 | Wizard — inline error/warn from the TS twin, per instance; submit blocked on error; warn badges in review | `frontend` | ✅ **`609ae63`** + marker fix **`5b17b4e`** — lint 0/0 · tsc · Vitest **725** · `next build` |
 
 > **F1 ✅ (`5c8c14b` + `2254227`).** Rules editor as a separate dialog off the block card
 > (`ValidationsDialog` + `ValidationRulesEditor`), mirroring `MatrixConfigDialog` for the same two
@@ -168,6 +168,29 @@ name, fast-forwarded to `main` @ `5e6b62d`; **216 == 216** at phase start.
 > `itemValidationsEnabled()` exists. The **P0 I filed in `20260901000700` is fixed** — all four call
 > sites now pass the operator and the previously-`42883` version validates clean.
 >
+> ✅ **Marker fix — lead-ruled in scope, done (`5b17b4e`). The frontend surface is now FINAL for `tester`.**
+> An item mandatory only through `required_if` showed no marker and announced itself as **optional** —
+> the harmful direction of the same argument that kept `warn` off `aria-invalid`. `InputItem` gains
+> `requiredNow`, resolved per instance and feeding the SAME `required` variable the static flag fed, so
+> the marker's **DOM shape is unchanged** (no selector moves) and only its input became dynamic;
+> omitting the prop falls back to `item.required`, so read-only/review/sign-off contexts are untouched.
+>
+> ⚠ **`aria-required` did not exist anywhere in the wizard before this** — `required` drove only the
+> visual asterisk, so required-ness was never announced for ANY item, statically-required ones
+> included. That was a pre-existing a11y gap the ruling surfaced. Added via `useFieldIds` (the five
+> single-control fields) and on the two group fieldsets. **One arm would have been missed silently:**
+> `DateTimeItem`'s TIME branch hands its a11y attributes to `TimeField` individually instead of
+> spreading `controlProps`, so `aria-required` alone would have been dropped there — routed through
+> react-aria's `isRequired` instead. Found by enumerating all seven controls rather than trusting the
+> spread (the "every sibling arm" rule, applied to a render tree instead of a policy set).
+>
+> Effective required-ness is resolved ONCE, on `RuleFeedback.requiredNow`, in the walk that already
+> computes it — recomputing it in the render tree would be a second implementation of the same
+> question, free to disagree with the one that blocks submit. **Mutation-proven:** driving the marker
+> from the static flag (the exact defect fixed) turns **5** red, including the two that assert the
+> marker independently of the error — a required field that IS answered must still be marked, so one
+> assertion cannot cover both. Restored byte-for-byte.
+
 > ⛔ **STILL OWED — a real click-through. Live UI verification was IMPOSSIBLE from this worktree.**
 > The Browser preview tool's session is bound to the **primary checkout** (its processes run from
 > `hospital_form_platform
