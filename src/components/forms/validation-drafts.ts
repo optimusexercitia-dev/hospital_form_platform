@@ -280,13 +280,20 @@ function validateRuleDraft(draft: RuleDraft, n: number): string | null {
       if (draft.pattern.length > MAX_REGEX_PATTERN_LENGTH) {
         return `O padrão da regra ${n} passa de ${MAX_REGEX_PATTERN_LENGTH} caracteres.`;
       }
-      // A pattern JS cannot compile is very likely one Postgres cannot either.
-      // Refusing here is a courtesy; the server's own validator is authority.
-      try {
-        new RegExp(draft.pattern);
-      } catch {
-        return `O padrão da regra ${n} não é uma expressão válida.`;
-      }
+      // ⚠ JS-compilability is deliberately NOT a blocking check.
+      //
+      // It used to be, on the premise that "a pattern JS cannot compile is very
+      // likely one Postgres cannot either". That premise is false, and FF-3's
+      // Amendment 4 measured exactly how false: of 26 ARE/JS constructs only 13
+      // agree. Measured here too, against the live engines — `***=literal` is a
+      // valid ARE director (Postgres accepts it AND matches with it) and
+      // `new RegExp` THROWS on it. Blocking the save on that refuses a correct
+      // rule outright, which is the same dead end Amendment 4 removes at fill
+      // time, just relocated to authoring.
+      //
+      // Since Amendment 4 the TS twin does not evaluate `regex` at all, so JS has
+      // no standing to adjudicate a pattern. {@link regexCompilesInJs} lets the
+      // editor ADVISE without refusing — see the note beside the pattern field.
       return null;
     }
     case "datetime_order": {
@@ -404,6 +411,25 @@ export const DATETIME_ORDER_OP_LABELS: Record<
   not_before: "não pode ser anterior a",
   not_after: "não pode ser posterior a",
 };
+
+/**
+ * Does this pattern compile under JavaScript's engine?
+ *
+ * ADVISORY ONLY. A `false` here does NOT mean the rule is invalid: Postgres ARE
+ * accepts constructs JS rejects (`***=`, the literal-string director, is the
+ * measured example). It is worth surfacing because a pattern that compiles in
+ * NEITHER engine is almost always an authoring typo, and the server's validator
+ * checks the pattern's shape and length but never compiles it — so a broken
+ * pattern would otherwise be discovered by the fillers, not the author.
+ */
+export function regexCompilesInJs(pattern: string): boolean {
+  try {
+    new RegExp(pattern);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** The bound control's input type for a `date_range` on this item. */
 export function dateRangeInputType(itemType: string): "date" | "time" {

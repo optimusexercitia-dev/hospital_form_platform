@@ -9,6 +9,7 @@ import {
   itemAcceptsValidations,
   parentItemTypeOf,
   toRuleConfig,
+  regexCompilesInJs,
   toRuleDrafts,
   toRulePayload,
   validateRuleDrafts,
@@ -305,16 +306,38 @@ describe("validateRuleDrafts — the pre-flight", () => {
     ).toMatch(/negativo/i);
   });
 
-  it("rejects an empty, over-long, or uncompilable regex", () => {
+  it("rejects an empty or over-long regex", () => {
     expect(problemText([draft({ ruleType: "regex" })])).toMatch(/padrão/i);
     expect(
       problemText([
         draft({ ruleType: "regex", pattern: "a".repeat(201) }),
       ]),
     ).toMatch(/200/);
+  });
+
+  /**
+   * JS-compilability must NOT block the save.
+   *
+   * `***=literal` is the measured case: a valid POSIX ARE director that Postgres
+   * accepts AND matches with, on which `new RegExp` throws. Blocking on JS would
+   * refuse a correct rule — the same dead end FF-3's Amendment 4 removes at fill
+   * time, relocated to authoring. Since Amendment 4 the TS twin does not evaluate
+   * `regex` at all, so JS has no standing to adjudicate one.
+   */
+  it("ACCEPTS a pattern JS cannot compile but Postgres can", () => {
+    expect(regexCompilesInJs("***=literal")).toBe(false);
+    expect(
+      problemText([draft({ ruleType: "regex", pattern: "***=literal" })]),
+    ).toBeUndefined();
+  });
+
+  it("still reports JS-uncompilability as advisory, for the editor's hint", () => {
+    expect(regexCompilesInJs("([unclosed")).toBe(false);
+    expect(regexCompilesInJs("^[0-9]{11}$")).toBe(true);
+    // ...but it never blocks: a likely typo is surfaced, not refused.
     expect(
       problemText([draft({ ruleType: "regex", pattern: "([unclosed" })]),
-    ).toMatch(/express/i);
+    ).toBeUndefined();
   });
 
   it("requires the compared question on datetime_order", () => {

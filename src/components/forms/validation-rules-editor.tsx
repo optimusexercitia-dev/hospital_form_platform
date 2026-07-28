@@ -15,6 +15,7 @@ import {
   allowedRuleTypes,
   blankDraft,
   dateRangeInputType,
+  regexCompilesInJs,
   ruleTypeHint,
   ruleTypeLabel,
   type RuleDraft,
@@ -353,6 +354,20 @@ function RuleConfigFields({
             Até {MAX_REGEX_PATTERN_LENGTH} caracteres. Prefira padrões simples:
             expressões muito complexas deixam o preenchimento lento.
           </span>
+          {/* ADVISORY, never blocking. The pattern is checked by PostgreSQL,
+              whose dialect accepts constructs JavaScript rejects — so a failure
+              to compile here is a hint that it may be a typo, not a verdict.
+              Refusing the save on it would reject valid rules. */}
+          {draft.pattern.trim() !== "" && !regexCompilesInJs(draft.pattern) ? (
+            <p
+              role="status"
+              className="rounded-lg border border-warning/30 bg-warning/12 px-3 py-2 text-xs text-warning text-pretty"
+            >
+              Este padrão não foi reconhecido aqui. Ele ainda pode ser válido — a
+              validação final é feita pelo banco de dados, que aceita expressões
+              um pouco diferentes. Confira se não há um erro de digitação.
+            </p>
+          ) : null}
           <label className="flex items-center gap-2.5 text-sm">
             <Checkbox
               checked={draft.caseInsensitive}
