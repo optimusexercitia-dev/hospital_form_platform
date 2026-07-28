@@ -15,7 +15,7 @@
 
 begin;
 
-select plan(78);
+select plan(81);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -920,6 +920,72 @@ select throws_ok(
   $q$select public.submit_response('ff300000-0000-0000-0000-0000000000a3')$q$,
   'HC061', null,
   'J3. …and the legacy lane still raises HC061, not HC0P9 (no behaviour moved)');
+
+-- ===========================================================================
+-- §M · THE MIXED SET — one call, BOTH severities, all three violation shapes.
+--
+--   Asked for by `frontend`: F2 badges `warn` rows in review AND places them on
+--   fields after an HC0P9 refusal, so a read path that ever narrowed to errors
+--   would silently strip every advisory from the UI with no type change and no
+--   test red on their side.
+--
+--   ⚠ WHY THIS IS NOT ALREADY COVERED, stated precisely — the reason it earns a
+--   section rather than a comment. Narrowing the read path to `severity='error'`
+--   DOES turn E4 red today, and truncating it (`limit 1`) DOES turn I2/I5 red;
+--   both were mutation-checked before writing this. What no existing assertion
+--   sees is a MIXED set: E2's state holds only errors (v_txt is still blank) and
+--   E4's holds only warns (v_num has been fixed by then), so a read path that
+--   suppressed warns WHILE errors exist — the shape a "only report what blocks"
+--   refactor would produce — passes every one of them. This is the same class as
+--   the P0 in 20260901000700: a narrowing that fails invisibly downstream.
+--
+--   `a3` is deliberate. It is the ONLY response left in_progress after its submit
+--   (J3 throws HC061), and it already carries a CONFIG-BOUND violation, so adding
+--   two authored rules gives all three shapes at once: authored error, authored
+--   warn, and legacy bound (`rule_id is null`).
+--
+--   MUTATIONS RUN, with the OBSERVED output — not the predicted output. Two of my
+--   three predictions were wrong, and the corrections are the interesting part:
+--
+--   A · `where v.e_severity = 'error'` on the read path
+--       -> E4, M1, M2 red. **M3 stays GREEN**, which I had predicted red: the
+--          config-bound rows carry severity 'error', so narrowing to errors keeps
+--          them. M3 is about the `rule_id is null` LANE, not about severity.
+--
+--   B · suppress warns only WHILE an error exists (the "only report what blocks"
+--       refactor — plausible, well-intentioned, and it strips every advisory from
+--       the wizard exactly when the user needs one)
+--       -> **M1, M2 red and NOTHING ELSE. E2, E4, I2 and I5 all stay GREEN.**
+--          This is the whole justification for §M, and it is the one prediction
+--          that held. Verified in both directions on a clean catalog.
+--
+--   C · `where v.e_rule_id is not null`
+--       -> J1, J2, M2, M3 red. I had predicted "M3 alone"; M2 also reds because it
+--          pins the exact 1 warn / 2 errors split, and one of those errors IS the
+--          config-bound row. Recorded so nobody reads M2 as severity-only.
+-- ===========================================================================
+select public.save_section_answers(
+  'ff300000-0000-0000-0000-0000000000a3', 'ff300000-0000-0000-0000-000000000003',
+  p_answers => '{"ff300000-0000-0000-0000-000000000011":3,
+                 "ff300000-0000-0000-0000-000000000012":"ab"}'::jsonb);
+
+select is(
+  (select count(distinct severity)::int
+     from public.get_response_validation_errors('ff300000-0000-0000-0000-0000000000a3')),
+  2, 'M1. ONE call returns BOTH severities — an error and a warn together');
+
+select is(
+  (select count(*) filter (where severity = 'warn')::int || '/' ||
+          count(*) filter (where severity = 'error')::int
+     from public.get_response_validation_errors('ff300000-0000-0000-0000-0000000000a3')),
+  '1/2',
+  'M2. …the warn survives ALONGSIDE the errors (1 warn, 2 errors), not instead of them');
+
+select is(
+  (select count(*)::int
+     from public.get_response_validation_errors('ff300000-0000-0000-0000-0000000000a3')
+    where rule_id is null),
+  1, 'M3. …and the legacy config-bound row (rule_id NULL) is in the SAME list');
 
 -- ===========================================================================
 -- §D-group + §I · the per-instance arms.
