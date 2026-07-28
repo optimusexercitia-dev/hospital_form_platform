@@ -150,7 +150,18 @@ three. FF-3 lands the missing arms:
 |---|---|---|---|---|
 | base member/admin SELECT | ✅ | ✅ | ✅ | keep |
 | `can_access_targeted_version` SELECT | ✅ (own policy) | ✅ (OR-arm) | ❌ **missing** | **add** |
-| `staff_admin` FOR-ALL write | ✅ | ✅ (via writer + policy) | ❌ **missing** | **add** |
+| `staff_admin` FOR-ALL write | ✅ | ❌ **none** — see correction | ❌ **missing** | **add** |
+
+> **Correction (2026-07-28, verified against `pg_policies` during the build).** This table as
+> first written claimed the matrix axis tables carry a `staff_admin` FOR-ALL write policy "via
+> writer + policy". **They do not** — `form_item_options` is the only one of the three siblings
+> with a write policy; the matrix tables' boundary is a SELECT-only grant plus the DEFINER door.
+> FF-3 added **both** arms as the table directs, but deliberately kept the **stricter grant
+> posture** of the matrix tables (`authenticated` holds `r` only, so direct DML is denied at the
+> grant, not merely at the policy). `form_item_options`, by contrast, grants `authenticated`
+> full `arwdDxtm`. Keystone `C5` pins both facts. This is the door-parity rule working as
+> intended: the parity table is checked against the catalog, and where the siblings disagree the
+> tighter posture wins.
 
 The writer `set_item_validations` lands as a **DEFINER door** (K9: direct DML stays denied), and
 `app.copy_version_children` gains a `form_item_validations` block **in the same migration wave**
@@ -187,6 +198,20 @@ The writer `set_item_validations` lands as a **DEFINER door** (K9: direct DML st
    same value in an emptied instance does not.
 9. E2E: author a rule → inline pt-BR message → submit gated → fix → submit passes; one
    keyboard-only flow.
+
+## Amendment 1 — the legacy config-bound lane joins the error surface (2026-07-28)
+
+**Lead-approved during the build, beyond this ADR's letter.** Ruling 3's error-surface contract
+promises that the list the wizard shows and the gate that blocks the user cannot disagree. The
+pre-existing `assert_item_bounds` lane — the `form_items.config` min/max bounds that predate
+FF-3 — raises on submit but was *not* part of the new error surface, so a submit could be
+refused while `get_response_validation_errors` returned an **empty list**: blocked, with nothing
+shown. That breaks the contract in its worst direction.
+
+FF-3 therefore folds that lane into the shared walker (migration `20260901000400`). Behaviour is
+unchanged — same SQLSTATE, same messages, same order — and the pre-existing pgTAP over
+`assert_item_bounds` is the net that proves it. Keystones `J1`/`J2` cover the lane; `J3` is green
+under the same mutation, which is what proves `J1`/`J2` are the ones testing it.
 
 ## Open questions (deferred, not blocking)
 
