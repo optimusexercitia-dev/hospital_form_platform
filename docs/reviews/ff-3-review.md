@@ -602,3 +602,352 @@ regex input) are cheap enough that I would take them in the same round.
 
 *Stack left clean: fresh `db reset`, 224 == 224, `pgtap` extension dropped, all 23 mutated function
 bodies restored (post-restore suite 0 red), working tree unmodified.*
+
+---
+---
+
+# FF-3 — QA Review **r2**
+
+**Verdict: ✅ APPROVED**
+
+**Reviewer:** `qa` · **Date:** 2026-07-28 · **HEAD:** `a3573bb` · **Migrations:** 225 == 225
+**r1 above is retained unedited as the record.**
+
+**Tally: 0 BLOCKING · 1 MAJOR-coverage (non-blocking, named below) · 4 MINOR · 3 INFO.**
+
+**Every r1 item is genuinely closed**, and I re-proved each one myself rather than accepting the
+report. The r1 BLOCKING and all four r1 MAJORs are gone, with keystones that go red when I neutralise
+them. Amendment 4 is the strongest artifact this phase produced and I endorse it on the merits — the
+lead's instruction was overruled correctly.
+
+I am approving with **one MAJOR-coverage item open**, stated plainly for the PO: the M-4 fix is
+keystoned on only **one half of the wire**, and the uncovered half is exactly where the r1 defect
+lived. It does not block because its regression costs a marker and an inline warning, not a boundary
+or a submitted-record integrity failure — but it should land before the pilot.
+
+---
+
+## r2.0 · Verification performed
+
+**Gate step 1, re-run by me from my own fresh `supabase db reset` at `a3573bb`:**
+
+| gate | result |
+|---|---|
+| `supabase db reset --local` | clean · **225 == 225** · healthy |
+| `npm run test:db` | **141 files / 4167 tests / PASS** |
+| `npm run test` (Vitest) | **47 files / 809 / pass** |
+| `npm run typecheck` | 0 |
+| `eslint --max-warnings=0` | 0 |
+| `lint:css-vars` | 0 |
+| `npm run build` | **`BUILD_EXIT=0`**, route table emitted |
+
+I ran `next build` myself and captured the exit code, because `frontend` had reported a green build
+that had not executed. It is genuinely 0.
+
+> ⚠ **A later `npm run test:db` in the same session returned FAIL / 3693 tests. It is contamination,
+> not a regression, and I am naming the evidence rather than asserting it.** The failing set is
+> `140_patient_safety` (35/35), `145_pqs_membership` (91/91) and a cascade of *"Bad plan. You planned
+> N tests but ran 0"* aborts across unrelated files — the CLAUDE.md §6 E2E-mutated-DB shape. **No
+> FF-3 file appears in it** (`274`, `275`, `272`, `270`, `209`, `271` were all 0-red under my guarded
+> harness minutes earlier, and `S16_RESTORED` re-confirmed it after the last mutation). `tester` is
+> running `e2e:prod` against this same local stack, and twice during my sweep it dropped the `pgtap`
+> extension and `test_helpers` out from under me. **I did not re-reset**, because the shared-stack
+> rule is one owner and the tester currently has it. The authoritative datum is the fresh-reset run
+> above, which matches the lead's number exactly.
+
+**23 mutations run in r2** (16 r1 re-runs + 7 new), each applied to the live catalog via
+`CREATE OR REPLACE`, measured, and restored.
+
+---
+
+## r2.1 · ⚠ A methodology failure of my own, reported because it changes how to read r1
+
+**Six of my r2 mutation runs came back "0 red" when in fact nothing had run at all.** The `pgtap`
+extension and `test_helpers` schema had been dropped by the tester's concurrent activity, and my
+harness counted only lines matching `^(ok|not ok)` — so a file that aborted at `select plan(...)`
+emitted zero of both and read as a clean pass. Had I not noticed, I would have reported six
+regression checks as green on the strength of nothing executing.
+
+That is the exact vacuity I graded this phase on, committed by the reviewer.
+
+**Fix, and it is now in every number in this section:** the harness pins the expected standalone
+assertion count per file (`274`=96, `275`=3, `272`=30, `270`=52, `209`=44, `271`=90) and prints
+`!! <file> ABORTED: ran N of M — NOT a pass` when short. Every r2 result below was produced under that
+guard, and the baseline (`R2BASE4`) is 0 red with **no** aborts.
+
+**What this means for r1:** the r1 zero-red findings were re-run under the guarded harness and all
+still hold — **m-1** (walker section/item visibility, still 0 red with all 96 assertions running) and
+**m-2** (dispatch group-arm child visibility, still exactly 1 incidental red in FF-1's `270` H3). The
+two r1 MAJORs that rested on zero-red evidence, **M-1 and M-2, are now independently confirmed by
+their own new keystones going red**, which is stronger evidence than the original absence. Nothing in
+r1 needs retraction.
+
+---
+
+## r2.2 · r1 items — each re-proved
+
+### B-1 (BLOCKING) → **closed**
+
+`20260901000800_enable_item_validations.sql` exists. **Seed-independence proven by me**, not read:
+
+```
+update app.feature_flags set enabled = false where key = 'item_validations';   -> before=false
+\i 20260901000800_enable_item_validations.sql                                  -> UPDATE 1
+select enabled ...                                                             -> after=true
+```
+
+The migration's header also records `backend`'s empirical confirmation of my inversion claim (flag
+off → error list 0 rows while submit still raises `HC061`). I note that it **verified the claim before
+acting on it** rather than taking my word — the right response to a review finding.
+
+### M-1 (MAJOR) → **closed**, and the split is proven in both directions
+
+`D6a` lands. My mutation matrix, re-run at `a3573bb` under the guard:
+
+| site neutralised | reds |
+|---|---|
+| `response_required_complete` FLAT | D2, D3, N2, N3 |
+| `response_required_complete` GROUP | D6, N7 — **not D6a** |
+| `submit_response` FLAT | N4 |
+| **`submit_response` GROUP** | **D6a — not D6** |
+
+Each arm reds only its own assertion. That is the strongest available form: D6a is unreachable through
+the dispatch and D6 is unreachable through the authority, so neither can be passing for the other's
+reason.
+
+### M-2 (MAJOR) → **closed**
+
+`§O` lands, asserted as **rows read** under `set local role` in the shape of `272` §S. Neutralising the
+wrapper's existence probe reds **O2 only**; O1 (the creator control) and O3 stay green. O3 pins that the
+withheld payload includes an item **label**, not merely a rule id.
+
+`§O`'s header does something better than fix the instance: it names the **shape** — *"an INVOKER
+wrapper whose own RLS probe is the only gate in front of a DEFINER body is a shape the sweep is
+structurally blind to, not one it overlooked"* — and `0bfc704` tracks it as **AUDIT-INVOKER-WRAPPER**
+for the PO. That is the correct generalisation and it is worth more than the keystone.
+
+### M-3 (MAJOR) → **closed via Amendment 4.** Audited on the merits; see r2.3.
+
+### M-4 (MAJOR) → **behaviour closed**; coverage gap remains, see r2.4
+
+`GroupBlock` now accepts `warnings` / `requiredNow` (`group-block.tsx:33-34, 57-58`) and forwards both
+with the same `answerable` guard the top-level dispatch uses (`:111-112`); `section-step.tsx:254-255`
+passes them. The containment-axis table at `PROGRESS.md:270-283` enumerates all fill and review paths
+and I found no fifth.
+
+### m-4, m-5a, m-5b, i-1, i-2 → **closed**
+
+- **m-4** — B16a/b/c. I neutralised `app.audit_write` in `set_item_validations`: **B16a + B16b red,
+  B16c green**, exactly as documented. B16c *is* vacuous under that mutation (`0 = 0`), which is why
+  B16a is asserted first and separately. Recording a vacuity instead of hiding it is the right call and
+  the second time this phase has done it (see r1 i-4).
+- **m-5a** — a real `<label htmlFor>` on the pattern input, `<legend>` demoted to `sr-only`
+  (`validation-rules-editor.tsx:328-338`). The advisory JS-compile note is `role="status"` and
+  explicitly non-blocking, with pt-BR copy that states the dialect situation without over-claiming.
+- **m-5b** — per-rule `aria-invalid` (`:113`).
+- **i-1** — all three stale pointers corrected in **both** the fixture and the copy embedded in `275`,
+  and the narrowings sentence now reads *"the **THREE** places"*. I checked the third specifically,
+  since `backend`'s first attempt reported three fixes and made two.
+- **i-2** — the stale `HC0N5` note struck in place at `PROGRESS.md:343-344`.
+
+**Both drift detectors re-verified by me**, parsing each `.sql` file's `$vectors$` literal and
+deep-comparing to the JSON fixture: **validator 27 vectors, deep-equal true**; **evaluator 47 vectors,
+deep-equal true**, of which **6 carry `"engine": "sql"`** — matching Amendment 4's stated test shape.
+
+### r1 regression sweep — all 16 proofs hold
+
+Re-run at `a3573bb`, guarded: dispatch flat visibility → D4/N5/N8 + `270` H1b · severity filter → E5 ·
+`HC0P9` gate → E1 · peers → I2/I3 · unary exemption → H3/H4 + `275` V1 · operator allowlist → H1/H2 +
+`275` V1 · clone validations → G1/G2/G3 · clone `required_if` → G4 · totality → B8 · drop write policy
+→ C3/C4 · drop targeted arm → C2/C4 + `272` S2 · widen grant → B2/B3/C5 + `209` C17. Baseline and
+post-restore both 0 red with no aborts. **The r2 rewrites regressed nothing.**
+
+---
+
+## r2.3 · Amendment 4, audited on the merits
+
+The lead asked whether de-mirroring is genuinely total, and whether the resulting UX is acceptable.
+
+**Is it total? Yes — I swept for leaks rather than reading the claim.**
+
+- `evalValidation`'s `regex` arm is `return true` unconditionally.
+- **Exactly one `new RegExp` survives anywhere in `src/`** (`validation-drafts.ts:441`,
+  `regexCompilesInJs`). It is advisory-only: `validateRuleDraft`'s `regex` case returns `null`
+  (`:276-298`), and its single consumer renders a `role="status"` hint that does not gate the save
+  (`validation-rules-editor.tsx:361`).
+- **No HTML `pattern=` attribute exists on any control** — worth checking explicitly, because that
+  would have re-entered JS regex through native constraint validation, below the TS layer entirely.
+- Both remaining client walks (`liveFeedback`, `reviewFeedback`) route through the same
+  `evalValidation`, so the review screen inherits it.
+
+**Is the reasoning sound? Yes, and I'd go further than the Amendment does.** A write-time dialect lint
+would have been a blocklist over two independently-evolving grammars — and the decisive argument is the
+one `backend` gave: *a lint that is 90% right still leaves the remaining 10% as an unsubmittable
+response*, i.e. it does not remove the failure mode, it only shrinks it. The measurement it produced
+(only 13 of 26 constructs agree; `\b` is a word boundary in JS and a **backspace** in ARE) is the kind
+of evidence that should overrule an instruction, and it did. **This is the second time this phase that
+an engineer tested a prescribed fix against reality and found it wrong** — the first being BUG-FF3-002.
+That is a healthy pattern, not a process failure.
+
+I verified the two load-bearing measurements independently:
+
+```
+PG:  '123' ~ '^[[:digit:]]{3}$'   -> true      JS: new RegExp(...).test('123') -> false
+     app.is_valid_validation_config('regex', …) -> true   (i.e. it stores)
+```
+
+**Is the UX acceptable? Yes.** A `regex` violation now surfaces at submit with the author's own pt-BR
+message via `HC0P9`, and the wizard places it on the field and navigates there. That is strictly better
+than a live message that can be wrong *and* blocking, and it restores ruling 3's stated topology
+instead of patching an exception into it. **Nothing here is blocking.** One narrow consequence is worth
+naming as a MINOR — see **r2.5 m-4**.
+
+### Write-time regex guard — confirmed independently, including `~*`
+
+The lead's probe used `~` only. I tested whether that is sufficient by asking Postgres directly whether
+any pattern compiles under one operator and not the other, over 20 constructs spanning POSIX bracket
+expressions, PG-only escapes, ARE directors (`***=literal`, `***:`), inline flags, equivalence classes,
+lookaround and the three PG-uncompilable forms:
+
+```
+RESULT: 0 of 20 patterns disagree on COMPILABILITY between ~ and ~*
+```
+
+`~` and `~*` share one compiler and differ only in a case-fold flag, so the guard's `~`-only probe
+covers the case-insensitive path by construction. I then proved it end to end through the real door:
+
+| probe | result |
+|---|---|
+| `a{300}` **with `caseInsensitive: true`** | `HC0Q2` ✅ |
+| `(?<n>a)` with `caseInsensitive: true`, **`warn` severity** | `HC0Q2` ✅ (severity does not bypass the guard) |
+| `^[[:digit:]]{3}$` with `caseInsensitive: true` — valid PG, invalid JS | **stores** ✅ (Amendment 4 on the merits) |
+| message text | matches `%expressão regular%` ✅ — **no raw `2201B` reaches a filler** |
+
+A side observation from a mis-aimed probe of my own: pointing a `regex` rule at a `number` item is
+refused `HC0Q1` *"a pergunta do tipo "number" não aceita a validação "regex""* — confirming live that
+coverage is checked before config, as designed.
+
+---
+
+## r2.4 · MAJOR-coverage (non-blocking) — the M-4 keystone covers only one half of the wire
+
+**Requirement:** ADR 0079 keystone discipline — the fix for a MAJOR must be observable if it regresses.
+
+`PROGRESS.md:291` claims *"reverting `GroupBlock` to forwarding neither prop → **3 red**"*. **That
+claim reproduces exactly — and it is only half the wire.** I ran both mutations, restoring each file
+byte-for-byte (`git diff` empty afterwards for both):
+
+| mutation | full Vitest result |
+|---|---|
+| **receiver** — drop `warning=` / `requiredNow=` from `group-block.tsx:111-112` | **3 failed / 806 passed** — marker, `aria-required`, inline `warn` |
+| **caller** — drop `warnings={warnings}` / `requiredNow={requiredNow}` from the `<GroupBlock>` call at `section-step.tsx:254-255` | **809 / 809 — ALL GREEN** |
+
+**The uncovered half is precisely where the r1 defect was.** r1 M-4 read: *"`section-step.tsx:246-256`
+renders `<GroupBlock>` with … no `warnings`, no `requiredNow` — and `group-block.tsx` accepts
+neither."* Both halves were broken. Both were fixed. Only one is pinned. Delete those two lines from
+the call site tomorrow and the r1 MAJOR returns in full silence.
+
+The cause is structural and familiar: `required-marker.test.tsx` renders `GroupBlock` **directly, with
+the props supplied**, so it cannot observe a parent that fails to supply them. It is the same shape as
+a policy test that proves the predicate rather than the read, and the same shape as testing one of two
+call sites.
+
+**Why this does not block the verdict.** Its regression costs a `*` marker, an `aria-required`
+attribute and an inline warning — a real a11y/UX defect, visible in use, recoverable, and it does not
+let a bad record reach `submitted` (the server still raises `HC011`) or cross a tenancy boundary. That
+is a materially different class from M-1 (an incomplete response reaching immutable `submitted` state)
+and M-2 (a cross-tenant read), which is why those were gate-blocking and this is not. **It should land
+before the pilot**, and it is one assertion: render the wizard at `SectionStep` level with a plain
+group containing a `required_if` child, and assert the marker — the mutation above is the proof it
+would have to survive.
+
+---
+
+## r2.5 · MINOR
+
+- **m-1 (carried from r1)** — the error-surface walker's own section- and item-visibility skips remain
+  unkeystoned. Re-verified under the guarded harness at `a3573bb`: still 0 red with all 96 assertions
+  running. Bounded failure mode as stated in r1.
+- **m-2 (carried from r1)** — no dedicated group-arm hidden+`required_if` deadlock-negative; the guard
+  is still observed only incidentally, by FF-1's `270` H3.
+- **m-3 (carried from r1)** — vector coverage still lacks a wrong-type case for `date_range` /
+  `datetime_order`, and the unknown-`rule_type` arm still diverges (SQL raises, TS returns implicit
+  `undefined`). Unreachable from a stored row; TS fails closed.
+- **m-4 (NEW) — a `warn`-severity `regex` rule is silently inert.** Since Amendment 4 the client
+  reports `regex` satisfied, and the server's rows reach the UI **only** on an `HC0P9` refusal —
+  `wizard-client.tsx:188-190` says so in its own comment (*"`warn` rows returned by an HC0P9
+  refusal"*), and `getResponseValidationErrors` is called from exactly two places, both inside the
+  `SUBMIT_VALIDATION_ERROR` branch (`actions.ts:815`, `:924`). So a `warn` + `regex` rule surfaces only
+  as a side effect of some *unrelated* `error` blocking the same submit; on a clean submit it is never
+  shown anywhere, including review. The author gets no indication their rule does nothing.
+  `CLIENT_UNEVALUATED_RULE_TYPES` was exported for exactly this and has no production consumer. Fix is
+  a choice of three: badge it, hide `warn` for `regex` in the severity picker, or fetch the list on a
+  successful submit.
+
+## r2.6 · INFO
+
+- **i-1 (NEW) — a stale, now-orphaned JSDoc block on the arm Amendment 4 changed.**
+  `validation-rules.ts:268-283` still reads *"`regex` is the one arm where the two evaluators run
+  DIFFERENT engines … this side is live UX. An expression JS cannot compile yields `true` here rather
+  than a false accusation"* — describing the pre-Amendment-4 behaviour, directly contradicting the arm
+  20 lines below it. It is also structurally orphaned: a second JSDoc block for
+  `CLIENT_UNEVALUATED_RULE_TYPES` sits between it and `evalValidation`, so it documents nothing and an
+  editor will not surface it on the function. In a repo whose standing lesson is *text is not truth*,
+  the one comment a future reader of this arm will find should not be the false one.
+- **i-2 (NEW)** — `CLIENT_UNEVALUATED_RULE_TYPES` has no production consumer (only its own definition
+  and a Vitest import). Deliberate per Amendment 4; noted so it is not later deleted as dead.
+- **i-3 (carried)** — `app.response_validation_errors` still has `proacl = NULL`; unchanged,
+  pre-existing, not PostgREST-reachable.
+
+*r1's i-2 (stale `HC0N5`) and i-1 (fixture pointers) are closed and are not carried.*
+
+---
+
+## r2.7 · Gate step 2 — my §6 view, restated as asked
+
+**My r1 position stands unchanged, and the r2 evidence sharpens it.**
+
+Three of the five r1 findings — M-1, M-2, M-4 — were on paths the E2E suite structurally cannot
+exercise: an unanswered per-instance `required_if` reaching `submit_response`, an outsider calling a
+read RPC, and a render prop inside a plain group. A green E2E was not evidence against them in r1 and
+is not evidence for them now.
+
+**r2 produced a fourth instance of the same principle, one level up.** The M-4 fix is confirmed working
+by both Vitest and (presumably) the E2E re-run — and the call-site half is still unpinned. Execution
+evidence tells you the code works *today*; only a mutation tells you a test would notice if it stopped.
+**Those are different questions, and the gate currently only answers the first.**
+
+So: I concur with treating gate step 2 as passed, on the same basis as r1 — complete accounting, an
+environmental residual that is evidenced rather than asserted, and a triage that demonstrably
+discriminates. And I repeat the two caveats, which r2 has strengthened rather than weakened:
+
+1. **Split the gate harness before FF-5.** The lead's finding — the collapse is cumulative over run
+   time, so a smaller `BATCH_SIZE` makes it worse — means FF-5 will be worse than FF-3, not better.
+   This is now the second phase greened by triage.
+2. **`tester` running against the shared local stack while `qa` audits it cost me real time and
+   produced six false greens in my own harness.** The E2E gate and a catalog audit cannot share one
+   database. That is a coordination fix, not a code fix, and it belongs alongside the harness split.
+
+---
+
+## r2.8 · What remains open, for the PO
+
+| # | severity | item | consequence if it regresses |
+|---|---|---|---|
+| r2.4 | **MAJOR-coverage** | the `<GroupBlock>` **call site** is unpinned; only the receiving side is | r1's M-4 returns silently: a `required_if` item in a plain group announces itself optional and its `warn` never renders inline. a11y/UX; no boundary or integrity impact. **Land before pilot.** |
+| r2.5 m-4 | MINOR | `warn` + `regex` is silently inert | an author's advisory rule does nothing and they are not told |
+| r2.5 m-1/m-2/m-3 | MINOR | carried coverage gaps (walker visibility; group-arm deadlock-negative; three vector gaps) | bounded; each named with its failure mode in r1 |
+| r2.6 i-1 | INFO | stale orphaned JSDoc on the `regex` arm | misleads the next reader of the arm Amendment 4 changed |
+| r1 O-5 / O-6 | open by design | ADR-recorded PO calls; **O-6 is not closed** — the SQL pair still duplicates the walk | `Whoever changes required-ness must change both` still applies |
+
+**None of these blocks the phase.** The security boundary, the submission authority, Rule 5
+immutability, the door parity, both mirrored pairs and the flag flip are all in place and
+mutation-proven — by the engineers, and independently by me.
+
+---
+
+*Stack state on exit: HEAD `a3573bb`, migrations 225 == 225, flag `item_validations` = `true`, `pgtap`
+extension dropped, all 23 mutated function bodies restored and all 2 mutated TypeScript files restored
+byte-for-byte (`git diff` empty for both). The only modified file in the worktree is
+`e2e/ff3-validations.spec.ts`, which is **`tester`'s** concurrent work, not mine. I deliberately did
+**not** run a further `db reset`: the tester currently owns the shared stack.*
