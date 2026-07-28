@@ -191,6 +191,55 @@ name, fast-forwarded to `main` @ `5e6b62d`; **216 == 216** at phase start.
 > marker independently of the error — a required field that IS answered must still be marked, so one
 > assertion cannot cover both. Restored byte-for-byte.
 
+> ✅ **Boundary audit — matrix + risk_matrix `required_if` (`45563c7`).** The lead found the marker
+> still static on the two render paths outside `input-item.tsx`. It was the **visible symptom of a
+> deeper gap**: both walks gated on `isInputItem`, which is deliberately FALSE for the matrix types
+> (their answer is not a scalar in `answers.value`), so the two types were skipped **outright** —
+> `required_if` on a matrix was never evaluated client-side at all. Meanwhile
+> `form_items_input_vs_display` permits it on both (verified from `pg_constraint`, quoted below) and
+> `app.response_required_complete` calls `app.item_is_required` with no `item_type` filter, so it
+> genuinely blocks submit. Both walks now gate on `isAnswerableItem`; presence uses the ROW-COMPLETE /
+> both-halves reading via a shared `itemAnswered`, so `required_if` cannot acquire a second notion of
+> "answered".
+>
+> **The enumeration, derived from the CHECK rather than from a file** — 10 item types permit
+> `required_if`; the 5 excluded ones are forced `required_if IS NULL`:
+>
+> | `item_type` | renders via | reads effective required-ness |
+> |---|---|---|
+> | `multiple_choice` · `dropdown` · `checkbox` | `ChoiceGroup` / `DropdownItem` / `CheckboxGroup` (`input-item.tsx`) | ✅ |
+> | `free_text` · `short_text` · `number` | `FreeTextItem` / `ShortTextItem` / `NumberItem` (`input-item.tsx`) | ✅ |
+> | `date` | `DateTimeItem` date branch | ✅ |
+> | `time` | `DateTimeItem` **TIME** branch | ✅ (hands a11y attrs over individually — would have dropped `aria-required` alone) |
+> | `matrix` | **`matrix-grid.tsx`** | ✅ **(this fix)** |
+> | `risk_matrix` | **`risk-matrix-picker.tsx`** | ✅ **(this fix)** |
+> | `reference` · `group` · `repeating_group` · `section_text` · `image` | — | n/a — CHECK forces `required_if IS NULL` |
+>
+> **An a11y correction the lint gate caught, and it was right:** `aria-required` is invalid on
+> `role="radio"`, and `matrix-grid`'s wrapper is deliberately `role="group"` (one radio group **per
+> row**), which does not support it either. Required-ness is announced through the group's
+> **description** instead — said once for the whole grid, driven by the effective value.
+> `risk-matrix-picker`'s wrapper IS a `radiogroup`, so `aria-required` is valid there.
+>
+> **Mutation-proven twice, files restored byte-for-byte:** reverting both walk gates to `isInputItem`
+> → **6 red**; reverting all three render fallbacks to the static flag → **11 of 15 red** in the new
+> render-level suite, the 4 survivors being exactly the "falls back when the prop is absent" cases
+> that must stay green. ⚠ **That render suite exists because the walk-level assertions CANNOT fail if
+> a component goes stale** — the same vacuity trap as the prune test, caught before shipping this time.
+>
+> ⚠ **A NINTH path found, deliberately NOT changed — needs a lead ruling.**
+> `src/components/responses/wizard/answer-summary.tsx:98` renders the marker from static
+> `item.required`, and the review screen uses it, so a `required_if`-mandatory field shows **unmarked
+> on review** while marked during fill. Two reasons I did not just fix it: (a) it cannot mislead into a
+> blocked submit — review is only reachable after every section passed `handleNext`, so all required
+> fields are answered by then, making this an inconsistency rather than a trap; (b) `AnswerSummary`
+> has **six other consumers** — `submission-detail-view`, `phase-answers-readonly`,
+> `instance-answers-readonly`, `review-and-sign` and two tests — all **historical read-only views of
+> SUBMITTED responses**, where static `item.required` is arguably the *correct* display (the record was
+> already accepted, and there is no live answer map). Threading effective required-ness there would put
+> a live-fill concept onto historical dashboard views. The optional-prop-with-fallback shape already
+> supports fixing only the review call site; it is a scope call, not a guess I should make.
+
 > ⛔ **STILL OWED — a real click-through. Live UI verification was IMPOSSIBLE from this worktree.**
 > The Browser preview tool's session is bound to the **primary checkout** (its processes run from
 > `hospital_form_platform
