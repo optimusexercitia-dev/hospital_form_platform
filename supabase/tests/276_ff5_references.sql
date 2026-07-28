@@ -38,10 +38,14 @@
 --   §K — supersession_references_excluded.
 --   §L — the participant-type label mirror (Rule 10; the SQL half of the pair
 --        pinned on the TS side by participant-type-labels.test.ts).
+--   §M — the item_type CHECK pinned to ITEM_TYPE_AUTHORITY's 15 literals. Closes
+--        the end `item-type-sets.test.ts` structurally cannot: `ItemType` is
+--        HAND-WRITTEN (gen:types renders a CHECK-constrained text column as
+--        `string`), so a SQL-only widening is invisible to every TS gate.
 
 begin;
 
-select plan(53);
+select plan(54);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -928,6 +932,45 @@ select is(
     -> 'ff500000-0000-0000-0000-000000000011' ->> 'sublabel',
   'Setor',
   'L3. …and so does the SIGN-OFF PROJECTION — the site the bug report did not name');
+
+-- ===========================================================================
+-- §M · THE ITEM-TYPE AUTHORITY, asserted on the DB SIDE (QA follow-up).
+--
+--   `src/lib/forms/item-tree.ts` carries `ITEM_TYPE_AUTHORITY`, a literal tuple
+--   the builder's allowlist is tested against (`item-type-sets.test.ts`). That
+--   test is genuinely non-vacuous — mutation-checked — but its "DB authority"
+--   framing was OVERSTATED, and QA was right to push on it:
+--
+--     `ItemType` is a HAND-WRITTEN union. `gen:types` renders a CHECK-constrained
+--     `text` column as plain `string`, so NOTHING generates it. The chain "the DB
+--     CHECK gains a type -> ItemType gains it -> the TS test reds" is a SOCIAL
+--     CONVENTION, not a mechanism. A widening applied only in SQL is invisible to
+--     every TypeScript gate.
+--
+--   This assertion closes that end: it reads the CHECK's own value list out of
+--   `pg_constraint` and pins it to the same 15 literals. Widen the CHECK without
+--   touching TypeScript and the SQL suite reds here — which is the half the
+--   TS-side test structurally cannot provide.
+--
+--   Fails CLOSED in both degenerate directions, which is why it is not another
+--   could-not-fail guard: if the constraint is dropped, or the regex stops
+--   matching, `array_agg` returns NULL over zero rows and `is()` fails rather
+--   than passing on an empty comparison.
+--
+--   MUTATION: add a 16th value to form_items_item_type_check -> M1 red.
+--     Drop the constraint -> M1 red (NULL vs the array). Verified.
+-- ===========================================================================
+select is(
+  (select array_agg(m[1] order by m[1])
+   from pg_constraint c,
+        lateral regexp_matches(
+          pg_get_constraintdef(c.oid), '''([a-z_]+)''::text', 'g') m
+   where c.conrelid = 'public.form_items'::regclass
+     and c.conname = 'form_items_item_type_check'),
+  array['checkbox', 'date', 'dropdown', 'free_text', 'group', 'image', 'matrix',
+        'multiple_choice', 'number', 'reference', 'repeating_group', 'risk_matrix',
+        'section_text', 'short_text', 'time'],
+  'M1. form_items_item_type_check admits EXACTLY the 15 values ITEM_TYPE_AUTHORITY mirrors');
 
 select * from finish();
 rollback;

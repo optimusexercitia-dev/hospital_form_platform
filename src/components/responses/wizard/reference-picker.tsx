@@ -294,7 +294,26 @@ export const ReferencePicker = memo(function ReferencePicker({
         if (open) settle();
         return;
       default:
-        if (!open) setOpen(true);
+        // m-4: open only for keys that actually EDIT the field. The previous
+        // catch-all fired on Shift, Ctrl, Alt, CapsLock, F5 and every other
+        // non-editing key, so merely holding Shift re-opened a closed list and
+        // kicked off a baseline search.
+        //
+        // `key.length === 1` is the printable-character test; Backspace/Delete
+        // are the editing keys that are not printable. A chord (Ctrl/Meta/Alt)
+        // is a command, not typing, so it is excluded even when its key is a
+        // single character — Ctrl+C must not open a listbox.
+        if (
+          !open &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          (event.key.length === 1 ||
+            event.key === "Backspace" ||
+            event.key === "Delete")
+        ) {
+          setOpen(true);
+        }
     }
   }
 
@@ -354,7 +373,10 @@ export const ReferencePicker = memo(function ReferencePicker({
             role="combobox"
             autoComplete="off"
             aria-expanded={open}
-            aria-controls={listboxId}
+            // m-1: only reference the listbox while it is actually MOUNTED. The
+            // popup below renders iff `open`, so pointing at `listboxId` when
+            // closed left a dangling IDREF (axe `aria-valid-attr-value`).
+            aria-controls={open ? listboxId : undefined}
             aria-autocomplete="list"
             aria-activedescendant={
               open && activeIndex >= 0 ? optionId(activeIndex) : undefined
@@ -369,11 +391,16 @@ export const ReferencePicker = memo(function ReferencePicker({
               setOpen(true);
             }}
             onFocus={() => setOpen(true)}
-            onBlur={(e) => {
-              // A click on an option keeps focus on the input (the list
-              // suppresses its own mousedown), so a real blur here means the
-              // user left the field — close without committing a highlight.
-              if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+            onBlur={() => {
+              // Any blur here means the user genuinely left the field, so close
+              // without committing a mere highlight.
+              //
+              // i-1: there is deliberately NO `currentTarget.contains(relatedTarget)`
+              // guard. `currentTarget` is this `<input>` — a void element that
+              // can never contain another node — so such a check is always false
+              // and does nothing. What actually keeps an option click alive is
+              // the popup's `onMouseDown` preventDefault below: focus never
+              // leaves the input, so this handler does not fire at all.
               settle();
             }}
             onKeyDown={handleKeyDown}
@@ -405,7 +432,17 @@ export const ReferencePicker = memo(function ReferencePicker({
           ) : null}
         </div>
 
-        {(showList || showEmpty || searchError) && open ? (
+        {/*
+          m-1: the popup renders whenever the field is OPEN — including while the
+          baseline fetch is in flight. It previously rendered only once a result
+          had landed, which made `aria-expanded="true"` a lie for the duration of
+          every fetch (expanded, but nothing to expand into) and left
+          `aria-controls` dangling. Rendering a real loading row instead keeps the
+          three signals — `aria-expanded`, `aria-controls`, and what is on screen
+          — describing the same state at every instant, and gives sighted users
+          the progress feedback that was previously only a spinner in the input.
+        */}
+        {open ? (
           <div
             // Suppressing mousedown keeps focus on the combobox while an option
             // is clicked — the input stays the focused element throughout, which
@@ -422,13 +459,26 @@ export const ReferencePicker = memo(function ReferencePicker({
               {showList
                 ? candidates.map((candidate, index) => {
                     const active = index === activeIndex;
-                    const selected = value?.targetId === candidate.targetId;
+                    const committed = value?.targetId === candidate.targetId;
                     return (
                       <li
                         key={candidate.targetId}
                         id={optionId(index)}
                         role="option"
-                        aria-selected={selected}
+                        // m-2: `aria-selected` tracks the ACTIVE option — the one
+                        // `aria-activedescendant` points at — not the committed
+                        // value. APG's combobox+listbox pattern defines selection
+                        // as following focus in a single-select listbox, so
+                        // binding it to the committed value made a screen reader
+                        // announce "not selected" on the very row the user was
+                        // arrowing onto, while the visual highlight said
+                        // otherwise. Audible and visual now agree.
+                        //
+                        // The committed value is still conveyed: it is the
+                        // input's own text, it is wired via `aria-describedby` →
+                        // the selection block, and the check icon carries an
+                        // sr-only label below.
+                        aria-selected={active}
                         onClick={() => commit(candidate)}
                         onMouseEnter={() => setActiveIndex(index)}
                         style={{ ["--rise-delay" as string]: `${index * 20}ms` }}
@@ -442,12 +492,22 @@ export const ReferencePicker = memo(function ReferencePicker({
                           aria-hidden="true"
                           className={cn(
                             "mt-0.5 size-4 shrink-0",
-                            selected ? "text-primary" : "invisible",
+                            committed ? "text-primary" : "invisible",
                           )}
                         />
                         <span className="flex min-w-0 flex-col">
                           <span className="truncate font-medium">
                             {candidate.label}
+                            {committed ? (
+                              // The check icon is `aria-hidden`, so without this
+                              // the "this is the one already chosen" signal would
+                              // be visual-only — and it can no longer ride
+                              // `aria-selected`, which now tracks the active row.
+                              <span className="sr-only">
+                                {" "}
+                                (referência atual)
+                              </span>
+                            ) : null}
                           </span>
                           {candidate.sublabel ? (
                             // Load-bearing, not decoration: on the patient lane
@@ -470,7 +530,19 @@ export const ReferencePicker = memo(function ReferencePicker({
                 : null}
             </ul>
 
-            {searchError ? (
+            {loading ? (
+              // The popup is mounted for the whole open state now (m-1), so the
+              // in-flight case needs something to show. `aria-hidden` because the
+              // polite live region below already announces "Buscando opções…" —
+              // announcing it twice is noise, not redundancy.
+              <p
+                aria-hidden="true"
+                className="flex items-center gap-2 px-3 py-3 text-sm text-muted-foreground"
+              >
+                <Loader2 className="size-4 shrink-0 animate-spin" />
+                Buscando opções…
+              </p>
+            ) : searchError ? (
               <p className="px-3 py-3 text-sm text-destructive">{searchError}</p>
             ) : showEmpty ? (
               <p className="px-3 py-3 text-sm text-muted-foreground text-pretty">

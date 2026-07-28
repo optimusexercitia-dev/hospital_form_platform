@@ -52,6 +52,7 @@ import {
   removeGroupInstance,
   reorderGroupInstances,
   saveSection,
+  searchReferenceCandidates,
   submitCasePhaseResponse,
   submitResponse,
 } from './actions'
@@ -75,6 +76,136 @@ function asMember(): void {
 beforeEach(() => {
   vi.clearAllMocks()
   asMember()
+})
+
+/**
+ * FF-5 (QA M-2) — THE TYPEAHEAD ERROR PATH IS REACHABLE.
+ *
+ * `searchReferenceCandidates` used to end `return { ok: true, candidates }`
+ * unconditionally, because `listReferenceCandidates` swallowed every Postgres
+ * error into `[]`. The consequence was not a missing message but a CONFIDENT
+ * FALSE ONE: with `entity_refs` off the RPC raises HC0Q3, the picker saw an
+ * empty list, and told the user the field is empty because the form has no
+ * linked case. A feature-flag outage rendered as correct behaviour.
+ *
+ * The picker's whole error branch was therefore unreachable — and unreachable
+ * code passes lint, tsc and every unit test, which is exactly why "the branch
+ * exists" is not evidence. These tests force the RPC to raise and assert the
+ * caller receives `ok: false` with pt-BR: the check that would have caught it.
+ */
+describe('searchReferenceCandidates — the RPC error path (QA M-2)', () => {
+  const ITEM = '66666666-6666-4666-8666-666666666666'
+
+  it('CONTROL — a successful call returns ok with the mapped candidates', async () => {
+    // Without this, every assertion below could pass because the action always
+    // fails, which is a different bug wearing the same green.
+    rpc.mockResolvedValue({
+      data: [{ target_id: 'p-1', label: 'UTI Adulto', sublabel: 'Setor' }],
+      error: null,
+    })
+
+    const result = await searchReferenceCandidates({
+      responseId: RESPONSE_ID,
+      itemId: ITEM,
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.candidates).toEqual([
+      { targetId: 'p-1', label: 'UTI Adulto', sublabel: 'Setor' },
+    ])
+  })
+
+  it('an EMPTY result stays ok — it is a legitimate answer, not a failure', async () => {
+    // The distinction the fix turns on. A `patient` lane on a standalone
+    // response genuinely has no candidates; that must NOT look like an error.
+    rpc.mockResolvedValue({ data: [], error: null })
+
+    const result = await searchReferenceCandidates({
+      responseId: RESPONSE_ID,
+      itemId: ITEM,
+    })
+
+    expect(result).toEqual({ ok: true, candidates: [] })
+  })
+
+  it('HC0Q3 (feature flag OFF) surfaces as ok:false with the flag message', async () => {
+    // THE REGRESSION THIS FILE EXISTS FOR. Previously: { ok: true, candidates: [] }.
+    rpc.mockResolvedValue({
+      data: null,
+      error: { code: 'HC0Q3', message: 'o recurso de referências não está disponível' },
+    })
+
+    const result = await searchReferenceCandidates({
+      responseId: RESPONSE_ID,
+      itemId: ITEM,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.candidates).toBeUndefined()
+    expect(result.error).toBe('O recurso de referências não está disponível.')
+  })
+
+  it('HC0Q4 (not a reference item) surfaces as invalid data', async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: { code: 'HC0Q4', message: 'o item X não é um campo de referência' },
+    })
+
+    const result = await searchReferenceCandidates({
+      responseId: RESPONSE_ID,
+      itemId: ITEM,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('Dados inválidos para este formulário.')
+  })
+
+  it('P0002 (response not found / not visible) surfaces as not found', async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: { code: 'P0002', message: 'resposta X não encontrada' },
+    })
+
+    const result = await searchReferenceCandidates({
+      responseId: RESPONSE_ID,
+      itemId: ITEM,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('Resposta não encontrada.')
+  })
+
+  it('an UNMAPPED code still fails closed with generic pt-BR, never ok:true', async () => {
+    // The arm that matters most for a code nobody anticipated: the failure must
+    // stay a failure. A `default` that fell through to ok:true would reinstate
+    // the whole defect for every future SQLSTATE.
+    rpc.mockResolvedValue({
+      data: null,
+      error: { code: '08006', message: 'connection failure' },
+    })
+
+    const result = await searchReferenceCandidates({
+      responseId: RESPONSE_ID,
+      itemId: ITEM,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('Não foi possível concluir. Tente novamente.')
+  })
+
+  it('never leaks the raw Postgres message to the UI (CLAUDE.md §8)', async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: { code: 'HC0Q3', message: 'ERROR: relation "x" does not exist' },
+    })
+
+    const result = await searchReferenceCandidates({
+      responseId: RESPONSE_ID,
+      itemId: ITEM,
+    })
+
+    expect(result.error).not.toContain('relation')
+  })
 })
 
 describe('addGroupInstance', () => {

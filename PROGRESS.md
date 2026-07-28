@@ -159,7 +159,40 @@ running app (builder + wizard + resume-by-label + per-instance picker, driven li
 >    - Second time this phase the wired seam failed under a fully green bar (BUG-FF5-001 was the
 >      first), both invisible to tsc for the same reason: a permissive declaration makes omission
 >      legal. Neither lint, typecheck, 834 unit tests nor `next build` can see it — only running it.
-> 4. 🟠 **KNOWN LIMITATION — the patient lane's sublabel degenerates on the READ path.** Surfaced by
+> 4. ✅ **QA round-1 findings in frontend files — all FIXED** (m-1, m-2, m-3, m-4, i-1; i-2 judged
+>    and left, with reasoning in-code).
+>    - **m-2 was the one that mattered**, and it hit precisely the flow I could not verify myself:
+>      `aria-selected` tracked the COMMITTED value while the visual highlight followed
+>      `activeIndex`, so arrowing the list made a screen reader announce "not selected" on the very
+>      row the user was on. APG defines selection as following focus in a single-select listbox;
+>      `aria-selected` now tracks the active option, and the committed row keeps its signal via an
+>      sr-only "(referência atual)" (the check icon is `aria-hidden`).
+>    - **m-1** — the popup now renders whenever the field is OPEN, including mid-fetch, so
+>      `aria-expanded`, `aria-controls` and what is on screen describe the same state at every
+>      instant; `aria-controls` is omitted while closed rather than dangling. Side benefit: an
+>      in-flight search now has a visible row, not just a spinner in the input.
+>    - **m-3 — the fix I had stopped one level short of.** `AnswerSummary`'s answer-payload props are
+>      now required-to-pass (`| undefined`, no `?`). This is the leaf that PRODUCES BUG-FF5-002, and
+>      the guarantee had been a comment on the prop asking callers to pass it — the compiler's job
+>      written as prose, which is the same thing I argued against when deleting the render-layer
+>      sublabel guard. **Making it required immediately surfaced a REAL second gap** (below).
+>    - 🟠 **NEW GAP, backend's file, not patched by me — the sign-off door does not project
+>      top-level "Outros" free text.** `ResponseForSignoff` has no `otherTextByItemId`;
+>      `queries/signoffs.ts` maps `other_text_by_item` for INSTANCES only. So a top-level "Outro"
+>      answer reaches the signer as the bare chip with the typed text missing — the same
+>      signing-blind-to-content shape as FF-1's instances and FF-2's grids, one field later.
+>      `review-and-sign.tsx` now passes `otherText={undefined}` **explicitly**, so the absence is
+>      recorded rather than silent. Fix is a door + query change in `src/lib/queries/signoffs.ts`.
+>    - **m-4** the key handler no longer opens the list on Shift/Ctrl/Alt/CapsLock/F5 (only printable
+>      keys and Backspace/Delete, chords excluded); **i-1** the dead `currentTarget.contains()` blur
+>      guard is gone — an `<input>` is void and can never contain a node, so it was always false;
+>      the comment now credits the popup's `onMouseDown` preventDefault, which is what actually
+>      protects option clicks.
+>    - **i-2 left deliberately** (`readOnly={onReferenceChange == null}`): same opt-out shape, but the
+>      failure mode is loud — a visibly inert control that fails every fill spec — not silent-and-wrong
+>      like missing data, and tightening it for `reference` alone would split the idiom inside one
+>      dispatcher while both matrix types keep it. Reasoning recorded in `block-renderer.tsx`.
+> 5. 🟠 **KNOWN LIMITATION — the patient lane's sublabel degenerates on the READ path.** Surfaced by
 >    `backend` re-sweeping the `sublabel` producers after (2) removed the client-side net; verified
 >    independently here against the code and the live DB. **Not a regression and not blocking — but
 >    it should be a PO/lead decision, not a code comment, and I do not think "cosmetic" is right.**

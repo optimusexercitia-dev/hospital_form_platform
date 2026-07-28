@@ -215,9 +215,20 @@ const MATRIX_RISK_INCOMPLETE = 'HC0P8'
  * Swept against the raise sites rather than assumed, which is the discipline
  * BUG-FF2-002 produced: HC0Q3 is raised by BOTH `app.assert_reference_answer_
  * writable` and `public.reference_candidates`, and HC0Q4 by BOTH
- * `app.save_reference_answers` and `app.guard_reference_coherent`. Every one of
- * those four sites is reachable from a path this module owns, so all three codes
- * are mapped here and again in {@link searchReferenceCandidates}.
+ * `app.save_reference_answers` and `app.guard_reference_coherent`.
+ *
+ * ⚠ Where each code is mapped — stated exactly, because the sentence that used
+ * to sit here ("all three codes are mapped here and again in
+ * `searchReferenceCandidates`") described a guarantee that DID NOT EXIST: the
+ * search path had no mapping at all, and the comment was the only thing claiming
+ * otherwise (QA M-2). Four stale load-bearing comments in one phase is enough to
+ * stop writing them in the aspirational tense.
+ *
+ *   · HC0Q3 / HC0Q4 — BOTH paths: {@link saveSection} and
+ *     {@link searchReferenceCandidates}.
+ *   · HC0Q5 — the SAVE path only. `public.reference_candidates` cannot raise it;
+ *     it is the coherence trigger's code, and the trigger fires on write. An arm
+ *     for it in the search would be dead code.
  */
 const REFERENCE_FLAG_OFF = 'HC0Q3'
 const REFERENCE_NOT_A_REFERENCE = 'HC0Q4'
@@ -710,9 +721,18 @@ export interface ReferenceCandidatesState extends ActionState {
  * The membership check mirrors `saveSection`'s: it turns an RLS zero-row silence
  * into readable pt-BR, and never REPLACES RLS.
  *
- * An empty `candidates` array is frequently the CORRECT answer, not a failure —
- * see {@link listReferenceCandidates}. The UI must render an empty state, not an
- * error.
+ * ⚠ AN EMPTY RESULT AND A FAILED CALL ARE DIFFERENT FACTS, and this comment used
+ * to say only the first half — which was the defect, not just a description of
+ * it (QA M-2). An empty `candidates` on `ok: true` IS frequently correct (a
+ * `patient` lane on a standalone response; a commission lane for a caller who
+ * belongs to one commission), and the UI must render an empty state for it. A
+ * RAISED RPC is not that: it comes back `ok: false` with pt-BR, and the picker's
+ * error path renders instead of its empty-state copy.
+ *
+ * Getting that wrong is not cosmetic. With `entity_refs` off the RPC raises
+ * HC0Q3, and the old code turned it into `{ ok: true, candidates: [] }` — so the
+ * user was told the field is empty because the form has no linked case, and the
+ * operator saw a data problem rather than a flag outage.
  */
 export async function searchReferenceCandidates(input: {
   responseId: string
@@ -731,8 +751,38 @@ export async function searchReferenceCandidates(input: {
     return { ok: false, error: MESSAGES.forbidden }
   }
 
-  const candidates = await listReferenceCandidates({ responseId, itemId, query })
-  return { ok: true, candidates }
+  const result = await listReferenceCandidates({ responseId, itemId, query })
+  if (result.ok) return { ok: true, candidates: result.candidates }
+
+  // ⚠ THE MAPPING THAT WAS MISSING (QA M-2). Without it every raise arrived as
+  // `{ ok: true, candidates: [] }`, which made the picker's ENTIRE error path —
+  // its `!result.ok` branch, `searchError` state, the `text-destructive` line
+  // and the `searchError` arm of `liveStatus` — unreachable for the whole RPC
+  // error class. Unreachable code that lint, tsc and 834 unit tests all pass.
+  //
+  // Only THREE codes are reachable here, read off the raise sites in
+  // `public.reference_candidates` rather than assumed. HC0Q5 is deliberately
+  // ABSENT: the coherence trigger raises it on the WRITE path only, so an arm
+  // for it here would be dead code asserting a reachability that does not exist.
+  switch (result.code) {
+    case REFERENCE_FLAG_OFF:
+      // The flag-dark case. It previously rendered as the patient-lane
+      // empty-state sentence — a feature outage explained to the user as
+      // correct behaviour.
+      return { ok: false, error: MESSAGES.referenceUnavailable }
+    case REFERENCE_NOT_A_REFERENCE:
+      // The item is not a reference item of this version: a stale or malformed
+      // client, the bucket SAVE_CROSS_VERSION already occupies.
+      return { ok: false, error: MESSAGES.invalidData }
+    case PG_NO_DATA_FOUND:
+      // The RPC's own lookup is RLS-gated, so "not found" and "not visible to
+      // you" are the same answer — which is the non-leaking one.
+      return { ok: false, error: MESSAGES.missingResponse }
+    case PG_RLS_VIOLATION:
+      return { ok: false, error: MESSAGES.forbidden }
+    default:
+      return { ok: false, error: MESSAGES.generic }
+  }
 }
 
 // ---------------------------------------------------------------------------

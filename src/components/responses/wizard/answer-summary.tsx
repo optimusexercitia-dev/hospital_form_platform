@@ -50,10 +50,32 @@ export function AnswerSummary({
   reference,
   requiredNow,
 }: {
+  /**
+   * ⚠ BUG-FF5-002 (m-3) — every ANSWER-PAYLOAD prop below is required-to-pass:
+   * declared without `?`, with `| undefined` in the type. A caller must write
+   * `reference={…}` even when the value is `undefined`; it cannot silently omit
+   * it.
+   *
+   * This is the leaf where the bug is actually PRODUCED, and the required-prop
+   * fix originally stopped one level above it (`SubmissionDetailView`,
+   * `ClientResponseForSignoff`). A 7th consumer — an export view, a correction
+   * diff — that rendered answers and omitted `reference` would have compiled
+   * clean and reproduced BUG-FF5-002 verbatim, because absence and
+   * "unanswered" are indistinguishable here: both render "Sem resposta".
+   *
+   * The guarantee used to be a comment on this very prop instructing callers to
+   * pass it. That is the compiler's job written as prose, and it is the same
+   * thing I argued against when deleting the render-layer sublabel guard: a
+   * safeguard that cannot enforce itself is documentation, not a safeguard.
+   *
+   * `item` and `requiredNow` are exempt — `item` is the subject, and
+   * `requiredNow` is a genuine presentational option with a defined fallback
+   * (`item.required`) rather than saved data that can go missing.
+   */
   item: Item;
   value: Json | undefined;
   /** FF-2 — the saved grid of a `matrix` item in THIS scope. */
-  matrixCells?: MatrixCells;
+  matrixCells: MatrixCells | undefined;
   /**
    * FF-2 — the saved risk answer of a `risk_matrix` item in THIS scope.
    *
@@ -63,27 +85,33 @@ export function AnswerSummary({
    * weights (FUP-FF2-1). A reviewer and a signer must see the number the record
    * holds.
    */
-  riskSelection?: RiskSelection & { riskScore?: number | null };
+  riskSelection: (RiskSelection & { riskScore?: number | null }) | undefined;
   /**
    * FF-5 (ADR 0091) — the saved entity reference of a `reference` item in THIS
    * scope, with its label ALREADY RESOLVED by live join upstream (ruling 4).
    *
-   * A `null`/absent value renders "Sem resposta" like any other unanswered
-   * question. That is the correct reading for the FILL and REVIEW paths, where
-   * absence genuinely means unanswered — but a read-only consumer whose query
-   * does not yet surface references would render an ANSWERED reference the same
-   * way, so each such consumer must pass this rather than omit it.
+   * `null`/`undefined` renders "Sem resposta" like any other unanswered
+   * question — correct on the FILL and REVIEW paths, where absence genuinely
+   * means unanswered.
+   *
+   * The danger is that a consumer whose query does not surface references renders
+   * an ANSWERED one identically, which is BUG-FF5-002. That is no longer held off
+   * by this comment asking callers to pass it: the prop is required, so omitting
+   * it does not compile. A consumer that genuinely has nothing writes
+   * `reference={undefined}` and thereby states the absence on the record — see
+   * `review-and-sign.tsx`, where doing exactly that surfaced a real gap in the
+   * sign-off door's projection.
    */
-  reference?: ReferenceAnswerRecord | null;
+  reference: ReferenceAnswerRecord | null | undefined;
   /** Optional observation note shown as a muted secondary line. */
-  observation?: string | null;
+  observation: string | null | undefined;
   /**
    * Optional "Outros" free text ("Outros" open option), shown as "Outro: <valor>"
    * beneath the answer when the reserved `__other__` option is selected. Only a
    * NON-blank value renders (blank "Outro" is a valid answer but has nothing to
    * show — the "Outro" chip itself already appears in the value).
    */
-  otherText?: string | null;
+  otherText: string | null | undefined;
   /**
    * FF-3 (ADR 0090 ruling 4) — EFFECTIVE required-ness, for the REVIEW screen.
    *

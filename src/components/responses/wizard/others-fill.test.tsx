@@ -145,11 +145,29 @@ describe("Others — Clear also wipes otherText (task #6)", () => {
   });
 });
 
+/**
+ * The answer-payload props `AnswerSummary` requires as of BUG-FF5-002 (m-3).
+ * Spread FIRST so a test can override just the one it exercises.
+ *
+ * A shared constant, not optional props: the required-prop change exists to make
+ * a PRODUCTION caller unable to omit saved data silently. Tests are not that
+ * guard, and spelling five `undefined`s at every call site would obscure what
+ * each test is actually asserting.
+ */
+const NO_PAYLOAD = {
+  matrixCells: undefined,
+  riskSelection: undefined,
+  reference: undefined,
+  observation: undefined,
+  otherText: undefined,
+} as const;
+
 describe("Others display — AnswerSummary (task #6)", () => {
   it("renders 'Outro: <valor>' beneath the answer when otherText is present", () => {
     render(
       <dl>
         <AnswerSummary
+          {...NO_PAYLOAD}
           item={choiceItem("multiple_choice")}
           value={OTHER_OPTION_CODE}
           otherText="Reação alérgica"
@@ -164,6 +182,7 @@ describe("Others display — AnswerSummary (task #6)", () => {
     render(
       <dl>
         <AnswerSummary
+          {...NO_PAYLOAD}
           item={choiceItem("multiple_choice")}
           value={OTHER_OPTION_CODE}
           otherText=""

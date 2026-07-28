@@ -338,6 +338,21 @@ function SectionBody({
                 // answered reference reads "Sem resposta". Same defect shape as
                 // FF-1's instances and FF-2's grids, one payload table later.
                 reference={referencesByItemId[item.id]}
+                // ⚠ GAP, surfaced by making this prop required (m-3): the
+                // sign-off door does NOT project top-level "Outros" free text.
+                // `ResponseForSignoff` has no `otherTextByItemId` — the door maps
+                // `other_text_by_item` for INSTANCES only (`queries/signoffs.ts`).
+                // So a top-level "Outro" answer reaches the signer as the bare
+                // chip with its typed text missing: the same
+                // signing-blind-to-content shape as FF-1's instances and FF-2's
+                // grids, one field later, and exactly what a required prop is
+                // supposed to expose.
+                //
+                // Passed EXPLICITLY as undefined rather than omitted, so this is
+                // a recorded absence instead of an oversight. The fix is a door +
+                // query change in `src/lib/queries/signoffs.ts`, which is
+                // backend's file — reported, not patched here.
+                otherText={undefined}
               />
             ) : (
               <DisplayBlock key={item.id} item={item} imageUrls={imageUrls} />

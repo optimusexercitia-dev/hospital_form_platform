@@ -171,10 +171,27 @@ describe("MatrixGrid — effective required marker", () => {
  * consumers render submitted records through this component and must keep the
  * authored flag, so "prop absent → static" is a contract, not a convenience.
  */
+/**
+ * The answer-payload props `AnswerSummary` requires as of BUG-FF5-002 (m-3).
+ * Spread FIRST so a test can override just the one it exercises.
+ *
+ * A shared constant, not optional props: the required-prop change exists to make
+ * a PRODUCTION caller unable to omit saved data silently. Tests are not that
+ * guard, and spelling five `undefined`s at every call site would obscure what
+ * each test is actually asserting.
+ */
+const NO_PAYLOAD = {
+  matrixCells: undefined,
+  riskSelection: undefined,
+  reference: undefined,
+  observation: undefined,
+  otherText: undefined,
+} as const;
+
 describe("AnswerSummary — effective required marker (review)", () => {
   it("marks a field made required only by required_if", () => {
     render(
-      <AnswerSummary item={baseItem({ required: false })} value="algo" requiredNow />,
+      <AnswerSummary {...NO_PAYLOAD} item={baseItem({ required: false })} value="algo" requiredNow />,
     );
     expect(markers()).toHaveLength(1);
   });
@@ -182,6 +199,7 @@ describe("AnswerSummary — effective required marker (review)", () => {
   it("does NOT mark when requiredNow is false, even if item.required is true", () => {
     render(
       <AnswerSummary
+          {...NO_PAYLOAD}
         item={baseItem({ required: true })}
         value="algo"
         requiredNow={false}
@@ -191,12 +209,12 @@ describe("AnswerSummary — effective required marker (review)", () => {
   });
 
   it("falls back to item.required when absent — the six historical consumers", () => {
-    render(<AnswerSummary item={baseItem({ required: true })} value="algo" />);
+    render(<AnswerSummary {...NO_PAYLOAD} item={baseItem({ required: true })} value="algo" />);
     expect(markers()).toHaveLength(1);
   });
 
   it("stays unmarked when neither the prop nor the flag says required", () => {
-    render(<AnswerSummary item={baseItem({ required: false })} value="algo" />);
+    render(<AnswerSummary {...NO_PAYLOAD} item={baseItem({ required: false })} value="algo" />);
     expect(markers()).toHaveLength(0);
   });
 });

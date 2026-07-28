@@ -40,25 +40,46 @@ interface CandidateRow {
 }
 
 /**
+ * The outcome of a candidate search — DISCRIMINATED, because "no matches" and
+ * "the call failed" are different facts that must not arrive the same way.
+ *
+ * ⚠ THIS TYPE EXISTS BECAUSE COLLAPSING THEM WAS A REAL DEFECT (QA M-2). This
+ * function used to end `if (error || !data) return []`, which turned every
+ * Postgres error into an empty array. The picker then explained the emptiness
+ * with its most specific empty-state copy — so with `entity_refs` OFF, the RPC
+ * raised HC0Q3 and the user was told *"este campo lista apenas os pacientes do
+ * caso — em um formulário avulso … ele fica vazio"*. A feature-flag outage
+ * presented as correct behaviour, and to an operator as a data problem. That is
+ * the flag-dark hazard FF-2 r1 B-3 and FF-3 r1 B-1 both hit, wearing a
+ * reassuring sentence.
+ *
+ * An empty `candidates` on `ok: true` is still frequently CORRECT — a
+ * `patient` lane on a standalone response, or a commission lane for a caller who
+ * belongs to one commission. That is exactly why the failure must be a
+ * different shape rather than a different-looking empty.
+ */
+export type ReferenceCandidatesResult =
+  | { ok: true; candidates: ReferenceCandidate[] }
+  | { ok: false; code: string | null; message: string | null }
+
+/**
  * Candidates for one reference item of one response, optionally filtered by a
  * typeahead query. Ordered by label and capped at 50 SERVER-SIDE (the RPC's own
  * `limit`), so this never streams an org's whole participant roster.
  *
- * Returns `[]` rather than throwing when the feature is off, the response is not
- * visible, or the item is not a reference — a typeahead must degrade to "no
- * matches", not explode mid-keystroke. An EMPTY result is frequently CORRECT and
- * not an error:
- *   - a `patient`-typed lane on a STANDALONE response has no candidates at all
- *     (ruling 2: patients are case-scoped);
- *   - the commission lane shows only commissions the caller can already select.
+ * Never throws: a raised RPC comes back as `{ ok: false, code, message }` for
+ * the caller to map to pt-BR. The `code` is the SQLSTATE; `message` is the DB's
+ * own sentence, which for some codes IS the right user-facing text.
  */
 export async function listReferenceCandidates(input: {
   responseId: string
   itemId: string
   query?: string
-}): Promise<ReferenceCandidate[]> {
+}): Promise<ReferenceCandidatesResult> {
   const { responseId, itemId, query } = input
-  if (!responseId || !itemId) return []
+  // A missing id is a malformed caller, not a failed call: there is nothing to
+  // search for and nothing went wrong downstream.
+  if (!responseId || !itemId) return { ok: true, candidates: [] }
 
   const supabase = await createClient()
   const trimmed = query?.trim()
@@ -71,14 +92,21 @@ export async function listReferenceCandidates(input: {
     p_query: trimmed ? trimmed : undefined,
   })
 
-  if (error || !data) return []
+  if (error) {
+    return { ok: false, code: error.code ?? null, message: error.message ?? null }
+  }
 
-  return (data as CandidateRow[]).map((row) => ({
-    targetId: row.target_id,
-    // The three lanes' name columns are all nullable in the schema; a candidate
-    // with no name still needs to be pickable, so fall back to the id rather
-    // than dropping the row or rendering an empty button.
-    label: row.label ?? row.target_id,
-    sublabel: row.sublabel,
-  }))
+  return {
+    ok: true,
+    // `data` null with no error is PostgREST returning an empty set, which is a
+    // genuine "no matches" — not a failure, and no longer conflated with one.
+    candidates: ((data ?? []) as CandidateRow[]).map((row) => ({
+      targetId: row.target_id,
+      // The three lanes' name columns are all nullable in the schema; a candidate
+      // with no name still needs to be pickable, so fall back to the id rather
+      // than dropping the row or rendering an empty button.
+      label: row.label ?? row.target_id,
+      sublabel: row.sublabel,
+    })),
+  }
 }

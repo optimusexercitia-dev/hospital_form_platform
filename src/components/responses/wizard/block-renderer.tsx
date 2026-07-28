@@ -169,6 +169,24 @@ export function BlockRenderer({
   // `InputItem` is built around a scalar `value`, which a reference does not
   // have. The picker carries its own label, help text, live region and error
   // region, so it sits in the same card chrome as any other block.
+  //
+  // i-2, considered and DELIBERATELY LEFT: `readOnly` is derived from handler
+  // presence here and on both matrix types above, so a broken handler chain
+  // would degrade a live fill field to read-only rather than erroring. That IS
+  // the same optional-prop opt-out shape as BUG-FF5-002 — but the failure mode
+  // is categorically different, which is why it is treated differently:
+  //
+  //   · BUG-FF5-002 was missing DATA rendering as "unanswered" — a plausible,
+  //     silent, permanently-wrong record that nobody would question.
+  //   · This would be a visibly INERT control in a fill flow: the filler cannot
+  //     answer, and every E2E fill spec for the item fails immediately. It
+  //     cannot reach the durable record at all.
+  //
+  // Loud-and-blocking does not need a type-level guard the way silent-and-wrong
+  // does. Tightening it for `reference` alone would also split the idiom inside
+  // one dispatcher while `matrix`/`risk_matrix` keep it — worse than either
+  // choice applied uniformly. If it is ever changed, change all three together;
+  // the read-only consumers (`AnswerSummary`) rely on passing no handlers.
   if (item.itemType === "reference") {
     return (
       <div className="rounded-xl border border-border bg-card p-4 shadow-xs">
