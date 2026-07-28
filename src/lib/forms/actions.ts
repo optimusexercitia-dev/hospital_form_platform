@@ -10,6 +10,7 @@ import { MATRIX_ITEM_TYPES } from '@/lib/forms/item-tree'
 import { resolveOptionCodes, slugifyLabel, shortSuffix } from '@/lib/forms/option-code'
 import { parseItemConfig } from '@/lib/forms/parse-config'
 import { parseRequired } from '@/lib/forms/parse-required'
+import { isValidCondition } from '@/lib/forms/condition-shape'
 import type { ValidationRuleInput } from '@/lib/queries/validations'
 
 /**
@@ -111,8 +112,11 @@ const MESSAGES = {
   validationInvalid:
     'Verifique a validação: informe os limites e uma mensagem para quem responde.',
   validationsSaved: 'Validações atualizadas com sucesso.',
-  requiredIfShapeInvalid:
+  // Two DISTINCT failures that were sharing one sentence: an author who wrote a
+  // single, malformed condition was told to remove an "E/OU" they never used.
+  requiredIfGroupNotAllowed:
     'A condição de obrigatoriedade deve ser uma única condição (sem E/OU).',
+  requiredIfShapeInvalid: 'Condição de obrigatoriedade inválida.',
 } as const
 
 /** Postgres SQLSTATEs we translate to friendly pt-BR copy. */
@@ -176,9 +180,7 @@ const COLOR_OPTION_TYPES = ['multiple_choice', 'checkbox']
 /** The valid colour tokens (mirrors ColorToken / the 7-token palette). */
 const COLOR_TOKENS = ['muted', 'slate', 'blue', 'amber', 'green', 'red', 'violet']
 /** The condition operators accepted in a `visible_when` sub-condition. */
-const CONDITION_OPS = ['equals', 'not_equals', 'in', 'gt', 'gte', 'lt', 'lte']
 /** Input types a condition may TARGET (decision #7). */
-const ORDERED_OPS = ['gt', 'gte', 'lt', 'lte']
 const DISPLAY_TYPES = ['section_text', 'image']
 /**
  * FF-1 (ADR 0087) — the CONTAINER types. A container collects no answer: the
@@ -805,19 +807,6 @@ function parseConfig(
 }
 
 /** Validate ONE sub-condition's shape (key string, op in set, value present). */
-function isValidCondition(c: unknown): c is { question_key: string; op: string; value: Json } {
-  if (c === null || typeof c !== 'object') return false
-  const rec = c as Record<string, unknown>
-  if (typeof rec.question_key !== 'string' || !rec.question_key) return false
-  if (typeof rec.op !== 'string' || !CONDITION_OPS.includes(rec.op)) return false
-  if (!('value' in rec)) return false
-  // `in` carries an array; the ordered ops carry a scalar; equals/not_equals
-  // either. We only check the array-ness of `in` here (the deep value↔target
-  // type check is the publish-time validator's job, BE-3).
-  if (rec.op === 'in' && !Array.isArray(rec.value)) return false
-  if (ORDERED_OPS.includes(rec.op) && Array.isArray(rec.value)) return false
-  return true
-}
 
 /**
  * Parse the optional `visibleWhen` JSON field into the `visible_when` jsonb.
@@ -894,9 +883,10 @@ function parseRequiredIf(
   if (parsed === null || typeof parsed !== 'object') {
     return { error: { ok: false, error: MESSAGES.requiredIfShapeInvalid } }
   }
-  // The group shape is storable for `visible_when` and NOT for this column.
+  // The group shape is storable for `visible_when` and NOT for this column —
+  // and it is the ONLY failure the "sem E/OU" sentence describes.
   if ('conditions' in (parsed as Record<string, unknown>)) {
-    return { error: { ok: false, error: MESSAGES.requiredIfShapeInvalid } }
+    return { error: { ok: false, error: MESSAGES.requiredIfGroupNotAllowed } }
   }
   if (!isValidCondition(parsed)) {
     return { error: { ok: false, error: MESSAGES.requiredIfShapeInvalid } }

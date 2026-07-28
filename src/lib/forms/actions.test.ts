@@ -284,3 +284,124 @@ describe('publishVersion — FF-2 publish errors reach the author (BUG-FF2-002)'
     expect(result.error).toBe('Não foi possível concluir. Tente novamente.')
   })
 })
+
+// ---------------------------------------------------------------------------
+// BUG-FF3-002 — THE SEAM. `tester` proved this in three cells; these are those
+// three cells, driven through the ACTIONS with a mocked client.
+//
+// Why the seam and not the predicate: `isValidCondition` has its own vectors in
+// `condition-shape.test.ts`, but the DEFECT was that the predicate sat in front
+// of the RPC and refused a payload the database would have accepted. Nothing
+// that stops at either side of that boundary could see it — pgTAP calls the DB,
+// the unit suite called neither. This block crosses it.
+//
+// The payloads are exactly what `toCondition` in `condition-builder.tsx` emits
+// for a unary op: `value: null`, a PRESENT key. That detail is load-bearing — it
+// is why the reported cause (the `'value' in rec` check) was not the cause.
+// ---------------------------------------------------------------------------
+describe('BUG-FF3-002 — unary conditions survive the server action', () => {
+  const unary = JSON.stringify({
+    question_key: 'q1',
+    op: 'is_empty',
+    value: null,
+  })
+
+  it('CONTROL — equals + a value still saves', async () => {
+    const result = await addItem(
+      undefined,
+      form({
+        sectionId: SECTION_ID,
+        itemType: 'short_text',
+        label: 'Justificativa',
+        visibleWhen: JSON.stringify({
+          question_key: 'q1',
+          op: 'equals',
+          value: 'sim',
+        }),
+      }),
+    )
+    expect(result.ok).toBe(true)
+  })
+
+  // MUTATION: revert CONDITION_OPS to the pre-F3 seven -> both of these go red
+  // with 'Condição de aparência inválida.' / 'Condição de obrigatoriedade inválida.'
+  it('item visible_when + is_empty saves (the third cell tester proved)', async () => {
+    const result = await addItem(
+      undefined,
+      form({
+        sectionId: SECTION_ID,
+        itemType: 'short_text',
+        label: 'Detalhe',
+        visibleWhen: unary,
+      }),
+    )
+    expect(result.ok).toBe(true)
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ visible_when: JSON.parse(unary) }),
+    )
+  })
+
+  it('required_if + is_empty saves, and is PERSISTED', async () => {
+    const result = await addItem(
+      undefined,
+      form({
+        sectionId: SECTION_ID,
+        itemType: 'short_text',
+        label: 'Detalhe',
+        requiredIf: unary,
+      }),
+    )
+    expect(result.ok).toBe(true)
+    // Asserting the persisted column, not just `ok`: an action that accepted the
+    // payload and dropped the condition would satisfy a truthiness check while
+    // silently losing what the author wrote.
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ required_if: JSON.parse(unary) }),
+    )
+  })
+
+  it('a GENUINELY invalid condition still returns pt-BR, not silence', async () => {
+    // The "no message" half of the report. The action does produce a sentence;
+    // if the UI shows none for this input, the swallow is above this layer.
+    const result = await addItem(
+      undefined,
+      form({
+        sectionId: SECTION_ID,
+        itemType: 'short_text',
+        label: 'Detalhe',
+        visibleWhen: JSON.stringify({ question_key: 'q1', op: 'nonsense', value: 'x' }),
+      }),
+    )
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe('Condição de aparência inválida.')
+  })
+
+  it('the required_if GROUP message no longer blames an E/OU the author did not use', async () => {
+    const group = await addItem(
+      undefined,
+      form({
+        sectionId: SECTION_ID,
+        itemType: 'short_text',
+        label: 'Detalhe',
+        requiredIf: JSON.stringify({
+          match: 'all',
+          conditions: [{ question_key: 'q1', op: 'equals', value: 'sim' }],
+        }),
+      }),
+    )
+    expect(group.error).toBe(
+      'A condição de obrigatoriedade deve ser uma única condição (sem E/OU).',
+    )
+
+    const malformed = await addItem(
+      undefined,
+      form({
+        sectionId: SECTION_ID,
+        itemType: 'short_text',
+        label: 'Detalhe',
+        requiredIf: JSON.stringify({ question_key: 'q1', op: 'nonsense', value: 'x' }),
+      }),
+    )
+    expect(malformed.error).toBe('Condição de obrigatoriedade inválida.')
+  })
+})
