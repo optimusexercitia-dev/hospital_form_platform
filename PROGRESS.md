@@ -258,6 +258,47 @@ name, fast-forwarded to `main` @ `5e6b62d`; **216 == 216** at phase start.
 > `next.config.ts` restored byte-for-byte and git-clean. **The tester's process was not touched**
 > (shared-stack rule: one owner).
 
+> ✅ **M-4 fixed + the CONTAINMENT axis enumerated (`e86c2c2`).** `GroupBlock` received neither
+> `warnings` nor `requiredNow`, so a `required_if` item inside a plain `group` announced itself
+> **optional** during fill while blocking *Próximo* and raising `HC011` at submit, and a `warn` rule on
+> such a child was evaluated but never shown inline. Fill and review disagreed, since review already
+> threaded it.
+>
+> **The lesson, in QA's framing:** the **item-type** enumeration was complete — ten types derived from
+> `form_items_input_vs_display`, mapped to three render paths, verified programmatically — and the
+> **containment** axis was never enumerated at all. *"Which item types can be required?"* and *"which
+> containers relay required-ness?"* are different questions; only the first was asked. Fourth instance
+> of this family in FF-3, and the first on this axis.
+>
+> **The containment table (every wrapper that renders answerable children):**
+>
+> | containment | component | relays `warnings` | relays `requiredNow` | lookup key |
+> |---|---|---|---|---|
+> | top level | `section-step.tsx` | ✅ | ✅ | bare `item.id` |
+> | plain `group` | **`group-block.tsx`** | ✅ **this fix** | ✅ **this fix** | bare `child.id` (children answer at TOP LEVEL — ADR 0087 ruling 6) |
+> | `repeating_group` instance | `repeating-group-block.tsx` → `InstanceCard` | ✅ | ✅ | `${instanceId}:${itemId}` |
+> | review — top level | `review-screen.tsx` → `AnswerSummary` | n/a (aggregated panel) | ✅ | bare `item.id` |
+> | review — plain `group` | `review-screen.tsx` → `ReviewAnswerList` (no `instanceId`) | n/a | ✅ | bare `item.id` |
+> | review — repetition | `ReviewRepeatingGroup` → `ReviewAnswerList` (`instanceId` set) | n/a | ✅ | `${instanceId}:${itemId}` |
+> | historical read-only ×4 | `submission-detail-view` · `phase-answers-readonly` · `instance-answers-readonly` · `review-and-sign` | n/a | ❌ **by design** | static `item.required` — **O-5** |
+>
+> ⚠ **The plain-group keying is the trap worth naming:** those children answer at TOP LEVEL, so the
+> lookup is the BARE id — the same key `validateSectionRules` writes when it flattens `group` children
+> into the flat pass, and the same treatment `app.response_required_complete` gives them. An
+> instance-shaped key would look correct in a one-group form and drift the moment anything nested
+> differently, so a test asserts an instance-shaped key does **not** match.
+>
+> **Mutation-proven:** reverting `GroupBlock` to forwarding neither prop → **3 red** (marker,
+> `aria-required`, inline warning); the 3 that stay green are the negative cases that must. Restored
+> byte-for-byte.
+>
+> ✅ **m-5a** — the `regex` pattern input had no `<label>`; it leaned on `<legend>Padrão</legend>`,
+> which names the FIELDSET, not the control, so it reached assistive tech unnamed while *looking*
+> labelled. ✅ **m-5b** — the pre-save error was a lone banner naming the rule by ordinal;
+> `validateRuleDrafts` now returns `{ index, message }` and the message renders **inside** the
+> offending rule's card (`role="alert"` + `aria-invalid`), banner retained for sighted scanning.
+> ✅ **i-2** — the stale `HC0N5` note struck and corrected in place (fixed in `6196b16`).
+
 > ⛔ **STILL OWED — a real click-through. Live UI verification was IMPOSSIBLE from this worktree.**
 > The Browser preview tool's session is bound to the **primary checkout** (its processes run from
 > `hospital_form_platform
