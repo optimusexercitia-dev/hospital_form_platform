@@ -16,7 +16,12 @@ import {
   isEmptyInstance,
   type InstanceState,
 } from "./instances";
-import { hasAnswer, isInputItem, isMatrixItem } from "./use-wizard";
+import {
+  hasAnswer,
+  isAnswerableItem,
+  isInputItem,
+  isMatrixItem,
+} from "./use-wizard";
 
 /**
  * Per-section client-side validation (F2). This is UX ONLY: it gives immediate
@@ -267,9 +272,17 @@ export function validateSectionRules(
     // rules never fire (ADR 0090 ruling 4). The caller owns this filter on both
     // sides of the mirror, which is what keeps "visibility wins" structural.
     if (visibleItemIds && !visibleItemIds.has(item.id)) continue;
-    if (!isInputItem(item.itemType)) continue;
+    // `isAnswerableItem`, NOT `isInputItem`: the latter is deliberately false for
+    // `matrix`/`risk_matrix` because their answer is not a scalar in
+    // `answers.value` — but the CHECK `form_items_input_vs_display` permits
+    // `required_if` on both of them, and `app.response_required_complete` calls
+    // `app.item_is_required` with no `item_type` filter. Gating this walk on
+    // `isInputItem` therefore skipped the two types outright: a matrix made
+    // mandatory only through `required_if` genuinely blocks submit server-side
+    // while this pass reported nothing and never marked it.
+    if (!isAnswerableItem(item.itemType)) continue;
 
-    applyToField(feedback, item, item.id, answerMap, hasAnswer(scope.answers[item.id]));
+    applyToField(feedback, item, item.id, answerMap, itemAnswered(item, scope));
   }
 
   return feedback;
@@ -316,14 +329,16 @@ export function validateInstanceRules(
 
       for (const child of container.children) {
         if (visible && !visible.has(child.id)) continue;
-        if (!isInputItem(child.itemType)) continue;
+        if (!isAnswerableItem(child.itemType)) continue;
 
         applyToField(
           feedback,
           child,
           `${instance.id}:${child.id}`,
           scopeMap,
-          hasAnswer(instance.answers[child.id]),
+          // `InstanceState` satisfies `ScopeState`, so a matrix inside a
+          // repetition resolves against THAT repetition's grid.
+          itemAnswered(child, instance),
           peerValuesFor(child, instance, surviving),
         );
       }
@@ -331,6 +346,28 @@ export function validateInstanceRules(
   }
 
   return feedback;
+}
+
+/**
+ * Is this item's answer PRESENT, in the sense its own type means?
+ *
+ * A scalar answers in `answers.value`; a `matrix` answers in
+ * `answer_matrix_cells` and a `risk_matrix` in its severity/likelihood pair, so
+ * `hasAnswer` is structurally blind to both. Presence for the matrix types is the
+ * same ROW-COMPLETE / both-halves-chosen reading `app.item_required_satisfied`
+ * uses, which is what {@link checkMatrix} already applies for static `required` —
+ * shared here so `required_if` cannot end up with a second, disagreeing notion of
+ * "answered".
+ */
+function itemAnswered(item: Item, scope: ScopeState): boolean {
+  if (isMatrixItem(item.itemType)) {
+    const rows = item.matrixRows ?? [];
+    const columns = item.matrixColumns ?? [];
+    return item.itemType === "risk_matrix"
+      ? isRiskComplete(rows, columns, scope.riskMatrix?.[item.id])
+      : isMatrixComplete(rows, columns, scope.matrixCells?.[item.id]);
+  }
+  return hasAnswer(scope.answers[item.id]);
 }
 
 /**
@@ -384,7 +421,11 @@ function applyToField(
     return;
   }
 
-  const rules = item.validations ?? [];
+  // Coverage v1 gives the matrix types NO rules (ADR 0090 ruling 2), so this loop
+  // is a no-op for them — but gate it explicitly rather than relying on an empty
+  // array, because `answers[questionKey]` is not where a matrix keeps its answer
+  // and a future rule type would silently evaluate against `undefined`.
+  const rules = isInputItem(item.itemType) ? (item.validations ?? []) : [];
   if (rules.length === 0 || !item.questionKey) return;
   const value = answers[item.questionKey];
 

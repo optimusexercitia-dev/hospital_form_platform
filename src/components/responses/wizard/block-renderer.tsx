@@ -115,6 +115,7 @@ export function BlockRenderer({
           onChange={onMatrixCellChange ?? NO_OP_CELL}
           onClear={onClear}
           error={error}
+          requiredNow={requiredNow}
           readOnly={onMatrixCellChange == null}
         />
       </div>
@@ -131,6 +132,7 @@ export function BlockRenderer({
           onChange={onRiskChange ?? NO_OP_RISK}
           onClear={onClear}
           error={error}
+          requiredNow={requiredNow}
           readOnly={onRiskChange == null}
         />
       </div>

@@ -332,6 +332,159 @@ describe("effective required-ness — requiredNow", () => {
   });
 });
 
+/**
+ * `matrix` / `risk_matrix` + `required_if`.
+ *
+ * These two were skipped ENTIRELY before this: the walk gated on `isInputItem`,
+ * which is deliberately false for the matrix types (their answer is not a scalar
+ * in `answers.value`) — while `form_items_input_vs_display` permits `required_if`
+ * on both and `app.response_required_complete` calls `app.item_is_required` with
+ * no `item_type` filter. So a matrix mandatory only through `required_if` blocked
+ * submit server-side while the client reported nothing and marked nothing.
+ *
+ * Presence for these types is ROW-COMPLETE / both-halves-chosen, not `hasAnswer`.
+ */
+describe("matrix + risk_matrix — required_if", () => {
+  function axis(code: string, position: number, weight: number | null = null) {
+    return { id: `id-${code}`, code, label: code.toUpperCase(), weight, position };
+  }
+
+  const matrix = item({
+    id: "m1",
+    itemType: "matrix",
+    questionKey: "m1",
+    required: false,
+    requiredIf: { question_key: "tipo", op: "equals", value: "auditoria" },
+    validations: [],
+    matrixRows: [axis("a", 0), axis("b", 1)],
+    matrixColumns: [axis("sim", 0), axis("nao", 1)],
+  });
+
+  const risk = item({
+    id: "r1",
+    itemType: "risk_matrix",
+    questionKey: "r1",
+    required: false,
+    requiredIf: { question_key: "tipo", op: "equals", value: "auditoria" },
+    validations: [],
+    matrixRows: [axis("leve", 0, 1), axis("grave", 1, 9)],
+    matrixColumns: [axis("rara", 0, 1), axis("frequente", 1, 9)],
+  });
+
+  it("reports a conditionally-required MATRIX that is unanswered", () => {
+    const fb = validateSectionRules(
+      section([matrix]),
+      { answers: {}, matrixCells: {} },
+      { tipo: "auditoria" },
+    );
+    expect(fb.errors.m1).toBe("Esta pergunta é obrigatória.");
+    expect(fb.requiredNow.has("m1")).toBe(true);
+  });
+
+  it("treats a PARTIALLY filled matrix as unanswered (row-complete, not any-cell)", () => {
+    const fb = validateSectionRules(
+      section([matrix]),
+      { answers: {}, matrixCells: { m1: { a: "sim" } } },
+      { tipo: "auditoria" },
+    );
+    expect(fb.errors.m1).toBe("Esta pergunta é obrigatória.");
+  });
+
+  it("accepts a ROW-COMPLETE matrix, and still marks it required", () => {
+    const fb = validateSectionRules(
+      section([matrix]),
+      { answers: {}, matrixCells: { m1: { a: "sim", b: "nao" } } },
+      { tipo: "auditoria" },
+    );
+    expect(fb.errors).toEqual({});
+    expect(fb.requiredNow.has("m1")).toBe(true);
+  });
+
+  it("does not require the matrix when the condition does not hold", () => {
+    const fb = validateSectionRules(
+      section([matrix]),
+      { answers: {}, matrixCells: {} },
+      { tipo: "outro" },
+    );
+    expect(fb.errors).toEqual({});
+    expect(fb.requiredNow.has("m1")).toBe(false);
+  });
+
+  it("reports a conditionally-required RISK MATRIX with only one half chosen", () => {
+    const fb = validateSectionRules(
+      section([risk]),
+      { answers: {}, riskMatrix: { r1: { severity: "grave", likelihood: "" } } },
+      { tipo: "auditoria" },
+    );
+    expect(fb.errors.r1).toBe("Esta pergunta é obrigatória.");
+  });
+
+  it("accepts a risk matrix with both halves, and still marks it required", () => {
+    const fb = validateSectionRules(
+      section([risk]),
+      {
+        answers: {},
+        riskMatrix: { r1: { severity: "grave", likelihood: "rara" } },
+      },
+      { tipo: "auditoria" },
+    );
+    expect(fb.errors).toEqual({});
+    expect(fb.requiredNow.has("r1")).toBe(true);
+  });
+
+  it("NEVER requires a hidden matrix — visibility wins here too", () => {
+    const fb = validateSectionRules(
+      section([matrix]),
+      { answers: {}, matrixCells: {} },
+      { tipo: "auditoria" },
+      new Set<string>(),
+    );
+    expect(fb.errors).toEqual({});
+    expect(fb.requiredNow.size).toBe(0);
+  });
+
+  it("resolves a matrix per REPETITION, against that repetition's own grid", () => {
+    const group = item({
+      id: "g1",
+      itemType: "repeating_group",
+      questionKey: null,
+      children: [matrix],
+    });
+    const fb = validateInstanceRules(
+      section([group]),
+      {
+        g1: [
+          // complete grid → satisfied
+          {
+            id: "inst-1",
+            groupItemId: "g1",
+            position: 0,
+            answers: {},
+            matrixCells: { m1: { a: "sim", b: "nao" } },
+          },
+          // half-filled → still required, still reported
+          {
+            id: "inst-2",
+            groupItemId: "g1",
+            position: 1,
+            answers: {},
+            matrixCells: { m1: { a: "sim" } },
+          },
+        ],
+      },
+      { tipo: "auditoria" },
+      new Map([
+        ["inst-1", new Set(["m1"])],
+        ["inst-2", new Set(["m1"])],
+      ]),
+    );
+    expect(fb.errors["inst-1:m1"]).toBeUndefined();
+    expect(fb.errors["inst-2:m1"]).toBe("Esta pergunta é obrigatória.");
+    expect(fb.requiredNow.has("inst-1:m1")).toBe(true);
+    expect(fb.requiredNow.has("inst-2:m1")).toBe(true);
+  });
+});
+
 describe("validateInstanceRules — placement per repetition", () => {
   const child = item({
     id: "c1",

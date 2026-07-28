@@ -51,6 +51,7 @@ export const MatrixGrid = memo(function MatrixGrid({
   onChange,
   onClear,
   error,
+  requiredNow,
   readOnly = false,
 }: {
   item: Item;
@@ -64,6 +65,18 @@ export const MatrixGrid = memo(function MatrixGrid({
   /** Clear the whole grid; absent in read-only contexts. */
   onClear?: () => void;
   error?: string;
+  /**
+   * FF-3 (ADR 0090 ruling 4) — EFFECTIVE required-ness now.
+   *
+   * `form_items_input_vs_display` permits `required_if` on BOTH matrix types (only
+   * `reference`, containers and display items are excluded), and
+   * `app.response_required_complete` calls `app.item_is_required` with no
+   * `item_type` filter — so a matrix mandatory only through `required_if` really
+   * does block submit. Resolved by the parent, per instance. Absent → falls back
+   * to the static `item.required`, so the builder preview and the review summary
+   * are unchanged.
+   */
+  requiredNow?: boolean;
   /** Render without inputs — the builder preview and the review summary. */
   readOnly?: boolean;
 }) {
@@ -71,6 +84,7 @@ export const MatrixGrid = memo(function MatrixGrid({
   const rows = item.matrixRows ?? [];
   const columns = item.matrixColumns ?? [];
 
+  const required = requiredNow ?? item.required;
   const scope = instanceId
     ? `matrix-${item.id}-inst-${instanceId}`
     : `matrix-${item.id}`;
@@ -78,8 +92,13 @@ export const MatrixGrid = memo(function MatrixGrid({
   const descriptionId = `${scope}-description`;
   const errorId = `${scope}-error`;
   const statusId = `${scope}-status`;
+  const requiredId = `${scope}-required`;
   const describedBy =
-    [item.questionExplanation ? descriptionId : null, error ? errorId : null]
+    [
+      item.questionExplanation ? descriptionId : null,
+      required ? requiredId : null,
+      error ? errorId : null,
+    ]
       .filter(Boolean)
       .join(" ") || undefined;
 
@@ -94,7 +113,7 @@ export const MatrixGrid = memo(function MatrixGrid({
       <div className="flex flex-col gap-2">
         <h3 id={titleId} className="text-sm font-medium">
           {label}
-          {item.required ? <RequiredMark /> : null}
+          {required ? <RequiredMark /> : null}
         </h3>
         <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-4 text-center text-sm text-muted-foreground text-pretty">
           Esta matriz ainda não tem linhas e colunas definidas.
@@ -108,7 +127,7 @@ export const MatrixGrid = memo(function MatrixGrid({
       <div className="flex items-start justify-between gap-3">
         <h3 id={titleId} className="text-sm font-medium">
           {label}
-          {item.required ? <RequiredMark /> : null}
+          {required ? <RequiredMark /> : null}
         </h3>
         {onClear && !readOnly ? (
           <Button
@@ -132,6 +151,19 @@ export const MatrixGrid = memo(function MatrixGrid({
         </FieldDescription>
       ) : null}
 
+      {/* Required-ness reaches assistive tech through the group's DESCRIPTION,
+          not `aria-required`. That attribute is only valid on the role that owns
+          the choice — `radiogroup` — and this wrapper is deliberately a `group`
+          (one radio group PER ROW), while putting it on the individual radios is
+          invalid on `role="radio"` and the lint gate rejects it. A described-by
+          note is the standards-clean way to say it once for the whole grid, and
+          it is driven by the EFFECTIVE value so a `required_if` matrix announces
+          it too. */}
+      {required ? (
+        <span id={requiredId} className="sr-only">
+          Resposta obrigatória.
+        </span>
+      ) : null}
       {/* A `group`, not a `radiogroup`: there is one radio group PER ROW, and
           mislabelling the wrapper would make a screen reader promise a single
           exclusive choice across the whole grid. */}

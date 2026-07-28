@@ -47,6 +47,7 @@ export const RiskMatrixPicker = memo(function RiskMatrixPicker({
   onChange,
   onClear,
   error,
+  requiredNow,
   readOnly = false,
   storedScore = null,
 }: {
@@ -71,6 +72,18 @@ export const RiskMatrixPicker = memo(function RiskMatrixPicker({
   onChange: (next: RiskSelection) => void;
   onClear?: () => void;
   error?: string;
+  /**
+   * FF-3 (ADR 0090 ruling 4) — EFFECTIVE required-ness now.
+   *
+   * `form_items_input_vs_display` permits `required_if` on BOTH matrix types (only
+   * `reference`, containers and display items are excluded), and
+   * `app.response_required_complete` calls `app.item_is_required` with no
+   * `item_type` filter — so a matrix mandatory only through `required_if` really
+   * does block submit. Resolved by the parent, per instance. Absent → falls back
+   * to the static `item.required`, so the builder preview and the review summary
+   * are unchanged.
+   */
+  requiredNow?: boolean;
   readOnly?: boolean;
 }) {
   const reactId = useId();
@@ -89,6 +102,7 @@ export const RiskMatrixPicker = memo(function RiskMatrixPicker({
       .filter(Boolean)
       .join(" ") || undefined;
 
+  const required = requiredNow ?? item.required;
   const label = item.label ?? "Matriz de risco";
   // The stored fact wins wherever there is one; the product is the wizard's
   // live preview of a score that does not exist yet.
@@ -101,7 +115,7 @@ export const RiskMatrixPicker = memo(function RiskMatrixPicker({
       <div className="flex flex-col gap-2">
         <h3 id={titleId} className="text-sm font-medium">
           {label}
-          {item.required ? <RequiredMark /> : null}
+          {required ? <RequiredMark /> : null}
         </h3>
         <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-4 text-center text-sm text-muted-foreground text-pretty">
           Esta matriz de risco ainda não tem severidade e probabilidade
@@ -116,7 +130,7 @@ export const RiskMatrixPicker = memo(function RiskMatrixPicker({
       <div className="flex items-start justify-between gap-3">
         <h3 id={titleId} className="text-sm font-medium">
           {label}
-          {item.required ? <RequiredMark /> : null}
+          {required ? <RequiredMark /> : null}
         </h3>
         {onClear && !readOnly ? (
           <Button
@@ -146,7 +160,7 @@ export const RiskMatrixPicker = memo(function RiskMatrixPicker({
         role={readOnly ? "group" : "radiogroup"}
         aria-labelledby={titleId}
         aria-describedby={describedBy}
-        aria-required={item.required && !readOnly ? true : undefined}
+        aria-required={required && !readOnly ? true : undefined}
         className="overflow-x-auto rounded-xl border border-border"
       >
         <table className="w-full border-collapse text-sm">
