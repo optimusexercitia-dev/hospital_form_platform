@@ -230,15 +230,14 @@ running app (builder + wizard + resume-by-label + per-instance picker, driven li
 >      Ship the catalog form alone if that is the call, but **do not record the gap as closed on it**.
 
 
-**FF-5 · `tester` — E2E test pass — 6/7 green, 1 RED on a confirmed app bug (2026-07-28).**
-Spec `e2e/ff5-references.spec.ts` (9 tests, `--workers=1`, stateful — reuses the seeded "FORM D" for
-all but FF5-1/FF5-8/FF5-9). Does **not** re-test the 53 pgTAP keystones already covering the DB
-layer; targets the wired seam only. **Final: 8/9 green, 1/9 red on a confirmed NEW bug unrelated to
-authoring.** Results:
+**FF-5 · `tester` — E2E test pass — 🟢 GREEN, 10/10 (2026-07-28).**
+Spec `e2e/ff5-references.spec.ts` (10 tests, `--workers=1`, stateful — reuses the seeded "FORM D" for
+all but FF5-1/FF5-8/FF5-9/FF5-10). Does **not** re-test the 53 pgTAP keystones already covering the
+DB layer; targets the wired seam only. Results:
 
 | Test | Result |
 | --- | --- |
-| FF5-1 happy path per lane, authored in the **builder**, publish, fill, submit, review + submissions-view by label | 🔴 **RED** — builder→fill→submit→DB-truth all pass; fails only at the submissions-view step, see **BUG-FF5-002** |
+| FF5-1 happy path per lane, authored in the **builder**, publish, fill, submit, review + submissions-view by label | ✅ |
 | FF5-2 in-group composition: 2 instances, DIFFERENT targets, survives a real save+re-enter | ✅ |
 | FF5-3 resume: label renders after "Salvar e sair" + re-enter, never a raw uuid | ✅ |
 | FF5-4 required gating: blocks with the field's own pt-BR message, releases on answer | ✅ |
@@ -247,44 +246,32 @@ authoring.** Results:
 | FF5-7 keyboard-only: focus/type/arrow/Enter/Escape/clear, ARIA combobox — the surface `frontend` flagged as interactively unproven | ✅ |
 | FF5-8 `updateItem` coverage: editing an EXISTING reference item (label) through the builder round-trips; the published v1 stays untouched | ✅ (added after `backend` flagged this path had zero coverage) |
 | FF5-9 a reference authored INSIDE a repeating group, through the builder (not the seeded fixture): fills, submits, DB-truth | ✅ (added to cover the other half of BUG-FF5-001's blast radius FF5-1's flat form didn't reach) |
+| FF5-10 the sign-off review screen (`/manage/assinaturas`) renders a top-level reference by label | ✅ (added as a regression guard on the sibling call site, per `backend`'s request) |
 
-**BUG-FF5-001 (builder can't author `reference`) is CONFIRMED FIXED** — re-verified across every
-angle: fresh authoring (FF5-1, now also with `required` ticked), editing an existing item (FF5-8),
-and authoring as a repeating-group child (FF5-9). All green, 2 consecutive full-file runs.
+**Both bugs found this pass are fixed and re-verified** — detail in the Bug Log (BUG-FF5-001,
+BUG-FF5-002). Sequence: FF5-1 red on BUG-FF5-001 (builder rejected `reference`) → `backend` fixed
+(3 sites, not the 1-2 first suspected) → re-verified fixed across builder-create/edit/in-group →
+FF5-1 red AGAIN on a *different, unrelated* defect (BUG-FF5-002, the submissions view) → root-caused
+by `backend`+`frontend` to one missing prop → fixed, re-verified. 2 consecutive full-file runs, 10/10
+both times bar one transient login-timeout flake (isolated re-run of that single test passed cleanly
+— an infra hiccup, not a regression, not attributed to either fix).
 
-**BUG-FF5-002 (new, unrelated) is why FF5-1 is still red.** The submissions dashboard shows "Sem
-resposta" for every top-level reference answer, even though the DB holds the correct row AND the
-exact same query — verified via the running server's own PostgREST request in the kong gateway log,
-not just a manual curl — returns it correctly. Reproduced independently on a throwaway raw-SQL probe
-against the SEEDED Form D's own item too, ruling out the builder as the cause. I could not isolate it
-further without runtime instrumentation (a `console.log` inside `getSubmissionDetail`), which is
-outside my scope — full diagnostic trail in the Bug Log entry for whoever picks it up. This blocks
-FF5-1 only; does not block FF5-2 through FF5-9.
-
-**What I'd flag as worth doubling back on, not a defect:** none of the 8 green tests are vacuous by
+**What I'd flag as worth double-checking, not a defect:** none of the 10 tests are vacuous by
 construction — FF5-6 carries an explicit positive control (own-org target succeeds) precisely so the
 negative can't pass by construction, and FF5-2/FF5-5/FF5-9's instance-position assertions read DB
 truth (`response_group_instances.position`), not just rendered text. FF5-7 required a rewrite
 mid-loop: my first cut assumed the highlighted-by-default candidate sits at index 0 for a
 single-match query, which is false once the candidate pool spans other specs' org-scoped fixtures —
-the fix walks `aria-activedescendant` to the wanted text rather than assuming position.
+the fix walks `aria-activedescendant` to the wanted text rather than assuming position. FF5-10 was
+added as a guard on a call site I confirmed was ALREADY correctly wired (not a suspected break) —
+its value is catching a future regression, not proving today's code.
 
 The afterAll tripwire (the two seeded department participants + Form D's 5 items survive, no stray
 draft version left by FF5-8's clone-to-edit, deleted-by-exact-id cleanup only) held on every run.
-Lint 0/0, typecheck clean.
+Lint 0/0, typecheck clean for `e2e/ff5-references.spec.ts`.
 
-Full suite (`e2e:prod`) intentionally NOT run yet — the lead runs it once BUG-FF5-002 closes.
-
-**Added FF5-10** (sign-off review screen, `/manage/assinaturas/{responseId}`) — a regression guard,
-not a suspected break: `getResponseForSignoff` → `adapt.ts` → `review-and-sign.tsx` already thread
-`referencesByItemId` correctly by inspection, confirmed independently by both tester and `backend`.
-Raw-SQL fixture (a `requires_signoff` section + one reference item) — the subject is the review/sign
-screen's rendering, not section sign-off authoring.
-
-**Holding, per lead's instruction (2026-07-28):** `frontend` is mid-edit on BUG-FF5-002 (`page.tsx`,
-`submission-detail-view.tsx`; `tsconfig.json` incidentally, from `next dev`'s own rewrite-on-start) —
-uncommitted. Not running FF5-1/FF5-10 against in-flight, uncommitted source; waiting for the lead to
-confirm the fix is committed before re-running.
+**Reporting green to the lead. Full suite (`e2e:prod`) is the lead's to run** — not run here, per
+protocol; triage against the ~18–27 pre-existing flaky baseline, not against zero.
 
 **Case-type assignment (ADR 0088) ✅** — template declares → case inherits; record → [case-type-assignment.md](docs/progress/case-type-assignment.md). **FF-2 ✅** — record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md); its two binding rules (door parity as a **table**; the targeted/correction arms owed by `answer_references`) are restated in the FF-5 handoff above.
 
@@ -355,11 +342,25 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 
 #### 🟢 BUG-FF5-001 — the builder cannot author a `reference` item: `addItem` rejects it with "Tipo de item inválido." · owner **backend** · **FIXED, VERIFIED by tester** (filed 2026-07-28, fixed `cc4194a`, re-verified 2026-07-28)
 
-**Re-verified**: `npx playwright test e2e/ff5-references.spec.ts --project=chromium --workers=1 -g "FF5-1"` after the fix — the test now proceeds all the way through builder authoring (3 lanes) → publish → wizard fill → advance → review → submit → the DB-truth assertion (exact `reference_kind`/target per lane), all passing. **It was actually THREE sites, not two** — `backend` found the third independently: `parseItemFields` had no `reference` arm at all and fell through to its OWN `itemTypeInvalid`, so a fix to only the two lists would have shown the identical error from a different line. All three (`ALL_ITEM_TYPES`, `ANSWERABLE_TYPES`, `parseItemFields`) are now fixed and single-sourced from `item-tree.ts`; `item-type-sets.test.ts` pins them against the live DB CHECK (mutation-proven: removing `reference` reds 4 of 5 assertions). `updateItem` was ALSO broken independently (same `parseItemFields` call, no `addItem` involved) — **not yet covered by a spec**, tracked as a follow-up below.
+**Re-verified**: `npx playwright test e2e/ff5-references.spec.ts --project=chromium --workers=1 -g "FF5-1"` after the fix — the test now proceeds all the way through builder authoring (3 lanes) → publish → wizard fill → advance → review → submit → the DB-truth assertion (exact `reference_kind`/target per lane), all passing. **It was actually THREE sites, not two** — `backend` found the third independently: `parseItemFields` had no `reference` arm at all and fell through to its OWN `itemTypeInvalid`, so a fix to only the two lists would have shown the identical error from a different line. All three (`ALL_ITEM_TYPES`, `ANSWERABLE_TYPES`, `parseItemFields`) are now fixed and single-sourced from `item-tree.ts`; `item-type-sets.test.ts` pins them against the live DB CHECK (mutation-proven: removing `reference` reds 4 of 5 assertions). `updateItem` was ALSO broken independently (same `parseItemFields` call, no `addItem` involved) — now covered by **FF5-8** (editing an existing reference item through the builder; round-trips, and the published version stays untouched). **FF5-9** additionally covers a reference authored as a repeating-group CHILD through the builder (the other half of this bug's blast radius FF5-1's flat form didn't reach).
 
-FF5-1 is now red for a **completely different, unrelated reason** — see **BUG-FF5-002** immediately below. This entry stays closed; do not reopen it for that failure.
+FF5-1 went red for a **completely different, unrelated reason** next — see **BUG-FF5-002** immediately below, now also fixed and verified.
 
-#### 🔴 BUG-FF5-002 — the submissions dashboard shows "Sem resposta" for every top-level reference answer, even though the DB and the exact same query both hold/return the correct data · owner **backend/frontend** (unclear which layer yet) · **OPEN** (filed 2026-07-28, tester FF5-1 + independent probe)
+#### 🟢 BUG-FF5-002 — the submissions dashboard shows "Sem resposta" for every top-level reference answer, even though the DB and the exact same query both hold/return the correct data · owner **frontend** · **FIXED, VERIFIED by tester** (filed 2026-07-28, fixed `cf6a949`, re-verified 2026-07-28)
+
+**Root cause (frontend, confirmed by tester's re-run): `submissions/[responseId]/page.tsx` never
+passed `referencesByItemId` to `SubmissionDetailView`, and the prop was declared optional with a
+`= {}` default** — neither backend suspect (the query, the RLS policy) was the cause, which is
+exactly why reading them by inspection found nothing wrong: both were fine. Fix `cf6a949` passes the
+prop and makes it (and the four sibling payload props with the same latent exposure) required, so a
+future omission fails the build instead of rendering blank.
+
+**Re-verified**: `e2e/ff5-references.spec.ts` full file, 2 consecutive runs, 10/10 green — FF5-1
+(the original repro) now shows `UTI Adulto` / `Comissão de Controle de Infecção Hospitalar` / `Chefe
+CCIH` on the submissions view, and the new **FF5-10** (added as a regression guard on the sibling
+sign-off review screen, which was already wired correctly) confirms that call site too. One
+transient login-timeout flake hit an unrelated test on a full-suite run; an isolated re-run of that
+test passed cleanly — not attributable to this fix.
 
 **Not the same bug as BUG-FF5-001 and not caused by the builder.** Reproduced TWICE, independently:
 1. FF5-1's real, wizard-driven, `submit_response`-submitted response (3 reference lanes, authored through the builder) — DB truth (a raw SQL join across `answer_references`/`answers`/`form_items`) confirms all 3 rows are exactly correct, in order, immediately before the failing assertion.
@@ -384,73 +385,18 @@ received `reference: undefined` for that item.
   L143-156) end to end — the keying (`row.answers.item_id`), the `TOP_LEVEL_SCOPE` constant (single
   source, imported not re-spelled), and the dispatch all read correctly by inspection.
 
-**So the break is somewhere between a confirmed-correct 388-byte HTTP response landing in the Next.js
-process and the value reaching the component** — I could not isolate it further without adding
-runtime instrumentation (a console.log inside `getSubmissionDetail`), which is out of my scope. That
-is the next concrete step for whoever picks this up.
+**So the break was somewhere between a confirmed-correct 388-byte HTTP response landing in the
+Next.js process and the value reaching the component** — I could not isolate it further without
+runtime instrumentation, which was out of my scope; handed off with the full trail above instead of
+guessing. **The decisive clue was in that trail**: the symptom was top-level-only (in-group
+references, via `instances`, always rendered fine — confirmed by FF5-9 passing throughout) — no
+embed or RLS fault produces that asymmetry, only a missing prop does. Worth remembering next time a
+render bug shows an odd asymmetry between two sibling paths off the same query: ask what they don't
+share, not just whether either one is individually correct.
 
-**Impact**: every reference answer in the platform's durable, accreditation-facing record — the
-whole reason this platform exists — currently displays as unanswered. This is NOT cosmetic; it is
-the FF-5 acceptance criterion directly ("confirm the picked entity survives to the review screen and
-the submissions view — by label"). The REVIEW screen (pre-submit, same-request, client-side state)
-is unaffected — this is specific to the persisted-record READ path.
-
-**Repro** (deterministic): submit any response with a top-level `reference` answer on any form, then
-open `/o/{org}/c/{slug}/dashboard/submissions/{responseId}` as a `staff_admin` of that commission.
-
-**Not yet checked**: whether a reference INSIDE a repeating group (via `InstanceAnswersReadonly` /
-`instance-answers-readonly.tsx`) has the same symptom — it is a separate prop-threading path and
-worth a look once the top-level case is root-caused.
-
-**Blocks**: FF5-1's submissions-view assertion (left in the spec, correctly red — not editing it to
-route around a real defect). Does not block FF5-2 through FF5-7 (none of them exercise the
-submissions dashboard for a reference answer).
-
-#### 🔴 BUG-AUTHZ-001 — `platform_admin` reads response-level content through DEFINER dashboard functions, invisible to a policy audit of `responses` · owner **AUTHZ** · **OPEN** (filed 2026-07-27, PO's call)
-
-`src/lib/forms/actions.ts`'s `ALL_ITEM_TYPES` (the `addItem` allowlist, L212-217) is
-`[...INPUT_TYPES, ...DISPLAY_TYPES, ...CONTAINER_TYPES, ...MATRIX_TYPES]` — **`reference`
-(`REFERENCE_TYPES` from `@/lib/forms/reference-constants`) was never added.** This is the SAME
-miss the file's own comment warns against, verbatim: *"A type missing here is REJECTED by
-`addItem` with `itemTypeInvalid` — matrix was omitted when FF-2 Wave 1 landed the writers... Fails
-CLOSED, invisible to lint/typecheck/unit/pgTAP."* FF-5 repeated it for its own type.
-
-**Repro** (deterministic, 3 consecutive runs, fresh state each time): sign in
-`chefe.ccih@test.local` → any commission's form builder → "Adicionar bloco" → "Referências" →
-"Referência" (the picker correctly OFFERS the type — `add-block-menu.tsx` gates on the
-`entity_refs` flag, a different check) → fill "Enunciado da pergunta" → "Adicionar". The dialog
-stays open; a `role="status"` region shows **"Tipo de item inválido."** —
-`MESSAGES.itemTypeInvalid`, returned because `ALL_ITEM_TYPES.includes('reference')` is `false`.
-
-**Impact**: the ENTIRE builder-authoring path for `reference` items is non-functional — a
-`staff_admin` cannot add one to any form, ever, through the UI. The seeded "FORM D" fixture
-(`supabase/seed.sql` ~L2206-2321) exists only because it was inserted directly via raw SQL,
-bypassing `addItem` entirely — which is exactly why 53 pgTAP keystones, 817 Vitest tests, `tsc`,
-`eslint` and a real `next build` all missed it. `updateItem` carries no equivalent gate (editing an
-EXISTING reference item — e.g. one seeded via SQL — is unaffected), which is why this was invisible
-to any workflow that only edits pre-existing items.
-
-**⚠ Correction (lead, verified independently) — it is TWO lists, not one.** `reference` is ALSO
-missing from `ANSWERABLE_TYPES` (`src/lib/forms/actions.ts` L225, `[...INPUT_TYPES,
-...MATRIX_TYPES]` — the minted-`question_key` set), and the live `form_items_input_vs_display`
-CHECK requires `question_key IS NOT NULL` for `item_type = 'reference'` (confirmed against the
-catalog: `WHEN (item_type = 'reference'::text) THEN ((question_key IS NOT NULL) AND (label IS NOT
-NULL) AND (content IS NULL))`). `addItem` only mints a `question_key` when `isAnswerable` is true
-(L1345-1346, L1354); with `reference` absent from `ANSWERABLE_TYPES`, `questionKey` stays `null`
-regardless of the `ALL_ITEM_TYPES` fix. **A fix to `ALL_ITEM_TYPES` alone moves this bug from a
-clean pt-BR rejection to a raw `23514` on the `form_items` INSERT** — worth knowing before
-re-verifying: if FF5-1 goes from "Tipo de item inválido." to some other failure after the first
-patch lands, that is this second list, not a new defect. Both lists must get `REFERENCE_TYPES`.
-
-**Fix**: import `REFERENCE_TYPES` from `@/lib/forms/reference-constants` and spread it into BOTH
-`ALL_ITEM_TYPES` (mirroring the existing `MATRIX_TYPES` import 2 lines above it) AND
-`ANSWERABLE_TYPES`, `src/lib/forms/actions.ts` L204-225.
-
-**Violates**: PHASES.md's FF-5 acceptance (author a reference item in the builder) and ADR 0091's
-whole authoring surface (`item-editor-dialog.tsx`'s `isReference` shell,
-`reference-config-editor.tsx` — both fully built and unreachable). Spec:
-`e2e/ff5-references.spec.ts` FF5-1, currently RED and correctly so — do not edit the spec to route
-around this; fix `ALL_ITEM_TYPES` and FF5-1 goes green with no spec change.
+**Impact (resolved)**: every reference answer in the platform's durable, accreditation-facing
+record previously displayed as unanswered — the FF-5 acceptance criterion this bug blocked directly.
+The REVIEW screen (pre-submit, same-request, client-side state) was never affected.
 
 #### 🔴 BUG-AUTHZ-001 — `platform_admin` reads response-level content through DEFINER dashboard functions, invisible to a policy audit of `responses` · owner **AUTHZ** · **OPEN** (filed 2026-07-27, PO's call)
 
