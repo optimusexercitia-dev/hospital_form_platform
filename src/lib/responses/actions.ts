@@ -72,6 +72,10 @@ const MESSAGES = {
   overrideResultInvalid: 'Opção de resultado inválida para esta comissão.',
   // phase-result-manual-mode: a MANUAL phase requires a result before submit.
   resultRequired: 'Selecione o resultado da fase antes de enviar.',
+  // FF-3 (ADR 0090): fallback only — HC0P9 carries the author's own pt-BR
+  // rule message, which is what the filler actually needs to see.
+  validationBlocked:
+    'Há respostas que não atendem às validações do formulário.',
   // FF-1 repeating-group instance writers (ADR 0087; SQLSTATE lane HC0N*).
   // Static copy, per this module's rule that no raw Postgres message reaches the
   // UI — the RPCs raise their own pt-BR text (with the actual N interpolated) but
@@ -109,8 +113,24 @@ const SIGN_ALREADY_SIGNED = 'HC015'
 /** set_case_phase_result_override discriminated failures (phase-results). */
 const OVERRIDE_PHASE_NOT_ADJUSTABLE = 'HC057'
 const OVERRIDE_RESULT_INVALID = 'HC058'
-/** phase-result-manual-mode: MANUAL phase submitted with no result (conclude). */
+/**
+ * ⚠ HC061 IS RAISED BY TWO UNRELATED CONDITIONS (found during FF-3):
+ *   · `app.compute_case_phase_result` — a MANUAL phase concluded with no result
+ *     ("selecione o resultado da fase N antes de enviar");
+ *   · `app.assert_item_bounds` — a `form_items.config` bound violated
+ *     ("a pergunta X exige ao menos N caractere(s)").
+ * The second is reachable by ORDINARY USE — anyone who types too few characters
+ * into a field with `minLength` — and was being told about a phase result. Both
+ * raise sites produce a good pt-BR sentence and the DB message NAMES the offending
+ * field or phase, so the mapping below prefers it, with the constant as fallback.
+ * Same pattern and same reasoning as BUG-FF2-002 / HC0N2.
+ */
 const SUBMIT_RESULT_REQUIRED = 'HC061'
+/** FF-3 (ADR 0090 §3): an `error`-severity validation rule blocked the submit.
+ *  The raised message IS the author's own pt-BR rule message, so it is preferred
+ *  over any constant — a generic string here would defeat the whole point of
+ *  letting an author write the message. Rendered as TEXT, never as markup. */
+const SUBMIT_VALIDATION_ERROR = 'HC0P9'
 /** phase-result-manual-mode: MANUAL phase result cleared (set-override). */
 const OVERRIDE_RESULT_REQUIRED = 'HC062'
 /** discard_response discriminated failures (standalone draft delete). */
@@ -747,7 +767,11 @@ export async function submitResponse(responseId: string): Promise<ActionState> {
       case SUBMIT_MISSING_SIGNOFF:
         return { ok: false, error: MESSAGES.missingSignoff }
       case SUBMIT_RESULT_REQUIRED:
-        return { ok: false, error: MESSAGES.resultRequired }
+        // Prefer the DB message: HC061 has two raise sites and only the message
+        // distinguishes them (see the constant's note).
+        return { ok: false, error: error.message || MESSAGES.resultRequired }
+      case SUBMIT_VALIDATION_ERROR:
+        return { ok: false, error: error.message || MESSAGES.validationBlocked }
       case PG_NO_DATA_FOUND:
         return { ok: false, error: MESSAGES.missingResponse }
       default:
@@ -842,7 +866,11 @@ export async function submitCasePhaseResponse(
       case SUBMIT_MISSING_SIGNOFF:
         return { ok: false, error: MESSAGES.missingSignoff }
       case SUBMIT_RESULT_REQUIRED:
-        return { ok: false, error: MESSAGES.resultRequired }
+        // Prefer the DB message: HC061 has two raise sites and only the message
+        // distinguishes them (see the constant's note).
+        return { ok: false, error: error.message || MESSAGES.resultRequired }
+      case SUBMIT_VALIDATION_ERROR:
+        return { ok: false, error: error.message || MESSAGES.validationBlocked }
       case PG_NO_DATA_FOUND:
         return { ok: false, error: MESSAGES.missingResponse }
       default:

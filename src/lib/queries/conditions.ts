@@ -478,8 +478,14 @@ export function isConditionTargetInScope(
   )
 }
 
-/** Deep structural equality matching Postgres jsonb equality for our values. */
-function jsonEquals(a: Json | undefined, b: Json | undefined): boolean {
+/**
+ * Deep structural equality matching Postgres jsonb equality for our values.
+ *
+ * Exported for FF-3's `unique_within_group`, whose SQL mirror is plain jsonb
+ * `=`. A second hand-rolled deep-equal in the validation evaluator would be a
+ * second thing to keep in agreement with Postgres.
+ */
+export function jsonEquals(a: Json | undefined, b: Json | undefined): boolean {
   if (a === b) return true
   if (a === null || b === null || a === undefined || b === undefined) {
     return a === b

@@ -1,0 +1,439 @@
+{
+  "_comment": [
+    "FF-3 (ADR 0090) golden vectors for the SECOND dual evaluator pair:",
+    "SQL app.eval_validation  <->  TS evalValidation (src/lib/queries/validations.ts).",
+    "The SAME vectors run in Vitest (conditions/validations test) and in pgTAP",
+    "(supabase/tests/274_ff3_validations.sql). Drift between the two evaluators is a",
+    "phase-blocking bug (ARCHITECTURE Rule 3).",
+    "",
+    "`expected` is SATISFIED: true = no violation.",
+    "`value` is the value from the ANSWER MAP in scope, never a raw answers.value.",
+    "`answers` is only consulted by datetime_order; `peer_values` only by",
+    "unique_within_group."
+  ],
+  "vectors": [
+    {
+      "name": "empty: null value satisfies number_range",
+      "rule_type": "number_range",
+      "config": { "min": 5 },
+      "value": null,
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "empty: empty string satisfies text_length min",
+      "rule_type": "text_length",
+      "config": { "min": 3 },
+      "value": "",
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "empty: empty array satisfies unique_within_group",
+      "rule_type": "unique_within_group",
+      "config": {},
+      "value": [],
+      "answers": {},
+      "peer_values": [[]],
+      "expected": true
+    },
+    {
+      "name": "number_range: zero is NOT empty and is checked",
+      "rule_type": "number_range",
+      "config": { "min": 1 },
+      "value": 0,
+      "answers": {},
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "number_range: at the min bound (inclusive)",
+      "rule_type": "number_range",
+      "config": { "min": 5, "max": 10 },
+      "value": 5,
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "number_range: at the max bound (inclusive)",
+      "rule_type": "number_range",
+      "config": { "min": 5, "max": 10 },
+      "value": 10,
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "number_range: below min",
+      "rule_type": "number_range",
+      "config": { "min": 5, "max": 10 },
+      "value": 4,
+      "answers": {},
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "number_range: above max",
+      "rule_type": "number_range",
+      "config": { "min": 5, "max": 10 },
+      "value": 11,
+      "answers": {},
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "number_range: max-only bound, below it",
+      "rule_type": "number_range",
+      "config": { "max": 100 },
+      "value": 99.5,
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "number_range: negative below a negative min",
+      "rule_type": "number_range",
+      "config": { "min": -5 },
+      "value": -6,
+      "answers": {},
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "number_range: a non-number value cannot violate a range",
+      "rule_type": "number_range",
+      "config": { "min": 5 },
+      "value": "abc",
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "text_length: at the min bound (inclusive)",
+      "rule_type": "text_length",
+      "config": { "min": 3, "max": 5 },
+      "value": "abc",
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "text_length: at the max bound (inclusive)",
+      "rule_type": "text_length",
+      "config": { "min": 3, "max": 5 },
+      "value": "abcde",
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "text_length: below min",
+      "rule_type": "text_length",
+      "config": { "min": 3, "max": 5 },
+      "value": "ab",
+      "answers": {},
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "text_length: above max",
+      "rule_type": "text_length",
+      "config": { "min": 3, "max": 5 },
+      "value": "abcdef",
+      "answers": {},
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "text_length: whitespace is NOT trimmed away",
+      "rule_type": "text_length",
+      "config": { "min": 3 },
+      "value": "  ",
+      "answers": {},
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "text_length: an astral character counts as ONE (char_length, not UTF-16)",
+      "rule_type": "text_length",
+      "config": { "max": 1 },
+      "value": "😀",
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "text_length: accented pt-BR text counts by character",
+      "rule_type": "text_length",
+      "config": { "max": 9 },
+      "value": "higienização",
+      "answers": {},
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "text_length: a non-string value cannot violate a length",
+      "rule_type": "text_length",
+      "config": { "min": 3 },
+      "value": 7,
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "regex: anchored digit pattern matches",
+      "rule_type": "regex",
+      "config": { "pattern": "^[0-9]{4}$" },
+      "value": "1234",
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "regex: anchored digit pattern rejects",
+      "rule_type": "regex",
+      "config": { "pattern": "^[0-9]{4}$" },
+      "value": "12a4",
+      "answers": {},
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "regex: unanchored patterns SEARCH on both engines",
+      "rule_type": "regex",
+      "config": { "pattern": "abc" },
+      "value": "xxabcxx",
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "regex: case-sensitive by default",
+      "rule_type": "regex",
+      "config": { "pattern": "^abc$" },
+      "value": "ABC",
+      "answers": {},
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "regex: caseInsensitive true",
+      "rule_type": "regex",
+      "config": { "pattern": "^abc$", "caseInsensitive": true },
+      "value": "ABC",
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "regex: a non-string value cannot violate a pattern",
+      "rule_type": "regex",
+      "config": { "pattern": "^[0-9]+$" },
+      "value": 12,
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "date_range: at the min bound (inclusive)",
+      "rule_type": "date_range",
+      "config": { "min": "2026-01-01", "max": "2026-12-31" },
+      "value": "2026-01-01",
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "date_range: before the min bound",
+      "rule_type": "date_range",
+      "config": { "min": "2026-01-01", "max": "2026-12-31" },
+      "value": "2025-12-31",
+      "answers": {},
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "date_range: after the max bound",
+      "rule_type": "date_range",
+      "config": { "min": "2026-01-01", "max": "2026-12-31" },
+      "value": "2027-01-01",
+      "answers": {},
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "date_range: 24h time bounds sort lexicographically",
+      "rule_type": "date_range",
+      "config": { "min": "08:00", "max": "17:00" },
+      "value": "07:59",
+      "answers": {},
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "date_range: time at the min bound (inclusive)",
+      "rule_type": "date_range",
+      "config": { "min": "08:00", "max": "17:00" },
+      "value": "08:00",
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "datetime_order before: earlier than the sibling",
+      "rule_type": "datetime_order",
+      "config": { "op": "before", "question_key": "fim" },
+      "value": "2026-01-01",
+      "answers": { "fim": "2026-06-01" },
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "datetime_order before: equal to the sibling violates",
+      "rule_type": "datetime_order",
+      "config": { "op": "before", "question_key": "fim" },
+      "value": "2026-06-01",
+      "answers": { "fim": "2026-06-01" },
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "datetime_order after: later than the sibling",
+      "rule_type": "datetime_order",
+      "config": { "op": "after", "question_key": "inicio" },
+      "value": "2026-06-02",
+      "answers": { "inicio": "2026-06-01" },
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "datetime_order after: earlier violates",
+      "rule_type": "datetime_order",
+      "config": { "op": "after", "question_key": "inicio" },
+      "value": "2026-05-31",
+      "answers": { "inicio": "2026-06-01" },
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "datetime_order not_before: equal satisfies",
+      "rule_type": "datetime_order",
+      "config": { "op": "not_before", "question_key": "inicio" },
+      "value": "2026-06-01",
+      "answers": { "inicio": "2026-06-01" },
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "datetime_order not_after: equal satisfies",
+      "rule_type": "datetime_order",
+      "config": { "op": "not_after", "question_key": "fim" },
+      "value": "2026-06-01",
+      "answers": { "fim": "2026-06-01" },
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "datetime_order not_after: later violates",
+      "rule_type": "datetime_order",
+      "config": { "op": "not_after", "question_key": "fim" },
+      "value": "2026-06-02",
+      "answers": { "fim": "2026-06-01" },
+      "peer_values": [],
+      "expected": false
+    },
+    {
+      "name": "datetime_order: an ABSENT sibling makes the rule inert",
+      "rule_type": "datetime_order",
+      "config": { "op": "before", "question_key": "fim" },
+      "value": "2026-06-02",
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "datetime_order: a NULL sibling makes the rule inert",
+      "rule_type": "datetime_order",
+      "config": { "op": "before", "question_key": "fim" },
+      "value": "2026-06-02",
+      "answers": { "fim": null },
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "datetime_order: times compare lexicographically too",
+      "rule_type": "datetime_order",
+      "config": { "op": "before", "question_key": "fim" },
+      "value": "09:30",
+      "answers": { "fim": "10:00" },
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "unique_within_group: no peer holds the value",
+      "rule_type": "unique_within_group",
+      "config": {},
+      "value": "A1",
+      "answers": {},
+      "peer_values": ["B2", "C3"],
+      "expected": true
+    },
+    {
+      "name": "unique_within_group: a peer holds the same value",
+      "rule_type": "unique_within_group",
+      "config": {},
+      "value": "A1",
+      "answers": {},
+      "peer_values": ["B2", "A1"],
+      "expected": false
+    },
+    {
+      "name": "unique_within_group: the only instance has no peers",
+      "rule_type": "unique_within_group",
+      "config": {},
+      "value": "A1",
+      "answers": {},
+      "peer_values": [],
+      "expected": true
+    },
+    {
+      "name": "unique_within_group: numeric duplicates compare by value",
+      "rule_type": "unique_within_group",
+      "config": {},
+      "value": 3,
+      "answers": {},
+      "peer_values": [1, 2, 3],
+      "expected": false
+    },
+    {
+      "name": "unique_within_group: 3 and \"3\" are different values",
+      "rule_type": "unique_within_group",
+      "config": {},
+      "value": 3,
+      "answers": {},
+      "peer_values": ["3"],
+      "expected": true
+    },
+    {
+      "name": "unique_within_group: array values compare structurally",
+      "rule_type": "unique_within_group",
+      "config": {},
+      "value": ["a", "b"],
+      "answers": {},
+      "peer_values": [["a", "b"]],
+      "expected": false
+    },
+    {
+      "name": "unique_within_group: array order matters",
+      "rule_type": "unique_within_group",
+      "config": {},
+      "value": ["a", "b"],
+      "answers": {},
+      "peer_values": [["b", "a"]],
+      "expected": true
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import { MATRIX_ITEM_TYPES } from '@/lib/forms/item-tree'
 import { resolveOptionCodes, slugifyLabel, shortSuffix } from '@/lib/forms/option-code'
 import { parseItemConfig } from '@/lib/forms/parse-config'
 import { parseRequired } from '@/lib/forms/parse-required'
+import type { ValidationRuleInput } from '@/lib/queries/validations'
 
 /**
  * Form-builder server actions (Architecture Rules 9 & 10): form metadata +
@@ -103,6 +104,13 @@ const MESSAGES = {
   riskWeightRequired:
     'A matriz de risco exige um peso em todas as linhas e colunas.',
   matrixAxesSaved: 'Matriz atualizada com sucesso.',
+  // FF-3 (ADR 0090) validation authoring.
+  validationsUnavailable: 'O recurso de validações não está disponível.',
+  validationNotAllowed:
+    'Esta pergunta não aceita esse tipo de validação.',
+  validationInvalid:
+    'Verifique a validação: informe os limites e uma mensagem para quem responde.',
+  validationsSaved: 'Validações atualizadas com sucesso.',
 } as const
 
 /** Postgres SQLSTATEs we translate to friendly pt-BR copy. */
@@ -135,6 +143,15 @@ const MATRIX_NOT_A_MATRIX = 'HC0P3'
 const MATRIX_NOT_DRAFT = 'HC0P4'
 const MATRIX_AXIS_INVALID = 'HC0P5'
 const MATRIX_WEIGHT_REQUIRED = 'HC0P6'
+
+// FF-3 (ADR 0090) — the validation-engine block. `HC0P9` is the SUBMIT gate and
+// belongs to the fill path (`src/lib/responses/actions.ts`), not here; the
+// authoring codes start at `HC0Q0`. Draft-state denial deliberately REUSES
+// `MATRIX_NOT_DRAFT` (`HC0P4`) — it is the same condition with the same pt-BR
+// copy, and a second spelling would be a second thing to keep in sync.
+const VALIDATIONS_FLAG_OFF = 'HC0Q0'
+const VALIDATION_NOT_ALLOWED = 'HC0Q1'
+const VALIDATION_INVALID = 'HC0Q2'
 
 /** The input item types (mirrors INPUT_ITEM_TYPES in queries/forms.ts). */
 const INPUT_TYPES = [
@@ -2048,4 +2065,66 @@ export async function upsertMatrixAxes(input: {
 
   revalidateBuilder()
   return { ok: true, error: MESSAGES.matrixAxesSaved }
+}
+
+/**
+ * FF-3 (ADR 0090) — persist the COMPLETE validation-rule list of one item
+ * (`set_item_validations`).
+ *
+ * REPLACE semantics per item: the payload is the whole desired list, so an
+ * omitted rule is DELETED. Unlike matrix axes there is no author-visible key to
+ * match on (a rule is not an aggregation key), so the replacement is wholesale.
+ *
+ * Draft-only and staff_admin-only, enforced by the RPC itself — it is a DEFINER
+ * door, because `form_item_validations` is SELECT-only for `authenticated` (K9)
+ * and RLS therefore cannot gate the write. The `authorizeCommission` call below
+ * never REPLACES that check; it turns a server-side denial into readable pt-BR
+ * before the round trip.
+ */
+export async function setItemValidations(input: {
+  itemId: string
+  rules: ValidationRuleInput[]
+}): Promise<ActionState> {
+  const { itemId, rules } = input
+  if (!itemId) return { ok: false, error: MESSAGES.missingItem }
+
+  const supabase = await createClient()
+  const ctx = await contextOfItem(supabase, itemId)
+  if (!ctx) return { ok: false, error: MESSAGES.missingItem }
+  if (!(await authorizeCommission(ctx.commissionId))) {
+    return { ok: false, error: MESSAGES.forbidden }
+  }
+
+  const { error } = await supabase.rpc('set_item_validations', {
+    p_item_id: itemId,
+    p_rules: rules.map((r) => ({
+      rule_type: r.ruleType,
+      config: r.config,
+      severity: r.severity,
+      message: r.message,
+      position: r.position,
+    })) as unknown as Json,
+  })
+
+  if (error) {
+    switch (error.code) {
+      case VALIDATIONS_FLAG_OFF:
+        return { ok: false, error: MESSAGES.validationsUnavailable }
+      case VALIDATION_NOT_ALLOWED:
+        return { ok: false, error: MESSAGES.validationNotAllowed }
+      case VALIDATION_INVALID:
+        // Prefer the DB message: it NAMES the offending rule, which is the
+        // difference between an actionable error and a dead end (BUG-FF2-002).
+        return { ok: false, error: error.message || MESSAGES.validationInvalid }
+      case MATRIX_NOT_DRAFT:
+        return { ok: false, error: MESSAGES.notDraft }
+      case PG_INSUFFICIENT_PRIVILEGE:
+        return { ok: false, error: MESSAGES.forbidden }
+      default:
+        return { ok: false, error: mapWriteError(error) }
+    }
+  }
+
+  revalidateBuilder()
+  return { ok: true, error: MESSAGES.validationsSaved }
 }

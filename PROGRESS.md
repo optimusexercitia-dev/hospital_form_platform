@@ -112,14 +112,43 @@ name, fast-forwarded to `main` @ `5e6b62d`; **216 == 216** at phase start.
 
 | # | Task | Owner | Status |
 | - | ---- | ----- | ------ |
-| B1 | Schema wave — `rule_type` allowlist CHECK + `item_type` coverage CHECK · `form_items.required_if` (+ `input_vs_display` arm) · flag `item_validations` seeded **OFF** | `backend` | 🔜 |
-| B2 | Door parity — `set_item_validations` DEFINER writer · targeted SELECT arm · `staff_admin` FOR-ALL write arm · `app.copy_version_children` validations block (INFO-1 remainder), **same wave as the writer** | `backend` | 🔜 |
-| B3 | Evaluator pair — `app.eval_validation` + TS twin under `src/lib/queries/` + golden vectors (Rule 3 mirror, phase-blocking) | `backend` | 🔜 |
-| B4 | Authority — `required_if` in **both** arms of `app.response_required_complete` (visibility wins) · `error` gate in `submit_response` (`HC0P9`) · `get_response_validation_errors` read path | `backend` | 🔜 |
-| B5 | Operator authorability — widen `app.is_valid_condition` to `contains`/`not_contains`/`is_empty`/`is_not_empty` (+ the no-`value` relaxation) + vectors | `backend` | 🔜 |
-| B6 | pgTAP `274+` — the 8 SQL keystones of ADR 0090, each mutation-proven; re-pin `209` §B/§C and `272` door-parity | `backend` | 🔜 |
+| B1 | Schema wave — `rule_type` allowlist CHECK + `item_type` coverage (a TRIGGER, not a CHECK — a CHECK cannot subquery `form_items`) · `form_items.required_if` (+ `input_vs_display` arm incl. `reference`) · flag seeded **OFF**, `seed.sql` flips it ON for local/E2E | `backend` | ✅ `20260901000000` |
+| B2 | Door parity — `set_item_validations` DEFINER writer · targeted SELECT arm · `staff_admin` FOR-ALL write arm · `app.copy_version_children` validations block, same wave. Grant stays SELECT-only so K9 holds by privilege | `backend` | ✅ `20260901000100` |
+| B3 | Evaluator pair — `app.eval_validation` + `evalValidation` in `src/lib/queries/validations.ts` + 47 golden vectors, **plus a real drift DETECTOR** (the pgTAP file embeds the fixture bytes; Vitest asserts they parse equal — FF-1 QA's INFO-4) | `backend` | ✅ `20260901000200` |
+| B4 | Authority — `required_if` in **both** arms (visibility wins) · `HC0P9` gate in `submit_response` · `get_response_validation_errors`. The gate and the read path share `app.response_validation_errors`; the legacy `assert_item_bounds` lane was extracted into it so the list can never omit what the gate blocks on | `backend` | ✅ `20260901000300/400` |
+| B5 | Operator authorability — `app.is_valid_condition` widened to the four F3 operators; the `value` requirement relaxed for the two unary ones BY NAME (not globally) | `backend` | ✅ `20260901000500` |
+| B6 | pgTAP `274_ff3_validations.sql` — **69 assertions**, all 8 ADR-0090 keystones, each mutation-proven. Also **`20260901000600`**: publish-time validation of `required_if` (a missing arm found by writing the keystones — see the finding below) | `backend` | ✅ 4130 tests PASS |
 | F1 | Builder — rules editor (type/config/severity/pt-BR message) + `required_if` authoring via the condition builder + the 4 new operator pickers | `frontend` | ⏸ blocked on B1–B3 contract |
 | F2 | Wizard — inline error/warn from the TS twin, per instance; submit blocked on error; warn badges in review | `frontend` | ⏸ blocked on B4 contract |
+
+> 🔴 **THREE FINDINGS from B1–B6, all fail-OPEN, none catchable by tsc/lint/unit/build.**
+>
+> 1. **`app.validation_rule_allowed` returned NULL, not false**, for a top-level item
+>    (`p_parent_item_type = NULL` → `NULL and true` = NULL). Every caller wrote
+>    `if not allowed(...)`, and `not NULL` is NULL, so the `if` never fired and a forbidden
+>    rule/item pair was **accepted**. Same family as FF-2 defect 1 — a three-valued predicate
+>    read as if it were two-valued. Caught by keystone **B8** on its first run
+>    (`caught: no exception`). Fixed with an outer `coalesce(..., false)`; `app.eval_validation`'s
+>    regex arm and `app.item_is_required` were hardened the same way.
+> 2. **`validate_visible_when` never validated `required_if`.** A top-level item whose
+>    `required_if` points at a repeating-group child resolves that key against the top-level map,
+>    where it is absent → the item is **silently never required**. Nothing raises, nothing logs,
+>    and a test that only asks "does an unmet `required_if` block" passes. Fixed in
+>    `20260901000600` by generalising the item loop over both conditional columns; keystones
+>    K1–K3.
+> 3. **`HC061` is raised by TWO unrelated conditions** — `app.assert_item_bounds` (a field bound)
+>    and `app.compute_case_phase_result` (a MANUAL phase with no result) — and `submitResponse`
+>    mapped it to *"Selecione o resultado da fase"*. Reachable by ORDINARY USE: type 2 characters
+>    into a `minLength: 5` field and you are told about a phase result. Pre-existing; fixed here
+>    (prefer the DB message) because FF-3 extracted that very lane. **Adjacent, NOT fixed:
+>    `HC0N5`** (FF-1 min-instances) still falls to `MESSAGES.generic` in both submit switches —
+>    same class as BUG-FF1-006, reported for the lead's call.
+>
+> ⚠ **ADR 0090 §6's parity table is wrong on one cell**, corrected against `pg_policies`: the
+> matrix tables carry **no** write policy (one SELECT policy each; their boundary is the
+> SELECT-only GRANT + the DEFINER door). `form_item_options` is the outlier — it holds a full DML
+> grant, so for it the FOR-ALL policy *is* the boundary. FF-3 took the **stricter** shape: both
+> arms added per the ADR, grant left SELECT-only, and keystone **C5** pins both facts.
 
 **Lead notes.** Contract-first: `backend` posts the typed stubs for
 `get_response_validation_errors` + the TS validation twin before `frontend` starts F1/F2.

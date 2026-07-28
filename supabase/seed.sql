@@ -2111,6 +2111,18 @@ update app.feature_flags set enabled = true where key = 'repeating_groups';
 -- green (the pgtap-fixture-flag-gaps scar). 271_ff2_matrix_fields.sql asserts
 -- the flag is ON before it asserts anything else.
 update app.feature_flags set enabled = true where key = 'matrix_fields';
+-- ---------------------------------------------------------------------------
+-- FF-3 validation engine (ADR 0090). Created OFF in
+-- 20260901000000_ff3_validation_schema; forced ON here for local/E2E so
+-- set_item_validations, the required_if layer in both arms of
+-- app.response_required_complete, the HC0P9 submit gate and
+-- get_response_validation_errors are all reachable under test. Production flip
+-- is the FF-3 gate migration.
+-- NOTE for pgTAP authors: the writer raises HC0Q0 and the read path returns the
+-- empty set when this flag is OFF, so a fixture that forgets it makes every
+-- flag-guarded keystone SKIP while reporting green (the pgtap-fixture-flag-gaps
+-- scar). 274_ff3_validations.sql asserts the flag is ON before anything else.
+update app.feature_flags set enabled = true where key = 'item_validations';
 
 -- ===========================================================================
 -- FORM C (commission CCIH): the FF-2 demo — one `matrix` (required, so the

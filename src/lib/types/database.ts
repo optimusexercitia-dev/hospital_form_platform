@@ -5014,6 +5014,7 @@ export type Database = {
           question_explanation: string | null
           question_key: string | null
           required: boolean
+          required_if: Json | null
           section_id: string
           visible_when: Json | null
         }
@@ -5033,6 +5034,7 @@ export type Database = {
           question_explanation?: string | null
           question_key?: string | null
           required?: boolean
+          required_if?: Json | null
           section_id: string
           visible_when?: Json | null
         }
@@ -5052,6 +5054,7 @@ export type Database = {
           question_explanation?: string | null
           question_key?: string | null
           required?: boolean
+          required_if?: Json | null
           section_id?: string
           visible_when?: Json | null
         }
@@ -11700,6 +11703,17 @@ export type Database = {
         Args: { p_response_id: string }
         Returns: Json
       }
+      get_response_validation_errors: {
+        Args: { p_response_id: string }
+        Returns: {
+          group_instance_id: string
+          item_id: string
+          message: string
+          rule_id: string
+          rule_type: string
+          severity: string
+        }[]
+      }
       grant_case_access: {
         Args: {
           p_case: string
@@ -13742,6 +13756,10 @@ export type Database = {
       }
       set_interview_subject_participant: {
         Args: { p_participant_id: string; p_subject_id: string }
+        Returns: undefined
+      }
+      set_item_validations: {
+        Args: { p_item_id: string; p_rules: Json }
         Returns: undefined
       }
       set_meeting_held_window: {
