@@ -756,8 +756,22 @@ test('AC-3 (builder): colour picker on multiple_choice + checkbox, NOT on dropdo
   await expect(d).toBeHidden()
 })
 
-// AC-4 — a QUESTION condition disables + clears the "obrigatória" toggle, with note.
-test('AC-4 (builder): question condition disables and clears "obrigatória" with a note', async ({
+// AC-4 — a QUESTION condition leaves "obrigatória" AVAILABLE, with resolved
+// semantics ("apenas quando aparecer"). This asserted the OPPOSITE until
+// 2026-07-28: decision #9 forbade a conditional question from being required at
+// all, and FF-3 reversed that in `2254227`, ratified as ADR 0090 **Amendment 3**
+// (`3b10c30`).
+//
+// The reversal follows from ruling 4 — visibility wins unconditionally, so
+// `required` + `visible_when` means "required exactly while visible", which is a
+// coherent state rather than the incoherent one #9 guarded against. Forbidding it
+// while shipping `required_if` (conditional requirement by construction) would
+// have been inconsistent.
+//
+// The absence of the old note is asserted EXPLICITLY, not merely the presence of
+// the new copy: asserting only the new string would still pass if the old
+// prohibition were silently restored alongside it.
+test('AC-4 (builder): a question condition keeps "obrigatória" available, with "apenas quando aparecer" semantics', async ({
   page,
   request,
 }) => {
@@ -775,8 +789,7 @@ test('AC-4 (builder): question condition disables and clears "obrigatória" with
   await addSubmit(d)
 
   // Add a conditional question; FIRST mark it required, then enable the
-  // condition → the toggle must DISABLE (and a conditional question can never be
-  // persisted as required — decision #9).
+  // condition → the toggle must STAY enabled and STAY checked (Amendment 3).
   d = await openAddBlock(page, /Resposta curta/)
   await d.getByLabel('Enunciado da pergunta').fill('Detalhe condicional')
 
@@ -797,22 +810,41 @@ test('AC-4 (builder): question condition disables and clears "obrigatória" with
     .selectOption({ label: 'Pergunta controladora?' })
   await d.locator('select[id$="-value"]').selectOption({ label: 'Sim' })
 
-  // The required toggle is now DISABLED, with the inline note (decision #9).
-  await expect(requiredToggle).toBeDisabled()
-  await expect(d.getByText(/não pode ser\s+obrigatória/i)).toBeVisible()
+  // The required toggle stays ENABLED and keeps the author's choice (Amendment 3).
+  await expect(requiredToggle).toBeEnabled()
+  await expect(requiredToggle).toBeChecked()
+  // The resolved-semantics copy explains WHEN it applies…
+  await expect(d.getByText(/apenas quando aparecer/i)).toBeVisible()
+  // …and the retired prohibition is gone. Asserted as an ABSENCE so restoring
+  // decision #9 cannot slip through beside the new copy.
+  await expect(d.getByText(/não pode ser\s+obrigatória/i)).toHaveCount(0)
 
   await addSubmit(d)
-  await expect(page.getByText('Detalhe condicional', { exact: true })).toBeVisible()
+  // The block card's headline is no longer the bare label: now that the item is
+  // genuinely required, it renders "Detalhe condicional" PLUS the `*` marker, so
+  // an `exact: true` text match would miss it. Asserted as the card + the marker,
+  // which is the visible consequence of the reversal rather than an incidental
+  // string.
+  const conditionalCard = page
+    .locator('article')
+    .filter({ hasText: 'Detalhe condicional' })
+    .first()
+  await expect(conditionalCard).toBeVisible({ timeout: 15_000 })
+  await expect(conditionalCard.getByLabel('obrigatória').first()).toBeVisible()
 
-  // The persisted conditional item is NOT required and carries the condition —
-  // the authoritative "cannot be required" guarantee (UI defense + DB CHECK).
+  // The persisted item carries BOTH — the pairing decision #9 used to forbid and
+  // the DB CHECK used to reject. This is the half that proves the reversal
+  // reached storage, not just the copy.
   const rows = await svcGet<{ required: boolean; visible_when: unknown }>(
     request,
     `form_items?label=eq.${encodeURIComponent('Detalhe condicional')}` +
       `&select=required,visible_when`,
   )
   expect(rows.length, 'conditional item should exist').toBeGreaterThan(0)
-  expect(rows[0].required, 'conditional question must not be required').toBe(false)
+  expect(
+    rows[0].required,
+    'a conditional question may now be required (ADR 0090 Amendment 3)',
+  ).toBe(true)
   expect(rows[0].visible_when, 'conditional question must carry its condition').not.toBeNull()
 })
 

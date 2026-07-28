@@ -504,6 +504,41 @@ BUG-FF1-007 `<> ''''`) are **all closed and re-verified**, with full repro/fix d
 [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md). The ETH·E2 targeted-lane fix
 (`4ee24c8`) is recorded there too.
 
+#### ✅ BUG-E2E-001 — `mem-memberships-collapse` AC-1 deleted a SEED membership in its own cleanup, poisoning every later batch of the gate · severity **MAJOR (test-suite)** · **CLOSED 2026-07-28** (found + fixed + re-verified by `tester`)
+
+**The only real defect in the 2026-07-28 gate's 140 failures**, and it is in `e2e/`, not in app code.
+
+AC-1 enrolls a PQS member on the central-a roster, then removes one to "restore the seed roster" —
+but it took **`.first()`** of the remove buttons, which is the *first row in the card*, not the row it
+had just added. On the seeded roster that first row is **`admin@test.local` (`pqs_member`, hospital
+`05000000-…-000a`)**. So the cleanup deleted a **seed** row and left the test's own addition behind.
+
+**Why it detonated only in the gate:** the gate does **not** `db reset` between batches.
+`open_capa_plan` infers its hospital from exactly that membership, so once it was gone the RPC
+answered **HTTP 400 `HC083` — "informe o hospital do plano de ação"**, and every CAPA-dependent spec
+downstream failed in setup. That is the entire **9-failure `notifications.spec.ts` cascade in batch 7**.
+Running `notifications.spec.ts` alone passes 8/8, which is why it had never been caught.
+
+**Proven, not inferred**, in four steps: (1) reproduced batch 7's exact six-file composition on a
+**fresh** DB → the same cascade; (2) read the persona's memberships in the contaminated state → only
+the `org_admin` row survived, the `pqs_member` row was gone; (3) replayed the RPC live in that state →
+`400 HC083`, against `200` on a fresh seed; (4) compared to a fresh seed → two rows, confirming which
+one was destroyed.
+
+**Fixed** by removing the member the test actually added, addressed **by name**
+(`Remover ${personName} da equipe do NSP`), with a guard that fails loudly if that control is missing
+rather than falling back to an arbitrary row. Two assertions were added so the old behaviour cannot
+return silently: the added member's control is gone **and** the seeded `pqs_member` row still exists.
+The second is the load-bearing one — the old bug also ends with one fewer row, so an
+absence-only check passes under it.
+
+**Re-verified:** batch 7's composition went **78/87 → 86/87** on a fresh DB (the notifications cascade
+gone entirely), and `mem-memberships-collapse` is **7/7** standalone.
+
+> ⚠ **The class, worth a sweep beyond this fix:** a spec whose cleanup targets `.first()` (or any
+> positional locator) rather than the row it created will eventually eat a seed row. It is invisible
+> file-locally and only surfaces in a gate that does not reset between batches.
+
 #### ✅ BUG-FF3-002 — the two unary operators were OFFERED by every condition picker but could not be SAVED · severity **MAJOR / phase-blocking** · **CLOSED 2026-07-28** (fixed `91f4931`, re-verified by `tester`)
 
 **Blocks ADR 0090 ruling 5 + Amendment 2** — the pickers are the phase's whole shipped operator
@@ -676,6 +711,19 @@ gate runs with their triage) are recorded in
 served on **:3100** from a copy staged OUTSIDE `.next` (see the infra row), chromium, workers=1, via
 `e2e/playwright.ff3.config.ts`. Every row below was checked for **coverage** (`--list` count ==
 reported count) and read the runner's own `PIPESTATUS[0]`, not scraped text — the `36a18c8` C-1 lesson.
+
+**Gate triage — the 2026-07-28 `e2e:prod` run (630 passed · 140 failed · 3 flaky · 130 did-not-run ·
+COVERAGE 903/908), triaged by `tester` at the lead's request.** FF-3's own spec passed inside the gate
+(19 ok, batch 5). Verdicts below are per batch, each reproduced locally rather than read off the log.
+
+| Date | Scope | Result | Notes |
+|---|---|---|---|
+| 2026-07-28 | **b1 / b10 / b11 / b12** (26 / 67 / 115 / 51 connection errors) | **INFRA** — not triaged further | Lead-classified as the Windows collapse; all 130 did-not-run belong here. No bugs filed. |
+| 2026-07-28 | **b4** — `charters-cadence` AC-1a + `documents-changes-requested` CR-0 | **INFRA + flaky. 0 real.** | AC-1a failed at **0 ms** on BOTH the original and the retry — it never executed — and the log's very next line is `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c, line 76`, a **libuv crash** that also took the 9 "did not run" in that batch. A 0 ms duration cannot be an assertion failure. CR-0 failed once (6.0 s) and **passed on retry** (1.3 s) — reported by the gate itself as `1 flaky`, the known baseline. **Both files re-run standalone: 12/12 green.** |
+| 2026-07-28 | **b5** — `form-builder-enhancements` AC-4 | **REAL — a stale SPEC contract.** Fixed. | AC-4 asserted decision #9 (a conditional question may not be required). FF-3 reversed it in `2254227`; ratified as ADR 0090 **Amendment 3** (`3b10c30`). Updated to the new contract, incl. the **absence** of the retired *"não pode ser obrigatória"* note so a silent revert cannot pass. Two further consequences the update had to absorb: the persisted row is now `required=true` **with** `visible_when` (was asserted `false`), and the block card's headline is no longer the bare label — it carries the `*` marker — so the post-submit `exact: true` match had to become card + marker. **File now 15/15.** |
+| 2026-07-28 | **b7** — 9 × `notifications.spec.ts` | **REAL, but a SPEC defect in another file** → **BUG-E2E-001**, fixed | Not a broken RPC: `open_capa_plan` returns **200** on a fresh seed and **400 `HC083`** once `mem-memberships-collapse` AC-1 has eaten the seeded `pqs_member` row. Full evidence chain in the bug entry. |
+| 2026-07-28 | Verification of the two spec fixes | `form-builder-enhancements` **15/15** · `mem-memberships-collapse` **7/7** · batch-7 composition **86/87** on a fresh DB (was 78/87) | The one remaining red is not a defect — see the next row. |
+| 2026-07-28 | ⚠ `mem-memberships-collapse` AC-4, and a correction to my own triage | **NOT a failure — a hardcoded port.** Fixed. | AC-4 asserted `toHaveURL('http://localhost:3000/c')` **literally**, so it passes under the gate (which serves :3000) and fails under any other baseURL — it reds on a worktree run on :3100 while being perfectly healthy. I first read this as inverse contamination ("fails fresh, passed in the gate"); it was the port. Now `toHaveURL(/\/c$/)`. Four other specs still hold a hardcoded `http://localhost:3000` **constant** (`hospital-admin-tier`, `phase-multitenancy`, `phase2-auth-shell`, `user-registration`) — left alone as out of scope, but they carry the same trap. |
 
 **Re-run after both fixes — HEAD `91f4931`, fresh `db reset` (224 == 224, flag `t`, token POST 200),
 prod-standalone rebuilt at that HEAD and served from the scratchpad copy. One server PER SPEC FILE.**

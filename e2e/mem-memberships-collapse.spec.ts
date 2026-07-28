@@ -72,6 +72,19 @@ async function getOwnerToken(
   return ((await resp.json()) as { access_token: string }).access_token
 }
 
+/** Service-role read — used to assert SEED state survived a test's own cleanup. */
+async function svcGet<T>(req: APIRequestContext, path: string): Promise<T[]> {
+  const resp = await req.get(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: {
+      apikey: SUPABASE_SERVICE_KEY,
+      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
+    },
+  })
+  expect(resp.ok(), `svcGet ${path}: ${await resp.text()}`).toBeTruthy()
+  const data = await resp.json()
+  return Array.isArray(data) ? (data as T[]) : []
+}
+
 /**
  * Create a fresh throwaway auth user (never a seeded persona — keeps this spec's
  * fixtures isolated from other specs' single-commission/single-hospital assertions).
@@ -109,6 +122,7 @@ async function makeProbeUser(
 
 test('AC-1: nsp_org_admin enrolls a PQS member on a hospital roster; member appears, then removes it', async ({
   page,
+  request,
 }) => {
   // The org-level nsp_org_admin curates EVERY hospital's roster from the org console
   // at /nsp-org/coordenadores (NspOrgHospitalManager, one <article> card per hospital)
@@ -132,6 +146,11 @@ test('AC-1: nsp_org_admin enrolls a PQS member on a hospital roster; member appe
   const value = await firstReal.getAttribute('value')
   const label = (await firstReal.textContent())?.trim() ?? ''
   expect(value).toBeTruthy()
+  // The <option> reads "Nome · email" when the person has both, while the remove
+  // control's aria-label carries `personLabel` ALONE ("Remover Nome da equipe do
+  // NSP"). Take the name half, or the by-name lookup below never matches.
+  const personName = label.split(' · ')[0].trim()
+  expect(personName.length, 'could not derive the enrolled person name').toBeGreaterThan(0)
 
   await addSelect.selectOption(value!)
   await centralCard.getByRole('button', { name: /^adicionar$/i }).click()
@@ -145,16 +164,52 @@ test('AC-1: nsp_org_admin enrolls a PQS member on a hospital roster; member appe
   ).toBeVisible({ timeout: 10_000 })
   expect(label.length).toBeGreaterThan(0)
 
-  // Remove to restore the seed roster (idempotent cleanup for re-runs).
-  const removeBtn = centralCard
-    .getByRole('button', { name: /remover .*da equipe do nsp/i })
-    .first()
+  // Remove THE MEMBER THIS TEST ADDED, by name.
+  //
+  // This used to take `.first()` of the remove buttons, which is the first row in
+  // the card — the SEEDED member, not the one just enrolled. On the seeded roster
+  // that is `admin@test.local` (`pqs_member` on hospital central-a), so the
+  // "cleanup" deleted a seed row and left the test's own addition behind.
+  //
+  // It is invisible when this file runs alone and lethal in the gate, which does
+  // NOT reset between batches: `open_capa_plan` infers its hospital from that
+  // membership, so once it is gone the RPC returns HC083 ("informe o hospital do
+  // plano de ação") and every later CAPA-dependent spec fails on setup. That is
+  // the whole 9-failure `notifications.spec.ts` cascade in the 2026-07-28 gate's
+  // batch 7 — reproduced on a fresh DB, and traced to this line.
+  const removeBtn = centralCard.getByRole('button', {
+    name: `Remover ${personName} da equipe do NSP`,
+    exact: true,
+  })
+  await expect(
+    removeBtn,
+    `no remove control for the member this test enrolled (${personName}) — refusing to ` +
+      'remove an arbitrary row, which is what corrupted the seed before',
+  ).toBeVisible({ timeout: 10_000 })
   await removeBtn.click()
   await page
     .getByRole('alertdialog')
     .getByRole('button', { name: /^remover$/i })
     .click()
   await expect(page.getByRole('alertdialog')).toBeHidden({ timeout: 10_000 })
+
+  // The roster is genuinely RESTORED, not merely shorter: the member this test
+  // added is gone AND the seeded member is still there. Without the second half
+  // the old bug passes — it also ends with one fewer row.
+  await expect(
+    centralCard.getByRole('button', { name: `Remover ${personName} da equipe do NSP`, exact: true }),
+  ).toHaveCount(0)
+  const seeded = await svcGet<{ id: string }>(
+    request,
+    `memberships?principal_id=eq.00000000-0000-0000-0000-000000000001` +
+      `&role=eq.pqs_member&hospital_id=eq.05000000-0000-0000-0000-00000000000a&select=id`,
+  )
+  expect(
+    seeded.length,
+    'the seeded pqs_member row for admin@test.local must survive this test — ' +
+      'open_capa_plan infers its hospital from it, and every later CAPA spec ' +
+      'in the gate depends on it',
+  ).toBe(1)
 })
 
 // ===========================================================================
@@ -312,7 +367,11 @@ test('AC-4: multi@test.local resolves both commission memberships in the /c pick
   page,
 }) => {
   await signInAs(page, 'multi@test.local')
-  await expect(page).toHaveURL('http://localhost:3000/c')
+  // Port-agnostic on purpose. This was hardcoded to `http://localhost:3000/c`,
+  // which passes under the gate (it serves :3000) and fails under any other
+  // baseURL — a worktree run on :3100 reports it as a REAL failure, which cost a
+  // triage cycle. `toHaveURL` honours the config's baseURL for a relative match.
+  await expect(page).toHaveURL(/\/c$/)
 
   // Picker must render exactly two commission cards (mirrors phase2-auth-shell's
   // baseline assertion — the MEM collapse must not change the resolved card count).
