@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import {
+  ANSWERABLE_ITEM_TYPES,
   MATRIX_ITEM_TYPES,
   containerByChildId,
   flattenItem,
@@ -196,16 +197,21 @@ export {
 } from '@/lib/forms/reference-constants'
 export type { ReferenceKind, ParticipantType } from '@/lib/forms/reference-constants'
 
-export const INPUT_ITEM_TYPES: readonly InputItemType[] = [
-  'multiple_choice',
-  'dropdown',
-  'checkbox',
-  'free_text',
-  'short_text',
-  'number',
-  'date',
-  'time',
-]
+// INPUT_ITEM_TYPES / ANSWERABLE_ITEM_TYPES are DEFINED in the pure
+// `@/lib/forms/item-tree` and re-exported here (BUG-FF5-001). They used to be
+// spelled out in this module AND again, by hand, in `src/lib/forms/actions.ts` —
+// and the copy drifted twice, dropping `matrix` in FF-2 and `reference` in FF-5.
+// One implementation, two specifiers: every existing `@/lib/queries/forms`
+// importer is unaffected, and the builder now consumes the same array this
+// module does instead of its own transcription.
+export {
+  INPUT_ITEM_TYPES,
+  DISPLAY_ITEM_TYPES,
+  REFERENCE_ITEM_TYPES,
+  ANSWERABLE_ITEM_TYPES,
+  ALL_ITEM_TYPES,
+  ITEM_TYPE_AUTHORITY,
+} from '@/lib/forms/item-tree'
 /** Choice inputs carry an `options` array (used by the condition editor). */
 export const CHOICE_ITEM_TYPES: readonly InputItemType[] = [
   'multiple_choice',
@@ -213,36 +219,6 @@ export const CHOICE_ITEM_TYPES: readonly InputItemType[] = [
   'checkbox',
 ]
 
-/**
- * FF-2 — every item type that PRODUCES AN ANSWER, i.e. everything a dashboard
- * may aggregate: the eight scalar/choice inputs plus the two matrix types.
- *
- * Deliberately a SEPARATE constant rather than a widened `INPUT_ITEM_TYPES`.
- * `INPUT_ITEM_TYPES` means "types whose answer is a scalar in `answers.value`",
- * and a dozen call sites (the wizard's value plumbing, the condition-target
- * picker, `effective-visibility.ts`) depend on exactly that. A matrix answers in
- * `answer_matrix_cells` instead, so widening the old set in place would have
- * quietly told all of them to read `value` on an item that never has one.
- *
- * `matrix`/`risk_matrix` are NOT condition targets ({@link CONDITION_TARGET_TYPES}
- * stays as it is): the evaluator reads `answers.value`, which is null for them.
- */
-export const ANSWERABLE_ITEM_TYPES: readonly ItemType[] = [
-  ...INPUT_ITEM_TYPES,
-  'matrix',
-  'risk_matrix',
-  // FF-5 (ADR 0091): a reference produces an answer (`answer_references`) and IS
-  // aggregated, so it belongs here — and, for exactly the reason stated above,
-  // NOT in `INPUT_ITEM_TYPES`: its `answers.value` is null, and a walk that
-  // treated it as a scalar input would read a value that never exists.
-  //
-  // ⚠ The mirror hazard of that split: a walk shaped
-  // `if (isMatrixItem(t)) … else if (!isInputItem(t)) continue` silently SKIPS
-  // reference. That is a real class of miss, not a hypothetical — it is the
-  // FF-2/FF-3 "a new door must inherit EVERY sibling arm" scar. Every such walk
-  // must dispatch on ANSWERABLE_ITEM_TYPES or name `reference` explicitly.
-  'reference',
-]
 
 /**
  * One choice option — the NORMALIZED row shape (form-model-normalization).

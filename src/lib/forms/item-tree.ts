@@ -1,4 +1,4 @@
-import type { Item, ItemType, Section } from '@/lib/queries/forms'
+import type { InputItemType, Item, ItemType, Section } from '@/lib/queries/forms'
 
 /**
  * FF-1 (ADR 0087) — the CLIENT-SAFE container-tree walkers.
@@ -29,6 +29,130 @@ export const CONTAINER_ITEM_TYPES: readonly ItemType[] = [
  * have an answer?" check must dispatch on type rather than read `value`.
  */
 export const MATRIX_ITEM_TYPES: readonly ItemType[] = ['matrix', 'risk_matrix']
+
+// ---------------------------------------------------------------------------
+// The item-type SETS — one definition, imported everywhere (BUG-FF5-001)
+// ---------------------------------------------------------------------------
+//
+// ⚠ THESE LIVE HERE BECAUSE RE-SPELLING THEM IS THE DEFECT. `src/lib/forms/
+// actions.ts` kept its own hand-written `INPUT_TYPES` / `ALL_ITEM_TYPES` /
+// `ANSWERABLE_TYPES`, and they drifted twice: `matrix` fell out when FF-2 landed
+// its writers, `reference` fell out when FF-5 landed its own. Both failed CLOSED
+// (the builder refused to create the type), both were invisible to lint,
+// typecheck, the unit suite and pgTAP, and both surfaced only when a human
+// clicked the builder. That file's own comment states the rule — "imported, not
+// re-spelled" — for `MATRIX_ITEM_TYPES`, and then re-spelled the two beside it.
+//
+// This module is the right home rather than `queries/forms.ts` because it is
+// PURE: `queries/forms.ts` value-imports the server Supabase client, so a client
+// component reaching these through it would abort `next build` while tsc, lint
+// and vitest all stayed green (BUG-FBE-005). `queries/forms.ts` re-exports them,
+// so every existing `@/lib/queries/forms` importer is unaffected.
+
+/** The eight types whose answer is a SCALAR in `answers.value`. */
+export const INPUT_ITEM_TYPES: readonly InputItemType[] = [
+  'multiple_choice',
+  'dropdown',
+  'checkbox',
+  'free_text',
+  'short_text',
+  'number',
+  'date',
+  'time',
+]
+
+/** Render-only types: the CHECK requires `content`, forbids `question_key`. */
+export const DISPLAY_ITEM_TYPES: readonly ItemType[] = ['section_text', 'image']
+
+/**
+ * FF-5 (ADR 0091) — the ENTITY REFERENCE type. Defined HERE beside
+ * {@link MATRIX_ITEM_TYPES} rather than in `reference-constants.ts`, for two
+ * reasons: this is the module that owns item-type sets, and typing it
+ * `readonly ItemType[]` there would have forced `reference-constants.ts` to
+ * import from `@/lib/queries/forms`, creating an import cycle with this file and
+ * costing that module its zero-import property.
+ *
+ * ANSWERABLE but NOT an input type: it carries a `question_key` and feeds
+ * `dashboard_entity_references`, while its answer lives in `answer_references`
+ * rather than `answers.value`.
+ */
+export const REFERENCE_ITEM_TYPES: readonly ItemType[] = ['reference']
+
+/**
+ * Every type that PRODUCES AN ANSWER — i.e. everything a dashboard may
+ * aggregate, and everything `form_items_input_vs_display` requires a
+ * `question_key` for.
+ *
+ * Deliberately NOT a widened {@link INPUT_ITEM_TYPES}: that set means "answer is
+ * a scalar in `answers.value`", and a dozen call sites depend on exactly that. A
+ * matrix answers in `answer_matrix_cells`, a reference in `answer_references`.
+ *
+ * ⚠ The mirror hazard of that split: a walk shaped
+ * `if (isMatrixItem(t)) … else if (!isInput(t)) continue` silently SKIPS
+ * `reference`. Dispatch on this set, or name `reference` explicitly.
+ */
+export const ANSWERABLE_ITEM_TYPES: readonly ItemType[] = [
+  ...INPUT_ITEM_TYPES,
+  ...MATRIX_ITEM_TYPES,
+  ...REFERENCE_ITEM_TYPES,
+]
+
+/**
+ * Every type an author may create. ⚠ A type missing here is REJECTED by
+ * `addItem` with `itemTypeInvalid` — see the tombstones above.
+ */
+export const ALL_ITEM_TYPES: readonly string[] = [
+  ...INPUT_ITEM_TYPES,
+  ...DISPLAY_ITEM_TYPES,
+  ...CONTAINER_ITEM_TYPES,
+  ...MATRIX_ITEM_TYPES,
+  ...REFERENCE_ITEM_TYPES,
+]
+
+/**
+ * THE AUTHORITY MIRROR — every value `form_items_item_type_check` admits, as a
+ * LITERAL tuple.
+ *
+ * ⚠ Written out by hand rather than derived from the sets above, deliberately.
+ * Those sets are widened (`readonly ItemType[]` / `readonly string[]`) so that
+ * `.includes(someString)` compiles at the call sites — which means
+ * `(typeof ALL_ITEM_TYPES)[number]` is just `string`, and an exhaustiveness
+ * check against `string` collapses to `never` and passes for ANY union. My first
+ * attempt at this guard did exactly that: it compiled, read like a safeguard,
+ * and could not have failed — the same could-not-fail shape as the three vacuous
+ * keystones this phase already produced.
+ *
+ * As a literal tuple, BOTH directions are compile-enforced:
+ *   · `satisfies readonly ItemType[]` — a typo'd member is an error;
+ *   · the `Exclude` below — an `ItemType` missing here is an error.
+ *
+ * So widening the DB CHECK forces a widening of `ItemType` (nothing can name the
+ * new type otherwise), which turns this file red in the editor.
+ * `item-type-sets.test.ts` ties the runtime sets back to this tuple.
+ */
+export const ITEM_TYPE_AUTHORITY = [
+  'multiple_choice',
+  'dropdown',
+  'checkbox',
+  'free_text',
+  'short_text',
+  'number',
+  'date',
+  'time',
+  'section_text',
+  'image',
+  'group',
+  'repeating_group',
+  'matrix',
+  'risk_matrix',
+  'reference',
+] as const satisfies readonly ItemType[]
+
+/** Compile error if any `ItemType` is absent from {@link ITEM_TYPE_AUTHORITY}.
+ *  The `_` prefix is the project's intentionally-unused convention; the type
+ *  ANNOTATION is the assertion, so the binding is never read. */
+type UncoveredItemType = Exclude<ItemType, (typeof ITEM_TYPE_AUTHORITY)[number]>
+const _everyItemTypeIsListed: UncoveredItemType extends never ? true : never = true
 
 /** True for `matrix` / `risk_matrix`. */
 export function isMatrixItem(itemType: string): boolean {

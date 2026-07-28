@@ -6,7 +6,14 @@ import { getSessionContext } from '@/lib/queries/session'
 import { createClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Database, Json } from '@/lib/types/database'
-import { MATRIX_ITEM_TYPES } from '@/lib/forms/item-tree'
+import {
+  ALL_ITEM_TYPES,
+  ANSWERABLE_ITEM_TYPES,
+  CONTAINER_ITEM_TYPES,
+  INPUT_ITEM_TYPES,
+  MATRIX_ITEM_TYPES,
+  REFERENCE_ITEM_TYPES,
+} from '@/lib/forms/item-tree'
 import { resolveOptionCodes, slugifyLabel, shortSuffix } from '@/lib/forms/option-code'
 import { parseItemConfig } from '@/lib/forms/parse-config'
 import { parseRequired } from '@/lib/forms/parse-required'
@@ -159,17 +166,23 @@ const VALIDATIONS_FLAG_OFF = 'HC0Q0'
 const VALIDATION_NOT_ALLOWED = 'HC0Q1'
 const VALIDATION_INVALID = 'HC0Q2'
 
-/** The input item types (mirrors INPUT_ITEM_TYPES in queries/forms.ts). */
-const INPUT_TYPES = [
-  'multiple_choice',
-  'dropdown',
-  'checkbox',
-  'free_text',
-  'short_text',
-  'number',
-  'date',
-  'time',
-]
+// ⚠ THE SETS ARE IMPORTED, NEVER RE-SPELLED (BUG-FF5-001). This file used to
+// carry its own hand-written `INPUT_TYPES` / `ALL_ITEM_TYPES` /
+// `ANSWERABLE_TYPES`, and they drifted twice — `matrix` fell out when FF-2
+// landed its writers, `reference` fell out when FF-5 landed its own. The rule
+// was already written down HERE, for `MATRIX_TYPES` ("imported, not re-spelled:
+// a fourth hand-written copy of this list is exactly the drift that let matrix
+// fall out of ALL_ITEM_TYPES") — and the two lists beside it were re-spelled
+// anyway. Definitions now live once in the pure `./item-tree`.
+//
+// Widened to `readonly string[]` at the binding (the pre-existing MATRIX_TYPES
+// precedent) so `.includes(someString)` still compiles at the call sites below.
+const INPUT_TYPES: readonly string[] = INPUT_ITEM_TYPES
+const CONTAINER_TYPES: readonly string[] = CONTAINER_ITEM_TYPES
+const MATRIX_TYPES: readonly string[] = MATRIX_ITEM_TYPES
+const REFERENCE_TYPES: readonly string[] = REFERENCE_ITEM_TYPES
+const ANSWERABLE_TYPES: readonly string[] = ANSWERABLE_ITEM_TYPES
+
 const CHOICE_TYPES = ['multiple_choice', 'dropdown', 'checkbox']
 /** Choice types that may carry per-option COLOURS (dropdown excluded — native
  * `<select>` can't render colour; decision #4). */
@@ -181,48 +194,6 @@ const COLOR_OPTION_TYPES = ['multiple_choice', 'checkbox']
 const COLOR_TOKENS = ['muted', 'slate', 'blue', 'amber', 'green', 'red', 'violet']
 /** The condition operators accepted in a `visible_when` sub-condition. */
 /** Input types a condition may TARGET (decision #7). */
-const DISPLAY_TYPES = ['section_text', 'image']
-/**
- * FF-1 (ADR 0087) — the CONTAINER types. A container collects no answer: the
- * live `form_items_input_vs_display` arm requires
- * `content IS NULL AND required = false AND question_key IS NULL AND label IS
- * NOT NULL AND default_value IS NULL`, and `form_items_no_nested_container`
- * caps depth at 1 (ruling 1). Both invariants are asserted below rather than
- * relied on, so a malformed client gets pt-BR copy instead of a raw 23514.
- */
-const CONTAINER_TYPES = ['group', 'repeating_group']
-/**
- * FF-2 (ADR 0089) — the MATRIX types. Mirrors `MATRIX_ITEM_TYPES` from
- * `./item-tree` (imported, not re-spelled: a fourth hand-written copy of this
- * list is exactly the drift that let matrix fall out of `ALL_ITEM_TYPES`).
- *
- * They are ANSWERABLE — they carry a `question_key` and feed dashboards — but
- * their answer lives in `answer_matrix_cells` / `answer_risk_matrix`, not in
- * `answers.value`. That is why they are their own set rather than members of
- * `INPUT_TYPES`, which means "answer is a scalar in `answers.value`".
- */
-const MATRIX_TYPES: readonly string[] = MATRIX_ITEM_TYPES
-/**
- * Every type an author may create. ⚠ A type missing here is REJECTED by
- * `addItem` with `itemTypeInvalid` — matrix was omitted when FF-2 Wave 1 landed
- * the writers, so `upsert_matrix_axes` was unreachable in the product while
- * every one of its own tests passed. Fails CLOSED (no bad data), invisible to
- * lint/typecheck/unit/pgTAP. Same shape as ETH·E3a's `p_case_type_id`.
- */
-const ALL_ITEM_TYPES = [
-  ...INPUT_TYPES,
-  ...DISPLAY_TYPES,
-  ...CONTAINER_TYPES,
-  ...MATRIX_TYPES,
-]
-/**
- * Types that get a minted `question_key`. NOT the same question as
- * `INPUT_TYPES`: the aggregation contract for a matrix is
- * `(question_key, row_code, col_code)`, so it needs a key just as much as a
- * scalar does — and `form_items_input_vs_display` REQUIRES one for both matrix
- * types. Mirrors `ANSWERABLE_ITEM_TYPES` in queries/forms.ts.
- */
-const ANSWERABLE_TYPES = [...INPUT_TYPES, ...MATRIX_TYPES]
 
 /** The builder route family — revalidated as dynamic-segment pages. */
 const BUILDER_FORM_PATH = '/o/[org]/c/[commission]/manage/forms/[formId]'
@@ -1099,6 +1070,66 @@ function parseItemFields(
         // conditionally-required grid is a coherent state.
         required_if: parsedRequiredIf.requiredIf,
         content: null,
+        default_value: null,
+      },
+      options: null,
+    }
+  }
+
+  // FF-5 (ADR 0091) — the REFERENCE arm. ⚠ THE THIRD SITE, and the one that made
+  // the other two insufficient: `parseItemFields` dispatches on INPUT /
+  // CONTAINER / MATRIX / section_text / image and falls through to
+  // `itemTypeInvalid`. So adding `reference` to the allowlist and to
+  // ANSWERABLE_TYPES alone would have moved the rejection from `addItem`'s gate
+  // to THIS function's fallback — the SAME pt-BR message from a different line,
+  // which would have read as "the fix didn't land".
+  //
+  // It also means `updateItem` was broken too, not just `addItem`: it calls
+  // `parseItemFields(existing.item_type, …)`, so EDITING a reference item (the
+  // seeded FORM D, inserted via raw SQL) failed for this reason, with no
+  // `ALL_ITEM_TYPES` gate involved anywhere.
+  //
+  // ITS OWN ARM, not a member of MATRIX_TYPES — deliberately. Joining that set
+  // would make `reference` axis-bearing everywhere `MATRIX_ITEM_TYPES` is
+  // consumed (the axis embeds in `toItem`, `upsert_matrix_axes`, the publish
+  // validation), and a reference has no axes. The body is a near-copy of the
+  // matrix arm because the CHECK arms are now identical — both require
+  // `question_key`+`label`, both forbid `content`, and FF-5 released `required` /
+  // `required_if` for `reference` (20260902000000).
+  //
+  // `config` comes from `parseConfig` → `parseItemConfig`, which already has a
+  // `reference` branch for `referenceKind` / `participantTypes`; no new parsing
+  // is needed here, and an unknown lane is rejected there rather than silently
+  // defaulting to `participant`.
+  if (REFERENCE_TYPES.includes(itemType)) {
+    const label = String(formData.get('label') ?? '').trim()
+    if (!label) {
+      return { error: { ok: false, fieldErrors: { label: MESSAGES.labelRequired } } }
+    }
+    const explanation = String(formData.get('questionExplanation') ?? '').trim()
+
+    const parsedConfig = parseConfig(itemType, formData)
+    if ('error' in parsedConfig) return { error: parsedConfig.error }
+
+    const parsedVisible = parseVisibleWhen(formData)
+    if ('error' in parsedVisible) return { error: parsedVisible.error }
+
+    const parsedRequiredIf = parseRequiredIf(formData)
+    if ('error' in parsedRequiredIf) return { error: parsedRequiredIf.error }
+
+    const required = parseRequired(formData)
+
+    return {
+      columns: {
+        label,
+        question_explanation: explanation || null,
+        config: parsedConfig.config,
+        visible_when: parsedVisible.visibleWhen,
+        required,
+        required_if: parsedRequiredIf.requiredIf,
+        content: null,
+        // No scalar to pre-fill: a reference answer is a row in
+        // `answer_references`, never a value in `answers.value`.
         default_value: null,
       },
       options: null,
