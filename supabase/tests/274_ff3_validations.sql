@@ -15,7 +15,7 @@
 
 begin;
 
-select plan(81);
+select plan(89);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -1325,6 +1325,199 @@ select is(
     where s.id = 'ff300000-0000-0000-0000-000000000055'),
   '{"op": "is_empty", "question_key": "l7_gate"}'::jsonb,
   'L8. …and the section condition round-trips unchanged');
+
+-- ===========================================================================
+-- §N · `required_if` on a MATRIX - the arm I enabled and never keystoned.
+--
+--   `parseItemFields` lets a matrix carry `required_if` on purpose (the shape
+--   CHECK excludes only `reference`, containers and display items), and
+--   `app.item_is_required` is applied with NO `item_type` filter, so the flat and
+--   per-instance arms both reach `app.item_required_satisfied`'s ROW-COMPLETE
+--   branch. Every `required_if` assertion in §D above uses `short_text`, so the
+--   whole matrix pairing was unasserted - a branch that works, that nothing
+--   proves, and that no test would catch regressing.
+--
+--   VERIFIED BEFORE WRITING, not reasoned: a throwaway rolled-back probe drove
+--   publish -> fill -> submit and observed required_complete t/f/f/t and HC011 in
+--   the predicted places. It is a COVERAGE gap, not a defect.
+--
+--   Its own form/version, so §D-§L are untouched. Folding a required-capable
+--   matrix into the shared fixture would have flipped D4 (the gate that makes
+--   `v_reqif` required is the same gate) - the section would have "passed" by
+--   breaking its neighbours.
+--
+--   MUTATIONS RUN, with the OBSERVED output. Two predictions were wrong again, and
+--   the first correction is the one worth reading:
+--
+--   A · `and i.item_type <> 'matrix'` on the FLAT arm's `app.item_is_required`
+--       conjunct in `app.response_required_complete`
+--       -> N2, N3 red. **N4 stays GREEN**, which I predicted red - and that is the
+--          finding: N4 goes through `submit_response`, which holds its OWN COPY of
+--          the required_if logic. `response_required_complete` and
+--          `submit_response` are TWO sites, so a mutation to one cannot red an
+--          assertion that exercises the other. Same one-of-N-sites family as the
+--          `validate_visible_when` call site in `20260901000700`. Mutation D below
+--          exists only because this one revealed the second site.
+--       -> **No §D assertion red**, which is the redundancy answer: §D is
+--          structurally blind to the matrix pairing, so §N is not decorative.
+--
+--   B · the same filter on the GROUP arm
+--       -> N7 red ALONE. Again no §D assertion red.
+--
+--   C · drop the `app.eval_visibility(i.visible_when, ...)` conjunct from the flat
+--       arm
+--       -> D4, N5 red (both deadlock-negatives, at two different item types) and
+--          N8 as collateral. **N6 stays GREEN** - predicted red. N6 counts stored
+--          cells and does not consult the predicate at all, which is exactly why
+--          it is a usable anti-vacuity companion to N5 rather than a duplicate of
+--          it.
+--
+--   D · `and r_item.item_type <> 'matrix'` on **`submit_response`'s** flat arm
+--       -> N4 red with `caught: no exception / wanted: HC011`, plus 4 NOT-RUN:
+--          once submit stops refusing, the response is submitted and the next
+--          `save_section_answers` aborts the file. pg_prove reports that as
+--          "Failed 5/89" = 1 failed + 4 never reached; the real red is N4.
+-- ===========================================================================
+insert into public.forms (id, commission_id, title, created_by)
+  values ('ff300000-0000-0000-0000-000000000071', (select comm_x from k), 'FF3-N', (select sa_x from k));
+insert into public.form_versions (id, form_id, version_number, status)
+  values ('ff300000-0000-0000-0000-000000000072', 'ff300000-0000-0000-0000-000000000071', 1, 'draft');
+insert into public.form_sections (id, form_version_id, position, is_default)
+  values ('ff300000-0000-0000-0000-000000000073', 'ff300000-0000-0000-0000-000000000072', 0, true);
+insert into public.form_sections (id, form_version_id, position, title)
+  values ('ff300000-0000-0000-0000-000000000077', 'ff300000-0000-0000-0000-000000000072', 1, 'Bloco N');
+
+-- sec 0 / pos 0 - the gate both required_ifs read.
+insert into public.form_items (id, section_id, position, item_type, question_key, label)
+  values ('ff300000-0000-0000-0000-000000000074', 'ff300000-0000-0000-0000-000000000073', 0, 'multiple_choice', 'n_gate', 'Porta N');
+insert into public.form_item_options (item_id, position, code, label) values
+  ('ff300000-0000-0000-0000-000000000074', 0, 'sim', 'Sim'),
+  ('ff300000-0000-0000-0000-000000000074', 1, 'nao', 'Não');
+
+-- sec 0 / pos 1 - a matrix required ONLY when the gate says "sim". `required` is
+-- false, so every block below is required_if's doing and nothing else.
+insert into public.form_items (id, section_id, position, item_type, question_key, label, required, required_if)
+  values ('ff300000-0000-0000-0000-000000000075', 'ff300000-0000-0000-0000-000000000073', 1, 'matrix', 'n_mx', 'Grade', false,
+          '{"question_key":"n_gate","op":"equals","value":"sim"}'::jsonb);
+insert into public.form_matrix_rows (item_id, form_version_id, position, code, label) values
+  ('ff300000-0000-0000-0000-000000000075', 'ff300000-0000-0000-0000-000000000072', 0, 'r1', 'Linha 1'),
+  ('ff300000-0000-0000-0000-000000000075', 'ff300000-0000-0000-0000-000000000072', 1, 'r2', 'Linha 2');
+insert into public.form_matrix_columns (item_id, form_version_id, position, code, label) values
+  ('ff300000-0000-0000-0000-000000000075', 'ff300000-0000-0000-0000-000000000072', 0, 'ok', 'Conforme'),
+  ('ff300000-0000-0000-0000-000000000075', 'ff300000-0000-0000-0000-000000000072', 1, 'nok', 'Não conforme');
+
+-- sec 0 / pos 2 - THE DEADLOCK-NEGATIVE MATRIX: visible only when the gate says
+-- "nao", required only when it says "sim". The two can never both hold, so with
+-- gate = "sim" it is hidden AND required_if-true, with an empty grid.
+insert into public.form_items (id, section_id, position, item_type, question_key, label, required, visible_when, required_if)
+  values ('ff300000-0000-0000-0000-000000000076', 'ff300000-0000-0000-0000-000000000073', 2, 'matrix', 'n_mx_oculta', 'Grade oculta', false,
+          '{"question_key":"n_gate","op":"equals","value":"nao"}'::jsonb,
+          '{"question_key":"n_gate","op":"equals","value":"sim"}'::jsonb);
+insert into public.form_matrix_rows (item_id, form_version_id, position, code, label) values
+  ('ff300000-0000-0000-0000-000000000076', 'ff300000-0000-0000-0000-000000000072', 0, 'h1', 'Linha oculta');
+insert into public.form_matrix_columns (item_id, form_version_id, position, code, label) values
+  ('ff300000-0000-0000-0000-000000000076', 'ff300000-0000-0000-0000-000000000072', 0, 'hok', 'OK');
+
+-- sec 1 - the per-instance arm. Children contiguous after the container, and the
+-- matrix's required_if reads a sibling IN THE SAME instance (inside-out).
+insert into public.form_items (id, section_id, position, item_type, label)
+  values ('ff300000-0000-0000-0000-000000000078', 'ff300000-0000-0000-0000-000000000077', 0, 'repeating_group', 'Repetições N');
+insert into public.form_items (id, section_id, position, item_type, question_key, label, parent_item_id)
+  values ('ff300000-0000-0000-0000-000000000079', 'ff300000-0000-0000-0000-000000000077', 1, 'multiple_choice', 'n_c_flag', 'Grave?', 'ff300000-0000-0000-0000-000000000078');
+insert into public.form_item_options (item_id, position, code, label) values
+  ('ff300000-0000-0000-0000-000000000079', 0, 'sim', 'Sim'),
+  ('ff300000-0000-0000-0000-000000000079', 1, 'nao', 'Não');
+insert into public.form_items (id, section_id, position, item_type, question_key, label, required, parent_item_id, required_if)
+  values ('ff300000-0000-0000-0000-00000000007a', 'ff300000-0000-0000-0000-000000000077', 2, 'matrix', 'n_c_mx', 'Grade do bloco', false, 'ff300000-0000-0000-0000-000000000078',
+          '{"question_key":"n_c_flag","op":"equals","value":"sim"}'::jsonb);
+insert into public.form_matrix_rows (item_id, form_version_id, position, code, label) values
+  ('ff300000-0000-0000-0000-00000000007a', 'ff300000-0000-0000-0000-000000000072', 0, 'i1', 'Linha A');
+insert into public.form_matrix_columns (item_id, form_version_id, position, code, label) values
+  ('ff300000-0000-0000-0000-00000000007a', 'ff300000-0000-0000-0000-000000000072', 0, 'ia', 'A');
+
+select public.publish_form_version('ff300000-0000-0000-0000-000000000072');
+
+insert into public.responses (id, form_version_id, commission_id, created_by, status)
+  values ('ff300000-0000-0000-0000-00000000007b', 'ff300000-0000-0000-0000-000000000072',
+          (select comm_x from k), (select st_x from k), 'in_progress');
+
+-- The FF-2 matrix write door (`app.assert_matrix_answer_writable`) checks
+-- auth.uid() against the response creator, so the cell writes below need a JWT —
+-- unlike every other write in this file, which RLS lets through as the owner.
+select test_helpers.claims_for((select st_x from k), false);
+
+-- gate = "nao": required_if FALSE on both matrices, both grids empty.
+select public.save_section_answers(
+  'ff300000-0000-0000-0000-00000000007b', 'ff300000-0000-0000-0000-000000000073',
+  p_selections => '{"ff300000-0000-0000-0000-000000000074":["nao"]}'::jsonb);
+
+select ok(app.response_required_complete('ff300000-0000-0000-0000-00000000007b'),
+  'N1. required_if FALSE on a matrix requires nothing, even with an empty grid');
+
+-- gate = "sim": the flat matrix becomes required; the other becomes hidden.
+select public.save_section_answers(
+  'ff300000-0000-0000-0000-00000000007b', 'ff300000-0000-0000-0000-000000000073',
+  p_selections => '{"ff300000-0000-0000-0000-000000000074":["sim"]}'::jsonb);
+
+select ok(not app.response_required_complete('ff300000-0000-0000-0000-00000000007b'),
+  'N2. required_if TRUE on a matrix BLOCKS with an empty grid (no item_type filter)');
+
+-- One of two rows: ROW-COMPLETE, not "any cell anywhere".
+select public.save_section_answers(
+  'ff300000-0000-0000-0000-00000000007b', 'ff300000-0000-0000-0000-000000000073',
+  p_matrix_cells => '{"ff300000-0000-0000-0000-000000000075":{"r1":"ok"}}'::jsonb);
+
+select ok(not app.response_required_complete('ff300000-0000-0000-0000-00000000007b'),
+  'N3. …and ONE of two rows is still incomplete — required_if composes with row-complete');
+
+select throws_ok(
+  $q$select public.submit_response('ff300000-0000-0000-0000-00000000007b')$q$,
+  'HC011', null,
+  'N4. …and submit_response refuses it (the flat arm, end to end)');
+
+-- Complete the grid. The HIDDEN matrix is still required_if-TRUE and still empty,
+-- so N5 passing is the deadlock-negative for the matrix lane.
+select public.save_section_answers(
+  'ff300000-0000-0000-0000-00000000007b', 'ff300000-0000-0000-0000-000000000073',
+  p_matrix_cells => '{"ff300000-0000-0000-0000-000000000075":{"r1":"ok","r2":"nok"}}'::jsonb);
+
+select ok(app.response_required_complete('ff300000-0000-0000-0000-00000000007b'),
+  'N5. DEADLOCK-NEGATIVE: the HIDDEN matrix is required_if-TRUE and never blocks');
+
+select is(
+  (select count(*)::int
+     from public.answer_matrix_cells c
+     join public.answers a on a.id = c.answer_id
+    where a.response_id = 'ff300000-0000-0000-0000-00000000007b'
+      and a.item_id = 'ff300000-0000-0000-0000-000000000076'),
+  0, 'N6. …and that hidden grid really is empty (N5 is not passing because it got filled)');
+
+-- ---- the PER-INSTANCE arm ----
+insert into public.response_group_instances (id, response_id, group_item_id, position)
+  values ('ff300000-0000-0000-0000-00000000007c', 'ff300000-0000-0000-0000-00000000007b',
+          'ff300000-0000-0000-0000-000000000078', 0);
+
+select public.save_section_answers(
+  'ff300000-0000-0000-0000-00000000007b', 'ff300000-0000-0000-0000-000000000077',
+  p_instance_answers => '[
+    {"instance_id":"ff300000-0000-0000-0000-00000000007c",
+     "selections":{"ff300000-0000-0000-0000-000000000079":["sim"]}}
+  ]'::jsonb);
+
+select ok(not app.response_required_complete('ff300000-0000-0000-0000-00000000007b'),
+  'N7. GROUP ARM: required_if TRUE on a matrix CHILD blocks, per instance');
+
+select public.save_section_answers(
+  'ff300000-0000-0000-0000-00000000007b', 'ff300000-0000-0000-0000-000000000077',
+  p_instance_answers => '[
+    {"instance_id":"ff300000-0000-0000-0000-00000000007c",
+     "matrix_cells":{"ff300000-0000-0000-0000-00000000007a":{"i1":"ia"}}}
+  ]'::jsonb);
+
+select ok(app.response_required_complete('ff300000-0000-0000-0000-00000000007b'),
+  'N8. …and completing THAT instance''s grid clears it');
+
+select set_config('request.jwt.claims', null, true);
 
 select * from finish();
 rollback;
