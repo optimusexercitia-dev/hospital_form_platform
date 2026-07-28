@@ -943,3 +943,36 @@ combining marks before the `_` collapse, which **changes minted codes platform-w
 PO call, not a tester call. Pinned as-is by `e2e/ff2-matrix.spec.ts` (FF2-1, FF2-2) so a future
 change to the slugger is a deliberate one.
 
+
+## Live-PROGRESS block, rotated out 2026-07-28 at the FF-3 Record
+
+
+QA **APPROVED** (r2, after CHANGES REQUESTED at r1) · human-approved · flag `matrix_fields` **ON**
+(gate flip `20260830001200`) · merged to `main`. **Remote `db push` NOT done** (local only, as every
+S-phase — user-gated). **36 commits · 16 migrations `20260830000000`–`20260830001500`.**
+
+**Full record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md)** (the four PO
+rulings, all 13 defects with repro/fix, the door-parity sweep, every mutation proof, the gate triage).
+Reviews: [r1](docs/reviews/ff-2-review.md) · [r2](docs/reviews/ff-2-review-r2.md).
+
+**Final bar:** pgTAP **139 files / 4061 / PASS** (clean reset) · Vitest **593/593** · lint **0/0**
+(eslint + the new `[--var]` guard) · `next build` ✅ · migrations **216 == 216** · `e2e:prod` green
+for FF-2.
+
+**Shipped:** radio-grid cell contract (`UNIQUE (answer_id, row_id)`), `weight` on both axis tables
+with **server-derived** `risk_score`, `required` = every row answered (flat **and** per-instance),
+axis `code`s immutable by trigger; builder axes/bands editors; wizard grid + severity×likelihood
+picker; sign-off, submission **and** dashboard cell-unit/risk surfaces (both follow-ups were pulled
+into gate scope by PO ruling, so the phase ships its full ADR scope).
+
+> ⚠ **Two rules this phase paid for, binding on FF-3 / FF-5.**
+> 1. **A new door or policy must carry EVERY arm its sibling carries** — proven as a table, not
+>    asserted. Missed **four times in one phase**, each in a different direction (a DEFINER gate
+>    *stricter* than the RLS it replaced; a writer door narrower than the `answers` policy; SELECT
+>    policies missing the corrector arm; axis tables missing the targeted arm). Keystone:
+>    `272_ff2_door_parity.sql`.
+> 2. **`form_item_validations` (FF-3) and `answer_references` (FF-5) are missing the targeted and
+>    correction arms**, deliberately unfixed while write-inert. **Their writers landing is when that
+>    stops being true** — handed forward the way FF-1 handed FF-2 its P0-1 correction-copy obligation.
+
+

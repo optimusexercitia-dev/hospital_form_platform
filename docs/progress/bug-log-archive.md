@@ -159,3 +159,149 @@
 | BUG-CORR-001 | case-corrections (T-1) | MINOR (stale user-facing copy + dead code, not a security/data issue) | `ConcludeNarrativeButton`'s confirm dialog (`src/components/cases/conclude-narrative-button.tsx:52-53`) still reads "Ao concluir, o conteúdo desta narrativa é congelado e deixa de ser editável. **A coordenação pode reabri-la depois, se necessário.**" — but `reopen_narrative` was dropped platform-wide (BE-4) and NO "Reabrir narrativa" control exists anywhere in the render tree (grepped every `case-*.tsx`; only live "Reabrir" is the case-level `ReopenCaseButton`, ADR 0085 intended). Repro: sign in `chefe.ccih@test.local`, open any case with an open narrative, click "Concluir" on the narrative card → the confirm dialog text. Related dead code (same root cause, not user-facing but worth cleaning alongside): `case-narrative-card.tsx`'s `canReopen` prop (doc comment L52-53 + the guard at L213) and `case-phase-list.tsx`'s live `canReopen` computation (L160-163, `isOpen && status==='completed' && canManageLifecycle`) are both now VESTIGIAL — computed/threaded but never used to render a control. | The confirm-dialog copy should say the narrative can only be corrected via the correction lifecycle (no more in-place reopen); the dead `canReopen` prop/computation should be removed. | Copy still promises an in-place reopen; dead prop survives BE-6's stub cleanup. | `e2e/case-narratives.spec.ts` AC-9 | frontend | **✅ RESOLVED** — fixed by FE-4 `450d8d5` (copy now points at the correction lifecycle; `canReopen` removed from both files). Re-verified 2026-07-24 (tester, T-2): `e2e/case-narratives.spec.ts` AC-9 updated to assert the NEW copy + absence of the old string, clean-stack re-run green. |
 | BUG-E3A-001 | ETH·E3a (T-1) | MAJOR (2 of the phase's 3 terminology strings never render anywhere in the UI, despite the backend fully resolving them — the primary deliverable of E3a is 2/3 unimplemented) | `getCaseDetail` correctly resolves `detail.terminology.case.singular = "Denúncia"` and `detail.terminology.primarySubject.singular = "Médico denunciado"` for the seeded Ethics case (`ca000000-…-e1`) — confirmed live via the passing pgTAP `262`. But NO frontend component reads `detail.terminology.case` or `detail.terminology.primarySubject` anywhere (exhaustive grep of `src/app` + `src/components`: the ONLY consumer of `.terminology.` is `case-tabs.tsx`/`(detail)/layout.tsx`'s `timelineLabel={detail.terminology.timeline.singular}`). `case-detail-view.tsx`'s H1 and the `(detail)/layout.tsx`'s H1 both call `formatCaseNumber(c.caseNumber)` (`src/components/cases/format.ts:9`), which hardcodes the literal string `"Caso "` regardless of case type. The string "Médico denunciado" (the seeded `case_participant_roles.display_name` for `respondent_doctor`) is never rendered by any component — no participants/subject panel exists on the case-detail surface for a `primary_subject_kind='professional'` case (the design doc's own §2.5 touch-list called for `case-detail-view.tsx` to "swap primary_subject-framed copy", but the delivered FE-1/FE-2 build (PROGRESS.md's own reconciliation note) only wired the timeline-tab label). Repro: sign in `chefe.ccih@test.local`, open `/o/rede-a/c/ccih/manage/cases/ca000000-0000-0000-0000-0000000000e1` → H1 reads "Caso 0006" (not "Denúncia …"); "Médico denunciado" does not appear anywhere on the page (confirmed via `page.getByText(...)`, 10s timeout, element not found). | H1/breadcrumb renders "Denúncia" (not "Caso"); "Médico denunciado" appears where the primary-subject label belongs (acceptance §4-1). | H1 = "Caso 0006"; "Médico denunciado" absent from the DOM entirely. | `e2e/ethics-e3a-surfacing.spec.ts` TERM-3, TERM-4 (both fail reproducibly — isolated re-runs + 2 full-file runs on independent fresh resets) | frontend | **✅ RESOLVED** — fixed by FE `ef5c38b` (new `formatCaseNumberWithTerm(detail.terminology.case.singular, caseNumber)` on both detail H1s; new read-only `CasePrimarySubjectPanel` rendering `terminology.primarySubject.singular` + the primary-subject participant, shown when `primarySubjectKind` is `professional`/`entity`). Re-verified 2026-07-27 (tester): TERM-3 passes as-is; TERM-4 needed a spec-only selector fix (see Test Run Summary — the panel legitimately shows "Médico denunciado" twice, as its own heading and as the seeded respondent's role line, so a plain `getByText` strict-mode-failed; retargeted to `getByRole('region'/'heading', {name:...})`). Full spec 21/21 on 2 independent fresh resets, no regression in the other 17. |
 | BUG-E3A-002 | ETH·E3a (T-1) | MINOR (cosmetic — the RLS security boundary is unaffected and independently proven correct; only the informational badge fails to render, and only for viewers already authorized to see the row) | `src/lib/queries/case-documents.ts`'s `listCaseEvents()` (the sole reader feeding `CaseEventsTimeline`) never selects the `case_events.visibility` column (its `.select(...)` list at L234-238 omits it) and its row mapper hardcodes `visibility: 'case_readers'` for EVERY returned event (L255), with a stale comment claiming "BE-5 projects it" — it never was. Consequence: the "Somente coordenação" Lock badge (`case-events-timeline.tsx:96-101`, gated on `ev.visibility === "coordinator_only"`) can NEVER render for anyone, even a coordinator legitimately viewing a genuine `coordinator_only` row (confirmed both for an auto-derived `finding_recorded` event AND a manually-created one via the UI's own "Visibilidade → Somente coordenação" toggle — both persist `coordinator_only` correctly in the DB, per direct query, but the client always displays them as if `case_readers`). Row PRESENCE/ABSENCE per viewer is unaffected (proven correct: EVT-4/5/6 pass — an ordinary reader never receives the row at all, RLS-enforced upstream of this bug). Repro: sign in `chefe.ccih@test.local` on any case with a `coordinator_only` event → the event row renders with no "Somente coordenação" badge. | A `coordinator_only` event's row carries the "Somente coordenação" badge for any viewer who can see it (design doc §2.5). | Every event displays as if `case_readers`; the badge never renders regardless of the true value. | `e2e/ethics-e3a-surfacing.spec.ts` EVT-2 (auto-derived), EVT-3 (manual) — both fail reproducibly, isolated + full-file runs | backend | **✅ RESOLVED** — fixed by BE `1ce0876` (`listCaseEvents()` now selects `visibility` and projects the real column instead of the hardcoded `'case_readers'`; stale comment removed). Re-verified 2026-07-27 (tester): EVT-2 (auto-derived `finding_recorded`) and EVT-3 (manually-flagged note) both now show the "Somente coordenação" badge, on 2 independent fresh resets. Row presence/absence (the actual RLS boundary) was already correct throughout and remains unaffected (EVT-4/5/6 still pass). |
+
+## FF-3-era closed bugs (rotated from PROGRESS.md 2026-07-28 at the FF-3 Record)
+
+FF-2's five (BUG-FF2-001…005) and the two out-of-phase fixes it absorbed (BUG-FF1-006 `HC0N2`,
+BUG-FF1-007 `<> ''''`) are **all closed and re-verified**, with full repro/fix detail in
+[ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md). The ETH·E2 targeted-lane fix
+(`4ee24c8`) is recorded there too.
+
+#### ✅ BUG-E2E-001 — `mem-memberships-collapse` AC-1 deleted a SEED membership in its own cleanup, poisoning every later batch of the gate · severity **MAJOR (test-suite)** · **CLOSED 2026-07-28** (found + fixed + re-verified by `tester`)
+
+**The only real defect in the 2026-07-28 gate's 140 failures**, and it is in `e2e/`, not in app code.
+
+AC-1 enrolls a PQS member on the central-a roster, then removes one to "restore the seed roster" —
+but it took **`.first()`** of the remove buttons, which is the *first row in the card*, not the row it
+had just added. On the seeded roster that first row is **`admin@test.local` (`pqs_member`, hospital
+`05000000-…-000a`)**. So the cleanup deleted a **seed** row and left the test's own addition behind.
+
+**Why it detonated only in the gate:** the gate does **not** `db reset` between batches.
+`open_capa_plan` infers its hospital from exactly that membership, so once it was gone the RPC
+answered **HTTP 400 `HC083` — "informe o hospital do plano de ação"**, and every CAPA-dependent spec
+downstream failed in setup. That is the entire **9-failure `notifications.spec.ts` cascade in batch 7**.
+Running `notifications.spec.ts` alone passes 8/8, which is why it had never been caught.
+
+**Proven, not inferred**, in four steps: (1) reproduced batch 7's exact six-file composition on a
+**fresh** DB → the same cascade; (2) read the persona's memberships in the contaminated state → only
+the `org_admin` row survived, the `pqs_member` row was gone; (3) replayed the RPC live in that state →
+`400 HC083`, against `200` on a fresh seed; (4) compared to a fresh seed → two rows, confirming which
+one was destroyed.
+
+**Fixed** by removing the member the test actually added, addressed **by name**
+(`Remover ${personName} da equipe do NSP`), with a guard that fails loudly if that control is missing
+rather than falling back to an arbitrary row. Two assertions were added so the old behaviour cannot
+return silently: the added member's control is gone **and** the seeded `pqs_member` row still exists.
+The second is the load-bearing one — the old bug also ends with one fewer row, so an
+absence-only check passes under it.
+
+**Re-verified:** batch 7's composition went **78/87 → 86/87** on a fresh DB (the notifications cascade
+gone entirely), and `mem-memberships-collapse` is **7/7** standalone.
+
+> ⚠ **The class, worth a sweep beyond this fix:** a spec whose cleanup targets `.first()` (or any
+> positional locator) rather than the row it created will eventually eat a seed row. It is invisible
+> file-locally and only surfaces in a gate that does not reset between batches.
+
+#### ✅ BUG-FF3-002 — the two unary operators were OFFERED by every condition picker but could not be SAVED · severity **MAJOR / phase-blocking** · **CLOSED 2026-07-28** (fixed `91f4931`, re-verified by `tester`)
+
+**Blocks ADR 0090 ruling 5 + Amendment 2** — the pickers are the phase's whole shipped operator
+surface, and choosing either option makes the question **unsaveable**. Fails **CLOSED** (a refusal,
+not a silent accept), which is why lint / tsc / Vitest 748 / pgTAP 4157 / `next build` all stayed green.
+
+**Root cause — and a correction to this report.** The drift was real and the direction was right
+(the database was the *permissive* side; the TypeScript half of the mirror was never widened). **But
+the line this report originally blamed was the wrong one.** It fingered `isValidCondition`'s
+`if (!('value' in rec)) return false`. The actual rejection was **one line earlier**: `CONDITION_OPS`
+still held the pre-F3 seven operators, so `is_empty` failed the allowlist before the value check was
+ever reached — and `condition-builder.tsx:204` emits `value: null`, a **present** key, so the blamed
+line never fired at all. `backend` checked the prescribed one-line exemption against reality, found it
+would not have worked, and fixed the real cause instead.
+
+*Lesson worth keeping, since this is the second time this phase:* **a repro proves the symptom; the
+line you can see failing is a hypothesis until something mutates it.** The fix is mutation-proven both
+ways — reverting `CONDITION_OPS` to seven reds 8 assertions including *"is_empty with an explicit null
+value (what the builder emits)"*, while removing only the value exemption reds 3 and leaves that one
+green.
+
+**Live proof, three cells so it cannot be read as "`required_if` is just broken"** (prod-standalone
+:3100, `chefe.ccih@test.local`, item editor on a `short_text` with a `multiple_choice` target):
+
+| # | What was authored | Result |
+|---|---|---|
+| A | `required_if` + `equals` + value | **SAVED** — `{"op": "equals", "value": "uti_…", "question_key": "setor_auditado_…"}` in `form_items.required_if` |
+| B | `required_if` + `is_empty` | **REFUSED** — dialog stays open: *"A condição de obrigatoriedade deve ser uma única condição (sem E/OU)."* `required_if` stays NULL |
+| C | item **`visible_when`** + `is_empty` | **REFUSED** — dialog stays open, no recognisable message surfaced at all; `visible_when` stays NULL |
+| — | the catalog's opinion of the same shape | `select app.is_valid_condition('{"question_key":"x","op":"is_empty"}'::jsonb)` → **`t`** |
+
+**Scope is wider than `required_if`.** `parseVisibleWhen` calls the same helper
+(`actions.ts:854`/`861`), so **item and section visibility are equally blocked** — and FF-3 is what
+added the unary options to `condition-builder.tsx` in *all three* contexts, so cell C is this phase's
+regression surface too, on a long-shipped feature.
+
+**Secondary claims, re-checked at the lead's request — one stands, one was mine to retract.**
+(1) Cell B's message *was* wrong — "sem E/OU" when the author used neither. Moot now that the input
+saves. (2) **"Cell C surfaces no message" was a false report, and the fault was the probe's, not the
+product's:** it scraped for `/A condição/` while the copy is *"Condição de aparência inválida."* — no
+leading article. The dialog was refusing with a message the probe could not see. **No swallow exists**
+— re-verified positively by **FF3-6e**, which drives a reachable action refusal (`min > max` on the
+character limits) and asserts it lands in a `role="alert"` live region with the dialog still open and
+nothing persisted. Nor is there anything left to swallow: the builder gates on `isRowComplete` and only
+offers operators from `opsForType`, and `app.is_valid_condition` returns `f` for an unknown op (so one
+cannot even be seeded), which makes the invalid-condition branch unreachable from the UI by
+construction. **No dispatch to `frontend` needed.**
+
+**Why FF-3's own verification missed it:** F1 proved unary publishability by calling
+`public.validate_visible_when` **directly on a cloned draft**, and B5 proved storability against
+`app.is_valid_condition`. Neither path goes through the server action, which is the only thing the UI
+can reach. *(Same shape as the memory note "a declared param no caller passes is invisible to every
+layer" — here, a widened gate no caller can reach.)*
+
+**Regression cover — all green at `91f4931`, all RED before it:** **FF3-6** (`required_if`, 4 target
+types, save → round-trip → **publish**), **FF3-6b** (item `visible_when`), **FF3-6d** (**section**
+`visible_when` — the cell the first report only *reasoned* was identical because it shares
+`parseVisibleWhen`; reasoning from a shared code path is how this bug survived F1, so it is now
+executed), **FF3-6c** (picker vocabulary, incl. Amendment 2's deliberate absence of
+`contains`/`not_contains`) and **FF3-6e** (the error channel, above).
+
+The **publish** half matters most: it had been verified only at the DB layer, by calling
+`validate_visible_when` directly on a cloned draft — the layer that missed the bug. It now runs through
+the UI for all four target types.
+
+#### ✅ BUG-FF3-001 — after a blocked navigation, the untouched peer repetition kept a stale `unique_within_group` message and `aria-invalid` · severity **MINOR** · **CLOSED 2026-07-28** (fixed `8d53b3d`, re-verified by `tester`)
+
+`unique_within_group` is the only **symmetric** rule in the vocabulary: two repetitions violate it
+jointly, so resolving it on one resolves it on both. The wizard's sticky error map is cleared **per
+edited field**, so the peer the user did not touch keeps both its message and `aria-invalid="true"`
+for a violation that no longer exists.
+
+**Isolated in both directions** (so it is not "instance errors are broken"):
+
+| Path | flat field | instance bounds | `unique_within_group` peer |
+|---|---|---|---|
+| live only, **before** any blocked navigation | clears ✅ | clears ✅ | clears ✅ |
+| **after** pressing Revisar (sticky map installed) | clears ✅ | clears ✅ | **stale ❌** (`aria-invalid` still `true`) |
+
+**Display-only:** a second Revisar reaches the review screen and the banner clears, so nothing is
+blocked and no bad submit is possible. The harm is that ADR 0090 ruling 3's own reasoning —
+*"marking an input invalid for a rule the server accepts misinforms assistive tech"* — is violated
+transiently, on a field that is now valid.
+
+**Fixed** by keying the clear on the symmetric rule's whole participant set rather than on the edited
+field alone. **FF3-7b has been deleted and its assertion folded back into FF3-7**, exactly as its own
+note said to do on the day of the fix: FF3-7 now asserts the full contract — after resolving the
+duplicate on one side, the message count is **0 across the page** and `aria-invalid` is null on **both**
+repetitions, the untouched one included. The `test.fail()` marker is gone from the file entirely.
+
+
+### ✅ BUG-FF1-008 — CLOSED by FF-3 (ADR 0090 Amendment 3)
+
+#### 🟡 BUG-FF1-008 — `form-builder-enhancements.spec.ts:768` AC-4 pins behaviour FF-1 deliberately removed · owner `tester` · **OPEN** (filed 2026-07-27)
+
+Asserts the "obrigatória" toggle is DISABLED beside a visibility condition. `git log -L` blames the
+"offered BESIDE a visibility condition" change to **`633e688 feat(ff-1)`**, and FF-1's own
+`20260828000000` dropped `form_items_conditional_not_required` (confirmed absent from the live
+catalog). ~2 lines to repin. **Red on every run since FF-1 and written off as flaky-baseline noise** —
+see FUP-E2E-1.
+
+
+**Closed 2026-07-28.** It pinned decision #9 (a conditionally-visible question cannot be `obrigatória`) — behaviour FF-1 had already dropped at the DB level (`form_items_conditional_not_required`), leaving it UI-only for two phases. FF-3 removed the UI half and the lead ratified it as **Amendment 3**; `tester` updated AC-4 to the new contract in `b723ccc`, asserting the old note's **absence**.

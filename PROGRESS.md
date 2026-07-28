@@ -8,79 +8,61 @@
 
 | Phase | Name                          | Status | Build | Tests | QA | Human ✓ | Completed | Commit |
 | ----- | ----------------------------- | ------ | ----- | ----- | -- | ------- | --------- | ------ |
-| 0     | Scaffolding & Environment     | ✅ complete | ✅ | ✅ 5/5 | ✅ APPROVED | ✅ 2026-06-11 | 2026-06-11 | `d64281e` |
-| 1     | Schema, Auth & RLS            | ✅ complete | ✅ | ✅ 88/88 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | `691662f` |
-| 2     | Authentication & App Shell    | ✅ complete | ✅ | ✅ 49/49 + load | ✅ APPROVED + re-review | ✅ 2026-06-12 | 2026-06-12 | `5773b4a` |
-| 3     | Admin Area & User Management  | ✅ complete | ✅ | ✅ 43/43 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | `cb28ef3` |
-| 4     | Form Builder & Versioning     | ✅ complete | ✅ | ✅ 8/8 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | `d32e7e9` |
-| 5     | Wizard Filling, Conditional Sections & Resume | ✅ complete | ✅ | ✅ 63/63 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `8418991` |
-| 6     | Section Sign-offs & Submission Lifecycle | ✅ complete | ✅ | ✅ 70/70 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `94566f2` |
-| 7     | Multi-Phase Cases             | ✅ complete | ✅ | ✅ 81/81 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `28e0405` |
-| 8     | Dashboards & Submissions Browser | ✅ complete | ✅ | ✅ 106/106 | ✅ APPROVED | ✅ 2026-06-14 | 2026-06-14 | `a50e0e0` |
-| 9     | Deployment                    | 🔜 not started | – | – | – | – | – | – |
-| 10    | Meetings                      | ✅ complete | ✅ | ✅ 141/141 | ✅ APPROVED | ✅ 2026-06-15 | 2026-06-15 | `5e2780c` |
-| 11    | Interviews                    | ✅ complete | ✅ | ✅ 152/152 | ✅ APPROVED | ✅ 2026-06-15 | 2026-06-15 | `3d7376b` |
-| 12    | Case Timeline                 | ✅ complete | ✅ | ✅ 169/169 | ✅ APPROVED | ✅ 2026-06-16 | 2026-06-16 | `0feaa9a` |
-| 13    | Audit Trail                   | ✅ complete | ✅ | ✅ 195/195 | ✅ APPROVED | ✅ 2026-06-18 | 2026-06-18 | `a8739b5` |
-| 14    | Patient-Safety / NSP (Triage, RCA & CAPA, 14a–14d) | ✅ complete | ✅ | ✅ E2E 65/65 + pgTAP 516 | ✅ APPROVED | ✅ 2026-06-18 | 2026-06-18 | 14a `984e787` · 14b–d `c4e20b3` |
-| 14e   | **Centralized Attachment Substrate** — polymorphic `attachments` core + tiered PHI buckets + audited single-door PHI read; folds in case/meeting/interview docs. = phase F2 of the [Pre-Pilot Foundations Program](docs/plans/pre-pilot-foundations-program.md). ADR [0063](docs/decisions/0063-centralized-attachments-substrate.md) → [f2-attachments.md](docs/progress/f2-attachments.md). | ✅ **complete (F2)** | ✅ | ✅ pgTAP **1957** · F2 E2E **24/24** (audited PHI door proven) · full **590p/24f** (F2-owned 14/14 green; 0 F2 reg, ≈ F1 baseline) | ✅ **APPROVED** (0B/0M/3m/4i, all closed) [review](docs/reviews/phase-F2-review.md) | ✅ 2026-07-11 | 2026-07-11 | `37057c0` local · **remote ✓ 2026-07-12 (pilot reset)** |
-| 15    | Quality Indicators *(built 1st of 15 → 17 → 16 — ADR [0057](docs/decisions/0057-indicators-doc-control-replan.md))* | ✅ complete | ✅ | ✅ 12/12 (prod-standalone) | ✅ APPROVED (3 MINOR fixed) [review](docs/reviews/phase-15-review.md) | ✅ 2026-07-06 | 2026-07-06 | merge `26187dc` (pushed; **remote deployed via pilot reset ✓ 2026-07-12**) |
-| 16    | Standards Crosswalk & Readiness *(builds 3rd, after 17; pilot follows)* | 🔜 not started | – | – | – | – | – | – |
-| 17    | Controlled-Document Lifecycle *(pre-pilot — builds 2nd, before 16; ADR 0057)* | ✅ complete | ✅ (tsc/lint 0 · Vitest 206) | ✅ pgTAP 47/47 (full 1717) · phase E2E 14/14 · full regr 588p/10 env-only (0 Phase-17 reg) | ✅ APPROVED (3 MINOR cleared) [review](docs/reviews/phase-17-review.md) | ✅ 2026-07-06 | 2026-07-06 | merge `1152d75` (ff-only from `feat/phase-17-controlled-documents`; pushed) |
-| 17-v2 | Controlled-Document Redesign *(FE rebuild + 4 gaps + anglicization + new-version wizard + description; ADR 0081)* | ✅ complete | ✅ (tsc/lint 0 · Vitest 369) | ✅ tester 25/25 · pgTAP `201` 29/29 · e2e:prod triaged-green (0 redesign reg) | ✅ APPROVED (0/0/0/4 INFO) [review](docs/reviews/document-control-redesign-review.md) | ✅ 2026-07-21 | 2026-07-21 | ff→`main` (branch `feat/document-control-redesign`) |
-| 18    | Self-Assessment & Internal Audit | 🔜 not started | – | – | – | – | – | – |
-| 19    | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
-| 20    | Notifications & Escalation *(**pulled pre-pilot** 2026-07-12 — ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md); built as S1·N per ADR [0076](docs/decisions/0076-notifications-pilot-scope.md); [detail](docs/progress/s1-substrate.md))* | ✅ complete | ✅ | ✅ pgTAP `226` 52/52 (full 2255) + `notifications.spec.ts` 8/8 | ✅ APPROVED (0B/0M/3 MINOR) [review](docs/reviews/s1-n-notifications-review.md) | ✅ 2026-07-13 | 2026-07-13 | `aac7c1c` |
-| 21    | Committee Charters & Cadence *(**pulled pre-pilot**; ADR [0080](docs/decisions/0080-committee-charters-cadence-model.md); [detail](docs/progress/ch-charters-cadence.md))* | ✅ complete | ✅ | ✅ E2E 10/10 + pgTAP 260/261/262 = 11/29/10 | ✅ APPROVED r1 [review](docs/reviews/phase-CH-review.md) | ✅ 2026-07-20 | 2026-07-20 | BE `458aedb`…`13750b1` · FE `d982401`+`5d366db` · `14c4381`/`cb6a671` |
-| 22    | Inter-Committee Case Referrals | ✅ complete | ✅ | ✅ 29/29 + full 276/326 | ✅ APPROVED 2026-06-21 | ✅ 2026-06-21 | 2026-06-21 | `768b9f1` |
-| 23    | Patient Identity & Cross-Committee Linkage (MRN/encounter) | ✅ complete | ✅ | ✅ E2E 15/15 + pgTAP 10/10 sweep | ✅ APPROVED 2026-06-22 | ✅ 2026-06-22 | 2026-06-22 | `da4d127` |
-| MT    | **Multi-Tenancy** — organizations → hospitals → commissions; `platform_admin` vs `org_admin`; RLS rewrite + 3-tier audit + multi-org PHI guard. ADR [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md). | ✅ complete | ✅ | ✅ pgTAP 1029 + E2E 292/0 | ✅ APPROVED 2026-06-25 [review](docs/reviews/multitenancy-review.md) | ✅ 2026-06-25 | 2026-06-25 | `ee35299…82ea157` |
-| NSP-per-org | **NSP-per-org** — bind the PQS roster + every PHI door to an organization; restores NSP + referral modules under multi-tenancy. ADR [0042](docs/decisions/0042-nsp-per-org.md); design [nsp-per-org-design.md](docs/progress/nsp-per-org-design.md). | ✅ complete | ✅ | ✅ pgTAP 1102/1102 + full E2E 421/0 | ✅ APPROVED A [core](docs/reviews/nsp-per-org-a-review.md) + B [whole](docs/reviews/nsp-per-org-b-review.md) | ✅ 2026-06-25 | 2026-06-25 | `b0e15f4…9c53035` |
-| result-rec | **Result-based phase recommendation** — `recommend_when` combinable answer/result group; recommend from an earlier phase's result; suggestion-only, zero evaluator drift. ADR [0043](docs/decisions/0043-phase-result-based-recommendation.md) → [result-rec.md](docs/progress/result-rec.md). | ✅ complete | ✅ | ✅ pgTAP 1122 + Vitest 164 + E2E 431/0 | ✅ APPROVED 2026-06-26 [review](docs/reviews/result-rec-review.md) | ✅ 2026-06-26 | 2026-06-26 | `6c5baeb…` · ✅ remote re-baselined 2026-07-01 |
-| processless-cases | **"Sem processo" (process-less cases)** — template-less case + optional offered-outcome set + optional PHI; 2 coordinator-gated DEFINER RPCs, no new RLS shape. ADR [0044](docs/decisions/0044-processless-cases.md) → [processless-cases.md](docs/progress/processless-cases.md). | ✅ complete | ✅ | ✅ pgTAP 1153 + E2E 8/8 + full 439/0 | ✅ APPROVED 2026-06-30 [review](docs/reviews/processless-cases-review.md) | ✅ 2026-06-30 | 2026-06-30 | `cdf26d0` · ✅ remote re-baselined 2026-07-01 |
-| form-model-norm | **Form data-model normalization** — `form_items.options` JSONB → normalized `form_item_options` + `answer_selected_options`; evaluator byte-for-byte unchanged via `app.answer_map`; pre-launch squash + full reset. → [form-model-normalization.md](docs/progress/form-model-normalization.md). | ✅ complete | ✅ | ✅ T-1 green | ✅ APPROVED 2026-07-01 [review](docs/reviews/form-model-normalization-review.md) | ✅ 2026-07-01 | 2026-07-01 | squash `ffc0ea5`; baseline `20260620000000`; merged → main |
-| answer-model-v2 | **Answer-Model v2 + forward-compat** — uniform answer row + typed scalar cols + instance-ready answer-key scaffolding + question defaults; evaluator unchanged (Rule 3). ADRs [0045](docs/decisions/0045-answer-model-v2.md) · [0046](docs/decisions/0046-forward-compat-form-capabilities.md) → [answer-model-v2.md](docs/progress/answer-model-v2.md). | ✅ complete | ✅ | ✅ pgTAP 1205 / Vitest 176 / E2E 6/6 + 456p (0 reg) | ✅ APPROVED 2026-07-01 [report](docs/reviews/answer-model-v2-review.md) | ✅ 2026-07-01 | 2026-07-01 | baseline `20260620000000` · ✅ remote re-baselined 2026-07-01 |
-| ad-hoc-narratives | **Ad-hoc Case Narratives** — coordinator adds a narrative to an OPEN case (`add_ad_hoc_narrative` DEFINER RPC + `case_narratives.is_ad_hoc`); reverses ADR 0032 D7 for open cases. ADR [0047](docs/decisions/0047-ad-hoc-case-narratives.md) → [ad-hoc-narratives.md](docs/progress/ad-hoc-narratives.md). | ✅ complete | ✅ | ✅ pgTAP 1219 · Vitest 176 · E2E 5/5 + 461p (0 reg) | ✅ APPROVED 2026-07-01 [review](docs/reviews/ad-hoc-narratives-review.md) | ✅ 2026-07-01 | 2026-07-01 | branch `feat/ad-hoc-case-narratives` |
-| user-reg | **User Registration & Identity Management** — org_admin registers users (professional category + optional council credentials + home hospital/matrícula), verify+activate via invite, searchable org directory + full per-user management (committees/roles, deactivate/suspend/reactivate/resend); **real `is_active` enforcement**; drops DOB (LGPD). Detail → [user-registration.md](docs/progress/user-registration.md); ADR [0048](docs/decisions/0048-user-registration-identity.md). | ✅ complete | ✅ | ✅ feat 12/12 · pgTAP 1257 · full 467p/10-contam (0 reg) | ✅ APPROVED | ✅ 2026-07-02 | 2026-07-02 | `117319d` |
-| hospital-admin | **Phase A — Hospital-admin tier** — `hospital_admin` (org_admin-mirrored, hospital-scoped) across ~60 sites; 4-tier audit; per-commission committee titles → [detail](docs/progress/hospital-admin-tier.md) | ✅ complete | ✅ | ✅ 38/38 · pgTAP 1454 · 0 Phase-A reg | ✅ APPROVED [review](docs/reviews/hospital-admin-tier-review.md) | ✅ 2026-07-03 | 2026-07-03 | `99e2d09` |
-| DB-hardening | **Pre-pilot DB hardening (Waves 1+2)** — 2026-07 external-audit remediation (C-1…C-6/H-8 critical + P/D perf & data-model); W3+4 → foundations pgm → [W1](docs/progress/pre-pilot-hardening-wave1.md) · [W2](docs/progress/pre-pilot-hardening-wave2.md) | ✅ complete | ✅ | ✅ pgTAP 1644 · Vitest 206 · 0 reg | ✅ APPROVED [W1](docs/reviews/pre-pilot-hardening-wave1-review.md)·[W2](docs/reviews/pre-pilot-hardening-wave2-review.md) | ✅ 2026-07-05 | 2026-07-05 | W1 `68b393b` · W2 `a2a7fab` · merged `27d9e5f` |
-| flexible-forms | **Flexible-Forms Foundation (F3)** — item_type reserves group/repeating_group/matrix/risk_matrix/reference; new evaluator operators; schema-only repeating groups (write RPCs → FF-1). ADR [0060](docs/decisions/0060-flexible-forms-foundation.md) → [detail](docs/progress/f3-flexible-forms.md) | ✅ complete | ✅ | ✅ pgTAP 2023 · Vitest 356 · 0 F3 reg | ✅ APPROVED [review](docs/reviews/phase-F3-review.md) | ✅ 2026-07-12 | 2026-07-12 | `94f03c3` (remote ✓) |
-| case-participants | **Case-Participants E0 (F1)** *(ADR [0064](docs/decisions/0064-case-subject-generalization-participants.md))* — `participants` + `case_participant_roles` + `case_participants` (typed identity); `professional_profiles` (Class-2); re-keys `case_patient` → `patient_identifiers(participant_id)`; `case_types`. Amends Rules 12+2 → [detail](docs/progress/f1-case-participants.md) | ✅ complete | ✅ | ✅ pgTAP 1913 · E2E 54/54 · Vitest 294 | ✅ APPROVED [review](docs/reviews/phase-F1-review.md) | ✅ 2026-07-10 | 2026-07-10 | `ef66b0a`+`6805bd9` (remote ✓) |
-| pre-pilot-foundations | **Pre-Pilot Foundations Program** *(umbrella — ADR 0060+0063+0064+DB-hardening W3/4)* — F0 gate → F1 participants → F2 attachments → F3 flexible-forms → F-cleanup → pilot reset → [plan](docs/plans/pre-pilot-foundations-program.md) | ✅ complete — F0–F-cleanup ✅; pilot reset verified 2026-07-12 | – | – | – | ✅ 2026-07-13 | 2026-07-13 | see F0–F-cleanup rows |
-| nsp-per-hospital | **Phase B — NSP-per-hospital + `nsp_org_admin`** — re-keys the PQS roster + every PHI door org→hospital; `nsp_org_admin` (zero-PHI rollups); `nsp_coordinator`; `dispose_referral_phi`. ADR [0052](docs/decisions/0052-nsp-per-hospital.md) → [detail](docs/progress/nsp-per-hospital.md) | ✅ complete | ✅ pgTAP 1446 | ✅ feature 32/32 · prod-PHI 86/86 · 0 Phase-B reg | ✅ APPROVED [review](docs/reviews/nsp-per-hospital-review.md) | ✅ 2026-07-03 | 2026-07-03 | 9 commits → [detail](docs/progress/nsp-per-hospital.md) |
-| administrativo | **Administrativo delegated-capability role** — per-commission finite capability menu (schedule/create/assign/view) without full staff_admin; flag ON 2026-07-08. ADR [0061](docs/decisions/0061-administrativo-delegated-role.md) → [detail](docs/progress/administrativo.md) | ✅ complete | ✅ | ✅ pgTAP 50/50 · E2E 10/10 · 0 reg | ✅ APPROVED [review](docs/reviews/administrativo-review.md) | ✅ 2026-07-08 | 2026-07-08 | `75c903f`+`3956b32`→`1010f07`; flag `5a6c668` |
-| f-cleanup | **F-cleanup — residual DB-hardening** — D3 result-engine → FK junctions, D10 touch triggers, D8 forward-FK lock, D11 status-key anglicization. ADRs [0068](docs/decisions/0068-result-engine-fk-junctions.md)/[0069](docs/decisions/0069-status-key-anglicization.md) → [detail](docs/progress/f-cleanup.md) | ✅ complete | ✅ | ✅ pgTAP 2100 · E2E 51/51 · 0 reg | ✅ APPROVED [review](docs/reviews/f-cleanup-review.md) | ✅ 2026-07-12 | 2026-07-12 | merged `5f81286` (remote ✓) |
-| referrals-v2 | **Referrals v2 — Dialogue & Governance** *(pre-pilot expansion of Phase 22; ADR [0037](docs/decisions/0037-inter-committee-case-referrals.md) Amendment 1)* — two-way dialogue thread (R1) + triage/SLA, resolution lifecycle, assignments/links, notes/receipts/redaction (R2–R5); extends (never contradicts) the Phase-22 core. `case_referrals` flag OFF until pilot. Detail → [R1](docs/progress/rv2-r1-referrals.md) · [R2–R5](docs/progress/rv2-r2-r5-governance.md). | ✅ complete | ✅ | ✅ R1 E2E 40/40 + R2–R5 E2E 29/29 · pgTAP `150_referrals` 217/217 | ✅ APPROVED [R1](docs/reviews/rv2-r1-referrals-review.md) + [R2–R5 r2](docs/reviews/rv2-r2-r5-review.md) | ✅ 2026-07-19 | 2026-07-19 | R1 `33dbc09` · R2–R5 `223ed17` (ff→main `a61aae3`) |
-| interviews-v2 | **Interviews v2 — Sessions + Reporting/Confidentiality** *(pre-pilot revision of Phase 11; ADR [0070](docs/decisions/0070-interview-data-model-v2-sessions.md); [detail](docs/progress/iv2-interviews.md))* — `interview_sessions` 1:N (hard-cut of the 5 scheduling cols), `interview_category`, non-enforcing `confidentiality_level`; enforcement + participant-registry wiring landed at ETH·E1. Extends (never contradicts) the Phase-11 core. | ✅ complete | ✅ | ✅ pgTAP `121` 60/60 (full 2287) + phase E2E 13/13 | ✅ APPROVED [review](docs/reviews/iv2-interviews-review.md) | ✅ 2026-07-14 | 2026-07-14 | `b015815`+`da7c219`+`77daa90` (`00a93dd`) |
-| pre-pilot-release | **Pre-Pilot Release Scope Expansion** *(umbrella — 12 initiatives pulled into the pilot release 2026-07-12; ADR [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md); plan [pre-pilot-release-scope-expansion](docs/plans/pre-pilot-release-scope-expansion.md))* — S0 design gate → S1 substrate (N/MEM/SUP) → S2 cores (RV2·R1/IV2/AI) → S3 ETH·E1 (releases the m2 gate) → S4 ETH·E2/RV2 R2–R5/CH → S5 ETH·E3. Only Phases 18–19 stay post-pilot. Pilot follows this whole block + Coolify deploy + origin push. | 🏗️ **in progress — AUTHZ ✅ COMPLETE (Gate 1 + Gate 2, 2026-07-17); then S4 (now ✅ complete 2026-07-20)** (branch `pre-pilot-release-s0`, **local ahead of origin**; **S0 ✅** + **S1 substrate ✅** [→ [s1-substrate](docs/progress/s1-substrate.md)]; **S2 cores ✅ ALL 2026-07-14**: **IV2 ✅** [`phase(11-v2)`] · **RV2·R1 ✅** [`phase(rv2-r1)`] · **AI ✅** [`phase(ai)`]; **S3 · ETH·E1 ✅ COMPLETE 2026-07-14** [`phase(E1)`; **m2 gate RELEASED**; → [eth-e1-access-spine](docs/progress/eth-e1-access-spine.md)]; **✅ AUTHZ COMPLETE 2026-07-17** (ADR [0078](docs/decisions/0078-authorization-capability-model.md); own gate unit) — **Gate 1** (Stage A/B: `_case_caps` resolver + `case_access → case_access_grants` hard cut) + **Gate 2** (Stage C meeting-confidentiality · F1 referral split · N1 NSP-PHI · G-cleanup) both **human-approved**; qa APPROVED re-review [review](docs/reviews/authz-gate-2-review.md) (P0 + 3 MAJOR behaviourally closed, mutation-proven; MINOR-1 rides noted). **✅ S4 COMPLETE 2026-07-20 = ETH·E2 (07-18) · RV2 R2–R5 (07-19) · CH (07-20). **S5 ETH·E3a ✅ COMPLETE 2026-07-27** (last pre-pilot build track; E3b deferred/Phase 16). ▶ Remaining: the pilot deploy (origin push + Coolify + remote `db push`) — Phases 18–19 stay post-pilot.**) | – | – | – | – | – | – |
-| ff-program | **Flexible-Forms Program (FF-1…FF-5)** *(umbrella — five feature phases pulled pre-pilot 2026-07-27; ADR [0086](docs/decisions/0086-flexible-forms-pre-pilot.md); plan [flexible-forms-program](docs/plans/flexible-forms-program.md))* — FF-1 repeating groups (instance RPCs + instance-aware evaluation) → FF-2 matrix/risk → FF-3 validation engine (+`required_if` + operator authorability) → FF-5 entity reference (participant+commission+user lanes, PHI door) → FF-4 power authoring (library + dynamic defaults; calculated fields stay post-pilot). Each phase: own ADR (0087+ at authoring) + flag OFF-until-gate + Phase Gate. **All five gate the pilot deploy.** | ▶ **1 of 5 complete** — **FF-1 ✅** (ADR [0087](docs/decisions/0087-ff1-repeating-groups.md) + Amendment 1; flag `repeating_groups` **ON**; [record](docs/progress/ff-1-repeating-groups.md)). **FF-2 next — not started, PO-held 2026-07-27** | ✅ FF-1 | ✅ FF-1 — E2E 9/9 prod-build · pgTAP 3925 · Vitest 490 | ✅ FF-1 **APPROVED** r2 [review](docs/reviews/phase-FF-1-review.md) | ✅ FF-1 2026-07-27 | FF-1: 2026-07-27 | FF-1 `20260828000000`–`…000900` |
-| **ETH·E1** | **Ethics Access Spine — m2 gate release** *(ADR [0072](docs/decisions/0072-ethics-access-spine.md))* — makes the F1 subject layer safe for real ethics data + releases the m2 gate (`case_participants`+`case_types` ON); respondent-exclusion + recusal hard-denies; `explicit_grants_only` visibility; 7-value confidentiality + doc ceiling; no new UI → [detail](docs/progress/eth-e1-access-spine.md) | ✅ complete | ✅ Vitest 369/369 | ✅ pgTAP 91f/2537 · E2E 13/13+1 skip · e2e:prod triaged | ✅ APPROVED (R3) [review](docs/reviews/phase-ETH-E1-review.md) | ✅ 2026-07-14 | 2026-07-14 | 14 commits `167b269`…`02bd2db` (remote deferred) |
-| **ETH·E2** | **Ethics disciplinary procedure** *(S4; ADR [0073](docs/decisions/0073-ethics-procedure-model.md); 0078-reconciled)* — intake → admissibility → allegations/findings → decisions → quorum votes → issue → `participants_only` hearings → appeals; + 5 coordinator controls + coordinator-gated "Processo ético" tab → [detail](docs/progress/eth-e2-procedure.md) | ✅ complete | ✅ | ✅ E2E 20/20 · pgTAP `253`–`259` | ✅ APPROVED [review](docs/reviews/eth-e2-review.md) | ✅ 2026-07-18 | 2026-07-18 | `ada4c97`…`2adb169` |
-| **ETH·E3a** | **Ethics terminology/UX surfacing** *(S5; ADR 0064 D4 / [0072](docs/decisions/0072-ethics-access-spine.md) / [0073](docs/decisions/0073-ethics-procedure-model.md))* — case-type terminology + auto-derived procedural `case_events` timeline + RLS-scoped ethics dashboard; **last pre-pilot build track** (E3b → Phase 16) → [detail](docs/progress/eth-e3a-surfacing.md) | ✅ complete | ✅ | ✅ E2E 21/21 · pgTAP `266`–`269`/3852 | ✅ APPROVED r2 [review](docs/reviews/phase-E3a-review.md) | ✅ 2026-07-27 | 2026-07-27 | `e61fa3c`…`38db4c9` |
-| **AUTHZ** | ADR 0078 Gate 1 — capability model | ✅ **COMPLETE — human-approved 2026-07-16** (Stage A/B: M1–M6 + A2 `_case_caps` resolver + A4 policy-narrowing + A5 + U1/U2 exclusion perimeter + `case_access → case_access_grants` hard cut). Lead-verified equivalence 196 cells → 2 = intended PHI closure (LOST=0/GAINED=0); pgTAP 2981/2981. State + lessons → [handoff](docs/progress/authz-handoff.md) · [units](docs/progress/authz-gate1-units.md) | ✅ | ✅ pgTAP 2981 · e2e 0-regress | ✅ APPROVED [review](docs/reviews/authz-b-series-review.md) | ✅ 2026-07-16 | 2026-07-16 | `87858f7` (local) |
-| **AUTHZ · Gate 2** | ADR 0078 Gate 2 — Stage C (meeting confidentiality) · F1 (referral split) · N1 (NSP PHI arm) · G1 (cleanup) | ✅ **COMPLETE — human-approved 2026-07-17.** qa APPROVED re-review (P0 + 3 MAJOR behaviourally closed, mutation-proven; MINOR-1 rides noted). Version-drift audit: local `next` had drifted to 16.2.9 vs the 16.3 lockfile ⇒ BUG-PROD-ACTIONS + the "~18–27 flaky baseline" were env drift, not Gate-2 defects. Detail → [review](docs/reviews/authz-gate-2-review.md) · [handoff](docs/progress/authz-handoff.md) · [backend-state](docs/backend-state.md) | ✅ | ✅ pgTAP 772/772 authz · e2e green | ✅ APPROVED (re-review) | ✅ 2026-07-17 | 2026-07-17 | `f07341f` |
-| **case-corrections** | **Case Correction Lifecycle** — phases + narratives: response-chain revisions (`supersedes_id` case arm), first-class `case_correction_requests` (kind correction/addendum/void, classification, designated corrector, staff_admin approval, self-approval flagged), terminal `voided`, `reopen_case` door, append-only `case_narrative_revisions` (retires `reopen_narrative`), `current_response_id` pointer. Flag `case_corrections`. Plan → `~/.claude/plans/agreed-tender-pixel.md`; ADR [0085](docs/decisions/0085-case-correction-lifecycle.md). | ✅ **complete + DEPLOYED** | ✅ | ✅ tester 24/24 + full prod E2E feat 7/7 (reds triaged infra/baseline; T-2 clean-stack 76/76) | ✅ APPROVED (0P0/0MAJ/2min) [review](docs/reviews/case-corrections-review.md) | ✅ 2026-07-24 | 2026-07-24 | `6b50abc` → main+origin; **remote `db push` ✅ (flag ON, backfill verified live)** |
-| **case-custom-fields** | **Case Custom Fields** — template-defined, **non-PHI** administrative descriptors on cases (the M&M "Número da Declaração de Óbito" case); `process_template_custom_fields` → snapshot `case_custom_field_values`, captured atomically in "Novo caso" via `create_case_from_template`, editable + audited; PHI boundary is a fill-time warning, not a schema guarantee (D4). Flag `case_custom_fields` **ON permanently**. ADR [0083](docs/decisions/0083-case-custom-fields.md) → [detail](docs/progress/case-custom-fields.md). | ✅ **complete + merged** | ✅ lint/tsc/vitest 369 | ✅ E2E 8/8 (3× clean) · pgTAP `188` 28/28 · full `e2e:prod` 735p (feat 8/8 on prod build) | ✅ APPROVED (0 P0 · 0 MAJOR · 1 MINOR cleared · 2 INFO) [review](docs/reviews/adr-0083-case-custom-fields-review.md) | ⚠ **unrecorded** — see detail | 2026-07-23 | merge `c857193` · flag ON `fde76d3` |
-| **bulk-case-create** | **Bulk Case Creation ("Múltiplos casos")** — one atomic `bulk_create_cases` RPC that **composes existing doors** (`create_case_from_template` + assignment + the audited case-patient door) to deal N cases across committee members in a single transaction; balanced-deal grid wizard; selectable PHI columns (E1) with **no new PHI store** — Rule 12's three-module invariant untouched. Flag `cases_bulk_create` **ON permanently**. ADR [0084](docs/decisions/0084-bulk-case-creation.md) → [detail](docs/progress/bulk-case-creation.md). | ✅ **complete + merged** | ✅ build/tsc/lint/vitest 390 | ✅ E2E 8/8 prod-standalone · pgTAP 29/29 | ✅ APPROVED (4 MINOR/OBSERVATION, none blocking; fixed `b948c9f`) [review](docs/reviews/bulk-case-creation-review.md) | ⚠ **unrecorded** — see detail | 2026-07-23 | flag ON `255a8e9` |
-| **AUDIT-DOOR-BLINDNESS · P0** | ADR 0078 §7.14 — door-level re-audit + a standing keystone-coverage invariant; **blocked S4** | ✅ **complete — human-approved 2026-07-18** (ff→main, local) — opened 2026-07-17, branch `fix/authz-audit-door-blindness`. Pre-req eol defect fixed (`a32be9c`: `*.sql text eol=lf` — a CRLF checkout was aborting `db reset` on `20260801000000`; clean 146/146 reset restored, **pilot reset unblocked**). Population (live catalog): **294** auth-reachable `public` DEFINER doors · 231 `app` (internal) · **212** RLS policies / 125 tables. **FIX-A/B/C ✅ + INVARIANT HOLDS** (2026-07-18): 50 mutation-proven keystones (250/251/252), BLIND=72 all-allowlisted, never-called floor OK, baseline PASS 3288. Commits `a32be9c`→`f783f37`. Record → [authz-p0-door-blindness.md](docs/progress/authz-p0-door-blindness.md). | ✅ | ✅ 50 KS mut-proven · pgTAP 3288 · invariant HOLDS | ✅ APPROVED [review](docs/reviews/authz-door-audit-p0-review.md) | ✅ 2026-07-18 | 2026-07-18 | ff→main |
-
-> **Accreditation & Quality-Governance Track (13–21)** — planned 2026-06-17; specs in
-> [PHASES.md](PHASES.md) (§ Accreditation track), rationale in ADR
-> [0028](docs/decisions/0028-accreditation-governance-roadmap.md). **13 = Audit Trail** and
-> **14 = Patient-Safety/NSP (Events, Triage, RCA & CAPA — sub-phases 14a–14d)** are the agreed first two. Each phase is feature-flagged, individually
-> testable, and gated by §6. **Deployment plan (revised 2026-07-05, ADR [0057](docs/decisions/0057-indicators-doc-control-replan.md)):
-> remaining pre-pilot phases build in order 15 → 17 → 16** (P0 core, now incl. document
-> control), **plus the twelve initiatives pulled pre-pilot 2026-07-12 (ADR
-> [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md)): Phases 20–21, Referrals v2,
-> Interviews v2, Ethics E1–E3, action-items satellites + cross-link, §6.1, supersession engine —
-> pilot after that whole block**; Phase 9 stays pending until then (also validates the ADR 0009
-> prod-auth gap), and **Phases 18–19** follow the pilot (**20–21 pulled pre-pilot**). Phase 15/17 specs revised against the
-> post-hardening platform (option-`code` derived config, hybrid taxa, two-tier CAPA hook,
-> hospital rollups, approver read arm) — see the ADR + accreditation-track.md. This track is
-> built ahead of Phase 9 (same convention as Phases 10–12).
-
-Status legend: 🔜 not started · 🏗️ in progress · 🧪 testing · 🔍 QA review · ⏸️ awaiting human approval · ✅ complete · ❌ blocked
-
+| 0 | Scaffolding & Environment | ✅ complete | ✅ | ✅ 5/5 | ✅ APPROVED | ✅ 2026-06-11 | 2026-06-11 | `d64281e` |
+| 1 | Schema, Auth & RLS | ✅ complete | ✅ | ✅ 88/88 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | `691662f` |
+| 2 | Authentication & App Shell | ✅ complete | ✅ | ✅ 49/49 + load | ✅ APPROVED + re-review | ✅ 2026-06-12 | 2026-06-12 | `5773b4a` |
+| 3 | Admin Area & User Management | ✅ complete | ✅ | ✅ 43/43 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | `cb28ef3` |
+| 4 | Form Builder & Versioning | ✅ complete | ✅ | ✅ 8/8 | ✅ APPROVED | ✅ 2026-06-12 | 2026-06-12 | `d32e7e9` |
+| 5 | Wizard Filling, Conditional Sections & Resume | ✅ complete | ✅ | ✅ 63/63 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `8418991` |
+| 6 | Section Sign-offs & Submission Lifecycle | ✅ complete | ✅ | ✅ 70/70 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `94566f2` |
+| 7 | Multi-Phase Cases | ✅ complete | ✅ | ✅ 81/81 | ✅ APPROVED | ✅ 2026-06-13 | 2026-06-13 | `28e0405` |
+| 8 | Dashboards & Submissions Browser | ✅ complete | ✅ | ✅ 106/106 | ✅ APPROVED | ✅ 2026-06-14 | 2026-06-14 | `a50e0e0` |
+| 9 | Deployment | 🔜 not started | – | – | – | – | – | – |
+| 10 | Meetings | ✅ complete | ✅ | ✅ 141/141 | ✅ APPROVED | ✅ 2026-06-15 | 2026-06-15 | `5e2780c` |
+| 11 | Interviews | ✅ complete | ✅ | ✅ 152/152 | ✅ APPROVED | ✅ 2026-06-15 | 2026-06-15 | `3d7376b` |
+| 12 | Case Timeline | ✅ complete | ✅ | ✅ 169/169 | ✅ APPROVED | ✅ 2026-06-16 | 2026-06-16 | `0feaa9a` |
+| 13 | Audit Trail | ✅ complete | ✅ | ✅ 195/195 | ✅ APPROVED | ✅ 2026-06-18 | 2026-06-18 | `a8739b5` |
+| 14 | Patient-Safety / NSP (Triage, RCA & CAPA, 14a–14d) | ✅ complete | ✅ | ✅ E2E 65/65 + pgTAP 516 | ✅ APPROVED | ✅ 2026-06-18 | 2026-06-18 | 14a `984e787` · 14b–d `c4e20b3` |
+| 14e | **Centralized Attachment Substrate** [Pre-Pilot Foundations Program](docs/plans/pre-pilot-foundations-program.md) | ✅ complete | ✅ | ✅ pgTAP **1957** · F2 E2E **24/24** (audited PHI door proven) · full **590p/24f** (F2-owned 14/14 green; 0 F2 reg, ≈ F1 baseline) | ✅ **APPROVED** (0B/0M/3m/4i, all closed) [review](docs/reviews/phase-F2-review.md) | ✅ 2026-07-11 | 2026-07-11 | `37057c0` local · **remote ✓ 2026-07-12 (pilot reset)** |
+| 15 | Quality Indicators [0057](docs/decisions/0057-indicators-doc-control-replan.md) | ✅ complete | ✅ | ✅ 12/12 (prod-standalone) | ✅ APPROVED (3 MINOR fixed) [review](docs/reviews/phase-15-review.md) | ✅ 2026-07-06 | 2026-07-06 | merge `26187dc` (pushed; **remote deployed via pilot reset ✓ 2026-07-12**) |
+| 16 | Standards Crosswalk & Readiness | 🔜 not started | – | – | – | – | – | – |
+| 17 | Controlled-Document Lifecycle | ✅ complete | ✅ (tsc/lint 0 · Vitest 206) | ✅ pgTAP 47/47 (full 1717) · phase E2E 14/14 · full regr 588p/10 env-only (0 Phase-17 reg) | ✅ APPROVED (3 MINOR cleared) [review](docs/reviews/phase-17-review.md) | ✅ 2026-07-06 | 2026-07-06 | merge `1152d75` (ff-only from `feat/phase-17-controlled-documents`; pushed) |
+| 17-v2 | Controlled-Document Redesign | ✅ complete | ✅ (tsc/lint 0 · Vitest 369) | ✅ tester 25/25 · pgTAP `201` 29/29 · e2e:prod triaged-green (0 redesign reg) | ✅ APPROVED (0/0/0/4 INFO) [review](docs/reviews/document-control-redesign-review.md) | ✅ 2026-07-21 | 2026-07-21 | ff→`main` (branch `feat/document-control-redesign`) |
+| 18 | Self-Assessment & Internal Audit | 🔜 not started | – | – | – | – | – | – |
+| 19 | Surveyor Access & Evidence Export | 🔜 not started | – | – | – | – | – | – |
+| 20 | Notifications & Escalation [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md) | ✅ complete | ✅ | ✅ pgTAP `226` 52/52 (full 2255) + `notifications.spec.ts` 8/8 | ✅ APPROVED (0B/0M/3 MINOR) [review](docs/reviews/s1-n-notifications-review.md) | ✅ 2026-07-13 | 2026-07-13 | `aac7c1c` |
+| 21 | Committee Charters & Cadence [0080](docs/decisions/0080-committee-charters-cadence-model.md) | ✅ complete | ✅ | ✅ E2E 10/10 + pgTAP 260/261/262 = 11/29/10 | ✅ APPROVED r1 [review](docs/reviews/phase-CH-review.md) | ✅ 2026-07-20 | 2026-07-20 | BE `458aedb`…`13750b1` · FE `d982401`+`5d366db` · `14c4381`/`cb6a671` |
+| 22 | Inter-Committee Case Referrals | ✅ complete | ✅ | ✅ 29/29 + full 276/326 | ✅ APPROVED 2026-06-21 | ✅ 2026-06-21 | 2026-06-21 | `768b9f1` |
+| 23 | Patient Identity & Cross-Committee Linkage (MRN/encounter) | ✅ complete | ✅ | ✅ E2E 15/15 + pgTAP 10/10 sweep | ✅ APPROVED 2026-06-22 | ✅ 2026-06-22 | 2026-06-22 | `da4d127` |
+| MT | **Multi-Tenancy** [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md) | ✅ complete | ✅ | ✅ pgTAP 1029 + E2E 292/0 | ✅ APPROVED 2026-06-25 [review](docs/reviews/multitenancy-review.md) | ✅ 2026-06-25 | 2026-06-25 | `ee35299…82ea157` |
+| NSP-per-org | **NSP-per-org** [0042](docs/decisions/0042-nsp-per-org.md) | ✅ complete | ✅ | ✅ pgTAP 1102/1102 + full E2E 421/0 | ✅ APPROVED A [core](docs/reviews/nsp-per-org-a-review.md) + B [whole](docs/reviews/nsp-per-org-b-review.md) | ✅ 2026-06-25 | 2026-06-25 | `b0e15f4…9c53035` |
+| result-rec | **Result-based phase recommendation** [0043](docs/decisions/0043-phase-result-based-recommendation.md) | ✅ complete | ✅ | ✅ pgTAP 1122 + Vitest 164 + E2E 431/0 | ✅ APPROVED 2026-06-26 [review](docs/reviews/result-rec-review.md) | ✅ 2026-06-26 | 2026-06-26 | `6c5baeb…` · ✅ remote re-baselined 2026-07-01 |
+| processless-cases | **"Sem processo" (process-less cases)** [0044](docs/decisions/0044-processless-cases.md) | ✅ complete | ✅ | ✅ pgTAP 1153 + E2E 8/8 + full 439/0 | ✅ APPROVED 2026-06-30 [review](docs/reviews/processless-cases-review.md) | ✅ 2026-06-30 | 2026-06-30 | `cdf26d0` · ✅ remote re-baselined 2026-07-01 |
+| form-model-norm | **Form data-model normalization** [form-model-normalization.md](docs/progress/form-model-normalization.md) | ✅ complete | ✅ | ✅ T-1 green | ✅ APPROVED 2026-07-01 [review](docs/reviews/form-model-normalization-review.md) | ✅ 2026-07-01 | 2026-07-01 | squash `ffc0ea5`; baseline `20260620000000`; merged → main |
+| answer-model-v2 | **Answer-Model v2 + forward-compat** [0045](docs/decisions/0045-answer-model-v2.md) | ✅ complete | ✅ | ✅ pgTAP 1205 / Vitest 176 / E2E 6/6 + 456p (0 reg) | ✅ APPROVED 2026-07-01 [report](docs/reviews/answer-model-v2-review.md) | ✅ 2026-07-01 | 2026-07-01 | baseline `20260620000000` · ✅ remote re-baselined 2026-07-01 |
+| ad-hoc-narratives | **Ad-hoc Case Narratives** [0047](docs/decisions/0047-ad-hoc-case-narratives.md) | ✅ complete | ✅ | ✅ pgTAP 1219 · Vitest 176 · E2E 5/5 + 461p (0 reg) | ✅ APPROVED 2026-07-01 [review](docs/reviews/ad-hoc-narratives-review.md) | ✅ 2026-07-01 | 2026-07-01 | branch `feat/ad-hoc-case-narratives` |
+| user-reg | **User Registration & Identity Management** [user-registration.md](docs/progress/user-registration.md) | ✅ complete | ✅ | ✅ feat 12/12 · pgTAP 1257 · full 467p/10-contam (0 reg) | ✅ APPROVED | ✅ 2026-07-02 | 2026-07-02 | `117319d` |
+| hospital-admin | **Phase A [detail](docs/progress/hospital-admin-tier.md) | ✅ complete | ✅ | ✅ 38/38 · pgTAP 1454 · 0 Phase-A reg | ✅ APPROVED [review](docs/reviews/hospital-admin-tier-review.md) | ✅ 2026-07-03 | 2026-07-03 | `99e2d09` |
+| DB-hardening | **Pre-pilot DB hardening (Waves 1+2)** [W1](docs/progress/pre-pilot-hardening-wave1.md) | ✅ complete | ✅ | ✅ pgTAP 1644 · Vitest 206 · 0 reg | ✅ APPROVED [W1](docs/reviews/pre-pilot-hardening-wave1-review.md)·[W2](docs/reviews/pre-pilot-hardening-wave2-review.md) | ✅ 2026-07-05 | 2026-07-05 | W1 `68b393b` · W2 `a2a7fab` · merged `27d9e5f` |
+| flexible-forms | **Flexible-Forms Foundation (F3)** [0060](docs/decisions/0060-flexible-forms-foundation.md) | ✅ complete | ✅ | ✅ pgTAP 2023 · Vitest 356 · 0 F3 reg | ✅ APPROVED [review](docs/reviews/phase-F3-review.md) | ✅ 2026-07-12 | 2026-07-12 | `94f03c3` (remote ✓) |
+| case-participants | **Case-Participants E0 (F1)** [0064](docs/decisions/0064-case-subject-generalization-participants.md) | ✅ complete | ✅ | ✅ pgTAP 1913 · E2E 54/54 · Vitest 294 | ✅ APPROVED [review](docs/reviews/phase-F1-review.md) | ✅ 2026-07-10 | 2026-07-10 | `ef66b0a`+`6805bd9` (remote ✓) |
+| pre-pilot-foundations | **Pre-Pilot Foundations Program** [plan](docs/plans/pre-pilot-foundations-program.md) | ✅ complete | – | – | – | ✅ 2026-07-13 | 2026-07-13 | see F0–F-cleanup rows |
+| nsp-per-hospital | **Phase B [0052](docs/decisions/0052-nsp-per-hospital.md) | ✅ complete | ✅ pgTAP 1446 | ✅ feature 32/32 · prod-PHI 86/86 · 0 Phase-B reg | ✅ APPROVED [review](docs/reviews/nsp-per-hospital-review.md) | ✅ 2026-07-03 | 2026-07-03 | 9 commits → [detail](docs/progress/nsp-per-hospital.md) |
+| administrativo | **Administrativo delegated-capability role** [0061](docs/decisions/0061-administrativo-delegated-role.md) | ✅ complete | ✅ | ✅ pgTAP 50/50 · E2E 10/10 · 0 reg | ✅ APPROVED [review](docs/reviews/administrativo-review.md) | ✅ 2026-07-08 | 2026-07-08 | `75c903f`+`3956b32`→`1010f07`; flag `5a6c668` |
+| f-cleanup | **F-cleanup [0068](docs/decisions/0068-result-engine-fk-junctions.md) | ✅ complete | ✅ | ✅ pgTAP 2100 · E2E 51/51 · 0 reg | ✅ APPROVED [review](docs/reviews/f-cleanup-review.md) | ✅ 2026-07-12 | 2026-07-12 | merged `5f81286` (remote ✓) |
+| referrals-v2 | **Referrals v2 [0037](docs/decisions/0037-inter-committee-case-referrals.md) | ✅ complete | ✅ | ✅ R1 E2E 40/40 + R2–R5 E2E 29/29 · pgTAP `150_referrals` 217/217 | ✅ APPROVED [R1](docs/reviews/rv2-r1-referrals-review.md) + [R2–R5 r2](docs/reviews/rv2-r2-r5-review.md) | ✅ 2026-07-19 | 2026-07-19 | R1 `33dbc09` · R2–R5 `223ed17` (ff→main `a61aae3`) |
+| interviews-v2 | **Interviews v2 [0070](docs/decisions/0070-interview-data-model-v2-sessions.md) | ✅ complete | ✅ | ✅ pgTAP `121` 60/60 (full 2287) + phase E2E 13/13 | ✅ APPROVED [review](docs/reviews/iv2-interviews-review.md) | ✅ 2026-07-14 | 2026-07-14 | `b015815`+`da7c219`+`77daa90` (`00a93dd`) |
+| pre-pilot-release | **Pre-Pilot Release Scope Expansion** [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md) | ✅ complete | – | – | – | – | – | – |
+| ff-program | **Flexible-Forms Program (FF-1…FF-5)** — umbrella; [0086](docs/decisions/0086-flexible-forms-pre-pilot.md) | ▶ **3 of 5 complete** — FF-1 ✅ · FF-2 ✅ · **FF-3 ✅ 2026-07-28**; next **FF-5** (ADR 0091+), then FF-4 | ✅ FF-3 | ✅ FF-3 — spec 25/25 · neighbours 62/62 · pgTAP 4167 · Vitest 814 | ✅ FF-3 **APPROVED** r2 [review](docs/reviews/ff-3-review.md) | ✅ 2026-07-28 | 2026-07-28 | FF-3 `20260901000000`–`…000800` |
+| **ETH·E1** | **Ethics Access Spine [0072](docs/decisions/0072-ethics-access-spine.md) | ✅ complete | ✅ Vitest 369/369 | ✅ pgTAP 91f/2537 · E2E 13/13+1 skip · e2e:prod triaged | ✅ APPROVED (R3) [review](docs/reviews/phase-ETH-E1-review.md) | ✅ 2026-07-14 | 2026-07-14 | 14 commits `167b269`…`02bd2db` (remote deferred) |
+| **ETH·E2** | **Ethics disciplinary procedure** [0073](docs/decisions/0073-ethics-procedure-model.md) | ✅ complete | ✅ | ✅ E2E 20/20 · pgTAP `253`–`259` | ✅ APPROVED [review](docs/reviews/eth-e2-review.md) | ✅ 2026-07-18 | 2026-07-18 | `ada4c97`…`2adb169` |
+| **ETH·E3a** | **Ethics terminology/UX surfacing** [0072](docs/decisions/0072-ethics-access-spine.md) | ✅ complete | ✅ | ✅ E2E 21/21 · pgTAP `266`–`269`/3852 | ✅ APPROVED r2 [review](docs/reviews/phase-E3a-review.md) | ✅ 2026-07-27 | 2026-07-27 | `e61fa3c`…`38db4c9` |
+| **AUTHZ** | ADR 0078 Gate 1 | ✅ complete | ✅ | ✅ pgTAP 2981 · e2e 0-regress | ✅ APPROVED [review](docs/reviews/authz-b-series-review.md) | ✅ 2026-07-16 | 2026-07-16 | `87858f7` (local) |
+| **AUTHZ · Gate 2** | ADR 0078 Gate 2 | ✅ complete | ✅ | ✅ pgTAP 772/772 authz · e2e green | ✅ APPROVED (re-review) | ✅ 2026-07-17 | 2026-07-17 | `f07341f` |
+| **case-corrections** | **Case Correction Lifecycle** [0085](docs/decisions/0085-case-correction-lifecycle.md) | ✅ complete | ✅ | ✅ tester 24/24 + full prod E2E feat 7/7 (reds triaged infra/baseline; T-2 clean-stack 76/76) | ✅ APPROVED (0P0/0MAJ/2min) [review](docs/reviews/case-corrections-review.md) | ✅ 2026-07-24 | 2026-07-24 | `6b50abc` → main+origin; **remote `db push` ✅ (flag ON, backfill verified live)** |
+| **case-custom-fields** | **Case Custom Fields** [0083](docs/decisions/0083-case-custom-fields.md) | ✅ complete | ✅ lint/tsc/vitest 369 | ✅ E2E 8/8 (3× clean) · pgTAP `188` 28/28 · full `e2e:prod` 735p (feat 8/8 on prod build) | ✅ APPROVED (0 P0 · 0 MAJOR · 1 MINOR cleared · 2 INFO) [review](docs/reviews/adr-0083-case-custom-fields-review.md) | ⚠ **unrecorded** — see detail | 2026-07-23 | merge `c857193` · flag ON `fde76d3` |
+| **bulk-case-create** | **Bulk Case Creation ("Múltiplos casos")** [0084](docs/decisions/0084-bulk-case-creation.md) | ✅ complete | ✅ build/tsc/lint/vitest 390 | ✅ E2E 8/8 prod-standalone · pgTAP 29/29 | ✅ APPROVED (4 MINOR/OBSERVATION, none blocking; fixed `b948c9f`) [review](docs/reviews/bulk-case-creation-review.md) | ⚠ **unrecorded** — see detail | 2026-07-23 | flag ON `255a8e9` |
+| **AUDIT-DOOR-BLINDNESS · P0** | ADR 0078 §7.14 | ✅ complete | ✅ | ✅ 50 KS mut-proven · pgTAP 3288 · invariant HOLDS | ✅ APPROVED [review](docs/reviews/authz-door-audit-p0-review.md) | ✅ 2026-07-18 | 2026-07-18 | ff→main |
 ## Current Phase Tasks
 
 <!-- Lead recreates this table at the start of each phase. At the §6 Record step the
@@ -94,462 +76,34 @@ _No active build phase._ **FF-1 (Repeating Groups) ✅ COMPLETE 2026-07-27** —
 `matrix_fields` **ON** (gate flip `20260830001200`); record →
 [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md).
 
-### 🏗️ FF-3 — Validation Engine (`item_validations`) · IN PROGRESS (started 2026-07-28)
+**FF-3 (Validation Engine) ✅ COMPLETE 2026-07-28** — ADR
+[0090](docs/decisions/0090-ff3-validation-engine.md) (+ Amendments 1–4), QA **APPROVED** r2,
+human-approved, flag `item_validations` **ON** (gate flip `20260901000800`); record →
+[ff-3-validation-engine.md](docs/progress/ff-3-validation-engine.md).
 
-ADR [0090](docs/decisions/0090-ff3-validation-engine.md) **accepted** — PO rulings taken
-2026-07-28: rule vocabulary = the plan's set · coverage = scalars + repeating-group children
-per-instance (matrix cells **out** of v1) · `error` blocks **submit only**, server-side.
-Migration window `20260901000000`+ · SQLSTATEs from **`HC0P9`** (live high-water `HC0P8`) ·
-pgTAP **274+** (highest today `273`). Worktree `ff/flexible-forms-program`, branch of the same
-name, fast-forwarded to `main` @ `5e6b62d`; **216 == 216** at phase start.
+**FF-5 (Entity Reference, `entity_refs`) is the next build phase — NOT started.** Its ADR is
+**0091+**; scope, dependencies and gate keystones →
+[flexible-forms-program.md](docs/plans/flexible-forms-program.md) §3 FF-5.
 
-> 🔎 **Catalog finding that changed the scope (ADR 0090 ruling 1).** The plan lists "group
-> cardinality" as an FF-3 `rule_type`. It is **already shipped by FF-1** — `minInstances` in
-> `app.response_required_complete`'s group arm, `maxInstances` in `add_group_instance` (the only
-> `prosrc` in the catalog mentioning it), both via `app.item_cardinality(form_items.config, …)`.
-> Adding it as a rule would create a second source of truth for one bound. **FF-3 ships six new
-> rule types, not seven**, and the seventh is recorded as already-satisfied rather than dropped.
-
-| # | Task | Owner | Status |
-| - | ---- | ----- | ------ |
-| B1 | Schema wave — `rule_type` allowlist CHECK + `item_type` coverage (a TRIGGER, not a CHECK — a CHECK cannot subquery `form_items`) · `form_items.required_if` (+ `input_vs_display` arm incl. `reference`) · flag seeded **OFF**, `seed.sql` flips it ON for local/E2E | `backend` | ✅ `20260901000000` |
-| B2 | Door parity — `set_item_validations` DEFINER writer · targeted SELECT arm · `staff_admin` FOR-ALL write arm · `app.copy_version_children` validations block, same wave. Grant stays SELECT-only so K9 holds by privilege | `backend` | ✅ `20260901000100` |
-| B3 | Evaluator pair — `app.eval_validation` + `evalValidation` in `src/lib/queries/validations.ts` + 47 golden vectors, **plus a real drift DETECTOR** (the pgTAP file embeds the fixture bytes; Vitest asserts they parse equal — FF-1 QA's INFO-4) | `backend` | ✅ `20260901000200` |
-| B4 | Authority — `required_if` in **both** arms (visibility wins) · `HC0P9` gate in `submit_response` · `get_response_validation_errors`. The gate and the read path share `app.response_validation_errors`; the legacy `assert_item_bounds` lane was extracted into it so the list can never omit what the gate blocks on | `backend` | ✅ `20260901000300/400` |
-| B5 | Operator authorability — `app.is_valid_condition` widened to the four F3 operators; the `value` requirement relaxed for the two unary ones BY NAME (not globally) | `backend` | ✅ `20260901000500` |
-| B6 | pgTAP `274_ff3_validations.sql` — **70 assertions**, all 8 ADR-0090 keystones, each mutation-proven (23 mutations run, red output recorded). Re-pins: `209` §B **+4** (the `required_if` freeze on containers/display/`reference`, with a positive twin) and `272` **§S +3** (a TARGETED respondent READS validation ROWS — 274 §C can only prove the policy EXISTS, which ETH·E1 established is a different claim). Also **`20260901000600`**: publish-time validation of `required_if` | `backend` | ✅ **4138** tests PASS |
-| F1 | Builder — rules editor (type/config/severity/pt-BR message) + `required_if` authoring via the condition builder + the new operator pickers | `frontend` | ✅ **`5c8c14b` + `2254227`** — lint 0/0 · tsc · Vitest 697 · `next build` |
-| F2 | Wizard — inline error/warn from the TS twin, per instance; submit blocked on error; warn badges in review | `frontend` | ✅ **`609ae63`** + marker fix **`5b17b4e`** — lint 0/0 · tsc · Vitest **725** · `next build` |
-
-> **F1 ✅ (`5c8c14b` + `2254227`).** Rules editor as a separate dialog off the block card
-> (`ValidationsDialog` + `ValidationRulesEditor`), mirroring `MatrixConfigDialog` for the same two
-> contract reasons: the writer is keyed on an existing `form_items.id` that "add" mode lacks, and the
-> write is **REPLACE and wholesale** with no `code` to match on — so one piece of state owns the whole
-> list, seeded from `item.validations`, mounted only while open, with a destructive save surfaced
-> explicitly ("N regras serão removidas") instead of just looking like a shorter list. The type picker
-> offers only what `isValidationRuleAllowed` permits, and the card resolves the parent's **TYPE** (not
-> its `isChild` boolean) so `unique_within_group` is never offered inside a plain `group`.
-> `required_if` authoring rides a third `ConditionBuilder` context, `required`, emitting a **single
-> bare** condition — a third context rather than a boolean prop on a shared control. The existing
-> `required` checkbox wire contract is untouched; the interaction is explained in copy.
+> 🔴 **FF-5 inherits four obligations. The first three are the standing ones; the fourth is new
+> and was found by writing FF-3's documentation, not its code.**
+> 1. **`answer_references` is missing the targeted and `can_read_correction_response` policy arms**
+>    — deliberately unfixed while write-inert. **FF-5's writer landing is when that stops being true.**
+> 2. **Correction-copy with the instance remap** — `answer_references` hangs off `answer_id` and is
+>    copied by **neither** correction RPC. Resolve old→new *through* the instance rows.
+> 3. **The door-parity rule** — every arm its sibling carries, proven as a **table** against
+>    `pg_policies` **and the ACLs**, not asserted. Where siblings disagree, the **tighter** posture wins.
+> 4. **`reference` pins BOTH `required = false` AND `required_if IS NULL`** in
+>    `form_items_input_vs_display`. **Relax one without the other and the deadlock reopens by the
+>    other door.**
 >
-> **Unary operators now offered on EVERY target type**, after backend fixed both publish assertions.
-> Re-verified through `public.validate_visible_when` on a **cloned draft** — a SECTION `visible_when`
-> *and* an ITEM `required_if`, both `is_empty`/`is_not_empty` on a **choice** target, the exact arm
-> that raised `42883` before — plus a negative control proving a bogus operator is still refused
-> (`23514`). Rolled back; nothing mutated. `contains`/`not_contains` remain **deliberately unpickered**
-> (lead ruling (A)); the reason is recorded at the picker so it does not read as an oversight.
->
-> **F2 ✅ (`609ae63`).** Rules + `required_if` evaluate through the TS twin as a **separate pass**
-> beside the existing required/bounds validators — an optional answer-map param on the old signatures
-> would have failed **open** (a caller that forgot it stops enforcing `required_if` while still looking
-> validated). Feedback is live, derived during render; safe because an empty value is satisfied on both
-> sides of the mirror, so an untouched field never accuses anyone. Placement is per instance on the
-> existing `${instanceId}:${itemId}` key, so a violation in repetition 2 leaves repetition 1 alone;
-> `unique_within_group` takes peers from each peer's **own** instance map, never the overlay, or a blank
-> row would collide against an unrelated top-level answer under the same `question_key`. `warn` never
-> uses the `error` channel — that channel drives `aria-invalid`, and marking an input invalid for a rule
-> the server accepts misinforms assistive tech; warnings are a polite live region inline and a labelled
-> badge list in review. An `HC0P9` refusal places `validationErrors` per field/instance **and navigates
-> to the first one**; live errors merge UNDER the server's so an authoritative refusal is never
-> overwritten by a recomputed one (that would hide a real SQL↔TS disagreement). Author text is rendered
-> as TEXT everywhere (Rule 7).
->
-> **Mutation-proven guards (4 mutations, file restored byte-for-byte each time).** Coverage filter
-> neutralized → 5 red · the every-rule pre-flight loop reverted to its first-draft-only bug → 2 red ·
-> the instance dimension dropped from the error key → 3 red · the empty-instance prune removed → 1 red.
-> ⚠ That last one was **VACUOUS on first write**: a bounds rule is satisfied by an empty value under
-> *both* readings, so it proved nothing. Rewritten around `required_if` — the only rule that fires ON
-> emptiness — plus a positive twin so it cannot be vacuous from the other direction either.
->
-> ✅ **D1–D5 all landed and independently re-verified** (not taken on backend's word): the pure module
-> is genuinely server-free (`next build` is the proof), `Item.requiredIf`/`Item.validations` arrive
-> FK-hinted, `requiredIf` rides the item FormData, `validationErrors` is on both submit paths, and
-> `itemValidationsEnabled()` exists. The **P0 I filed in `20260901000700` is fixed** — all four call
-> sites now pass the operator and the previously-`42883` version validates clean.
->
-> ✅ **Marker fix — lead-ruled in scope, done (`5b17b4e`). The frontend surface is now FINAL for `tester`.**
-> An item mandatory only through `required_if` showed no marker and announced itself as **optional** —
-> the harmful direction of the same argument that kept `warn` off `aria-invalid`. `InputItem` gains
-> `requiredNow`, resolved per instance and feeding the SAME `required` variable the static flag fed, so
-> the marker's **DOM shape is unchanged** (no selector moves) and only its input became dynamic;
-> omitting the prop falls back to `item.required`, so read-only/review/sign-off contexts are untouched.
->
-> ⚠ **`aria-required` did not exist anywhere in the wizard before this** — `required` drove only the
-> visual asterisk, so required-ness was never announced for ANY item, statically-required ones
-> included. That was a pre-existing a11y gap the ruling surfaced. Added via `useFieldIds` (the five
-> single-control fields) and on the two group fieldsets. **One arm would have been missed silently:**
-> `DateTimeItem`'s TIME branch hands its a11y attributes to `TimeField` individually instead of
-> spreading `controlProps`, so `aria-required` alone would have been dropped there — routed through
-> react-aria's `isRequired` instead. Found by enumerating all seven controls rather than trusting the
-> spread (the "every sibling arm" rule, applied to a render tree instead of a policy set).
->
-> Effective required-ness is resolved ONCE, on `RuleFeedback.requiredNow`, in the walk that already
-> computes it — recomputing it in the render tree would be a second implementation of the same
-> question, free to disagree with the one that blocks submit. **Mutation-proven:** driving the marker
-> from the static flag (the exact defect fixed) turns **5** red, including the two that assert the
-> marker independently of the error — a required field that IS answered must still be marked, so one
-> assertion cannot cover both. Restored byte-for-byte.
+> Also worth reading before FF-5 designs its picker: FF-3's `app.response_validation_errors` is an
+> **INVOKER wrapper whose hand-written probe is its only gate** — the shape the ADR-0079 standing
+> sweep is structurally blind to (**AUDIT-INVOKER-WRAPPER**, tracked below). FF-5's participant lane
+> is a PHI read surface, so it will want the same scrutiny and cannot rely on that sweep to supply it.
 
-> ✅ **Boundary audit — matrix + risk_matrix `required_if` (`45563c7`).** The lead found the marker
-> still static on the two render paths outside `input-item.tsx`. It was the **visible symptom of a
-> deeper gap**: both walks gated on `isInputItem`, which is deliberately FALSE for the matrix types
-> (their answer is not a scalar in `answers.value`), so the two types were skipped **outright** —
-> `required_if` on a matrix was never evaluated client-side at all. Meanwhile
-> `form_items_input_vs_display` permits it on both (verified from `pg_constraint`, quoted below) and
-> `app.response_required_complete` calls `app.item_is_required` with no `item_type` filter, so it
-> genuinely blocks submit. Both walks now gate on `isAnswerableItem`; presence uses the ROW-COMPLETE /
-> both-halves reading via a shared `itemAnswered`, so `required_if` cannot acquire a second notion of
-> "answered".
->
-> **The enumeration, derived from the CHECK rather than from a file** — 10 item types permit
-> `required_if`; the 5 excluded ones are forced `required_if IS NULL`:
->
-> | `item_type` | renders via | reads effective required-ness |
-> |---|---|---|
-> | `multiple_choice` · `dropdown` · `checkbox` | `ChoiceGroup` / `DropdownItem` / `CheckboxGroup` (`input-item.tsx`) | ✅ |
-> | `free_text` · `short_text` · `number` | `FreeTextItem` / `ShortTextItem` / `NumberItem` (`input-item.tsx`) | ✅ |
-> | `date` | `DateTimeItem` date branch | ✅ |
-> | `time` | `DateTimeItem` **TIME** branch | ✅ (hands a11y attrs over individually — would have dropped `aria-required` alone) |
-> | `matrix` | **`matrix-grid.tsx`** | ✅ **(this fix)** |
-> | `risk_matrix` | **`risk-matrix-picker.tsx`** | ✅ **(this fix)** |
-> | `reference` · `group` · `repeating_group` · `section_text` · `image` | — | n/a — CHECK forces `required_if IS NULL` |
->
-> **An a11y correction the lint gate caught, and it was right:** `aria-required` is invalid on
-> `role="radio"`, and `matrix-grid`'s wrapper is deliberately `role="group"` (one radio group **per
-> row**), which does not support it either. Required-ness is announced through the group's
-> **description** instead — said once for the whole grid, driven by the effective value.
-> `risk-matrix-picker`'s wrapper IS a `radiogroup`, so `aria-required` is valid there.
->
-> **Mutation-proven twice, files restored byte-for-byte:** reverting both walk gates to `isInputItem`
-> → **6 red**; reverting all three render fallbacks to the static flag → **11 of 15 red** in the new
-> render-level suite, the 4 survivors being exactly the "falls back when the prop is absent" cases
-> that must stay green. ⚠ **That render suite exists because the walk-level assertions CANNOT fail if
-> a component goes stale** — the same vacuity trap as the prune test, caught before shipping this time.
->
-> ✅ **Ninth path fixed — review only (`a4b95e7`), per the lead's ruling.**
-> `AnswerSummary` gains `requiredNow?: boolean` with a static fallback; review threads the
-> effective-required set to it (bare ids at top level, `${instanceId}:${itemId}` in a repetition —
-> the SAME keying the fill side uses, so one set serves both). Matrix items review THROUGH
-> `MatrixGrid`/`RiskMatrixPicker`, so those get it too and review agrees with fill for all 10 types.
-> The set is collected in the walk that already crosses every visible section for the review
-> warnings — one pass, both facts.
->
-> **Scope: the review call site only.** The six historical consumers (`submission-detail-view`,
-> `phase-answers-readonly`, `instance-answers-readonly`, `review-and-sign`, two tests) render
-> SUBMITTED records and keep the authored flag, untouched.
->
-> ⚠ **Correcting my own earlier reasoning, per the lead — it changes O-5's framing.** I argued the
-> historical views have "no live answer map to resolve against". **They do:** a submitted response
-> carries a **FROZEN** map, which makes effective required-ness *deterministic and reproducible*
-> there — more so than during fill. So static required-ness on those six is **not demonstrably
-> correct**; it is cheaper and currently harmless. "Was this field mandatory for this record" is
-> computable from the record itself. Logged as **O-5, open** — not closed as correct. The frozen map
-> is what makes it tractable; the optional-prop-with-fallback shape is what keeps it cheap, so that
-> shape stays exactly as is.
->
-> **Mutation-proven:** reverting the review marker to the static flag turns **2** red, and the 2 that
-> stay green are precisely the fallback cases that MUST stay green — they are the six historical
-> consumers' contract. Restored byte-for-byte.
->
-> **`next build` note:** this worktree's `.next/standalone` is held by the tester's prod-standalone
-> server on `:3100`, so a plain build hits Windows `EBUSY`. Verified via an **env-gated `distDir`** to
-> a scratch dir — inert without the env var, so a concurrent tester build was unaffected — then
-> `next.config.ts` restored byte-for-byte and git-clean. **The tester's process was not touched**
-> (shared-stack rule: one owner).
 
-> ✅ **M-4 fixed + the CONTAINMENT axis enumerated (`e86c2c2`).** `GroupBlock` received neither
-> `warnings` nor `requiredNow`, so a `required_if` item inside a plain `group` announced itself
-> **optional** during fill while blocking *Próximo* and raising `HC011` at submit, and a `warn` rule on
-> such a child was evaluated but never shown inline. Fill and review disagreed, since review already
-> threaded it.
->
-> **The lesson, in QA's framing:** the **item-type** enumeration was complete — ten types derived from
-> `form_items_input_vs_display`, mapped to three render paths, verified programmatically — and the
-> **containment** axis was never enumerated at all. *"Which item types can be required?"* and *"which
-> containers relay required-ness?"* are different questions; only the first was asked. Fourth instance
-> of this family in FF-3, and the first on this axis.
->
-> **The containment table (every wrapper that renders answerable children):**
->
-> | containment | component | relays `warnings` | relays `requiredNow` | lookup key |
-> |---|---|---|---|---|
-> | top level | `section-step.tsx` | ✅ | ✅ | bare `item.id` |
-> | plain `group` | **`group-block.tsx`** | ✅ **this fix** | ✅ **this fix** | bare `child.id` (children answer at TOP LEVEL — ADR 0087 ruling 6) |
-> | `repeating_group` instance | `repeating-group-block.tsx` → `InstanceCard` | ✅ | ✅ | `${instanceId}:${itemId}` |
-> | review — top level | `review-screen.tsx` → `AnswerSummary` | n/a (aggregated panel) | ✅ | bare `item.id` |
-> | review — plain `group` | `review-screen.tsx` → `ReviewAnswerList` (no `instanceId`) | n/a | ✅ | bare `item.id` |
-> | review — repetition | `ReviewRepeatingGroup` → `ReviewAnswerList` (`instanceId` set) | n/a | ✅ | `${instanceId}:${itemId}` |
-> | historical read-only ×4 | `submission-detail-view` · `phase-answers-readonly` · `instance-answers-readonly` · `review-and-sign` | n/a | ❌ **by design** | static `item.required` — **O-5** |
->
-> ⚠ **The plain-group keying is the trap worth naming:** those children answer at TOP LEVEL, so the
-> lookup is the BARE id — the same key `validateSectionRules` writes when it flattens `group` children
-> into the flat pass, and the same treatment `app.response_required_complete` gives them. An
-> instance-shaped key would look correct in a one-group form and drift the moment anything nested
-> differently, so a test asserts an instance-shaped key does **not** match.
->
-> **Mutation-proven:** reverting `GroupBlock` to forwarding neither prop → **3 red** (marker,
-> `aria-required`, inline warning); the 3 that stay green are the negative cases that must. Restored
-> byte-for-byte.
->
-> ✅ **m-5a** — the `regex` pattern input had no `<label>`; it leaned on `<legend>Padrão</legend>`,
-> which names the FIELDSET, not the control, so it reached assistive tech unnamed while *looking*
-> labelled. ✅ **m-5b** — the pre-save error was a lone banner naming the rule by ordinal;
-> `validateRuleDrafts` now returns `{ index, message }` and the message renders **inside** the
-> offending rule's card (`role="alert"` + `aria-invalid`), banner retained for sighted scanning.
-> ✅ **i-2** — the stale `HC0N5` note struck and corrected in place (fixed in `6196b16`).
-
-> ⛔ **STILL OWED — a real click-through. Live UI verification was IMPOSSIBLE from this worktree.**
-> The Browser preview tool's session is bound to the **primary checkout** (its processes run from
-> `hospital_form_platform
-ode_modules` + `...\.next`, not from `worktrees/ff/…`), it holds a cached
-> `previewId`, and it ignored a `-p 3100` launch config across four stop/start cycles — so `:3000`
-> serves the primary checkout on `main`, which does not contain FF-3 at all. Verifying there would have
-> been worthless *and* misleading, and starting a server via Bash is disallowed by the role brief, so
-> the escalation is deliberate rather than a skipped step. What WAS verified instead: the DB seam
-> (gate acceptance of the exact emitted shape with negative controls; both publish arms end-to-end on
-> a cloned draft), `next build` (the client/server boundary), and the mutation proofs above. **The
-> untested surface is the rendered interaction itself** — the shield button, the dialog's REPLACE
-> save, inline error/warn placement, and the HC0P9 navigation. `tester` owns it; FF-1's lesson is that
-> exactly this seam is where a green bar misses three live bugs.
-
-> 🔴 **THREE FINDINGS from B1–B6, all fail-OPEN, none catchable by tsc/lint/unit/build.**
->
-> 1. **`app.validation_rule_allowed` returned NULL, not false**, for a top-level item
->    (`p_parent_item_type = NULL` → `NULL and true` = NULL). Every caller wrote
->    `if not allowed(...)`, and `not NULL` is NULL, so the `if` never fired and a forbidden
->    rule/item pair was **accepted**. Same family as FF-2 defect 1 — a three-valued predicate
->    read as if it were two-valued. Caught by keystone **B8** on its first run
->    (`caught: no exception`). Fixed with an outer `coalesce(..., false)`; `app.eval_validation`'s
->    regex arm and `app.item_is_required` were hardened the same way.
-> 2. **`validate_visible_when` never validated `required_if`.** A top-level item whose
->    `required_if` points at a repeating-group child resolves that key against the top-level map,
->    where it is absent → the item is **silently never required**. Nothing raises, nothing logs,
->    and a test that only asks "does an unmet `required_if` block" passes. Fixed in
->    `20260901000600` by generalising the item loop over both conditional columns; keystones
->    K1–K3.
-> 2b. **One VACUOUS keystone of my own, caught by the mutation sweep.** An earlier `I4`
->    claimed the `not app.instance_is_empty(...)` filter on the peer-map query, and stayed GREEN
->    with that filter removed. It cannot be observed: an empty instance holds no non-null value,
->    so it can never be a peer. Replaced by an `I4`/`I5` pair (empty → 0 violations; re-fill the
->    same value → 2 again) that a peers mutation does turn red, and the unobservable filter is
->    now recorded as unobservable in the file instead of being falsely claimed.
->
-> 3. **`HC061` is raised by TWO unrelated conditions** — `app.assert_item_bounds` (a field bound)
->    and `app.compute_case_phase_result` (a MANUAL phase with no result) — and `submitResponse`
->    mapped it to *"Selecione o resultado da fase"*. Reachable by ORDINARY USE: type 2 characters
->    into a `minLength: 5` field and you are told about a phase result. Pre-existing; fixed here
->    (prefer the DB message) because FF-3 extracted that very lane. ~~Adjacent, NOT fixed:
->    `HC0N5` (FF-1 min-instances) still falls to `MESSAGES.generic` in both submit switches.~~
->    **STALE — corrected (QA i-2):** `HC0N5` *was* fixed afterwards in `6196b16`
->    (`fix(ff-1): map HC0N5 (min instances) in both submit switches`) and is mapped in both
->    `submitResponse` and `submitCasePhaseResponse` today. The note above described the tree at
->    the moment it was written and was never revisited.
->
-> ⚠ **ADR 0090 §6's parity table is wrong on one cell**, corrected against `pg_policies`: the
-> matrix tables carry **no** write policy (one SELECT policy each; their boundary is the
-> SELECT-only GRANT + the DEFINER door). `form_item_options` is the outlier — it holds a full DML
-> grant, so for it the FOR-ALL policy *is* the boundary. FF-3 took the **stricter** shape: both
-> arms added per the ADR, grant left SELECT-only, and keystone **C5** pins both facts.
-
-**Lead notes.** Contract-first: `backend` posts the typed stubs for
-`get_response_validation_errors` + the TS validation twin before `frontend` starts F1/F2.
-File ownership — `backend` owns `src/lib/queries/**` incl. the new evaluator module and
-`conditions.ts`; `frontend` owns `src/components/forms/**` + `src/components/responses/**`.
-
-> ⚠ **Session-limit interruption, 2026-07-28 (lead record).** All three teammates were terminated
-> mid-work by an API session limit. HEAD at interruption: **`3a2d927`**; everything through F2 is
-> committed and unaffected. **Backend died immediately before applying a mutation proof**, so the
-> live catalog could not be trusted — the lead ran `supabase db reset` + the full pgTAP suite to
-> restore catalog truth from migrations. Nothing was lost; two coherent partial diffs survived
-> uncommitted:
-> - `src/components/ui/field.tsx` — `frontend`'s `aria-required` plumbing on `useFieldIds`
->   (backward-compatible: omitted → attribute absent). **Caller wiring + the dynamic visual marker
->   are unfinished.**
-> - `supabase/tests/274_ff3_validations.sql` — `backend`'s **§M mixed-severity keystone** (plan
->   78 → 81), asked for by `frontend`. Its rationale is the sharp one: narrowing the read path to
->   `severity='error'` already reds E4, and truncating it reds I2/I5, but **no existing assertion
->   sees a MIXED set** — E2's state holds only errors, E4's only warns — so a refactor suppressing
->   warns *while errors exist* passes every one of them. Same class as the `20260901000700` P0.
->   **Written but not yet mutation-proven or committed.**
->
-> **Outstanding at interruption:** (1) the dynamic required marker + `aria-required` wiring
-> [`frontend`, lead-ruled in scope]; (2) §M's Mutation A/B/C proofs + commit [`backend`];
-> (3) **the FF-3 E2E spec — not started** [`tester`; no spec file exists yet]. The rendered
-> interaction therefore remains unverified, which is gate step 2's whole purpose.
->
-> ✅ **All three closed 2026-07-28.** Marker `5b17b4e`/`45563c7`/`a4b95e7` · §M `a88f74a` ·
-> spec `7d8a92e`→`87f2e46`.
-
-### 🧪 FF-3 gate step 2 — tester result: **19 / 19 green** (`87f2e46`)
-
-Two rounds. **R1 = 16/18, NOT green**, two bugs filed; both fixed; **R2 = 19/19** with
-`expected=19 reported=19` and `PIPESTATUS[0]` read directly, on a fresh reset (224==224, flag `t`,
-token POST 200), prod-standalone rebuilt at `91f4931` and served from a scratchpad copy.
-Neighbours **40/40** (`ff1` 9 · `ff2-matrix` 11 · `phase5-wizard` 12 · `phase4-builder` 8), each
-on its own server. FF3-6/6b are **the same tests that were red before the fix and green after** —
-the history is the cover, not an assertion written to match the fix.
-
-**BUG-FF3-002 — MAJOR, phase-blocking (fixed `91f4931`).** The unary operators were offered by
-every condition picker and could not be saved. **The reported cause was not the cause, twice
-over** — `tester` and the **lead** both fingered `if (!('value' in rec)) return false`; the actual
-rejection was one line earlier (`CONDITION_OPS` was still the pre-F3 **seven**), and the blamed
-check never fired at all because `condition-builder.tsx:204` emits `value: null`, a *present* key.
-`backend` **tested the prescribed fix against reality before complying, found it inert, and fixed
-the real cause** — mutation-proven both ways. The durable half: the evaluator pair has had golden
-vectors since ADR 0005, the **validator pair had none**, which is exactly why a one-sided widening
-survived pgTAP (SQL correct), tsc/lint (TS well-formed) and a DB-level UI check (below the seam).
-27 vectors now drive both engines (`condition-shape.ts` + `275_condition_validator_parity.sql`).
-
-**BUG-FF3-001 — MINOR (fixed `8d53b3d`).** Clearing now keys on the symmetric rule's participant
-set. Trade-off accepted + recorded under ADR 0090 O-6.
-
-### ✅ FF-3 gate steps 1–3 COMPLETE — awaiting human approval (step 4)
-
-**Final bar at `9557d1f`**, each re-run by the lead on a clean tree: pgTAP **141 files / 4167 PASS**
-(fresh reset) · Vitest **814/814** · lint **0/0** · typecheck clean · `next build` **EXIT=0**
-(exit code captured, not grepped) · migrations **225 == 225**.
-
-**Tester r2: FF-3 spec 25/25 · neighbours 62/62** (`phase4-builder` 8 · `form-builder-enhancements`
-15 · `ff1` 9 · `phase5-wizard` 12 · `wizard-others-ux` 7 · `ff2-matrix` 11). **QA r2: APPROVED**
-(0 BLOCKING · 1 MAJOR-coverage now closed by `13e4664` · 4 MINOR · 3 INFO) → [review](docs/reviews/ff-3-review.md).
-
-**Final full `e2e:prod` (`BATCH_SIZE=4`, RESET+REBUILD): 794 passed · 16 of 19 batches completely
-clean · every batch `accounted N/N` (910 of 914 collected).** The three failing batches are the
-documented collapse, triaged not assumed: b7 = **90** connection errors, b14 = **84**, b2 = 4 —
-and b2's two failures are `net::ERR_CONNECTION_REFUSED` on `page.goto`, not assertions.
-**Zero real failures.** b7 contains `ff3-validations.spec.ts`, exactly as `tester` predicted: that
-file has outgrown one standalone server (three full-file runs collapsed at 8/11/9 failures, all
-`ERR_CONNECTION_REFUSED`, with 9.9 GB free; two halves on separate servers run clean).
-
-> ⚠ **Triage tell worth keeping:** one collapse run **failed test 1, recovered for 14, then died at
-> 16** — so **the first failure is not the collapse point**, which is precisely the inference that
-> would mislead a triage into blaming the first failing spec.
-
-**`tester` rejected the "E2E cannot reach M-1/M-2/M-4" claim** that `qa`, `backend` and the lead had
-all accepted, and wrote specs for all three (**FF3-17** drives `submit_response` directly; **FF3-18**
-calls the read RPC as a rede-B outsider). *Below the UI is not unreachable.* No coverage gap recorded.
-**FF3-17 was vacuous on first write and passed** — it refused with `HC0N5` (FF-1's `minInstances`),
-not the `required_if` arm, because `handleNext` returns before `persistSection` so the repetition was
-simply empty. Caught only by printing the refusal payload. **A refusal is not evidence until you read
-which refusal** — the `CONDITION_OPS` misattribution one layer down.
-
-### 🚦 FF-3 gate step 2 — earlier full-suite history (superseded by the run above)
-
-Three full runs (`RESET=1 REBUILD=1`) plus two targeted runs. **Every one of the 908 collected
-tests passed under a fresh server, with full `accounted N/N`** — but **no single full run went
-green**, and that limitation is environmental and reproducible. Stated plainly so QA and the PO
-read the same thing.
-
-| run | result |
-|---|---|
-| 1 | 630p / 140f / 130 dnr — **2 real defects**, both in `e2e/` (decision-#9 stale contract; BUG-E2E-001 seed-eating cleanup). 0 app regressions |
-| 2 | 776p / **0f** / 0 dnr — RED only on b10 `exit127, 0 of 125 ran` (transient harness fault; batch never executed) |
-| 3 | 742p / 88f / 69 dnr — **b1–b9 + b13 all 0-failure, conn_errors=0**; every failure in b10/b11/b12 |
-| b10 targeted | **125/125, accounted 125/125, GREEN** |
-| b11+b12 targeted (`BATCH_SIZE=3`) | **126/126, accounted 126/129 (3 skipped), GREEN** |
-
-**Why the residual is environmental, evidenced not asserted.** Failures track connection-error
-density exactly — b1–b9/b13 = **0**, b10/b11/b12 = 36 / **135** / 2 — the server log carries
-`Error: The destination stream closed early`, and b11's first failure is a **150 s timeout on a
-click** where Playwright reports the element *"visible, enabled and stable"*. No `supabase_vector`
-container exists here, so that known 502 path is **not** in play; DB and auth stayed healthy. It is
-the Next standalone server degrading late in a ~45-minute process.
-
-> 🔴 **Second coordination finding (QA r2, 2026-07-28): the E2E gate and a catalog audit cannot
-> share one local database — and this is the LEAD's sequencing error, not a teammate's.** I ran
-> `qa` and `tester` in parallel on the single local stack. The tester's run dropped
-> `pgtap`/`test_helpers` mid-audit, so six of QA's mutation runs aborted at `select plan()` and its
-> harness — counting only `^(ok|not ok)` lines — read **0-of-0 as a pass**. That is precisely the
-> vacuity this phase was grading for, committed by the reviewer, caused by the lead. QA caught it
-> itself, pinned a per-file assertion-count guard, and re-ran every r2 number post-fix. A later
-> `test:db` FAIL/3693 was the same contamination (`140_patient_safety`, `145_pqs_membership`,
-> "planned N, ran 0" cascades, **no FF-3 file among them**), not a regression.
-> **Fix: serialize audit and gate, or give them separate stacks.** Belongs with the harness split.
-
-> 🔴 **Finding for the PO: the suite has outgrown a single gate process.** The collapse is
-> **cumulative over run time, not per-server size** — the identical b11 specs fail at position 11
-> of 13 and pass at position 1 of 4. So a smaller `BATCH_SIZE` makes it **worse** (more restarts,
-> longer wall clock), which is why no fourth full run was attempted. The gate needs splitting into
-> two sequential processes, or more machine headroom. **This is not FF-3's defect and it will
-> block every future phase's gate identically.**
-
-> ⚠ **Two false reports worth keeping, both from scraping rather than executing.** The "no message
-> at all" symptom was a **probe regex** (`/A condição/` vs the real *"Condição de aparência
-> inválida."*), not a product defect — no `frontend` dispatch was needed. And three specs on one
-> long-lived server scored 17/32 with **all 15 failures `net::ERR_CONNECTION_REFUSED`** (count
-> matching exactly, after `destination stream closed early`) — the Windows monolith collapse
-> `e2e:prod` restarts per batch to avoid. **A tester's multi-spec convenience run reproduces it.**
-
-> 🔴 **FF-3 inherits two obligations from FF-2, both binding.**
-> 1. **`form_item_validations` is missing the targeted and correction policy arms** (deliberately
->    unfixed while write-inert). **FF-3's writer landing is when that stops being true** — the same
->    hand-forward FF-1 gave FF-2 for its P0-1 correction-copy obligation, which FF-2 then found had
->    already bitten three surfaces.
-> 2. **The door-parity rule:** a new door or policy must carry **every** arm its sibling carries,
->    proven as a **table**, not asserted. FF-2 missed it four times in one phase, each in a different
->    direction. Keystone: `272_ff2_door_parity.sql`.
->
-> Also worth reading before FF-3 writes its evaluator: FF-2's **`app.item_required_satisfied`** is now
-> the single required-presence predicate for **every** item type platform-wide, and FF-2's QA showed a
-> keystone over it needs **both** directions (`select true` must turn the positive arm red, not just
-> the blocking one).
-
-### 🔒 Case-type assignment — ETH·E3a O-1 resolved (2026-07-27, out-of-phase fix)
-
-**Found:** a sweep of `.rpc()` call sites vs `pg_proc` showed `p_case_type_id` declared by
-`create_case` + `create_case_from_template` and passed by **nobody**. It was the only writer
-of `cases.case_type_id`, so every app-created case landed NULL — which made each `case_types`
-row's `default_visibility_policy` **inert**. Ethics cases created through the UI were born
-`commission_default` (whole-commission visible) instead of `explicit_grants_only`. `seed.sql`
-claimed that hole was closed; it was not. Proven live, both directions.
-
-**Root cause:** not a regression — E3a deferred "where does a case get its type" as Open
-decision O-1 and the call was never made. ADR 0064 D4's channel
-(`process_templates.case_type_id`) was never built.
-
-**Fixed** → ADR [0088](docs/decisions/0088-case-type-assignment-channel.md): template declares
-(`process_templates.case_type_id` + `set_template_case_type` + org-consistency trigger `HC0F7`),
-`create_case_from_template` inherits, process-less dialog picks, org-admin CRUD at
-`/o/[org]/manage/tipos-de-caso`. Migrations `20260829000000` + `20260829000100`.
-**Local only — remote `db push` NOT done.** Green: tsc 0 · scoped eslint 0/0 · Vitest 490 ·
-`next build` ✅ · 5-case live proof (inherit / process-less / cleared-no-regression /
-cross-org `HC0F7` / non-admin `42501`). **Not yet E2E-tested or QA-reviewed.**
-
-> ⚠ `npm run lint` (whole-repo) currently reports ~45.8k problems from the nested
-> `worktrees/ff/flexible-forms-program/.next/` build output — `eslint.config.mjs` ignores
-> `.claude/**` but not `worktrees/**`. **Pre-existing and unrelated**; needs a one-line ignore.
-
-### ✅ FF-2 — Matrix & Risk Matrix · COMPLETE 2026-07-27 (ADR 0089)
-
-QA **APPROVED** (r2, after CHANGES REQUESTED at r1) · human-approved · flag `matrix_fields` **ON**
-(gate flip `20260830001200`) · merged to `main`. **Remote `db push` NOT done** (local only, as every
-S-phase — user-gated). **36 commits · 16 migrations `20260830000000`–`20260830001500`.**
-
-**Full record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md)** (the four PO
-rulings, all 13 defects with repro/fix, the door-parity sweep, every mutation proof, the gate triage).
-Reviews: [r1](docs/reviews/ff-2-review.md) · [r2](docs/reviews/ff-2-review-r2.md).
-
-**Final bar:** pgTAP **139 files / 4061 / PASS** (clean reset) · Vitest **593/593** · lint **0/0**
-(eslint + the new `[--var]` guard) · `next build` ✅ · migrations **216 == 216** · `e2e:prod` green
-for FF-2.
-
-**Shipped:** radio-grid cell contract (`UNIQUE (answer_id, row_id)`), `weight` on both axis tables
-with **server-derived** `risk_score`, `required` = every row answered (flat **and** per-instance),
-axis `code`s immutable by trigger; builder axes/bands editors; wizard grid + severity×likelihood
-picker; sign-off, submission **and** dashboard cell-unit/risk surfaces (both follow-ups were pulled
-into gate scope by PO ruling, so the phase ships its full ADR scope).
-
-> ⚠ **Two rules this phase paid for, binding on FF-3 / FF-5.**
-> 1. **A new door or policy must carry EVERY arm its sibling carries** — proven as a table, not
->    asserted. Missed **four times in one phase**, each in a different direction (a DEFINER gate
->    *stricter* than the RLS it replaced; a writer door narrower than the `answers` policy; SELECT
->    policies missing the corrector arm; axis tables missing the targeted arm). Keystone:
->    `272_ff2_door_parity.sql`.
-> 2. **`form_item_validations` (FF-3) and `answer_references` (FF-5) are missing the targeted and
->    correction arms**, deliberately unfixed while write-inert. **Their writers landing is when that
->    stops being true** — handed forward the way FF-1 handed FF-2 its P0-1 correction-copy obligation.
-
+**Case-type assignment (ADR 0088) ✅** — template declares → case inherits; record → [case-type-assignment.md](docs/progress/case-type-assignment.md). **FF-2 ✅** — record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md); its two binding rules (door parity as a **table**; the targeted/correction arms owed by `answer_references`) are restated in the FF-5 handoff above.
 
 ### 📋 Remaining pre-pilot work
 
@@ -614,135 +168,7 @@ _Shipped from this backlog:_ **S1** N (Phase 20) · MEM (§6.1 collapse) · SUP 
 <!-- OPEN bugs only. Resolved/closed rows rotate to docs/progress/bug-log-archive.md (or the
      owning phase's record) at each §6 Record step. -->
 
-FF-2's five (BUG-FF2-001…005) and the two out-of-phase fixes it absorbed (BUG-FF1-006 `HC0N2`,
-BUG-FF1-007 `<> ''''`) are **all closed and re-verified**, with full repro/fix detail in
-[ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md). The ETH·E2 targeted-lane fix
-(`4ee24c8`) is recorded there too.
-
-#### ✅ BUG-E2E-001 — `mem-memberships-collapse` AC-1 deleted a SEED membership in its own cleanup, poisoning every later batch of the gate · severity **MAJOR (test-suite)** · **CLOSED 2026-07-28** (found + fixed + re-verified by `tester`)
-
-**The only real defect in the 2026-07-28 gate's 140 failures**, and it is in `e2e/`, not in app code.
-
-AC-1 enrolls a PQS member on the central-a roster, then removes one to "restore the seed roster" —
-but it took **`.first()`** of the remove buttons, which is the *first row in the card*, not the row it
-had just added. On the seeded roster that first row is **`admin@test.local` (`pqs_member`, hospital
-`05000000-…-000a`)**. So the cleanup deleted a **seed** row and left the test's own addition behind.
-
-**Why it detonated only in the gate:** the gate does **not** `db reset` between batches.
-`open_capa_plan` infers its hospital from exactly that membership, so once it was gone the RPC
-answered **HTTP 400 `HC083` — "informe o hospital do plano de ação"**, and every CAPA-dependent spec
-downstream failed in setup. That is the entire **9-failure `notifications.spec.ts` cascade in batch 7**.
-Running `notifications.spec.ts` alone passes 8/8, which is why it had never been caught.
-
-**Proven, not inferred**, in four steps: (1) reproduced batch 7's exact six-file composition on a
-**fresh** DB → the same cascade; (2) read the persona's memberships in the contaminated state → only
-the `org_admin` row survived, the `pqs_member` row was gone; (3) replayed the RPC live in that state →
-`400 HC083`, against `200` on a fresh seed; (4) compared to a fresh seed → two rows, confirming which
-one was destroyed.
-
-**Fixed** by removing the member the test actually added, addressed **by name**
-(`Remover ${personName} da equipe do NSP`), with a guard that fails loudly if that control is missing
-rather than falling back to an arbitrary row. Two assertions were added so the old behaviour cannot
-return silently: the added member's control is gone **and** the seeded `pqs_member` row still exists.
-The second is the load-bearing one — the old bug also ends with one fewer row, so an
-absence-only check passes under it.
-
-**Re-verified:** batch 7's composition went **78/87 → 86/87** on a fresh DB (the notifications cascade
-gone entirely), and `mem-memberships-collapse` is **7/7** standalone.
-
-> ⚠ **The class, worth a sweep beyond this fix:** a spec whose cleanup targets `.first()` (or any
-> positional locator) rather than the row it created will eventually eat a seed row. It is invisible
-> file-locally and only surfaces in a gate that does not reset between batches.
-
-#### ✅ BUG-FF3-002 — the two unary operators were OFFERED by every condition picker but could not be SAVED · severity **MAJOR / phase-blocking** · **CLOSED 2026-07-28** (fixed `91f4931`, re-verified by `tester`)
-
-**Blocks ADR 0090 ruling 5 + Amendment 2** — the pickers are the phase's whole shipped operator
-surface, and choosing either option makes the question **unsaveable**. Fails **CLOSED** (a refusal,
-not a silent accept), which is why lint / tsc / Vitest 748 / pgTAP 4157 / `next build` all stayed green.
-
-**Root cause — and a correction to this report.** The drift was real and the direction was right
-(the database was the *permissive* side; the TypeScript half of the mirror was never widened). **But
-the line this report originally blamed was the wrong one.** It fingered `isValidCondition`'s
-`if (!('value' in rec)) return false`. The actual rejection was **one line earlier**: `CONDITION_OPS`
-still held the pre-F3 seven operators, so `is_empty` failed the allowlist before the value check was
-ever reached — and `condition-builder.tsx:204` emits `value: null`, a **present** key, so the blamed
-line never fired at all. `backend` checked the prescribed one-line exemption against reality, found it
-would not have worked, and fixed the real cause instead.
-
-*Lesson worth keeping, since this is the second time this phase:* **a repro proves the symptom; the
-line you can see failing is a hypothesis until something mutates it.** The fix is mutation-proven both
-ways — reverting `CONDITION_OPS` to seven reds 8 assertions including *"is_empty with an explicit null
-value (what the builder emits)"*, while removing only the value exemption reds 3 and leaves that one
-green.
-
-**Live proof, three cells so it cannot be read as "`required_if` is just broken"** (prod-standalone
-:3100, `chefe.ccih@test.local`, item editor on a `short_text` with a `multiple_choice` target):
-
-| # | What was authored | Result |
-|---|---|---|
-| A | `required_if` + `equals` + value | **SAVED** — `{"op": "equals", "value": "uti_…", "question_key": "setor_auditado_…"}` in `form_items.required_if` |
-| B | `required_if` + `is_empty` | **REFUSED** — dialog stays open: *"A condição de obrigatoriedade deve ser uma única condição (sem E/OU)."* `required_if` stays NULL |
-| C | item **`visible_when`** + `is_empty` | **REFUSED** — dialog stays open, no recognisable message surfaced at all; `visible_when` stays NULL |
-| — | the catalog's opinion of the same shape | `select app.is_valid_condition('{"question_key":"x","op":"is_empty"}'::jsonb)` → **`t`** |
-
-**Scope is wider than `required_if`.** `parseVisibleWhen` calls the same helper
-(`actions.ts:854`/`861`), so **item and section visibility are equally blocked** — and FF-3 is what
-added the unary options to `condition-builder.tsx` in *all three* contexts, so cell C is this phase's
-regression surface too, on a long-shipped feature.
-
-**Secondary claims, re-checked at the lead's request — one stands, one was mine to retract.**
-(1) Cell B's message *was* wrong — "sem E/OU" when the author used neither. Moot now that the input
-saves. (2) **"Cell C surfaces no message" was a false report, and the fault was the probe's, not the
-product's:** it scraped for `/A condição/` while the copy is *"Condição de aparência inválida."* — no
-leading article. The dialog was refusing with a message the probe could not see. **No swallow exists**
-— re-verified positively by **FF3-6e**, which drives a reachable action refusal (`min > max` on the
-character limits) and asserts it lands in a `role="alert"` live region with the dialog still open and
-nothing persisted. Nor is there anything left to swallow: the builder gates on `isRowComplete` and only
-offers operators from `opsForType`, and `app.is_valid_condition` returns `f` for an unknown op (so one
-cannot even be seeded), which makes the invalid-condition branch unreachable from the UI by
-construction. **No dispatch to `frontend` needed.**
-
-**Why FF-3's own verification missed it:** F1 proved unary publishability by calling
-`public.validate_visible_when` **directly on a cloned draft**, and B5 proved storability against
-`app.is_valid_condition`. Neither path goes through the server action, which is the only thing the UI
-can reach. *(Same shape as the memory note "a declared param no caller passes is invisible to every
-layer" — here, a widened gate no caller can reach.)*
-
-**Regression cover — all green at `91f4931`, all RED before it:** **FF3-6** (`required_if`, 4 target
-types, save → round-trip → **publish**), **FF3-6b** (item `visible_when`), **FF3-6d** (**section**
-`visible_when` — the cell the first report only *reasoned* was identical because it shares
-`parseVisibleWhen`; reasoning from a shared code path is how this bug survived F1, so it is now
-executed), **FF3-6c** (picker vocabulary, incl. Amendment 2's deliberate absence of
-`contains`/`not_contains`) and **FF3-6e** (the error channel, above).
-
-The **publish** half matters most: it had been verified only at the DB layer, by calling
-`validate_visible_when` directly on a cloned draft — the layer that missed the bug. It now runs through
-the UI for all four target types.
-
-#### ✅ BUG-FF3-001 — after a blocked navigation, the untouched peer repetition kept a stale `unique_within_group` message and `aria-invalid` · severity **MINOR** · **CLOSED 2026-07-28** (fixed `8d53b3d`, re-verified by `tester`)
-
-`unique_within_group` is the only **symmetric** rule in the vocabulary: two repetitions violate it
-jointly, so resolving it on one resolves it on both. The wizard's sticky error map is cleared **per
-edited field**, so the peer the user did not touch keeps both its message and `aria-invalid="true"`
-for a violation that no longer exists.
-
-**Isolated in both directions** (so it is not "instance errors are broken"):
-
-| Path | flat field | instance bounds | `unique_within_group` peer |
-|---|---|---|---|
-| live only, **before** any blocked navigation | clears ✅ | clears ✅ | clears ✅ |
-| **after** pressing Revisar (sticky map installed) | clears ✅ | clears ✅ | **stale ❌** (`aria-invalid` still `true`) |
-
-**Display-only:** a second Revisar reaches the review screen and the banner clears, so nothing is
-blocked and no bad submit is possible. The harm is that ADR 0090 ruling 3's own reasoning —
-*"marking an input invalid for a rule the server accepts misinforms assistive tech"* — is violated
-transiently, on a field that is now valid.
-
-**Fixed** by keying the clear on the symmetric rule's whole participant set rather than on the edited
-field alone. **FF3-7b has been deleted and its assertion folded back into FF3-7**, exactly as its own
-note said to do on the day of the fix: FF3-7 now asserts the full contract — after resolving the
-duplicate on one side, the message count is **0 across the page** and `aria-invalid` is null on **both**
-repetitions, the untouched one included. The `test.fail()` marker is gone from the file entirely.
+**FF-3-era bugs — all closed and rotated** → [bug-log-archive.md](docs/progress/bug-log-archive.md): BUG-E2E-001 (the seed-eating cleanup behind the gate's b7 cascade), BUG-FF3-002 (unary operators offered but unsavable — `CONDITION_OPS` still the pre-F3 seven), BUG-FF3-001 (stale peer `aria-invalid` on the symmetric rule), and **BUG-FF1-008, closed by FF-3's Amendment 3**.
 
 #### 🔴 BUG-AUTHZ-001 — `platform_admin` reads response-level content through DEFINER dashboard functions, invisible to a policy audit of `responses` · owner **AUTHZ** · **OPEN** (filed 2026-07-27, PO's call)
 
@@ -764,14 +190,6 @@ is consistent with the `responses` policies **and structurally blind to the four
 ADR 0078's own documented blind spot (*`prosecdef` belongs beside `pg_policies`*). **So the census
 may have understated `platform_admin`'s reach across every dashboard function.** Spans far more than
 FF-2 and re-opens an ADR 0078 finding → PO decides, not a phase.
-
-#### 🟡 BUG-FF1-008 — `form-builder-enhancements.spec.ts:768` AC-4 pins behaviour FF-1 deliberately removed · owner `tester` · **OPEN** (filed 2026-07-27)
-
-Asserts the "obrigatória" toggle is DISABLED beside a visibility condition. `git log -L` blames the
-"offered BESIDE a visibility condition" change to **`633e688 feat(ff-1)`**, and FF-1's own
-`20260828000000` dropped `form_items_conditional_not_required` (confirmed absent from the live
-catalog). ~2 lines to repin. **Red on every run since FF-1 and written off as flaky-baseline noise** —
-see FUP-E2E-1.
 
 #### 🟡 BUG-P22-001 — the referrals hub does not render a seeded `completed` referral · owner Phase 22 · **OPEN** (filed 2026-07-27)
 
@@ -816,239 +234,146 @@ the seeded rede-a org. Not a product defect until that is ruled out.
 ## Test Run Summary
 
 <!-- Most recent gate's rows only; rotate the rest to docs/progress/test-run-archive.md at each
-     §6 Record (full historical log, Phases 0 → S2, 133 rows, already there). -->
+     §6 Record (full historical log, Phases 0 → FF-3, already there). -->
 
-_FF-1's runs (9/9 E2E on a prod build · pgTAP 3925 · Vitest 490 · and the two full `e2e:prod`
-gate runs with their triage) are recorded in
-[ff-1-repeating-groups.md](docs/progress/ff-1-repeating-groups.md)._
+**FF-3 · final bar at `9557d1f` (2026-07-28)** — full detail, every triage and every mutation
+proof → [ff-3-validation-engine.md](docs/progress/ff-3-validation-engine.md); the FF-2 and FF-3
+run-by-run rows → [test-run-archive.md](docs/progress/test-run-archive.md).
 
-**FF-3 · `tester` runs, 2026-07-28.** Prod-standalone built from this worktree at app code `a4b95e7`,
-served on **:3100** from a copy staged OUTSIDE `.next` (see the infra row), chromium, workers=1, via
-`e2e/playwright.ff3.config.ts`. Every row below was checked for **coverage** (`--list` count ==
-reported count) and read the runner's own `PIPESTATUS[0]`, not scraped text — the `36a18c8` C-1 lesson.
+| Surface | Result |
+| --- | --- |
+| pgTAP (fresh reset) | **141 files / 4167 / PASS** |
+| Vitest | **814 / 814** |
+| lint · typecheck · `next build` | **0/0** · clean · **EXIT=0** |
+| migrations | **225 == 225** |
+| `tester` — FF-3 spec | **25 / 25** (two halves, separate servers, `expected == reported`) |
+| `tester` — neighbours | **62 / 62** (builder 8 · builder-enh 15 · ff1 9 · wizard 12 · others-ux 7 · matrix 11) |
+| full `e2e:prod` (`BATCH_SIZE=4`) | **794 passed · 16 of 19 batches clean · every batch `accounted N/N`** |
 
-**QA r1 re-test — HEAD `a3573bb`, fresh `db reset` (225 == 225), prod-standalone built at that HEAD
-(`next build` EXIT=0, checked as an exit code — a concurrent build fails with *"Another next build
-process is already running"*, which no grep for "error" catches), served from the scratchpad copy on
-:3100. Coverage guard on every row.**
-
-| Date | Scope | Result | Notes |
-|---|---|---|---|
-| 2026-07-28 | **FF-3 · `e2e/ff3-validations.spec.ts`** — now **25 tests**, run in two halves on separate servers | **25 / 25** (11 + 14) · `expected==reported` on both · exit 0 | Six new tests for the three user-visible QA-r1 changes **plus the three QA called E2E-unreachable** — see the reachability note below. |
-| 2026-07-28 | **FF3-15** — ADR 0090 **Amendment 4**: `regex` has no client twin | PASS, **mutation-proven** | Asserts the ABSENCE of live feedback (no message, no `aria-invalid`, no navigation block) *and* the submit-time `HC0P9` refusal as the positive control. Mutation: swapping the fixture's `regex` for a **mirrored** `text_length` violated by the same value turns it red (`Expected 0, Received 1`) — that is the closest fixture-level stand-in for someone re-mirroring the arm. |
-| 2026-07-28 | **FF3-16** — QA **M-4**: `required_if` child of a plain `group` | PASS, **mutation-proven** | Marker + `aria-required` + blocking, keyed on the **bare item id** (plain-group children answer at top level). Mutation: dropping `required_if` reds it (`Expected "true", Received ""`). |
-| 2026-07-28 | **FF3-17** — QA **M-1**: unanswered per-instance `required_if` at `submit_response` | PASS, **mutation-proven — after being caught VACUOUS** | ⚠ First draft passed for the wrong reason: it refused with **`HC0N5`**, FF-1's `minInstances` bound, because `handleNext` returns before `persistSection` when the client has an error, so the repetition never persisted and was simply **empty**. Fixed by persisting through **"Salvar e sair"** (the one UI path that saves unconditionally), asserting the instance is non-empty in the DB first, and pinning the refusal **away from `HC0N5`**. Mutation: removing `required_if` reds it. |
-| 2026-07-28 | **FF3-18** — QA **M-2**: outsider on the read path | PASS | A rede-**B** member gets no rows for a rede-A response and the author's message appears nowhere in the body. Two controls stop it being vacuous: the **owner** must see the violation first, and the outsider's token must be **provably live** (it reads its own data) — without that a dead token yields the same "no rows" as a working gate. |
-| 2026-07-28 | **FF3-19 / FF3-20** — QA **B-1** flag flip + the advisory regex pre-flight | PASS | `20260901000800` is registered and the flag is `true` **from the migration**, with the UI consequence (the rules editor is offered) asserted too. FF3-20: `***=literal` — valid POSIX ARE, uncompilable by `new RegExp` — now raises a `role="status"` note and **still saves**, stored verbatim. |
-| 2026-07-28 | **Neighbours at `a3573bb`**, one server per file | **62 / 62** — `phase4-builder` 8/8 · `form-builder-enhancements` 15/15 · `ff1-repeating-groups` 9/9 · `phase5-wizard` 12/12 · `wizard-others-ux` 7/7 · `ff2-matrix` 11/11 | The builder and wizard surfaces the three changes touch. No regression. |
-| 2026-07-28 | ⚠ **Infra — the FF-3 file has outgrown ONE server** | 3 collapsed runs before splitting | At 25 tests a single standalone server dies mid-file: 8/8, then 11/12, then 9/9 failures **all** `net::ERR_CONNECTION_REFUSED`, server log ending `Error: The destination stream closed early`. Memory was fine (9.9 GB free) and no orphaned processes — it is the same Windows instability the gate batches around. **Two halves on separate servers: clean.** Two further tells worth recording: the flapping worsens sharply while another agent works in parallel (a full-file run went 2.0m → 3.2m → 4.7m and started failing `docker exec` for psql), and a run can fail test 1, recover for 14, then die at test 16 — so "the first failure" is not the collapse point. |
-
-**Gate triage — the 2026-07-28 `e2e:prod` run (630 passed · 140 failed · 3 flaky · 130 did-not-run ·
-COVERAGE 903/908), triaged by `tester` at the lead's request.** FF-3's own spec passed inside the gate
-(19 ok, batch 5). Verdicts below are per batch, each reproduced locally rather than read off the log.
-
-| Date | Scope | Result | Notes |
-|---|---|---|---|
-| 2026-07-28 | **b1 / b10 / b11 / b12** (26 / 67 / 115 / 51 connection errors) | **INFRA** — not triaged further | Lead-classified as the Windows collapse; all 130 did-not-run belong here. No bugs filed. |
-| 2026-07-28 | **b4** — `charters-cadence` AC-1a + `documents-changes-requested` CR-0 | **INFRA + flaky. 0 real.** | AC-1a failed at **0 ms** on BOTH the original and the retry — it never executed — and the log's very next line is `Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c, line 76`, a **libuv crash** that also took the 9 "did not run" in that batch. A 0 ms duration cannot be an assertion failure. CR-0 failed once (6.0 s) and **passed on retry** (1.3 s) — reported by the gate itself as `1 flaky`, the known baseline. **Both files re-run standalone: 12/12 green.** |
-| 2026-07-28 | **b5** — `form-builder-enhancements` AC-4 | **REAL — a stale SPEC contract.** Fixed. | AC-4 asserted decision #9 (a conditional question may not be required). FF-3 reversed it in `2254227`; ratified as ADR 0090 **Amendment 3** (`3b10c30`). Updated to the new contract, incl. the **absence** of the retired *"não pode ser obrigatória"* note so a silent revert cannot pass. Two further consequences the update had to absorb: the persisted row is now `required=true` **with** `visible_when` (was asserted `false`), and the block card's headline is no longer the bare label — it carries the `*` marker — so the post-submit `exact: true` match had to become card + marker. **File now 15/15.** |
-| 2026-07-28 | **b7** — 9 × `notifications.spec.ts` | **REAL, but a SPEC defect in another file** → **BUG-E2E-001**, fixed | Not a broken RPC: `open_capa_plan` returns **200** on a fresh seed and **400 `HC083`** once `mem-memberships-collapse` AC-1 has eaten the seeded `pqs_member` row. Full evidence chain in the bug entry. |
-| 2026-07-28 | Verification of the two spec fixes | `form-builder-enhancements` **15/15** · `mem-memberships-collapse` **7/7** · batch-7 composition **86/87** on a fresh DB (was 78/87) | The one remaining red is not a defect — see the next row. |
-| 2026-07-28 | ⚠ `mem-memberships-collapse` AC-4, and a correction to my own triage | **NOT a failure — a hardcoded port.** Fixed. | AC-4 asserted `toHaveURL('http://localhost:3000/c')` **literally**, so it passes under the gate (which serves :3000) and fails under any other baseURL — it reds on a worktree run on :3100 while being perfectly healthy. I first read this as inverse contamination ("fails fresh, passed in the gate"); it was the port. Now `toHaveURL(/\/c$/)`. Four other specs still hold a hardcoded `http://localhost:3000` **constant** (`hospital-admin-tier`, `phase-multitenancy`, `phase2-auth-shell`, `user-registration`) — left alone as out of scope, but they carry the same trap. |
-
-**Re-run after both fixes — HEAD `91f4931`, fresh `db reset` (224 == 224, flag `t`, token POST 200),
-prod-standalone rebuilt at that HEAD and served from the scratchpad copy. One server PER SPEC FILE.**
-
-| Date | Scope | Result | Notes |
-|---|---|---|---|
-| 2026-07-28 | **FF-3 · `e2e/ff3-validations.spec.ts`** (19 tests) | **19 / 19 PASS** — `expected=19 reported=19`, exit=0 | Both bugs' regression cover green: FF3-6/6b (were the reds), plus the two gaps the first pass could not reach — **FF3-6d** section-level `visible_when`, and the **publish** half end to end through the UI. FF3-7 restored to the full symmetric-clear contract; FF3-7b + its `test.fail()` deleted. New: **FF3-6e** (the error channel is not swallowed). |
-| 2026-07-28 | Neighbours at `91f4931` — `ff1-repeating-groups` · `ff2-matrix` · `phase5-wizard` · `phase4-builder`, **each on its own server** | **9/9 · 11/11 · 12/12 · 8/8 = 40 / 40** | The specs sitting over the three touched surfaces (`CONDITION_OPS`, `isValidCondition`, the wizard's error-clearing). No regression. |
-| 2026-07-28 | ⚠ The same three neighbours run against **ONE long-lived server** | 17 / 32 — **15 failed** | **Infra, not regression: all 15 are `net::ERR_CONNECTION_REFUSED`** (count matched the failure count exactly), preceded by `Error: The destination stream closed early` in the server log — the standalone server died after FF2-8 and every later test hit a dead port. Re-running the identical specs one-server-per-file gave 40/40 with no code change. **This is precisely the Windows monolith collapse `npm run e2e:prod` restarts per batch to avoid** — worth noting that a *tester's* multi-spec convenience run reproduces it too. |
-
-| Date | Scope | Result | Notes |
-|---|---|---|---|
-| 2026-07-28 | **FF-3 · `e2e/ff3-validations.spec.ts`** (18 tests), fresh `db reset` (224 == 224, flag `item_validations` = `t`, real token POST 200) | **16 / 18** — `expected=18 reported=18`, exit=1 | 2 RED = **BUG-FF3-002** (FF3-6, FF3-6b), left failing deliberately. FF3-7b is the `test.fail()` marker for **BUG-FF3-001**. Reproduced identically across **3** consecutive full-file runs, including one before and one after the reset. NOT the full-suite gate — the lead owns `npm run e2e:prod`. |
-| 2026-07-28 | **Mutation proof — the spec's own non-vacuity** (fixture-level, since `tester` may not touch app code) | **RED as required**, then restored byte-for-byte | FF3-3's `error` rule flipped to `warn` in the fixture → FF3-3 fails on `aria-invalid` (`Expected "true", Received null`). Confirms the error-channel assertions are load-bearing rather than rendering-only. Restored; `severity: 'error'` count back to 3 and FF3-3 green on re-run. A second, independent mutation covers the newest test: FF3-14's `datetime_order` flipped `not_before` -> `not_after` turns it red (`Expected 0, Received 1`), restored. |
-| 2026-07-28 | **Neighbour regression** — `ff1-repeating-groups.spec.ts` (condition authoring with binary operators, the surface BUG-FF3-002 shares a helper with) | **9 / 9** (56 s) | No collateral damage: binary-operator conditions still author, publish and evaluate. |
-| 2026-07-28 | **Neighbour regression** — `phase4-builder.spec.ts` | **8 / 8** (33 s) **on a fresh DB** — but **1 / 8 on an E2E-accumulated DB** | ⚠ **Triaged, not filed.** After ~25 spec runs the file failed 7/8 (serial *and* `--workers=4`), all on dialog `toBeHidden`; AC-a passed in isolation. A `db reset` alone turned it 8/8 with no code change. This is CLAUDE.md §6's "E2E-mutated DB yields spurious reds" in the flesh — **not** an FF-3 regression, and the same shape as the known flaky baseline. Worth remembering: the parallel run was also **5× slower per test**, which is the tell. |
-| 2026-07-28 | **Infra, worth recording** — the prod build was deleted underneath the running server mid-run | Mass 500 `InvariantError: client reference manifest ... does not exist`, then `ERR_CONNECTION_REFUSED` | An `EBUSY`-failing `next build` in the same worktree removes `.next/server` + `.next/standalone` **before** failing. Cure adopted: build once, copy the whole standalone tree to a scratch dir outside `.next`, verify the copy (105 client-reference manifests, `static/`, `public/`, `node_modules/`) and serve from there — so no concurrent build can invalidate a run. Also: a backgrounded server dies at an agent turn boundary, so server + specs must run in ONE foreground shell. Both now in `docs/testing/e2e-prod-build-gate.md` (`cd551dd`). |
-
-| Date | Scope | Result | Notes |
-|---|---|---|---|
-| 2026-07-27 | **FF-2 · `e2e/ff2-matrix.spec.ts`** (10 tests), prod-standalone from the worktree on **:3100** (`:3000` is the primary checkout's), chromium, workers=1 | **10 / 10 PASS** (49.4 s) — the 9-test file passed **3 consecutive** runs before FF2-10 was added, and again on a **rebuild against committed HEAD** after `5d0bc92`/`0bd1f7f` landed mid-pass | ADR 0089 rulings 1–4 + the repeating-group substrate + keyboard-only + the server writer + BUG-FF2-002's fix + resume read-back. Two spec defects fixed before green (see the mutation rows). NOT the full-suite gate — the lead owns `npm run e2e:prod`. |
-| 2026-07-27 | **Mutation proof — `app.instance_is_empty`** (ADR 0089 §A, a bold must-mutation-prove keystone) | **RED as required**, then restored | Both matrix arms removed on the live DB → **FF2-6 fails** (submit blocked: both instances pruned, minInstances unmet). Original captured with `pg_get_functiondef` beforehand and restored **byte-for-byte** (`diff` clean). |
-| 2026-07-27 | **Mutation proof — `app.item_required_satisfied`** (ruling 3 row-complete weakened to "any cell") | **Exposed a VACUOUS assertion in the spec**, then RED after the fix, then restored | FF2-3 originally called `submit_response` right after a UI-only partial fill — which never flushes, so it was proving "an EMPTY grid is refused" (true under BOTH readings) and **stayed GREEN under the mutation**. Rewritten to persist 2-of-3 rows through `save_section_answers` and assert their presence first; it then fails loudly (`aceitou uma matriz obrigatória com 2 de 3 linhas`). Predicate restored byte-for-byte. |
-| 2026-07-27 | **Neighbour regression** — `ff1-repeating-groups.spec.ts` + `phase5-wizard.spec.ts` | **19 / 21** — `phase5-wizard` 12/12; FF1-2 + FF1-7 RED | → **BUG-FF2-003** (the add-block menu overflow). Flag-toggled three times to prove causation, not assumed. |
-| 2026-07-27 | FF-2 full-file run **immediately after** a live `CREATE OR REPLACE` restore of two `app.*` functions | 5 / 8, FF2-6/7/8 red (visibility timeouts, no value mismatches) | **Did NOT recur.** Across the whole BUG-FF2-003 fix loop (a further **8 runs**, including two rebuilds and a `db reset`) it never reappeared. Treat as restore-transient. |
-
-**BUG-FF2-003 fix loop — re-run 2026-07-27, prod-standalone rebuilt at committed HEAD (`9d103d1`), :3100, chromium, workers=1:**
-
-| Date | Scope | Result | Notes |
-|---|---|---|---|
-| 2026-07-27 | `ff1-repeating-groups.spec.ts` — the BUG-FF2-003 verdict | **9 / 9** (57 s) | FF1-2 **3.3 min timeout → 6.3 s**, FF1-7 **3.7 min → 7.1 s**, whole file **8.2 min → 57 s**. Bug closed. |
-| 2026-07-27 | `ff2-matrix.spec.ts` (now **11** tests — FF2-11 added as the BUG-FF2-003 guard) | **11 / 11** | Also re-run on a fresh seed: **20/20** together with FF-1. |
-| 2026-07-27 | **Mutation proof — FF2-11** (a guard is worthless until shown it can fail) | **RED as required**, then restored | The cap declaration neutralized **in the built CSS bundle** (a build artifact, not source) → FF2-11 red on `max-height nunca resolveu para um valor`. Bundle restored, `diff` clean, green again. |
-| 2026-07-27 | **Built-CSS verification**, independent of `frontend`'s | PASS | Production bundle carries the `var()` form; **zero** bare `prop:--radix…` declarations remain; no dead selector minted from the reworded `e2e/` comment. |
-| 2026-07-27 | `phase5-wizard.spec.ts` — **AC3 red on the accumulated DB, 12/12 after `db reset`** | **12 / 12** | **NOT a regression.** Triaged rather than assumed: the two fix commits touch only `forms/add-block-menu`, `cases/`, `documents/` and `timeline/` — nothing in the response-wizard path. Cause was **28 stale `in_progress` responses** piled up by ~20 of my own runs with no reset. `tester` ran **`supabase db reset --local`** (migrations `209 == 209`, no drift; real token POST → 200; both feature flags back ON). This is the known per-test-isolation debt, not new. |
-| 2026-07-27 | **Final clean-DB run** — `ff2-matrix` + `ff1-repeating-groups` | **20 / 20** (1.7 min) | Green declared on a freshly seeded DB. |
-
-**Wave 3 read surfaces — `tester` pass 2026-07-27, prod-standalone rebuilt at HEAD (`8f6db27`), :3100, chromium, workers=1:**
-
-| Date | Scope | Result | Notes |
-|---|---|---|---|
-| 2026-07-27 | **NEW `e2e/ff2-matrix-views.spec.ts`** (5 tests) + `e2e/helpers/ff2-matrix.ts` | **5 / 5** | FF2V-1 sign-off route · FF2V-2 `getSubmissionDetail` · FF2V-3 dashboard distribution + risk summary · FF2V-4 code-keyed aggregation · FF2V-5 stored score wins. |
-| 2026-07-27 | `ff2-matrix.spec.ts` + `ff2-matrix-views.spec.ts` together | **16 / 16** (1.3 min) | Closes BUG-FF2-004 (the five repinned slug regexes pass). |
-| 2026-07-27 | **Mutation proof — the sign-off door's matrix projection** | **RED as required**, then restored | `'matrix_cells_by_item'` renamed in `get_response_for_signoff` → FF2V-1 red (`o door de assinatura precisa projetar as células da matriz`, received `undefined`). Restored byte-for-byte, `diff` clean, green again. |
-
-**Three findings from this pass that are not bugs but change what the tests mean:**
-
-1. 🔑 **An empty-string observation is UNREACHABLE through either canonical writer.** Both
-   `save_section_answers` and `app.save_instance_answers` normalize with `nullif(btrim(...), '')`
-   (read from `pg_proc`), so `p_observations: {item: ''}` lands as **NULL**. `bf7fae1`'s filter is
-   therefore **defence-in-depth over legacy rows**, not a guard on anything today's product can
-   write — and FF2V-1 plants the row directly to reproduce it, saying so at the call site. **This
-   also supports the FUP-FF2-3 deferral**: the whitespace-only asymmetry between the two arms
-   (`observation <> ''` per-instance vs `btrim(observation) <> ''` top-level) is reachable only for
-   the same legacy rows. Not specced, per instruction.
-2. ⚠ **`psql -tA` cannot distinguish "one row holding `''`" from "no rows".** My first arrange
-   asserted a bare `select observation` and read the empty string as an absent row — an arrange
-   that silently did nothing would have looked like a passing test. Assertions on a possibly-empty
-   column now go through a `case … then 'EMPTY'` **sentinel**, and the helper carries the warning.
-3. ⚠ **Two DOM-reading traps, both of which produced a confidently wrong number before I caught
-   them.** `innerText` concatenates adjacent spans with no separator, so a distribution cell of
-   "2" + "67%" reads as **"267"** — counts are now read from the count's own `<span>`. And
-   `innerText` **applies CSS `text-transform`**, so an `uppercase` label really does read "MÍNIMA"
-   and a `/Mínima/` regex never matches, while `toContainText('Mínima')` passes (it uses
-   textContent). Stats are now read as `<dt>` → sibling `<dd>`.
-
-> ⚠ **Full-gate standing caveat (unchanged, pre-existing).** `npm run e2e:prod` (70 spec files,
-> 12 batches) does **not** currently reach a clean green on this machine: the local stack degrades
-> faster than the suite completes (4 `db reset` cycles in ~50 min → `reset FAILED`). FF-1's triage
-> established the failure classes by experiment — collapses that **move between runs** are infra
-> (batch 3 clean in one run, 23-failed in the other; batch 8 the inverse), and the only
-> zero-connection-error failures traced to a **pre-existing test-isolation defect** between
-> `member-action-items-overview.spec.ts` and `notifications.spec.ts` (the latter is 8/8 alone,
-> 3-failed when paired). Recovery per memory `supabase-vector-crashloop-502`: `supabase stop/start`
-> + verify a **real token POST returns 200** (a `/health` 200 is insufficient). Pay-down =
-> per-test DB isolation → [s1-substrate.md](docs/progress/s1-substrate.md).
+**Gate triage (the standing method).** Failures track connection-error density, so count that
+first: the three failing batches were b7 = **90**, b14 = **84**, b2 = 4 conn errors, and b2's two
+failures were `ERR_CONNECTION_REFUSED` on `page.goto` — **zero real failures**. Two tells worth
+keeping: a **0 ms** duration is not an assertion failure (libuv crash), and one collapse run
+**failed test 1, recovered for 14, then died at 16** — so the first failure is *not* the collapse
+point. Known ceiling: the suite has outgrown one gate process, and `ff3-validations.spec.ts` has
+outgrown one standalone server (see the two 🔴 PO findings above).
 
 ## QA Verdicts
 
-<!-- One row per phase/feature, ONE LINE only: verdict + date + link to docs/reviews/*.md
-     (the full analysis already lives there — do not restate rationale here, and do not
-     copy it to docs/progress/qa-verdicts-archive.md either, that's redundant with the
-     review file). Legacy rows predating this rule may still point at qa-verdicts-archive.md. -->
+<!-- ONE LINE per phase/feature: verdict + date + link. The full analysis lives in
+     docs/reviews/*.md — never restate rationale here, and don't copy it to
+     docs/progress/qa-verdicts-archive.md either (redundant with the review file).
+     Struck-through rows are superseded rounds, kept only to show a phase looped. -->
 
-| Phase / Feature | Verdict | Report | Notes |
-| --------------- | ------- | ------ | ----- |
-| **FF-3** — Validation Engine (ADR 0090 + Amendments 1–4) | ✅ **APPROVED** (2026-07-28, r2) — **0 BLOCKING / 1 MAJOR-coverage (non-blocking) / 4 MINOR / 3 INFO**. Every r1 item independently re-proved, not accepted: **B-1** flip migration exists and qa proved **seed-independence** (`enabled=false` → replay the migration alone → `true`). **M-1** `D6a` lands and the split is proven **both ways** — neutralising `submit_response`'s group arm reds D6a and **not** D6; neutralising the dispatch's group arm reds D6/N7 and **not** D6a, so neither can pass for the other's reason. **M-2** `§O` asserts **rows read** under `set local role`; deleting the wrapper's existence probe reds **O2 only** (O1 control + O3 label-payload green), and `§O` names the transferable shape (an INVOKER wrapper whose own RLS probe is the sole gate in front of a DEFINER body is a shape the ADR-0079 sweep is **structurally** blind to) — tracked as AUDIT-INVOKER-WRAPPER. **M-3 → Amendment 4, endorsed on the merits.** De-mirroring verified **total** by sweep, not by claim: `evalValidation`'s regex arm is unconditional `return true`; exactly **one** `new RegExp` survives in `src/` and it is advisory-only (`role="status"`, save not gated); **no HTML `pattern=` anywhere** (which would have re-entered JS regex below the TS layer); both client walks share the one evaluator. Overruling the lead's lint instruction was **correct** — a blocklist over two evolving grammars that is 90% right still leaves 10% as an unsubmittable response. Write-guard confirmed independently incl. `~*`: **0 of 20 constructs disagree on compilability between `~` and `~*`** (one compiler, case-fold flag only), and end-to-end `HC0Q2` for uncompilable patterns under `caseInsensitive:true` at **both** severities, pt-BR (`%expressão regular%`), no raw `2201B`; the POSIX twin `^[[:digit:]]{3}$` correctly still **stores**. **m-4** B16a/b/c — audit mutation reds B16a+B16b, B16c green **as documented** (vacuous under that mutation, recorded rather than hidden). **i-1** all three pointers + the "THREE narrowings" sentence (qa checked the third specifically, given the reported-three-made-two self-catch). Both drift detectors re-parsed by qa: validator **27** deep-equal, evaluator **47** deep-equal with **6 `engine:"sql"`**. **All 16 r1 proofs re-run and HELD** — no regression from the r2 rewrites. Gate step 1 re-run by qa from own fresh reset at `a3573bb`: **pgTAP 141/4167 PASS · Vitest 809 · tsc 0 · eslint 0 · css-vars 0 · `next build` EXIT=0 (qa ran it) · 225 == 225**. ⚠ **OPEN, MAJOR-coverage, non-blocking:** the M-4 fix is keystoned on **one half of the wire** — mutating the *receiver* (`group-block.tsx:111-112`) reds 3, but mutating the **caller** (`section-step.tsx:254-255`, which is exactly where the r1 defect lived) leaves **809/809 GREEN**; `required-marker.test.tsx` renders `GroupBlock` directly with props supplied, so it cannot see a parent that stops supplying them. Not blocking because its regression costs a marker + `aria-required` + an inline warn — a11y/UX, not a boundary or a submitted-record integrity failure — but it should land before the pilot. | [r2](docs/reviews/ff-3-review.md#ff-3--qa-review-r2) · [r1](docs/reviews/ff-3-review.md) | ⚠ **qa's own harness produced SIX false greens** mid-review — the tester's concurrent run dropped `pgtap`/`test_helpers`, files aborted at `select plan()`, and a line-count-only harness read 0-of-0 as a pass. Fixed with a pinned per-file assertion-count guard; every r2 number is post-fix, and the r1 zero-red findings were re-verified under it and still hold. **Coordination finding: the E2E gate and a catalog audit cannot share one local database** — belongs alongside the §6 harness split. A later polluted `test:db` FAIL (3693) is contamination, not regression: failures are `140_patient_safety`/`145_pqs_membership` + "planned N ran 0" aborts, **no FF-3 file among them**. qa did not re-reset — tester owns the stack. Only modified file `e2e/ff3-validations.spec.ts` is the tester's. |
-| ~~**FF-3** — Validation Engine (ADR 0090 + Amendments 1–3)~~ | ⛔ **CHANGES REQUESTED** (2026-07-28, r1) — superseded by the r2 approval above — **1 BLOCKING / 4 MAJOR / 6 MINOR / 5 INFO**. **B-1** no `enable_item_validations` migration exists (ADR 0090 front matter promises one at the gate; FF-1 and FF-2 both shipped theirs) — flag is ON only via `seed.sql:2125`, so the phase is **dark after `db push`**, `required_if` is passed `null` in all four traversals, and **Amendment 1 inverts on remote** (`assert_item_bounds` still raises `HC061` while the error list is empty). Verbatim FF-2 r1 B-3. MAJOR, all behaviour-correct-today but regression-invisible, each proven by qa: **M-1** `submit_response`'s **repeating-group** `required_if` arm reds **0** assertions when neutralised (the other three sites red 4 / 2 / 1) — the Rule 3 authority's per-instance layer is uncovered; qa's probe QA-P1 is drop-in and mutation-proven both ways. **M-2** the FF-3 read path's only authz gate is neutralization-blind — deleting the existence check in `get_response_validation_errors` (wrapper `prosecdef=f` over a `prosecdef=t` DEFINER) reds **0** across six files, and qa proved live that removing it leaks a commission-X response's rule messages + item labels to a commission-Y staff (`have: 1`); ADR 0079's standing sweep is structurally blind to it (ARM 2 floors `prosecdef=t` only). **M-3** the `regex` arm is un-mirrorable (`'123' ~ '^[[:digit:]]{3}$'` → PG **true**, JS **false**, and the pattern is storable) **and** `handleNext` blocks navigation on client-computed errors — a reachable dead end contradicting ruling 3's own "this is UX, not the boundary". **M-4** `GroupBlock` receives neither `warnings` nor `requiredNow`, so a `required_if` item inside a plain `group` announces itself **optional** during fill while blocking Próximo and `HC011`, and a `warn` never renders inline — the phase's signature family a 4th time, on the **containment** axis the enumeration never covered. **All 16 re-run mutation proofs HELD** (incl. M8b → `272` S2, rows-read not policy-exists; M8c → B3, proving K9 holds by **privilege** not policy); both drift detectors executed and real; TS-only narrowings honest (3, all safe-direction, no 4th); Amendment 3 **sound and stronger than stated** (`form_items_conditional_not_required` was dropped in FF-1, so #9 was UI-only with no DB backing — FF-3 closed that divergence); Rules 5/7/9/11/12 verified, Rule 11 proven live, Rule 12 N/A. Gate step 1 re-run by qa from a clean reset: **pgTAP 141/4160 PASS · Vitest 800 · tsc 0 · eslint 0 · css-vars 0 · `next build` ✅ · 224 == 224**. | [review](docs/reviews/ff-3-review.md) | Gate step 2 (triage, not single-run green): qa **concurs for this phase** — accounting complete, the position-11-vs-position-1 result makes it a property of the process, and the triage found a real defect (AC-4) the phase's own 19/19 missed. Two caveats on the record: it is an exception, not a practice (split the harness before FF-5), and **a green E2E is not evidence against M-1/M-2/M-4** — none is on a path the suite exercises. Stack left clean: all 23 mutated bodies restored, post-restore suite 0 red, `pgtap` dropped, tree unmodified. |
-| **FF-2** — Matrix & Risk Matrix (ADR 0089) | ✅ **APPROVED** (2026-07-27, r2) — **0 blocking / 0 MAJOR**. All three r1 blockers closed and verified by **re-running qa's own r1 probes**, which now pass (B-1 `T4`/`T5` green — the targeted respondent saves and persists a cell; B-2 `X1`/`X2`/`X3` green — the corrector reads 4 cells + 1 risk row; B-3 proven **independent of the seed** — flag set false, migration `20260830001200` replayed alone → `true`). **All six claimed mutation proofs re-run and confirmed** (M1 O2+O3 · M2 **and** M2b each O3 **independently** · M3 P2 / M3b P3 · M4 **Q3+Q4 red with Q1/Q2 green** · M5 R2–R4 / M5b R5), **plus four qa added**: M2c (targeted arm out of `answer_matrix_cells_select` → O3 red — a third load-bearing half), **M4b** (`item_required_satisfied := true` → **Q1+Q2 red**, proving §Q bidirectional — M4 alone does not), M6 (ARM-1 ownership test removed → O5 red, the widening is bounded), and §J re-proved (6 red) confirming r1's proofs survive the r2 policy rewrites. **Sweep table independently verified against `pg_policies`/`pg_proc` and accurate**, including both "deliberately absent" door entries (`matrix_cells_by_item`/`risk_matrix_by_item` have exactly one caller, the gated `get_response_for_signoff`; `item_required_satisfied`/`instance_is_empty` are reachable only from `app`, not PostgREST-exposed). K9 intact after the second policy round. **Full pgTAP run file-by-file by qa: 4050 ok / 0 not ok** on the committed tree; `255_ethics_e2_targeted` 26/26 is the over-grant twin and holds. ⚠ **PRE-COMMIT CONDITION (tree state, not code)** — the worktree carries **untracked** `20260830001500_eth_targeted_choice_lane.sql` + `273_…sql` (216 files vs 215 registered; `273` red 8/14 until applied). qa applied it temporarily: **14/14, no regression** — sound work, but it contains **two unreviewed `FOR ALL` write policies** and covers a **third** pre-existing gap the brief did not name (`response_group_instances`, which bounds B-1: a matrix inside a repeating group stays unfillable for a targeted respondent until it lands). Stash it or commit it as its own reviewed out-of-phase change before `phase(FF-2): complete`. 5 MINOR + 3 INFO carried; **m-1** (platform_admin reads matrix aggregates via `is_admin()`) and **m-2** (ARCHITECTURE.md still calls matrix "F3-reserved inert") should not reach the pilot unresolved. | [r2](docs/reviews/ff-2-review-r2.md) · [r1](docs/reviews/ff-2-review.md) | qa reset the DB twice; it now sits at **216 == 216** because a reset applies whatever is on disk — every mutation proof was run against the committed 215 state beforehand. |
-| ~~**FF-2** — Matrix & Risk Matrix (ADR 0089)~~ | ⛔ **CHANGES REQUESTED** (2026-07-27, r1) — superseded by the r2 approval above — **3 BLOCKING / 2 MAJOR-coverage / 5 MINOR / 2 INFO**. Two blockers **live-proven**, both the same class (FF-2's new doors did not inherit the sibling answer path's second OR-arm): **B-1** `app.assert_matrix_answer_writable` is creator-only while `answers` also grants `can_write_targeted_response`, so an ETH·E2 **targeted respondent cannot save a matrix cell** (`42501`) though a scalar answer saves in the same transaction; **B-2** `answer_matrix_cells_select`/`answer_risk_matrix_select` lack the `can_read_correction_response` arm `answer_selected_options_select` has, so a designated **corrector reads 0 cells / 0 risk rows** of the predecessor (answers: 4). **B-3** no `enable_matrix_fields` gate-flip migration exists (ADR 0089 front matter promises one; 4 prior flags shipped one) — flag is ON only via `seed.sql`, so the phase is **dark after `db push`**. MAJOR-coverage, behaviour verified CORRECT by qa but regressions undetectable: **M-1** ruling 3's per-instance half is unexercised (no fixture has `required=true` on a matrix in a repeating group — reverting BOTH per-instance arms leaves 271/270/209/51 fully green; qa's own probe 7/7, mutation-proven); **M-2** `start_correction_draft`'s 2 matrix copy blocks have zero coverage (deleting both leaves 264 39/39 and 271 90/90; qa's probe 6/6, mutation-proven). **All 4 mandated mutation proofs independently RE-RUN and HOLD** (§J 6 red · §K 2 red with K2/K3 green · §M 4 red property-shaped · §N 2 red **plus** the drop-everything twin 1 red), K9 posture intact, rulings 1/2/4 + code-keyed aggregation confirmed live. | [review](docs/reviews/ff-2-review.md) | Lead's 5 carried gaps: 4 correctly ruled; the `correction_copies` E2E call is under-informed — see M-2. `qa` ran two `db reset`s; stack pristine at `20260830001100`, 212==212. |
-| **FF-1** — Repeating Groups (ADR 0087 + Amendment 1) | ✅ **APPROVED** (2026-07-27, r2) — r1 raised **1 P0 + 2 MAJOR**, all fixed at `7e72006` and independently re-proven by qa (13 catalog-verified mutations, incl. that the *arming* assertions genuinely arm). 4 MINOR / 6 INFO ride as non-blocking follow-ups. | [review](docs/reviews/phase-FF-1-review.md) | Full detail + r1 record in the review; phase record → [ff-1-repeating-groups.md](docs/progress/ff-1-repeating-groups.md) |
-| S5 · **ETH·E3a** — Ethics terminology/UX surfacing (ADR 0064 D4 / 0072 / 0073) | ✅ **APPROVED** (2026-07-27, r2) — r1 raised **1 P0** (`coordinator_only` case-events leak to write-grantees: `case_events_writer_write` FOR-ALL `USING can_write_case_content` OR-ed into SELECT, ADR-0079); **fixed `a64e61a`** (mig `20260827000400`, reader-non-writer split → `case_events_select` sole SELECT authority) and independently re-verified live: write-grantee `coordinator_only`=**0** (was 1), still reads `case_readers`; keystone non-vacuous (restore leaky arm ⇒ 1/RED, drop ⇒ 0); **no write-authority regression** (SELECT=`_select` only; INSERT/UPDATE/DELETE preserve prior USING/WITH CHECK + coordinator_only insert-gate); full pgTAP **3852 PASS** fresh reset. r1 positives held: `getEthicsDashboard` scoping load-bearing (neutralize `can_read_case`→true ⇒ respondent 1→3), 3 dashboard tables single `can_read_case` SELECT policy no FOR-ALL read-arm, auth client (no service-role/DEFINER), auto-derive bodies PHI-free, O-1 inheritance `explicit_grants_only`. 3 INFO ride as follow-ups. | [review](docs/reviews/phase-E3a-review.md) | |
-| **Case Correction Lifecycle** (ADR 0085, branch `case-corrections`) | ✅ **APPROVED** (2026-07-24, r1) — 0 P0 / 0 MAJOR / 2 MINOR (non-blocking) / 5 info. Write-path triple-locked + **live-proven**: 3 guard triggers fire on owner INSERT/UPDATE w/o the RPC GUC, and `authenticated` is denied even with a spoofed `in_correction_rpc` (no write GRANT + no RLS write policy). All 9 doors `prosecdef`/owner-postgres/search_path-pinned/EXECUTE auth+svc only (anon absent); authority-first (42501) before exclusion (`HC0F1`) → distinct SQLSTATEs (no vacuous keystone). `approve_correction` chain-tip + pointer re-point + narrative `concluded_at/by` preserved; `guard_supersession_coherent` case arm corrector-slot gated; `sync_case_phase_on_submit` supersedes-skip; reader sweep resolves `current_response_id` (no double-count), `submitted_form_responses` standalone-only untouched. Rule 12: no free-text/PHI in any audit payload; `can_read_correction_response` scoped to `permitted_corrector` (no over-grant); targeted-response refused (HC0M5). All ADR CHECKs/indexes/blocks-sweep verbatim; `reopen_narrative` dropped. MINOR-1 void arm omits `impact_snapshot` (matches plan, tension w/ ADR §7); MINOR-2 `23514→"unavailable"` copy over-broad. | [review](docs/reviews/case-corrections-review.md) | |
-| **Controlled-Document Redesign** (Phase 17 v2, ADR 0081) | ✅ **APPROVED** (2026-07-21, r1) — 0 BLOCKER / 0 MAJOR / 0 MINOR / 4 info. Both new DEFINER doors proven live: `list_commission_documents` `prosecdef`+member/admin gate (empty-set deny)+flag gate+no PUBLIC/anon ACL; `remind_document_approver` staff_admin/commission_admin authority in body (42501)+pending-approver-only+REVOKE-from-PUBLIC. B0 anglicization sound — `publish_document` all-must-approve gate keeps English `decision<>'approved'` (HC090); constraints English (`policy/sop/protocol/bylaws/manual/other`, `approved/rejected`, `superseded/retired`); 0 residual pt-BR literals in controlled-docs bodies (ethics-module literals correctly untouched). Notification producers commission-scoped, enum values accepted by table CHECKs; audit whitelist excludes category/tags/description/title, row still emitted (Rule 11); PHI-free (Rule 12 N/A). Every ADR-0081 locked decision delivered; client boundary type-only, no `any`, chained-action partial-failure returns documentId+pt-BR banner. | [review](docs/reviews/document-control-redesign-review.md) | |
-| S4 · **CH** — Committee Charters & Meeting Cadence (ADR 0080; Phase 21) | ✅ **APPROVED** (2026-07-20, r1) — 0 P0 / 0 MAJOR / 0 MINOR / 3 info. Crux proven live under `set local role`: member reads its 1 charter row, foreign-commission + pure non-member read 0; 1 SELECT policy + no write policy + `authenticated` SELECT-only; 3 RPCs `prosecdef`/owner-postgres/search_path-pinned/EXECUTE auth+svc only. Mutation harness re-run: KS_AUTHORITY/KS_MEMBER/KS_FILTER all **RED-PROVEN**, control 29 green. pgTAP 260/261/262 = 11/29/10 green. Authority-first (HC0K0→HC0K1) + member-scope (HC0K2) + `can_read_action_item` filter all in the live bodies. PHI-free (Rule 12). BUG-FBE-005 avoided. phase17 `cb6a671` = sound spec-only fix. | [review](docs/reviews/phase-CH-review.md) | |
-| RV2 · **R2–R5** referral governance (triage/SLA · resolution lifecycle · assignments/links · notes/receipts/redaction) | ✅ **APPROVED** (2026-07-19, r2) — 0 P0 / 0 MAJOR / 0 min / 1 info(hardening). r1 MAJOR (`1885159`) + MINOR (`1893cb6`) fixed & re-verified live: `referral.note_viewed` fires on ≥1 note served, PHI-free payload, actor=reader, 0-note/QPS read → 0 audit; dispatch predicate audit-only (0 RLS policies, no PQS arm); K-R5-1 source≠target≠QPS intact. Security core proven live: R4 residue-free, PHI REVOKEs, R3 authority-first non-vacuous (target 42501 / source HC0A5), t19 clean. | [review](docs/reviews/rv2-r2-r5-review.md) | |
-| AUTHZ · **AUDIT-DOOR-BLINDNESS P0** (ADR 0078 §7.14 / ADR 0079) | ✅ **APPROVED** (2026-07-18, r1) — 0 P0/0M/2min/1info; baseline PASS 115/3288, 50/50 keystones RED-PROVEN, invariant HOLDS (BLIND=72⊆allowlist, 93 doors floored), PHI door-only grants verified revoked, live foreign-read=0 | [review](docs/reviews/authz-door-audit-p0-review.md) | |
-| S4 · ETH·E2 — Ethics disciplinary procedure (ADR 0073; 0078-reconciled) | ✅ **APPROVED** (2026-07-18, r1) — 0 P0 / 0 MAJOR / 1 min (doc) / 3 info | [review](docs/reviews/eth-e2-review.md) | Crux verified live under `set local role`: non-vacuity proven (vote 42501≠HC0J5), D13 respondent reaches only its 1 targeted response, M2 pin/HC0J7 bar hold, 9 tables verbatim `can_read_case`, flag flip seed-only. |
-| AUTHZ · **Gate 2** (Stage C · F1 · N1) | ✅ **APPROVED** (2026-07-17, re-review) — 0 P0 / 0 MAJOR / 1 noted MINOR | [review](docs/reviews/authz-gate-2-review.md#re-review-2026-07-17--verdict--approved) | |
-| ~~AUTHZ · **Gate 2** (round 1)~~ | ⛔ **CHANGES REQUESTED** (2026-07-17, r1) — superseded by the re-review above — **1 P0** / 2 MAJOR / 1 MAJOR-3 adjudication / 1 min | [review](docs/reviews/authz-gate-2-review.md) | |
-| AUTHZ · Stage B — `case_access → case_access_grants` hard cut (B1→B5) | ✅ **APPROVED** (2026-07-16, r1) — 0 P0/0M/2min/1info | [review](docs/reviews/authz-b-series-review.md) | |
-| AUTHZ · Exclusion Perimeter (U1+U2) — the hard deny at every door | ✅ **APPROVED** (2026-07-16, r1) — 0 P0/0M/0min/2info | [review](docs/reviews/authz-exclusion-perimeter-review.md) | |
-| AUTHZ · A4 — org admin ceases to be a Case Content source | ✅ **APPROVED** (2026-07-16, r1) — 0 P0/0M/0min/2info | [review](docs/reviews/authz-a4-review.md) | |
-| AUTHZ · A2 — the capability resolver (`_case_caps` + projections) | ✅ **APPROVED** (2026-07-16, r1) — 0 P0; 1 MAJOR filed against **A5** (per-row cost ~10×, unmeasured pre-image) | [review](docs/reviews/authz-a2-review.md) | |
-| AUTHZ · M6 — `cases.visibility_policy` guarded door (ADR 0078 A1/A27; PO Q1–Q4) | ✅ **APPROVED** (2026-07-16, r1) — 0B/0M/3min/2info | [review](docs/reviews/authz-m6-review.md) | |
-| AUTHZ · M5 — defect ③: the `is_active` outer gate | ⚠ **CHANGES REQUESTED** (2026-07-15) — 1 P1 ("CLOSED" over-claimed); **resolved by M5b**, which produced §7.9 | [review](docs/reviews/authz-m5-review.md) | |
-| AUTHZ · M3 — defect ① narrowing: assignment ⇏ PHI | ✅ **APPROVED** (2026-07-15) | [review](docs/reviews/authz-m3-review.md) | |
-| AUTHZ · M2 — A30 bucket C: platform_admin loses PHI | ✅ **APPROVED** (2026-07-15) | [review](docs/reviews/authz-m2-review.md) | |
-| AUTHZ · M1 — Exclusion durability (ADR 0078 Gate 1) | ✅ **APPROVED** (2026-07-15, re-review) | [review](docs/reviews/authz-m1-review.md#re-review--the-b1b2-delta) | |
-| ~~AUTHZ · M1 (round 1)~~ | ⚠ **CHANGES REQUESTED** — superseded by the re-review above | [review](docs/reviews/authz-m1-review.md) | |
-| AUTHZ · A0 — Catalog-driven capability inventory | ✅ **APPROVED** (v3) | [review](docs/reviews/authz-a0-inventory-review.md#v3-review--the-final-a0-round) | |
-| S3·ETH·E1 — Ethics access spine + m2 gate release (ADR 0072) | CHANGES→CHANGES→✅ **APPROVED** (2026-07-14, round 3) | [review](docs/reviews/phase-ETH-E1-review.md) | |
-| AI track — Action-Items Satellites + Cross-Link UI (ADR 0050) | ✅ **APPROVED** (2026-07-14) | [report](docs/reviews/phase-AI-review.md) | |
-| AI track — BE-6·N reminder→N scan arm (delta; ADR 0076 × 0050) | ✅ **APPROVED** (2026-07-14) | [report](docs/reviews/phase-AI-review.md#be-6n-delta-review--remindern-scan-arm-2026-07-14) | |
-| S2·RV2·R1 — Referrals v2: dialogue core (ADR 0037 Amendment 1) | ✅ **APPROVED** (2026-07-14) | [report](docs/reviews/rv2-r1-referrals-review.md) | |
-| S2·IV2 — Interviews v2: sessions + reporting/confidentiality (ADR 0070) | ✅ **APPROVED** (2026-07-13) | [report](docs/reviews/iv2-interviews-review.md) | |
-| S1·MEM — Single `memberships` collapse (ADR 0071/0075; S0 §I) | ✅ **APPROVED** (2026-07-13) | [report](docs/reviews/memberships-collapse-review.md) | |
-| F3 — Flexible-Forms Foundation (ADR 0060/0065) | ✅ **APPROVED** (2026-07-12) | [report](docs/reviews/phase-F3-review.md) | |
-| F2 — Centralized Attachments (ADR 0063) | ✅ **APPROVED** (2026-07-11) | [report](docs/reviews/phase-F2-review.md) | |
-| F1 — Case-Participants E0 (ADR 0064/0066) | ✅ **APPROVED** (CHANGES→APPROVED same day, 2026-07-10) | [report](docs/reviews/phase-F1-review.md) | |
-| Meeting actual-occurrence time `held_at`/`held_end` (ADR 0062) | ✅ **APPROVED** (2026-07-08) | [report](docs/reviews/meeting-held-time-review.md) | |
-| Administrativo delegated-capability role (ADR 0061) | ✅ **APPROVED** (2026-07-08) | [report](docs/reviews/administrativo-review.md) | |
-| Form-Builder Enhancements batch (Departments · Flagged/aggregate results · Others · wizard UX · meeting participants) | ✅ **APPROVED** (2026-07-07) | [report](docs/reviews/adjustments-batch-review.md) | |
-| 17 — Controlled-Document Lifecycle (Gestão de Documentos Controlados) | ✅ **APPROVED** (2026-07-06) | [report](docs/reviews/phase-17-review.md) | |
-| 15 — Quality Indicators (Indicadores de Qualidade) | ✅ **APPROVED** (2026-07-06) | [report](docs/reviews/phase-15-review.md) | |
-| Pre-Pilot DB Hardening — Wave 2 (WS-6 perf sweep: P2/P3/P4/P5) | ✅ **APPROVED** (2026-07-05) | [report](docs/reviews/pre-pilot-hardening-wave2-review.md) | |
-| Pre-Pilot DB Hardening — Wave 1 (C-1…C-6, H-8; D1/D2/D4/D6-flip/D7/D9; P1/P9/P10) | ✅ **APPROVED** (2026-07-05) | [report](docs/reviews/pre-pilot-hardening-wave1-review.md) | |
-| Phase B — NSP-per-hospital + `nsp_org_admin` (ADR 0052) | ✅ **APPROVED** (2026-07-03; CHANGES→APPROVED same day) | [report](docs/reviews/nsp-per-hospital-review.md) | 1 BLOCKER (RESOLVED) · 0 MAJOR · 1 non-blocking docs note. Security design sound; dual-hospital isolation proven. |
-| Phase A — Hospital-admin tier, 4-tier audit & committee titles (ADR 0051) | **CHANGES REQUESTED** (2026-07-03) | [report](docs/reviews/hospital-admin-tier-review.md) | 0 BLOCKER · 2 MAJOR (both fixed) · 3 MINOR. Security core sound (pgTAP 184/187/188). |
-| Action-Items Fold + `visibility_scope` + Case-Access Expiry (ADR 0050) | **APPROVED** (2026-07-02) | [report](docs/reviews/action-items-fold-review.md) | |
-| Shared (non-PHI) `action_items` table (Option A) | **APPROVED** (2026-07-02) | [report](docs/reviews/shared-action-items-review.md) | |
-| Member Overview & "Meus itens de ação" | **APPROVED** (2026-07-02) | [report](docs/reviews/member-overview-action-items-review.md) | |
-| User Registration & Identity Management | ✅ APPROVED (CHANGES→APPROVED, re-re-review 2026-07-01) | [report](docs/reviews/user-registration-review.md) | |
-| ad-hoc-narratives | **APPROVED** (2026-07-01) | [report](docs/reviews/ad-hoc-narratives-review.md) | |
-| answer-model-v2 | **APPROVED** (2026-07-01) | [report](docs/reviews/answer-model-v2-review.md) | |
-| form-model-norm | **APPROVED** (2026-07-01) | [report](docs/reviews/form-model-normalization-review.md) | |
-| result-rec | **APPROVED** (2026-06-26) | [report](docs/reviews/result-rec-review.md) | |
-| NSP-per-org | **APPROVED** (2026-06-25; superseded by NSP-per-hospital) | A [core](docs/reviews/nsp-per-org-a-review.md) · B [whole](docs/reviews/nsp-per-org-b-review.md) | |
-| Multi-Tenancy | **APPROVED** (2026-06-25) | [report](docs/reviews/multitenancy-review.md) | |
-| Form Builder Enhancements | **APPROVED** (2026-06-23) | [report](docs/reviews/form-builder-enhancements-review.md) | |
-| `case_phase_results` | **APPROVED** (2026-06-23) | [report](docs/reviews/phase-results-review.md) | |
-| 23 — Patient Identity | **APPROVED** (2026-06-22) | [report](docs/reviews/phase-23-review.md) | |
-| `case_patient` (ADR 0038) | **APPROVED** (2026-06-22) | [report](docs/reviews/case-patient-review.md) | |
-| 22 — Inter-Committee Referrals | **APPROVED** (2026-06-21) | [report](docs/reviews/phase-22-review.md) | |
-| PHI/HIPAA Remediation (WS0–E) | **APPROVED** (2026-06-20) | [report](docs/reviews/phi-remediation-review.md) | |
-| 14b–14d — Triage/RCA/CAPA | CHANGES→**APPROVED** (2026-06-18) | [report](docs/reviews/phase-14-review.md) | |
-| 14a — NSP Foundation | CHANGES→**APPROVED** (2026-06-18) | [report](docs/reviews/phase-14a-review.md) | |
-| 13 — Audit Trail | **APPROVED** (2026-06-18) | inline | |
-| 12 — Case Timeline | **APPROVED** (2026-06-16) | [report](docs/reviews/phase-12-review.md) | |
-| 11 — Interviews | **APPROVED** (2026-06-15) | [report](docs/reviews/phase-11-review.md) | |
-| 10 — Meetings | **APPROVED** (2026-06-15) | [report](docs/reviews/phase-10-review.md) | |
-| Case Access Control | **APPROVED** (2026-06-19) | [report](docs/reviews/case-access-control-review.md) | |
-| Case Narratives | **CHANGES REQUESTED** (2026-06-19) | [report](docs/reviews/case-narratives-review.md) | |
-| Case data-model (D1–D15) | **APPROVED** (2026-06-14) | [report](docs/reviews/case-model-adjustments-review.md) | |
-| Cases-Extras (R1–R5) | **APPROVED** (2026-06-14) | [report](docs/reviews/cases-extras-review.md) | |
-| 8 — Dashboards | **APPROVED** (2026-06-14) | [report](docs/reviews/phase-8-review.md) | |
-| 7 — Multi-Phase Cases | **APPROVED** (2026-06-13) | [report](docs/reviews/phase-7-review.md) | |
-| 6 — Sign-offs | **APPROVED** (2026-06-13) | [report](docs/reviews/phase-6-review.md) | |
-| 5 — Wizard | **APPROVED** (2026-06-13) | [report](docs/reviews/phase-5-review.md) | |
-| 4 — Form Builder | **APPROVED** (2026-06-12) | [report](docs/reviews/phase-4-review.md) | |
-| 3 — Admin/Users | **APPROVED** (2026-06-12) | [report](docs/reviews/phase-3-review.md) | |
-| 2 — Auth & Shell | **APPROVED** + re-review (2026-06-12) | [report](docs/reviews/phase-2-review.md) | |
-| 1 — Schema/RLS | **APPROVED** (2026-06-12) | [report](docs/reviews/phase-1-review.md) | |
-| 0 — Scaffolding | **APPROVED** | [report](docs/reviews/phase-0-review.md) | |
+| Phase / Feature | Verdict | Date | Report |
+| --- | --- | --- | --- |
+| **FF-3** — Validation Engine (ADR 0090 + Amendments 1–4) | ✅ APPROVED | 2026-07-28 | [r2](docs/reviews/ff-3-review.md#ff-3--qa-review-r2) |
+| ~~**FF-3** — Validation Engine (ADR 0090 + Amendments 1–3)~~ | ⛔ CHANGES REQUESTED | 2026-07-28 | [review](docs/reviews/ff-3-review.md) |
+| **FF-2** — Matrix & Risk Matrix (ADR 0089) | ✅ APPROVED | 2026-07-27 | [r2](docs/reviews/ff-2-review-r2.md) |
+| ~~**FF-2** — Matrix & Risk Matrix (ADR 0089)~~ | ⛔ CHANGES REQUESTED | 2026-07-27 | [review](docs/reviews/ff-2-review.md) |
+| **FF-1** — Repeating Groups (ADR 0087 + Amendment 1) | ✅ APPROVED | 2026-07-27 | [review](docs/reviews/phase-FF-1-review.md) |
+| S5 · **ETH·E3a** — Ethics terminology/UX surfacing (ADR 0064 D4 / 0072 / 0073) | ✅ APPROVED | 2026-07-27 | [review](docs/reviews/phase-E3a-review.md) |
+| **Case Correction Lifecycle** (ADR 0085, branch `case-corrections`) | ✅ APPROVED | 2026-07-24 | [review](docs/reviews/case-corrections-review.md) |
+| **Controlled-Document Redesign** (Phase 17 v2, ADR 0081) | ✅ APPROVED | 2026-07-21 | [review](docs/reviews/document-control-redesign-review.md) |
+| S4 · **CH** — Committee Charters & Meeting Cadence (ADR 0080; Phase 21) | ✅ APPROVED | 2026-07-20 | [review](docs/reviews/phase-CH-review.md) |
+| RV2 · **R2–R5** referral governance (triage/SLA · resolution lifecycle · assignment | ✅ APPROVED | 2026-07-19 | [review](docs/reviews/rv2-r2-r5-review.md) |
+| AUTHZ · **AUDIT-DOOR-BLINDNESS P0** (ADR 0078 §7.14 / ADR 0079) | ✅ APPROVED | 2026-07-18 | [review](docs/reviews/authz-door-audit-p0-review.md) |
+| S4 · ETH·E2 — Ethics disciplinary procedure (ADR 0073; 0078-reconciled) | ✅ APPROVED | 2026-07-18 | [review](docs/reviews/eth-e2-review.md) |
+| AUTHZ · **Gate 2** (Stage C · F1 · N1) | ✅ APPROVED | 2026-07-17 | [review](docs/reviews/authz-gate-2-review.md#re-review-2026-07-17--verdict--approved) |
+| ~~AUTHZ · **Gate 2** (round 1)~~ | ⛔ CHANGES REQUESTED | 2026-07-17 | [review](docs/reviews/authz-gate-2-review.md) |
+| AUTHZ · Stage B — `case_access → case_access_grants` hard cut (B1→B5) | ✅ APPROVED | 2026-07-16 | [review](docs/reviews/authz-b-series-review.md) |
+| AUTHZ · Exclusion Perimeter (U1+U2) — the hard deny at every door | ✅ APPROVED | 2026-07-16 | [review](docs/reviews/authz-exclusion-perimeter-review.md) |
+| AUTHZ · A4 — org admin ceases to be a Case Content source | ✅ APPROVED | 2026-07-16 | [review](docs/reviews/authz-a4-review.md) |
+| AUTHZ · A2 — the capability resolver (`_case_caps` + projections) | ✅ APPROVED | 2026-07-16 | [review](docs/reviews/authz-a2-review.md) |
+| AUTHZ · M6 — `cases.visibility_policy` guarded door (ADR 0078 A1/A27; PO Q1–Q4) | ✅ APPROVED | 2026-07-16 | [review](docs/reviews/authz-m6-review.md) |
+| AUTHZ · M5 — defect ③: the `is_active` outer gate | ⛔ CHANGES REQUESTED | 2026-07-15 | [review](docs/reviews/authz-m5-review.md) |
+| AUTHZ · M3 — defect ① narrowing: assignment ⇏ PHI | ✅ APPROVED | 2026-07-15 | [review](docs/reviews/authz-m3-review.md) |
+| AUTHZ · M2 — A30 bucket C: platform_admin loses PHI | ✅ APPROVED | 2026-07-15 | [review](docs/reviews/authz-m2-review.md) |
+| AUTHZ · M1 — Exclusion durability (ADR 0078 Gate 1) | ✅ APPROVED | 2026-07-15 | [review](docs/reviews/authz-m1-review.md#re-review--the-b1b2-delta) |
+| ~~AUTHZ · M1 (round 1)~~ | ⛔ CHANGES REQUESTED |  | [review](docs/reviews/authz-m1-review.md) |
+| AUTHZ · A0 — Catalog-driven capability inventory | ✅ APPROVED |  | [review](docs/reviews/authz-a0-inventory-review.md#v3-review--the-final-a0-round) |
+| S3·ETH·E1 — Ethics access spine + m2 gate release (ADR 0072) | ✅ APPROVED | 2026-07-14 | [review](docs/reviews/phase-ETH-E1-review.md) |
+| AI track — Action-Items Satellites + Cross-Link UI (ADR 0050) | ✅ APPROVED | 2026-07-14 | [report](docs/reviews/phase-AI-review.md) |
+| AI track — BE-6·N reminder→N scan arm (delta; ADR 0076 × 0050) | ✅ APPROVED | 2026-07-14 | [report](docs/reviews/phase-AI-review.md#be-6n-delta-review--remindern-scan-arm-2026-07-14) |
+| S2·RV2·R1 — Referrals v2: dialogue core (ADR 0037 Amendment 1) | ✅ APPROVED | 2026-07-14 | [report](docs/reviews/rv2-r1-referrals-review.md) |
+| S2·IV2 — Interviews v2: sessions + reporting/confidentiality (ADR 0070) | ✅ APPROVED | 2026-07-13 | [report](docs/reviews/iv2-interviews-review.md) |
+| S1·MEM — Single `memberships` collapse (ADR 0071/0075; S0 §I) | ✅ APPROVED | 2026-07-13 | [report](docs/reviews/memberships-collapse-review.md) |
+| F3 — Flexible-Forms Foundation (ADR 0060/0065) | ✅ APPROVED | 2026-07-12 | [report](docs/reviews/phase-F3-review.md) |
+| F2 — Centralized Attachments (ADR 0063) | ✅ APPROVED | 2026-07-11 | [report](docs/reviews/phase-F2-review.md) |
+| F1 — Case-Participants E0 (ADR 0064/0066) | ✅ APPROVED | 2026-07-10 | [report](docs/reviews/phase-F1-review.md) |
+| Meeting actual-occurrence time `held_at`/`held_end` (ADR 0062) | ✅ APPROVED | 2026-07-08 | [report](docs/reviews/meeting-held-time-review.md) |
+| Administrativo delegated-capability role (ADR 0061) | ✅ APPROVED | 2026-07-08 | [report](docs/reviews/administrativo-review.md) |
+| Form-Builder Enhancements batch (Departments · Flagged/aggregate results · Others · w | ✅ APPROVED | 2026-07-07 | [report](docs/reviews/adjustments-batch-review.md) |
+| 17 — Controlled-Document Lifecycle (Gestão de Documentos Controlados) | ✅ APPROVED | 2026-07-06 | [report](docs/reviews/phase-17-review.md) |
+| 15 — Quality Indicators (Indicadores de Qualidade) | ✅ APPROVED | 2026-07-06 | [report](docs/reviews/phase-15-review.md) |
+| Pre-Pilot DB Hardening — Wave 2 (WS-6 perf sweep: P2/P3/P4/P5) | ✅ APPROVED | 2026-07-05 | [report](docs/reviews/pre-pilot-hardening-wave2-review.md) |
+| Pre-Pilot DB Hardening — Wave 1 (C-1…C-6, H-8; D1/D2/D4/D6-flip/D7/D9; P1/P9/P10) | ✅ APPROVED | 2026-07-05 | [report](docs/reviews/pre-pilot-hardening-wave1-review.md) |
+| Phase B — NSP-per-hospital + `nsp_org_admin` (ADR 0052) | ✅ APPROVED | 2026-07-03 | [report](docs/reviews/nsp-per-hospital-review.md) |
+| Phase A — Hospital-admin tier, 4-tier audit & committee titles (ADR 0051) | ⛔ CHANGES REQUESTED | 2026-07-03 | [report](docs/reviews/hospital-admin-tier-review.md) |
+| Action-Items Fold + `visibility_scope` + Case-Access Expiry (ADR 0050) | ✅ APPROVED | 2026-07-02 | [report](docs/reviews/action-items-fold-review.md) |
+| Shared (non-PHI) `action_items` table (Option A) | ✅ APPROVED | 2026-07-02 | [report](docs/reviews/shared-action-items-review.md) |
+| Member Overview & "Meus itens de ação" | ✅ APPROVED | 2026-07-02 | [report](docs/reviews/member-overview-action-items-review.md) |
+| User Registration & Identity Management | ✅ APPROVED | 2026-07-01 | [report](docs/reviews/user-registration-review.md) |
+| ad-hoc-narratives | ✅ APPROVED | 2026-07-01 | [report](docs/reviews/ad-hoc-narratives-review.md) |
+| answer-model-v2 | ✅ APPROVED | 2026-07-01 | [report](docs/reviews/answer-model-v2-review.md) |
+| form-model-norm | ✅ APPROVED | 2026-07-01 | [report](docs/reviews/form-model-normalization-review.md) |
+| result-rec | ✅ APPROVED | 2026-06-26 | [report](docs/reviews/result-rec-review.md) |
+| NSP-per-org | ✅ APPROVED | 2026-06-25 | [core](docs/reviews/nsp-per-org-a-review.md) |
+| Multi-Tenancy | ✅ APPROVED | 2026-06-25 | [report](docs/reviews/multitenancy-review.md) |
+| Form Builder Enhancements | ✅ APPROVED | 2026-06-23 | [report](docs/reviews/form-builder-enhancements-review.md) |
+| `case_phase_results` | ✅ APPROVED | 2026-06-23 | [report](docs/reviews/phase-results-review.md) |
+| 23 — Patient Identity | ✅ APPROVED | 2026-06-22 | [report](docs/reviews/phase-23-review.md) |
+| `case_patient` (ADR 0038) | ✅ APPROVED | 2026-06-22 | [report](docs/reviews/case-patient-review.md) |
+| 22 — Inter-Committee Referrals | ✅ APPROVED | 2026-06-21 | [report](docs/reviews/phase-22-review.md) |
+| PHI/HIPAA Remediation (WS0–E) | ✅ APPROVED | 2026-06-20 | [report](docs/reviews/phi-remediation-review.md) |
+| 14b–14d — Triage/RCA/CAPA | ✅ APPROVED | 2026-06-18 | [report](docs/reviews/phase-14-review.md) |
+| 14a — NSP Foundation | ✅ APPROVED | 2026-06-18 | [report](docs/reviews/phase-14a-review.md) |
+| 13 — Audit Trail | ✅ APPROVED | 2026-06-18 |  |
+| 12 — Case Timeline | ✅ APPROVED | 2026-06-16 | [report](docs/reviews/phase-12-review.md) |
+| 11 — Interviews | ✅ APPROVED | 2026-06-15 | [report](docs/reviews/phase-11-review.md) |
+| 10 — Meetings | ✅ APPROVED | 2026-06-15 | [report](docs/reviews/phase-10-review.md) |
+| Case Access Control | ✅ APPROVED | 2026-06-19 | [report](docs/reviews/case-access-control-review.md) |
+| Case Narratives | ⛔ CHANGES REQUESTED | 2026-06-19 | [report](docs/reviews/case-narratives-review.md) |
+| Case data-model (D1–D15) | ✅ APPROVED | 2026-06-14 | [report](docs/reviews/case-model-adjustments-review.md) |
+| Cases-Extras (R1–R5) | ✅ APPROVED | 2026-06-14 | [report](docs/reviews/cases-extras-review.md) |
+| 8 — Dashboards | ✅ APPROVED | 2026-06-14 | [report](docs/reviews/phase-8-review.md) |
+| 7 — Multi-Phase Cases | ✅ APPROVED | 2026-06-13 | [report](docs/reviews/phase-7-review.md) |
+| 6 — Sign-offs | ✅ APPROVED | 2026-06-13 | [report](docs/reviews/phase-6-review.md) |
+| 5 — Wizard | ✅ APPROVED | 2026-06-13 | [report](docs/reviews/phase-5-review.md) |
+| 4 — Form Builder | ✅ APPROVED | 2026-06-12 | [report](docs/reviews/phase-4-review.md) |
+| 3 — Admin/Users | ✅ APPROVED | 2026-06-12 | [report](docs/reviews/phase-3-review.md) |
+| 2 — Auth & Shell | ✅ APPROVED | 2026-06-12 | [report](docs/reviews/phase-2-review.md) |
+| 1 — Schema/RLS | ✅ APPROVED | 2026-06-12 | [report](docs/reviews/phase-1-review.md) |
+| 0 — Scaffolding | ✅ APPROVED |  | [report](docs/reviews/phase-0-review.md) |
 
 ## Decisions
 
 <!-- One line per decision; full rationale in docs/decisions/ (ADR) + docs/progress/decisions-log.md -->
 
 | Date | Decision | Ref |
-| ---- | -------- | --- |
-| 2026-07-27 | **Flexible-Forms FF-1…FF-5 pulled pre-pilot** (PO) — all five feature phases build before the pilot and gate the pilot deploy; order FF-1→FF-2→FF-3→FF-5→FF-4; required-capable per phase; instance-aware evaluation in FF-1; `required_if` in FF-3; FF-5 = 3 reference lanes; FF-4 trimmed (calculated fields stay post-pilot). Full rationale → [decisions-log.md](docs/progress/decisions-log.md). | [0086](docs/decisions/0086-flexible-forms-pre-pilot.md) · [program](docs/plans/flexible-forms-program.md) |
-| 2026-07-27 | **FF-1 Repeating Groups rulings** (PO, grilling interview) — nesting **capped at depth 1, schema-enforced**; conditions resolve **inside-out** (2-tier overlay, same-instance wins, sibling-absent never falls back) and **outside-in is rejected at publish** (reversible direction; the ban targets *repeating* groups only); a **fully-empty instance is not incomplete** — skipped, pruned by `submit_response`, `min_instances` checked after pruning; FF-1 **drops `form_items_conditional_not_required` globally** (un-deadens the already-written visibility-wins branch; mutation-proven keystones); instance writers are **INVOKER** correctness doors, **RLS stays the boundary** (the plan's DEFINER/`reader_non_writer` keystone retired as not-applicable) + a post-pilot follow-up to harden the whole fill path coherently; **both** container types ship, `group` as a pure visual container. Also records **6 substrate corrections** to the program plan. | [0087](docs/decisions/0087-ff1-repeating-groups.md) |
-| 2026-07-23 | **Case custom fields** — template-defined, **non-PHI** administrative descriptors on cases (e.g. M&M "Número da Declaração de Óbito"); dedicated `process_template_custom_fields` → snapshot `case_custom_field_values` (reuse form input-type vocabulary, minimal subset: short_text/number/date/single-select); captured in "Novo caso" (atomic in `create_case_from_template`), editable+audited; PHI boundary = fill-time warning; process-less excluded; flag `case_custom_fields`. Design only — build is a later gated phase. | [0083](docs/decisions/0083-case-custom-fields.md) |
-| 2026-07-16 | **`manage_case_access` — KEEP (confirmed, PO).** The resolver computes `v_orgadmin` (`is_commission_admin_of_for`, ~19% of per-row cost) solely to set this bit, which **nothing consumes** (grant doors gate directly, not via the bit). Dropping it would buy ~19% but spend a reserved capability slot a future grant-doors-through-resolver refactor would need. A5 already cleared perf, so no urgency. Kept for model completeness. | [ADR 0078 D1/A16](docs/decisions/0078-authorization-capability-model.md) |
-| 2026-07-16 | **Meeting family — ACCEPT AS-IS (exclusion-perimeter residual).** A coordinator recused from case X can conclude a multi-case meeting discussing X, stamping a boilerplate `case_events` "discussed in" event. Lead-verified she CANNOT read the case via the meeting (`can_reach_case_on_member_surface`=false); only `conclude_meeting` touches case content, and only an auto-generated stamp she does not author. Not guarded because meetings are commission-scoped (per-case guard would block multi-case meetings, §7.7). Low-severity residual, no migration. | [handoff §5](docs/progress/authz-handoff.md) |
-| 2026-07-16 | **ADR 0078 A5 perf gate PASSED — no migration.** Resolver parity-or-faster + strictly linear on realistic (2005-case) data; qa MAJOR-1 ~10× was vs a single arm, not the real pre-A2 body. `manage_case_access` drop (~19%, 0 consumers) deferred as a separate PO ruling (reserved bit, needs its own keystone). | [ADR 0078 D2/A5](docs/decisions/0078-authorization-capability-model.md) · [handoff §5](docs/progress/authz-handoff.md) |
-| 2026-07-12 | **Pre-pilot release scope expansion** — pulled 12 initiatives (Phases 20–21, Referrals v2, Interviews v2, Ethics E1–E3, action-items satellites+cross-link, §6.1 memberships collapse, supersession engine) into the pilot release; only Phases 18–19 stay post-pilot. Full rationale → [decisions-log.md](docs/progress/decisions-log.md). | [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md) |
-| 2026-07-12 | **Referrals v2 — Dialogue & Governance** — adopt the missing two-way dialogue (`referral_messages` thread) + defer 12 items (triage/SLA, parent-referral, etc.) across gated phases R0→R5; R1 pilot-critical. | [0037-A1](docs/decisions/0037-inter-committee-case-referrals.md) · [plan](docs/plans/referrals-v2-dialogue-governance.md) |
-| 2026-07-10 | **Pre-Pilot Foundations Program** — one collision-free plan sequencing F0→F1 participants→F2 attachments→F3 flexible-forms→F-cleanup for ADR 0060+0063+0064-E0+DB-hardening W3/4; six resolved collisions (C-α…ζ, closes D12). Full rationale → [decisions-log.md](docs/progress/decisions-log.md). | [program](docs/plans/pre-pilot-foundations-program.md) |
-| 2026-07-09 | **Case subject generalization → participants/roles/professional-registry/case-types** (E0 foundation for Ethics + other non-patient-centered committees) — one generalized `cases` model, never a forked root; amends Rule 12. | [0064](docs/decisions/0064-case-subject-generalization-participants.md) |
-| 2026-07-09 | **Centralized-attachments substrate refinement** (14e) — single authorizing owner + `attachment_references`, `attachment_subjects`, versioning/redaction, `legal_hold`+disposal; adopted from DMS-handoff evaluation. | [0063](docs/decisions/0063-centralized-attachments-substrate.md) |
-| 2026-07-08 | **Administrativo delegated-capability role** — per-commission appointment + curated, finite capability menu (`schedule_meetings`/`create_cases`/`assign_case_phases`/`view_signoffs`) instead of a new role enum; escalation closed by construction (`_deny_self_grant`); phase-assignment auto-grant design REVERTED same day — assignment/creation now grants case READ, not write (coordinator `grant_case_access` stays the sole content-write path) | [0061](docs/decisions/0061-administrativo-delegated-role.md) |
-| 2026-07-06 | **Coolify as the pre-Phase-9 dev/staging deployment target** — Dockerfile-only (Coolify's Traefik replaces the Phase-9-planned Caddy/compose stack), points at the existing remote Supabase Cloud project, `NEXT_PUBLIC_*` vars marked build-time. Not Phase-9 completion; runbook [deploy-coolify.md](docs/deploy-coolify.md) | [0059](docs/decisions/0059-coolify-deployment-target.md) |
-| 2026-07-05 | **Phase 15/17 revision + pre-pilot re-sequencing** — build order **15 → 17 → 16** (documents pulled pre-pilot; pilot after 16; 18–21 post-pilot *(20–21 later pulled pre-pilot — [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md))*); both phases commission-owned + read-only DEFINER hospital rollups; derived indicators on option `code`s + `value_number`, hybrid taxa one-step; off-target→CAPA = **two-tier escalation** (PQS-operator "Abrir CAPA", hub fallback; CAPA write surface untouched); doc approvers = any active same-hospital user via an approval-row read arm, all-must-sign; forms metadata-only at publish; indicator SQLSTATEs from `HC084` | [0057](docs/decisions/0057-indicators-doc-control-replan.md) |
-| 2026-07-06 | **Phase 15 derived-measurement compute** — `compute_derived_measurement` replicates the `dashboard_distributions` mechanics (submitted spine, option-`code` grouping, window) so **derived == dashboard by construction** (parity-by-construction, pgTAP-locked); hybrid taxa one-step (denominator inline) + preserve-on-recompute; comparator-driven classification | [0058](docs/decisions/0058-derived-measurement-compute.md) |
-| 2026-07-02 | **Action-items fold + `visibility_scope` + case-access expiry** — scope-aware hub `SELECT` via `can_read_action_item`; fold `case_action_items` → `source_type='case'` (drop old table/RPCs; ADR 0033 D4 preserved); `case_access.expires_at`+`reason` filtered on all 6 consulters (incl. referral-PHI arm, Rule 12) | [0050](docs/decisions/0050-action-items-fold-visibility-scope-case-access-expiry.md) |
-| 2026-07-01 | **Answer-Model v2** (planned) — uniform answer row + typed scalar cols (`value_number/date/time`) + instance-ready answer key (`group_instance_id`/`response_group_instances`); evaluator unchanged (Rule 3); plan [answer-model-v2.md](docs/plans/answer-model-v2.md) | [0045](docs/decisions/0045-answer-model-v2.md) |
-| 2026-07-01 | **Forward-compat form capabilities** (planned) — `form_items.parent_item_id` + reserved hooks for repeating groups / file-signature-matrix answers / field confidentiality (structure only) + question default values | [0046](docs/decisions/0046-forward-compat-form-capabilities.md) |
-| 2026-06-25 | **NSP-per-org** — bind the PQS roster + every PHI door to an organization (per-org `pqs_members`/`pqs_department`, `nsp_coordinator` grant via the role-CHECK seam, org-scoped doors + patient-index 4th surface, forbid cross-org referrals, vendor-walled erasure); lifts ADR 0041 amendment 10's interim multi-org PHI guard; split A (backend, pgTAP-gated) → B (FE + E2E) | [0042](docs/decisions/0042-nsp-per-org.md) |
-| 2026-06-25 | **Multi-Tenancy** — pooled single-DB (organizations → hospitals → commissions); vendor `platform_admin` vs customer `org_admin`; RLS rewrite + 3-tier audit + multi-org PHI guard | [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md) |
-| 2026-06-20 | **PHI-remediation Round 3** — RCA-write severance (drop `is_admin` from 7 `rca_*_write`) + WS B audited free-text reads/PHI classification + WS E efficiency | plan §A4/B/E; ADR 0030/0031 |
+| 2026-07-27 | **Flexible-Forms FF-1…FF-5 pulled pre-pilot** (PO) — all five feature phases build before the pilot and gate the pilot deploy; order … | [0086](docs/decisions/0086-flexible-forms-pre-pilot.md) · [program](docs/plans/flexible-forms-program.md) |
+| 2026-07-27 | **FF-1 Repeating Groups rulings** (PO, grilling interview) — nesting **capped at depth 1, schema-enforced**; conditions resolve **inside-out** … | [0087](docs/decisions/0087-ff1-repeating-groups.md) |
+| 2026-07-23 | **Case custom fields** — template-defined, **non-PHI** administrative descriptors on cases (e.g. M&M "Número da Declaração de Óbito"); … | [0083](docs/decisions/0083-case-custom-fields.md) |
+| 2026-07-16 | **`manage_case_access` — KEEP (confirmed, PO).** The resolver computes `v_orgadmin` (`is_commission_admin_of_for`, ~19% of per-row cost) solely to … | [ADR 0078 D1/A16](docs/decisions/0078-authorization-capability-model.md) |
+| 2026-07-16 | **Meeting family — ACCEPT AS-IS (exclusion-perimeter residual).** A coordinator recused from case X can conclude a multi-case meeting discussing X, … | [handoff §5](docs/progress/authz-handoff.md) |
+| 2026-07-16 | **ADR 0078 A5 perf gate PASSED — no migration.** Resolver parity-or-faster + strictly linear on realistic (2005-case) data; qa MAJOR-1 ~10× was vs … | [ADR 0078 D2/A5](docs/decisions/0078-authorization-capability-model.md) · [handoff §5](docs/progress/authz-handoff.md) |
+| 2026-07-12 | **Pre-pilot release scope expansion** — pulled 12 initiatives (Phases 20–21, Referrals v2, Interviews v2, Ethics E1–E3, action-items … | [0071](docs/decisions/0071-pre-pilot-release-scope-expansion.md) |
+| 2026-07-12 | **Referrals v2 — Dialogue & Governance** — adopt the missing two-way dialogue (`referral_messages` thread) + defer 12 items (triage/SLA, … | [0037-A1](docs/decisions/0037-inter-committee-case-referrals.md) · [plan](docs/plans/referrals-v2-dialogue-governance.md) |
+| 2026-07-10 | **Pre-Pilot Foundations Program** — one collision-free plan sequencing F0→F1 participants→F2 attachments→F3 flexible-forms→F-cleanup for … | [program](docs/plans/pre-pilot-foundations-program.md) |
+| 2026-07-09 | **Case subject generalization → participants/roles/professional-registry/case-types** (E0 foundation for Ethics + other non-patient-centered … | [0064](docs/decisions/0064-case-subject-generalization-participants.md) |
+| 2026-07-09 | **Centralized-attachments substrate refinement** (14e) — single authorizing owner + `attachment_references`, `attachment_subjects`, … | [0063](docs/decisions/0063-centralized-attachments-substrate.md) |
+| 2026-07-08 | **Administrativo delegated-capability role** — per-commission appointment + curated, finite capability menu … | [0061](docs/decisions/0061-administrativo-delegated-role.md) |
+| 2026-07-06 | **Coolify as the pre-Phase-9 dev/staging deployment target** — Dockerfile-only (Coolify's Traefik replaces the Phase-9-planned Caddy/compose … | [0059](docs/decisions/0059-coolify-deployment-target.md) |
+| 2026-07-05 | **Phase 15/17 revision + pre-pilot re-sequencing** — build order **15 → 17 → 16** (documents pulled pre-pilot; pilot after 16; 18–21 … | [0057](docs/decisions/0057-indicators-doc-control-replan.md) |
+| 2026-07-06 | **Phase 15 derived-measurement compute** — `compute_derived_measurement` replicates the `dashboard_distributions` mechanics (submitted spine, … | [0058](docs/decisions/0058-derived-measurement-compute.md) |
+| 2026-07-02 | **Action-items fold + `visibility_scope` + case-access expiry** — scope-aware hub `SELECT` via `can_read_action_item`; fold `case_action_items` → … | [0050](docs/decisions/0050-action-items-fold-visibility-scope-case-access-expiry.md) |
+| 2026-07-01 | **Answer-Model v2** (planned) — uniform answer row + typed scalar cols (`value_number/date/time`) + instance-ready answer key … | [0045](docs/decisions/0045-answer-model-v2.md) |
+| 2026-07-01 | **Forward-compat form capabilities** (planned) — `form_items.parent_item_id` + reserved hooks for repeating groups / file-signature-matrix answers … | [0046](docs/decisions/0046-forward-compat-form-capabilities.md) |
+| 2026-06-25 | **NSP-per-org** — bind the PQS roster + every PHI door to an organization (per-org `pqs_members`/`pqs_department`, `nsp_coordinator` grant via the … | [0042](docs/decisions/0042-nsp-per-org.md) |
+| 2026-06-25 | **Multi-Tenancy** — pooled single-DB (organizations → hospitals → commissions); vendor `platform_admin` vs customer `org_admin`; RLS rewrite + … | [0041](docs/decisions/0041-multi-tenancy-organizations-hospitals.md) |
+| 2026-06-20 | **PHI-remediation Round 3** — RCA-write severance (drop `is_admin` from 7 `rca_*_write`) + WS B audited free-text reads/PHI classification + WS E … | plan §A4/B/E; ADR 0030/0031 |
 | 2026-06-20 | **PHI-remediation WS C** — PHI retention & disposal (`dispose_event_phi`, one-shot HC056, constrained reason enum) | plan §C; ADR 0030/0031 |
-| 2026-06-20 | **PHI-remediation WS A** — structured-identifier lockdown: real `pqs_members` roster, tight `can_read_event_patient`, single audited door, sever platform-admin from NSP PHI | plan §A; ADR 0030/0031 |
+| 2026-06-20 | **PHI-remediation WS A** — structured-identifier lockdown: real `pqs_members` roster, tight `can_read_event_patient`, single audited door, sever … | plan §A; ADR 0030/0031 |
 | 2026-06-20 | **Migration squash** → domain-partitioned dump-based baseline (replaced 86 incremental migrations; WS0) | plan §WS0 |
 | 2026-06-19 | **Case Access Control** — per-case read/write ACL + attribution-driven full-case read; restrictive `can_read_case`; narrative lifecycle | [0033](docs/decisions/0033-case-access-control.md) |
 | 2026-06-11 | Scaffolding & toolchain: Next 16/React 19, shadcn (radix/neutral), vitest ESM, Supabase CLI devDep, Chromium-only | [0001](docs/decisions/0001-scaffolding-and-toolchain.md) |
