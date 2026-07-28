@@ -136,6 +136,7 @@ function clientData(
     matrixCellsByItemId: {},
     riskMatrixByItemId: {},
     referencesByItemId: {},
+    otherTextByItemId: {},
     instances: [
       instance("i1", 0, { medicamento: "Dipirona", dose: "500mg" }),
       instance("i2", 1, { medicamento: "Omeprazol", dose: "20mg" }),
@@ -220,6 +221,10 @@ describe("toClientResponseForSignoff — the adapter forwards instances", () => 
       matrixCellsByItemId: {},
       riskMatrixByItemId: {},
       referencesByItemId: {},
+      // QA m-3: the fourth shape this surface lost by being optional. This line
+      // exists because the field is REQUIRED — the compiler demanded it rather
+      // than a reviewer noticing it was absent, which is the whole point.
+      otherTextByItemId: {},
       instances,
       signoffs: [],
     });

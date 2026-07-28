@@ -119,6 +119,7 @@ function clientData(over: Partial<ClientResponseForSignoff> = {}): ClientRespons
     matrixCellsByItemId: {},
     riskMatrixByItemId: {},
     referencesByItemId: {},
+    otherTextByItemId: {},
     instances: [],
     signoffsBySectionId: {},
     ...over,

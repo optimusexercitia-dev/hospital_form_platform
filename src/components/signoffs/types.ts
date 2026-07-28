@@ -107,6 +107,19 @@ export interface ClientResponseForSignoff {
    * {@link GroupInstance}, exactly as scalar answers and matrix grids do.
    */
   referencesByItemId: Record<string, ReferenceAnswer>;
+  /**
+   * QA m-3 — the response's TOP-LEVEL "Outros" free text.
+   *
+   * REQUIRED, and it is the **fourth** answer shape this surface lost by being
+   * optional: instances (FF-1), matrix grids (FF-2), references (FF-5), and now
+   * this. The door was projecting `other_text_by_item` for INSTANCES only, so a
+   * top-level "Outro" answer reached the signer as a bare chip with the typed
+   * text missing — someone attesting to content they were never shown (Rule 4).
+   *
+   * Non-null only: the door filters empty/whitespace, so an absent key means
+   * "no Outro text", exactly as it does per instance.
+   */
+  otherTextByItemId: Record<string, string>;
   /** Existing sign-off rows for this response, by section. */
   signoffsBySectionId: Record<string, SectionSignoff>;
 }

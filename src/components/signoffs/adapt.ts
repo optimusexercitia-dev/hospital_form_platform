@@ -73,6 +73,12 @@ export function toClientResponseForSignoff(
     // resposta" on the one screen where somebody signs their name to what it
     // says. Required on `ClientResponseForSignoff`, so it cannot be dropped.
     referencesByItemId: data.referencesByItemId,
+    // QA m-3: the fourth answer shape to be forwarded here, and the fourth that
+    // was silently missing before someone made the field required. The pattern
+    // is now explicit enough to state: every payload map on ResponseForSignoff
+    // needs a line here, and being REQUIRED on both types is what guarantees
+    // adding one to the door cannot compile until this line exists.
+    otherTextByItemId: data.otherTextByItemId,
     signoffsBySectionId: signoffRecordsToMap(data.signoffs),
   };
 }

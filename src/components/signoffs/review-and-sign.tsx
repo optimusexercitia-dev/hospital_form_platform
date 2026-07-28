@@ -117,6 +117,7 @@ export function ReviewAndSign({
             matrixCellsByItemId={data.matrixCellsByItemId}
             riskMatrixByItemId={data.riskMatrixByItemId}
             referencesByItemId={data.referencesByItemId}
+            otherTextByItemId={data.otherTextByItemId}
             instancesByGroup={instancesByGroup}
             visibleItemIds={visibleItemIds}
             imageUrls={imageUrls}
@@ -157,6 +158,7 @@ function ReviewSection({
   matrixCellsByItemId,
   riskMatrixByItemId,
   referencesByItemId,
+  otherTextByItemId,
   instancesByGroup,
   visibleItemIds,
   imageUrls,
@@ -176,6 +178,8 @@ function ReviewSection({
   riskMatrixByItemId: Record<string, RiskMatrixAnswer>;
   /** FF-5 — the response's TOP-LEVEL entity references (labels pre-resolved). */
   referencesByItemId: Record<string, ReferenceAnswer>;
+  /** QA m-3 — the response's TOP-LEVEL "Outros" free text. */
+  otherTextByItemId: Record<string, string>;
   instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
@@ -236,6 +240,7 @@ function ReviewSection({
         matrixCellsByItemId={matrixCellsByItemId}
         riskMatrixByItemId={riskMatrixByItemId}
         referencesByItemId={referencesByItemId}
+        otherTextByItemId={otherTextByItemId}
         instancesByGroup={instancesByGroup}
         visibleItemIds={visibleItemIds}
         imageUrls={imageUrls}
@@ -277,6 +282,7 @@ function SectionBody({
   matrixCellsByItemId,
   riskMatrixByItemId,
   referencesByItemId,
+  otherTextByItemId,
   instancesByGroup,
   visibleItemIds,
   imageUrls,
@@ -287,6 +293,7 @@ function SectionBody({
   matrixCellsByItemId: Record<string, Record<string, string>>;
   riskMatrixByItemId: Record<string, RiskMatrixAnswer>;
   referencesByItemId: Record<string, ReferenceAnswer>;
+  otherTextByItemId: Record<string, string>;
   instancesByGroup: Record<string, GroupInstance[]>;
   visibleItemIds: Set<string>;
   imageUrls: Record<string, string>;
@@ -338,21 +345,14 @@ function SectionBody({
                 // answered reference reads "Sem resposta". Same defect shape as
                 // FF-1's instances and FF-2's grids, one payload table later.
                 reference={referencesByItemId[item.id]}
-                // ⚠ GAP, surfaced by making this prop required (m-3): the
-                // sign-off door does NOT project top-level "Outros" free text.
-                // `ResponseForSignoff` has no `otherTextByItemId` — the door maps
-                // `other_text_by_item` for INSTANCES only (`queries/signoffs.ts`).
-                // So a top-level "Outro" answer reaches the signer as the bare
-                // chip with its typed text missing: the same
-                // signing-blind-to-content shape as FF-1's instances and FF-2's
-                // grids, one field later, and exactly what a required prop is
-                // supposed to expose.
-                //
-                // Passed EXPLICITLY as undefined rather than omitted, so this is
-                // a recorded absence instead of an oversight. The fix is a door +
-                // query change in `src/lib/queries/signoffs.ts`, which is
-                // backend's file — reported, not patched here.
-                otherText={undefined}
+                // QA m-3, now CLOSED (door + query: backend `1c773de`,
+                // migration `20260902000900`). This briefly passed an explicit
+                // `undefined` to record a real absence: the door projected
+                // `other_text_by_item` for INSTANCES only, so a top-level
+                // "Outro" answer reached the signer as a bare chip with its
+                // typed text missing — the FF-1/FF-2 signing-blind shape, one
+                // field later. The projection exists now, so this reads it.
+                otherText={otherTextByItemId[item.id]}
               />
             ) : (
               <DisplayBlock key={item.id} item={item} imageUrls={imageUrls} />
