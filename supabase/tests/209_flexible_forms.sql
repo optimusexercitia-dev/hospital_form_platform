@@ -104,14 +104,26 @@ select throws_ok(
 --     authored (it would deadlock app.response_required_complete — its answers
 --     live in the F3 answer-shape tables, not answers.value).
 --
---     ⚠ FF-2 (ADR 0089 ruling 3) RETIRES this pin for matrix/risk_matrix and
---     KEEPS it for `reference`. The invariant was never "these types may not be
---     required" — it was "a type whose required-ness NOTHING CHECKS may not be
---     required". FF-2 gives matrix and risk_matrix a completeness arm
---     (app.item_required_satisfied: row-complete / answer-row-exists) plus an
---     app.instance_is_empty arm, so the deadlock is gone for them. `reference`
---     has neither until FF-5, so it stays pinned — and B1c below is what will
---     go red if someone relaxes it early.
+--     ⚠ FF-2 (ADR 0089 ruling 3) RETIRED this pin for matrix/risk_matrix, and
+--     FF-5 (ADR 0091 ruling 6) NOW RETIRES IT FOR `reference` TOO. The invariant
+--     was never "these types may not be required" — it was "a type whose
+--     required-ness NOTHING CHECKS may not be required". FF-5 gives `reference`
+--     both missing arms (`app.item_required_satisfied`: at least one
+--     `answer_references` row; and the matching `app.instance_is_empty` arm,
+--     without which submit would prune a reference-only instance and cascade the
+--     answer away), so the deadlock is gone for it as well.
+--
+--     B1c/B3c are therefore now POSITIVE assertions. They have not been deleted,
+--     and that is the point: flipping them is the record that the freeze was
+--     lifted DELIBERATELY and only after the arms landed. The freeze itself is
+--     NOT retired — B2/B3a/B3b still pin every type that genuinely has no
+--     completeness arm (the two containers and the two display types), so this
+--     section still goes red if someone relaxes one of those.
+--
+--     The real enforcement of the reference arms moved to
+--     276_ff5_references.sql §H, which drives them end to end (required blocks
+--     submit; hidden+required never blocks; the per-instance arm) rather than
+--     asserting a CHECK can be written.
 -- ===========================================================================
 select lives_ok(
   $$ insert into public.form_items (section_id, position, item_type, question_key, label, required)
@@ -121,10 +133,10 @@ select lives_ok(
   $$ insert into public.form_items (section_id, position, item_type, question_key, label, required)
      values ('aaaa0000-0000-0000-0000-000000000003', 18, 'risk_matrix', 'rk2', 'R2', true) $$,
   'B1b: required=true risk_matrix ACCEPTED (FF-2)');
-select throws_ok(
+select lives_ok(
   $$ insert into public.form_items (section_id, position, item_type, question_key, label, required)
      values ('aaaa0000-0000-0000-0000-000000000003', 19, 'reference', 'rf2', 'F2', true) $$,
-  '23514', null, 'B1c: required=true reference STILL rejected — pinned until FF-5 wires its completeness arm');
+  'B1c: required=true reference ACCEPTED (FF-5 wired both completeness arms; see 276 §H)');
 select throws_ok(
   $$ insert into public.form_items (section_id, position, item_type, label, required)
      values ('aaaa0000-0000-0000-0000-000000000003', 17, 'repeating_group', 'RG2', true) $$,
@@ -151,11 +163,11 @@ select throws_ok(
      values ('aaaa0000-0000-0000-0000-000000000003', 21, 'section_text', '{"markdown":"oi"}',
              '{"question_key":"q1","op":"equals","value":"x"}') $$,
   '23514', null, 'B3b: required_if on a DISPLAY item rejected (FF-3)');
-select throws_ok(
+select lives_ok(
   $$ insert into public.form_items (section_id, position, item_type, question_key, label, required_if)
      values ('aaaa0000-0000-0000-0000-000000000003', 22, 'reference', 'rf3', 'F3',
              '{"question_key":"q1","op":"equals","value":"x"}') $$,
-  '23514', null, 'B3c: required_if on a `reference` rejected — pinned with B1c until FF-5');
+  'B3c: required_if on a `reference` ACCEPTED (FF-5, with B1c — the completeness arm covers both doors)');
 select lives_ok(
   $$ insert into public.form_items (section_id, position, item_type, question_key, label, required_if)
      values ('aaaa0000-0000-0000-0000-000000000003', 23, 'short_text', 'st_ri', 'RI',

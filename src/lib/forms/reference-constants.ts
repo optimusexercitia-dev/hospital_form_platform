@@ -57,6 +57,23 @@ export const PARTICIPANT_TYPES: readonly ParticipantType[] = [
   'other',
 ]
 
+/**
+ * pt-BR display labels (Architecture Rule 10: user-facing text is pt-BR,
+ * identifiers stay English).
+ *
+ * ⚠ THE TS HALF OF A MIRRORED PAIR. `app.participant_type_label` is the SQL
+ * authority, used by `public.reference_candidates` and by the sign-off
+ * projection `app.references_by_item`; this is the TS one, used by
+ * `buildReferenceAnswers` and by the builder's type picker. Two copies are
+ * structurally necessary — the builder renders labels for types the user has not
+ * chosen yet, entirely client-side, while the projection is DEFINER SQL — so
+ * this is the same mirrored-SQL/TS situation as the condition evaluator, and it
+ * carries the same obligation: the pair must not drift.
+ *
+ * Both sides are pinned to the same seven pairs — this one by
+ * `participant-type-labels.test.ts`, the SQL one by the FF-5 pgTAP suite.
+ * Changing one without the other REDS. Do not "fix" a label here alone.
+ */
 export const PARTICIPANT_TYPE_LABELS: Readonly<Record<ParticipantType, string>> = {
   patient: 'Paciente',
   professional: 'Profissional',
@@ -65,6 +82,24 @@ export const PARTICIPANT_TYPE_LABELS: Readonly<Record<ParticipantType, string>> 
   institution: 'Instituição',
   regulatory_body: 'Órgão regulador',
   other: 'Outro',
+}
+
+/**
+ * A participant type's pt-BR label, for a value of unknown provenance (a DB row,
+ * a payload). Mirrors `app.participant_type_label` INCLUDING its fallback:
+ * an unmapped value returns ITSELF rather than null, so a future eighth type
+ * degrades to a visible English identifier instead of silently blanking the
+ * disambiguator — a blank sublabel on the patient lane, where every label is the
+ * identical surrogate 'Paciente', is indistinguishable from "these rows are the
+ * same person". `null`/`undefined` in still yields `null` out.
+ */
+export function participantTypeLabel(value: string | null | undefined): string | null {
+  if (value == null) return null
+  return (
+    PARTICIPANT_TYPE_LABELS[value as ParticipantType] ??
+    // Unmapped: return the raw value, exactly as the SQL twin's `else` does.
+    value
+  )
 }
 
 /**

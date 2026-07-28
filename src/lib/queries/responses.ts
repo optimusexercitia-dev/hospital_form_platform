@@ -14,7 +14,10 @@ import { overlayAnswerMap } from '@/lib/queries/conditions'
 import type { AnswerMap } from '@/lib/queries/conditions'
 // FF-5 (ADR 0091). From the PURE module, never from `@/lib/queries/forms`: the
 // wizard is a Client Component and this file's shapes travel with it.
-import { toReferenceKind } from '@/lib/forms/reference-constants'
+import {
+  participantTypeLabel,
+  toReferenceKind,
+} from '@/lib/forms/reference-constants'
 import type {
   ReferenceCandidate,
   ReferenceKind,
@@ -728,9 +731,14 @@ export function buildReferenceAnswers(
     // (`reference_candidates`) and by the sign-off projection
     // (`app.references_by_item`), both of which have the case in scope; here the
     // participant TYPE is what is cheaply and always available.
+    //
+    // TRANSLATED (Rule 10). This was the THIRD site emitting the raw English
+    // identifier — the bug report named only the typeahead, and a sweep found
+    // this one plus the sign-off projection. `participantTypeLabel` mirrors
+    // `app.participant_type_label`; the two are pinned to the same seven pairs.
     const sublabel =
       kind === 'participant'
-        ? (row.participants?.participant_type ?? null)
+        ? participantTypeLabel(row.participants?.participant_type)
         : kind === 'user'
           ? (row.profiles?.email ?? null)
           : null

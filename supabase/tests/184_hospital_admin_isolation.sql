@@ -67,13 +67,14 @@ select is(
   (select count(*)::int from public.commissions where id = (select comm_qual_b from p)),
   0, 'RLS PROOF: ha1 reads ZERO rows of the other-org commission (Qualidade B)');
 -- forms (a swapped commission-scoped surface)
--- 2, not 1, as of FF-2: seed.sql adds the "Matriz de Conformidade e Risco" demo
--- form to CCIH alongside the hand-hygiene checklist. The assertion's job is
+-- 3, not 2, as of FF-5: seed.sql adds "Registro de Ocorrência com Referências"
+-- to CCIH, alongside FF-2's "Matriz de Conformidade e Risco" (which took this
+-- from 1 to 2) and the original hand-hygiene checklist. The assertion's job is
 -- unchanged — ha1 reads CCIH's forms, and the sibling-hospital / other-org
 -- counts below are still 0, which is where the isolation proof actually lives.
 select is(
   (select count(*)::int from public.forms where commission_id = (select comm_ccih from p)),
-  2, 'RLS: ha1 reads CCIH forms (swapped surface)');
+  3, 'RLS: ha1 reads CCIH forms (swapped surface)');
 select is(
   (select count(*)::int from public.forms where commission_id = (select comm_etica from p)),
   0, 'RLS PROOF: ha1 reads ZERO forms of the sibling-hospital commission');
