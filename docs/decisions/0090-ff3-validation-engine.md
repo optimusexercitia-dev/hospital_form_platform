@@ -213,6 +213,32 @@ unchanged — same SQLSTATE, same messages, same order — and the pre-existing 
 `assert_item_bounds` is the net that proves it. Keystones `J1`/`J2` cover the lane; `J3` is green
 under the same mutation, which is what proves `J1`/`J2` are the ones testing it.
 
+## Amendment 2 — ruling 5 ships two pickers, not four (2026-07-28)
+
+**Lead ruling during the build.** Ruling 5 stands in full at the *storage* layer:
+`app.is_valid_condition` admits all four F3 operators, closing the
+implemented-but-unstorable gap. The **builder pickers**, however, ship only
+`is_empty` / `is_not_empty`. `contains` / `not_contains` remain evaluator-only vocabulary.
+
+*Why:* on a choice target `contains` is not merely similar to `equals`, it is the **same
+relation** — the array branch of `evalCondition`'s `contains` case is byte-identical to the
+array branch of `answerMatchesValue`, which is what `equals` runs. The one case where the two
+genuinely differ, substring matching on a text scalar, is **unreachable**: `CONDITION_TARGET_TYPES`
+(`src/components/forms/condition-targets.ts`) excludes `short_text` and `free_text` by decision #7.
+A picker for `contains` would therefore offer an author two differently-named controls that
+evaluate identically — UI noise presented as a capability.
+
+The absence is commented at the picker so a later reader does not "fix" it as an oversight.
+
+*Deferred, not dropped:* admitting `short_text` / `free_text` as condition **targets** would make
+`contains` a real capability ("quando *Observações* contém 'reinternação'") and needs no
+migration — nothing in `validate_visible_when` or its helpers restricts target `item_type` except
+for `in` and the ordered ops. It is excluded here because it reverses decision #7 and changes what
+**every** condition picker in the application offers — section visibility, item visibility and
+`required_if` alike. That is a product decision for the PO and a change to a shared control's
+contract, not something FF-3 should absorb by implication on the phase with the program's largest
+test space (risk 2). Logged as **O-4**.
+
 ## Open questions (deferred, not blocking)
 
 - **O-1** — should a `warn` require acknowledgement before submit? v1: no, badge only.
@@ -221,3 +247,6 @@ under the same mutation, which is what proves `J1`/`J2` are the ones testing it.
 - **O-3** — cross-instance rules other than `unique_within_group` (e.g. "sum of a child across
   instances ≤ N") are out of v1; they are closer to `form_calculations`, which ADR 0086 ruling 6
   keeps post-pilot.
+- **O-4** (Amendment 2) — admit `short_text` / `free_text` as condition **targets**, making
+  `contains` / `not_contains` authorable as substring matching. No migration required; reverses
+  decision #7 and widens every condition picker in the app. **PO call.**
