@@ -227,18 +227,36 @@ name, fast-forwarded to `main` @ `5e6b62d`; **216 == 216** at phase start.
 > that must stay green. ⚠ **That render suite exists because the walk-level assertions CANNOT fail if
 > a component goes stale** — the same vacuity trap as the prune test, caught before shipping this time.
 >
-> ⚠ **A NINTH path found, deliberately NOT changed — needs a lead ruling.**
-> `src/components/responses/wizard/answer-summary.tsx:98` renders the marker from static
-> `item.required`, and the review screen uses it, so a `required_if`-mandatory field shows **unmarked
-> on review** while marked during fill. Two reasons I did not just fix it: (a) it cannot mislead into a
-> blocked submit — review is only reachable after every section passed `handleNext`, so all required
-> fields are answered by then, making this an inconsistency rather than a trap; (b) `AnswerSummary`
-> has **six other consumers** — `submission-detail-view`, `phase-answers-readonly`,
-> `instance-answers-readonly`, `review-and-sign` and two tests — all **historical read-only views of
-> SUBMITTED responses**, where static `item.required` is arguably the *correct* display (the record was
-> already accepted, and there is no live answer map). Threading effective required-ness there would put
-> a live-fill concept onto historical dashboard views. The optional-prop-with-fallback shape already
-> supports fixing only the review call site; it is a scope call, not a guess I should make.
+> ✅ **Ninth path fixed — review only (`a4b95e7`), per the lead's ruling.**
+> `AnswerSummary` gains `requiredNow?: boolean` with a static fallback; review threads the
+> effective-required set to it (bare ids at top level, `${instanceId}:${itemId}` in a repetition —
+> the SAME keying the fill side uses, so one set serves both). Matrix items review THROUGH
+> `MatrixGrid`/`RiskMatrixPicker`, so those get it too and review agrees with fill for all 10 types.
+> The set is collected in the walk that already crosses every visible section for the review
+> warnings — one pass, both facts.
+>
+> **Scope: the review call site only.** The six historical consumers (`submission-detail-view`,
+> `phase-answers-readonly`, `instance-answers-readonly`, `review-and-sign`, two tests) render
+> SUBMITTED records and keep the authored flag, untouched.
+>
+> ⚠ **Correcting my own earlier reasoning, per the lead — it changes O-5's framing.** I argued the
+> historical views have "no live answer map to resolve against". **They do:** a submitted response
+> carries a **FROZEN** map, which makes effective required-ness *deterministic and reproducible*
+> there — more so than during fill. So static required-ness on those six is **not demonstrably
+> correct**; it is cheaper and currently harmless. "Was this field mandatory for this record" is
+> computable from the record itself. Logged as **O-5, open** — not closed as correct. The frozen map
+> is what makes it tractable; the optional-prop-with-fallback shape is what keeps it cheap, so that
+> shape stays exactly as is.
+>
+> **Mutation-proven:** reverting the review marker to the static flag turns **2** red, and the 2 that
+> stay green are precisely the fallback cases that MUST stay green — they are the six historical
+> consumers' contract. Restored byte-for-byte.
+>
+> **`next build` note:** this worktree's `.next/standalone` is held by the tester's prod-standalone
+> server on `:3100`, so a plain build hits Windows `EBUSY`. Verified via an **env-gated `distDir`** to
+> a scratch dir — inert without the env var, so a concurrent tester build was unaffected — then
+> `next.config.ts` restored byte-for-byte and git-clean. **The tester's process was not touched**
+> (shared-stack rule: one owner).
 
 > ⛔ **STILL OWED — a real click-through. Live UI verification was IMPOSSIBLE from this worktree.**
 > The Browser preview tool's session is bound to the **primary checkout** (its processes run from
