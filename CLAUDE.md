@@ -120,6 +120,7 @@ Each is feature-flagged; full detail in PHASES.md + `docs/phases/accreditation-t
 | Charts      | Recharts                                                      |
 | E2E testing | Playwright (`@playwright/test`)                               |
 | Unit tests  | Vitest + Testing Library                                      |
+| Animation   | GSAP (`gsap` 3.15, pinned) — the §1 micro-animation mandate; tokens in `src/components/motion/` |
 | Local dev   | Supabase CLI (`supabase start` — local Docker stack)          |
 | Deploy      | Docker (Next.js standalone) on Coolify (Dockerfile app type — no compose/Caddy; ADR 0059); Supabase Cloud in production |
 
@@ -129,23 +130,38 @@ Each is feature-flagged; full detail in PHASES.md + `docs/phases/accreditation-t
 /
 ├── CLAUDE.md / ARCHITECTURE.md / PHASES.md / PROGRESS.md   # rules, schema, plan, status
 ├── Dockerfile                 # Coolify deploy — root, Next.js standalone (ADR 0059)
-├── .claude/agents/            # teammate role definitions
+├── .claude/agents/            # teammate role definitions  (+ .claude/skills/)
+├── scripts/                   # e2e-prod-gate.sh (the §6 gate) · check-tailwind-css-vars.mjs
+│                              #   (the lint:css-vars gate) · worktree-setup.sh
 ├── supabase/
-│   ├── migrations/            # SQL migrations (Backend)
-│   ├── seed.sql               # local dev seed (test users, demo commission)
+│   ├── migrations/            # SQL migrations (Backend) — 216 files; the live catalog, not
+│   │                          #   this text, is truth (see the graphify exception below)
+│   ├── tests/                 # pgTAP suites (Backend) — the numbered 00_…269_ files
+│   ├── seed.sql               # local dev seed (~31 personas, 2 orgs; roster in its header)
+│   ├── demo/ · snippets/ · templates/
 │   └── config.toml
 ├── src/
 │   ├── app/                   # Next.js App Router (Frontend)
-│   │   ├── (auth)/            # login, invite, password reset
+│   │   ├── (auth)/ · auth/    # login, invite, password reset
 │   │   ├── admin/             # platform-admin area
+│   │   ├── api/               # route handlers (Backend)
+│   │   ├── c/ · conta/ · conta-inativa/   # commission picker · account · deactivated
 │   │   └── o/[org]/…/c/[commission]/  # tenant → commission areas (manage/forms/dashboard, NSP)
 │   ├── components/            # (Frontend)
-│   ├── lib/
-│   │   ├── supabase/          # client factories + middleware session/gating helper — Backend
-│   │   ├── queries/           # typed data-access functions — Backend
-│   │   └── types/             # generated DB types + domain types — Backend
+│   ├── proxy.ts               # (Backend)
+│   └── lib/                   # ~37 domain modules (Backend) — one per feature area
+│       │                      #   (cases, safety, referrals, ethics, documents, charters,
+│       │                      #   notifications, indicators, attachments, participants, …),
+│       │                      #   each typically actions.ts + queries; PLUS the three
+│       │                      #   Rule 8/9 anchors:
+│       ├── supabase/          # client factories + middleware session/gating helper
+│       ├── queries/           # typed data-access functions
+│       └── types/             # generated DB types + domain types
 ├── e2e/                       # Playwright specs (Tester)
-└── docs/decisions/            # ADRs
+├── worktrees/                 # parallel sessions — docs/worktrees.md
+└── docs/                      # decisions/ (ADRs 0001–0089) · backend-state.md (backend surface
+                               #   map) · lead-playbook.md · progress/ · reviews/ · phases/ ·
+                               #   plans/ · design/ · testing/ · deployment/ · worktrees.md
 ```
 
 ## 3. Architecture Rules (index)
@@ -204,11 +220,22 @@ schema, one rulebook.
 
 **Hard rule:** no phase begins until the previous phase has passed the Phase Gate (§6)
 **and** the human has approved. Backend may run one phase ahead on schema work, but
-nothing merges ahead of its phase. Current sequencing / pilot plan: **ADR 0057** (build
-15 → 17 → 16; ship a pilot after Phase 16).
+nothing merges ahead of its phase.
+
+**Current sequencing / pilot plan (verify against PROGRESS.md — this line goes stale fast).**
+ADR 0057's "build 15 → 17 → 16, pilot after Phase 16" is **superseded twice over**: by
+**ADR 0071** (2026-07-12 — twelve initiatives pulled pre-pilot; that block is complete,
+ending with ETH·E3a on 2026-07-27) and by **ADR 0086** (2026-07-27 — the five
+Flexible-Forms phases pulled pre-pilot, **all five gate the pilot deploy**). Live order:
+FF-1 ✅ → FF-2 ✅ → **FF-3 → FF-5 → FF-4** → pilot deploy (origin push + Coolify + remote
+`db push`). **Phase 16 is deferred and needs replanning — it no longer gates the pilot**;
+Phases 18–19 stay post-pilot.
 
 > ⭐ **Before any authorization / RLS / security-test work, read
-> [docs/progress/authz-handoff.md §7](./docs/progress/authz-handoff.md)** — the ADR-0078 lessons.
+> [docs/progress/authz-handoff.md §7](./docs/progress/authz-handoff.md)** — the ADR-0078 lessons
+> (and ADR [0079](./docs/decisions/0079-authz-door-blindness-standing-invariant.md), whose
+> door-audit sweep `supabase/tests/mutation/p0-authz-invariant.sh` is a **standing** gate that
+> must keep passing — see ARCHITECTURE.md Rule 1).
 > They are **not** AUTHZ-specific and they cost six review rounds: **7 keystones that could not fail**
 > (review found none; *reverting the fix* found all), **6 ways "text is not truth"** beyond stale files
 > (a flag's `description` vs its `enabled` column; a `prosrc` regex matching **comments**; a persona
@@ -217,7 +244,9 @@ nothing merges ahead of its phase. Current sequencing / pilot plan: **ADR 0057**
 
 ## 6. Phase Gate (mandatory, in order)
 
-1. **Build complete** — all phase tasks done; lint, typecheck, unit tests pass locally.
+1. **Build complete** — all phase tasks done; lint, typecheck, unit tests, **and the pgTAP
+   suite (`npm run test:db`)** pass locally. Run pgTAP on a **fresh `supabase db reset`** — an
+   E2E-mutated DB yields spurious commission-count reds that are not defects.
 2. **Test pass** — `tester` writes/updates Playwright specs for the acceptance criteria
    and files a bug per failure in PROGRESS.md. The fix loop reruns **failing +
    current-phase** specs (chromium); the **full E2E suite runs once to declare green** —
@@ -248,8 +277,10 @@ phase + the head of each cross-phase log. The rotation/archive discipline is the
 ## 8. Conventions & Quality Bar
 
 - TypeScript `strict`; no `any` without an inline justification comment.
-- **Lint gate** — `npm run lint` = `eslint --max-warnings=0`: **0 errors AND 0 warnings**
-  (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
+- **Lint gate** — `npm run lint` = `eslint --max-warnings=0` **&& `npm run lint:css-vars`**
+  (`scripts/check-tailwind-css-vars.mjs` — gates the Tailwind-v4 bare `[--var]` form, which
+  compiles to dead CSS; added after it shipped nine dead motion utilities). Both must pass:
+  **0 errors AND 0 warnings** (warnings fail the gate). Scope is first-party source (`src/`, `e2e/`, `*.test.*`);
   `.claude/` tooling + build dirs are ignored; mark intentionally-unused bindings with a
   `_` prefix; keep `eslint-config-next` pinned to the installed `next`. Rationale: ADR 0067.
 - Conventional commits: `feat(scope):`, `fix:`, `test:`, `chore:`, `phase(N):`.
@@ -264,13 +295,18 @@ phase + the head of each cross-phase log. The rotation/archive discipline is the
 ## 9. Commands Reference
 
 ```bash
-supabase link --project-ref azkbbhskturikxpgmafq   # link CLI to remote (one-time)
-supabase db push                                    # push migrations to remote
-supabase db reset --linked                          # reset remote DB + seed (destructive!)
-supabase gen types typescript --linked > src/lib/types/database.ts
+supabase db reset --local      # THE workhorse: rebuild local DB + seed. pgTAP and the E2E
+                               #   gate need a FRESH reset — E2E leftovers cause spurious reds.
+npm run gen:types              # regenerate src/lib/types/database.ts from LOCAL (Rule 8)
+npm run db:link                # = supabase link --project-ref azkbbhskturikxpgmafq (one-time)
+npm run db:push                # push migrations to remote
+npm run db:reset:linked        # reset REMOTE DB + seed (destructive!)
+npm run gen:types:linked       # regenerate types from the linked remote
 npm run dev                    # Next.js dev server (http://localhost:3000)
-npm run lint && npm run typecheck
+npm run lint && npm run typecheck   # lint = eslint(0 warnings) && lint:css-vars
+npm run format:check           # Prettier (npm run format to write)
 npm run test                   # Vitest unit tests (full suite)
+npm run test:db                # pgTAP suite (`supabase test db`) — Phase Gate step 1
 npx playwright test            # E2E on a dev server (quick loop; needs dev server + seeded DB)
 npm run e2e:prod               # FULL prod-standalone E2E gate — batches the suite + restarts the
                                #   server per batch to avoid the Windows monolith collapse.

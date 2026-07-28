@@ -8,12 +8,40 @@ may extend the schema but never contradict it. Cross-references elsewhere to
 ## Architecture Rules
 
 1. **RLS is the security boundary.** Every table has Row Level Security enabled
-   with explicit policies. The frontend never relies on UI hiding for access
+   (146/146 as of 2026-07-27). The frontend never relies on UI hiding for access
    control. Service-role keys are used ONLY in server-side route handlers that
    genuinely need to bypass RLS (e.g., user invitations) and never shipped to
    the client. With PHI in scope (Rule 12), RLS is also the **minimum-necessary**
    boundary — PHI is isolated into dedicated tables behind the tightest policies
    and never exposed on list/aggregate paths.
+
+   **…but RLS is not the WHOLE boundary, and a policy-shaped audit is structurally
+   blind to the rest** (ADR 0078 methodology finding; ADR 0079). Three patterns now
+   carry authorization *beside* `pg_policies`, and **`prosecdef` must be audited
+   alongside it — a `SECURITY DEFINER` body's gate REPLACES RLS for its callers:**
+   - **DEFINER write doors.** A growing set of tables (`memberships`,
+     `case_access_grants`, `audit_log`, the K9 answer tables, …) grant `authenticated`
+     **SELECT only** and take every write through an audited DEFINER RPC. "No write
+     policy" on these means writes are *impossible*, not *unguarded*.
+   - **Audited single doors with ZERO policies.** The PHI stores
+     (`patient_identifiers`/`patient_participants`, `event_patient`, `referral_patient`)
+     have RLS on, **no `authenticated` ACL, and 0 policies** — a policy there would be
+     unreachable code. Their predicates look dead to a policy-only sweep and are not.
+   - **Capability resolution (ADR 0078).** Case-content authorization is not written
+     inline per policy; policies delegate to the DEFINER resolver
+     `app._case_caps` → `app.case_capabilities` → `app.has_case_capability` over a
+     capability lattice (`view_case_overview · read_case_content · write_case_content ·
+     read_standard_phi · read_restricted_phi · manage_case_access`). The binding
+     implication rules: **content-read never implies PHI, and PHI never implies
+     content-write.** `app.is_active` is the universal outer gate.
+     `app.can_read_case_or_admin` is **retired** — do not reintroduce it.
+
+   **Standing invariant (ADR 0079):** `supabase/tests/mutation/p0-authz-invariant.sh` is a
+   permanent regression gate, not a one-off audit — a door-audit sweep (BLIND ⊆ allowlist)
+   plus a never-called-door floor. It must keep passing. When writing an RLS **write**-policy
+   isolation keystone, the probe principal must be a *reader-non-writer*, never a fully
+   foreign one, or the keystone silently exercises the SELECT policy instead
+   (see `docs/progress/authz-handoff.md` §7).
 2. **Schema (canonical — Backend may extend, not contradict):**
    - `profiles(id → auth.users, full_name, is_admin, is_active)` — profiles
      are NEVER deleted (responses reference them); deactivate via `is_active`
@@ -28,6 +56,11 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      hospital roles carry `organization_id` + `hospital_id`; `staff`/`staff_admin` carry
      `commission_id` **only** (`organization_id` and `hospital_id` MUST be NULL). `title_id`
      requires `commission_id`.
+     **Write posture (ADR 0075):** `authenticated` holds **SELECT only** — there is one
+     `memberships_select` policy and **no DML grant at all**. Writes go through the
+     `grant_role`/`revoke_role` DEFINER doors, or (0075's deliberate split) a service-role
+     write from a TS-pre-authorized caller. A new membership writer must pick one of those
+     two paths; adding an `authenticated` DML grant is a phase-blocking regression.
      > ⚠ There is **no `commission_members` table and no `user_id` column** — this rule named
      > both until 2026-07-17, when a lead probe raised `relation "public.commission_members"
      > does not exist` mid-audit. Same class as the `case_patient` scar (CLAUDE.md §1) and as
@@ -109,7 +142,12 @@ may extend the schema but never contradict it. Cross-references elsewhere to
      the `code`.
    - `responses(id, form_version_id, commission_id, created_by,`
      `  status ∈ {in_progress, submitted}, last_section_id,`
-     `  started_at, updated_at, submitted_at)`
+     `  started_at, updated_at, submitted_at,`
+     `  case_phase_id,               -- NULL for a standalone response; set when the response IS a case phase's fill`
+     `  supersedes_id,               -- ADR 0074 correction chain (see the supersession block below)`
+     `  target_case_participant_id)` — the last three are LIVE columns this rule omitted
+     until 2026-07-27. `case_phase_id is null` is the standalone-response filter used by the
+     dashboard choke-point; `target_case_participant_id` is the ETH targeted-respondent lane.
    - `answers(id, response_id, item_id → form_items, question_key,`
      `  value jsonb,                       -- the CANONICAL evaluator input (Rule 3); scalars only`
      `  value_number, value_date, value_time,  -- answer-model-v2: typed shadow cols, trigger-derived, NEVER read by the evaluator`
@@ -195,13 +233,23 @@ may extend the schema but never contradict it. Cross-references elsewhere to
    > and `can_access_targeted_*` arms their sibling answer/definition tables carry. Harmless
    > only while nothing writes them; the writer landing is exactly when that stops being true.
 
-   **Supersession correction (forward-note — NOT built; ADR 0065 §8 / 0060 Gap 38).** A future
-   submitted-form correction will *supersede* the prior via a nullable `responses.supersedes_id`,
-   and aggregation will count only the latest in a chain. The column is deliberately NOT added
-   pre-pilot (it binds no historical answer — additive-anytime, freeze principle §6). When the
-   post-pilot correction engine lands it MUST add the column AND retrofit the dashboard /
-   derived-indicator aggregation to exclude superseded rows **in the same change**: Phase-15
-   shipped counting ALL submitted rows, so the two are coupled or a corrected metric double-counts.
+   **Supersession correction — BUILT (ADR 0074, 2026-07-13; extended by ADR 0085).**
+   > ⚠ This paragraph read "forward-note — NOT built … the column is deliberately NOT added
+   > pre-pilot" until 2026-07-27. It had been false since ADR 0074 shipped. The obligation it
+   > described was in fact discharged in the same change, exactly as required.
+
+   A submitted form correction *supersedes* the prior via nullable `responses.supersedes_id`
+   (+ partial-unique `responses_one_successor_per_superseded`), written by the
+   `public.supersede_response` DEFINER RPC; flag `response_correction` **ON**. The coupled
+   aggregation retrofit **was done with it**: `app.submitted_form_responses` — the single
+   choke-point the dashboard RPCs and derived-indicator paths fan out from — excludes any row
+   with a **submitted** successor, so a merely `in_progress` correction never blanks a metric;
+   `commission_overview`'s inline sub-selects carry the same predicate, and `isDashboardCountable`
+   is the TS twin. **Any new aggregation path must reuse that choke-point, not re-derive
+   `status = 'submitted'`,** or corrected metrics double-count.
+   ADR 0085 (case corrections) then extends the same column to case-phase-bound corrections
+   (`case_phases.current_response_id` tip pointer, `case_correction_requests`, append-only
+   `case_narrative_revisions`); flag `case_corrections`.
 3. **Response lifecycle & resume:**
    - `unique (form_version_id, created_by) where status = 'in_progress'` —
      one resumable draft per user per version. Wizard navigation upserts the
@@ -343,19 +391,34 @@ may extend the schema but never contradict it. Cross-references elsewhere to
       reverses the former "PHI only in the NSP module" stance — PHI now lives in the NSP,
       referral, **and case** modules, all under the same isolation + single-door + audit
       posture.
-    - **Third PHI module — case patient identifiers** (Cases module; ADR 0038). A
-      case may carry an OPTIONAL minimum-necessary identifier set on an isolated
-      `case_patient` (0..1 on `cases`, modeled exactly on `event_patient`/
-      `referral_patient`, all DML REVOKED from `authenticated`, read only via the
-      audited `public.get_case_patient` door emitting `case_patient.read`). A
-      per-template opt-in `collects_patient` (draft-only) is snapshotted to
-      `cases.patient_enabled`, so cases stay PHI-free by default. **Deliberate
-      divergence:** the read predicate `app.can_read_case_patient` equals the BROAD
-      `app.can_read_case` (any case-worker — coordinator OR phase/narrative assignee
-      OR `case_access` grantee), looser than the staff_admin+PQS
-      `can_read_event_patient` / `can_read_referral_phi`, because case assignees need
-      the MRN to do the work; **writes stay coordinators-only** (staff_admin-of-
-      commission OR admin). Every read still funnels through the one audited door.
+    - **Third PHI module — case patient identifiers** (Cases module; ADR 0038,
+      re-keyed by F1/ADR 0064+0066, gated by ADR 0078). A case may carry an OPTIONAL
+      minimum-necessary identifier set. It lives in **`patient_identifiers`** (the
+      payload — same columns as its two siblings) anchored on **`patient_participants`**,
+      the `participants`-registry subtype (Appendix A dialect 3).
+      > ⚠ **There is no `case_patient` table** — `case_patient` is a FEATURE-FLAG KEY
+      > and the name of the predicate `app.can_read_case_patient`; **no relation
+      > carries it.** This rule described it as a table until 2026-07-27. Same class as
+      > the `commission_members` scar above: verify against the catalog, never this line.
+
+      Both tables carry **zero `authenticated` ACL** and RLS-on with **0 policies** — a
+      policy there would be unreachable code, so a policy-shaped audit reports the
+      predicate as dead when it is not (ADR 0078 A28). The only doors are the audited
+      `SECURITY DEFINER` `public.get_case_patient(s)` / `public.get_participant_patient`.
+      A per-template opt-in `collects_patient` (draft-only) is snapshotted to
+      `cases.patient_enabled`, so cases stay PHI-free by default.
+
+      **Gating (ADR 0078 Gate 1 — this REVERSES the former "deliberate divergence").**
+      `app.can_read_case_patient` is now a thin projection of the capability lattice:
+      `app.has_case_capability(case, uid, 'read_standard_phi')`. It is **no longer**
+      equal to the broad `app.can_read_case`. Content-read and a bare phase/narrative
+      assignment **do not imply PHI** — the previous shape, in which any case-worker or
+      a read-only grantee opened patient identifiers, was ADR 0078's single most
+      consequential finding and was closed on 2026-07-16. PHI now comes only from an
+      explicit `case_access_grants` capability column or coordinator delegation.
+      ⚠ The table this paragraph used to name, `case_access`, was **dropped**; the live
+      store is **`case_access_grants`** (capability-per-column). **Writes** stay
+      coordinators-only (staff_admin-of-commission OR admin).
       `dispose_case_phi` provides LGPD Art. 18 erasure (identifiers + the case
       free-text PHI `case_narratives.body_md` / `case_events.body`), mirroring
       `dispose_event_phi`. Reverses the Cases module's former "strictly PHI-free"

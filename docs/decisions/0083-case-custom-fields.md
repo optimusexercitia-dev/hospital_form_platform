@@ -9,8 +9,13 @@ guarantee — residual risk accepted (D4). **Relates to:** ADR
 mirrors), [0044](0044-processless-cases.md) (process-less cases — excluded here, D9),
 [0060](0060-flexible-forms-foundation.md) (the form input-type vocabulary reused, D3),
 [0064](0064-case-subject-generalization-participants.md) (the generalized `cases` model
-this extends). **Build status:** design only — implementation is a later gated phase
-(CLAUDE.md §5/§6); this ADR records the decision + the surface to build.
+this extends). **Build status: ✅ SHIPPED — merged to `main` 2026-07-23**, flag
+`case_custom_fields` **ON permanently** (`fde76d3`; merge `c857193`, branch
+`worktree-adr-0083-case-custom-fields` deleted); migrations `20260821000000` +
+`20260822000000`. QA APPROVED · E2E 8/8 · pgTAP `188` 28/28. Ledger →
+[docs/progress/case-custom-fields.md](../progress/case-custom-fields.md).
+*(This field read "design only — implementation is a later gated phase" until 2026-07-28,
+five days after it merged; corrected from git during the docs reconciliation.)*
 
 ## Context
 

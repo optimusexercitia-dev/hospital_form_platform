@@ -76,6 +76,14 @@ skill conflicts with ARCHITECTURE.md or CLAUDE.md, our binding rules win.
   of inventing a provisional shape that later mismatches (that cost rework in Phase 6).
   Then fill in the implementations. Keep signatures stable once posted; if a shape must
   change, tell the lead so `frontend` adapts.
+- **Red-first keystones on RLS / RPC / PHI work.** Write the pgTAP keystone *before* the
+  implementation and report that you observed it **red**. At contract time the surface does
+  not exist yet, so a keystone that is **green on its first run is vacuous** — a permissive
+  sibling policy, a pre-existing deny, or a wrong-arm fixture is satisfying it, not the
+  predicate you mean to test. Green-on-first-run is a **finding**: fix the assertion before
+  writing the SQL. This is the cheap half of the mutation audit — it catches four of the six
+  vacuity shapes for free (`docs/progress/authz-handoff.md` §7.1). It does **not** cover a fix
+  you invented that no one specified a test for; those still need an explicit keystone.
 - **Require lead plan-approval before any task touching migrations or RLS — but
   right-sized.** A migration that follows an **already-approved pattern** (routine
   additive migration, a new RPC mirroring an existing one, a feature-flag flip) needs

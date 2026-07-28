@@ -9,9 +9,13 @@ untouched. **Relates to:** ADR [0038](0038-case-patient-identifiers.md) /
 composes), [0083](0083-case-custom-fields.md) (the per-case custom-field snapshot it carries),
 ADR 0017 (published-version pinning, inherited via `create_case_from_template`), ADR 0033
 (case assignment → case-read grant), ADR 0078 (catalog-is-truth authorization discipline used
-to verify the composition). **Build status:** **built + gated green** on branch
-`feat/bulk-case-creation` (unpushed) — pgTAP 29/29, `next build` + vitest 390 green; paused
-pre-merge for tester E2E + QA.
+to verify the composition). **Build status: ✅ SHIPPED — merged to `main` 2026-07-23**, flag
+`cases_bulk_create` **ON permanently** (`255a8e9`); migrations `20260823000000` +
+`20260824000000`. pgTAP 29/29 · `next build` + vitest 390 green · E2E 8/8 prod-standalone ·
+QA APPROVED (4 non-blocking MINORs, fixed `b948c9f`). Ledger →
+[docs/progress/bulk-case-creation.md](../progress/bulk-case-creation.md).
+*(This field read "paused pre-merge for tester E2E + QA" until 2026-07-28, five days after it
+merged; corrected from git during the docs reconciliation.)*
 
 ## Context
 

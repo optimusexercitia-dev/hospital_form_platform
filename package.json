@@ -18,6 +18,7 @@
     "db:reset:linked": "supabase db reset --linked",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:db": "supabase test db",
     "e2e": "playwright test",
     "e2e:ui": "playwright test --ui",
     "e2e:prod": "bash scripts/e2e-prod-gate.sh"

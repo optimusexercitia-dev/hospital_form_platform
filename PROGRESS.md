@@ -60,6 +60,8 @@
 | **AUTHZ** | ADR 0078 Gate 1 — capability model | ✅ **COMPLETE — human-approved 2026-07-16** (Stage A/B: M1–M6 + A2 `_case_caps` resolver + A4 policy-narrowing + A5 + U1/U2 exclusion perimeter + `case_access → case_access_grants` hard cut). Lead-verified equivalence 196 cells → 2 = intended PHI closure (LOST=0/GAINED=0); pgTAP 2981/2981. State + lessons → [handoff](docs/progress/authz-handoff.md) · [units](docs/progress/authz-gate1-units.md) | ✅ | ✅ pgTAP 2981 · e2e 0-regress | ✅ APPROVED [review](docs/reviews/authz-b-series-review.md) | ✅ 2026-07-16 | 2026-07-16 | `87858f7` (local) |
 | **AUTHZ · Gate 2** | ADR 0078 Gate 2 — Stage C (meeting confidentiality) · F1 (referral split) · N1 (NSP PHI arm) · G1 (cleanup) | ✅ **COMPLETE — human-approved 2026-07-17.** qa APPROVED re-review (P0 + 3 MAJOR behaviourally closed, mutation-proven; MINOR-1 rides noted). Version-drift audit: local `next` had drifted to 16.2.9 vs the 16.3 lockfile ⇒ BUG-PROD-ACTIONS + the "~18–27 flaky baseline" were env drift, not Gate-2 defects. Detail → [review](docs/reviews/authz-gate-2-review.md) · [handoff](docs/progress/authz-handoff.md) · [backend-state](docs/backend-state.md) | ✅ | ✅ pgTAP 772/772 authz · e2e green | ✅ APPROVED (re-review) | ✅ 2026-07-17 | 2026-07-17 | `f07341f` |
 | **case-corrections** | **Case Correction Lifecycle** — phases + narratives: response-chain revisions (`supersedes_id` case arm), first-class `case_correction_requests` (kind correction/addendum/void, classification, designated corrector, staff_admin approval, self-approval flagged), terminal `voided`, `reopen_case` door, append-only `case_narrative_revisions` (retires `reopen_narrative`), `current_response_id` pointer. Flag `case_corrections`. Plan → `~/.claude/plans/agreed-tender-pixel.md`; ADR [0085](docs/decisions/0085-case-correction-lifecycle.md). | ✅ **complete + DEPLOYED** | ✅ | ✅ tester 24/24 + full prod E2E feat 7/7 (reds triaged infra/baseline; T-2 clean-stack 76/76) | ✅ APPROVED (0P0/0MAJ/2min) [review](docs/reviews/case-corrections-review.md) | ✅ 2026-07-24 | 2026-07-24 | `6b50abc` → main+origin; **remote `db push` ✅ (flag ON, backfill verified live)** |
+| **case-custom-fields** | **Case Custom Fields** — template-defined, **non-PHI** administrative descriptors on cases (the M&M "Número da Declaração de Óbito" case); `process_template_custom_fields` → snapshot `case_custom_field_values`, captured atomically in "Novo caso" via `create_case_from_template`, editable + audited; PHI boundary is a fill-time warning, not a schema guarantee (D4). Flag `case_custom_fields` **ON permanently**. ADR [0083](docs/decisions/0083-case-custom-fields.md) → [detail](docs/progress/case-custom-fields.md). | ✅ **complete + merged** | ✅ lint/tsc/vitest 369 | ✅ E2E 8/8 (3× clean) · pgTAP `188` 28/28 · full `e2e:prod` 735p (feat 8/8 on prod build) | ✅ APPROVED (0 P0 · 0 MAJOR · 1 MINOR cleared · 2 INFO) [review](docs/reviews/adr-0083-case-custom-fields-review.md) | ⚠ **unrecorded** — see detail | 2026-07-23 | merge `c857193` · flag ON `fde76d3` |
+| **bulk-case-create** | **Bulk Case Creation ("Múltiplos casos")** — one atomic `bulk_create_cases` RPC that **composes existing doors** (`create_case_from_template` + assignment + the audited case-patient door) to deal N cases across committee members in a single transaction; balanced-deal grid wizard; selectable PHI columns (E1) with **no new PHI store** — Rule 12's three-module invariant untouched. Flag `cases_bulk_create` **ON permanently**. ADR [0084](docs/decisions/0084-bulk-case-creation.md) → [detail](docs/progress/bulk-case-creation.md). | ✅ **complete + merged** | ✅ build/tsc/lint/vitest 390 | ✅ E2E 8/8 prod-standalone · pgTAP 29/29 | ✅ APPROVED (4 MINOR/OBSERVATION, none blocking; fixed `b948c9f`) [review](docs/reviews/bulk-case-creation-review.md) | ⚠ **unrecorded** — see detail | 2026-07-23 | flag ON `255a8e9` |
 | **AUDIT-DOOR-BLINDNESS · P0** | ADR 0078 §7.14 — door-level re-audit + a standing keystone-coverage invariant; **blocked S4** | ✅ **complete — human-approved 2026-07-18** (ff→main, local) — opened 2026-07-17, branch `fix/authz-audit-door-blindness`. Pre-req eol defect fixed (`a32be9c`: `*.sql text eol=lf` — a CRLF checkout was aborting `db reset` on `20260801000000`; clean 146/146 reset restored, **pilot reset unblocked**). Population (live catalog): **294** auth-reachable `public` DEFINER doors · 231 `app` (internal) · **212** RLS policies / 125 tables. **FIX-A/B/C ✅ + INVARIANT HOLDS** (2026-07-18): 50 mutation-proven keystones (250/251/252), BLIND=72 all-allowlisted, never-called floor OK, baseline PASS 3288. Commits `a32be9c`→`f783f37`. Record → [authz-p0-door-blindness.md](docs/progress/authz-p0-door-blindness.md). | ✅ | ✅ 50 KS mut-proven · pgTAP 3288 · invariant HOLDS | ✅ APPROVED [review](docs/reviews/authz-door-audit-p0-review.md) | ✅ 2026-07-18 | 2026-07-18 | ff→main |
 
 > **Accreditation & Quality-Governance Track (13–21)** — planned 2026-06-17; specs in
@@ -575,60 +577,6 @@ already discharged and are listed only so the numbering reconciles against the r
   are direct-DML-under-RLS with no per-row audit (Rule 11 is satisfied for filling at the *response*
   level via `audit_responses_trg`); FF-1 deliberately matched that convention rather than hardening
   one table piecemeal. Decide the target posture for the set, not for a member of it.
-
-### ▶ Case custom fields — BUILT + E2E ✅, QA + human approval pending (ADR 0083, branch `worktree-adr-0083-case-custom-fields`)
-
-Template-defined, non-PHI administrative descriptor fields, defined per process template and
-captured in "Novo caso". Design: [ADR 0083](docs/decisions/0083-case-custom-fields.md).
-**Not yet merged to `main`.**
-
-- [x] **Backend** (`9108b02`) — `process_template_custom_fields` + `case_custom_field_values`
-  (RLS mirrored from the live `case_offered_outcomes`/`process_template_outcomes` predicates,
-  incl. the `is_case_excluded` arm), `create_case_from_template` extended with `p_custom_fields`
-  (re-emitted from the live body), `update_case_custom_field_values` RPC (`HC068` required),
-  the `case_custom_fields` flag, types, query layer, pgTAP `188` (28/28).
-- [x] **Def-authoring actions** (`8e5aea3`) — create/update/delete/reorder in
-  `process-templates/actions.ts`; draft-only enforced action-side (D5).
-- [x] **Frontend** (`613680c`) — builder authoring card, "Novo caso" reveal + PHI warning +
-  required-gating, case-detail display + edit, opt-in list column/search. Browser-verified
-  end-to-end.
-- [x] **E2E seed fixtures** (`2365f1f`) — published template "Descritores de Óbito", 2 defs
-  (`numero_declaracao_obito` required, `turno_obito` dropdown), 1 seeded case (label "Óbito
-  enfermaria leito 3"), deterministic fixed UUIDs.
-- [x] lint / typecheck / vitest (369) green.
-- [x] **E2E specs** (`c298215`, tester) — `e2e/case-custom-fields.spec.ts`, 8 tests covering
-  AC-1..AC-7 + AC-8 best-effort. **8/8, run 3× clean** (serial, `--repeat-each=2`→16/16, default
-  parallel workers). 0 app bugs. Detail → [test-run-archive.md](docs/progress/test-run-archive.md) (2026-07-23).
-- [x] **`e2e:prod` full-suite gate** (lead, `REBUILD=1`, prod standalone, 11 batches) —
-  **735 passed / 7 failed / 2 flaky**. Feature spec **8/8 green on the prod build** (batch-2).
-  Triage: **1 regression (mine, fixed) + 6 pre-existing** (all in specs byte-identical to `main`,
-  i.e. red on `main` too — this full gate had not been run clean since several schema/UI changes):
-  - `case-access.spec.ts:483` — **my** seed inserted the CF case before the outcomes block, taking
-    CCIH `case_number 2` and bumping "Óbito UTI leito 3" (2→3), breaking its "caso 0002" assert.
-    **Fixed `e5d9a34`** (reorder seed blocks → leito3=2, CF case=3; others unchanged); re-verified.
-  - `charters-cadence.spec.ts` — stale `action_items.case_id` (renamed → `linked_case_id`, mig
-    `20260818000300`). **Fixed `a54ad23`** (tester); lead re-verified 10/10.
-  - `action-items-satellites.spec.ts` — **REAL app bug BUG-AISAT-002** (not stale): the one call
-    site the rename missed — `listMeetingActionItems()` (`src/lib/queries/meeting-action-items.ts`)
-    selected dead `case_id` → 400 swallowed → meeting "Itens de ação" panel empty on **every**
-    meeting on `main`. Filed (Bug Log, `95ae651`). **RESOLVED `a9af7a7`** (`case_id`→`linked_case_id`
-    + loud error-guard); `action-items-satellites.spec.ts` 9/9 green on fresh reset.
-  - `documents-changes-requested.spec.ts` + `documents-redesign.spec.ts` — `Tipo` expects
-    `protocol`, gets `sop` (ADR 0082 dropdown). Task-chipped (stale-spec-or-bug, off `main`).
-  - `phase22-referrals.spec.ts:428` — ENC-0001 subject not in hub. Task-chipped (off `main`).
-  - `ethics-e2-procedure.spec.ts` FLOW-7 — known keyboard-vote flake (already a filed follow-up).
-  Final lead verification on a fresh reset: **charters + case-access + case-custom-fields = 41/41**.
-- [x] **QA review** (`qa`, 2026-07-23) — ✅ **APPROVED** (0 P0 · 0 MAJOR · 1 MINOR · 2 INFO)
-  [review](docs/reviews/adr-0083-case-custom-fields-review.md). Direct-table write-bypass closed at the
-  table (live-catalog `pg_policies` verified; pgTAP `188` re-run green 28/28); both RPCs `SECURITY DEFINER`
-  + PUBLIC-revoked; `create_case_from_template` rebuilt from live def with no lost logic; edit path
-  authority-gated/exclusion-aware/terminal-safe/audited (Rule 11); Rule 12 holds (non-PHI by design);
-  D1–D10 all met. MINOR-1 **cleared** (`857ed38`): `HC0F1` on the edit path now surfaces the RPC's
-  specific pt-BR "impedido" message (mirrors `case-recusals`). INFO: D5 draft-freeze is action-layer (matches the outcomes sibling);
-  the branch migration was applied forward to the local DB to obtain live-catalog truth (was absent from
-  the prior reset). ⚠ Note: local DB state changed (ADR-0083 objects now present; a `db reset` recreates them).
-- [ ] **human approval** + **merge to `main`**. Owned by lead.
-  (Blockers to a fully-green gate are the 4 tracked pre-existing reds above — all off-branch, on `main`.)
 
 ### ▶ AUTHZ Gate-2 deferred (PO-noted 2026-07-17, non-blocking — Gate 2 shipped)
 
