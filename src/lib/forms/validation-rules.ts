@@ -266,6 +266,13 @@ function charLength(text: string): number {
 }
 
 /**
+ * Rule types the CLIENT deliberately does not evaluate — see the `regex` arm of
+ * {@link evalValidation}. Exported so the wizard MAY badge them ("verificado ao
+ * enviar") rather than silently showing nothing; it is not required to.
+ */
+export const CLIENT_UNEVALUATED_RULE_TYPES: readonly ValidationRuleType[] = ['regex']
+
+/**
  * Does `value` SATISFY the rule? `true` = no violation.
  *
  * Absent / null / `''` values always satisfy: presence is `required`'s job
@@ -276,19 +283,27 @@ function charLength(text: string): number {
  * — a choice item keeps its payload in `answer_selected_options` and resolves to
  * a code string (or an array of codes) only in the map.
  *
- * ⚠ `regex` is the one arm where the two evaluators run DIFFERENT engines:
- * Postgres ARE here, `RegExp` there. They agree on the ordinary patterns an
- * author writes, and the golden vectors pin that agreement, but the SERVER is
- * the authority (Rule 1) — this side is live UX. An expression JS cannot compile
- * yields `true` here rather than a false accusation the server would not make.
+ * ⚠ `regex` IS NOT MIRRORED, and this is deliberate (ADR 0090 **Amendment 4**).
+ * This side does not evaluate it at all — the arm returns satisfied — and the
+ * SERVER is its sole authority. Do not "restore" client evaluation:
+ *
+ *   · Postgres ARE and JS `RegExp` are different dialects that disagree
+ *     SILENTLY. Measured over a 26-construct sample, only 13 agree; ELEVEN
+ *     diverge while storing cleanly — every POSIX bracket expression
+ *     (`[[:digit:]]`, `[[:alpha:]]`, …), every PG-only escape (`\y \m \M \A \Z`),
+ *     and `\b`, which is a word boundary in JS and a BACKSPACE in ARE.
+ *   · The golden vectors do **not** pin agreement here. The six `regex` vectors
+ *     carry `"engine": "sql"`: SQL runs them, and this side is asserted only to
+ *     report satisfied. Re-introducing client evaluation turns all six red —
+ *     that is the guard, not a comment.
+ *   · A violation therefore surfaces at SUBMIT, with the author's own pt-BR
+ *     message via `HC0P9`. That is the point: `handleNext` blocks on client
+ *     errors, so a client verdict that can be WRONG is a response the filler can
+ *     never submit and never fix. Ruling 3 says this side is UX and the server is
+ *     the boundary; not evaluating is what makes that literally true.
+ *
+ * Every other arm IS mirrored, and drift is phase-blocking (Rule 3).
  */
-/**
- * Rule types the CLIENT deliberately does not evaluate — see the `regex` arm of
- * {@link evalValidation}. Exported so the wizard MAY badge them ("verificado ao
- * enviar") rather than silently showing nothing; it is not required to.
- */
-export const CLIENT_UNEVALUATED_RULE_TYPES: readonly ValidationRuleType[] = ['regex']
-
 export function evalValidation(
   spec: ValidationRuleSpec,
   value: Json | undefined,
