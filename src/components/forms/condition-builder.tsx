@@ -49,12 +49,12 @@ const OP_LABELS: Record<ConditionOp, string> = {
   gte: "é maior ou igual a",
   lt: "é menor que",
   lte: "é menor ou igual a",
-  // F3 (ADR 0060 Rec D) — evaluator-only ops; NOT offered by CHOICE_OPS/ORDERED_OPS.
-  // Labels exist solely to satisfy the exhaustive Record<ConditionOp> (compile lock).
+  // `contains`/`not_contains` remain evaluator-only — see UNARY_OPS' note.
   contains: "contém",
   not_contains: "não contém",
-  is_empty: "está vazio",
-  is_not_empty: "não está vazio",
+  // FF-3 (ADR 0090 ruling 5) — authorable from here on.
+  is_empty: "não foi respondida",
+  is_not_empty: "foi respondida",
 };
 
 /** Operators offered for a choice target (the answer is a discrete label). */
@@ -69,6 +69,45 @@ const ORDERED_OPS: ConditionOp[] = [
   "lte",
 ];
 
+/**
+ * FF-3 (ADR 0090 ruling 5) — the two UNARY operators. They take NO `value`:
+ * `app.is_valid_condition` exempts them BY NAME from its `p ? 'value'`
+ * requirement, and both evaluators ignore whatever is there. So the value
+ * control disappears for exactly these two, and a row carrying one is COMPLETE
+ * as soon as it has a target ({@link isRowComplete}).
+ *
+ * `contains`/`not_contains` were the other half of ruling 5 and are deliberately
+ * NOT offered. On a choice target `contains` is behaviourally IDENTICAL to
+ * `equals` — `evalCondition`'s `equals` runs `answerMatchesValue`, whose array
+ * branch is the same `some(jsonEquals)` membership test the `contains` arm uses
+ * — so offering both would be two differently-named controls that evaluate the
+ * same. Their one distinct behaviour, substring matching on text, is unreachable
+ * while `CONDITION_TARGET_TYPES` excludes `short_text`/`free_text` (decision #7).
+ * They stay evaluator-level vocabulary until a text target is offerable.
+ */
+const UNARY_OPS: ConditionOp[] = ["is_empty", "is_not_empty"];
+
+function isUnaryOp(op: ConditionOp): boolean {
+  return UNARY_OPS.includes(op);
+}
+
+/**
+ * Target types on which a unary operator PUBLISHES cleanly today.
+ *
+ * ⚠ Narrower than it should be, and deliberately so. `public.validate_visible_when`
+ * delegates to `app.assert_condition_op_target` + `app.assert_condition_value_codes`,
+ * and neither was widened for the unary ops:
+ *   - a `number` target hits the "value must be a JSON number" guard;
+ *   - any CHOICE target hits the option-code loop, where a valueless condition
+ *     normalizes to SQL NULL and raises `referencia a opção "nula"`.
+ * Both were confirmed by EXECUTING the assertions, not by reading migration text.
+ * The condition stores fine and then fails at publish — an author dead end — so
+ * the picker does not offer the pairing. Once those two helpers get their
+ * exempt-by-name early return, widen this to every target type (one line) and
+ * re-verify by actually publishing a form with a choice-target `is_empty`.
+ */
+const UNARY_OP_TARGET_TYPES: InputItemType[] = ["date", "time"];
+
 const CHOICE_TARGET_TYPES: InputItemType[] = [
   "multiple_choice",
   "dropdown",
@@ -80,7 +119,8 @@ function isChoiceTarget(type: InputItemType): boolean {
 }
 
 function opsForType(type: InputItemType): ConditionOp[] {
-  return isChoiceTarget(type) ? CHOICE_OPS : ORDERED_OPS;
+  const base = isChoiceTarget(type) ? CHOICE_OPS : ORDERED_OPS;
+  return UNARY_OP_TARGET_TYPES.includes(type) ? [...base, ...UNARY_OPS] : base;
 }
 
 /** A locally-edited condition row (UI state; serialized to a sub-condition).
@@ -141,6 +181,9 @@ function isGroup(value: Visibility): value is ConditionGroup {
 /** Whether a row is COMPLETE (a valid, selectable target + a value). */
 function isRowComplete(row: DraftRow, target: ConditionTarget | undefined): boolean {
   if (!target) return false;
+  // A unary op asks only "was this answered?" — the target IS the whole
+  // condition, so the row is complete with no value at all.
+  if (isUnaryOp(row.op)) return true;
   if (row.op === "in") return row.multiValue.length > 0;
   if (row.singleValue === "") return false;
   // A number target must parse to a finite number, else it is incomplete (don't
@@ -162,7 +205,13 @@ function isRowComplete(row: DraftRow, target: ConditionTarget | undefined): bool
  */
 export function toCondition(row: DraftRow, target: ConditionTarget): VisibleWhen {
   let value: VisibleWhen["value"];
-  if (row.op === "in") {
+  if (isUnaryOp(row.op)) {
+    // No operand. `value: null` rather than an omitted key: `VisibleWhen.value`
+    // is non-optional, and `app.is_valid_condition` short-circuits its
+    // `p ? 'value'` requirement for these two ops, so a present null is
+    // accepted exactly as an absent key would be. Both evaluators ignore it.
+    value = null;
+  } else if (row.op === "in") {
     value = row.multiValue;
   } else if (target.type === "number") {
     value = Number(row.singleValue);
@@ -379,6 +428,12 @@ export function ConditionBuilder({
                     <div className="flex flex-col gap-2.5">
                       <label className="flex flex-col gap-1.5 text-sm">
                         <span className="sr-only">Operador</span>
+                        {/* The offered set is deliberately not every ConditionOp:
+                            `contains`/`not_contains` are ABSENT ON PURPOSE (on a
+                            choice target they are the same relation as `equals`,
+                            and their distinct substring behaviour needs a text
+                            target, which decision #7 excludes) — see UNARY_OPS.
+                            Adding them back needs that exclusion reversed first. */}
                         <NativeSelect
                           id={`${rowId}-op`}
                           className="h-10"
@@ -395,6 +450,10 @@ export function ConditionBuilder({
                         </NativeSelect>
                       </label>
 
+                      {/* A unary op takes no operand — the value control is
+                          removed outright (not disabled) for exactly those two,
+                          so there is no dead control in the keyboard path. */}
+                      {isUnaryOp(row.op) ? null : (
                       <ValueControl
                         rowId={rowId}
                         target={target}
@@ -418,6 +477,7 @@ export function ConditionBuilder({
                           });
                         }}
                       />
+                      )}
                     </div>
                   )}
                 </li>

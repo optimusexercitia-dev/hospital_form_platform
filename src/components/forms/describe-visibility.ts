@@ -32,12 +32,16 @@ const OP_LABELS: Record<ConditionOp, string> = {
   gte: "é maior ou igual a",
   lt: "é menor que",
   lte: "é menor ou igual a",
-  // F3 (ADR 0060 Rec D) — evaluator-only ops; not author-emittable. Present for the
-  // exhaustive Record<ConditionOp> only (a stored visible_when never carries them today).
+  // `contains`/`not_contains` stay evaluator-only (the builder does not offer
+  // them — see `UNARY_OPS` in condition-builder for why). Present for the
+  // exhaustive Record<ConditionOp> only.
   contains: "contém",
   not_contains: "não contém",
-  is_empty: "está vazio",
-  is_not_empty: "não está vazio",
+  // FF-3 (ADR 0090 ruling 5) — authorable, and UNARY: they carry no value, so
+  // `formatValue` yields "" and the card renders "«Alergias» não foi respondida"
+  // with no dangling operand (the consumer already guards on an empty value).
+  is_empty: "não foi respondida",
+  is_not_empty: "foi respondida",
 };
 
 /** One rendered clause of a condition summary. */

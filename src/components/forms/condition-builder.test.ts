@@ -107,3 +107,60 @@ describe("ConditionBuilder toCondition (value typing — MAJOR-1)", () => {
     expect(toCondition(drafts.rows[0], target("number")).value).toBe(5);
   });
 });
+
+/**
+ * FF-3 (ADR 0090 ruling 5) — the two UNARY operators.
+ *
+ * `app.is_valid_condition` exempts `is_empty`/`is_not_empty` from its
+ * `p ? 'value'` requirement BY NAME, so the builder must emit them with no
+ * meaningful operand and must not lose them on a reopen-and-resave round trip.
+ * The value it does emit is `null`, which the gate accepts exactly as an absent
+ * key (the `or (p ? 'value')` short-circuits) — verified against the live
+ * catalog, not against the migration text.
+ */
+describe("ConditionBuilder unary operators (FF-3 ruling 5)", () => {
+  it.each(["is_empty", "is_not_empty"] as const)(
+    "emits %s with a null value and no operand",
+    (op) => {
+      const cond = toCondition(row({ op, singleValue: "" }), target("date"));
+      expect(cond).toEqual({ question_key: "q", op, value: null });
+    },
+  );
+
+  it("ignores any stale operand left in the draft buffer", () => {
+    // Switching op from `equals` to `is_empty` clears the buffer via onPickOp,
+    // but serialization must not depend on that having happened: a unary
+    // condition carries no operand regardless of what the row still holds.
+    const cond = toCondition(
+      row({ op: "is_empty", singleValue: "2026-01-15" }),
+      target("date"),
+    );
+    expect(cond.value).toBeNull();
+  });
+
+  it("round-trips a unary condition through toDrafts without inventing a value", () => {
+    const drafts = toDrafts({ question_key: "q", op: "is_not_empty", value: null });
+    expect(drafts.rows).toHaveLength(1);
+    expect(drafts.rows[0].op).toBe("is_not_empty");
+    expect(drafts.rows[0].singleValue).toBe("");
+    expect(drafts.rows[0].multiValue).toEqual([]);
+    // Re-serializing is stable — the reopen/resave cycle is a fixed point.
+    expect(toCondition(drafts.rows[0], target("date"))).toEqual({
+      question_key: "q",
+      op: "is_not_empty",
+      value: null,
+    });
+  });
+
+  it("round-trips a unary condition stored with NO value key at all", () => {
+    // The gate permits an absent `value`, so a condition authored elsewhere (or
+    // by a later writer) may arrive without one. Reopening must not crash or
+    // silently rewrite the operator.
+    const stored = { question_key: "q", op: "is_empty" } as unknown as Parameters<
+      typeof toDrafts
+    >[0];
+    const drafts = toDrafts(stored);
+    expect(drafts.rows[0].op).toBe("is_empty");
+    expect(drafts.rows[0].singleValue).toBe("");
+  });
+});
