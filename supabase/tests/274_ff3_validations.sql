@@ -15,7 +15,7 @@
 
 begin;
 
-select plan(70);
+select plan(78);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -1146,6 +1146,119 @@ update public.form_items set required_if = null
 select lives_ok(
   $q$select public.publish_form_version('ff300000-0000-0000-0000-000000000032')$q$,
   'K4. a legal required_if — unary operator, earlier question — publishes');
+
+-- ===========================================================================
+-- §L · B5 DEFECT (found by `frontend`): the unary ops were STORABLE but
+--   UNPUBLISHABLE. `app.is_valid_condition` was widened by 20260901000500;
+--   `app.assert_condition_op_target` and `app.assert_condition_value_codes` —
+--   both run by publish, over every condition — were not. A choice-target
+--   `is_empty` raised 'referencia a opção "nula"', naming an option the author
+--   never wrote.
+--
+--   L1/L2 are the arms that RAISED. L3/L4 are the ANTI-VACUITY TWINS: the same
+--   two guards must still bite for the operators that DO carry a value, or "the
+--   guard was removed" would pass this section just as well as "the guard learned
+--   about unary ops".
+--
+--   MUTATION A: drop the `is_empty/is_not_empty` early return from
+--     app.assert_condition_op_target -> L1 red, L3 green.
+--   MUTATION B: drop it from app.assert_condition_value_codes -> L2 red, L4 green.
+--   MUTATION C: replace either early return with `return` unconditionally ->
+--     L3 or L4 red while L1/L2 stay green. That pair is what makes these
+--     keystones about the EXEMPTION rather than about the guard existing.
+-- ===========================================================================
+select lives_ok(
+  $q$select app.assert_condition_op_target('is_empty', 'number', null, 'ctx')$q$,
+  'L1. is_empty on a NUMBER target passes op/target validation (no value to give)');
+
+select lives_ok(
+  $q$select app.assert_condition_value_codes(
+      '00000000-0000-0000-0000-000000000000'::uuid, 'q', 'multiple_choice',
+      null, 'ctx', 'is_empty')$q$,
+  'L2. is_empty on a CHOICE target references no option code — the arm that raised');
+
+select throws_ok(
+  $q$select app.assert_condition_op_target('equals', 'number', '"x"'::jsonb, 'ctx')$q$,
+  '23514', null,
+  'L3. TWIN — equals on a number target STILL requires a numeric value');
+
+select throws_ok(
+  $q$select app.assert_condition_value_codes(
+      '00000000-0000-0000-0000-000000000000'::uuid, 'q', 'multiple_choice',
+      '"ghost"'::jsonb, 'ctx', 'equals')$q$,
+  '23514', null,
+  'L4. TWIN — equals on a choice target STILL requires the option code to exist');
+
+-- End to end: a required_if carrying is_empty on a CHOICE question PUBLISHES.
+-- That is the exact combination the defect made unreachable, and it is invisible
+-- to any test that only exercises date/time targets.
+insert into public.forms (id, commission_id, title, created_by)
+  values ('ff300000-0000-0000-0000-000000000041', (select comm_x from k), 'FF3-L', (select sa_x from k));
+insert into public.form_versions (id, form_id, version_number, status)
+  values ('ff300000-0000-0000-0000-000000000042', 'ff300000-0000-0000-0000-000000000041', 1, 'draft');
+insert into public.form_sections (id, form_version_id, position, is_default)
+  values ('ff300000-0000-0000-0000-000000000043', 'ff300000-0000-0000-0000-000000000042', 0, true);
+insert into public.form_items (id, section_id, position, item_type, question_key, label)
+  values ('ff300000-0000-0000-0000-000000000044', 'ff300000-0000-0000-0000-000000000043', 0, 'multiple_choice', 'l_alergias', 'Alergias');
+insert into public.form_item_options (item_id, position, code, label) values
+  ('ff300000-0000-0000-0000-000000000044', 0, 'sim', 'Sim'),
+  ('ff300000-0000-0000-0000-000000000044', 1, 'nao', 'Não');
+insert into public.form_items (id, section_id, position, item_type, question_key, label, required_if)
+  values ('ff300000-0000-0000-0000-000000000045', 'ff300000-0000-0000-0000-000000000043', 1, 'short_text', 'l_just', 'Justificativa',
+          '{"question_key":"l_alergias","op":"is_empty"}'::jsonb);
+
+select lives_ok(
+  $q$select public.publish_form_version('ff300000-0000-0000-0000-000000000042')$q$,
+  'L5. a required_if with is_empty on a CHOICE question PUBLISHES (the reported dead end)');
+
+select is(
+  (select i.required_if from public.form_items i
+    where i.id = 'ff300000-0000-0000-0000-000000000045'),
+  '{"op": "is_empty", "question_key": "l_alergias"}'::jsonb,
+  'L6. …and it round-trips with no `value` key — the unary shape is stored as authored');
+
+-- L7/L8 · THE SECTION ARM. `public.validate_visible_when` calls
+--   app.assert_condition_value_codes TWICE — once per section condition, once per
+--   item condition — and they do not share a call text. The first cut of
+--   20260901000700 rewrote only the ITEM site; because plpgsql resolves calls at
+--   EXECUTION time, the migration applied cleanly and publish then failed with a
+--   raw 42883 for ANY form carrying a section condition — a path shipped long
+--   before FF-3. The item-arm keystones above were green throughout.
+--
+--   `test_helpers.bootstrap()` publishes a sectioned form with a section
+--   condition, so the whole suite goes red on a regression here (it did: 76/76).
+--   That is a blunt net, and it only covers `equals`. L7 covers the SECTION arm
+--   with the UNARY operator on a CHOICE target — the combination that has both a
+--   second call site and the exemption.
+--   MUTATION: remove `, v_op` from the SECTION call site -> L7 red (42883).
+insert into public.forms (id, commission_id, title, created_by)
+  values ('ff300000-0000-0000-0000-000000000051', (select comm_x from k), 'FF3-L7', (select sa_x from k));
+insert into public.form_versions (id, form_id, version_number, status)
+  values ('ff300000-0000-0000-0000-000000000052', 'ff300000-0000-0000-0000-000000000051', 1, 'draft');
+insert into public.form_sections (id, form_version_id, position, is_default)
+  values ('ff300000-0000-0000-0000-000000000053', 'ff300000-0000-0000-0000-000000000052', 0, true);
+insert into public.form_items (id, section_id, position, item_type, question_key, label)
+  values ('ff300000-0000-0000-0000-000000000054', 'ff300000-0000-0000-0000-000000000053', 0, 'multiple_choice', 'l7_gate', 'Alergias');
+insert into public.form_item_options (item_id, position, code, label) values
+  ('ff300000-0000-0000-0000-000000000054', 0, 'sim', 'Sim'),
+  ('ff300000-0000-0000-0000-000000000054', 1, 'nao', 'Não');
+-- The SECOND section carries the condition — a section condition must reference
+-- an earlier section, and the first section may not carry one at all.
+insert into public.form_sections (id, form_version_id, position, title, visible_when)
+  values ('ff300000-0000-0000-0000-000000000055', 'ff300000-0000-0000-0000-000000000052', 1, 'Detalhes',
+          '{"question_key":"l7_gate","op":"is_empty"}'::jsonb);
+insert into public.form_items (id, section_id, position, item_type, question_key, label)
+  values ('ff300000-0000-0000-0000-000000000056', 'ff300000-0000-0000-0000-000000000055', 0, 'short_text', 'l7_det', 'Detalhe');
+
+select lives_ok(
+  $q$select public.publish_form_version('ff300000-0000-0000-0000-000000000052')$q$,
+  'L7. SECTION arm — a section visible_when with is_empty on a CHOICE target publishes');
+
+select is(
+  (select s.visible_when from public.form_sections s
+    where s.id = 'ff300000-0000-0000-0000-000000000055'),
+  '{"op": "is_empty", "question_key": "l7_gate"}'::jsonb,
+  'L8. …and the section condition round-trips unchanged');
 
 select * from finish();
 rollback;
