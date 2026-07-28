@@ -250,3 +250,14 @@ test space (risk 2). Logged as **O-4**.
 - **O-4** (Amendment 2) — admit `short_text` / `free_text` as condition **targets**, making
   `contains` / `not_contains` authorable as substring matching. No migration required; reverses
   decision #7 and widens every condition picker in the app. **PO call.**
+- **O-5** — `AnswerSummary` renders the required marker from static `item.required`. FF-3 fixes the
+  **review** call site (an item marked mandatory during fill must not read optional seconds later on
+  the way to a signature). The **six historical consumers** — `submission-detail-view`,
+  `phase-answers-readonly`, `instance-answers-readonly`, `review-and-sign` and two tests — stay
+  static, **logged rather than blessed as correct.** The argument for leaving them ("no live answer
+  map to resolve against") does not hold: a submitted response carries a **frozen** map, which is
+  precisely what makes effective required-ness *deterministic and reproducible* on a historical
+  record — more so than during fill. So "was this field mandatory for this record" is computable
+  from the record itself, and static display is cheaper and currently harmless rather than right.
+  Genuinely a **PO call** about what a submitted record should display, across a surface six views
+  share. The optional-prop-with-fallback shape already in place keeps the fix cheap.
