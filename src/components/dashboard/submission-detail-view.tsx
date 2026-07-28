@@ -61,44 +61,66 @@ export function SubmissionDetailView({
   tree,
   answersByItemId,
   answersByKey,
-  observationsByItemId = {},
-  otherTextByItemId = {},
-  matrixCellsByItemId = {},
-  riskMatrixByItemId = {},
-  referencesByItemId = {},
-  instances = [],
+  observationsByItemId,
+  otherTextByItemId,
+  matrixCellsByItemId,
+  riskMatrixByItemId,
+  referencesByItemId,
+  instances,
   signoffs,
   imageUrls,
 }: {
+  /**
+   * ⚠ BUG-FF5-002 — every answer-payload map below is REQUIRED, and none carries
+   * a default. That is the fix, not a style preference.
+   *
+   * They were `?:` with `= {}` / `= []` defaults. The submissions page then
+   * omitted `referencesByItemId`, which is not a type error for an optional
+   * prop, so the default substituted an empty map and every top-level reference
+   * on the permanent submitted record rendered "Sem resposta". tsc, lint, the
+   * unit suite and `next build` are all structurally incapable of seeing that:
+   * the omission is legal and the fallback is silent.
+   *
+   * The tell was the asymmetry — in-group references rendered fine, because they
+   * ride `instances`, which WAS passed. One query object, two paths, one wired.
+   *
+   * So: an optional prop with a default is a type-system OPT-OUT. For data the
+   * component cannot render correctly without, it must be required, so that
+   * forgetting it fails the build instead of quietly blanking the screen. This
+   * is the same reasoning already applied to `ClientResponseForSignoff`
+   * (`signoffs/types.ts`) — applying it there and not here is what left the gap.
+   *
+   * A caller with genuinely nothing to pass writes `{}` / `[]` explicitly, which
+   * is a deliberate statement rather than an oversight.
+   */
   tree: VersionTree;
   answersByItemId: Record<string, Json>;
   answersByKey: Record<string, Json>;
-  /** Per-item observation notes (form-builder-enhancements). Optional — empty
-   *  until the query layer surfaces `answers.observation`. */
-  observationsByItemId?: Record<string, string>;
-  /** Per-item "Outros" free text ("Outros" open option). Optional; shown as
+  /** Per-item observation notes (form-builder-enhancements). */
+  observationsByItemId: Record<string, string>;
+  /** Per-item "Outros" free text ("Outros" open option); shown as
    *  "Outro: <valor>" beneath the answer where the reserved option was selected. */
-  otherTextByItemId?: Record<string, string>;
+  otherTextByItemId: Record<string, string>;
   /**
    * FF-2 (ADR 0089 - FUP-FF2-1) - the response TOP-LEVEL matrix grids and
    * risk answers. A matrix inside a repeating group is NOT here: it rides its
    * {@link GroupInstance}, exactly as scalar answers do.
    */
-  matrixCellsByItemId?: Record<string, Record<string, string>>;
-  riskMatrixByItemId?: Record<string, RiskMatrixAnswer>;
+  matrixCellsByItemId: Record<string, Record<string, string>>;
+  riskMatrixByItemId: Record<string, RiskMatrixAnswer>;
   /**
    * FF-5 (ADR 0091) - the response's TOP-LEVEL entity references, labels
    * already resolved by live join (ruling 4). A reference inside a
    * repeating group is NOT here: it rides its {@link GroupInstance}.
    */
-  referencesByItemId?: Record<string, ReferenceAnswer>;
+  referencesByItemId: Record<string, ReferenceAnswer>;
   /**
    * FF-1 (ADR 0087) — the response's repeating-group instances. Already
    * pruned by `submit_response` (a zero-answer repetition is deleted before
    * the status flips), so what appears here is exactly what was filled.
    * `[]` for every form without a repeating group.
    */
-  instances?: GroupInstance[];
+  instances: GroupInstance[];
   signoffs: SignoffRecord[];
   imageUrls: Record<string, string>;
 }) {
