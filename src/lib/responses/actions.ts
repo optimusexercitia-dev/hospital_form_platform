@@ -84,6 +84,11 @@ const MESSAGES = {
   // primary affordance.
   groupUnavailable: 'O recurso de blocos repetíveis não está disponível.',
   groupMaxInstances: 'Este bloco já atingiu o número máximo de itens.',
+  // Fallback only — HC0N5's DB message names the BLOCK and the count
+  // ('o bloco "X" exige ao menos 2 item(ns) preenchido(s)'), which is the
+  // difference between an actionable error and "something is wrong somewhere".
+  groupMinInstances:
+    'Preencha o número mínimo de itens exigido em um dos blocos repetíveis.',
   groupInstanceMissing: 'Item do bloco não encontrado nesta resposta.',
   groupOrderInvalid: 'A nova ordem não corresponde aos itens deste bloco.',
   groupItemInvalid: 'Este item não é um bloco repetível deste formulário.',
@@ -152,6 +157,13 @@ const GROUP_MAX_INSTANCES = 'HC0N1'
 const GROUP_INSTANCE_NOT_FOUND = 'HC0N2'
 const GROUP_ORDER_NOT_PERMUTATION = 'HC0N3'
 const GROUP_ITEM_NOT_REPEATING = 'HC0N4'
+/**
+ * FF-1 min-instances, raised by `submit_response` — NOT by the three instance
+ * RPCs, which is why `mapGroupError` never covered it and why it went unmapped
+ * for two phases. Reachable by ordinary use: add a repeating block with
+ * `minInstances: 2`, fill one row, press enviar.
+ */
+const SUBMIT_GROUP_MIN_INSTANCES = 'HC0N5'
 
 // FF-2 (ADR 0089) — the matrix codes reachable through `save_section_answers`.
 // HC0P0 (axis code immutable) and HC0P4/5/6 (draft-only / axis payload) cannot
@@ -772,6 +784,9 @@ export async function submitResponse(responseId: string): Promise<ActionState> {
         return { ok: false, error: error.message || MESSAGES.resultRequired }
       case SUBMIT_VALIDATION_ERROR:
         return { ok: false, error: error.message || MESSAGES.validationBlocked }
+      case SUBMIT_GROUP_MIN_INSTANCES:
+        // Prefer the DB message: it names the block and the required count.
+        return { ok: false, error: error.message || MESSAGES.groupMinInstances }
       case PG_NO_DATA_FOUND:
         return { ok: false, error: MESSAGES.missingResponse }
       default:
@@ -871,6 +886,9 @@ export async function submitCasePhaseResponse(
         return { ok: false, error: error.message || MESSAGES.resultRequired }
       case SUBMIT_VALIDATION_ERROR:
         return { ok: false, error: error.message || MESSAGES.validationBlocked }
+      case SUBMIT_GROUP_MIN_INSTANCES:
+        // Prefer the DB message: it names the block and the required count.
+        return { ok: false, error: error.message || MESSAGES.groupMinInstances }
       case PG_NO_DATA_FOUND:
         return { ok: false, error: MESSAGES.missingResponse }
       default:

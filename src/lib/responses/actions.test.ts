@@ -52,6 +52,8 @@ import {
   removeGroupInstance,
   reorderGroupInstances,
   saveSection,
+  submitCasePhaseResponse,
+  submitResponse,
 } from './actions'
 
 const RESPONSE_ID = '11111111-1111-4111-8111-111111111111'
@@ -501,5 +503,87 @@ describe('saveSection — FF-1 HC0N2 reaches the user (out-of-phase fix)', () =>
     })
 
     expect(result.error).toBe('Item do bloco não encontrado nesta resposta.')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// OUT-OF-PHASE FIX (FF-1) — HC0N5 reaches the user.
+//
+// `submit_response` raises HC0N5 for an unmet `minInstances`, and BOTH submit
+// switches dropped it into the generic retry copy. It escaped `mapGroupError`
+// (which has covered the HC0N* lane since FF-1) because it is raised by
+// `submit_response`, not by the three instance RPCs — so the one place that knows
+// the lane was never consulted from the one path that can raise this member of it.
+//
+// Reachable by ORDINARY USE: author a repeating block with `minInstances: 2`,
+// fill one row, press enviar. Third instance of the class after BUG-FF2-002 and
+// BUG-FF1-006 (HC0N2), and the reason the FF-door sweep in this commit exists.
+// ---------------------------------------------------------------------------
+describe('submit — HC0N5 (min instances) reaches the user', () => {
+  const DB_MESSAGE = 'o bloco "Ocorrências" exige ao menos 2 item(ns) preenchido(s)'
+  const GENERIC = 'Não foi possível concluir. Tente novamente.'
+
+  it('submitResponse surfaces the DB sentence, which names the block and the count', async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: 'HC0N5', message: DB_MESSAGE } })
+
+    const result = await submitResponse(RESPONSE_ID)
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe(DB_MESSAGE)
+    expect(result.error).not.toBe(GENERIC)
+  })
+
+  it('submitCasePhaseResponse surfaces it too — the switch is duplicated, so the test is', async () => {
+    // The case-phase submit is a SECOND copy of the same switch. A fix applied to
+    // one and not the other is the within-one-file inconsistency BUG-FF2-002 was.
+    rpc.mockResolvedValue({ data: null, error: { code: 'HC0N5', message: DB_MESSAGE } })
+
+    const result = await submitCasePhaseResponse(RESPONSE_ID, '', undefined, null)
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe(DB_MESSAGE)
+    expect(result.error).not.toBe(GENERIC)
+  })
+
+  it('falls back to the pt-BR constant when HC0N5 carries no message', async () => {
+    rpc.mockResolvedValue({ data: null, error: { code: 'HC0N5', message: '' } })
+
+    const result = await submitResponse(RESPONSE_ID)
+
+    expect(result.error).toBe(
+      'Preencha o número mínimo de itens exigido em um dos blocos repetíveis.',
+    )
+  })
+})
+
+// ---------------------------------------------------------------------------
+// FF-3 — HC0P9 and the HC061 collision, on the same two switches.
+// ---------------------------------------------------------------------------
+describe('submit — FF-3 validation gate and the HC061 collision', () => {
+  it('HC0P9 surfaces the pt-BR rule message the AUTHOR wrote', async () => {
+    // A generic string here would defeat the entire point of letting a
+    // staff_admin write the message on the rule.
+    const message = 'Informe um valor entre 5 e 10.'
+    rpc.mockResolvedValue({ data: null, error: { code: 'HC0P9', message } })
+
+    const result = await submitResponse(RESPONSE_ID)
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe(message)
+  })
+
+  it('HC061 surfaces the DB sentence — it has TWO unrelated raise sites', async () => {
+    // `app.assert_item_bounds` (a field bound) and `app.compute_case_phase_result`
+    // (a MANUAL phase with no result) share this SQLSTATE, and only the message
+    // tells them apart. Mapping it to the phase-result constant told a user who
+    // typed two characters into a minLength-5 field about a phase result.
+    const message = 'a pergunta "Justificativa" exige ao menos 5 caractere(s)'
+    rpc.mockResolvedValue({ data: null, error: { code: 'HC061', message } })
+
+    const result = await submitResponse(RESPONSE_ID)
+
+    expect(result.ok).toBe(false)
+    expect(result.error).toBe(message)
+    expect(result.error).not.toBe('Selecione o resultado da fase antes de enviar.')
   })
 })
