@@ -404,7 +404,37 @@ survived pgTAP (SQL correct), tsc/lint (TS well-formed) and a DB-level UI check 
 **BUG-FF3-001 — MINOR (fixed `8d53b3d`).** Clearing now keys on the symmetric rule's participant
 set. Trade-off accepted + recorded under ADR 0090 O-6.
 
-### 🚦 FF-3 gate step 2 — full `e2e:prod`: **PASSED ON TRIAGE, not on a single-run green**
+### ✅ FF-3 gate steps 1–3 COMPLETE — awaiting human approval (step 4)
+
+**Final bar at `9557d1f`**, each re-run by the lead on a clean tree: pgTAP **141 files / 4167 PASS**
+(fresh reset) · Vitest **814/814** · lint **0/0** · typecheck clean · `next build` **EXIT=0**
+(exit code captured, not grepped) · migrations **225 == 225**.
+
+**Tester r2: FF-3 spec 25/25 · neighbours 62/62** (`phase4-builder` 8 · `form-builder-enhancements`
+15 · `ff1` 9 · `phase5-wizard` 12 · `wizard-others-ux` 7 · `ff2-matrix` 11). **QA r2: APPROVED**
+(0 BLOCKING · 1 MAJOR-coverage now closed by `13e4664` · 4 MINOR · 3 INFO) → [review](docs/reviews/ff-3-review.md).
+
+**Final full `e2e:prod` (`BATCH_SIZE=4`, RESET+REBUILD): 794 passed · 16 of 19 batches completely
+clean · every batch `accounted N/N` (910 of 914 collected).** The three failing batches are the
+documented collapse, triaged not assumed: b7 = **90** connection errors, b14 = **84**, b2 = 4 —
+and b2's two failures are `net::ERR_CONNECTION_REFUSED` on `page.goto`, not assertions.
+**Zero real failures.** b7 contains `ff3-validations.spec.ts`, exactly as `tester` predicted: that
+file has outgrown one standalone server (three full-file runs collapsed at 8/11/9 failures, all
+`ERR_CONNECTION_REFUSED`, with 9.9 GB free; two halves on separate servers run clean).
+
+> ⚠ **Triage tell worth keeping:** one collapse run **failed test 1, recovered for 14, then died at
+> 16** — so **the first failure is not the collapse point**, which is precisely the inference that
+> would mislead a triage into blaming the first failing spec.
+
+**`tester` rejected the "E2E cannot reach M-1/M-2/M-4" claim** that `qa`, `backend` and the lead had
+all accepted, and wrote specs for all three (**FF3-17** drives `submit_response` directly; **FF3-18**
+calls the read RPC as a rede-B outsider). *Below the UI is not unreachable.* No coverage gap recorded.
+**FF3-17 was vacuous on first write and passed** — it refused with `HC0N5` (FF-1's `minInstances`),
+not the `required_if` arm, because `handleNext` returns before `persistSection` so the repetition was
+simply empty. Caught only by printing the refusal payload. **A refusal is not evidence until you read
+which refusal** — the `CONDITION_OPS` misattribution one layer down.
+
+### 🚦 FF-3 gate step 2 — earlier full-suite history (superseded by the run above)
 
 Three full runs (`RESET=1 REBUILD=1`) plus two targeted runs. **Every one of the 908 collected
 tests passed under a fresh server, with full `accounted N/N`** — but **no single full run went
