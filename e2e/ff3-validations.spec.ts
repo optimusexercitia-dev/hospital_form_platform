@@ -1010,17 +1010,23 @@ test('FF3-5 required_if blocks when true, passes when false, and never blocks wh
 // ===========================================================================
 // FF3-6 — the two unary operators, authored through the UI and published
 //
-// RED, pending BUG-FF3-002. Left failing on purpose: this is a headline
-// acceptance criterion of ADR 0090 (ruling 5 + Amendment 2 — the two pickers are
-// the phase's shipped operator surface), so the gate must show it as unmet
-// rather than as an accepted quirk. `test.fail()` is deliberately NOT used.
+// This is the regression test for BUG-FF3-002 (fixed in 91f4931), and it is the
+// ONLY layer that caught it: the operators were storable per
+// `app.is_valid_condition` and publishable per `validate_visible_when`, both
+// verified directly against the database, while the one path the UI can actually
+// reach — the server action — refused them. It failed CLOSED, so lint, tsc,
+// Vitest and pgTAP were all green throughout.
 //
-// Proven root cause: `isValidCondition` (src/lib/forms/actions.ts:808) requires
-// `'value' in rec` for EVERY operator, while the SQL twin `app.is_valid_condition`
-// was widened by B5 to exempt `is_empty` / `is_not_empty` by name. The catalog
-// agrees the shape is valid — `select app.is_valid_condition('{"question_key":
-// "x","op":"is_empty"}'::jsonb)` returns `t` — so the refusal is the TypeScript
-// half of the mirror, and it fails CLOSED, which is why no green bar caught it.
+// A note against repeating my own mistake when this file is next read: the first
+// bug report blamed `isValidCondition`'s `'value' in rec` check. That was WRONG.
+// The rejection was one line earlier — `CONDITION_OPS` still held the pre-F3
+// seven operators, so `is_empty` failed the allowlist before the value check ran;
+// and the builder emits `value: null`, a PRESENT key, so the blamed line never
+// fired at all. A visible failing line is a hypothesis until something mutates
+// it; the repro only ever proved the symptom.
+//
+// Hence the publish step below is not decoration. It is the half that had been
+// verified only at the DB layer — the layer that missed the bug.
 // ===========================================================================
 
 /** Open the item editor for one block by its label. */
@@ -1279,12 +1285,15 @@ test('FF3-7 a violation in repetition 2 leaves repetition 1 unmarked; unique_wit
   await expect(page.getByText(REVISE_BANNER)).toBeVisible()
   expect(responseStatus(responseId)).toBe('in_progress')
 
-  // Distinct values clear it ON THE EDITED REPETITION and the response submits.
-  // The peer repetition keeps a stale message here — BUG-FF3-001, asserted in
-  // full by FF3-7b — so this asserts only what is contractually true today: the
-  // repetition the user fixed stops being marked, and nothing blocks any more.
+  // Distinct values clear it on BOTH sides. `unique_within_group` is the only
+  // SYMMETRIC rule in the vocabulary — two repetitions violate it jointly, so
+  // resolving it on one resolves it on both, including on the peer the user
+  // never touched. This is the full contract restored after BUG-FF3-001 (fixed
+  // in 8d53b3d); the assertion covers the message AND the a11y channel, since
+  // the bug left `aria-invalid="true"` on a field that had become valid.
   await field(rep2, 'Código').fill('BBB')
-  await expect(rep2.getByText('Este código já foi usado em outra repetição.')).toHaveCount(0)
+  await expect(page.getByText('Este código já foi usado em outra repetição.')).toHaveCount(0)
+  expect(await field(rep1, 'Código').getAttribute('aria-invalid')).toBeNull()
   expect(await field(rep2, 'Código').getAttribute('aria-invalid')).toBeNull()
   await advance(page)
   await submitFromReview(page)
@@ -1294,86 +1303,138 @@ test('FF3-7 a violation in repetition 2 leaves repetition 1 unmarked; unique_wit
   expect(responseStatus(responseId)).toBe('submitted')
 })
 
-// ---------------------------------------------------------------------------
-// FF3-7b — BUG-FF3-001 (open). Expected-to-fail: it must go RED the day the bug
-// is fixed, which is the signal to delete this test and fold the assertion back
-// into FF3-7.
+// ===========================================================================
+// FF3-6d — SECTION-level `visible_when` with a unary operator
 //
-// `unique_within_group` is the only SYMMETRIC rule in the vocabulary: two
-// repetitions violate it jointly, and resolving it on one resolves it on both.
-// The wizard's sticky error map is cleared per edited field, so after a blocked
-// navigation the untouched peer keeps both its message and `aria-invalid=true`
-// for a violation that no longer exists. Live-only feedback (before any blocked
-// navigation) clears correctly on both sides — proven in the same test — so this
-// is specific to the post-block sticky map, not to the evaluator.
-// ---------------------------------------------------------------------------
+// FF3-6b covers the ITEM-level case. This one exists because the first report of
+// BUG-FF3-002 asserted the section-level path was "almost certainly identical,
+// since it goes through the same `parseVisibleWhen`" — and reasoning from a
+// shared code path instead of executing it is precisely how that bug survived
+// F1's own verification. So it is executed.
+// ===========================================================================
 
-test('FF3-7b [BUG-FF3-001] fixing a duplicate clears the peer repetition too', async ({
+test('FF3-6d section visible_when with a unary operator saves and publishes', async ({
   page,
 }) => {
-  test.fail(
-    true,
-    'BUG-FF3-001: the untouched peer repetition keeps a stale unique_within_group message and aria-invalid after a blocked navigation.',
+  await signInAs(page, CHEFE)
+  const title = `${SPEC_TAG} secao unaria`
+  const formId = await createForm(page, title)
+
+  // A question in the DEFAULT section, then a second section conditioned on it.
+  // A section may only reference an EARLIER one, so the order matters.
+  await addMultipleChoice(await openAddBlock(page, /^Múltipla escolha/), 'Setor auditado', [
+    'UTI',
+    'Enfermaria',
+  ])
+  await page.getByRole('button', { name: 'Adicionar seção' }).click()
+
+  const untitled = page.getByRole('region', { name: 'Seção sem título' }).first()
+  await untitled.getByRole('button', { name: 'Renomear seção' }).click()
+  const rename = page.getByRole('dialog')
+  await rename.getByLabel('Título da seção').fill('Detalhes')
+  await rename.getByRole('button', { name: 'Salvar' }).click()
+  await expect(rename).toBeHidden({ timeout: 15_000 })
+
+  const detalhes = page.getByRole('region', { name: 'Detalhes' })
+  await detalhes
+    .getByRole('button', { name: 'Configurações da seção (condição e assinatura)' })
+    .click()
+  const settings = page.getByRole('dialog')
+  await settings.getByRole('checkbox', { name: /Visibilidade condicional/i }).check()
+  await settings.locator('select[id$="-target"]').selectOption({ label: 'Setor auditado' })
+  await settings.locator('select[id$="-op"]').selectOption('is_not_empty')
+  // No operand for a unary op — the value control is gone, not merely disabled.
+  await expect(settings.locator('[id$="-value"]')).toHaveCount(0)
+  await settings.getByRole('button', { name: 'Salvar' }).click()
+  await expect(
+    settings,
+    'as configurações da seção continuaram abertas — a gravação foi recusada',
+  ).toBeHidden({ timeout: 15_000 })
+
+  expect(
+    sqlOne(
+      `select coalesce(sec.visible_when::text, '(null)') from public.form_sections sec` +
+        ` join public.form_versions v on v.id = sec.form_version_id` +
+        ` where v.form_id = '${formId}' and sec.title = 'Detalhes';`,
+    ),
+  ).toContain('"op": "is_not_empty"')
+
+  // Publish is the half that raised a raw 42883 on a SECTION condition before.
+  await publishForm(page)
+  expect(sqlOne(`select status from public.form_versions where form_id = '${formId}';`)).toBe(
+    'published',
   )
+})
 
-  const title = `${SPEC_TAG} duplicata simétrica`
-  seedForm(title, ({ versionId, section, id }) =>
-    [
-      itemInsert({
-        id: id('grupo'),
-        section: section(),
-        version: versionId,
-        position: 0,
-        type: 'repeating_group',
-        key: null,
-        label: 'Amostras',
-        config: '{"minInstances": 1, "maxInstances": 5}',
-      }),
-      itemInsert({
-        id: id('codigo'),
-        section: section(),
-        version: versionId,
-        position: 1,
-        type: 'short_text',
-        key: 'codigo',
-        label: 'Código',
-        parent: id('grupo'),
-      }),
-      ruleInsert({
-        item: id('codigo'),
-        version: versionId,
-        ruleType: 'unique_within_group',
-        message: 'Este código já foi usado em outra repetição.',
-      }),
-    ].join('\n'),
-  )
+// ===========================================================================
+// FF3-6e — the item editor's error channel is not swallowed
+//
+// Re-check the cell the first bug report called "no message at all". That claim
+// was WRONG and the fault was mine: the probe scraped for /A condição/ while the
+// action's copy is "Condição de aparência inválida." — no leading article. The
+// dialog was refusing with a message the probe could not see.
+//
+// The input that produced it now SAVES (FF3-6b), so that exact refusal is gone.
+// And the builder cannot emit an invalid condition any more: it gates on
+// `isRowComplete` and only offers operators from `opsForType`, while
+// `app.is_valid_condition` rejects an unknown op outright (verified: it returns
+// `f`, so a bogus op is not even insertable to seed one). The invalid-condition
+// branch is therefore unreachable from the UI by construction.
+//
+// What CAN still be proven — and is what the swallow question really asks — is
+// that a server-action refusal reaches the user at all. `min > max` on the
+// character-limit fields is a reachable action error, so it stands in as the
+// positive control for the same `state.error` channel.
+// ===========================================================================
 
-  await signInAs(page, STAFF1)
-  await enterWizard(page, title)
+test('FF3-6e a server-action refusal surfaces in the item editor instead of hanging it', async ({
+  page,
+}) => {
+  await signInAs(page, CHEFE)
+  const title = `${SPEC_TAG} canal de erro`
+  const formId = await createForm(page, title)
+  await addQuestion(await openAddBlock(page, /^Resposta curta/), 'Campo com limites')
 
-  const add = page.getByRole('button', { name: 'Adicionar repetição' })
-  await add.click()
-  const rep = (n: number) =>
-    page.locator('li').filter({ hasText: new RegExp(`Amostras ${n} de`) }).first()
-  await expect(rep(1)).toBeVisible({ timeout: 15_000 })
-  await add.click()
-  await expect(rep(2)).toBeVisible({ timeout: 15_000 })
+  const dialog = await openItemEditor(page, 'Campo com limites')
+  // Deliberately inverted bounds.
+  await dialog.getByLabel('Mínimo').fill('9')
+  await dialog.getByLabel('Máximo').fill('2')
+  await dialog.getByRole('button', { name: /^Salvar/ }).first().click()
 
-  const dup = 'Este código já foi usado em outra repetição.'
+  // The refusal is VISIBLE and ANNOUNCED: the dialog stays open and the reason
+  // lands in a live region, not merely somewhere in the DOM.
+  //
+  // Asserted on the live region rather than on one exact sentence, because the
+  // copy comes from whichever layer refuses FIRST — here a client pre-flight
+  // ("O mínimo de caracteres não pode ser maior que o máximo."), which is more
+  // specific than the server action's `configInvalid` and therefore pre-empts it.
+  // Pinning the server's wording would have made this test fail while the product
+  // behaved correctly, which is exactly what it did on first write.
+  const alert = dialog.locator('[role="alert"], [role="status"]')
+  await expect(alert.filter({ hasText: /mínimo.*máximo/i })).toHaveCount(1, {
+    timeout: 15_000,
+  })
+  await expect(dialog).toBeVisible()
+  // Nothing was persisted behind the refusal.
+  expect(
+    sqlOne(
+      `select coalesce(i.config::text, '(null)') from public.form_items i` +
+        ` join public.form_versions v on v.id = i.form_version_id` +
+        ` where v.form_id = '${formId}' and i.label = 'Campo com limites';`,
+    ),
+  ).toBe('(null)')
 
-  // Collide, then get BLOCKED — this is what installs the sticky error map.
-  await field(rep(1), 'Código').fill('AAA')
-  await field(rep(2), 'Código').fill('AAA')
-  await expect(page.getByText(dup)).toHaveCount(2)
-  await advance(page)
-  await expect(page.getByText(REVISE_BANNER)).toBeVisible()
-
-  // Resolve it on ONE side. The violation is now gone for BOTH.
-  await field(rep(2), 'Código').fill('BBB')
-
-  // What SHOULD hold, and does not today:
-  await expect(page.getByText(dup)).toHaveCount(0)
-  expect(await field(rep(1), 'Código').getAttribute('aria-invalid')).toBeNull()
+  // And it recovers: correcting the bounds saves and the bounds land.
+  await dialog.getByLabel('Máximo').fill('20')
+  await dialog.getByRole('button', { name: /^Salvar/ }).first().click()
+  await expect(dialog).toBeHidden({ timeout: 15_000 })
+  expect(
+    sqlOne(
+      `select i.config::text from public.form_items i` +
+        ` join public.form_versions v on v.id = i.form_version_id` +
+        ` where v.form_id = '${formId}' and i.label = 'Campo com limites';`,
+    ),
+  ).toContain('"minLength": 9')
 })
 
 // ===========================================================================

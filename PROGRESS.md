@@ -471,17 +471,26 @@ BUG-FF1-007 `<> ''''`) are **all closed and re-verified**, with full repro/fix d
 [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md). The ETH·E2 targeted-lane fix
 (`4ee24c8`) is recorded there too.
 
-#### 🔴 BUG-FF3-002 — the two unary operators are OFFERED by every condition picker but cannot be SAVED: the TS `isValidCondition` was never widened alongside its SQL twin · owner **frontend** (or `backend`, see below) · severity **MAJOR / phase-blocking** · **OPEN** (filed 2026-07-28, `tester`)
+#### ✅ BUG-FF3-002 — the two unary operators were OFFERED by every condition picker but could not be SAVED · severity **MAJOR / phase-blocking** · **CLOSED 2026-07-28** (fixed `91f4931`, re-verified by `tester`)
 
 **Blocks ADR 0090 ruling 5 + Amendment 2** — the pickers are the phase's whole shipped operator
 surface, and choosing either option makes the question **unsaveable**. Fails **CLOSED** (a refusal,
 not a silent accept), which is why lint / tsc / Vitest 748 / pgTAP 4157 / `next build` all stayed green.
 
-**Root cause (one line).** `isValidCondition` — `src/lib/forms/actions.ts:808` — does
-`if (!('value' in rec)) return false` for **every** operator. B5 widened the SQL gate
-`app.is_valid_condition` to exempt `is_empty` / `is_not_empty` **by name**; the TypeScript half of the
-mirror was not. Same SQL↔TS drift class as the phase's other findings, in the opposite direction:
-here the database is the *permissive* side.
+**Root cause — and a correction to this report.** The drift was real and the direction was right
+(the database was the *permissive* side; the TypeScript half of the mirror was never widened). **But
+the line this report originally blamed was the wrong one.** It fingered `isValidCondition`'s
+`if (!('value' in rec)) return false`. The actual rejection was **one line earlier**: `CONDITION_OPS`
+still held the pre-F3 seven operators, so `is_empty` failed the allowlist before the value check was
+ever reached — and `condition-builder.tsx:204` emits `value: null`, a **present** key, so the blamed
+line never fired at all. `backend` checked the prescribed one-line exemption against reality, found it
+would not have worked, and fixed the real cause instead.
+
+*Lesson worth keeping, since this is the second time this phase:* **a repro proves the symptom; the
+line you can see failing is a hypothesis until something mutates it.** The fix is mutation-proven both
+ways — reverting `CONDITION_OPS` to seven reds 8 assertions including *"is_empty with an explicit null
+value (what the builder emits)"*, while removing only the value exemption reds 3 and leaves that one
+green.
 
 **Live proof, three cells so it cannot be read as "`required_if` is just broken"** (prod-standalone
 :3100, `chefe.ccih@test.local`, item editor on a `short_text` with a `multiple_choice` target):
@@ -498,9 +507,17 @@ here the database is the *permissive* side.
 added the unary options to `condition-builder.tsx` in *all three* contexts, so cell C is this phase's
 regression surface too, on a long-shipped feature.
 
-**Two secondary defects inside the same bug.** (1) Cell B's message is *wrong* — it says "sem E/OU"
-when the author used neither. (2) Cell C surfaces **no** message: the editor simply refuses to close,
-which reads as a hung dialog.
+**Secondary claims, re-checked at the lead's request — one stands, one was mine to retract.**
+(1) Cell B's message *was* wrong — "sem E/OU" when the author used neither. Moot now that the input
+saves. (2) **"Cell C surfaces no message" was a false report, and the fault was the probe's, not the
+product's:** it scraped for `/A condição/` while the copy is *"Condição de aparência inválida."* — no
+leading article. The dialog was refusing with a message the probe could not see. **No swallow exists**
+— re-verified positively by **FF3-6e**, which drives a reachable action refusal (`min > max` on the
+character limits) and asserts it lands in a `role="alert"` live region with the dialog still open and
+nothing persisted. Nor is there anything left to swallow: the builder gates on `isRowComplete` and only
+offers operators from `opsForType`, and `app.is_valid_condition` returns `f` for an unknown op (so one
+cannot even be seeded), which makes the invalid-condition branch unreachable from the UI by
+construction. **No dispatch to `frontend` needed.**
 
 **Why FF-3's own verification missed it:** F1 proved unary publishability by calling
 `public.validate_visible_when` **directly on a cloned draft**, and B5 proved storability against
@@ -508,15 +525,18 @@ which reads as a hung dialog.
 can reach. *(Same shape as the memory note "a declared param no caller passes is invisible to every
 layer" — here, a widened gate no caller can reach.)*
 
-**Repro:** `npx playwright test --config e2e/playwright.ff3.config.ts -g "FF3-6"` →
-`e2e/ff3-validations.spec.ts` **FF3-6** (`required_if`, all 4 target types) and **FF3-6b**
-(item `visible_when`). Both RED. **FF3-6c passes** and pins the pickers' vocabulary, which is what
-makes this a dead end rather than a missing feature. Left failing deliberately — no `test.fail()`.
+**Regression cover — all green at `91f4931`, all RED before it:** **FF3-6** (`required_if`, 4 target
+types, save → round-trip → **publish**), **FF3-6b** (item `visible_when`), **FF3-6d** (**section**
+`visible_when` — the cell the first report only *reasoned* was identical because it shares
+`parseVisibleWhen`; reasoning from a shared code path is how this bug survived F1, so it is now
+executed), **FF3-6c** (picker vocabulary, incl. Amendment 2's deliberate absence of
+`contains`/`not_contains`) and **FF3-6e** (the error channel, above).
 
-**Expected:** a unary condition saves, round-trips and publishes on choice / number / date / time
-targets. **Actual:** the server action refuses it before the RPC is reached.
+The **publish** half matters most: it had been verified only at the DB layer, by calling
+`validate_visible_when` directly on a cloned draft — the layer that missed the bug. It now runs through
+the UI for all four target types.
 
-#### 🟡 BUG-FF3-001 — after a blocked navigation, the untouched peer repetition keeps a stale `unique_within_group` message and `aria-invalid` · owner **frontend** · severity **MINOR** (non-blocking, self-healing, a11y-affecting) · **OPEN** (filed 2026-07-28, `tester`)
+#### ✅ BUG-FF3-001 — after a blocked navigation, the untouched peer repetition kept a stale `unique_within_group` message and `aria-invalid` · severity **MINOR** · **CLOSED 2026-07-28** (fixed `8d53b3d`, re-verified by `tester`)
 
 `unique_within_group` is the only **symmetric** rule in the vocabulary: two repetitions violate it
 jointly, so resolving it on one resolves it on both. The wizard's sticky error map is cleared **per
@@ -535,9 +555,11 @@ blocked and no bad submit is possible. The harm is that ADR 0090 ruling 3's own 
 *"marking an input invalid for a rule the server accepts misinforms assistive tech"* — is violated
 transiently, on a field that is now valid.
 
-**Repro:** `-g "FF3-7b"`. Marked `test.fail()`, so it goes **RED the day it is fixed** — that is the
-signal to delete FF3-7b and fold the assertion back into FF3-7 (which asserts only the
-contractually-true half today: the *edited* repetition clears).
+**Fixed** by keying the clear on the symmetric rule's whole participant set rather than on the edited
+field alone. **FF3-7b has been deleted and its assertion folded back into FF3-7**, exactly as its own
+note said to do on the day of the fix: FF3-7 now asserts the full contract — after resolving the
+duplicate on one side, the message count is **0 across the page** and `aria-invalid` is null on **both**
+repetitions, the untouched one included. The `test.fail()` marker is gone from the file entirely.
 
 #### 🔴 BUG-AUTHZ-001 — `platform_admin` reads response-level content through DEFINER dashboard functions, invisible to a policy audit of `responses` · owner **AUTHZ** · **OPEN** (filed 2026-07-27, PO's call)
 
@@ -621,6 +643,15 @@ gate runs with their triage) are recorded in
 served on **:3100** from a copy staged OUTSIDE `.next` (see the infra row), chromium, workers=1, via
 `e2e/playwright.ff3.config.ts`. Every row below was checked for **coverage** (`--list` count ==
 reported count) and read the runner's own `PIPESTATUS[0]`, not scraped text — the `36a18c8` C-1 lesson.
+
+**Re-run after both fixes — HEAD `91f4931`, fresh `db reset` (224 == 224, flag `t`, token POST 200),
+prod-standalone rebuilt at that HEAD and served from the scratchpad copy. One server PER SPEC FILE.**
+
+| Date | Scope | Result | Notes |
+|---|---|---|---|
+| 2026-07-28 | **FF-3 · `e2e/ff3-validations.spec.ts`** (19 tests) | **19 / 19 PASS** — `expected=19 reported=19`, exit=0 | Both bugs' regression cover green: FF3-6/6b (were the reds), plus the two gaps the first pass could not reach — **FF3-6d** section-level `visible_when`, and the **publish** half end to end through the UI. FF3-7 restored to the full symmetric-clear contract; FF3-7b + its `test.fail()` deleted. New: **FF3-6e** (the error channel is not swallowed). |
+| 2026-07-28 | Neighbours at `91f4931` — `ff1-repeating-groups` · `ff2-matrix` · `phase5-wizard` · `phase4-builder`, **each on its own server** | **9/9 · 11/11 · 12/12 · 8/8 = 40 / 40** | The specs sitting over the three touched surfaces (`CONDITION_OPS`, `isValidCondition`, the wizard's error-clearing). No regression. |
+| 2026-07-28 | ⚠ The same three neighbours run against **ONE long-lived server** | 17 / 32 — **15 failed** | **Infra, not regression: all 15 are `net::ERR_CONNECTION_REFUSED`** (count matched the failure count exactly), preceded by `Error: The destination stream closed early` in the server log — the standalone server died after FF2-8 and every later test hit a dead port. Re-running the identical specs one-server-per-file gave 40/40 with no code change. **This is precisely the Windows monolith collapse `npm run e2e:prod` restarts per batch to avoid** — worth noting that a *tester's* multi-spec convenience run reproduces it too. |
 
 | Date | Scope | Result | Notes |
 |---|---|---|---|
