@@ -181,9 +181,24 @@ running app (builder + wizard + resume-by-label + per-instance picker, driven li
 >      the surrogate invariant above, and nothing currently tests it.** A third writer, or a change
 >      letting `set_participant_patient` pass `p_name` through to `display_name`, would silently turn
 >      the picker and every reference label into a PHI surface with no suite going red — the frontend
->      cannot detect it, because from here a name and a surrogate are both just a string. The
->      assertion is ~2 lines over `pg_proc` + `role_table_grants`. Cheap, and it is the only thing
->      standing between ruling 1 and a silent falsification.
+>      cannot detect it, because from here a name and a surrogate are both just a string.
+>      ⚠ **This bullet previously priced the fix at "~2 lines over `pg_proc` + `role_table_grants`,
+>      cheap". That was wrong and is corrected here, because the cheap form does NOT close the gap
+>      and shipping it as though it did is the precise failure this whole thread is about — an
+>      untested assertion that looks like coverage.** There are two forms and they are not
+>      substitutes:
+>      - **Catalog form (cheap, weak).** Assert `authenticated` holds 0 write grants on
+>        `participants`, that exactly 2 functions write it, and that 0 of those are non-DEFINER.
+>        Read-only, no fixtures, no DB window. It catches **a third writer appearing** — the likeliest
+>        regression — and *nothing else*. It cannot prove `p_name` never reaches `display_name`,
+>        because its writer-detection predicate is itself a `prosrc` regex carrying exactly the
+>        assignment-vs-WHERE ambiguity documented two bullets up. Real, but partial.
+>      - **Behavioural form (the one ruling 1 actually needs).** Call `set_participant_patient` with a
+>        distinctive `p_name`, then assert `participants.display_name` **is** `'Paciente'` and
+>        **is not** that name. This expresses the NEGATIVE case, so it can fail for the reason it
+>        claims to pass — which the catalog form cannot. Needs fixtures and a DB window; belongs in
+>        `276` beside the other FF-5 keystones, not in a standalone catalog file.
+>      Ship the catalog form alone if that is the call, but **do not record the gap as closed on it**.
 
 
 **Case-type assignment (ADR 0088) ✅** — template declares → case inherits; record → [case-type-assignment.md](docs/progress/case-type-assignment.md). **FF-2 ✅** — record → [ff-2-matrix-risk-matrix.md](docs/progress/ff-2-matrix-risk-matrix.md); its two binding rules (door parity as a **table**; the targeted/correction arms owed by `answer_references`) are restated in the FF-5 handoff above.
