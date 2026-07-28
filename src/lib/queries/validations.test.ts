@@ -4,6 +4,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import {
+  CLIENT_UNEVALUATED_RULE_TYPES,
   VALIDATION_RULE_TYPES,
   evalValidation,
   isValidationRuleAllowed,
@@ -19,6 +20,7 @@ import vectorsFile from './__fixtures__/validation-vectors.json'
 
 interface RawVector {
   name: string
+  engine?: 'sql'
   rule_type: ValidationRuleType
   config: Record<string, unknown>
   value: unknown
@@ -45,13 +47,38 @@ function toSpec(v: RawVector): ValidationRuleSpec {
   } as ValidationRuleSpec
 }
 
+const mirrorVectors = vectors.filter((v) => v.engine !== 'sql')
+const sqlOnlyVectors = vectors.filter((v) => v.engine === 'sql')
+
 describe('evalValidation (TS mirror of app.eval_validation)', () => {
-  it.each(vectors.map((v) => [v.name, v] as const))('%s', (_name, v) => {
+  it.each(mirrorVectors.map((v) => [v.name, v] as const))('%s', (_name, v) => {
     const ctx: ValidationContext = {
       answers: v.answers,
       peerValues: v.peer_values as ValidationContext['peerValues'],
     }
     expect(evalValidation(toSpec(v), v.value as never, ctx)).toBe(v.expected)
+  })
+
+  // QA r1 M-3 — the `regex` arm is deliberately NOT mirrored. The SQL side still
+  // runs these vectors (it is the sole authority); this side asserts only that the
+  // client never contradicts it. If the client ever starts evaluating regex again,
+  // every one of these goes red.
+  it.each(sqlOnlyVectors.map((v) => [v.name, v] as const))(
+    'SQL-ONLY, client reports satisfied: %s',
+    (_name, v) => {
+      const ctx: ValidationContext = {
+        answers: v.answers,
+        peerValues: v.peer_values as ValidationContext['peerValues'],
+      }
+      expect(evalValidation(toSpec(v), v.value as never, ctx)).toBe(true)
+    },
+  )
+
+  it('the sql-only set is exactly the regex arm', () => {
+    expect(new Set(sqlOnlyVectors.map((v) => v.rule_type))).toEqual(
+      new Set(CLIENT_UNEVALUATED_RULE_TYPES),
+    )
+    expect(sqlOnlyVectors.length).toBeGreaterThan(0)
   })
 
   it('covers every rule type — a type with no vector is untested on both sides', () => {

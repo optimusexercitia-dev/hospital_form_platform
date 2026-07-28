@@ -15,7 +15,7 @@
 
 begin;
 
-select plan(89);
+select plan(93);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -24,6 +24,7 @@ create temp table k on commit drop as
   select (v->>'sa_x')::uuid   as sa_x,
          (v->>'st_x')::uuid   as st_x,
          (v->>'st_x2')::uuid  as st_x2,
+         (v->>'st_y')::uuid   as st_y,
          (v->>'comm_x')::uuid as comm_x
   from ctx;
 grant select on k to authenticated;
@@ -67,13 +68,17 @@ from jsonb_array_elements(
     "`expected` is SATISFIED: true = no violation.",
     "`value` is the value from the ANSWER MAP in scope, never a raw answers.value.",
     "`answers` is only consulted by datetime_order; `peer_values` only by",
-    "unique_within_group."
+    "unique_within_group.",
+    "",
+    "ENGINE FIELD (QA r1 M-3): a vector marked \"engine\": \"sql\" is a SQL-ONLY fact. The `regex` arm is NOT mirrored — the client does not evaluate it at all, because Postgres ARE and JS RegExp disagree silently on eleven of the twenty-six constructs measured. The SQL side still runs these vectors (the server is the sole authority); the TS side asserts only that evalValidation reports SATISFIED for every one of them. Every other vector remains a two-engine mirror fact."
   ],
   "vectors": [
     {
       "name": "empty: null value satisfies number_range",
       "rule_type": "number_range",
-      "config": { "min": 5 },
+      "config": {
+        "min": 5
+      },
       "value": null,
       "answers": {},
       "peer_values": [],
@@ -82,7 +87,9 @@ from jsonb_array_elements(
     {
       "name": "empty: empty string satisfies text_length min",
       "rule_type": "text_length",
-      "config": { "min": 3 },
+      "config": {
+        "min": 3
+      },
       "value": "",
       "answers": {},
       "peer_values": [],
@@ -94,13 +101,17 @@ from jsonb_array_elements(
       "config": {},
       "value": [],
       "answers": {},
-      "peer_values": [[]],
+      "peer_values": [
+        []
+      ],
       "expected": true
     },
     {
       "name": "number_range: zero is NOT empty and is checked",
       "rule_type": "number_range",
-      "config": { "min": 1 },
+      "config": {
+        "min": 1
+      },
       "value": 0,
       "answers": {},
       "peer_values": [],
@@ -109,7 +120,10 @@ from jsonb_array_elements(
     {
       "name": "number_range: at the min bound (inclusive)",
       "rule_type": "number_range",
-      "config": { "min": 5, "max": 10 },
+      "config": {
+        "min": 5,
+        "max": 10
+      },
       "value": 5,
       "answers": {},
       "peer_values": [],
@@ -118,7 +132,10 @@ from jsonb_array_elements(
     {
       "name": "number_range: at the max bound (inclusive)",
       "rule_type": "number_range",
-      "config": { "min": 5, "max": 10 },
+      "config": {
+        "min": 5,
+        "max": 10
+      },
       "value": 10,
       "answers": {},
       "peer_values": [],
@@ -127,7 +144,10 @@ from jsonb_array_elements(
     {
       "name": "number_range: below min",
       "rule_type": "number_range",
-      "config": { "min": 5, "max": 10 },
+      "config": {
+        "min": 5,
+        "max": 10
+      },
       "value": 4,
       "answers": {},
       "peer_values": [],
@@ -136,7 +156,10 @@ from jsonb_array_elements(
     {
       "name": "number_range: above max",
       "rule_type": "number_range",
-      "config": { "min": 5, "max": 10 },
+      "config": {
+        "min": 5,
+        "max": 10
+      },
       "value": 11,
       "answers": {},
       "peer_values": [],
@@ -145,7 +168,9 @@ from jsonb_array_elements(
     {
       "name": "number_range: max-only bound, below it",
       "rule_type": "number_range",
-      "config": { "max": 100 },
+      "config": {
+        "max": 100
+      },
       "value": 99.5,
       "answers": {},
       "peer_values": [],
@@ -154,7 +179,9 @@ from jsonb_array_elements(
     {
       "name": "number_range: negative below a negative min",
       "rule_type": "number_range",
-      "config": { "min": -5 },
+      "config": {
+        "min": -5
+      },
       "value": -6,
       "answers": {},
       "peer_values": [],
@@ -163,7 +190,9 @@ from jsonb_array_elements(
     {
       "name": "number_range: a non-number value cannot violate a range",
       "rule_type": "number_range",
-      "config": { "min": 5 },
+      "config": {
+        "min": 5
+      },
       "value": "abc",
       "answers": {},
       "peer_values": [],
@@ -172,7 +201,10 @@ from jsonb_array_elements(
     {
       "name": "text_length: at the min bound (inclusive)",
       "rule_type": "text_length",
-      "config": { "min": 3, "max": 5 },
+      "config": {
+        "min": 3,
+        "max": 5
+      },
       "value": "abc",
       "answers": {},
       "peer_values": [],
@@ -181,7 +213,10 @@ from jsonb_array_elements(
     {
       "name": "text_length: at the max bound (inclusive)",
       "rule_type": "text_length",
-      "config": { "min": 3, "max": 5 },
+      "config": {
+        "min": 3,
+        "max": 5
+      },
       "value": "abcde",
       "answers": {},
       "peer_values": [],
@@ -190,7 +225,10 @@ from jsonb_array_elements(
     {
       "name": "text_length: below min",
       "rule_type": "text_length",
-      "config": { "min": 3, "max": 5 },
+      "config": {
+        "min": 3,
+        "max": 5
+      },
       "value": "ab",
       "answers": {},
       "peer_values": [],
@@ -199,7 +237,10 @@ from jsonb_array_elements(
     {
       "name": "text_length: above max",
       "rule_type": "text_length",
-      "config": { "min": 3, "max": 5 },
+      "config": {
+        "min": 3,
+        "max": 5
+      },
       "value": "abcdef",
       "answers": {},
       "peer_values": [],
@@ -208,7 +249,9 @@ from jsonb_array_elements(
     {
       "name": "text_length: whitespace is NOT trimmed away",
       "rule_type": "text_length",
-      "config": { "min": 3 },
+      "config": {
+        "min": 3
+      },
       "value": "  ",
       "answers": {},
       "peer_values": [],
@@ -217,7 +260,9 @@ from jsonb_array_elements(
     {
       "name": "text_length: an astral character counts as ONE (char_length, not UTF-16)",
       "rule_type": "text_length",
-      "config": { "max": 1 },
+      "config": {
+        "max": 1
+      },
       "value": "😀",
       "answers": {},
       "peer_values": [],
@@ -226,7 +271,9 @@ from jsonb_array_elements(
     {
       "name": "text_length: accented pt-BR text counts by character",
       "rule_type": "text_length",
-      "config": { "max": 9 },
+      "config": {
+        "max": 9
+      },
       "value": "higienização",
       "answers": {},
       "peer_values": [],
@@ -235,7 +282,9 @@ from jsonb_array_elements(
     {
       "name": "text_length: a non-string value cannot violate a length",
       "rule_type": "text_length",
-      "config": { "min": 3 },
+      "config": {
+        "min": 3
+      },
       "value": 7,
       "answers": {},
       "peer_values": [],
@@ -244,61 +293,83 @@ from jsonb_array_elements(
     {
       "name": "regex: anchored digit pattern matches",
       "rule_type": "regex",
-      "config": { "pattern": "^[0-9]{4}$" },
+      "config": {
+        "pattern": "^[0-9]{4}$"
+      },
       "value": "1234",
       "answers": {},
       "peer_values": [],
-      "expected": true
+      "expected": true,
+      "engine": "sql"
     },
     {
       "name": "regex: anchored digit pattern rejects",
       "rule_type": "regex",
-      "config": { "pattern": "^[0-9]{4}$" },
+      "config": {
+        "pattern": "^[0-9]{4}$"
+      },
       "value": "12a4",
       "answers": {},
       "peer_values": [],
-      "expected": false
+      "expected": false,
+      "engine": "sql"
     },
     {
       "name": "regex: unanchored patterns SEARCH on both engines",
       "rule_type": "regex",
-      "config": { "pattern": "abc" },
+      "config": {
+        "pattern": "abc"
+      },
       "value": "xxabcxx",
       "answers": {},
       "peer_values": [],
-      "expected": true
+      "expected": true,
+      "engine": "sql"
     },
     {
       "name": "regex: case-sensitive by default",
       "rule_type": "regex",
-      "config": { "pattern": "^abc$" },
+      "config": {
+        "pattern": "^abc$"
+      },
       "value": "ABC",
       "answers": {},
       "peer_values": [],
-      "expected": false
+      "expected": false,
+      "engine": "sql"
     },
     {
       "name": "regex: caseInsensitive true",
       "rule_type": "regex",
-      "config": { "pattern": "^abc$", "caseInsensitive": true },
+      "config": {
+        "pattern": "^abc$",
+        "caseInsensitive": true
+      },
       "value": "ABC",
       "answers": {},
       "peer_values": [],
-      "expected": true
+      "expected": true,
+      "engine": "sql"
     },
     {
       "name": "regex: a non-string value cannot violate a pattern",
       "rule_type": "regex",
-      "config": { "pattern": "^[0-9]+$" },
+      "config": {
+        "pattern": "^[0-9]+$"
+      },
       "value": 12,
       "answers": {},
       "peer_values": [],
-      "expected": true
+      "expected": true,
+      "engine": "sql"
     },
     {
       "name": "date_range: at the min bound (inclusive)",
       "rule_type": "date_range",
-      "config": { "min": "2026-01-01", "max": "2026-12-31" },
+      "config": {
+        "min": "2026-01-01",
+        "max": "2026-12-31"
+      },
       "value": "2026-01-01",
       "answers": {},
       "peer_values": [],
@@ -307,7 +378,10 @@ from jsonb_array_elements(
     {
       "name": "date_range: before the min bound",
       "rule_type": "date_range",
-      "config": { "min": "2026-01-01", "max": "2026-12-31" },
+      "config": {
+        "min": "2026-01-01",
+        "max": "2026-12-31"
+      },
       "value": "2025-12-31",
       "answers": {},
       "peer_values": [],
@@ -316,7 +390,10 @@ from jsonb_array_elements(
     {
       "name": "date_range: after the max bound",
       "rule_type": "date_range",
-      "config": { "min": "2026-01-01", "max": "2026-12-31" },
+      "config": {
+        "min": "2026-01-01",
+        "max": "2026-12-31"
+      },
       "value": "2027-01-01",
       "answers": {},
       "peer_values": [],
@@ -325,7 +402,10 @@ from jsonb_array_elements(
     {
       "name": "date_range: 24h time bounds sort lexicographically",
       "rule_type": "date_range",
-      "config": { "min": "08:00", "max": "17:00" },
+      "config": {
+        "min": "08:00",
+        "max": "17:00"
+      },
       "value": "07:59",
       "answers": {},
       "peer_values": [],
@@ -334,7 +414,10 @@ from jsonb_array_elements(
     {
       "name": "date_range: time at the min bound (inclusive)",
       "rule_type": "date_range",
-      "config": { "min": "08:00", "max": "17:00" },
+      "config": {
+        "min": "08:00",
+        "max": "17:00"
+      },
       "value": "08:00",
       "answers": {},
       "peer_values": [],
@@ -343,70 +426,108 @@ from jsonb_array_elements(
     {
       "name": "datetime_order before: earlier than the sibling",
       "rule_type": "datetime_order",
-      "config": { "op": "before", "question_key": "fim" },
+      "config": {
+        "op": "before",
+        "question_key": "fim"
+      },
       "value": "2026-01-01",
-      "answers": { "fim": "2026-06-01" },
+      "answers": {
+        "fim": "2026-06-01"
+      },
       "peer_values": [],
       "expected": true
     },
     {
       "name": "datetime_order before: equal to the sibling violates",
       "rule_type": "datetime_order",
-      "config": { "op": "before", "question_key": "fim" },
+      "config": {
+        "op": "before",
+        "question_key": "fim"
+      },
       "value": "2026-06-01",
-      "answers": { "fim": "2026-06-01" },
+      "answers": {
+        "fim": "2026-06-01"
+      },
       "peer_values": [],
       "expected": false
     },
     {
       "name": "datetime_order after: later than the sibling",
       "rule_type": "datetime_order",
-      "config": { "op": "after", "question_key": "inicio" },
+      "config": {
+        "op": "after",
+        "question_key": "inicio"
+      },
       "value": "2026-06-02",
-      "answers": { "inicio": "2026-06-01" },
+      "answers": {
+        "inicio": "2026-06-01"
+      },
       "peer_values": [],
       "expected": true
     },
     {
       "name": "datetime_order after: earlier violates",
       "rule_type": "datetime_order",
-      "config": { "op": "after", "question_key": "inicio" },
+      "config": {
+        "op": "after",
+        "question_key": "inicio"
+      },
       "value": "2026-05-31",
-      "answers": { "inicio": "2026-06-01" },
+      "answers": {
+        "inicio": "2026-06-01"
+      },
       "peer_values": [],
       "expected": false
     },
     {
       "name": "datetime_order not_before: equal satisfies",
       "rule_type": "datetime_order",
-      "config": { "op": "not_before", "question_key": "inicio" },
+      "config": {
+        "op": "not_before",
+        "question_key": "inicio"
+      },
       "value": "2026-06-01",
-      "answers": { "inicio": "2026-06-01" },
+      "answers": {
+        "inicio": "2026-06-01"
+      },
       "peer_values": [],
       "expected": true
     },
     {
       "name": "datetime_order not_after: equal satisfies",
       "rule_type": "datetime_order",
-      "config": { "op": "not_after", "question_key": "fim" },
+      "config": {
+        "op": "not_after",
+        "question_key": "fim"
+      },
       "value": "2026-06-01",
-      "answers": { "fim": "2026-06-01" },
+      "answers": {
+        "fim": "2026-06-01"
+      },
       "peer_values": [],
       "expected": true
     },
     {
       "name": "datetime_order not_after: later violates",
       "rule_type": "datetime_order",
-      "config": { "op": "not_after", "question_key": "fim" },
+      "config": {
+        "op": "not_after",
+        "question_key": "fim"
+      },
       "value": "2026-06-02",
-      "answers": { "fim": "2026-06-01" },
+      "answers": {
+        "fim": "2026-06-01"
+      },
       "peer_values": [],
       "expected": false
     },
     {
       "name": "datetime_order: an ABSENT sibling makes the rule inert",
       "rule_type": "datetime_order",
-      "config": { "op": "before", "question_key": "fim" },
+      "config": {
+        "op": "before",
+        "question_key": "fim"
+      },
       "value": "2026-06-02",
       "answers": {},
       "peer_values": [],
@@ -415,18 +536,28 @@ from jsonb_array_elements(
     {
       "name": "datetime_order: a NULL sibling makes the rule inert",
       "rule_type": "datetime_order",
-      "config": { "op": "before", "question_key": "fim" },
+      "config": {
+        "op": "before",
+        "question_key": "fim"
+      },
       "value": "2026-06-02",
-      "answers": { "fim": null },
+      "answers": {
+        "fim": null
+      },
       "peer_values": [],
       "expected": true
     },
     {
       "name": "datetime_order: times compare lexicographically too",
       "rule_type": "datetime_order",
-      "config": { "op": "before", "question_key": "fim" },
+      "config": {
+        "op": "before",
+        "question_key": "fim"
+      },
       "value": "09:30",
-      "answers": { "fim": "10:00" },
+      "answers": {
+        "fim": "10:00"
+      },
       "peer_values": [],
       "expected": true
     },
@@ -436,7 +567,10 @@ from jsonb_array_elements(
       "config": {},
       "value": "A1",
       "answers": {},
-      "peer_values": ["B2", "C3"],
+      "peer_values": [
+        "B2",
+        "C3"
+      ],
       "expected": true
     },
     {
@@ -445,7 +579,10 @@ from jsonb_array_elements(
       "config": {},
       "value": "A1",
       "answers": {},
-      "peer_values": ["B2", "A1"],
+      "peer_values": [
+        "B2",
+        "A1"
+      ],
       "expected": false
     },
     {
@@ -463,7 +600,11 @@ from jsonb_array_elements(
       "config": {},
       "value": 3,
       "answers": {},
-      "peer_values": [1, 2, 3],
+      "peer_values": [
+        1,
+        2,
+        3
+      ],
       "expected": false
     },
     {
@@ -472,25 +613,43 @@ from jsonb_array_elements(
       "config": {},
       "value": 3,
       "answers": {},
-      "peer_values": ["3"],
+      "peer_values": [
+        "3"
+      ],
       "expected": true
     },
     {
       "name": "unique_within_group: array values compare structurally",
       "rule_type": "unique_within_group",
       "config": {},
-      "value": ["a", "b"],
+      "value": [
+        "a",
+        "b"
+      ],
       "answers": {},
-      "peer_values": [["a", "b"]],
+      "peer_values": [
+        [
+          "a",
+          "b"
+        ]
+      ],
       "expected": false
     },
     {
       "name": "unique_within_group: array order matters",
       "rule_type": "unique_within_group",
       "config": {},
-      "value": ["a", "b"],
+      "value": [
+        "a",
+        "b"
+      ],
       "answers": {},
-      "peer_values": [["b", "a"]],
+      "peer_values": [
+        [
+          "b",
+          "a"
+        ]
+      ],
       "expected": true
     }
   ]
@@ -988,6 +1147,71 @@ select is(
   1, 'M3. …and the legacy config-bound row (rule_id NULL) is in the SAME list');
 
 -- ===========================================================================
+-- §O · QA r1 M-2 — the read path's ONLY authorization gate.
+--
+--   `app.response_validation_errors` is prosecdef = TRUE: it bypasses RLS
+--   entirely. The whole boundary is one invoker-side existence probe inside
+--   `public.get_response_validation_errors` (prosecdef = FALSE):
+--
+--       if not exists (select 1 from public.responses r where r.id = p_response_id)
+--       then return; end if;
+--
+--   QA deleted those three lines and NOTHING went red across six files. The gate
+--   standing between an authenticated user and every response in the platform was
+--   observed by no test — door-blindness in the ADR-0079 sense.
+--
+--   ⚠ WHY THE STANDING SWEEP DOES NOT SEE IT, and this is the transferable part:
+--   `supabase/tests/mutation/p0-authz-invariant.sh` ARM 2 floors `authenticated`-
+--   reachable **prosecdef = t** doors. This wrapper is **prosecdef = f**, and the
+--   DEFINER half lives in `app`, which is not PostgREST-exposed. An INVOKER
+--   wrapper whose own RLS probe is the only gate in front of a DEFINER body is a
+--   shape the sweep is structurally blind to, not one it overlooked.
+--
+--   Asserted as ROWS READ under `set local role`, in the shape of 272 §S — a
+--   policy/predicate returning the right value is not the same claim as the right
+--   persona reading the right rows (the ETH-E1 lesson).
+--
+--   `a3` is the fixture: still in_progress (its own submit throws HC061) and
+--   carrying three violations after §M. Its creator is sa_x, a member of X.
+--   `st_y` is a staff of commission Y ONLY — no membership in X, not targeted, not
+--   the creator — so every row it could see would come from the gate failing.
+--
+--   MUTATION: delete the existence probe from get_response_validation_errors
+--     -> O2 red (`have: 3`), O1 GREEN. O1 is the control: without it, O2 passing
+--     could equally mean the fixture produces no violations at all.
+-- ===========================================================================
+select test_helpers.claims_for((select sa_x from k), false);
+set local role authenticated;
+select cmp_ok(
+  (select count(*)::int from public.get_response_validation_errors(
+     'ff300000-0000-0000-0000-0000000000a3')),
+  '>', 0,
+  'O1. CONTROL — the response''s own creator (a member of X) reads its violations');
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+select test_helpers.claims_for((select st_y from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.get_response_validation_errors(
+     'ff300000-0000-0000-0000-0000000000a3')),
+  0,
+  'O2. a commission-Y outsider reads ZERO — the wrapper''s RLS probe is the boundary');
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+-- The payload the gate withholds is form CONTENT across a tenancy boundary: the
+-- author's pt-BR rule text and, through the folded-in bounds lane, item LABELS.
+-- No PHI (Rule 12 untouched), which is why this is MAJOR and not a P0 — but it is
+-- cross-commission and cross-org.
+select is(
+  (select count(*)::int from public.get_response_validation_errors(
+     'ff300000-0000-0000-0000-0000000000a3')
+    where message like '%Limitada%'),
+  1,
+  'O3. …and what it withholds includes an item LABEL, not just a rule id');
+
+-- ===========================================================================
 -- §D-group + §I · the per-instance arms.
 --   KEYSTONE 4 (group half) and KEYSTONE 8 `unique_within_group_instances`.
 --   MUTATION A: pass `null` instead of `c.required_if` in the GROUP arm of
@@ -1028,6 +1252,33 @@ select public.save_section_answers(
 
 select ok(not app.response_required_complete('ff300000-0000-0000-0000-0000000000a2'),
   'D6. GROUP ARM: required_if true in instance 1 blocks while instance 2 is fine');
+
+-- QA r1 M-1 · The SUBMIT AUTHORITY's group arm. D6 above exercises
+-- `app.response_required_complete` — the DISPATCH, which only drives UI state.
+-- `submit_response` carries its OWN per-instance required_if layer, and QA proved
+-- that layer could be deleted outright with the whole suite staying green: of the
+-- four required-ness sites, mutating dispatch-flat reds 4, dispatch-group reds 2,
+-- submit-flat reds 1, and submit-group red NOTHING.
+--
+-- That is the Rule 3 AUTHORITY uncovered, which is the more consequential half:
+-- a fail-open here lets a response with an unanswered per-instance required_if
+-- reach `submitted` — immutable and counted in dashboards — while the dispatch
+-- still reports it incomplete.
+--
+-- Not a vacuous test but a MISSING one, on a live branch. It is the shape O-6
+-- predicted: four traversals, and coverage that looks complete because the other
+-- three are covered.
+--
+-- State here is D6's exactly: instance b1 has c_flag='sim', so c_reqif is required
+-- IN THAT INSTANCE and is still unanswered. throws_ok rolls the statement back, so
+-- the response stays in_progress for D7/D8.
+--   MUTATION: `case when v_validations_on then r_child.required_if else null end`
+--     -> `null` in submit_response's group arm -> D6a red, D6 GREEN (the dispatch
+--     is untouched), which is what proves this assertion reaches the authority.
+select throws_ok(
+  $q$select public.submit_response('ff300000-0000-0000-0000-0000000000a2')$q$,
+  'HC011', null,
+  'D6a. …and submit_response REFUSES it — the submit authority''s own group arm');
 
 select public.save_section_answers(
   'ff300000-0000-0000-0000-0000000000a2', 'ff300000-0000-0000-0000-000000000004',

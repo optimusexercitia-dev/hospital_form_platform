@@ -270,6 +270,51 @@ resolving 14× as `enabled`). Two process failures around it, both worth naming:
 **The E2E spec is updated by `tester`, never by the engineer** (CLAUDE.md §6). Only
 `form-builder-enhancements.spec.ts` asserts decision #9 — swept and confirmed.
 
+## Amendment 4 — the `regex` arm is NOT mirrored; the server is its sole authority (2026-07-28)
+
+**Raised by:** QA r1 **M-3**. **Status:** accepted.
+
+Ruling 1 advertises `regex` as *"POSIX `~` / `~*`"* and ruling 3 calls the TS twin *"UX, not the
+boundary"*. Both were true of the intent and false of the implementation: the client evaluated the
+pattern with `new RegExp`, and `handleNext` blocks navigation on client-computed errors, so a
+dialect disagreement became an **unsubmittable response** — no server recourse, no way to clear the
+field, until a `staff_admin` edits the rule.
+
+**The divergence is silent and it is wide.** Measured on the live stack over a 26-construct sample:
+
+| class | constructs | PG | JS | verdict |
+|---|---|---|---|---|
+| POSIX bracket expressions | `[[:digit:]]` `[[:alpha:]]` `[[:space:]]` `[^[:alnum:]]` | matches | **does not** | **silent divergence — stores** |
+| PG-only escapes | `\y` `\m` `\M` `\A` `\Z` | matches | **does not** | **silent divergence — stores** |
+| `\b` | word boundary in JS, **backspace** in ARE | no match | match | **silent divergence — stores** |
+| PG-uncompilable | `{300}` (ARE caps at 255), `(?<n>…)`, `\p{L}` | **error** | matches | caught at write time → `HC0Q2` |
+| JS-uncompilable | `(?i)` inline flag | matches | **throws** | divergent, previously swallowed |
+| agreeing subset | `\d` `\w` `\s`, `[a-z]`, `.`, `\.`, anchors, alternation, backrefs, lookahead, lookbehind, non-greedy | — | — | 13 of 26 agree |
+
+**A write-time dialect lint was considered and REJECTED**, and the reasoning generalises beyond this
+arm. It would be an exhaustive blocklist over two independently-specified, independently-evolving
+grammars — the phase's own signature failure (*"the specification named one artifact while reality
+had two"*) one level up, with the sample above found in minutes and no reason to believe it
+exhaustive. Worse, **a lint that is 90% right still leaves the remaining 10% as an unsubmittable
+response**, which is the failure being fixed. And it would be wrong on the merits: `[[:digit:]]` is
+valid Postgres, and with the server as sole authority it now behaves correctly — rejecting it would
+break a legitimate pattern to protect a client that no longer needs protecting.
+
+**Decision:** `evalValidation` does not evaluate `regex` at all; it reports satisfied. The server
+remains the authority (`app.eval_validation` unchanged, `HC0P9` unchanged). This is **total** — it
+closes every divergence including those nobody has enumerated — and it restores ruling 3's stated
+topology rather than patching an exception into it. `CLIENT_UNEVALUATED_RULE_TYPES` is exported so
+the wizard MAY badge such rules ("verificado ao enviar"); it is not required to.
+
+**Cost, recorded honestly:** a `regex` violation surfaces at submit rather than live, with the
+author's own pt-BR message via `HC0P9`. That is strictly better than a live message that can be
+wrong and blocking.
+
+**Test shape:** the six `regex` golden vectors are marked `"engine": "sql"`. The SQL side still runs
+them; the TS side asserts only that the client reports satisfied for every one — so if the client
+ever starts evaluating regex again, all six go red. Every other vector remains a two-engine mirror
+fact.
+
 ## Open questions (deferred, not blocking)
 
 - **O-1** — should a `warn` require acknowledgement before submit? v1: no, badge only.

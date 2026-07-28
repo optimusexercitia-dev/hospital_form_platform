@@ -282,6 +282,13 @@ function charLength(text: string): number {
  * the authority (Rule 1) — this side is live UX. An expression JS cannot compile
  * yields `true` here rather than a false accusation the server would not make.
  */
+/**
+ * Rule types the CLIENT deliberately does not evaluate — see the `regex` arm of
+ * {@link evalValidation}. Exported so the wizard MAY badge them ("verificado ao
+ * enviar") rather than silently showing nothing; it is not required to.
+ */
+export const CLIENT_UNEVALUATED_RULE_TYPES: readonly ValidationRuleType[] = ['regex']
+
 export function evalValidation(
   spec: ValidationRuleSpec,
   value: Json | undefined,
@@ -307,18 +314,35 @@ export function evalValidation(
       return true
     }
 
-    case 'regex': {
-      if (typeof value !== 'string') return true
-      try {
-        const re = new RegExp(
-          spec.config.pattern,
-          spec.config.caseInsensitive ? 'i' : '',
-        )
-        return re.test(value)
-      } catch {
-        return true
-      }
-    }
+    case 'regex':
+      // QA r1 M-3 — THE CLIENT DOES NOT EVALUATE `regex`. It always reports
+      // satisfied, and the SERVER is the sole authority for this arm.
+      //
+      // Postgres ARE and JS RegExp are different dialects, and the two disagree
+      // SILENTLY: both compile, both return a boolean, and the booleans differ.
+      // Measured on this stack over a 26-construct sample, ELEVEN diverge while
+      // storing cleanly — every POSIX bracket expression (`[[:digit:]]`,
+      // `[[:alpha:]]`, `[[:space:]]`, negated forms) and every PG-only escape
+      // (`\y`, `\m`, `\M`, `\A`, `\Z`), plus `\b`, which is a word boundary in
+      // JS and a backspace in ARE. The write-time compile probe in
+      // `app.guard_item_validation_row` catches only patterns Postgres cannot
+      // COMPILE (`{300}`, named groups, `\p{L}` -> HC0Q2); it cannot catch a
+      // pattern that compiles in both and means different things.
+      //
+      // WHY NOT A WRITE-TIME DIALECT LINT: it would have to be an exhaustive
+      // blocklist over two independently-specified, independently-evolving
+      // grammars — the same "the specification named one artifact while reality
+      // had two" trap one level up, and a lint that is 90% right still leaves the
+      // 10% as an UNSUBMITTABLE RESPONSE. Rejecting the constructs would also be
+      // wrong on the merits: `[[:digit:]]` is valid Postgres and, with the server
+      // as sole authority, now behaves correctly.
+      //
+      // Not evaluating is total: it closes every divergence including the ones
+      // nobody has enumerated, and it restores ruling 3's stated topology
+      // ("`error` blocks submit ONLY, server-side"; the client twin is UX). The
+      // cost is that a `regex` violation surfaces at submit rather than live —
+      // with the author's own pt-BR message, via HC0P9.
+      return true
 
     case 'date_range': {
       if (typeof value !== 'string') return true

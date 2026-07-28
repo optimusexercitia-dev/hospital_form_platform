@@ -9,13 +9,17 @@
     "`expected` is SATISFIED: true = no violation.",
     "`value` is the value from the ANSWER MAP in scope, never a raw answers.value.",
     "`answers` is only consulted by datetime_order; `peer_values` only by",
-    "unique_within_group."
+    "unique_within_group.",
+    "",
+    "ENGINE FIELD (QA r1 M-3): a vector marked \"engine\": \"sql\" is a SQL-ONLY fact. The `regex` arm is NOT mirrored — the client does not evaluate it at all, because Postgres ARE and JS RegExp disagree silently on eleven of the twenty-six constructs measured. The SQL side still runs these vectors (the server is the sole authority); the TS side asserts only that evalValidation reports SATISFIED for every one of them. Every other vector remains a two-engine mirror fact."
   ],
   "vectors": [
     {
       "name": "empty: null value satisfies number_range",
       "rule_type": "number_range",
-      "config": { "min": 5 },
+      "config": {
+        "min": 5
+      },
       "value": null,
       "answers": {},
       "peer_values": [],
@@ -24,7 +28,9 @@
     {
       "name": "empty: empty string satisfies text_length min",
       "rule_type": "text_length",
-      "config": { "min": 3 },
+      "config": {
+        "min": 3
+      },
       "value": "",
       "answers": {},
       "peer_values": [],
@@ -36,13 +42,17 @@
       "config": {},
       "value": [],
       "answers": {},
-      "peer_values": [[]],
+      "peer_values": [
+        []
+      ],
       "expected": true
     },
     {
       "name": "number_range: zero is NOT empty and is checked",
       "rule_type": "number_range",
-      "config": { "min": 1 },
+      "config": {
+        "min": 1
+      },
       "value": 0,
       "answers": {},
       "peer_values": [],
@@ -51,7 +61,10 @@
     {
       "name": "number_range: at the min bound (inclusive)",
       "rule_type": "number_range",
-      "config": { "min": 5, "max": 10 },
+      "config": {
+        "min": 5,
+        "max": 10
+      },
       "value": 5,
       "answers": {},
       "peer_values": [],
@@ -60,7 +73,10 @@
     {
       "name": "number_range: at the max bound (inclusive)",
       "rule_type": "number_range",
-      "config": { "min": 5, "max": 10 },
+      "config": {
+        "min": 5,
+        "max": 10
+      },
       "value": 10,
       "answers": {},
       "peer_values": [],
@@ -69,7 +85,10 @@
     {
       "name": "number_range: below min",
       "rule_type": "number_range",
-      "config": { "min": 5, "max": 10 },
+      "config": {
+        "min": 5,
+        "max": 10
+      },
       "value": 4,
       "answers": {},
       "peer_values": [],
@@ -78,7 +97,10 @@
     {
       "name": "number_range: above max",
       "rule_type": "number_range",
-      "config": { "min": 5, "max": 10 },
+      "config": {
+        "min": 5,
+        "max": 10
+      },
       "value": 11,
       "answers": {},
       "peer_values": [],
@@ -87,7 +109,9 @@
     {
       "name": "number_range: max-only bound, below it",
       "rule_type": "number_range",
-      "config": { "max": 100 },
+      "config": {
+        "max": 100
+      },
       "value": 99.5,
       "answers": {},
       "peer_values": [],
@@ -96,7 +120,9 @@
     {
       "name": "number_range: negative below a negative min",
       "rule_type": "number_range",
-      "config": { "min": -5 },
+      "config": {
+        "min": -5
+      },
       "value": -6,
       "answers": {},
       "peer_values": [],
@@ -105,7 +131,9 @@
     {
       "name": "number_range: a non-number value cannot violate a range",
       "rule_type": "number_range",
-      "config": { "min": 5 },
+      "config": {
+        "min": 5
+      },
       "value": "abc",
       "answers": {},
       "peer_values": [],
@@ -114,7 +142,10 @@
     {
       "name": "text_length: at the min bound (inclusive)",
       "rule_type": "text_length",
-      "config": { "min": 3, "max": 5 },
+      "config": {
+        "min": 3,
+        "max": 5
+      },
       "value": "abc",
       "answers": {},
       "peer_values": [],
@@ -123,7 +154,10 @@
     {
       "name": "text_length: at the max bound (inclusive)",
       "rule_type": "text_length",
-      "config": { "min": 3, "max": 5 },
+      "config": {
+        "min": 3,
+        "max": 5
+      },
       "value": "abcde",
       "answers": {},
       "peer_values": [],
@@ -132,7 +166,10 @@
     {
       "name": "text_length: below min",
       "rule_type": "text_length",
-      "config": { "min": 3, "max": 5 },
+      "config": {
+        "min": 3,
+        "max": 5
+      },
       "value": "ab",
       "answers": {},
       "peer_values": [],
@@ -141,7 +178,10 @@
     {
       "name": "text_length: above max",
       "rule_type": "text_length",
-      "config": { "min": 3, "max": 5 },
+      "config": {
+        "min": 3,
+        "max": 5
+      },
       "value": "abcdef",
       "answers": {},
       "peer_values": [],
@@ -150,7 +190,9 @@
     {
       "name": "text_length: whitespace is NOT trimmed away",
       "rule_type": "text_length",
-      "config": { "min": 3 },
+      "config": {
+        "min": 3
+      },
       "value": "  ",
       "answers": {},
       "peer_values": [],
@@ -159,7 +201,9 @@
     {
       "name": "text_length: an astral character counts as ONE (char_length, not UTF-16)",
       "rule_type": "text_length",
-      "config": { "max": 1 },
+      "config": {
+        "max": 1
+      },
       "value": "😀",
       "answers": {},
       "peer_values": [],
@@ -168,7 +212,9 @@
     {
       "name": "text_length: accented pt-BR text counts by character",
       "rule_type": "text_length",
-      "config": { "max": 9 },
+      "config": {
+        "max": 9
+      },
       "value": "higienização",
       "answers": {},
       "peer_values": [],
@@ -177,7 +223,9 @@
     {
       "name": "text_length: a non-string value cannot violate a length",
       "rule_type": "text_length",
-      "config": { "min": 3 },
+      "config": {
+        "min": 3
+      },
       "value": 7,
       "answers": {},
       "peer_values": [],
@@ -186,61 +234,83 @@
     {
       "name": "regex: anchored digit pattern matches",
       "rule_type": "regex",
-      "config": { "pattern": "^[0-9]{4}$" },
+      "config": {
+        "pattern": "^[0-9]{4}$"
+      },
       "value": "1234",
       "answers": {},
       "peer_values": [],
-      "expected": true
+      "expected": true,
+      "engine": "sql"
     },
     {
       "name": "regex: anchored digit pattern rejects",
       "rule_type": "regex",
-      "config": { "pattern": "^[0-9]{4}$" },
+      "config": {
+        "pattern": "^[0-9]{4}$"
+      },
       "value": "12a4",
       "answers": {},
       "peer_values": [],
-      "expected": false
+      "expected": false,
+      "engine": "sql"
     },
     {
       "name": "regex: unanchored patterns SEARCH on both engines",
       "rule_type": "regex",
-      "config": { "pattern": "abc" },
+      "config": {
+        "pattern": "abc"
+      },
       "value": "xxabcxx",
       "answers": {},
       "peer_values": [],
-      "expected": true
+      "expected": true,
+      "engine": "sql"
     },
     {
       "name": "regex: case-sensitive by default",
       "rule_type": "regex",
-      "config": { "pattern": "^abc$" },
+      "config": {
+        "pattern": "^abc$"
+      },
       "value": "ABC",
       "answers": {},
       "peer_values": [],
-      "expected": false
+      "expected": false,
+      "engine": "sql"
     },
     {
       "name": "regex: caseInsensitive true",
       "rule_type": "regex",
-      "config": { "pattern": "^abc$", "caseInsensitive": true },
+      "config": {
+        "pattern": "^abc$",
+        "caseInsensitive": true
+      },
       "value": "ABC",
       "answers": {},
       "peer_values": [],
-      "expected": true
+      "expected": true,
+      "engine": "sql"
     },
     {
       "name": "regex: a non-string value cannot violate a pattern",
       "rule_type": "regex",
-      "config": { "pattern": "^[0-9]+$" },
+      "config": {
+        "pattern": "^[0-9]+$"
+      },
       "value": 12,
       "answers": {},
       "peer_values": [],
-      "expected": true
+      "expected": true,
+      "engine": "sql"
     },
     {
       "name": "date_range: at the min bound (inclusive)",
       "rule_type": "date_range",
-      "config": { "min": "2026-01-01", "max": "2026-12-31" },
+      "config": {
+        "min": "2026-01-01",
+        "max": "2026-12-31"
+      },
       "value": "2026-01-01",
       "answers": {},
       "peer_values": [],
@@ -249,7 +319,10 @@
     {
       "name": "date_range: before the min bound",
       "rule_type": "date_range",
-      "config": { "min": "2026-01-01", "max": "2026-12-31" },
+      "config": {
+        "min": "2026-01-01",
+        "max": "2026-12-31"
+      },
       "value": "2025-12-31",
       "answers": {},
       "peer_values": [],
@@ -258,7 +331,10 @@
     {
       "name": "date_range: after the max bound",
       "rule_type": "date_range",
-      "config": { "min": "2026-01-01", "max": "2026-12-31" },
+      "config": {
+        "min": "2026-01-01",
+        "max": "2026-12-31"
+      },
       "value": "2027-01-01",
       "answers": {},
       "peer_values": [],
@@ -267,7 +343,10 @@
     {
       "name": "date_range: 24h time bounds sort lexicographically",
       "rule_type": "date_range",
-      "config": { "min": "08:00", "max": "17:00" },
+      "config": {
+        "min": "08:00",
+        "max": "17:00"
+      },
       "value": "07:59",
       "answers": {},
       "peer_values": [],
@@ -276,7 +355,10 @@
     {
       "name": "date_range: time at the min bound (inclusive)",
       "rule_type": "date_range",
-      "config": { "min": "08:00", "max": "17:00" },
+      "config": {
+        "min": "08:00",
+        "max": "17:00"
+      },
       "value": "08:00",
       "answers": {},
       "peer_values": [],
@@ -285,70 +367,108 @@
     {
       "name": "datetime_order before: earlier than the sibling",
       "rule_type": "datetime_order",
-      "config": { "op": "before", "question_key": "fim" },
+      "config": {
+        "op": "before",
+        "question_key": "fim"
+      },
       "value": "2026-01-01",
-      "answers": { "fim": "2026-06-01" },
+      "answers": {
+        "fim": "2026-06-01"
+      },
       "peer_values": [],
       "expected": true
     },
     {
       "name": "datetime_order before: equal to the sibling violates",
       "rule_type": "datetime_order",
-      "config": { "op": "before", "question_key": "fim" },
+      "config": {
+        "op": "before",
+        "question_key": "fim"
+      },
       "value": "2026-06-01",
-      "answers": { "fim": "2026-06-01" },
+      "answers": {
+        "fim": "2026-06-01"
+      },
       "peer_values": [],
       "expected": false
     },
     {
       "name": "datetime_order after: later than the sibling",
       "rule_type": "datetime_order",
-      "config": { "op": "after", "question_key": "inicio" },
+      "config": {
+        "op": "after",
+        "question_key": "inicio"
+      },
       "value": "2026-06-02",
-      "answers": { "inicio": "2026-06-01" },
+      "answers": {
+        "inicio": "2026-06-01"
+      },
       "peer_values": [],
       "expected": true
     },
     {
       "name": "datetime_order after: earlier violates",
       "rule_type": "datetime_order",
-      "config": { "op": "after", "question_key": "inicio" },
+      "config": {
+        "op": "after",
+        "question_key": "inicio"
+      },
       "value": "2026-05-31",
-      "answers": { "inicio": "2026-06-01" },
+      "answers": {
+        "inicio": "2026-06-01"
+      },
       "peer_values": [],
       "expected": false
     },
     {
       "name": "datetime_order not_before: equal satisfies",
       "rule_type": "datetime_order",
-      "config": { "op": "not_before", "question_key": "inicio" },
+      "config": {
+        "op": "not_before",
+        "question_key": "inicio"
+      },
       "value": "2026-06-01",
-      "answers": { "inicio": "2026-06-01" },
+      "answers": {
+        "inicio": "2026-06-01"
+      },
       "peer_values": [],
       "expected": true
     },
     {
       "name": "datetime_order not_after: equal satisfies",
       "rule_type": "datetime_order",
-      "config": { "op": "not_after", "question_key": "fim" },
+      "config": {
+        "op": "not_after",
+        "question_key": "fim"
+      },
       "value": "2026-06-01",
-      "answers": { "fim": "2026-06-01" },
+      "answers": {
+        "fim": "2026-06-01"
+      },
       "peer_values": [],
       "expected": true
     },
     {
       "name": "datetime_order not_after: later violates",
       "rule_type": "datetime_order",
-      "config": { "op": "not_after", "question_key": "fim" },
+      "config": {
+        "op": "not_after",
+        "question_key": "fim"
+      },
       "value": "2026-06-02",
-      "answers": { "fim": "2026-06-01" },
+      "answers": {
+        "fim": "2026-06-01"
+      },
       "peer_values": [],
       "expected": false
     },
     {
       "name": "datetime_order: an ABSENT sibling makes the rule inert",
       "rule_type": "datetime_order",
-      "config": { "op": "before", "question_key": "fim" },
+      "config": {
+        "op": "before",
+        "question_key": "fim"
+      },
       "value": "2026-06-02",
       "answers": {},
       "peer_values": [],
@@ -357,18 +477,28 @@
     {
       "name": "datetime_order: a NULL sibling makes the rule inert",
       "rule_type": "datetime_order",
-      "config": { "op": "before", "question_key": "fim" },
+      "config": {
+        "op": "before",
+        "question_key": "fim"
+      },
       "value": "2026-06-02",
-      "answers": { "fim": null },
+      "answers": {
+        "fim": null
+      },
       "peer_values": [],
       "expected": true
     },
     {
       "name": "datetime_order: times compare lexicographically too",
       "rule_type": "datetime_order",
-      "config": { "op": "before", "question_key": "fim" },
+      "config": {
+        "op": "before",
+        "question_key": "fim"
+      },
       "value": "09:30",
-      "answers": { "fim": "10:00" },
+      "answers": {
+        "fim": "10:00"
+      },
       "peer_values": [],
       "expected": true
     },
@@ -378,7 +508,10 @@
       "config": {},
       "value": "A1",
       "answers": {},
-      "peer_values": ["B2", "C3"],
+      "peer_values": [
+        "B2",
+        "C3"
+      ],
       "expected": true
     },
     {
@@ -387,7 +520,10 @@
       "config": {},
       "value": "A1",
       "answers": {},
-      "peer_values": ["B2", "A1"],
+      "peer_values": [
+        "B2",
+        "A1"
+      ],
       "expected": false
     },
     {
@@ -405,7 +541,11 @@
       "config": {},
       "value": 3,
       "answers": {},
-      "peer_values": [1, 2, 3],
+      "peer_values": [
+        1,
+        2,
+        3
+      ],
       "expected": false
     },
     {
@@ -414,25 +554,43 @@
       "config": {},
       "value": 3,
       "answers": {},
-      "peer_values": ["3"],
+      "peer_values": [
+        "3"
+      ],
       "expected": true
     },
     {
       "name": "unique_within_group: array values compare structurally",
       "rule_type": "unique_within_group",
       "config": {},
-      "value": ["a", "b"],
+      "value": [
+        "a",
+        "b"
+      ],
       "answers": {},
-      "peer_values": [["a", "b"]],
+      "peer_values": [
+        [
+          "a",
+          "b"
+        ]
+      ],
       "expected": false
     },
     {
       "name": "unique_within_group: array order matters",
       "rule_type": "unique_within_group",
       "config": {},
-      "value": ["a", "b"],
+      "value": [
+        "a",
+        "b"
+      ],
       "answers": {},
-      "peer_values": [["b", "a"]],
+      "peer_values": [
+        [
+          "b",
+          "a"
+        ]
+      ],
       "expected": true
     }
   ]
