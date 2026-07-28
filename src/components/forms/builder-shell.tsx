@@ -46,6 +46,7 @@ export function BuilderShell({
   approverCandidates = [],
   containersEnabled = false,
   matrixEnabled = false,
+  validationsEnabled = false,
 }: {
   /** Org slug for hrefs. */
   org: string;
@@ -65,6 +66,8 @@ export function BuilderShell({
   containersEnabled?: boolean;
   /** FF-2 (ADR 0089) — the `matrix_fields` flag: offer the two matrix types. */
   matrixEnabled?: boolean;
+  /** FF-3 (ADR 0090) — the per-item validation-rule editor. */
+  validationsEnabled?: boolean;
 }) {
   const { run, isPending, error } = useBuilderAction();
   const { containerRef, captureBeforeReorder } =
@@ -85,7 +88,11 @@ export function BuilderShell({
     // one component that branches on each. Previously `containersEnabled` was
     // drilled through four components that never used it; a second flag would
     // have doubled that, and each link is a chance to drop one silently.
-    <BuilderFlagsProvider containers={containersEnabled} matrix={matrixEnabled}>
+    <BuilderFlagsProvider
+      containers={containersEnabled}
+      matrix={matrixEnabled}
+      validations={validationsEnabled}
+    >
     <div className="flex flex-col gap-8">
       <BuilderHeader
         org={org}

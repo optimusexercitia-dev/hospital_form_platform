@@ -91,23 +91,6 @@ function isUnaryOp(op: ConditionOp): boolean {
   return UNARY_OPS.includes(op);
 }
 
-/**
- * Target types on which a unary operator PUBLISHES cleanly today.
- *
- * ⚠ Narrower than it should be, and deliberately so. `public.validate_visible_when`
- * delegates to `app.assert_condition_op_target` + `app.assert_condition_value_codes`,
- * and neither was widened for the unary ops:
- *   - a `number` target hits the "value must be a JSON number" guard;
- *   - any CHOICE target hits the option-code loop, where a valueless condition
- *     normalizes to SQL NULL and raises `referencia a opção "nula"`.
- * Both were confirmed by EXECUTING the assertions, not by reading migration text.
- * The condition stores fine and then fails at publish — an author dead end — so
- * the picker does not offer the pairing. Once those two helpers get their
- * exempt-by-name early return, widen this to every target type (one line) and
- * re-verify by actually publishing a form with a choice-target `is_empty`.
- */
-const UNARY_OP_TARGET_TYPES: InputItemType[] = ["date", "time"];
-
 const CHOICE_TARGET_TYPES: InputItemType[] = [
   "multiple_choice",
   "dropdown",
@@ -118,9 +101,21 @@ function isChoiceTarget(type: InputItemType): boolean {
   return CHOICE_TARGET_TYPES.includes(type);
 }
 
+/**
+ * The operators offered for a target of this type. "Was it answered?" is
+ * meaningful for EVERY target type, so both unary ops are appended unconditionally.
+ *
+ * This was briefly narrowed to date/time only: `is_empty` on a choice or number
+ * target stored fine and then failed at publish, because
+ * `app.assert_condition_op_target` and `app.assert_condition_value_codes` were
+ * never widened alongside `app.is_valid_condition` (a choice target raised
+ * `referencia a opção "nula"` about an option the author never wrote). Both are
+ * fixed and exempt the unary ops by name; re-verified here by publishing a form
+ * whose condition is a choice-target `is_empty`, not by reading the diff.
+ */
 function opsForType(type: InputItemType): ConditionOp[] {
   const base = isChoiceTarget(type) ? CHOICE_OPS : ORDERED_OPS;
-  return UNARY_OP_TARGET_TYPES.includes(type) ? [...base, ...UNARY_OPS] : base;
+  return [...base, ...UNARY_OPS];
 }
 
 /** A locally-edited condition row (UI state; serialized to a sub-condition).
@@ -230,9 +225,17 @@ export function ConditionBuilder({
   targets: ConditionTarget[];
   value: Visibility | null;
   onChange: (next: Visibility | null) => void;
-  context: "section" | "question";
+  /**
+   * What is being made conditional. Drives the pt-BR wording AND the emitted
+   * SHAPE: `required` is FF-3's `form_items.required_if`, which
+   * `app.is_valid_condition` requires to be a SINGLE bare condition — it rejects
+   * the `{match, conditions[]}` group the other two contexts serialize to. So
+   * that context offers exactly one row and emits the condition unwrapped.
+   */
+  context: "section" | "question" | "required";
 }) {
   const groupId = useId();
+  const isSingle = context === "required";
   const initial = useMemo(() => toDrafts(value), [value]);
   const [enabled, setEnabled] = useState<boolean>(initial.enabled);
   const [match, setMatch] = useState<"all" | "any">(initial.match);
@@ -255,6 +258,13 @@ export function ConditionBuilder({
     );
     if (complete.length === 0) {
       onChange(null);
+      return;
+    }
+    if (isSingle) {
+      // Bare, never a 1-row group: the `required_if` CHECK reads
+      // `question_key`/`op` at the TOP level and refuses a wrapper.
+      const first = complete[0];
+      onChange(toCondition(first, targetByKey.get(first.questionKey) as ConditionTarget));
       return;
     }
     const group: ConditionGroup = {
@@ -331,20 +341,27 @@ export function ConditionBuilder({
   }
 
   const toggleLabel =
-    context === "question" ? "Aparência Condicional" : "Visibilidade condicional";
+    context === "required"
+      ? "Obrigatória apenas em certas situações"
+      : context === "question"
+        ? "Aparência Condicional"
+        : "Visibilidade condicional";
   const showWhenLabel =
-    context === "question"
-      ? "Mostrar a pergunta quando"
-      : "Mostrar a seção quando";
+    context === "required"
+      ? "Tornar obrigatória quando"
+      : context === "question"
+        ? "Mostrar a pergunta quando"
+        : "Mostrar a seção quando";
 
   if (targets.length === 0) {
-    const subject = context === "question" ? "esta pergunta" : "esta seção";
+    const subject = context === "section" ? "esta seção" : "esta pergunta";
     return (
       <fieldset className="flex flex-col gap-2">
         <legend className="text-sm font-semibold">{toggleLabel}</legend>
         <p className="rounded-lg border border-dashed border-border bg-muted/30 px-3 py-2.5 text-sm text-muted-foreground">
-          Não há perguntas anteriores que possam controlar a visibilidade. Por
-          isso, {subject} é sempre exibida.
+          {isSingle
+            ? `Não há perguntas anteriores que possam tornar ${subject} obrigatória. Use “Resposta obrigatória” para exigi-la sempre.`
+            : `Não há perguntas anteriores que possam controlar a visibilidade. Por isso, ${subject} é sempre exibida.`}
         </p>
       </fieldset>
     );
@@ -362,7 +379,7 @@ export function ConditionBuilder({
 
       {enabled && (
         <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3">
-          {rows.length > 1 && (
+          {!isSingle && rows.length > 1 && (
             <label className="flex flex-col gap-1.5 text-sm">
               <span className="font-medium">Combinar condições</span>
               <NativeSelect
@@ -393,7 +410,7 @@ export function ConditionBuilder({
                           ? "E quando"
                           : "Ou quando"}
                     </p>
-                    {rows.length > 1 && (
+                    {!isSingle && rows.length > 1 && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -485,16 +502,18 @@ export function ConditionBuilder({
             })}
           </ul>
 
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={addRow}
-            className="w-fit"
-          >
-            <Plus aria-hidden="true" />
-            Adicionar condição
-          </Button>
+          {isSingle ? null : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={addRow}
+              className="w-fit"
+            >
+              <Plus aria-hidden="true" />
+              Adicionar condição
+            </Button>
+          )}
         </div>
       )}
     </fieldset>

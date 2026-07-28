@@ -14,6 +14,7 @@ import type { VersionTree } from "@/lib/queries/forms";
 import {
   controlledDocsEnabled,
   matrixFieldsEnabled,
+  itemValidationsEnabled,
 } from "@/lib/queries/feature-flags";
 import { repeatingGroupsEnabled } from "@/lib/forms/repeating-groups-flag";
 import { listApproverCandidates } from "@/lib/queries/documents";
@@ -75,6 +76,11 @@ export default async function BuilderPage({
     // gated, same as FF-1's containers: a form that holds one must render
     // truthfully rather than silently drop a question.
     const matrixEnabled = await matrixFieldsEnabled();
+    // FF-3 (ADR 0090) — `item_validations`. Same fail-closed reasoning: while
+    // OFF, `set_item_validations` raises HC0Q0, so the rules editor is not
+    // offered rather than offered and guaranteed to fail on save. Rules that
+    // are ALREADY authored still evaluate server-side; this gates authoring.
+    const validationsEnabled = await itemValidationsEnabled();
     const controlledDocsOn = await controlledDocsEnabled();
     const approverCandidates = controlledDocsOn
       ? await listApproverCandidates(access.commission.id)
@@ -94,6 +100,7 @@ export default async function BuilderPage({
         approverCandidates={approverCandidates}
         containersEnabled={containersEnabled}
         matrixEnabled={matrixEnabled}
+        validationsEnabled={validationsEnabled}
       />
     );
   }

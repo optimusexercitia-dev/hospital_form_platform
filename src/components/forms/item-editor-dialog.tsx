@@ -7,6 +7,7 @@ import { ListPlus } from "lucide-react";
 import type {
   FlaggedWhen,
 } from "@/lib/queries/conditions";
+import type { RequiredIf } from "@/lib/forms/validation-rules";
 import type {
   Item,
   ItemOption,
@@ -204,6 +205,13 @@ export function ItemEditorDialog(props: Props) {
   const [visibleWhen, setVisibleWhen] = useState<Visibility | null>(
     existing?.visibleWhen ?? null,
   );
+  // FF-3 (ADR 0090 ruling 4) — `required_if`: required only when this condition
+  // holds. A SINGLE bare condition, never a group (the column's CHECK runs
+  // `app.is_valid_condition`, which reads `question_key`/`op` at the top level),
+  // which is what the builder's `required` context emits.
+  const [requiredIf, setRequiredIf] = useState<RequiredIf | null>(
+    existing?.requiredIf ?? null,
+  );
   // answer-model-v2 (FE-1): the per-input default value (null = none).
   const [defaultValue, setDefaultValue] = useState<DefaultValue>(
     initialDefaultValue(existing),
@@ -351,6 +359,7 @@ export function ItemEditorDialog(props: Props) {
     );
   }
   if (isConditional) summaryParts.push("condicional");
+  if (requiredIf !== null) summaryParts.push("obrigatória condicional");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -781,6 +790,38 @@ export function ItemEditorDialog(props: Props) {
                         fica oculta e não impede o envio.
                       </p>
                     ) : null}
+                  </div>
+
+                  <div className="h-px bg-border" />
+
+                  {/* FF-3 — conditional REQUIREDNESS. Distinct from conditional
+                      appearance below: this item is always visible, but only
+                      mandatory when the condition holds. Visibility still wins
+                      unconditionally — a hidden item is never required, whatever
+                      this says (ADR 0090 ruling 4). */}
+                  <div className="flex flex-col gap-2">
+                    {requiredIf !== null ? (
+                      <input
+                        type="hidden"
+                        name="requiredIf"
+                        value={JSON.stringify(requiredIf)}
+                      />
+                    ) : null}
+                    <ConditionBuilder
+                      context="required"
+                      targets={conditionTargets}
+                      value={requiredIf}
+                      onChange={(next) =>
+                        // The `required` context always emits a bare condition
+                        // (or null), never the group arm of `Visibility`.
+                        setRequiredIf(next as RequiredIf | null)
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground text-pretty">
+                      Se “Resposta obrigatória” estiver marcada, a pergunta já é
+                      sempre obrigatória e esta condição não muda nada. Uma
+                      pergunta oculta nunca é exigida.
+                    </p>
                   </div>
 
                   <div className="h-px bg-border" />

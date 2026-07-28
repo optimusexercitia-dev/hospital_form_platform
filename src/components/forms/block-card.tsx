@@ -6,6 +6,7 @@ import {
   ArrowUp,
   Flag,
   Grid3x3,
+  ShieldCheck,
   MoveRight,
   Pencil,
   Split,
@@ -45,6 +46,12 @@ import {
 import { TOKEN_COLOR_VAR } from "@/components/cases/case-status-badge";
 import { ItemEditorDialog } from "@/components/forms/item-editor-dialog";
 import { MatrixConfigDialog } from "@/components/forms/matrix-config-dialog";
+import { ValidationsDialog } from "@/components/forms/validations-dialog";
+import {
+  itemAcceptsValidations,
+  parentItemTypeOf,
+} from "@/components/forms/validation-drafts";
+import { useBuilderFlags } from "@/components/forms/builder-flags";
 import { MatrixGrid } from "@/components/responses/wizard/matrix-grid";
 import { RiskMatrixPicker } from "@/components/responses/wizard/risk-matrix-picker";
 import { ImagePreview } from "@/components/forms/image-preview";
@@ -91,10 +98,21 @@ export function BlockCard({
   // addItem/updateItem. See `MatrixConfigDialog` for why they cannot share one
   // submit.
   const [axesOpen, setAxesOpen] = useState(false);
+  // FF-3 — the validation rules, a THIRD separate write (`set_item_validations`,
+  // REPLACE and wholesale). See `ValidationsDialog` for why it cannot ride the
+  // item editor's submit.
+  const [rulesOpen, setRulesOpen] = useState(false);
 
+  const flags = useBuilderFlags();
   const meta = ITEM_TYPE_META[item.itemType];
   const isContainer = isContainerItem(item.itemType);
   const isMatrix = isMatrixItem(item.itemType);
+  // The parent's TYPE, not merely `isChild`: `unique_within_group` is offered
+  // only inside a `repeating_group`, never inside a plain `group`.
+  const parentItemType = parentItemTypeOf(sections, item.id);
+  const acceptsValidations =
+    flags.validations && itemAcceptsValidations(item.itemType, parentItemType);
+  const ruleCount = item.validations?.length ?? 0;
   const children = item.children;
   // "Mover para outra seção" is hidden for containers and for children: a
   // container's children live in the SAME section as their parent (they occupy
@@ -185,6 +203,33 @@ export function BlockCard({
               }
             >
               <Grid3x3 aria-hidden="true" />
+            </Button>
+          )}
+          {acceptsValidations && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setRulesOpen(true)}
+              aria-label={
+                ruleCount === 0
+                  ? "Adicionar regras de validação"
+                  : ruleCount === 1
+                    ? "Editar regras de validação (1 regra)"
+                    : `Editar regras de validação (${ruleCount} regras)`
+              }
+              title="Regras de validação"
+              className="relative"
+            >
+              <ShieldCheck aria-hidden="true" />
+              {ruleCount > 0 && (
+                <span
+                  aria-hidden="true"
+                  className="absolute -top-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-primary text-[0.6rem] font-semibold text-primary-foreground"
+                >
+                  {ruleCount}
+                </span>
+              )}
             </Button>
           )}
           <Button
@@ -314,6 +359,21 @@ export function BlockCard({
           open={axesOpen}
           onOpenChange={setAxesOpen}
           item={item}
+        />
+      )}
+
+      {/* Mounted only while open, for the same reason as the axes dialog: the
+          rule drafts are seeded from the CURRENT item, and after a save the
+          builder refreshes — the next open must read the persisted rules. This
+          matters more here than for the axes, because the write is REPLACE with
+          no key to match on, so a stale seed would DELETE the rules it missed. */}
+      {acceptsValidations && rulesOpen && (
+        <ValidationsDialog
+          open={rulesOpen}
+          onOpenChange={setRulesOpen}
+          item={item}
+          sections={sections}
+          parentItemType={parentItemType}
         />
       )}
     </article>

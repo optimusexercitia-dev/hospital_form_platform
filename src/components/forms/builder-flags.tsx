@@ -33,28 +33,41 @@ export interface BuilderFlags {
    * author a block that can never be configured.
    */
   matrix: boolean;
+  /**
+   * FF-3 (ADR 0090) — offer the per-item validation-rule editor. While OFF,
+   * `set_item_validations` refuses the write, so showing the editor would hand
+   * the author a dialog whose save can never succeed (the same reasoning as
+   * `matrix` above).
+   */
+  validations: boolean;
 }
 
 /** All flags OFF — the safe default for any tree rendered without a provider. */
-const DEFAULT_FLAGS: BuilderFlags = { containers: false, matrix: false };
+const DEFAULT_FLAGS: BuilderFlags = {
+  containers: false,
+  matrix: false,
+  validations: false,
+};
 
 const BuilderFlagsContext = createContext<BuilderFlags>(DEFAULT_FLAGS);
 
 export function BuilderFlagsProvider({
   containers = false,
   matrix = false,
+  validations = false,
   children,
 }: {
   containers?: boolean;
   matrix?: boolean;
+  validations?: boolean;
   children: React.ReactNode;
 }) {
   // Memoized so the context value is referentially stable across the builder's
   // frequent re-renders (every action refreshes the tree) and never invalidates
   // a consumer that did not change.
   const value = useMemo<BuilderFlags>(
-    () => ({ containers, matrix }),
-    [containers, matrix],
+    () => ({ containers, matrix, validations }),
+    [containers, matrix, validations],
   );
   return <BuilderFlagsContext value={value}>{children}</BuilderFlagsContext>;
 }
