@@ -12,7 +12,7 @@
 -- src/lib/queries/conditions.test.ts (TS side) — Rule 3, phase-blocking on drift.
 
 begin;
-select plan(40);
+select plan(44);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -129,6 +129,38 @@ select throws_ok(
   $$ insert into public.form_items (section_id, position, item_type, label, required)
      values ('aaaa0000-0000-0000-0000-000000000003', 17, 'repeating_group', 'RG2', true) $$,
   '23514', null, 'B2: required=true repeating_group rejected by the shape CHECK (Flag-5)');
+
+-- FF-3 (ADR 0090 ruling 4) EXTENDS this freeze to `required_if`. The reasoning is
+-- the same one B1c rests on: a type whose required-ness nothing checks may not be
+-- made required — and `required_if` is a second door to exactly that. Without
+-- these arms an author could not set `required = true` on a container but could
+-- give it a `required_if` that evaluates true, arriving at the same deadlock by a
+-- different route.
+--
+-- B3d is the POSITIVE TWIN and is load-bearing: B3a/B3b/B3c would all pass if
+-- `required_if` were rejected on EVERY item type (a CHECK typo, or the column
+-- never being writable at all), which is a widening-shaped vacuity the negatives
+-- alone cannot see.
+select throws_ok(
+  $$ insert into public.form_items (section_id, position, item_type, label, required_if)
+     values ('aaaa0000-0000-0000-0000-000000000003', 20, 'repeating_group', 'RG3',
+             '{"question_key":"q1","op":"equals","value":"x"}') $$,
+  '23514', null, 'B3a: required_if on a CONTAINER rejected (FF-3 — the second door to the Flag-5 deadlock)');
+select throws_ok(
+  $$ insert into public.form_items (section_id, position, item_type, content, required_if)
+     values ('aaaa0000-0000-0000-0000-000000000003', 21, 'section_text', '{"markdown":"oi"}',
+             '{"question_key":"q1","op":"equals","value":"x"}') $$,
+  '23514', null, 'B3b: required_if on a DISPLAY item rejected (FF-3)');
+select throws_ok(
+  $$ insert into public.form_items (section_id, position, item_type, question_key, label, required_if)
+     values ('aaaa0000-0000-0000-0000-000000000003', 22, 'reference', 'rf3', 'F3',
+             '{"question_key":"q1","op":"equals","value":"x"}') $$,
+  '23514', null, 'B3c: required_if on a `reference` rejected — pinned with B1c until FF-5');
+select lives_ok(
+  $$ insert into public.form_items (section_id, position, item_type, question_key, label, required_if)
+     values ('aaaa0000-0000-0000-0000-000000000003', 23, 'short_text', 'st_ri', 'RI',
+             '{"question_key":"q1","op":"equals","value":"x"}') $$,
+  'B3d: POSITIVE TWIN — an INPUT item accepts required_if (so B3a-B3c are not passing vacuously)');
 
 -- ===========================================================================
 -- C · Write-inert + K9 on the six inert tables: authenticated has SELECT grant +

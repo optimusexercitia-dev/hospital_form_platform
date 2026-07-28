@@ -15,7 +15,7 @@
 
 begin;
 
-select plan(69);
+select plan(70);
 
 create temp table ctx on commit drop as select test_helpers.bootstrap() as v;
 grant select on ctx to authenticated;
@@ -928,9 +928,17 @@ select throws_ok(
 --     app.response_required_complete -> D6 red, D1..D5 stay green — which is what
 --     proves the flat-arm keystones are blind to the group arm.
 --   MUTATION B: pass `'[]'::jsonb` as p_peer_values in the group loop of
---     app.response_validation_errors -> I1/I2 red.
---   MUTATION C: drop `and not app.instance_is_empty(...)` from the v_maps query
---     -> I3 red (an emptied instance starts colliding again).
+--     app.response_validation_errors -> I2/I3/I5 red.
+--
+--   ⚠ NO KEYSTONE COVERS the `and not app.instance_is_empty(...)` filter on the
+--   v_maps query, and the honest reason is that it CANNOT be observed. Dropping it
+--   was tried as a mutation and changed nothing: an instance that is empty holds
+--   no non-null value, so it can never contribute a peer in the first place. The
+--   filter is kept for parity with the instance loop in
+--   app.response_required_complete, not because a test can see it. Recording that
+--   beats writing an assertion that passes for a reason unrelated to its name —
+--   this file lost one that way (an earlier I4 asserted the filter and stayed
+--   green with the filter removed).
 -- ===========================================================================
 insert into public.responses (id, form_version_id, commission_id, created_by, status)
   values ('ff300000-0000-0000-0000-0000000000a2', 'ff300000-0000-0000-0000-000000000002',
@@ -993,8 +1001,8 @@ select throws_ok(
   $q$select public.submit_response('ff300000-0000-0000-0000-0000000000a2')$q$,
   'HC0P9', null, 'I3. …and it blocks the submit');
 
--- Empty instance 2 completely: an EMPTIED instance is not "in the group"
--- (submit_response prunes it), so the value it held cannot collide.
+-- Empty instance 2 completely. The peers come from the ANSWER MAPS in scope, so
+-- the value instance 2 used to hold stops colliding.
 delete from public.answers
  where response_id = 'ff300000-0000-0000-0000-0000000000a2'
    and group_instance_id = 'ff300000-0000-0000-0000-0000000000b2';
@@ -1002,7 +1010,22 @@ delete from public.answers
 select is(
   (select count(*)::int from public.get_response_validation_errors('ff300000-0000-0000-0000-0000000000a2')
     where rule_type = 'unique_within_group'),
-  0, 'I4. the same value in an EMPTIED instance does not violate');
+  0, 'I4. emptying instance 2 removes the collision');
+
+-- …and re-filling it with the SAME value brings the violation back. Without this
+-- half, I4 would also pass if the walker had simply stopped reporting ANYTHING
+-- after the delete — 0 = 0 is exactly the vacuity this pair exists to rule out.
+select public.save_section_answers(
+  'ff300000-0000-0000-0000-0000000000a2', 'ff300000-0000-0000-0000-000000000004',
+  p_instance_answers => '[
+    {"instance_id":"ff300000-0000-0000-0000-0000000000b2",
+     "answers":{"ff300000-0000-0000-0000-000000000021":"AAA"}}
+  ]'::jsonb);
+
+select is(
+  (select count(*)::int from public.get_response_validation_errors('ff300000-0000-0000-0000-0000000000a2')
+    where rule_type = 'unique_within_group' and severity = 'error'),
+  2, 'I5. re-filling instance 2 with the same value restores the violation on both');
 
 -- ===========================================================================
 -- §G · KEYSTONE 6 `clone_copies_validations` (INFO-1 remainder closed).

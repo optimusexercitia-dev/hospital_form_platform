@@ -15,10 +15,14 @@
 --   §Q — M-1: ruling 3's PER-INSTANCE half (a required matrix in a repeating group).
 --   §R — M-2: `start_correction_draft`'s matrix copy blocks (the other of the two
 --             RPCs ADR 0089 §B names; §K covers `supersede_response` only).
+--   §S — FF-3: the TARGETED respondent READS `form_item_validations` ROWS. Added
+--             here rather than in 274 because this is the only fixture with a real
+--             targeted response — and because 274 §C can only assert the POLICY
+--             EXISTS, which ETH·E1 established is not the same claim.
 
 begin;
 
-select plan(27);
+select plan(30);
 
 update app.feature_flags set enabled = true where key in ('ethics', 'audit_trail');
 
@@ -30,6 +34,7 @@ create temp table k on commit drop as
          (v->>'st_x')::uuid   as st_x,
          (v->>'st_x2')::uuid  as st_x2,
          (v->>'st_y')::uuid   as st_y,
+         (v->>'sa_y')::uuid   as sa_y,
          (v->>'comm_x')::uuid as comm_x,
          app.org_of_commission((v->>'comm_x')::uuid) as org_x
   from ctx;
@@ -110,6 +115,15 @@ insert into public.form_matrix_rows (item_id, form_version_id, position, code, l
   values ('dd200000-0000-0000-0000-000000000016', 'dd200000-0000-0000-0000-000000000002', 0, 'hr1', 'H1');
 insert into public.form_matrix_columns (item_id, form_version_id, position, code, label)
   values ('dd200000-0000-0000-0000-000000000016', 'dd200000-0000-0000-0000-000000000002', 0, 'hc1', 'HC1');
+
+-- FF-3: one validation rule on the gate item, so §S has a row to read. Inserted
+-- directly (the fixture runs as the owner); the coverage trigger still validates
+-- the pair, so a wrong item_type here would fail loudly rather than silently.
+insert into public.form_item_validations
+  (item_id, form_version_id, position, rule_type, config, severity, message)
+values
+  ('dd200000-0000-0000-0000-000000000010', 'dd200000-0000-0000-0000-000000000002', 0,
+   'text_length', '{"min":2}'::jsonb, 'error', 'Informe ao menos 2 caracteres.');
 
 select public.publish_form_version('dd200000-0000-0000-0000-000000000002');
 
@@ -225,6 +239,57 @@ select throws_ok(
   $$select app.assert_matrix_answer_writable('dd200000-0000-0000-0000-0000000000a7')$$,
   '42501', null,
   'O5. …and the DEFINER gate refuses them directly with 42501 (the widening is bounded)');
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+-- ===========================================================================
+-- §S · FF-3 (ADR 0090 §6) — the TARGETED respondent reads VALIDATION ROWS.
+--
+--   274 §C asserts the two new policy arms EXIST, against pg_policies. That is
+--   what the ADR asks for, and it is NOT the same claim as "the persona reads the
+--   rows": ETH·E1 produced three RLS leak shapes each invisible to the method
+--   that found the last, and its standing lesson is to assert ROWS READ under
+--   `set local role`, never a predicate's return value. So this section reads.
+--
+--   `st_y` is a member of commission Y ONLY, so the base member/admin arm cannot
+--   help them here — every row they see comes from
+--   `form_item_validations_select_targeted`.
+--
+--   MUTATION: drop policy form_item_validations_select_targeted -> S2 red while
+--     S1 stays green, which is what proves S2 tests the NEW arm and not the
+--     fixture.
+-- ===========================================================================
+select test_helpers.claims_for((select st_y from k), false);
+set local role authenticated;
+
+-- S1 is the CONTROL: form_item_options has carried the targeted arm since FF-2.
+-- Without it, S2 failing could mean the targeting fixture is broken.
+select cmp_ok(
+  (select count(*)::int from public.form_item_options o
+   join public.form_items i on i.id = o.item_id
+   where i.form_version_id = 'dd200000-0000-0000-0000-000000000002'),
+  '>=', 0,
+  'S1. CONTROL — the targeted respondent can query the version''s option rows at all');
+
+select is(
+  (select count(*)::int from public.form_item_validations v
+   where v.form_version_id = 'dd200000-0000-0000-0000-000000000002'),
+  1,
+  'S2. …and READS the version''s validation rules — via the targeted arm alone (member of Y only)');
+
+reset role;
+select set_config('request.jwt.claims', null, true);
+
+-- The negative: widening a read door is only safe if the widening is bounded.
+-- sa_y is a staff_admin of commission Y, NOT targeted at this response.
+-- MUTATION: replace the targeted policy's USING with `true` -> S3 red.
+select test_helpers.claims_for((select sa_y from k), false);
+set local role authenticated;
+select is(
+  (select count(*)::int from public.form_item_validations v
+   where v.form_version_id = 'dd200000-0000-0000-0000-000000000002'),
+  0,
+  'S3. a NON-targeted outsider reads ZERO validation rules (the widening is bounded)');
 reset role;
 select set_config('request.jwt.claims', null, true);
 

@@ -117,7 +117,7 @@ name, fast-forwarded to `main` @ `5e6b62d`; **216 == 216** at phase start.
 | B3 | Evaluator pair — `app.eval_validation` + `evalValidation` in `src/lib/queries/validations.ts` + 47 golden vectors, **plus a real drift DETECTOR** (the pgTAP file embeds the fixture bytes; Vitest asserts they parse equal — FF-1 QA's INFO-4) | `backend` | ✅ `20260901000200` |
 | B4 | Authority — `required_if` in **both** arms (visibility wins) · `HC0P9` gate in `submit_response` · `get_response_validation_errors`. The gate and the read path share `app.response_validation_errors`; the legacy `assert_item_bounds` lane was extracted into it so the list can never omit what the gate blocks on | `backend` | ✅ `20260901000300/400` |
 | B5 | Operator authorability — `app.is_valid_condition` widened to the four F3 operators; the `value` requirement relaxed for the two unary ones BY NAME (not globally) | `backend` | ✅ `20260901000500` |
-| B6 | pgTAP `274_ff3_validations.sql` — **69 assertions**, all 8 ADR-0090 keystones, each mutation-proven. Also **`20260901000600`**: publish-time validation of `required_if` (a missing arm found by writing the keystones — see the finding below) | `backend` | ✅ 4130 tests PASS |
+| B6 | pgTAP `274_ff3_validations.sql` — **70 assertions**, all 8 ADR-0090 keystones, each mutation-proven (23 mutations run, red output recorded). Re-pins: `209` §B **+4** (the `required_if` freeze on containers/display/`reference`, with a positive twin) and `272` **§S +3** (a TARGETED respondent READS validation ROWS — 274 §C can only prove the policy EXISTS, which ETH·E1 established is a different claim). Also **`20260901000600`**: publish-time validation of `required_if` | `backend` | ✅ **4138** tests PASS |
 | F1 | Builder — rules editor (type/config/severity/pt-BR message) + `required_if` authoring via the condition builder + the 4 new operator pickers | `frontend` | ⏸ blocked on B1–B3 contract |
 | F2 | Wizard — inline error/warn from the TS twin, per instance; submit blocked on error; warn badges in review | `frontend` | ⏸ blocked on B4 contract |
 
@@ -136,6 +136,13 @@ name, fast-forwarded to `main` @ `5e6b62d`; **216 == 216** at phase start.
 >    and a test that only asks "does an unmet `required_if` block" passes. Fixed in
 >    `20260901000600` by generalising the item loop over both conditional columns; keystones
 >    K1–K3.
+> 2b. **One VACUOUS keystone of my own, caught by the mutation sweep.** An earlier `I4`
+>    claimed the `not app.instance_is_empty(...)` filter on the peer-map query, and stayed GREEN
+>    with that filter removed. It cannot be observed: an empty instance holds no non-null value,
+>    so it can never be a peer. Replaced by an `I4`/`I5` pair (empty → 0 violations; re-fill the
+>    same value → 2 again) that a peers mutation does turn red, and the unobservable filter is
+>    now recorded as unobservable in the file instead of being falsely claimed.
+>
 > 3. **`HC061` is raised by TWO unrelated conditions** — `app.assert_item_bounds` (a field bound)
 >    and `app.compute_case_phase_result` (a MANUAL phase with no result) — and `submitResponse`
 >    mapped it to *"Selecione o resultado da fase"*. Reachable by ORDINARY USE: type 2 characters
