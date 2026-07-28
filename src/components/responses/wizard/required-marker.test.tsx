@@ -23,6 +23,7 @@ import type { Item, MatrixAxisEntry } from "@/lib/queries/forms";
 import { InputItem } from "./input-item";
 import { MatrixGrid } from "./matrix-grid";
 import { RiskMatrixPicker } from "./risk-matrix-picker";
+import { AnswerSummary } from "./answer-summary";
 
 function baseItem(over: Partial<Item> = {}): Item {
   return {
@@ -156,6 +157,44 @@ describe("MatrixGrid — effective required marker", () => {
       .map((id) => container.querySelector(`#${id}`))
       .find((el) => el?.textContent?.includes("obrigatória"));
     expect(note).toBeUndefined();
+  });
+});
+
+/**
+ * The REVIEW path (`AnswerSummary`). A field marked mandatory during fill must
+ * not read as optional seconds later on the way to a signature.
+ *
+ * The fallback case is load-bearing here in a way it is not elsewhere: SIX other
+ * consumers render submitted records through this component and must keep the
+ * authored flag, so "prop absent → static" is a contract, not a convenience.
+ */
+describe("AnswerSummary — effective required marker (review)", () => {
+  it("marks a field made required only by required_if", () => {
+    render(
+      <AnswerSummary item={baseItem({ required: false })} value="algo" requiredNow />,
+    );
+    expect(markers()).toHaveLength(1);
+  });
+
+  it("does NOT mark when requiredNow is false, even if item.required is true", () => {
+    render(
+      <AnswerSummary
+        item={baseItem({ required: true })}
+        value="algo"
+        requiredNow={false}
+      />,
+    );
+    expect(markers()).toHaveLength(0);
+  });
+
+  it("falls back to item.required when absent — the six historical consumers", () => {
+    render(<AnswerSummary item={baseItem({ required: true })} value="algo" />);
+    expect(markers()).toHaveLength(1);
+  });
+
+  it("stays unmarked when neither the prop nor the flag says required", () => {
+    render(<AnswerSummary item={baseItem({ required: false })} value="algo" />);
+    expect(markers()).toHaveLength(0);
   });
 });
 

@@ -40,6 +40,7 @@ export function AnswerSummary({
   otherText,
   matrixCells,
   riskSelection,
+  requiredNow,
 }: {
   item: Item;
   value: Json | undefined;
@@ -64,7 +65,24 @@ export function AnswerSummary({
    * show — the "Outro" chip itself already appears in the value).
    */
   otherText?: string | null;
+  /**
+   * FF-3 (ADR 0090 ruling 4) — EFFECTIVE required-ness, for the REVIEW screen.
+   *
+   * The asterisk's job here is to say what was mandatory before someone commits,
+   * and a field marked during fill must not read as optional seconds later on the
+   * way to a signature — the inconsistency lives inside one continuous flow.
+   *
+   * OPTIONAL with a static fallback on purpose: the six historical consumers of
+   * this component (`submission-detail-view`, `phase-answers-readonly`,
+   * `instance-answers-readonly`, `review-and-sign`, plus tests) render SUBMITTED
+   * records and keep the authored flag. That is deliberately unchanged, and NOT a
+   * claim that it is correct — a submitted response carries a FROZEN answer map,
+   * so effective required-ness is computable AND reproducible for those views too.
+   * Tracked as O-5; this prop shape is what keeps that follow-up cheap.
+   */
+  requiredNow?: boolean;
 }) {
+  const required = requiredNow ?? item.required;
   const note = observation?.trim();
   const other = otherText?.trim();
 
@@ -81,11 +99,18 @@ export function AnswerSummary({
             item={item}
             selection={riskSelection}
             storedScore={riskSelection?.riskScore ?? null}
+            requiredNow={requiredNow}
             onChange={NO_OP_RISK}
             readOnly
           />
         ) : (
-          <MatrixGrid item={item} cells={matrixCells} onChange={NO_OP_CELL} readOnly />
+          <MatrixGrid
+            item={item}
+            cells={matrixCells}
+            requiredNow={requiredNow}
+            onChange={NO_OP_CELL}
+            readOnly
+          />
         )}
       </div>
     );
@@ -95,7 +120,7 @@ export function AnswerSummary({
     <div className="flex flex-col gap-1 border-b border-border/60 py-2.5 last:border-b-0">
       <dt className="flex items-center gap-1 text-sm font-medium">
         {item.label ?? "Pergunta"}
-        {item.required && (
+        {required && (
           <span className="text-destructive" aria-label="obrigatória">
             *
           </span>

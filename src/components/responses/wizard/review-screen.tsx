@@ -43,6 +43,7 @@ export function ReviewScreen({
   onSignSection,
   onEditSection,
   warnings,
+  requiredNow,
   phaseResultSlot,
   submitSlot,
 }: {
@@ -73,6 +74,13 @@ export function ReviewScreen({
    * as a badge list and the submit button stays enabled.
    */
   warnings?: { label: string; message: string }[];
+  /**
+   * FF-3 — the fields required RIGHT NOW, so the review asterisk agrees with the
+   * fill step. Top-level keys are bare item ids; repetition keys are
+   * `${instanceId}:${itemId}` — the SAME format the fill side uses, so one set
+   * serves both and there is no second keying convention to keep in sync.
+   */
+  requiredNow?: Set<string>;
   /**
    * The per-phase result panel (phase-results feature; task #8), a sibling of the
    * sign-off blocks — case-phase fills only; `null`/undefined for standalone forms.
@@ -107,6 +115,7 @@ export function ReviewScreen({
             visibleContainerIds={visibleContainerIds}
             instancesByGroup={instancesByGroup}
             visibleItemIdsByInstance={visibleItemIdsByInstance}
+            requiredNow={requiredNow}
             signoff={signoffs[section.id] ?? null}
             saving={saving}
             onSign={(note) => onSignSection(section.id, note)}
@@ -165,6 +174,7 @@ function ReviewSection({
   visibleContainerIds,
   instancesByGroup,
   visibleItemIdsByInstance,
+  requiredNow,
   signoff,
   saving,
   onSign,
@@ -179,6 +189,8 @@ function ReviewSection({
   visibleContainerIds?: Set<string>;
   instancesByGroup?: InstancesByGroup;
   visibleItemIdsByInstance?: Map<string, Set<string>>;
+  /** FF-3 — effective-required keys (bare id, or `${instanceId}:${itemId}`). */
+  requiredNow?: Set<string>;
   signoff: SectionSignoff | null;
   saving: boolean;
   onSign: (note: string | null) => void;
@@ -250,6 +262,7 @@ function ReviewSection({
                   container={block}
                   instances={instancesByGroup?.[block.id] ?? []}
                   visibleItemIdsByInstance={visibleItemIdsByInstance}
+                  requiredNow={requiredNow}
                 />
               );
             }
@@ -264,6 +277,7 @@ function ReviewSection({
                       visibleItemIds.has(child.id),
                   )}
                   scope={{ answers, matrixCells, riskMatrix }}
+                  requiredNow={requiredNow}
                 />
               );
             }
@@ -278,6 +292,7 @@ function ReviewSection({
                     otherText={answers[block.id]?.otherText}
                     matrixCells={matrixCells?.[block.id]}
                     riskSelection={riskMatrix?.[block.id]}
+                    requiredNow={requiredNow?.has(block.id)}
                   />
                 </dl>
               </fieldset>
@@ -304,12 +319,22 @@ function ReviewAnswerList({
   heading,
   items,
   scope,
+  requiredNow,
+  instanceId,
 }: {
   heading: string;
   items: Item[];
   /** FF-2 — the whole SCOPE (answers + matrix slices), so one list component
    *  serves the top level, a plain group and a repetition identically. */
   scope: ScopeState;
+  /** FF-3 — effective-required keys. */
+  requiredNow?: Set<string>;
+  /**
+   * The repetition this list belongs to, when it is one. Present ⇒ the lookup key
+   * is `${instanceId}:${itemId}`, matching the fill side exactly; absent ⇒ the
+   * bare item id (top level and plain-group children, which answer at top level).
+   */
+  instanceId?: string;
 }) {
   const { answers } = scope;
   return (
@@ -330,6 +355,9 @@ function ReviewAnswerList({
               otherText={answers[item.id]?.otherText}
               matrixCells={scope.matrixCells?.[item.id]}
               riskSelection={scope.riskMatrix?.[item.id]}
+              requiredNow={requiredNow?.has(
+                instanceId ? `${instanceId}:${item.id}` : item.id,
+              )}
             />
           ))}
         </dl>
@@ -349,10 +377,13 @@ function ReviewRepeatingGroup({
   container,
   instances,
   visibleItemIdsByInstance,
+  requiredNow,
 }: {
   container: Item;
   instances: InstanceState[];
   visibleItemIdsByInstance?: Map<string, Set<string>>;
+  /** FF-3 — effective-required keys, `${instanceId}:${itemId}` inside a group. */
+  requiredNow?: Set<string>;
 }) {
   const kept = survivingInstances(instances);
   const label = container.label ?? "Grupo repetível";
@@ -383,6 +414,8 @@ function ReviewRepeatingGroup({
           // slices, which is exactly why the review of a repetition needs no
           // separate code path.
           scope={instance}
+          requiredNow={requiredNow}
+          instanceId={instance.id}
         />
       ))}
     </div>

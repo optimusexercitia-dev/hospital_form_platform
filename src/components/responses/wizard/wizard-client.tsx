@@ -731,9 +731,10 @@ export function WizardClient({
    * gathered across every visible section there. Errors are deliberately absent:
    * they are already blocking, and the server's refusal places them per field.
    */
-  const reviewWarnings = useMemo(() => {
-    if (!isReview) return [];
+  const reviewFeedback = useMemo(() => {
     const out: { label: string; message: string }[] = [];
+    const requiredNow = new Set<string>();
+    if (!isReview) return { warnings: out, requiredNow };
     for (const section of visibleSections) {
       const flat = validateSectionRules(
         section,
@@ -758,6 +759,11 @@ export function WizardClient({
         return "Pergunta";
       };
 
+      // One pass, both facts: the advisories AND which fields are mandatory right
+      // now, so the review asterisk agrees with the fill step it just came from.
+      for (const key of flat.requiredNow) requiredNow.add(key);
+      for (const key of perInstance.requiredNow) requiredNow.add(key);
+
       for (const [itemId, message] of Object.entries(flat.warnings)) {
         out.push({ label: labelOf(itemId), message });
       }
@@ -781,7 +787,7 @@ export function WizardClient({
         });
       }
     }
-    return out;
+    return { warnings: out, requiredNow };
   }, [
     isReview,
     visibleSections,
@@ -1137,7 +1143,8 @@ export function WizardClient({
       return (
         <>
           <ReviewScreen
-            warnings={reviewWarnings}
+            warnings={reviewFeedback.warnings}
+            requiredNow={reviewFeedback.requiredNow}
             visibleSections={visibleSections}
             visibleItemIds={visibleItemIds}
             visibleContainerIds={visibleContainerIds}
@@ -1231,7 +1238,8 @@ export function WizardClient({
 
       {isReview ? (
         <ReviewScreen
-          warnings={reviewWarnings}
+          warnings={reviewFeedback.warnings}
+          requiredNow={reviewFeedback.requiredNow}
           visibleSections={visibleSections}
           visibleItemIds={visibleItemIds}
           visibleContainerIds={visibleContainerIds}
