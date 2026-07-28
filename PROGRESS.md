@@ -333,6 +333,39 @@ File ownership — `backend` owns `src/lib/queries/**` incl. the new evaluator m
 > [`frontend`, lead-ruled in scope]; (2) §M's Mutation A/B/C proofs + commit [`backend`];
 > (3) **the FF-3 E2E spec — not started** [`tester`; no spec file exists yet]. The rendered
 > interaction therefore remains unverified, which is gate step 2's whole purpose.
+>
+> ✅ **All three closed 2026-07-28.** Marker `5b17b4e`/`45563c7`/`a4b95e7` · §M `a88f74a` ·
+> spec `7d8a92e`→`87f2e46`.
+
+### 🧪 FF-3 gate step 2 — tester result: **19 / 19 green** (`87f2e46`)
+
+Two rounds. **R1 = 16/18, NOT green**, two bugs filed; both fixed; **R2 = 19/19** with
+`expected=19 reported=19` and `PIPESTATUS[0]` read directly, on a fresh reset (224==224, flag `t`,
+token POST 200), prod-standalone rebuilt at `91f4931` and served from a scratchpad copy.
+Neighbours **40/40** (`ff1` 9 · `ff2-matrix` 11 · `phase5-wizard` 12 · `phase4-builder` 8), each
+on its own server. FF3-6/6b are **the same tests that were red before the fix and green after** —
+the history is the cover, not an assertion written to match the fix.
+
+**BUG-FF3-002 — MAJOR, phase-blocking (fixed `91f4931`).** The unary operators were offered by
+every condition picker and could not be saved. **The reported cause was not the cause, twice
+over** — `tester` and the **lead** both fingered `if (!('value' in rec)) return false`; the actual
+rejection was one line earlier (`CONDITION_OPS` was still the pre-F3 **seven**), and the blamed
+check never fired at all because `condition-builder.tsx:204` emits `value: null`, a *present* key.
+`backend` **tested the prescribed fix against reality before complying, found it inert, and fixed
+the real cause** — mutation-proven both ways. The durable half: the evaluator pair has had golden
+vectors since ADR 0005, the **validator pair had none**, which is exactly why a one-sided widening
+survived pgTAP (SQL correct), tsc/lint (TS well-formed) and a DB-level UI check (below the seam).
+27 vectors now drive both engines (`condition-shape.ts` + `275_condition_validator_parity.sql`).
+
+**BUG-FF3-001 — MINOR (fixed `8d53b3d`).** Clearing now keys on the symmetric rule's participant
+set. Trade-off accepted + recorded under ADR 0090 O-6.
+
+> ⚠ **Two false reports worth keeping, both from scraping rather than executing.** The "no message
+> at all" symptom was a **probe regex** (`/A condição/` vs the real *"Condição de aparência
+> inválida."*), not a product defect — no `frontend` dispatch was needed. And three specs on one
+> long-lived server scored 17/32 with **all 15 failures `net::ERR_CONNECTION_REFUSED`** (count
+> matching exactly, after `destination stream closed early`) — the Windows monolith collapse
+> `e2e:prod` restarts per batch to avoid. **A tester's multi-spec convenience run reproduces it.**
 
 > 🔴 **FF-3 inherits two obligations from FF-2, both binding.**
 > 1. **`form_item_validations` is missing the targeted and correction policy arms** (deliberately
